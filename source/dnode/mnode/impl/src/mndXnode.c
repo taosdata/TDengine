@@ -835,9 +835,11 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
   (void)memcpy(xnodeObj.sinkDsn, pCreate->sink.cstr.ptr, pCreate->sink.cstr.len);
 
   xnodeObj.parserLen = pCreate->options.parser.len;
-  xnodeObj.parser = taosMemoryCalloc(1, pCreate->options.parser.len);
-  if (xnodeObj.parser == NULL) goto _OVER;
-  (void)memcpy(xnodeObj.parser, pCreate->options.parser.ptr, pCreate->options.parser.len);
+  if (xnodeObj.parserLen > 0) {
+    xnodeObj.parser = taosMemoryCalloc(1, xnodeObj.parserLen);
+    if (xnodeObj.parser == NULL) goto _OVER;
+    (void)memcpy(xnodeObj.parser, pCreate->options.parser.ptr, xnodeObj.parserLen);
+  }
 
   const char *status = getXTaskOptionByName(&pCreate->options, "status");
   if (status != NULL) {
@@ -889,39 +891,48 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
   mInfo("xnode task:%s, start validate create request", pCreateReq->name.ptr);
   int32_t code = 0;
   SJson  *pJson = NULL;
+  SJson  *postContent = NULL;
+  char   *srcDsn = NULL;
+  char   *sinkDsn = NULL;
+  char   *parser = NULL;
+  char   *pContStr = NULL;
 
   // from, to, parser check
   char xnodeUrl[TSDB_XNODE_URL_LEN] = {0};
   snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/task/check", XNODED_URL);
-  SJson *postContent = tjsonCreateObject();
+  postContent = tjsonCreateObject();
   if (postContent == NULL) {
     code = terrno;
     goto _OVER;
   }
-  char *srcDsn = taosStrndupi(pCreateReq->source.cstr.ptr, (int64_t)pCreateReq->source.cstr.len);
+  srcDsn = taosStrndupi(pCreateReq->source.cstr.ptr, (int64_t)pCreateReq->source.cstr.len);
   if (srcDsn == NULL) {
     code = terrno;
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "from", srcDsn), NULL, _OVER);
-  char *sinkDsn = taosStrndupi(pCreateReq->sink.cstr.ptr, (int64_t)pCreateReq->sink.cstr.len);
+
+  sinkDsn = taosStrndupi(pCreateReq->sink.cstr.ptr, (int64_t)pCreateReq->sink.cstr.len);
   if (sinkDsn == NULL) {
     code = terrno;
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "to", sinkDsn), NULL, _OVER);
-  char *parser = taosStrndupi(pCreateReq->options.parser.ptr, (int64_t)pCreateReq->options.parser.len);
-  if (parser == NULL) {
-    code = terrno;
-    goto _OVER;
+
+  if (pCreateReq->options.parser.len > 0) {
+    parser = taosStrndupi(pCreateReq->options.parser.ptr, (int64_t)pCreateReq->options.parser.len);
+    if (parser == NULL) {
+      code = terrno;
+      goto _OVER;
+    }
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "parser", parser), NULL, _OVER);
   }
-  TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "parser", parser), NULL, _OVER);
 
   if (pCreateReq->xnodeId > 0) {
     TAOS_CHECK_GOTO(tjsonAddIntegerToObject(postContent, "xnodeId", pCreateReq->xnodeId), NULL, _OVER);
   }
 
-  char *pContStr = tjsonToUnformattedString(postContent);
+  pContStr = tjsonToUnformattedString(postContent);
   if (pContStr == NULL) {
     code = terrno;
     goto _OVER;
@@ -1034,12 +1045,14 @@ static int32_t httpStartXnodeTask(SXnodeTaskObj *pObj) {
   }
   TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "to", req.sinkDsn), NULL, _OVER);
 
-  req.parser = taosStrndupi(pObj->parser, (int64_t)pObj->parserLen);
-  if (req.parser == NULL) {
-    code = terrno;
-    goto _OVER;
+  if (pObj->parserLen > 0) {
+    req.parser = taosStrndupi(pObj->parser, (int64_t)pObj->parserLen);
+    if (req.parser == NULL) {
+      code = terrno;
+      goto _OVER;
+    }
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "parser", req.parser), NULL, _OVER);
   }
-  TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "parser", req.parser), NULL, _OVER);
 
   if (pObj->xnodeId > 0) {
     TAOS_CHECK_GOTO(tjsonAddIntegerToObject(req.postContent, "xnodeId", pObj->xnodeId), NULL, _OVER);
@@ -1142,18 +1155,19 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *pOld, SMUpdateXnodeTaskReq *pUpdate) {
+static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTaskObj *pOld,
+                                  SMUpdateXnodeTaskReq *pUpdate) {
   mDebug("xnode task:%d, start to update", pUpdate->tid);
   int32_t      code = -1;
   STrans       *pTrans = NULL;
   SXnodeTaskObj taskObj = *pOld;
   struct {
-    bool statusChange;
-    bool nameChange;
-    bool sourceChange;
-    bool sinkChange;
-    bool parserChange;
-    bool reasonChange;
+    bool status;
+    bool name;
+    bool source;
+    bool sink;
+    bool parser;
+    bool reason;
   } isChange = {0};
 
   if (pUpdate->via > 0) {
@@ -1167,14 +1181,14 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *
     taskObj.status = taosMemoryCalloc(1, taskObj.statusLen);
     if (taskObj.status == NULL) goto _OVER;
     (void)memcpy(taskObj.status, pUpdate->status.ptr, taskObj.statusLen);
-    isChange.statusChange = true;
+    isChange.status = true;
   }
   if (pUpdate->name.len > 0) {
     taskObj.nameLen = pUpdate->name.len;
     taskObj.name = taosMemoryCalloc(1, pUpdate->name.len);
     if (taskObj.name == NULL) goto _OVER;
     (void)memcpy(taskObj.name, pUpdate->name.ptr, pUpdate->name.len);
-    isChange.nameChange = true;
+    isChange.name = true;
   }
   if (pUpdate->source.cstr.len > 0) {
     taskObj.sourceType = pUpdate->source.type;
@@ -1182,7 +1196,7 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *
     taskObj.sourceDsn = taosMemoryCalloc(1, pUpdate->source.cstr.len);
     if (taskObj.sourceDsn == NULL) goto _OVER;
     (void)memcpy(taskObj.sourceDsn, pUpdate->source.cstr.ptr, pUpdate->source.cstr.len);
-    isChange.sourceChange = true;
+    isChange.source = true;
   }
   if (pUpdate->sink.cstr.len > 0) {
     taskObj.sinkType = pUpdate->sink.type;
@@ -1190,21 +1204,21 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *
     taskObj.sinkDsn = taosMemoryCalloc(1, pUpdate->sink.cstr.len);
     if (taskObj.sinkDsn == NULL) goto _OVER;
     (void)memcpy(taskObj.sinkDsn, pUpdate->sink.cstr.ptr, pUpdate->sink.cstr.len);
-    isChange.sinkChange = true;
+    isChange.sink = true;
   }
   if (pUpdate->parser.len > 0) {
     taskObj.parserLen = pUpdate->parser.len;
     taskObj.parser = taosMemoryCalloc(1, pUpdate->parser.len);
     if (taskObj.parser == NULL) goto _OVER;
     (void)memcpy(taskObj.parser, pUpdate->parser.ptr, pUpdate->parser.len);
-    isChange.parserChange = true;
+    isChange.parser = true;
   }
   if (pUpdate->reason.len > 0) {
     taskObj.reasonLen = pUpdate->reason.len;
     taskObj.reason = taosMemoryCalloc(1, pUpdate->reason.len);
     if (taskObj.reason == NULL) goto _OVER;
     (void)memcpy(taskObj.reason, pUpdate->reason.ptr, pUpdate->reason.len);
-    isChange.reasonChange = true;
+    isChange.reason = true;
   }
   taskObj.updateTime = taosGetTimestampMs();
 
@@ -1221,22 +1235,22 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *
   code = 0;
 
 _OVER:
-  if (NULL != taskObj.name && isChange.nameChange) {
+  if (NULL != taskObj.name && isChange.name) {
     taosMemoryFree(taskObj.name);
   }
-  if (NULL != taskObj.status && isChange.statusChange) {
+  if (NULL != taskObj.status && isChange.status) {
     taosMemoryFree(taskObj.status);
   }
-  if (NULL != taskObj.sourceDsn && isChange.sourceChange) {
+  if (NULL != taskObj.sourceDsn && isChange.source) {
     taosMemoryFree(taskObj.sourceDsn);
   }
-  if (NULL != taskObj.sinkDsn && isChange.sinkChange) {
+  if (NULL != taskObj.sinkDsn && isChange.sink) {
     taosMemoryFree(taskObj.sinkDsn);
   }
-  if (NULL != taskObj.parser && isChange.parserChange) {
+  if (NULL != taskObj.parser && isChange.parser) {
     taosMemoryFree(taskObj.parser);
   }
-  if (NULL != taskObj.reason && isChange.reasonChange) {
+  if (NULL != taskObj.reason && isChange.reason) {
     taosMemoryFree(taskObj.reason);
   }
   mndTransDrop(pTrans);
@@ -1789,6 +1803,8 @@ static int32_t mndProcessDrainXnodeReq(SRpcMsg *pReq) {
   SXnodeObj      *pObj = NULL;
   SMDrainXnodeReq drainReq = {0};
   SJson          *pJson = NULL;
+  SJson          *postContent = NULL;
+  char           *pContStr = NULL;
 
   TAOS_CHECK_GOTO(tDeserializeSMDrainXnodeReq(pReq->pCont, pReq->contLen, &drainReq), NULL, _OVER);
 
@@ -1809,13 +1825,13 @@ static int32_t mndProcessDrainXnodeReq(SRpcMsg *pReq) {
   // send request
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
   snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode/drain/%d", XNODED_URL, pObj->id);
-  SJson *postContent = tjsonCreateObject();
+  postContent = tjsonCreateObject();
   if (postContent == NULL) {
     code = terrno;
     goto _OVER;
   }
   TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "xnode", pObj->url), NULL, _OVER);
-  char *pContStr = tjsonToString(postContent);
+  pContStr = tjsonToString(postContent);
   if (pContStr == NULL) {
     code = terrno;
     goto _OVER;
@@ -2413,9 +2429,9 @@ static int32_t mndUpdateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SXnodeJobObj *pO
   STrans      *pTrans = NULL;
   SXnodeJobObj jobObj = *pOld;
   struct {
-    bool statusChange;
-    bool configChange;
-    bool reasonChange;
+    bool status;
+    bool config;
+    bool reason;
   } isChange = {0};
 
   jobObj.id = pUpdate->jid;
@@ -2430,21 +2446,21 @@ static int32_t mndUpdateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SXnodeJobObj *pO
     jobObj.status = taosMemoryCalloc(1, jobObj.statusLen);
     if (jobObj.status == NULL) goto _OVER;
     (void)memcpy(jobObj.status, pUpdate->status.ptr, jobObj.statusLen);
-    isChange.statusChange = true;
+    isChange.status = true;
   }
   if (pUpdate->configLen > 0) {
     jobObj.configLen = pUpdate->configLen;
     jobObj.config = taosMemoryCalloc(1, pUpdate->configLen);
     if (jobObj.config == NULL) goto _OVER;
     (void)memcpy(jobObj.config, pUpdate->config, pUpdate->configLen);
-    isChange.configChange = true;
+    isChange.config = true;
   }
   if (pUpdate->reasonLen > 0) {
     jobObj.reasonLen = pUpdate->reasonLen;
     jobObj.reason = taosMemoryCalloc(1, pUpdate->reasonLen);
     if (jobObj.reason == NULL) goto _OVER;
     (void)memcpy(jobObj.reason, pUpdate->reason, pUpdate->reasonLen);
-    isChange.reasonChange = true;
+    isChange.reason = true;
   }
   jobObj.updateTime = taosGetTimestampMs();
 
@@ -2461,13 +2477,13 @@ static int32_t mndUpdateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SXnodeJobObj *pO
   code = 0;
 
 _OVER:
-  if (NULL != jobObj.status && isChange.statusChange) {
+  if (NULL != jobObj.status && isChange.status) {
     taosMemoryFree(jobObj.status);
   }
-  if (NULL != jobObj.config && isChange.configChange) {
+  if (NULL != jobObj.config && isChange.config) {
     taosMemoryFree(jobObj.config);
   }
-  if (NULL != jobObj.reason && isChange.reasonChange) {
+  if (NULL != jobObj.reason && isChange.reason) {
     taosMemoryFree(jobObj.reason);
   }
   mndTransDrop(pTrans);
