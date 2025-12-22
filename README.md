@@ -27,31 +27,34 @@ English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine
 
 # Table of Contents
 
-1. [Introduction](#1-introduction)
-1. [Documentation](#2-documentation)
-1. [Prerequisites](#3-prerequisites)
-    - [3.1 Prerequisites On Linux](#31-prerequisites-on-linux)
-    - [3.2 Prerequisites On macOS](#32-prerequisites-on-macos)
-    - [3.3 Prerequisites On Windows](#33-prerequisites-on-windows)
-    - [3.4 Clone the repo](#34-clone-the-repo) 
-1. [Building](#4-building)
-    - [4.1 Build on Linux](#41-build-on-linux)
-    - [4.2 Build on macOS](#42-build-on-macos)
-    - [4.3 Build On Windows](#43-build-on-windows) 
-1. [Packaging](#5-packaging)
-1. [Installation](#6-installation)
-    - [6.1 Install on Linux](#61-install-on-linux)
-    - [6.2 Install on macOS](#62-install-on-macos)
-    - [6.3 Install on Windows](#63-install-on-windows)
-1. [Running](#7-running)
-    - [7.1 Run TDengine on Linux](#71-run-tdengine-on-linux)
-    - [7.2 Run TDengine on macOS](#72-run-tdengine-on-macos)
-    - [7.3 Run TDengine on Windows](#73-run-tdengine-on-windows)
-1. [Testing](#8-testing)
-1. [Releasing](#9-releasing)
-1. [Workflow](#10-workflow)
-1. [Coverage](#11-coverage)
-1. [Contributing](#12-contributing)
+- [Table of Contents](#table-of-contents)
+- [1. Introduction](#1-introduction)
+- [2. Documentation](#2-documentation)
+- [3. Prerequisites](#3-prerequisites)
+  - [3.1 Prerequisites on Linux](#31-prerequisites-on-linux)
+    - [3.1.1 For Ubuntu](#311-for-ubuntu)
+    - [3.1.2 For CentOS](#312-for-centos)
+  - [3.2 Prerequisites on macOS](#32-prerequisites-on-macos)
+  - [3.3 Prerequisites on Windows](#33-prerequisites-on-windows)
+  - [3.4 Clone the repo](#34-clone-the-repo)
+- [4. Building](#4-building)
+  - [4.1 Build on Linux](#41-build-on-linux)
+  - [4.2 Build on macOS](#42-build-on-macos)
+  - [4.3 Build on Windows](#43-build-on-windows)
+- [5. Packaging](#5-packaging)
+- [6. Installation](#6-installation)
+  - [6.1 Install on Linux](#61-install-on-linux)
+  - [6.2 Install on macOS](#62-install-on-macos)
+  - [6.3 Install on Windows](#63-install-on-windows)
+- [7. Running](#7-running)
+  - [7.1 Run TDengine on Linux](#71-run-tdengine-on-linux)
+  - [7.2 Run TDengine on macOS](#72-run-tdengine-on-macos)
+  - [7.3 Run TDengine on Windows](#73-run-tdengine-on-windows)
+- [8. Testing](#8-testing)
+- [9. Releasing](#9-releasing)
+- [10. Workflow](#10-workflow)
+- [11. Coverage](#11-coverage)
+- [12. Contributing](#12-contributing)
 
 # 1. Introduction
 
@@ -63,7 +66,7 @@ TDengine is an open source, high-performance, cloud native and AI powered [time-
 
 - **[Cloud Native](https://tdengine.com/tdengine/cloud-native-time-series-database/)**: Through native distributed design, sharding and partitioning, separation of compute and storage, RAFT, support for kubernetes deployment and full observability, TDengine is a cloud native Time-Series Database and can be deployed on public, private or hybrid clouds.
 
-- **[AI Powered](https://tdengine.com/tdengine/tdgpt/)**: Through the built in AI agent TDgpt, TDengine can connect to a variety of time series foundation model, large language model, machine learning and traditional algorithms to provide time series data forecasting, anomly detection, imputation and classification. 
+- **[AI Powered](https://tdengine.com/tdengine/tdgpt/)**: Through the built in AI agent TDgpt, TDengine can connect to a variety of time series foundation model, large language model, machine learning and traditional algorithms to provide time series data forecasting, anomly detection, imputation and classification.
 
 - **[Ease of Use](https://tdengine.com/tdengine/easy-time-series-data-platform/)**: For administrators, TDengine significantly reduces the effort to deploy and maintain. For developers, it provides a simple interface, simplified solution and seamless integrations for third party tools. For data users, it gives easy data access.
 
@@ -77,7 +80,7 @@ For a full list of TDengine competitive advantages, please [check here](https://
 
 For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.tdengine.com) ([TDengine 文档](https://docs.taosdata.com))
 
-You can choose to install TDengine via [container](https://docs.tdengine.com/get-started/deploy-in-docker/), [installation package](https://docs.tdengine.com/get-started/deploy-from-package/), [Kubernetes](https://docs.tdengine.com/operations-and-maintenance/deploy-your-cluster/#kubernetes-deployment) or try [fully managed service](https://cloud.tdengine.com/) without installation. This quick guide is for developers who want to contribute, build, release and test TDengine by themselves. 
+You can choose to install TDengine via [container](https://docs.tdengine.com/get-started/deploy-in-docker/), [installation package](https://docs.tdengine.com/get-started/deploy-from-package/), [Kubernetes](https://docs.tdengine.com/operations-and-maintenance/deploy-your-cluster/#kubernetes-deployment) or try [fully managed service](https://cloud.tdengine.com/) without installation. This quick guide is for developers who want to contribute, build, release and test TDengine by themselves.
 
 For contributing/building/testing TDengine Connectors, please check the following repositories: [JDBC Connector](https://github.com/taosdata/taos-connector-jdbc), [Go Connector](https://github.com/taosdata/driver-go), [Python Connector](https://github.com/taosdata/taos-connector-python), [Node.js Connector](https://github.com/taosdata/taos-connector-node), [C# Connector](https://github.com/taosdata/taos-connector-dotnet), [Rust Connector](https://github.com/taosdata/taos-connector-rust).
 
@@ -95,7 +98,9 @@ If you want to compile taosAdapter or taosKeeper, you need to install Go 1.23 or
 
 <summary>Install required tools on Linux</summary>
 
-### For Ubuntu 18.04、20.04、22.04
+### 3.1.1 For Ubuntu
+
+Substantial versions: 18.04, 20.04, 22.04
 
 ```bash
 sudo apt-get update
@@ -103,7 +108,9 @@ sudo apt-get install -y gcc cmake build-essential git libjansson-dev \
   libsnappy-dev liblzma-dev zlib1g-dev pkg-config libtool autoconf automake groff
 ```
 
-### For CentOS 8
+### 3.1.2 For CentOS
+
+Substantial version: 8
 
 ```bash
 sudo yum update
@@ -311,7 +318,6 @@ If TDengine CLI connects the server successfully, welcome messages and version i
 
 </details>
 
-
 ## 7.3 Run TDengine on Windows
 
 Not available for TDengine TSDB-OSS.
@@ -343,7 +349,8 @@ bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task
 # on main branch and run cases in longtimeruning_cases.task 
 # for more information about options please refer to ./run_local_coverage.sh -h
 ```
-> **NOTE:**
+
+> **NOTE**:
 > Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.
 
 </details>
