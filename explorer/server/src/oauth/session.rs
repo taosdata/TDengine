@@ -103,13 +103,360 @@ impl TsdbSyncPassword {
     }
 }
 
-#[test]
-fn test_generate_password() {
-    let random: TsdbSyncPassword = serde_json::from_str(r#""random""#).unwrap();
-    assert_eq!(random, TsdbSyncPassword::Random);
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let password: TsdbSyncPassword = serde_json::from_str(r#"{"constant":"abc"}"#).unwrap();
-    assert_eq!(password, TsdbSyncPassword::Constant("abc".to_string()));
+    #[test]
+    fn test_generate_password() {
+        let random: TsdbSyncPassword = serde_json::from_str(r#""random""#).unwrap();
+        assert_eq!(random, TsdbSyncPassword::Random);
+
+        let password: TsdbSyncPassword = serde_json::from_str(r#"{"constant":"abc"}"#).unwrap();
+        assert_eq!(password, TsdbSyncPassword::Constant("abc".to_string()));
+    }
+
+    #[test]
+    fn test_tsdb_sync_password_default() {
+        let password = TsdbSyncPassword::default();
+        assert_eq!(password, TsdbSyncPassword::Random);
+    }
+
+    #[test]
+    fn test_tsdb_sync_password_random_generation() {
+        let password = TsdbSyncPassword::Random;
+        let generated1 = password.generate_password();
+        let generated2 = password.generate_password();
+
+        // Random passwords should be 16 characters
+        assert_eq!(generated1.len(), 16);
+        assert_eq!(generated2.len(), 16);
+
+        // Random passwords should be different each time
+        assert_ne!(generated1.as_ref(), generated2.as_ref());
+
+        // Should only contain valid characters
+        let valid_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!?$&*#-+";
+        for c in generated1.chars() {
+            assert!(valid_chars.contains(c));
+        }
+    }
+
+    #[test]
+    fn test_tsdb_sync_password_constant() {
+        let password = TsdbSyncPassword::Constant("my_password_123".to_string());
+        let generated = password.generate_password();
+
+        assert_eq!(generated, "my_password_123");
+
+        // Should return the same value every time
+        assert_eq!(password.generate_password(), "my_password_123");
+    }
+
+    #[test]
+    fn test_tsdb_sync_password_constant_empty() {
+        let password = TsdbSyncPassword::Constant("".to_string());
+        let generated = password.generate_password();
+
+        assert_eq!(generated, "");
+    }
+
+    #[test]
+    fn test_tsdb_sync_password_serialization() {
+        let random = TsdbSyncPassword::Random;
+        let json = serde_json::to_string(&random).unwrap();
+        assert_eq!(json, r#""random""#);
+
+        let constant = TsdbSyncPassword::Constant("test123".to_string());
+        let json = serde_json::to_string(&constant).unwrap();
+        assert_eq!(json, r#"{"constant":"test123"}"#);
+    }
+
+    #[test]
+    fn test_tsdb_sync_password_deserialization() {
+        let random: TsdbSyncPassword = serde_json::from_str(r#""random""#).unwrap();
+        assert_eq!(random, TsdbSyncPassword::Random);
+
+        let constant: TsdbSyncPassword = serde_json::from_str(r#"{"constant":"secret"}"#).unwrap();
+        assert_eq!(constant, TsdbSyncPassword::Constant("secret".to_string()));
+    }
+
+    #[test]
+    fn test_tsdb_sync_username_default() {
+        let username = TsdbSyncUsername::Default;
+
+        // Test with different providers
+        let generated = username.generate_username("oidc", "user123");
+        assert!(generated.starts_with("oi_user123_") || generated.starts_with("oi_user123"));
+
+        let generated = username.generate_username("custom", "user456");
+        assert!(generated.starts_with("oc_user456_") || generated.starts_with("oc_user456"));
+    }
+
+    #[test]
+    fn test_tsdb_sync_username_default_length_limit() {
+        let username = TsdbSyncUsername::Default;
+
+        // Test with very long user_id (should be truncated to fit 23 char limit)
+        let long_user_id = "very_long_user_id_that_exceeds_limit";
+        let generated = username.generate_username("oidc", long_user_id);
+
+        // TSDB username limit is 23 characters
+        assert!(generated.len() <= 23);
+    }
+
+    #[test]
+    fn test_tsdb_sync_username_constant() {
+        let username = TsdbSyncUsername::Constant("root".to_string());
+        let generated = username.generate_username("oidc", "user123");
+
+        assert_eq!(generated, "root");
+
+        // Should always return the same value regardless of provider/user_id
+        assert_eq!(username.generate_username("custom", "another_user"), "root");
+    }
+
+    #[test]
+    fn test_tsdb_sync_username_pattern() {
+        let username = TsdbSyncUsername::Pattern("oauth_{provider}_{user_id}".to_string());
+        let generated = username.generate_username("oidc", "user123");
+
+        assert_eq!(generated, "oauth_oidc_user123");
+
+        let generated = username.generate_username("custom", "admin");
+        assert_eq!(generated, "oauth_custom_admin");
+    }
+
+    #[test]
+    fn test_tsdb_sync_username_pattern_with_uuid() {
+        let username = TsdbSyncUsername::Pattern("user_{uuid}".to_string());
+        let generated1 = username.generate_username("oidc", "user123");
+        let generated2 = username.generate_username("oidc", "user123");
+
+        // Both should start with "user_" but have different UUIDs
+        assert!(generated1.starts_with("user_"));
+        assert!(generated2.starts_with("user_"));
+        assert_ne!(generated1.as_ref(), generated2.as_ref());
+    }
+
+    #[test]
+    fn test_tsdb_sync_username_pattern_with_suffix() {
+        let username = TsdbSyncUsername::Pattern("oauth_{provider}_{suffix}".to_string());
+        let generated = username.generate_username("oidc", "user123");
+
+        assert!(generated.starts_with("oauth_oidc_"));
+        assert_eq!(generated.len(), "oauth_oidc_".len() + 4); // suffix is 4 chars
+    }
+
+    #[test]
+    fn test_tsdb_sync_username_usermap() {
+        let mut usermap = HashMap::new();
+        usermap.insert("user123".to_string(), "mapped_user1".to_string());
+        usermap.insert("user456".to_string(), "mapped_user2".to_string());
+
+        let username = TsdbSyncUsername::Usermap(usermap);
+
+        // Mapped users should return their mapped names
+        assert_eq!(
+            username.generate_username("oidc", "user123"),
+            "mapped_user1"
+        );
+        assert_eq!(
+            username.generate_username("custom", "user456"),
+            "mapped_user2"
+        );
+
+        // Unmapped users should get default format
+        let unmapped = username.generate_username("oidc", "unknown_user");
+        assert_eq!(unmapped, "oauth_oidc_unknown_user");
+    }
+
+    #[test]
+    fn test_tsdb_sync_username_usermap_empty() {
+        let usermap = HashMap::new();
+        let username = TsdbSyncUsername::Usermap(usermap);
+
+        // All users should get default format
+        assert_eq!(
+            username.generate_username("oidc", "user123"),
+            "oauth_oidc_user123"
+        );
+    }
+
+    #[test]
+    fn test_tsdb_sync_username_default_trait() {
+        let username = TsdbSyncUsername::default();
+        assert_eq!(username, TsdbSyncUsername::Default);
+    }
+
+    #[test]
+    fn test_tsdb_sync_username_serialization() {
+        let default = TsdbSyncUsername::Default;
+        let json = serde_json::to_string(&default).unwrap();
+        assert_eq!(json, r#""default""#);
+
+        let constant = TsdbSyncUsername::Constant("admin".to_string());
+        let json = serde_json::to_string(&constant).unwrap();
+        assert_eq!(json, r#"{"constant":"admin"}"#);
+
+        let pattern = TsdbSyncUsername::Pattern("oauth_{provider}".to_string());
+        let json = serde_json::to_string(&pattern).unwrap();
+        assert_eq!(json, r#"{"pattern":"oauth_{provider}"}"#);
+    }
+
+    #[test]
+    fn test_tsdb_sync_username_deserialization() {
+        let default: TsdbSyncUsername = serde_json::from_str(r#""default""#).unwrap();
+        assert_eq!(default, TsdbSyncUsername::Default);
+
+        let constant: TsdbSyncUsername = serde_json::from_str(r#"{"constant":"root"}"#).unwrap();
+        assert_eq!(constant, TsdbSyncUsername::Constant("root".to_string()));
+
+        let pattern: TsdbSyncUsername =
+            serde_json::from_str(r#"{"pattern":"oauth_{user_id}"}"#).unwrap();
+        assert_eq!(
+            pattern,
+            TsdbSyncUsername::Pattern("oauth_{user_id}".to_string())
+        );
+    }
+
+    #[test]
+    fn test_tsdb_sync_options_default() {
+        let options = TsdbSyncOptions::default();
+        assert_eq!(options.username, TsdbSyncUsername::Default);
+        assert_eq!(options.password, TsdbSyncPassword::Random);
+    }
+
+    #[test]
+    fn test_tsdb_sync_options_get_user_pass() {
+        let options = TsdbSyncOptions {
+            username: TsdbSyncUsername::Constant("test_user".to_string()),
+            password: TsdbSyncPassword::Constant("test_pass".to_string()),
+        };
+
+        let (username, password) = options.get_user_pass("oidc", "user123");
+        assert_eq!(username, "test_user");
+        assert_eq!(password, "test_pass");
+    }
+
+    #[test]
+    fn test_tsdb_sync_options_get_user_pass_random() {
+        let options = TsdbSyncOptions::default();
+
+        let (_username1, password1) = options.get_user_pass("oidc", "user123");
+        let (_username2, password2) = options.get_user_pass("oidc", "user123");
+
+        // Passwords should be different (random)
+        assert_ne!(password1.as_ref(), password2.as_ref());
+
+        // Passwords should be 16 characters
+        assert_eq!(password1.len(), 16);
+        assert_eq!(password2.len(), 16);
+    }
+
+    #[test]
+    fn test_tsdb_sync_options_serialization() {
+        let options = TsdbSyncOptions {
+            username: TsdbSyncUsername::Constant("admin".to_string()),
+            password: TsdbSyncPassword::Constant("secret".to_string()),
+        };
+
+        let json = serde_json::to_string(&options).unwrap();
+        assert!(json.contains(r#""username""#));
+        assert!(json.contains(r#""password""#));
+        assert!(json.contains(r#""admin""#));
+        assert!(json.contains(r#""secret""#));
+    }
+
+    #[test]
+    fn test_tsdb_sync_options_deserialization() {
+        let json = r#"{
+            "username": {"constant": "test_user"},
+            "password": {"constant": "test_password"}
+        }"#;
+
+        let options: TsdbSyncOptions = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            options.username,
+            TsdbSyncUsername::Constant("test_user".to_string())
+        );
+        assert_eq!(
+            options.password,
+            TsdbSyncPassword::Constant("test_password".to_string())
+        );
+    }
+
+    #[test]
+    fn test_oauth_sync_summary() {
+        let summary = OAuthSyncSummary {
+            imported: 10,
+            updated: 5,
+            skipped: 2,
+        };
+
+        assert_eq!(summary.imported, 10);
+        assert_eq!(summary.updated, 5);
+        assert_eq!(summary.skipped, 2);
+    }
+
+    #[test]
+    fn test_tsdb_sync_username_provider_abbreviation() {
+        let username = TsdbSyncUsername::Default;
+
+        // Test provider abbreviations
+        let oidc = username.generate_username("oidc", "u");
+        assert!(oidc.starts_with("oi_u"));
+
+        let custom = username.generate_username("custom", "u");
+        assert!(custom.starts_with("oc_u"));
+
+        // Other providers should use their full name
+        let plain = username.generate_username("plain", "u");
+        assert!(plain.starts_with("oplain_u"));
+    }
+
+    #[test]
+    fn test_tsdb_sync_username_pattern_all_placeholders() {
+        let username = TsdbSyncUsername::Pattern(
+            "p:{provider}_u:{user_id}_uuid:{uuid}_s:{suffix}".to_string(),
+        );
+
+        let generated = username.generate_username("oidc", "user123");
+
+        assert!(generated.starts_with("p:oidc_u:user123_uuid:"));
+        assert!(generated.contains("_s:"));
+    }
+
+    #[test]
+    fn test_password_clone_and_debug() {
+        let password = TsdbSyncPassword::Constant("test".to_string());
+        let cloned = password.clone();
+        assert_eq!(password, cloned);
+
+        let debug_str = format!("{:?}", password);
+        assert!(debug_str.contains("Constant"));
+    }
+
+    #[test]
+    fn test_username_clone_and_debug() {
+        let username = TsdbSyncUsername::Constant("admin".to_string());
+        let cloned = username.clone();
+        assert_eq!(username, cloned);
+
+        let debug_str = format!("{:?}", username);
+        assert!(debug_str.contains("Constant"));
+    }
+
+    #[test]
+    fn test_tsdb_sync_options_clone() {
+        let options = TsdbSyncOptions {
+            username: TsdbSyncUsername::Constant("user".to_string()),
+            password: TsdbSyncPassword::Constant("pass".to_string()),
+        };
+
+        let cloned = options.clone();
+        assert_eq!(options, cloned);
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
