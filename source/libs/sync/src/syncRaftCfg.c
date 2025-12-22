@@ -127,7 +127,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t syncWriteCfgFile(SSyncNode *pNode) {
+int32_t syncWriteCfgFile(SSyncNode *pNode, char *reason) {
   int32_t     code = 0, lino = 0;
   char       *buffer = NULL;
   SJson      *pJson = NULL;
@@ -143,6 +143,7 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   }
 
   TAOS_CHECK_EXIT(tjsonAddObject(pJson, "RaftCfg", syncEncodeRaftCfg, pCfg));
+  TAOS_CHECK_EXIT(tjsonAddStringToObject(pJson, "reason", reason));
   buffer = tjsonToString(pJson);
   if (buffer == NULL) {
     TAOS_CHECK_EXIT(terrno);

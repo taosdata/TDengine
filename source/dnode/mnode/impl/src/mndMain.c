@@ -814,6 +814,9 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     terrno = code;
     return NULL;
   }
+
+  mInfo("vgId:1, mnode options are set, to syncMgmt, dnodeId:%d, numOfTotalReplicas:%d", pMnode->selfDnodeId,
+        pMnode->syncMgmt.numOfTotalReplicas);
   mndSetOptions(pMnode, pOption);
 
   pMnode->deploy = pOption->deploy;
