@@ -1047,13 +1047,9 @@ _return:
 int32_t buildAggOperatorParam(SOperatorParam** ppRes, uint64_t groupid, SArray* pUidList, int32_t srcOpType, SArray *pBatchMap, SArray *pTagList, bool tableSeq, STimeWindow *window, bool isNewParam) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
-  SAggOperatorParam*       pAgg = NULL;
 
   *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
   QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno);
-
-  pAgg = taosMemoryMalloc(sizeof(SAggOperatorParam));
-  QUERY_CHECK_NULL(pAgg, code, lino, _return, terrno);
 
   (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
   QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno);
@@ -1066,7 +1062,7 @@ int32_t buildAggOperatorParam(SOperatorParam** ppRes, uint64_t groupid, SArray* 
 
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
   (*ppRes)->downstreamIdx = 0;
-  (*ppRes)->value = pAgg;
+  (*ppRes)->value = NULL;
   (*ppRes)->reUse = false;
 
 _return:

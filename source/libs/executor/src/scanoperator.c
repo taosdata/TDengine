@@ -1287,6 +1287,9 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     pInfo->cachedTagList = pParam->pTagList;
     pParam->pTagList = NULL;
     pInfo->cachedGroupId = pParam->groupid;
+
+    qDebug("vgId:%d dynamic vtable scan with batch param, total %zd tables to scan, groupid:%" PRIu64 ", %s",
+           pTaskInfo->id.vgId, taosArrayGetSize(pInfo->pBatchColMap), pInfo->cachedGroupId, GET_TASKID(pTaskInfo));
     taosHashClear(pInfo->pIgnoreTables);
 
     if (pInfo->base.pdInfo.pExprSup) {
@@ -1341,7 +1344,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     code = taosHashPut(pListInfo->map, &pUid, sizeof(uint64_t), &tableIdx, sizeof(int32_t));
     QUERY_CHECK_CODE(code, lino, _return);
     QUERY_CHECK_NULL(taosArrayPush(pListInfo->pTableList, &info), code, lino, _return, terrno);
-    qDebug("add dynamic table scan uid:%" PRIu64 ", %s", info.uid, GET_TASKID(pTaskInfo));
+    qDebug("add dynamic table scan uid:%" PRIu64 ", %" PRIu64 ", %s", info.uid, info.groupId, GET_TASKID(pTaskInfo));
 
     pColArray = taosArrayInit(schema->nCols, sizeof(SColIdPair));
     QUERY_CHECK_NULL(pColArray, code, lino, _return, terrno);
@@ -1358,6 +1361,8 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
         if (strcmp(kv->colName, schema->pSchema[j].name) == 0) {
           SColIdPair pPair = {.vtbColId = kv->colId, .orgColId = (col_id_t)(schema->pSchema[j].colId)};
           QUERY_CHECK_NULL(taosArrayPush(pColArray, &pPair), code, lino, _return, terrno);
+          qDebug("dynamic vtable scan map col:%s, orgColId:%d, vtbColId:%d, %s", kv->colName, pPair.orgColId,
+                 pPair.vtbColId, GET_TASKID(pTaskInfo));
           break;
         }
       }
@@ -1370,6 +1375,8 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
         if (pItem->colId == pPair->vtbColId) {
           SColIdSlotIdPair colIdSlotIdPair = {.orgColId = pPair->orgColId, .vtbSlotId = pItem->dstSlotId};
           QUERY_CHECK_NULL(taosArrayPush(pBlockColArray, &colIdSlotIdPair), code, lino, _return, terrno);
+          qDebug("dynamic vtable scan block col map orgColId:%d, vtbSlotId:%d, %s", colIdSlotIdPair.orgColId,
+                 colIdSlotIdPair.vtbSlotId, GET_TASKID(pTaskInfo));
           break;
         }
       }
@@ -1403,6 +1410,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
             }
           }
         }
+        qDebug("dynamic vtable scan expr funcId:%d, needScan:%d, %s", ctx->functionId, needScan, GET_TASKID(pTaskInfo));
         if (!needScan) {
           ctx->skipDynDataCheck = true;
         } else {
@@ -1425,6 +1433,14 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     pInfo->pResBlock = NULL;
   }
 
+  qDebug("dynamic vtable scan isNewTable:%d, order:%d, lastTimeWindow:[%" PRId64 ", %" PRId64 "], "
+         "cachedTimeWindow:[%" PRId64 ", %" PRId64 "] , "
+         "orgCondWindow: :[%" PRId64 ", %" PRId64 "], %s",
+         isNewTable, pInfo->base.orgCond.order,
+         pInfo->lastTimeWindow.skey, pInfo->lastTimeWindow.ekey,
+         pInfo->cachedTimeWindow.skey, pInfo->cachedTimeWindow.ekey,
+         pInfo->base.orgCond.twindows.skey, pInfo->base.orgCond.twindows.ekey, GET_TASKID(pTaskInfo));
+
   if (isNewTable) {
     if (pInfo->cachedTimeWindow.skey == INT64_MAX && pInfo->cachedTimeWindow.ekey == INT64_MIN) {
       pInfo->base.cond.twindows.skey = pInfo->base.orgCond.twindows.skey;
@@ -1440,6 +1456,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
       pInfo->base.cond.twindows.skey = pInfo->lastTimeWindow.ekey + 1;
     }
   }
+
   pInfo->base.cond.suid = orgTable.me.type == TSDB_CHILD_TABLE ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;
   pInfo->ignoreTag = true;
@@ -2012,6 +2029,8 @@ static int32_t doVstbBatchDynamicTableScanNext(SOperatorInfo* pOperator, SSDataB
       QUERY_CHECK_CODE(code, lino, _end);
     }
     if (!result) {
+      qDebug("%s, finished batch scan for current table, switch to next table, idx:%d,  %s",
+             __func__ , pInfo->currentBatchIdx, GET_TASKID(pTaskInfo));
       pInfo->currentBatchIdx++;
       if (pInfo->currentBatchIdx >= taosArrayGetSize(pInfo->pBatchColMap)) {
         // all batch scan finished

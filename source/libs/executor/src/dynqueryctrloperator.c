@@ -299,6 +299,107 @@ static int32_t updatePostJoinCurrTableInfo(SStbJoinDynCtrlInfo*          pStbJoi
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t copyOrgTbInfo(SOrgTbInfo* pSrc, SOrgTbInfo** ppDst) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
+  SOrgTbInfo* pTbInfo = NULL;
+
+  qDebug("start to copy org table info, vgId:%d, tbName:%s", pSrc->vgId, pSrc->tbName);
+
+  pTbInfo = taosMemoryMalloc(sizeof(SOrgTbInfo));
+  QUERY_CHECK_NULL(pTbInfo, code, lino, _return, terrno)
+
+  pTbInfo->vgId = pSrc->vgId;
+  tstrncpy(pTbInfo->tbName, pSrc->tbName, TSDB_TABLE_FNAME_LEN);
+
+  pTbInfo->colMap = taosArrayDup(pSrc->colMap, NULL);
+  QUERY_CHECK_NULL(pTbInfo->colMap, code, lino, _return, terrno)
+
+  *ppDst = pTbInfo;
+
+  return code;
+_return:
+  qError("failed to copy org table info, code:%d, line:%d", code, lino);
+  if (pTbInfo) {
+    if (pTbInfo->colMap) {
+      taosArrayDestroy(pTbInfo->colMap);
+    }
+    taosMemoryFreeClear(pTbInfo);
+  }
+  return code;
+}
+
+static int32_t buildTagListForExchangeBasicParam(SExchangeOperatorBasicParam* pBasic, SArray* pTagList) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  STagVal  tmpTag;
+
+  pBasic->tagList = taosArrayInit(1, sizeof(STagVal));
+  QUERY_CHECK_NULL(pBasic->tagList, code, lino, _return, terrno)
+
+  for (int32_t i = 0; i < taosArrayGetSize(pTagList); ++i) {
+    STagVal* pSrcTag = (STagVal*)taosArrayGet(pTagList, i);
+    QUERY_CHECK_NULL(pSrcTag, code, lino, _return, terrno)
+    tmpTag.type = pSrcTag->type;
+    tmpTag.cid = pSrcTag->cid;
+    if (IS_VAR_DATA_TYPE(pSrcTag->type)) {
+      tmpTag.nData = pSrcTag->nData;
+      tmpTag.pData = taosMemoryMalloc(tmpTag.nData);
+      QUERY_CHECK_NULL(tmpTag.pData, code, lino, _return, terrno)
+      memcpy(tmpTag.pData, pSrcTag->pData, tmpTag.nData);
+    } else {
+      tmpTag.i64 = pSrcTag->i64;
+    }
+
+    QUERY_CHECK_NULL(taosArrayPush(pBasic->tagList, &tmpTag), code, lino, _return, terrno)
+    tmpTag = (STagVal){0};
+  }
+
+  return code;
+_return:
+  if (pBasic->tagList) {
+    taosArrayDestroyEx(pBasic->tagList, destroyTagVal);
+    pBasic->tagList = NULL;
+  }
+  if (tmpTag.pData) {
+    taosMemoryFree(tmpTag.pData);
+  }
+  qError("%s failed at line: %d, code: %d", __func__, lino, code);
+  return code;
+}
+
+static int32_t buildBatchOrgTbInfoForExchangeBasicParam(SExchangeOperatorBasicParam* pBasic, SArray* pOrgTbInfoArray) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
+  SOrgTbInfo  batchInfo;
+
+  pBasic->batchOrgTbInfo = taosArrayInit(1, sizeof(SOrgTbInfo));
+  QUERY_CHECK_NULL(pBasic->batchOrgTbInfo, code, lino, _return, terrno)
+
+  for (int32_t i = 0; i < taosArrayGetSize(pOrgTbInfoArray); ++i) {
+    SOrgTbInfo* pSrc = (SOrgTbInfo*)taosArrayGet(pOrgTbInfoArray, i);
+    QUERY_CHECK_NULL(pSrc, code, lino, _return, terrno)
+    batchInfo.vgId = pSrc->vgId;
+    tstrncpy(batchInfo.tbName, pSrc->tbName, TSDB_TABLE_FNAME_LEN);
+    batchInfo.colMap = taosArrayDup(pSrc->colMap, NULL);
+    QUERY_CHECK_NULL(batchInfo.colMap, code, lino, _return, terrno)
+    QUERY_CHECK_NULL(taosArrayPush(pBasic->batchOrgTbInfo, &batchInfo), code, lino, _return, terrno)
+    batchInfo = (SOrgTbInfo){0};
+  }
+
+  return code;
+_return:
+  qError("%s failed at line: %d, code: %d", __func__, lino, code);
+  if (pBasic->batchOrgTbInfo) {
+    taosArrayDestroyEx(pBasic->batchOrgTbInfo, destroySOrgTbInfo);
+    pBasic->batchOrgTbInfo = NULL;
+  }
+  if (batchInfo.colMap) {
+    taosArrayDestroy(batchInfo.colMap);
+    batchInfo.colMap = NULL;
+  }
+  return code;
+}
 
 static int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t vgId, int64_t tbUid, bool needCache, SOperatorParam* pChild) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -378,405 +479,244 @@ static int32_t buildGroupCacheNotifyOperatorParam(SOperatorParam** ppRes, int32_
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildSingleTableScanOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t* pVgId, int64_t* pUid);
-static int32_t buildExchangeOperatorParamForExternalWindow(SOperatorParam** ppRes, int32_t downstreamIdx, int64_t skey, int64_t ekey) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SExchangeOperatorParam*   pExc = NULL;
+static int32_t buildExchangeOperatorBasicParam(SExchangeOperatorBasicParam* pBasic, ENodeType srcOpType,
+                                               EExchangeSourceType exchangeType, int32_t vgId, uint64_t groupId,
+                                               SArray* pUidList, SOrgTbInfo* pOrgTbInfo, SArray* pTagList,
+                                               SArray* pOrgTbInfoArray, STimeWindow window,
+                                               SDownstreamSourceNode* pDownstreamSourceNode,
+                                               bool tableSeq, bool isNewParam, bool isNewDeployed) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
+  qDebug("buildExchangeOperatorBasicParam, srcOpType:%d, exchangeType:%d, vgId:%d, groupId:%" PRIu64 ", tableSeq:%d, "
+         "isNewParam:%d, isNewDeployed:%d", srcOpType, exchangeType, vgId, groupId, tableSeq, isNewParam, isNewDeployed);
 
-  (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
-  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
+  pBasic->srcOpType = srcOpType;
+  pBasic->vgId = vgId;
+  pBasic->groupid = groupId;
+  pBasic->window = window;
+  pBasic->tableSeq = tableSeq;
+  pBasic->type = exchangeType;
+  pBasic->isNewParam = isNewParam;
 
-  pExc = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
-  QUERY_CHECK_NULL(pExc, code, lino, _return, terrno)
+  if (pDownstreamSourceNode) {
+    pBasic->isNewDeployed = true;
+    pBasic->newDeployedSrc.type = QUERY_NODE_DOWNSTREAM_SOURCE;
+    pBasic->newDeployedSrc.clientId = pDownstreamSourceNode->clientId;// current task's taskid
+    pBasic->newDeployedSrc.taskId = pDownstreamSourceNode->taskId;
+    pBasic->newDeployedSrc.fetchMsgType = TDMT_STREAM_FETCH;
+    pBasic->newDeployedSrc.localExec = false;
+    pBasic->newDeployedSrc.addr.nodeId = pDownstreamSourceNode->addr.nodeId;
+    memcpy(&pBasic->newDeployedSrc.addr.epSet, &pDownstreamSourceNode->addr.epSet, sizeof(SEpSet));
+  } else {
+    pBasic->isNewDeployed = false;
+    pBasic->newDeployedSrc = (SDownstreamSourceNode){0};
+  }
 
+  if (pUidList) {
+    pBasic->uidList = taosArrayDup(pUidList, NULL);
+    QUERY_CHECK_NULL(pBasic->uidList, code, lino, _return, terrno)
+  } else {
+    pBasic->uidList = taosArrayInit(1, sizeof(int64_t));
+    QUERY_CHECK_NULL(pBasic->uidList, code, lino, _return, terrno)
+  }
+
+  if (pOrgTbInfo) {
+    code = copyOrgTbInfo(pOrgTbInfo, &pBasic->orgTbInfo);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else {
+    pBasic->orgTbInfo = NULL;
+  }
+
+  if (pTagList) {
+    code = buildTagListForExchangeBasicParam(pBasic, pTagList);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else {
+    pBasic->tagList = NULL;
+  }
+
+  if (pOrgTbInfoArray) {
+    code = buildBatchOrgTbInfoForExchangeBasicParam(pBasic, pOrgTbInfoArray);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else {
+    pBasic->batchOrgTbInfo = NULL;
+  }
+  return code;
+
+_return:
+  qError("%s failed at line: %d, code: %d", __func__, lino, code);
+  freeExchangeGetBasicOperatorParam(pBasic);
+  return code;
+}
+
+static int32_t buildExchangeOperatorParamImpl(SOperatorParam** ppRes, int32_t downstreamIdx, ENodeType srcOpType,
+                                              EExchangeSourceType exchangeType, int32_t vgId, uint64_t groupId,
+                                              SArray* pUidList, SOrgTbInfo* pOrgTbInfo, SArray* pTagList,
+                                              SArray* pOrgTbInfoArray, STimeWindow window,
+                                              SDownstreamSourceNode* pDownstreamSourceNode,
+                                              bool tableSeq, bool isNewParam, bool reUse, bool isNewDeployed) {
+
+  int32_t                      code = TSDB_CODE_SUCCESS;
+  int32_t                      lino = 0;
+  SOperatorParam*              pParam = NULL;
+  SExchangeOperatorParam*      pExc = NULL;
+
+  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
+
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
+  pParam->downstreamIdx = downstreamIdx;
+  pParam->reUse = reUse;
+  pParam->pChildren = NULL;
+  pParam->value = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
+  QUERY_CHECK_NULL(pParam->value, code, lino, _return, terrno)
+
+  pExc = (SExchangeOperatorParam*)pParam->value;
   pExc->multiParams = false;
-  pExc->basic.vgId = 0;
-  pExc->basic.tableSeq = true;
-  pExc->basic.type = EX_SRC_TYPE_VSTB_WIN_SCAN;
-  pExc->basic.isNewParam = true;
-  pExc->basic.window.skey = skey;
-  pExc->basic.window.ekey = ekey;
-  pExc->basic.srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
-  pExc->basic.orgTbInfo = NULL;
-  pExc->basic.tagList = NULL;
-  pExc->basic.batchOrgTbInfo = NULL;
-  pExc->basic.uidList = taosArrayInit(1, sizeof(int64_t));
-  QUERY_CHECK_NULL(pExc->basic.uidList, code, lino, _return, terrno)
 
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  (*ppRes)->downstreamIdx = 0;
-  (*ppRes)->reUse = true;
-  (*ppRes)->value = pExc;
+  code = buildExchangeOperatorBasicParam(&pExc->basic, srcOpType, exchangeType, vgId, groupId,
+                                         pUidList, pOrgTbInfo, pTagList, pOrgTbInfoArray,
+                                         window, pDownstreamSourceNode, tableSeq, isNewParam, isNewDeployed);
 
+  *ppRes = pParam;
   return code;
 _return:
-  qError("failed to build exchange operator param for external window, code:%d, line:%d", code, lino);
-  if (pExc) {
-   if (pExc->basic.uidList) {
-      taosArrayDestroy(pExc->basic.uidList);
-    }
-    taosMemoryFreeClear(pExc);
+  qError("%s failed at line: %d, code: %d", __func__, lino, code);
+  if (pParam) {
+    freeOperatorParam(pParam, OP_GET_PARAM);
   }
-  if (*ppRes) {
-    if ((*ppRes)->pChildren) {
-      taosArrayDestroy((*ppRes)->pChildren);
-    }
-    taosMemoryFreeClear(*ppRes);
-  }
-
   return code;
 }
 
 static int32_t buildExchangeOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, const int32_t* pVgId, int64_t* pUid) {
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  if (NULL == *ppRes) {
-    return terrno;
-  }
-  (*ppRes)->pChildren = NULL;
-  
-  SExchangeOperatorParam* pExc = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
-  if (NULL == pExc) {
-    return terrno;
-  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
 
-  pExc->multiParams = false;
-  pExc->basic.vgId = *pVgId;
-  pExc->basic.tableSeq = true;
-  pExc->basic.type = EX_SRC_TYPE_STB_JOIN_SCAN;
-  pExc->basic.srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
-  pExc->basic.orgTbInfo = NULL;
-  pExc->basic.tagList = NULL;
-  pExc->basic.batchOrgTbInfo = NULL;
-  pExc->basic.uidList = taosArrayInit(1, sizeof(int64_t));
-  if (NULL == pExc->basic.uidList) {
-    taosMemoryFree(pExc);
-    return terrno;
-  }
-  if (NULL == taosArrayPush(pExc->basic.uidList, pUid)) {
-    taosArrayDestroy(pExc->basic.uidList);
-    taosMemoryFree(pExc);
-    return terrno;
-  }
+  SArray* pUidList = taosArrayInit(1, sizeof(int64_t));
+  QUERY_CHECK_NULL(pUidList, code, lino, _return, terrno)
 
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  (*ppRes)->downstreamIdx = downstreamIdx;
-  (*ppRes)->value = pExc;
-  (*ppRes)->reUse = false;
+  QUERY_CHECK_NULL(taosArrayPush(pUidList, pUid), code, lino, _return, terrno);
 
-  return TSDB_CODE_SUCCESS;
+  code = buildExchangeOperatorParamImpl(ppRes, downstreamIdx, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, EX_SRC_TYPE_STB_JOIN_SCAN,
+                                        *pVgId, 0, pUidList, NULL, NULL, NULL, (STimeWindow){0}, NULL, true, false, false, false);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  if (code) {
+    qError("failed to build exchange operator param, code:%d", code);
+  }
+  taosArrayDestroy(pUidList);
+  return code;
 }
 
-static int32_t buildBatchExchangeOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, SSHashObj* pVg) {
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  if (NULL == *ppRes) {
-    return terrno;
-  }
-  (*ppRes)->pChildren = NULL;
-  
-  SExchangeOperatorBatchParam* pExc = taosMemoryMalloc(sizeof(SExchangeOperatorBatchParam));
-  if (NULL == pExc) {
-    taosMemoryFreeClear(*ppRes);
-    return terrno;
-  }
+static int32_t buildExchangeOperatorParamForExternalWindow(SOperatorParam** ppRes, int32_t downstreamIdx, STimeWindow win) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
 
-  pExc->multiParams = true;
-  pExc->pBatchs = tSimpleHashInit(tSimpleHashGetSize(pVg), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
-  if (NULL == pExc->pBatchs) {
-    taosMemoryFree(pExc);
-    taosMemoryFreeClear(*ppRes);
-    return terrno;
-  }
-  tSimpleHashSetFreeFp(pExc->pBatchs, freeExchangeGetBasicOperatorParam);
-  
-  SExchangeOperatorBasicParam basic;
-  basic.srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  code = buildExchangeOperatorParamImpl(ppRes, downstreamIdx, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, EX_SRC_TYPE_VSTB_WIN_SCAN,
+                                        0, 0, NULL, NULL, NULL, NULL, win, NULL, true, true, true, false);
+  QUERY_CHECK_CODE(code, lino, _return);
 
-  int32_t iter = 0;
-  void* p = NULL;
-  while (NULL != (p = tSimpleHashIterate(pVg, p, &iter))) {
-    int32_t* pVgId = tSimpleHashGetKey(p, NULL);
-    SArray* pUidList = *(SArray**)p;
-    basic.vgId = *pVgId;
-    basic.uidList = pUidList;
-    basic.orgTbInfo = NULL;
-    basic.tableSeq = false;
-    basic.type = EX_SRC_TYPE_STB_JOIN_SCAN;
-    basic.tagList = NULL;
-    basic.batchOrgTbInfo = NULL;
-    
-    QRY_ERR_RET(tSimpleHashPut(pExc->pBatchs, pVgId, sizeof(*pVgId), &basic, sizeof(basic)));   
-
-    qTrace("build downstreamIdx %d batch scan, vgId:%d, uidNum:%" PRId64, downstreamIdx, *pVgId, (int64_t)taosArrayGetSize(pUidList));
-    *(SArray**)p = NULL;
-  }
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  (*ppRes)->downstreamIdx = downstreamIdx;
-  (*ppRes)->value = pExc;
-  (*ppRes)->reUse = false;
-
-  return TSDB_CODE_SUCCESS;
+  return code;
+_return:
+  qError("failed to build exchange operator param for external window, code:%d", code);
+  return code;
 }
 
 static int32_t buildExchangeOperatorParamForVTagScan(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t vgId, tb_uid_t uid) {
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
-  SExchangeOperatorParam*      pExc = NULL;
-  SExchangeOperatorBasicParam* basic = NULL;
+  SArray*                      pUidList = NULL;
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
-  (*ppRes)->pChildren = NULL;
+  pUidList = taosArrayInit(1, sizeof(int64_t));
+  QUERY_CHECK_NULL(pUidList, code, lino, _return, terrno)
 
-  pExc = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
-  QUERY_CHECK_NULL(pExc, code, lino, _return, terrno)
+  QUERY_CHECK_NULL(taosArrayPush(pUidList, &uid), code, lino, _return, terrno)
 
-  pExc->multiParams = false;
-
-  basic = &pExc->basic;
-  basic->srcOpType = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
-
-  basic->vgId = vgId;
-  basic->tableSeq = false;
-  basic->type = EX_SRC_TYPE_VSTB_TAG_SCAN;
-  basic->isNewDeployed = false;
-  basic->orgTbInfo = NULL;
-  basic->tagList = NULL;
-  basic->batchOrgTbInfo = NULL;
-
-  basic->uidList = taosArrayInit(1, sizeof(int64_t));
-  QUERY_CHECK_NULL(basic->uidList, code, lino, _return, terrno)
-  QUERY_CHECK_NULL(taosArrayPush(basic->uidList, &uid), code, lino, _return, terrno)
-
-  (*ppRes)->pChildren = NULL;
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  (*ppRes)->downstreamIdx = downstreamIdx;
-  (*ppRes)->value = pExc;
-  (*ppRes)->reUse = true;
-
-  return TSDB_CODE_SUCCESS;
+  code = buildExchangeOperatorParamImpl(ppRes, downstreamIdx, QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN, EX_SRC_TYPE_VSTB_TAG_SCAN,
+                                        vgId, 0, pUidList, NULL, NULL, NULL, (STimeWindow){0}, NULL, false, false, true, false);
+  QUERY_CHECK_CODE(code, lino, _return);
 
 _return:
-  qError("failed to build exchange operator param for vscan, code:%d", code);
-  taosMemoryFreeClear(*ppRes);
-  if (basic) {
-    if (basic->orgTbInfo) {
-      taosArrayDestroy(basic->orgTbInfo->colMap);
-      taosMemoryFreeClear(basic->orgTbInfo);
-    }
-    if (basic->uidList) {
-      taosArrayDestroy(basic->uidList);
-    }
-    taosMemoryFreeClear(basic);
+  if (code) {
+    qError("failed to build exchange operator param for tag scan, code:%d", code);
   }
-  taosMemoryFreeClear(pExc);
+  taosArrayDestroy(pUidList);
   return code;
 }
 
-static int32_t buildExchangeOperatorParamForVScan(SOperatorParam** ppRes, int32_t downstreamIdx, SOrgTbInfo* pMap) {
+static int32_t buildExchangeOperatorParamForVScan(SOperatorParam** ppRes, int32_t downstreamIdx, SOrgTbInfo* pOrgTbInfo,
+                                                  SDownstreamSourceNode* pNewSource) {
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
-  SExchangeOperatorParam*      pExc = NULL;
-  SExchangeOperatorBasicParam* basic = NULL;
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
-  (*ppRes)->pChildren = NULL;
+  code = buildExchangeOperatorParamImpl(ppRes, downstreamIdx, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, EX_SRC_TYPE_VSTB_SCAN,
+                                        pOrgTbInfo->vgId, 0, NULL, pOrgTbInfo, NULL, NULL, (STimeWindow){0}, pNewSource, false, true, true, true);
+  QUERY_CHECK_CODE(code, lino, _return);
 
-  pExc = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
-  QUERY_CHECK_NULL(pExc, code, lino, _return, terrno)
-
-  pExc->multiParams = false;
-
-  basic = &pExc->basic;
-  basic->srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
-
-  basic->vgId = pMap->vgId;
-  basic->tableSeq = false;
-  basic->type = EX_SRC_TYPE_VSTB_SCAN;
-  basic->isNewDeployed = false;
-  basic->isNewParam = true;
-  basic->orgTbInfo = taosMemoryMalloc(sizeof(SOrgTbInfo));
-  QUERY_CHECK_NULL(basic->orgTbInfo, code, lino, _return, terrno)
-  basic->orgTbInfo->vgId = pMap->vgId;
-  tstrncpy(basic->orgTbInfo->tbName, pMap->tbName, TSDB_TABLE_FNAME_LEN);
-  basic->orgTbInfo->colMap = taosArrayDup(pMap->colMap, NULL);
-  QUERY_CHECK_NULL(basic->orgTbInfo->colMap, code, lino, _return, terrno)
-
-  basic->uidList = taosArrayInit(1, sizeof(int64_t));
-  QUERY_CHECK_NULL(basic->uidList, code, lino, _return, terrno)
-
-  basic->tagList = NULL;
-  basic->batchOrgTbInfo = NULL;
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  (*ppRes)->downstreamIdx = downstreamIdx;
-  (*ppRes)->value = pExc;
-  (*ppRes)->reUse = true;
-
-  return TSDB_CODE_SUCCESS;
-
+  return code;
 _return:
   qError("failed to build exchange operator param for vscan, code:%d", code);
-  taosMemoryFreeClear(*ppRes);
-  if (basic) {
-    if (basic->orgTbInfo) {
-      taosArrayDestroy(basic->orgTbInfo->colMap);
-      taosMemoryFreeClear(basic->orgTbInfo);
-    }
-    if (basic->uidList) {
-      taosArrayDestroy(basic->uidList);
-    }
-    taosMemoryFreeClear(basic);
-  }
-  taosMemoryFreeClear(pExc);
   return code;
 }
 
-static int32_t buildExchangeOperatorParamForVScanEx(SOperatorParam** ppRes, int32_t downstreamIdx, SOrgTbInfo* pMap, uint64_t taskId, SStreamTaskAddr* pTaskAddr) {
-  int32_t                      code = TSDB_CODE_SUCCESS;
-  int32_t                      lino = 0;
-  SExchangeOperatorParam*      pExc = NULL;
-  SExchangeOperatorBasicParam* basic = NULL;
+static int32_t buildBatchExchangeOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, SSHashObj* pVg) {
+  int32_t                       code = TSDB_CODE_SUCCESS;
+  int32_t                       line = 0;
+  SOperatorParam*               pParam = NULL;
+  SExchangeOperatorBatchParam*  pExc = NULL;
+  SExchangeOperatorBasicParam   basic = {0};
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
-  (*ppRes)->pChildren = NULL;
+  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, line, _return, terrno);
 
-  pExc = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
-  QUERY_CHECK_NULL(pExc, code, lino, _return, terrno)
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
+  pParam->downstreamIdx = downstreamIdx;
+  pParam->reUse = false;
+  pParam->pChildren = NULL;
+  pParam->value = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
+  QUERY_CHECK_NULL(pParam->value, code, line, _return, terrno);
 
-  pExc->multiParams = false;
+  pExc = pParam->value;
+  pExc->multiParams = true;
+  pExc->pBatchs = tSimpleHashInit(tSimpleHashGetSize(pVg), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  QUERY_CHECK_NULL(pExc->pBatchs, code, line, _return, terrno)
 
-  basic = &pExc->basic;
-  basic->srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  tSimpleHashSetFreeFp(pExc->pBatchs, freeExchangeGetBasicOperatorParam);
 
-  basic->vgId = pMap->vgId;
-  basic->tableSeq = false;
-  basic->type = EX_SRC_TYPE_VSTB_SCAN;
-  basic->isNewDeployed = true;
-  basic->isNewParam = true;
-  basic->newDeployedSrc.type = QUERY_NODE_DOWNSTREAM_SOURCE;
-  basic->newDeployedSrc.clientId = taskId;// current task's taskid
-  basic->newDeployedSrc.taskId = pTaskAddr->taskId;
-  basic->newDeployedSrc.fetchMsgType = TDMT_STREAM_FETCH;
-  basic->newDeployedSrc.localExec = false;
-  basic->newDeployedSrc.addr.nodeId = pTaskAddr->nodeId;
-  memcpy(&basic->newDeployedSrc.addr.epSet, &pTaskAddr->epset, sizeof(SEpSet));
-  basic->orgTbInfo = taosMemoryMalloc(sizeof(SOrgTbInfo));
-  QUERY_CHECK_NULL(basic->orgTbInfo, code, lino, _return, terrno)
-  basic->orgTbInfo->vgId = pMap->vgId;
-  tstrncpy(basic->orgTbInfo->tbName, pMap->tbName, TSDB_TABLE_FNAME_LEN);
-  basic->orgTbInfo->colMap = taosArrayDup(pMap->colMap, NULL);
-  QUERY_CHECK_NULL(basic->orgTbInfo->colMap, code, lino, _return, terrno)
+  int32_t iter = 0;
+  void*   p = NULL;
+  while (NULL != (p = tSimpleHashIterate(pVg, p, &iter))) {
+    int32_t* pVgId = tSimpleHashGetKey(p, NULL);
+    SArray*  pUidList = *(SArray**)p;
 
-  basic->uidList = taosArrayInit(1, sizeof(int64_t));
-  QUERY_CHECK_NULL(basic->uidList, code, lino, _return, terrno)
+    code = buildExchangeOperatorBasicParam(&basic, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+                                           EX_SRC_TYPE_STB_JOIN_SCAN, *pVgId, 0,
+                                           pUidList, NULL, NULL, NULL,
+                                           (STimeWindow){0}, NULL, false, false, false);
+    QUERY_CHECK_CODE(code, line, _return);
 
-  basic->batchOrgTbInfo = NULL;
-  basic->tagList = NULL;
+    // already transferred to batch param, can free here
+    taosArrayDestroy(pUidList);
 
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  (*ppRes)->downstreamIdx = downstreamIdx;
-  (*ppRes)->value = pExc;
-  (*ppRes)->reUse = true;
+    QRY_ERR_RET(tSimpleHashPut(pExc->pBatchs, pVgId, sizeof(*pVgId), &basic, sizeof(basic)));
 
-  return TSDB_CODE_SUCCESS;
+    basic = (SExchangeOperatorBasicParam){0};
+    qTrace("build downstreamIdx %d batch scan, vgId:%d, uidNum:%" PRId64, downstreamIdx, *pVgId, (int64_t)taosArrayGetSize(pUidList));
+    *(SArray**)p = NULL;
+  }
+  *ppRes = pParam;
 
+  return code;
+  
 _return:
-  qError("failed to build exchange operator param for vscan, code:%d", code);
-  taosMemoryFreeClear(*ppRes);
-  if (basic) {
-    if (basic->orgTbInfo) {
-      taosArrayDestroy(basic->orgTbInfo->colMap);
-      taosMemoryFreeClear(basic->orgTbInfo);
-    }
-    if (basic->uidList) {
-      taosArrayDestroy(basic->uidList);
-    }
-    taosMemoryFreeClear(basic);
-  }
-  taosMemoryFreeClear(pExc);
+  qError("failed to build batch exchange operator param, code:%d", code);
+  freeOperatorParam(pParam, OP_GET_PARAM);
+  freeExchangeGetBasicOperatorParam(&basic);
   return code;
 }
 
-static int32_t buildTagListForExchangeBasicParam(SExchangeOperatorBasicParam* pBasic, SArray* pTagList) {
-  int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t  lino = 0;
-  STagVal  tmpTag;
-  pBasic->tagList = taosArrayInit(1, sizeof(STagVal));
-  QUERY_CHECK_NULL(pBasic->tagList, code, lino, _return, terrno)
-
-  for (int32_t i = 0; i < taosArrayGetSize(pTagList); ++i) {
-    STagVal* pSrcTag = (STagVal*)taosArrayGet(pTagList, i);
-    QUERY_CHECK_NULL(pSrcTag, code, lino, _return, terrno)
-    tmpTag.type = pSrcTag->type;
-    tmpTag.cid = pSrcTag->cid;
-    if (IS_VAR_DATA_TYPE(pSrcTag->type)) {
-      tmpTag.nData = pSrcTag->nData;
-      tmpTag.pData = taosMemoryMalloc(tmpTag.nData);
-      QUERY_CHECK_NULL(tmpTag.pData, code, lino, _return, terrno)
-      memcpy(tmpTag.pData, pSrcTag->pData, tmpTag.nData);
-    } else {
-      tmpTag.i64 = pSrcTag->i64;
-    }
-
-    QUERY_CHECK_NULL(taosArrayPush(pBasic->tagList, &tmpTag), code, lino, _return, terrno)
-    tmpTag = (STagVal){0};
-  }
-
-  return code;
-_return:
-  if (pBasic->tagList) {
-    taosArrayDestroyEx(pBasic->tagList, destroyTagVal);
-    pBasic->tagList = NULL;
-  }
-  if (tmpTag.pData) {
-    taosMemoryFree(tmpTag.pData);
-  }
-  qError("%s failed at line: %d, code: %d", __func__, lino, code);
-  return code;
-}
-
-static int32_t buildBatchOrgTbInfoForExchangeBasicParam(SExchangeOperatorBasicParam* pBasic, SArray* pOrgTbInfoArray) {
-  int32_t     code = TSDB_CODE_SUCCESS;
-  int32_t     lino = 0;
-  SOrgTbInfo  batchInfo;
-
-  pBasic->batchOrgTbInfo = taosArrayInit(1, sizeof(SOrgTbInfo));
-  QUERY_CHECK_NULL(pBasic->batchOrgTbInfo, code, lino, _return, terrno)
-
-  for (int32_t i = 0; i < taosArrayGetSize(pOrgTbInfoArray); ++i) {
-    SOrgTbInfo* pSrc = (SOrgTbInfo*)taosArrayGet(pOrgTbInfoArray, i);
-    QUERY_CHECK_NULL(pSrc, code, lino, _return, terrno)
-    batchInfo.vgId = pSrc->vgId;
-    tstrncpy(batchInfo.tbName, pSrc->tbName, TSDB_TABLE_FNAME_LEN);
-    batchInfo.colMap = taosArrayDup(pSrc->colMap, NULL);
-    QUERY_CHECK_NULL(batchInfo.colMap, code, lino, _return, terrno)
-    QUERY_CHECK_NULL(taosArrayPush(pBasic->batchOrgTbInfo, &batchInfo), code, lino, _return, terrno)
-    batchInfo = (SOrgTbInfo){0};
-  }
-
-  return code;
-_return:
-  qError("%s failed at line: %d, code: %d", __func__, lino, code);
-  if (pBasic->batchOrgTbInfo) {
-    taosArrayDestroyEx(pBasic->batchOrgTbInfo, destroySOrgTbInfo);
-    pBasic->batchOrgTbInfo = NULL;
-  }
-  if (batchInfo.colMap) {
-    taosArrayDestroy(batchInfo.colMap);
-    batchInfo.colMap = NULL;
-  }
-  return code;
-}
-
-static int32_t buildExchangeOperatorParamForVSAgg(SOperatorParam** ppRes, int32_t downstreamIdx, SArray* pTagList, uint64_t groupid,  SHashObj* pBatchMaps) {
+static int32_t buildBatchExchangeOperatorParamForVSAgg(SOperatorParam** ppRes, int32_t downstreamIdx, SArray* pTagList, uint64_t groupid,  SHashObj* pBatchMaps) {
   int32_t                       code = TSDB_CODE_SUCCESS;
   int32_t                       lino = 0;
   SOperatorParam*               pParam = NULL;
@@ -794,37 +734,20 @@ static int32_t buildExchangeOperatorParamForVSAgg(SOperatorParam** ppRes, int32_
 
   pExc->pBatchs = tSimpleHashInit(taosHashGetSize(pBatchMaps), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   QUERY_CHECK_NULL(pExc->pBatchs, code, lino, _return, terrno)
+  tSimpleHashSetFreeFp(pExc->pBatchs, freeExchangeGetBasicOperatorParam);
 
   size_t keyLen = 0;
   void*  pIter = taosHashIterate(pBatchMaps, NULL);
   while (pIter != NULL) {
     SArray*          pOrgTbInfoArray = *(SArray**)pIter;
     int32_t*         vgId = (int32_t*)taosHashGetKey(pIter, &keyLen);
+    STimeWindow      win = {.skey = INT64_MAX, .ekey = INT64_MIN};
 
-    basic.srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
-    basic.vgId = *vgId;
-    basic.tableSeq = false;
-    basic.type = EX_SRC_TYPE_VSTB_AGG_SCAN;
-    basic.isNewDeployed = false;
-    basic.isNewParam = true;
-    basic.groupid = groupid;
-    basic.window.skey = INT64_MAX;
-    basic.window.ekey = INT64_MIN;
-
-    if (pTagList) {
-      code = buildTagListForExchangeBasicParam(&basic, pTagList);
-      QUERY_CHECK_CODE(code, lino, _return);
-    } else {
-      basic.tagList = NULL;
-    }
-
-    code = buildBatchOrgTbInfoForExchangeBasicParam(&basic, pOrgTbInfoArray);
+    code = buildExchangeOperatorBasicParam(&basic, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+                                           EX_SRC_TYPE_VSTB_AGG_SCAN, *vgId, groupid,
+                                           NULL, NULL, pTagList, pOrgTbInfoArray,
+                                           win, NULL, false, true, false);
     QUERY_CHECK_CODE(code, lino, _return);
-
-    basic.orgTbInfo = NULL;
-
-    basic.uidList = taosArrayInit(1, sizeof(int64_t));
-    QUERY_CHECK_NULL(basic.uidList, code, lino, _return, terrno)
 
     code = tSimpleHashPut(pExc->pBatchs, vgId, sizeof(*vgId), &basic, sizeof(basic));
     QUERY_CHECK_CODE(code, lino, _return);
@@ -958,7 +881,6 @@ static int32_t buildBatchTableScanOperatorParam(SOperatorParam** ppRes, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-
 static int32_t buildSingleTableScanOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t* pVgId, int64_t* pUid) {
   SArray* pUidList = taosArrayInit(1, sizeof(int64_t));
   if (NULL == pUidList) {
@@ -1045,6 +967,273 @@ static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SS
     }
   }
   
+  return code;
+}
+
+static int32_t buildVtbScanOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes, uint64_t uid) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SVTableScanOperatorParam* pVScan = NULL;
+  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
+
+  (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
+
+  pVScan = taosMemoryMalloc(sizeof(SVTableScanOperatorParam));
+  QUERY_CHECK_NULL(pVScan, code, lino, _return, terrno)
+  pVScan->pOpParamArray = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL(pVScan->pOpParamArray, code, lino, _return, terrno)
+  pVScan->uid = uid;
+  pVScan->window = pInfo->vtbScan.window;
+
+  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN;
+  (*ppRes)->downstreamIdx = 0;
+  (*ppRes)->value = pVScan;
+  (*ppRes)->reUse = false;
+
+  return TSDB_CODE_SUCCESS;
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  if (pVScan) {
+    taosArrayDestroy(pVScan->pOpParamArray);
+    taosMemoryFreeClear(pVScan);
+  }
+  if (*ppRes) {
+    taosArrayDestroy((*ppRes)->pChildren);
+    taosMemoryFreeClear(*ppRes);
+  }
+  return code;
+}
+
+static int32_t buildExternalWindowOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes, SArray* pWins, int32_t idx) {
+  int32_t                       code = TSDB_CODE_SUCCESS;
+  int32_t                       lino = 0;
+  SExternalWindowOperatorParam* pExtWinOp = NULL;
+
+  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
+
+  pExtWinOp = taosMemoryMalloc(sizeof(SExternalWindowOperatorParam));
+  QUERY_CHECK_NULL(pExtWinOp, code, lino, _return, terrno)
+
+  pExtWinOp->ExtWins = taosArrayDup(pWins, NULL);
+  QUERY_CHECK_NULL(pExtWinOp->ExtWins, code, lino, _return, terrno)
+
+  SExtWinTimeWindow *firstWin = (SExtWinTimeWindow *)taosArrayGet(pWins, 0);
+  SExtWinTimeWindow *lastWin = (SExtWinTimeWindow *)taosArrayGet(pWins, taosArrayGetSize(pWins) - 1);
+
+  (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
+
+  SOperatorParam* pExchangeOperator = NULL;
+  STimeWindow     twin = {.skey = firstWin->tw.skey, .ekey = lastWin->tw.ekey};
+  code = buildExchangeOperatorParamForExternalWindow(&pExchangeOperator, 0, twin);
+  QUERY_CHECK_CODE(code, lino, _return);
+  QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExchangeOperator), code, lino, _return, terrno)
+
+  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW;
+  (*ppRes)->downstreamIdx = idx;
+  (*ppRes)->value = pExtWinOp;
+  (*ppRes)->reUse = false;
+
+  return code;
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  if (pExtWinOp) {
+    if (pExtWinOp->ExtWins) {
+      taosArrayDestroy(pExtWinOp->ExtWins);
+    }
+    taosMemoryFree(pExtWinOp);
+  }
+  if (*ppRes) {
+    if ((*ppRes)->pChildren) {
+      taosArrayDestroy((*ppRes)->pChildren);
+    }
+    taosMemoryFree(*ppRes);
+    *ppRes = NULL;
+  }
+  return code;
+}
+
+static int32_t buildMergeOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes, SArray* pWins,
+                                       int32_t numOfDownstream, int32_t numOfWins) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SMergeOperatorParam*      pMergeOp = NULL;
+
+  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
+
+  (*ppRes)->pChildren = taosArrayInit(numOfDownstream, POINTER_BYTES);
+  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
+
+  pMergeOp = taosMemoryMalloc(sizeof(SMergeOperatorParam));
+  QUERY_CHECK_NULL(pMergeOp, code, lino, _return, terrno)
+
+  pMergeOp->winNum = numOfWins;
+
+  for (int32_t i = 0; i < numOfDownstream; i++) {
+    SOperatorParam* pExternalWinParam = NULL;
+    code = buildExternalWindowOperatorParam(pInfo, &pExternalWinParam, pWins, i);
+    QUERY_CHECK_CODE(code, lino, _return);
+    QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExternalWinParam), code, lino, _return, terrno)
+  }
+
+  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
+  (*ppRes)->downstreamIdx = 0;
+  (*ppRes)->value = pMergeOp;
+  (*ppRes)->reUse = false;
+
+  return TSDB_CODE_SUCCESS;
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  if (pMergeOp) {
+    taosMemoryFree(pMergeOp);
+  }
+  if (*ppRes) {
+    if ((*ppRes)->pChildren) {
+      for (int32_t i = 0; i < taosArrayGetSize((*ppRes)->pChildren); i++) {
+        SOperatorParam* pChildParam = (SOperatorParam*)taosArrayGet((*ppRes)->pChildren, i);
+        if (pChildParam) {
+          SExternalWindowOperatorParam* pExtWinOp = (SExternalWindowOperatorParam*)pChildParam->value;
+          if (pExtWinOp) {
+            if (pExtWinOp->ExtWins) {
+              taosArrayDestroy(pExtWinOp->ExtWins);
+            }
+            taosMemoryFree(pExtWinOp);
+          }
+          taosMemoryFree(pChildParam);
+        }
+      }
+      taosArrayDestroy((*ppRes)->pChildren);
+    }
+    taosMemoryFree(*ppRes);
+    *ppRes = NULL;
+  }
+  return code;
+}
+
+static int32_t buildAggOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SOperatorParam*           pParam = NULL;
+  SOperatorParam*           pExchangeParam = NULL;
+  SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  bool                      freeExchange = false;
+
+  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
+
+  pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno)
+
+  pParam->value = taosMemoryMalloc(sizeof(SAggOperatorParam));
+  QUERY_CHECK_NULL(pParam->value, code, lino, _return, terrno)
+
+  code = buildBatchExchangeOperatorParamForVSAgg(&pExchangeParam, 0, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  freeExchange = true;
+
+  QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pExchangeParam), code, lino, _return, terrno)
+
+  freeExchange = false;
+
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
+  pParam->downstreamIdx = 0;
+  pParam->reUse = false;
+
+  *ppRes = pParam;
+
+  return code;
+_return:
+  if (freeExchange) {
+    freeOperatorParam(pExchangeParam, OP_GET_PARAM);
+  }
+  if (pParam) {
+    freeOperatorParam(pParam, OP_GET_PARAM);
+  }
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t buildAggOperatorParamWithGroupId(SDynQueryCtrlOperatorInfo* pInfo, uint64_t groupid, SOperatorParam** ppRes) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  SOperatorParam*           pParam = NULL;
+  SOperatorParam*           pExchangeParam = NULL;
+  SHashObj*                 otbVgIdToOtbInfoArrayMap = NULL;
+  bool                      freeExchange = false;
+  void*                     pIter = taosHashGet(pVtbScan->vtbGroupIdToVgIdMapMap, &groupid, sizeof(groupid));
+
+  if (!pIter) {
+    *ppRes = NULL;
+    return code;
+  }
+
+  otbVgIdToOtbInfoArrayMap = *(SHashObj**)pIter;
+
+  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
+
+  pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno)
+
+  code = buildBatchExchangeOperatorParamForVSAgg(&pExchangeParam, 0, NULL, groupid, otbVgIdToOtbInfoArrayMap);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  freeExchange = true;
+
+  QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pExchangeParam), code, lino, _return, terrno)
+
+  freeExchange = false;
+
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
+  pParam->downstreamIdx = 0;
+  pParam->value = NULL;
+  pParam->reUse = false;
+
+  *ppRes = pParam;
+
+  return code;
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  if (freeExchange) {
+    freeOperatorParam(pExchangeParam, OP_GET_PARAM);
+  }
+  if (pParam) {
+    freeOperatorParam(pParam, OP_GET_PARAM);
+  }
+  return code;
+}
+
+static int32_t buildAggOperatorParamForSingleChild(SDynQueryCtrlOperatorInfo* pInfo, tb_uid_t uid, uint64_t groupid, SArray* pTagList, SOperatorParam** ppRes) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  SOperatorParam*           pParam = NULL;
+  SHashObj*                 pOtbVgIdToOtbInfoArrayMap = NULL;
+  void*                     pIter = taosHashGet(pVtbScan->vtbUidToVgIdMapMap, &uid, sizeof(uid));
+
+  if (pIter) {
+    pOtbVgIdToOtbInfoArrayMap = *(SHashObj**)taosHashGet(pVtbScan->vtbUidToVgIdMapMap, &uid, sizeof(uid));
+
+    code = buildBatchExchangeOperatorParamForVSAgg(&pParam, 0, pTagList, groupid, pOtbVgIdToOtbInfoArrayMap);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    *ppRes = pParam;
+  } else {
+    *ppRes = NULL;
+  }
+
+  return code;
+_return:
+  if (pParam) {
+    freeOperatorParam(pParam, OP_GET_PARAM);
+  }
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
 }
 
@@ -1507,42 +1696,6 @@ _return:
     T_LONG_JMP(pOperator->pTaskInfo->env, code);
   } else {
     code = seqStableJoinComposeRes(pStbJoin, *pRes);
-  }
-  return code;
-}
-
-static int32_t buildVtbScanOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes, uint64_t uid) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SVTableScanOperatorParam* pVScan = NULL;
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
-
-  (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
-  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
-
-  pVScan = taosMemoryMalloc(sizeof(SVTableScanOperatorParam));
-  QUERY_CHECK_NULL(pVScan, code, lino, _return, terrno)
-  pVScan->pOpParamArray = taosArrayInit(1, POINTER_BYTES);
-  QUERY_CHECK_NULL(pVScan->pOpParamArray, code, lino, _return, terrno)
-  pVScan->uid = uid;
-  pVScan->window = pInfo->vtbScan.window;
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN;
-  (*ppRes)->downstreamIdx = 0;
-  (*ppRes)->value = pVScan;
-  (*ppRes)->reUse = false;
-
-  return TSDB_CODE_SUCCESS;
-_return:
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  if (pVScan) {
-    taosArrayDestroy(pVScan->pOpParamArray);
-    taosMemoryFreeClear(pVScan);
-  }
-  if (*ppRes) {
-    taosArrayDestroy((*ppRes)->pChildren);
-    taosMemoryFreeClear(*ppRes);
   }
   return code;
 }
@@ -2558,12 +2711,21 @@ int32_t virtualTableScanBuildDownStreamOpParam(SOperatorInfo* pOperator, tb_uid_
     SOperatorParam*  pExchangeParam = NULL;
     SStreamTaskAddr* addr = taosHashGet(pVtbScan->newAddedVgInfo, &pMap->vgId, sizeof(pMap->vgId));
     if (addr != NULL) {
-      code = buildExchangeOperatorParamForVScanEx(&pExchangeParam, 0, pMap, pTaskInfo->id.taskId, addr);
+      SDownstreamSourceNode newSource = {0};
+      newSource.type = QUERY_NODE_DOWNSTREAM_SOURCE;
+      newSource.clientId = pTaskInfo->id.taskId;// current task's taskid
+      newSource.taskId = addr->taskId;
+      newSource.fetchMsgType = TDMT_STREAM_FETCH;
+      newSource.localExec = false;
+      newSource.addr.nodeId = addr->nodeId;
+      memcpy(&newSource.addr.epSet, &addr->epset, sizeof(SEpSet));
+
+      code = buildExchangeOperatorParamForVScan(&pExchangeParam, 0, pMap, &newSource);
       QUERY_CHECK_CODE(code, line, _return);
       code = taosHashRemove(pVtbScan->newAddedVgInfo, &pMap->vgId, sizeof(pMap->vgId));
       QUERY_CHECK_CODE(code, line, _return);
     } else {
-      code = buildExchangeOperatorParamForVScan(&pExchangeParam, 0, pMap);
+      code = buildExchangeOperatorParamForVScan(&pExchangeParam, 0, pMap, NULL);
       QUERY_CHECK_CODE(code, line, _return);
     }
     QUERY_CHECK_NULL(taosArrayPush(((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->pOpParamArray, &pExchangeParam), code, line, _return, terrno)
@@ -2906,113 +3068,6 @@ static int32_t extractTsCol(SSDataBlock* pBlock, int32_t slotId, TSKEY** ppTsCol
   return code;
 _return:
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  return code;
-}
-
-static int32_t buildExternalWindowOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes, SArray* pWins, int32_t idx) {
-  int32_t                       code = TSDB_CODE_SUCCESS;
-  int32_t                       lino = 0;
-  SExternalWindowOperatorParam* pExtWinOp = NULL;
-
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
-
-  pExtWinOp = taosMemoryMalloc(sizeof(SExternalWindowOperatorParam));
-  QUERY_CHECK_NULL(pExtWinOp, code, lino, _return, terrno)
-
-  pExtWinOp->ExtWins = taosArrayDup(pWins, NULL);
-  QUERY_CHECK_NULL(pExtWinOp->ExtWins, code, lino, _return, terrno)
-
-  SExtWinTimeWindow *firstWin = (SExtWinTimeWindow *)taosArrayGet(pWins, 0);
-  SExtWinTimeWindow *lastWin = (SExtWinTimeWindow *)taosArrayGet(pWins, taosArrayGetSize(pWins) - 1);
-
-  (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
-  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
-
-  SOperatorParam* pExchangeOperator = NULL;
-  code = buildExchangeOperatorParamForExternalWindow(&pExchangeOperator, 0, firstWin->tw.skey, lastWin->tw.ekey);
-  QUERY_CHECK_CODE(code, lino, _return);
-  QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExchangeOperator), code, lino, _return, terrno)
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW;
-  (*ppRes)->downstreamIdx = idx;
-  (*ppRes)->value = pExtWinOp;
-  (*ppRes)->reUse = false;
-
-  return code;
-_return:
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  if (pExtWinOp) {
-    if (pExtWinOp->ExtWins) {
-      taosArrayDestroy(pExtWinOp->ExtWins);
-    }
-    taosMemoryFree(pExtWinOp);
-  }
-  if (*ppRes) {
-    if ((*ppRes)->pChildren) {
-      taosArrayDestroy((*ppRes)->pChildren);
-    }
-    taosMemoryFree(*ppRes);
-    *ppRes = NULL;
-  }
-  return code;
-}
-
-static int32_t buildMergeOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes, SArray* pWins,
-                                       int32_t numOfDownstream, int32_t numOfWins) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SMergeOperatorParam*      pMergeOp = NULL;
-
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
-
-  (*ppRes)->pChildren = taosArrayInit(numOfDownstream, POINTER_BYTES);
-  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
-
-  pMergeOp = taosMemoryMalloc(sizeof(SMergeOperatorParam));
-  QUERY_CHECK_NULL(pMergeOp, code, lino, _return, terrno)
-
-  pMergeOp->winNum = numOfWins;
-
-  for (int32_t i = 0; i < numOfDownstream; i++) {
-    SOperatorParam* pExternalWinParam = NULL;
-    code = buildExternalWindowOperatorParam(pInfo, &pExternalWinParam, pWins, i);
-    QUERY_CHECK_CODE(code, lino, _return);
-    QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExternalWinParam), code, lino, _return, terrno)
-  }
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
-  (*ppRes)->downstreamIdx = 0;
-  (*ppRes)->value = pMergeOp;
-  (*ppRes)->reUse = false;
-
-  return TSDB_CODE_SUCCESS;
-_return:
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  if (pMergeOp) {
-    taosMemoryFree(pMergeOp);
-  }
-  if (*ppRes) {
-    if ((*ppRes)->pChildren) {
-      for (int32_t i = 0; i < taosArrayGetSize((*ppRes)->pChildren); i++) {
-        SOperatorParam* pChildParam = (SOperatorParam*)taosArrayGet((*ppRes)->pChildren, i);
-        if (pChildParam) {
-          SExternalWindowOperatorParam* pExtWinOp = (SExternalWindowOperatorParam*)pChildParam->value;
-          if (pExtWinOp) {
-            if (pExtWinOp->ExtWins) {
-              taosArrayDestroy(pExtWinOp->ExtWins);
-            }
-            taosMemoryFree(pExtWinOp);
-          }
-          taosMemoryFree(pChildParam);
-        }
-      }
-      taosArrayDestroy((*ppRes)->pChildren);
-    }
-    taosMemoryFree(*ppRes);
-    *ppRes = NULL;
-  }
   return code;
 }
 
@@ -3478,129 +3533,6 @@ _return:
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, code);
   }
-  return code;
-}
-
-static int32_t buildAggOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SOperatorParam*           pParam = NULL;
-  SOperatorParam*           pExchangeParam = NULL;
-  SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
-  bool                      freeExchange = false;
-
-  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
-
-  pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
-  QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno)
-
-  pParam->value = taosMemoryMalloc(sizeof(SAggOperatorParam));
-  QUERY_CHECK_NULL(pParam->value, code, lino, _return, terrno)
-
-  code = buildExchangeOperatorParamForVSAgg(&pExchangeParam, 0, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap);
-  QUERY_CHECK_CODE(code, lino, _return);
-
-  freeExchange = true;
-
-  QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pExchangeParam), code, lino, _return, terrno)
-
-  freeExchange = false;
-
-  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
-  pParam->downstreamIdx = 0;
-  pParam->reUse = false;
-
-  *ppRes = pParam;
-
-  return code;
-_return:
-  if (freeExchange) {
-    freeOperatorParam(pExchangeParam, OP_GET_PARAM);
-  }
-  if (pParam) {
-    freeOperatorParam(pParam, OP_GET_PARAM);
-  }
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  return code;
-}
-
-static int32_t buildAggOperatorParamWithGroupId(SDynQueryCtrlOperatorInfo* pInfo, uint64_t groupid, SOperatorParam** ppRes) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
-  SOperatorParam*           pParam = NULL;
-  SOperatorParam*           pExchangeParam = NULL;
-  SHashObj*                 otbVgIdToOtbInfoArrayMap = NULL;
-  bool                      freeExchange = false;
-  void*                     pIter = taosHashGet(pVtbScan->vtbGroupIdToVgIdMapMap, &groupid, sizeof(groupid));
-
-  if (!pIter) {
-    *ppRes = NULL;
-    return code;
-  }
-
-  otbVgIdToOtbInfoArrayMap = *(SHashObj**)pIter;
-
-  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
-
-  pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
-  QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno)
-
-  code = buildExchangeOperatorParamForVSAgg(&pExchangeParam, 0, NULL, groupid, otbVgIdToOtbInfoArrayMap);
-  QUERY_CHECK_CODE(code, lino, _return);
-
-  freeExchange = true;
-
-  QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pExchangeParam), code, lino, _return, terrno)
-
-  freeExchange = false;
-
-  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
-  pParam->downstreamIdx = 0;
-  pParam->value = NULL;
-  pParam->reUse = false;
-
-  *ppRes = pParam;
-
-  return code;
-_return:
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  if (freeExchange) {
-    freeOperatorParam(pExchangeParam, OP_GET_PARAM);
-  }
-  if (pParam) {
-    freeOperatorParam(pParam, OP_GET_PARAM);
-  }
-  return code;
-}
-
-static int32_t buildAggOperatorParamForSingleChild(SDynQueryCtrlOperatorInfo* pInfo, tb_uid_t uid, uint64_t groupid, SArray* pTagList, SOperatorParam** ppRes) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
-  SOperatorParam*           pParam = NULL;
-  SHashObj*                 pOtbVgIdToOtbInfoArrayMap = NULL;
-  void*                     pIter = taosHashGet(pVtbScan->vtbUidToVgIdMapMap, &uid, sizeof(uid));
-
-  if (pIter) {
-    pOtbVgIdToOtbInfoArrayMap = *(SHashObj**)taosHashGet(pVtbScan->vtbUidToVgIdMapMap, &uid, sizeof(uid));
-
-    code = buildExchangeOperatorParamForVSAgg(&pParam, 0, pTagList, groupid, pOtbVgIdToOtbInfoArrayMap);
-    QUERY_CHECK_CODE(code, lino, _return);
-
-    *ppRes = pParam;
-  } else {
-    *ppRes = NULL;
-  }
-
-  return code;
-_return:
-  if (pParam) {
-    freeOperatorParam(pParam, OP_GET_PARAM);
-  }
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
 }
 
