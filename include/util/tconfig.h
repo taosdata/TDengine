@@ -132,7 +132,6 @@ SConfigItem *cfgNextIter(SConfigIter *pIter);
 void         cfgDestroyIter(SConfigIter *pIter);
 void         cfgLock(SConfig *pCfg);
 void         cfgUnLock(SConfig *pCfg);
-int32_t      cfgFinishLodadCfg();
 
 // clang-format off
 int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope, int8_t dynScope,int8_t category);

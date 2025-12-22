@@ -544,11 +544,6 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
     TAOS_RETURN(code);
   }
 
-  if ((code = cfgFinishLodadCfg()) != 0) {
-    (void)printf("failed to cfgFinishLodadCfg since %s\n", tstrerror(code));
-    TAOS_RETURN(code);
-  }
-
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -2635,6 +2630,7 @@ void taosCleanupCfg() {
   if (tsCfg) {
     cfgCleanup(tsCfg);
     tsCfg = NULL;
+    cleanupTimezoneInfo();
   }
 }
 

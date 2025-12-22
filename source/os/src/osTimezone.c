@@ -744,7 +744,51 @@ char *tz_win[W_TZ_CITY_NUM][2] = {{"Asia/Shanghai", "China Standard Time"},
 #include <unistd.h>
 #endif
 
-timezone_t     g_default_tz = NULL;
+timezone_t g_default_tz = NULL;
+timezone_t g_cleaning_tz = NULL;  // delay free old tz
+char       g_default_tz_str[TD_TIMEZONE_LEN] = {0};
+int64_t    g_last_tz_change_time = 0;
+#define MAX_TZ_CHANGE_INTERVAL_MS 5000
+
+int32_t resetTimezoneInfo(const char *tz) {
+#ifdef WINDOWS
+#else
+  timezone_t old = atomic_load_ptr(&g_default_tz);
+  if (old != NULL) {
+    if (strcasecmp(tz, g_default_tz_str) == 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  int64_t now = taosGetTimestampMs();
+  if (now - g_last_tz_change_time < MAX_TZ_CHANGE_INTERVAL_MS) {
+    uWarn("timezone changed too frequently, ignore change to %s", tz);
+    return TSDB_CODE_TIME_ERROR;
+  }
+  timezone_t ptz = tzalloc(tz);
+  if (!ptz) {
+    uError("failed to allocate default timezone");
+    return TSDB_CODE_TIME_ERROR;
+  }
+
+  timezone_t tmp = atomic_val_compare_exchange_ptr(&g_default_tz, old, ptz);
+  if (old != tmp) {
+    tzfree(ptz);
+    return TSDB_CODE_TIME_ERROR;
+  }
+  tstrncpy(g_default_tz_str, tz, TD_TIMEZONE_LEN);
+
+  if (g_cleaning_tz == NULL) {
+    g_cleaning_tz = old;
+  } else {
+    tzfree(g_cleaning_tz);
+    g_cleaning_tz = old;  // delay free old tz
+  }
+  g_last_tz_change_time = taosGetTimestampMs();
+
+  return TSDB_CODE_SUCCESS;
+#endif
+  return TSDB_CODE_SUCCESS;
+}
 
 int32_t taosSetGlobalTimezone(const char *tz) {
   if (tz == NULL) {
@@ -782,15 +826,13 @@ int32_t taosSetGlobalTimezone(const char *tz) {
   _tzset();
   return 0;
 #else
-  code = setenv("TZ", tz, 1);
-  if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(ERRNO);
-    return terrno;
+  code = resetTimezoneInfo(tz);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
-  tzset();
   time_t tx1 = taosGetTimestampSec();
-  return taosFormatTimezoneStr(tx1, tz, NULL, tsTimezoneStr);
+  return taosFormatTimezoneStr(tx1, tz, g_default_tz, tsTimezoneStr);
 #endif
 }
 
@@ -934,13 +976,17 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr) {
 int32_t initTimezoneInfo(void) {
 #ifdef WINDOWS
 #else
+  timezone_t old = atomic_load_ptr(&g_default_tz);
+  if (old != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
   timezone_t tz = tzalloc(NULL);
   if (!tz) {
     uError("failed to allocate default timezone");
     return TSDB_CODE_TIME_ERROR;
   }
 
-  timezone_t old = atomic_val_compare_exchange_ptr(&g_default_tz, NULL, tz);
+  old = atomic_val_compare_exchange_ptr(&g_default_tz, NULL, tz);
   if (old != NULL) {
     tzfree(tz);
     return TSDB_CODE_TIME_ERROR;
@@ -956,13 +1002,15 @@ void cleanupTimezoneInfo(void) {
   timezone_t tz = atomic_val_compare_exchange_ptr(&g_default_tz, old, NULL);
   if (tz == old) {
     tzfree(tz);
+    if (g_cleaning_tz) {
+      tzfree(g_cleaning_tz);
+      g_cleaning_tz = NULL;
+    }
   }
 #endif
 }
 
 #ifdef WINDOWS
 #else
-timezone_t getGlobalDefaultTZ() {
-  return atomic_load_ptr(&g_default_tz);
-}
+timezone_t getGlobalDefaultTZ() { return atomic_load_ptr(&g_default_tz); }
 #endif
