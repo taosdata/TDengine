@@ -1576,6 +1576,13 @@ bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msg
   char*          oriMsg = NULL;
   int32_t        oriLen = 0;
 
+  int32_t offset = sizeof(pInst->user);
+  char*   pUser = pInst->user;
+  if (pHead->isToken) {
+    offset = sizeof(pInst->identifier);
+    pUser = pInst->identifier;
+  }
+
   if (pHead->comp == 1) {
     int32_t msgLen = htonl(pHead->msgLen);
     code = transDecompressMsgExt((char*)(pHead), msgLen, &oriMsg, &oriLen);
@@ -1589,19 +1596,20 @@ bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msg
     pHead = (STransMsgHead*)oriMsg;
     len = oriLen;
   }
-  STransMsgHead* tHead = taosMemoryCalloc(1, len + sizeof(pInst->user));
+
+  STransMsgHead* tHead = taosMemoryCalloc(1, len + offset);
   if (tHead == NULL) {
     return false;
   }
-  memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
-  memcpy((char*)tHead + TRANS_MSG_OVERHEAD, pInst->user, sizeof(pInst->user));
 
-  memcpy((char*)tHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user), (char*)pHead + TRANS_MSG_OVERHEAD,
-         len - TRANS_MSG_OVERHEAD);
+  memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
+  memcpy((char*)tHead + TRANS_MSG_OVERHEAD, pUser, offset);
+
+  memcpy((char*)tHead + TRANS_MSG_OVERHEAD + offset, (char*)pHead + TRANS_MSG_OVERHEAD, len - TRANS_MSG_OVERHEAD);
 
   tHead->withUserInfo = 1;
   *ppHead = tHead;
-  *msgLen = len + sizeof(pInst->user);
+  *msgLen = len + offset;
 
   pConn->pInitUserReq = tHead;
   pConn->userInited = 1;
@@ -1708,7 +1716,11 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
       pHead->magicNum = htonl(TRANS_MAGIC_NUM);
       pHead->version = TRANS_VER;
       pHead->compatibilityVer = htonl(pInst->compatibilityVer);
+      if (pInst->isToken) {
+        pHead->isToken = 1;
+      }
     }
+
     pHead->timestamp = taosHton64(pCliMsg->st);
     pHead->seqNum = taosHton64(pConn->seq);
     pHead->qid = taosHton64(pReq->info.qId);

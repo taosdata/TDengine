@@ -41,6 +41,8 @@ typedef struct {
   int64_t  applyIndex;
   uint64_t applyTerm;
   char     user[TSDB_USER_LEN];
+  char     identifier[128];
+  int8_t   isToken;
 } SRpcConnInfo;
 
 typedef struct SRpcHandleInfo {
@@ -146,6 +148,7 @@ typedef struct SRpcInit {
   char keyPath[PATH_MAX];
   char cliCertPath[PATH_MAX];
   char cliKeyPath[PATH_MAX];
+  int8_t isToken;
 
   void *parent;
 } SRpcInit;

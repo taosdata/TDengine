@@ -66,6 +66,9 @@ typedef struct SSvrConn {
   char    secret[TSDB_PASSWORD_LEN];
   char    ckey[TSDB_PASSWORD_LEN];  // ciphering key
 
+  char   identifier[128];  // token or user
+  int8_t isToken;
+
   int64_t whiteListVer;
   int64_t dataTimeWhiteListVer;
 
@@ -565,7 +568,7 @@ void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
   }
 }
 int32_t uvDataTimeWhiteListAdd(SDataTimeWhiteListTab* pWhite, char* user, SUserDateTimeWhiteList* plist, int64_t ver) {
-  int32_t   code = 0;
+  int32_t code = 0;
   if (pWhite == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -753,6 +756,17 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
   STrans*        pInst = pConn->pInst;
   STransMsgHead* pHead = *ppHead;
   int32_t        len = *msgLen;
+
+  int32_t offset = sizeof(pConn->user);
+  char*   pUser = pConn->user;
+  if (pHead->isToken) {
+    offset = sizeof(pConn->identifier);
+    pUser = pConn->identifier;
+    pConn->isToken = 1;
+  } else {
+    pConn->isToken = 0;
+  }
+
   if (pHead->withUserInfo) {
     STransMsgHead* tHead = taosMemoryCalloc(1, len - sizeof(pInst->user));
     if (tHead == NULL) {
@@ -760,16 +774,16 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
       return false;
     }
     memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
-    memcpy((char*)tHead + TRANS_MSG_OVERHEAD, (char*)pHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user),
-           len - sizeof(STransMsgHead) - sizeof(pInst->user));
-    tHead->msgLen = htonl(htonl(pHead->msgLen) - sizeof(pInst->user));
+    memcpy((char*)tHead + TRANS_MSG_OVERHEAD, (char*)pHead + TRANS_MSG_OVERHEAD + offset,
+           len - sizeof(STransMsgHead) - offset);
+    tHead->msgLen = htonl(htonl(pHead->msgLen) - offset);
 
-    memcpy(pConn->user, (char*)pHead + TRANS_MSG_OVERHEAD, sizeof(pConn->user));
+    memcpy(pUser, (char*)pHead + TRANS_MSG_OVERHEAD, offset);
     pConn->userInited = 1;
 
     taosMemoryFree(pHead);
     *ppHead = tHead;
-    *msgLen = len - sizeof(pInst->user);
+    *msgLen = len - offset;
     return true;
   }
   return false;
@@ -895,6 +909,11 @@ static bool uvHandleReq(SSvrConn* pConn) {
   pConnInfo->cliAddr = pConn->clientIp;
   // pConnInfo->clientPort = pConn->port;
   tstrncpy(pConnInfo->user, pConn->user, sizeof(pConnInfo->user));
+
+  if (pConn->isToken) {
+    tstrncpy(pConnInfo->identifier, pConn->identifier, sizeof(pConnInfo->identifier));
+    pConnInfo->isToken = 1;
+  }
 
   transReleaseExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
 
