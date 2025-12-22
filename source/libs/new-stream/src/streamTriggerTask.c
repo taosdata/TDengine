@@ -4642,7 +4642,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
     SColumnInfoData *pTypeCol = taosArrayGet(pContext->pTableBlock->pDataBlock, iCol++);
     QUERY_CHECK_NULL(pTypeCol, code, lino, _end, terrno);
     int64_t *pUids = (int64_t *)pUidCol->pData;
-    int64_t *pTypes = (int64_t *)pTypeCol->pData;
+    uint8_t *pTypes = (uint8_t *)pTypeCol->pData;
     for (int32_t i = 0; i < nrows; i++) {
       int64_t gid = pUids[i];
       if (pTypes[i] == TABLE_BLOCK_ADD) {
