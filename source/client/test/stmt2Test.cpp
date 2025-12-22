@@ -4045,61 +4045,61 @@ TEST(stmt2Case, tbname) {
   do_query(taos, "create table stmt2_testdb_22.stb (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
 
   TAOS_STMT2_OPTION option[2] = {{0, false, false, NULL, NULL}, {0, true, true, NULL, NULL}};
-  // for (int i = 0; i < 2; i++) {
-  //   TAOS_STMT2* stmt = taos_stmt2_init(taos, &option[i]);
-  //   ASSERT_NE(stmt, nullptr);
+  for (int i = 0; i < 2; i++) {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option[i]);
+    ASSERT_NE(stmt, nullptr);
 
-  //   const char* sql = "insert into stmt2_testdb_22.stb (tbname,ts,b,t1,t2)values(?,?,?,?,?)";
-  //   int         code = taos_stmt2_prepare(stmt, sql, 0);
-  //   checkError(stmt, code, __FILE__, __LINE__);
+    const char* sql = "insert into stmt2_testdb_22.stb (tbname,ts,b,t1,t2)values(?,?,?,?,?)";
+    int         code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
 
-  //   int             fieldNum = 0;
-  //   TAOS_FIELD_ALL* pFields = NULL;
-  //   code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
-  //   checkError(stmt, code, __FILE__, __LINE__);
-  //   ASSERT_EQ(fieldNum, 5);
+    int             fieldNum = 0;
+    TAOS_FIELD_ALL* pFields = NULL;
+    code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code, __FILE__, __LINE__);
+    ASSERT_EQ(fieldNum, 5);
 
-  //   int     t1 = 1;
-  //   char*   t2 = "abc";
-  //   int32_t t2_len = 3;
-  //   int32_t t1_len = sizeof(int);
+    int     t1 = 1;
+    char*   t2 = "abc";
+    int32_t t2_len = 3;
+    int32_t t1_len = sizeof(int);
 
-  //   int64_t ts[2] = {1591060628000, 1591060628001};
-  //   int32_t len[2] = {sizeof(int64_t), sizeof(int64_t)};
+    int64_t ts[2] = {1591060628000, 1591060628001};
+    int32_t len[2] = {sizeof(int64_t), sizeof(int64_t)};
 
-  //   char* tbname[2] = {"CTb-1", "中文表名"};
+    char* tbname[2] = {"CTb-1", "中文表名"};
 
-  //   TAOS_STMT2_BIND tag[2] = {{TSDB_DATA_TYPE_INT, &t1, &t1_len, NULL, 1},
-  //                             {TSDB_DATA_TYPE_BINARY, &t2, &t2_len, NULL, 1}};
+    TAOS_STMT2_BIND tag[2] = {{TSDB_DATA_TYPE_INT, &t1, &t1_len, NULL, 1},
+                              {TSDB_DATA_TYPE_BINARY, &t2, &t2_len, NULL, 1}};
 
-  //   TAOS_STMT2_BIND col[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &len[0], NULL, 2},
-  //                             {TSDB_DATA_TYPE_BINARY, &tbname[0], &len[0], NULL, 2}};
+    TAOS_STMT2_BIND col[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &len[0], NULL, 2},
+                              {TSDB_DATA_TYPE_BINARY, &tbname[0], &len[0], NULL, 2}};
 
-  //   TAOS_STMT2_BIND* pTag[2] = {&tag[0], &tag[0]};
-  //   TAOS_STMT2_BIND* pCol[2] = {&col[0], &col[0]};
+    TAOS_STMT2_BIND* pTag[2] = {&tag[0], &tag[0]};
+    TAOS_STMT2_BIND* pCol[2] = {&col[0], &col[0]};
 
-  //   TAOS_STMT2_BINDV bindv = {2, &tbname[0], &pTag[0], &pCol[0]};
+    TAOS_STMT2_BINDV bindv = {2, &tbname[0], &pTag[0], &pCol[0]};
 
-  //   code = taos_stmt2_bind_param(stmt, &bindv, -1);
-  //   checkError(stmt, code, __FILE__, __LINE__);
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
 
-  //   int affected_rows = 0;
-  //   code = taos_stmt2_exec(stmt, &affected_rows);
-  //   checkError(stmt, code, __FILE__, __LINE__);
-  //   ASSERT_EQ(affected_rows, 4);
+    int affected_rows = 0;
+    code = taos_stmt2_exec(stmt, &affected_rows);
+    checkError(stmt, code, __FILE__, __LINE__);
+    ASSERT_EQ(affected_rows, 4);
 
-  //   TAOS_RES* result = taos_query(taos, "select tbname from stmt2_testdb_22.stb group by tbname order by tbname");
-  //   ASSERT_NE(result, nullptr);
+    TAOS_RES* result = taos_query(taos, "select tbname from stmt2_testdb_22.stb group by tbname order by tbname");
+    ASSERT_NE(result, nullptr);
 
-  //   TAOS_ROW row = taos_fetch_row(result);
-  //   ASSERT_EQ(strncmp((char*)row[0], "CTb-1", 5), 0);
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_EQ(strncmp((char*)row[0], "CTb-1", 5), 0);
 
-  //   row = taos_fetch_row(result);
-  //   ASSERT_EQ(strncmp((char*)row[0], "中文表名", 4), 0);
+    row = taos_fetch_row(result);
+    ASSERT_EQ(strncmp((char*)row[0], "中文表名", 4), 0);
 
-  //   taos_free_result(result);
-  //   taos_stmt2_close(stmt);
-  // }
+    taos_free_result(result);
+    taos_stmt2_close(stmt);
+  }
 
   for (int i = 0; i < 2; i++) {
     TAOS_STMT2* stmt = taos_stmt2_init(taos, &option[i]);
