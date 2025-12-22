@@ -4813,8 +4813,12 @@ SNode* createCreateXnodeWithUserPassStmt(SAstCreateContext* pCxt, const SToken* 
     COPY_STRING_FORM_ID_TOKEN(pStmt->user, pUser);
   }
   if (pPass != NULL) {
-    // CHECK_NAME(checkPassword(pCxt, pPass, pStmt->pass));
-    strncpy(pStmt->pass, pPass->z, sizeof(pStmt->pass));
+    if (pPass->n <= 2) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode password should not be empty");
+      goto _err;
+    }
+    strncpy(pStmt->pass, pPass->z + 1, pPass->n - 2);
     pStmt->pass[sizeof(pStmt->pass) - 1] = '\0';
   }
   return (SNode*)pStmt;
@@ -5036,7 +5040,7 @@ SNode* createXnodeSinkAsDatabase(SAstCreateContext* pCxt, const SToken* pToken) 
   CHECK_MAKE_NODE(pSink);
   if (pToken == NULL || pToken->n <= 0) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "xnode sink database should not be NULL or empty");
+                                            "Xnode sink database should not be NULL or empty");
     goto _err;
   }
   if (pToken->n > TSDB_XNODE_TASK_SINK_LEN) {
@@ -5066,17 +5070,17 @@ SNode* createXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   SNode* pStmt = NULL;
   if (pResourceName == NULL) {
     pCxt->errCode =
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode task name should not be NULL");
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task name should not be NULL");
     goto _err;
   }
   if (pSource == NULL || pSink == NULL) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "xnode task source and sink should not be NULL");
+                                            "Xnode task source and sink should not be NULL");
     goto _err;
   }
   if (nodeType(pSource) != QUERY_NODE_XNODE_TASK_SOURCE_OPT || nodeType(pSink) != QUERY_NODE_XNODE_TASK_SINK_OPT) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "xnode task source and sink should be valid nodes");
+                                            "Xnode task source and sink should be valid nodes");
     goto _err;
   }
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_TASK_STMT, (SNode**)&pStmt);
@@ -5119,7 +5123,7 @@ SNode* createXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken
   SNode* pStmt = NULL;
   if (pSource != NULL || pSink != NULL) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "xnode agent should not have source or sink");
+                                            "Xnode agent should not have source or sink");
     goto _err;
   }
 
@@ -5163,7 +5167,7 @@ SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceTyp
   }
   if (pResourceId == NULL || (pResourceId != NULL && pResourceId->type != TK_NK_INTEGER)) {
     pCxt->errCode =
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode task id should be an integer");
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task id should be an integer");
     goto _err;
   }
 
@@ -5173,7 +5177,7 @@ SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceTyp
   pTaskStmt->tid = taosStr2Int32(pResourceId->z, NULL, 10);
   if (pTaskStmt->tid <= 0) {
     pCxt->errCode =
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "task id should be greater than 0");
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Task id should be greater than 0");
     goto _err;
   }
 

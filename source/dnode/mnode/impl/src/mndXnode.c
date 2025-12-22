@@ -206,6 +206,36 @@ int32_t mndInitXnode(SMnode *pMnode) {
   return 0;
 }
 
+int32_t checkPasswordFmt(const char *pwd) {
+  if (strcmp(pwd, "taosdata") == 0) {
+    return 0;
+  }
+
+  if (tsEnableStrongPassword == 0) {
+    for (char c = *pwd; c != 0; c = *(++pwd)) {
+      if (c == ' ' || c == '\'' || c == '\"' || c == '`' || c == '\\') {
+        return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+      }
+    }
+    return 0;
+  }
+
+  int32_t len = strlen(pwd);
+  if (len < TSDB_PASSWORD_MIN_LEN) {
+    return TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY;
+  }
+
+  if (len > TSDB_PASSWORD_MAX_LEN) {
+    return TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+  }
+
+  if (taosIsComplexString(pwd)) {
+    return 0;
+  }
+
+  return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+}
+
 void mndCleanupXnode(SMnode *pMnode) {}
 
 SXnodeObj *mndAcquireXnode(SMnode *pMnode, int32_t xnodeId) {
@@ -1520,7 +1550,7 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
   SXnodeObj       *pObj = NULL;
   SMCreateXnodeReq createReq = {0};
 
-  if ((code = grantCheck(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
+  if ((code = grantCheck(TSDB_GRANT_XNODE)) != TSDB_CODE_SUCCESS) {
     mError("failed to create xnode, code:%s", tstrerror(code));
     goto _OVER;
   }
@@ -1542,6 +1572,7 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
       code = TSDB_CODE_MND_XNODE_NEED_USER_PASS;
       goto _OVER;
     }
+    TAOS_CHECK_GOTO(checkPasswordFmt(createReq.pass), NULL, _OVER);
     // store user pass
     code = mndStoreXnodeUserPass(pMnode, pReq, &createReq);
     if (code != 0) goto _OVER;
