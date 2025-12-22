@@ -9129,7 +9129,7 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   SNode* pAggFunc = NULL;
   FOREACH(pAggFunc, pAgg->pAggFuncs) {
     SFunctionNode *pFunc = (SFunctionNode *)pAggFunc;
-    if (fmIsGroupKeyFunc(pFunc->funcId) || (fmIsAggFunc(pFunc->funcId) && !fmIsSelectFunc(pFunc->funcId) && functionHasTagOrPkParam(pFunc)) || !fmIsDistExecFunc(pFunc->funcId)) {
+    if (fmIsSelectValueFunc(pFunc->funcId) || fmisSelectGroupConstValueFunc(pFunc->funcId) || fmIsGroupKeyFunc(pFunc->funcId) || (fmIsAggFunc(pFunc->funcId) && !fmIsSelectFunc(pFunc->funcId) && functionHasTagOrPkParam(pFunc)) || !fmIsDistExecFunc(pFunc->funcId)) {
       return false;
     }
   }
