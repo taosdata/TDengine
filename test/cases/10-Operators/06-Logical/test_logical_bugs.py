@@ -317,22 +317,29 @@ class TestOperator:
         tdSql.query(f"SELECT ts - 8223372036854775808 from {self.dbname}.t2 order by ts")
                
     def test_operator(self):
-        """summary: xxx
+        """Logical bugs
 
-        description: xxx
+        1. Jira TD-5757: 
+            - Logical operator with IS NULL/IS NOT NULL and IN/NOT IN returns incorrect results
+        2. Jira TD-5760: 
+            - Arithmetic operations on TIMESTAMP with negative numbers yield incorrect results
+        3. Jira TD-5758: 
+            - Combining IN operator with BETWEEN clause yields incorrect results
+        4. Jira TD-5759: 
+            - Combining BETWEEN clause with logical operators yields incorrect results
+        5. Jira TD-5823: 
+            - Arithmetic operations on TIMESTAMP with various numeric data types yield incorrect results
+        6. Validate arithmetic operations on TIMESTAMP with different numeric data types:
+            - INT, BIGINT, SMALLINT, TINYINT, FLOAT, DOUBLE, etc.        
 
-        Since: xxx
+        Since: v3.0.0.0
 
-        Labels: xxx
+        Labels: common,ci
 
-        Jira: xxx
-
-        Catalog:
-            - xxx:xxx
+        Jira: None
 
         History:
-            - xxx
-            - xxx
+            - 2025-12-22 Alex Duan Migrated from uncatalog/system-test/2-query/test_operator.py
 
         """
 

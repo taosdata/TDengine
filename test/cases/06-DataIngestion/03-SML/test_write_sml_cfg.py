@@ -250,6 +250,18 @@ class TestSml:
         self.checkContent2()
 
     #
+    # ------------------- odbc ----------------
+    #
+    def check_get_db_name(self):
+        buildPath = tdCom.getBuildPath()
+        exe_file = "get_db_name_test" if platform.system() != "Windows" else "get_db_name_test.exe"
+        cmdStr = os.path.join(buildPath, "build", "bin", exe_file)
+        tdLog.info(cmdStr)
+        ret = os.system(cmdStr)
+        if ret != 0:
+            tdLog.exit("sml_test get_db_name_test != 0")
+
+    #
     # ------------------- main ----------------
     #
     def test_sml_bugs(self):
@@ -268,8 +280,9 @@ class TestSml:
 
         History:
             - 2025-12-20 Alex Duan Migrated from uncatalog/system-test/2-query/test_sml.py
-
+            - 2025-12-22 Alex Duan Migrated from uncatalog/system-test/2-query/test_odbc.py
 
         """
         self.do_sml()
+        self.check_get_db_name()
         
