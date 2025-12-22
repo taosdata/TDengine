@@ -307,7 +307,7 @@ INTERVAL(1m) SLIDING(1m)
 SLIMIT 1;
 ```
 
-The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. The data is first partitioned by the subtable name `tbname`, then divided into 1-minute time windows, with each time window also being 1 minute long; finally, only the data from the first partition is taken as the result. The query results are as follows:
+The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. The data is first partitioned by the subtable name `tbname`, then divided into 1-minute time windows, with the time windows sliding every 1 minute; finally, only the data from the first partition is taken as the result. The query results are as follows:
 
 ```text
  tbname |         _wstart         |          _wend          |     avg(voltage)      |
