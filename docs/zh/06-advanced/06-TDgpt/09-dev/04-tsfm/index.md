@@ -306,9 +306,8 @@ python chronos-server.py /var/lib/taos/taosanode/model/chronos/ amazon/chronos-b
 
 ## 时序基础模型 transformers 版本要求
 
-
-| 模型名称        | transformers 版本 | 
-|-------------|---------------------------------------------|
+| 模型名称        | transformers 版本 |
+|-------------|----------------------|
 | time-moe、moirai、tdtsfm      | 4.40 |
 | chronos    | 4.55                                 |
 | moment   | 4.33                            |
