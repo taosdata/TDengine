@@ -954,8 +954,8 @@ void    removeSessionResults(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, 
 int32_t copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted);
 int32_t copyDeleteSessionKey(SSHashObj* source, SSHashObj* dest);
 
-bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo);
-bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
+bool inSlidingWindow(const SInterval* pInterval, const STimeWindow* pWin, const SDataBlockInfo* pBlockInfo);
+bool inCalSlidingWindow(const SInterval* pInterval, const STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
 bool compareVal(const char* v, const SStateKeys* pKey);
 bool inWinRange(STimeWindow* range, STimeWindow* cur);
 int32_t doDeleteTimeWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SArray* result);
