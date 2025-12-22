@@ -70,11 +70,11 @@ Next, create a supertable (STABLE) named `meters`, whose table structure include
 </TabItem>
 <TabItem label="C" value="c">
 
-```c  title="WebSocket Connection"
+```c title="WebSocket Connection"
 {{#include docs/examples/c-ws/create_db_demo.c:create_db_and_table}}
 ```
 
-```c  title="Native Connection"
+```c title="Native Connection"
 {{#include docs/examples/c/create_db_demo.c:create_db_and_table}}
 ```
 
@@ -234,11 +234,11 @@ Rust connector also supports using **serde** for deserializing to get structured
 </TabItem>
 <TabItem label="C" value="c">
 
-```c  title="WebSocket Connection"
+```c title="WebSocket Connection"
 {{#include docs/examples/c-ws/query_data_demo.c:query_data}}
 ```
 
-```c  title="Native Connection"
+```c title="Native Connection"
 {{#include docs/examples/c/query_data_demo.c:query_data}}
 ```
 
@@ -316,11 +316,11 @@ Below are code examples of setting reqId to execute SQL in various language conn
 </TabItem>
 <TabItem label="C" value="c">
 
-```c "WebSocket Connection"
+```c title="WebSocket Connection"
 {{#include docs/examples/c-ws/with_reqid_demo.c:with_reqid}}
 ```
 
-```c "Native Connection"
+```c title="Native Connection"
 {{#include docs/examples/c/with_reqid_demo.c:with_reqid}}
 ```
 

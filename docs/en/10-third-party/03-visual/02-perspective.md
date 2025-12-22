@@ -276,7 +276,7 @@ This section creates a quick demonstration environment using Node.js with which 
 
 #### Procedure
 
-1. Clone the `perspective-examples` repository from GitHub to your local machine and open the ```examples/tdengine/node``` directory.
+1. Clone the `perspective-examples` repository from GitHub to your local machine and open the `examples/tdengine/node` directory.
 
    ```bash
    git clone https://github.com/ProspectiveCo/perspective-examples
@@ -535,7 +535,7 @@ This section creates a quick demonstration environment using Node.js with which 
 
 #### Procedure
 
-1. Clone the `perspective-examples` repository from GitHub to your local machine and open the ```examples/tdengine/python``` directory.
+1. Clone the `perspective-examples` repository from GitHub to your local machine and open the `examples/tdengine/python` directory.
 
    ```bash
    git clone https://github.com/ProspectiveCo/perspective-examples
