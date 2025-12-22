@@ -99,6 +99,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: taosx-ci-coverage-report
       - name: Check Coverage Threshold
         run: |
           # Install tools if needed
@@ -124,9 +127,6 @@ jobs:
             echo "✅ Coverage ${COVERAGE}% meets or exceeds threshold ${COVERAGE_THRESHOLD}%"
           fi
         continue-on-error: false
-      - uses: actions/download-artifact@v4
-        with:
-          name: taosx-ci-coverage-report
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
