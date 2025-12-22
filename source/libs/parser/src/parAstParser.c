@@ -455,7 +455,7 @@ static int32_t collectMetaKeyFromCreateMultiTable(SCollectMetaKeyCxt* pCxt, SCre
                                       PRIV_DB_USE, pCxt->pMetaCache);
       }
       if (TSDB_CODE_SUCCESS == code) {
-        reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL, PRIV_TBL_CREATE,
+        code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL, PRIV_TBL_CREATE,
                                pCxt->pMetaCache);
       }
     } else {
@@ -470,7 +470,7 @@ static int32_t collectMetaKeyFromCreateMultiTable(SCollectMetaKeyCxt* pCxt, SCre
                                       PRIV_DB_USE, pCxt->pMetaCache);
       }
       if (TSDB_CODE_SUCCESS == code) {
-        reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->useDbName, NULL,
+        code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->useDbName, NULL,
                                PRIV_TBL_CREATE, pCxt->pMetaCache);
       }
     }
