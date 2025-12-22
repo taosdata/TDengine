@@ -5286,7 +5286,11 @@ SNode* rebalanceXnodeJobWhereDirectly(SAstCreateContext* pCxt, SNode* pWhere) {
   pCxt->errCode = nodesMakeNode(QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
 
-  printf("xxxzgc *** where nodetype: %d\n", nodeType(pWhere));
+  int32_t astLen = 0;
+  char*   past = taosMemoryCalloc(1, astLen);
+  nodesNodeToString(pWhere, true, &past, &astLen);
+  printf("xxxzgc *** where nodetype: %d, ast: %s\n", nodeType(pWhere), past);
+
   SRebalanceXnodeJobWhereStmt* pJobStmt = (SRebalanceXnodeJobWhereStmt*)pStmt;
 
   // SBuildTopicContext colCxt = {.colExists = false, .colNotFound = false, .pMeta = pMeta, .pTags = NULL};

@@ -13223,9 +13223,9 @@ static int32_t translateRebalanceXnodeJobWhere(STranslateContext* pCxt, SRebalan
   // if (xnodeId == NULL) {
   //   return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: xnode_id");
   // }
-  char    buf[512] = {0};
+  char*   buf = taosMemoryCalloc(1, 2048);
   int32_t astLen = 0;
-  TAOS_CHECK_GOTO(nodesNodeToString(pStmt->pWhere, false, (char**)&buf, &astLen), NULL, _exit);
+  TAOS_CHECK_GOTO(nodesNodeToString(pStmt->pWhere, false, &buf, &astLen), NULL, _exit);
   printf("xxxzgc *** node ast: %s, astLen: %d\n", buf, astLen);
 
   code = buildCmdMsg(pCxt, TDMT_MND_REBALANCE_XNODE_JOB_WHERE, (FSerializeFunc)tSerializeSMRebalanceXnodeJobReq,

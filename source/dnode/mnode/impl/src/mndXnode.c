@@ -971,7 +971,7 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
   }
 
   if (pCreateReq->xnodeId > 0) {
-    TAOS_CHECK_GOTO(tjsonAddIntegerToObject(postContent, "xnodeId", pCreateReq->xnodeId), NULL, _OVER);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "xnodeId", (double)pCreateReq->xnodeId), NULL, _OVER);
   }
 
   pContStr = tjsonToUnformattedString(postContent);
@@ -1097,7 +1097,7 @@ static int32_t httpStartXnodeTask(SXnodeTaskObj *pObj) {
   }
 
   if (pObj->xnodeId > 0) {
-    TAOS_CHECK_GOTO(tjsonAddIntegerToObject(req.postContent, "xnodeId", pObj->xnodeId), NULL, _OVER);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(req.postContent, "xnodeId", (double)pObj->xnodeId), NULL, _OVER);
   }
 
   req.pContStr = tjsonToUnformattedString(req.postContent);
@@ -1530,7 +1530,7 @@ static int32_t httpCreateXnode(SXnodeObj *pObj) {
     code = terrno;
     goto _OVER;
   }
-  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(postContent, "id", pObj->id), NULL, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "id", (double)pObj->id), NULL, _OVER);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "url", pObj->url), NULL, _OVER);
   pContStr = tjsonToString(postContent);
   if (pContStr == NULL) {
