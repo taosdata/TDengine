@@ -177,7 +177,7 @@ Note that the listed port numbers are based on the default port 6030. If the set
 
 ### 17. Why is there no response from the RESTful interface, Grafana cannot add TDengine as a data source, or TDengineGUI cannot connect even using port 6041?
 
-This phenomenon may be caused by taosAdapter not being started correctly. You need to execute: ```systemctl start taosadapter``` to start the taosAdapter service.
+This phenomenon may be caused by taosAdapter not being started correctly. You need to execute: `systemctl start taosadapter` to start the taosAdapter service.
 
 It should be noted that the log path for taosAdapter needs to be configured separately, the default path is /var/log/taos; there are 8 levels of logLevel, the default level is info, setting it to panic can disable log output. Be aware of the space size of the operating system's / directory, which can be modified through command line parameters, environment variables, or configuration files. The default configuration file is /etc/taos/taosadapter.toml.
 

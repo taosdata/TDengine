@@ -561,7 +561,7 @@ Below are a few examples of configuration files:
 
 After writing is completed, a summary performance metric will be output in the last two lines in the following format:
 
-``` bash
+```bash
 SUCC: Spent 8.527298 (real 8.117379) seconds to insert rows: 10000000 with 8 thread(s) into test 1172704.41 (real 1231924.74) records/second
 SUCC: insert delay, min: 19.6780ms, avg: 64.9390ms, p90: 94.6900ms, p95: 105.1870ms, p99: 130.6660ms, max: 157.0830ms
 ```
@@ -588,7 +588,7 @@ Through this series of indicators, the distribution of write request latency can
 
 The query performance test mainly outputs the QPS indicator of query request speed, and the output format is as follows:
 
-``` bash
+```bash
 complete query with 3 threads and 10000 query delay avg:  0.002686s min:  0.001182s max:  0.012189s p90:  0.002977s p95:  0.003493s p99:  0.004645s SQL command: select ...
 INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all threads: 1113.049
 ```
@@ -603,7 +603,7 @@ INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all thread
 
 The subscription performance test mainly outputs consumer consumption speed indicators, with the following output format:
 
-``` bash
+```bash
 INFO: consumer id 0 has poll total msgs: 376, period rate: 37.592 msgs/s, total rows: 3760000, period rate: 375924.815 rows/s
 INFO: consumer id 1 has poll total msgs: 362, period rate: 36.131 msgs/s, total rows: 3620000, period rate: 361313.504 rows/s
 INFO: consumer id 2 has poll total msgs: 364, period rate: 36.378 msgs/s, total rows: 3640000, period rate: 363781.731 rows/s

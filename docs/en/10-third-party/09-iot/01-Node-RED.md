@@ -109,7 +109,7 @@ Steps:
      - Name: 'write d0'.
      - Select “Function” tab and enter:
 
-     ```javascript
+     ```js
       // Generate random values
       const current = Math.floor(Math.random() * (30 - 5 + 1)) + 5; // 5-30A
       const voltage = Math.floor(Math.random() * (240 - 198 + 1)) + 198; // 198-240V
@@ -167,7 +167,7 @@ Steps:
    - Name: 'query'.
    - Set msg.topic to:  
 
-   ``` sql
+   ```sql
    select tbname, avg(current), avg(voltage), sum(p) 
    from ( select tbname,current,voltage,current*voltage/60 as p from test.meters 
           where  ts > now-60s partition by tbname)
@@ -194,7 +194,7 @@ When the flow is successfully started:
 
 Output from 'td-reader' (exceptions thrown on failure):  
 
-``` json
+```json
 {
   "topic":  "select tbname,avg(current) ...",
   "isQuery":  true,
@@ -230,7 +230,7 @@ Steps:
 
 1. Manually create a subscription topic “topic_overload” using taos-CLI:
 
-   ``` sql
+   ```sql
    create topic topic_overload as 
         select tbname,* from test.meters 
         where current > 25 or voltage > 230;
@@ -261,7 +261,7 @@ When operational:
 
 Alert output from 'td-consumer':
 
-``` json
+```json
 {
   "topic": "topic_overload",
   "payload": [
