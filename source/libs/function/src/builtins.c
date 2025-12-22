@@ -458,6 +458,12 @@ static bool paramSupportColumnNode(uint64_t typeFlag) {
          FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_NOT_VALUE_NODE);
 }
 
+static bool paramSupportRemoteValueNode(uint64_t typeFlag) {
+  return FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_REMOTE_VALUE_NODE) ||
+         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_EXPR_NODE) ||
+         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_NOT_VALUE_NODE);
+}
+
 static bool paramSupportNodeType(SNode* pNode, uint64_t typeFlag) {
   switch (pNode->type) {
     case QUERY_NODE_VALUE:
@@ -472,6 +478,8 @@ static bool paramSupportNodeType(SNode* pNode, uint64_t typeFlag) {
       return paramSupportCaseWhenNode(typeFlag);
     case QUERY_NODE_COLUMN:
       return paramSupportColumnNode(typeFlag);
+    case QUERY_NODE_REMOTE_VALUE:
+      return paramSupportRemoteValueNode(typeFlag);
     default:
       return false;
   }

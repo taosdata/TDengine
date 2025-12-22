@@ -13,6 +13,8 @@
 #include "ttime.h"
 #include "tudf.h"
 
+threadlocal SScalarExtraInfo gTaskScalarExtra = {0};
+
 int32_t scalarGetOperatorParamNum(EOperatorType type) {
   if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type || OP_TYPE_IS_TRUE == type ||
       OP_TYPE_IS_NOT_TRUE == type || OP_TYPE_IS_FALSE == type || OP_TYPE_IS_NOT_FALSE == type ||
@@ -513,6 +515,8 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       param->colAlloced = false;
       break;
     }
+    case QUERY_NODE_REMOTE_VALUE:
+      SCL_ERR_RET(TSDB_CODE_QRY_SUBQ_EXEC_ERROR);
     default:
       break;
   }
@@ -1465,9 +1469,11 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
     for (int32_t i = 0; i < rowNum; ++i) {
       bool *whenValue = (bool *)colDataGetData(pWhen->columnData, (pWhen->numOfRows > 1 ? i : 0));
       if (*whenValue) {
-        SCL_ERR_JRET(colDataSetVal(output->columnData, i,
-                                   colDataGetData(pThen->columnData, (pThen->numOfRows > 1 ? i : 0)),
-                                   colDataIsNull_s(pThen->columnData, (pThen->numOfRows > 1 ? i : 0))));
+        if (colDataIsNull_s(pThen->columnData, (pThen->numOfRows > 1 ? i : 0))) {
+          SCL_ERR_JRET(colDataSetVal(output->columnData, i,  NULL, true));
+        } else {
+          SCL_ERR_JRET(colDataSetVal(output->columnData, i,  colDataGetData(pThen->columnData, (pThen->numOfRows > 1 ? i : 0)), false));
+        }
         if (0 == i && 1 == pWhen->numOfRows && 1 == pThen->numOfRows && rowNum > 1) {
           SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
           break;
@@ -1509,6 +1515,8 @@ _return:
 
   SCL_RET(code);
 }
+
+
 
 EDealRes sclRewriteNullInOptr(SNode **pNode, SScalarCtx *ctx, EOperatorType opType) {
   if (opType <= OP_TYPE_CALC_MAX) {
@@ -2155,6 +2163,44 @@ EDealRes sclWalkCaseWhen(SNode *pNode, SScalarCtx *ctx) {
   return DEAL_RES_CONTINUE;
 }
 
+int32_t sclExecRemoteValue(SRemoteValueNode *node, SScalarCtx *ctx, SScalarParam* pOutput) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t       rowNum = 0;
+  
+  if (NULL == ctx->pSubJobCtx) {
+    sclError("no subJob ctx for subQIdx %d", node->subQIdx);
+    return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+  }
+  
+  SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, node->subQIdx, node));
+  
+  SCL_ERR_JRET(sclInitParam((SNode*)node, pOutput, ctx, &rowNum));
+
+_return:
+
+  return code;
+}
+
+EDealRes sclWalkRemoteValue(SNode *pNode, SScalarCtx *ctx) {
+  SRemoteValueNode *node = (SRemoteValueNode *)pNode;
+  SScalarParam   output = {0};
+
+  ctx->code = sclExecRemoteValue(node, ctx, &output);
+  if (ctx->code) {
+    return DEAL_RES_ERROR;
+  }
+
+  if (taosHashPut(ctx->pRes, &pNode, POINTER_BYTES, &output, sizeof(output))) {
+    ctx->code = terrno;
+    sclFreeParam(&output);
+    return DEAL_RES_ERROR;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+
+
 EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
   if (QUERY_NODE_VALUE == nodeType(pNode) || QUERY_NODE_NODE_LIST == nodeType(pNode) ||
       QUERY_NODE_COLUMN == nodeType(pNode) || QUERY_NODE_LEFT_VALUE == nodeType(pNode) ||
@@ -2163,24 +2209,21 @@ EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
   }
 
   SScalarCtx *ctx = (SScalarCtx *)pContext;
-  if (QUERY_NODE_OPERATOR == nodeType(pNode)) {
-    return sclWalkOperator(pNode, ctx);
-  }
-
-  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
-    return sclWalkFunction(pNode, ctx);
-  }
-
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode)) {
-    return sclWalkLogic(pNode, ctx);
-  }
-
-  if (QUERY_NODE_TARGET == nodeType(pNode)) {
-    return sclWalkTarget(pNode, ctx);
-  }
-
-  if (QUERY_NODE_CASE_WHEN == nodeType(pNode)) {
-    return sclWalkCaseWhen(pNode, ctx);
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_OPERATOR:
+      return sclWalkOperator(pNode, ctx);
+    case QUERY_NODE_FUNCTION:
+      return sclWalkFunction(pNode, ctx);
+    case QUERY_NODE_LOGIC_CONDITION:
+      return sclWalkLogic(pNode, ctx);
+    case QUERY_NODE_TARGET:
+      return sclWalkTarget(pNode, ctx);
+    case QUERY_NODE_CASE_WHEN:
+      return sclWalkCaseWhen(pNode, ctx);
+    case QUERY_NODE_REMOTE_VALUE:
+      return sclWalkRemoteValue(pNode, ctx);
+    default:
+      break;
   }
 
   sclError("invalid node type for scalar calculating, type:%d", nodeType(pNode));
@@ -2355,22 +2398,25 @@ int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) { return sclCalcCon
 
 int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, true, pRes); }
 
-int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void *pExtraParam,
-                        void *streamTsRange) {
-  return scalarCalculateInRange(pNode, pBlockList, pDst, -1, -1, pExtraParam, streamTsRange);
+int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, SScalarExtraInfo* pExtra) {
+  return scalarCalculateInRange(pNode, pBlockList, pDst, -1, -1, pExtra);
 }
 
 int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx,
-                               int32_t rowEndIdx, const void *pExtraParam, void *pTsRange) {
-  if (NULL == pNode || (NULL == pBlockList && pTsRange == NULL)) {
+                               int32_t rowEndIdx, SScalarExtraInfo* pExtra) {
+  if (NULL == pNode || (NULL == pBlockList && (NULL == pExtra || pExtra->pStreamRange == NULL))) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
   int32_t    code = 0;
   SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL};
-  ctx.stream.pStreamRuntimeFuncInfo = pExtraParam;
-  ctx.stream.streamTsRange = pTsRange;
-
+  if (NULL != pExtra) {
+    ctx.stream.pStreamRuntimeFuncInfo = pExtra->pStreamInfo;
+    ctx.stream.streamTsRange = pExtra->pStreamRange;
+    ctx.pSubJobCtx = pExtra->pSubJobCtx;
+    ctx.fetchFp = pExtra->fp;
+  }
+  
   // TODO: OPT performance
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {

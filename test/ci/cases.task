@@ -280,6 +280,16 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_lastrow.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub1.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub2.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3a.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3b.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3c.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3d.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4b.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4c.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4d.py
 ## 09-Having
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having.py

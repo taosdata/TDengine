@@ -1,0 +1,604 @@
+
+taos> use db1;
+Database changed.
+
+taos> select abs((select 1 from tb3 limit 1)) from tb3;
+ abs((select 1 from tb3 limit 1)) |
+===================================
+                                1 |
+                                1 |
+                                1 |
+
+taos> select acos((select 1 from tb3 limit 1)) from tb3;
+ acos((select 1 from tb3 limit 1)) |
+====================================
+                                 0 |
+                                 0 |
+                                 0 |
+
+taos> select asin((select 1 from tb3 limit 1)) from tb3;
+ asin((select 1 from tb3 limit 1)) |
+====================================
+                   1.5707963267949 |
+                   1.5707963267949 |
+                   1.5707963267949 |
+
+taos> select atan((select 1 from tb3 limit 1)) from tb3;
+ atan((select 1 from tb3 limit 1)) |
+====================================
+                 0.785398163397448 |
+                 0.785398163397448 |
+                 0.785398163397448 |
+
+taos> select ceil((select 1 from tb3 limit 1)) from tb3;
+ ceil((select 1 from tb3 limit 1)) |
+====================================
+                                 1 |
+                                 1 |
+                                 1 |
+
+taos> select cos((select 1 from tb3 limit 1)) from tb3;
+ cos((select 1 from tb3 limit 1)) |
+===================================
+                 0.54030230586814 |
+                 0.54030230586814 |
+                 0.54030230586814 |
+
+taos> select degrees((select 1 from tb3 limit 1)) from tb3;
+ degrees((select 1 from tb3 limit 1)) |
+=======================================
+                     57.2957795130823 |
+                     57.2957795130823 |
+                     57.2957795130823 |
+
+taos> select exp((select 1 from tb3 limit 1)) from tb3;
+ exp((select 1 from tb3 limit 1)) |
+===================================
+                 2.71828182845905 |
+                 2.71828182845905 |
+                 2.71828182845905 |
+
+taos> select floor((select 1 from tb3 limit 1)) from tb3;
+ floor((select 1 from tb3 limit 1)) |
+=====================================
+                                  1 |
+                                  1 |
+                                  1 |
+
+taos> select ln((select 1 from tb3 limit 1)) from tb3;
+ ln((select 1 from tb3 limit 1)) |
+==================================
+                               0 |
+                               0 |
+                               0 |
+
+taos> select log((select 1 from tb3 limit 1)) from tb3;
+ log((select 1 from tb3 limit 1)) |
+===================================
+                                0 |
+                                0 |
+                                0 |
+
+taos> select radians((select 1 from tb3 limit 1)) from tb3;
+ radians((select 1 from tb3 limit 1)) |
+=======================================
+                   0.0174532925199433 |
+                   0.0174532925199433 |
+                   0.0174532925199433 |
+
+taos> select round((select 1 from tb3 limit 1)) from tb3;
+ round((select 1 from tb3 limit 1)) |
+=====================================
+                                  1 |
+                                  1 |
+                                  1 |
+
+taos> select sign((select 1 from tb3 limit 1)) from tb3;
+ sign((select 1 from tb3 limit 1)) |
+====================================
+                                 1 |
+                                 1 |
+                                 1 |
+
+taos> select sin((select 1 from tb3 limit 1)) from tb3;
+ sin((select 1 from tb3 limit 1)) |
+===================================
+                0.841470984807897 |
+                0.841470984807897 |
+                0.841470984807897 |
+
+taos> select sqrt((select 1 from tb3 limit 1)) from tb3;
+ sqrt((select 1 from tb3 limit 1)) |
+====================================
+                                 1 |
+                                 1 |
+                                 1 |
+
+taos> select tan((select 1 from tb3 limit 1)) from tb3;
+ tan((select 1 from tb3 limit 1)) |
+===================================
+                  1.5574077246549 |
+                  1.5574077246549 |
+                  1.5574077246549 |
+
+taos> select crc32((select 1 from tb3 limit 1)) from tb3;
+ crc32((select 1 from tb3 limit 1)) |
+=====================================
+                         2212294583 |
+                         2212294583 |
+                         2212294583 |
+
+taos> select date((select 1 from tb3 limit 1)) from tb3;
+ date((select 1 from tb3 limit 1)) |
+====================================
+ 1970-01-01                        |
+ 1970-01-01                        |
+ 1970-01-01                        |
+
+taos> select dayofweek((select 1 from tb3 limit 1)) from tb3;
+ dayofweek((select 1 from tb3 limit 1)) |
+=========================================
+                                      5 |
+                                      5 |
+                                      5 |
+
+taos> select weekday((select 1 from tb3 limit 1)) from tb3;
+ weekday((select 1 from tb3 limit 1)) |
+=======================================
+                                    3 |
+                                    3 |
+                                    3 |
+
+taos> select week((select 1 from tb3 limit 1)) from tb3;
+ week((select 1 from tb3 limit 1)) |
+====================================
+                                 0 |
+                                 0 |
+                                 0 |
+
+taos> select weekofyear((select 1 from tb3 limit 1)) from tb3;
+ weekofyear((select 1 from tb3 limit 1)) |
+==========================================
+                                       1 |
+                                       1 |
+                                       1 |
+
+taos> select csum((select 1 from tb3 limit 1)) from tb3;
+ csum((select 1 from tb3 limit 1)) |
+====================================
+                                 1 |
+                                 2 |
+                                 3 |
+
+taos> select diff((select 1 from tb3 limit 1)) from tb3;
+ diff((select 1 from tb3 limit 1)) |
+====================================
+                                 0 |
+                                 0 |
+
+taos> select irate((select 1 from tb3 limit 1)) from tb3;
+ irate((select 1 from tb3 limit 1)) |
+=====================================
+                                  0 |
+
+taos> select twa((select 1 from tb3 limit 1)) from tb3;
+ twa((select 1 from tb3 limit 1)) |
+===================================
+                                1 |
+
+taos> select ascii((select 'am' from tb3 limit 1)) from tb3;
+ ascii((select 'am' from tb3 limit 1)) |
+========================================
+                                    97 |
+                                    97 |
+                                    97 |
+
+taos> select char_length((select 'am' from tb3 limit 1)) from tb3;
+ char_length((select 'am' from tb3 limit 1)) |
+==============================================
+                                           2 |
+                                           2 |
+                                           2 |
+
+taos> select length((select 'am' from tb3 limit 1)) from tb3;
+ length((select 'am' from tb3 limit 1)) |
+=========================================
+                                      2 |
+                                      2 |
+                                      2 |
+
+taos> select lower((select 'am' from tb3 limit 1)) from tb3;
+ lower((select 'am' from tb3 limit 1)) |
+========================================
+ am                                    |
+ am                                    |
+ am                                    |
+
+taos> select ltrim((select 'am' from tb3 limit 1)) from tb3;
+ ltrim((select 'am' from tb3 limit 1)) |
+========================================
+ am                                    |
+ am                                    |
+ am                                    |
+
+taos> select rtrim((select 'am' from tb3 limit 1)) from tb3;
+ rtrim((select 'am' from tb3 limit 1)) |
+========================================
+ am                                    |
+ am                                    |
+ am                                    |
+
+taos> select trim((select 'am' from tb3 limit 1)) from tb3;
+ trim((select 'am' from tb3 limit 1)) |
+=======================================
+ am                                   |
+ am                                   |
+ am                                   |
+
+taos> select upper((select 'am' from tb3 limit 1)) from tb3;
+ upper((select 'am' from tb3 limit 1)) |
+========================================
+ AM                                    |
+ AM                                    |
+ AM                                    |
+
+taos> select to_base64((select 'am' from tb3 limit 1)) from tb3;
+ to_base64((select 'am' from tb3 limit 1)) |
+============================================
+ YW0=                                      |
+ YW0=                                      |
+ YW0=                                      |
+
+taos> select pow((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+ pow((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) |
+================================================================
+                                                             1 |
+                                                             1 |
+                                                             1 |
+
+taos> select truncate((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+ truncate((select 1 from tb3 limit 1), (select 1 from tb3 limit 1 |
+===================================================================
+                                                                1 |
+                                                                1 |
+                                                                1 |
+
+taos> select mod((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+ mod((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) |
+================================================================
+                                                             0 |
+                                                             0 |
+                                                             0 |
+
+taos> select corr((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+ corr((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) |
+=================================================================
+                                                              0 |
+
+taos> select find_in_set((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : find_in_set [0x80002802] 
+taos> select like_in_set((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : like_in_set [0x80002802] 
+taos> select regexp_in_set((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : regexp_in_set [0x80002802] 
+taos> select timetruncate((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : timetruncate [0x80002802] 
+taos> select timediff((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+ timediff((select 1 from tb3 limit 1), (select 1 from tb3 limit 1 |
+===================================================================
+                                                                0 |
+                                                                0 |
+                                                                0 |
+
+taos> select bottom((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : bottom [0x80002802] 
+taos> select top((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : top [0x80002802] 
+taos> select ifnull((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+ ifnull((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) |
+===================================================================
+                                                                1 |
+                                                                1 |
+                                                                1 |
+
+taos> select nvl((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+ nvl((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) |
+================================================================
+                                                             1 |
+                                                             1 |
+                                                             1 |
+
+taos> select nullif((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+ nullif((select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) |
+===================================================================
+ NULL                                                             |
+ NULL                                                             |
+ NULL                                                             |
+
+taos> select percentile((select 1 from tb3 limit 1), (select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : percentile [0x80002802] 
+taos> select nvl2((select 1 from tb3 limit 1), (select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+ nvl2((select 1 from tb3 limit 1), (select 1 from tb3 limit 1), ( |
+===================================================================
+                                                                1 |
+                                                                1 |
+                                                                1 |
+
+taos> select concat((select 1 from tb3 limit 1), (select 1 from tb3 limit 1), (select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : concat [0x80002802] 
+taos> select concat_ws((select 1 from tb3 limit 1), (select 1 from tb3 limit 1), (select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : concat_ws [0x80002802] 
+taos> select greatest((select 1 from tb3 limit 1), (select 1 from tb3 limit 1), (select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+ greatest((select 1 from tb3 limit 1), (select 1 from tb3 limit 1 |
+===================================================================
+                                                                1 |
+                                                                1 |
+                                                                1 |
+
+taos> select least((select 1 from tb3 limit 1), (select 1 from tb3 limit 1), (select 1 from tb3 limit 1), (select 1 from tb3 limit 1)) from tb3;
+ least((select 1 from tb3 limit 1), (select 1 from tb3 limit 1),  |
+===================================================================
+                                                                1 |
+                                                                1 |
+                                                                1 |
+
+taos> select repeat('ab', (select 1 from tb3 limit 1)) from tb3;
+ repeat('ab', (select 1 from tb3 limit 1)) |
+============================================
+ ab                                        |
+ ab                                        |
+ ab                                        |
+
+taos> select substring('abc', (select 1 from tb3 limit 1)) from tb3;
+ substring('abc', (select 1 from tb3 limit 1)) |
+================================================
+ abc                                           |
+ abc                                           |
+ abc                                           |
+
+taos> select substring('abc', 1, (select 1 from tb3 limit 1)) from tb3;
+ substring('abc', 1, (select 1 from tb3 limit 1)) |
+===================================================
+ a                                                |
+ a                                                |
+ a                                                |
+
+taos> select substring('abc' from (select 1 from tb3 limit 1)) from tb3;
+ substring('abc' from (select 1 from tb3 limit 1)) |
+====================================================
+ abc                                               |
+ abc                                               |
+ abc                                               |
+
+taos> select substring('abc' from 1 for (select 1 from tb3 limit 1)) from tb3;
+ substring('abc' from 1 for (select 1 from tb3 limit 1)) |
+==========================================================
+ a                                                       |
+ a                                                       |
+ a                                                       |
+
+taos> select cast((select 1 from tb3 limit 1) as bigint) from tb3;
+ cast((select 1 from tb3 limit 1) as bigint) |
+==============================================
+                                           1 |
+                                           1 |
+                                           1 |
+
+taos> select to_char(cast((select 1 from tb3 limit 1) as timestamp), 'am') from tb3;
+ to_char(cast((select 1 from tb3 limit 1) as timestamp), 'am') |
+================================================================
+ am                                                            |
+ am                                                            |
+ am                                                            |
+
+taos> select to_iso8601((select 1 from tb3 limit 1), 'z') from tb3;
+ to_iso8601((select 1 from tb3 limit 1), 'z') |
+===============================================
+ 1970-01-01T00:00:00.001z                     |
+ 1970-01-01T00:00:00.001z                     |
+ 1970-01-01T00:00:00.001z                     |
+
+taos> select substring_index('abc', 'b', (select 1 from tb3 limit 1)) from tb3;
+ substring_index('abc', 'b', (select 1 from tb3 limit 1)) |
+===========================================================
+ a                                                        |
+ a                                                        |
+ a                                                        |
+
+taos> select apercentile((select 1 from tb3 limit 1), 1) from tb3;
+ apercentile((select 1 from tb3 limit 1), 1) |
+==============================================
+                                           1 |
+
+taos> select apercentile(f1, (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : apercentile [0x80002802] 
+taos> select histogram((select 1 from tb3 limit 1), 'user_input', '"user_input": "[1, 3, 5, 7]"', 0) from tb3;
+
+DB error: HISTOGRAM function invalid format for binDesc parameter [0x80002800] 
+taos> select histogram(f1, 'user_input', '"user_input": "[1, 3, 5, 7]"', (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : histogram [0x80002802] 
+taos> select cols(last(f1), (select 1 from tb3 limit 1)) from tb3;
+        expr_1         |
+========================
+                     1 |
+
+taos> select rand((select 1 from tb3 limit 1)) from tb1;
+ rand((select 1 from tb3 limit 1)) |
+====================================
+                  0.84018771715471 |
+
+taos> select to_unixtimestamp('2025-10-01', (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : to_unixtimestamp [0x80002802] 
+taos> select derivative((select 1 from tb3 limit 1), 1s, 1) from tb3;
+ derivative((select 1 from tb3 limit 1), 1s, 1) |
+=================================================
+                                              0 |
+                                              0 |
+
+taos> select derivative(1, 1s, (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : derivative [0x80002802] 
+taos> select statecount((select 1 from tb3 limit 1), 'GT', 1) from tb3;
+ statecount((select 1 from tb3 limit 1), 'GT', 1) |
+===================================================
+                                               -1 |
+                                               -1 |
+                                               -1 |
+
+taos> select statecount(f1, 'GT', (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : statecount [0x80002802] 
+taos> select stateduration(f1, 'GT', (select 1 from tb3 limit 1), 1s) from tb3;
+
+DB error: Invalid parameter data type : stateduration [0x80002802] 
+taos> select sample(f1, (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : sample [0x80002802] 
+taos> select sample((select 1 from tb3 limit 1), 1) from tb3;
+ sample((select 1 from tb3 limit 1), 1) |
+=========================================
+                                      1 |
+
+taos> select mavg(f1, (select 1 from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : mavg [0x80002802] 
+taos> select mavg((select 1 from tb3 limit 1), 1) from tb3;
+ mavg((select 1 from tb3 limit 1), 1) |
+=======================================
+                                    1 |
+                                    1 |
+                                    1 |
+
+taos> select position((select 'am' from tb3 limit 1) in 'abc') from tb3;
+ position((select 'am' from tb3 limit 1) in 'abc') |
+====================================================
+                                                 0 |
+                                                 0 |
+                                                 0 |
+
+taos> select position('a' in (select 'am' from tb3 limit 1)) from tb3;
+ position('a' in (select 'am' from tb3 limit 1)) |
+==================================================
+                                               1 |
+                                               1 |
+                                               1 |
+
+taos> select repeat((select 'am' from tb3 limit 1), 2) from tb3;
+ repeat((select 'am' from tb3 limit 1), 2) |
+============================================
+ amam                                      |
+ amam                                      |
+ amam                                      |
+
+taos> select substring((select 'am' from tb3 limit 1), 1, 2) from tb3;
+ substring((select 'am' from tb3 limit 1), 1, 2) |
+==================================================
+ am                                              |
+ am                                              |
+ am                                              |
+
+taos> select substring((select 'am' from tb3 limit 1) from 1 for 1) from tb3;
+ substring((select 'am' from tb3 limit 1) from 1 for 1) |
+=========================================================
+ a                                                      |
+ a                                                      |
+ a                                                      |
+
+taos> select cast((select 'am' from tb3 limit 1) as int) from tb3;
+ cast((select 'am' from tb3 limit 1) as int) |
+==============================================
+                                           0 |
+                                           0 |
+                                           0 |
+
+taos> select to_char(cast(1 as timestamp), (select 'am' from tb3 limit 1)) from tb3;
+ to_char(cast(1 as timestamp), (select 'am' from tb3 limit 1)) |
+================================================================
+ am                                                            |
+ am                                                            |
+ am                                                            |
+
+taos> select to_json((select 'am' from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : to_json [0x80002802] 
+taos> select to_iso8601(cast(1 as timestamp), (select 'am' from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : to_iso8601 [0x80002802] 
+taos> select replace((select 'am' from tb3 limit 1), 'a', 'b') from tb3;
+ replace((select 'am' from tb3 limit 1), 'a', 'b') |
+====================================================
+ bm                                                |
+ bm                                                |
+ bm                                                |
+
+taos> select replace('ab', (select 'am' from tb3 limit 1), 'b') from tb3;
+ replace('ab', (select 'am' from tb3 limit 1), 'b') |
+=====================================================
+ ab                                                 |
+ ab                                                 |
+ ab                                                 |
+
+taos> select replace('ab', 'a', (select 'am' from tb3 limit 1)) from tb3;
+ replace('ab', 'a', (select 'am' from tb3 limit 1)) |
+=====================================================
+ amb                                                |
+ amb                                                |
+ amb                                                |
+
+taos> select replace((select 'am' from tb3 limit 1), (select 'am' from tb3 limit 1), (select 'am' from tb3 limit 1)) from tb3;
+ replace((select 'am' from tb3 limit 1), (select 'am' from tb3 li |
+===================================================================
+ am                                                               |
+ am                                                               |
+ am                                                               |
+
+taos> select substring_index((select 'am' from tb3 limit 1), 'a', 1) from tb3;
+ substring_index((select 'am' from tb3 limit 1), 'a', 1) |
+==========================================================
+                                                         |
+                                                         |
+                                                         |
+
+taos> select substring_index('abc', (select 'am' from tb3 limit 1), 1) from tb3;
+ substring_index('abc', (select 'am' from tb3 limit 1), 1) |
+============================================================
+ abc                                                       |
+ abc                                                       |
+ abc                                                       |
+
+taos> select apercentile(1, 1, (select 'am' from tb3 limit 1)) from tb3;
+
+DB error: Invalid parameter data type : apercentile [0x80002802] 
+taos> select cols(last(f1), (select 'am' from tb3 limit 1)) from tb3;
+ expr_1 |
+=========
+ am     |
+
+taos> select to_timestamp('2025', (select 'am' from tb3 limit 1)) from tb3;
+
+DB error: Func to_timestamp failed for format mismatch [0x80002806] 
+taos> select to_timestamp((select 'am' from tb3 limit 1), 'yy') from tb3;
+
+DB error: Func to_timestamp failed for format mismatch [0x80002806] 
+taos> select to_unixtimestamp((select 'am' from tb3 limit 1), 1) from tb3;
+ to_unixtimestamp((select 'am' from tb3 limit 1), 1) |
+======================================================
+ NULL                                                |
+ NULL                                                |
+ NULL                                                |
+
+taos> select statecount(1, (select 'am' from tb3 limit 1), 1) from tb3;
+
+DB error: Invalid parameter data type : statecount [0x80002802] 

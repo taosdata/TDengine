@@ -340,6 +340,7 @@ typedef enum ENodeType {
   QUERY_NODE_DATE_TIME_RANGE,
   QUERY_NODE_IP_RANGE,
   QUERY_NODE_USER_OPTIONS,
+  QUERY_NODE_REMOTE_VALUE,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -2222,6 +2223,20 @@ int32_t tSerializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
 
+
+typedef struct SDownstreamSourceNode {
+  ENodeType      type;
+  SQueryNodeAddr addr;
+  uint64_t       clientId;
+  uint64_t       taskId;
+  uint64_t       sId;
+  int32_t        execId;
+  int32_t        fetchMsgType;
+  bool           localExec;
+} SDownstreamSourceNode;
+
+
+
 typedef struct SDNodeAddr {
   int32_t nodeId;  // dnodeId
   SEpSet  epSet;
@@ -3545,6 +3560,7 @@ typedef struct SSubQueryMsg {
   char*    sql;
   uint32_t msgLen;
   char*    msg;
+  SArray*  subEndPoints;  // subJobs's endpoints, element is SDownstreamSourceNode*
 } SSubQueryMsg;
 
 int32_t tSerializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
@@ -3672,6 +3688,7 @@ typedef struct {
   uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
+  int32_t  subJobId;
   int32_t  execId;
   int8_t   status;
 } STaskStatus;

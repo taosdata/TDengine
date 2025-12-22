@@ -3074,10 +3074,20 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100;
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wstart desc;
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wstart asc;
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wend desc;
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select _wstart, _wend, count(*) from meters event_window start with c2 > 0 end with c2 < 100 order by _wend asc;
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> explain verbose true select _wstart, _wend, count(*) from meters session(ts, 1h)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Session (functions=3 width=24)
@@ -3783,10 +3793,20 @@ QUERY_PLAN:                Output: columns=2 width=12
 QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> select _wstart, _wend, count(*), last(ts) from meters state_window(c2);
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart desc;
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wstart asc;
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend desc;
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend asc;
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> explain verbose true select _wstart, _wend, count(*), last(ts) from meters state_window(c2) order by _wend asc, count(*) desc\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Sort input_order=asc output_order=asc  (columns=4 width=32)

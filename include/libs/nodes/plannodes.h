@@ -718,16 +718,6 @@ typedef struct SAggPhysiNode {
   bool       hasCountLikeFunc;
 } SAggPhysiNode;
 
-typedef struct SDownstreamSourceNode {
-  ENodeType      type;
-  SQueryNodeAddr addr;
-  uint64_t       clientId;
-  uint64_t       taskId;
-  uint64_t       sId;
-  int32_t        execId;
-  int32_t        fetchMsgType;
-  bool           localExec;
-} SDownstreamSourceNode;
 
 typedef struct SExchangePhysiNode {
   SPhysiNode node;
@@ -939,9 +929,12 @@ typedef struct SExplainInfo {
 
 typedef struct SQueryPlan {
   ENodeType    type;
+  bool         isScalarQ;
   uint64_t     queryId;
   int32_t      numOfSubplans;
   SNodeList*   pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
+  SNodeList*   pChildren;  // Element is SQueryPlan*
+  char*        subSql;
   SExplainInfo explainInfo;
   void*        pPostPlan;
 } SQueryPlan;
