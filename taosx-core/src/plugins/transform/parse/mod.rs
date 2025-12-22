@@ -166,6 +166,10 @@ impl std::ops::Deref for ParserImpl {
 }
 
 pub fn duplicate_rows(data_array: &Arc<dyn Array>, indices: &[usize]) -> Arc<dyn Array> {
+    if indices.is_empty() {
+        return data_array.slice(0, 0);
+    }
+
     let mut duplicated_data_array: Vec<Arc<dyn Array>> = Vec::with_capacity(indices.len());
     for i in indices {
         // 获取 data_array 中第i个数据
@@ -642,4 +646,199 @@ fn test_json() {
     let json: FieldParser = serde_json::from_str(json).unwrap();
     dbg!(&json);
     assert!(matches!(json, FieldParser::Json(_)));
+}
+
+#[cfg(test)]
+use crate::plugins::transform::Select;
+#[cfg(test)]
+use arrow::datatypes::DataType;
+
+#[test]
+fn test_parser_impl_duplicate_rows_from_json_indices() {
+    let mut map = LinkedHashMap::new();
+    let json_parser = Json {
+        json: Select::All,
+        keep: false,
+        depth: None,
+    };
+    map.insert("a".to_string(), FieldParser::Json(json_parser));
+    let parser = ParserImpl::new(map);
+
+    let schema = Schema::new(vec![
+        Field::new("a", DataType::Utf8, false),
+        Field::new("b", DataType::Int64, false),
+    ]);
+    let a: ArrayRef = Arc::new(StringArray::from(vec![
+        r#"[{"x":1},{"x":2}]"#,
+        r#"{"x":3}"#,
+    ]));
+    let b: ArrayRef = Arc::new(Int64Array::from(vec![10, 20]));
+    let batch = RecordBatch::try_new(Arc::new(schema), vec![a, b]).unwrap();
+
+    let parsed = parser.transform_record_batch(&batch).unwrap();
+
+    assert_eq!(parsed.num_rows(), 3);
+    let x = parsed
+        .column_by_name("x")
+        .unwrap()
+        .as_any()
+        .downcast_ref::<Int64Array>()
+        .unwrap();
+    assert_eq!(x.value(0), 1);
+    assert_eq!(x.value(1), 2);
+    assert_eq!(x.value(2), 3);
+
+    let duplicated_b = parsed
+        .column_by_name("b")
+        .unwrap()
+        .as_any()
+        .downcast_ref::<Int64Array>()
+        .unwrap();
+    assert_eq!(duplicated_b.value(0), 10);
+    assert_eq!(duplicated_b.value(1), 10);
+    assert_eq!(duplicated_b.value(2), 20);
+}
+
+#[test]
+fn test_parser_impl_duplicate_rows_for_alias_outputs() {
+    let mut map = LinkedHashMap::new();
+    let json_parser = Json {
+        json: Select::All,
+        keep: false,
+        depth: None,
+    };
+    map.insert("a".to_string(), FieldParser::Json(json_parser));
+    map.insert(
+        "b".to_string(),
+        FieldParser::Alias {
+            alias: "b_alias".to_string(),
+        },
+    );
+    let parser = ParserImpl::new(map);
+
+    let schema = Schema::new(vec![
+        Field::new("a", DataType::Utf8, false),
+        Field::new("b", DataType::Int64, false),
+    ]);
+    let a: ArrayRef = Arc::new(StringArray::from(vec![
+        r#"[{"x":1},{"x":2}]"#,
+        r#"{"x":3}"#,
+    ]));
+    let b: ArrayRef = Arc::new(Int64Array::from(vec![10, 20]));
+    let batch = RecordBatch::try_new(Arc::new(schema), vec![a, b]).unwrap();
+
+    let parsed = parser.transform_record_batch(&batch).unwrap();
+
+    assert_eq!(parsed.num_rows(), 3);
+    let x = parsed
+        .column_by_name("x")
+        .unwrap()
+        .as_any()
+        .downcast_ref::<Int64Array>()
+        .unwrap();
+    assert_eq!(x.value(0), 1);
+    assert_eq!(x.value(1), 2);
+    assert_eq!(x.value(2), 3);
+
+    let b_alias = parsed
+        .column_by_name("b_alias")
+        .unwrap()
+        .as_any()
+        .downcast_ref::<Int64Array>()
+        .unwrap();
+    assert_eq!(b_alias.value(0), 10);
+    assert_eq!(b_alias.value(1), 10);
+    assert_eq!(b_alias.value(2), 20);
+}
+
+#[test]
+fn test_parser_impl_duplicate_rows_for_unparsed_columns() {
+    let mut map = LinkedHashMap::new();
+    let json_parser = Json {
+        json: Select::All,
+        keep: false,
+        depth: None,
+    };
+    map.insert("a".to_string(), FieldParser::Json(json_parser));
+    let parser = ParserImpl::new(map);
+
+    let schema = Schema::new(vec![
+        Field::new("a", DataType::Utf8, false),
+        Field::new("b", DataType::Int64, false),
+        Field::new("c", DataType::Utf8, false),
+    ]);
+    let a: ArrayRef = Arc::new(StringArray::from(vec![
+        r#"[{"x":1},{"x":2}]"#,
+        r#"{"x":3}"#,
+    ]));
+    let b: ArrayRef = Arc::new(Int64Array::from(vec![10, 20]));
+    let c: ArrayRef = Arc::new(StringArray::from(vec!["c1", "c2"]));
+    let batch = RecordBatch::try_new(Arc::new(schema), vec![a, b, c]).unwrap();
+
+    let parsed = parser.transform_record_batch(&batch).unwrap();
+
+    assert_eq!(parsed.num_rows(), 3);
+    let x = parsed
+        .column_by_name("x")
+        .unwrap()
+        .as_any()
+        .downcast_ref::<Int64Array>()
+        .unwrap();
+    assert_eq!(x.value(0), 1);
+    assert_eq!(x.value(1), 2);
+    assert_eq!(x.value(2), 3);
+
+    let duplicated_c = parsed
+        .column_by_name("c")
+        .unwrap()
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+    assert_eq!(duplicated_c.value(0), "c1");
+    assert_eq!(duplicated_c.value(1), "c1");
+    assert_eq!(duplicated_c.value(2), "c2");
+}
+
+#[test]
+fn test_duplicate_rows_helper() {
+    let array: ArrayRef = Arc::new(Int32Array::from(vec![10, 20]));
+    let duplicated = duplicate_rows(&array, &[0, 0, 1]);
+    let duplicated = duplicated.as_any().downcast_ref::<Int32Array>().unwrap();
+
+    assert_eq!(duplicated.len(), 3);
+    assert_eq!(duplicated.value(0), 10);
+    assert_eq!(duplicated.value(1), 10);
+    assert_eq!(duplicated.value(2), 20);
+}
+
+#[test]
+fn test_duplicate_rows_helper_empty_indices() {
+    let array: ArrayRef = Arc::new(Int32Array::from(vec![10, 20]));
+    let duplicated = duplicate_rows(&array, &[]);
+
+    assert_eq!(duplicated.len(), 0);
+}
+
+#[test]
+fn test_parser_impl_noop_when_empty() {
+    let parser = ParserImpl::default();
+
+    let schema = Schema::new(vec![Field::new("a", DataType::Utf8, false)]);
+    let a: ArrayRef = Arc::new(StringArray::from(vec!["v1", "v2"]));
+    let batch = RecordBatch::try_new(Arc::new(schema), vec![a]).unwrap();
+
+    let parsed = parser.transform_record_batch(&batch).unwrap();
+
+    assert_eq!(parsed.num_rows(), batch.num_rows());
+    assert_eq!(parsed.num_columns(), batch.num_columns());
+    assert_eq!(parsed.schema(), batch.schema());
+
+    let col = parsed
+        .column_by_name("a")
+        .unwrap()
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+    assert_eq!(col.value(0), "v1");
+    assert_eq!(col.value(1), "v2");
 }
