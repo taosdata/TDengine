@@ -391,7 +391,7 @@ When the 'batch_query' switch is turned on, it indicates the interval time after
 If the execution time of the query exceeds the interval time, it will no longer wait. If the execution time of the query is less than the interval time, it is necessary to wait to make up for the interval time.
 
 - **threads:** Number of threads executing the SQL query, default is 1.
-- **sqls:**
+- **sqls:** 
   - **sql:** The SQL command to execute, required.
   - **result:** File to save the query results, if not specified, results are not saved.
 
