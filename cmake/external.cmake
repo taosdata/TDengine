@@ -1644,8 +1644,8 @@ if(${BUILD_LIBSASL})      # {
         INC_DIR          include
         LIB              lib/${ext_sasl2}
     )
-    # GIT_REPOSITORY https://github.com/davea42/libdwarf-addr2line.git
-    # GIT_TAG main
+    # GIT_REPOSITORY https://github.com/cyrusimap/cyrus-sasl.git
+    # GIT_TAG cyrus-sasl-2.1.27
     get_from_local_repo_if_exists("https://github.com/cyrusimap/cyrus-sasl.git")
     ExternalProject_Add(ext_sasl2
         GIT_REPOSITORY ${_git_url}
@@ -1654,17 +1654,45 @@ if(${BUILD_LIBSASL})      # {
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        PATCH_COMMAND
-            COMMAND ./autogen.sh
-        CONFIGURE_COMMAND
-            COMMAND ./configure -prefix=${_ins} --with-pic --enable-static=yes --without-openssl --enable-shared=no --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=no CFLAGS=-Wno-missing-braces CXXFLAGS=-Wno-missing-braces
-        BUILD_COMMAND
-            COMMAND make 
-        INSTALL_COMMAND
-            COMMAND make install
+        PATCH_COMMAND ""
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
-    add_dependencies(build_externals ext_sasl2)     # this is for github workflow in cache-miss step.
+
+    # NOTE: tweaking to prevent sasl2 from being rebuilt each time requested
+    #       similar approach as ext_mxml
+    add_custom_command(
+        OUTPUT
+          ${ext_sasl2_source}/configure
+          ${ext_sasl2_source}/Makefile.in
+        DEPENDS ext_sasl2
+        WORKING_DIRECTORY ${ext_sasl2_source}
+        COMMAND ./autogen.sh
+    )
+
+    add_custom_command(
+        OUTPUT
+          ${ext_sasl2_source}/install/lib/${ext_sasl2}
+        DEPENDS
+          ${ext_sasl2_source}/configure
+          ${ext_sasl2_source}/Makefile.in
+        WORKING_DIRECTORY ${ext_sasl2_source}
+        COMMAND ./configure --prefix=${ext_sasl2_source}/install --with-pic --enable-static=yes --without-openssl --enable-shared=no --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=no CFLAGS=-Wno-missing-braces CXXFLAGS=-Wno-missing-braces
+        COMMAND make
+        COMMAND make install
+    )
+
+    add_custom_target(ext_sasl2_post
+        DEPENDS
+          ${ext_sasl2_source}/install/lib/${ext_sasl2}
+        WORKING_DIRECTORY ${ext_sasl2_source}
+        COMMAND "${CMAKE_COMMAND}" -E echo ${ext_sasl2_source}/install/lib/${ext_sasl2}
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory ./install/include ${_ins}/include
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./install/lib/${ext_sasl2} ${_ins}/lib/${ext_sasl2}
+    )
+    add_dependencies(build_externals ext_sasl2_post)     # this is for github workflow in cache-miss step.
 endif(${BUILD_LIBSASL})   # }
 endif()

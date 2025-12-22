@@ -678,6 +678,8 @@ int32_t dmGetEncryptKey() {
     return 0;
   }
 
+  tsEncryptKeysLoaded = true;
+
   // Fallback to legacy encryptCode.cfg format (pre-taosk)
   dInfo("falling back to legacy encryptCode.cfg format");
 

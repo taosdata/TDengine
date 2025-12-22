@@ -443,6 +443,7 @@ static SKeyword keywordTable[] = {
     {"RELOAD",   TK_RELOAD},
     {"NOT_ALLOW_DATETIME",   TK_NOT_ALLOW_DATETIME},
     {"ENCRYPT_ALGORITHMS",   TK_ENCRYPT_ALGORITHMS},
+    {"ENCRYPT_STATUS",       TK_ENCRYPT_STATUS},
     {"ALGR_NAME",            TK_ALGR_NAME},
     {"ALGR_TYPE",            TK_ALGR_TYPE},
     {"ENCRYPT_ALGR",         TK_ENCRYPT_ALGR},
