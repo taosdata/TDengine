@@ -318,7 +318,7 @@ class TestVtableQueryUtil:
         tdLog.info(f"prepare org tables.")
         for i in range(4):
             tdSql.execute(f"drop database if exists test_vtable_select_{i};")
-            tdSql.execute(f"create database test_vtable_select_{i};")
+            tdSql.execute(f"create database test_vtable_select_{i} vgroups 2;")
             tdSql.execute(f"use test_vtable_select_{i};")
 
             tdLog.info(f"prepare org super table.")
@@ -367,7 +367,7 @@ class TestVtableQueryUtil:
 
 
         tdSql.execute(f"drop database if exists test_vtable_select;")
-        tdSql.execute(f"create database test_vtable_select;")
+        tdSql.execute(f"create database test_vtable_select vgroups 2;")
 
         if mode == 2:
             self.prepare_cross_db_virtual_normal_table()
@@ -660,7 +660,7 @@ class TestVtableQueryUtil:
         tdLog.info(f"prepare org tables.")
 
         tdSql.execute("drop database if exists test_vtable_select;")
-        tdSql.execute("create database test_vtable_select;")
+        tdSql.execute("create database test_vtable_select vgroups 2;")
         tdSql.execute("use test_vtable_select;")
 
         tdLog.info(f"prepare org super table.")
