@@ -175,13 +175,14 @@ remove_service() {
 }
 
 function clean_venv() {
-  # Remove python virtual environment
-  #${csudo}rm ${venv_dir}/* || :
+  # Prompt the user to manually delete Python virtual environments if desired
+  echo "Please manually delete the following Python virtual environment directories if you no longer need them:"
   for venv_dir in "${venv_list[@]}"; do
     if [ -d "$venv_dir" ]; then
-      echo "Removing venv: $venv_dir"
-      ${csudo}rm -rf "$venv_dir" || :
-    fi
+      echo "  $venv_dir "
+      # echo "Removing venv: $venv_dir"
+      # ${csudo}rm -rf "$venv_dir" || :
+  fi
   done
 }
 
