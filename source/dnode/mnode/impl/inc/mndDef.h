@@ -303,7 +303,8 @@ typedef struct {
   int32_t  id;
   int32_t  urlLen;
   char*    url;
-  int32_t  status;
+  int32_t  statusLen;
+  char*    status;
   int64_t  createTime;
   int64_t  updateTime;
   SRWLatch lock;

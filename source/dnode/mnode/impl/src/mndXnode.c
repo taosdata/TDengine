@@ -103,7 +103,7 @@ static int32_t  mndXnodeUserPassActionDelete(SSdb *pSdb, SXnodeUserPassObj *pObj
 static int32_t mndRetrieveXnodeAgents(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextXnodeAgent(SMnode *pMnode, void *pIter);
 
-static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char **status, int32_t statusLen);
+static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char *status, int32_t statusLen);
 static int32_t mndGetXnodeTaskStatus(SXnodeTaskObj *pObj, char *status, int32_t statusLen);
 
 /** @section xnoded mgmt */
@@ -236,6 +236,18 @@ int32_t checkPasswordFmt(const char *pwd) {
   return TSDB_CODE_MND_INVALID_PASS_FORMAT;
 }
 
+void swapFields(int32_t *newLen, char **ppNewStr, int32_t *oldLen, char **ppOldStr) {
+  if (*newLen > 0) {
+    int32_t tempLen = *newLen;
+    *newLen = *oldLen;
+    *oldLen = tempLen;
+
+    char *tempStr = *ppNewStr;
+    *ppNewStr = *ppOldStr;
+    *ppOldStr = tempStr;
+  }
+}
+
 void mndCleanupXnode(SMnode *pMnode) {}
 
 SXnodeObj *mndAcquireXnode(SMnode *pMnode, int32_t xnodeId) {
@@ -265,7 +277,8 @@ static SSdbRaw *mndXnodeActionEncode(SXnodeObj *pObj) {
   SDB_SET_INT32(pRaw, dataPos, pObj->id, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->urlLen, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pObj->url, pObj->urlLen, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pObj->status, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pObj->statusLen, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pObj->status, pObj->statusLen, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pObj->createTime, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pObj->updateTime, _OVER)
 
@@ -315,7 +328,14 @@ static SSdbRow *mndXnodeActionDecode(SSdbRaw *pRaw) {
   } else {
     pObj->url = NULL;
   }
-  SDB_GET_INT32(pRaw, dataPos, &pObj->status, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pObj->statusLen, _OVER)
+  if (pObj->statusLen > 0) {
+    pObj->status = taosMemoryCalloc(pObj->statusLen, 1);
+    if (pObj->status == NULL) goto _OVER;
+    SDB_GET_BINARY(pRaw, dataPos, pObj->status, pObj->statusLen, _OVER)
+  } else {
+    pObj->status = NULL;
+  }
   SDB_GET_INT64(pRaw, dataPos, &pObj->createTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pObj->updateTime, _OVER)
 
@@ -339,8 +359,14 @@ _OVER:
 
 static void mndFreeXnode(SXnodeObj *pObj) {
   if (pObj == NULL) return;
-  taosMemoryFreeClear(pObj->url);
-  pObj->urlLen = 0;
+  if (pObj->url != NULL) {
+    taosMemoryFreeClear(pObj->url);
+    pObj->urlLen = 0;
+  }
+  if (pObj->status != NULL) {
+    taosMemoryFreeClear(pObj->status);
+    pObj->statusLen = 0;
+  }
 }
 
 static int32_t mndXnodeActionInsert(SSdb *pSdb, SXnodeObj *pObj) {
@@ -358,9 +384,7 @@ static int32_t mndXnodeActionUpdate(SSdb *pSdb, SXnodeObj *pOld, SXnodeObj *pNew
   mDebug("xnode:%d, perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
 
   taosWLockLatch(&pOld->lock);
-  if (pOld->status != pNew->status) {
-    pOld->status = pNew->status;
-  }
+  swapFields(&pNew->statusLen, &pNew->status, &pOld->statusLen, &pOld->status);
   pOld->updateTime = pNew->updateTime;
   taosWUnLockLatch(&pOld->lock);
   return 0;
@@ -751,18 +775,6 @@ static int32_t mndXnodeTaskActionDelete(SSdb *pSdb, SXnodeTaskObj *pObj) {
   mDebug("xtask:%d, perform delete action, row:%p", pObj->id, pObj);
   mndFreeXnodeTask(pObj);
   return 0;
-}
-
-void swapFields(int32_t *newLen, char **ppNewStr, int32_t *oldLen, char **ppOldStr) {
-    if (*newLen > 0) {
-        int32_t tempLen = *newLen;
-        *newLen = *oldLen;
-        *oldLen = tempLen;
-
-        char *tempStr = *ppNewStr;
-        *ppNewStr = *ppOldStr;
-        *ppOldStr = tempStr;
-    }
 }
 
 static int32_t mndXnodeTaskActionUpdate(SSdb *pSdb, SXnodeTaskObj *pOld, SXnodeTaskObj *pNew) {
@@ -1750,7 +1762,8 @@ static int32_t mndDrainXnode(SMnode *pMnode, SRpcMsg *pReq, SXnodeObj *pObj) {
 
   SXnodeObj xnodeObj = {0};
   xnodeObj.id = pObj->id;
-  xnodeObj.status = 2;
+  xnodeObj.status = "drain";
+  xnodeObj.statusLen = strlen(xnodeObj.status);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drain-xnode");
   TSDB_CHECK_NULL(pTrans, code, lino, _OVER, terrno);
@@ -1905,8 +1918,8 @@ static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SXnodeObj *pObj = NULL;
-  char       buf[TSDB_XNODE_URL_LEN + VARSTR_HEADER_SIZE];
-  char       status[TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE];
+  char       buf[TSDB_XNODE_URL_LEN + VARSTR_HEADER_SIZE] = {0};
+  char       status[TSDB_XNODE_STATUS_LEN] = {0};
   int32_t    code = 0;
   mDebug("show.type:%d, %s:%d: retrieve xnodes with rows: %d", pShow->type, __FILE__, __LINE__, rows);
 
@@ -1924,10 +1937,10 @@ static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
     if (code != 0) goto _end;
 
-    status[0] = 0;
-    if (mndGetXnodeStatus(pObj, (char **)&status, TSDB_XNODE_STATUS_LEN) == 0) {
+    if (mndGetXnodeStatus(pObj, status, TSDB_XNODE_STATUS_LEN) == 0) {
       STR_TO_VARSTR(buf, status);
     } else {
+      mDebug("xnode:%d, status request err: %s", pObj->id, tstrerror(terrno));
       STR_TO_VARSTR(buf, "offline");
     }
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -3128,14 +3141,9 @@ _OVER:
   return pJson;
 }
 
-static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char **status, int32_t statusLen) {
+static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char *status, int32_t statusLen) {
   int32_t code = 0;
   SJson  *pJson = NULL;
-
-  if (pObj->status == 2) {
-    strcpy(*status, "drain");
-    return code;
-  }
 
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
   snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode/%d", XNODED_URL, pObj->id);
@@ -3145,12 +3153,12 @@ static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char **status, int32_t statusL
     goto _OVER;
   }
 
-  code = tjsonGetStringValue2(pJson, "status", *status, statusLen);
+  code = tjsonGetStringValue2(pJson, "status", status, statusLen);
   if (code < 0) {
     code = TSDB_CODE_INVALID_JSON_FORMAT;
     goto _OVER;
   }
-  if (strlen(*status) == 0) {
+  if (strlen(status) == 0) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
     goto _OVER;
   }
