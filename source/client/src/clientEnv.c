@@ -353,7 +353,7 @@ static bool clientRpcTfp(int32_t code, tmsg_t msgType) {
 }
 
 // TODO refactor
-int32_t openTransporter(const char *user, int32_t numOfThread, void **pDnodeConn) {
+int32_t openTransporter(const char *identifier, int8_t isToken, int32_t numOfThread, void **pDnodeConn) {
   SRpcInit rpcInit;
   (void)memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 0;
@@ -363,7 +363,7 @@ int32_t openTransporter(const char *user, int32_t numOfThread, void **pDnodeConn
   rpcInit.rfp = clientRpcRfp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.user = (char *)user;
+  rpcInit.user = (char *)identifier;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.dfp = destroyAhandle;
@@ -384,6 +384,7 @@ int32_t openTransporter(const char *user, int32_t numOfThread, void **pDnodeConn
   rpcInit.ipv6 = tsEnableIpv6;
   rpcInit.enableSSL = tsEnableTLS;
   rpcInit.enableSasl = tsEnableSasl;
+  rpcInit.isToken = isToken;
 
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
   memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
