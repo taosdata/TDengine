@@ -193,6 +193,8 @@ int32_t dmInitVars(SDnode *pDnode) {
     char    metaKey[129] = {0};
     char    dataKey[129] = {0};
     int32_t algorithm = 0;
+    int32_t cfgAlgorithm = 0;
+    int32_t metaAlgorithm = 0;
     int32_t fileVersion = 0;
     int32_t keyVersion = 0;
     int64_t createTime = 0;
@@ -200,7 +202,8 @@ int32_t dmInitVars(SDnode *pDnode) {
     int64_t dbKeyUpdateTime = 0;
 
     code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
-                                &fileVersion, &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
+                                &cfgAlgorithm, &metaAlgorithm, &fileVersion, &keyVersion, &createTime, 
+                                &svrKeyUpdateTime, &dbKeyUpdateTime);
     if (code == 0) {
       tsLocalKeyVersion = keyVersion;
       dInfo("loaded local encryption keys, version:%d", tsLocalKeyVersion);

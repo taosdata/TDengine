@@ -109,6 +109,8 @@ static void *dmKeySyncThreadFp(void *param) {
           char    metaKey[129] = {0};
           char    dataKey[129] = {0};
           int32_t algorithm = 0;
+          int32_t cfgAlgorithm = 0;
+          int32_t metaAlgorithm = 0;
           int32_t fileVersion = 0;
           int32_t keyVersion = 0;
           int64_t createTime = 0;
@@ -117,7 +119,8 @@ static void *dmKeySyncThreadFp(void *param) {
 
           int32_t code =
               taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
-                                   &fileVersion, &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
+                                   &cfgAlgorithm, &metaAlgorithm, &fileVersion, &keyVersion, &createTime, 
+                                   &svrKeyUpdateTime, &dbKeyUpdateTime);
           if (code == 0) {
             // Update global variables with reloaded keys
             tstrncpy(tsSvrKey, svrKey, sizeof(tsSvrKey));
@@ -126,6 +129,8 @@ static void *dmKeySyncThreadFp(void *param) {
             tstrncpy(tsMetaKey, metaKey, sizeof(tsMetaKey));
             tstrncpy(tsDataKey, dataKey, sizeof(tsDataKey));
             tsEncryptAlgorithmType = algorithm;
+            tsCfgAlgorithm = cfgAlgorithm;
+            tsMetaAlgorithm = metaAlgorithm;
             tsEncryptFileVersion = fileVersion;
             tsEncryptKeyVersion = keyVersion;
             tsEncryptKeyCreateTime = createTime;

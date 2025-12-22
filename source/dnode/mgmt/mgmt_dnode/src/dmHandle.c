@@ -453,8 +453,10 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
           masterKeyFile, derivedKeyFile, tsLocalKeyVersion, keySyncRsp.keyVersion);
 
     // Save keys to master.bin and derived.bin
+    // Use the same algorithm for cfg and meta keys (backward compatible)
     code = taoskSaveEncryptKeys(masterKeyFile, derivedKeyFile, keySyncRsp.svrKey, keySyncRsp.dbKey, keySyncRsp.cfgKey, keySyncRsp.metaKey,
-                                keySyncRsp.dataKey, keySyncRsp.algorithm, keySyncRsp.keyVersion, keySyncRsp.createTime,
+                                keySyncRsp.dataKey, keySyncRsp.algorithm, keySyncRsp.algorithm, keySyncRsp.algorithm,
+                                keySyncRsp.keyVersion, keySyncRsp.createTime,
                                 keySyncRsp.svrKeyUpdateTime, keySyncRsp.dbKeyUpdateTime);
     if (code != 0) {
       dError("failed to save encryption keys since %s", tstrerror(code));
@@ -897,6 +899,8 @@ static int32_t dmUpdateSvrKey(const char *newKey) {
   char    metaKey[129] = {0};
   char    dataKey[129] = {0};
   int32_t algorithm = 0;
+  int32_t cfgAlgorithm = 0;
+  int32_t metaAlgorithm = 0;
   int32_t fileVersion = 0;
   int32_t keyVersion = 0;
   int64_t createTime = 0;
@@ -905,7 +909,8 @@ static int32_t dmUpdateSvrKey(const char *newKey) {
 
   int32_t code =
       taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
-                           &fileVersion, &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
+                           &cfgAlgorithm, &metaAlgorithm, &fileVersion, &keyVersion, &createTime, 
+                           &svrKeyUpdateTime, &dbKeyUpdateTime);
   if (code != 0) {
     dError("failed to load encryption keys, since %s", tstrerror(code));
     return code;
@@ -919,9 +924,9 @@ static int32_t dmUpdateSvrKey(const char *newKey) {
   tstrncpy(svrKey, newKey, sizeof(svrKey));
   svrKeyUpdateTime = now;
 
-  // Save updated keys
+  // Save updated keys (use algorithm for all keys for backward compatibility)
   code = taoskSaveEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm,
-                              newKeyVersion, createTime, svrKeyUpdateTime, dbKeyUpdateTime);
+                              algorithm, algorithm, newKeyVersion, createTime, svrKeyUpdateTime, dbKeyUpdateTime);
   if (code != 0) {
     dError("failed to save updated encryption keys, since %s", tstrerror(code));
     return code;
@@ -985,6 +990,8 @@ static int32_t dmUpdateDbKey(const char *newKey) {
   char    metaKey[129] = {0};
   char    dataKey[129] = {0};
   int32_t algorithm = 0;
+  int32_t cfgAlgorithm = 0;
+  int32_t metaAlgorithm = 0;
   int32_t fileVersion = 0;
   int32_t keyVersion = 0;
   int64_t createTime = 0;
@@ -993,7 +1000,8 @@ static int32_t dmUpdateDbKey(const char *newKey) {
 
   int32_t code =
       taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
-                           &fileVersion, &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
+                           &cfgAlgorithm, &metaAlgorithm, &fileVersion, &keyVersion, &createTime, 
+                           &svrKeyUpdateTime, &dbKeyUpdateTime);
   if (code != 0) {
     dError("failed to load encryption keys, since %s", tstrerror(code));
     return code;
@@ -1007,9 +1015,9 @@ static int32_t dmUpdateDbKey(const char *newKey) {
   tstrncpy(dbKey, newKey, sizeof(dbKey));
   dbKeyUpdateTime = now;
 
-  // Save updated keys
+  // Save updated keys (use algorithm for all keys for backward compatibility)
   code = taoskSaveEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm,
-                              newKeyVersion, createTime, svrKeyUpdateTime, dbKeyUpdateTime);
+                              algorithm, algorithm, newKeyVersion, createTime, svrKeyUpdateTime, dbKeyUpdateTime);
   if (code != 0) {
     dError("failed to save updated encryption keys, since %s", tstrerror(code));
     return code;

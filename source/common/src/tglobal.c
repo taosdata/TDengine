@@ -186,7 +186,9 @@ char     tsDbKey[129] = {0};            // DB_KEY (database master key)
 char     tsCfgKey[129] = {0};           // CFG_KEY (config encryption key)
 char     tsMetaKey[129] = {0};          // META_KEY (metadata encryption key)
 char     tsDataKey[129] = {0};          // DATA_KEY (data encryption key)
-int32_t  tsEncryptAlgorithmType = 0;    // Algorithm type (0=none, 1=SM2, 2=SM3, 3=SM4)
+int32_t  tsEncryptAlgorithmType = 0;    // Algorithm type for master keys (SVR_KEY, DB_KEY)
+int32_t  tsCfgAlgorithm = 0;            // Algorithm type for CFG_KEY
+int32_t  tsMetaAlgorithm = 0;           // Algorithm type for META_KEY
 int32_t  tsEncryptFileVersion = 0;      // File format version for compatibility
 int32_t  tsEncryptKeyVersion = 0;       // Key update version (starts from 1, increments on update)
 int64_t  tsEncryptKeyCreateTime = 0;    // Key creation timestamp

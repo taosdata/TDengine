@@ -1805,6 +1805,8 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
   char    metaKey[129] = {0};
   char    dataKey[129] = {0};
   int32_t algorithm = 0;
+  int32_t cfgAlgorithm = 0;
+  int32_t metaAlgorithm = 0;
   int32_t fileVersion = 0;
   int32_t keyVersion = 0;
   int64_t createTime = 0;
@@ -1819,13 +1821,16 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
     tstrncpy(metaKey, tsMetaKey, 128);
     tstrncpy(dataKey, tsDataKey, 128);
     algorithm = tsEncryptAlgorithmType;
+    cfgAlgorithm = tsCfgAlgorithm;
+    metaAlgorithm = tsMetaAlgorithm;
     fileVersion = tsEncryptFileVersion;
     createTime = tsEncryptKeyCreateTime;
     svrKeyUpdateTime = tsSvrKeyUpdateTime;
     dbKeyUpdateTime = tsDbKeyUpdateTime;
   } else {
     code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
-                              &fileVersion, &keyVersion, &createTime, &svrKeyUpdateTime, &dbKeyUpdateTime);
+                                &cfgAlgorithm, &metaAlgorithm, &fileVersion, &keyVersion, &createTime,
+                                &svrKeyUpdateTime, &dbKeyUpdateTime);
     if (code != 0) {
       mError("failed to load encryption keys, since %s", tstrerror(code));
       // If keys don't exist on mnode, return error
@@ -1840,6 +1845,8 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
     tstrncpy(tsMetaKey, metaKey, sizeof(tsMetaKey));
     tstrncpy(tsDataKey, dataKey, sizeof(tsDataKey));
     tsEncryptAlgorithmType = algorithm;
+    tsCfgAlgorithm = cfgAlgorithm;
+    tsMetaAlgorithm = metaAlgorithm;
     tsEncryptFileVersion = fileVersion;
     tsEncryptKeyVersion = keyVersion;
     tsEncryptKeyCreateTime = createTime;

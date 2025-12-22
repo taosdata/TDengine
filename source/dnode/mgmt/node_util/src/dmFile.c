@@ -510,8 +510,8 @@ extern int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineI
 extern int32_t dmGetEncryptKeyFromTaosk();
 
 extern int32_t taoskLoadEncryptKeys(const char *masterKeyFile, const char *derivedKeyFile, char *svrKey, char *dbKey,
-                                    char *cfgKey, char *metaKey, char *dataKey, int32_t *algorithm,
-                                    int32_t *fileVersion, int32_t *keyVersion, int64_t *createTime,
+                                    char *cfgKey, char *metaKey, char *dataKey, int32_t *algorithm, int32_t *cfgAlgorithm,
+                                    int32_t *metaAlgorithm, int32_t *fileVersion, int32_t *keyVersion, int64_t *createTime,
                                     int64_t *svrKeyUpdateTime, int64_t *dbKeyUpdateTime);
 
 static int32_t dmReadEncryptCodeFile(char *file, char **output) {
@@ -598,6 +598,8 @@ int32_t dmGetEncryptKeyFromTaosk() {
   int64_t createTime = 0;
   int64_t svrKeyUpdateTime = 0;
   int64_t dbKeyUpdateTime = 0;
+  int32_t cfgAlgorithm = 0;
+  int32_t metaAlgorithm = 0;
 
   // Call enterprise function to decrypt and load multi-layer keys from split files
   int32_t code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile,
@@ -606,7 +608,9 @@ int32_t dmGetEncryptKeyFromTaosk() {
                                       tsCfgKey,           // output: CFG_KEY (config encryption key)
                                       tsMetaKey,          // output: META_KEY (metadata encryption key)
                                       tsDataKey,          // output: DATA_KEY (data encryption key)
-                                      &algorithm,         // output: encryption algorithm type
+                                      &algorithm,         // output: encryption algorithm type for master keys
+                                      &cfgAlgorithm,      // output: encryption algorithm type for CFG_KEY
+                                      &metaAlgorithm,     // output: encryption algorithm type for META_KEY
                                       &fileVersion,       // output: file format version
                                       &keyVersion,        // output: key update version
                                       &createTime,        // output: key creation timestamp
@@ -627,6 +631,8 @@ int32_t dmGetEncryptKeyFromTaosk() {
 
   // Store metadata
   tsEncryptAlgorithmType = algorithm;
+  tsCfgAlgorithm = cfgAlgorithm;
+  tsMetaAlgorithm = metaAlgorithm;
   tsEncryptFileVersion = fileVersion;   // file format version for compatibility
   tsEncryptKeyVersion = keyVersion;     // key update version
   tsEncryptKeyCreateTime = createTime;
