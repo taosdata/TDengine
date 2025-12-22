@@ -5189,7 +5189,7 @@ typedef struct {
   STqOffsetVal reqOffset;
   int32_t      blockNum;
   int8_t       withTbName;
-  // int8_t       withSchema;
+  int8_t       withSchema;
   SArray*      blockDataLen;
   SArray*      blockData;
   SArray*      blockTbName;
@@ -5238,8 +5238,7 @@ int32_t tSemiDecodeMqBatchMetaRsp(SDecoder* pDecoder, SMqBatchMetaRsp* pRsp);
 void    tDeleteMqBatchMetaRsp(SMqBatchMetaRsp* pRsp);
 
 typedef struct {
-  SMqRspHead head;
-  char       cgroup[TSDB_CGROUP_LEN];
+  int32_t    code;
   SArray*    topics;  // SArray<SMqSubTopicEp>
 } SMqAskEpRsp;
 
@@ -5252,6 +5251,8 @@ static FORCE_INLINE int32_t tEncodeSMqAskEpRsp(void** buf, const SMqAskEpRsp* pR
     SMqSubTopicEp* pVgEp = (SMqSubTopicEp*)taosArrayGet(pRsp->topics, i);
     tlen += tEncodeMqSubTopicEp(buf, pVgEp);
   }
+  tlen += taosEncodeFixedI32(buf, pRsp->code);
+
   return tlen;
 }
 
@@ -5273,6 +5274,8 @@ static FORCE_INLINE void* tDecodeSMqAskEpRsp(void* buf, SMqAskEpRsp* pRsp) {
       return NULL;
     }
   }
+  buf = taosDecodeFixedI32(buf, &pRsp->code);
+
   return buf;
 }
 

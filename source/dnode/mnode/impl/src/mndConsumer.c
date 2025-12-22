@@ -461,23 +461,21 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   }
 
   // 1. check consumer status
+  int32_t serverEpoch = atomic_load_32(&pConsumer->epoch);
   int32_t status = atomic_load_32(&pConsumer->status);
   if (status != MQ_CONSUMER_STATUS_READY) {
     mInfo("consumer:0x%" PRIx64 " not ready, status: %s", consumerId, mndConsumerStatusName(status));
-    code = TSDB_CODE_MND_CONSUMER_NOT_READY;
-    goto END;
+    rsp.code = TSDB_CODE_MND_CONSUMER_NOT_READY;
+  } else {
+    int32_t epoch = req.epoch;
+
+    // 2. check epoch, only send ep info when epochs do not match
+    if (epoch != serverEpoch) {
+      mInfo("process ask ep, consumer:0x%" PRIx64 "(epoch %d) update with server epoch %d",
+            consumerId, epoch, serverEpoch);
+      MND_TMQ_RETURN_CHECK(addEpSetInfo(pMnode, pConsumer, epoch, &rsp));
+    }
   }
-
-  int32_t epoch = req.epoch;
-  int32_t serverEpoch = atomic_load_32(&pConsumer->epoch);
-
-  // 2. check epoch, only send ep info when epochs do not match
-  if (epoch != serverEpoch) {
-    mInfo("process ask ep, consumer:0x%" PRIx64 "(epoch %d) update with server epoch %d",
-          consumerId, epoch, serverEpoch);
-    MND_TMQ_RETURN_CHECK(addEpSetInfo(pMnode, pConsumer, epoch, &rsp));
-  }
-
   code = buildAskEpRsp(pMsg, &rsp, serverEpoch, consumerId);
 
 END:
