@@ -2323,6 +2323,7 @@ int32_t tSerializeSKeySyncRsp(void *buf, int32_t bufLen, SKeySyncRsp *pRsp) {
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->keyVersion));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->needUpdate));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->encryptionKeyStatus));
   if (pRsp->needUpdate) {
     TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->svrKey, 129));
     TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dbKey, 129));
@@ -2330,6 +2331,8 @@ int32_t tSerializeSKeySyncRsp(void *buf, int32_t bufLen, SKeySyncRsp *pRsp) {
     TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->metaKey, 129));
     TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dataKey, 129));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->algorithm));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->cfgAlgorithm));
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->metaAlgorithm));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->createTime));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->svrKeyUpdateTime));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->dbKeyUpdateTime));
@@ -2353,6 +2356,7 @@ int32_t tDeserializeSKeySyncRsp(void *buf, int32_t bufLen, SKeySyncRsp *pRsp) {
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->keyVersion));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->needUpdate));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->encryptionKeyStatus));
   if (pRsp->needUpdate) {
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->svrKey));
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->dbKey));
@@ -2360,6 +2364,8 @@ int32_t tDeserializeSKeySyncRsp(void *buf, int32_t bufLen, SKeySyncRsp *pRsp) {
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->metaKey));
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->dataKey));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->algorithm));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->cfgAlgorithm));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->metaAlgorithm));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->createTime));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->svrKeyUpdateTime));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->dbKeyUpdateTime));

@@ -438,7 +438,7 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 
   dInfo("received key sync response, mnode keyVersion:%d, local keyVersion:%d, needUpdate:%d", keySyncRsp.keyVersion,
         tsLocalKeyVersion, keySyncRsp.needUpdate);
-
+  tsEncryptKeysStatus = keySyncRsp.encryptionKeyStatus;
   if (keySyncRsp.needUpdate) {
 #ifdef TD_ENTERPRISE
     // Get encrypt file path from tsDataDir
@@ -462,12 +462,6 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       dError("failed to save encryption keys since %s", tstrerror(code));
       return code;
     }
-
-    // Set encryption keys loaded flag
-    if (!tsEncryptKeysLoaded) {
-      tsEncryptKeysLoaded = 1;
-    }
-
     // Update local key version
     tsLocalKeyVersion = keySyncRsp.keyVersion;
     dInfo("successfully updated local encryption keys to version:%d", tsLocalKeyVersion);

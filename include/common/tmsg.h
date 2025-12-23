@@ -2626,12 +2626,15 @@ int32_t tDeserializeSKeySyncReq(void* buf, int32_t bufLen, SKeySyncReq* pReq);
 typedef struct {
   int32_t keyVersion;        // mnode's key version
   int8_t  needUpdate;        // 1 if dnode needs to update keys
+  int32_t encryptionKeyStatus;  // Encryption key status (TSDB_ENCRYPT_KEY_STAT_*)
   char    svrKey[129];       // Server key (if needUpdate)
   char    dbKey[129];        // Database key (if needUpdate)
   char    cfgKey[129];       // Config key (if needUpdate)
   char    metaKey[129];      // Metadata key (if needUpdate)
   char    dataKey[129];      // Data key (if needUpdate)
-  int32_t algorithm;         // Encryption algorithm
+  int32_t algorithm;         // Encryption algorithm for master keys
+  int32_t cfgAlgorithm;      // Encryption algorithm for CFG_KEY
+  int32_t metaAlgorithm;     // Encryption algorithm for META_KEY
   int64_t createTime;        // Key creation time
   int64_t svrKeyUpdateTime;  // Server key update time
   int64_t dbKeyUpdateTime;   // Database key update time

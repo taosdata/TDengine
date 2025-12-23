@@ -702,8 +702,9 @@ _err:
  * @return 0 if key loaded successfully, TSDB_CODE_TIMEOUT_ERROR if timeout occurs
  */
 int32_t taosWaitCfgKeyLoaded(void) {
-  int32_t encryptKeysLoaded = atomic_load_32(&tsEncryptKeysLoaded);
-  if (encryptKeysLoaded == 1) {
+  int32_t encryptKeysLoaded = atomic_load_32(&tsEncryptKeysStatus);
+  if (encryptKeysLoaded == TSDB_ENCRYPT_KEY_STAT_LOADED || encryptKeysLoaded == TSDB_ENCRYPT_KEY_STAT_NOT_EXIST ||
+      encryptKeysLoaded == TSDB_ENCRYPT_KEY_STAT_DISABLED) {
     return 0;
   }
 
@@ -712,8 +713,9 @@ int32_t taosWaitCfgKeyLoaded(void) {
 
   while (elapsedMs < TD_ENCRYPT_KEY_WAIT_TIMEOUT_MS) {
     // Check if CFG key is loaded
-    encryptKeysLoaded = atomic_load_32(&tsEncryptKeysLoaded);
-    if (encryptKeysLoaded == 1) {
+    encryptKeysLoaded = atomic_load_32(&tsEncryptKeysStatus);
+    if (encryptKeysLoaded == TSDB_ENCRYPT_KEY_STAT_LOADED || encryptKeysLoaded == TSDB_ENCRYPT_KEY_STAT_NOT_EXIST ||
+        encryptKeysLoaded == TSDB_ENCRYPT_KEY_STAT_DISABLED) {
       uDebug("CFG encryption key loaded successfully after %d ms", elapsedMs);
       return 0;
     }

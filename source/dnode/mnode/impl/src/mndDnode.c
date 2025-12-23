@@ -1813,7 +1813,7 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
   int64_t svrKeyUpdateTime = 0;
   int64_t dbKeyUpdateTime = 0;
 
-  if (tsEncryptKeysLoaded){
+  if (tsEncryptKeysStatus == TSDB_ENCRYPT_KEY_STAT_LOADED) {
     keyVersion = tsEncryptKeyVersion;
     tstrncpy(svrKey, tsSvrKey, 128);
     tstrncpy(dbKey, tsDbKey, 128);
@@ -1827,35 +1827,9 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
     createTime = tsEncryptKeyCreateTime;
     svrKeyUpdateTime = tsSvrKeyUpdateTime;
     dbKeyUpdateTime = tsDbKeyUpdateTime;
+    rsp.encryptionKeyStatus = TSDB_ENCRYPT_KEY_STAT_LOADED;
   } else {
-    code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
-                                &cfgAlgorithm, &metaAlgorithm, &fileVersion, &keyVersion, &createTime,
-                                &svrKeyUpdateTime, &dbKeyUpdateTime);
-    if (code != 0) {
-      mError("failed to load encryption keys, since %s", tstrerror(code));
-      // If keys don't exist on mnode, return error
-      code = TSDB_CODE_FILE_CORRUPTED;
-      goto _OVER;
-    }
-    
-    // First load: copy to global variables
-    tstrncpy(tsSvrKey, svrKey, sizeof(tsSvrKey));
-    tstrncpy(tsDbKey, dbKey, sizeof(tsDbKey));
-    tstrncpy(tsCfgKey, cfgKey, sizeof(tsCfgKey));
-    tstrncpy(tsMetaKey, metaKey, sizeof(tsMetaKey));
-    tstrncpy(tsDataKey, dataKey, sizeof(tsDataKey));
-    tsEncryptAlgorithmType = algorithm;
-    tsCfgAlgorithm = cfgAlgorithm;
-    tsMetaAlgorithm = metaAlgorithm;
-    tsEncryptFileVersion = fileVersion;
-    tsEncryptKeyVersion = keyVersion;
-    tsEncryptKeyCreateTime = createTime;
-    tsSvrKeyUpdateTime = svrKeyUpdateTime;
-    tsDbKeyUpdateTime = dbKeyUpdateTime;
-    
-    // Mark keys as loaded (should be last to avoid race condition)
-    tsEncryptKeysLoaded = true;
-    mInfo("encryption keys loaded successfully, keyVersion:%d", keyVersion);
+    rsp.encryptionKeyStatus = TSDB_ENCRYPT_KEY_STAT_DISABLED;
   }
 
   // Check if dnode needs update

@@ -673,12 +673,12 @@ int32_t dmGetEncryptKey() {
   // First try to load from taosk key files (master.bin and derived.bin)
   code = dmGetEncryptKeyFromTaosk();
   if (code == 0) {
-    tsEncryptKeysLoaded = true;
+    tsEncryptKeysStatus = TSDB_ENCRYPT_KEY_STAT_LOADED;
     dInfo("encryption keys loaded from taosk key files");
     return 0;
   }
 
-  tsEncryptKeysLoaded = true;
+  tsEncryptKeysStatus = TSDB_ENCRYPT_KEY_STAT_NOT_EXIST;
 
   // Fallback to legacy encryptCode.cfg format (pre-taosk)
   dInfo("falling back to legacy encryptCode.cfg format");

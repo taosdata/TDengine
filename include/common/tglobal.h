@@ -61,7 +61,7 @@ extern int32_t       tsVersion;
 extern int32_t       tsForceReadConfig;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
-extern int32_t       tsEncryptKeysLoaded;
+extern int32_t        tsEncryptKeysStatus;
 extern int32_t       tsLocalKeyVersion;
 extern int32_t       tsStatusInterval;
 extern int32_t       tsStatusIntervalMs;
@@ -193,6 +193,15 @@ extern int8_t   tsEncryptionKeyStat;
 extern uint32_t tsGrant;
 
 // taosk encryption keys (multi-layer encryption)
+
+enum {
+  TSDB_ENCRYPT_KEY_STAT_UNLOADED = 0,
+  TSDB_ENCRYPT_KEY_STAT_LOADED,
+  TSDB_ENCRYPT_KEY_STAT_NOT_EXIST,
+  TSDB_ENCRYPT_KEY_STAT_DISABLED,
+  TSDB_ENCRYPT_KEY_STAT_MAX
+};
+
 extern bool     tsUseTaoskEncryption;      // Flag: using taosk encrypt.bin format
 extern char     tsSvrKey[129];             // SVR_KEY (server master key)
 extern char     tsDbKey[129];              // DB_KEY (database master key)

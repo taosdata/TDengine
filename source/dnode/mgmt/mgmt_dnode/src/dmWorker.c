@@ -82,10 +82,9 @@ static void *dmKeySyncThreadFp(void *param) {
     int64_t curTime = taosGetTimestampMs();
     if (curTime < lastTime) lastTime = curTime;
     float interval = curTime - lastTime;
-
-    // Sync keys periodically (every 30 seconds) or on first run
-    if (interval >= 30000 || lastTime == 0) {
-      if (tsEncryptKeysLoaded) {
+    if (interval >= tsStatusIntervalMs) {
+      // Sync keys periodically (every 30 seconds) or on first run
+      if (tsEncryptKeysStatus == TSDB_ENCRYPT_KEY_STAT_LOADED) {
         // Check if encryption keys are expired
         int64_t svrKeyAge = curTime - tsSvrKeyUpdateTime;
         int64_t dbKeyAge = curTime - tsDbKeyUpdateTime;
@@ -152,7 +151,10 @@ static void *dmKeySyncThreadFp(void *param) {
             dError("failed to reload encryption keys since %s", tstrerror(code));
           }
 #endif
-        }
+      }
+      } else if (tsEncryptKeysStatus == TSDB_ENCRYPT_KEY_STAT_DISABLED) {
+        dInfo("encryption keys are disabled, stopping key sync thread");
+        break;
       } else {
         dmSendKeySyncReq(pMgmt);
       }

@@ -180,7 +180,7 @@ int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_UNSET;
 
 // taosk encryption keys (multi-layer encryption)
 bool     tsUseTaoskEncryption = false;  // Flag: using taosk encrypt.bin format
-int32_t  tsEncryptKeysLoaded = 0;   // 0: not loaded, 1: loaded from file, 2: loaded from mnode
+int32_t  tsEncryptKeysStatus = 0;       // 0: not loaded, 1: loaded from file, 2: loaded from mnode
 char     tsSvrKey[129] = {0};           // SVR_KEY (server master key)
 char     tsDbKey[129] = {0};            // DB_KEY (database master key)
 char     tsCfgKey[129] = {0};           // CFG_KEY (config encryption key)
