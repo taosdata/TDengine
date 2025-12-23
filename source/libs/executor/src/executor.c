@@ -508,7 +508,7 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
       }
 
       if (!qualified) {
-        qInfo("table uid:0x%" PRIx64 " is unqualified for tag condition, %s", info.uid, idstr);
+        qInfo("table uid:0x%" PRIx64 " is unqualified for tag condition, %s", t->childUid, idstr);
         continue;
       }
     }
