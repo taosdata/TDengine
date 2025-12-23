@@ -5449,7 +5449,7 @@ _err:
 
 SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResourceName) {
   SNode* pStmt = NULL;
-  char resourceId[TSDB_XNODE_RESOURCE_ID_LEN + 1];
+  char   buf[TSDB_XNODE_TASK_NAME_LEN + 1];
 
   CHECK_PARSER_STATUS(pCxt);
   if (pResourceName == NULL || pResourceName->n <= 0) {
@@ -5476,9 +5476,11 @@ SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceTyp
                                                   pResourceName->n, TSDB_XNODE_TASK_NAME_LEN);
           goto _err;
         }
-        COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
+        COPY_STRING_FORM_STR_TOKEN(buf, pResourceName);
+        pTaskStmt->name = taosStrndupi(buf, sizeof(buf));
       } else if (pResourceName->type == TK_NK_ID) {
-        COPY_STRING_FORM_ID_TOKEN(pTaskStmt->name, pResourceName);
+        COPY_STRING_FORM_ID_TOKEN(buf, pResourceName);
+        pTaskStmt->name = taosStrndupi(buf, sizeof(buf));
       } else if (pResourceName->type == TK_NK_INTEGER) {
         pTaskStmt->tid = taosStr2Int32(pResourceName->z, NULL, 10);
       } else {

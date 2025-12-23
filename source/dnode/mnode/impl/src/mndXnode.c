@@ -1128,7 +1128,7 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMStartXnodeTaskReq(pReq->pCont, pReq->contLen, &startReq), NULL, _OVER);
 
-  mInfo("Xnode start xnode task with tid:%d", startReq.tid);
+  mInfo("xnode start xnode task with tid:%d", startReq.tid);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_START_XNODE_TASK), NULL, _OVER);
 
   if (startReq.tid <= 0) {
