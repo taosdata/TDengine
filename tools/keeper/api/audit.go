@@ -43,8 +43,8 @@ type AuditInfo struct {
 	Resource     string  `json:"resource"`
 	ClientAdd    string  `json:"client_add"` // client address
 	Details      string  `json:"details"`
-	AffectedRows uint64  `json:"affected_rows,omitempty"`
-	Duration     float64 `json:"duration,omitempty"`
+	AffectedRows uint64  `json:"affected_rows"`
+	Duration     float64 `json:"duration"`
 }
 
 type AuditArrayInfo struct {
@@ -118,8 +118,8 @@ func (a *Audit) handleBatchFunc() gin.HandlerFunc {
 		if auditLogger.Logger.IsLevelEnabled(logrus.TraceLevel) {
 			auditLogger.Tracef("receive audit request, data:%s", string(data))
 		}
-		var auditArray AuditArrayInfo
 
+		var auditArray AuditArrayInfo
 		if err := json.Unmarshal(data, &auditArray); err != nil {
 			auditLogger.Errorf("parse audit data error, data:%s, error:%s", string(data), err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("parse audit data error: %s", err)})
@@ -134,9 +134,7 @@ func (a *Audit) handleBatchFunc() gin.HandlerFunc {
 			return
 		}
 
-		err = handleBatchRecord(auditArray.Records, a.conn, qid)
-
-		if err != nil {
+		if err := handleBatchRecord(auditArray.Records, a.conn, qid); err != nil {
 			auditLogger.Errorf("process records error, error:%s", err)
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("process records error. %s", err)})
 			return
@@ -215,19 +213,17 @@ func handleDetails(details string) string {
 }
 
 func parseSql(audit AuditInfo) string {
-	details := handleDetails(audit.Details)
-
 	return fmt.Sprintf(
-		"insert into %s using operations tags ('%s') values (%s, '%s', '%s', '%s', '%s', '%s', '%s') ",
-		getTableName(audit), audit.ClusterID, audit.Timestamp, audit.User, audit.Operation, audit.Db, audit.Resource, audit.ClientAdd, details)
+		"insert into %s using operations tags ('%s') values (%s, '%s', '%s', '%s', '%s', '%s', '%s', %d, %f) ",
+		getTableName(audit), audit.ClusterID, audit.Timestamp, audit.User, audit.Operation, audit.Db, audit.Resource,
+		audit.ClientAdd, handleDetails(audit.Details), audit.AffectedRows, audit.Duration)
 }
 
 func parseSqlOld(audit AuditInfoOld) string {
-	details := handleDetails(audit.Details)
-
 	return fmt.Sprintf(
-		"insert into %s using operations tags ('%s') values (%s, '%s', '%s', '%s', '%s', '%s', '%s') ",
-		getTableNameOld(audit), audit.ClusterID, strconv.FormatInt(audit.Timestamp, 10)+"000000", audit.User, audit.Operation, audit.Db, audit.Resource, audit.ClientAdd, details)
+		"insert into %s using operations tags ('%s') values (%s, '%s', '%s', '%s', '%s', '%s', '%s')",
+		getTableNameOld(audit), audit.ClusterID, strconv.FormatInt(audit.Timestamp, 10)+"000000", audit.User,
+		audit.Operation, audit.Db, audit.Resource, audit.ClientAdd, handleDetails(audit.Details))
 }
 
 func handleBatchRecord(auditArray []AuditInfo, conn *db.Connector, qid uint64) error {
@@ -239,11 +235,10 @@ func handleBatchRecord(auditArray []AuditInfo, conn *db.Connector, qid uint64) e
 	builder.WriteString(head)
 	var qid_counter uint8 = 0
 	for _, audit := range auditArray {
-
-		details := handleDetails(audit.Details)
 		valuesStr := fmt.Sprintf(
-			"(%s, '%s', '%s', '%s', '%s', '%s', '%s') ",
-			audit.Timestamp, audit.User, audit.Operation, audit.Db, audit.Resource, audit.ClientAdd, details)
+			"(%s, '%s', '%s', '%s', '%s', '%s', '%s', %d, %f) ",
+			audit.Timestamp, audit.User, audit.Operation, audit.Db, audit.Resource,
+			audit.ClientAdd, handleDetails(audit.Details), audit.AffectedRows, audit.Duration)
 
 		if (builder.Len() + len(valuesStr)) > MAX_SQL_LEN {
 			sql := builder.String()

@@ -514,3 +514,176 @@ func TestAudit_createSTables(t *testing.T) {
 	_, err = conn.Query(context.Background(), "drop database if exists test_1766474758", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
 }
+
+func TestAuditInfo_Unmarshal_NoExtraFields(t *testing.T) {
+	jsonStr := `{
+        "timestamp": "1699839716442000000",
+        "cluster_id": "cluster_id",
+        "user": "user",
+        "operation": "opeation",
+        "db": "db",
+        "resource": "resource",
+        "client_add": "127.0.0.1:3000",
+        "details": "details"
+    }`
+	var info AuditInfo
+	err := json.Unmarshal([]byte(jsonStr), &info)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(0), info.AffectedRows)
+	assert.Equal(t, 0.0, info.Duration)
+}
+
+func TestAuditInfo_Unmarshal_WithExtraFields(t *testing.T) {
+	jsonStr := `{
+        "timestamp": "1699839716442000000",
+        "cluster_id": "cluster_id",
+        "user": "user",
+        "operation": "opeation",
+        "db": "db",
+        "resource": "resource",
+        "client_add": "127.0.0.1:3000",
+        "details": "details",
+		"affected_rows": 123,
+        "duration": 4.56
+    }`
+	var info AuditInfo
+	err := json.Unmarshal([]byte(jsonStr), &info)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(123), info.AffectedRows)
+	assert.Equal(t, 4.56, info.Duration)
+}
+
+func TestAuditInfo_Unmarshal_NullFields(t *testing.T) {
+	jsonStr := `{
+        "timestamp": "1699839716442000000",
+        "cluster_id": "cluster_id",
+        "user": "user",
+        "operation": "opeation",
+        "db": "db",
+        "resource": "resource",
+        "client_add": "127.0.0.1:3000",
+        "details": "details",
+		"affected_rows": null,
+		"duration": null
+    }`
+	var info AuditInfo
+	err := json.Unmarshal([]byte(jsonStr), &info)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(0), info.AffectedRows)
+	assert.Equal(t, 0.0, info.Duration)
+}
+
+func TestAuditInfo_Unmarshal_DurationExtremeValues(t *testing.T) {
+	jsonStr := `{
+        "timestamp": "1699839716442000000",
+        "cluster_id": "cluster_id",
+        "user": "user",
+        "operation": "opeation",
+        "db": "db",
+        "resource": "resource",
+        "client_add": "127.0.0.1:3000",
+        "details": "details",
+        "duration": 1e100
+    }`
+	var info AuditInfo
+	err := json.Unmarshal([]byte(jsonStr), &info)
+	assert.NoError(t, err)
+	assert.Equal(t, 1e100, info.Duration)
+}
+
+func TestAuditInfo_AffectedRowsAndDurationVariants(t *testing.T) {
+	cfg := config.GetCfg()
+	cfg.Audit = config.Audit{
+		Enable: true,
+		Database: config.Database{
+			Name: "test_1766482953",
+		},
+	}
+
+	audit, err := NewAudit(cfg)
+	assert.NoError(t, err)
+	err = audit.Init(router)
+	assert.NoError(t, err)
+
+	cases := []struct {
+		name                 string
+		ts                   int64
+		data                 string
+		expect_affected_rows uint64
+		expect_duration      float64
+	}{
+		{
+			name:                 "no extra fields",
+			ts:                   1699839716440000000,
+			data:                 `{"timestamp":"1699839716440000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"}`,
+			expect_affected_rows: 0,
+			expect_duration:      0.0,
+		},
+		{
+			name:                 "with extra fields",
+			ts:                   1699839716441000000,
+			data:                 `{"timestamp":"1699839716441000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":12345,"duration":12.345}`,
+			expect_affected_rows: 12345,
+			expect_duration:      12.345,
+		},
+		{
+			name:                 "with null fields",
+			ts:                   1699839716442000000,
+			data:                 `{"timestamp":"1699839716442000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":null,"duration":null}`,
+			expect_affected_rows: 0,
+			expect_duration:      0.0,
+		},
+		{
+			name:                 "duration extreme values",
+			ts:                   1699839716443000000,
+			data:                 `{"timestamp":"1699839716443000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":999999,"duration":1e+100}`,
+			expect_affected_rows: 999999,
+			expect_duration:      1e+100,
+		},
+	}
+
+	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			body := strings.NewReader(c.data)
+			req, _ := http.NewRequest(http.MethodPost, "/audit_v2", body)
+			router.ServeHTTP(w, req)
+			assert.Equal(t, 200, w.Code)
+
+			data, err := conn.Query(context.Background(),
+				fmt.Sprintf("select ts, affected_rows, `duration` from test_1766482953.operations where ts = %d",
+					c.ts), util.GetQidOwn(config.Conf.InstanceID))
+			assert.NoError(t, err)
+			assert.Equal(t, 1, len(data.Data))
+			assert.Equal(t, c.expect_affected_rows, data.Data[0][1])
+			assert.Equal(t, c.expect_duration, data.Data[0][2])
+		})
+	}
+
+	t.Run("testbatch", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		body := strings.NewReader(`{"records": []}`)
+		req, _ := http.NewRequest(http.MethodPost, "/audit-batch", body)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+
+		w = httptest.NewRecorder()
+		records := `{"records":[{"timestamp":"1699839716450000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"},{"timestamp":"1699839716451000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":12345,"duration":12.345},{"timestamp":"1699839716452000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":null,"duration":null},{"timestamp":"1699839716453000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":999999,"duration":1e+100}]}`
+		body = strings.NewReader(records)
+		req, _ = http.NewRequest(http.MethodPost, "/audit-batch", body)
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+
+		data, err := conn.Query(context.Background(),
+			"select ts from test_1766482953.operations where cluster_id='cluster_id_batch'",
+			util.GetQidOwn(config.Conf.InstanceID))
+		assert.NoError(t, err)
+		assert.Equal(t, 4, len(data.Data))
+	})
+
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766482953", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+}
