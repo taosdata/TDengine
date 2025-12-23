@@ -5931,6 +5931,7 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs*
     if (TK_NK_NIL != pPrivLevel->second.type) {
       COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
     }
+    pStmt->privileges.objType = pPrivLevel->objType;
     pStmt->pCond = pCond;
   } else if (optrType == TSDB_ALTER_ROLE_ROLE) {
     SToken* pRole = (SToken*)resouces;
