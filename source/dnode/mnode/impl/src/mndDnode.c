@@ -2164,7 +2164,7 @@ static int32_t mndProcessAlterEncryptKeyReq(SRpcMsg *pReq) {
   if (code == 0) {
     // Audit log
     auditRecord(pReq, pMnode->clusterId, "alterEncryptKey", "", alterReq.keyType == 0 ? "SVR_KEY" : "DB_KEY",
-                alterReq.sql, alterReq.sqlLen);
+                alterReq.sql, alterReq.sqlLen, 0, 0);
   }
 #else
   // Community edition - no encryption support
