@@ -540,13 +540,13 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   }
 
   SStreamScanInfo* pScanInfo = pInfo->info;
-  if (pInfo->pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {  // clear meta cache for subscription if tag is changed
+  STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
+  if (pInfo->pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE &&
+      pTableScanInfo->base.metaCache.pTableMetaEntryCache) {  // clear meta cache for subscription if tag is changed
     for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
-      int64_t*        uid = (int64_t*)taosArrayGet(tableIdList, i);
-      STableScanInfo* pTableScanInfo = pScanInfo->pTableScanOp->info;
-      if (pTableScanInfo->base.metaCache.pTableMetaEntryCache) {
-        taosLRUCacheErase(pTableScanInfo->base.metaCache.pTableMetaEntryCache, uid, LONG_BYTES);
-      }
+      int64_t* uid = (int64_t*)taosArrayGet(tableIdList, i);
+
+      taosLRUCacheErase(pTableScanInfo->base.metaCache.pTableMetaEntryCache, uid, LONG_BYTES);
     }
   }
 
