@@ -1065,6 +1065,28 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo) {
   const STraceId *trace = &pMsg->info.traceId;
   int32_t         code = TSDB_CODE_SUCCESS;
 
+#ifdef TD_ENTERPRISE
+  if (pMsg->info.conn.isToken) {
+    SCachedTokenInfo ti = {0};
+    if (mndGetCachedTokenInfo(pMsg->info.conn.identifier, &ti) == NULL) {
+      mGError("msg:%p, failed to get token info, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+      code = TSDB_CODE_MND_TOKEN_NOT_EXIST;
+      TAOS_RETURN(code);
+    }
+    if (ti.enabled == 0) {
+      mGError("msg:%p, token is disabled, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+      code = TSDB_CODE_MND_TOKEN_DISABLED;
+      TAOS_RETURN(code);
+    }
+    if (ti.expireTime > 0 && taosGetTimestampSec() > (ti.expireTime + 30)) {
+      mGError("msg:%p, token is expired, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+      code = TSDB_CODE_MND_TOKEN_EXPIRED;
+      TAOS_RETURN(code);
+    }
+    tstrncpy(pMsg->info.conn.user, ti.user, sizeof(pMsg->info.conn.user));
+  }
+#endif
+
   MndMsgFp    fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];
   MndMsgFpExt fpExt = NULL;
   if (fp == NULL) {

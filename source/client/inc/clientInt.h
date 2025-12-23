@@ -387,7 +387,7 @@ void  resetConnectDB(STscObj* pTscObj);
 
 int taos_options_imp(TSDB_OPTION option, const char* str);
 
-int32_t openTransporter(const char* identifier, int8_t isToken, int32_t numOfThreads, void** pDnodeConn);
+int32_t openTransporter(const char* user, const char* auth, int32_t numOfThreads, void** pDnodeConn);
 void    tscStopCrashReport();
 void    cleanupAppInfo();
 

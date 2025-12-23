@@ -352,7 +352,8 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SCachedTokenInfo ti = {0};
   const char      *user = pReq->info.conn.user;
   bool             viaToken = false;
-  int64_t          now = taosGetTimestampMs();
+  int64_t          tss = taosGetTimestampMs();
+  int64_t          now = tss / 1000;
 
   TAOS_CHECK_GOTO(tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq), &lino, _OVER);
   TAOS_CHECK_GOTO(taosCheckVersionCompatibleFromStr(connReq.sVer, td_version, 3), &lino, _OVER);
@@ -519,7 +520,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     char    detail[1000] = {0};
     int32_t nBytes = snprintf(detail, sizeof(detail), "app:%s", connReq.app);
     if ((uint32_t)nBytes < sizeof(detail)) {
-      double duration = (taosGetTimestampMs() - now) / 1000.0;
+      double duration = (taosGetTimestampMs() - tss) / 1000.0;
       auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail), duration, 0);
     } else {
       mError("failed to audit logic since %s", tstrerror(TSDB_CODE_OUT_OF_RANGE));

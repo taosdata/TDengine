@@ -79,7 +79,7 @@ static int32_t tokenCacheAdd(const STokenObj* token) {
   ti->enabled = token->enabled;
 
   (void)taosThreadRwlockWrlock(&tokenCache.rw);
-  int32_t code = taosHashPut(tokenCache.tokens, token->token, sizeof(token->token) - 1, &ti, sizeof(ti));
+  int32_t code = taosHashPut(tokenCache.tokens, token->token, TSDB_TOKEN_LEN, &ti, sizeof(ti));
   taosThreadRwlockUnlock(&tokenCache.rw);
 
   if (code != 0) {
@@ -96,7 +96,7 @@ static int32_t tokenCacheUpdate(const STokenObj* token) {
   SCachedTokenInfo* ti = NULL;
 
   (void)taosThreadRwlockWrlock(&tokenCache.rw);
-  SCachedTokenInfo** pp = taosHashGet(tokenCache.tokens, token->token, sizeof(token->token) - 1);
+  SCachedTokenInfo** pp = taosHashGet(tokenCache.tokens, token->token, TSDB_TOKEN_LEN);
   if (pp != NULL && *pp != NULL) {
     ti = *pp;
   } else {
@@ -107,7 +107,7 @@ static int32_t tokenCacheUpdate(const STokenObj* token) {
     }
     tstrncpy(ti->user, token->user, sizeof(ti->user));
 
-    int32_t code = taosHashPut(tokenCache.tokens, token->token, sizeof(token->token) - 1, &ti, sizeof(ti));
+    int32_t code = taosHashPut(tokenCache.tokens, token->token, TSDB_TOKEN_LEN, &ti, sizeof(ti));
     if (code != 0) {
       taosMemoryFree(ti);
       taosThreadRwlockUnlock(&tokenCache.rw);
@@ -126,9 +126,9 @@ static int32_t tokenCacheUpdate(const STokenObj* token) {
 
 static void tokenCacheRemove(const char* token) {
   (void)taosThreadRwlockWrlock(&tokenCache.rw);
-  SCachedTokenInfo** pp = taosHashGet(tokenCache.tokens, token, TSDB_TOKEN_LEN - 1);
+  SCachedTokenInfo** pp = taosHashGet(tokenCache.tokens, token, TSDB_TOKEN_LEN);
   if (pp != NULL) {
-    if (taosHashRemove(tokenCache.tokens, token, TSDB_TOKEN_LEN - 1) != 0) {
+    if (taosHashRemove(tokenCache.tokens, token, TSDB_TOKEN_LEN) != 0) {
       mDebug("failed to remove token %s from token cache", token);
     } else {
       taosMemoryFree(*pp);
@@ -141,7 +141,7 @@ static void tokenCacheRemove(const char* token) {
 
 static bool tokenCacheExist(const char* token) {
   (void)taosThreadRwlockRdlock(&tokenCache.rw);
-  SCachedTokenInfo** pp = taosHashGet(tokenCache.tokens, token, TSDB_TOKEN_LEN - 1);
+  SCachedTokenInfo** pp = taosHashGet(tokenCache.tokens, token, TSDB_TOKEN_LEN);
   taosThreadRwlockUnlock(&tokenCache.rw);
   return pp != NULL;
 }
@@ -192,6 +192,7 @@ int32_t mndTokenCacheRebuild(SMnode *pMnode) {
       goto _OVER;
     }
 
+    tstrncpy(ti->name, token->name, sizeof(ti->name));
     tstrncpy(ti->user, token->user, sizeof(ti->user));
     ti->expireTime = token->expireTime;
     ti->enabled = token->enabled;
@@ -451,38 +452,26 @@ static int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
 
   if (tDeserializeSCreateTokenReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
-    goto _OVER;
   }
 
   mInfo("token from user:%s, start to create", createReq.user);
 
   if (createReq.name[0] == '\0') {
-    code = TSDB_CODE_MND_INVALID_TOKEN_NAME;
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_TOKEN_NAME, &lino, _OVER);
   }
 
   code = mndAcquireToken(pMnode, createReq.name, &pToken);
   if (pToken != NULL) {
-    code = TSDB_CODE_MND_TOKEN_ALREADY_EXIST;
-    goto _OVER;
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_TOKEN_ALREADY_EXIST, &lino, _OVER);
   }
 
-  code = mndAcquireUser(pMnode, createReq.user, &pTokenUser);
-  if (pTokenUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_NOT_EXIST, &lino, _OVER);
-  }
-
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, createReq.user, &pTokenUser), &lino, _OVER);
   if (pTokenUser->allowTokenNum > 0 && pTokenUser->tokenNum >= pTokenUser->allowTokenNum) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_TOO_MANY_TOKENS, &lino, _OVER);
   }
 
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
-  if (pOperUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
-  }
-
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), &lino, _OVER);
   TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pOperUser, createReq.user), &lino, _OVER);
-
   TAOS_CHECK_GOTO(mndCreateToken(pMnode, &createReq, pTokenUser, pReq), &lino, _OVER);
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -564,17 +553,19 @@ static int32_t mndProcessAlterTokenReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSAlterTokenReq(pReq->pCont, pReq->contLen, &alterReq), &lino, _OVER);
   mInfo("token:%s, start to alter", alterReq.name);
 
+  if (pReq->info.conn.isToken) {
+    if (taosStrcasecmp(pReq->info.conn.identifier, alterReq.name) == 0) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER); // token cannot alter itself
+    }
+  }
+
   code = mndAcquireToken(pMnode, alterReq.name, &pToken);
   if (pToken == NULL) {
     code = TSDB_CODE_MND_TOKEN_NOT_EXIST;
     goto _OVER;
   }
 
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
-  if (pOperUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
-  }
-
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), &lino, _OVER);
   TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pOperUser, pToken->user), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTokenDupObj(pToken, &newToken), &lino, _OVER);
 
@@ -685,24 +676,16 @@ static int32_t mndProcessDropTokenReq(SRpcMsg *pReq) {
 
   mInfo("token:%s, start to drop", dropReq.name);
 
-  code = mndAcquireToken(pMnode, dropReq.name, &pToken);
-  if (pToken == NULL) {
-    code = TSDB_CODE_MND_TOKEN_NOT_EXIST;
-    goto _OVER;
+  if (pReq->info.conn.isToken) {
+    if (taosStrcasecmp(pReq->info.conn.identifier, dropReq.name) == 0) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER); // token cannot drop itself
+    }
   }
 
-  code = mndAcquireUser(pMnode, pToken->user, &pTokenUser);
-  if (pTokenUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_NOT_EXIST, &lino, _OVER);
-  }
-
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
-  if (pOperUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
-  }
-
+  TAOS_CHECK_GOTO(mndAcquireToken(pMnode, dropReq.name, &pToken), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pToken->user, &pTokenUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), &lino, _OVER);
   TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pOperUser, pToken->user), &lino, _OVER);
-
   TAOS_CHECK_GOTO(mndDropToken(pMnode, pToken, pTokenUser, pReq), &lino, _OVER);
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -734,16 +717,13 @@ static int32_t mndRetrieveTokens(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   SUserObj *pUser = NULL;
   char      buf[TSDB_TOKEN_EXTRA_INFO_LEN + VARSTR_HEADER_SIZE] = {0};
 
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
-  if (pUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _exit);
-  }
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _exit);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_TOKEN, pShow->pIter, (void **)&pToken);
     if (pShow->pIter == NULL) break;
 
-    if (!pUser->superUser && taosStrcasecmp(pToken->user, pReq->info.conn.user) != 0) {
+    if (!pUser->superUser && taosStrcasecmp(pToken->user, pUser->user) != 0) {
       sdbRelease(pSdb, pToken);
       continue;
     }

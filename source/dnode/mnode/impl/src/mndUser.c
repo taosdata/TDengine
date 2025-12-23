@@ -2410,11 +2410,7 @@ static int32_t mndProcessGetUserDateTimeWhiteListReq(SRpcMsg *pReq) {
   }
   mTrace("user: %s, start to get date time whitelist", wlReq.user);
 
-  code = mndAcquireUser(pMnode, wlReq.user, &pUser);
-  if (pUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_NOT_EXIST, &lino, _OVER);
-  }
-
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, wlReq.user, &pUser), &lino, _OVER);
   TAOS_CHECK_GOTO(mndSetUserDateTimeWhiteListRsp(pMnode, pUser, &wlRsp), &lino, _OVER);
 
   contLen = tSerializeSUserDateTimeWhiteList(NULL, 0, &wlRsp);
@@ -2590,11 +2586,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_ALREADY_EXIST, &lino, _OVER);
   }
 
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
-  if (pOperUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
-  }
-
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), &lino, _OVER);
   TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_USER), &lino, _OVER);
 
   code = mndCreateUser(pMnode, pOperUser->acct, &createReq, pReq);
@@ -2616,6 +2608,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     duration = duration / 1000;
     auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail), duration, 0);
   }
+
 _OVER:
   if (code == TSDB_CODE_MND_USER_ALREADY_EXIST && createReq.ignoreExists) {
     code = 0;
@@ -2657,12 +2650,9 @@ static int32_t mndProcessGetUserIpWhiteListReq(SRpcMsg *pReq) {
   }
   mTrace("user: %s, start to get ip whitelist", wlReq.user);
 
-  code = mndAcquireUser(pMnode, wlReq.user, &pUser);
-  if (pUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_NOT_EXIST, &lino, _OVER);
-  }
-
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, wlReq.user, &pUser), &lino, _OVER);
   TAOS_CHECK_GOTO(setRspFn(pMnode, pUser, &wlRsp), &lino, _OVER);
+
   contLen = serialFn(NULL, 0, &wlRsp);
   if (contLen < 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
@@ -2924,16 +2914,11 @@ static int32_t mndProcessAlterUserPrivilegesReq(SRpcMsg* pReq, SAlterUserReq *pA
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   code = 0, lino = 0;
   SUserObj *pUser = NULL;
-  SUserObj *pOperUser = NULL;
   SUserObj  newUser = {0};
   int64_t   tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pAlterReq->user, &pUser), &lino, _OVER);
-  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
-  if (pOperUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
-  }
-  TAOS_CHECK_GOTO(mndCheckAlterUserPrivilege(pOperUser, pUser, pAlterReq), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckAlterUserPrivilege(pMnode, pReq->info.conn.user, pUser, pAlterReq), &lino, _OVER);
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
 
   if (ALTER_USER_ADD_READ_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
@@ -3149,7 +3134,6 @@ _OVER:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to alter user privileges at line %d since %s", pAlterReq->user, lino, tstrerror(code));
   }
-  mndReleaseUser(pMnode, pOperUser);
   mndReleaseUser(pMnode, pUser);
   mndUserFreeObj(&newUser);
   TAOS_RETURN(code);
@@ -3161,18 +3145,13 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   SMnode       *pMnode = pReq->info.node;
   int32_t       code = 0, lino = 0;
   SUserObj     *pUser = NULL;
-  SUserObj     *pOperUser = NULL;
   SUserObj      newUser = {0};
   char          auditLog[1000] = {0};
   int32_t       auditLen = 0;
   int64_t       tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pAlterReq->user, &pUser), &lino, _OVER);
-  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
-  if (pOperUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
-  }
-  TAOS_CHECK_GOTO(mndCheckAlterUserPrivilege(pOperUser, pUser, pAlterReq), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckAlterUserPrivilege(pMnode, pReq->info.conn.user, pUser, pAlterReq), &lino, _OVER);
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
 
   if (pAlterReq->hasPassword) {
@@ -3204,18 +3183,12 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
       newUser.passwords = passwords;
       ++newUser.numOfPasswords;
       ++newUser.passVersion;
-      if (strcmp(newUser.user, pOperUser->user) == 0) {
-        // if user change own password, set changePass to 2 so that user won't be
-        // forced to change password at next login
-        newUser.changePass = 2;
-      }
+      newUser.changePass = 2;
     } else if (0 != strncmp(newUser.passwords[0].pass, pass, TSDB_PASSWORD_LEN)) {
       memcpy(newUser.passwords[0].pass, pass, TSDB_PASSWORD_LEN);
       newUser.passwords[0].setTime = taosGetTimestampSec();
       ++newUser.passVersion;
-      if (strcmp(newUser.user, pOperUser->user) == 0) {
-        newUser.changePass = 2;
-      }
+      newUser.changePass = 2;
     }
   }
 
@@ -3515,7 +3488,6 @@ _OVER:
     mError("user:%s, failed to alter at line %d since %s", pAlterReq->user, lino, tstrerror(code));
   }
 
-  mndReleaseUser(pMnode, pOperUser);
   mndReleaseUser(pMnode, pUser);
   mndUserFreeObj(&newUser);
   return code;
@@ -3610,6 +3582,7 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
     duration = duration / 1000;
     auditRecord(pReq, pMnode->clusterId, "dropUser", "", dropReq.user, dropReq.sql, dropReq.sqlLen, duration, 0);
   }
+
 _OVER:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to drop at line %d since %s", dropReq.user, lino, tstrerror(code));

@@ -236,7 +236,7 @@ static int32_t taos_connect_by_auth(const char* ip, const char* user, const char
       taosMemoryFree(p);
       TSC_ERR_JRET(code);
     }
-    code = openTransporter(user ? user : "<token>", 0, tsNumOfCores / 2, &p->pTransporter);
+    code = openTransporter(user, auth, tsNumOfCores / 2, &p->pTransporter);
     if (TSDB_CODE_SUCCESS != code) {
       taosMemoryFree(p);
       TSC_ERR_JRET(code);
