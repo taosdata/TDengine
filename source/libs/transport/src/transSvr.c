@@ -836,9 +836,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
 
-  int8_t         acquire = 0;
   STransMsgHead* pHead = NULL;
-
   int8_t resetBuf = 0;
   int    msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0);
   if (msgLen <= 0) {
