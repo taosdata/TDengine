@@ -1082,7 +1082,7 @@ _end:
   }
   if (pRes->info.rows > 0) {
     *pResBlock = pRes;
-    qInfo("%s %s output %" PRId64 " rows final res", GET_TASKID(pTaskInfo), __func__, pRes->info.rows);
+    qDebug("%s %s output %" PRId64 " rows final res", GET_TASKID(pTaskInfo), __func__, pRes->info.rows);
   }
 
   return code;
