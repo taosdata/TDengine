@@ -95,25 +95,27 @@ class TestCase:
         self.printData(res, 2193) 
 
     def test_tmq_tx484(self):
-        """summary: xxx
+        """Tmq consume restart
+        
+        1. create stable and topic
+        2. insert data
+        3. consume part of data and commit
+        4. restart taosd
+        5. continue consume data and check
+        6. kill taosd process
+        7. restart taosd
+        8. continue consume data and check
+        9. clean up environment
 
-        description: xxx
+        Since: v3.0.0.0
 
-        Since: xxx
+        Labels: common,ci
 
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
-
+            - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmq_tx484.py
         """
         self.check()
-
         tdLog.success(f"{__file__} successfully executed")
 
