@@ -20,7 +20,7 @@ import (
 
 func TestAudit(t *testing.T) {
 	cfg := config.GetCfg()
-	cfg.Audit = config.AuditConfig{
+	cfg.Audit = config.Audit{
 		Database: config.Database{
 			Name: "keeper_test_audit",
 		},
@@ -178,7 +178,7 @@ func TestNewAudit(t *testing.T) {
 			Port:     6041,
 			Usessl:   false,
 		},
-		Audit: config.AuditConfig{
+		Audit: config.Audit{
 			Database: config.Database{
 				Name: "",
 			},
