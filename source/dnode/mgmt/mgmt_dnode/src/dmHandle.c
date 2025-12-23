@@ -549,7 +549,11 @@ void dmSendKeySyncReq(SDnodeMgmt *pMgmt) {
     dError("failed to send key sync req since %s", tstrerror(rpcRsp.code));
     return;
   }
-  dmProcessKeySyncRsp(pMgmt, &rpcRsp);
+  code = dmProcessKeySyncRsp(pMgmt, &rpcRsp);
+  if (code != 0) {
+    dError("failed to process key sync rsp since %s", tstrerror(code));
+    return;
+  }
 }
 
 void dmSendConfigReq(SDnodeMgmt *pMgmt) {
