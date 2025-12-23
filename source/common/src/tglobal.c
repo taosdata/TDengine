@@ -2908,7 +2908,6 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 
                                          {"logKeepDays", &tsLogKeepDays},
                                          {"maxStreamBackendCache", &tsMaxStreamBackendCache},
-                                         {"metaEntryCache", &tsMetaEntryCache},
                                          {"metaEntryCacheSize", &tsMetaEntryCacheSize},
                                          {"mqRebalanceInterval", &tsMqRebalanceInterval},
                                          {"numOfLogLines", &tsNumOfLogLines},

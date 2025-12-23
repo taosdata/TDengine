@@ -472,7 +472,7 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_CACHE_SIZE         1
 #define TSDB_DEFAULT_MECACHE_SIZE       (1024 * 128)
 #define TSDB_MIN_MECACHE_SIZE           (1024 * 4)
-#define TSDB_MAX_MECACHE_SIZE           (1024 * 1024 * 1024 * 4l)
+#define TSDB_MAX_MECACHE_SIZE           (4ll * 1024 * 1024 * 1024)
 #define TSDB_DB_STREAM_MODE_OFF         0
 #define TSDB_DB_STREAM_MODE_ON          1
 #define TSDB_DEFAULT_DB_STREAM_MODE     0
