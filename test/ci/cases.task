@@ -619,15 +619,14 @@
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_cons2_v4_t1.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_cons2_v4_tn.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_params.py
-## 03-WebSocket
-## 04-MQTT
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/04-MQTT/test_mqtt_smoking.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 2
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 6
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/04-MQTT/test_mqtt_bnodes.py -N 11
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/04-MQTT/test_mqtt_qos.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/04-MQTT/test_mqtt_special.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/04-MQTT/test_mqtt_rb.py
+## 03-MQTT
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/03-MQTT/test_mqtt_smoking.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/03-MQTT/test_mqtt_bnodes.py -N 2
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/03-MQTT/test_mqtt_bnodes.py -N 6
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/03-MQTT/test_mqtt_bnodes.py -N 11
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/03-MQTT/test_mqtt_qos.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/03-MQTT/test_mqtt_special.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/03-MQTT/test_mqtt_rb.py
 
 # 18-StreamProcessing
 
