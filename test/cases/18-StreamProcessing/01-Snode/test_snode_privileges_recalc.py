@@ -136,7 +136,7 @@ class TestStreamPrivilegesRecalc:
         tdSql.execute(f"grant select on {self.dbname2}.* to {self.username2}")
 
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='read';"
+            f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='SELECT';"
         )
         if tdSql.getRows() != 2:
             raise Exception("grant select privileges user failed")
@@ -148,7 +148,7 @@ class TestStreamPrivilegesRecalc:
         tdSql.execute(f"grant insert on {self.dbname2}.* to {self.username2}")
 
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='write';"
+            f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='INSERT';"
         )
         if tdSql.getRows() != 2:
             raise Exception("grant insert privileges user failed")
@@ -160,7 +160,7 @@ class TestStreamPrivilegesRecalc:
         tdSql.execute(f"revoke select on {self.dbname2}.* from {self.username2}")
 
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='read';"
+            f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='SELECT';"
         )
         if tdSql.getRows() != 0:
             raise Exception("revoke select privileges user failed")
@@ -172,7 +172,7 @@ class TestStreamPrivilegesRecalc:
         tdSql.execute(f"revoke insert on {self.dbname2}.* from {self.username2}")
 
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='write';"
+            f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='INSERT';"
         )
         if tdSql.getRows() != 0:
             raise Exception("revoke insert privileges user failed")
