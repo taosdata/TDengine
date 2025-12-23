@@ -1049,6 +1049,7 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   } else {
     tError("%s conn:%p, read error since %s, received from %s, local info:%s", transLabel(pInst), conn,
            uv_err_name(nread), conn->dst, conn->src);
+    conn->broken = true;
     transUnrefSrvHandle(conn);
     return;
   }
