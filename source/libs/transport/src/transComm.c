@@ -675,7 +675,6 @@ int32_t transDoCrcCheck(char* buf, int32_t len) {
   STransMsgHead* pHead = (STransMsgHead*)buf;
   uint32_t       checkSum = ntohl(pHead->magicNum);
   pHead->magicNum = 0;
-
   if (taosCheckChecksum((const uint8_t*)buf, len, checkSum)) {
     return TSDB_CODE_INVALID_MSG;
   } else {
