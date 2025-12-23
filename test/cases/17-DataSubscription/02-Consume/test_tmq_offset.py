@@ -427,6 +427,10 @@ class TestCase:
         5. Restart consumer and verify offset restored
         6. Call tmq_offset_test to test
 
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
         Jira: None
 
         History:

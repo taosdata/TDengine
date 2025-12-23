@@ -9,7 +9,7 @@ class TestTmpBasic3:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_tmq_basic3(self):
-        """1 consumer: vgroups=4 topics=1
+        """Consumer one: vgroups=4 topics=1
 
         test scenario, please refer to https://jira.taosdata.com:18090/pages/viewpage.action?pageId=135120406, firstly insert data, then start consume
         1. basic1.sim: vgroups=1, one topic for one consumer

@@ -9,7 +9,7 @@ class TestTmpCons1:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_tmq_Cons1(self):
-        """2 consumers: vgroups=1 topics=1
+        """Consumer two: vgroups=1 topics=1
 
         test scenario, please refer to https://jira.taosdata.com:18090/pages/viewpage.action?pageId=135120406, firstly insert data, then start consume
         1. basic1Of2Cons.sim: vgroups=1, one topic for 2 consumers

@@ -136,14 +136,8 @@ cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward.p
 cases/18-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade.py
 cases/uncatalog/system-test/7-tmq/test_tmq_td37436.py
 # MQTT bnode not supported in Windows CI
-cases/40-DataSubscription/04-MQTT/test_mqtt_smoking.py
-cases/40-DataSubscription/04-MQTT/test_mqtt_bnodes.py
-cases/40-DataSubscription/04-MQTT/test_mqtt_qos.py
-cases/40-DataSubscription/04-MQTT/test_mqtt_special.py
-cases/40-DataSubscription/04-MQTT/test_mqtt_rb.py
-#taosd -o options not supported in Windows CI
-cases/uncatalog/system-test/0-others/test_taosdlog.py
-# run too long in Windows CI
-cases/uncatalog/system-test/2-query/test_decimal.py
-cases/uncatalog/system-test/2-query/test_decimal2.py
-cases/uncatalog/system-test/2-query/test_decimal3.py
+cases/40-DataSubscription/03-MQTT/test_mqtt_smoking.py
+cases/40-DataSubscription/03-MQTT/test_mqtt_bnodes.py
+cases/40-DataSubscription/03-MQTT/test_mqtt_qos.py
+cases/40-DataSubscription/03-MQTT/test_mqtt_special.py
+cases/40-DataSubscription/03-MQTT/test_mqtt_rb.py
