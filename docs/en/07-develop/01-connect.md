@@ -176,7 +176,7 @@ import taosws
 
 Edit `go.mod` to add the `driver-go` dependency.
 
-```go-mod title=go.mod
+```go-mod title="go.mod"
 module goexample
 
 go 1.17
@@ -196,7 +196,7 @@ driver-go uses cgo to wrap the taosc API. cgo requires GCC to compile C source c
 
 Edit `Cargo.toml` to add the `taos` dependency.
 
-```toml title=Cargo.toml
+```toml title="Cargo.toml"
 [dependencies]
 taos = { version = "*"}
 ```
@@ -245,7 +245,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 
 Edit the project configuration file to add a reference to [TDengine.Connector](https://www.nuget.org/packages/TDengine.Connector/):
 
-```xml title=csharp.csproj
+```xml title="csharp.csproj"
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
