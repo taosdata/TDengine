@@ -835,11 +835,11 @@ static void uvSetConnInfo(SSvrConn* pConn, SRpcConnInfo* pInfo) {
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
-
+   
   STransMsgHead* pHead = NULL;
   int8_t resetBuf = 0;
   int32_t msgLen = 0;
-  code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
+  int32_t code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
   if (code != 0) {
     tError("%s conn:%p, read invalid packet since %s", transLabel(pInst), pConn, tstrerror(code));
     return false;
