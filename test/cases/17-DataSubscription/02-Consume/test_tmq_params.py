@@ -20,11 +20,6 @@ class TestCase:
         cls.tbname_value_list = ["true", "false"]
         cls.snapshot_value_list = ["false"]
 
-        # self.commit_value_list = ["true"]
-        # self.offset_value_list = [""]
-        # self.tbname_value_list = ["true"]
-        # self.snapshot_value_list = ["false"]
-
     def tmqParamsTest(self):
         paraDict = {'dbName':     'db1',
                     'dropFlag':   1,
@@ -197,12 +192,8 @@ class TestCase:
         Jira: None
 
         History:
+            - 2023-6-21 jiajingbin Created
             - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmqParamsTest.py
 
         """
         self.tmqParamsTest()
-
-        tdLog.success(f"{__file__} successfully executed")
-
-event = threading.Event()
-
