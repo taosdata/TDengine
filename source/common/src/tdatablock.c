@@ -105,6 +105,7 @@ int32_t calcStrBytesByType(int8_t type, char* data) { return getDataLen(type, da
 
 static int32_t checkAllocLen(SColumnInfoData* pColumnInfoData, char** pData, int32_t dataLen){
   SVarColAttr* pAttr = &pColumnInfoData->varmeta;
+  char* buf = NULL;
   if (pAttr->allocLen < pAttr->length + dataLen) {
     uint32_t newSize = pAttr->allocLen;
     if (newSize <= 1) {
@@ -118,7 +119,7 @@ static int32_t checkAllocLen(SColumnInfoData* pColumnInfoData, char** pData, int
       }
     }
 
-    char* buf = taosMemoryRealloc(*pData, newSize);
+    buf = taosMemoryRealloc(*pData, newSize);
     if (buf == NULL) {
       return terrno;
     }
@@ -149,6 +150,13 @@ static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowI
       pColumnInfoData->varmeta.length = pColumnInfoData->varmeta.offset[rowIndex];
     }
 
+    bool overlap = false;
+    uint64_t offset = 0;
+    if ((uint64_t)pData >= (uint64_t)pColumnInfoData->pData && ((uint64_t)pData + dataLen) <= ((uint64_t)pColumnInfoData->pData + pColumnInfoData->varmeta.allocLen)) {
+      overlap = true;
+      offset = (uint64_t)pData - (uint64_t)pColumnInfoData->pData;
+    }
+
     int32_t code = checkAllocLen(pColumnInfoData, &pColumnInfoData->pData, dataLen);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -157,7 +165,7 @@ static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowI
     uint32_t len = pColumnInfoData->varmeta.length;
     pColumnInfoData->varmeta.offset[rowIndex] = len;
 
-    (void)memmove(pColumnInfoData->pData + len, pData, dataLen);
+    (void)memmove(pColumnInfoData->pData + len, overlap ? (pColumnInfoData->pData + offset) : pData, dataLen);
     pColumnInfoData->varmeta.length += dataLen;
   } else {
     memcpy(pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex, pData, pColumnInfoData->info.bytes);
@@ -698,7 +706,7 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) 
 
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   if (numOfCols <= 0) {
-    return -1;
+    return 0;
   }
 
   int32_t index = (tsColumnIndex == -1) ? 0 : tsColumnIndex;
@@ -4482,3 +4490,4 @@ int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t row, 
   *ts = *(TSKEY*)(pColInfoData->pData + row * sizeof(TSKEY));
   return TSDB_CODE_SUCCESS;
 }
+

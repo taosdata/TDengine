@@ -275,6 +275,8 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_FNAME_LEN             (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_PRIVILEDGE_CONDITION_LEN 48 * 1024
 #define TSDB_PRIVILEDGE_HOST_LEN      48 * 1024
+//todo dmchen
+#define AUDIT_TOKEN_LEN 1000
 
 #define TSDB_FUNC_NAME_LEN       65
 #define TSDB_FUNC_COMMENT_LEN    1024 * 1024
@@ -572,6 +574,8 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_DB_WITH_ARBITRATOR 0
 #define TSDB_MIN_DB_WITH_ARBITRATOR     0
 #define TSDB_MAX_DB_WITH_ARBITRATOR     1
+#define TSDB_MIN_DB_IS_AUDIT            0
+#define TSDB_MAX_DB_IS_AUDIT            1
 
 #define TSDB_MIN_ROLLUP_MAX_DELAY       1  // unit millisecond
 #define TSDB_MAX_ROLLUP_MAX_DELAY       (15 * 60 * 1000)
@@ -745,6 +749,15 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 
 #define AUDIT_OPERATION_LEN 20
 #define CONNECTOR_INFO_LEN 256
+
+typedef enum {
+  AUDIT_LEVEL_NONE = 0,
+  AUDIT_LEVEL_SYSTEM = 1,
+  AUDIT_LEVEL_CLUSTER = 2,
+  AUDIT_LEVEL_DATABASE = 3,
+  AUDIT_LEVEL_CHILDTABLE = 4,
+  AUDIT_LEVEL_DATA = 5,
+} EAuditLevel;
 
 typedef enum {
   ANALY_ALGO_TYPE_ANOMALY_DETECT = 0,

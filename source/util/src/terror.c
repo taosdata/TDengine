@@ -603,6 +603,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_SUCC_TO_PARTSUSS,    "Change task status fr
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_MEMORY_POOL_NOT_INITIALIZED, "Memory pool not initialized")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_MEMORY_POOL_MEMORY_NOT_ENOUGH, "Alter minReservedMemorySize failed since no enough system available memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP,     "Duplicate timestamp not allowed in count/event/state window")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SUBQ_NOT_FOUND,           "Subquery context not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SUBQ_EXEC_ERROR,          "Subquery exec error")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -861,6 +863,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,    "Invalid ref column 
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table using virtual super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_TAG_REF_BY_STM,         "Col/Tag referenced by stream")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND,   "Invalid state window extend option")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS,    "More than 1 column returned in subquery as expr")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS,    "More than 1 row returned in subquery as expr")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ,             "Not supported subquery as expr")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STMT_NOT_SUPPORT_SCALAR_SUBQ,    "Current sql does not support subquery as expr")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE,       "Expr subquery not supported in current clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_POLICY,      "Expr subquery not supported in current query policy")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_ID_TOO_LONG,           "Algorithm ID too long, max length is 63 character")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_NAME_TOO_LONG,         "Algorithm name too long, max length is 63 character")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ALGR_DESC_TOO_LONG,         "Algorithm description too long, max length is 127 character")
@@ -872,6 +880,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG,      "Option value too lo
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT,     "Option value too short")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG,       "Option value too big")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL,     "Option value too small")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ORDERBY_INVALID_EXPR,       "Aggregate functions cannot be used for sorting in non-aggregate queries")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
@@ -1034,6 +1043,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_CRYPT_FAIL_EXEC,           "Failed to exec cryp
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_NOT_FORMAT_TO_JSON,       "can't format to json")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_SEND_AUDIT_RECORD,   "Failed to send out audit record")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_GENERATE_JSON,       "Failed to generate json")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_ENCRYPT,             "Audit database must be encrypted")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_WALFORCE,            "Audit database wal_level must be 2")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_KEEPFORCE,           "Audit database keep2 must be greater than 1825d")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_ALREADY_EXIST,         "Audit database already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_NOT_ALLOW_CHANGE,      "Audit database is not allowed to change")
 
 // VTABLE
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR,     "Virtual table scan internal error")
@@ -1044,6 +1058,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE,   "Virtual table not s
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_STMT,        "Virtual table not support in STMT query and STMT insert")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC,       "Virtual table not support in topic")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_SUPPORT_CROSS_DB,    "Virtual super table query not support origin table from different databases")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH,    "Virtual super table query find column type mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_TOO_MANY_REFERENCE,      "Virtual table has too many reference tables")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_SEQ_NOT_FOUND, "Blob seq not found")

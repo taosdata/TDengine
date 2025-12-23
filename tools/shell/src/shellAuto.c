@@ -83,10 +83,12 @@ SWords shellCommands[] = {
     {"alter local \"asynclog\" \"0\";", 0, 0, NULL},
     {"alter local \"asynclog\" \"1\";", 0, 0, NULL},
     {"alter topic", 0, 0, NULL},
-    {"alter user <user_name> <user_actions> <anyword> ;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
     {"balance vgroup ;", 0, 0, NULL},
     {"balance vgroup leader on <vgroup_id>", 0, 0, NULL},
+    {"alter user <user_name> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword>", 0, 0, NULL},
+#else
+   {"alter user <user_name> <user_actions> <anyword> ;", 0, 0, NULL},
 #endif
 
     // 20
@@ -110,15 +112,17 @@ SWords shellCommands[] = {
     {"create or replace <anyword> as <anyword> outputtype <data_types> language <udf_language>;", 0, 0, NULL},
     {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>;", 0, 0, NULL},
     {"create or replace aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>;", 0, 0, NULL},
-    {"create user <anyword> pass <anyword> createdb 1;", 0, 0, NULL},
-    {"create user <anyword> pass <anyword> createdb 0;", 0, 0, NULL},
-    {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
-    {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE    
     {"create view <anyword> as select", 0, 0, NULL},
     {"compact database <db_name>", 0, 0, NULL},
     {"compact vgroups in( <anyword>", 0, 0, NULL},
     {"create mount <mount_name> on dnode <dnode_id> from <path>;", 0, 0, NULL},
+    {"create user <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword>", 0, 0, NULL},    
+#else
+    {"create user <anyword> pass <anyword> createdb 1;", 0, 0, NULL},
+    {"create user <anyword> pass <anyword> createdb 0;", 0, 0, NULL},
+    {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
+    {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
 #endif
     {"scan database <db_name>", 0, 0, NULL},
     {"desc <all_table>;", 0, 0, NULL},
@@ -191,8 +195,6 @@ SWords shellCommands[] = {
     {"show create view <all_table> \\G;", 0, 0, NULL},
     {"show compact", 0, 0, NULL},
     {"show compacts;", 0, 0, NULL},
-    {"show ssmigrates;", 0, 0, NULL},
-
 #endif
     {"show connections;", 0, 0, NULL},
     {"show cluster;", 0, 0, NULL},
@@ -212,14 +214,14 @@ SWords shellCommands[] = {
     {"show bnodes;", 0, 0, NULL},
     {"show retentions;", 0, 0, NULL},
     {"show retention <retention_id>;", 0, 0, NULL},
-    {"show scans;", 0, 0, NULL},
-    {"show scan <scan_id>;", 0, 0, NULL},
     {"show stables;", 0, 0, NULL},
     {"show stables like ", 0, 0, NULL},
     {"show streams;", 0, 0, NULL},
     {"show scores;", 0, 0, NULL},
     {"show snodes;", 0, 0, NULL},
     {"show subscriptions;", 0, 0, NULL},
+    {"show scans;", 0, 0, NULL},
+    {"show scan <scan_id>;", 0, 0, NULL},
     {"show tables;", 0, 0, NULL},
     {"show tables like", 0, 0, NULL},
     {"show table distributed <all_table>;", 0, 0, NULL},
@@ -235,6 +237,7 @@ SWords shellCommands[] = {
     {"show vnodes;", 0, 0, NULL},
     {"show vnodes on dnode <dnode_id>;", 0, 0, NULL},
     {"show vgroups;", 0, 0, NULL},
+    {"show vtables;", 0, 0, NULL},
     {"show consumers;", 0, 0, NULL},
     {"show grants;", 0, 0, NULL},
     {"show grants full;", 0, 0, NULL},
@@ -245,6 +248,7 @@ SWords shellCommands[] = {
     {"split vgroup <vgroup_id>;", 0, 0, NULL},
     {"ssmigrate database <db_name>;", 0, 0, NULL},
     {"show mounts;", 0, 0, NULL},
+    {"show ssmigrates;", 0, 0, NULL},
 #endif
     {"insert into <tb_name> values(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
@@ -320,6 +324,7 @@ char* functions[] = {
     "date(",           "corr(",
     "cols(",           "find_in_set(",
     "like_in_set(",    "regexp_in_set(",
+    "generate_totp_secret(",
     "case ",           "when "
 };
 
@@ -406,11 +411,74 @@ char* field_options[] = {
     "primary key "
 };
 
+// create user options
+char * create_uopt[] = {
+    "pass ",
+    "totpseed ",
+    "account ",
+    "sysinfo ",
+    "createdb ",
+    "changepass ",
+    "session_per_user ",
+    "connect_idle_time ",
+    "connect_time ",
+    "call_per_session ",
+    "vnode_per_call ",
+    "failed_login_attempts ",
+    "password_life_time ",
+    "password_reuse_time ",
+    "password_reuse_max ",
+    "password_lock_time ",
+    "password_grace_time ",
+    "inactive_account_time ",
+    "allow_token_num ",
+    "host ",
+    "not_allow_host ",
+    "allow_datetime ",
+    "not_allow_datetime "
+};
+
+// alter user options
+char * alter_uopt[] = {
+    "pass ",
+    "totpseed ",
+    "account ",
+    "sysinfo ",
+    "createdb ",
+    "changepass ",
+    "session_per_user ",
+    "connect_idle_time ",
+    "connect_time ",
+    "call_per_session ",
+    "vnode_per_call ",
+    "failed_login_attempts ",
+    "password_life_time ",
+    "password_reuse_time ",
+    "password_reuse_max ",
+    "password_lock_time ",
+    "password_grace_time ",
+    "inactive_account_time ",
+    "allow_token_num ",
+    "enable ",
+    "add host ",
+    "add not_allow_host ",
+    "drop host ",
+    "drop not_allow_host ",
+    "add allow_datetime ",
+    "add not_allow_datetime ",
+    "drop allow_datetime ",
+    "drop not_allow_datetime "
+};
+
 // global keys can tips on anywhere
 char* global_keys[] = {
     "tbname",         
     "now",
     "vgroups",
+    "if exists",
+    "if not exists",
+    "distinct",
+    "like",
     "_wstart",      
     "_wend",
     "_wduration",
@@ -465,8 +533,10 @@ bool    waitAutoFill = false;
 #define WT_VAR_LANGUAGE       25
 #define WT_VAR_GLOBALKEYS     26
 #define WT_VAR_FIELD_OPTIONS  27
+#define WT_VAR_CREATE_USER_OPT 28
+#define WT_VAR_ALTER_USER_OPT 29
 
-#define WT_VAR_CNT 28
+#define WT_VAR_CNT 30
 
 
 #define WT_TEXT 0xFF
@@ -485,7 +555,7 @@ char varTypes[WT_VAR_CNT][64] = {
     // get from code
     "<all_table>",  "<function>",  "<keyword>",  "<tb_actions>",   "<db_options>", "<alter_db_options>",
     "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "<sys_table>", 
-    "<udf_language>", "<global_keys>", "<field_options>"};
+    "<udf_language>", "<global_keys>", "<field_options>", "<create_uopt>", "<alter_uopt>"};
 
 char varSqls[WT_FROM_DB_CNT][64] = {"show databases;", "show stables;", "show tables;", "show dnodes;",
                                     "show users;",     "show topics;",  "show streams;", "show functions;", 
@@ -686,6 +756,7 @@ void showHelp() {
     show vnodes;\n\
     show vnodes on dnode <dnode_id>;\n\
     show vgroups;\n\
+    show vtables;\n\
     show consumers;\n\
     show grants;\n\
     show grants full;\n\
@@ -889,6 +960,8 @@ void shellAutoInit() {
   GenerateVarType(WT_VAR_LANGUAGE, udf_language, sizeof(udf_language) / sizeof(char*));
   GenerateVarType(WT_VAR_GLOBALKEYS, global_keys, sizeof(global_keys) / sizeof(char*));
   GenerateVarType(WT_VAR_FIELD_OPTIONS, field_options, sizeof(field_options) / sizeof(char*));
+  GenerateVarType(WT_VAR_CREATE_USER_OPT, create_uopt, sizeof(create_uopt) / sizeof(char*));
+  GenerateVarType(WT_VAR_ALTER_USER_OPT, alter_uopt, sizeof(alter_uopt) / sizeof(char*));
 }
 
 // set conn

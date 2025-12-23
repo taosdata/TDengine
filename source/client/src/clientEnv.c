@@ -539,6 +539,7 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
 
   (void)atomic_add_fetch_64(&(*pObj)->pAppInfo->numOfConns, 1);
 
+  updateConnAccessInfo(&(*pObj)->sessInfo);
   tscInfo("conn:0x%" PRIx64 ", created, p:%p", (*pObj)->id, *pObj);
   return code;
 }
@@ -1146,8 +1147,10 @@ void taos_init_imp(void) {
   ENV_ERR_RET(shellStartDaemon(0, NULL), "failed to start taosd daemon");
 #endif
 
-  ENV_ERR_RET(sessMgtInit(), "failed to init session management");
-  
+  if (tsSessionControl) {
+    ENV_ERR_RET(sessMgtInit(), "failed to init session management");
+  }
+
   tscInfo("TAOS driver is initialized successfully");
 }
 

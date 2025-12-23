@@ -501,6 +501,9 @@ SDataTimeWhiteListTab* uvDataTimeWhiteListCreate() {
   return pWhiteList;
 }
 void uvDataTimeWhiteListDestroy(SDataTimeWhiteListTab* pWhite) {
+  if (pWhite == NULL) {
+    return;
+  }
   SHashObj* pWhiteList = pWhite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
   while (pIter) {
@@ -537,6 +540,9 @@ void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
   if (!(rpcDebugFlag & DEBUG_DEBUG)) {
     return;
   }
+  if (pWrite == NULL) {
+    return;
+  }
   int32_t   len = 0;
   SHashObj* pWhiteList = pWrite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
@@ -560,7 +566,13 @@ void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
 }
 int32_t uvDataTimeWhiteListAdd(SDataTimeWhiteListTab* pWhite, char* user, SUserDateTimeWhiteList* plist, int64_t ver) {
   int32_t   code = 0;
+  if (pWhite == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   SHashObj* pWhiteList = pWhite->pList;
+  if (pWhiteList == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   SUserDateTimeWhiteList* pUserList = taosHashGet(pWhiteList, user, strlen(user));
   if (pUserList == NULL) {
@@ -796,14 +808,15 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
-
+  int32_t        code = 0;
   int8_t         acquire = 0;
   STransMsgHead* pHead = NULL;
 
   int8_t resetBuf = 0;
-  int    msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0);
-  if (msgLen <= 0) {
-    tError("%s conn:%p, read invalid packet", transLabel(pInst), pConn);
+  int32_t msgLen = 0;
+  code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
+  if (code != 0) {
+    tError("%s conn:%p, read invalid packet since %s", transLabel(pInst), pConn, tstrerror(code));
     return false;
   }
   if (transDecompressMsg((char**)&pHead, &msgLen) < 0) {
@@ -1148,7 +1161,7 @@ static int32_t uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
-  pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+  // pHead->magicNum = htonl(TRANS_MAGIC_NUM);
   pHead->compatibilityVer = htonl(((STrans*)pConn->pInst)->compatibilityVer);
   pHead->version = TRANS_VER;
   pHead->seqNum = taosHton64(pMsg->info.seqNum);
@@ -1183,6 +1196,8 @@ static int32_t uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
 
   wb->base = (char*)pHead;
   wb->len = len;
+
+  TAOS_UNUSED(transDoCrc((char*)pHead, len));
   return 0;
 }
 
@@ -2125,6 +2140,13 @@ void* transInitServer(SIpAddr* addr, char* label, int numOfThreads, void* fp, vo
       code = terrno;
       goto End;
     }
+
+    thrd->pDataTimeWhiteList = uvDataTimeWhiteListCreate();
+    if (thrd->pDataTimeWhiteList == NULL) {
+      destroyWorkThrdObj(thrd);
+      code = terrno;
+      goto End;
+    }
     thrd->connRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
     if (thrd->connRefMgt < 0) {
       code = thrd->connRefMgt;
@@ -2376,7 +2398,6 @@ void uvHandleUpdateDataTimeWhiteList(SSvrRespMsg* msg, SWorkThrd* thrd) {
   } else {
     tError("failed to update ip-white-list since %s", tstrerror(code));
   }
-  // uvDataTimeWhiteListToStr(thrd->pDataTimeWhiteList, user, &pBuf);
 _error:
   if (code != 0) {
     tError("failed to update data-time-white-list since %s", tstrerror(code));

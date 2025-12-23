@@ -1372,9 +1372,23 @@ taos> select _wstart, _wend, _wduration, count(*) from test.st where (ts >= '202
  2020-12-06 16:00:00.000 | 2021-01-06 16:00:00.000 |            2678400000 |                     1 |
 
 taos> select * from test.sta;
+
+DB error: Table does not exist [0x80002603] 
 taos> select * from test.stb;
+
+DB error: Table does not exist [0x80002603] 
 taos> select * from test.stc;
+
+DB error: Table does not exist [0x80002603] 
 taos> select * from test.std;
+
+DB error: Table does not exist [0x80002603] 
 taos> select * from test.ste;
+
+DB error: Table does not exist [0x80002603] 
 taos> select * from test.stf;
+
+DB error: Table does not exist [0x80002603] 
 taos> select * from test.stg;
+
+DB error: Table does not exist [0x80002603] 

@@ -144,6 +144,7 @@ typedef struct SDatabaseOptions {
   SNodeList*  pCompactTimeRangeList;
   // for cache
   SDbCfgInfo* pDbCfg;
+  int8_t      isAudit;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {

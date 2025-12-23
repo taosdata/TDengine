@@ -316,7 +316,7 @@ static void shellInitArgs(int argc, char *argv[]) {
       if (strlen(argv[i]) == 2) {
         printf("Enter password: ");
         taosSetConsoleEcho(false);
-        if (scanf("%255s", shell.args.password) > 1) {
+        if (scanf("%255s", shell.args.password) != 1) {
           fprintf(stderr, "password reading error\n");
         }
         taosSetConsoleEcho(true);

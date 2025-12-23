@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
+#include "clientSession.h"
 #include "scheduler.h"
 #include "tglobal.h"
 #include "trpc.h"
@@ -684,6 +685,9 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   pInst->serverCfg.monitorParas = pRsp.monitorParas;
   pInst->serverCfg.enableAuditDelete = pRsp.enableAuditDelete;
+  pInst->serverCfg.enableAuditSelect = pRsp.enableAuditSelect;
+  pInst->serverCfg.enableAuditInsert = pRsp.enableAuditInsert;
+  pInst->serverCfg.auditLevel = pRsp.auditLevel;
   pInst->serverCfg.enableStrongPass = pRsp.enableStrongPass;
   tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
   tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
@@ -760,6 +764,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
       if (code) {
         taosArrayDestroy(desc.subDesc);
         desc.subDesc = NULL;
+        code = TSDB_CODE_SUCCESS;
       }
       desc.subPlanNum = taosArrayGetSize(desc.subDesc);
     } else {

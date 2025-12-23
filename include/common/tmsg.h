@@ -341,6 +341,7 @@ typedef enum ENodeType {
   QUERY_NODE_DATE_TIME_RANGE,
   QUERY_NODE_IP_RANGE,
   QUERY_NODE_USER_OPTIONS,
+  QUERY_NODE_REMOTE_VALUE,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -1305,6 +1306,9 @@ typedef struct {
   int64_t       timeWhiteListVer;
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
+  int8_t        enableAuditSelect;
+  int8_t        enableAuditInsert;
+  int8_t        auditLevel;
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -1884,6 +1888,7 @@ typedef struct {
   int32_t compactEndTime;     // minutes
   int8_t  compactTimeOffset;  // hour
   char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  int8_t  isAudit;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1921,6 +1926,7 @@ typedef struct {
   int32_t compactEndTime;
   int8_t  compactTimeOffset;
   char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  int8_t  isAudit;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -2164,6 +2170,7 @@ typedef struct {
   int8_t  schemaless;
   int16_t sstTrigger;
   int8_t  withArbitrator;
+  int8_t  isAudit;
 } SDbCfgRsp;
 
 typedef SDbCfgRsp SDbCfgInfo;
@@ -2218,6 +2225,20 @@ typedef struct {
 int32_t tSerializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
+
+
+typedef struct SDownstreamSourceNode {
+  ENodeType      type;
+  SQueryNodeAddr addr;
+  uint64_t       clientId;
+  uint64_t       taskId;
+  uint64_t       sId;
+  int32_t        execId;
+  int32_t        fetchMsgType;
+  bool           localExec;
+} SDownstreamSourceNode;
+
+
 
 typedef struct SDNodeAddr {
   int32_t nodeId;  // dnodeId
@@ -2509,6 +2530,8 @@ typedef struct {
   int64_t     timeWhiteVer;
   int64_t     analVer;
   int64_t     timestamp;
+  char        auditDB[TSDB_DB_FNAME_LEN];
+  char        auditToken[AUDIT_TOKEN_LEN];
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -2554,10 +2577,19 @@ typedef struct {
   char    operation[AUDIT_OPERATION_LEN];
   int32_t sqlLen;
   char*   pSql;
+  double  duration;
+  int64_t affectedRows;
 } SAuditReq;
 int32_t tSerializeSAuditReq(void* buf, int32_t bufLen, SAuditReq* pReq);
 int32_t tDeserializeSAuditReq(void* buf, int32_t bufLen, SAuditReq* pReq);
 void    tFreeSAuditReq(SAuditReq* pReq);
+
+typedef struct {
+  SArray* auditArr;
+} SBatchAuditReq;
+int32_t tSerializeSBatchAuditReq(void* buf, int32_t bufLen, SBatchAuditReq* pReq);
+int32_t tDeserializeSBatchAuditReq(void* buf, int32_t bufLen, SBatchAuditReq* pReq);
+void    tFreeSBatchAuditReq(SBatchAuditReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -2597,6 +2629,8 @@ typedef struct {
   int64_t   ipWhiteVer;
   int64_t   analVer;
   int64_t   timeWhiteVer;
+  char      auditDB[TSDB_DB_FNAME_LEN];
+  char      auditToken[AUDIT_TOKEN_LEN];
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
@@ -3568,6 +3602,7 @@ typedef struct SSubQueryMsg {
   char*    sql;
   uint32_t msgLen;
   char*    msg;
+  SArray*  subEndPoints;  // subJobs's endpoints, element is SDownstreamSourceNode*
 } SSubQueryMsg;
 
 int32_t tSerializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
@@ -3618,8 +3653,9 @@ typedef struct SColIdNameKV {
 } SColIdNameKV;
 
 typedef struct SColIdPair {
-  col_id_t vtbColId;
-  col_id_t orgColId;
+  col_id_t  vtbColId;
+  col_id_t  orgColId;
+  SDataType type;
 } SColIdPair;
 
 typedef struct SColIdSlotIdPair {
@@ -3694,6 +3730,7 @@ typedef struct {
   uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
+  int32_t  subJobId;
   int32_t  execId;
   int8_t   status;
 } STaskStatus;
@@ -4418,6 +4455,9 @@ typedef struct {
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
   int8_t        enableStrongPass;
+  int8_t        enableAuditSelect;
+  int8_t        enableAuditInsert;
+  int8_t        auditLevel;
 } SClientHbBatchRsp;
 
 static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) { return taosIntHash_64(key, keyLen); }
@@ -5208,7 +5248,7 @@ typedef struct {
   STqOffsetVal reqOffset;
   int32_t      blockNum;
   int8_t       withTbName;
-  // int8_t       withSchema;
+  int8_t       withSchema;
   SArray*      blockDataLen;
   SArray*      blockData;
   SArray*      blockTbName;
@@ -5257,8 +5297,7 @@ int32_t tSemiDecodeMqBatchMetaRsp(SDecoder* pDecoder, SMqBatchMetaRsp* pRsp);
 void    tDeleteMqBatchMetaRsp(SMqBatchMetaRsp* pRsp);
 
 typedef struct {
-  SMqRspHead head;
-  char       cgroup[TSDB_CGROUP_LEN];
+  int32_t    code;
   SArray*    topics;  // SArray<SMqSubTopicEp>
 } SMqAskEpRsp;
 
@@ -5271,6 +5310,8 @@ static FORCE_INLINE int32_t tEncodeSMqAskEpRsp(void** buf, const SMqAskEpRsp* pR
     SMqSubTopicEp* pVgEp = (SMqSubTopicEp*)taosArrayGet(pRsp->topics, i);
     tlen += tEncodeMqSubTopicEp(buf, pVgEp);
   }
+  tlen += taosEncodeFixedI32(buf, pRsp->code);
+
   return tlen;
 }
 
@@ -5292,6 +5333,8 @@ static FORCE_INLINE void* tDecodeSMqAskEpRsp(void* buf, SMqAskEpRsp* pRsp) {
       return NULL;
     }
   }
+  buf = taosDecodeFixedI32(buf, &pRsp->code);
+
   return buf;
 }
 

@@ -237,7 +237,11 @@ extern bool     tsMonitorForceV2;
 extern bool    tsEnableAudit;
 extern bool    tsEnableAuditCreateTable;
 extern bool    tsEnableAuditDelete;
+extern bool    tsEnableAuditSelect;
+extern bool    tsEnableAuditInsert;
+extern int32_t tsAuditLevel;
 extern int32_t tsAuditInterval;
+extern bool    tsAuditHttps;
 
 // telem
 extern bool     tsEnableTelem;
@@ -395,6 +399,7 @@ extern bool    tsAuthReq;
 extern int32_t tsAuthReqInterval;
 extern int32_t tsAuthReqHBInterval;
 extern char    tsAuthReqUrl[];
+extern bool    tsSessionControl;
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);

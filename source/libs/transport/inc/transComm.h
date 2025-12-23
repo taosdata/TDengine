@@ -171,7 +171,7 @@ typedef struct {
 
   uint64_t timestamp;
   int32_t  compatibilityVer;
-  uint32_t magicNum;
+  uint32_t magicNum;  // crc value
   STraceId traceId;
   int64_t  qid;
   uint32_t code;  // del later
@@ -332,9 +332,12 @@ int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool    transReadComplete(SConnBuffer* connBuf);
 int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
 int32_t transConnBufferAppend(SConnBuffer* connBuf, char* buf, int32_t len);
-int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
+int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf, int32_t* len);
 
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive);
+
+int32_t transDoCrc(char* buf, int32_t len);
+int32_t transDoCrcCheck(char* buf, int32_t len);
 #endif
 
 #ifdef TD_ASTRA_RPC

@@ -1343,7 +1343,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   p += sizeof(int32_t);
   p += sizeof(uint64_t);
 
-  int8_t* fields = p;
+  int8_t* fields = (int8_t*)p;
   if (*fields >= TSDB_DATA_TYPE_MAX || *fields < 0) {
     uError("fields type error:%d", *fields);
     ret = TSDB_CODE_INVALID_PARA;

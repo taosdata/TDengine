@@ -1633,7 +1633,7 @@ if(TD_WEBSOCKET)
 ENDIF()
 
 
-if(${TD_LINUX})
+if(TD_LINUX AND TD_ENTERPRISE)        # {
 if(${BUILD_LIBSASL})      # {
     if(${TD_LINUX})
         set(ext_sasl2 libsasl2.a)
