@@ -5274,6 +5274,8 @@ _err:
   return NULL;
 }
 
+/* walk throught node */
+
 SNode* rebalanceXnodeJobWhereDirectly(SAstCreateContext* pCxt, SNode* pWhere) {
   int32_t code = 0;
   SNode*  pStmt = NULL;
@@ -5290,8 +5292,15 @@ SNode* rebalanceXnodeJobWhereDirectly(SAstCreateContext* pCxt, SNode* pWhere) {
   char*   past = taosMemoryCalloc(1, astLen);
   nodesNodeToString(pWhere, true, &past, &astLen);
   printf("xxxzgc *** where nodetype: %d, ast: %s\n", nodeType(pWhere), past);
+  if (nodeType(pWhere) == QUERY_NODE_LOGIC_CONDITION) {
+    SLogicConditionNode* node1 = (SLogicConditionNode*)pWhere;
+    printf("xxxzgc *** logic condition node: %d\n", node1->pParameterList->length);
+  }
+  SNode* pWhere2 = NULL;
+  nodesStringToNode(past, &pWhere2);
 
   SRebalanceXnodeJobWhereStmt* pJobStmt = (SRebalanceXnodeJobWhereStmt*)pStmt;
+  pJobStmt->pWhere = pWhere2;
 
   // SBuildTopicContext colCxt = {.colExists = false, .colNotFound = false, .pMeta = pMeta, .pTags = NULL};
   // nodesWalkExprPostOrder(pStmt->pWhere, checkColumnTagsInCond, &colCxt);
@@ -5300,6 +5309,7 @@ SNode* rebalanceXnodeJobWhereDirectly(SAstCreateContext* pCxt, SNode* pWhere) {
   // code = nodesCloneNode(pStmt->pWhere, ppWhere);
   // COPY_STRING_FORM_ID_TOKEN(buf, pWhere);
   // printf("rebalance xnode job where clause: %s\n", buf);
+
   pJobStmt->pWhere = pWhere;
 
   return (SNode*)pJobStmt;

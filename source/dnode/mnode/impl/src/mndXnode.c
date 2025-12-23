@@ -590,7 +590,7 @@ static int32_t mndAcquireXnodeJobsByTaskId(SMnode *pMnode, int32_t tid, SArray *
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
 
-  *ppArray = taosArrayInit(16, sizeof(SXnodeTaskObj));
+  *ppArray = taosArrayInit(16, sizeof(SXnodeJobObj));
   if (ppArray == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -600,17 +600,18 @@ static int32_t mndAcquireXnodeJobsByTaskId(SMnode *pMnode, int32_t tid, SArray *
   int32_t idx = 0;
   void   *pIter = NULL;
   while (1) {
-    SXnodeTaskObj *pTask = NULL;
-    pIter = sdbFetch(pSdb, SDB_XNODE_JOB, pIter, (void **)&pTask);
+    SXnodeJobObj *pJob = NULL;
+    pIter = sdbFetch(pSdb, SDB_XNODE_JOB, pIter, (void **)&pJob);
     if (pIter == NULL) break;
 
-    if (pTask->id == tid) {
-      taosArrayInsert(*ppArray, idx++, pTask);
-      sdbCancelFetch(pSdb, pIter);
+    if (pJob->taskId == tid) {
+      taosArrayInsert(*ppArray, idx++, pJob);
+      continue;
     }
 
-    sdbRelease(pSdb, pTask);
+    sdbRelease(pSdb, pJob);
   }
+  sdbCancelFetch(pSdb, pIter);
 
 _exit:
   return code;
@@ -1105,6 +1106,7 @@ static int32_t httpStartXnodeTask(SXnodeTaskObj *pObj) {
     code = terrno;
     goto _OVER;
   }
+  mDebug("start xnode post content:%s", req.pContStr);
   req.pJson = mndSendReqRetJson(req.xnodeUrl, HTTP_TYPE_POST, 30000, req.pContStr, strlen(req.pContStr));
   if (req.pJson == NULL) {
     code = terrno;
@@ -1129,7 +1131,7 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMStartXnodeTaskReq(pReq->pCont, pReq->contLen, &startReq), NULL, _OVER);
 
-  mInfo("StartXnodeTask with tid:%d, start to start", startReq.tid);
+  mInfo("Xnode start xnode task with tid:%d", startReq.tid);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_START_XNODE_TASK), NULL, _OVER);
 
   if (startReq.tid <= 0) {
@@ -1392,6 +1394,7 @@ static int32_t mndDropXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *pT
   for (int i = 0; i < pArray->size; i++) {
     SXnodeJobObj *pJob = taosArrayGet(pArray, i);
     if (pJob == NULL) continue;
+    mDebug("xnode drop xnode task %d trans:%d, to drop xnode job:%d", pTask->id, pTrans->id, pJob->id);
     TAOS_CHECK_GOTO(mndSetDropXnodeJobInfoToTrans(pTrans, pJob, false), NULL, _OVER);
   }
 
