@@ -31,22 +31,6 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb ran
  2025-12-12 12:10:00.000 | true      | 2025-12-12 12:11:00.000 |             3 |
  2025-12-12 12:11:00.000 | false     | 2025-12-12 12:11:00.000 |             3 |
 
-taos> select _irowts, interp(c1, 1) from test.ntb range("2025-12-12 12:00:00", "2025-12-12 12:11:00") every(1m) fill(linear);
-         _irowts         | interp(c1, 1) |
-==========================================
- 2025-12-12 12:00:00.000 |             1 |
- 2025-12-12 12:01:00.000 |             1 |
- 2025-12-12 12:02:00.000 |             1 |
- 2025-12-12 12:03:00.000 |             1 |
- 2025-12-12 12:04:00.000 |             1 |
- 2025-12-12 12:05:00.000 |             1 |
- 2025-12-12 12:06:00.000 |             1 |
- 2025-12-12 12:07:00.000 |             1 |
- 2025-12-12 12:08:00.000 |             2 |
- 2025-12-12 12:09:00.000 |             2 |
- 2025-12-12 12:10:00.000 |             2 |
- 2025-12-12 12:11:00.000 |             3 |
-
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:00:00", "2025-12-12 12:11:00") every(1m) fill(near);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
 ================================================================================
@@ -62,6 +46,22 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb ran
  2025-12-12 12:09:00.000 | true      | 2025-12-12 12:08:00.000 |             2 |
  2025-12-12 12:10:00.000 | true      | 2025-12-12 12:11:00.000 |             3 |
  2025-12-12 12:11:00.000 | false     | 2025-12-12 12:11:00.000 |             3 |
+
+taos> select _irowts, interp(c1, 1) from test.ntb range("2025-12-12 12:00:00", "2025-12-12 12:11:00") every(1m) fill(linear);
+         _irowts         | interp(c1, 1) |
+==========================================
+ 2025-12-12 12:00:00.000 |             1 |
+ 2025-12-12 12:01:00.000 |             1 |
+ 2025-12-12 12:02:00.000 |             1 |
+ 2025-12-12 12:03:00.000 |             1 |
+ 2025-12-12 12:04:00.000 |             1 |
+ 2025-12-12 12:05:00.000 |             1 |
+ 2025-12-12 12:06:00.000 |             1 |
+ 2025-12-12 12:07:00.000 |             1 |
+ 2025-12-12 12:08:00.000 |             2 |
+ 2025-12-12 12:09:00.000 |             2 |
+ 2025-12-12 12:10:00.000 |             2 |
+ 2025-12-12 12:11:00.000 |             3 |
 
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:03:00", "2025-12-12 12:10:00") every(1m) fill(prev);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
@@ -87,18 +87,6 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb ran
  2025-12-12 12:09:00.000 | true      | 2025-12-12 12:11:00.000 |             3 |
  2025-12-12 12:10:00.000 | true      | 2025-12-12 12:11:00.000 |             3 |
 
-taos> select _irowts, interp(c1, 1) from test.ntb range("2025-12-12 12:03:00", "2025-12-12 12:10:00") every(1m) fill(linear);
-         _irowts         | interp(c1, 1) |
-==========================================
- 2025-12-12 12:03:00.000 |             1 |
- 2025-12-12 12:04:00.000 |             1 |
- 2025-12-12 12:05:00.000 |             1 |
- 2025-12-12 12:06:00.000 |             1 |
- 2025-12-12 12:07:00.000 |             1 |
- 2025-12-12 12:08:00.000 |             2 |
- 2025-12-12 12:09:00.000 |             2 |
- 2025-12-12 12:10:00.000 |             2 |
-
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:03:00", "2025-12-12 12:10:00") every(1m) fill(near);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
 ================================================================================
@@ -110,6 +98,18 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb ran
  2025-12-12 12:08:00.000 | false     | 2025-12-12 12:08:00.000 |             2 |
  2025-12-12 12:09:00.000 | true      | 2025-12-12 12:08:00.000 |             2 |
  2025-12-12 12:10:00.000 | true      | 2025-12-12 12:11:00.000 |             3 |
+
+taos> select _irowts, interp(c1, 1) from test.ntb range("2025-12-12 12:03:00", "2025-12-12 12:10:00") every(1m) fill(linear);
+         _irowts         | interp(c1, 1) |
+==========================================
+ 2025-12-12 12:03:00.000 |             1 |
+ 2025-12-12 12:04:00.000 |             1 |
+ 2025-12-12 12:05:00.000 |             1 |
+ 2025-12-12 12:06:00.000 |             1 |
+ 2025-12-12 12:07:00.000 |             1 |
+ 2025-12-12 12:08:00.000 |             2 |
+ 2025-12-12 12:09:00.000 |             2 |
+ 2025-12-12 12:10:00.000 |             2 |
 
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(prev);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
@@ -131,16 +131,6 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb ran
  2025-12-12 12:08:00.000 | false     | 2025-12-12 12:08:00.000 |             2 |
  2025-12-12 12:09:00.000 | true      | 2025-12-12 12:11:00.000 |             3 |
 
-taos> select _irowts, interp(c1, 1) from test.ntb range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(linear);
-         _irowts         | interp(c1, 1) |
-==========================================
- 2025-12-12 12:04:00.000 |             1 |
- 2025-12-12 12:05:00.000 |             1 |
- 2025-12-12 12:06:00.000 |             1 |
- 2025-12-12 12:07:00.000 |             1 |
- 2025-12-12 12:08:00.000 |             2 |
- 2025-12-12 12:09:00.000 |             2 |
-
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(near);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
 ================================================================================
@@ -150,6 +140,16 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb ran
  2025-12-12 12:07:00.000 | true      | 2025-12-12 12:08:00.000 |             2 |
  2025-12-12 12:08:00.000 | false     | 2025-12-12 12:08:00.000 |             2 |
  2025-12-12 12:09:00.000 | true      | 2025-12-12 12:08:00.000 |             2 |
+
+taos> select _irowts, interp(c1, 1) from test.ntb range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(linear);
+         _irowts         | interp(c1, 1) |
+==========================================
+ 2025-12-12 12:04:00.000 |             1 |
+ 2025-12-12 12:05:00.000 |             1 |
+ 2025-12-12 12:06:00.000 |             1 |
+ 2025-12-12 12:07:00.000 |             1 |
+ 2025-12-12 12:08:00.000 |             2 |
+ 2025-12-12 12:09:00.000 |             2 |
 
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(prev);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
@@ -167,12 +167,6 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb whe
  2025-12-12 12:08:00.000 | false     | 2025-12-12 12:08:00.000 |             2 |
  2025-12-12 12:09:00.000 | true      | 2025-12-12 12:11:00.000 |             3 |
 
-taos> select _irowts, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(linear);
-         _irowts         | interp(c1, 1) |
-==========================================
- 2025-12-12 12:08:00.000 |             2 |
- 2025-12-12 12:09:00.000 |             2 |
-
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(near);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
 ================================================================================
@@ -182,6 +176,12 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb whe
  2025-12-12 12:07:00.000 | true      | 2025-12-12 12:08:00.000 |             2 |
  2025-12-12 12:08:00.000 | false     | 2025-12-12 12:08:00.000 |             2 |
  2025-12-12 12:09:00.000 | true      | 2025-12-12 12:08:00.000 |             2 |
+
+taos> select _irowts, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(linear);
+         _irowts         | interp(c1, 1) |
+==========================================
+ 2025-12-12 12:08:00.000 |             2 |
+ 2025-12-12 12:09:00.000 |             2 |
 
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" and ts < "2025-12-12 12:11:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(prev);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
@@ -198,11 +198,6 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb whe
  2025-12-12 12:07:00.000 | true      | 2025-12-12 12:08:00.000 |             2 |
  2025-12-12 12:08:00.000 | false     | 2025-12-12 12:08:00.000 |             2 |
 
-taos> select _irowts, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" and ts < "2025-12-12 12:11:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(linear);
-         _irowts         | interp(c1, 1) |
-==========================================
- 2025-12-12 12:08:00.000 |             2 |
-
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" and ts < "2025-12-12 12:11:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(near);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
 ================================================================================
@@ -212,6 +207,11 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb whe
  2025-12-12 12:07:00.000 | true      | 2025-12-12 12:08:00.000 |             2 |
  2025-12-12 12:08:00.000 | false     | 2025-12-12 12:08:00.000 |             2 |
  2025-12-12 12:09:00.000 | true      | 2025-12-12 12:08:00.000 |             2 |
+
+taos> select _irowts, interp(c1, 1) from test.ntb where ts > "2025-12-12 12:00:00" and ts < "2025-12-12 12:11:00" range("2025-12-12 12:04:00", "2025-12-12 12:09:00") every(1m) fill(linear);
+         _irowts         | interp(c1, 1) |
+==========================================
+ 2025-12-12 12:08:00.000 |             2 |
 
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb range("2025-12-12 12:00:00", "2025-12-12 12:20:00") every(1m) fill(prev);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
@@ -263,31 +263,6 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb ran
  2025-12-12 12:19:00.000 | true      | 2025-12-12 12:20:00.000 |             3 |
  2025-12-12 12:20:00.000 | false     | 2025-12-12 12:20:00.000 |             3 |
 
-taos> select _irowts, interp(c1, 1) from test.stb range("2025-12-12 12:00:00", "2025-12-12 12:20:00") every(1m) fill(linear);
-         _irowts         | interp(c1, 1) |
-==========================================
- 2025-12-12 12:00:00.000 |             1 |
- 2025-12-12 12:01:00.000 |             1 |
- 2025-12-12 12:02:00.000 |             1 |
- 2025-12-12 12:03:00.000 |             1 |
- 2025-12-12 12:04:00.000 |             1 |
- 2025-12-12 12:05:00.000 |             1 |
- 2025-12-12 12:06:00.000 |             1 |
- 2025-12-12 12:07:00.000 |             1 |
- 2025-12-12 12:08:00.000 |             2 |
- 2025-12-12 12:09:00.000 |             2 |
- 2025-12-12 12:10:00.000 |             2 |
- 2025-12-12 12:11:00.000 |             3 |
- 2025-12-12 12:12:00.000 |             2 |
- 2025-12-12 12:13:00.000 |             2 |
- 2025-12-12 12:14:00.000 |             2 |
- 2025-12-12 12:15:00.000 |             2 |
- 2025-12-12 12:16:00.000 |             2 |
- 2025-12-12 12:17:00.000 |             2 |
- 2025-12-12 12:18:00.000 |             2 |
- 2025-12-12 12:19:00.000 |             2 |
- 2025-12-12 12:20:00.000 |             3 |
-
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb range("2025-12-12 12:00:00", "2025-12-12 12:20:00") every(1m) fill(near);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
 ================================================================================
@@ -312,6 +287,31 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb ran
  2025-12-12 12:18:00.000 | false     | 2025-12-12 12:18:00.000 |             2 |
  2025-12-12 12:19:00.000 | true      | 2025-12-12 12:18:00.000 |             2 |
  2025-12-12 12:20:00.000 | false     | 2025-12-12 12:20:00.000 |             3 |
+
+taos> select _irowts, interp(c1, 1) from test.stb range("2025-12-12 12:00:00", "2025-12-12 12:20:00") every(1m) fill(linear);
+         _irowts         | interp(c1, 1) |
+==========================================
+ 2025-12-12 12:00:00.000 |             1 |
+ 2025-12-12 12:01:00.000 |             1 |
+ 2025-12-12 12:02:00.000 |             1 |
+ 2025-12-12 12:03:00.000 |             1 |
+ 2025-12-12 12:04:00.000 |             1 |
+ 2025-12-12 12:05:00.000 |             1 |
+ 2025-12-12 12:06:00.000 |             1 |
+ 2025-12-12 12:07:00.000 |             1 |
+ 2025-12-12 12:08:00.000 |             2 |
+ 2025-12-12 12:09:00.000 |             2 |
+ 2025-12-12 12:10:00.000 |             2 |
+ 2025-12-12 12:11:00.000 |             3 |
+ 2025-12-12 12:12:00.000 |             2 |
+ 2025-12-12 12:13:00.000 |             2 |
+ 2025-12-12 12:14:00.000 |             2 |
+ 2025-12-12 12:15:00.000 |             2 |
+ 2025-12-12 12:16:00.000 |             2 |
+ 2025-12-12 12:17:00.000 |             2 |
+ 2025-12-12 12:18:00.000 |             2 |
+ 2025-12-12 12:19:00.000 |             2 |
+ 2025-12-12 12:20:00.000 |             3 |
 
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(prev);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
@@ -339,19 +339,6 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb ran
  2025-12-12 12:11:00.000 | false     | 2025-12-12 12:11:00.000 |             3 |
  2025-12-12 12:12:00.000 | true      | 2025-12-12 12:18:00.000 |             2 |
 
-taos> select _irowts, interp(c1, 1) from test.stb range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(linear);
-         _irowts         | interp(c1, 1) |
-==========================================
- 2025-12-12 12:04:00.000 |             1 |
- 2025-12-12 12:05:00.000 |             1 |
- 2025-12-12 12:06:00.000 |             1 |
- 2025-12-12 12:07:00.000 |             1 |
- 2025-12-12 12:08:00.000 |             2 |
- 2025-12-12 12:09:00.000 |             2 |
- 2025-12-12 12:10:00.000 |             2 |
- 2025-12-12 12:11:00.000 |             3 |
- 2025-12-12 12:12:00.000 |             2 |
-
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(near);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
 ================================================================================
@@ -364,6 +351,19 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.stb ran
  2025-12-12 12:10:00.000 | true      | 2025-12-12 12:11:00.000 |             3 |
  2025-12-12 12:11:00.000 | false     | 2025-12-12 12:11:00.000 |             3 |
  2025-12-12 12:12:00.000 | true      | 2025-12-12 12:11:00.000 |             3 |
+
+taos> select _irowts, interp(c1, 1) from test.stb range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(linear);
+         _irowts         | interp(c1, 1) |
+==========================================
+ 2025-12-12 12:04:00.000 |             1 |
+ 2025-12-12 12:05:00.000 |             1 |
+ 2025-12-12 12:06:00.000 |             1 |
+ 2025-12-12 12:07:00.000 |             1 |
+ 2025-12-12 12:08:00.000 |             2 |
+ 2025-12-12 12:09:00.000 |             2 |
+ 2025-12-12 12:10:00.000 |             2 |
+ 2025-12-12 12:11:00.000 |             3 |
+ 2025-12-12 12:12:00.000 |             2 |
 
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test.stb partition by tbname range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(prev) order by tbname, _irowts;
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |             tbname             |
@@ -399,18 +399,6 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test
  2025-12-12 12:11:00.000 | true      | 2025-12-12 12:18:00.000 |             2 | ctb2                           |
  2025-12-12 12:12:00.000 | true      | 2025-12-12 12:18:00.000 |             2 | ctb2                           |
 
-taos> select _irowts, interp(c1, 1), tbname from test.stb partition by tbname range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(linear) order by tbname, _irowts;
-         _irowts         | interp(c1, 1) |             tbname             |
-===========================================================================
- 2025-12-12 12:04:00.000 |             1 | ctb1                           |
- 2025-12-12 12:05:00.000 |             1 | ctb1                           |
- 2025-12-12 12:06:00.000 |             1 | ctb1                           |
- 2025-12-12 12:07:00.000 |             1 | ctb1                           |
- 2025-12-12 12:08:00.000 |             2 | ctb1                           |
- 2025-12-12 12:09:00.000 |             2 | ctb1                           |
- 2025-12-12 12:10:00.000 |             2 | ctb1                           |
- 2025-12-12 12:11:00.000 |             3 | ctb1                           |
-
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test.stb partition by tbname range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(near) order by tbname, _irowts;
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |             tbname             |
 =================================================================================================================
@@ -432,6 +420,18 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test
  2025-12-12 12:10:00.000 | true      | 2025-12-12 12:18:00.000 |             2 | ctb2                           |
  2025-12-12 12:11:00.000 | true      | 2025-12-12 12:18:00.000 |             2 | ctb2                           |
  2025-12-12 12:12:00.000 | true      | 2025-12-12 12:18:00.000 |             2 | ctb2                           |
+
+taos> select _irowts, interp(c1, 1), tbname from test.stb partition by tbname range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(linear) order by tbname, _irowts;
+         _irowts         | interp(c1, 1) |             tbname             |
+===========================================================================
+ 2025-12-12 12:04:00.000 |             1 | ctb1                           |
+ 2025-12-12 12:05:00.000 |             1 | ctb1                           |
+ 2025-12-12 12:06:00.000 |             1 | ctb1                           |
+ 2025-12-12 12:07:00.000 |             1 | ctb1                           |
+ 2025-12-12 12:08:00.000 |             2 | ctb1                           |
+ 2025-12-12 12:09:00.000 |             2 | ctb1                           |
+ 2025-12-12 12:10:00.000 |             2 | ctb1                           |
+ 2025-12-12 12:11:00.000 |             3 | ctb1                           |
 
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test.stb partition by gid range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(prev) order by gid, _irowts;
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |     gid     |
@@ -467,18 +467,6 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test.st
  2025-12-12 12:11:00.000 | true      | 2025-12-12 12:18:00.000 |             2 |           2 |
  2025-12-12 12:12:00.000 | true      | 2025-12-12 12:18:00.000 |             2 |           2 |
 
-taos> select _irowts, interp(c1, 1), gid from test.stb partition by gid range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(linear) order by gid, _irowts;
-         _irowts         | interp(c1, 1) |     gid     |
-========================================================
- 2025-12-12 12:04:00.000 |             1 |           1 |
- 2025-12-12 12:05:00.000 |             1 |           1 |
- 2025-12-12 12:06:00.000 |             1 |           1 |
- 2025-12-12 12:07:00.000 |             1 |           1 |
- 2025-12-12 12:08:00.000 |             2 |           1 |
- 2025-12-12 12:09:00.000 |             2 |           1 |
- 2025-12-12 12:10:00.000 |             2 |           1 |
- 2025-12-12 12:11:00.000 |             3 |           1 |
-
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test.stb partition by gid range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(near) order by gid, _irowts;
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |     gid     |
 ==============================================================================================
@@ -501,6 +489,18 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test.st
  2025-12-12 12:11:00.000 | true      | 2025-12-12 12:18:00.000 |             2 |           2 |
  2025-12-12 12:12:00.000 | true      | 2025-12-12 12:18:00.000 |             2 |           2 |
 
+taos> select _irowts, interp(c1, 1), gid from test.stb partition by gid range("2025-12-12 12:04:00", "2025-12-12 12:12:00") every(1m) fill(linear) order by gid, _irowts;
+         _irowts         | interp(c1, 1) |     gid     |
+========================================================
+ 2025-12-12 12:04:00.000 |             1 |           1 |
+ 2025-12-12 12:05:00.000 |             1 |           1 |
+ 2025-12-12 12:06:00.000 |             1 |           1 |
+ 2025-12-12 12:07:00.000 |             1 |           1 |
+ 2025-12-12 12:08:00.000 |             2 |           1 |
+ 2025-12-12 12:09:00.000 |             2 |           1 |
+ 2025-12-12 12:10:00.000 |             2 |           1 |
+ 2025-12-12 12:11:00.000 |             3 |           1 |
+
 taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:05:30") fill(prev);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
 ================================================================================
@@ -511,13 +511,13 @@ taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb ran
 ================================================================================
  2025-12-12 12:05:30.000 | true      | 2025-12-12 12:08:00.000 |             2 |
 
-taos> select _irowts, interp(c1, 1) from test.ntb range("2025-12-12 12:05:30") fill(linear);
-         _irowts         | interp(c1, 1) |
-==========================================
- 2025-12-12 12:05:30.000 |             1 |
-
-taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:05:30") fill(near)
+taos> select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test.ntb range("2025-12-12 12:05:30") fill(near);
          _irowts         | _isfilled |     _irowts_origin      | interp(c1, 1) |
 ================================================================================
  2025-12-12 12:05:30.000 | true      | 2025-12-12 12:08:00.000 |             2 |
+
+taos> select _irowts, interp(c1, 1) from test.ntb range("2025-12-12 12:05:30") fill(linear)
+         _irowts         | interp(c1, 1) |
+==========================================
+ 2025-12-12 12:05:30.000 |             1 |
 

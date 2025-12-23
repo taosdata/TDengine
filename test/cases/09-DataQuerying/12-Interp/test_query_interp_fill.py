@@ -10,7 +10,7 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-from new_test_framework.utils.streamUtil import StreamItem
+from new_test_framework.utils.streamUtil import StreamItem, tdStream
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 from new_test_framework.utils.common import TDCom, tdCom
 from random import randrange
@@ -87,8 +87,7 @@ class TestInterpFill:
             ("2025-12-12 12:08:00", 2)
             ("2025-12-12 12:09:00", null)
             ("2025-12-12 12:10:00", null)
-            ("2025-12-12 12:11:00", 3)
-        """)
+            ("2025-12-12 12:11:00", 3)""")
 
         tdSql.execute("""
             insert into ctb1 values
@@ -99,8 +98,7 @@ class TestInterpFill:
             ("2025-12-12 12:08:00", 2)
             ("2025-12-12 12:09:00", null)
             ("2025-12-12 12:10:00", null)
-            ("2025-12-12 12:11:00", 3)
-        """)
+            ("2025-12-12 12:11:00", 3)""")
 
         tdSql.execute("""
             insert into ctb2 values
@@ -109,8 +107,7 @@ class TestInterpFill:
             ("2025-12-12 12:15:00", null)
             ("2025-12-12 12:18:00", 2)
             ("2025-12-12 12:19:00", null)
-            ("2025-12-12 12:20:00", 3);
-        """)
+            ("2025-12-12 12:20:00", 3)""")
 
     def test_normal_query_new(self):
         """Interp fill and psedo column
@@ -729,46 +726,571 @@ class TestInterpFill:
             - 2025-12-22 Tony Zhang created
 
         """
+        tdStream.createSnode()
+        tdSql.execute("use test")
         tdSql.execute("create table trigger_table(ts timestamp, c1 int)")
+
         streams: list[StreamItem] = []
 
         stream: StreamItem = StreamItem(
             id=0,
-            stream="""create stream s0 count_window(1) from test.trigger_table
-                into test.r0 as select _irowts, _isfilled, _irowts_origin,
-                interp(c1) from test.ntb range(_twstart+1s) fill(prev)""",
-            res_query="",
-            exp_query=""
+            stream="""create stream s0 state_window(c1, 1) from trigger_table
+                into r0 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1, 1) from ntb range(_twstart+1s) fill(prev)""",
+            check_func=self.check_s0
         )
         streams.append(stream)
 
         stream: StreamItem = StreamItem(
             id=1,
-            stream="""create stream s1 count_window(1) from test.trigger_table
-                into test.r1 as select _irowts, _isfilled, _irowts_origin,
-                interp(c1) from test.ntb range(_twstart+1s) fill(next)""",
-            res_query="",
-            exp_query=""
+            stream="""create stream s1 state_window(c1, 1) from trigger_table
+                into r1 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1, 1) from ntb range(_twstart+1s) fill(next)""",   
+            check_func=self.check_s1
         )
         streams.append(stream)
 
         stream: StreamItem = StreamItem(
             id=2,
-            stream="""create stream s2 count_window(1) from test.trigger_table
-                into test.r2 as select _irowts, _isfilled, _irowts_origin,
-                interp(c1) from test.ntb range(_twstart+1s) fill(near)""",
-            res_query="",
-            exp_query=""
+            stream="""create stream s2 state_window(c1, 1) from trigger_table
+                into r2 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1, 1) from ntb range(_twstart+1s) fill(near)""",
+            check_func=self.check_s2
         )
         streams.append(stream)
 
         stream: StreamItem = StreamItem(
             id=3,
-            stream="""create stream s3 count_window(1) from test.trigger_table
-                into test.r3 as select _irowts,
-                interp(c1) from test.ntb range(_twstart+1s) fill(linear)""",
-            res_query="",
-            exp_query=""
+            stream="""create stream s3 state_window(c1, 1) from trigger_table
+                into r3 as select _irowts,
+                interp(c1, 1) from ntb range(_twstart+1s) fill(linear)""",
+            check_func=self.check_s3
+        )
+        streams.append(stream)
+
+        stream: StreamItem = StreamItem(
+            id=4,
+            stream="""create stream s4 state_window(c1, 1) from trigger_table
+                into r4 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1, 1) from ntb range(_twstart, _twend) every(30s)
+                fill(prev)""",
+            check_func=self.check_s4
         )
         streams.append(stream)
         
+        stream: StreamItem = StreamItem(
+            id=5,
+            stream="""create stream s5 state_window(c1, 1) from trigger_table
+                into r5 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1, 1) from ntb range(_twstart, _twend) every(30s)
+                fill(next)""",
+            check_func=self.check_s5
+        )
+        streams.append(stream)
+
+        stream: StreamItem = StreamItem(
+            id=6,
+            stream="""create stream s6 state_window(c1, 1) from trigger_table
+                into r6 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1, 1) from ntb range(_twstart, _twend) every(30s)
+                fill(near)""",
+            check_func=self.check_s6
+        )
+        streams.append(stream)
+
+        stream: StreamItem = StreamItem(
+            id=7,
+            stream="""create stream s7 state_window(c1, 1) from trigger_table
+                into r7 as select _irowts,
+                interp(c1, 1) from ntb range(_twstart, _twend) every(30s)
+                fill(linear)""",
+            check_func=self.check_s7
+        )
+        streams.append(stream)
+        
+        # start streams
+        for s in streams:
+            s.createStream()
+        tdStream.checkStreamStatus()
+
+        # insert data into trigger_table
+        tdSql.execute("insert into trigger_table values ('2025-12-12 11:59:00', 1)")
+        tdSql.execute("insert into trigger_table values ('2025-12-12 12:01:00', 1)")
+        tdSql.execute("insert into trigger_table values ('2025-12-12 12:02:00', 2)")
+        tdSql.execute("insert into trigger_table values ('2025-12-12 12:03:00', 1)")
+        tdSql.execute("insert into trigger_table values ('2025-12-12 12:05:00', 1)")
+        tdSql.execute("insert into trigger_table values ('2025-12-12 12:06:00', 2)")
+        tdSql.execute("insert into trigger_table values ('2025-12-12 12:09:30', 2)")
+        tdSql.execute("insert into trigger_table values ('2025-12-12 12:10:00', 1)")
+        tdSql.execute("insert into trigger_table values ('2025-12-12 12:12:00', 1)")
+        tdSql.execute("insert into trigger_table values ('2025-12-12 12:12:01', 2)")
+
+        # check results
+        for s in streams:
+            s.checkResults()
+
+    def check_s0(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r0",
+            func=lambda: tdSql.getRows() == 4
+            and tdSql.compareData(0, 0, "2025-12-12 12:02:01.000")
+            and tdSql.compareData(0, 1, True)
+            and tdSql.compareData(0, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(0, 3, 1)
+            and tdSql.compareData(1, 0, "2025-12-12 12:03:01.000")
+            and tdSql.compareData(1, 1, True)
+            and tdSql.compareData(1, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(1, 3, 1)
+            and tdSql.compareData(2, 0, "2025-12-12 12:06:01.000")
+            and tdSql.compareData(2, 1, True)
+            and tdSql.compareData(2, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(2, 3, 1)
+            and tdSql.compareData(3, 0, "2025-12-12 12:10:01.000")
+            and tdSql.compareData(3, 1, True)
+            and tdSql.compareData(3, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(3, 3, 2)
+        )
+    
+    def check_s1(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r1",
+            func=lambda: tdSql.getRows() == 5
+            and tdSql.compareData(0, 0, "2025-12-12 11:59:01.000")
+            and tdSql.compareData(0, 1, True)
+            and tdSql.compareData(0, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(0, 3, 1)
+            and tdSql.compareData(1, 0, "2025-12-12 12:02:01.000")
+            and tdSql.compareData(1, 1, True)
+            and tdSql.compareData(1, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(1, 3, 2)
+            and tdSql.compareData(2, 0, "2025-12-12 12:03:01.000")
+            and tdSql.compareData(2, 1, True)
+            and tdSql.compareData(2, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(2, 3, 2)
+            and tdSql.compareData(3, 0, "2025-12-12 12:06:01.000")
+            and tdSql.compareData(3, 1, True)
+            and tdSql.compareData(3, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(3, 3, 2)
+            and tdSql.compareData(4, 0, "2025-12-12 12:10:01.000")
+            and tdSql.compareData(4, 1, True)
+            and tdSql.compareData(4, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(4, 3, 3)
+        )
+    
+    def check_s2(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r2",
+            func=lambda: tdSql.getRows() == 5
+            and tdSql.compareData(0, 0, "2025-12-12 11:59:01.000")
+            and tdSql.compareData(0, 1, True)
+            and tdSql.compareData(0, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(0, 3, 1)
+            and tdSql.compareData(1, 0, "2025-12-12 12:02:01.000")
+            and tdSql.compareData(1, 1, True)
+            and tdSql.compareData(1, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(1, 3, 1)
+            and tdSql.compareData(2, 0, "2025-12-12 12:03:01.000")
+            and tdSql.compareData(2, 1, True)
+            and tdSql.compareData(2, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(2, 3, 1)
+            and tdSql.compareData(3, 0, "2025-12-12 12:06:01.000")
+            and tdSql.compareData(3, 1, True)
+            and tdSql.compareData(3, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(3, 3, 2)
+            and tdSql.compareData(4, 0, "2025-12-12 12:10:01.000")
+            and tdSql.compareData(4, 1, True)
+            and tdSql.compareData(4, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(4, 3, 3)
+        )
+    
+    def check_s3(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r3",
+            func=lambda: tdSql.getRows() == 4
+            and tdSql.compareData(0, 0, "2025-12-12 12:02:01.000")
+            and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(1, 0, "2025-12-12 12:03:01.000")
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(2, 0, "2025-12-12 12:06:01.000")
+            and tdSql.compareData(2, 1, 1)
+            and tdSql.compareData(3, 0, "2025-12-12 12:10:01.000")
+            and tdSql.compareData(3, 1, 2)
+        )
+    
+    def check_s4(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r4",
+            func=lambda: tdSql.getRows() == 25
+            and tdSql.compareData(0, 0, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(0, 1, False)
+            and tdSql.compareData(0, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(0, 3, 1)
+            and tdSql.compareData(1, 0, "2025-12-12 12:00:30.000")
+            and tdSql.compareData(1, 1, True)
+            and tdSql.compareData(1, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(1, 3, 1)
+            and tdSql.compareData(2, 0, "2025-12-12 12:01:00.000")
+            and tdSql.compareData(2, 1, True)
+            and tdSql.compareData(2, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(2, 3, 1)
+            and tdSql.compareData(3, 0, "2025-12-12 12:01:30.000")
+            and tdSql.compareData(3, 1, True)
+            and tdSql.compareData(3, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(3, 3, 1)
+            and tdSql.compareData(4, 0, "2025-12-12 12:02:00.000")
+            and tdSql.compareData(4, 1, True)
+            and tdSql.compareData(4, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(4, 3, 1)
+            and tdSql.compareData(5, 0, "2025-12-12 12:02:30.000")
+            and tdSql.compareData(5, 1, True)
+            and tdSql.compareData(5, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(5, 3, 1)
+            and tdSql.compareData(6, 0, "2025-12-12 12:03:00.000")
+            and tdSql.compareData(6, 1, True)
+            and tdSql.compareData(6, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(6, 3, 1)
+            and tdSql.compareData(7, 0, "2025-12-12 12:03:30.000")
+            and tdSql.compareData(7, 1, True)
+            and tdSql.compareData(7, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(7, 3, 1)
+            and tdSql.compareData(8, 0, "2025-12-12 12:04:00.000")
+            and tdSql.compareData(8, 1, True)
+            and tdSql.compareData(8, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(8, 3, 1)
+            and tdSql.compareData(9, 0, "2025-12-12 12:04:30.000")
+            and tdSql.compareData(9, 1, True)
+            and tdSql.compareData(9, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(9, 3, 1)
+            and tdSql.compareData(10, 0, "2025-12-12 12:05:00.000")
+            and tdSql.compareData(10, 1, True)
+            and tdSql.compareData(10, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(10, 3, 1)
+            and tdSql.compareData(11, 0, "2025-12-12 12:05:30.000")
+            and tdSql.compareData(11, 1, True)
+            and tdSql.compareData(11, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(11, 3, 1)
+            and tdSql.compareData(12, 0, "2025-12-12 12:06:00.000")
+            and tdSql.compareData(12, 1, True)
+            and tdSql.compareData(12, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(12, 3, 1)
+            and tdSql.compareData(13, 0, "2025-12-12 12:06:30.000")
+            and tdSql.compareData(13, 1, True)
+            and tdSql.compareData(13, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(13, 3, 1)
+            and tdSql.compareData(14, 0, "2025-12-12 12:07:00.000")
+            and tdSql.compareData(14, 1, True)
+            and tdSql.compareData(14, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(14, 3, 1)
+            and tdSql.compareData(15, 0, "2025-12-12 12:07:30.000")
+            and tdSql.compareData(15, 1, True)
+            and tdSql.compareData(15, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(15, 3, 1)
+            and tdSql.compareData(16, 0, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(16, 1, False)
+            and tdSql.compareData(16, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(16, 3, 2)
+            and tdSql.compareData(17, 0, "2025-12-12 12:08:30.000")
+            and tdSql.compareData(17, 1, True)
+            and tdSql.compareData(17, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(17, 3, 2)
+            and tdSql.compareData(18, 0, "2025-12-12 12:09:00.000")
+            and tdSql.compareData(18, 1, True)
+            and tdSql.compareData(18, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(18, 3, 2)
+            and tdSql.compareData(19, 0, "2025-12-12 12:09:30.000")
+            and tdSql.compareData(19, 1, True)
+            and tdSql.compareData(19, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(19, 3, 2)
+            and tdSql.compareData(20, 0, "2025-12-12 12:10:00.000")
+            and tdSql.compareData(20, 1, True)
+            and tdSql.compareData(20, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(20, 3, 2)
+            and tdSql.compareData(21, 0, "2025-12-12 12:10:30.000")
+            and tdSql.compareData(21, 1, True)
+            and tdSql.compareData(21, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(21, 3, 2)
+            and tdSql.compareData(22, 0, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(22, 1, False)
+            and tdSql.compareData(22, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(22, 3, 3)
+            and tdSql.compareData(23, 0, "2025-12-12 12:11:30.000")
+            and tdSql.compareData(23, 1, True)
+            and tdSql.compareData(23, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(23, 3, 3)
+            and tdSql.compareData(24, 0, "2025-12-12 12:12:00.000")
+            and tdSql.compareData(24, 1, True)
+            and tdSql.compareData(24, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(24, 3, 3)
+        )
+
+    def check_s5(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r5",
+            func=lambda: tdSql.getRows() == 25
+            and tdSql.compareData(0, 0, "2025-12-12 11:59:00.000")
+            and tdSql.compareData(0, 1, True)
+            and tdSql.compareData(0, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(0, 3, 1)
+            and tdSql.compareData(1, 0, "2025-12-12 11:59:30.000")
+            and tdSql.compareData(1, 1, True)
+            and tdSql.compareData(1, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(1, 3, 1)
+            and tdSql.compareData(2, 0, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(2, 1, False)
+            and tdSql.compareData(2, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(2, 3, 1)
+            and tdSql.compareData(3, 0, "2025-12-12 12:00:30.000")
+            and tdSql.compareData(3, 1, True)
+            and tdSql.compareData(3, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(3, 3, 2)
+            and tdSql.compareData(4, 0, "2025-12-12 12:01:00.000")
+            and tdSql.compareData(4, 1, True)
+            and tdSql.compareData(4, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(4, 3, 2)
+            and tdSql.compareData(5, 0, "2025-12-12 12:01:30.000")
+            and tdSql.compareData(5, 1, True)
+            and tdSql.compareData(5, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(5, 3, 2)
+            and tdSql.compareData(6, 0, "2025-12-12 12:02:00.000")
+            and tdSql.compareData(6, 1, True)
+            and tdSql.compareData(6, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(6, 3, 2)
+            and tdSql.compareData(7, 0, "2025-12-12 12:02:30.000")
+            and tdSql.compareData(7, 1, True)
+            and tdSql.compareData(7, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(7, 3, 2)
+            and tdSql.compareData(8, 0, "2025-12-12 12:03:00.000")
+            and tdSql.compareData(8, 1, True)
+            and tdSql.compareData(8, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(8, 3, 2)
+            and tdSql.compareData(9, 0, "2025-12-12 12:03:30.000")
+            and tdSql.compareData(9, 1, True)
+            and tdSql.compareData(9, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(9, 3, 2)
+            and tdSql.compareData(10, 0, "2025-12-12 12:04:00.000")
+            and tdSql.compareData(10, 1, True)
+            and tdSql.compareData(10, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(10, 3, 2)
+            and tdSql.compareData(11, 0, "2025-12-12 12:04:30.000")
+            and tdSql.compareData(11, 1, True)
+            and tdSql.compareData(11, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(11, 3, 2)
+            and tdSql.compareData(12, 0, "2025-12-12 12:05:00.000")
+            and tdSql.compareData(12, 1, True)
+            and tdSql.compareData(12, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(12, 3, 2)
+            and tdSql.compareData(13, 0, "2025-12-12 12:05:30.000")
+            and tdSql.compareData(13, 1, True)
+            and tdSql.compareData(13, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(13, 3, 2)
+            and tdSql.compareData(14, 0, "2025-12-12 12:06:00.000")
+            and tdSql.compareData(14, 1, True)
+            and tdSql.compareData(14, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(14, 3, 2)
+            and tdSql.compareData(15, 0, "2025-12-12 12:06:30.000")
+            and tdSql.compareData(15, 1, True)
+            and tdSql.compareData(15, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(15, 3, 2)
+            and tdSql.compareData(16, 0, "2025-12-12 12:07:00.000")
+            and tdSql.compareData(16, 1, True)
+            and tdSql.compareData(16, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(16, 3, 2)
+            and tdSql.compareData(17, 0, "2025-12-12 12:07:30.000")
+            and tdSql.compareData(17, 1, True)
+            and tdSql.compareData(17, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(17, 3, 2)
+            and tdSql.compareData(18, 0, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(18, 1, False)
+            and tdSql.compareData(18, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(18, 3, 2)
+            and tdSql.compareData(19, 0, "2025-12-12 12:08:30.000")
+            and tdSql.compareData(19, 1, True)
+            and tdSql.compareData(19, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(19, 3, 3)
+            and tdSql.compareData(20, 0, "2025-12-12 12:09:00.000")
+            and tdSql.compareData(20, 1, True)
+            and tdSql.compareData(20, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(20, 3, 3)
+            and tdSql.compareData(21, 0, "2025-12-12 12:09:30.000")
+            and tdSql.compareData(21, 1, True)
+            and tdSql.compareData(21, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(21, 3, 3)
+            and tdSql.compareData(22, 0, "2025-12-12 12:10:00.000")
+            and tdSql.compareData(22, 1, True)
+            and tdSql.compareData(22, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(22, 3, 3)
+            and tdSql.compareData(23, 0, "2025-12-12 12:10:30.000")
+            and tdSql.compareData(23, 1, True)
+            and tdSql.compareData(23, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(23, 3, 3)
+            and tdSql.compareData(24, 0, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(24, 1, False)
+            and tdSql.compareData(24, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(24, 3, 3)
+        )
+    
+    def check_s6(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r6",
+            func=lambda: tdSql.getRows() == 27
+            and tdSql.compareData(0, 0, "2025-12-12 11:59:00.000")
+            and tdSql.compareData(0, 1, True)
+            and tdSql.compareData(0, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(0, 3, 1)
+            and tdSql.compareData(1, 0, "2025-12-12 11:59:30.000")
+            and tdSql.compareData(1, 1, True)
+            and tdSql.compareData(1, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(1, 3, 1)
+            and tdSql.compareData(2, 0, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(2, 1, False)
+            and tdSql.compareData(2, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(2, 3, 1)
+            and tdSql.compareData(3, 0, "2025-12-12 12:00:30.000")
+            and tdSql.compareData(3, 1, True)
+            and tdSql.compareData(3, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(3, 3, 1)
+            and tdSql.compareData(4, 0, "2025-12-12 12:01:00.000")
+            and tdSql.compareData(4, 1, True)
+            and tdSql.compareData(4, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(4, 3, 1)
+            and tdSql.compareData(5, 0, "2025-12-12 12:01:30.000")
+            and tdSql.compareData(5, 1, True)
+            and tdSql.compareData(5, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(5, 3, 1)
+            and tdSql.compareData(6, 0, "2025-12-12 12:02:00.000")
+            and tdSql.compareData(6, 1, True)
+            and tdSql.compareData(6, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(6, 3, 1)
+            and tdSql.compareData(7, 0, "2025-12-12 12:02:30.000")
+            and tdSql.compareData(7, 1, True)
+            and tdSql.compareData(7, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(7, 3, 1)
+            and tdSql.compareData(8, 0, "2025-12-12 12:03:00.000")
+            and tdSql.compareData(8, 1, True)
+            and tdSql.compareData(8, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(8, 3, 1)
+            and tdSql.compareData(9, 0, "2025-12-12 12:03:30.000")
+            and tdSql.compareData(9, 1, True)
+            and tdSql.compareData(9, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(9, 3, 1)
+            and tdSql.compareData(10, 0, "2025-12-12 12:04:00.000")
+            and tdSql.compareData(10, 1, True)
+            and tdSql.compareData(10, 2, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(10, 3, 1)
+            and tdSql.compareData(11, 0, "2025-12-12 12:04:30.000")
+            and tdSql.compareData(11, 1, True)
+            and tdSql.compareData(11, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(11, 3, 2)
+            and tdSql.compareData(12, 0, "2025-12-12 12:05:00.000")
+            and tdSql.compareData(12, 1, True)
+            and tdSql.compareData(12, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(12, 3, 2)
+            and tdSql.compareData(13, 0, "2025-12-12 12:05:30.000")
+            and tdSql.compareData(13, 1, True)
+            and tdSql.compareData(13, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(13, 3, 2)
+            and tdSql.compareData(14, 0, "2025-12-12 12:06:00.000")
+            and tdSql.compareData(14, 1, True)
+            and tdSql.compareData(14, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(14, 3, 2)
+            and tdSql.compareData(15, 0, "2025-12-12 12:06:30.000")
+            and tdSql.compareData(15, 1, True)
+            and tdSql.compareData(15, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(15, 3, 2)
+            and tdSql.compareData(16, 0, "2025-12-12 12:07:00.000")
+            and tdSql.compareData(16, 1, True)
+            and tdSql.compareData(16, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(16, 3, 2)
+            and tdSql.compareData(17, 0, "2025-12-12 12:07:30.000")
+            and tdSql.compareData(17, 1, True)
+            and tdSql.compareData(17, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(17, 3, 2)
+            and tdSql.compareData(18, 0, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(18, 1, False)
+            and tdSql.compareData(18, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(18, 3, 2)
+            and tdSql.compareData(19, 0, "2025-12-12 12:08:30.000")
+            and tdSql.compareData(19, 1, True)
+            and tdSql.compareData(19, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(19, 3, 2)
+            and tdSql.compareData(20, 0, "2025-12-12 12:09:00.000")
+            and tdSql.compareData(20, 1, True)
+            and tdSql.compareData(20, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(20, 3, 2)
+            and tdSql.compareData(21, 0, "2025-12-12 12:09:30.000")
+            and tdSql.compareData(21, 1, True)
+            and tdSql.compareData(21, 2, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(21, 3, 2)
+            and tdSql.compareData(22, 0, "2025-12-12 12:10:00.000")
+            and tdSql.compareData(22, 1, True)
+            and tdSql.compareData(22, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(22, 3, 3)
+            and tdSql.compareData(23, 0, "2025-12-12 12:10:30.000")
+            and tdSql.compareData(23, 1, True)
+            and tdSql.compareData(23, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(23, 3, 3)
+            and tdSql.compareData(24, 0, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(24, 1, False)
+            and tdSql.compareData(24, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(24, 3, 3)
+            and tdSql.compareData(25, 0, "2025-12-12 12:11:30.000")
+            and tdSql.compareData(25, 1, True)
+            and tdSql.compareData(25, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(25, 3, 3)
+            and tdSql.compareData(26, 0, "2025-12-12 12:12:00.000")
+            and tdSql.compareData(26, 1, True)
+            and tdSql.compareData(26, 2, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(26, 3, 3)
+        )
+
+    def check_s7(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r7",
+            func=lambda: tdSql.getRows() == 23
+            and tdSql.compareData(0, 0, "2025-12-12 12:00:00.000")
+            and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(1, 0, "2025-12-12 12:00:30.000")
+            and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(2, 0, "2025-12-12 12:01:00.000")
+            and tdSql.compareData(2, 1, 1)
+            and tdSql.compareData(3, 0, "2025-12-12 12:01:30.000")
+            and tdSql.compareData(3, 1, 1)
+            and tdSql.compareData(4, 0, "2025-12-12 12:02:00.000")
+            and tdSql.compareData(4, 1, 1)
+            and tdSql.compareData(5, 0, "2025-12-12 12:02:30.000")
+            and tdSql.compareData(5, 1, 1)
+            and tdSql.compareData(6, 0, "2025-12-12 12:03:00.000")
+            and tdSql.compareData(6, 1, 1)
+            and tdSql.compareData(7, 0, "2025-12-12 12:03:30.000")
+            and tdSql.compareData(7, 1, 1)
+            and tdSql.compareData(8, 0, "2025-12-12 12:04:00.000")
+            and tdSql.compareData(8, 1, 1)
+            and tdSql.compareData(9, 0, "2025-12-12 12:04:30.000")
+            and tdSql.compareData(9, 1, 1)
+            and tdSql.compareData(10, 0, "2025-12-12 12:05:00.000")
+            and tdSql.compareData(10, 1, 1)
+            and tdSql.compareData(11, 0, "2025-12-12 12:05:30.000")
+            and tdSql.compareData(11, 1, 1)
+            and tdSql.compareData(12, 0, "2025-12-12 12:06:00.000")
+            and tdSql.compareData(12, 1, 1)
+            and tdSql.compareData(13, 0, "2025-12-12 12:06:30.000")
+            and tdSql.compareData(13, 1, 1)
+            and tdSql.compareData(14, 0, "2025-12-12 12:07:00.000")
+            and tdSql.compareData(14, 1, 1)
+            and tdSql.compareData(15, 0, "2025-12-12 12:07:30.000")
+            and tdSql.compareData(15, 1, 1)
+            and tdSql.compareData(16, 0, "2025-12-12 12:08:00.000")
+            and tdSql.compareData(16, 1, 2)
+            and tdSql.compareData(17, 0, "2025-12-12 12:08:30.000")
+            and tdSql.compareData(17, 1, 2)
+            and tdSql.compareData(18, 0, "2025-12-12 12:09:00.000")
+            and tdSql.compareData(18, 1, 2)
+            and tdSql.compareData(19, 0, "2025-12-12 12:09:30.000")
+            and tdSql.compareData(19, 1, 2)
+            and tdSql.compareData(20, 0, "2025-12-12 12:10:00.000")
+            and tdSql.compareData(20, 1, 2)
+            and tdSql.compareData(21, 0, "2025-12-12 12:10:30.000")
+            and tdSql.compareData(21, 1, 2)
+            and tdSql.compareData(22, 0, "2025-12-12 12:11:00.000")
+            and tdSql.compareData(22, 1, 3)
+        )
