@@ -626,7 +626,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   // the handling of the null data should be packed in the extracted method
 
   // 1. check if it is existed in meta cache
-  if (pCache == NULL) {
+  if (pCache == NULL || pCache->pTableMetaEntryCache == NULL) {
     pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
     code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1782,11 +1782,12 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
       code = terrno;
       QUERY_CHECK_CODE(code, lino, _error);
     }
+
+    taosLRUCacheSetStrictCapacity(pInfo->base.metaCache.pTableMetaEntryCache, false);
   }
 
   pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
 
-  taosLRUCacheSetStrictCapacity(pInfo->base.metaCache.pTableMetaEntryCache, false);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScanNext, NULL, destroyTableScanOperatorInfo,
                                          optrDefaultBufFn, getTableScannerExecInfo, optrDefaultGetNextExtFn, NULL);
 
