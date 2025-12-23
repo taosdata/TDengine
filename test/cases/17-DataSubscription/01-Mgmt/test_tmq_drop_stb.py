@@ -109,28 +109,25 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_drop_stb(self):
-        """summary: xxx
+        """Tmq manager drop stb
+        
+        1. Create database and stable
+        2. Create topic from database
+        3. Insert data into stable
+        4. Start consume processor
+        5. Drop stable
+        6. Check consume result expected
+        7. Drop topic
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmqDropStb.py
 
         """
         tdSql.prepare()
         self.tmqCase1()
-
-        tdLog.success(f"{__file__} successfully executed")
-
-event = threading.Event()
-

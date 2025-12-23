@@ -164,27 +164,24 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_show(self):
-        """summary: xxx
+        """Tmq manager show
+        
+        1. Create database and stable
+        2. Create topics
+        3. Insert data into stables
+        4. Start tmq_sim process to consume data
+        5. Check show topics, show consumers, show subscriptions
+        6. Drop topics
+        
+        Since: v3.0.0.0
 
-        description: xxx
+        Labels: common,ci
 
-        Since: xxx
-
-        Labels: xxx
-
-        Jira: xxx
-
-        Catalog:
-        - xxx:xxx
+        Jira: None
 
         History:
-        - xxx
-        - xxx
+            - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_create_wrong_topic.py
 
         """
         tdSql.prepare()
         self.tmqCase1()
-        
-        tdLog.success(f"{__file__} successfully executed")
-
-event = threading.Event()

@@ -870,7 +870,7 @@ class TestTmqBugs:
 
         tdSql.execute(f'drop topic topic_all')
         tdSql.execute(f'drop database d1')        
-        print("bug TS-4674 ................ [passed]")    
+        print("bug TS-4674 ................ [passed]") 
 
     #
     # ------------------- main ----------------
