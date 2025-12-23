@@ -884,7 +884,7 @@ function clean_service_on_systemd() {
 
 function install_service_on_systemd() {
   clean_service_on_systemd $1
-
+  service_config="${service_config_dir}/$1.service"
   cfg_source_dir=${script_dir}/cfg
   if [[ "$1" == "${xname}" || "$1" == "${explorerName}" ]]; then
     if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
@@ -900,7 +900,7 @@ function install_service_on_systemd() {
     if [ "$1" == "taosd" ]; then
       sed -i "s|/usr/local/taos/bin|${bin_dir}|g" "$tmp_service_file"
     fi
-    cp "$tmp_service_file" "${service_config_dir}/" || :
+    cp "$tmp_service_file" "${service_config}/" || :
     rm -f "$tmp_service_file"
   fi
 
