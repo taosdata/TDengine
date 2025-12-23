@@ -245,6 +245,9 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
         code = tDecodeSVAlterTbRsp(&coder, &rsp);
         tDecoderClear(&coder);
         SCH_ERR_JRET(code);
+        if (rsp.code == TSDB_CODE_VND_SAME_TAG) {
+          rsp.code = TSDB_CODE_SUCCESS;
+        }
         SCH_ERR_JRET(rsp.code);
 
         pJob->execRes.res = rsp.pMeta;
