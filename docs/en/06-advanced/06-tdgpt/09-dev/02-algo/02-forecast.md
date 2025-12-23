@@ -82,7 +82,7 @@ class _MyForecastService(AbstractForecastService):
 
 Save this file to the `./lib/taosanalytics/algo/fc/` directory and restart the `taosanode` service. In the TDengine CLI, run `SHOW ANODES FULL` to see your new algorithm. Your applications can now use this algorithm via SQL.
 
-```SQL
+```sql
 --- Detect anomalies in the `col` column using the newly added `myfc` algorithm
 SELECT  _flow, _fhigh, _frowts, FORECAST(col_name, "algo=myfc")
 FROM foo;

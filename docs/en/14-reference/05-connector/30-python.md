@@ -13,7 +13,7 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 The installation command is as follows:
 
-``` bash
+```bash
 # Native connection and REST connection
 pip3 install taospy
 

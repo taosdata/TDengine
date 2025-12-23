@@ -38,7 +38,7 @@ Prerequisites for running the examples in this tutorial.
 
 - Then, add the `$KAFKA_HOME/bin` directory to PATH.
 
-    ```title=".profile"
+    ```shell title=".profile"
     export KAFKA_HOME=/opt/kafka
     export PATH=$PATH:$KAFKA_HOME/bin
     ```
