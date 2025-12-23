@@ -821,7 +821,17 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
 
   return status;
 }
+static void uvSetConnInfo(SSvrConn* pConn, SRpcConnInfo* pInfo) {
+  pInfo->cliAddr = pConn->clientIp;
 
+  if (pConn->isToken) {
+    tstrncpy(pInfo->identifier, pConn->identifier, sizeof(pInfo->identifier));
+    pInfo->isToken = 1;
+  } else {
+    tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
+    pInfo->isToken = 0;
+  }
+}
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
@@ -898,17 +908,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   uvPerfLog_receive(pConn, pHead, &transMsg);
 
   // set up conn info
-  SRpcConnInfo* pConnInfo = &(transMsg.info.conn);
-  pConnInfo->cliAddr = pConn->clientIp;
-  // pConnInfo->clientPort = pConn->port;
-  tstrncpy(pConnInfo->user, pConn->user, sizeof(pConnInfo->user));
-
-  if (pConn->isToken) {
-    tstrncpy(pConnInfo->identifier, pConn->identifier, sizeof(pConnInfo->identifier));
-    pConnInfo->isToken = 1;
-  } else {
-    pConnInfo->isToken = 0;
-  }
+  uvSetConnInfo(pConn, &(transMsg.info.conn));
 
   transReleaseExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
 
