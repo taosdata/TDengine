@@ -661,10 +661,11 @@ void cliHandleResp(SCliConn* conn) {
   SCliReq* pReq = NULL;
 
   STransMsgHead* pHead = NULL;
-  int32_t        msgLen = transDumpFromBuffer(&conn->readBuf, (char**)&pHead, 0);
-  if (msgLen < 0) {
+  int32_t        msgLen = 0;
+  code = transDumpFromBuffer(&conn->readBuf, (char**)&pHead, 0, &msgLen);
+  if (code != 0) {
     taosMemoryFree(pHead);
-    tWarn("%s conn:%p, recv invalid packet", CONN_GET_INST_LABEL(conn), conn);
+    tWarn("%s conn:%p, recv invalid packet since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
     // TODO: notify cb
     code = pThrd->notifyExceptCb(pThrd, NULL, NULL);
     if (code != 0) {
@@ -1705,7 +1706,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
       pHead->msgType = pReq->msgType;
       pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
       pHead->traceId = pReq->info.traceId;
-      pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+      // pHead->magicNum = htonl(TRANS_MAGIC_NUM);
       pHead->version = TRANS_VER;
       pHead->compatibilityVer = htonl(pInst->compatibilityVer);
     }
@@ -1722,6 +1723,8 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
       msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
     }
     wb[j++] = uv_buf_init((char*)pHead, msgLen);
+
+    TAOS_UNUSED(transDoCrc((char*)pHead, msgLen));
     totalLen += msgLen;
 
     pCliMsg->seq = pConn->seq;
