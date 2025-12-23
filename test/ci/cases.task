@@ -513,9 +513,101 @@
 ## 01-Mgmt
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/01-Mgmt/test_drop_lost_comsumers.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/01-Mgmt/test_force_drop_topic.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/01-Mgmt/test_tmq_drop_stb.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/01-Mgmt/test_tmq_show.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/01-Mgmt/test_topic.py
-## 02-Native
+## 02-Consume
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_stb0.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_stb1.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_stb2.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_stb3.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_stb.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_stb4.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_db.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_db0.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_db1.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_db2.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_db3.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_db4.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_bugs.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_topics_info.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_topics.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_params.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_groups.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_discontinuous_data.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_offset.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_primary_key.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_drop_db_replica3.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_db_topic.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_error.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_schema.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_stb_where_filter.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_stb_filter.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_check_data.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_check_data_db.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_alter_schema.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_snapshot_basic.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_snapshot_filter.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_snapshot_single_ctb.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_snapshot_single_ctb_filter.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_snapshot_func_filter.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_snapshot_func_filter2.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_snapshot_multi_vg.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_snapshot_multi_vg_filter.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_snapshot_multi_ctb.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_snapshot_multi_ctb_filter.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_snapshot_func_filter_complex.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_snapshot_func_filter_complex2.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_auto_create_table.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_dnode_restart.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_dnode_restart2.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_update_single_ctb.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_update_multi_ctb.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_update_while_consume.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_update_wal_mode.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_update_snapshot_mode.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_delete_single_ctb.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_delete_multi_ctb.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_drop_ntb_wal.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_drop_ntb_snapshot.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_drop_stb_ctb.py
+,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_drop_consumer.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_udf.py
+,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_udf_wal_mode.py
+,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_udf_snapshot_mode.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_stb_tag_filter.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_tsdb_and_wal.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_tsdb_wal_multi_ctb.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_taosx.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_meta_json.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_seek_commit.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_column.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_no_remove.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_db.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_db_no_wal.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_ntb.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_stb.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_stb_no_wal.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_stb_select.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_duplicate.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_dup_no_wal.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_select_no_wal.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_db.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_db_wal.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_stb.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_stb_wal.py
+,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_consumer_group.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_data_precision.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_mnode_switch.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_replicate.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_subscribe_stb_r3.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_raw_block_interface.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_replay.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_offset2.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_taosx_performance.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_wal_remove.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_stb_tag_multi_ctb.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_restart.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_cons1_v1_snapshot.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_cons1_v1_t1.py
@@ -926,110 +1018,16 @@
 #newstm,,n,.,pytest cases/uncatalog/army/storage/ss/test_ss_basic.py -N 3
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/army/stream/test_stream_vtable.py
 
-
 ## system_test
+
 ### 2-query
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_tsma2.py
 #newstm,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/2-query/test_test_window_true_for.py
 
-
 ### 7-tmq
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqShow.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropStb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb0.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb1.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb3.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb0.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_ins_topics_test.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqMaxTopic.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqParamsTest.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqMaxGroupIds.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsumeDiscontinuousData.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqOffset.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_primary_key.py
-,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqDropConsumer.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_create_wrong_topic.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dropDbR3ConflictTransaction.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_basic5.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb1.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb2.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb3.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeDb4.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb4.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_db.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqError.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_schema.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbFilterWhere.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbFilter.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqCheckData.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqCheckData1.py
 #,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsumerGroup.py
-,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqConsumerGroup.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqAlterSchema.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_1ctb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_1ctb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_1ctb_funcNFilter.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg_mutilCtb_funcNFilter.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb_mutilVg_mutilCtb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_1ctb_funcNFilter.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg_mutilCtb_funcNFilter.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqConsFromTsdb1_mutilVg_mutilCtb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqAutoCreateTbl.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDnodeRestart.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDnodeRestart1.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdate_1ctb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdateWithConsume.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdate_multiCtb_snapshot0.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUpdate_multiCtb_snapshot1.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDelete_1ctb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDelete_multiCtb.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropStbCtb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropNtb_snapshot0.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropNtb_snapshot1.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf.py
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
-,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
 #memleak,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
-,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbTagFilter_1ctb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_dataFromTsdbNWal_multiCtb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
 #,,n.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_get_meta_json.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_replay.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqSeekAndCommit.py
-,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_offset.py
-,,n,.,pytest cases/uncatalog/system-test/7-tmq/test_tmqDataPrecisionUnit.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_raw_block_interface_test.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_stbTagFilter_multiCtb.py
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqSubscribeStb_r3.py -N 5
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq3mnodeSwitch.py -N 6 -M 3 -I True
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq3mnodeSwitch.py -N 6 -M 3 --replica 3 -I True
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_db_removewal.py -N 2 --replica 1
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb_removewal.py -N 6 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb.py -N 2 --replica 1
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_stb.py -N 6 --replica 3
 #,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeTransform_db.py -N 6 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select.py -N 2 --replica 1
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_duplicatedata.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_duplicatedata_false.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_ntb_select.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_select_false.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_stb_false.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_column.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_column_false.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeSplit_db_false.py -N 3 --replica 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_walRemoveLog.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqVnodeReplicate.py -M 3 -N 3 --replica 3

@@ -1,8 +1,13 @@
 import time
+import threading
 from taos.tmq import Consumer
-from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
 
-class TestTmqParams:
+from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+class TestCase:
     clientCfgDict = {'debugFlag': 135}
     updatecfgDict = {'debugFlag': 135, 'clientCfg':clientCfgDict}
 
@@ -15,23 +20,12 @@ class TestTmqParams:
         cls.tbname_value_list = ["true", "false"]
         cls.snapshot_value_list = ["false"]
 
-    def test_tmq_params(self):
-        """Consumer parameters
+        # self.commit_value_list = ["true"]
+        # self.offset_value_list = [""]
+        # self.tbname_value_list = ["true"]
+        # self.snapshot_value_list = ["false"]
 
-        test consumer create parameters
-
-        Catalog:
-            - Subscribe
-
-        Since: v3.3.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2023-6-21 jiajingbin Created
-            - 2025-5-13 Huo Hong Migrated to new test framework
-
-        """
+    def tmqParamsTest(self):
         paraDict = {'dbName':     'db1',
                     'dropFlag':   1,
                     'vgroups':    4,
@@ -107,8 +101,7 @@ class TestTmqParams:
                             while True:
                                 res = consumer.poll(3)
                                 tdSql.query('show consumers;')
-                                consumer_info = tdSql.queryResult[0][10]
-                                tdSql.printResult()
+                                consumer_info = tdSql.queryResult[0][-2]
                                 if offset_value == "latest":
                                     if not res and stop_flag == 1:
                                         break
@@ -188,5 +181,28 @@ class TestTmqParams:
                                 tdSql.checkEqual(rows_value_list, [0]*len(subscription_info))
                         tdSql.execute(f"drop topic if exists {topic_name}")
                         tdSql.execute(f'drop database if exists {paraDict["dbName"]}')
+
+    def test_tmq_params_test(self):
+        """Basic: Consumer parameters
+        
+        1. Test auto.commit enabled/disabled
+        2. Test auto.offset.reset earliest/latest
+        3. Test group.id configuration
+        4. Verify consumer behavior with different parameters
+        
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmqParamsTest.py
+
+        """
+        self.tmqParamsTest()
+
         tdLog.success(f"{__file__} successfully executed")
+
+event = threading.Event()
 
