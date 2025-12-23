@@ -1176,6 +1176,9 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         setOperatorCompleted(pOperator);
         break;
       }
+      printDataBlock(pBlock, "doTimesliceNext",
+                    GET_TASKID(pOperator->pTaskInfo),
+                    pOperator->pTaskInfo->id.queryId);
 
       pResBlock->info.scanFlag = pBlock->info.scanFlag;
       if (pSliceInfo->groupId == 0 && pBlock->info.id.groupId != 0) {

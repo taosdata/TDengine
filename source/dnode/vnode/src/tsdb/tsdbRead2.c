@@ -5753,9 +5753,10 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
       so we set a proper capacity instead of 1 for them, to avoid
       the overhead of reallocating buffers and copying data.
     */
+    int32_t capacity = 1024;
     code = tsdbReaderCreate(pVnode, pCond,
                             (void**)&((STsdbReader*)pReader)->innerReader[0],
-                            1024, pResBlock, idstr);
+                            capacity, pResBlock, idstr);
     TSDB_CHECK_CODE(code, lino, _end);
     pReader->step = EXTERNAL_ROWS_PREV;
 
@@ -5768,7 +5769,7 @@ int32_t tsdbReaderOpen2(void* pVnode, SQueryTableDataCond* pCond, void* pTableLi
 
     code = tsdbReaderCreate(pVnode, pCond,
                             (void**)&((STsdbReader*)pReader)->innerReader[1],
-                            1024, pResBlock, idstr);
+                            capacity, pResBlock, idstr);
     pCond->twindows = window;
     TSDB_CHECK_CODE(code, lino, _end);
   }
@@ -6407,7 +6408,7 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
       }
       TSDB_CHECK_CODE(code, lino, _end);
 
-      int32_t step = -1;
+      int32_t step = 1;
       resetAllDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap,
                                 pReader->info.window.ekey, step);
       TSDB_CHECK_CODE(code, lino, _end);
