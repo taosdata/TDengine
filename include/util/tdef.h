@@ -250,6 +250,7 @@ typedef enum ELogicConditionType {
 #define TSDB_USER_LEN TSDB_UNI_LEN
 #define TSDB_ROLE_LEN 64
 
+
 #define TSDB_POINTER_PRINT_BYTES 18  // 0x1122334455667788
 // ACCOUNT is a 32 bit positive integer
 // this is the length of its string representation, including the terminator zero
@@ -622,6 +623,9 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_BLOB_LEN (4 << 20)
 
 #define TSDB_MAX_SUBROLE 32
+#define TSDB_MAX_PRIVS   512
+#define TSDB_MAX_USERS   2000
+#define TSDB_MAX_ROLES   200
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))

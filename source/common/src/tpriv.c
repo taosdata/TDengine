@@ -43,8 +43,6 @@ static const SPrivObjInfo __privObjInfo[] = {
 static SPrivInfo privInfoTable[] = {
     // ==================== common privileges ====================
     {PRIV_CM_ALL, PRIV_CATEGORY_COMMON, 0, 0, 0, "ALL"},
-    {PRIV_CM_READ, PRIV_CATEGORY_COMMON, 0, 0, 0, "READ"},
-    {PRIV_CM_WRITE, PRIV_CATEGORY_COMMON, 0, 0, 0, "WRITE"},
     {PRIV_CM_ALTER, PRIV_CATEGORY_COMMON, 0, 0, 0, "ALTER"},
     {PRIV_CM_DROP, PRIV_CATEGORY_COMMON, 0, 0, 0, "DROP"},
     {PRIV_CM_SHOW, PRIV_CATEGORY_COMMON, 0, 0, 0, "SHOW"},

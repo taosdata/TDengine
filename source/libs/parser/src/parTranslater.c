@@ -16720,11 +16720,21 @@ _exit:
 }
 
 static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
+#ifdef TD_ENTERPRISE
   return translateGrantRevoke(pCxt, pStmt, true);
+#else
+  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                 "GRANT statement is only supported in TDengine Enterprise edition");
+#endif
 }
 
 static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
+#ifdef TD_ENTERPRISE
   return translateGrantRevoke(pCxt, (SGrantStmt*)pStmt, false);
+#else
+  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                 "REVOKE statement is only supported in TDengine Enterprise edition");
+#endif
 }
 
 static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStmt* pStmt) {

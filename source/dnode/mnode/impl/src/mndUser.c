@@ -55,6 +55,7 @@
 #define ALTER_USER_ADD_PRIVS(_type) ((_type) == TSDB_ALTER_USER_ADD_PRIVILEGES)
 #define ALTER_USER_DEL_PRIVS(_type) ((_type) == TSDB_ALTER_USER_DEL_PRIVILEGES)
 
+#if 0
 #define ALTER_USER_ALL_PRIV(_priv)       (PRIV_HAS((_priv), PRIV_CM_ALL))
 #define ALTER_USER_READ_PRIV(_priv)      (PRIV_HAS((_priv), PRIV_CM_READ) || PRIV_HAS((_priv), PRIV_CM_ALL))
 #define ALTER_USER_WRITE_PRIV(_priv)     (PRIV_HAS((_priv), PRIV_CM_WRITE) || PRIV_HAS((_priv), PRIV_CM_ALL))
@@ -102,7 +103,7 @@
   (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_SUBSCRIBE_PRIV(_priv))
 #define ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(_type, _priv) \
   (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_SUBSCRIBE_PRIV(_priv))
-
+#endif
 static void generateSalt(char *salt, size_t len);
 
 static int32_t createDefaultIpWhiteList(SIpWhiteListDual **ppWhiteList);
@@ -3451,6 +3452,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
   }
 #endif
 
+#if 0
   if (ALTER_USER_ADD_READ_TB_PRIV(pAlterReq->alterType, &pAlterReq->privileges, pAlterReq->tabName) ||
       ALTER_USER_ADD_ALL_TB_PRIV(pAlterReq->alterType, &pAlterReq->privileges, pAlterReq->tabName)) {
     TAOS_CHECK_GOTO(mndTablePriviledge(pMnode, pReadTbs, pNewUser->useDbs, pAlterReq, pSdb), &lino, _OVER);
@@ -3480,8 +3482,10 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
       ALTER_USER_DEL_ALL_TB_PRIV(pAlterReq->alterType, &pAlterReq->privileges, pAlterReq->tabName)) {
     TAOS_CHECK_GOTO(mndRemoveTablePriviledge(pMnode, pAlterTbs, pNewUser->useDbs, pAlterReq, pSdb), &lino, _OVER);
   }
+#endif
 
-#ifdef USE_TOPIC
+#if 0
+// #ifdef USE_TOPIC
   if (ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, &pAlterReq->privileges)) {
     int32_t      len = strlen(pAlterReq->objname) + 1;
     SMqTopicObj *pTopic = NULL;

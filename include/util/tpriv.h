@@ -44,16 +44,14 @@ typedef enum {
   PRIV_TYPE_UNKNOWN = -1,
   // ==================== Common Privilege ====================
   PRIV_CM_ALL = 0,          // ALL PRIVILEGES
-  PRIV_CM_READ = 1,         // READ PRIVILEGE
-  PRIV_CM_WRITE = 2,        // WRITE PRIVILEGE
-  PRIV_CM_ALTER = 3,        // ALTER PRIVILEGE
-  PRIV_CM_DROP = 4,         // DROP PRIVILEGE
-  PRIV_CM_SHOW = 5,         // SHOW PRIVILEGE
-  PRIV_CM_SHOW_CREATE = 6,  // SHOW CREATE PRIVILEGE
-  PRIV_CM_START = 7,        // START PRIVILEGE
-  PRIV_CM_STOP = 8,         // STOP PRIVILEGE
-  PRIV_CM_RECALC = 9,       // RECALC PRIVILEGE
-  PRIV_CM_KILL = 10,        // KILL PRIVILEGE
+  PRIV_CM_ALTER = 1,        // ALTER PRIVILEGE
+  PRIV_CM_DROP = 2,         // DROP PRIVILEGE
+  PRIV_CM_SHOW = 3,         // SHOW PRIVILEGE
+  PRIV_CM_SHOW_CREATE = 4,  // SHOW CREATE PRIVILEGE
+  PRIV_CM_START = 5,        // START PRIVILEGE
+  PRIV_CM_STOP = 6,         // STOP PRIVILEGE
+  PRIV_CM_RECALC = 7,       // RECALC PRIVILEGE
+  PRIV_CM_KILL = 8,        // KILL PRIVILEGE
   PRIV_CM_MAX = 29,         // MAX COMMON PRIVILEGE
   // ==================== DB Privileges(5~49) ====================
   PRIV_DB_CREATE = 30,  // CREATE DATABASE

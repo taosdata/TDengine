@@ -134,7 +134,11 @@ _exit:
 
 static int32_t checkAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType privType,
                          EPrivObjType objType, SNode** pCond) {
+#ifdef TD_ENTERPRISE
   return checkAuthImpl(pCxt, pDbName, pTabName, privType, objType, pCond, false, false);
+#else
+  return TSDB_CODE_SUCCESS;
+#endif
 }
 
 static int32_t authSysPrivileges(SAuthCxt* pCxt, SNode* pStmt, EPrivType type) {
@@ -681,6 +685,7 @@ static int32_t authRevoke(SAuthCxt* pCxt, SRevokeStmt* pStmt) {
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
+#ifdef TD_ENTERPRISE
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SET_OPERATOR:
       return authSetOperator(pCxt, (SSetOperator*)pStmt);
@@ -857,7 +862,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     default:
       break;
   }
-
+#endif
   return code;
 }
 

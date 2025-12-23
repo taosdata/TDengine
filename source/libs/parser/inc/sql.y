@@ -445,8 +445,6 @@ priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                  
                                                                                     }
 
                                                                                   }
-priv_type(A) ::= READ.                                                            { A = PRIV_SET_TYPE(PRIV_CM_READ); }
-priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_CM_WRITE); }
 priv_type(A) ::= ALTER.                                                           { A = PRIV_SET_TYPE(PRIV_CM_ALTER); }
 priv_type(A) ::= DROP.                                                            { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
 priv_type(A) ::= SHOW.                                                            { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }

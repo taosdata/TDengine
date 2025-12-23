@@ -130,50 +130,52 @@ class TestStreamPrivilegesRecalc:
     def grantRead(self):
         tdLog.info(f"grant read privilege to user")
         tdSql.connect("root")
-        tdSql.execute(f"grant read on {self.dbname} to {self.username1}")
-        tdSql.execute(f"grant read on {self.dbname2} to {self.username2}")
+        # tdSql.execute(f"grant read on {self.dbname} to {self.username1}")
+        # tdSql.execute(f"grant read on {self.dbname2} to {self.username2}")
+        tdSql.execute(f"grant select on {self.dbname}.* to {self.username1}")
+        tdSql.execute(f"grant select on {self.dbname2}.* to {self.username2}")
 
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='read';"
         )
         if tdSql.getRows() != 2:
-            raise Exception("grant read privileges user failed")
+            raise Exception("grant select privileges user failed")
 
     def grantWrite(self):
-        tdLog.info(f"grant write privilege to user")
+        tdLog.info(f"grant insert privilege to user")
         tdSql.connect("root")
-        tdSql.execute(f"grant write on {self.dbname} to {self.username1}")
-        tdSql.execute(f"grant write on {self.dbname2} to {self.username2}")
+        tdSql.execute(f"grant insert on {self.dbname}.* to {self.username1}")
+        tdSql.execute(f"grant insert on {self.dbname2}.* to {self.username2}")
 
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='write';"
         )
         if tdSql.getRows() != 2:
-            raise Exception("grant write privileges user failed")
+            raise Exception("grant insert privileges user failed")
 
     def revokeRead(self):
-        tdLog.info(f"revoke read privilege from user")
+        tdLog.info(f"revoke select privilege from user")
         tdSql.connect("root")
-        tdSql.execute(f"revoke read on {self.dbname} from {self.username1}")
-        tdSql.execute(f"revoke read on {self.dbname2} from {self.username2}")
+        tdSql.execute(f"revoke select on {self.dbname}.* from {self.username1}")
+        tdSql.execute(f"revoke select on {self.dbname2}.* from {self.username2}")
 
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='read';"
         )
         if tdSql.getRows() != 0:
-            raise Exception("revoke read privileges user failed")
+            raise Exception("revoke select privileges user failed")
 
     def revokeWrite(self):
-        tdLog.info(f"revoke write privilege from user")
+        tdLog.info(f"revoke insert privilege from user")
         tdSql.connect("root")
-        tdSql.execute(f"revoke write on {self.dbname} from {self.username1}")
-        tdSql.execute(f"revoke write on {self.dbname2} from {self.username2}")
+        tdSql.execute(f"revoke insert on {self.dbname}.* from {self.username1}")
+        tdSql.execute(f"revoke insert on {self.dbname2}.* from {self.username2}")
 
         tdSql.query(
             f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='write';"
         )
         if tdSql.getRows() != 0:
-            raise Exception("revoke write privileges user failed")
+            raise Exception("revoke insert privileges user failed")
 
     def userCreateStream(self):
         tdLog.info(f"connect with normal user {self.username2}")
