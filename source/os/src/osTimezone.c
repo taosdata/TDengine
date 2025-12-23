@@ -747,8 +747,8 @@ char *tz_win[W_TZ_CITY_NUM][2] = {{"Asia/Shanghai", "China Standard Time"},
 timezone_t g_default_tz = NULL;
 timezone_t g_cleaning_tz = NULL;  // delay free old tz
 char       g_default_tz_str[TD_TIMEZONE_LEN] = {0};
-int64_t    g_last_tz_change_time = 0;
-#define MAX_TZ_CHANGE_INTERVAL_MS 5000
+int64_t    g_last_tz_update_time = 0;
+#define MAX_TZ_CHANGE_INTERVAL_MS 2000
 
 int32_t resetTimezoneInfo(const char *tz) {
 #ifdef WINDOWS
@@ -759,11 +759,7 @@ int32_t resetTimezoneInfo(const char *tz) {
       return TSDB_CODE_SUCCESS;
     }
   }
-  int64_t now = taosGetTimestampMs();
-  if (now - g_last_tz_change_time < MAX_TZ_CHANGE_INTERVAL_MS) {
-    uWarn("timezone changed too frequently, ignore change to %s", tz);
-    return TSDB_CODE_TIME_ERROR;
-  }
+
   timezone_t ptz = tzalloc(tz);
   if (!ptz) {
     uError("failed to allocate default timezone");
@@ -777,13 +773,21 @@ int32_t resetTimezoneInfo(const char *tz) {
   }
   tstrncpy(g_default_tz_str, tz, TD_TIMEZONE_LEN);
 
+  int64_t lastTime = atomic_load_64(&g_last_tz_update_time);
+  int64_t now = taosGetTimestampMs();
+  if (now - lastTime < MAX_TZ_CHANGE_INTERVAL_MS) {
+    uWarn("timezone changed too frequently, wait 3000ms to free old tz");
+    taosMsleep(MAX_TZ_CHANGE_INTERVAL_MS - (now - lastTime));
+  }
+
   if (g_cleaning_tz == NULL) {
     g_cleaning_tz = old;
   } else {
     tzfree(g_cleaning_tz);
     g_cleaning_tz = old;  // delay free old tz
   }
-  g_last_tz_change_time = taosGetTimestampMs();
+  uInfo("[tz]timezone changed to %s", tz);
+  g_last_tz_update_time = taosGetTimestampMs();
 
   return TSDB_CODE_SUCCESS;
 #endif
@@ -991,6 +995,7 @@ int32_t initTimezoneInfo(void) {
     tzfree(tz);
     return TSDB_CODE_TIME_ERROR;
   }
+  uInfo("[tz]timezone initTimezoneInfo.");
 #endif
   return TSDB_CODE_SUCCESS;
 }
@@ -1005,6 +1010,7 @@ void cleanupTimezoneInfo(void) {
     if (g_cleaning_tz) {
       tzfree(g_cleaning_tz);
       g_cleaning_tz = NULL;
+      g_last_tz_update_time = 0;
     }
   }
 #endif
