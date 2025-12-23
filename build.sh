@@ -57,7 +57,6 @@ do_gen() {
         -DBUILD_DEPENDENCY_TESTS=false                  \
         -DLOCAL_REPO:STRING=${LOCAL_REPO}               \
         -DLOCAL_URL:STRING=${LOCAL_URL}                 \
-        -DBUILD_XNODED=false                            \
         "$@"
 }
 
