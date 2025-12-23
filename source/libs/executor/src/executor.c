@@ -180,7 +180,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         SPackedData  tmp = {.pDataBlock = pDataBlock};
         void*        tmpItem = taosArrayPush(pInfo->pBlockLists, &tmp);
         QUERY_CHECK_NULL(tmpItem, code, lino, _end, terrno);
-        uTrace("%s,parName:%s, groupId:%"PRIu64, __FUNCTION__, pDataBlock->info.parTbName, pDataBlock->info.id.groupId)
+        uTrace("%s,parName:%s, groupId:%" PRIu64, __FUNCTION__, pDataBlock->info.parTbName, pDataBlock->info.id.groupId)
       }
 
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
@@ -254,8 +254,8 @@ int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
 
 int32_t qSetStreamNotifyInfo(qTaskInfo_t tinfo, int32_t eventTypes, const SSchemaWrapper* pSchemaWrapper,
                              const char* stbFullName, bool newSubTableRule, STaskNotifyEventStat* pNotifyEventStat) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SStreamTaskInfo *pStreamInfo = NULL;
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SStreamTaskInfo* pStreamInfo = NULL;
 
   if (tinfo == 0 || eventTypes == 0 || pSchemaWrapper == NULL || stbFullName == NULL) {
     goto _end;
@@ -377,7 +377,8 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
   return pTaskInfo;
 }
 
-int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers, int32_t vgId, int32_t taskId) {
+int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers, int32_t vgId,
+                                  int32_t taskId) {
   if (msg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -543,7 +544,9 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
     for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
       int64_t*        uid = (int64_t*)taosArrayGet(tableIdList, i);
       STableScanInfo* pTableScanInfo = pScanInfo->pTableScanOp->info;
-      taosLRUCacheErase(pTableScanInfo->base.metaCache.pTableMetaEntryCache, uid, LONG_BYTES);
+      if (pTableScanInfo->base.metaCache.pTableMetaEntryCache) {
+        taosLRUCacheErase(pTableScanInfo->base.metaCache.pTableMetaEntryCache, uid, LONG_BYTES);
+      }
     }
   }
 
@@ -714,16 +717,18 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
 
     SDataSinkNode* pSink = NULL;
     if (readHandle->localExec) {
-      code = nodesCloneNode((SNode *)pSubplan->pDataSink, (SNode **)&pSink);
+      code = nodesCloneNode((SNode*)pSubplan->pDataSink, (SNode**)&pSink);
       if (code != TSDB_CODE_SUCCESS) {
-        qError("failed to nodesCloneNode, srcType:%d, code:%s, %s", nodeType(pSubplan->pDataSink), tstrerror(code), (*pTask)->id.str);
+        qError("failed to nodesCloneNode, srcType:%d, code:%s, %s", nodeType(pSubplan->pDataSink), tstrerror(code),
+               (*pTask)->id.str);
         taosMemoryFree(pSinkManager);
         goto _error;
       }
     }
 
     // pSinkParam has been freed during create sinker.
-    code = dsCreateDataSinker(pSinkManager, readHandle->localExec ? &pSink : &pSubplan->pDataSink, handle, pSinkParam, (*pTask)->id.str, pSubplan->processOneBlock);
+    code = dsCreateDataSinker(pSinkManager, readHandle->localExec ? &pSink : &pSubplan->pDataSink, handle, pSinkParam,
+                              (*pTask)->id.str, pSubplan->processOneBlock);
     if (code) {
       qError("s-task:%s failed to create data sinker, code:%s", (*pTask)->id.str, tstrerror(code));
     }
@@ -742,7 +747,8 @@ static void freeBlock(void* param) {
   blockDataDestroy(pBlock);
 }
 
-int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal, bool processOneBlock) {
+int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal,
+                     bool processOneBlock) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
@@ -955,7 +961,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
     *useconds = pTaskInfo->cost.elapsedTime;
   }
 
-  (void) cleanUpUdfs();
+  (void)cleanUpUdfs();
 
   int32_t  current = (*pRes != NULL) ? (*pRes)->info.rows : 0;
   uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
@@ -1049,7 +1055,7 @@ int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode, int64_t waitDuration) {
   }
 
   if (waitDuration > 0) {
-    qDebug("%s sync killed execTask, and waiting for at most %.2fs", GET_TASKID(pTaskInfo), waitDuration/1000.0);
+    qDebug("%s sync killed execTask, and waiting for at most %.2fs", GET_TASKID(pTaskInfo), waitDuration / 1000.0);
   } else {
     qDebug("%s async killed execTask", GET_TASKID(pTaskInfo));
   }
@@ -1174,9 +1180,9 @@ _end:
 }
 
 int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange* pVerRange, STimeWindow* pWindow) {
-  int32_t        code = TSDB_CODE_SUCCESS;
-  int32_t        lino = 0;
-  if (tinfo == NULL){
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  if (tinfo == NULL) {
     return TSDB_CODE_INTERNAL_ERROR;
   }
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
@@ -1215,19 +1221,21 @@ _end:
   return code;
 }
 
-static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow, TSKEY* pRecInteral) {
+static int32_t getOpratorIntervalInfo(SOperatorInfo* pOperator, int64_t* pWaterMark, SInterval* pInterval,
+                                      STimeWindow* pLastWindow, TSKEY* pRecInteral) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     return getOpratorIntervalInfo(pOperator->pDownstream[0], pWaterMark, pInterval, pLastWindow, pRecInteral);
   }
-  SStreamScanInfo* pScanOp = (SStreamScanInfo*) pOperator->info;
+  SStreamScanInfo* pScanOp = (SStreamScanInfo*)pOperator->info;
   *pWaterMark = pScanOp->twAggSup.waterMark;
   *pInterval = pScanOp->interval;
   *pLastWindow = pScanOp->lastScanRange;
   *pRecInteral = pScanOp->recalculateInterval;
-  return TSDB_CODE_SUCCESS; 
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow, TSKEY* pRecInteral) {
+int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval,
+                                   STimeWindow* pLastWindow, TSKEY* pRecInteral) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
   return getOpratorIntervalInfo(pOperator, pWaterMark, pInterval, pLastWindow, pRecInteral);
@@ -1406,7 +1414,7 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
     pColInfo->bytes = pMtInfo->schema->pSchema[i].bytes;
     if (pMtInfo->pExtSchemas != NULL) {
       decimalFromTypeMod(pMtInfo->pExtSchemas[i].typeMod, &pColInfo->precision, &pColInfo->scale);
-    } 
+    }
     pColInfo->colId = pMtInfo->schema->pSchema[i].colId;
     pColInfo->pk = pMtInfo->schema->pSchema[i].flags & COL_IS_KEY;
 
@@ -1652,7 +1660,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
       tstrncpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName, TSDB_TABLE_NAME_LEN);
-//      pTaskInfo->streamInfo.suid = mtInfo.suid == 0 ? mtInfo.uid : mtInfo.suid;
+      //      pTaskInfo->streamInfo.suid = mtInfo.suid == 0 ? mtInfo.uid : mtInfo.suid;
       tDeleteSchemaWrapper(pTaskInfo->streamInfo.schema);
       pTaskInfo->streamInfo.schema = mtInfo.schema;
       taosMemoryFreeClear(mtInfo.pExtSchemas);
@@ -1816,9 +1824,11 @@ void qResetTaskCode(qTaskInfo_t tinfo) {
   qDebug("0x%" PRIx64 " reset task code to be success, prev:%s", pTaskInfo->id.taskId, tstrerror(code));
 }
 
-static int32_t doFilterTableByTagCond(void* pVnode, void* pListInfo, SArray* pUidList, SNode* pTagCond, SStorageAPI* pStorageAPI){
-  bool   listAdded = false;
-  int32_t code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, true, &listAdded);
+static int32_t doFilterTableByTagCond(void* pVnode, void* pListInfo, SArray* pUidList, SNode* pTagCond,
+                                      SStorageAPI* pStorageAPI) {
+  bool    listAdded = false;
+  int32_t code =
+      doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, true, &listAdded);
   if (code == 0 && !listAdded) {
     int32_t numOfTables = taosArrayGetSize(pUidList);
     for (int i = 0; i < numOfTables; i++) {
@@ -1838,7 +1848,7 @@ static int32_t doFilterTableByTagCond(void* pVnode, void* pListInfo, SArray* pUi
 }
 
 int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t         code = TSDB_CODE_SUCCESS;
   STableListInfo* pList = tableListCreate();
   if (pList == NULL) {
     code = terrno;
@@ -1856,7 +1866,7 @@ int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pT
   code = doFilterTableByTagCond(pVnode, pList, uidList, pTagCond, &((SExecTaskInfo*)pTaskInfo)->storageAPI);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
-  }                                              
+  }
   // taosArrayClear(uidList);
   // for (int32_t i = 0; i < taosArrayGetSize(uidListCopy); i++){
   //   void* tmp = taosArrayGet(uidListCopy, i);
