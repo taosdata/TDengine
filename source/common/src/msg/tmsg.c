@@ -9931,10 +9931,10 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->whiteListVer));
   TAOS_CHECK_EXIT(tSerializeSMonitorParas(&encoder, &pRsp->monitorParas));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->enableAuditDelete));
-  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->timeWhiteListVer));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->enableAuditSelect));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->enableAuditInsert));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->auditLevel));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pRsp->timeWhiteListVer));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->user));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->tokenName));
 
@@ -9994,24 +9994,25 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   } else {
     pRsp->enableAuditDelete = 0;
   }
-  if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->timeWhiteListVer));
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->user));
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->tokenName));
-  } else {
-    pRsp->timeWhiteListVer = 0;
-    pRsp->user[0] = 0;
-  }
 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->enableAuditSelect));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->enableAuditInsert));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->auditLevel));
+
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->timeWhiteListVer));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->user));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->tokenName));
   } else {
     pRsp->enableAuditSelect = 0;
     pRsp->enableAuditInsert = 0;
     pRsp->auditLevel = 0;
+
+    pRsp->timeWhiteListVer = 0;
+    pRsp->user[0] = 0;
+    pRsp->tokenName[0] = 0;
   }
+  
   tEndDecode(&decoder);
 
 _exit:
