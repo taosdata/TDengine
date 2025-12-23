@@ -61,10 +61,11 @@ typedef struct SHJoinCtx {
 typedef struct SHJoinColInfo {
   int32_t          srcSlot;
   int32_t          dstSlot;
-  bool             keyCol;
+  int32_t          keyColIdx;
   bool             vardata;
   int32_t*         offset;
   int32_t          bytes;
+  int32_t          bufOffset;
   char*            data;
   char*            bitMap;
   SColumnInfoData* colData;
@@ -153,6 +154,7 @@ typedef struct SHJoinOperatorInfo {
   hJoinImplFp      joinFp;  
 } SHJoinOperatorInfo;
 
+#define IS_HASH_JOIN_KEY_COL(_keyIdx) ((_keyIdx) >= 0)
 
 #define HJ_ERR_RET(c)                 \
   do {                                \
