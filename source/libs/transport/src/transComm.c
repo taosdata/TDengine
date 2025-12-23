@@ -664,14 +664,14 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
 int32_t transDoCrc(char* buf, int32_t len) {
   STransMsgHead* pHead = (STransMsgHead*)buf;
   pHead->magicNum = 0;
-  int32_t chechSum = taosCalcChecksum(0, (const uint8_t*)buf, len);
+  uint32_t chechSum = taosCalcChecksum(0, (const uint8_t*)buf, len);
   pHead->magicNum = htonl(chechSum);
 
   return 0;
 }
 int32_t transDoCrcCheck(char* buf, int32_t len) {
   STransMsgHead* pHead = (STransMsgHead*)buf;
-  uint32_t       checkSum = htonl(pHead->magicNum);
+  uint32_t       checkSum = ntohl(pHead->magicNum);
   pHead->magicNum = 0;
 
   if (taosCheckChecksum((const uint8_t*)buf, len, checkSum)) {
