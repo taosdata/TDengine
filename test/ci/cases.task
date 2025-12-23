@@ -621,6 +621,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
 ## 99-Others
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_stream_tag_cache.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/99-Others/test_out_table.py
 
 
 # 19-TSMAs
