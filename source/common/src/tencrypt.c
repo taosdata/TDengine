@@ -88,8 +88,8 @@ int32_t taosWriteEncryptFileHeader(const char *filepath, int32_t algorithm, cons
   int64_t written = taosWriteFile(pFile, &header, sizeof(STdEncryptFileHeader));
   if (written != sizeof(STdEncryptFileHeader)) {
     code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
-    taosCloseFile(&pFile);
-    taosRemoveFile(tempFile);
+    (void)taosCloseFile(&pFile);
+    (void)taosRemoveFile(tempFile);
     terrno = code;
     return code;
   }
@@ -99,8 +99,8 @@ int32_t taosWriteEncryptFileHeader(const char *filepath, int32_t algorithm, cons
     written = taosWriteFile(pFile, data, dataLen);
     if (written != dataLen) {
       code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
-      taosCloseFile(&pFile);
-      taosRemoveFile(tempFile);
+      (void)taosCloseFile(&pFile);
+      (void)taosRemoveFile(tempFile);
       terrno = code;
       return code;
     }
@@ -109,18 +109,18 @@ int32_t taosWriteEncryptFileHeader(const char *filepath, int32_t algorithm, cons
   // Sync to disk
   code = taosFsyncFile(pFile);
   if (code != 0) {
-    taosCloseFile(&pFile);
-    taosRemoveFile(tempFile);
+    (void)taosCloseFile(&pFile);
+    (void)taosRemoveFile(tempFile);
     return code;
   }
 
   // Close temp file
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
 
   // Atomic replacement - rename temp file to target
   code = taosRenameFile(tempFile, filepath);
   if (code != 0) {
-    taosRemoveFile(tempFile);
+    (void)taosRemoveFile(tempFile);
     return code;
   }
 
@@ -153,7 +153,7 @@ int32_t taosReadEncryptFileHeader(const char *filepath, STdEncryptFileHeader *he
 
   // Read header
   int64_t nread = taosReadFile(pFile, header, sizeof(STdEncryptFileHeader));
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
 
   if (nread != sizeof(STdEncryptFileHeader)) {
     terrno = TSDB_CODE_FILE_CORRUPTED;
@@ -251,25 +251,25 @@ int32_t taosWriteCfgFile(const char *filepath, const void *data, int32_t dataLen
 
     if (taosWriteFile(pFile, data, dataLen) != dataLen) {
       code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
-      taosCloseFile(&pFile);
-      taosRemoveFile(tempFile);
+      (void)taosCloseFile(&pFile);
+      (void)taosRemoveFile(tempFile);
       terrno = code;
       return code;
     }
 
     code = taosFsyncFile(pFile);
     if (code != 0) {
-      taosCloseFile(&pFile);
-      taosRemoveFile(tempFile);
+      (void)taosCloseFile(&pFile);
+      (void)taosRemoveFile(tempFile);
       return code;
     }
 
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
 
     // Atomic replacement - rename temp file to target
     code = taosRenameFile(tempFile, filepath);
     if (code != 0) {
-      taosRemoveFile(tempFile);
+      (void)taosRemoveFile(tempFile);
       return code;
     }
 
@@ -379,12 +379,12 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
   int64_t fileSize = 0;
   code = taosFStatFile(pFile, &fileSize, NULL);
   if (code != 0) {
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
     return code;
   }
 
   if (fileSize <= 0) {
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
     terrno = TSDB_CODE_FILE_CORRUPTED;
     return terrno;
   }
@@ -394,14 +394,14 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
     int64_t nread = taosReadFile(pFile, &header, sizeof(STdEncryptFileHeader));
     if (nread != sizeof(STdEncryptFileHeader)) {
       code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
-      taosCloseFile(&pFile);
+      (void)taosCloseFile(&pFile);
       terrno = code;
       return code;
     }
 
     // Verify magic number
     if (strncmp(header.magic, TD_ENCRYPT_FILE_MAGIC, strlen(TD_ENCRYPT_FILE_MAGIC)) != 0) {
-      taosCloseFile(&pFile);
+      (void)taosCloseFile(&pFile);
       terrno = TSDB_CODE_FILE_CORRUPTED;
       return terrno;
     }
@@ -409,7 +409,7 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
     // Read encrypted data
     int32_t encryptedDataLen = header.dataLen;
     if (encryptedDataLen <= 0 || encryptedDataLen > fileSize) {
-      taosCloseFile(&pFile);
+      (void)taosCloseFile(&pFile);
       terrno = TSDB_CODE_FILE_CORRUPTED;
       return terrno;
     }
@@ -417,7 +417,7 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
     fileContent = taosMemoryMalloc(encryptedDataLen);
     if (fileContent == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      taosCloseFile(&pFile);
+      (void)taosCloseFile(&pFile);
       terrno = code;
       return code;
     }
@@ -426,12 +426,12 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
     if (nread != encryptedDataLen) {
       code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
       taosMemoryFree(fileContent);
-      taosCloseFile(&pFile);
+      (void)taosCloseFile(&pFile);
       terrno = code;
       return code;
     }
 
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
 
     // Check if CFG_KEY encryption is enabled
     if (!tsCfgKeyEnabled || tsCfgKey[0] == '\0') {
@@ -481,7 +481,7 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
     fileContent = taosMemoryMalloc(fileSize + 1);
     if (fileContent == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      taosCloseFile(&pFile);
+      (void)taosCloseFile(&pFile);
       terrno = code;
       return code;
     }
@@ -490,12 +490,12 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
     if (nread != fileSize) {
       code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
       taosMemoryFree(fileContent);
-      taosCloseFile(&pFile);
+      (void)taosCloseFile(&pFile);
       terrno = code;
       return code;
     }
 
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
 
     fileContent[fileSize] = '\0';
 
@@ -542,24 +542,24 @@ static int32_t taosEncryptSingleCfgFile(const char *filepath) {
   int64_t fileSize = 0;
   int32_t code = taosFStatFile(pFile, &fileSize, NULL);
   if (code != 0) {
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
     return code;
   }
 
   if (fileSize <= 0) {
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
     // Empty file, just skip it
     return 0;
   }
 
   char *plainData = taosMemoryMalloc(fileSize);
   if (plainData == NULL) {
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   int64_t nread = taosReadFile(pFile, plainData, fileSize);
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
 
   if (nread != fileSize) {
     taosMemoryFree(plainData);
