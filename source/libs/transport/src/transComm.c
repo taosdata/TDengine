@@ -339,12 +339,14 @@ int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf, i
       return code;
     }
 
-    code = transDoCrcCheck(*buf, total);
-    if (code != 0) {
-      tError("failed to check crc for msg in buffer, total:%d since %s", total, tstrerror(code));
-      taosMemoryFree(*buf);
-      *buf = NULL;
-      return code;
+    if (connBuf->total == 0) {
+      code = transDoCrcCheck(*buf, total);
+      if (code != 0) {
+        tError("failed to check crc for msg in buffer, total:%d since %s", total, tstrerror(code));
+        taosMemoryFree(*buf);
+        *buf = NULL;
+        return code;
+      }
     }
     *len = total;
   } else {
