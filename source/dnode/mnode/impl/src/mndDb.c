@@ -173,7 +173,8 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_UINT8(pRaw, dataPos, pDb->cfg.flags, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pDb->owner, TSDB_USER_LEN, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pDb->ownerId, _OVER)
+
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
@@ -280,8 +281,8 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
     SDB_GET_UINT8(pRaw, dataPos, &pDb->cfg.flags, _OVER)
   }
-  if (dataPos + sizeof(uint8_t) <= pRaw->dataLen) {
-    SDB_GET_BINARY(pRaw, dataPos, pDb->owner, TSDB_USER_LEN, _OVER)
+  if (dataPos + sizeof(int64_t) <= pRaw->dataLen) {
+    SDB_GET_INT64(pRaw, dataPos, &pDb->ownerId, _OVER)
   }
 
   taosInitRWLatch(&pDb->lock);
@@ -305,10 +306,6 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
 
   if (pDb->cfg.sstTrigger != TSDB_MIN_STT_TRIGGER) {
     mInfo("db:%s, sstTrigger set from %d to default %d", pDb->name, pDb->cfg.sstTrigger, TSDB_DEFAULT_SST_TRIGGER);
-  }
-
-  if (pDb->owner[0] == 0) {
-    (void)snprintf(pDb->owner, TSDB_USER_LEN, "%s", pDb->createUser);
   }
 
   terrno = 0;
@@ -408,6 +405,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->compactStartTime = pNew->compactStartTime;
   pOld->tsmaVersion = pNew->tsmaVersion;
   pOld->cfg.isAudit = pNew->cfg.isAudit;
+  pOld->ownerId = pNew->ownerId;
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -857,6 +855,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   dbObj.vgVersion = 1;
   dbObj.tsmaVersion = 1;
   (void)memcpy(dbObj.createUser, pUser->user, TSDB_USER_LEN);
+  dbObj.ownerId = pUser->uid;
   dbObj.cfg = (SDbCfg){
       .numOfVgroups = pCreate->numOfVgroups,
       .numOfStables = pCreate->numOfStables,
@@ -1610,8 +1609,8 @@ _OVER:
 
 static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb, char *algorithmsId) {
   tstrncpy(cfgRsp->db, pDb->name, sizeof(cfgRsp->db));
-  snprintf(cfgRsp->owner, sizeof(cfgRsp->owner), "%s", pDb->owner[0] != 0 ? pDb->owner : pDb->createUser);
   cfgRsp->dbId = pDb->uid;
+  cfgRsp->ownerId = pDb->ownerId;
   cfgRsp->cfgVersion = pDb->cfgVersion;
   cfgRsp->numOfVgroups = pDb->cfg.numOfVgroups;
   cfgRsp->numOfStables = pDb->cfg.numOfStables;
@@ -1974,7 +1973,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     }
     char objFName[TSDB_PRIV_MAX_KEY_LEN] = {0};
     (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
-    if ((code = mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_DROP, PRIV_OBJ_DB, NULL, objFName, NULL))) {
+    if ((code = mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_DROP, PRIV_OBJ_DB, 0, objFName, NULL))) {
       goto _OVER;
     }
   }
@@ -2939,7 +2938,8 @@ bool mndIsDbReady(SMnode *pMnode, SDbObj *pDb) {
 }
 
 static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows,
-                              int64_t numOfTables, bool sysDb, ESdbStatus objStatus, bool sysinfo) {
+                              int64_t numOfTables, bool sysDb, ESdbStatus objStatus, bool sysinfo,
+                              SSHashObj **ppUidNames) {
   int32_t cols = 0;
   int32_t bytes = pShow->pMeta->pSchemas[cols].bytes;
   char   *buf = taosMemoryMalloc(bytes);
@@ -3178,7 +3178,11 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
       TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.isAudit, false), &lino, _OVER);
     }
 
-    TAOS_UNUSED(snprintf(durationStr, sizeof(durationStr), "%s", pDb->owner[0] != 0 ? pDb->owner : pDb->createUser));
+    if (!(*ppUidNames)) {
+      TAOS_CHECK_GOTO(mndBuildUidNamesHash(pMnode, ppUidNames), &lino, _OVER);
+    }
+    const char *ownerName = tSimpleHashGet(*ppUidNames, (const char *)&pDb->ownerId, sizeof(pDb->ownerId));
+    TAOS_UNUSED(snprintf(durationStr, sizeof(durationStr), "%s", ownerName ? ownerName : "[unknown]"));
     STR_WITH_MAXSIZE_TO_VARSTR(durationVstr, durationStr, sizeof(durationVstr));
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
       TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _OVER);
@@ -3222,24 +3226,23 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
   SDbObj    *pDb = NULL;
-  SUserObj  *pUser = NULL;
+  SUserObj  *pOperUser = NULL;
   ESdbStatus objStatus = 0;
+  SSHashObj *pUidNames = NULL;
 
-  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
-  if (pUser == NULL) return 0;
-  bool sysinfo = pUser->sysInfo;
+  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
+  if (pOperUser == NULL) return 0;
+  bool sysinfo = pOperUser->sysInfo;
   char objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
-  (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
-  bool showAnyDb =
-      (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_DB, NULL, objFName, NULL));
-
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
+  bool showAnyDb = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_DB, 0, objFName, NULL));
   // Append the information_schema database into the result.
   if (!pShow->sysDbRsp) {
     SDbObj infoschemaDb = {0};
     setInformationSchemaDbCfg(pMnode, &infoschemaDb);
     size_t numOfTables = 0;
     getVisibleInfosTablesNum(sysinfo, &numOfTables);
-    mndDumpDbInfoData(pMnode, pBlock, &infoschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
+    mndDumpDbInfoData(pMnode, pBlock, &infoschemaDb, pShow, numOfRows, numOfTables, true, 0, 1, &pUidNames);
 
     numOfRows += 1;
 
@@ -3247,7 +3250,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     setPerfSchemaDbCfg(pMnode, &perfschemaDb);
     numOfTables = 0;
     getPerfDbMeta(NULL, &numOfTables);
-    mndDumpDbInfoData(pMnode, pBlock, &perfschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
+    mndDumpDbInfoData(pMnode, pBlock, &perfschemaDb, pShow, numOfRows, numOfTables, true, 0, 1, &pUidNames);
 
     numOfRows += 1;
     pShow->sysDbRsp = true;
@@ -3259,7 +3262,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     if (showAnyDb || mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SHOW_DATABASES, pDb) == 0) {
       int32_t numOfTables = 0;
       sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, &pDb->uid, NULL);
-      mndDumpDbInfoData(pMnode, pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo);
+      mndDumpDbInfoData(pMnode, pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo, &pUidNames);
       numOfRows++;
     }
 
@@ -3267,7 +3270,8 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   }
 
   pShow->numOfRows += numOfRows;
-  mndReleaseUser(pMnode, pUser);
+  mndReleaseUser(pMnode, pOperUser);
+  tSimpleHashCleanup(&pUidNames);
   return numOfRows;
 }
 

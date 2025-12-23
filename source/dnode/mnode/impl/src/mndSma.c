@@ -33,7 +33,7 @@
 #include "tname.h"
 
 #define TSDB_SMA_VER_NUMBER   1
-#define TSDB_SMA_RESERVE_SIZE 16
+#define TSDB_SMA_RESERVE_SIZE 32
 
 static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma);
 static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw);
@@ -68,7 +68,7 @@ typedef struct SCreateTSMACxt {
   SStbObj            *pSrcStb;
   SSmaObj            *pSma;
   const SSmaObj      *pBaseSma;
-  const char         *createUser;
+  SUserObj           *pOperUser;
   const char         *streamName;
   const char         *targetStbFullName;
   SNodeList          *pProjects;
@@ -155,7 +155,7 @@ static SSdbRaw *mndSmaActionEncode(SSmaObj *pSma) {
   }
   SDB_SET_BINARY(pRaw, dataPos, pSma->baseSmaName, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pSma->createUser, TSDB_USER_LEN, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pSma->owner, TSDB_USER_LEN, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pSma->ownerId, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_SMA_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -243,7 +243,7 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw) {
   }
   SDB_GET_BINARY(pRaw, dataPos, pSma->baseSmaName, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pSma->createUser, TSDB_USER_LEN, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pSma->owner, TSDB_USER_LEN, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pSma->ownerId, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_SMA_RESERVE_SIZE, _OVER)
 
@@ -282,6 +282,7 @@ static int32_t mndSmaActionDelete(SSdb *pSdb, SSmaObj *pSma) {
 
 static int32_t mndSmaActionUpdate(SSdb *pSdb, SSmaObj *pOld, SSmaObj *pNew) {
   mTrace("sma:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
+  pOld->ownerId = pNew->ownerId;
   return 0;
 }
 
@@ -966,7 +967,8 @@ static void initSMAObj(SCreateTSMACxt *pCxt) {
   memcpy(pCxt->pSma->name, pCxt->pCreateSmaReq->name, TSDB_TABLE_FNAME_LEN);
   memcpy(pCxt->pSma->stb, pCxt->pCreateSmaReq->stb, TSDB_TABLE_FNAME_LEN);
   memcpy(pCxt->pSma->db, pCxt->pDb->name, TSDB_DB_FNAME_LEN);
-  (void)snprintf(pCxt->pSma->createUser, sizeof(pCxt->pSma->createUser), "%s", pCxt->createUser);
+  (void)snprintf(pCxt->pSma->createUser, sizeof(pCxt->pSma->createUser), "%s", pCxt->pOperUser->name);
+  pCxt->pSma->ownerId = pCxt->pOperUser->uid;
   if (pCxt->pBaseSma) memcpy(pCxt->pSma->baseSmaName, pCxt->pBaseSma->name, TSDB_TABLE_FNAME_LEN);
   pCxt->pSma->createdTime = taosGetTimestampMs();
   pCxt->pSma->uid = mndGenerateUid(pCxt->pCreateSmaReq->name, TSDB_TABLE_FNAME_LEN);
@@ -1141,7 +1143,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
   SSmaObj       *pSma = NULL;
   SSmaObj       *pBaseTsma = NULL;
   SStreamObj    *pStream = NULL;
-  SUserObj      *pUser = NULL;
+  SUserObj      *pOperUser = NULL;
   int64_t        mTraceId = TRACE_GET_ROOTID(&pReq->info.traceId);
   SMCreateSmaReq createReq = {0};
 
@@ -1157,7 +1159,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
 
   mInfo("start to create tsma: %s", createReq.name);
   if ((code = mndCheckCreateSmaReq(&createReq)) != 0) goto _OVER;
-  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser)) != 0) goto _OVER;
+  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser)) != 0) goto _OVER;
 
   if (createReq.normSourceTbUid == 0) {
     pStb = mndAcquireStb(pMnode, createReq.stb);
@@ -1218,13 +1220,12 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
   }
 
   // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
-  char *owner = pDb->owner[0] ? pDb->owner : pDb->createUser;
-  if ((code =
-           mndCheckObjPrivilegeRec(pMnode, pUser, PRIV_DB_USE, PRIV_OBJ_DB, owner, name.acctId, name.dbname, NULL))) {
+  if ((code = mndCheckObjPrivilegeRec(pMnode, pUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, name.acctId, name.dbname,
+                                      NULL))) {
     goto _OVER;
   }
-  if ((code = mndCheckObjPrivilegeRec(pMnode, pUser, PRIV_TBL_CREATE, PRIV_OBJ_DB, owner, name.acctId, name.dbname,
-                                      NULL))) {
+  if ((code = mndCheckObjPrivilegeRec(pMnode, pUser, PRIV_TBL_CREATE, PRIV_OBJ_DB, pDb->ownerId, name.acctId,
+                                      name.dbname, NULL))) {
     goto _OVER;
   }
 
@@ -1250,7 +1251,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
       .pSma = NULL,
       .pBaseSma = pBaseTsma,
       .pSrcStb = pStb,
-      .createUser = pReq->info.conn.user,
+      .pOperUser = pOperUser,
   };
 
   code = mndCreateTSMA(&cxt);
@@ -1266,7 +1267,7 @@ _OVER:
   mndReleaseSma(pMnode, pSma);
   mndReleaseStream(pMnode, pStream);
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pUser);
+  mndReleaseUser(pMnode, pOperUser);
   tFreeSMCreateSmaReq(&createReq);
 
   TAOS_RETURN(code);
@@ -1395,8 +1396,8 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg *pReq) {
   //   goto _OVER;
   // }
   if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser)) != 0) goto _OVER;
-  const char *owner = pSma->owner[0] != 0 ? pSma->owner : pSma->createUser;
-  if ((code = mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_DROP, PRIV_OBJ_TSMA, owner, pSma->db, pSma->name))) {
+  if ((code =
+           mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_DROP, PRIV_OBJ_TSMA, pSma->ownerId, pSma->db, pSma->name))) {
     goto _OVER;
   }
 
@@ -1458,10 +1459,10 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
   int32_t objLevel = privObjGetLevel(PRIV_OBJ_TSMA);
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
-  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, NULL, objFName,
+  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, 0, objFName,
                                           objLevel == 0 ? NULL : "*"));
   if (!showAll && pShow->db[0] != 0) {
-    showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, pUser->name, pShow->db,
+    showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, pUser->uid, pShow->db,
                                             objLevel == 0 ? NULL : "*"));
   }
 
@@ -1490,8 +1491,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 
     if (!showAll) {
       (void)snprintf(objFName, sizeof(objFName), "%s", pSma->db);
-      char *owner = pSma->owner[0] != 0 ? pSma->owner : pSma->createUser;
-      if (mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, owner, objFName,
+      if (mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, pSma->ownerId, objFName,
                                    objLevel == 0 ? NULL : n.tname)) {  // 1.db1.tsma1
         sdbRelease(pSdb, pSma);
         if (pSrcDb) mndReleaseDb(pMnode, pSrcDb);

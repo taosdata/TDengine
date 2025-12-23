@@ -204,7 +204,7 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT8(pRaw, dataPos, pStb->virtualStb, _OVER)
   // since 3.4.0.0 - STB_VER_SUPPORT_OWNER
   SDB_SET_BINARY(pRaw, dataPos, pStb->createUser, TSDB_USER_LEN, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pStb->owner, TSDB_USER_LEN, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pStb->ownerId, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -353,13 +353,9 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
 
   if (sver < STB_VER_SUPPORT_OWNER) {
     pStb->createUser[0] = 0;
-    pStb->owner[0] = 0;
   } else {
     SDB_GET_BINARY(pRaw, dataPos, pStb->createUser, TSDB_USER_LEN, _OVER)
-    SDB_GET_BINARY(pRaw, dataPos, pStb->owner, TSDB_USER_LEN, _OVER)
-    if (pStb->owner[0] == 0) {
-      (void)strncpy(pStb->owner, pStb->createUser, TSDB_USER_LEN);
-    }
+    SDB_GET_INT64(pRaw, dataPos, &pStb->ownerId, _OVER)
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
@@ -465,6 +461,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->nextColId = pNew->nextColId;
   pOld->ttl = pNew->ttl;
   pOld->keep = pNew->keep;
+  pOld->ownerId = pNew->ownerId;
   
   if (pNew->numOfColumns > 0) {
     pOld->numOfColumns = pNew->numOfColumns;
@@ -1020,7 +1017,7 @@ int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *stbname, ch
   return snprintf(fullname, TSDB_INDEX_FNAME_LEN, "%s.%s_%s", dbname, tagname, tNameGetTableName(&name));
 }
 
-static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCreate, SDbObj *pDb) {
+static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCreate, SDbObj *pDb, SUserObj *pOperUser) {
   SStbObj stbObj = {0};
   int32_t code = -1;
 
@@ -1035,7 +1032,9 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
 
   mInfo("trans:%d, used to create stb:%s", pTrans->id, pCreate->name);
   TAOS_CHECK_GOTO(mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb), NULL, _OVER);
-  memcpy(stbObj.createUser, pReq->info.conn.user, TSDB_USER_LEN);
+  memcpy(stbObj.createUser, pOperUser->name, TSDB_USER_LEN);
+  stbObj.ownerId = pOperUser->uid;
+
 
   SSchema *pSchema = &(stbObj.pTags[0]);
   if (mndGenIdxNameForFirstTag(fullIdxName, pDb->name, stbObj.name, pSchema->name) < 0) {
@@ -1053,7 +1052,8 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   memcpy(idxObj.stb, stbObj.name, TSDB_TABLE_FNAME_LEN);
   memcpy(idxObj.db, stbObj.db, TSDB_DB_FNAME_LEN);
   memcpy(idxObj.colName, pSchema->name, TSDB_COL_NAME_LEN);
-  memcpy(idxObj.createUser, pReq->info.conn.user, TSDB_USER_LEN);
+  memcpy(idxObj.createUser, pOperUser->name, TSDB_USER_LEN);
+  idxObj.ownerId = pOperUser->uid;
   idxObj.createdTime = taosGetTimestampMs();
   idxObj.uid = mndGenerateUid(fullIdxName, strlen(fullIdxName));
   idxObj.stbUid = stbObj.uid;
@@ -1473,10 +1473,10 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   // if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb)) != 0) {
   //   goto _OVER;
   // }
-  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL, NULL))) {
+  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL))) {
     goto _OVER;
   }
-  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_TBL_CREATE, PRIV_OBJ_DB, pDb->name, NULL, NULL))) {
+  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_TBL_CREATE, PRIV_OBJ_DB, pDb->name, NULL))) {
     goto _OVER;
   }
 
@@ -1519,7 +1519,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     taosMemoryFreeClear(pDst.pCmpr);
     taosMemoryFreeClear(pDst.pExtSchemas);
   } else {
-    code = mndCreateStb(pMnode, pReq, &createReq, pDb);
+    code = mndCreateStb(pMnode, pReq, &createReq, pDb, pOperUser);
   }
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -2793,7 +2793,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   //   goto _OVER;
   // }
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL, NULL),
+  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL),
                   NULL, _OVER);
   TAOS_CHECK_GOTO(
       mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, name.tname, NULL), NULL,
@@ -3013,11 +3013,10 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   //   goto _OVER;
   // }
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL, NULL),
+  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL), NULL,
+                  _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TBL, pDb->name, name.tname),
                   NULL, _OVER);
-  TAOS_CHECK_GOTO(
-      mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TBL, pDb->name, name.tname, NULL), NULL,
-      _OVER);
   if ((code = mndCheckDropStbForTopic(pMnode, dropReq.name, pStb->uid)) != 0) {
     goto _OVER;
   }
@@ -3354,7 +3353,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   }
 
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
-  showAll = (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TBL, "",
+  showAll = (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TBL, 0,
                                            pDb ? pDb->name : objFName, "*"));
 
   while (numOfRows < rows) {
@@ -3384,8 +3383,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     char stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     mndExtractTbNameFromStbFullName(pStb->name, &stbName[VARSTR_HEADER_SIZE], TSDB_TABLE_NAME_LEN);
 
-    if (!showAll && mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TBL,
-                                             pStb->owner[0] != 0 ? pStb->owner : pStb->createUser, pStb->db,
+    if (!showAll && mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TBL, pStb->ownerId, pStb->db,
                                              &stbName[VARSTR_HEADER_SIZE])) {
       sdbRelease(pSdb, pStb);
       terrno = 0;

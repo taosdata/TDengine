@@ -1316,6 +1316,7 @@ typedef struct {
   char          sDetailVer[128];
   int64_t       whiteListVer;
   int64_t       timeWhiteListVer;
+  int64_t       userId;
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
   int8_t        enableAuditSelect;
@@ -1669,6 +1670,7 @@ int32_t tDeserializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* 
 
 typedef struct {
   char      user[TSDB_USER_LEN];
+  int64_t   userId;
   int32_t   version;
   int32_t   passVer;
   int8_t    superAuth;
@@ -2209,8 +2211,8 @@ int32_t tDeserializeSVDropTtlTableReq(void* buf, int32_t bufLen, SVDropTtlTableR
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
-  char    owner[TSDB_USER_LEN];
   int64_t dbId;
+  int64_t ownerId;
   int32_t cfgVersion;
   int32_t numOfVgroups;
   int32_t numOfStables;
@@ -5007,7 +5009,7 @@ typedef struct {
   int64_t    id;
   char       name[TSDB_TABLE_NAME_LEN];
   char       tbFName[TSDB_TABLE_FNAME_LEN];
-  char       owner[TSDB_USER_LEN];
+  int64_t    ownerId;
   int32_t    code;
   int32_t    version;
   int8_t     tbType;

@@ -176,29 +176,30 @@ typedef struct {
 } SConnAccessInfo;
 
 typedef struct STscObj {
-  char           user[TSDB_USER_LEN];
-  char           pass[TSDB_PASSWORD_LEN];
-  char           db[TSDB_DB_FNAME_LEN];
-  char           sVer[TSDB_VERSION_LEN];
-  char           sDetailVer[128];
-  int8_t         sysInfo;
-  int8_t         connType;
-  int8_t         dropped;
-  int8_t         biMode;
-  int32_t        acctId;
-  uint32_t       connId;
-  int32_t        appHbMgrIdx;
-  int64_t        id;         // ref ID returned by taosAddRef
-  TdThreadMutex  mutex;      // used to protect the operation on db
-  int32_t        numOfReqs;  // number of sqlObj bound to this connection
-  int32_t        authVer;
-  SAppInstInfo*  pAppInfo;
-  SHashObj*      pRequests;
-  SPassInfo      passInfo;
-  SWhiteListInfo whiteListInfo;          // ip white list info
-  SWhiteListInfo dateTimeWhiteListInfo;  // date time white list info
-  STscNotifyInfo userDroppedInfo;
-  SOptionInfo    optionInfo;
+  char            user[TSDB_USER_LEN];
+  char            pass[TSDB_PASSWORD_LEN];
+  char            db[TSDB_DB_FNAME_LEN];
+  char            sVer[TSDB_VERSION_LEN];
+  char            sDetailVer[128];
+  int8_t          sysInfo;
+  int8_t          connType;
+  int8_t          dropped;
+  int8_t          biMode;
+  int32_t         acctId;
+  uint32_t        connId;
+  int32_t         appHbMgrIdx;
+  int64_t         id;         // ref ID returned by taosAddRef
+  TdThreadMutex   mutex;      // used to protect the operation on db
+  int32_t         numOfReqs;  // number of sqlObj bound to this connection
+  int32_t         authVer;
+  int64_t         userId;
+  SAppInstInfo*   pAppInfo;
+  SHashObj*       pRequests;
+  SPassInfo       passInfo;
+  SWhiteListInfo  whiteListInfo;          // ip white list info
+  SWhiteListInfo  dateTimeWhiteListInfo;  // date time white list info
+  STscNotifyInfo  userDroppedInfo;
+  SOptionInfo     optionInfo;
   SConnAccessInfo sessInfo;
 } STscObj;
 

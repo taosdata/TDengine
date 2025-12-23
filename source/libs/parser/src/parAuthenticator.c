@@ -38,8 +38,10 @@ static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const c
                                EPrivObjType objType, bool isView, bool effective, SUserAuthInfo* pAuth) {
   if (effective) {
     snprintf(pAuth->user, sizeof(pAuth->user), "%s", pCxt->pEffectiveUser ? pCxt->pEffectiveUser : "");
+    pAuth->userId = pCxt->effectiveUserId;  // TODO: assign the effective user id
   } else {
     snprintf(pAuth->user, sizeof(pAuth->user), "%s", pCxt->pUser);
+    pAuth->userId = pCxt->userId;
   }
 
   if (NULL == pTabName) {
@@ -77,7 +79,7 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
-        if (0 == strncmp(dbCfgInfo.owner, pAuthInfo->user, TSDB_USER_LEN)) {
+        if (dbCfgInfo.ownerId == pAuthInfo->userId) {
           pAuthRes->pass[pAuthInfo->isView ? AUTH_RES_VIEW : AUTH_RES_BASIC] = true;
           return TSDB_CODE_SUCCESS;
         }

@@ -27,13 +27,13 @@ void    mndCleanupPrivilege(SMnode *pMnode);
 
 bool    mndMustChangePassword(SUserObj *pUser);
 int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
-                                const char *owner, const char *objFName, const char *tbName);
+                                int64_t ownerId, const char *objFName, const char *tbName);
 int32_t mndCheckObjPrivilegeRec(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
-                                const char *owner, int32_t acctId, const char *objName, const char *tbName);
+                                int64_t ownerId, int32_t acctId, const char *objName, const char *tbName);
 int32_t mndCheckObjPrivilegeRecF(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
-                                 const char *owner, const char *objFName, const char *tbName);
+                                 int64_t ownerId, const char *objFName, const char *tbName);
 int32_t mndCheckDbPrivilegeByNameRecF(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
-                                      const char *objFName, const char *tbName, char *outOwner);
+                                      const char *objFName, const char *tbName);
 int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType);
 int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb);
 int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *dbname);

@@ -496,6 +496,8 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   tstrncpy(connectRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   connectRsp.whiteListVer = pUser->ipWhiteListVer;
   connectRsp.timeWhiteListVer = pUser->timeWhiteListVer;
+  connectRsp.userId = pUser->uid;
+
 
   tstrncpy(connectRsp.sVer, td_version, sizeof(connectRsp.sVer));
   (void)snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", td_version,

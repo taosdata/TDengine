@@ -40,15 +40,15 @@ _OVER:
 }
 
 int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
-                                const char *owner, const char *objFName, const char *tbName) {
+                                int64_t ownerId, const char *objFName, const char *tbName) {
   return 0;
 }
 int32_t mndCheckObjPrivilegeRec(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
-                                const char *owner, int32_t acctId, const char *objName, const char *tbName) {
+                                int64_t ownerId, int32_t acctId, const char *objName, const char *tbName) {
   return 0;
 }
 int32_t mndCheckObjPrivilegeRecF(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
-                                 const char *owner, const char *objFName, const char *tbName) {
+                                 int64_t ownerId, const char *objFName, const char *tbName) {
   return 0;
 }
 
@@ -59,7 +59,7 @@ int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType op
   return 0;
 }
 int32_t mndCheckDbPrivilegeByNameRecF(SMnode *pMnode, SUserObj *pUser, EPrivType privType, const char *objFName,
-                                      const char *tbName, char *outOwner) {
+                                      const char *tbName) {
   return 0;
 }
 int32_t mndCheckStbPrivilege(SMnode *pMnode, SUserObj *pUser, EOperType operType, SStbObj *pStb) { return 0; }
@@ -116,6 +116,7 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
   pRsp->whiteListVer = pMnode->ipWhiteVer;
+  pRsp->userId = pUser->uid;
 
   SUserSessCfg sessCfg = {.sessPerUser = pUser->sessionPerUser,
                           .sessConnTime = pUser->connectTime,

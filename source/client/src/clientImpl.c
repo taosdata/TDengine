@@ -376,6 +376,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .pTransporter = pTscObj->pAppInfo->pTransporter,
       .pStmtCb = pStmtCb,
       .pUser = pTscObj->user,
+      .userId = pTscObj->userId,
       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
       .enableSysInfo = pTscObj->sysInfo,
       .svrVer = pTscObj->sVer,

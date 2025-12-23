@@ -1181,7 +1181,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   bool      showAll = false, showIter = false;
   int64_t   dbUid = 0;
 
-  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_SHOW_VGROUPS, PRIV_OBJ_DB, NULL, _OVER);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_SHOW_VGROUPS, PRIV_OBJ_DB, 0, _OVER);
 
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);
@@ -1462,7 +1462,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   bool      showAll = false, showIter = false;
   int64_t   dbUid = 0;
 
-  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_SHOW_VNODES, PRIV_OBJ_DB, NULL, _OVER);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_SHOW_VNODES, PRIV_OBJ_DB, 0, _OVER);
 
   while (numOfRows < rows - TSDB_MAX_REPLICA) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);

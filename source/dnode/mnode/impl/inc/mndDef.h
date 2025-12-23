@@ -618,10 +618,10 @@ typedef struct {
   char     name[TSDB_DB_FNAME_LEN];
   char     acct[TSDB_USER_LEN];
   char     createUser[TSDB_USER_LEN];
-  char     owner[TSDB_USER_LEN];  // If owner is empty, createUser is owner.
   int64_t  createdTime;
   int64_t  updateTime;
   int64_t  uid;
+  int64_t  ownerId;
   int32_t  cfgVersion;
   int32_t  vgVersion;
   SDbCfg   cfg;
@@ -641,7 +641,6 @@ typedef struct {
   char         name[TSDB_MOUNT_NAME_LEN];
   char         acct[TSDB_USER_LEN];
   char         createUser[TSDB_USER_LEN];
-  char         owner[TSDB_USER_LEN];
   int64_t      createdTime;
   int64_t      updateTime;
   int64_t      uid;
@@ -715,12 +714,12 @@ typedef struct {
   char           db[TSDB_DB_FNAME_LEN];
   char           dstTbName[TSDB_TABLE_FNAME_LEN];
   char           createUser[TSDB_USER_LEN];
-  char           owner[TSDB_USER_LEN];
   int64_t        createdTime;
   int64_t        uid;
   int64_t        stbUid;
   int64_t        dbUid;
   int64_t        dstTbUid;
+  int64_t        ownerId;
   int8_t         intervalUnit;
   int8_t         slidingUnit;
   int8_t         timezone;  // int8_t is not enough, timezone is unit of second
@@ -747,12 +746,12 @@ typedef struct {
   char    tbName[TSDB_TABLE_NAME_LEN];
   char    dbFName[TSDB_DB_FNAME_LEN];
   char    createUser[TSDB_USER_LEN];
-  char    owner[TSDB_USER_LEN];
   int64_t createdTime;
   int64_t updateTime;
   int64_t uid;
   int64_t tbUid;
   int64_t dbUid;
+  int64_t ownerId;
   int64_t interval[2];
   union {
     uint64_t reserved;
@@ -773,11 +772,11 @@ typedef struct {
   char    dstTbName[TSDB_TABLE_FNAME_LEN];
   char    colName[TSDB_COL_NAME_LEN];
   char    createUser[TSDB_USER_LEN];
-  char    owner[TSDB_USER_LEN];
   int64_t createdTime;
   int64_t uid;
   int64_t stbUid;
   int64_t dbUid;
+  int64_t ownerId;
 } SIdxObj;
 
 typedef struct {
@@ -789,11 +788,11 @@ typedef struct {
   char        name[TSDB_TABLE_FNAME_LEN];
   char        db[TSDB_DB_FNAME_LEN];
   char        createUser[TSDB_USER_LEN];
-  char        owner[TSDB_USER_LEN];
   int64_t     createdTime;
   int64_t     updateTime;
   int64_t     uid;
   int64_t     dbUid;
+  int64_t     ownerId;
   int32_t     tagVer;
   int32_t     colVer;
   int32_t     smaVer;
@@ -824,7 +823,6 @@ typedef struct {
 typedef struct {
   char     name[TSDB_FUNC_NAME_LEN];
   char     createUser[TSDB_USER_LEN];
-  char     owner[TSDB_USER_LEN];
   int64_t  createdTime;
   int8_t   funcType;
   int8_t   scriptType;
@@ -870,11 +868,11 @@ typedef struct {
   char           name[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   char           createUser[TSDB_USER_LEN];
-  char           owner[TSDB_USER_LEN];
   int64_t        createTime;
   int64_t        updateTime;
   int64_t        uid;
   int64_t        dbUid;
+  int64_t        ownerId;
   int32_t        version;
   int8_t         subType;   // column, db or stable
   int8_t         withMeta;  // TODO
@@ -990,7 +988,6 @@ typedef struct {
 typedef struct {
   char                name[TSDB_STREAM_FNAME_LEN];
   char                createUser[TSDB_USER_LEN];
-  char                owner[TSDB_USER_LEN];
   SCMCreateStreamReq* pCreate;
 
   SRWLatch lock;
@@ -1001,6 +998,7 @@ typedef struct {
   int8_t  userStopped;
   int64_t createTime;
   int64_t updateTime;
+  int64_t ownerId;
 } SStreamObj;
 #if 0
 typedef struct SStreamConf {
@@ -1109,13 +1107,13 @@ typedef struct {
   char     name[TSDB_VIEW_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     createUser[TSDB_USER_LEN];
-  char     owner[TSDB_USER_LEN];
   char*    querySql;
   char*    parameters;
   void**   defaultValues;
   char*    targetTable;
   uint64_t viewId;
   uint64_t dbId;
+  int64_t  ownerId;
   int64_t  createdTime;
   int32_t  version;
   int8_t   precision;

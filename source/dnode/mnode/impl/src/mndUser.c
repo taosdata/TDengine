@@ -129,6 +129,7 @@ static int32_t  mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
+static 
 
 static int32_t  mndProcessGetUserIpWhiteListReq(SRpcMsg *pReq);
 static int32_t  mndProcessRetrieveIpWhiteListReq(SRpcMsg *pReq);
@@ -2393,7 +2394,42 @@ void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
   sdbRelease(pSdb, pUser);
 }
 
+int32_t mndAcquireUserById(SMnode *pMnode, int64_t userId, SUserObj **ppUser) {
+  void     *pIter = NULL;
+  SUserObj *pObj;
+  SSdb     *pSdb = pMnode->pSdb;
+  while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pObj))) {
+    if (pObj->uid == userId) {
+      return mndAcquireUser(pMnode, pObj->user, ppUser);
+    }
+  }
+  return 0;
+}
 
+int32_t mndBuildUidNamesHash(SMnode *pMnode, SSHashObj **ppHash) {
+  int32_t    code = 0;
+  void      *pIter = NULL;
+  SUserObj  *pObj;
+  SSHashObj *pHash = NULL;
+
+  int32_t nUser = sdbGetSize(pMnode->pSdb, SDB_USER);
+
+  pHash = tSimpleHashInit(nUser, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pHash == NULL) {
+    TAOS_RETURN(terrno);
+  }
+
+  while ((pIter = sdbFetch(pMnode->pSdb, SDB_USER, pIter, (void **)&pObj))) {
+    code = tSimpleHashPut(pHash, &pObj->uid, sizeof(pObj->uid), pObj->name, strlen(pObj->name) + 1);
+    if (code != 0) {
+      tSimpleHashCleanup(pHash);
+      TAOS_RETURN(code);
+    }
+  }
+
+  *ppHash = pHash;
+  TAOS_RETURN(code);
+}
 
 int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo) {
   int32_t code = 0;
@@ -2895,7 +2931,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   if (createReq.isImport != 1) {
     // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_USER), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_CREATE, 0, NULL, NULL, NULL), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_CREATE, 0, 0, NULL, NULL), &lino, _OVER);
   } else if (strcmp(pReq->info.conn.user, "root") != 0) {
     mError("The operation is not permitted to create user:%s", pReq->info.conn.user);
     TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
@@ -4104,7 +4140,7 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
   }
 
   // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_USER), &lino, _OVER);
-  TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_DROP, 0, NULL, NULL, NULL), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_DROP, 0, 0, NULL, NULL), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndDropUser(pMnode, pReq, pUser), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;

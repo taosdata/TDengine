@@ -31,7 +31,7 @@
 #include "tname.h"
 
 #define TSDB_IDX_VER_NUMBER   1
-#define TSDB_IDX_RESERVE_SIZE 16
+#define TSDB_IDX_RESERVE_SIZE 32
 
 static SSdbRaw *mndIdxActionEncode(SIdxObj *pSma);
 static SSdbRow *mndIdxActionDecode(SSdbRaw *pRaw);
@@ -238,7 +238,7 @@ static SSdbRaw *mndIdxActionEncode(SIdxObj *pIdx) {
   SDB_SET_INT64(pRaw, dataPos, pIdx->dbUid, _OVER)
 
   SDB_SET_BINARY(pRaw, dataPos, pIdx->createUser, TSDB_USER_LEN, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pIdx->owner, TSDB_USER_LEN, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pIdx->ownerId, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_IDX_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -288,7 +288,7 @@ static SSdbRow *mndIdxActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pIdx->stbUid, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pIdx->dbUid, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pIdx->createUser, TSDB_USER_LEN, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pIdx->owner, TSDB_USER_LEN, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pIdx->ownerId, _OVER)
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_IDX_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -318,6 +318,7 @@ static int32_t mndIdxActionUpdate(SSdb *pSdb, SIdxObj *pOld, SIdxObj *pNew) {
   if (strncmp(pOld->colName, pNew->colName, TSDB_COL_NAME_LEN) != 0) {
     memcpy(pOld->colName, pNew->colName, sizeof(pNew->colName));
   }
+  pOld->ownerId = pNew->ownerId;
   mTrace("idx:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
   return 0;
 }
@@ -512,12 +513,11 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
   // already check select table/create index privileges in parser
-  const char *owner = pDb->owner[0] != 0 ? pDb->owner : pDb->createUser;
-  TAOS_CHECK_GOTO(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, owner, pDb->name, NULL), NULL,
-                  _OVER);
+  TAOS_CHECK_GOTO(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL),
+                  NULL, _OVER);
   // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
 
-  code = mndAddIndex(pMnode, pReq, &createReq, pDb, pStb);
+  code = mndAddIndex(pMnode, pReq, &createReq, pDb, pStb, pOperUser);
   if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST || terrno == TSDB_CODE_MND_TAG_NOT_EXIST) {
     return terrno;
   } else {
@@ -592,7 +592,7 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
   int32_t objLevel = privObjGetLevel(PRIV_OBJ_IDX);
   showAll =
-      (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, PRIV_OBJ_IDX, NULL, pDb ? pDb->name : objFName,
+      (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, PRIV_OBJ_IDX, 0, pDb ? pDb->name : objFName,
                                      objLevel == 0 ? NULL : "*"));  // 1.*.*
 
   SSmaAndTagIter *pIter = pShow->pIter;
@@ -613,8 +613,7 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
         lino = __LINE__;
         goto _OVER;
       }
-      char *owner = pIdx->owner[0] != 0 ? pIdx->owner : pIdx->createUser;
-      if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, PRIV_OBJ_IDX, owner, pIdx->db,
+      if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, PRIV_OBJ_IDX, pIdx->ownerId, pIdx->db,
                                    objLevel == 0 ? NULL : idxName.tname)) {  // 1.db1.idx1
         sdbRelease(pSdb, pIdx);
         continue;
@@ -819,14 +818,16 @@ int8_t mndCheckIndexNameByTagName(SMnode *pMnode, SIdxObj *pIdxObj) {
   mndReleaseDb(pMnode, pDb);
   return exist;
 }
-static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *req, SDbObj *pDb, SStbObj *pStb) {
+static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *req, SDbObj *pDb, SStbObj *pStb,
+                           SUserObj *pOperUser) {
   int32_t code = -1;
   SIdxObj idxObj = {0};
   memcpy(idxObj.name, req->idxName, TSDB_INDEX_FNAME_LEN);
   memcpy(idxObj.stb, pStb->name, TSDB_TABLE_FNAME_LEN);
   memcpy(idxObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   memcpy(idxObj.colName, req->colName, TSDB_COL_NAME_LEN);
-  (void)snprintf(idxObj.createUser, TSDB_USER_LEN, "%s", pReq->info.conn.user);
+  (void)snprintf(idxObj.createUser, TSDB_USER_LEN, "%s", pOperUser->name);
+  idxObj.ownerId = pOperUser->uid;
 
   idxObj.createdTime = taosGetTimestampMs();
   idxObj.uid = mndGenerateUid(req->idxName, strlen(req->idxName));
@@ -942,9 +943,9 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
 
   // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
-  const char *owner = pIdx->owner[0] != 0 ? pIdx->owner : pIdx->createUser;
-  TAOS_CHECK_GOTO(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_IDX, owner, pIdx->db, pIdx->name),
-                  NULL, _OVER);
+  TAOS_CHECK_GOTO(
+      mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_IDX, pIdx->ownerId, pIdx->db, pIdx->name),
+      NULL, _OVER);
 
   code = mndDropIdx(pMnode, pReq, pDb, pIdx);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
