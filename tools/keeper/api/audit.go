@@ -35,14 +35,16 @@ type Audit struct {
 }
 
 type AuditInfo struct {
-	Timestamp string `json:"timestamp"`
-	ClusterID string `json:"cluster_id"`
-	User      string `json:"user"`
-	Operation string `json:"operation"`
-	Db        string `json:"db"`
-	Resource  string `json:"resource"`
-	ClientAdd string `json:"client_add"` // client address
-	Details   string `json:"details"`
+	Timestamp    string  `json:"timestamp"`
+	ClusterID    string  `json:"cluster_id"`
+	User         string  `json:"user"`
+	Operation    string  `json:"operation"`
+	Db           string  `json:"db"`
+	Resource     string  `json:"resource"`
+	ClientAdd    string  `json:"client_add"` // client address
+	Details      string  `json:"details"`
+	AffectedRows uint64  `json:"affected_rows,omitempty"`
+	Duration     float64 `json:"duration,omitempty"`
 }
 
 type AuditArrayInfo struct {
@@ -324,17 +326,19 @@ func (a *Audit) createSTables() error {
 		return errNoConnection
 	}
 	createTableSql := "create stable if not exists operations " +
-		"(ts timestamp, user_name varchar(25), operation varchar(20), db varchar(65), resource varchar(193), client_address varchar(64), details varchar(50000)) " +
+		"(ts timestamp, user_name varchar(25), operation varchar(20), db varchar(65), " +
+		"resource varchar(193), client_address varchar(64), details varchar(50000), " +
+		"affected_rows bigint unsigned, `duration` double) " +
 		"tags (cluster_id varchar(64))"
 	_, err := a.conn.ExecWithRetryForever(context.Background(), createTableSql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		auditLogger.Errorf("create stable error, msg:%s", err)
 		return err
 	}
-	return a.alterClientAddressColumn()
+	return a.alterSTableOperations()
 }
 
-func (a *Audit) alterClientAddressColumn() error {
+func (a *Audit) alterSTableOperations() error {
 	checkSql := "desc operations"
 	result, err := a.conn.QueryWithRetryForever(context.Background(), checkSql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
@@ -342,27 +346,50 @@ func (a *Audit) alterClientAddressColumn() error {
 		return err
 	}
 
-	needAlter := false
+	needAlterClientAddress := false
+	needAlterAffectedRows := true
+	needAlterDuration := true
+
 	for _, row := range result.Data {
-		if row[0] == "client_address" {
-			if len, ok := row[2].(int32); ok {
-				if len < 64 {
-					needAlter = true
+		switch row[0] {
+		case "client_address":
+			if colLen, ok := row[2].(int32); ok {
+				if colLen < 64 {
+					needAlterClientAddress = true
 				}
 			} else {
 				auditLogger.Warnf("unexpected type for client_address length: %T", row[2])
 				return fmt.Errorf("failed to get client_address column length")
 			}
-			break
+		case "affected_rows":
+			needAlterAffectedRows = false
+		case "duration":
+			needAlterDuration = false
 		}
 	}
 
-	if needAlter {
-		auditLogger.Info("alter client_address column to varchar(64)")
-		alterSql := "alter stable operations modify column client_address varchar(64)"
-		_, err = a.conn.ExecWithRetryForever(context.Background(), alterSql, util.GetQidOwn(config.Conf.InstanceID))
+	execAlter := func(sql, msg string) error {
+		auditLogger.Info(msg)
+		_, err := a.conn.ExecWithRetryForever(context.Background(), sql, util.GetQidOwn(config.Conf.InstanceID))
 		if err != nil {
-			auditLogger.Errorf("alter stable operations error, msg:%s", err)
+			auditLogger.Errorf("alter stable operations error, msg:%s, sql:%s", err, sql)
+			return err
+		}
+		return nil
+	}
+
+	if needAlterClientAddress {
+		if err := execAlter("alter stable operations modify column client_address varchar(64)", "alter client_address column to varchar(64)"); err != nil {
+			return err
+		}
+	}
+	if needAlterAffectedRows {
+		if err := execAlter("alter stable operations add column affected_rows bigint unsigned", "add affected_rows column to stable operations"); err != nil {
+			return err
+		}
+	}
+	if needAlterDuration {
+		if err := execAlter("alter stable operations add column `duration` double", "add duration column to stable operations"); err != nil {
 			return err
 		}
 	}

@@ -470,3 +470,47 @@ func TestAudit_handleFunc_ParseStringTimestamp_Error_ReturnsBadRequest(t *testin
 		t.Fatalf("error prefix mismatch, got %q", resp["error"])
 	}
 }
+
+func TestAudit_createSTables(t *testing.T) {
+	cfg := config.GetCfg()
+
+	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766474758", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Query(context.Background(), "create database test_1766474758", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	conn, err = db.NewConnectorWithDb(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, "test_1766474758", cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+
+	audit := &Audit{
+		conn: conn,
+	}
+
+	err = audit.createSTables()
+	assert.NoError(t, err)
+
+	_, err = conn.Query(context.Background(), "drop table operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	sql := `create stable operations(
+		ts timestamp,
+		user_name varchar(25),
+		operation varchar(20),
+		db varchar(65),
+		resource varchar(193),
+		client_address varchar(32),
+		details varchar(50000)
+	) tags (
+		cluster_id varchar(64)
+	)`
+	_, err = conn.Query(context.Background(), sql, util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	err = audit.createSTables()
+	assert.NoError(t, err)
+
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766474758", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+}
