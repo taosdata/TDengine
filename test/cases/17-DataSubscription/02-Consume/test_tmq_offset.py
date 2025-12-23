@@ -4,6 +4,7 @@ from taos.tmq import Consumer
 from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
 import sys
 import os
+import time
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 class TestCase:
@@ -376,6 +377,46 @@ class TestCase:
                     
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
+    def do_tmq_offset_benchmark(self):
+        if platform.system().lower() == 'windows':
+            buildPath = tdCom.getBuildPath()
+            cmdStr1 = ' mintty -h never %s/build/bin/taosBenchmark -i 50 -v 1 -B 1 -t 1000 -n 100000 -y '%(buildPath)
+            tdLog.info(cmdStr1)
+            os.system(cmdStr1)
+            time.sleep(15)
+
+            cmdStr2 = ' mintty -h never %s/build/bin/tmq_offset_test '%(buildPath)
+            tdLog.info(cmdStr2)
+            os.system(cmdStr2)
+            time.sleep(20)
+
+            # tdLog.info("ps -a | grep taos | awk \'{print $2}\' | xargs kill -9")
+            os.system('ps -a | grep taosBenchmark | awk \'{print $2}\' | xargs kill -9')
+            result = os.system('ps -a | grep tmq_offset_test | awk \'{print $2}\' | xargs kill -9')
+            if result != 0:
+                tdLog.exit("tmq_offset_test error!")
+        else:
+            buildPath = tdCom.getBuildPath()
+            cmdStr0 = '%s/build/bin/tmq_offset_test 5679'%(buildPath)
+            tdLog.info(cmdStr0)
+            if os.system(cmdStr0) != 0:
+                tdLog.exit(cmdStr0)
+
+            cmdStr1 = '%s/build/bin/taosBenchmark -i 50 -v 1 -B 1 -t 1000 -n 100000 -y &'%(buildPath)
+            tdLog.info(cmdStr1)
+            os.system(cmdStr1)
+            time.sleep(15)
+
+            cmdStr2 = '%s/build/bin/tmq_offset_test &'%(buildPath)
+            tdLog.info(cmdStr2)
+            os.system(cmdStr2)
+            time.sleep(20)
+
+            os.system("kill -9 `pgrep taosBenchmark`")
+            result = os.system("kill -9 `pgrep tmq_offset_test`")
+            if result != 0:
+                tdLog.exit("tmq_offset_test error!")
+
     def test_tmq_offset(self):
         """Basic: Offset operations
         
@@ -384,19 +425,18 @@ class TestCase:
         3. Query current position
         4. Commit offset manually
         5. Restart consumer and verify offset restored
-        
-        Since: v3.0.0.0
-
-        Labels: common,ci
+        6. Call tmq_offset_test to test
 
         Jira: None
 
         History:
             - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmqOffset.py
+            - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmq_offset.py
 
         """
         self.prepareTestEnv()
         self.tmqCase1()
+        self.do_tmq_offset_benchmark()
 
         tdLog.success(f"{__file__} successfully executed")
 

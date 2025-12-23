@@ -180,7 +180,7 @@ class TestCase:
         Jira: None
 
         History:
-            - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_create_wrong_topic.py
+            - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmqShow.py
 
         """
         tdSql.prepare()
