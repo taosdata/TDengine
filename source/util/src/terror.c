@@ -525,8 +525,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_COLUMN_COMPRESS_ALREADY_EXIST,"Same with old par
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_TTL_FLUSH_INCOMPLETION,   "Failed to flush all ttl modification to tdb")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH,   "Vnode already exist but Dbid not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_VNODE_OFFLINE,            "Vnode is offline")
-TAOS_DEFINE_ERROR(TSDB_CODE_VND_EXCEED_MAX_COL_ID,         "Exceed max column id")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_EXCEED_MAX_COL_ID,        "Exceed max column id")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_SAME_TAG,                 "Tags are same")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")
@@ -880,6 +880,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG,      "Option value too lo
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT,     "Option value too short")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG,       "Option value too big")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL,     "Option value too small")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ORDERBY_INVALID_EXPR,       "Aggregate functions cannot be used for sorting in non-aggregate queries")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
