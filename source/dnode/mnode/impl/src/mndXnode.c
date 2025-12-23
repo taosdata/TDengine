@@ -1123,10 +1123,59 @@ _OVER:
   return code;
 }
 
+static SXnodeTaskObj *cloneSXnodeTaskObj(SXnodeTaskObj *pObj) {
+  int32_t        code = 0;
+  SXnodeTaskObj *pClone = taosMemoryCalloc(1, sizeof(SXnodeTaskObj));
+  if (pClone == NULL) {
+    return NULL;
+  }
+  (void)memmove(pClone, pObj, sizeof(SXnodeTaskObj));
+  pClone->name = taosStrndupi(pObj->name, (int64_t)pObj->nameLen);
+  if (pClone->name == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  pClone->status = taosStrndupi(pObj->status, (int64_t)pObj->statusLen);
+  if (pClone->status == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  pClone->sourceDsn = taosStrndupi(pObj->sourceDsn, (int64_t)pObj->sourceDsnLen);
+  if (pClone->sourceDsn == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  pClone->sinkDsn = taosStrndupi(pObj->sinkDsn, (int64_t)pObj->sinkDsnLen);
+  if (pClone->sinkDsn == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  pClone->parser = taosStrndupi(pObj->parser, (int64_t)pObj->parserLen);
+  if (pClone->parser == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  pClone->reason = taosStrndupi(pObj->reason, (int64_t)pObj->reasonLen);
+  if (pClone->reason == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  return pClone;
+
+_OVER:
+  if (pClone != NULL) {
+    mndFreeXnodeTask(pClone);
+    taosMemoryFreeClear(pClone);
+  }
+  return NULL;
+}
+
 static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
+  mInfo("start xnode task request received, contLen:%d\n", pReq->contLen);
   SMnode             *pMnode = pReq->info.node;
   int32_t             code = -1;
   SXnodeTaskObj      *pObj = NULL;
+  SXnodeTaskObj      *pObjClone = NULL;
   SMStartXnodeTaskReq startReq = {0};
 
   TAOS_CHECK_GOTO(tDeserializeSMStartXnodeTaskReq(pReq->pCont, pReq->contLen, &startReq), NULL, _OVER);
@@ -1144,19 +1193,34 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
     code = terrno;
     goto _OVER;
   }
+  pObjClone = cloneSXnodeTaskObj(pObj);
+  if (pObjClone == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  sdbRelease(pMnode->pSdb, pObj);
+  pObj = NULL;
 
   // send request
-  TAOS_CHECK_GOTO(httpStartXnodeTask(pObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(httpStartXnodeTask(pObjClone), NULL, _OVER);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("xnode task:%d, failed to start since %s", startReq.tid, tstrerror(code));
   }
   tFreeSMStartXnodeTaskReq(&startReq);
+  if (pObj != NULL) {
+    mndReleaseXnodeTask(pMnode, pObj);
+  }
+  if (pObjClone != NULL) {
+    mndFreeXnodeTask(pObjClone);
+    taosMemFree(pObjClone);
+  }
   TAOS_RETURN(code);
 }
 
 static int32_t mndProcessStopXnodeTaskReq(SRpcMsg *pReq) {
+  mInfo("stop xnode task request received, contLen:%d\n", pReq->contLen);
   SMnode            *pMnode = pReq->info.node;
   int32_t            code = -1;
   SXnodeTaskObj     *pObj = NULL;
@@ -2720,6 +2784,7 @@ _OVER:
 }
 
 static int32_t mndProcessDropXnodeJobReq(SRpcMsg *pReq) {
+  mInfo("drop xnode job req, content len:%d", pReq->contLen);
   SMnode           *pMnode = pReq->info.node;
   int32_t           code = -1;
   SXnodeJobObj     *pObj = NULL;
