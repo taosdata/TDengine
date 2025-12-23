@@ -38,6 +38,7 @@ typedef struct StreamTableListInfo {
   SHashObj*        gIdMap;       // key: groupId/suid, value: SStreamTableList
   SHashObj*        uIdMap;       // key: uid, value: SStreamTableKeyInfo*,index
   void*            pIter;        // iterator for gIdMap
+  int64_t          version;
 } StreamTableListInfo;
 
 typedef struct SStreamTriggerReaderInfo {
