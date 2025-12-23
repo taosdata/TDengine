@@ -461,6 +461,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_condition.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_ns_db.py
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_6604237597.py
 
 # 15-TagIndices
 
