@@ -187,7 +187,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_vnode_split_stb_sel_dup(self):
-        """Cluster: Vnode split duplicate
+        """Cluster: vnode split duplicate
         
         1. Insert potentially duplicate data
         2. Execute vnode split

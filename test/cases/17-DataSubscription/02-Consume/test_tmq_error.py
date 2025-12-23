@@ -297,7 +297,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_error(self):
-        """Basic: Error handling
+        """Basic: error handling
         
         1. Test invalid topic name
         2. Test invalid consumer group.id

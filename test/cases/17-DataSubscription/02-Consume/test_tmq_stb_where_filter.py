@@ -201,7 +201,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case1 end ...... ")
 
     def test_stbFilterWhere(self):
-        """Filter: WHERE filter
+        """Filter: where filter
         
         1. Create super table with data
         2. Create topic with WHERE condition

@@ -222,7 +222,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 4 end ...... ")
 
     def test_tmq_cons_from_tsdb1_multiVg_multiCtb_fiter(self):
-        """Consume: Complex filter variant
+        """Consume: complex filter variant
         
         1. Create complex table structure
         2. Apply multiple UDFs

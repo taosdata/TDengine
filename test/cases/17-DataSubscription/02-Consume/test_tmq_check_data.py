@@ -138,7 +138,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_check_data(self):
-        """Consume: Data verification
+        """Consume: data verification
         
         1. Insert known test data patterns
         2. Create TMQ subscription

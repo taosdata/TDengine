@@ -239,7 +239,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_update_multiCtb(self):
-        """Operation: Update multi ctb
+        """Operation: update multi ctb
         
         1. Create multiple child tables
         2. Insert initial data

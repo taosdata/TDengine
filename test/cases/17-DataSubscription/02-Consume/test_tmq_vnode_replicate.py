@@ -145,7 +145,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_vnode_replicate(self):
-        """Cluster: Vnode replicate
+        """Cluster: vnode replicate
         
         1. Setup replica configuration
         2. Create replicated vgroups

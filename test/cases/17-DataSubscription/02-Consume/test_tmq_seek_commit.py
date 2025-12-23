@@ -183,7 +183,7 @@ class TestCase:
             consumer.close()
 
     def test_tmq_seek_and_commit(self):
-        """Advanced: Seek commit
+        """Advanced: seek commit
         
         1. Start consumption
         2. Execute seek to offset

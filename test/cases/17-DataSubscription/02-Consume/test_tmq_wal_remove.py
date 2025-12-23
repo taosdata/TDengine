@@ -92,7 +92,7 @@ class TestCase:
             os.system(cmd)
 
     def test_tmq_walRemove(self):
-        """Advanced: WAL removal
+        """Advanced: wal removal
         
         1. Configure WAL retention period
         2. Insert data generating WAL

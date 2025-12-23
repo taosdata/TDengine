@@ -188,7 +188,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_vnode_split_db(self):
-        """Cluster: Vnode split db
+        """Cluster: vnode split db
         
         1. Create database subscription
         2. Insert data distributed across vnodes

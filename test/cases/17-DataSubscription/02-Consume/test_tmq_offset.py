@@ -418,7 +418,7 @@ class TestCase:
                 tdLog.exit("tmq_offset_test error!")
 
     def test_tmq_offset(self):
-        """Basic: Offset operations
+        """Basic: offset operations
         
         1. Create topic and start consumption
         2. Test seek operation to specific offset

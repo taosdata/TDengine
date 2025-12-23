@@ -215,7 +215,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 4 end ...... ")
 
     def test_tmq_cons_from_tsdb1(self):
-        """Consume: Snapshot filter
+        """Consume: snapshot filter
         
         1. Insert data to TSDB
         2. Create filtered topic (SELECT with WHERE)

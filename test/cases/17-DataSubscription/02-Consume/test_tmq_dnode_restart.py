@@ -242,7 +242,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_dnode_restart(self):
-        """Cluster: Dnode restart
+        """Cluster: dnode restart
         
         1. Start consumption process
         2. Restart dnode during consumption

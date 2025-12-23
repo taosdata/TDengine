@@ -159,7 +159,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_vnode_split_ntb_sel(self):
-        """Cluster: Vnode split ntb
+        """Cluster: vnode split ntb
         
         1. Create normal table subscription
         2. Insert data

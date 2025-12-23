@@ -225,7 +225,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_max_groupids(self):
-        """Basic: Max groups limit
+        """Basic: max groups limit
         
         1. Create database and topic
         2. Create 100 consumer groups (maximum allowed)

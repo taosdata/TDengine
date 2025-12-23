@@ -59,7 +59,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case end ...... ")
 
     def test_ins_topics(self):
-        """Basic: Topics info query
+        """Basic: topics info query
         
         1. Create database and topic
         2. Query information_schema.ins_topics

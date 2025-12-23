@@ -218,7 +218,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 4 end ...... ")
 
     def test_tmq_cons_from_tsdb1_1ctb_filter(self):
-        """Consume: Function filter variant
+        """Consume: function filter variant
         
         1. Setup child table with data
         2. Apply complex UDF and filters

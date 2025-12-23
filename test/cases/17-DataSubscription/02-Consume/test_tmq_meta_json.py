@@ -13,7 +13,7 @@ class TestCase:
         tdLog.debug(f"start to excute {__file__}")
 
     def test_tmq_get_meta_json(self):
-        """Advanced: Metadata JSON
+        """Advanced: metadata json
         
         1. Create topics with metadata
         2. Query metadata via JSON interface

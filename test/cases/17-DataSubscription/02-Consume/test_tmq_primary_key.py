@@ -505,7 +505,7 @@ class TestCase:
             consumer.close()
             tdSql.execute(f'drop topic topic_pk_query_30755;')
     def test_tmq_primary_key(self):
-        """Basic: Primary key support
+        """Basic: primary key support
         
         1. Create tables with primary key
         2. Insert duplicate key data

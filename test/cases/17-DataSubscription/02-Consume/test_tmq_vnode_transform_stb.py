@@ -243,7 +243,7 @@ class TestCase:
 
 
     def test_tmq_vnode_trans_stb(self):
-        """Cluster: Vnode transform stb
+        """Cluster: vnode transform stb
         
         1. Create super table topic
         2. Start consumption

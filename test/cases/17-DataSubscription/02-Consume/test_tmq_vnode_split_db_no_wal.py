@@ -189,7 +189,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_vnode_split_db_false(self):
-        """Cluster: Vnode split db-nowal
+        """Cluster: vnode split db-nowal
         
         1. Setup database topic
         2. Configure WAL retention policy

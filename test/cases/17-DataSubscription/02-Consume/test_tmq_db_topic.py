@@ -414,7 +414,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_db(self):
-        """Basic: Database topic
+        """Basic: database topic
         
         1. Create database with multiple tables
         2. Create database-level topic

@@ -306,7 +306,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_udf_multiCtb_snapshot1(self):
-        """Advanced: UDF snapshot mode
+        """Advanced: udf snapshot mode
         
         1. Configure snapshot with UDF
         2. Flush data to TSDB

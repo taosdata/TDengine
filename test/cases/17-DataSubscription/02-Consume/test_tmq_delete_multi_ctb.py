@@ -373,7 +373,7 @@ class TestCase:
 
 
     def test_tmq_delete_multictb(self):
-        """Operation: Delete multi ctb
+        """Operation: delete multi ctb
         
         1. Create multiple child tables
         2. Insert data to all tables

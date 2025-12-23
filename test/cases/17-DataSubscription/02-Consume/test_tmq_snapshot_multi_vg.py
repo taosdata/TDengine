@@ -219,7 +219,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_cons_from_tsdb_multiVg(self):
-        """Consume: Multi vgroups
+        """Consume: multi vgroups
         
         1. Create database with 4+ vgroups
         2. Insert data distributed across vgroups

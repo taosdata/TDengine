@@ -193,7 +193,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_drop_ntb_snapshot1(self):
-        """Operation: Drop table snapshot
+        """Operation: drop table snapshot
         
         1. Create normal table with data
         2. Start snapshot mode consumption

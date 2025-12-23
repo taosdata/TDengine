@@ -240,7 +240,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_cons_from_tsdb_1ctb_filter(self):
-        """Consume: Function filter
+        """Consume: function filter
         
         1. Insert data to child table
         2. Create topic with UDF function

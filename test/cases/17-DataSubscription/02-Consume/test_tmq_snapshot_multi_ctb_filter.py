@@ -216,7 +216,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 4 end ...... ")
 
     def test_tmq_cons_from_tsdb1_multiVg_multiCtb(self):
-        """Consume: Multi ctb filter
+        """Consume: multi ctb filter
         
         1. Create multiple child tables
         2. Insert diverse data

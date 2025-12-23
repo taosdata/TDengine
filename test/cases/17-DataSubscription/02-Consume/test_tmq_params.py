@@ -178,7 +178,7 @@ class TestCase:
                         tdSql.execute(f'drop database if exists {paraDict["dbName"]}')
 
     def test_tmq_params_test(self):
-        """Basic: Consumer parameters
+        """Basic: consumer parameters
         
         1. Test auto.commit enabled/disabled
         2. Test auto.offset.reset earliest/latest

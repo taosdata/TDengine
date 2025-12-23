@@ -52,7 +52,7 @@ class TestCase:
         return
 
     def test_raw_block(self):
-        """Advanced: Raw block interface
+        """Advanced: raw block interface
         
         1. Use raw block API for consumption
         2. Fetch data in block format

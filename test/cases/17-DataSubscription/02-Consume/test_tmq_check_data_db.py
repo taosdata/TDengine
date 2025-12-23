@@ -131,7 +131,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_check_data1(self):
-        """Consume: Database verification
+        """Consume: database verification
         
         1. Create database with multiple tables
         2. Insert test data to all tables

@@ -186,7 +186,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_vnode_split_stb(self):
-        """Cluster: Vnode split stb
+        """Cluster: vnode split stb
         
         1. Create super table subscription
         2. Distribute child tables across vnodes

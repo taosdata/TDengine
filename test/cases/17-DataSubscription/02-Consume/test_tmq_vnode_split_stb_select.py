@@ -186,7 +186,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_vnode_split_stb_sel(self):
-        """Cluster: Vnode split select
+        """Cluster: vnode split select
         
         1. Create SELECT-based topic on super table
         2. Insert data with computation

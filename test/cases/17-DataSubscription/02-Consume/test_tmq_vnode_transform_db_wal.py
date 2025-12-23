@@ -266,7 +266,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 4 subscrib Dbname end ...... ")
 
     def test_tmq_vnode_trans_db_rm_wal(self):
-        """Cluster: Vnode transform db-wal
+        """Cluster: vnode transform db-wal
         
         1. Setup database topic
         2. Transform vnodes with WAL removal

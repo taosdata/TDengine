@@ -238,7 +238,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_vnode_trans_stb_rm_wal(self):
-        """Cluster: Vnode transform stb-wal
+        """Cluster: vnode transform stb-wal
         
         1. Setup super table topic
         2. Transform with WAL removal

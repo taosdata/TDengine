@@ -216,7 +216,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_cons_from_tsdb(self):
-        """Consume: Snapshot basic
+        """Consume: snapshot basic
         
         1. Insert historical data to TSDB
         2. Flush data to disk

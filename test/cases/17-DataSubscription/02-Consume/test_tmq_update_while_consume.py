@@ -148,7 +148,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_update_with_consume(self):
-        """Operation: Update while consume
+        """Operation: update while consume
         
         1. Start consumption process
         2. Concurrently execute UPDATE operations

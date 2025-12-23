@@ -7,7 +7,7 @@ class TestCase:
         tdLog.debug(f"start to excute {__file__}")
 
     def test_tmq_replay(self):
-        """Advanced: Replay operations
+        """Advanced: replay operations
         
         1. Run replay_test executable to test TMQ replay functionality
         2. Verify no errors occur during execution

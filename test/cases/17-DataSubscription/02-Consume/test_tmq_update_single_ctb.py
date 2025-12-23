@@ -235,7 +235,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_update(self):
-        """Operation: Update single ctb
+        """Operation: update single ctb
         
         1. Create child table with initial data
         2. Create topic subscription

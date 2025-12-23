@@ -216,7 +216,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 4 end ...... ")
 
     def test_tmq_cons_from_tsdb1_1ctb(self):
-        """Consume: Single ctb filter
+        """Consume: single ctb filter
         
         1. Create child table with data
         2. Apply column and WHERE filters

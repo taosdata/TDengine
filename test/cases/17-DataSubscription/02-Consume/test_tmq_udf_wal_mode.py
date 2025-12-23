@@ -307,7 +307,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_udf_multiCtb_snapshot0(self):
-        """Advanced: UDF WAL mode
+        """Advanced: udf wal mode
         
         1. Setup UDF in topic
         2. Configure WAL mode

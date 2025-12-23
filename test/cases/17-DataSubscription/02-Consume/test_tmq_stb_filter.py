@@ -265,7 +265,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_stbFilter(self):
-        """Filter: Column filter
+        """Filter: column filter
         
         1. Create super table with multiple columns
         2. Create topic selecting specific columns

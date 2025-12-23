@@ -222,7 +222,7 @@ class TestCase:
 
 
     def test_tmq_autoCreate_tbl(self):
-        """Advanced: Auto create table
+        """Advanced: auto create table
         
         1. Configure auto-create-table parameter
         2. Subscribe with auto-create enabled

@@ -230,7 +230,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_datafromtsdb_multictb(self):
-        """Consume: TSDB WAL multi
+        """Consume: tsdb wal multi
         
         1. Create multiple child tables
         2. Write historical data to TSDB

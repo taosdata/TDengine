@@ -270,7 +270,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 4 subscrib Dbname end ...... ")
 
     def test_tmq_vnode_trans_db(self):
-        """Cluster: Vnode transform db
+        """Cluster: vnode transform db
         
         1. Create database topic
         2. Start consumption

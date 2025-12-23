@@ -872,7 +872,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 6 end ...... ")
 
     def test_schema(self):
-        """Advanced: Schema changes
+        """Advanced: schema changes
         
         1. Create tables and start consumption
         2. Add column during consumption

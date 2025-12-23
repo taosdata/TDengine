@@ -702,7 +702,7 @@ class TestCase:
         tdSql.execute(f'drop database d1')
 
     def test_tmq_taosx(self):
-        """Advanced: Taosx sync
+        """Advanced: taosx sync
         
         1. Configure taosx synchronization
         2. Setup source and target clusters

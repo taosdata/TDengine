@@ -234,7 +234,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_alterschema(self):
-        """Advanced: Alter schema
+        """Advanced: alter schema
         
         1. Create topic and subscribe
         2. Start consumption

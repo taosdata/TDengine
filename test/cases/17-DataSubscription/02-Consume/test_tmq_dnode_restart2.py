@@ -226,7 +226,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_dnode_restart1(self):
-        """Cluster: Dnode restart variant
+        """Cluster: dnode restart variant
         
         1. Setup multi-dnode cluster
         2. Start TMQ consumption

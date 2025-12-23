@@ -187,7 +187,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_vnode_split_column_false(self):
-        """Cluster: Vnode split no-remove
+        """Cluster: vnode split no-remove
         
         1. Setup vnode split test
         2. Configure no WAL removal

@@ -237,7 +237,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_cons_discontinuous_data(self):
-        """Consume: Discontinuous data
+        """Consume: discontinuous data
         
         1. Insert data with discontinuous timestamps
         2. Create topic subscription

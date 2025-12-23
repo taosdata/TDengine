@@ -240,7 +240,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_update_multiCtb_snapshot0(self):
-        """Operation: Update WAL mode
+        """Operation: update wal mode
         
         1. Configure WAL mode (snapshot=0)
         2. Create subscription

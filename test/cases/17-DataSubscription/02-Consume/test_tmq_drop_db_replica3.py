@@ -143,7 +143,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_dropdb(self):
-        """Cluster: Drop db replica3
+        """Cluster: drop db replica3
         
         1. Setup 3-replica cluster
         2. Create database with replication

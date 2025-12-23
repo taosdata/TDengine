@@ -187,7 +187,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_vnode_split_column(self):
-        """Cluster: Vnode split column
+        """Cluster: vnode split column
         
         1. Create column-based subscription
         2. Start consumption

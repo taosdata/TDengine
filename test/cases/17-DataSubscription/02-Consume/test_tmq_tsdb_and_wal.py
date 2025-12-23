@@ -230,7 +230,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_datafromtsdb(self):
-        """Consume: TSDB and WAL
+        """Consume: tsdb and wal
         
         1. Insert historical data (flush to TSDB)
         2. Insert new data (remain in WAL)

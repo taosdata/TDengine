@@ -480,7 +480,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 4 end ...... ")
         
     def test_tmq_delete_1ctb(self):
-        """Operation: Delete single ctb
+        """Operation: delete single ctb
         
         1. Create child table with data
         2. Create topic subscription

@@ -307,7 +307,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_udf(self):
-        """Advanced: UDF functions
+        """Advanced: udf functions
         
         1. Create UDF functions
         2. Create topic with UDF in SELECT

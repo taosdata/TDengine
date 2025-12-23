@@ -217,7 +217,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_cons_from_tsdb_multiVg_multiCtb(self):
-        """Consume: Multi child tables
+        """Consume: multi child tables
         
         1. Create super table with multiple child tables
         2. Insert data to all child tables

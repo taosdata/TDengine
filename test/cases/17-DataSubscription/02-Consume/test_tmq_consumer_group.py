@@ -206,7 +206,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_cons_group(self):
-        """Consume: Group
+        """Consume: group
         
         1. Create consumer group
         2. Add multiple consumers to group

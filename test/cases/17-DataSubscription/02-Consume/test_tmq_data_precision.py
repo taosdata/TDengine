@@ -63,7 +63,7 @@ class TestCase:
         pThread.join()
 
     def test_tmq_data_precision_unit(self):
-        """Advanced: Data precision
+        """Advanced: data precision
         
         1. Test millisecond precision
         2. Test microsecond precision

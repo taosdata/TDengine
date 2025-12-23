@@ -243,7 +243,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_cons_from_tsdb_1ctb(self):
-        """Consume: Single child table
+        """Consume: single child table
         
         1. Create single child table
         2. Insert data and flush to TSDB

@@ -187,7 +187,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_vnode_split_stb_sel_dup_false(self):
-        """Cluster: Vnode split dup-nowal
+        """Cluster: vnode split dup-nowal
         
         1. Setup duplicate data scenario
         2. Configure WAL retention

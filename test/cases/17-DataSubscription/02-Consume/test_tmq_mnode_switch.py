@@ -229,7 +229,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq3mnodesSwitch(self):
-        """Cluster: Mnode switch
+        """Cluster: mnode switch
         
         1. Setup 3-mnode cluster
         2. Start consumption

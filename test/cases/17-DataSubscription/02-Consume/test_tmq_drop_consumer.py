@@ -274,7 +274,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_drop_consumer(self):
-        """Operation: Drop consumer
+        """Operation: drop consumer
         
         1. Create consumer and subscribe
         2. Start consumption

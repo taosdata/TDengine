@@ -248,7 +248,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_drop_stb_ctb(self):
-        """Operation: Drop super table
+        """Operation: drop super table
         
         1. Create super table with child tables
         2. Start consumption

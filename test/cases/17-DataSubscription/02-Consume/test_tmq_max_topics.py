@@ -327,7 +327,7 @@ class TestCase:
     tdLog.printNoPrefix("======== test case 2 end ...... ")
     
     def test_tmq_max_topic(self):
-        """Basic: Max topics limit
+        """Basic: max topics limit
         
         1. Create database with super table
         2. Create 20 topics (maximum allowed)

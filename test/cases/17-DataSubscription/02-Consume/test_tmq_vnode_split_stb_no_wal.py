@@ -186,7 +186,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_vnode_split_stb_false(self):
-        """Cluster: Vnode split stb-nowal
+        """Cluster: vnode split stb no-wal
         
         1. Setup super table topic
         2. Configure WAL retention

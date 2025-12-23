@@ -240,7 +240,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_stbTagFilter_1ctb(self):
-        """Filter: Tag filter
+        """Filter: tag filter
         
         1. Create super table with tag columns
         2. Create child tables with different tags

@@ -283,7 +283,7 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_subscribe_stb(self):
-        """Cluster: Subscribe replica3
+        """Cluster: subscribe replica3
         
         1. Create 3-replica super table
         2. Insert data to all replicas
