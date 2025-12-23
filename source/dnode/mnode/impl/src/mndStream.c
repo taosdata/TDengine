@@ -1102,6 +1102,8 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
     return code;
   }
 
+  mndReleaseUser(pMnode, pOperUser); // release user after privilege check
+
   if (atomic_load_8(&pStream->userDropped)) {
     code = TSDB_CODE_MND_STREAM_DROPPING;
     mstsError("user %s failed to recalc stream %s since %s", pReq->info.conn.user, recalcReq.name, tstrerror(code));
