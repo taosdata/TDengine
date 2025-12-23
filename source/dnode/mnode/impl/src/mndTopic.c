@@ -808,7 +808,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
       mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pTopic->db, NULL, NULL));
   const char *owner = pTopic->owner[0] != 0 ? pTopic->owner : pTopic->createUser;
   MND_TMQ_RETURN_CHECK(
-      mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_DROP, PRIV_OBJ_TOPIC, owner, pTopic->db, name.tname));
+      mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TOPIC, owner, pTopic->db, name.tname));
   MND_TMQ_RETURN_CHECK(mndCheckConsumerByTopic(pMnode, pTrans, dropReq.name, dropReq.force));
   MND_TMQ_RETURN_CHECK(mndDropSubByTopic(pMnode, pTrans, dropReq.name, dropReq.force));
   MND_TMQ_RETURN_CHECK(mndDropTopic(pMnode, pTrans, pReq, pTopic));
@@ -1026,12 +1026,9 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
   MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser));
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
-  SPrivInfo *privInfo = privInfoGet(PRIV_TOPIC_SHOW);
-  if (!privInfo) {
-    MND_TMQ_RETURN_CHECK(terrno);
-  }
+  int32_t objLevel = privObjGetLevel(PRIV_OBJ_TOPIC);
   showAll = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TOPIC, NULL, objFName,
-                                          privInfo->objLevel == 0 ? NULL : "*"));  // 1.*.*
+                                          objLevel == 0 ? NULL : "*"));  // 1.*.*
 
   PRINT_LOG_START
 
@@ -1041,8 +1038,8 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     if (!showAll) {
       char *owner = pTopic->owner[0] != 0 ? pTopic->owner : pTopic->createUser;
-      if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_SHOW, PRIV_OBJ_TOPIC, owner, pTopic->db,
-                                   privInfo->objLevel == 0 ? NULL : pTopic->name)) {  // 1.db1.topic1
+      if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TOPIC, owner, pTopic->db,
+                                   objLevel == 0 ? NULL : pTopic->name)) {  // 1.db1.topic1
         sdbRelease(pSdb, pTopic);
         continue;
       }

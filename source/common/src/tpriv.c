@@ -216,9 +216,9 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, "DROP STREAM"},
     {PRIV_CM_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, SYS_ADMIN_INFO_ROLES, "SHOW STREAMS"},
     {PRIV_CM_SHOW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, SYS_ADMIN_INFO_ROLES, "SHOW CREATE STREAM"},
-    {PRIV_STREAM_START, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, "START STREAM"},
-    {PRIV_STREAM_STOP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, "STOP STREAM"},
-    {PRIV_STREAM_RECALC, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, "RECALC STREAM"},
+    {PRIV_CM_START, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, "START STREAM"},
+    {PRIV_CM_STOP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, "STOP STREAM"},
+    {PRIV_CM_RECALC, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, "RECALC STREAM"},
 };
 
 static SPrivInfo* privLookup[MAX_PRIV_TYPE + 1] = {0};
@@ -584,7 +584,7 @@ _retry:
 }
 
 SPrivTblPolicy* privGetConstraintTblPrivileges(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
-                                             SPrivInfo* privInfo) {
+                                               SPrivInfo* privInfo) {
 #if 0  // debug info, remove when release
   SPrivObjPolicies* pp = NULL;
   while ((pp = taosHashIterate(privs, pp))) {

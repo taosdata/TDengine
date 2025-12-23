@@ -3231,7 +3231,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   char objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
   bool showAnyDb =
-      (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_SHOW_DATABASES, PRIV_OBJ_DB, NULL, objFName, NULL));
+      (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_DB, NULL, objFName, NULL));
 
   // Append the information_schema database into the result.
   if (!pShow->sysDbRsp) {

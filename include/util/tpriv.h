@@ -56,44 +56,37 @@ typedef enum {
   PRIV_CM_KILL = 10,        // KILL PRIVILEGE
   PRIV_CM_MAX = 29,         // MAX COMMON PRIVILEGE
   // ==================== DB Privileges(5~49) ====================
-  PRIV_DB_CREATE = 30,     // CREATE DATABASE
-  PRIV_DB_ALTER,           // ALTER DATABASE
-  PRIV_DB_DROP,            // DROP DATABASE
-  PRIV_DB_DROP_OWNED,      // DROP OWNED DATABASE
-  PRIV_DB_USE,             // USE DATABASE
-  PRIV_DB_FLUSH,           // FLUSH DATABASE
-  PRIV_DB_COMPACT,         // COMPACT DATABASE
-  PRIV_DB_TRIM,            // TRIM DATABASE
-  PRIV_DB_ROLLUP,          // ROLLUP DATABASE
-  PRIV_DB_SCAN,            // SCAN DATABASE
-  PRIV_DB_SSMIGRATE = 40,  // SSMIGRATE DATABASE
+  PRIV_DB_CREATE = 30,  // CREATE DATABASE
+  PRIV_DB_DROP_OWNED,   // DROP OWNED DATABASE
+  PRIV_DB_USE,          // USE DATABASE
+  PRIV_DB_FLUSH,        // FLUSH DATABASE
+  PRIV_DB_COMPACT,      // COMPACT DATABASE
+  PRIV_DB_TRIM,         // TRIM DATABASE
+  PRIV_DB_ROLLUP,       // ROLLUP DATABASE
+  PRIV_DB_SCAN,         // SCAN DATABASE
+  PRIV_DB_SSMIGRATE,    // SSMIGRATE DATABASE
 
   // VGroup Operations
   PRIV_VG_BALANCE = 50,    // BALANCE VGROUP
   PRIV_VG_BALANCE_LEADER,  // BALANCE VGROUP LEADER
   PRIV_VG_MERGE,           // MERGE VGROUP
   PRIV_VG_REDISTRIBUTE,    // REDISTRIBUTE VGROUP
-  PRIV_VG_SPLIT = 54,      // SPLIT VGROUP
+  PRIV_VG_SPLIT,           // SPLIT VGROUP
 
   // DB Show Operations
-  PRIV_SHOW_DATABASES = 60,   // SHOW DATABASES
-  PRIV_SHOW_VNODES,           // SHOW VNODES
-  PRIV_SHOW_VGROUPS,          // SHOW VGROUPS
-  PRIV_SHOW_COMPACTS,         // SHOW COMPACTS
-  PRIV_SHOW_RETENTIONS,       // SHOW RETENTIONS
-  PRIV_SHOW_SCANS,            // SHOW SCANS
-  PRIV_SHOW_SSMIGRATES = 66,  // SHOW SSMIGRATES
+  PRIV_SHOW_VNODES = 60,  // SHOW VNODES
+  PRIV_SHOW_VGROUPS,      // SHOW VGROUPS
+  PRIV_SHOW_COMPACTS,     // SHOW COMPACTS
+  PRIV_SHOW_RETENTIONS,   // SHOW RETENTIONS
+  PRIV_SHOW_SCANS,        // SHOW SCANS
+  PRIV_SHOW_SSMIGRATES,   // SHOW SSMIGRATES
 
   // ==================== Table Privileges(50-69)  ================
   PRIV_TBL_CREATE = 70,  // CREATE TABLE
-  // PRIV_TBL_DROP = 71,         // DROP TABLE
-  // PRIV_TBL_ALTER = 72,        // ALTER TABLE
-  // PRIV_TBL_SHOW = 73,         // SHOW TABLES
-  // PRIV_TBL_SHOW_CREATE = 74,  // SHOW CREATE TABLE
-  PRIV_TBL_SELECT = 75,  // SELECT TABLE
-  PRIV_TBL_INSERT = 76,  // INSERT TABLE
-  PRIV_TBL_UPDATE = 77,  // UPDATE TABLE(reserved)
-  PRIV_TBL_DELETE = 78,  // DELETE TABLE
+  PRIV_TBL_SELECT = 71,  // SELECT TABLE
+  PRIV_TBL_INSERT = 72,  // INSERT TABLE
+  PRIV_TBL_UPDATE = 73,  // UPDATE TABLE(reserved)
+  PRIV_TBL_DELETE = 74,  // DELETE TABLE
 
   // ==================== Other Privileges ================
   // function management
@@ -108,20 +101,11 @@ typedef enum {
 
   // view management
   PRIV_VIEW_CREATE = 88,  // CREATE VIEW
-  PRIV_VIEW_DROP,         // DROP VIEW
-  PRIV_VIEW_SHOW,         // SHOW VIEWS
-  PRIV_VIEW_SHOW_CREATE,  // SHOW CREATE VIEW
   PRIV_VIEW_SELECT,       // SELECT VIEW
 
   // SMA management
   PRIV_RSMA_CREATE = 95,  // CREATE RSMA
-  PRIV_RSMA_DROP,         // DROP RSMA
-  PRIV_RSMA_ALTER,        // ALTER RSMA
-  PRIV_RSMA_SHOW,         // SHOW RSMAS
-  PRIV_RSMA_SHOW_CREATE,  // SHOW CREATE RSMA
   PRIV_TSMA_CREATE,       // CREATE TSMA
-  PRIV_TSMA_DROP,         // DROP TSMA
-  PRIV_TSMA_SHOW,         // SHOW TSMAS
 
   // mount management
   PRIV_MOUNT_CREATE = 100,  // CREATE MOUNT
@@ -195,19 +179,12 @@ typedef enum {
 
   // topic management
   PRIV_TOPIC_CREATE = 210,  // CREATE TOPIC
-  PRIV_TOPIC_DROP,          // DROP TOPIC
-  PRIV_TOPIC_SHOW,          // SHOW TOPICS
   PRIV_TOPIC_SUBSCRIBE,     // SUBSCRIBE TOPICS
   PRIV_CONSUMER_SHOW,       // SHOW CONSUMERS
   PRIV_SUBSCRIPTION_SHOW,   // SHOW SUBSCRIPTIONS
 
   // stream management
   PRIV_STREAM_CREATE = 220,  // CREATE STREAM
-  PRIV_STREAM_DROP,          // DROP STREAM
-  PRIV_STREAM_SHOW,          // SHOW STREAMS
-  PRIV_STREAM_START,         // START STREAM
-  PRIV_STREAM_STOP,          // STOP STREAM
-  PRIV_STREAM_RECALC,        // RECALC STREAM
 
   // system operation management
   PRIV_TRANS_SHOW = 230,  // SHOW TRANS
@@ -249,7 +226,7 @@ typedef struct {
 typedef struct {
   SPrivSet privSet;
   int32_t  nPrivArgs;
-  int16_t  objType;    // EPrivObjType
+  int16_t  objType;     // EPrivObjType
   void*    selectCols;  // SNodeList*
   void*    insertCols;  // SNodeList*
   void*    updateCols;  // SNodeList*
@@ -396,7 +373,8 @@ int32_t privTblPoliciesMerge(SPrivTblPolicies* dest, SPrivTblPolicies* src, bool
 
 int32_t privObjKeyF(SPrivInfo* pPrivInfo, const char* fname, const char* tb, char* buf, int32_t bufLen);
 int32_t privObjKey(SPrivInfo* pPrivInfo, int32_t acctId, const char* name, const char* tb, char* buf, int32_t bufLen);
-int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen, bool fullDb);
+int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen,
+                        bool fullDb);
 int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen);
 
 const char*     privObjGetName(EPrivObjType objType);

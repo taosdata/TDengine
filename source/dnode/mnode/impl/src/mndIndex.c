@@ -590,13 +590,10 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), &lino, _OVER);
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
-  SPrivInfo *privInfo = privInfoGet(PRIV_IDX_SHOW);
-  if (!privInfo) {
-    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-  }
+  int32_t objLevel = privObjGetLevel(PRIV_OBJ_IDX);
   showAll =
       (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, PRIV_OBJ_IDX, NULL, pDb ? pDb->name : objFName,
-                                     privInfo->objLevel == 0 ? NULL : "*"));  // 1.*.*
+                                     objLevel == 0 ? NULL : "*"));  // 1.*.*
 
   SSmaAndTagIter *pIter = pShow->pIter;
   while (numOfRows < rows) {
@@ -618,7 +615,7 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
       }
       char *owner = pIdx->owner[0] != 0 ? pIdx->owner : pIdx->createUser;
       if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_IDX_SHOW, PRIV_OBJ_IDX, owner, pIdx->db,
-                                   privInfo->objLevel == 0 ? NULL : idxName.tname)) {  // 1.db1.idx1
+                                   objLevel == 0 ? NULL : idxName.tname)) {  // 1.db1.idx1
         sdbRelease(pSdb, pIdx);
         continue;
       }
@@ -946,9 +943,8 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
   // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
   const char *owner = pIdx->owner[0] != 0 ? pIdx->owner : pIdx->createUser;
-  TAOS_CHECK_GOTO(
-      mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_RSMA_DROP, PRIV_OBJ_RSMA, owner, pIdx->db, pIdx->name), NULL,
-      _OVER);
+  TAOS_CHECK_GOTO(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_IDX, owner, pIdx->db, pIdx->name),
+                  NULL, _OVER);
 
   code = mndDropIdx(pMnode, pReq, pDb, pIdx);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;

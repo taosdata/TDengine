@@ -465,6 +465,13 @@ priv_type(A) ::= TRIM DATABASE.                                                 
 priv_type(A) ::= ROLLUP DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_ROLLUP); }
 priv_type(A) ::= SCAN DATABASE.                                                   { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
 priv_type(A) ::= SSMIGRATE DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
+priv_type(A) ::= USE.                                                             { A = PRIV_SET_TYPE(PRIV_DB_USE); }
+priv_type(A) ::= FLUSH.                                                           { A = PRIV_SET_TYPE(PRIV_DB_FLUSH); }
+priv_type(A) ::= COMPACT.                                                         { A = PRIV_SET_TYPE(PRIV_DB_COMPACT); }
+priv_type(A) ::= TRIM.                                                            { A = PRIV_SET_TYPE(PRIV_DB_TRIM); }
+priv_type(A) ::= ROLLUP.                                                          { A = PRIV_SET_TYPE(PRIV_DB_ROLLUP); }
+priv_type(A) ::= SCAN.                                                            { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
+priv_type(A) ::= SSMIGRATE.                                                       { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
 
 priv_type(A) ::= SHOW VNODES.                                                     { A = PRIV_SET_TYPE(PRIV_SHOW_VNODES); }
 priv_type(A) ::= SHOW VGROUPS.                                                    { A = PRIV_SET_TYPE(PRIV_SHOW_VGROUPS); }

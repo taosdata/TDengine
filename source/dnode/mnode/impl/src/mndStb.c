@@ -3354,11 +3354,6 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   }
 
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
-  SPrivInfo *privInfo = privInfoGet(PRIV_RSMA_SHOW);
-  if (!privInfo) {
-    code = terrno;
-    goto _ERROR;
-  }
   showAll = (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TBL, "",
                                            pDb ? pDb->name : objFName, "*"));
 

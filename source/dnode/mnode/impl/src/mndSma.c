@@ -1396,7 +1396,7 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg *pReq) {
   // }
   if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser)) != 0) goto _OVER;
   const char *owner = pSma->owner[0] != 0 ? pSma->owner : pSma->createUser;
-  if ((code = mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_TSMA_DROP, PRIV_OBJ_TSMA, owner, pSma->db, pSma->name))) {
+  if ((code = mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_DROP, PRIV_OBJ_TSMA, owner, pSma->db, pSma->name))) {
     goto _OVER;
   }
 
@@ -1456,16 +1456,13 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   }
 
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
-  SPrivInfo *privInfo = privInfoGet(PRIV_TSMA_SHOW);
-  if (!privInfo) {
-    TAOS_CHECK_EXIT(terrno);
-  }
+  int32_t objLevel = privObjGetLevel(PRIV_OBJ_TSMA);
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
   showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, NULL, objFName,
-                                          privInfo->objLevel == 0 ? NULL : "*"));
+                                          objLevel == 0 ? NULL : "*"));
   if (!showAll && pShow->db[0] != 0) {
     showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, pUser->name, pShow->db,
-                                            privInfo->objLevel == 0 ? NULL : "*"));
+                                            objLevel == 0 ? NULL : "*"));
   }
 
   SSmaAndTagIter *pIter = pShow->pIter;
@@ -1494,8 +1491,8 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     if (!showAll) {
       (void)snprintf(objFName, sizeof(objFName), "%s", pSma->db);
       char *owner = pSma->owner[0] != 0 ? pSma->owner : pSma->createUser;
-      if (mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_TSMA_SHOW, PRIV_OBJ_TSMA, owner, objFName,
-                                   privInfo->objLevel == 0 ? NULL : n.tname)) {  // 1.db1.tsma1
+      if (mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, owner, objFName,
+                                   objLevel == 0 ? NULL : n.tname)) {  // 1.db1.tsma1
         sdbRelease(pSdb, pSma);
         if (pSrcDb) mndReleaseDb(pMnode, pSrcDb);
         continue;

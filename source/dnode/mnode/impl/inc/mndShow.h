@@ -60,14 +60,10 @@ extern "C" {
   do {                                                                                           \
     code = mndAcquireUser(pMnode, (user), &pUser);                                               \
     if (pUser == NULL) goto LABEL;                                                               \
-    SPrivInfo *privInfo = privInfoGet(privType);                                                 \
-    if (!privInfo) {                                                                             \
-      code = terrno;                                                                             \
-      goto LABEL;                                                                                \
-    }                                                                                            \
+    int32_t objLevel = privObjGetLevel(objType);                                                 \
     (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);                           \
     showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, privType, objType, (owner), objFName, \
-                                            privInfo->objLevel == 0 ? NULL : "*"));              \
+                                            objLevel == 0 ? NULL : "*"));                        \
   } while (0)
 
 // N.B. don't add do {}while(0) for MND_SHOW_CHECK_DB_PRIVILEGE since it contains continue statement

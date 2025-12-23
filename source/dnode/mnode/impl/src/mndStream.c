@@ -457,11 +457,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   bool        showAll = false;
 
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser));
-  SPrivInfo *privInfo = privInfoGet(PRIV_STREAM_SHOW);
-  if (!privInfo) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-  showAll = (0 == mndCheckObjPrivilegeRec(pMnode, pOperUser, PRIV_STREAM_SHOW, PRIV_OBJ_STREAM, NULL, pOperUser->acctId,
+  showAll = (0 == mndCheckObjPrivilegeRec(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_STREAM, NULL, pOperUser->acctId,
                                           "*", "*"));
 
   while (numOfRows < rows) {
@@ -469,7 +465,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     if (pShow->pIter == NULL) break;
 
     if (!showAll) {
-      if ((mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_STREAM_SHOW, PRIV_OBJ_STREAM,
+      if ((mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_STREAM,
                                     pStream->owner[0] != 0 ? pStream->owner : pStream->createUser,
                                     pStream->pCreate->streamDB, pStream->pCreate->name))) {
         sdbRelease(pSdb, pStream);
@@ -650,7 +646,7 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
 
   if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
                                             NULL, NULL)) ||
-      (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_STREAM_STOP, PRIV_OBJ_STREAM,
+      (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_STOP, PRIV_OBJ_STREAM,
                                        pStream->owner[0] != 0 ? pStream->owner : pStream->createUser,
                                        pStream->pCreate->streamDB, pStream->pCreate->name))) {
     mstsError("user %s failed to stop stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
@@ -751,7 +747,7 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
 
   if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
                                             NULL, NULL)) ||
-      (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_STREAM_START, PRIV_OBJ_STREAM,
+      (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_START, PRIV_OBJ_STREAM,
                                        pStream->owner[0] != 0 ? pStream->owner : pStream->createUser,
                                        pStream->pCreate->streamDB, pStream->pCreate->name))) {
     mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
@@ -852,7 +848,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   // code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
   TAOS_CHECK_EXIT(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
                                                 NULL, NULL));
-  TAOS_CHECK_EXIT(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_STREAM_DROP, PRIV_OBJ_STREAM,
+  TAOS_CHECK_EXIT(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_STREAM,
                                            pStream->owner[0] != 0 ? pStream->owner : pStream->createUser,
                                            pStream->pCreate->streamDB, pStream->pCreate->name));
 
@@ -1099,7 +1095,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
 
   if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
                                             NULL, NULL)) ||
-      (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_STREAM_START, PRIV_OBJ_STREAM,
+      (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_START, PRIV_OBJ_STREAM,
                                        pStream->owner[0] != 0 ? pStream->owner : pStream->createUser,
                                        pStream->pCreate->streamDB, pStream->pCreate->name))) {
     mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
