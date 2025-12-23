@@ -341,6 +341,7 @@ typedef enum ENodeType {
   QUERY_NODE_DATE_TIME_RANGE,
   QUERY_NODE_IP_RANGE,
   QUERY_NODE_USER_OPTIONS,
+  QUERY_NODE_REMOTE_VALUE,
   QUERY_NODE_TOKEN_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
@@ -2289,6 +2290,20 @@ int32_t tSerializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 int32_t tDeserializeSQnodeListRsp(void* buf, int32_t bufLen, SQnodeListRsp* pRsp);
 void    tFreeSQnodeListRsp(SQnodeListRsp* pRsp);
 
+
+typedef struct SDownstreamSourceNode {
+  ENodeType      type;
+  SQueryNodeAddr addr;
+  uint64_t       clientId;
+  uint64_t       taskId;
+  uint64_t       sId;
+  int32_t        execId;
+  int32_t        fetchMsgType;
+  bool           localExec;
+} SDownstreamSourceNode;
+
+
+
 typedef struct SDNodeAddr {
   int32_t nodeId;  // dnodeId
   SEpSet  epSet;
@@ -3612,6 +3627,7 @@ typedef struct SSubQueryMsg {
   char*    sql;
   uint32_t msgLen;
   char*    msg;
+  SArray*  subEndPoints;  // subJobs's endpoints, element is SDownstreamSourceNode*
 } SSubQueryMsg;
 
 int32_t tSerializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
@@ -3662,8 +3678,9 @@ typedef struct SColIdNameKV {
 } SColIdNameKV;
 
 typedef struct SColIdPair {
-  col_id_t vtbColId;
-  col_id_t orgColId;
+  col_id_t  vtbColId;
+  col_id_t  orgColId;
+  SDataType type;
 } SColIdPair;
 
 typedef struct SColIdSlotIdPair {
@@ -3677,12 +3694,24 @@ typedef struct SOrgTbInfo {
   SArray* colMap;  // SArray<SColIdNameKV>
 } SOrgTbInfo;
 
+void destroySOrgTbInfo(void *info);
+
+typedef enum {
+  DYN_TYPE_STB_JOIN = 1,
+  DYN_TYPE_VSTB_SINGLE_SCAN,
+  DYN_TYPE_VSTB_BATCH_SCAN,
+} ETableScanDynType;
+
 typedef struct STableScanOperatorParam {
-  bool        tableSeq;
-  bool        isNewParam;
-  SArray*     pUidList;
-  SOrgTbInfo* pOrgTbInfo;
-  STimeWindow window;
+  bool              tableSeq;
+  bool              isNewParam;
+  uint64_t          groupid;
+  SArray*           pUidList;
+  SOrgTbInfo*       pOrgTbInfo;
+  SArray*           pBatchTbInfo;  // SArray<SOrgTbInfo>
+  SArray*           pTagList;
+  STimeWindow       window;
+  ETableScanDynType type;
 } STableScanOperatorParam;
 
 typedef struct STagScanOperatorParam {
@@ -3699,6 +3728,10 @@ typedef struct SVTableScanOperatorParam {
 typedef struct SMergeOperatorParam {
   int32_t         winNum;
 } SMergeOperatorParam;
+
+typedef struct SAggOperatorParam {
+  bool            needCleanRes;
+} SAggOperatorParam;
 
 typedef struct SExternalWindowOperatorParam {
   SArray*         ExtWins;  // SArray<SExtWinTimeWindow>
@@ -3738,6 +3771,7 @@ typedef struct {
   uint64_t clientId;
   uint64_t taskId;
   int64_t  refId;
+  int32_t  subJobId;
   int32_t  execId;
   int8_t   status;
 } STaskStatus;
@@ -5257,7 +5291,7 @@ typedef struct {
   STqOffsetVal reqOffset;
   int32_t      blockNum;
   int8_t       withTbName;
-  // int8_t       withSchema;
+  int8_t       withSchema;
   SArray*      blockDataLen;
   SArray*      blockData;
   SArray*      blockTbName;
@@ -5306,8 +5340,7 @@ int32_t tSemiDecodeMqBatchMetaRsp(SDecoder* pDecoder, SMqBatchMetaRsp* pRsp);
 void    tDeleteMqBatchMetaRsp(SMqBatchMetaRsp* pRsp);
 
 typedef struct {
-  SMqRspHead head;
-  char       cgroup[TSDB_CGROUP_LEN];
+  int32_t    code;
   SArray*    topics;  // SArray<SMqSubTopicEp>
 } SMqAskEpRsp;
 
@@ -5320,6 +5353,8 @@ static FORCE_INLINE int32_t tEncodeSMqAskEpRsp(void** buf, const SMqAskEpRsp* pR
     SMqSubTopicEp* pVgEp = (SMqSubTopicEp*)taosArrayGet(pRsp->topics, i);
     tlen += tEncodeMqSubTopicEp(buf, pVgEp);
   }
+  tlen += taosEncodeFixedI32(buf, pRsp->code);
+
   return tlen;
 }
 
@@ -5341,6 +5376,8 @@ static FORCE_INLINE void* tDecodeSMqAskEpRsp(void* buf, SMqAskEpRsp* pRsp) {
       return NULL;
     }
   }
+  buf = taosDecodeFixedI32(buf, &pRsp->code);
+
   return buf;
 }
 

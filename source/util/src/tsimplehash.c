@@ -309,7 +309,7 @@ int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key, size_t keyLen) {
   SHNode *pNode = pHashObj->hashList[slot];
   SHNode *pPrev = NULL;
   while (pNode) {
-    if ((*(pHashObj->equalFp))(GET_SHASH_NODE_KEY(pNode, pNode->dataLen), key, keyLen) == 0) {
+    if ((keyLen == pNode->keyLen) && (*(pHashObj->equalFp))(GET_SHASH_NODE_KEY(pNode, pNode->dataLen), key, keyLen) == 0) {
       if (!pPrev) {
         pHashObj->hashList[slot] = pNode->next;
       } else {

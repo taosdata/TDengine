@@ -35,7 +35,7 @@ extern "C" {
 #include "trpc.h"
 
 #include "tconfig.h"
-#include "clientSession.h"
+// #include "clientSession.h"
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
@@ -170,6 +170,11 @@ typedef struct {
   SIpRange      userDualIp;  // user ip range
 }SOptionInfo;
 
+typedef struct {
+  int64_t startTime;
+  int64_t lastAccessTime;
+} SConnAccessInfo;
+
 typedef struct STscObj {
   char           user[TSDB_USER_LEN];
   char           tokenName[TSDB_TOKEN_NAME_LEN];
@@ -196,6 +201,7 @@ typedef struct STscObj {
   SWhiteListInfo dateTimeWhiteListInfo;  // date time white list info
   STscNotifyInfo userDroppedInfo;
   SOptionInfo    optionInfo;
+  SConnAccessInfo sessInfo;
 } STscObj;
 
 typedef struct STscDbg {
@@ -458,8 +464,7 @@ void    stopAllQueries(SRequestObj* pRequest);
 void    doRequestCallback(SRequestObj* pRequest, int32_t code);
 void    freeQueryParam(SSyncQueryParam* param);
 
-int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam);
-
+void    updateConnAccessInfo(SConnAccessInfo* pInfo);
 int32_t tzInit();
 void    tzCleanup();
 

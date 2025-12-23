@@ -1624,9 +1624,9 @@ class TestInterval:
         
         sql = "select _wstart, 1 from (select _wstart, _wend, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m)) interval(10m)"
         tdSql.query(sql)
-        tdSql.checkRows(3)
+        tdSql.checkRows(2)
         
         sql = "select 1 from (select _wstart, _wend, tbname, 1, tgcol, count(tbcol) from m_in_mt0 partition by tbname interval(5m)) interval(10m)"
         tdSql.query(sql)
-        tdSql.checkRows(3)
+        tdSql.checkRows(2)
         

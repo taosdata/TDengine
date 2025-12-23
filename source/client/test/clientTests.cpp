@@ -437,6 +437,104 @@ TEST(clientCase, connect_token_Test) {
   taos_close(pConn);
 }
 
+TEST(clientCase, set_option_Test) {
+  taos_set_option(NULL, "ip", "127.0.0.1");
+  ASSERT_EQ(taos_errno(NULL), TSDB_CODE_INVALID_PARA);
+
+  OPTIONS opt1 = {};
+  taos_set_option(&opt1, NULL, "127.0.0.1");
+  ASSERT_EQ(taos_errno(NULL), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(opt1.count, 0);
+
+  OPTIONS opt2 = {};
+  taos_set_option(&opt2, "ip", NULL);
+  ASSERT_EQ(taos_errno(NULL), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(opt2.count, 0);
+
+  OPTIONS opt3 = {};
+  size_t cap3 = sizeof(opt3.keys) / sizeof(opt3.keys[0]);
+  opt3.count = (uint16_t)(cap3);
+  taos_set_option(&opt3, "ip", "127.0.0.1");
+  ASSERT_EQ(taos_errno(NULL), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(opt3.count, cap3);
+
+  OPTIONS opt4 = {};
+  taos_set_option(&opt4, "ip", "127.0.0.1");
+  ASSERT_EQ(opt4.count, 1);
+  ASSERT_EQ(opt4.keys[0], "ip");
+  ASSERT_EQ(opt4.values[0], "127.0.0.1");
+
+  OPTIONS opt5 = {};
+  size_t cap5 = sizeof(opt5.keys) / sizeof(opt5.keys[0]);
+  opt5.count = (uint16_t)(cap5 - 1);
+  taos_set_option(&opt5, "ip", "127.0.0.1");
+  ASSERT_EQ(opt5.count, cap5);
+  ASSERT_EQ(opt5.keys[cap5 - 1], "ip");
+  ASSERT_EQ(opt5.values[cap5 - 1], "127.0.0.1");
+}
+
+TEST(clientCase, connect_with_Test) {
+  TAOS* pConn1 = taos_connect_with(NULL);
+  ASSERT_NE(pConn1, nullptr);
+
+  TAOS_RES* pRes1 = taos_query(pConn1, "create database if not exists test_taos_connect_with");
+  ASSERT_EQ(taos_errno(pRes1), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes1);
+
+  OPTIONS opt2 = {};
+  taos_set_option(&opt2, "ip", "127.0.0.1");
+  taos_set_option(&opt2, "user", "root");
+  taos_set_option(&opt2, "pass", "taosdata");
+  taos_set_option(&opt2, "db", "test_taos_connect_with");
+  taos_set_option(&opt2, "port", "6030");
+  taos_set_option(&opt2, "charset", "UTF-8");
+  taos_set_option(&opt2, "timezone", "UTC");
+  taos_set_option(&opt2, "userIp", "127.0.0.1");
+  taos_set_option(&opt2, "userApp", "unittest");
+  taos_set_option(&opt2, "connectorInfo", "gtest");
+  taos_set_option(&opt2, "unknownKey", "value");
+  TAOS* pConn2 = taos_connect_with(&opt2);
+  ASSERT_NE(pConn2, nullptr);
+  taos_close(pConn2);
+
+  TAOS_RES* pRes2 = taos_query(pConn1, "drop database if exists test_taos_connect_with");
+  ASSERT_EQ(taos_errno(pRes2), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes2);
+
+  taos_close(pConn1);
+
+  OPTIONS opt3 = {};
+  taos_set_option(&opt3, "ip", "invalid_ip");
+  taos_set_option(&opt3, "ip", "127.0.0.1");
+  taos_set_option(&opt3, "port", "abc");
+  TAOS* pConn3 = taos_connect_with(&opt3);
+  ASSERT_NE(pConn3, nullptr);
+  taos_close(pConn3);
+
+  OPTIONS opt4 = {};
+  taos_set_option(&opt4, "ip", "192.168.1.1");
+  taos_set_option(&opt4, "port", "6789");
+  TAOS *pConn4 = taos_connect_with(&opt4);
+  ASSERT_EQ(pConn4, nullptr);
+
+  OPTIONS opt5 = {};
+  taos_set_option(&opt5, "charset", "abc");
+  TAOS *pConn5 = taos_connect_with(&opt5);
+  ASSERT_EQ(pConn5, nullptr);
+  ASSERT_NE(taos_errno(NULL), TSDB_CODE_SUCCESS);
+
+  OPTIONS opt6 = {};
+  opt6.count = 3;
+  opt6.keys[0] = NULL;
+  opt6.values[0] = "127.0.0.1";
+  opt6.keys[1] = "ip";
+  opt6.values[1] = NULL;
+  opt6.keys[2] = NULL;
+  opt6.values[2] = NULL;
+  TAOS* pConn6 = taos_connect_with(&opt6);
+  ASSERT_NE(pConn6, nullptr);
+  taos_close(pConn6);
+}
 
 TEST(clientCase, connect_with_dsn_Test) {
   TAOS* pConn = taos_connect_with_dsn(NULL);

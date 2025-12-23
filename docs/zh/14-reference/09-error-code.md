@@ -565,6 +565,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800026A1 | Option value too short                                                                                 | 选项的值太短                                            | 检查并修正 SQL 语句                    |
 | 0x800026A2 | Option value too big                                                                                   | 选项的值太大                                            | 检查并修正 SQL 语句                    |
 | 0x800026A3 | Option value too small                                                                                 | 选项的值太小                                            | 检查并修正 SQL 语句                    |
+| 0x800026AA | Aggregate functions cannot be used for sorting in non-aggregate queries                                | order by 子句不合法法                                            | 检查并修正 SQL 语句                    |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                                       | 保留现场和日志，github 上报 issue      |
@@ -672,7 +673,8 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80006205 | Virtual table not support in STMT query and STMT insert                    | 不支持在 stmt 写入和查询中使用虚拟表                          | 不在 stmt 写入和查询中使用虚拟表        |
 | 0x80006206 | Virtual table not support in Topic                                         | 不支持在订阅中使用虚拟表                                   | 不在订阅中使用虚拟表                 |
 | 0x80006207 | Virtual super table query not support origin table from different databases | 虚拟超级表不支持子表的数据源来自不同的数据库                         | 确保虚拟超级表的子表的数据源都来自同一个数据库    |
-| 0x80006208 | Virtual table has too many reference tables                                | 虚拟表的列对应的原始表数量过多                                | 确保虚拟表的列对应的原始表数量不超过 1000    |
+| 0x80006208 | Virtual super table query find column type mismatch                        | 虚拟超级表查询时发现虚拟子表的列来源和虚拟子表的列类型不匹配                 | 确保原始表和虚拟子表的列类型匹配           |
+| 0x80006209 | Virtual table has too many reference tables                                | 虚拟表的列对应的原始表数量过多                                | 确保虚拟表的列对应的原始表数量不超过 1000    |
 
 #### TDgpt
 
