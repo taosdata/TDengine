@@ -26,6 +26,13 @@ static inline void dmSendRsp(SRpcMsg *pMsg) {
   }
 }
 
+static char *getUserFromConnInfo(SRpcConnInfo *pConnInfo) {
+  if (pConnInfo == NULL) {
+    return "unknown";
+  }
+  return pConnInfo->isToken ? pConnInfo->identifier : pConnInfo->user;
+}
+
 static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   SEpSet epSet = {0};
   dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &epSet);
@@ -175,7 +182,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  code = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, &pRpc->info.conn.cliAddr);
+  code = dmIsForbiddenIp(pRpc->info.forbiddenIp, getUserFromConnInfo(&pRpc->info.conn), &pRpc->info.conn.cliAddr);
   if (code != 0) {
     goto _OVER;
   }
