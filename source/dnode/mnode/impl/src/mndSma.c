@@ -1220,11 +1220,11 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
   }
 
   // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
-  if ((code = mndCheckObjPrivilegeRec(pMnode, pUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, name.acctId, name.dbname,
+  if ((code = mndCheckObjPrivilegeRec(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, name.acctId, name.dbname,
                                       NULL))) {
     goto _OVER;
   }
-  if ((code = mndCheckObjPrivilegeRec(pMnode, pUser, PRIV_TBL_CREATE, PRIV_OBJ_DB, pDb->ownerId, name.acctId,
+  if ((code = mndCheckObjPrivilegeRec(pMnode, pOperUser, PRIV_TBL_CREATE, PRIV_OBJ_DB, pDb->ownerId, name.acctId,
                                       name.dbname, NULL))) {
     goto _OVER;
   }

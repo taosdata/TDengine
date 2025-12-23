@@ -385,7 +385,6 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   int32_t     code = 0;
   int32_t     lino = 0;
   SMqTopicObj topicObj = {0};
-  SUserObj   *pOperUser = NULL;
 
   PRINT_LOG_START
   mInfo("start to create topic:%s", pCreate->name);
@@ -399,7 +398,6 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   tstrncpy(topicObj.createUser, pOperUser->name, TSDB_USER_LEN);
   topicObj.ownerId = pOperUser->uid;
 
-  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, userName, &pOperUser));
   // MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, &topicObj));
   if (pDb) {
     MND_TMQ_RETURN_CHECK(
@@ -458,7 +456,6 @@ END:
     taosMemoryFreeClear(topicObj.schema.pSchema);
   }
   mndTransDrop(pTrans);
-  mndReleaseUser(pMnode, pOperUser);
   return code;
 }
 

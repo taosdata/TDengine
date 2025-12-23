@@ -609,7 +609,7 @@ static int32_t mndProcessCreateRoleReq(SRpcMsg *pReq) {
   mInfo("role:%s, start to create by %s", createReq.name, pOperUser->user);
 
   // TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_ROLE));
-  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_ROLE_CREATE, 0, NULL, NULL, NULL));
+  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_ROLE_CREATE, 0, 0, NULL, NULL));
 
   if (createReq.name[0] == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_INVALID_FORMAT);
@@ -687,7 +687,7 @@ static int32_t mndProcessDropRoleReq(SRpcMsg *pReq) {
   }
   mInfo("role:%s, start to drop", dropReq.name);
   // TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_ROLE));
-  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_ROLE_CREATE, 0, NULL, NULL, NULL));
+  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_ROLE_CREATE, 0, 0, NULL, NULL));
 
   if (dropReq.name[0] == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_INVALID_FORMAT);

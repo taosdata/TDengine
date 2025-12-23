@@ -150,7 +150,8 @@ typedef struct STableMeta {
 
 typedef struct SViewMeta {
   uint64_t viewId;
-  char*    owner;
+  int64_t  ownerId;
+  char*    createUser;
   char*    querySql;
   int8_t   precision;
   int8_t   type;

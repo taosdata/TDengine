@@ -129,7 +129,6 @@ static int32_t  mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
-static 
 
 static int32_t  mndProcessGetUserIpWhiteListReq(SRpcMsg *pReq);
 static int32_t  mndProcessRetrieveIpWhiteListReq(SRpcMsg *pReq);

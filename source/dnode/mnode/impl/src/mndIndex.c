@@ -46,7 +46,8 @@ static int32_t mndProcessGetTbIdxReq(SRpcMsg *pReq);
 //  static void    mndCancelGetNextIdx(SMnode *pMnode, void *pIter);
 static void mndDestroyIdxObj(SIdxObj *pIdxObj);
 
-static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *req, SDbObj *pDb, SStbObj *pStb);
+static int32_t mndAddIndex(SMnode *pMnode, SRpcMsg *pReq, SCreateTagIndexReq *req, SDbObj *pDb, SStbObj *pStb,
+                           SUserObj *pOp);
 
 int32_t mndInitIdx(SMnode *pMnode) {
   SSdbTable table = {

@@ -459,8 +459,8 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   bool        showAll = false;
 
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser));
-  showAll = (0 == mndCheckObjPrivilegeRec(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_STREAM, NULL, pOperUser->acctId,
-                                          "*", "*"));
+  showAll =
+      (0 == mndCheckObjPrivilegeRec(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_STREAM, 0, pOperUser->acctId, "*", "*"));
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_STREAM, pShow->pIter, (void **)&pStream);

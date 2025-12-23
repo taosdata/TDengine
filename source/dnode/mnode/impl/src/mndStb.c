@@ -2793,11 +2793,10 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   //   goto _OVER;
   // }
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL),
+  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL), NULL,
+                  _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, name.tname),
                   NULL, _OVER);
-  TAOS_CHECK_GOTO(
-      mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, name.tname, NULL), NULL,
-      _OVER);
 
   code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -3331,16 +3330,17 @@ void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t
 }
 
 static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode   *pMnode = pReq->info.node;
-  SSdb     *pSdb = pMnode->pSdb;
-  int32_t   numOfRows = 0;
-  SStbObj  *pStb = NULL;
-  SUserObj *pOperUser = NULL;
-  int32_t   cols = 0;
-  int32_t   lino = 0;
-  int32_t   code = 0;
-  char      objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
-  bool      showAll = false;
+  SMnode    *pMnode = pReq->info.node;
+  SSdb      *pSdb = pMnode->pSdb;
+  int32_t    numOfRows = 0;
+  SStbObj   *pStb = NULL;
+  SUserObj  *pOperUser = NULL;
+  SSHashObj *pUidNames = NULL;
+  int32_t    cols = 0;
+  int32_t    lino = 0;
+  int32_t    code = 0;
+  char       objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool       showAll = false;
 
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
@@ -3481,9 +3481,12 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (pColInfo) {
-      char        owner[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = "\0";
-      const char *pOwner = pStb->owner[0] != 0 ? pStb->owner : pStb->createUser;
-      STR_WITH_MAXSIZE_TO_VARSTR(owner, pOwner, sizeof(owner));
+      if (!pUidNames) {
+        TAOS_CHECK_GOTO(mndBuildUidNamesHash(pMnode, &pUidNames), &lino, _OVER);
+      }
+      const char *ownerName = tSimpleHashGet(pUidNames, (const char *)&pStb->ownerId, sizeof(pStb->ownerId));
+      char        owner[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+      STR_WITH_MAXSIZE_TO_VARSTR(owner, ownerName ? ownerName : "[unknown]", sizeof(owner));
       RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)owner, false), pStb, &lino, _ERROR);
     }
 
@@ -3512,6 +3515,7 @@ _ERROR:
 
 _OVER:
   pShow->numOfRows += numOfRows;
+  tSimpleHashCleanup(pUidNames);
   return numOfRows;
 }
 

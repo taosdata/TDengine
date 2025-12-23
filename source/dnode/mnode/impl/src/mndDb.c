@@ -3271,7 +3271,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
   pShow->numOfRows += numOfRows;
   mndReleaseUser(pMnode, pOperUser);
-  tSimpleHashCleanup(&pUidNames);
+  tSimpleHashCleanup(pUidNames);
   return numOfRows;
 }
 

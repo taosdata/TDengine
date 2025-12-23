@@ -5680,7 +5680,8 @@ int32_t tDeserializeSViewMetaReq(void* buf, int32_t bufLen, SViewMetaReq* pReq);
 typedef struct {
   char     name[TSDB_VIEW_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
-  char*    owner;
+  char*    createUser;
+  int64_t  ownerId;
   uint64_t dbId;
   uint64_t viewId;
   char*    querySql;

@@ -2065,7 +2065,7 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
     CTG_DB_NUM_INC(CTG_CI_VIEW);
 
     ctgDebug("new view meta updated to cache, view:%s, id:%" PRIu64 ", ver:%d, effectiveUser:%s, querySQL:%s", 
-      viewName, pMeta->viewId, pMeta->version, pMeta->owner, pMeta->querySql);
+      viewName, pMeta->viewId, pMeta->version, pMeta->createUser, pMeta->querySql);
 
     CTG_ERR_RET(ctgUpdateRentViewVersion(pCtg, dbFName, viewName, dbCache->dbId, pMeta->viewId, &cache));
 
@@ -2086,7 +2086,7 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
   (void)atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pMeta));
 
   ctgDebug("view meta updated to cache, view:%s, id:%" PRIu64 ", ver:%d, effectiveUser:%s, querySQL:%s", 
-    viewName, pMeta->viewId, pMeta->version, pMeta->owner, pMeta->querySql);
+    viewName, pMeta->viewId, pMeta->version, pMeta->createUser, pMeta->querySql);
 
   CTG_ERR_RET(ctgUpdateRentViewVersion(pCtg, dbFName, viewName, dbCache->dbId, pMeta->viewId, pCache));
 
@@ -4009,12 +4009,12 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
 
     TAOS_MEMCPY(pViewMeta, pCache->pMeta, sizeof(*pViewMeta));
     pViewMeta->querySql = tstrdup(pCache->pMeta->querySql);
-    pViewMeta->owner = tstrdup(pCache->pMeta->owner);
-    if (NULL == pViewMeta->querySql || NULL == pViewMeta->owner) {
+    pViewMeta->createUser = tstrdup(pCache->pMeta->createUser);
+    if (NULL == pViewMeta->querySql || NULL == pViewMeta->createUser) {
       ctgReleaseViewMetaToCache(pCtg, dbCache, pCache);
       pViewMeta->pSchema = NULL;
       taosMemoryFree(pViewMeta->querySql);
-      taosMemoryFree(pViewMeta->owner);
+      taosMemoryFree(pViewMeta->createUser);
       taosMemoryFree(pViewMeta);
       CTG_ERR_RET(terrno);
     }
