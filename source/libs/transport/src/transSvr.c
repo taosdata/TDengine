@@ -768,7 +768,7 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
   }
 
   if (pHead->withUserInfo) {
-    STransMsgHead* tHead = taosMemoryCalloc(1, len - sizeof(pInst->user));
+    STransMsgHead* tHead = taosMemoryCalloc(1, len - offset);
     if (tHead == NULL) {
       tError("conn:%p, failed to get user info since %s", pConn, tstrerror(terrno));
       return false;

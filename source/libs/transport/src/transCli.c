@@ -1698,6 +1698,9 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     STransMsgHead* pHead = transHeadFromCont(pReq->pCont);
     int32_t        msgLen = transMsgLenFromCont(pReq->contLen);
 
+    if (pInst->isToken) {
+      pHead->isToken = 1;
+    }
     char*   content = pReq->pCont;
     int32_t contLen = pReq->contLen;
     if (cliConnMayAddUserInfo(pConn, &pHead, &msgLen)) {
