@@ -1088,7 +1088,8 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser))) {
     mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
-    return code;
+    tFreeMRecalcStreamReq(&recalcReq);
+    TAOS_RETURN(code);
   }
 
   if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
