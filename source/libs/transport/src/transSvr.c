@@ -795,6 +795,9 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
   int8_t     forbiddenIp = 0;
   int8_t     timeForbiddenIp = 0;
 
+  if (pConn->isToken) {
+    return status;
+  }
   if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
     forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
     if (forbiddenIp == 0) {
@@ -859,16 +862,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
   pConn->inType = pHead->msgType;
 
   int8_t forbiddenIp = uvCheckConn(pConn);
-  // int8_t forbiddenIp = 0;
-  // int8_t timeForbiddenIp = 0;
-  // if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
-  //   forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
-  //   if (forbiddenIp == 0) {
-  //     uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
-  //   }
-  // }
-
-  // timeForbiddenIp = uvDataTimeWhiteListCheckConn(pThrd->pDataTimeWhiteList, pConn);
 
   if (uvMayHandleReleaseReq(pConn, pHead)) {
     return true;
