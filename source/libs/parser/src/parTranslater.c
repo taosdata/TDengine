@@ -6266,6 +6266,11 @@ static int32_t translateTempTable(STranslateContext* pCxt, SNode** pTable, bool 
     pCurrSmt->timeLineCurMode = pSubStmt->timeLineResMode;
   }
 
+  if((pSubStmt->pPartitionByList || pSubStmt->pGroupByList) && inJoin && !pSubStmt->pOrderByList) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                           "Temporary table with grouped but without orderby cannot be used in JOIN"));
+    }
+
   pCurrSmt->joinContains = (getJoinContais(pTempTable->pSubquery) ? true : false);
   pTempTable->table.precision = getStmtPrecision(pTempTable->pSubquery);
   pTempTable->table.singleTable = stmtIsSingleTable(pTempTable->pSubquery);
