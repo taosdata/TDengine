@@ -476,7 +476,9 @@ cmd ::= CREATE XNODE xnode_resource_type(A) ON NK_INTEGER(B) with_task_options_o
 
 /*start xnode task 1; stop xnode task 1;*/
 cmd ::= START XNODE xnode_resource_type(A) NK_INTEGER(B).                          { pCxt->pRootNode = createStartXnodeTaskStmt(pCxt, A, &B); }
+cmd ::= START XNODE xnode_resource_type(A) NK_STRING(B).                          { pCxt->pRootNode = createStartXnodeTaskStmt(pCxt, A, &B); }
 cmd ::= STOP XNODE xnode_resource_type(A) NK_INTEGER(B).                           { pCxt->pRootNode = createStopXnodeTaskStmt(pCxt, A, &B); }
+cmd ::= STOP XNODE xnode_resource_type(A) NK_STRING(B).                            { pCxt->pRootNode = createStopXnodeTaskStmt(pCxt, A, &B); }
 
 /* rebalance xnode job 1 with xnode_id 3;*/
 cmd ::= REBALANCE XNODE xnode_resource_type(A) NK_INTEGER(B) with_task_options_opt(C).

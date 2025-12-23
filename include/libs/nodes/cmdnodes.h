@@ -667,6 +667,7 @@ typedef struct {
 typedef struct {
   ENodeType type;
   int32_t   tid;  // task id.
+  CowStr    name;
 } SStartXnodeTaskStmt, SStopXnodeTaskStmt;
 
 typedef struct {

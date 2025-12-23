@@ -3564,6 +3564,7 @@ void    tFreeSMDropXnodeTaskReq(SMDropXnodeTaskReq* pReq);
 
 typedef struct {
   int32_t tid;
+  CowStr  name;
   int32_t sqlLen;
   char*   sql;
 } SMStartXnodeTaskReq, SMStopXnodeTaskReq;

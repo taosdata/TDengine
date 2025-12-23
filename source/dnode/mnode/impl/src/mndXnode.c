@@ -1131,12 +1131,16 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
   mInfo("xnode start xnode task with tid:%d", startReq.tid);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_START_XNODE_TASK), NULL, _OVER);
 
-  if (startReq.tid <= 0) {
+  if (startReq.tid <= 0 && (startReq.name.len <= 0 || startReq.name.ptr == NULL)) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
     goto _OVER;
   }
 
-  pObj = mndAcquireXnodeTask(pMnode, startReq.tid);
+  if (startReq.tid > 0) {
+    pObj = mndAcquireXnodeTask(pMnode, startReq.tid);
+  } else {
+    pObj = mndAcquireXnodeTaskByName(pMnode, startReq.name.ptr);
+  }
   if (pObj == NULL) {
     code = terrno;
     goto _OVER;
@@ -1170,13 +1174,16 @@ static int32_t mndProcessStopXnodeTaskReq(SRpcMsg *pReq) {
 
   mDebug("Stop xnode task with tid:%d", stopReq.tid);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_STOP_XNODE_TASK), NULL, _OVER);
-
-  if (stopReq.tid <= 0) {
+  if (stopReq.tid <= 0 && (stopReq.name.len <= 0 || stopReq.name.ptr == NULL)) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
     goto _OVER;
   }
 
-  pObj = mndAcquireXnodeTask(pMnode, stopReq.tid);
+  if (stopReq.tid > 0) {
+    pObj = mndAcquireXnodeTask(pMnode, stopReq.tid);
+  } else {
+    pObj = mndAcquireXnodeTaskByName(pMnode, stopReq.name.ptr);
+  }
   if (pObj == NULL) {
     code = terrno;
     goto _OVER;
@@ -1428,12 +1435,16 @@ static int32_t mndProcessDropXnodeTaskReq(SRpcMsg *pReq) {
   mInfo("DropXnodeTask with tid:%d, start to drop", dropReq.tid);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_XNODE_TASK), NULL, _OVER);
 
-  if (dropReq.tid <= 0) {
-    code = TSDB_CODE_INVALID_MSG;
+  if (dropReq.tid <= 0 && (dropReq.nameLen <= 0 || dropReq.name == NULL)) {
+    code = TSDB_CODE_MND_XNODE_INVALID_MSG;
     goto _OVER;
   }
 
-  pObj = mndAcquireXnodeTask(pMnode, dropReq.tid);
+  if (dropReq.nameLen > 0 && dropReq.name != NULL) {
+    pObj = mndAcquireXnodeTaskByName(pMnode, dropReq.name);
+  } else {
+    pObj = mndAcquireXnodeTask(pMnode, dropReq.tid);
+  }
   if (pObj == NULL) {
     code = terrno;
     goto _OVER;
@@ -3099,7 +3110,7 @@ SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const
       goto _OVER;
     }
   } else {
-    uError("invalid http type:%d", type);
+    uError("xnode invalid http type:%d", type);
     terrno = TSDB_CODE_MND_XNODE_INVALID_MSG;
     goto _OVER;
   }
@@ -3117,6 +3128,9 @@ SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const
 
 _OVER:
   if (curlRsp.data != NULL) taosMemoryFreeClear(curlRsp.data);
+  if (terrno != TSDB_CODE_SUCCESS) {
+    mError("xnode failed to send request, since:%s", tstrerror(terrno));
+  }
   return pJson;
 }
 

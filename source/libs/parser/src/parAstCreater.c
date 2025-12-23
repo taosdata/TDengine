@@ -5157,7 +5157,7 @@ _err:
   return NULL;
 }
 
-SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType resourceType, SToken* pResourceId) {
+SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType resourceType, SToken* pIdOrName) {
   SNode* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
   if (resourceType != XNODE_TASK) {
@@ -5165,20 +5165,32 @@ SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceTyp
                                             "Invalid xnode resource type: %d", resourceType);
     goto _err;
   }
-  if (pResourceId == NULL || (pResourceId != NULL && pResourceId->type != TK_NK_INTEGER)) {
-    pCxt->errCode =
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task id should be an integer");
+  if (pIdOrName == NULL || (pIdOrName != NULL && pIdOrName->type != TK_NK_INTEGER && pIdOrName->type != TK_NK_STRING)) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Xnode task id or name should be an integer or string");
     goto _err;
   }
 
   pCxt->errCode = nodesMakeNode(QUERY_NODE_START_XNODE_TASK_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   SStartXnodeTaskStmt* pTaskStmt = (SStartXnodeTaskStmt*)pStmt;
-  pTaskStmt->tid = taosStr2Int32(pResourceId->z, NULL, 10);
-  if (pTaskStmt->tid <= 0) {
-    pCxt->errCode =
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Task id should be greater than 0");
-    goto _err;
+  if (pIdOrName->type == TK_NK_INTEGER) {
+    pTaskStmt->tid = taosStr2Int32(pIdOrName->z, NULL, 10);
+    if (pTaskStmt->tid <= 0) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Task id should be greater than 0");
+      goto _err;
+    }
+  } else {
+    if (pIdOrName->n > TSDB_XNODE_RESOURCE_NAME_LEN + 2) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "Xnode task name should be less than %d characters", TSDB_XNODE_RESOURCE_NAME_LEN);
+      goto _err;
+    }
+    char buf[TSDB_XNODE_RESOURCE_NAME_LEN + 1] = {0};
+    COPY_STRING_FORM_STR_TOKEN(buf, pIdOrName);
+    pTaskStmt->name = xCreateCowStr(strlen(buf) + 1, buf, true);
   }
 
   return (SNode*)pTaskStmt;
@@ -5189,7 +5201,7 @@ _err:
   return NULL;
 }
 
-SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType resourceType, SToken* pResourceId) {
+SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType resourceType, SToken* pIdOrName) {
   SNode* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
   if (resourceType != XNODE_TASK) {
@@ -5197,20 +5209,31 @@ SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType
                                             "Only support stop task, invalid resource type: %d", resourceType);
     goto _err;
   }
-  if (pResourceId == NULL || (pResourceId != NULL && pResourceId->type != TK_NK_INTEGER)) {
-    pCxt->errCode =
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task id should be an integer");
+  if (pIdOrName != NULL && pIdOrName->type != TK_NK_INTEGER && pIdOrName->type != TK_NK_STRING) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Xnode task id or name should be an integer or string");
     goto _err;
   }
-
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STOP_XNODE_TASK_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   SStopXnodeTaskStmt* pTaskStmt = (SStopXnodeTaskStmt*)pStmt;
-  pTaskStmt->tid = taosStr2Int32(pResourceId->z, NULL, 10);
-  if (pTaskStmt->tid <= 0) {
-    pCxt->errCode =
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Task id should be greater than 0");
-    goto _err;
+  if (pIdOrName->type == TK_NK_INTEGER) {
+    pTaskStmt->tid = taosStr2Int32(pIdOrName->z, NULL, 10);
+    if (pTaskStmt->tid <= 0) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Task id should be greater than 0");
+      goto _err;
+    }
+  } else {
+    if (pIdOrName->n > TSDB_XNODE_RESOURCE_NAME_LEN + 2) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "Xnode task name should be less than %d characters", TSDB_XNODE_RESOURCE_NAME_LEN);
+      goto _err;
+    }
+    char buf[TSDB_XNODE_RESOURCE_NAME_LEN + 1] = {0};
+    COPY_STRING_FORM_STR_TOKEN(buf, pIdOrName);
+    pTaskStmt->name = xCreateCowStr(strlen(buf) + 1, buf, true);
   }
 
   return (SNode*)pTaskStmt;

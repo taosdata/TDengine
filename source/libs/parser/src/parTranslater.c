@@ -13024,6 +13024,7 @@ static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTas
 static int32_t translateStartXnodeTask(STranslateContext* pCxt, SStartXnodeTaskStmt* pStmt) {
   SMStartXnodeTaskReq startReq = {0};
   startReq.tid = pStmt->tid;
+  startReq.name = xCloneRefCowStr(&pStmt->name);
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_START_XNODE_TASK, (FSerializeFunc)tSerializeSMStartXnodeTaskReq, &startReq);
   tFreeSMStartXnodeTaskReq(&startReq);
@@ -13033,6 +13034,7 @@ static int32_t translateStartXnodeTask(STranslateContext* pCxt, SStartXnodeTaskS
 static int32_t translateStopXnodeTask(STranslateContext* pCxt, SStopXnodeTaskStmt* pStmt) {
   SMStopXnodeTaskReq stopReq = {0};
   stopReq.tid = pStmt->tid;
+  stopReq.name = xCloneRefCowStr(&pStmt->name);
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_STOP_XNODE_TASK, (FSerializeFunc)tSerializeSMStopXnodeTaskReq, &stopReq);
   tFreeSMStopXnodeTaskReq(&stopReq);

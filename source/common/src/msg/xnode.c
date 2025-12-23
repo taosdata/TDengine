@@ -523,6 +523,8 @@ int32_t tSerializeSMStartXnodeTaskReq(void *buf, int32_t bufLen, SMStartXnodeTas
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   ENCODESQL();
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->tid));
+  TAOS_CHECK_EXIT(xEncodeCowStr(&encoder, &pReq->name));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->sqlLen));
   tEndEncode(&encoder);
 
 _exit:
@@ -543,13 +545,17 @@ int32_t tDeserializeSMStartXnodeTaskReq(void *buf, int32_t bufLen, SMStartXnodeT
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   DECODESQL();
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->tid));
+  TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->name, true));
   tEndDecode(&decoder);
 
 _exit:
   tDecoderClear(&decoder);
   return code;
 }
-void tFreeSMStartXnodeTaskReq(SMStartXnodeTaskReq *pReq) { FREESQL(); }
+void tFreeSMStartXnodeTaskReq(SMStartXnodeTaskReq *pReq) {
+  FREESQL();
+  xFreeCowStr(&pReq->name);
+}
 
 int32_t tSerializeSMStopXnodeTaskReq(void *buf, int32_t bufLen, SMStopXnodeTaskReq *pReq) {
   return tSerializeSMStartXnodeTaskReq(buf, bufLen, pReq);
