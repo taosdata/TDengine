@@ -36,6 +36,9 @@ void    mndCleanupToken(SMnode *pMnode);
 int32_t mndAcquireToken(SMnode *pMnode, const char *token, STokenObj **ppToken);
 void    mndReleaseToken(SMnode *pMnode, STokenObj *pToken);
 
+int32_t mndDropTokensByUser(SMnode *pMnode, STrans* pTrans, const char* user);
+void    mndDropCachedTokensByUser(const char *user);
+
 // get the first active token for the user, return TSDB_CODE_MND_TOKEN_NOT_EXIST
 // if no active token found, otherwise return 0.
 // [token] should have enough space to hold the token string, i.e. TSDB_TOKEN_LEN.

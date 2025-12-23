@@ -216,7 +216,7 @@ _OVER:
 
 SCachedTokenInfo* mndGetCachedTokenInfo(const char* token, SCachedTokenInfo* ti) {
   (void)taosThreadRwlockRdlock(&tokenCache.rw);
-  SCachedTokenInfo** pp = (SCachedTokenInfo**)taosHashGet(tokenCache.tokens, token, TSDB_TOKEN_LEN - 1);
+  SCachedTokenInfo** pp = (SCachedTokenInfo**)taosHashGet(tokenCache.tokens, token, TSDB_TOKEN_LEN);
   if (pp != NULL && *pp != NULL) {
     (void)memcpy(ti, *pp, sizeof(SCachedTokenInfo));
   } else {
@@ -224,6 +224,28 @@ SCachedTokenInfo* mndGetCachedTokenInfo(const char* token, SCachedTokenInfo* ti)
   }
   taosThreadRwlockUnlock(&tokenCache.rw);
   return ti;
+}
+
+
+
+void mndDropCachedTokensByUser(const char* user) {
+  (void)taosThreadRwlockWrlock(&tokenCache.rw);
+
+  void *pIter = taosHashIterate(tokenCache.tokens, NULL);
+  while (pIter) {
+    SCachedTokenInfo *ti = *(SCachedTokenInfo **)pIter;
+    if (ti != NULL && taosStrcasecmp(ti->user, user) == 0) {
+      const void* key = taosHashGetKey(pIter, NULL);
+      if (taosHashRemove(tokenCache.tokens, (const char*)key, TSDB_TOKEN_LEN) == 0) {
+        taosMemoryFree(ti);
+      } else {
+        mDebug("failed to remove token %s from token cache", (const char*)key);
+      }
+    }
+    pIter = taosHashIterate(tokenCache.tokens, pIter);
+  }
+
+  taosThreadRwlockUnlock(&tokenCache.rw);
 }
 
 
@@ -704,6 +726,41 @@ _OVER:
   mndReleaseUser(pMnode, pOperUser);
   tFreeSDropTokenReq(&dropReq);
   TAOS_RETURN(code);
+}
+
+
+
+// this function is called when drop user, so no need to update user tokenNum
+int32_t mndDropTokensByUser(SMnode *pMnode, STrans *pTrans, const char *user) {
+  void     *pIter = NULL;
+
+  while (1) {
+    STokenObj* pToken = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_TOKEN, pIter, (void**)&pToken);
+    if (pIter == NULL) {
+      break;
+    }
+
+    if (taosStrcasecmp(pToken->user, user) != 0) {
+      sdbRelease(pMnode->pSdb, pToken);
+      continue;
+    }
+
+    SSdbRaw *pCommitRaw = mndTokenActionEncode(pToken);
+    if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+      mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+      sdbRelease(pMnode->pSdb, pToken);
+      return terrno;
+    }
+    if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) < 0) {
+      sdbRelease(pMnode->pSdb, pToken);
+      return terrno;
+    }
+
+    sdbRelease(pMnode->pSdb, pToken);
+  }
+
+  return 0;
 }
 
 

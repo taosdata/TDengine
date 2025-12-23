@@ -346,42 +346,38 @@ TEST(clientCase, connect_totp_Test) {
   if (pConn == NULL) {
     (void)printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));
   }
+  ASSERT_NE(pConn, nullptr);
 
   uint8_t secret[64] = {0};
   size_t secretLen = taosGenerateTotpSecret("AAbb1122", 8, secret, sizeof(secret));
 
   TAOS_RES* pRes = taos_query(pConn, "create user totp_u pass 'taosdata' totpseed 'AAbb1122'");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("error in create user, reason:%s\n", taos_errstr(pRes));
+  if (pRes == NULL) {
+    (void)printf("failed to create user, reason:%s\n", taos_errstr(NULL));
   }
+  ASSERT_NE(pRes, nullptr);
+  ASSERT_EQ(taos_errno(pRes), 0);
   taos_free_result(pRes);
   taos_close(pConn);
 
-
   int totpCode = taosGenerateTotpCode(secret, secretLen, 6);
   pConn = taos_connect_totp("localhost", "totp_u", "taosdata", "123456", NULL, 0);
-  if (pConn != NULL) {
-    (void)printf("connect to server with wrong totp");
-    taos_close(pConn);
-  }
+  ASSERT_EQ(pConn, nullptr);
 
   int code = taos_connect_test("localhost", "totp_u", "taosdata", "123456", NULL, 0);
-  if (code != TSDB_CODE_MND_WRONG_TOTP_CODE) {
-    (void)printf("test connect to server with wrong totp return wrong code:%d\n", code);
-    taos_close(pConn);
-  }
+  ASSERT_EQ(code, TSDB_CODE_MND_WRONG_TOTP_CODE);
 
   char totp[16] = {0};
   (void)taosFormatTotp(totpCode, 6, totp, sizeof(totp));
   pConn = taos_connect_totp("localhost", "totp_u", "taosdata", totp, NULL, 0);
   if (pConn == NULL) {
-    (void)printf("failed to connect to server with totp, reason:%s\n", taos_errstr(NULL));
+    (void)printf("failed to connect to server via totp, reason:%s\n", taos_errstr(NULL));
   }
+  ASSERT_NE(pConn, nullptr);
 
   pRes = taos_query(pConn, "show users");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("error in create user, reason:%s\n", taos_errstr(pRes));
-  }
+  ASSERT_NE(pRes, nullptr);
+  ASSERT_EQ(taos_errno(pRes), 0);
   taos_free_result(pRes);
 
   taos_close(pConn);
@@ -389,9 +385,56 @@ TEST(clientCase, connect_totp_Test) {
   totpCode = taosGenerateTotpCode(secret, secretLen, 6);
   (void)taosFormatTotp(totpCode, 6, totp, sizeof(totp));
   code = taos_connect_test("localhost", "totp_u", "taosdata", totp, NULL, 0);
-  if (code != 0) {
-    (void)printf("test connect to server with correct totp return wrong code:%d\n", code);
+  ASSERT_EQ(code, 0);
+}
+
+
+TEST(clientCase, connect_token_Test) {
+  char token[TSDB_TOKEN_LEN] = {0};
+
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  if (pConn == NULL) {
+    (void)printf("failed to connect to server via password, reason:%s\n", taos_errstr(NULL));
   }
+  ASSERT_NE(pConn, nullptr);
+
+  TAOS_RES* pRes = taos_query(pConn, "create token root1 from user root");
+  if (pRes == NULL) {
+    (void)printf("failed to create token, reason:%s\n", taos_errstr(NULL));
+  }
+  ASSERT_NE(pRes, nullptr);
+  ASSERT_EQ(taos_errno(pRes), 0);
+
+  TAOS_ROW row = taos_fetch_row(pRes);
+  ASSERT_NE(row, nullptr);
+  tstrncpy(token, (char*)row[0], TSDB_TOKEN_LEN);
+  (void)printf("token is: %s\n", token);
+  taos_free_result(pRes);
+  taos_close(pConn);
+
+  taosMsleep(1000);
+
+  pConn = taos_connect_token("localhost", token, NULL, 0);
+  if (pConn == NULL) {
+    (void)printf("failed to connect to server via token, reason:%s\n", taos_errstr(NULL));
+  }
+  ASSERT_NE(pConn, nullptr);
+
+  pRes = taos_query(pConn, "show users");
+  if (taos_errno(pRes) != 0) {
+    (void)printf("failed to show users, reason:%s\n", taos_errstr(pRes));
+  }
+  ASSERT_NE(pRes, nullptr);
+  ASSERT_EQ(taos_errno(pRes), 0);
+  taos_free_result(pRes);
+
+  char user[TSDB_USER_LEN] = {0};
+  int len = sizeof(user);
+  ASSERT_EQ(taos_get_connection_info(pConn, TSDB_CONNECTION_INFO_USER, user, &len), 0);
+  ASSERT_EQ(strcmp(user, "root"), 0);
+
+  taos_close(pConn);
 }
 
 

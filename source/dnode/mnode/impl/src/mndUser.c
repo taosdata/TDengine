@@ -27,6 +27,7 @@
 #include "mndStb.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
+#include "mndToken.h"
 #include "tbase64.h"
 #include "totp.h"
 
@@ -3542,6 +3543,11 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
     TAOS_RETURN(terrno);
   }
 
+  if (mndDropTokensByUser(pMnode, pTrans, pUser->user) != 0) {
+    mndTransDrop(pTrans);
+    TAOS_RETURN(terrno);
+  }
+
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
@@ -3549,6 +3555,7 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
   }
 
   userCacheRemoveUser(pUser->user);
+  mndDropCachedTokensByUser(pUser->user);
 
   mndTransDrop(pTrans);
   TAOS_RETURN(0);
