@@ -2436,9 +2436,11 @@ static int32_t mndCreateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeJob
     code = TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
     goto _OVER;
   }
-  jobObj.reason = taosMemoryCalloc(1, pCreate->reasonLen);
-  if (jobObj.reason == NULL) goto _OVER;
-  (void)memcpy(jobObj.reason, pCreate->reason, pCreate->reasonLen);
+  if (jobObj.reasonLen > 0) {
+    jobObj.reason = taosMemoryCalloc(1, pCreate->reasonLen);
+    if (jobObj.reason == NULL) goto _OVER;
+    (void)memcpy(jobObj.reason, pCreate->reason, pCreate->reasonLen);
+  }
 
   jobObj.createTime = taosGetTimestampMs();
   jobObj.updateTime = jobObj.createTime;
@@ -2611,11 +2613,12 @@ _OVER:
   return code;
 }
 static int32_t mndProcessCreateXnodeJobReq(SRpcMsg *pReq) {
+  mInfo("create xnode job req, content len:%d", pReq->contLen);
   SMnode             *pMnode = pReq->info.node;
   int32_t             code = -1;
   SMCreateXnodeJobReq createReq = {0};
 
-  if ((code = grantCheck(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
+  if ((code = grantCheck(TSDB_GRANT_XNODE)) != TSDB_CODE_SUCCESS) {
     mError("failed to create xnode, code:%s", tstrerror(code));
     goto _OVER;
   }
