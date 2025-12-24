@@ -203,7 +203,7 @@ static int32_t adjustJoinDataRequirement(SJoinLogicNode* pJoin, EDataOrderLevel 
     code =
         adjustScanDataRequirement((SScanLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0), DATA_ORDER_LEVEL_NONE);
   }
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && pJoin->node.pChildren->length > 1) {
     if (!pJoin->rightConstPrimGot) {
       code = adjustLogicNodeDataRequirement((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1),
                                             pJoin->node.requireDataOrder);
