@@ -755,10 +755,8 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   // check if all streams exist
   if (!dropReq.igNotExists) {
     for (int32_t i = 0; i < dropReq.count; i++) {
-      char *streamName = dropReq.name[i];
-      code = mndAcquireStream(pMnode, streamName, &pStream);
-      if (pStream == NULL || code != 0) {
-        mError("stream:%s not exist failed to drop it", streamName);
+      if (!sdbCheckExists(pMnode->pSdb, SDB_STREAM, dropReq.name[i])) {
+        mError("stream:%s not exist failed to drop it", dropReq.name[i]);
         tFreeMDropStreamReq(&dropReq);
         TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
       }
