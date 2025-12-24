@@ -10,7 +10,7 @@ import platform
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
 from new_test_framework.utils.sqlset import TDSetSql
 
-class TestTmqBasic:
+class TestBasic5:
     hostname = socket.gethostname()
     if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
         try:
@@ -27,7 +27,6 @@ class TestTmqBasic:
 
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
-
     #
     # ------------------- 1 ----------------
     #
@@ -249,6 +248,29 @@ class TestTmqBasic:
                 break
             
             time.sleep(1)
+                
+            # if tdSql.getRows() == 4:
+            #     print ('==================================================')
+            #     print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0))
+            #     index = 0
+            #     if tdSql.getData(0,0) == parameterDict['dbName']:
+            #         index = 0
+            #     elif tdSql.getData(1,0) == parameterDict['dbName']:
+            #         index = 1
+            #     elif tdSql.getData(2,0) == parameterDict['dbName']:
+            #         index = 2
+            #     elif tdSql.getData(3,0) == parameterDict['dbName']:
+            #         index = 3
+            #     else:
+            #         continue
+
+            #     if tdSql.getData(index,15) == 'ready':
+            #         print("******************** index: %d"%index)
+            #         break
+
+            #     continue
+            # else:
+            #     time.sleep(1)
 
         tdSql.query("use %s"%parameterDict['dbName'])
         # wait stb ready
@@ -385,7 +407,32 @@ class TestTmqBasic:
                 print("******************** index: %d"%index)
                 break
             
-            time.sleep(1)
+            time.sleep(1)            
+            
+            # if tdSql.getRows() == 5:
+            #     print ('==================================================dbname: %s'%parameterDict['dbName'])
+            #     print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),tdSql.getData(3,0),tdSql.getData(4,0))
+            #     index = 0
+            #     if tdSql.getData(0,0) == parameterDict['dbName']:
+            #         index = 0
+            #     elif tdSql.getData(1,0) == parameterDict['dbName']:
+            #         index = 1
+            #     elif tdSql.getData(2,0) == parameterDict['dbName']:
+            #         index = 2
+            #     elif tdSql.getData(3,0) == parameterDict['dbName']:
+            #         index = 3
+            #     elif tdSql.getData(4,0) == parameterDict['dbName']:
+            #         index = 4
+            #     else:
+            #         continue
+
+            #     if tdSql.getData(index,15) == 'ready':
+            #         print("******************** index: %d"%index)
+            #         break
+
+            #     continue
+            # else:
+            #     time.sleep(1)
 
         tdSql.query("use %s"%parameterDict['dbName'])
         # wait stb ready
@@ -506,12 +553,12 @@ class TestTmqBasic:
         self.tmqCase1(cfgPath, buildPath)
         self.tmqCase2(cfgPath, buildPath)
         self.tmqCase3(cfgPath, buildPath)
-        print("do basic5 ............................. [passed]")
 
     #
-    # ------------------- 1 ----------------
+    # ------------------- 2 ----------------
     #
     def init_class(self):
+        tdLog.debug("start to execute %s" % __file__)
         self.setsql = TDSetSql()
         self.rowNum = 10
         self.ts = 1537146000000
@@ -532,7 +579,7 @@ class TestTmqBasic:
             }
         self.error_topic = ['avg','count','spread','stddev','sum','hyperloglog']
 
-    def insert_data(self,column_dict,tbname,row_num):
+    def insert_data2(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname)
         for i in range(row_num):
             insert_list = []
@@ -551,7 +598,7 @@ class TestTmqBasic:
             ]
         tdSql.execute(self.setsql.set_create_stable_sql(stbname,self.column_dict,tag_dict))
         tdSql.execute(f"create table {stbname}_tb1 using {stbname} tags({tag_values[0]})")
-        self.insert_data(self.column_dict,f'{stbname}_tb1',self.rowNum)
+        self.insert_data2(self.column_dict,f'{stbname}_tb1',self.rowNum)
         for column in self.column_dict.keys():
             for func in self.error_topic:
                 if func.lower() != 'count' and column.lower() != 'ts':
@@ -564,8 +611,7 @@ class TestTmqBasic:
                 tdSql.error(f'create topic tpn as select leastquares({column},1,1) from {stbname}_tb1')
                 tdSql.error(f'create topic tpn as select HISTOGRAM({column},user_input,[1,3,5,7],0) from {stbname}')
                 tdSql.error(f'create topic tpn as select percentile({column},1) from {stbname}_tb1')
-
-        print("do wrong topic ........................ [passed]")
+        pass
 
     #
     # ------------------- main ----------------
