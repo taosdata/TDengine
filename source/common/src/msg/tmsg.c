@@ -12654,7 +12654,7 @@ static int32_t tSerializeSOperatorGetParam(SEncoder *pEncoder, SOperatorParam *p
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, n));
   for (int32_t i = 0; i < n; ++i) {
     SOperatorParam *pChild = *(SOperatorParam **)taosArrayGet(pOpParam->pChildren, i);
-    TAOS_CHECK_RETURN(tSerializeSOperatorParam(pEncoder, pChild));
+    TAOS_CHECK_RETURN(tSerializeSOperatorGetParam(pEncoder, pChild));
   }
 
   return 0;
