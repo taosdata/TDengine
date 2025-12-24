@@ -28,10 +28,10 @@ class TestJoin:
             - 2025-12-23 Dapan added for 6604237597
 
         """
-        self.test_join_basic()
-        self.test_join_bug_6613241466()
+        self.join_basic()
+        self.join_bug_6613241466()
 
-    def test_join_basic(self):
+    def join_basic(self):
         
         tdSql.execute(f"drop database if exists sta1;")
         tdSql.execute(f"create database sta1 vgroups 4 duration 100d stt_trigger 1 minrows 10;")
@@ -159,7 +159,7 @@ class TestJoin:
         tdSql.checkData(2, 10, 3.2988121646)
         tdSql.checkData(2, 11, 43.018367)
 
-    def test_join_bug_6613241466(self):
+    def join_bug_6613241466(self):
         
         tdSql.execute(f"drop database if exists test")
         tdSql.execute(f"create database test")
