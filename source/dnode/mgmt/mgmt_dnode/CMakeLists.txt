@@ -21,7 +21,8 @@ target_include_directories(
   PUBLIC "${GRANT_CFG_INCLUDE_DIR}"
 )
 
-if(TD_ENTERPRISE)
+if(TD_ENTERPRISE AND TD_HAS_OPENSSL)
+  # Include taosk headers for encryption key management (requires OpenSSL)
   target_include_directories(
     mgmt_dnode
     PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/taosk/inc"

@@ -22,6 +22,10 @@
 #include "tjson.h"
 #include "tglobal.h"
 
+#ifdef TD_ENTERPRISE
+#include "taoskInt.h"
+#endif
+
 #define MAXLEN               1024
 #define DM_KEY_INDICATOR     "this indicator!"
 #define DM_ENCRYPT_CODE_FILE "encryptCode.cfg"
