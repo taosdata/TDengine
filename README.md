@@ -351,3 +351,4 @@ bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task
 # 12. Contributing
 
 Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to TDengine.
+
