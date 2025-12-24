@@ -203,12 +203,14 @@ static int32_t adjustJoinDataRequirement(SJoinLogicNode* pJoin, EDataOrderLevel 
     code =
         adjustScanDataRequirement((SScanLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0), DATA_ORDER_LEVEL_NONE);
   }
-  if (TSDB_CODE_SUCCESS == code && !pJoin->rightConstPrimGot) {
-    code = adjustLogicNodeDataRequirement((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1),
-                                          pJoin->node.requireDataOrder);
-  } else {
-    code =
-        adjustScanDataRequirement((SScanLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1), DATA_ORDER_LEVEL_NONE);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (!pJoin->rightConstPrimGot) {
+      code = adjustLogicNodeDataRequirement((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1),
+                                            pJoin->node.requireDataOrder);
+    } else {
+      code =
+          adjustScanDataRequirement((SScanLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1), DATA_ORDER_LEVEL_NONE);
+    }
   }
   if (code != TSDB_CODE_SUCCESS) {
     planError("adjust join input data requirement failed, err:%s", tstrerror(code));
