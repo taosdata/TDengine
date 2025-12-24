@@ -94,7 +94,7 @@ END:
   return code;
 }
 
-static int32_t validateOneTopic(STrans* pTrans,char *pOneTopic, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *pUser) {
+static int32_t validateOneTopic(STrans* pTrans,char *pOneTopic, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *user, const char* token) {
   int32_t      code = 0;
   int32_t lino = 0;
   SMqTopicObj *pTopic = NULL;
@@ -103,7 +103,7 @@ static int32_t validateOneTopic(STrans* pTrans,char *pOneTopic, SCMSubscribeReq 
   MND_TMQ_RETURN_CHECK(mndAcquireTopic(pMnode, pOneTopic, &pTopic));
   taosRLockLatch(&pTopic->lock);
 
-  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic));
+  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, user, token, MND_OPER_SUBSCRIBE, pTopic));
   MND_TMQ_RETURN_CHECK(grantCheckExpire(TSDB_GRANT_SUBSCRIPTION));
 
   if (subscribe->enableReplay) {
@@ -139,8 +139,8 @@ END:
   return code;
 }
 
-static int32_t validateTopics(STrans* pTrans, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *pUser) {
-  if (pTrans == NULL || subscribe == NULL || pMnode == NULL || pUser == NULL) {
+static int32_t validateTopics(STrans* pTrans, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *user, const char* token) {
+  if (pTrans == NULL || subscribe == NULL || pMnode == NULL || user == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t      code = 0;
@@ -150,7 +150,7 @@ static int32_t validateTopics(STrans* pTrans, SCMSubscribeReq *subscribe, SMnode
   int32_t numOfTopics = taosArrayGetSize(subscribe->topicNames);
   for (int32_t i = 0; i < numOfTopics; i++) {
     char *pOneTopic = taosArrayGetP(subscribe->topicNames, i);
-    MND_TMQ_RETURN_CHECK(validateOneTopic(pTrans, pOneTopic, subscribe, pMnode, pUser));
+    MND_TMQ_RETURN_CHECK(validateOneTopic(pTrans, pOneTopic, subscribe, pMnode, user, token));
   }
 
 END:
@@ -193,7 +193,7 @@ END:
   return code;
 }
 
-static void checkOnePrivilege(const char* topic, SMnode *pMnode, SMqHbRsp *rsp, const char *user) {
+static void checkOnePrivilege(const char* topic, SMnode *pMnode, SMqHbRsp *rsp, const char *user, const char* token) {
   int32_t code = 0;
   int32_t lino = 0;
   SMqTopicObj *pTopic = NULL;
@@ -203,7 +203,7 @@ static void checkOnePrivilege(const char* topic, SMnode *pMnode, SMqHbRsp *rsp, 
   STopicPrivilege *data = taosArrayReserve(rsp->topicPrivileges, 1);
   MND_TMQ_NULL_CHECK(data);
   tstrncpy(data->topic, topic, TSDB_TOPIC_FNAME_LEN);
-  if (mndCheckTopicPrivilege(pMnode, user, MND_OPER_SUBSCRIBE, pTopic) != 0 ||
+  if (mndCheckTopicPrivilege(pMnode, user, token, MND_OPER_SUBSCRIBE, pTopic) != 0 ||
       grantCheckExpire(TSDB_GRANT_SUBSCRIPTION) < 0) {
     data->noPrivilege = 1;
   } else {
@@ -218,7 +218,7 @@ END:
   mndReleaseTopic(pMnode, pTopic);
 }
 
-static int32_t checkPrivilege(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqHbRsp *rsp, char *user) {
+static int32_t checkPrivilege(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqHbRsp *rsp, const char *user, const char* token) {
   if (pMnode == NULL || pConsumer == NULL || rsp == NULL || user == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -230,7 +230,7 @@ static int32_t checkPrivilege(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqHbRs
   MND_TMQ_NULL_CHECK(rsp->topicPrivileges);
   for (int32_t i = 0; i < taosArrayGetSize(pConsumer->currentTopics); i++) {
     char        *topic = taosArrayGetP(pConsumer->currentTopics, i);
-    checkOnePrivilege(topic, pMnode, rsp, user);
+    checkOnePrivilege(topic, pMnode, rsp, user, token);
   }
 
 END:
@@ -308,7 +308,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   int64_t consumerId = req.consumerId;
   MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, consumerId, &pConsumer));
   taosWLockLatch(&pConsumer->lock);
-  MND_TMQ_RETURN_CHECK(checkPrivilege(pMnode, pConsumer, &rsp, pMsg->info.conn.user));
+  MND_TMQ_RETURN_CHECK(checkPrivilege(pMnode, pConsumer, &rsp, RPC_MSG_USER(pMsg), RPC_MSG_TOKEN(pMsg)));
   atomic_store_32(&pConsumer->hbStatus, 0);
   mDebug("consumer:0x%" PRIx64 " receive hb pollFlag:%d pollStatus:%d", consumerId, req.pollFlag, pConsumer->pollStatus);
   if (req.pollFlag == 1){
@@ -703,7 +703,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
                           pMsg, "subscribe");
   MND_TMQ_NULL_CHECK(pTrans);
 
-  MND_TMQ_RETURN_CHECK(validateTopics(pTrans, &subscribe, pMnode, pMsg->info.conn.user));
+  MND_TMQ_RETURN_CHECK(validateTopics(pTrans, &subscribe, pMnode, RPC_MSG_USER(pMsg), RPC_MSG_TOKEN(pMsg)));
   MND_TMQ_RETURN_CHECK(buildSubConsumer(pMnode, &subscribe, &pConsumerNew));
   MND_TMQ_RETURN_CHECK(mndSetConsumerCommitLogs(pTrans, pConsumerNew));
   MND_TMQ_RETURN_CHECK(mndTransPrepare(pMnode, pTrans));

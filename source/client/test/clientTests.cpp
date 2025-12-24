@@ -412,7 +412,6 @@ TEST(clientCase, connect_token_Test) {
   (void)printf("token is: %s\n", token);
   taos_free_result(pRes);
   taos_close(pConn);
-
   taosMsleep(1000);
 
   pConn = taos_connect_token("localhost", token, NULL, 0);
@@ -432,7 +431,21 @@ TEST(clientCase, connect_token_Test) {
   char user[TSDB_USER_LEN] = {0};
   int len = sizeof(user);
   ASSERT_EQ(taos_get_connection_info(pConn, TSDB_CONNECTION_INFO_USER, user, &len), 0);
-  ASSERT_EQ(strcmp(user, "root"), 0);
+  user[sizeof(user) - 1] = 0;
+  if (len != 4 || memcmp(user, "root", 4) != 0) {
+    (void)printf("wrong user: %s, len: %d\n", user, len);
+  }
+  ASSERT_EQ(len, 4);
+  ASSERT_EQ(memcmp(user, "root", 4), 0);
+
+  len = sizeof(token);
+  ASSERT_EQ(taos_get_connection_info(pConn, TSDB_CONNECTION_INFO_TOKEN, token, &len), 0);
+  token[sizeof(token) - 1] = 0;
+  if (len != 5 || memcmp(token, "root1", 5) != 0) {
+    (void)printf("wrong token name: %s, len: %d\n", token, len);
+  }
+  ASSERT_EQ(len, 5);
+  ASSERT_EQ(memcmp(token, "root1", 5), 0);
 
   taos_close(pConn);
 }

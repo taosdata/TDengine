@@ -2707,7 +2707,7 @@ static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
   }
 
   mInfo("trans:%d, start to kill, force:%d", killReq.transId, tsForceKillTrans);
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_TRANS)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_KILL_TRANS)) != 0) {
     goto _OVER;
   }
 

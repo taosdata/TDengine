@@ -350,7 +350,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   char            *ip = IP_ADDR_STR(&pReq->info.conn.cliAddr);
   uint16_t         port = pReq->info.conn.cliAddr.port;
   SCachedTokenInfo ti = {0};
-  const char      *user = pReq->info.conn.user;
+  const char      *user = RPC_MSG_USER(pReq);
   bool             viaToken = false;
   int64_t          tss = taosGetTimestampMs();
   int64_t          now = tss / 1000;
@@ -376,7 +376,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     viaToken = true;
   }
 
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, user, MND_OPER_CONNECT), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, user, RPC_MSG_TOKEN(pReq), MND_OPER_CONNECT), &lino, _OVER);
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), &lino, _OVER);
 
   if ((!viaToken) && pUser->passwordLifeTime > 0 && pUser->passwordGraceTime >= 0) {
@@ -450,7 +450,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
       }
     }
 
-    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, user, MND_OPER_READ_OR_WRITE_DB, pDb), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, user, RPC_MSG_TOKEN(pReq), MND_OPER_READ_OR_WRITE_DB, pDb), &lino, _OVER);
   }
 
   if (connReq.connType == CONN_TYPE__AUTH_TEST) {
@@ -958,8 +958,7 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
   TAOS_CHECK_RETURN(tDeserializeSKillQueryReq(pReq->pCont, pReq->contLen, &killReq));
 
   mInfo("kill query msg is received, queryId:%s", killReq.queryStrId);
-  TAOS_CHECK_RETURN(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_QUERY));
-
+  TAOS_CHECK_RETURN(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_KILL_QUERY));
   int32_t  connId = 0;
   uint64_t queryId = 0;
   char    *p = strchr(killReq.queryStrId, ':');
@@ -978,7 +977,7 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
     code = TSDB_CODE_MND_INVALID_CONN_ID;
     TAOS_RETURN(code);
   } else {
-    mInfo("connId:%x, queryId:%" PRIx64 " is killed by user:%s", connId, queryId, pReq->info.conn.user);
+    mInfo("connId:%x, queryId:%" PRIx64 " is killed by user:%s", connId, queryId, RPC_MSG_USER(pReq));
     pConn->killId = queryId;
     taosCacheRelease(pMgmt->connCache, (void **)&pConn, false);
     TAOS_RETURN(code);
@@ -993,7 +992,7 @@ static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
   SKillConnReq killReq = {0};
   TAOS_CHECK_RETURN(tDeserializeSKillConnReq(pReq->pCont, pReq->contLen, &killReq));
 
-  TAOS_CHECK_RETURN(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_CONN));
+  TAOS_CHECK_RETURN(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_KILL_CONN));
 
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &killReq.connId, sizeof(uint32_t));
   if (pConn == NULL) {
@@ -1001,7 +1000,7 @@ static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
     code = TSDB_CODE_MND_INVALID_CONN_ID;
     TAOS_RETURN(code);
   } else {
-    mInfo("connId:%u, is killed by user:%s", killReq.connId, pReq->info.conn.user);
+    mInfo("connId:%u, is killed by user:%s", killReq.connId, RPC_MSG_USER(pReq));
     pConn->killed = 1;
     taosCacheRelease(pMgmt->connCache, (void **)&pConn, false);
     TAOS_RETURN(code);

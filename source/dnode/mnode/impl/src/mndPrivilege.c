@@ -24,7 +24,7 @@ void    mndCleanupPrivilege(SMnode *pMnode) {}
 bool    mndMustChangePassword(SUserObj* pUser) { return false; }
 
 
-int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType) {
+int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
 
@@ -40,15 +40,14 @@ _OVER:
 }
 
 
-int32_t mndCheckTokenPrivilege(SUserObj* pOperUser, const char *user) { return 0; }
-int32_t mndCheckAlterUserPrivilege(SMnode* pMnode, const char *opUser, SUserObj *pUser, SAlterUserReq *pAlter) { return 0; }
-int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showType, const char *dbname) { return 0; }
-int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb) { return 0; }
-int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *dbname) {
-  return 0;
-}
-int32_t mndCheckStbPrivilege(SMnode *pMnode, SUserObj *pUser, EOperType operType, SStbObj *pStb) { return 0; }
-int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operType, SMqTopicObj *pTopic) { return 0; }
+int32_t mndCheckAlterUserPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, SAlterUserReq *pAlter) { return 0; }
+int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, const char* token, EShowType showType, const char *dbname) { return 0; }
+int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SDbObj *pDb) { return 0; }
+int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char* token, EOperType operType, const char *dbname) { return 0; }
+int32_t mndCheckStbPrivilege(SMnode *pMnode, SUserObj *pUser, const char* token, EOperType operType, SStbObj *pStb) { return 0; }
+int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SMqTopicObj *pTopic) { return 0; }
+int32_t mndCheckTokenPrivilege(SMnode* pMnode, const char* opUser, const char* opToken, const char* user, const char* token) { return 0; }
+
 
 int32_t mndSetUserIpWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserIpWhiteListRsp *pWhiteListRsp) {
   int32_t code = 0;
