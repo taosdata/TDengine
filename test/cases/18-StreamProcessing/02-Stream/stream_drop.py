@@ -30,9 +30,12 @@ class TestDropStream:
 
         """
 
-
+        tdSql.execute("create snode on dnode 1;")
         self.prepareData()
         self.dropMultiStream()
+
+        self.prepareData()
+        self.dropMutiStreamError()
 
     def prepareData(self):
         tdLog.info("prepare data")
@@ -40,7 +43,6 @@ class TestDropStream:
         sqls = [
             "drop database if exists db1;",
             "drop database if exists db2;",
-            "create snode on dnode 1;",
             "create database db1;",
             "create database db2;",
             "use db1;",
@@ -59,7 +61,9 @@ class TestDropStream:
             "create stream s3 state_window(c1) from stb partition by tbname into out as select * from %%tbname where c1 > 30000;",
         ]
 
-        tdSql.executes(sqls)    
+        tdSql.executes(sqls)
+        time.sleep(2)
+        tdLog.info("prepare data done")
     
     def dropMultiStream(self):
         tdLog.info("drop multi-stream in same db")
@@ -67,7 +71,7 @@ class TestDropStream:
         tdSql.query("show streams;")
         tdSql.checkRows(3)
         tdSql.execute("drop stream if exists s1, s2;")
-        time.sleep(1)
+        time.sleep(2)
         tdSql.query("show streams;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "s3")
@@ -77,7 +81,7 @@ class TestDropStream:
         tdSql.query("show streams;")
         tdSql.checkRows(3)
         tdSql.execute("drop stream if exists db1.s3,db2.s1,db2.s2;")
-        time.sleep(1)
+        time.sleep(2)
         tdSql.query("show streams;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "s3")
@@ -88,8 +92,19 @@ class TestDropStream:
         tdLog.info("drop multi-stream if exists")
         tdSql.execute("use db2;")
         tdSql.execute("drop stream if exists s12345,s123,s3;")
-        time.sleep(1)
+        time.sleep(2)
         tdSql.query("show streams;")
         tdSql.checkRows(0)
         tdSql.execute("drop stream if exists s12345,s123;")
         tdSql.error("drop stream s12345,s123;")
+    
+    def dropMutiStreamError(self):
+        tdLog.info("drop multi-stream error")
+        tdSql.execute("use db1;")
+        tdSql.query("show streams;")
+        tdSql.checkRows(3)
+        tdSql.error("drop stream s1, s12345;")
+        tdSql.error("drop stream s12345, s3;")
+        tdSql.error("drop stream s12345, s1, s123, s2;")
+        tdSql.query("show streams;")
+        tdSql.checkRows(3)

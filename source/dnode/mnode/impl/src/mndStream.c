@@ -752,23 +752,30 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   mDebug("recv drop stream msg, count:%d", dropReq.count);
 
+  // check if all streams exist
+  if (!dropReq.igNotExists) {
+    for (int32_t i = 0; i < dropReq.count; i++) {
+      char *streamName = dropReq.name[i];
+      code = mndAcquireStream(pMnode, streamName, &pStream);
+      if (pStream == NULL || code != 0) {
+        mError("stream:%s not exist failed to drop it", dropReq.name);
+        tFreeMDropStreamReq(&dropReq);
+        TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
+      }
+    }
+  }
+
   for (int32_t i = 0; i < dropReq.count; i++) {
     char *streamName = dropReq.name[i];
     mDebug("drop stream[%d/%d]: %s", i + 1, dropReq.count, streamName);
 
     code = mndAcquireStream(pMnode, streamName, &pStream);
     if (pStream == NULL || code != 0) {
-      if (dropReq.igNotExists) {
-        mInfo("stream:%s not exist, ignore not exist is set, drop stream exec done with success", streamName);
-        sdbRelease(pMnode->pSdb, pStream);
-        pStream = NULL;
-        notExistNum++;
-        continue;
-      } else {
-        mError("stream:%s not exist failed to drop it", streamName);
-        code = TSDB_CODE_MND_STREAM_NOT_EXIST;
-        goto _OVER;
-      }
+      mInfo("stream:%s not exist, ignore not exist is set, drop stream exec done with success", streamName);
+      sdbRelease(pMnode->pSdb, pStream);
+      pStream = NULL;
+      notExistNum++;
+      continue;
     }
 
     int64_t streamId = pStream->pCreate->streamId;
