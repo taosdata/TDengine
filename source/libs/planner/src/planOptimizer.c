@@ -5025,6 +5025,10 @@ static bool splitCacheLastFuncOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   return true;
 }
 
+/*
+  This function is used to update the scan node(scan columns, targets) after
+  the cache last/last_row function is split.
+*/
 static int32_t splitCacheLastFuncOptUpdateScanNode(SAggLogicNode* pAgg,
                                                    SNodeList* pFunc,
                                                    bool isNewAgg) {
@@ -5049,7 +5053,8 @@ static int32_t splitCacheLastFuncOptUpdateScanNode(SAggLogicNode* pAgg,
     return code;
   }
   list->pNodeList = pFunc;
-  code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_COL, &pScan->pScanCols);
+  code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_COL,
+                                     &pScan->pScanCols);
   if (TSDB_CODE_SUCCESS != code) {
     nodesFree(list);
     if (isNewAgg) {
@@ -5057,7 +5062,8 @@ static int32_t splitCacheLastFuncOptUpdateScanNode(SAggLogicNode* pAgg,
     }
     return code;
   }
-  code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_TAG, &pScan->pScanPseudoCols);
+  code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_TAG,
+                                     &pScan->pScanPseudoCols);
   if (TSDB_CODE_SUCCESS != code) {
     nodesFree(list);
     if (isNewAgg) {
@@ -5100,7 +5106,8 @@ static int32_t splitCacheLastFuncOptUpdateScanNode(SAggLogicNode* pAgg,
     }
     return code;
   }
-  code = createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets);
+  code = createColumnByRewriteExprs(pScan->pScanPseudoCols,
+                                    &pScan->node.pTargets);
   if (TSDB_CODE_SUCCESS != code) {
     if (isNewAgg) {
       nodesDestroyNode((SNode*)pAgg);
@@ -5111,7 +5118,9 @@ static int32_t splitCacheLastFuncOptUpdateScanNode(SAggLogicNode* pAgg,
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, SAggLogicNode* pAgg, SNodeList* pFunc,
+static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg,
+                                                       SAggLogicNode* pAgg,
+                                                       SNodeList* pFunc,
                                                        SNodeList* pTargets) {
   SAggLogicNode* pNew = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG, (SNode**)&pNew);
