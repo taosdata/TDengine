@@ -877,12 +877,11 @@ struct test_times
 };
 
 void timezone_str_test(const char* tz, time_t t, const char* tzStr) {
-  int code = setenv("TZ", tz, 1);
-  ASSERT(-1 != code);
-  tzset();
+  timezone_t tzp = tzalloc(tz);
+  ASSERT(tzp != NULL);
 
   char str1[TD_TIMEZONE_LEN] = {0};
-  ASSERT(taosFormatTimezoneStr(t, tz, NULL, str1) == 0);
+  ASSERT(taosFormatTimezoneStr(t, tz, tzp, str1) == 0);
   ASSERT_STREQ(str1, tzStr);
 }
 

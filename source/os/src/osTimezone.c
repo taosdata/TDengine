@@ -1012,10 +1012,11 @@ void cleanupTimezoneInfo(void) {
 #endif
 }
 
-#ifdef WINDOWS
-#else
 timezone_t getGlobalDefaultTZ() {
+#ifdef WINDOWS
+  return NULL;
+#else
   uint32_t idx = atomic_load_32((int32_t *)&g_tz_idx);
   return g_tz_slots[idx].tz;
-}
 #endif
+}

@@ -1,6 +1,6 @@
 select _wstart, _wend, _wduration, count(*) from test.st interval(1m, auto) limit 10;
 select _wstart, _wend, _wduration, count(*) from test.st where ts < '2020-10-01 00:07:19' interval(1m, auto) limit 10;
-select _wstart, _wend, _wduration, count(*) from test.st where ts <= '2020-09-30 15:59:59' interval(1h, auto) limit 10;
+select _wstart, _wend, _wduration, count(*) from test.st where ts <= '2020-09-30 23:59:59' interval(1h, auto) limit 10;
 select _wstart, _wend, _wduration, count(*) from test.st where ts = '2020-10-01 23:45:00' interval(1s, auto) limit 10;
 select _wstart, _wend, _wduration, count(*) from test.st where ts = '2020-10-01 23:45:00' interval(1m, auto) limit 10;
 select _wstart, _wend, _wduration, count(*) from test.st where ts = '2020-11-01 23:45:00' interval(1h, auto) limit 10;
