@@ -34,7 +34,7 @@
 #include "tjson.h"
 #include "tmisce.h"
 #include "tunit.h"
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE)
 #include "taoskInt.h"
 #endif
 
@@ -1844,7 +1844,7 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
 
   mInfo("received key sync req from dnode:%d, keyVersion:%d", req.dnodeId, req.keyVersion);
 
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
   // Load mnode's encryption keys
   char masterKeyFile[PATH_MAX] = {0};
   snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
@@ -2158,7 +2158,7 @@ static int32_t mndProcessAlterEncryptKeyReq(SRpcMsg *pReq) {
 
   mInfo("received alter encrypt key req, keyType:%d", alterReq.keyType);
 
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
   // Process and distribute to all dnodes
   code = mndProcessAlterEncryptKeyReqImpl(pReq, &alterReq);
   if (code == 0) {

@@ -5,8 +5,8 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/dnode/mgmt"
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
-if(TD_ENTERPRISE AND TD_HAS_OPENSSL)
-  # Include taosk headers for encryption key management (requires OpenSSL)
+if(TD_ENTERPRISE)
+  # Include taosk headers for encryption key management (now using community CBC encryption)
   target_include_directories(
     node_util
     PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/taosk/inc"

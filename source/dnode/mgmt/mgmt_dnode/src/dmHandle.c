@@ -17,6 +17,7 @@
 #include "audit.h"
 #include "dmInt.h"
 // #include "dmMgmt.h"
+#include "crypt.h"
 #include "monitor.h"
 #include "stream.h"
 #include "systable.h"
@@ -901,6 +902,317 @@ _exit:
 }
 
 #if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+// Verification plaintext used to validate encryption keys
+#define KEY_VERIFY_PLAINTEXT "TDengine_Encryption_Key_Verification_v1.0"
+
+// Save key verification file with encrypted plaintext for each key
+static int32_t dmSaveKeyVerification(const char *svrKey, const char *dbKey, const char *cfgKey, const char *metaKey,
+                                     const char *dataKey, int32_t algorithm, int32_t cfgAlgorithm,
+                                     int32_t metaAlgorithm) {
+  char    verifyFile[PATH_MAX] = {0};
+  int32_t nBytes = snprintf(verifyFile, sizeof(verifyFile), "%s%sdnode%sconfig%skey_verify.dat", tsDataDir, TD_DIRSEP,
+                            TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(verifyFile)) {
+    dError("failed to build key verification file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  int32_t     code = 0;
+  const char *plaintext = KEY_VERIFY_PLAINTEXT;
+  int32_t     plaintextLen = strlen(plaintext);
+
+  // Array of keys and their algorithms
+  const char *keys[] = {svrKey, dbKey, cfgKey, metaKey, dataKey};
+  int32_t     algorithms[] = {algorithm, algorithm, cfgAlgorithm, metaAlgorithm, algorithm};
+  const char *keyNames[] = {"SVR_KEY", "DB_KEY", "CFG_KEY", "META_KEY", "DATA_KEY"};
+
+  // Calculate total buffer size
+  int32_t encryptedLen = ((plaintextLen + 15) / 16) * 16;                 // Padded length for CBC
+  int32_t headerSize = sizeof(uint32_t) + sizeof(uint16_t);               // magic + version
+  int32_t perKeySize = sizeof(int32_t) + sizeof(int32_t) + encryptedLen;  // algo + len + encrypted data
+  int32_t totalSize = headerSize + perKeySize * 5;
+
+  // Allocate buffer for all data
+  char *buffer = taosMemoryMalloc(totalSize);
+  if (buffer == NULL) {
+    dError("failed to allocate memory for key verification buffer");
+    return terrno;
+  }
+
+  char *ptr = buffer;
+
+  // Write magic number and version to buffer
+  uint32_t magic = 0x544B5659;  // "TKVY" in hex
+  uint16_t version = 1;
+  memcpy(ptr, &magic, sizeof(magic));
+  ptr += sizeof(magic);
+  memcpy(ptr, &version, sizeof(version));
+  ptr += sizeof(version);
+
+  // Encrypt all keys and write to buffer
+  char paddedPlaintext[512] = {0};
+  memcpy(paddedPlaintext, plaintext, plaintextLen);
+
+  for (int i = 0; i < 5; i++) {
+    char encrypted[512] = {0};
+
+    // Encrypt the verification plaintext with this key using CBC
+    SCryptOpts opts = {0};
+    opts.len = encryptedLen;
+    opts.source = paddedPlaintext;
+    opts.result = encrypted;
+    opts.unitLen = 16;
+    opts.pOsslAlgrName =
+        (algorithms[i] == TSDB_ENCRYPT_ALGO_SM4) ? TSDB_ENCRYPT_ALGO_SM4_STR : TSDB_ENCRYPT_ALGO_NONE_STR;
+    tstrncpy(opts.key, keys[i], sizeof(opts.key));
+
+    int32_t count = CBC_Encrypt(&opts);
+    if (count != opts.len) {
+      code = terrno ? terrno : TSDB_CODE_FAILED;
+      dError("failed to encrypt verification for %s, count=%d, expected=%d, since %s", keyNames[i], count, opts.len,
+             tstrerror(code));
+      taosMemoryFree(buffer);
+      return code;
+    }
+
+    // Write to buffer: algorithm + encrypted length + encrypted data
+    memcpy(ptr, &algorithms[i], sizeof(int32_t));
+    ptr += sizeof(int32_t);
+    memcpy(ptr, &encryptedLen, sizeof(int32_t));
+    ptr += sizeof(int32_t);
+    memcpy(ptr, encrypted, encryptedLen);
+    ptr += encryptedLen;
+
+    dDebug("prepared verification for %s: algorithm=%d, encLen=%d", keyNames[i], algorithms[i], encryptedLen);
+  }
+
+  // Write all data to file in one operation
+  TdFilePtr pFile = taosOpenFile(verifyFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (pFile == NULL) {
+    dError("failed to create key verification file:%s, errno:%d", verifyFile, errno);
+    taosMemoryFree(buffer);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  int64_t written = taosWriteFile(pFile, buffer, totalSize);
+  taosCloseFile(&pFile);
+  taosMemoryFree(buffer);
+
+  if (written != totalSize) {
+    dError("failed to write key verification file, written=%" PRId64 ", expected=%d", written, totalSize);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  dInfo("successfully saved key verification file:%s, size=%d", verifyFile, totalSize);
+  return 0;
+}
+
+// Verify all encryption keys by decrypting and comparing with original plaintext
+static int32_t dmVerifyEncryptionKeys(const char *svrKey, const char *dbKey, const char *cfgKey, const char *metaKey,
+                                      const char *dataKey, int32_t algorithm, int32_t cfgAlgorithm,
+                                      int32_t metaAlgorithm) {
+  char    verifyFile[PATH_MAX] = {0};
+  int32_t nBytes = snprintf(verifyFile, sizeof(verifyFile), "%s%sdnode%sconfig%skey_verify.dat", tsDataDir, TD_DIRSEP,
+                            TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(verifyFile)) {
+    dError("failed to build key verification file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  // Get file size
+  int64_t fileSize = 0;
+  if (taosStatFile(verifyFile, &fileSize, NULL, NULL) < 0) {
+    // File doesn't exist, create it with current keys
+    dInfo("key verification file not found, creating new one");
+    return dmSaveKeyVerification(svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm, cfgAlgorithm, metaAlgorithm);
+  }
+
+  if (fileSize <= 0 || fileSize > 10240) {  // Max 10KB
+    dError("invalid key verification file size: %" PRId64, fileSize);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  // Allocate buffer and read entire file
+  char *buffer = taosMemoryMalloc(fileSize);
+  if (buffer == NULL) {
+    dError("failed to allocate memory for key verification buffer");
+    return terrno;
+  }
+
+  TdFilePtr pFile = taosOpenFile(verifyFile, TD_FILE_READ);
+  if (pFile == NULL) {
+    dError("failed to open key verification file:%s", verifyFile);
+    taosMemoryFree(buffer);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  int64_t bytesRead = taosReadFile(pFile, buffer, fileSize);
+  taosCloseFile(&pFile);
+
+  if (bytesRead != fileSize) {
+    dError("failed to read key verification file, read=%" PRId64 ", expected=%" PRId64, bytesRead, fileSize);
+    taosMemoryFree(buffer);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  int32_t     code = 0;
+  const char *plaintext = KEY_VERIFY_PLAINTEXT;
+  int32_t     plaintextLen = strlen(plaintext);
+  const char *ptr = buffer;
+
+  // Parse and verify header
+  uint32_t magic = 0;
+  uint16_t version = 0;
+  memcpy(&magic, ptr, sizeof(magic));
+  ptr += sizeof(magic);
+  memcpy(&version, ptr, sizeof(version));
+  ptr += sizeof(version);
+
+  if (magic != 0x544B5659) {
+    dError("invalid magic number in key verification file: 0x%x", magic);
+    taosMemoryFree(buffer);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  // Array of keys and their algorithms
+  const char *keys[] = {svrKey, dbKey, cfgKey, metaKey, dataKey};
+  int32_t     expectedAlgos[] = {algorithm, algorithm, cfgAlgorithm, metaAlgorithm, algorithm};
+  const char *keyNames[] = {"SVR_KEY", "DB_KEY", "CFG_KEY", "META_KEY", "DATA_KEY"};
+
+  // Verify each key from buffer
+  for (int i = 0; i < 5; i++) {
+    // Check if we have enough data remaining
+    if (ptr - buffer + sizeof(int32_t) * 2 > fileSize) {
+      dError("unexpected end of file while reading %s metadata", keyNames[i]);
+      taosMemoryFree(buffer);
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
+
+    int32_t savedAlgo = 0;
+    int32_t encryptedLen = 0;
+
+    memcpy(&savedAlgo, ptr, sizeof(int32_t));
+    ptr += sizeof(int32_t);
+    memcpy(&encryptedLen, ptr, sizeof(int32_t));
+    ptr += sizeof(int32_t);
+
+    if (encryptedLen <= 0 || encryptedLen > 512) {
+      dError("invalid encrypted length %d for %s", encryptedLen, keyNames[i]);
+      taosMemoryFree(buffer);
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
+
+    if (ptr - buffer + encryptedLen > fileSize) {
+      dError("unexpected end of file while reading %s encrypted data", keyNames[i]);
+      taosMemoryFree(buffer);
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
+
+    uint8_t encrypted[512] = {0};
+    memcpy(encrypted, ptr, encryptedLen);
+    ptr += encryptedLen;
+
+    // Decrypt with current key using CBC
+    char decrypted[512] = {0};
+
+    SCryptOpts opts = {0};
+    opts.len = encryptedLen;
+    opts.source = (char *)encrypted;
+    opts.result = decrypted;
+    opts.unitLen = 16;
+    opts.pOsslAlgrName = (savedAlgo == TSDB_ENCRYPT_ALGO_SM4) ? TSDB_ENCRYPT_ALGO_SM4_STR : TSDB_ENCRYPT_ALGO_NONE_STR;
+    tstrncpy(opts.key, keys[i], sizeof(opts.key));
+
+    int32_t count = CBC_Decrypt(&opts);
+    if (count != opts.len) {
+      code = terrno ? terrno : TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      dError("failed to decrypt verification for %s, count=%d, expected=%d, since %s - KEY IS INCORRECT", keyNames[i],
+             count, opts.len, tstrerror(code));
+      taosMemoryFree(buffer);
+      return TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+    }
+
+    // Verify decrypted data matches original plaintext (compare only the plaintext length)
+    if (memcmp(decrypted, plaintext, plaintextLen) != 0) {
+      dError("%s verification FAILED: decrypted text does not match - KEY IS INCORRECT", keyNames[i]);
+      taosMemoryFree(buffer);
+      return TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+    }
+
+    dInfo("%s verification passed (algorithm=%d)", keyNames[i], savedAlgo);
+  }
+
+  taosMemoryFree(buffer);
+  dInfo("all encryption keys verified successfully");
+  return 0;
+}
+
+// Public API: Verify and initialize encryption keys at startup
+int32_t dmVerifyAndInitEncryptionKeys(void) {
+  // Check if encryption keys are loaded
+  if (tsEncryptKeysStatus != TSDB_ENCRYPT_KEY_STAT_LOADED) {
+    dDebug("encryption keys not loaded, skipping verification");
+    return 0;
+  }
+
+  // Get key file paths
+  char    masterKeyFile[PATH_MAX] = {0};
+  char    derivedKeyFile[PATH_MAX] = {0};
+  int32_t nBytes = snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP,
+                            TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(masterKeyFile)) {
+    dError("failed to build master key file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  nBytes = snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP,
+                    TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(derivedKeyFile)) {
+    dError("failed to build derived key file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  // Load encryption keys
+  char    svrKey[129] = {0};
+  char    dbKey[129] = {0};
+  char    cfgKey[129] = {0};
+  char    metaKey[129] = {0};
+  char    dataKey[129] = {0};
+  int32_t algorithm = 0;
+  int32_t cfgAlgorithm = 0;
+  int32_t metaAlgorithm = 0;
+  int32_t fileVersion = 0;
+  int32_t keyVersion = 0;
+  int64_t createTime = 0;
+  int64_t svrKeyUpdateTime = 0;
+  int64_t dbKeyUpdateTime = 0;
+
+  int32_t code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey,
+                                      &algorithm, &cfgAlgorithm, &metaAlgorithm, &fileVersion, &keyVersion, &createTime,
+                                      &svrKeyUpdateTime, &dbKeyUpdateTime);
+  if (code != 0) {
+    dError("failed to load encryption keys, since %s", tstrerror(code));
+    return code;
+  }
+
+  // Verify all keys
+  code = dmVerifyEncryptionKeys(svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm, cfgAlgorithm, metaAlgorithm);
+  if (code != 0) {
+    dError("encryption key verification failed, since %s", tstrerror(code));
+    return code;
+  }
+
+  dInfo("encryption keys verified and initialized successfully");
+  return 0;
+}
+#else
+int32_t dmVerifyAndInitEncryptionKeys(void) {
+  // Community edition or no TaosK support
+  return 0;
+}
+#endif
+
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
 static int32_t dmUpdateSvrKey(const char *newKey) {
   if (newKey == NULL || newKey[0] == '\0') {
     dError("invalid new SVR_KEY, key is empty");
@@ -963,6 +1275,13 @@ static int32_t dmUpdateSvrKey(const char *newKey) {
   if (code != 0) {
     dError("failed to save updated encryption keys, since %s", tstrerror(code));
     return code;
+  }
+
+  // Update key verification file with new SVR_KEY
+  code = dmSaveKeyVerification(svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm, algorithm, algorithm);
+  if (code != 0) {
+    dWarn("failed to update key verification file, since %s", tstrerror(code));
+    // Don't fail the operation if verification file update fails
   }
 
   // Update global variables
@@ -1054,6 +1373,13 @@ static int32_t dmUpdateDbKey(const char *newKey) {
   if (code != 0) {
     dError("failed to save updated encryption keys, since %s", tstrerror(code));
     return code;
+  }
+
+  // Update key verification file with new DB_KEY
+  code = dmSaveKeyVerification(svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm, algorithm, algorithm);
+  if (code != 0) {
+    dWarn("failed to update key verification file, since %s", tstrerror(code));
+    // Don't fail the operation if verification file update fails
   }
 
   // Update global variables
