@@ -326,14 +326,14 @@ The FILL clause is used to specify the fill mode when data is missing in a windo
 
 1. No fill: NONE (default fill mode).
 1. VALUE fill: Fixed value fill, where the fill value must be specified. For example: FILL(VALUE, 1.23). Note that the final fill value is determined by the type of the corresponding column, such as FILL(VALUE, 1.23) for an INT type column, the fill value would be 1.
-1. PREV fill: Fill with the previous non-NULL value. For example: FILL(PREV).
-1. NULL fill: Fill with NULL. For example: FILL(NULL).
+1. PREV fill: Fill data with the previous valid value. For example: FILL(PREV).
+1. NULL fill: Fill data with NULL. For example: FILL(NULL).
 1. LINEAR fill: Perform linear interpolation based on the nearest non-NULL values before and after. For example: FILL(LINEAR).
-1. NEXT fill: Fill with the next non-NULL value. For example: FILL(NEXT).
+1. NEXT fill: Fill data with the next valid value. For example: FILL(NEXT).
 
 Among these fill modes, except for the NONE mode which does not fill by default, other modes will be ignored if there is no data in the entire query time range, resulting in no fill data and an empty query result. This behavior is reasonable under some modes (PREV, NEXT, LINEAR) because no data means no fill value can be generated.
 
-For other modes (NULL, VALUE), theoretically, fill values can be generated. Whether to output fill values depends on the application's requirements. To meet the needs of applications that require forced filling of data or NULL, and to maintain compatibility with existing fill modes, TDengine also supports two new fill modes:
+For other modes (NULL, VALUE), theoretically, fill values can be generated. Whether to output fill values depends on the application's requirements. To meet the needs of applications that require forced filling of data or NULL, and to maintain compatibility with existing fill modes, TDengine also supports two new fill modes from version 3.0.3.0:
 
 1. NULL_F: Force fill with NULL values
 1. VALUE_F: Force fill with VALUE

@@ -756,8 +756,10 @@ int32_t qWorkerProcessNotifyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
 
   QW_SCH_TASK_DLOG("processNotify end, node:%p, code:%x", node, code);
 
-  taosMemFreeClear(msg.pOpParam->value);
-  taosMemFreeClear(msg.pOpParam);
+  if (NULL != msg.pOpParam)  {
+    taosMemFreeClear(msg.pOpParam->value);
+    taosMemFreeClear(msg.pOpParam);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
