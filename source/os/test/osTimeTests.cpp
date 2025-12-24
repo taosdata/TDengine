@@ -225,6 +225,8 @@ TEST(osTimeTests, taosLocalTimeBenchmark) {
   EXPECT_EQ(err.load(), 0u);
 }
 
+#ifdef WINDOWS
+#else
 TEST(osTimeTests, tzConcurrencyBreakTest) {
   constexpr int kReaderThreads = 16;
   constexpr int kDurationSec = 3;
@@ -288,3 +290,4 @@ TEST(osTimeTests, tzConcurrencyBreakTest) {
   unsetenv("TZ");
   tzset();
 }
+#endif
