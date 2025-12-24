@@ -469,6 +469,31 @@ static int32_t cfgUpdateDebugFlagItem(SConfig *pCfg, const char *name, bool rese
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+bool cfgTimezoneSet(SConfig *pCfg, bool lock) {
+  if (lock) {
+    (void)taosThreadMutexLock(&pCfg->lock);
+  }
+
+  SConfigItem *pItem = cfgGetItem(pCfg, "timezone");
+  if (pItem == NULL) {
+    (void)taosThreadMutexUnlock(&pCfg->lock);
+    return false;
+  }
+
+  if (pItem->str != NULL && strlen(pItem->str) > 0) {
+    if (lock) {
+      (void)taosThreadMutexUnlock(&pCfg->lock);
+    }
+    return true;
+  }
+
+  if (lock) {
+    (void)taosThreadMutexUnlock(&pCfg->lock);
+  }
+
+  return false;
+}
+
 int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock) {
   // GRANT_CFG_SET;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1107,6 +1132,10 @@ static int32_t setSpecialEnvCfg(SConfig *pConfig, bool *set, char *string) {
   if (string[0] == 'T' && string[1] == 'Z' && string[2] == '=') {
     char  name[] = "timezone";
     char *value = string + 3;
+
+    if (cfgTimezoneSet(pConfig, true)) {
+      return TSDB_CODE_SUCCESS;
+    }
 
     code = cfgSetItem(pConfig, name, value, CFG_STYPE_ENV_VAR, true);
     *set = code == TSDB_CODE_SUCCESS ? true : false;

@@ -883,6 +883,7 @@ void timezone_str_test(const char* tz, time_t t, const char* tzStr) {
   char str1[TD_TIMEZONE_LEN] = {0};
   ASSERT(taosFormatTimezoneStr(t, tz, tzp, str1) == 0);
   ASSERT_STREQ(str1, tzStr);
+  tzfree(tzp);
 }
 
 void timezone_rz_str_test(const char* tz, time_t t, const char* tzStr) {
@@ -943,9 +944,11 @@ TEST(timezoneCase, mktime_Test){
 
   for (unsigned int i = 0; i < sizeof (test_mk) / sizeof (test_mk[0]); ++i)
   {
-    setenv ("TZ", test_mk[i].env, 1);
-    t = taosMktime (&tm, NULL);
+    timezone_t tzp = tzalloc(test_mk[i].env);
+    ASSERT(tzp != NULL);
+    t = taosMktime (&tm, tzp);
     ASSERT (t == test_mk[i].expected);
+    tzfree(tzp);
   }
 }
 
