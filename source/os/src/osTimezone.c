@@ -744,54 +744,55 @@ char *tz_win[W_TZ_CITY_NUM][2] = {{"Asia/Shanghai", "China Standard Time"},
 #include <unistd.h>
 #endif
 
-timezone_t g_default_tz = NULL;
-timezone_t g_cleaning_tz = NULL;  // delay free old tz
-char       g_default_tz_str[TD_TIMEZONE_LEN] = {0};
-int64_t    g_last_tz_update_time = 0;
-#define MAX_TZ_CHANGE_INTERVAL_MS 2000
+#define TZ_SLOTS 8
 
-int32_t resetTimezoneInfo(const char *tz) {
-#ifdef WINDOWS
+typedef struct {
+  timezone_t tz;
+  uint64_t   gen;
+} tz_slot_t;
+static tz_slot_t g_tz_slots[TZ_SLOTS];
+
+/*
+ * g_tz_gen is a monotonically increasing generation counter.
+ * Each reset gets a unique generation number, which maps
+ * to a slot in the ring buffer to guarantee delayed reclamation.
+ */
+static uint64_t  g_tz_gen = 0;
+static uint32_t  g_tz_idx = 0;
+
+int32_t resetTimezoneInfo(const char *tzname)
+{
+#ifndef WINDOWS
+  if (!tzname) {
+    return TSDB_CODE_TIME_ERROR;
+  }
+
+  timezone_t ntz = tzalloc(tzname);
+  if (!ntz) {
+    uError("tzalloc(%s) failed", tzname);
+    return TSDB_CODE_TIME_ERROR;
+  }
+
+  uint64_t gen = atomic_fetch_add_64((int64_t*)&g_tz_gen, 1);
+
+  uint32_t idx = gen % TZ_SLOTS;
+
+  timezone_t old = g_tz_slots[idx].tz;
+  if (old) {
+    tzfree(old);
+  }
+
+  g_tz_slots[idx].tz  = ntz;
+  g_tz_slots[idx].gen = gen;
+
+  atomic_store_32((int32_t*)&g_tz_idx, idx);
+
+  uInfo("[tz] switched to %s (slot=%u gen=%" PRIu64 ")", tzname, idx, gen);
+
+  return TSDB_CODE_SUCCESS;
 #else
-  timezone_t old = atomic_load_ptr(&g_default_tz);
-  if (old != NULL) {
-    if (strcasecmp(tz, g_default_tz_str) == 0) {
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-
-  timezone_t ptz = tzalloc(tz);
-  if (!ptz) {
-    uError("failed to allocate default timezone");
-    return TSDB_CODE_TIME_ERROR;
-  }
-
-  timezone_t tmp = atomic_val_compare_exchange_ptr(&g_default_tz, old, ptz);
-  if (old != tmp) {
-    tzfree(ptz);
-    return TSDB_CODE_TIME_ERROR;
-  }
-  tstrncpy(g_default_tz_str, tz, TD_TIMEZONE_LEN);
-
-  int64_t lastTime = atomic_load_64(&g_last_tz_update_time);
-  int64_t now = taosGetTimestampMs();
-  if (now - lastTime < MAX_TZ_CHANGE_INTERVAL_MS) {
-    uWarn("timezone changed too frequently, wait 3000ms to free old tz");
-    taosMsleep(MAX_TZ_CHANGE_INTERVAL_MS - (now - lastTime));
-  }
-
-  if (g_cleaning_tz == NULL) {
-    g_cleaning_tz = old;
-  } else {
-    tzfree(g_cleaning_tz);
-    g_cleaning_tz = old;  // delay free old tz
-  }
-  uInfo("[tz]timezone changed to %s", tz);
-  g_last_tz_update_time = taosGetTimestampMs();
-
   return TSDB_CODE_SUCCESS;
 #endif
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t taosSetGlobalTimezone(const char *tz) {
@@ -836,14 +837,14 @@ int32_t taosSetGlobalTimezone(const char *tz) {
   }
 
   time_t tx1 = taosGetTimestampSec();
-  return taosFormatTimezoneStr(tx1, tz, g_default_tz, tsTimezoneStr);
+  return taosFormatTimezoneStr(tx1, tz, getGlobalDefaultTZ(), tsTimezoneStr);
 #endif
 }
 
 int32_t taosGetLocalTimezoneOffset() {
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
-  if (taosLocalTime(&tx1, &tm1, NULL, 0, g_default_tz) == NULL) {
+  if (taosLocalTime(&tx1, &tm1, NULL, 0, getGlobalDefaultTZ()) == NULL) {
     uError("%s failed to get local time: code:%d", __FUNCTION__, ERRNO);
     return TSDB_CODE_TIME_ERROR;
   }
@@ -973,28 +974,27 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr) {
   getTimezoneStr(tz);
   time_t tx1 = taosGetTimestampSec();
 
-  return taosFormatTimezoneStr(tx1, tz, g_default_tz, outTimezoneStr);
+  return taosFormatTimezoneStr(tx1, tz, getGlobalDefaultTZ(), outTimezoneStr);
 #endif
 }
 
 int32_t initTimezoneInfo(void) {
 #ifdef WINDOWS
 #else
-  timezone_t old = atomic_load_ptr(&g_default_tz);
-  if (old != NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
-  timezone_t tz = tzalloc(NULL);
+  uint64_t gen = atomic_val_compare_exchange_64((int64_t *)&g_tz_gen, 0, 1);
+  if (gen > 0) return TSDB_CODE_SUCCESS;
+  timezone_t tz = tzalloc(NULL);  // system default
   if (!tz) {
-    uError("failed to allocate default timezone");
+    uError("tzalloc(NULL) failed");
     return TSDB_CODE_TIME_ERROR;
   }
 
-  old = atomic_val_compare_exchange_ptr(&g_default_tz, NULL, tz);
-  if (old != NULL) {
-    tzfree(tz);
-    return TSDB_CODE_TIME_ERROR;
-  }
+  g_tz_slots[0].tz = tz;
+  g_tz_slots[0].gen = 0;
+
+  atomic_store_64((int64_t *)&g_tz_gen, 0);
+  atomic_store_32((int32_t *)&g_tz_idx, 0);
+
   uInfo("[tz]timezone initTimezoneInfo.");
 #endif
   return TSDB_CODE_SUCCESS;
@@ -1003,14 +1003,10 @@ int32_t initTimezoneInfo(void) {
 void cleanupTimezoneInfo(void) {
 #ifdef WINDOWS
 #else
-  timezone_t old = atomic_load_ptr(&g_default_tz);
-  timezone_t tz = atomic_val_compare_exchange_ptr(&g_default_tz, old, NULL);
-  if (tz == old) {
-    tzfree(tz);
-    if (g_cleaning_tz) {
-      tzfree(g_cleaning_tz);
-      g_cleaning_tz = NULL;
-      g_last_tz_update_time = 0;
+  for (int i = 0; i < TZ_SLOTS; ++i) {
+    if (g_tz_slots[i].tz) {
+      tzfree(g_tz_slots[i].tz);
+      g_tz_slots[i].tz = NULL;
     }
   }
 #endif
@@ -1018,5 +1014,8 @@ void cleanupTimezoneInfo(void) {
 
 #ifdef WINDOWS
 #else
-timezone_t getGlobalDefaultTZ() { return atomic_load_ptr(&g_default_tz); }
+timezone_t getGlobalDefaultTZ() {
+  uint32_t idx = atomic_load_32((int32_t *)&g_tz_idx);
+  return g_tz_slots[idx].tz;
+}
 #endif
