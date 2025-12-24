@@ -936,12 +936,9 @@ static int32_t collectMetaKeyFromShowIndexes(SCollectMetaKeyCxt* pCxt, SShowStmt
 static int32_t collectMetaKeyFromShowStables(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_STABLES,
                                          pCxt->pMetaCache);
-  // if (TSDB_CODE_SUCCESS == code) {
-  //   code =
-  //       reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser,
-  //       ((SValueNode*)pStmt->pDbName)->literal,
-  //                              NULL, AUTH_TYPE_READ_OR_WRITE, pCxt->pMetaCache);
-  // }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code =
         reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, ((SValueNode*)pStmt->pDbName)->literal,
@@ -970,12 +967,10 @@ static int32_t collectMetaKeyFromShowTables(SCollectMetaKeyCxt* pCxt, SShowStmt*
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
   }
-  // if (TSDB_CODE_SUCCESS == code) {
-  // code =
-  //     reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, ((SValueNode*)pStmt->pDbName)->literal,
-  //                            NULL, AUTH_TYPE_READ_OR_WRITE, pCxt->pMetaCache);
 
-  // }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code =
         reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, ((SValueNode*)pStmt->pDbName)->literal,

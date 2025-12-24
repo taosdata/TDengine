@@ -2326,6 +2326,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   pOld->enable = pNew->enable;
   pOld->flag = pNew->flag;
   pOld->changePass = pNew->changePass;
+  pOld->uid = pNew->uid;
 
   pOld->sessionPerUser = pNew->sessionPerUser;
   pOld->connectTime = pNew->connectTime;
@@ -2542,6 +2543,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.sysInfo = pCreate->sysInfo;
   userObj.enable = pCreate->enable;
   userObj.createdb = pCreate->createDb;
+  userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
 
   userObj.changePass = pCreate->changepass;
   userObj.sessionPerUser = pCreate->sessionPerUser;

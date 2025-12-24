@@ -547,7 +547,7 @@ _exit:
 
 bool privHasObjPrivilegeRec(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
                             SPrivInfo* privInfo) {
-#if 1  // debug info, remove when release
+#if 0  // debug info, remove when release
   SPrivObjPolicies* pp = NULL;
   while ((pp = taosHashIterate(privs, pp))) {
     char* pKey = taosHashGetKey(pp, NULL);

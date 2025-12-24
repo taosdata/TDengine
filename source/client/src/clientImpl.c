@@ -379,6 +379,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .userId = pTscObj->userId,
       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
       .enableSysInfo = pTscObj->sysInfo,
+      .userId = pTscObj->userId,
       .svrVer = pTscObj->sVer,
       .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
       .stmtBindVersion = pRequest->stmtBindVersion,
@@ -596,6 +597,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pMsg = pRequest->msgBuf,
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                       .pUser = pRequest->pTscObj->user,
+                      .userId = pRequest->pTscObj->userId,
                       .timezone = pRequest->pTscObj->optionInfo.timezone,
                       .sysInfo = pRequest->pTscObj->sysInfo};
 
@@ -1458,6 +1460,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .pMsg = pRequest->msgBuf,
                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                         .pUser = pRequest->pTscObj->user,
+                        .userId = pRequest->pTscObj->userId,
                         .sysInfo = pRequest->pTscObj->sysInfo,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
                         .allocatorId = pRequest->stmtBindVersion > 0 ? 0 : pRequest->allocatorRefId};
