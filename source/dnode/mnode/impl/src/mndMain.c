@@ -1078,7 +1078,7 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo) {
       code = TSDB_CODE_MND_TOKEN_DISABLED;
       TAOS_RETURN(code);
     }
-    if (ti.expireTime > 0 && taosGetTimestampSec() > (ti.expireTime + 30)) {
+    if (ti.expireTime > 0 && taosGetTimestampSec() > (ti.expireTime + TSDB_TOKEN_EXPIRY_LEEWAY)) {
       mGError("msg:%p, token is expired, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
       code = TSDB_CODE_MND_TOKEN_EXPIRED;
       TAOS_RETURN(code);

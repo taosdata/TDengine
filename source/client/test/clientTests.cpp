@@ -412,7 +412,6 @@ TEST(clientCase, connect_token_Test) {
   (void)printf("token is: %s\n", token);
   taos_free_result(pRes);
   taos_close(pConn);
-  taosMsleep(1000);
 
   pConn = taos_connect_token("localhost", token, NULL, 0);
   if (pConn == NULL) {

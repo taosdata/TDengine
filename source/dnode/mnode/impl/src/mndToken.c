@@ -388,9 +388,12 @@ static int32_t mndCreateToken(SMnode* pMnode, SCreateTokenReq* pCreate, SUserObj
   tokenObj.enabled    = pCreate->enable;
   tokenObj.createdTime = taosGetTimestampSec();
   tokenObj.expireTime = (pCreate->ttl > 0) ? (tokenObj.createdTime + pCreate->ttl) : 0;
-  do {
+  while (1) {
     generateToken(tokenObj.token, sizeof(tokenObj.token));
-  } while (tokenCacheExist(tokenObj.token));
+    if (!tokenCacheExist(tokenObj.token)) {
+      break;
+    }
+  }
 
   SUserObj newUser = {0};
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);

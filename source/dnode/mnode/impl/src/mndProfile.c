@@ -367,8 +367,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
       TAOS_CHECK_GOTO(TSDB_CODE_MND_TOKEN_DISABLED, &lino, _OVER);
     }
 
-    // 30 is the leeway time for token expiration
-    if (ti.expireTime > 0 && now > (ti.expireTime + 30)) {
+    if (ti.expireTime > 0 && now > (ti.expireTime + TSDB_TOKEN_EXPIRY_LEEWAY)) {
       TAOS_CHECK_GOTO(TSDB_CODE_MND_TOKEN_EXPIRED, &lino, _OVER);
     }
 
