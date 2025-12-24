@@ -280,14 +280,14 @@ func handleDetails(details string) string {
 
 func parseSql(audit AuditInfo) string {
 	return fmt.Sprintf(
-		"insert into %s using operations tags ('%s') values (%s, '%s', '%s', '%s', '%s', '%s', '%s', %d, %f) ",
+		"insert into %s using operations tags ('%s') values (%s, '%s', '%s', '%s', '%s', '%s', '%s', %d, %f)",
 		getTableName(audit), audit.ClusterID, audit.Timestamp, audit.User, audit.Operation, audit.Db, audit.Resource,
 		audit.ClientAdd, handleDetails(audit.Details), audit.AffectedRows, audit.Duration)
 }
 
 func parseSqlOld(audit AuditInfoOld) string {
 	return fmt.Sprintf(
-		"insert into %s using operations tags ('%s') values (%s, '%s', '%s', '%s', '%s', '%s', '%s')",
+		"insert into %s using operations tags ('%s') values (%s, '%s', '%s', '%s', '%s', '%s', '%s', 0, 0)",
 		getTableNameOld(audit), audit.ClusterID, strconv.FormatInt(audit.Timestamp, 10)+"000000", audit.User,
 		audit.Operation, audit.Db, audit.Resource, audit.ClientAdd, handleDetails(audit.Details))
 }
@@ -435,7 +435,7 @@ func (a *Audit) alterSTable() error {
 		auditLogger.Info(msg)
 		_, err := a.conn.ExecWithRetryForever(context.Background(), sql, util.GetQidOwn(config.Conf.InstanceID))
 		if err != nil {
-			auditLogger.Errorf("alter stable operations error, msg:%s, sql:%s", err, sql)
+			auditLogger.Errorf("alter stable operations error, sql:%s, msg:%s", sql, err)
 			return err
 		}
 		return nil
