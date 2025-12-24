@@ -21,7 +21,7 @@ Prepare the following environments:
 
 Connect to the TDengine data source via JDBC WebSocket. The connection URL format is:
 
-``` sql
+```sql
 jdbc:TAOS-WS://[host_name]:[port]/[database_name]?[user={user}|&password={password}]
 ```
 
@@ -31,7 +31,7 @@ Set driverClass  to "com.taosdata.jdbc.ws.WebSocketDriver".
 
 The following example creates a Spark instance and connects to the local TDengine service:
 
-``` java
+```java
 // create spark instance
 SparkSession spark = SparkSession.builder()
     .appName("appSparkTest")
@@ -60,7 +60,7 @@ Data writing uses parameter binding and is accomplished in three steps:
 
 1. Create a Connection.
 
-    ``` java
+    ```java
       // create connect
       String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
       Connection connection = DriverManager.getConnection(url);
@@ -69,7 +69,7 @@ Data writing uses parameter binding and is accomplished in three steps:
 2. Bind Data and Submit.  
     The following example directly writes to a supertable and uses the batch - binding method to enhance writing efficiency.
 
-    ``` java
+    ```java
     int childTb    = 1;
     int insertRows = 21;
     String sql = "INSERT INTO test.meters(tbname, groupid, location, ts, current, voltage, phase) " +
@@ -108,7 +108,7 @@ Data writing uses parameter binding and is accomplished in three steps:
 
 3. Close the Connection.
 
-    ``` java
+    ```java
     // close
     connection.close();
     ```
@@ -121,7 +121,7 @@ Data reading is achieved through table mapping and is completed in four steps:
 
 1. Create a Spark Interaction Instance.
 
-    ``` java
+    ```java
     // create connect
     SparkSession spark = SparkSession.builder()
         .appName("appSparkTest")
@@ -131,7 +131,7 @@ Data reading is achieved through table mapping and is completed in four steps:
 
 2. Create a Data Reader.
 
-    ``` java
+    ```java
     // create reader
     String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
     int    timeout  = 60; // seconds
@@ -145,7 +145,7 @@ Data reading is achieved through table mapping and is completed in four steps:
 
 3. Map the Table and Display the Data in the Table.
 
-    ``` java
+    ```java
     // map table
     String dbtable = "test.meters";
     Dataset<Row> df = reader.option("dbtable", dbtable).load();
@@ -156,7 +156,7 @@ Data reading is achieved through table mapping and is completed in four steps:
 
 4. Close the Interaction.
 
-    ``` java
+    ```java
     spark.stop();
     ```
 
@@ -168,7 +168,7 @@ Data subscription uses the JDBC standard data - subscription method and is compl
 
 1. Create a Spark Interaction Instance.
 
-    ``` java
+    ```java
     SparkSession spark = SparkSession.builder()
         .appName("appSparkTest")
         .master("local[*]")
@@ -177,7 +177,7 @@ Data subscription uses the JDBC standard data - subscription method and is compl
 
 2. Create a Consumer.
 
-    ``` java
+    ```java
     // create consumer
     TaosConsumer<ResultBean> consumer = getConsumer();
 
@@ -224,7 +224,7 @@ Data subscription uses the JDBC standard data - subscription method and is compl
 
 3. Subscribe to the Topic, Consume the Data, and Display It in Spark.
 
-    ``` java
+    ```java
     // poll
     pollExample(spark, consumer);
 
@@ -282,7 +282,7 @@ Data subscription uses the JDBC standard data - subscription method and is compl
 
 4. Unsubscribe and Release Resources.
 
-    ``` java
+    ```java
     // close
     consumer.unsubscribe();
     consumer.close();
@@ -308,13 +308,13 @@ The LAG() function in Spark is used to obtain data from a previous row relative 
 
 1. Obtain data through TDengine SQL and create a Spark View. See createSparkView() for details.
 
-    ``` sql
+    ```sql
     SELECT tbname,* FROM test.meters WHERE tbname='d0'
     ```
 
 2. Use Spark SQL to query the data in the Spark View and calculate the weekly voltage change rate. The SQL is as follows:
 
-    ``` sql
+    ```sql
     SELECT tbname, ts, voltage,
         (LAG(voltage, 7) OVER (ORDER BY tbname)) AS voltage_last_week, 
         "CONCAT(ROUND(((voltage - (LAG(voltage, 7) OVER (ORDER BY tbname))) / (LAG(voltage, 7)
