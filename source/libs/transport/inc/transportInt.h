@@ -99,6 +99,7 @@ typedef struct {
   TdThreadMutex mutex;
 
   int8_t enableSSL;
+  int8_t internal;
 
   // void* pSSLContext;  // SSL context for mTLS
   // void* pNewSSLContext;  // SSL context for mTLS update version  

@@ -140,6 +140,7 @@ typedef struct SRpcInit {
   int8_t  ipv6;
   int8_t  enableSSL;
   int8_t  enableSasl;
+  int8_t  internal;
 
   char caPath[PATH_MAX];
   char certPath[PATH_MAX];

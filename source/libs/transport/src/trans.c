@@ -144,6 +144,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
 
   pRpc->enableSasl = pInit->enableSasl;
+  pRpc->internal = pInit->internal;
 
   if (pRpc->enableSasl) {
     tInfo("SASL is enabled for %s", pRpc->label);
