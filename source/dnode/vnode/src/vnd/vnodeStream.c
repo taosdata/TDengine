@@ -753,10 +753,10 @@ static bool isAlteredTable(ETableType tbType) {
   return tbType == TSDB_CHILD_TABLE || tbType == TSDB_VIRTUAL_CHILD_TABLE || tbType == TSDB_VIRTUAL_NORMAL_TABLE;
 }
 
-static int32_t getAlterColId(void* pVnode, int64_t uid, SVAlterTbReq* pReq) {
+static void getAlterColId(void* pVnode, int64_t uid, SVAlterTbReq* pReq) {
   SSchemaWrapper *pSchema = metaGetTableSchema(((SVnode *)pVnode)->pMeta, uid, -1, 1, NULL, 0);
   if (pSchema == NULL) {
-    return terrno;
+    return;
   }
   for (int32_t i = 0; i < pSchema->nCols; i++) {
     if (strncmp(pSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
@@ -765,7 +765,7 @@ static int32_t getAlterColId(void* pVnode, int64_t uid, SVAlterTbReq* pReq) {
     }
   }
   tDeleteSchemaWrapper(pSchema);
-  return 0;
+  return;
 }
 
 static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SSTriggerWalNewRsp* rsp, void* data, int32_t len, int64_t ver) {
@@ -789,7 +789,12 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
 
   ETableType tbType = 0;
   uint64_t suid = 0;
-  STREAM_CHECK_RET_GOTO(metaGetTableTypeSuidByName(sStreamReaderInfo->pVnode, req.tbName, &tbType, &suid));
+  code = metaGetTableTypeSuidByName(sStreamReaderInfo->pVnode, req.tbName, &tbType, &suid);
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    code = 0;
+    ST_TASK_WLOG("stream reader scan alter table %s not exist, metaGetTableTypeSuidByName", req.tbName);
+    goto end;
+  }
   STREAM_CHECK_CONDITION_GOTO(!isAlteredTable(tbType), TDB_CODE_SUCCESS);
   STREAM_CHECK_CONDITION_GOTO(suid != sStreamReaderInfo->suid, TDB_CODE_SUCCESS);
 
@@ -798,9 +803,14 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
     STREAM_CHECK_NULL_GOTO(uidListAdd, terrno);
   }
   uint64_t uid = 0;
-  STREAM_CHECK_RET_GOTO(metaGetTableUidByName(sStreamReaderInfo->pVnode, req.tbName, &uid));
+  code = metaGetTableUidByName(sStreamReaderInfo->pVnode, req.tbName, &uid);
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    code = 0;
+    ST_TASK_WLOG("stream reader scan alter table %s not exist, metaGetTableUidByName", req.tbName);
+    goto end;
+  }
   if (req.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF || req.action == TSDB_ALTER_TABLE_REMOVE_COLUMN_REF) {
-    STREAM_CHECK_RET_GOTO(getAlterColId(sStreamReaderInfo->pVnode, uid, &req));
+    getAlterColId(sStreamReaderInfo->pVnode, uid, &req);
     if (atomic_load_8(&sStreamReaderInfo->isVtableOnlyTs) == 0 && !isColIdInList(sStreamReaderInfo->triggerCols, req.colId)) {    //todo calc cols
       ST_TASK_ILOG("stream reader scan alter table %s, colId %d not in trigger cols", req.tbName, req.colId);
       goto end;

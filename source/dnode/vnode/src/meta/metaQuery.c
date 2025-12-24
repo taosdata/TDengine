@@ -97,9 +97,72 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   return metaGetTableEntryByVersion(pReader, version1, uid);
 }
 
+static int32_t getUidVersion(SMetaReader *pReader, int64_t *version, tb_uid_t uid) {
+  int32_t code = 0;
+  SMeta *pMeta = pReader->pMeta;
+  void* pKey = NULL;
+  void* pVal = NULL;
+  int   vLen = 0, kLen = 0;
+
+  TBC* pCur = NULL;
+  code = tdbTbcOpen(pMeta->pTbDb, (TBC**)&pCur, NULL);
+  if (code != 0) {
+    return TAOS_GET_TERRNO(code);
+  }
+  STbDbKey key = {.version = *version, .uid = INT64_MAX};
+  int      c = 0;
+  code = tdbTbcMoveTo(pCur, &key, sizeof(key), &c);
+  if (code != 0) {
+    goto END;
+  }
+  if (c >= 0){
+    metaError("%s move to version:"PRId64 " max failed", __func__, *version);
+    code = TSDB_CODE_FAILED;
+    goto END;
+  }
+  code = tdbTbcMoveToPrev(pCur);
+  if (code != 0) {
+    metaError("%s move to prev failed", __func__);
+    goto END;
+  }
+
+  while (1) {
+    int32_t ret = tdbTbcPrev(pCur, &pKey, &kLen, &pVal, &vLen);
+    if (ret < 0) break;
+
+    STbDbKey* tmp = (STbDbKey*)pKey;
+    if (tmp->uid == uid) {
+      *version = tmp->version;
+      goto END;
+    }
+  }
+  code = TSDB_CODE_NOT_FOUND;
+  metaError("%s uid:%" PRId64 " version not found", __func__, uid);
+END:
+  tdbFree(pKey);
+  tdbFree(pVal);
+  tdbTbcClose(pCur);
+  return code;
+} 
+
+// get table entry according to the latest version number that is less than or equal to version and uid, if version < 0, get latest version
 int metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, tb_uid_t uid) {
   if (version < 0) {
     return metaReaderGetTableEntryByUid(pReader, uid);
+  }
+  SMeta *pMeta = pReader->pMeta;
+
+  SMetaInfo info;
+  int32_t   code = metaGetInfo(pMeta, uid, &info, pReader);
+  if (TSDB_CODE_SUCCESS != code) {
+    return terrno = (TSDB_CODE_NOT_FOUND == code ? TSDB_CODE_PAR_TABLE_NOT_EXIST : code);
+  }
+  if (info.version <= version) {
+    version = info.version;
+  } else {
+    if (getUidVersion(pReader, &version, uid) != 0) {
+      version = -1;
+    }
   }
   return metaGetTableEntryByVersion(pReader, version, uid);
 }
