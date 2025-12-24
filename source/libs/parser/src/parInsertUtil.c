@@ -83,7 +83,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     if (dbLen <= 0) {
       return buildInvalidOperationMsg(pMsgBuf, msg2);
     }
-    if (dbLen > TSDB_DB_FNAME_LEN + TSDB_NAME_QUOTE) {
+    if (dbLen >= TSDB_DB_FNAME_LEN + TSDB_NAME_QUOTE) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
 
@@ -109,7 +109,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     if (tbLen <= 0) {
       return buildInvalidOperationMsg(pMsgBuf, msg4);
     }
-    if (tbLen > TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE) {
+    if (tbLen >= TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
 
@@ -136,7 +136,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
       return buildInvalidOperationMsg(pMsgBuf, msg4);
     }
 
-    if (tbLen > TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE) {
+    if (tbLen >= TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
 

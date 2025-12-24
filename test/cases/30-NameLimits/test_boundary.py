@@ -299,14 +299,14 @@ class TestBoundary:
             - 2025-12-19 pengrk add full name length check.
 
         """
-        # self.dbname_length_check()
-        # self.tbname_length_check()
-        # self.colname_length_check()
-        # self.tagname_length_check()
-        # self.username_length_check()
-        # self.password_length_check()
-        # self.sql_length_check()
-        # self.row_col_tag_maxlen_check()
+        self.dbname_length_check()
+        self.tbname_length_check()
+        self.colname_length_check()
+        self.tagname_length_check()
+        self.username_length_check()
+        self.password_length_check()
+        self.sql_length_check()
+        self.row_col_tag_maxlen_check()
         self.fullname_length_check()
         
         #tdSql.close()
