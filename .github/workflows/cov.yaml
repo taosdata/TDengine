@@ -34,7 +34,7 @@ jobs:
         with:
           # npm cache files are stored in `~/.npm`
           path: explorer/dist
-          key: build-${{ env.cache-name }}-${{ hashFiles('explorer/pnpm-lock.yaml', 'explorer/src/**', 'explorer/taos-ui/**') }}
+          key: build-${{ env.cache-name }}-${{ hashFiles('explorer/pnpm-lock.yaml', 'explorer/src/**/*.*', 'explorer/taos-ui/**/*.*') }}
           restore-keys: |
             build-${{ env.cache-name }}-
 
