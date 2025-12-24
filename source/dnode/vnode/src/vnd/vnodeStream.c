@@ -3617,6 +3617,7 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   int32_t                   lino = 0;
   SSTriggerPullRequestUnion req = {0};
   void*                     taskAddr = NULL;
+  bool                      sendRsp = false;
 
   vDebug("vgId:%d, msg:%p in stream reader queue is processing", pVnode->config.vgId, pMsg);
   if (!syncIsReadyForRead(pVnode->sync)) {
@@ -3645,6 +3646,7 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       taosWUnLockLatch(&sStreamReaderInfo->lock);
       STREAM_CHECK_RET_GOTO(code);
     }
+    sendRsp = true;
     switch (req.base.type) {
       case STRIGGER_PULL_SET_TABLE:
         STREAM_CHECK_RET_GOTO(vnodeProcessStreamSetTableReq(pVnode, pMsg, &req, sStreamReaderInfo));
@@ -3705,6 +3707,7 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       default:
         vError("unknown inner msg type:%d in stream reader queue", req.base.type);
         STREAM_CHECK_RET_GOTO(TSDB_CODE_APP_ERROR);
+        sendRsp = false;
         break;
     }
   } else {
@@ -3717,5 +3720,14 @@ end:
 
   tDestroySTriggerPullRequest(&req);
   STREAM_PRINT_LOG_END(code, lino);
+  if (!sendRsp) {
+    SRpcMsg rsp = {
+      .code = code,
+      .pCont = pMsg->info.rsp,
+      .contLen = pMsg->info.rspLen,
+      .info = pMsg->info,
+    };
+    tmsgSendRsp(&rsp);
+  }
   return code;
 }
