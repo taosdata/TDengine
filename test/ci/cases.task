@@ -576,34 +576,37 @@
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_udf_wal_mode.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_udf_snapshot_mode.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_stb_tag_filter.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_tsdb_and_wal.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_tsdb_wal_multi_ctb.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_tsdb_and_wal.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_tsdb_wal_multi_ctb.py -N 3 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_taosx.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_meta_json.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_seek_commit.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_column.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_no_remove.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_db.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_db_no_wal.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_ntb.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_stb.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_stb_no_wal.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_stb_select.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_duplicate.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_dup_no_wal.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_select_no_wal.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_db.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_db_wal.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_stb.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_stb_wal.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_column.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_no_remove.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_db.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_db_no_wal.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_ntb.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_stb.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_stb_no_wal.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_stb_select.py -N 2 --replica 1
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_stb_select.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_duplicate.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_dup_no_wal.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_select_no_wal.py -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_db.py -N 2 --replica 1
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_db_wal.py -N 6 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_stb.py -N 2 --replica 1
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_stb.py -N 6 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_transform_stb_wal.py -N 6 --replica 3
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_consumer_group.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_data_precision.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_mnode_switch.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_replicate.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_subscribe_stb_r3.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_mnode_switch.py -N 6 -M 3 -I True
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_mnode_switch.py -N 6 -M 3 --replica 3 -I True
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_replicate.py -M 3 -N 3 --replica 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_subscribe_stb_r3.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_raw_block_interface.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_replay.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_wal_remove.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_wal_remove.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_stb_tag_multi_ctb.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_restart.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_cons1_v1_snapshot.py

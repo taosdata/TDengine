@@ -337,3 +337,4 @@ class TestCase:
         self.tmqCase4(cfgPath, buildPath)
         self.tmqCase5(cfgPath, buildPath)
 
+event = threading.Event()
