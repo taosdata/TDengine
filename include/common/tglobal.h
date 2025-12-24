@@ -212,6 +212,7 @@ extern bool    tsEnableAuditInsert;
 extern int32_t tsAuditLevel;
 extern int32_t tsAuditInterval;
 extern bool    tsAuditHttps;
+extern bool    tsAuditUseToken;
 
 // telem
 extern bool     tsEnableTelem;
