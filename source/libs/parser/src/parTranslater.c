@@ -14131,8 +14131,9 @@ static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTag
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag name mismatch");
       goto _return;
     }
-    col_id_t tagId = pMeta->schema[tagIndex].colId;
-    taosArrayPush(*ptagCids, &tagId);
+    if (taosArrayPush(*ptagCids, &pMeta->schema[tagIndex].colId) == NULL) {
+      PAR_ERR_RET(terrno);
+    }
     tagIndex++;
   }
 _return:
@@ -14185,8 +14186,9 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table cols name mismatch");
       goto _return;
     }
-    col_id_t colId = pMeta->schema[colIndex].colId;
-    taosArrayPush(*pcolCids, &colId);
+    if (taosArrayPush(*pcolCids, &pMeta->schema[colIndex].colId) == NULL) {
+      PAR_ERR_RET(terrno);
+    }
     colIndex++;
   }
 _return:
