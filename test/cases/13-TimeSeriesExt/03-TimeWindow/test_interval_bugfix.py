@@ -25,12 +25,10 @@ class TestIntervalBugFix:
         self.testSql.execute("insert into t1 values ('1970-01-29 05:04:53.000','22:: ');")
 
     def test_interval_bugfix(self):
-        """Interval: Bug TS-BUG-FIX
+        """Interval: bug fixed
         
-        test interval query bug fixes
-
-        Catalog:
-            - Timeseries:TimeWindow
+        1. Jira TS-5400
+        2. Jira TS-7676  
 
         Since: v3.3.0.0
 
@@ -38,31 +36,15 @@ class TestIntervalBugFix:
 
         History:
             - 2025-11-20 xs Ren Created
+            - 2024-9-14 Feng Chao Created
+            - 2025-5-08 Huo Hong Migrated from cases/uncatalog/army/query/accuracy/test_ts5400.py
         """
         
         self.ts_5400_test()
         self.ts_7676_test_dup_ts()
         self.ts_7676_test_uni_ts()
 
-    def ts_5400_test(self):
-        """Interval: Bug TS-5400
-
-        test interval query when ts = 0 error fix
-
-        Catalog:
-            - Timeseries:TimeWindow
-
-        Since: v3.3.0.0
-
-        Labels: common,ci
-
-        Jira: TS-5400
-
-        History:
-            - 2024-9-14 Feng Chao Created
-            - 2025-5-08 Huo Hong Migrated from cases/uncatalog/army/query/accuracy/test_ts5400.py
-        """
-        
+    def ts_5400_test(self):        
         self.ts_5400_prepare_data()
         self.testSql.execute("use db_ts5400;")
         self.testSql.query("select to_char(_wstart, 'YYYY-MM-DD HH24:MI:SS.MS'), count(*) from st interval(1y);")

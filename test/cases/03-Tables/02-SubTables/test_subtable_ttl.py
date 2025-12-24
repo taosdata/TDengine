@@ -243,7 +243,7 @@ class TestTtl:
     # ------------------- main ----------------
     #
     def test_subtable_ttl(self):
-        """Subtable TTL
+        """Subtable ttl
         
         1. Create 100 subtables with TTL
         2. flush database and wait for TTL to take effect
