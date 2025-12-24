@@ -1032,6 +1032,7 @@
 ,,n,.,pytest cases/uncatalog/develop-test/2-query/test_tag_scan.py
 
 ### 7-tmq
+,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmq_connection.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqShow.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_tmqDropStb.py
 ,,y,.,./ci/pytest.sh pytest cases/uncatalog/system-test/7-tmq/test_subscribeStb0.py
