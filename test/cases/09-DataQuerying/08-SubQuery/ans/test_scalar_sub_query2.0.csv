@@ -898,11 +898,11 @@ taos> select f1 from st1 where tbname = cast((select 1 from st1 limit 1) as varc
 
 taos> select f1 from st1 where tbname = cast((select 2 from st1 limit 1) as varchar) order by 1;
 
-taos> select f1 from st1 where ts >= (select 0 from st1 limit 1) and ts < (select 0 from st1 limit 1) order by 1;
+taos> select f1 from st1 where ts >= (select 0 from st1 limit 1) and ts <= (select 0 from st1 limit 1) order by 1;
 
-taos> select f1 from st1 where ts >= (select 1 from st1 limit 1) and ts < (select 1 from st1 limit 1) order by 1;
+taos> select f1 from st1 where ts >= (select 1 from st1 limit 1) and ts <= (select 1 from st1 limit 1) order by 1;
 
-taos> select f1 from st1 where ts >= (select 2 from st1 limit 1) and ts < (select 2 from st1 limit 1) order by 1;
+taos> select f1 from st1 where ts >= (select 2 from st1 limit 1) and ts <= (select 2 from st1 limit 1) order by 1;
 
 taos> select f1 from st1 where _c0 between (select 0 from st1 limit 1) and (select 0 from st1 limit 1) order by 1;
 
@@ -3044,6 +3044,36 @@ Insert OK, 1 row(s) affected
 
 taos> insert into tbb select now, (select 2 from st1 limit 1) from tb1;
 Insert OK, 1 row(s) affected 
+
+taos> select f1 from st1 where ts >= (select last(_c0) from st1) and ts <= (select last(_c0) from st1) order by 1;
+     f1      |
+==============
+           6 |
+
+taos> select f1 from st1 where ts >= (select first(_c0) from st1) and ts <= (select last(_c0) from st1) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
+
+taos> select f1 from st1 where _c0 between (select last(_c0) from st1) and (select last(_c0) from st1) order by 1;
+     f1      |
+==============
+           6 |
+
+taos> select f1 from st1 where _c0 between (select first(_c0) from st1) and (select last(_c0) from st1) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
 
 taos> create stream stm1 interval(1d) sliding(1d) from tb1 partition by (select 1 from tb3 limit 1) into out1 as select * from tb3;
 

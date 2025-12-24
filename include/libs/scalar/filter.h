@@ -56,7 +56,7 @@ extern int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoDa
                              int16_t numOfCols, int32_t *pFilterResStatus);
 extern int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param);
 extern int32_t filterSetDataFromColId(SFilterInfo *info, void *param);
-extern int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict);
+extern int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict, bool* hasRemoteNode);
 extern int32_t filterConverNcharColumns(SFilterInfo *pFilterInfo, int32_t rows, bool *gotNchar);
 extern int32_t filterFreeNcharColumns(SFilterInfo *pFilterInfo);
 extern void    filterFreeInfo(SFilterInfo *info);

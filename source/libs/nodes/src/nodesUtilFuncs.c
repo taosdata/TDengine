@@ -2013,6 +2013,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pLogicNode->pExtScanRange);
       nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pExtTimeRange);
+      nodesDestroyNode(pLogicNode->pPrimaryCond);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -2213,6 +2214,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pPhyNode->pExtScanRange);
       nodesDestroyNode(pPhyNode->pTimeRange);
       nodesDestroyNode(pPhyNode->pExtTimeRange);
+      nodesDestroyNode(pPhyNode->pPrimaryCond);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {

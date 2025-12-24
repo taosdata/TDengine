@@ -7065,7 +7065,7 @@ static int32_t getTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bo
     if (nodeType(pNew) == QUERY_NODE_VALUE) {
       TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
     } else {
-      code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
+      code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict, NULL);
     }
   }
   return code;
