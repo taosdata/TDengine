@@ -985,7 +985,7 @@ TEST(stmt2Case, insert_ntb_get_fields_Test) {
   {
     const char* sql = "insert into ntb values(?,?,?,?)";
     printf("case 1 : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_TSC_INVALID_OPERATION, "db is not specified");
+    getFieldsError(taos, sql, TSDB_CODE_PAR_DB_NOT_SPECIFIED, "Database not specified");
   }
 
   // case 2 :  normal table must have tbnam
@@ -4156,15 +4156,15 @@ TEST(stmt2Case, tbname) {
 
     bindv = {1, &tbname[1], &pTag[0], &pCol[0]};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    ASSERT_EQ(code, TSDB_CODE_TSC_INVALID_OPERATION);
-    ASSERT_STREQ(taos_stmt2_error(stmt), "name too long");
+    ASSERT_EQ(code, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME);
+    ASSERT_STREQ(taos_stmt2_error(stmt), "Invalid identifier name: table name is too long");
 
     code = taos_stmt2_prepare(stmt, sql, 0);
     checkError(stmt, code, __FILE__, __LINE__);
     bindv = {2, &tbname[0], &pTag[0], &pCol[0]};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    ASSERT_EQ(code, TSDB_CODE_TSC_INVALID_OPERATION);
-    ASSERT_STREQ(taos_stmt2_error(stmt), "name too long");
+    ASSERT_EQ(code, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME);
+    ASSERT_STREQ(taos_stmt2_error(stmt), "Invalid identifier name: table name is too long");
 
     code = taos_stmt2_prepare(stmt, "insert into ? using stmt2_testdb_22.stb tags(?,?)values(?,?)", 0);
     checkError(stmt, code, __FILE__, __LINE__);
@@ -4179,8 +4179,8 @@ TEST(stmt2Case, tbname) {
     sprintf(full_tbname, "`stmt2_testdb_22`.`%s`", tbname[1]);
     bindv = {1, &tbname_ptr, &pTag[0], &pCol[0]};
     code = taos_stmt2_bind_param(stmt, &bindv, -1);
-    ASSERT_EQ(code, TSDB_CODE_TSC_INVALID_OPERATION);
-    ASSERT_STREQ(taos_stmt2_error(stmt), "name too long");
+    ASSERT_EQ(code, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME);
+    ASSERT_STREQ(taos_stmt2_error(stmt), "Invalid identifier name: table name is too long");
 
     taos_stmt2_close(stmt);
   }
