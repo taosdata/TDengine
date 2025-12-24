@@ -34,14 +34,6 @@
 extern "C" {
 #endif
 
-#define XNODED_MGMT_LISTEN_PIPE_NAME_LEN 32
-#ifdef _WIN32
-#define XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX "\\\\?\\pipe\\taosxnode.sock"
-#else
-#define XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX ".taosxnode.sock."
-#endif
-#define XNODED_MGMT_DNODE_ID_ENV_NAME "DNODE_ID"
-
 #define TAOS_UV_LIB_ERROR_RET(ret)              \
   do {                                          \
     if (0 != ret) {                             \
@@ -102,14 +94,10 @@ int32_t xnodeMgmtStartXnoded(SXnode *pXnode);
  */
 void xnodeMgmtStopXnoded(void);
 
-/**
- * get taosmqtt pid
- *
- */
-// int32_t mqttMgmtGetPid(int32_t* pMqttdPid);
-
 #ifdef __cplusplus
 }
 #endif
+
+void getXnodedPipeName(char *pipeName, int32_t size);
 
 #endif  // _TD_TMQTT_H_

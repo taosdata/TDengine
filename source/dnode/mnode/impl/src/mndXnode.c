@@ -35,7 +35,8 @@
 
 #define TSDB_XNODE_VER_NUMBER   1
 #define TSDB_XNODE_RESERVE_SIZE 64
-#define XNODED_URL              "http://localhost:6051"
+// #define XNODED_URL              "http://localhost:6051"
+#define XNODED_PIPE_SOCKET_URL "http://localhost"
 typedef enum {
   HTTP_TYPE_GET = 0,
   HTTP_TYPE_POST,
@@ -942,7 +943,7 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
 
   // from, to, parser check
   char xnodeUrl[TSDB_XNODE_URL_LEN] = {0};
-  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/task/check", XNODED_URL);
+  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/task/check", XNODED_PIPE_SOCKET_URL);
   postContent = tjsonCreateObject();
   if (postContent == NULL) {
     code = terrno;
@@ -1068,7 +1069,7 @@ static int32_t httpStartXnodeTask(SXnodeTaskObj *pObj) {
     char  *parser;
   } req = {0};
 
-  snprintf(req.xnodeUrl, TSDB_XNODE_URL_LEN, "%s/task/%d", XNODED_URL, pObj->id);
+  snprintf(req.xnodeUrl, TSDB_XNODE_URL_LEN, "%s/task/%d", XNODED_PIPE_SOCKET_URL, pObj->id);
   req.postContent = tjsonCreateObject();
   if (req.postContent == NULL) {
     code = terrno;
@@ -1191,7 +1192,7 @@ static int32_t mndProcessStopXnodeTaskReq(SRpcMsg *pReq) {
 
   // send request
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
-  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/task/%d", XNODED_URL, pObj->id);
+  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/task/%d", XNODED_PIPE_SOCKET_URL, pObj->id);
   (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_DELETE, defaultTimeout, NULL, 0);
 
 _OVER:
@@ -1452,7 +1453,7 @@ static int32_t mndProcessDropXnodeTaskReq(SRpcMsg *pReq) {
 
   // send request to drop xnode task
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
-  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/task/drop/%d", XNODED_URL, pObj->id);
+  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/task/drop/%d", XNODED_PIPE_SOCKET_URL, pObj->id);
   (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_DELETE, defaultTimeout, NULL, 0);
 
   code = mndDropXnodeTask(pMnode, pReq, pObj);
@@ -1531,7 +1532,7 @@ static int32_t httpCreateXnode(SXnodeObj *pObj) {
   char   *pContStr = NULL;
 
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
-  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode", XNODED_URL);
+  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode", XNODED_PIPE_SOCKET_URL);
   postContent = tjsonCreateObject();
   if (postContent == NULL) {
     code = terrno;
@@ -1815,7 +1816,7 @@ static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq) {
 
   // send request
   char xnodeUrl[TSDB_XNODE_URL_LEN] = {0};
-  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode/%d?force=%s", XNODED_URL, pObj->id,
+  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode/%d?force=%s", XNODED_PIPE_SOCKET_URL, pObj->id,
            dropReq.force ? "true" : "false");
   (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_DELETE, defaultTimeout, NULL, 0);
 
@@ -1865,7 +1866,7 @@ static int32_t mndProcessDrainXnodeReq(SRpcMsg *pReq) {
 
   // send request
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
-  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode/drain/%d", XNODED_URL, pObj->id);
+  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode/drain/%d", XNODED_PIPE_SOCKET_URL, pObj->id);
   postContent = tjsonCreateObject();
   if (postContent == NULL) {
     code = terrno;
@@ -2687,7 +2688,7 @@ static int32_t mndProcessRebalanceXnodeJobReq(SRpcMsg *pReq) {
 
   // send request
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
-  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/rebalance/manual/%d/%d/%d", XNODED_URL, pObj->taskId, pObj->id,
+  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/rebalance/manual/%d/%d/%d", XNODED_PIPE_SOCKET_URL, pObj->taskId, pObj->id,
            rebalanceReq.xnodeId);
   (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, defaultTimeout, NULL, 0);
 
@@ -2962,7 +2963,7 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
   }
 }
 
-static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t timeout) {
+static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) {
   CURL    *curl = NULL;
   int32_t  retCode = 0;
 
@@ -2972,6 +2973,7 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t time
     return -1;
   }
 
+  if (curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socketPath)) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
@@ -3001,7 +3003,8 @@ _OVER:
   return retCode;
 }
 
-static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen, int32_t timeout) {
+static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen, int32_t timeout,
+                                   const char *socketPath) {
   struct curl_slist *headers = NULL;
   CURL              *curl = NULL;
   int32_t            retCode = 0;
@@ -3013,6 +3016,7 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   }
 
   headers = curl_slist_append(headers, "Content-Type:application/json;charset=UTF-8");
+  if (curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socketPath)) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
@@ -3053,7 +3057,7 @@ _OVER:
   return retCode;
 }
 
-static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t timeout) {
+static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) {
   CURL   *curl = NULL;
   int32_t retCode = 0;
 
@@ -3063,6 +3067,7 @@ static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t t
     return -1;
   }
 
+  if (curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socketPath)) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE") != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
@@ -3096,20 +3101,25 @@ _OVER:
 SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const char *buf, int64_t bufLen) {
   SJson    *pJson = NULL;
   SCurlResp curlRsp = {0};
+  char      socketPath[PATH_MAX] = {0};
 
+  getXnodedPipeName(socketPath, sizeof(socketPath));
   if (type == HTTP_TYPE_GET) {
-    if ((terrno = taosCurlGetRequest(url, &curlRsp, timeout)) != 0) {
+    if ((terrno = taosCurlGetRequest(url, &curlRsp, timeout, socketPath)) != 0) {
       goto _OVER;
     }
-  } else if (type == HTTP_TYPE_POST) {
-    if ((terrno = taosCurlPostRequest(url, &curlRsp, buf, bufLen, timeout)) != 0) {
+  }
+  else if (type == HTTP_TYPE_POST) {
+    if ((terrno = taosCurlPostRequest(url, &curlRsp, buf, bufLen, timeout, socketPath)) != 0) {
       goto _OVER;
     }
-  } else if (type == HTTP_TYPE_DELETE) {
-    if ((terrno = taosCurlDeleteRequest(url, &curlRsp, timeout)) != 0) {
+  }
+  else if (type == HTTP_TYPE_DELETE) {
+    if ((terrno = taosCurlDeleteRequest(url, &curlRsp, timeout, socketPath)) != 0) {
       goto _OVER;
     }
-  } else {
+  }
+  else {
     uError("xnode invalid http type:%d", type);
     terrno = TSDB_CODE_MND_XNODE_INVALID_MSG;
     goto _OVER;
@@ -3139,7 +3149,7 @@ static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char *status, int32_t statusLe
   SJson  *pJson = NULL;
 
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
-  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode/%d", XNODED_URL, pObj->id);
+  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode/%d", XNODED_PIPE_SOCKET_URL, pObj->id);
   pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_GET, defaultTimeout, NULL, 0);
   if (pJson == NULL) {
     code = terrno;

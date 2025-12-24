@@ -40,6 +40,13 @@ extern "C" {
 #define XNODE_USER_PASS_LEN (TSDB_USER_LEN + TSDB_USER_PASSWORD_LONGLEN + 16)
 #endif
 
+#define XNODED_MGMT_LISTEN_PIPE_NAME_LEN 32
+#ifdef _WIN32
+#define XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX "\\\\?\\pipe\\taosxnode.sock"
+#else
+#define XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX "." CUS_PROMPT "xnoded.sock"
+#endif
+
 typedef struct SXnode SXnode;
 
 typedef struct {
@@ -86,5 +93,7 @@ void xndClose(SXnode *pXnode);
 
 int32_t mndOpenXnd(const SXnodeOpt *pOption);
 void mndCloseXnd();
+
+void getXnodedPipeName(char *pipeName, int32_t size);
 
 #endif /*_TD_BNODE_H_*/

@@ -82,3 +82,12 @@ int32_t mndOpenXnd(const SXnodeOpt *pOption) {
 }
 
 void mndCloseXnd() { xnodeMgmtStopXnoded(); }
+
+void getXnodedPipeName(char *pipeName, int32_t size) {
+#ifdef _WIN32
+  snprintf(pipeName, size, "%s.%x", XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX, MurmurHash3_32(tsDataDir, strlen(tsDataDir)));
+#else
+  snprintf(pipeName, size, "%s/%s", tsDataDir, XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX);
+#endif
+  xndInfo("get unix socket pipe path:%s", pipeName);
+}
