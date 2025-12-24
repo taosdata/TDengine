@@ -164,7 +164,7 @@ class TestDdlInSysdb:
         tdSql.checkRows(0)
 
         tdSql.query(f"select table_name from information_schema.ins_tables where db_name = 'information_schema' order by table_name")
-        tdSql.checkRows(48)
+        tdSql.checkRows(51)
         tdSql.checkData(0, 0, "ins_anodes")
 
         tdSql.query(f"select table_name from information_schema.ins_tables where db_name = 'performance_schema' order by table_name")
@@ -754,7 +754,7 @@ class TestDdlInSysdb:
         )
         tdSql.checkRows(3)
 
-        tdSql.checkData(0, 1, 55)
+        tdSql.checkData(0, 1, 58)
 
         tdSql.checkData(1, 1, 10)
 
@@ -769,7 +769,7 @@ class TestDdlInSysdb:
 
         tdSql.checkData(1, 1, 5)
 
-        tdSql.checkData(2, 1, 48)
+        tdSql.checkData(2, 1, 51)
 
         tdSql.checkData(3, 1, 6)
 
@@ -788,7 +788,7 @@ class TestDdlInSysdb:
 
         tdSql.checkData(4, 2, 3)
 
-        tdSql.checkData(5, 2, 48)
+        tdSql.checkData(5, 2, 51)
 
         tdSql.checkData(6, 2, 6)
 

@@ -414,7 +414,6 @@ cmd ::= REVOKE privileges(A) priv_level_opt(B) with_clause_opt(D) FROM user_name
 
                                                                                   }
 privileges(A) ::= priv_type_list(B).                                              { A = B; }
-privileges(A) ::= SUBSCRIBE.                                                      { A.privSet = PRIV_TYPE(PRIV_TOPIC_SUBSCRIBE); }
 
 %type priv_type_list                                                              { SPrivSetArgs }
 %destructor priv_type_list                                                        {
@@ -453,6 +452,7 @@ priv_type(A) ::= START.                                                         
 priv_type(A) ::= STOP.                                                            { A = PRIV_SET_TYPE(PRIV_CM_STOP); }
 priv_type(A) ::= KILL.                                                            { A = PRIV_SET_TYPE(PRIV_CM_KILL); }
 priv_type(A) ::= RECALCULATE.                                                     { A = PRIV_SET_TYPE(PRIV_CM_RECALC); }
+priv_type(A) ::= SUBSCRIBE.                                                       { A = PRIV_SET_TYPE(PRIV_CM_SUBSCRIBE); }
 
 priv_type(A) ::= CREATE DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_CREATE); }
 priv_type(A) ::= DROP OWNED DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_DB_DROP_OWNED); }

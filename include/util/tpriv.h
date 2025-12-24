@@ -51,7 +51,8 @@ typedef enum {
   PRIV_CM_START = 5,        // START PRIVILEGE
   PRIV_CM_STOP = 6,         // STOP PRIVILEGE
   PRIV_CM_RECALC = 7,       // RECALC PRIVILEGE
-  PRIV_CM_KILL = 8,        // KILL PRIVILEGE
+  PRIV_CM_KILL = 8,         // KILL PRIVILEGE
+  PRIV_CM_SUBSCRIBE = 9,    // SUBSCRIBE PRIVILEGE
   PRIV_CM_MAX = 29,         // MAX COMMON PRIVILEGE
   // ==================== DB Privileges(5~49) ====================
   PRIV_DB_CREATE = 30,  // CREATE DATABASE
@@ -177,7 +178,6 @@ typedef enum {
 
   // topic management
   PRIV_TOPIC_CREATE = 210,  // CREATE TOPIC
-  PRIV_TOPIC_SUBSCRIBE,     // SUBSCRIBE TOPICS
   PRIV_CONSUMER_SHOW,       // SHOW CONSUMERS
   PRIV_SUBSCRIPTION_SHOW,   // SHOW SUBSCRIPTIONS
 

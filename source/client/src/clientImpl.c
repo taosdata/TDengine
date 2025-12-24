@@ -379,7 +379,6 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .userId = pTscObj->userId,
       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
       .enableSysInfo = pTscObj->sysInfo,
-      .userId = pTscObj->userId,
       .svrVer = pTscObj->sVer,
       .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
       .stmtBindVersion = pRequest->stmtBindVersion,

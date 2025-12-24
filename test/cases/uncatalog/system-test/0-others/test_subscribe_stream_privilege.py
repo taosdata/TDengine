@@ -125,7 +125,7 @@ class TestSubscribeStreamPrivilege:
 
         self.checkUserPrivileges(1)
         tdLog.debug("test subscribe topic privilege granted by other user")
-        tdSql.execute(f'grant subscribe on {self.topic_name} to {self.user_name}')
+        tdSql.execute(f'grant subscribe on topic {self.dbnames[0]}.{self.topic_name} to {self.user_name}')
         self.checkUserPrivileges(2)
 
         exceptOccured = False
@@ -152,7 +152,7 @@ class TestSubscribeStreamPrivilege:
                         break
 
                 tdLog.debug("test subscribe topic privilege revoked by other user")
-                tdSql.execute(f'revoke subscribe on {self.topic_name} from {self.user_name}')
+                tdSql.execute(f'revoke subscribe on topic {self.dbnames[0]}.{self.topic_name} from {self.user_name}')
                 self.checkUserPrivileges(1)
                 time.sleep(5)
 

@@ -515,5 +515,5 @@ class TestSelectNull:
         tdSql.query('select a.值 from sel_null.stable1 a join sel_null.join_stable b on a.ts = 时间戳;', queryTimes=1)
         tdSql.query('select a.值 from sel_null.stable1 a join sel_null.join_stable b on a.ts = b.时间戳;', queryTimes=1)
         tdSql.execute('create user user1 pass "asdxtz@#12"', queryTimes=1)
-        tdSql.execute('grant write on sel_null.stable1 with 标签1 = 1 to user1',queryTimes=1)
+        tdSql.execute('grant insert on sel_null.stable1 with 标签1 = 1 to user1',queryTimes=1)
         tdSql.execute('select count(*) from sel_null.stable1 state_window(值)', queryTimes=1)
