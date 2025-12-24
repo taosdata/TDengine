@@ -61,13 +61,8 @@ func Init() *http.Server {
 
 	if version.IsEnterprise == "true" {
 		if conf.Audit.Enable {
-			audit, err := api.NewAudit(conf)
-			if err != nil {
-				panic(err)
-			}
-			if err = audit.Init(router); err != nil {
-				panic(err)
-			}
+			audit := api.NewAudit(conf)
+			audit.Init(router)
 		}
 	}
 

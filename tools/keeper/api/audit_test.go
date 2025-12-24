@@ -27,10 +27,8 @@ func TestAudit(t *testing.T) {
 		Enable: true,
 	}
 
-	a, err := NewAudit(cfg)
-	assert.NoError(t, err)
-	err = a.Init(router)
-	assert.NoError(t, err)
+	audit := NewAudit(cfg)
+	audit.Init(router)
 
 	longDetails := strings.Repeat("0123456789", 5000)
 
@@ -186,9 +184,8 @@ func TestNewAudit(t *testing.T) {
 		},
 	}
 
-	a, err := NewAudit(&cfg)
-	assert.NoError(t, err)
-	assert.Equal(t, "audit", a.db)
+	audit := NewAudit(&cfg)
+	assert.Equal(t, "audit", audit.db)
 }
 
 func Test_handleDetails(t *testing.T) {
@@ -488,7 +485,7 @@ func TestAudit_createSTables(t *testing.T) {
 		conn: conn,
 	}
 
-	err = audit.createSTables()
+	err = audit.createSTable()
 	assert.NoError(t, err)
 
 	_, err = conn.Query(context.Background(), "drop table operations", util.GetQidOwn(cfg.InstanceID))
@@ -508,7 +505,7 @@ func TestAudit_createSTables(t *testing.T) {
 	_, err = conn.Query(context.Background(), sql, util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
 
-	err = audit.createSTables()
+	err = audit.createSTable()
 	assert.NoError(t, err)
 
 	_, err = conn.Query(context.Background(), "drop database if exists test_1766474758", util.GetQidOwn(cfg.InstanceID))
@@ -600,10 +597,8 @@ func TestAuditInfo_AffectedRowsAndDurationVariants(t *testing.T) {
 		},
 	}
 
-	audit, err := NewAudit(cfg)
-	assert.NoError(t, err)
-	err = audit.Init(router)
-	assert.NoError(t, err)
+	audit := NewAudit(cfg)
+	audit.Init(router)
 
 	cases := []struct {
 		name                 string

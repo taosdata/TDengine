@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -32,6 +33,11 @@ type Audit struct {
 	conn      *db.Connector
 	db        string
 	dbOptions map[string]interface{}
+	token     string
+
+	inited bool
+	mu     sync.Mutex
+	once   sync.Once
 }
 
 type AuditInfo struct {
@@ -62,40 +68,34 @@ type AuditInfoOld struct {
 	Details   string `json:"details"`
 }
 
-func NewAudit(c *config.Config) (*Audit, error) {
-	a := Audit{
-		username:  c.TDengine.Username,
-		password:  c.TDengine.Password,
-		host:      c.TDengine.Host,
-		port:      c.TDengine.Port,
-		usessl:    c.TDengine.Usessl,
-		db:        c.Audit.Database.Name,
-		dbOptions: c.Audit.Database.Options,
+func NewAudit(cfg *config.Config) *Audit {
+	audit := Audit{
+		username:  cfg.TDengine.Username,
+		password:  cfg.TDengine.Password,
+		host:      cfg.TDengine.Host,
+		port:      cfg.TDengine.Port,
+		usessl:    cfg.TDengine.Usessl,
+		db:        cfg.Audit.Database.Name,
+		dbOptions: cfg.Audit.Database.Options,
 	}
-	if a.db == "" {
-		a.db = "audit"
+	if audit.db == "" {
+		audit.db = "audit"
 	}
-	return &a, nil
+	return &audit
 }
 
-func (a *Audit) Init(c gin.IRouter) error {
-	if err := a.createDatabase(); err != nil {
-		return fmt.Errorf("create database error, msg:%s", err)
-	}
-	if err := a.initConnect(); err != nil {
-		return fmt.Errorf("init db connect error, msg:%s", err)
-	}
-	if err := a.createSTables(); err != nil {
-		return fmt.Errorf("create stable error, msg:%s", err)
-	}
+func (a *Audit) Init(c gin.IRouter) {
 	c.POST("/audit", a.handleFunc())
 	c.POST("/audit_v2", a.handleFunc())
 	c.POST("/audit-batch", a.handleBatchFunc())
-	return nil
 }
 
 func (a *Audit) handleBatchFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if !a.prepareConnectionAndTable(c) {
+			return
+		}
+
 		qid := util.GetQid(c.GetHeader("X-QID"))
 
 		auditLogger := auditLogger.WithFields(
@@ -146,6 +146,10 @@ func (a *Audit) handleBatchFunc() gin.HandlerFunc {
 
 func (a *Audit) handleFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if !a.prepareConnectionAndTable(c) {
+			return
+		}
+
 		qid := util.GetQid(c.GetHeader("X-QID"))
 
 		auditLogger := auditLogger.WithFields(
@@ -197,6 +201,68 @@ func (a *Audit) handleFunc() gin.HandlerFunc {
 		}
 		c.JSON(http.StatusOK, gin.H{})
 	}
+}
+
+func (a *Audit) prepareConnectionAndTable(c *gin.Context) bool {
+	db := c.Query("db")
+	if db != "" {
+		token := c.Query("token")
+		if !a.inited {
+			a.mu.Lock()
+			if !a.inited {
+				if !a.setupConnectionAndTable(db, token, c) {
+					a.mu.Unlock()
+					return false
+				}
+				a.inited = true
+			}
+			a.mu.Unlock()
+		} else if db != a.db || token != a.token {
+			a.mu.Lock()
+			if db != a.db || token != a.token {
+				if !a.setupConnectionAndTable(db, token, c) {
+					a.mu.Unlock()
+					return false
+				}
+			}
+			a.mu.Unlock()
+		}
+	} else {
+		var onceErr error
+		a.once.Do(func() {
+			if err := a.createDatabase(); err != nil {
+				onceErr = fmt.Errorf("create database error: %s", err)
+				return
+			}
+			if err := a.createConnect(); err != nil {
+				onceErr = fmt.Errorf("create connect error: %s", err)
+				return
+			}
+			if err := a.createSTable(); err != nil {
+				onceErr = fmt.Errorf("create stable error: %s", err)
+				return
+			}
+		})
+		if onceErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": onceErr.Error()})
+			return false
+		}
+	}
+	return true
+}
+
+func (a *Audit) setupConnectionAndTable(db, token string, c *gin.Context) bool {
+	a.db = db
+	a.token = token
+	if err := a.createConnect(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create connect error: %s", err)})
+		return false
+	}
+	if err := a.createSTable(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create stable error: %s", err)})
+		return false
+	}
+	return true
 }
 
 func handleDetails(details string) string {
@@ -270,10 +336,10 @@ func getTableNameOld(audit AuditInfoOld) string {
 	return fmt.Sprintf("t_operations_%s", audit.ClusterID)
 }
 
-func (a *Audit) initConnect() error {
+func (a *Audit) createConnect() error {
 	conn, err := db.NewConnectorWithDbWithRetryForever(a.username, a.password, a.host, a.port, a.db, a.usessl)
 	if err != nil {
-		auditLogger.Errorf("init db connect error, msg:%s", err)
+		auditLogger.Errorf("create connect error, msg:%s", err)
 		return err
 	}
 	a.conn = conn
@@ -283,6 +349,7 @@ func (a *Audit) initConnect() error {
 func (a *Audit) createDatabase() error {
 	conn, err := db.NewConnectorWithRetryForever(a.username, a.password, a.host, a.port, a.usessl)
 	if err != nil {
+		auditLogger.Errorf("connect to database error, msg:%s", err)
 		return fmt.Errorf("connect to database error, msg:%s", err)
 	}
 	defer func() { _ = conn.Close() }()
@@ -293,7 +360,7 @@ func (a *Audit) createDatabase() error {
 		auditLogger.Errorf("create database error, msg:%s", err)
 		return err
 	}
-	return err
+	return nil
 }
 
 var errNoConnection = errors.New("no connection")
@@ -316,8 +383,9 @@ func (a *Audit) createDBSql() string {
 	return buf.String()
 }
 
-func (a *Audit) createSTables() error {
+func (a *Audit) createSTable() error {
 	if a.conn == nil {
+		auditLogger.Errorf("create stable operations error, msg:%v", errNoConnection)
 		return errNoConnection
 	}
 	createTableSql := "create stable if not exists operations " +
@@ -327,13 +395,13 @@ func (a *Audit) createSTables() error {
 		"tags (cluster_id varchar(64))"
 	_, err := a.conn.ExecWithRetryForever(context.Background(), createTableSql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
-		auditLogger.Errorf("create stable error, msg:%s", err)
+		auditLogger.Errorf("create stable operations error, msg:%s", err)
 		return err
 	}
-	return a.alterSTableOperations()
+	return a.alterSTable()
 }
 
-func (a *Audit) alterSTableOperations() error {
+func (a *Audit) alterSTable() error {
 	checkSql := "desc operations"
 	result, err := a.conn.QueryWithRetryForever(context.Background(), checkSql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
@@ -353,7 +421,7 @@ func (a *Audit) alterSTableOperations() error {
 					needAlterClientAddress = true
 				}
 			} else {
-				auditLogger.Warnf("unexpected type for client_address length: %T", row[2])
+				auditLogger.Errorf("unexpected type for client_address length: %T", row[2])
 				return fmt.Errorf("failed to get client_address column length")
 			}
 		case "affected_rows":
