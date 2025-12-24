@@ -62,9 +62,9 @@ static void getXnodedPidPath(char *pipeName, int32_t size) {
 #ifdef _WIN32
   snprintf(pipeName, size, "%s", XNODED_XNODED_PID_NAME);
 #else
-  snprintf(pipeName, size, "%s/%s", tsDataDir, XNODED_XNODED_PID_NAME);
+  snprintf(pipeName, size, "%s%s", tsDataDir, XNODED_XNODED_PID_NAME);
 #endif
-  xndInfo("get unix socket pipe path:%s", pipeName);
+  xndDebug("xnode get xnoded pid path:%s", pipeName);
 }
 
 static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) {
@@ -104,6 +104,7 @@ void killPreXnoded() {
   TdFilePtr pFile = NULL;
   pFile = taosOpenFile(buf, TD_FILE_READ);
   if (pFile == NULL) {
+    xndWarn("xnode failed to open xnoded pid file:%s, file may not exist", buf);
     return;
   }
   int64_t readSize = taosReadFile(pFile, buf, sizeof(buf));
@@ -115,7 +116,6 @@ void killPreXnoded() {
     return;
   }
   int32_t pid = taosStr2Int32(buf, NULL, 10);
-
   int result = uv_kill((uv_pid_t)pid, SIGTERM);
   if (result != 0) {
     if (result != UV_ESRCH) {
@@ -123,6 +123,15 @@ void killPreXnoded() {
     }
     return;
   }
+}
+
+void saveXnodedPid(int32_t pid) {
+  char buf[PATH_MAX] = {0};
+  getXnodedPidPath(buf, sizeof(buf));
+  TdFilePtr testFilePtr = taosCreateFile(buf, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+  snprintf(buf, PATH_MAX, "%d", pid);
+  taosWriteFile(testFilePtr, buf, strlen(buf));
+  taosCloseFile(&testFilePtr);
 }
 
 static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
@@ -246,12 +255,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
     xndError("can not spawn xnoded. path: %s, error: %s", path, uv_strerror(err));
   } else {
     xndInfo("xnoded is initialized, xnoded pid: %d", pData->process.pid);
-    char buf[PATH_MAX] = {0};
-    getXnodedPidPath(buf, sizeof(buf));
-    TdFilePtr testFilePtr = taosCreateFile(buf, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
-    snprintf(buf, PATH_MAX, "%d", pData->process.pid);
-    taosWriteFile(testFilePtr, buf, strlen(buf));
-    taosCloseFile(&testFilePtr);
+    saveXnodedPid(pData->process.pid);
   }
 
 _OVER:

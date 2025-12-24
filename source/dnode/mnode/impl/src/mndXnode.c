@@ -3234,7 +3234,10 @@ void mndStartXnoded(SMnode *pMnode, int32_t userLen, char *user, int32_t passLen
 void mndXnodeHandleBecomeLeader(SMnode *pMnode) {
   mInfo("mndxnode start to process mnode become leader");
   SXnodeUserPassObj *pObj = mndAcquireFirstXnodeUserPass(pMnode);
-  if (pObj == NULL) return;
+  if (pObj == NULL) {
+    mError("xnode failed to acquire xnoded user pass");
+    return;
+  }
 
   mndStartXnoded(pMnode, pObj->userLen, pObj->user, pObj->passLen, pObj->pass);
 }
