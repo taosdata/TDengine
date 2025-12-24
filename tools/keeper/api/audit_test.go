@@ -682,3 +682,195 @@ func TestAuditInfo_AffectedRowsAndDurationVariants(t *testing.T) {
 	_, err = conn.Query(context.Background(), "drop database if exists test_1766482953", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
 }
+
+func TestAuditV2DefaultDB(t *testing.T) {
+	cfg := config.GetCfg()
+	cfg.Audit = config.Audit{
+		Enable: true,
+		Database: config.Database{
+			Name: "test_1766564902",
+		},
+	}
+
+	audit := NewAudit(cfg)
+	audit.Init(router)
+
+	records := []string{
+		`{"timestamp":"1699839716442000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+		`{"timestamp":"1699839716452000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+		`{"timestamp":"1699839716462000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+		`{"timestamp":"1699839716472000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+	}
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/audit_v2", strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+
+	data, err := conn.Query(context.Background(), "select * from test_1766564902.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766564902", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+}
+
+func TestAuditDefaultDB(t *testing.T) {
+	cfg := config.GetCfg()
+	cfg.Audit = config.Audit{
+		Enable: true,
+		Database: config.Database{
+			Name: "test_1766566175",
+		},
+	}
+
+	audit := NewAudit(cfg)
+	audit.Init(router)
+
+	records := []string{
+		`{"timestamp":"1699839716442000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"}`,
+		`{"timestamp":"1699839716452000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"}`,
+		`{"timestamp":"1699839716462000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"}`,
+		`{"timestamp":"1699839716472000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"}`,
+	}
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/audit", strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+
+	data, err := conn.Query(context.Background(), "select * from test_1766566175.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766566175", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+}
+
+func TestAuditBatchDefaultDB(t *testing.T) {
+	cfg := config.GetCfg()
+	cfg.Audit = config.Audit{
+		Enable: true,
+		Database: config.Database{
+			Name: "test_1766566446",
+		},
+	}
+
+	audit := NewAudit(cfg)
+	audit.Init(router)
+
+	w := httptest.NewRecorder()
+	records := `{"records":[{"timestamp":"1699839716450000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"},{"timestamp":"1699839716451000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":12345,"duration":12.345},{"timestamp":"1699839716452000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":null,"duration":null},{"timestamp":"1699839716453000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":999999,"duration":1e+100}]}`
+	req, _ := http.NewRequest(http.MethodPost, "/audit-batch", strings.NewReader(records))
+	router.ServeHTTP(w, req)
+	assert.Equal(t, 200, w.Code)
+
+	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+
+	data, err := conn.Query(context.Background(), "select * from test_1766566446.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766566446", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+}
+
+func TestAuditV2CustomDB(t *testing.T) {
+	cfg := config.GetCfg()
+	audit := NewAudit(cfg)
+	audit.Init(router)
+
+	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1766567690", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "create database test_1766567690 precision 'ns'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	records := []string{
+		`{"timestamp":"1699839716442000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+		`{"timestamp":"1699839716452000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+		`{"timestamp":"1699839716462000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+		`{"timestamp":"1699839716472000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+	}
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/audit_v2?db=test_1766567690", strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	data, err := conn.Query(context.Background(), "select * from test_1766567690.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766567690", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+}
+
+func TestAuditCustomDB(t *testing.T) {
+	cfg := config.GetCfg()
+	audit := NewAudit(cfg)
+	audit.Init(router)
+
+	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1766568746", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "create database test_1766568746 precision 'ns'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	records := []string{
+		`{"timestamp":"1699839716442000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"}`,
+		`{"timestamp":"1699839716452000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"}`,
+		`{"timestamp":"1699839716462000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"}`,
+		`{"timestamp":"1699839716472000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"}`,
+	}
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/audit?db=test_1766568746", strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	data, err := conn.Query(context.Background(), "select * from test_1766568746.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766568746", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+}
+
+func TestAuditBatchCustomDB(t *testing.T) {
+	cfg := config.GetCfg()
+	audit := NewAudit(cfg)
+	audit.Init(router)
+
+	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1766568859", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "create database test_1766568859 precision 'ns'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	records := `{"records":[{"timestamp":"1699839716450000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"},{"timestamp":"1699839716451000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":12345,"duration":12.345},{"timestamp":"1699839716452000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":null,"duration":null},{"timestamp":"1699839716453000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":999999,"duration":1e+100}]}`
+	req, _ := http.NewRequest(http.MethodPost, "/audit-batch?db=test_1766568859", strings.NewReader(records))
+	router.ServeHTTP(w, req)
+	assert.Equal(t, 200, w.Code)
+	data, err := conn.Query(context.Background(), "select * from test_1766568859.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766568859", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+}
