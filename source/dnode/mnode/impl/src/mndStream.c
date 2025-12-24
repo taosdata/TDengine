@@ -1099,6 +1099,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
     mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
     mndReleaseUser(pMnode, pOperUser);
     sdbRelease(pMnode->pSdb, pStream);
+    tFreeMRecalcStreamReq(&recalcReq);
     return code;
   }
 

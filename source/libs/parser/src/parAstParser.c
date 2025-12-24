@@ -538,7 +538,7 @@ static int32_t collectMetaKeyFromDropTable(SCollectMetaKeyCxt* pCxt, SDropTableS
       }
     }
     if (TSDB_CODE_SUCCESS == code) {
-      return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL, PRIV_DB_USE,
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL, PRIV_DB_USE,
                                     PRIV_OBJ_DB, pCxt->pMetaCache);
     }
 
@@ -665,7 +665,7 @@ static int32_t collectMetaKeyFromUseDatabase(SCollectMetaKeyCxt* pCxt, SUseDatab
     code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_USE,
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_USE,
                                   PRIV_OBJ_DB, pCxt->pMetaCache);
   }
   return code;
@@ -1348,7 +1348,7 @@ static int32_t collectMetaKeyFromShowSubscriptions(SCollectMetaKeyCxt* pCxt, SSh
 static int32_t collectMetaKeyFromCompactDatabase(SCollectMetaKeyCxt* pCxt, SCompactDatabaseStmt* pStmt) {
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
-    return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_COMPACT,
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_COMPACT,
                                   PRIV_OBJ_DB, pCxt->pMetaCache);
   }
   return code;
@@ -1357,7 +1357,7 @@ static int32_t collectMetaKeyFromCompactDatabase(SCollectMetaKeyCxt* pCxt, SComp
 static int32_t collectMetaKeyFromRollupDatabase(SCollectMetaKeyCxt* pCxt, SRollupDatabaseStmt* pStmt) {
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
-    return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_ROLLUP,
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_ROLLUP,
                                   PRIV_OBJ_DB, pCxt->pMetaCache);
   }
   return code;
@@ -1366,7 +1366,7 @@ static int32_t collectMetaKeyFromRollupDatabase(SCollectMetaKeyCxt* pCxt, SRollu
 static int32_t collectMetaKeyFromScanDatabase(SCollectMetaKeyCxt* pCxt, SScanDatabaseStmt* pStmt) {
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
-    return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_SCAN,
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_SCAN,
                                   PRIV_OBJ_DB, pCxt->pMetaCache);
   }
   return code;
@@ -1375,7 +1375,7 @@ static int32_t collectMetaKeyFromScanDatabase(SCollectMetaKeyCxt* pCxt, SScanDat
 static int32_t collectMetaKeyFromSsmigrateDatabase(SCollectMetaKeyCxt* pCxt, SSsMigrateDatabaseStmt* pStmt) {
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
-    return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL,
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL,
                                   PRIV_DB_SSMIGRATE, PRIV_OBJ_DB, pCxt->pMetaCache);
   }
   return code;
@@ -1384,7 +1384,7 @@ static int32_t collectMetaKeyFromSsmigrateDatabase(SCollectMetaKeyCxt* pCxt, SSs
 static int32_t collectMetaKeyFromTrimDatabase(SCollectMetaKeyCxt* pCxt, STrimDatabaseStmt* pStmt) {
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
-    return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_TRIM,
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL, PRIV_DB_TRIM,
                                   PRIV_OBJ_DB, pCxt->pMetaCache);
   }
   return code;
