@@ -116,7 +116,7 @@ static int32_t getUidVersion(SMetaReader *pReader, int64_t *version, tb_uid_t ui
     goto END;
   }
   if (c >= 0){
-    metaError("%s move to version:"PRId64 " max failed", __func__, *version);
+    metaError("%s move to version:%"PRId64 " max failed", __func__, *version);
     code = TSDB_CODE_FAILED;
     goto END;
   }
