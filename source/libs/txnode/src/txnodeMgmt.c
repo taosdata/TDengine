@@ -375,7 +375,7 @@ _exit:
  */
 void xnodeMgmtStopXnoded(void) {
   SXnodedData *pData = &xnodedGlobal;
-  xndDebug("xnoded start to stop, need cleanup:%d, spawn err:%d", pData->needCleanUp, pData->spawnErr);
+  xndInfo("stopping xnoded, need cleanup:%d, spawn err:%d", pData->needCleanUp, pData->spawnErr);
   if (!pData->needCleanUp || atomic_load_32(&pData->isStopped)) {
     return;
   }

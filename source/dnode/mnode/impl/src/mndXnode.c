@@ -921,7 +921,7 @@ _OVER:
 
 // Helper function to validate grant and permissions
 static int32_t mndValidateXnodeTaskPermissions(SMnode *pMnode, SRpcMsg *pReq) {
-  int32_t code = grantCheck(TSDB_GRANT_XNODE);  // xxxzgc todo: check xnode task grant
+  int32_t code = grantCheck(TSDB_GRANT_XNODE);
   if (code != TSDB_CODE_SUCCESS) {
     mError("failed to create xnode, code:%s", tstrerror(code));
     return code;
@@ -932,7 +932,7 @@ static int32_t mndValidateXnodeTaskPermissions(SMnode *pMnode, SRpcMsg *pReq) {
 
 // Helper function to parse and validate the request
 static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq *pCreateReq) {
-  mInfo("xnode task:%s, start validate create request", pCreateReq->name.ptr);
+  mDebug("xnode task:%s, start validate create request", pCreateReq->name.ptr);
   int32_t code = 0;
   SJson  *pJson = NULL;
   SJson  *postContent = NULL;
@@ -982,7 +982,7 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
     goto _OVER;
   }
 
-  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, defaultTimeout, pContStr, strlen(pContStr));
+  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
   if (pJson == NULL) {
     code = terrno;
     goto _OVER;
@@ -1052,7 +1052,7 @@ _OVER:
            tstrerror(code));
   }
 
-  // mndReleaseXnodeTask(pMnode, pObj);
+  mndReleaseXnodeTask(pMnode, pObj);
   tFreeSMCreateXnodeTaskReq(&createReq);
   TAOS_RETURN(code);
 }
@@ -3063,7 +3063,7 @@ static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t t
 
   curl = curl_easy_init();
   if (curl == NULL) {
-    uError("failed to create curl handle");
+    uError("xnode failed to create curl handle");
     return -1;
   }
 
@@ -3074,15 +3074,14 @@ static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t t
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeout) != 0) goto _OVER;
 
-  uDebug("curl get request will sent, url:%s", url);
+  uDebug("xnode curl get request will sent, url:%s", url);
   CURLcode curlCode = curl_easy_perform(curl);
   if (curlCode != CURLE_OK) {
+    uError("xnode failed to perform curl action, curl code:%d", curlCode);
     if (curlCode == CURLE_OPERATION_TIMEDOUT) {
-      mError("xnode failed to perform curl action, code:%d", curlCode);
       retCode = TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT;
       goto _OVER;
     }
-    uError("failed to perform curl action, code:%d", curlCode);
     retCode = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
     goto _OVER;
   }
@@ -3090,6 +3089,7 @@ static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t t
   long http_code = 0;
   curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
   if (http_code != 200 && http_code != 204) {
+    uError("xnode curl request response http code:%ld", http_code);
     retCode = TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
   }
 

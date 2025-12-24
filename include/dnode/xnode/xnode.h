@@ -57,6 +57,7 @@ typedef struct {
   int32_t upLen;
   char    userPass[XNODE_USER_PASS_LEN];
   SEp     ep;
+  char    machineId[TSDB_MACHINE_ID_LEN + 1];
 } SXnodeOpt;
 
 struct SXnode {

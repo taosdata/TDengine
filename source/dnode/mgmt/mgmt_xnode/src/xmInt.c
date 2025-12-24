@@ -18,21 +18,23 @@
 #include "xmInt.h"
 
 static int32_t xmRequire(const SMgmtInputOpt *pInput, bool *required) {
-  return dmReadFile(pInput->path, pInput->name, required);
+  xndInfo("xnode require call path:%s, name:%s", pInput->path, pInput->name);
+  *required = true;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void xmInitOption(SXnodeMgmt *pMgmt, SXnodeOpt *pOption) {
   pOption->msgCb = pMgmt->msgCb;
   pOption->dnodeId = pMgmt->pData->dnodeId;
+  pOption->clusterId = pMgmt->pData->clusterId;
+  (void)memmove(pOption->machineId, pMgmt->pData->machineId, TSDB_MACHINE_ID_LEN + 1);
 }
 
 static void xmClose(SXnodeMgmt *pMgmt) {
   if (pMgmt->pXnode != NULL) {
-    // bmStopWorker(pMgmt);
     xndClose(pMgmt->pXnode);
     pMgmt->pXnode = NULL;
   }
-
   taosMemoryFree(pMgmt);
 }
 
@@ -82,84 +84,6 @@ static int32_t xndOpenWrapper(SXnodeOpt *pOption, SXnode **pXnode) {
 //   return code;
 // }
 
-static int32_t bmDecodeFile(SJson *pJson, int32_t *proto) {
-  int32_t code = 0;
-
-  code = tjsonGetIntValue(pJson, "proto", proto);
-  return code;
-}
-
-static int32_t bmReadFile(const char *path, const char *name, int32_t *proto) {
-  int32_t   code = -1;
-  TdFilePtr pFile = NULL;
-  char     *content = NULL;
-  SJson    *pJson = NULL;
-  char      file[PATH_MAX] = {0};
-  int32_t   nBytes = snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
-  if (nBytes <= 0 || nBytes >= PATH_MAX) {
-    code = TSDB_CODE_OUT_OF_BUFFER;
-    goto _OVER;
-  }
-
-  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dInfo("file:%s not exist", file);
-    code = 0;
-    goto _OVER;
-  }
-
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    code = terrno;
-    dError("failed to open file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  int64_t size = 0;
-  code = taosFStatFile(pFile, &size, NULL);
-  if (code != 0) {
-    dError("failed to fstat file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  content = taosMemoryMalloc(size + 1);
-  if (content == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosReadFile(pFile, content, size) != size) {
-    code = terrno;
-    dError("failed to read file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  content[size] = '\0';
-
-  pJson = tjsonParse(content);
-  if (pJson == NULL) {
-    code = TSDB_CODE_INVALID_JSON_FORMAT;
-    goto _OVER;
-  }
-
-  if (bmDecodeFile(pJson, proto) < 0) {
-    code = TSDB_CODE_INVALID_JSON_FORMAT;
-    goto _OVER;
-  }
-
-  code = 0;
-  dInfo("succceed to read bnode file %s", file);
-
-_OVER:
-  if (content != NULL) taosMemoryFree(content);
-  if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
-
-  if (code != 0) {
-    dError("failed to read bnode file:%s since %s", file, tstrerror(code));
-  }
-  return code;
-}
-
 static int32_t xmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   int32_t     code = 0;
   SXnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SXnodeMgmt));
@@ -176,29 +100,13 @@ static int32_t xmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   SXnodeOpt option = {0};
   xmInitOption(pMgmt, &option);
 
-  code = bmReadFile(pInput->path, pInput->name, &option.proto);
-  if (code != 0) {
-    dError("failed to read bnode since %s", tstrerror(code));
-    xmClose(pMgmt);
-    return code;
-  }
-
   code = xndOpenWrapper(&option, &pMgmt->pXnode);
   if (code != 0) {
-    dError("failed to open bnode since %s", tstrerror(code));
+    dError("failed to open xnode since %s", tstrerror(code));
     xmClose(pMgmt);
     return code;
   }
-  tmsgReportStartup("bnode-impl", "initialized");
 
-  /*
-  if ((code = bmStartWorker(pMgmt)) != 0) {
-    dError("failed to start bnode worker since %s", tstrerror(code));
-    bmClose(pMgmt);
-    return code;
-  }
-  tmsgReportStartup("bnode-worker", "initialized");
-  */
   pOutput->pMgmt = pMgmt;
   return code;
 }

@@ -20,47 +20,36 @@ static SXnode xnodeInstance = {0};
 SXnode       *xndInstance() { return &xnodeInstance; }
 
 int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
-  int32_t code = 0;
+  *pXnode = &xnodeInstance;
+  (*pXnode)->protocol = (int8_t)pOption->proto;
+  (*pXnode)->dnodeId = pOption->dnodeId;
+  (*pXnode)->clusterId = pOption->clusterId;
+  (*pXnode)->ep = pOption->ep;
 
-  // *pXnode = taosMemoryCalloc(1, sizeof(SXnode));
-  // if (NULL == *pXnode) {
-  //   xndError("calloc SXnode failed");
-  //   code = terrno;
+  // if (TSDB_XNODE_OPT_PROTO == (*pXnode)->protocol) {
+  //   // if ((code = xnodeMgmtStartXnoded((*pXnode)->dnodeId)) != 0) {
+  //   if ((code = xnodeMgmtStartXnoded(*pXnode)) != 0) {
+  //     xndError("failed to start xnoded since %s", tstrerror(code));
+
+  //     taosMemoryFree(*pXnode);
+  //     TAOS_RETURN(code);
+  //   }
+  // } else {
+  //   xndError("Unknown xnode proto: %hhd.", (*pXnode)->protocol);
+
+  //   taosMemoryFree(*pXnode);
   //   TAOS_RETURN(code);
   // }
 
-  // (*pXnode)->msgCb = pOption->msgCb;
-  // (*pXnode)->dnodeId = pOption->dnodeId;
-  // (*pXnode)->protocol = (int8_t)pOption->proto;
-  *pXnode = &xnodeInstance;
-  (*pXnode)->protocol = (int8_t)pOption->proto;
-
-  if (TSDB_XNODE_OPT_PROTO == (*pXnode)->protocol) {
-    // if ((code = xnodeMgmtStartXnoded((*pXnode)->dnodeId)) != 0) {
-    if ((code = xnodeMgmtStartXnoded(*pXnode)) != 0) {
-      xndError("failed to start xnoded since %s", tstrerror(code));
-
-      taosMemoryFree(*pXnode);
-      TAOS_RETURN(code);
-    }
-  } else {
-    xndError("Unknown xnode proto: %hhd.", (*pXnode)->protocol);
-
-    taosMemoryFree(*pXnode);
-    TAOS_RETURN(code);
-  }
-
-  xndInfo("Xnode opened.");
+  xndInfo("xnode: opened & initialized by dnode");
 
   return TSDB_CODE_SUCCESS;
 }
 
 void xndClose(SXnode *pXnode) {
+  xndInfo("xnode: dnode is closing xnoded");
   xnodeMgmtStopXnoded();
-
   taosMemoryFree(pXnode);
-
-  xndInfo("Xnode closed.");
 }
 
 int32_t mndOpenXnd(const SXnodeOpt *pOption) {
