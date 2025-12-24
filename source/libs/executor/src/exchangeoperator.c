@@ -24,7 +24,6 @@
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
-#include "tutil.h"
 
 typedef struct SFetchRspHandleWrapper {
   int64_t  exchangeId;

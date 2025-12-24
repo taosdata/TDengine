@@ -7165,7 +7165,6 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
             PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pEnd, *pNode));
           }
           PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
-          nodesDestroyNode(*pNode);
           *pNode = (SNode*)pVal;
           return DEAL_RES_IGNORE_CHILD;
         } else {
