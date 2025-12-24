@@ -2964,6 +2964,14 @@ _err:
   return code;
 }
 
+
+void destroyTagVal(void *pTag) {
+  STagVal* pTagVal = (STagVal*)pTag;
+  if (pTagVal && IS_VAR_DATA_TYPE(pTagVal->type)) {
+    taosMemoryFree(pTagVal->pData);
+  }
+}
+
 // STSchema ========================================
 STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   STSchema *pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn) * numOfCols);

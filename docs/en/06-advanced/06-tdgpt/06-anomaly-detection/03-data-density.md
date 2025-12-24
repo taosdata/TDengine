@@ -7,7 +7,7 @@ sidebar_label: Data Density Algorithms
 
 LOF is a density-based algorithm for determining local outliers proposed by Breunig et al. in 2000. It is suitable for data with varying cluster densities and diverse dispersion. First, the local reachability density of each data point is calculated based on the density of its neighborhood. The local reachability density is then used to assign an outlier factor to each data point. This outlier factor indicates how anomalous a data point is. A higher factor indicates more anomalous data. Finally, the top *k* outliers are output.
 
-```SQL
+```sql
 --- Use LOF.
 SELECT count(*)
 FROM foo

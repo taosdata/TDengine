@@ -2257,13 +2257,25 @@ int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDat
   QUERY_CHECK_NULL(pTemplateBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_NULL(pColMap, code, lino, _return, TSDB_CODE_INVALID_PARA);
 
-  QUERY_CHECK_CODE(createOneDataBlock(pTemplateBlock, false, &pDstBlock), lino, _return);
-  QUERY_CHECK_CODE(blockDataEnsureCapacity(pDstBlock, pSrcBlock->info.rows), lino, _return);
+  code = createOneDataBlock(pTemplateBlock, false, &pDstBlock);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = blockDataEnsureCapacity(pDstBlock, pSrcBlock->info.rows);
+  QUERY_CHECK_CODE(code, lino, _return);
 
-  for (int32_t i = 0; i < taosArrayGetSize(pDstBlock->pDataBlock); ++i) {
-    SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
-    QUERY_CHECK_NULL(pDst, code, lino, _return, terrno);
-    colDataSetNNULL(pDst, 0, pSrcBlock->info.rows);
+  if (pSrcBlock->pBlockAgg) {
+    size_t num = taosArrayGetSize(pDstBlock->pDataBlock);
+    pDstBlock->pBlockAgg = taosMemoryCalloc(num, sizeof(SColumnDataAgg));
+    QUERY_CHECK_NULL(pDstBlock->pBlockAgg, code, lino, _return, terrno);
+    for (int i = 0; i < num; ++i) {
+      pDstBlock->pBlockAgg[i].colId = i;
+      pDstBlock->pBlockAgg[i].numOfNull = pSrcBlock->info.rows;
+    }
+  } else {
+    for (int32_t i = 0; i < taosArrayGetSize(pDstBlock->pDataBlock); ++i) {
+      SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
+      QUERY_CHECK_NULL(pDst, code, lino, _return, terrno);
+      colDataSetNNULL(pDst, 0, pSrcBlock->info.rows);
+    }
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pColMap); i++) {
@@ -2275,7 +2287,12 @@ int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDat
       if (pSrcCol->info.colId == pColPair->orgColId) {
         SColumnInfoData* pDstCol = taosArrayGet(pDstBlock->pDataBlock, pColPair->vtbSlotId);
         QUERY_CHECK_NULL(pDstCol, code, lino, _return, terrno);
-        QUERY_CHECK_CODE(colDataAssign(pDstCol, pSrcCol, (int32_t)pSrcBlock->info.rows, &pSrcBlock->info), lino, _return);
+        if (pSrcBlock->pBlockAgg) {
+          (void)memcpy(&pDstBlock->pBlockAgg[pColPair->vtbSlotId], &pSrcBlock->pBlockAgg[j], sizeof(SColumnDataAgg));
+          pDstBlock->pBlockAgg[pColPair->vtbSlotId].numOfNull = 0;
+        } else {
+          QUERY_CHECK_CODE(colDataAssign(pDstCol, pSrcCol, (int32_t)pSrcBlock->info.rows, &pSrcBlock->info), lino, _return);
+        }
       }
     }
   }

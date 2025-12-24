@@ -559,12 +559,12 @@ EDealRes doTranslateTagExpr(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified, SStorageAPI* pAPI) {
+int32_t isQualifiedTable(int64_t uid, SNode* pTagCond, void* vnode, bool* pQualified, SStorageAPI* pAPI) {
   int32_t     code = TSDB_CODE_SUCCESS;
   SMetaReader mr = {0};
 
-  pAPI->metaReaderFn.initReader(&mr, metaHandle, META_READER_LOCK, &pAPI->metaFn);
-  code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, info->uid);
+  pAPI->metaReaderFn.initReader(&mr, vnode, META_READER_LOCK, &pAPI->metaFn);
+  code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, uid);
   if (TSDB_CODE_SUCCESS != code) {
     pAPI->metaReaderFn.clearReader(&mr);
     *pQualified = false;
@@ -584,6 +584,7 @@ int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle,
   pAPI->metaReaderFn.clearReader(&mr);
   if (TSDB_CODE_SUCCESS != ctx.code) {
     *pQualified = false;
+    nodesDestroyNode(pTagCondTmp);
     terrno = code;
     return code;
   }
@@ -1539,7 +1540,7 @@ static FilterCondType checkTagCond(SNode* cond) {
   if (nodeType(cond) == QUERY_NODE_OPERATOR) {
     return FILTER_NO_LOGIC;
   }
-  if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
+  if (nodeType(cond) == QUERY_NODE_LOGIC_CONDITION && ((SLogicConditionNode*)cond)->condType == LOGIC_COND_TYPE_AND) {
     return FILTER_AND;
   }
   return FILTER_OTHER;
@@ -1551,8 +1552,8 @@ static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SN
 
   if (ntype == QUERY_NODE_OPERATOR) {
     ret = optimizeTbnameInCondImpl(pVnode, list, cond, pAPI, suid);
+    return ret;
   }
-
   if (ntype != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
     return ret;
   }
@@ -1861,8 +1862,6 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
   code = copyExistedUids(pUidTagList, pUidList);
   QUERY_CHECK_CODE(code, lino, end);
 
-  FilterCondType condType = checkTagCond(pTagCond);
-
   int32_t filter = optimizeTbnameInCond(pVnode, pListInfo->idInfo.suid, pUidTagList, pTagCond, pAPI);
   if (filter == 0) {  // tbname in filter is activated, do nothing and return
     taosArrayClear(pUidList);
@@ -1880,7 +1879,8 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
     terrno = 0;
   } else {
     qDebug("pUidTagList size:%d", (int32_t)taosArrayGetSize(pUidTagList));
-    
+
+    FilterCondType condType = checkTagCond(pTagCond);
     if (((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) ||
           taosArrayGetSize(pUidTagList) > 0) {
       code = pAPI->metaFn.getTableTagsByUid(pVnode, pListInfo->idInfo.suid, pUidTagList);
@@ -3016,6 +3016,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->pStore = pStore;
     pCtx->hasWindowOrGroup = false;
     pCtx->needCleanup = false;
+    pCtx->skipDynDataCheck = false;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
@@ -3233,6 +3234,7 @@ int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTab
   QUERY_CHECK_NULL(pCond->pSlotList, code, lino, _return, terrno);
 
   pCond->twindows = pOrgCond->twindows;
+  pCond->order = pOrgCond->order;
   pCond->type = pOrgCond->type;
   pCond->startVersion = -1;
   pCond->endVersion = -1;

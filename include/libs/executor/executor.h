@@ -317,6 +317,8 @@ int32_t getTaskCode(void* pTaskInfo);
 bool    isTaskKilled(void* pTaskInfo);
 
 
+int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid);
+
 #ifdef __cplusplus
 }
 #endif

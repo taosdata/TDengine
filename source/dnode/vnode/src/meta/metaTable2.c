@@ -1333,6 +1333,33 @@ static int32_t metaCheckUpdateTableTagValReq(SMeta *pMeta, int64_t version, SVAl
   TAOS_RETURN(code);
 }
 
+      // TAOS_RETURN(TSDB_CODE_VND_SAME_TAG);
+
+static bool checkSameTag(uint32_t nTagVal, uint8_t* pTagVal, bool isNull, STagVal value, const STag *pOldTag) {
+  if (isNull) {
+    if (!tTagGet(pOldTag, &value)) {
+      metaWarn("%s warn at %s:%d same tag null", __func__, __FILE__, __LINE__);
+      return true;
+    }
+    return false;
+  }
+  if (!tTagGet(pOldTag, &value)){
+    return false;
+  }
+  if (IS_VAR_DATA_TYPE(value.type)) {
+    if (nTagVal == value.nData && memcmp(pTagVal, value.pData, value.nData) == 0) {
+      metaWarn("%s warn at %s:%d same tag var", __func__, __FILE__, __LINE__);
+      return true;
+    }
+  } else {
+    if (memcmp(&value.i64, pTagVal, nTagVal) == 0) {
+      metaWarn("%s warn at %s:%d same tag fixed", __func__, __FILE__, __LINE__);
+      return true;
+    }
+  }
+  return false;
+}
+
 int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -1420,6 +1447,12 @@ int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
       };
 
       if (iColumn == i) {
+        if (checkSameTag(pReq->nTagVal, pReq->pTagVal, pReq->isNull, value, pOldTag)) {
+          taosArrayDestroy(pTagArray);
+          metaFetchEntryFree(&pChild);
+          metaFetchEntryFree(&pSuper);
+          TAOS_RETURN(TSDB_CODE_VND_SAME_TAG);
+        }
         if (pReq->isNull) {
           continue;
         }
@@ -1604,6 +1637,8 @@ int32_t metaUpdateTableMultiTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq
     TAOS_RETURN(terrno);
   }
 
+  bool allSame = true;
+
   for (int32_t i = 0; i < pTagSchema->nCols; i++) {
     SSchema *pCol = &pTagSchema->pSchema[i];
     STagVal  value = {
@@ -1617,6 +1652,9 @@ int32_t metaUpdateTableMultiTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq
       }
     } else {
       value.type = pCol->type;
+      if (!checkSameTag(pTagVal->nTagVal, pTagVal->pTagVal, pTagVal->isNull, value, pOldTag)) {
+        allSame = false;
+      }
       if (pTagVal->isNull) {
         continue;
       }
@@ -1640,6 +1678,15 @@ int32_t metaUpdateTableMultiTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq
     }
   }
 
+  if (allSame) {
+    metaWarn("vgId:%d, %s warn at %s:%d all tags are same, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
+             __LINE__, version);
+    taosHashCleanup(pTagTable);
+    taosArrayDestroy(pTagArray);
+    metaFetchEntryFree(&pChild);
+    metaFetchEntryFree(&pSuper);
+    TAOS_RETURN(TSDB_CODE_VND_SAME_TAG);
+  } 
   STag *pNewTag = NULL;
   code = tTagNew(pTagArray, pTagSchema->version, false, &pNewTag);
   if (code) {

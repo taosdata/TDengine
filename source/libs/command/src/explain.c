@@ -41,6 +41,8 @@ char *qExplainGetDynQryCtrlType(EDynQueryType type) {
       return "Virtual Stable Scan";
     case DYN_QTYPE_VTB_WINDOW:
       return "Virtual Table Window";
+    case DYN_QTYPE_VTB_AGG:
+      return "Virtual Table Agg";
     default:
       break;
   }
@@ -1990,6 +1992,17 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
           EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_ORDER_FORMAT, EXPLAIN_ORDER_STRING(pDyn->node.inputTsOrder));
           EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+          break;
+        }
+        case DYN_QTYPE_VTB_AGG: {
+          EXPLAIN_ROW_APPEND(EXPLAIN_HAS_PARTITION_FORMAT, pDyn->vtbScan.hasPartition);
+          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          EXPLAIN_ROW_APPEND(EXPLAIN_BATCH_PROCESS_CHILD_FORMAT, pDyn->vtbScan.batchProcessChild);
+          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pDyn->node.pOutputDataBlockDesc->totalRowSize);
+          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+
           EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
           break;
         }
