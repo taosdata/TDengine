@@ -438,18 +438,20 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 
   if (pRsp->code != 0) {
     dError("failed to sync keys from mnode since %s", tstrerror(pRsp->code));
-    return pRsp->code;
+    code = pRsp->code;
+    goto _exit;
   }
 
   if (pRsp->pCont == NULL || pRsp->contLen <= 0) {
     dError("invalid key sync response, empty content");
-    return TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
   }
 
   code = tDeserializeSKeySyncRsp(pRsp->pCont, pRsp->contLen, &keySyncRsp);
   if (code != 0) {
     dError("failed to deserialize key sync response since %s", tstrerror(code));
-    return code;
+    goto _exit;
   }
 
   dInfo("received key sync response, mnode keyVersion:%d, local keyVersion:%d, needUpdate:%d", keySyncRsp.keyVersion,
@@ -476,7 +478,7 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
                                 keySyncRsp.svrKeyUpdateTime, keySyncRsp.dbKeyUpdateTime);
     if (code != 0) {
       dError("failed to save encryption keys since %s", tstrerror(code));
-      return code;
+      goto _exit;
     }
 
     // Update global variables with synced keys
@@ -508,8 +510,12 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   } else {
     dDebug("local keys are up to date, version:%d", tsLocalKeyVersion);
   }
+  
+  code = TSDB_CODE_SUCCESS;
 
-  return TSDB_CODE_SUCCESS;
+_exit:
+  rpcFreeCont(pRsp->pCont);
+  return code;
 }
 
 void dmSendKeySyncReq(SDnodeMgmt *pMgmt) {
