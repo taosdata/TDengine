@@ -18,7 +18,7 @@
 #include "tgrant.h"
 #include "thttp.h"
 #include "streamMsg.h"
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
 #include "taoskInt.h"
 #endif
 
@@ -93,7 +93,7 @@ static void *dmKeySyncThreadFp(void *param) {
           dWarn("encryption keys may be expired, svrKeyAge:%" PRId64 " days, dbKeyAge:%" PRId64
                 " days, attempting reload",
                 svrKeyAge / MILLISECONDS_PER_DAY, dbKeyAge / MILLISECONDS_PER_DAY);
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
           // Try to reload keys from file
           char masterKeyFile[PATH_MAX] = {0};
           char derivedKeyFile[PATH_MAX] = {0};

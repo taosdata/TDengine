@@ -24,7 +24,7 @@
 #include "tgrant.h"
 #include "tconv.h"
 #include "stream.h"
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
 #include "taoskInt.h"
 #endif
 
@@ -178,6 +178,7 @@ int32_t dmInitVars(SDnode *pDnode) {
   tsiEncryptAlgorithm = pData->encryptAlgorigthm;
   tsiEncryptScope = pData->encryptScope;
 
+#if defined(TD_HAS_TAOSK) || defined(TD_ASTRA_TODO)
   // Load local encryption keys and initialize key version
   {
     char masterKeyFile[PATH_MAX] = {0};
@@ -212,6 +213,7 @@ int32_t dmInitVars(SDnode *pDnode) {
       dInfo("no local encryption keys found or failed to load, will sync from mnode");
     }
   }
+#endif
 #endif
   /*
   if(tsiEncryptAlgorithm != 0) {

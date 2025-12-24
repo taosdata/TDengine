@@ -22,7 +22,7 @@
 #include "tjson.h"
 #include "tglobal.h"
 
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
 #include "taoskInt.h"
 #endif
 
@@ -564,7 +564,7 @@ _OVER:
 }
 
 int32_t dmGetEncryptKeyFromTaosk() {
-#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
+#if (defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)) || defined(TD_ASTRA_TODO)
   char keyFileDir[PATH_MAX] = {0};
   char masterKeyFile[PATH_MAX] = {0};
   char derivedKeyFile[PATH_MAX] = {0};

@@ -25,7 +25,7 @@
 #include "tencrypt.h"
 #include "tutil.h"
 
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
 #include "taoskInt.h"
 #endif
 
@@ -458,7 +458,7 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         tsLocalKeyVersion, keySyncRsp.needUpdate);
   tsEncryptKeysStatus = keySyncRsp.encryptionKeyStatus;
   if (keySyncRsp.needUpdate) {
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
     // Get encrypt file path from tsDataDir
     char masterKeyFile[PATH_MAX] = {0};
     char derivedKeyFile[PATH_MAX] = {0};
@@ -900,7 +900,7 @@ _exit:
 #endif
 }
 
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
 static int32_t dmUpdateSvrKey(const char *newKey) {
   if (newKey == NULL || newKey[0] == '\0') {
     dError("invalid new SVR_KEY, key is empty");
@@ -1085,7 +1085,7 @@ static int32_t dmUpdateDbKey(const char *newKey) {
 #endif
 
 int32_t dmProcessAlterEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
   int32_t              code = 0;
   SMAlterEncryptKeyReq alterKeyReq = {0};
   if (tDeserializeSMAlterEncryptKeyReq(pMsg->pCont, pMsg->contLen, &alterKeyReq) != 0) {
