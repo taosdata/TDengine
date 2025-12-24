@@ -1,6 +1,6 @@
 use actix_cors::Cors;
 use actix_files::NamedFile;
-use actix_web::CustomizeResponder;
+use actix_web::{http::header::ContentType, CustomizeResponder};
 use actix_web_rust_embed_responder::{EmbedResponse, IntoResponse};
 use anyhow::Context;
 use chrono::{SecondsFormat, TimeZone};
@@ -538,6 +538,7 @@ async fn main() -> anyhow::Result<()> {
                 .service(docs_assets)
                 .service(web::redirect("/docs-en", "/docs-en/"))
                 .service(docs_en_assets)
+                .service(web::redirect("", "/"))
                 .service(static_assets)
         }
     });
@@ -1609,7 +1610,7 @@ struct StaticAssets;
 /// - "docs/"
 /// - "docs-en/"
 async fn static_assets_with_prefix(
-    prefix: &str,
+    prefix: Option<&str>,
     path: &str,
 ) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
     const COOKIE_ROUTE: &str = "route";
@@ -1624,13 +1625,19 @@ async fn static_assets_with_prefix(
         || path.ends_with('/')
         || !path[path.rfind('/').map(|i| i + 1).unwrap_or(0)..].contains('.')
     {
-        let index = format!("{prefix}index.html");
+        let index = prefix.map_or_else(
+            || Cow::Borrowed("index.html"),
+            |prefix| Cow::Owned(format!("{prefix}index.html")),
+        );
         let cookie = Cookie::build(
             COOKIE_ROUTE,
             if path.is_empty() {
-                Cow::Borrowed(prefix)
+                Cow::Borrowed(prefix.unwrap_or(""))
             } else {
-                Cow::Owned(format!("{prefix}{path}"))
+                prefix.map_or_else(
+                    || Cow::Borrowed(path),
+                    |prefix| Cow::Owned(format!("{prefix}{path}")),
+                )
             },
         )
         .path("/")
@@ -1639,12 +1646,15 @@ async fn static_assets_with_prefix(
         return StaticAssets::get(&index)
             .into_response()
             .customize()
-            .add_cookie(&cookie);
+            .add_cookie(&cookie)
+            .append_header(ContentType::html());
     }
-    let path = format!("{prefix}{path}");
-    if let Some(file) = StaticAssets::get(&path) {
-        file.into_response().customize()
-    } else {
+    let path = prefix.map_or_else(
+        || Cow::Borrowed(path),
+        |prefix| Cow::Owned(format!("{prefix}{path}")),
+    );
+
+    if let Some(file) = StaticAssets::get(&path).or_else(|| {
         path.char_indices()
             .filter(|&(_, c)| c == '/')
             .filter_map(|(i, _)| {
@@ -1652,14 +1662,19 @@ async fn static_assets_with_prefix(
                 StaticAssets::get(part)
             })
             .next()
-            .into_response()
+    }) {
+        let mime = mime_guess::from_path(&*path).first_or_octet_stream();
+        file.into_response()
             .customize()
+            .append_header(("Content-Type", mime.essence_str()))
+    } else {
+        None.into_response().customize()
     }
 }
 /// For docs.
 #[route("/docs/{path:.*}", method = "GET", method = "HEAD")]
 async fn docs_assets(path: web::Path<String>) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
-    static_assets_with_prefix("docs/", path.as_str()).await
+    static_assets_with_prefix(Some("docs/"), path.as_str()).await
 }
 /// For docs.
 #[route("/docs-en/{path:.*}", method = "GET", method = "HEAD")]
@@ -1667,59 +1682,13 @@ async fn docs_assets(path: web::Path<String>) -> CustomizeResponder<EmbedRespons
 async fn docs_en_assets(
     path: web::Path<String>,
 ) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
-    static_assets_with_prefix("docs-en/", path.as_str()).await
+    static_assets_with_prefix(Some("docs-en/"), path.as_str()).await
 }
 
 /// For static assets as a SPA website.
 #[route("/{path:.*}", method = "GET", method = "HEAD")]
 async fn static_assets(path: web::Path<String>) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
-    const COOKIE_ROUTE: &str = "route";
-    let path = path.as_str();
-    // Treat path as a route by responding with `index.html`.
-    //
-    // Examples:
-    // - ""
-    // - "/about"
-    // - "/about/"
-    // - "/dataIn/task"
-    if path.is_empty()
-        || path.ends_with('/')
-        || !path[path.rfind('/').map(|i| i + 1).unwrap_or(0)..].contains('.')
-    {
-        let index = "index.html";
-        let cookie = Cookie::build(COOKIE_ROUTE, if path.is_empty() { "/" } else { path })
-            .path("/")
-            .finish();
-        tracing::info!("SPA route to {path}");
-        return StaticAssets::get(index)
-            .into_response()
-            .customize()
-            .add_cookie(&cookie);
-    }
-    tracing::info!("path: {path}");
-    if let Some(file) = StaticAssets::get(path) {
-        if path.ends_with(".js") {
-            return file
-                .into_response()
-                .customize()
-                .append_header(("Content-Type", "application/javascript"));
-        }
-        // guess mime type from path
-        let mime = mime_guess::from_path(path).first_or_octet_stream();
-        file.into_response()
-            .customize()
-            .append_header(("Content-Type", mime.essence_str()))
-    } else {
-        path.char_indices()
-            .filter(|&(_, c)| c == '/')
-            .filter_map(|(i, _)| {
-                let part = &path[i + 1..];
-                StaticAssets::get(part)
-            })
-            .next()
-            .into_response()
-            .customize()
-    }
+    static_assets_with_prefix(None, path.as_str()).await
 }
 
 #[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
