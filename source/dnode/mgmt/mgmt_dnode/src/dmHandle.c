@@ -995,7 +995,7 @@ static int32_t dmSaveKeyVerification(const char *svrKey, const char *dbKey, cons
   }
 
   int64_t written = taosWriteFile(pFile, buffer, totalSize);
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
   taosMemoryFree(buffer);
 
   if (written != totalSize) {
@@ -1047,7 +1047,7 @@ static int32_t dmVerifyEncryptionKeys(const char *svrKey, const char *dbKey, con
   }
 
   int64_t bytesRead = taosReadFile(pFile, buffer, fileSize);
-  taosCloseFile(&pFile);
+  (void)taosCloseFile(&pFile);
 
   if (bytesRead != fileSize) {
     dError("failed to read key verification file, read=%" PRId64 ", expected=%" PRId64, bytesRead, fileSize);
