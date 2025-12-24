@@ -216,9 +216,6 @@ extern int32_t  tsEncryptKeyVersion;       // Key update version (starts from 1,
 extern int64_t  tsEncryptKeyCreateTime;    // Key creation timestamp
 extern int64_t  tsSvrKeyUpdateTime;        // SVR_KEY last update timestamp
 extern int64_t  tsDbKeyUpdateTime;         // DB_KEY last update timestamp
-extern bool     tsCfgKeyEnabled;           // CFG_KEY enabled flag
-extern bool     tsMetaKeyEnabled;          // META_KEY enabled flag
-extern bool     tsDataKeyEnabled;          // DATA_KEY enabled flag
 
 // monitor
 extern bool     tsEnableMonitor;

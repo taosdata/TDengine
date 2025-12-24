@@ -194,9 +194,6 @@ int32_t  tsEncryptKeyVersion = 0;       // Key update version (starts from 1, in
 int64_t  tsEncryptKeyCreateTime = 0;    // Key creation timestamp
 int64_t  tsSvrKeyUpdateTime = 0;        // SVR_KEY last update timestamp
 int64_t  tsDbKeyUpdateTime = 0;         // DB_KEY last update timestamp
-bool     tsCfgKeyEnabled = false;       // CFG_KEY enabled flag
-bool     tsMetaKeyEnabled = false;      // META_KEY enabled flag
-bool     tsDataKeyEnabled = false;      // DATA_KEY enabled flag
 uint32_t tsGrant = 1;
 
 bool tsCompareAsStrInGreatest = true;

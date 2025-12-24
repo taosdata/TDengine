@@ -630,13 +630,8 @@ static int32_t mndInitWal(SMnode *pMnode) {
     code = terrno;
     TAOS_RETURN(code);
   }
-  if (tsMetaKeyEnabled) {
-    if (tsMetaKey[0] == '\0') {
-      code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
-      TAOS_RETURN(code);
-    } else {
-      tstrncpy(cfg.encryptData.encryptKey, tsMetaKey, ENCRYPT_KEY_LEN + 1);
-    }
+  if (tsMetaKey[0] != '\0') {
+    tstrncpy(cfg.encryptData.encryptKey, tsMetaKey, ENCRYPT_KEY_LEN + 1);
   }
 #endif
 

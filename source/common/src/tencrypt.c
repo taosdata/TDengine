@@ -242,7 +242,7 @@ int32_t taosWriteCfgFile(const char *filepath, const void *data, int32_t dataLen
   snprintf(tempFile, sizeof(tempFile), "%s.tmp", filepath);
 
   // Check if CFG_KEY encryption is enabled
-  if (!tsCfgKeyEnabled || tsCfgKey[0] == '\0') {
+  if (tsCfgKey[0] == '\0') {
     // No encryption, write file normally with atomic operation
     TdFilePtr pFile = taosOpenFile(tempFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
     if (pFile == NULL) {
@@ -433,8 +433,8 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
 
     (void)taosCloseFile(&pFile);
 
-    // Check if CFG_KEY encryption is enabled
-    if (!tsCfgKeyEnabled || tsCfgKey[0] == '\0') {
+    // Check if CFG_KEY is available
+    if (tsCfgKey[0] == '\0') {
       // File is encrypted but no key available
       taosMemoryFree(fileContent);
       terrno = TSDB_CODE_FAILED;
@@ -595,7 +595,7 @@ int32_t taosEncryptExistingCfgFiles(const char *dataDir) {
   }
 
   // Check if encryption is enabled
-  if (!tsCfgKeyEnabled || tsCfgKey[0] == '\0') {
+  if (tsCfgKey[0] == '\0') {
     // Encryption not enabled, nothing to do
     return 0;
   }

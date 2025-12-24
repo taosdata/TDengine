@@ -478,6 +478,19 @@ int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
       dError("failed to save encryption keys since %s", tstrerror(code));
       return code;
     }
+
+    // Update global variables with synced keys
+    tstrncpy(tsSvrKey, keySyncRsp.svrKey, sizeof(tsSvrKey));
+    tstrncpy(tsDbKey, keySyncRsp.dbKey, sizeof(tsDbKey));
+    tstrncpy(tsCfgKey, keySyncRsp.cfgKey, sizeof(tsCfgKey));
+    tstrncpy(tsMetaKey, keySyncRsp.metaKey, sizeof(tsMetaKey));
+    tstrncpy(tsDataKey, keySyncRsp.dataKey, sizeof(tsDataKey));
+    tsEncryptAlgorithmType = keySyncRsp.algorithm;
+    tsEncryptKeyVersion = keySyncRsp.keyVersion;
+    tsEncryptKeyCreateTime = keySyncRsp.createTime;
+    tsSvrKeyUpdateTime = keySyncRsp.svrKeyUpdateTime;
+    tsDbKeyUpdateTime = keySyncRsp.dbKeyUpdateTime;
+
     // Update local key version
     tsLocalKeyVersion = keySyncRsp.keyVersion;
     dInfo("successfully updated local encryption keys to version:%d", tsLocalKeyVersion);

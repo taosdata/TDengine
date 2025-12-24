@@ -625,9 +625,6 @@ int32_t dmGetEncryptKeyFromTaosk() {
 
   // Store decrypted keys in global variables
   tsUseTaoskEncryption = true;
-  tsCfgKeyEnabled = (tsCfgKey[0] != '\0');
-  tsMetaKeyEnabled = (tsMetaKey[0] != '\0');
-  tsDataKeyEnabled = (tsDataKey[0] != '\0');
 
   // Store metadata
   tsEncryptAlgorithmType = algorithm;
@@ -652,8 +649,10 @@ int32_t dmGetEncryptKeyFromTaosk() {
   tsEncryptionKeyChksum = taosCalcChecksum(0, (const uint8_t *)tsEncryptKey, strlen(tsEncryptKey));
   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_LOADED;
 
-  dInfo("successfully loaded taosk encryption keys (algorithm:%d, cfg:%d, meta:%d, data:%d)", algorithm,
-        tsCfgKeyEnabled, tsMetaKeyEnabled, tsDataKeyEnabled);
+  dInfo("successfully loaded taosk encryption keys (algorithm:%d, cfg:%s, meta:%s, data:%s)", algorithm,
+        (tsCfgKey[0] != '\0') ? "enabled" : "disabled", 
+        (tsMetaKey[0] != '\0') ? "enabled" : "disabled", 
+        (tsDataKey[0] != '\0') ? "enabled" : "disabled");
 
   TAOS_RETURN(0);
 #else

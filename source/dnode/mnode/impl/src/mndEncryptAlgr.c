@@ -653,7 +653,7 @@ static int32_t mndRetrieveEncryptStatus(SRpcMsg *pMsg, SShowObj *pShow, SSDataBl
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    tstrncpy(varDataVal(tmpBuf), tsCfgKeyEnabled ? "enabled" : "disabled", 16);
+    tstrncpy(varDataVal(tmpBuf), (tsCfgKey[0] != '\0') ? "enabled" : "disabled", 16);
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
 
@@ -674,7 +674,7 @@ static int32_t mndRetrieveEncryptStatus(SRpcMsg *pMsg, SShowObj *pShow, SSDataBl
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    tstrncpy(varDataVal(tmpBuf), tsMetaKeyEnabled ? "enabled" : "disabled", 16);
+    tstrncpy(varDataVal(tmpBuf), (tsMetaKey[0] != '\0') ? "enabled" : "disabled", 16);
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
 
@@ -696,7 +696,7 @@ static int32_t mndRetrieveEncryptStatus(SRpcMsg *pMsg, SShowObj *pShow, SSDataBl
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    tstrncpy(varDataVal(tmpBuf), tsDataKeyEnabled ? "enabled" : "disabled", 16);
+    tstrncpy(varDataVal(tmpBuf), (tsDataKey[0] != '\0') ? "enabled" : "disabled", 16);
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
 

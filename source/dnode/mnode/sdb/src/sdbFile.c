@@ -402,11 +402,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       goto _OVER;
     }
 
-    if (tsMetaKeyEnabled) {
-      if (tsMetaKey[0] == '\0') {
-        code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
-        goto _OVER;
-      }
+    if (tsMetaKey[0] != '\0') {
       int32_t count = 0;
 
       char *plantContent = taosMemoryMalloc(ENCRYPTED_LEN(pRaw->dataLen));
@@ -435,7 +431,6 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       taosMemoryFree(plantContent);
       memcpy(pRaw->pData + pRaw->dataLen, &pRaw->pData[ENCRYPTED_LEN(pRaw->dataLen)], sizeof(int32_t));
     }
-
 
     int32_t totalLen = sizeof(SSdbRaw) + pRaw->dataLen + sizeof(int32_t);
     if ((!taosCheckChecksumWhole((const uint8_t *)pRaw, totalLen)) != 0) {
@@ -564,14 +559,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           break;
         }
 
-        if (tsMetaKeyEnabled) {
-          if (tsMetaKey[0] == '\0') {
-            code = TSDB_CODE_MND_INVALID_ENCRYPT_KEY;
-            taosHashCancelIterate(hash, ppRow);
-            sdbFreeRaw(pRaw);
-            break;
-          }
-
+        if (tsMetaKey[0] != '\0') {
           newDataLen = ENCRYPTED_LEN(pRaw->dataLen);
           newData = taosMemoryMalloc(newDataLen);
           if (newData == NULL) {
