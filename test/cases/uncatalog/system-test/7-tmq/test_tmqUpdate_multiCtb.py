@@ -239,23 +239,22 @@ class TestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def test_tmq_update_multiCtb(self):
-        """Operation: update multi ctb
-        
-        1. Create multiple child tables
-        2. Insert initial data
-        3. Subscribe super table topic
-        4. UPDATE rows across multiple tables
-        5. Consume all update messages
-        6. Verify updates from all tables
-        
-        Since: v3.0.0.0
+        """summary: xxx
 
-        Labels: common,ci
+        description: xxx
 
-        Jira: None
+        Since: xxx
+
+        Labels: xxx
+
+        Jira: xxx
+
+        Catalog:
+        - xxx:xxx
 
         History:
-            - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmqUpdate_multiCtb.py
+        - xxx
+        - xxx
 
         """
         tdSql.prepare()
@@ -275,4 +274,5 @@ class TestCase:
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
+
 
