@@ -13137,13 +13137,6 @@ static int32_t tSerializeSOperatorNotifyParam(SEncoder *pEncoder, SOperatorParam
       return TSDB_CODE_INVALID_PARA;
   }
 
-  int32_t n = taosArrayGetSize(pOpParam->pChildren);
-  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, n));
-  for (int32_t i = 0; i < n; ++i) {
-    SOperatorParam *pChild = *(SOperatorParam **)taosArrayGet(pOpParam->pChildren, i);
-    TAOS_CHECK_RETURN(tSerializeSOperatorNotifyParam(pEncoder, pChild));
-  }
-
   TAOS_CHECK_RETURN(tEncodeBool(pEncoder, pOpParam->reUse));
 
   return TSDB_CODE_SUCCESS;
@@ -13154,7 +13147,7 @@ static int32_t tDeserializeSOperatorNotifyParam(SDecoder *pDecoder, SOperatorPar
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pOpParam->downstreamIdx));
   switch (pOpParam->opType) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
-      pOpParam->value = taosMemoryMalloc(sizeof(int64_t));
+      pOpParam->value = taosMemoryCalloc(1, sizeof(int64_t));
       if (NULL == pOpParam->value) {
         TAOS_CHECK_RETURN(terrno);
       }
@@ -13163,28 +13156,6 @@ static int32_t tDeserializeSOperatorNotifyParam(SDecoder *pDecoder, SOperatorPar
     }
     default:
       return TSDB_CODE_INVALID_PARA;
-  }
-
-  int32_t childrenNum = 0;
-  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &childrenNum));
-
-  if (childrenNum > 0) {
-    pOpParam->pChildren = taosArrayInit(childrenNum, POINTER_BYTES);
-    if (NULL == pOpParam->pChildren) {
-      TAOS_CHECK_RETURN(terrno);
-    }
-    for (int32_t i = 0; i < childrenNum; ++i) {
-      SOperatorParam *pChild = taosMemoryCalloc(1, sizeof(SOperatorParam));
-      if (NULL == pChild) {
-        TAOS_CHECK_RETURN(terrno);
-      }
-      TAOS_CHECK_RETURN(tDeserializeSOperatorNotifyParam(pDecoder, pChild));
-      if (taosArrayPush(pOpParam->pChildren, &pChild) == NULL) {
-        TAOS_CHECK_RETURN(terrno);
-      }
-    }
-  } else {
-    pOpParam->pChildren = NULL;
   }
 
   TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pOpParam->reUse));
@@ -13272,6 +13243,12 @@ int32_t tDeserializeSTaskNotifyReq(void *buf, int32_t bufLen,
 
 _exit:
   tDecoderClear(&decoder);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (NULL != pReq->pOpParam) {
+      taosMemFreeClear(pReq->pOpParam->value);
+      taosMemFreeClear(pReq->pOpParam);
+    }
+  }
   return code;
 }
 
