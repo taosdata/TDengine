@@ -14131,7 +14131,8 @@ static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTag
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag name mismatch");
       goto _return;
     }
-    taosArrayPush(*ptagCids, &pMeta->schema[tagIndex].colId);
+    col_id_t tagId = pMeta->schema[tagIndex].colId;
+    taosArrayPush(*ptagCids, &tagId);
     tagIndex++;
   }
 _return:
@@ -14184,7 +14185,8 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table cols name mismatch");
       goto _return;
     }
-    taosArrayPush(*pcolCids, &pMeta->schema[colIndex].colId);
+    col_id_t colId = pMeta->schema[colIndex].colId;
+    taosArrayPush(*pcolCids, &colId);
     colIndex++;
   }
 _return:

@@ -1780,7 +1780,7 @@ int32_t tDecodeSStreamRunnerDeployMsg(SDecoder* pDecoder, SStreamRunnerDeployMsg
   if (!tDecodeIsEnd(pDecoder)) {
     int32_t colCidsSize = 0;
     code = tDecodeI32(pDecoder, &colCidsSize);
-    if (code == TSDB_CODE_SUCCESS && colCidsSize >= 0 && colCidsSize <= 10000) {  // Sanity check
+    if (code == TSDB_CODE_SUCCESS && colCidsSize >= 0 && colCidsSize <= TSDB_MAX_COLUMNS) {  // Sanity check
       if (colCidsSize > 0) {
         pMsg->colCids = taosArrayInit(colCidsSize, sizeof(int16_t));
         TSDB_CHECK_NULL(pMsg->colCids, code, lino, _exit, terrno);
@@ -2646,76 +2646,6 @@ int32_t tDeserializeSCMCreateStreamReqImplOld(SDecoder *pDecoder, SCMCreateStrea
       if (taosArrayPush(pReq->forceOutCols, &outCol) == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
-    }
-  }
-
-  // colCids and tagCids - optional fields for backward compatibility
-  // Only decode if there's more data in the buffer beyond leftBytes
-  if (pDecoder->size - pDecoder->pos > leftBytes && !tDecodeIsEnd(pDecoder)) {
-    // Try to decode colCids (optional)
-    int32_t colCidsSize = 0;
-    int32_t savedPos = pDecoder->pos;
-    code = tDecodeI32(pDecoder, &colCidsSize);
-    if (code == TSDB_CODE_SUCCESS && colCidsSize >= 0 && colCidsSize <= 10000) {  // Sanity check
-      if (colCidsSize > 0) {
-        // Check if there's enough data for the array
-        int32_t requiredBytes = colCidsSize * sizeof(int16_t);
-        if ((pDecoder->size - pDecoder->pos) >= requiredBytes) {
-          pReq->colCids = taosArrayInit(colCidsSize, sizeof(int16_t));
-          if (pReq->colCids == NULL) {
-            TAOS_CHECK_EXIT(terrno);
-          }
-          for (int32_t i = 0; i < colCidsSize; ++i) {
-            int16_t cid = 0;
-            TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &cid));
-            if (taosArrayPush(pReq->colCids, &cid) == NULL) {
-              TAOS_CHECK_EXIT(terrno);
-            }
-          }
-        } else {
-          // Not enough data, rollback
-          pDecoder->pos = savedPos;
-          code = TSDB_CODE_SUCCESS;
-        }
-      }
-
-      // Try to decode tagCids if colCids was successfully decoded
-      if (code == TSDB_CODE_SUCCESS && pDecoder->size - pDecoder->pos > leftBytes && !tDecodeIsEnd(pDecoder)) {
-        int32_t tagCidsSize = 0;
-        savedPos = pDecoder->pos;
-        code = tDecodeI32(pDecoder, &tagCidsSize);
-        if (code == TSDB_CODE_SUCCESS && tagCidsSize >= 0 && tagCidsSize <= 10000) {  // Sanity check
-          if (tagCidsSize > 0) {
-            // Check if there's enough data for the array
-            int32_t requiredBytes = tagCidsSize * sizeof(int16_t);
-            if ((pDecoder->size - pDecoder->pos) >= requiredBytes) {
-              pReq->tagCids = taosArrayInit(tagCidsSize, sizeof(int16_t));
-              if (pReq->tagCids == NULL) {
-                TAOS_CHECK_EXIT(terrno);
-              }
-              for (int32_t i = 0; i < tagCidsSize; ++i) {
-                int16_t cid = 0;
-                TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &cid));
-                if (taosArrayPush(pReq->tagCids, &cid) == NULL) {
-                  TAOS_CHECK_EXIT(terrno);
-                }
-              }
-            } else {
-              // Not enough data, rollback
-              pDecoder->pos = savedPos;
-              code = TSDB_CODE_SUCCESS;
-            }
-          }
-        } else {
-          // Field doesn't exist, rollback
-          pDecoder->pos = savedPos;
-          code = TSDB_CODE_SUCCESS;
-        }
-      }
-    } else {
-      // Field doesn't exist (old version), rollback and continue
-      pDecoder->pos = savedPos;
-      code = TSDB_CODE_SUCCESS;
     }
   }
 
