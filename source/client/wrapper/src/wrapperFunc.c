@@ -197,6 +197,24 @@ TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, cons
   return (*fp_taos_connect_auth)(ip, user, auth, db, port);
 }
 
+void taos_set_option(OPTIONS *options, const char *key, const char *value) {
+  if (taos_init() != 0) {
+    return;
+  }
+
+  CHECK_VOID(fp_taos_set_option);
+  (*fp_taos_set_option)(options, key, value);
+}
+
+TAOS *taos_connect_with(const OPTIONS *options) {
+  if (taos_init() != 0) {
+    return NULL;
+  }
+
+  CHECK_PTR(fp_taos_connect_with);
+  return (*fp_taos_connect_with)(options);
+}
+
 TAOS *taos_connect_with_dsn(const char *dsn) {
   if (taos_init() != 0) {
     return NULL;
@@ -937,8 +955,7 @@ char *getBuildInfo() {
   return (*fp_getBuildInfo)();
 }
 
-// int32_t taos_connect_is_alive(TAOS *taos) {
-//   CHECK_INT(fp_taos_connect_is_alive);
-//   return (*fp_taos_connect_is_alive)(taos);
-// }
-
+int32_t taos_connect_is_alive(TAOS *taos) {
+  CHECK_INT(fp_taos_connect_is_alive);
+  return (*fp_taos_connect_is_alive)(taos);
+}

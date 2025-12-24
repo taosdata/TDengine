@@ -1385,7 +1385,7 @@ class TestFunLast:
         tdSql.query(
             f"explain select count(*), last_row(f1), min(f1),t1 from sta partition by t1;"
         )
-        tdSql.checkData(0, 0, "-> Aggregate (functions=4 width=28 input_order=desc )")
+        tdSql.checkData(0, 0, "-> Aggregate (functions=4 width=28 input_order=unknown )")
 
         tdSql.query(
             f"explain select count(*), last_row(f1), min(f1),t1 from sta group by t1;"

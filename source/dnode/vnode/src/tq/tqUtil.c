@@ -38,6 +38,7 @@ int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   tOffsetCopy(&pRsp->reqOffset, &pOffset);
   tOffsetCopy(&pRsp->rspOffset, &pOffset);
   pRsp->withTbName = 0;
+  pRsp->withSchema = 1;
 
 END:
   if (code != 0){
@@ -58,6 +59,7 @@ static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   tOffsetCopy(&pRsp->rspOffset, &pOffset);
 
   pRsp->withTbName = 1;
+  pRsp->withSchema = 1;
   pRsp->blockData = taosArrayInit(0, sizeof(void*));
   TSDB_CHECK_NULL(pRsp->blockData, code, lino, END, terrno);\
 
@@ -303,6 +305,7 @@ goto END;
 tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);\
 code = tqSendDataRsp(pHandle, pMsg, pRequest, &taosxRsp, POLL_RSP_TYPE(pRequest, taosxRsp), vgId);\
 goto END;
+
 static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                   SRpcMsg* pMsg, STqOffsetVal* offset) {
   int32_t         vgId = TD_VID(pTq->pVnode);
@@ -610,7 +613,7 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, SMqDataRsp* pRsp, 
   int32_t code = 0;
 
   if (type == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP){
-    // pRsp->withSchema = 0;
+    pRsp->withSchema = 0;
   }
   if (type == TMQ_MSG_TYPE__POLL_DATA_RSP ||
       type == TMQ_MSG_TYPE__WALINFO_RSP ||

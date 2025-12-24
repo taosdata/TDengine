@@ -515,14 +515,17 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_WINDOW_OFFSET:
       code = makeNode(type, sizeof(SWindowOffsetNode), &pNode);
       break;
+    case QUERY_NODE_RANGE_AROUND:
+      code = makeNode(type, sizeof(SRangeAroundNode), &pNode);
+      break;
     case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
       code = makeNode(type, sizeof(SStreamNotifyOptions), &pNode);
       break;
+    case QUERY_NODE_REMOTE_VALUE:
+      code = makeNode(type, sizeof(SRemoteValueNode), &pNode);
+      break;
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
-      break;
-    case QUERY_NODE_RANGE_AROUND:
-      code = makeNode(type, sizeof(SRangeAroundNode), &pNode);
       break;
     case QUERY_NODE_SELECT_STMT:
       code = makeNode(type, sizeof(SSelectStmt), &pNode);
@@ -1197,6 +1200,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_COLUMN:
       destroyExprNode((SExprNode*)pNode);
       break;
+    case QUERY_NODE_REMOTE_VALUE: 
     case QUERY_NODE_VALUE: {
       SValueNode* pValue = (SValueNode*)pNode;
       destroyExprNode((SExprNode*)pNode);
@@ -1502,6 +1506,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
+      nodesDestroyList(pStmt->pSubQueries);
       nodesDestroyList(pStmt->pProjectionList);
       nodesDestroyNode(pStmt->pLeft);
       nodesDestroyNode(pStmt->pRight);
@@ -1511,6 +1516,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pStmt = (SSelectStmt*)pNode;
+      nodesDestroyList(pStmt->pSubQueries);
       nodesDestroyNode(pStmt->pTimeRange);
       nodesDestroyList(pStmt->pProjectionList);
       nodesDestroyList(pStmt->pProjectionBindList);
@@ -2148,7 +2154,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL: {
       SDynQueryCtrlLogicNode* pLogicNode = (SDynQueryCtrlLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
-      if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN) {
+      if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN || pLogicNode->qType == DYN_QTYPE_VTB_AGG) {
         taosMemoryFreeClear(pLogicNode->vtbScan.pVgroupList);
         nodesDestroyList(pLogicNode->vtbScan.pOrgVgIds);
       }
@@ -2386,7 +2392,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
       SDynQueryCtrlPhysiNode* pPhyNode = (SDynQueryCtrlPhysiNode*)pNode;
-      if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN) {
+      if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN || pPhyNode->qType == DYN_QTYPE_VTB_AGG) {
         nodesDestroyList(pPhyNode->vtbScan.pScanCols);
         nodesDestroyList(pPhyNode->vtbScan.pOrgVgIds);
       }
@@ -2417,6 +2423,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN:
       nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
+      nodesDestroyList(((SQueryPlan*)pNode)->pChildren);
       break;
     default:
       break;
@@ -2481,6 +2488,7 @@ int32_t nodesListMakeStrictAppend(SNodeList** pList, SNode* pNode) {
   if (NULL == *pList) {
     int32_t code = nodesMakeList(pList);
     if (NULL == *pList) {
+      nodesDestroyNode(pNode);
       return code;
     }
   }
@@ -2766,6 +2774,87 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+int32_t nodesSetValueNodeValueExt(SValueNode* pNode, void* value, bool* needFree) {
+  *needFree = true;
+  
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL:
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+      pNode->datum.b = *(bool*)value;
+      *(bool*)&pNode->typeData = pNode->datum.b;
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      pNode->datum.i = *(int8_t*)value;
+      *(int8_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      pNode->datum.i = *(int16_t*)value;
+      *(int16_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_INT:
+      pNode->datum.i = *(int32_t*)value;
+      *(int32_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      pNode->datum.i = *(int64_t*)value;
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      pNode->datum.i = *(int64_t*)value;
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      pNode->datum.u = *(int8_t*)value;
+      *(int8_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      pNode->datum.u = *(int16_t*)value;
+      *(int16_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      pNode->datum.u = *(int32_t*)value;
+      *(int32_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      pNode->datum.u = *(uint64_t*)value;
+      *(uint64_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      pNode->datum.d = *(float*)value;
+      *(float*)&pNode->typeData = pNode->datum.d;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      pNode->datum.d = *(double*)value;
+      *(double*)&pNode->typeData = pNode->datum.d;
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+    case TSDB_DATA_TYPE_GEOMETRY:
+      pNode->datum.p = (char*)value;
+      *needFree = false;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      pNode->datum.i = *(int64_t*)value;
+      pNode->typeData = *(int64_t*)value;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL:
+      pNode->datum.p = (char*)value;
+      *needFree = false;
+      break;
+    default:
+      return TSDB_CODE_APP_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 char* nodesGetStrValueFromNode(SValueNode* pNode) {
   switch (pNode->node.resType.type) {
     case TSDB_DATA_TYPE_BOOL: {
@@ -2845,7 +2934,8 @@ char* nodesGetStrValueFromNode(SValueNode* pNode) {
 bool nodesIsExprNode(const SNode* pNode) {
   ENodeType type = nodeType(pNode);
   return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type ||
-          QUERY_NODE_FUNCTION == type || QUERY_NODE_LOGIC_CONDITION == type || QUERY_NODE_CASE_WHEN == type);
+          QUERY_NODE_FUNCTION == type || QUERY_NODE_LOGIC_CONDITION == type || QUERY_NODE_CASE_WHEN == type ||
+          QUERY_NODE_REMOTE_VALUE == type || QUERY_NODE_SELECT_STMT == type || QUERY_NODE_SET_OPERATOR == type);
 }
 
 bool nodesIsUnaryOp(const SOperatorNode* pOp) {
@@ -3838,4 +3928,40 @@ void tFreeStreamVtbDbVgInfo(void* param) {
 
   tSimpleHashCleanup(*ppHash);
 }
+
+
+bool nodesIsScalarSubQuery(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      return pSelect->subQType == E_SUB_QUERY_SCALAR;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      return pSet->subQType == E_SUB_QUERY_SCALAR;
+    }
+    default:
+      break;
+  }
+
+  return false;
+}
+
+char* nodesGetSubSql(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      return pSelect->node.userAlias;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      return pSet->node.userAlias;
+    }
+    default:
+      break;
+  }
+
+  return NULL;
+}
+
 

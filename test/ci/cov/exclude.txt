@@ -45,5 +45,5 @@
 /home/TDinternal/community/source/common/src/ttime.c
 /home/TDinternal/community/source/libs/nodes/src/nodesCloneFuncs.c
 /home/TDinternal/community/source/libs/executor/src/tsort.c
-/home/TDinternal/community/source/libs/function/src/builtinsimpl.c
+
 

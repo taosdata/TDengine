@@ -218,6 +218,52 @@ The basic API is used to establish database connections and provide a runtime en
     - port: [Input] Port listened by the taosd program.
   - **Return Value**: Returns the database connection, a null return value indicates failure. The application needs to save the returned parameter for subsequent use.
 
+- `void taos_set_option(OPTIONS *options, const char *key, const char *value)`
+
+  - **Interface Description**: Adds a connection configuration item (key-value pair) to the OPTIONS structure. This function constructs the connection configuration, which takes effect when `taos_connect_with()` is called.
+  - **Parameter Description**:
+    - `options`: [Input] A pointer to a valid OPTIONS structure used to store the connection configuration items.
+    - `key`: [Input] The key name (string) of the configuration item. Supported key names are listed in the table below.
+    - `value`: [Input] The value (string) of the configuration item, corresponding to the specific configuration content of `key`.
+  - **Supported Configuration Items**:
+
+    | Key               | Applicable Connection Method | Description                                            |
+    |-------------------|------------------------------|--------------------------------------------------------|
+    | ip                | Native/WebSocket | FQDN or IP address of any node in the TDengine cluster |
+    | user              | Native/WebSocket | Username |
+    | pass              | Native/WebSocket | Password |
+    | db                | Native/WebSocket | Database name |
+    | port              | Native/WebSocket | Service port number. The default port for Native connections is 6030, and the default port for WebSocket connections is 6041. |
+    | charset           | Native           | Character set |
+    | timezone          | Native/WebSocket | Time zone |
+    | userIp            | Native/WebSocket | User IP address |
+    | userApp           | Native/WebSocket | User app name |
+    | connectorInfo     | Native           | Connector information |
+    | adapterList       | WebSocket        | List of taosAdapter addresses, used for load balancing and failover. Multiple addresses are separated by commas, in the format `host1:port1,host2:port2,...`. They have higher priority than the `ip` parameter. |
+    | compression       | WebSocket        | Data compression switch. 0: Disabled, 1: Enabled. Default is 0. |
+    | connRetries       | WebSocket        | Maximum number of retries on connection failure. Default is 5. |
+    | retryBackoffMs    | WebSocket        | Initial wait time (milliseconds) on connection failure. This value increases exponentially with consecutive failures until the maximum wait time is reached. Default is 200. |
+    | retryBackoffMaxMs | WebSocket        | Maximum wait time (milliseconds) on connection failure. Default is 2000. |
+    | token             | WebSocket        | Cloud service authentication token |
+    | wsTlsMode         | WebSocket        | TLS encryption modes:<br/> - 0: Disable TLS encryption. If the server enables TLS, the client will automatically upgrade the connection.<br/> - 1: Enable TLS encryption, but do not verify the server certificate. <br/> - 2: Enable TLS encryption and verify the server certificate, but not the hostname. <br/> - 3: Enable TLS encryption and verify both the server certificate and hostname (the server certificate must include SAN; CN will be ignored).<br/> Default is 0. |
+    | wsTlsVersion      | WebSocket        | List of TLS protocol versions, separated by commas. Optional values: TLSv1.2, TLSv1.3. The default value is TLSv1.3. |
+    | wsTlsCa           | WebSocket        | The client uses the path to the CA certificate file or the certificate content in PEM format to verify the server certificate. This certificate should be the CA certificate that issued the server certificate. |
+
+  - **Important Notes**:
+    - The OPTIONS struct supports a maximum of 256 configuration items.
+    - Configuration item keys are case-sensitive.
+    - When setting the same key name multiple times, later values ​​will overwrite earlier values.
+    - WebSocket connection-specific configuration items are ignored in Native connection mode, and vice versa.
+  - **Supported Versions**: `v3.3.8.12` and above
+
+- `TAOS *taos_connect_with(const OPTIONS *options)`
+
+  - **Interface Description**: Creates a database connection using the connection configuration options in the OPTIONS structure and initializes the connection context.
+  - **Parameter Description**:
+    - `options`: [Input] Points to a valid OPTIONS structure containing the connection configuration options added via `taos_set_option()`. If NULL or the configuration options are empty, default connection parameters will be used.
+  - **Return Value**: Returns the database connection. A null return value indicates failure. The application needs to save the returned parameters for later use.
+  - **Supported Versions**: `v3.3.8.12` and above
+
 - `char *taos_get_server_info(TAOS *taos)`
 
   - **Interface Description**: Get server version information.

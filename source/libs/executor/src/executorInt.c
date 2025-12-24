@@ -36,7 +36,7 @@
 #include "ttypes.h"
 
 #define SET_REVERSE_SCAN_FLAG(runtime)    ((runtime)->scanFlag = REVERSE_SCAN)
-#define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
+#define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) != TSDB_ORDER_DESC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 
 #if 0
 static UNUSED_FUNC void *u_malloc (size_t __size) {
@@ -204,7 +204,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
 
     // add a new result set for a new group
     SResultRowPosition pos = {.pageId = pResult->pageId, .offset = pResult->offset};
-    int32_t code = tSimpleHashPut(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), &pos,
+     int32_t code = tSimpleHashPut(pSup->pResultRowHashTable, pSup->keyBuf, GET_RES_WINDOW_KEY_LEN(bytes), &pos,
                                   sizeof(SResultRowPosition));
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -1222,10 +1222,20 @@ void freeOperatorParamImpl(SOperatorParam* pParam, SOperatorParamType type) {
 
 void freeExchangeGetBasicOperatorParam(void* pParam) {
   SExchangeOperatorBasicParam* pBasic = (SExchangeOperatorBasicParam*)pParam;
-  taosArrayDestroy(pBasic->uidList);
-  if (pBasic->colMap) {
-    taosArrayDestroy(pBasic->colMap->colMap);
-    taosMemoryFreeClear(pBasic->colMap);
+  if (pBasic->uidList) {
+    taosArrayDestroy(pBasic->uidList);
+  }
+  if (pBasic->orgTbInfo) {
+    taosArrayDestroy(pBasic->orgTbInfo->colMap);
+    taosMemoryFreeClear(pBasic->orgTbInfo);
+  }
+  if (pBasic->batchOrgTbInfo) {
+    taosArrayDestroyEx(pBasic->batchOrgTbInfo, destroySOrgTbInfo);
+    pBasic->batchOrgTbInfo = NULL;
+  }
+  if (pBasic->tagList) {
+    taosArrayDestroyEx(pBasic->tagList, destroyTagVal);
+    pBasic->tagList = NULL;
   }
 }
 
@@ -1233,6 +1243,7 @@ void freeExchangeGetOperatorParam(SOperatorParam* pParam) {
   SExchangeOperatorParam* pExcParam = (SExchangeOperatorParam*)pParam->value;
   if (pExcParam->multiParams) {
     SExchangeOperatorBatchParam* pExcBatch = (SExchangeOperatorBatchParam*)pParam->value;
+    tSimpleHashSetFreeFp(pExcBatch->pBatchs, freeExchangeGetBasicOperatorParam);
     tSimpleHashCleanup(pExcBatch->pBatchs);
   } else {
     freeExchangeGetBasicOperatorParam(&pExcParam->basic);
@@ -1265,6 +1276,24 @@ void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
   if (pTableScanParam->pOrgTbInfo) {
     taosArrayDestroy(pTableScanParam->pOrgTbInfo->colMap);
     taosMemoryFreeClear(pTableScanParam->pOrgTbInfo);
+  }
+  if (pTableScanParam->pBatchTbInfo) {
+    for (int32_t i = 0; i < taosArrayGetSize(pTableScanParam->pBatchTbInfo); i++) {
+      SOrgTbInfo* pOrgTbInfo = (SOrgTbInfo*)taosArrayGet(pTableScanParam->pBatchTbInfo, i);
+      taosArrayDestroy(pOrgTbInfo->colMap);
+    }
+    taosArrayDestroy(pTableScanParam->pBatchTbInfo);
+    pTableScanParam->pBatchTbInfo = NULL;
+  }
+  if (pTableScanParam->pTagList) {
+    for (int32_t i = 0; i < taosArrayGetSize(pTableScanParam->pTagList); i++) {
+      STagVal* pTagVal = (STagVal*)taosArrayGet(pTableScanParam->pTagList, i);
+      if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+        taosMemoryFreeClear(pTagVal->pData);
+      }
+    }
+    taosArrayDestroy(pTableScanParam->pTagList);
+    pTableScanParam->pTagList = NULL;
   }
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
@@ -1326,6 +1355,7 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE:
       type == OP_GET_PARAM ? freeMergeGetOperatorParam(pParam) : freeMergeNotifyOperatorParam(pParam);
       break;

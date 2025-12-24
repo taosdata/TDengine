@@ -4949,6 +4949,11 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
     return DEAL_RES_CONTINUE;
   }
 
+  if (QUERY_NODE_REMOTE_VALUE == nodeType(*pNode)) {
+    stat->scalarMode = true;
+    return DEAL_RES_CONTINUE;
+  }
+
   if (QUERY_NODE_FUNCTION == nodeType(*pNode)) {
     stat->scalarMode = true;
     return DEAL_RES_CONTINUE;
@@ -5583,8 +5588,11 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
       taosArrayDestroy(pList);
       FLT_ERR_JRET(terrno);
     }
+
+    gTaskScalarExtra.pStreamInfo = (void*)info->pStreamRtInfo;
+    gTaskScalarExtra.pStreamRange = NULL;
     code =
-        scalarCalculate(info->sclCtx.node, pList, &output, info->pStreamRtInfo, NULL);
+        scalarCalculate(info->sclCtx.node, pList, &output, &gTaskScalarExtra);
     taosArrayDestroy(pList);
 
     *p = output.columnData;

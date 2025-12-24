@@ -777,6 +777,7 @@ _exit:
   if (pSma) mndReleaseRsma(pMnode, pSma);
   if (pStb) mndReleaseStb(pMnode, pStb);
   if (pDb) mndReleaseDb(pMnode, pDb);
+  if (pUser) mndReleaseUser(pMnode, pUser);
   tFreeSMCreateRsmaReq(&createReq);
 #endif
   TAOS_RETURN(code);
@@ -1010,6 +1011,7 @@ _exit:
   if (pObj) mndReleaseRsma(pMnode, pObj);
   if (pStb) mndReleaseStb(pMnode, pStb);
   if (pDb) mndReleaseDb(pMnode, pDb);
+  if (pUser) mndReleaseUser(pMnode, pUser);
   tFreeSMAlterRsmaReq(&req);
 #endif
   TAOS_RETURN(code);
