@@ -62,15 +62,16 @@ static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const c
 }
 
 static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserAuthRes* pAuthRes) {
-  SParseContext* pParseCxt = pCxt->pParseCxt;
-  SPrivInfo*     privInfo = privInfoGet(pAuthInfo->privType);
-  if (NULL == privInfo) {
+  SParseContext*   pParseCxt = pCxt->pParseCxt;
+  const SPrivInfo* pPrivInfo = privInfoGet(pAuthInfo->privType);
+  if (NULL == pPrivInfo) {
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   int32_t code = 0;
-  if (privInfo->category == PRIV_CATEGORY_OBJECT || pAuthInfo->objType == PRIV_OBJ_DB) {
-    if (privInfo->objType == PRIV_OBJ_CLUSTER) privInfo->objType = PRIV_OBJ_DB;
-    switch (privInfo->objType) {
+  if (pPrivInfo->category == PRIV_CATEGORY_OBJECT || pAuthInfo->objType == PRIV_OBJ_DB) {
+    SPrivInfo privInfoDup = *pPrivInfo;
+    if (privInfoDup.objType <= 0) privInfoDup.objType = PRIV_OBJ_DB;
+    switch (privInfoDup.objType) {
       case PRIV_OBJ_DB: {
         SDbCfgInfo dbCfgInfo = {0};
         char       dbFName[TSDB_DB_FNAME_LEN] = {0};
@@ -81,6 +82,9 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
         }
         if (dbCfgInfo.ownerId == pAuthInfo->userId) {
           pAuthRes->pass[pAuthInfo->isView ? AUTH_RES_VIEW : AUTH_RES_BASIC] = true;
+#if 1
+          printf("%s:%d db %s owner match, pass\n", __func__, __LINE__, dbFName);
+#endif
           return TSDB_CODE_SUCCESS;
         }
         break;

@@ -363,13 +363,14 @@ bool privInfoIterNext(SPrivInfoIter* iter, SPrivInfo** ppPrivInfo) {
   return false;
 }
 // objType.1.db.tb or objType.1.db
-int32_t privObjKeyF(SPrivInfo* pPrivInfo, const char* fname, const char* tb, char* buf, int32_t bufLen) {
+int32_t privObjKeyF(const SPrivInfo* pPrivInfo, const char* fname, const char* tb, char* buf, int32_t bufLen) {
   return (pPrivInfo->objLevel == 0)
              ? snprintf(buf, bufLen, "%d.%s", pPrivInfo->objType, fname ? fname : "")
              : snprintf(buf, bufLen, "%d.%s.%s", pPrivInfo->objType, fname ? fname : "", tb ? tb : "");
 }
 
-int32_t privObjKey(SPrivInfo* pPrivInfo, int32_t acctId, const char* name, const char* tb, char* buf, int32_t bufLen) {
+int32_t privObjKey(const SPrivInfo* pPrivInfo, int32_t acctId, const char* name, const char* tb, char* buf,
+                   int32_t bufLen) {
   return (pPrivInfo->objLevel == 0)
              ? snprintf(buf, bufLen, "%d.%d.%s", pPrivInfo->objType, acctId, name ? name : "")
              : snprintf(buf, bufLen, "%d.%d.%s.%s", pPrivInfo->objType, acctId, name ? name : "", tb ? tb : "");
@@ -549,13 +550,21 @@ _exit:
 
 bool privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName, SPrivInfo* privInfo,
                          bool recursive) {
-#if 0  // debug info, remove when release
+#if 1  // debug info, remove when release
+  printf("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s\n", __func__, __LINE__,
+         objName ? objName : "", tbName ? tbName : "", privInfo->privType, privInfo->objType, privInfo->objLevel,
+         privInfoGetName(privInfo->privType));
   SPrivObjPolicies* pp = NULL;
   while ((pp = taosHashIterate(privs, pp))) {
     char* pKey = taosHashGetKey(pp, NULL);
     printf("%s:%d key is %s\n", __func__, __LINE__, pKey);
   }
 #endif
+  if (tbName != NULL) {
+    if (privInfo->objLevel == 0 || privInfo->objType <= PRIV_OBJ_DB) {
+      assert(0);
+    }
+  }
 
   if (taosHashGetSize(privs) == 0) return false;
 
@@ -569,6 +578,11 @@ _retry:
 
   SPrivObjPolicies* policies = taosHashGet(privs, key, klen + 1);
   if (policies && PRIV_HAS(&policies->policy, privInfo->privType)) {
+#if 1  // debug info, remove when release
+    printf("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s, TRUE\n", __func__, __LINE__,
+           objName ? objName : "", tbName ? tbName : "", privInfo->privType, privInfo->objType, privInfo->objLevel,
+           privInfoGetName(privInfo->privType));
+#endif
     return true;
   }
 
@@ -583,12 +597,17 @@ _retry:
     goto _retry;
   }
 _exit:
+#if 1  // debug info, remove when release
+  printf("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s, FALSE\n", __func__, __LINE__,
+         objName ? objName : "", tbName ? tbName : "", privInfo->privType, privInfo->objType, privInfo->objLevel,
+         privInfoGetName(privInfo->privType));
+#endif
   return false;
 }
 
 SPrivTblPolicy* privGetConstraintTblPrivileges(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
                                                SPrivInfo* privInfo) {
-#if 0  // debug info, remove when release
+#if 1  // debug info, remove when release
   SPrivObjPolicies* pp = NULL;
   while ((pp = taosHashIterate(privs, pp))) {
     char* pKey = taosHashGetKey(pp, NULL);
@@ -613,7 +632,7 @@ SPrivTblPolicy* privGetConstraintTblPrivileges(SHashObj* privs, int32_t acctId, 
   return NULL;
 }
 
-SPrivInfo* privInfoGet(EPrivType privType) {
+const SPrivInfo* privInfoGet(EPrivType privType) {
   (void)taosThreadOnce(&privInit, initPrivLookup);
   SPrivInfo* result = (privType >= 0 && privType <= MAX_PRIV_TYPE) ? privLookup[privType] : NULL;
   if (!result) terrno = TSDB_CODE_APP_ERROR;
@@ -621,6 +640,6 @@ SPrivInfo* privInfoGet(EPrivType privType) {
 }
 
 const char* privInfoGetName(EPrivType privType) {
-  SPrivInfo* privInfo = privInfoGet(privType);
+  const SPrivInfo* privInfo = privInfoGet(privType);
   return privInfo ? privInfo->name : "privUnkown";
 }

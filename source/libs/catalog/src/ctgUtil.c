@@ -2201,6 +2201,114 @@ _return:
   CTG_RET(code);
 }
 
+#if 1
+static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
+  int32_t          code = 0;
+  STableMeta*      pMeta = NULL;
+  SGetUserAuthRsp* pInfo = &req->authInfo;
+  SPrivInfo*       privInfo = req->privInfo;
+  int32_t          sizeTbPrivs = taosHashGetSize(req->tbPrivs);
+  SUserAuthInfo*   pReq = req->pRawReq;
+  SUserAuthRes*    pRes = res->pRawRes;
+  char*            stbName = NULL;
+
+#if 0  // in most cases, there is table level privilege, so skip the check first
+  if (taosHashGetSize(pInfo->objPrivs) <= 0 && taosHashGetSize(tbPrivs) <= 0)
+    return code;
+#endif
+
+  char tbName[TSDB_TABLE_NAME_LEN];
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  char dbFName[TSDB_DB_FNAME_LEN];
+  code = tNameExtractFullName(&pReq->tbName, tbFName);
+  if (code) {
+    ctgError("tNameExtractFullName failed, error:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pReq->tbName.type,
+             pReq->tbName.dbname, pReq->tbName.tname);
+    CTG_ERR_RET(code);
+  }
+
+  (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
+  (void)snprintf(tbName, sizeof(tbName), "%s", pReq->tbName.tname);
+
+  SName  stbSName;
+  SName* pSName = &pReq->tbName;
+
+  while (true) {
+    taosMemoryFreeClear(pMeta);
+
+    if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, tbName, privInfo, true)) {
+      res->pRawRes->pass[AUTH_RES_BASIC] = true;
+      goto _return;
+    }
+
+    if (sizeTbPrivs > 0) {
+      SPrivTblPolicy* tblPolicy =
+          privGetConstraintTblPrivileges(req->tbPrivs, pSName->acctId, pSName->dbname, tbName, privInfo);
+      if (tblPolicy) {
+        if (strlen(tblPolicy->cond) > 0) {
+          CTG_ERR_JRET(nodesStringToNode(tblPolicy->cond, &res->pRawRes->pCond[AUTH_RES_BASIC]));
+        }
+        // TODO: check the columns
+        res->pRawRes->pass[AUTH_RES_BASIC] = true;
+        goto _return;
+      }
+    }
+
+
+    if (stbName) {
+      res->pRawRes->pass[AUTH_RES_BASIC] = false;
+      goto _return;
+    }
+
+    CTG_ERR_JRET(catalogGetCachedTableMeta(pCtg, pSName, &pMeta));
+    if (NULL == pMeta) {
+      if (req->onlyCache) {
+        res->metaNotExists = true;
+        ctgDebug("db:%s, tb:%s meta not in cache for auth", pSName->dbname, pSName->tname);
+        goto _return;
+      }
+
+      SCtgTbMetaCtx ctx = {0};
+      ctx.pName = (SName*)&pReq->tbName;
+      ctx.flag = CTG_FLAG_UNKNOWN_STB | CTG_FLAG_SYNC_OP;
+
+      CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
+    }
+
+    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType ||
+        TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
+        res->pRawRes->pass[AUTH_RES_BASIC] = false;
+        goto _return;
+    }
+
+    if (TSDB_CHILD_TABLE == pMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pMeta->tableType) {
+      CTG_ERR_JRET(ctgGetCachedStbNameFromSuid(pCtg, dbFName, pMeta->suid, &stbName));
+      if (NULL == stbName) {
+        if (req->onlyCache) {
+          res->metaNotExists = true;
+          ctgDebug("suid:%" PRIu64 ", name not in cache for auth", pMeta->suid);
+          goto _return;
+        }
+
+        continue;
+      }
+
+      // check privilege of it's super table
+      (void)snprintf(tbName, sizeof(tbName), "%s", stbName);
+      continue;
+    }
+
+    ctgError("invalid table type %d for %s.%s", pMeta->tableType, dbFName, tbName);
+    CTG_ERR_JRET(TSDB_CODE_INVALID_PARA);
+  }
+_return:
+  taosMemoryFree(pMeta);
+  taosMemoryFree(stbName);
+
+  CTG_RET(code);
+}
+#else
+
 /**
  * @brief check and set table level authorization response
  *  priority of privileges :
@@ -2320,9 +2428,8 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       continue;
     }
 
-    taosMemoryFreeClear(pMeta);
-
     ctgError("invalid table type %d for %s.%s", pMeta->tableType, dbFName, tbName);
+    taosMemoryFreeClear(pMeta);
     CTG_ERR_JRET(TSDB_CODE_INVALID_PARA);
   }
 _return:
@@ -2331,6 +2438,7 @@ _return:
 
   CTG_RET(code);
 }
+#endif
 
 int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
@@ -2370,23 +2478,24 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
   }
 #endif
 
-  SPrivInfo* privInfo = privInfoGet(pReq->privType);
-  if (!privInfo) {
+  const SPrivInfo* pPrivInfo = privInfoGet(pReq->privType);
+  if (!pPrivInfo) {
     return TSDB_CODE_CTG_INTERNAL_ERROR;
   }
-  if (privInfo->category == PRIV_CATEGORY_SYSTEM) {
+  SPrivInfo privInfo = *pPrivInfo;
+  if (privInfo.category == PRIV_CATEGORY_SYSTEM) {
     if (PRIV_HAS(&pInfo->sysPrivs, pReq->privType)) {
       pRes->pass[AUTH_RES_BASIC] = true;
     }
     return TSDB_CODE_SUCCESS;
-  } else if (PRIV_CATEGORY_OBJECT == privInfo->category || pReq->objType > 0) {
+  } else if (PRIV_CATEGORY_OBJECT == privInfo.category || pReq->objType > 0) {
     // reset objType for PRIV_CATEGORY_COMMON
-    if (privInfo->objType <= 0) {
-      privInfo->objType = pReq->objType;
-      privInfo->objLevel = privObjGetLevel(privInfo->objType);
+    if (privInfo.objType <= 0) {
+      privInfo.objType = pReq->objType;
+      privInfo.objLevel = privObjGetLevel(privInfo.objType);
     }
     if (pReq->tbName.type == TSDB_DB_NAME_T) {
-      if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, privInfo, true)) {
+      if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, &privInfo, true)) {
         pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }
@@ -2394,7 +2503,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     }
     if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
       req->singleType = pReq->privType;
-      req->privInfo = privInfo;
+      req->privInfo = &privInfo;
       switch (pReq->privType) {
         case PRIV_TBL_UPDATE: {  // support tag condition
           // N/A: no update clause, update is done by insert clause
@@ -2440,7 +2549,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
         }
         default: {
           if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname,
-                                  privInfo, true)) {
+                                  &privInfo, true)) {
             pRes->pass[AUTH_RES_BASIC] = true;
             return TSDB_CODE_SUCCESS;
           }
@@ -2449,7 +2558,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       }
       return TSDB_CODE_SUCCESS;
     }
-    ctgError("%s:%d invalid priv category %d for %s", __func__, __LINE__, privInfo->category, privInfo->name);
+    ctgError("%s:%d invalid priv category %d for %s", __func__, __LINE__, privInfo.category, privInfo.name);
     return TSDB_CODE_CTG_INTERNAL_ERROR;
   }
 
@@ -2568,6 +2677,7 @@ int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res)
       break;
   }
 
+  pRes->pass[AUTH_RES_VIEW] = true;
   return TSDB_CODE_SUCCESS;
 }
 
