@@ -159,7 +159,7 @@ typedef struct {
   SEp    eps[];
 } SReqEpSet;
 
-#define TRANS_VER 2
+#define TRANS_VER 3
 typedef struct {
   char version : 4;       // RPC version
   char comp : 2;          // compression algorithm, 0:no compression 1:lz4
