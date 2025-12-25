@@ -836,10 +836,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       mTrace("dnode:%d, get audit user:%s", pDnode->id, auditUser);
       int32_t ret = 0;
       if ((ret = mndGetUserActiveToken("audit", auditToken)) != 0) {
-        mError("dnode:%d, failed to get audit user active token, token:%s, since %s", pDnode->id, auditToken,
+        mTrace("dnode:%d, failed to get audit user active token, token:%s, since %s", pDnode->id, auditToken,
                tstrerror(ret));
       } else {
-        mInfo("dnode:%d, get audit user active token:%s", pDnode->id, auditToken);
+        mTrace("dnode:%d, get audit user active token:%s", pDnode->id, auditToken);
         if (strncmp(statusReq.auditToken, auditToken, TSDB_TOKEN_LEN) != 0) auditTokenChanged = true;
       }
     }
