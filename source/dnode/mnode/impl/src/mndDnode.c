@@ -816,7 +816,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   if (tsAuditUseToken) {
     SDbObj *pDb = mndAcquireAuditDb(pMnode);
     if (pDb != NULL) {
-      tstrncpy(auditDB, pDb->name, TSDB_DB_FNAME_LEN);
+      SName name = {0};
+      if (tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB) < 0)
+        mError("db:%s, failed to parse db name", pDb->name);
+      tstrncpy(auditDB, name.dbname, TSDB_DB_FNAME_LEN);
       mndReleaseDb(pMnode, pDb);
     }
 
