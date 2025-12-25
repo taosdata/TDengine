@@ -39,7 +39,8 @@ class TestStableQueryTagDatatypes:
             - 2025-8-11 Simon Guan Migrated from tsim/tag/tinyint.sim
 
         """
-
+        self.ts = 1750003200000
+        
         self.TagBigint()
         tdStream.dropAllStreamsAndDbs()
         self.TagBinaryBinary()
@@ -93,7 +94,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -103,7 +104,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -111,32 +112,32 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb}")
         tdSql.checkRows(rowNum)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
-        tdSql.query(f"select * from {tb} where ts >= now + 4m")
-        tdSql.checkRows(15)
+        tdSql.query(f"select * from {tb} where ts >= {self.ts} + 4m")
+        tdSql.checkRows(16)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(1)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m and ts > now + 5m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m and ts > {self.ts} + 5m")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > 100000 and ts < 100000")
+        tdSql.query(f"select * from {tb} where ts > 100000 and ts <= 100000")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 3m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 3m")
         tdSql.checkRows(0)
 
         tdSql.query(
-            f"select * from {tb} where ts > now + 4m and ts > now + 5m and ts < now + 6m"
+            f"select * from {tb} where ts > {self.ts} + 4m and ts > {self.ts} + 5m and ts <= {self.ts} + 6m"
         )
         tdSql.checkRows(1)
 
@@ -144,16 +145,16 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
-        tdSql.checkRows(0)
+        tdSql.query(f"select * from {mt} where ts = {self.ts} + 4m")
+        tdSql.checkRows(10)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step4")
@@ -188,31 +189,31 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol = 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol <> 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 0 and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
@@ -236,7 +237,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step8")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -263,7 +264,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step11")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m group by tgcol"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -312,7 +313,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -322,7 +323,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -330,16 +331,16 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
-        tdSql.checkRows(0)
+        tdSql.query(f"select * from {mt} where ts = {self.ts} + 4m")
+        tdSql.checkRows(10)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step3")
@@ -381,101 +382,101 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol = '1'")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol = '1'")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol <> '1'")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> '1'")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol = '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol <> '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol = '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol <> '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> '0'")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol <> '0'"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> '0'"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol <> '0' and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> '0' and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step6")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 = '1'")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 = '1'")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 <> '1'")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '1'")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 = '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 <> '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 = '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 <> '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0'")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> '0'"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol2 <> '0'"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> '0' and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '0' and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step7")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 = '1' and tgcol = '1'"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 = '1' and tgcol = '1'"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> '1' and tgcol <> '1'"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '1' and tgcol <> '1'"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 = '0' and tgcol = '0'"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0' and tgcol = '0'"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 <> '0' and tgcol <> '0'"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0' and tgcol <> '0'"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 = '0' and tgcol = '0'"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0' and tgcol = '0'"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 <> '0' and tgcol <> '0'"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0' and tgcol <> '0'"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> '0' and tgcol <> '0'"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol2 <> '0' and tgcol <> '0'"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> '0' and ts < now + 5m and ts < now + 5m and tgcol <> '0'"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '0' and ts <= {self.ts} + 5m and ts <= {self.ts} + 5m and tgcol <> '0'"
         )
         tdSql.checkRows(5)
 
@@ -515,7 +516,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step10")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -558,7 +559,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step13")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m group by tgcol"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -607,7 +608,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -617,7 +618,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -625,32 +626,32 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb}")
         tdSql.checkRows(rowNum)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
-        tdSql.query(f"select * from {tb} where ts >= now + 4m")
-        tdSql.checkRows(15)
+        tdSql.query(f"select * from {tb} where ts >= {self.ts} + 4m")
+        tdSql.checkRows(16)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(1)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m and ts > now + 5m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m and ts > {self.ts} + 5m")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > 100000 and ts < 100000")
+        tdSql.query(f"select * from {tb} where ts > 100000 and ts <= 100000")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 3m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 3m")
         tdSql.checkRows(0)
 
         tdSql.query(
-            f"select * from {tb} where ts > now + 4m and ts > now + 5m and ts < now + 6m"
+            f"select * from {tb} where ts > {self.ts} + 4m and ts > {self.ts} + 5m and ts <= {self.ts} + 6m"
         )
         tdSql.checkRows(1)
 
@@ -658,16 +659,16 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
-        tdSql.checkRows(0)
+        tdSql.query(f"select * from {mt} where ts = {self.ts} + 4m")
+        tdSql.checkRows(10)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step4")
@@ -696,31 +697,31 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol = '1'")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol = '1'")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol <> '1'")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> '1'")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol = '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol <> '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol = '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol <> '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> '0'")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol <> '0'"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> '0'"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol <> '0' and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> '0' and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
@@ -744,7 +745,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step8")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -771,7 +772,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step11")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m group by tgcol"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -820,7 +821,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -830,7 +831,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -838,16 +839,16 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
-        tdSql.checkRows(0)
+        tdSql.query(f"select * from {mt} where ts = {self.ts} + 4m")
+        tdSql.checkRows(10)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step3")
@@ -889,101 +890,101 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol = true")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol = true")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol <> true")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> true")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol = false")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol <> false")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol = false")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol <> false")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> false")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol <> false"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> false"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol <> false and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> false and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step6")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 = '1'")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 = '1'")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 <> '1'")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '1'")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 = '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 <> '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 = '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 <> '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0'")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> '0'"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol2 <> '0'"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> '0' and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '0' and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step7")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 = '1' and tgcol = true"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 = '1' and tgcol = true"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> '1' and tgcol <> true"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '1' and tgcol <> true"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 = '0' and tgcol = false"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0' and tgcol = false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 <> '0' and tgcol <> false"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0' and tgcol <> false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 = '0' and tgcol = false"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0' and tgcol = false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 <> '0' and tgcol <> false"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0' and tgcol <> false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> '0' and tgcol <> false"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol2 <> '0' and tgcol <> false"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> '0' and ts < now + 5m and ts < now + 5m and tgcol <> false"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '0' and ts <= {self.ts} + 5m and ts <= {self.ts} + 5m and tgcol <> false"
         )
         tdSql.checkRows(5)
 
@@ -1023,7 +1024,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step10")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1066,7 +1067,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step13")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m group by tgcol"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1115,7 +1116,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -1125,7 +1126,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -1133,16 +1134,16 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
-        tdSql.checkRows(0)
+        tdSql.query(f"select * from {mt} where ts = {self.ts} + 4m")
+        tdSql.checkRows(10)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step3")
@@ -1196,101 +1197,101 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol = true")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol = true")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol <> true")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> true")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol = false")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol <> false")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol = false")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol <> false")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> false")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol <> false"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> false"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol <> false and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> false and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step6")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 = 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> 0 and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step7")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 = 1 and tgcol = true"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 = 1 and tgcol = true"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 1 and tgcol <> true"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> 1 and tgcol <> true"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 = 0 and tgcol = false"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0 and tgcol = false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 <> 0 and tgcol <> false"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> 0 and tgcol <> false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 = 0 and tgcol = false"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0 and tgcol = false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 <> 0 and tgcol <> false"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> 0 and tgcol <> false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> 0 and tgcol <> false"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol2 <> 0 and tgcol <> false"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 0 and ts < now + 5m and ts < now + 5m and tgcol <> false"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> 0 and ts <= {self.ts} + 5m and ts <= {self.ts} + 5m and tgcol <> false"
         )
         tdSql.checkRows(5)
 
@@ -1330,7 +1331,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step10")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1373,7 +1374,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step13")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m group by tgcol"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1420,7 +1421,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -1430,7 +1431,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -1438,29 +1439,29 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb}")
         tdSql.checkRows(rowNum)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
-        tdSql.query(f"select * from {tb} where ts >= now + 4m")
-        tdSql.checkRows(15)
+        tdSql.query(f"select * from {tb} where ts >= {self.ts} + 4m")
+        tdSql.checkRows(16)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(1)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m and ts > now + 5m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m and ts > {self.ts} + 5m")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 3m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 3m")
         tdSql.checkRows(0)
 
         tdSql.query(
-            f"select * from {tb} where ts > now + 4m and ts > now + 5m and ts < now + 6m"
+            f"select * from {tb} where ts > {self.ts} + 4m and ts > {self.ts} + 5m and ts <= {self.ts} + 6m"
         )
         tdSql.checkRows(1)
 
@@ -1468,16 +1469,16 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
-        tdSql.checkRows(0)
+        tdSql.query(f"select * from {mt} where ts = {self.ts} + 4m")
+        tdSql.checkRows(10)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step4")
@@ -1506,31 +1507,31 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol = true")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol = true")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol <> true")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> true")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol = false")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol <> false")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol = false")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol <> false")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> false")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol <> false"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> false"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol <> false and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> false and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
@@ -1554,7 +1555,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step8")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1581,7 +1582,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step11")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m group by tgcol"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1631,7 +1632,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -1641,7 +1642,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -1649,32 +1650,32 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb}")
         tdSql.checkRows(rowNum)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
-        tdSql.query(f"select * from {tb} where ts >= now + 4m")
-        tdSql.checkRows(15)
+        tdSql.query(f"select * from {tb} where ts >= {self.ts} + 4m")
+        tdSql.checkRows(16)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(1)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m and ts > now + 5m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m and ts > {self.ts} + 5m")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > 100000 and ts < 100000")
+        tdSql.query(f"select * from {tb} where ts > 100000 and ts <= 100000")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 3m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 3m")
         tdSql.checkRows(0)
 
         tdSql.query(
-            f"select * from {tb} where ts > now + 4m and ts > now + 5m and ts < now + 6m"
+            f"select * from {tb} where ts > {self.ts} + 4m and ts > {self.ts} + 5m and ts <= {self.ts} + 6m"
         )
         tdSql.checkRows(1)
 
@@ -1682,16 +1683,16 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
-        tdSql.checkRows(0)
+        tdSql.query(f"select * from {mt} where ts = {self.ts} + 4m")
+        tdSql.checkRows(10)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step4")
@@ -1726,31 +1727,31 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol = 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol <> 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 0 and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
@@ -1774,7 +1775,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step8")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1801,7 +1802,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step11")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m group by tgcol"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1848,7 +1849,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -1858,7 +1859,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -1866,32 +1867,32 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb}")
         tdSql.checkRows(rowNum)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
-        tdSql.query(f"select * from {tb} where ts >= now + 4m")
-        tdSql.checkRows(15)
+        tdSql.query(f"select * from {tb} where ts >= {self.ts} + 4m")
+        tdSql.checkRows(16)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(1)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m and ts > now + 5m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m and ts > {self.ts} + 5m")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > 100000 and ts < 100000")
+        tdSql.query(f"select * from {tb} where ts > 100000 and ts <= 100000")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 3m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 3m")
         tdSql.checkRows(0)
 
         tdSql.query(
-            f"select * from {tb} where ts > now + 4m and ts > now + 5m and ts < now + 6m"
+            f"select * from {tb} where ts > {self.ts} + 4m and ts > {self.ts} + 5m and ts <= {self.ts} + 6m"
         )
         tdSql.checkRows(1)
 
@@ -1899,16 +1900,16 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
-        tdSql.checkRows(0)
+        tdSql.query(f"select * from {mt} where ts = {self.ts} + 4m")
+        tdSql.checkRows(10)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step4")
@@ -1943,31 +1944,31 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol = 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol <> 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 0 and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
@@ -1991,7 +1992,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step8")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2018,7 +2019,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step11")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m group by tgcol"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2067,7 +2068,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -2077,7 +2078,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -2085,16 +2086,16 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
-        tdSql.checkRows(0)
+        tdSql.query(f"select * from {mt} where ts = {self.ts} + 4m")
+        tdSql.checkRows(10)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step3")
@@ -2136,101 +2137,101 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol = 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol <> 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 0 and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step6")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 = '1'")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 = '1'")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 <> '1'")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '1'")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 = '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 <> '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 = '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 <> '0'")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0'")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> '0'"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol2 <> '0'"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> '0' and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '0' and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step7")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 = '1' and tgcol = 1"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 = '1' and tgcol = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> '1' and tgcol <> 1"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '1' and tgcol <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 = '0' and tgcol = 0"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0' and tgcol = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 <> '0' and tgcol <> 0"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0' and tgcol <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 = '0' and tgcol = 0"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0' and tgcol = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 <> '0' and tgcol <> 0"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0' and tgcol <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> '0' and tgcol <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol2 <> '0' and tgcol <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> '0' and ts < now + 5m and ts < now + 5m and tgcol <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '0' and ts <= {self.ts} + 5m and ts <= {self.ts} + 5m and tgcol <> 0"
         )
         tdSql.checkRows(5)
 
@@ -2270,7 +2271,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step10")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2313,7 +2314,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step13")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m group by tgcol"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2362,7 +2363,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -2372,7 +2373,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -2380,16 +2381,16 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
-        tdSql.checkRows(0)
+        tdSql.query(f"select * from {mt} where ts = {self.ts} + 4m")
+        tdSql.checkRows(10)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step3")
@@ -2449,101 +2450,101 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol = 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol <> 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 0 and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step6")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 = 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> 0 and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step7")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 = 1 and tgcol = 1"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 = 1 and tgcol = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 1 and tgcol <> 1"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> 1 and tgcol <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 = 0 and tgcol = 0"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0 and tgcol = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 <> 0 and tgcol <> 0"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> 0 and tgcol <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 = 0 and tgcol = 0"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0 and tgcol = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 <> 0 and tgcol <> 0"
+            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> 0 and tgcol <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> 0 and tgcol <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol2 <> 0 and tgcol <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 0 and ts < now + 5m and ts < now + 5m and tgcol <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> 0 and ts <= {self.ts} + 5m and ts <= {self.ts} + 5m and tgcol <> 0"
         )
         tdSql.checkRows(5)
 
@@ -2583,7 +2584,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step10")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2626,7 +2627,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step13")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m group by tgcol"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2673,7 +2674,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -2683,7 +2684,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -2691,32 +2692,32 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb}")
         tdSql.checkRows(rowNum)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
-        tdSql.query(f"select * from {tb} where ts >= now + 4m")
-        tdSql.checkRows(15)
+        tdSql.query(f"select * from {tb} where ts >= {self.ts} + 4m")
+        tdSql.checkRows(16)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(1)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m and ts > now + 5m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m and ts > {self.ts} + 5m")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > 100000 and ts < 100000")
+        tdSql.query(f"select * from {tb} where ts > 100000 and ts <= 100000")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 3m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 3m")
         tdSql.checkRows(0)
 
         tdSql.query(
-            f"select * from {tb} where ts > now + 4m and ts > now + 5m and ts < now + 6m"
+            f"select * from {tb} where ts > {self.ts} + 4m and ts > {self.ts} + 5m and ts <= {self.ts} + 6m"
         )
         tdSql.checkRows(1)
 
@@ -2724,16 +2725,16 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
-        tdSql.checkRows(0)
+        tdSql.query(f"select * from {mt} where ts = {self.ts} + 4m")
+        tdSql.checkRows(10)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step4")
@@ -2768,31 +2769,31 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol = 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol <> 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 0 and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
@@ -2816,7 +2817,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step8")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2843,7 +2844,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step11")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m group by tgcol"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2892,7 +2893,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -2902,7 +2903,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -2910,32 +2911,32 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb}")
         tdSql.checkRows(rowNum)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
-        tdSql.query(f"select * from {tb} where ts >= now + 4m")
-        tdSql.checkRows(15)
+        tdSql.query(f"select * from {tb} where ts >= {self.ts} + 4m")
+        tdSql.checkRows(16)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(1)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m and ts > now + 5m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m and ts > {self.ts} + 5m")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > 100000 and ts < 100000")
+        tdSql.query(f"select * from {tb} where ts > 100000 and ts <= 100000")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 3m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 3m")
         tdSql.checkRows(0)
 
         tdSql.query(
-            f"select * from {tb} where ts > now + 4m and ts > now + 5m and ts < now + 6m"
+            f"select * from {tb} where ts > {self.ts} + 4m and ts > {self.ts} + 5m and ts <= {self.ts} + 6m"
         )
         tdSql.checkRows(1)
 
@@ -2943,16 +2944,16 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
-        tdSql.checkRows(0)
+        tdSql.query(f"select * from {mt} where ts = {self.ts} + 4m")
+        tdSql.checkRows(10)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step4")
@@ -2981,31 +2982,31 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol = 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol <> 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 0 and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
@@ -3029,7 +3030,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step8")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3056,7 +3057,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step11")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m group by tgcol"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3105,7 +3106,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -3115,7 +3116,7 @@ class TestStableQueryTagDatatypes:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({self.ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -3123,32 +3124,32 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb}")
         tdSql.checkRows(rowNum)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= now + 4m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
-        tdSql.query(f"select * from {tb} where ts >= now + 4m")
-        tdSql.checkRows(15)
+        tdSql.query(f"select * from {tb} where ts >= {self.ts} + 4m")
+        tdSql.checkRows(16)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(1)
 
-        tdSql.query(f"select * from {tb} where ts < now + 4m and ts > now + 5m")
+        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m and ts > {self.ts} + 5m")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > 100000 and ts < 100000")
+        tdSql.query(f"select * from {tb} where ts > 100000 and ts <= 100000")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {tb} where ts > now + 4m and ts < now + 3m")
+        tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m and ts <= {self.ts} + 3m")
         tdSql.checkRows(0)
 
         tdSql.query(
-            f"select * from {tb} where ts > now + 4m and ts > now + 5m and ts < now + 6m"
+            f"select * from {tb} where ts > {self.ts} + 4m and ts > {self.ts} + 5m and ts <= {self.ts} + 6m"
         )
         tdSql.checkRows(1)
 
@@ -3156,16 +3157,16 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
-        tdSql.checkRows(0)
+        tdSql.query(f"select * from {mt} where ts = {self.ts} + 4m")
+        tdSql.checkRows(10)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step4")
@@ -3206,31 +3207,31 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step5")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol = 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol <> 1")
+        tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol = 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol <> 0"
+            f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 0 and ts <= {self.ts} + 5m"
         )
         tdSql.checkRows(5)
 
@@ -3254,7 +3255,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step8")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3281,7 +3282,7 @@ class TestStableQueryTagDatatypes:
 
         tdLog.info(f"=============== step11")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts <= {self.ts} + 4m group by tgcol"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
