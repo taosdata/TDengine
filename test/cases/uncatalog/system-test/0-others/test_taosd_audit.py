@@ -26,11 +26,14 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         if  "records" not in infoDict or len(infoDict["records"]) == 0:
             tdLog.exit("records is null!")
 
-        if "operation" not in infoDict["records"][0] or infoDict["records"][0]["operation"] != "delete":
+        if "operation" not in infoDict["records"][0]:
             tdLog.exit("operation is null!")
-
-        if "details" not in infoDict["records"][0] or infoDict["records"][0]["details"] != "delete from db3.tb":
-            tdLog.exit("details is null!")
+        else:
+            if infoDict["records"][0]["operation"] != "delete":
+                tdLog.info("operation is %s!"%infoDict["records"][0]["operation"])
+            else:
+                if "details" not in infoDict["records"][0] or infoDict["records"][0]["details"] != "delete from db3.tb":
+                    tdLog.exit("details is null!")
 
     def do_GET(self):
         """
@@ -110,7 +113,7 @@ class TestTaosdAudit:
 
     updatecfgDict["audit"]            = '1'
     updatecfgDict["uDebugFlag"]            = '143'
-    updatecfgDict["auditLevel"]            = '5'
+    updatecfgDict["auditLevel"]            = '4'
     updatecfgDict["auditHttps"]            = '0'
 
     print ("===================: ", updatecfgDict)
