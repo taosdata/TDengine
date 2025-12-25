@@ -567,7 +567,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 仅删除流式计算任务，由流式计算写入的数据不会被删除。
 
 ```sql
-DROP STREAM [IF EXISTS] [db_name.]stream_name;
+DROP STREAM [IF EXISTS] [db_name.]stream_name [, [db_name.]stream_name] ...
 ```
 
 ## 查看流式计算

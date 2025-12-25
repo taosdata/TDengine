@@ -293,8 +293,7 @@ _error:
     uError("failed to update session mgt type:%d, line:%d, code:%d", type, lino, code);
   }
 
-  code = taosThreadRwlockUnlock(&pMgt->lock);
-  TAOS_CHECK_GOTO(code, &lino, _error);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgt->lock));
 
   return code;
 }
@@ -329,7 +328,7 @@ _error:
     uError("failed to update user session metric, line:%d, code:%d", lino, code);
   }
 
-  (void)taosThreadRwlockUnlock(&pMgt->lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgt->lock));
   return code;
 }
 
@@ -356,7 +355,7 @@ int32_t sessMgtGet(char *user, ESessionType type, int32_t *pValue) {
   TAOS_CHECK_GOTO(code, &lino, _error);
 
 _error:
-  code = taosThreadRwlockUnlock(&pMgt->lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgt->lock));
 
   if (code != 0) {
     uError("failed to get session mgt type:%d, line:%d, code:%d", type, lino, code);
@@ -382,10 +381,10 @@ int32_t sessMgtCheckUser(char *user, ESessionType type) {
   code = sessMetricCheckByType(*ppMetric, type);
 
 _error:
-  code = taosThreadRwlockUnlock(&pMgt->lock);
   if (code != 0) {
     uError("failed to check user session, line:%d, code:%d", lino, code);
   }
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgt->lock));
   return code;
 }
 int32_t sessMgtCheckValue(char *user, ESessionType type, int64_t value) {
@@ -429,7 +428,7 @@ int32_t sessMgtRemoveUser(char *user) {
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 _error:
-  code = taosThreadRwlockUnlock(&pMgt->lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgt->lock));
   return code;
 }
 
@@ -515,6 +514,5 @@ int32_t tscUpdateSessMgtMetric(STscObj *pTscObj, SSessParam *pParam) {
     return code;
   }
   code = sessMgtUpdateUserMetric(pTscObj->user, pParam);
-
   return code;
 }
