@@ -182,7 +182,7 @@ function clean_venv() {
       echo "  $venv_dir "
       # echo "Removing venv: $venv_dir"
       # ${csudo}rm -rf "$venv_dir" || :
-  fi
+    fi
   done
 }
 

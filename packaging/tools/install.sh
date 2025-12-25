@@ -6,7 +6,7 @@
 set -e
 # set -x
 
-verMode=cluster
+verMode=edge
 pkgMode=full
 entMode=full
 
@@ -206,7 +206,7 @@ while getopts "hv:e:d:sq:" arg; do
     show_help
     exit 0
     ;;
-  ?) #unknow option
+  ?) #unknown option
     echo "unknown argument"
     show_help
     exit 1
@@ -499,7 +499,7 @@ function install_bin() {
 
   [ -x ${install_main_dir}/uninstall_${xname}.sh ] && ln -sf ${install_main_dir}/uninstall_${xname}.sh ${bin_link_dir}/uninstall_${xname}.sh || :
 
-  # 非Root模式配置环境变量
+  # Add TDengine bin to PATH and LD_LIBRARY_PATH for non-root users
   if [[ $user_mode -eq 1 ]]; then
     local env_file=""
     if [[ -n "$ZSH_VERSION" ]]; then
@@ -508,14 +508,14 @@ function install_bin() {
       env_file="${HOME}/.bashrc"
     fi
 
-    # 添加PATH
+    # Add PATH
     if ! grep -q "${install_main_dir}/bin" "$env_file" 2>/dev/null; then
       echo -e "\n# TDengine install path" >> "$env_file"
       echo "export PATH=\"${install_main_dir}/bin:\$PATH\"" >> "$env_file"
       log info "Added TDengine bin to PATH (${env_file})"
     fi
 
-    # 添加 LD_LIBRARY_PATH
+    # Add LD_LIBRARY_PATH
     if ! grep -q "${lib_link_dir}" "$env_file" 2>/dev/null; then
       echo "export LD_LIBRARY_PATH=\"${lib_link_dir}:\$LD_LIBRARY_PATH\"" >> "$env_file"
       log info "Added TDengine lib to LD_LIBRARY_PATH (${env_file})"

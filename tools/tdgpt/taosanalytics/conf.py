@@ -123,4 +123,4 @@ def setup_log_info(name: str):
     try:
         app_logger.set_log_level(logging.DEBUG)
     except ValueError as e:
-        print(f"set log level failed:{e}", )
+        print(f"set log level failed:{e}")

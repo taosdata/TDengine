@@ -68,14 +68,13 @@ while getopts "e:d:h" opt; do
   esac
 done
 
-# 默认路径
+# Default path
 
-
-# 2. installDir 决策
+# 2. installDir decision
 if [ -n "$customDir" ]; then
   installDir="$customDir"
 else
-  # 1. 推断 guessed_install_path
+  # 1. Guess install path
   script_real_path="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"
   script_dir="$(dirname "$script_real_path")"
   if [[ "$script_dir" == */bin ]]; then
@@ -84,7 +83,7 @@ else
     guessed_install_path="$script_dir"
   fi
 
-  # 2. installDir 决策
+  # 2. installDir decision
   if [ -f "${guessed_install_path}/.install_path" ]; then
     installDir=$(cat "${guessed_install_path}/.install_path")
   elif [ -f "/usr/local/${PREFIX}/.install_path" ]; then
@@ -98,14 +97,31 @@ else
   elif [ -d "$HOME/${PREFIX}" ]; then
     installDir="$HOME/${PREFIX}"
   else
-    echo -e "${RED}未搜索到安装目录，请用 -d 指定路径${NC}"
+    echo -e "${RED}Install directory not found, please specify the path with -d${NC}"
     usage
     exit 1
   fi
 fi
 
+
+validate_safe_path() {
+  local path="$1"
+  # 禁止空、/、/etc、/bin、/lib、/usr、/sbin、/boot、/root、/home、/var、/tmp、/dev、/proc、/sys、/run
+  case "$path" in
+    ""|"/"|"/etc"|"/bin"|"/lib"|"/usr"|"/sbin"|"/boot"|"/root"|"/home"|"/var"|"/tmp"|"/dev"|"/proc"|"/sys"|"/run")
+      echo -e "${RED}Refusing to operate on dangerous system path: $path${NC}"
+      exit 1
+      ;;
+    *)
+      # 允许 /data/tdengin、/opt/taos、/usr/local/taos、$HOME/taos、$HOME/.local/ 等
+      return 0
+      ;;
+  esac
+}
+validate_safe_path "$installDir"
+
 # Set installDir based on custom path option or default path
-# 3. user_mode 及相关路径变量初始化（全部基于 installDir）
+# 3. user_mode and related path variables initialization (all based on installDir)
 if [ "$(id -u)" -eq 0 ]; then
   user_mode=0
   bin_link_dir="/usr/bin"
@@ -115,7 +131,7 @@ if [ "$(id -u)" -eq 0 ]; then
   config_dir="/etc/${PREFIX}"
   service_config_dir="/etc/systemd/system"
   sysctl_cmd="systemctl"
-  # macOS root 特殊处理
+  # macOS root special handling
   if [ "$osType" == "Darwin" ]; then
     bin_link_dir="/usr/local/bin"
     lib_link_dir="/usr/local/lib"
@@ -133,7 +149,7 @@ else
   sysctl_cmd="systemctl --user"
 fi
 
-# 4. 其它所有路径变量都基于 installDir
+# 4. All other path variables are based on installDir
 install_main_dir="${installDir}"
 data_link_dir="${installDir}/data"
 log_link_dir="${installDir}/log"
@@ -181,6 +197,8 @@ elif $(which service &>/dev/null); then
 else
   service_mod=2
 fi
+
+
 
 kill_service_of() {
   _service=$1
@@ -252,9 +270,9 @@ remove_service_of() {
 remove_tools_of() {
   _tool=$1
   kill_service_of ${_tool}
-  [ -L "${bin_link_dir}/${_tool}" ] && unlink "${bin_link_dir}/${_tool}" || :
-  [ -e "${installDir}/bin/${_tool}" ] && rm -rf "${installDir:?}/bin/${_tool}" || :
-  [ -L "${local_bin_link_dir}/${_tool}" ] && unlink "${local_bin_link_dir}/${_tool}" || :
+  [ -L "${bin_link_dir:?}/${_tool}" ] && unlink "${bin_link_dir:?}/${_tool}" || :
+  [ -e "${installDir:?}/bin/${_tool}" ] && rm -rf "${installDir:?}/bin/${_tool}" || :
+  [ -L "${local_bin_link_dir:?}/${_tool}" ] && unlink "${local_bin_link_dir:?}/${_tool}" || :
 }
 
 remove_bin() {
@@ -278,7 +296,7 @@ function clean_lib() {
   for dir in "${lib_link_dir}" "${lib64_link_dir}"; do
     if [ -d "$dir" ]; then
       for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*"; do
-        find "$dir" -name "$pattern" -exec rm -f {} \; || :
+        find "${dir:?}" -name "$pattern" -exec rm -f {} \; || :
       done
     fi
   done
@@ -286,30 +304,30 @@ function clean_lib() {
 
 function clean_header() {
   # Remove link
-  rm -f "${inc_link_dir}/taos.h" || :
-  rm -f "${inc_link_dir}/taosdef.h" || :
-  rm -f "${inc_link_dir}/taoserror.h" || :
-  rm -f "${inc_link_dir}/tdef.h" || :
-  rm -f "${inc_link_dir}/taosudf.h" || :
-  [ -f "${inc_link_dir}/taosws.h" ] && rm -f "${inc_link_dir:?}/taosws.h" || :
+  rm -f "${inc_link_dir:?}/taos.h" || :
+  rm -f "${inc_link_dir:?}/taosdef.h" || :
+  rm -f "${inc_link_dir:?}/taoserror.h" || :
+  rm -f "${inc_link_dir:?}/tdef.h" || :
+  rm -f "${inc_link_dir:?}/taosudf.h" || :
+  [ -f "${inc_link_dir:?}/taosws.h" ] && rm -f "${inc_link_dir:?}/taosws.h" || :
 }
 
 function clean_config() {
   # Remove link
-  if [ -L "${cfg_link_dir}" ]; then
-    rm -f "${cfg_link_dir}"
+  if [ -L "${cfg_link_dir:?}" ]; then
+    rm -f "${cfg_link_dir:?}"
   fi
 }
 
 function clean_log() {
   # Remove link
-  if [ -L "${log_link_dir}" ]; then
-    rm -f "${log_link_dir}"
+  if [ -L "${log_link_dir:?}" ]; then
+    rm -f "${log_link_dir:?}"
   fi
 }
 
 function clean_service_on_launchctl() {
-  # root: /Library/LaunchDaemons，user: ~/Library/LaunchAgents
+  # root: /Library/LaunchDaemons, user: ~/Library/LaunchAgents
   if [ "$user_mode" -eq 0 ]; then
     plist_dir="/Library/LaunchDaemons"
     prefix="com.taosdata"
@@ -338,17 +356,17 @@ function batch_remove_paths_and_clean_dir() {
   shift
   local paths=("$@")
   for path in "${paths[@]}"; do
-    rm -rf "$path" || :
+    rm -rf "${path:?}" || :
   done
-  find "$dir" -type d -empty -delete || :
-  if [ -z "$(ls -A "$dir" 2>/dev/null)" ]; then
-    rm -rf "$dir" || :
+  find "${dir:?}" -type d -empty -delete || :
+  if [ -z "$(ls -A "${dir:?}" 2>/dev/null)" ]; then
+    rm -rf "${dir:?}" || :
   fi
 }
 
 function remove_data_and_config() {
   echo "Starting to remove configuration, data and log files..."
-  local config_file="${config_dir}/${PREFIX}.cfg"
+  local config_file="${config_dir:?}/${PREFIX}.cfg"
   # Get data and log directories from config file, with user mode defaults
   if [ -f "$config_file" ]; then
     data_dir=$(grep dataDir "$config_file" | grep -v '#' | tail -n 1 | awk {'print $2'})
@@ -360,7 +378,7 @@ function remove_data_and_config() {
     if [ "$user_mode" -eq 0 ]; then
       data_dir="/var/lib/${PREFIX}"
     else
-      data_dir="${installDir}/data"
+      data_dir="${installDir:?}/data"
     fi
   fi
 
@@ -368,46 +386,44 @@ function remove_data_and_config() {
     if [ "$user_mode" -eq 0 ]; then
       log_dir="/var/log/${PREFIX}"
     else
-      log_dir="${installDir}/log"
+      log_dir="${installDir:?}/log"
     fi
   fi
 
-  if [ -d "${config_dir}" ]; then
-    rm -rf "${config_dir}"
-    echo "Configuration directory removed: ${config_dir}"
+  if [ -d "${config_dir:?}" ]; then
+    rm -rf "${config_dir:?}"
+    echo "Configuration directory removed: ${config_dir:?}"
   fi
 
-  if [ -d "${data_dir}" ]; then
+  if [ -d "${data_dir:?}" ]; then
     data_remove_list=(
-      "${data_dir}/dnode"
-      "${data_dir}/mnode"
-      "${data_dir}/vnode"
-      "${data_dir}/.udf"
-      "${data_dir}/.running"*
-      "${data_dir}/.taosudf"*
-      "${data_dir}/${PREFIX}x"*
-      "${data_dir}/explorer"*
+      "${data_dir:?}/dnode"
+      "${data_dir:?}/mnode"
+      "${data_dir:?}/vnode"
+      "${data_dir:?}/.udf"
+      "${data_dir:?}/.running"*
+      "${data_dir:?}/.taosudf"*
+      "${data_dir:?}/${PREFIX}x"*
+      "${data_dir:?}/explorer"*
     )
-    batch_remove_paths_and_clean_dir "${data_dir}" "${data_remove_list[@]}"
-    echo "Data directory removed: ${data_dir}"
+    batch_remove_paths_and_clean_dir "${data_dir:?}" "${data_remove_list[@]}"
+    echo "Data directory removed: ${data_dir:?}"
   fi
 
-  if [ -d "${log_dir}" ]; then
+  if [ -d "${log_dir:?}" ]; then
     log_remove_list=(
-      "${log_dir}/taos"*
-      "${log_dir}/udf"*
-      "${log_dir}/jemalloc"
-      "${log_dir}/tcmalloc"
-      "${log_dir}/set_taos_malloc.log"
-      "${log_dir}/.startRecord"
-      "${log_dir}/.startSeq"
+      "${log_dir:?}/taos"*
+      "${log_dir:?}/udf"*
+      "${log_dir:?}/jemalloc"
+      "${log_dir:?}/tcmalloc"
+      "${log_dir:?}/set_taos_malloc.log"
+      "${log_dir:?}/.startRecord"
+      "${log_dir:?}/.startSeq"
     )
-    batch_remove_paths_and_clean_dir "${log_dir}" "${log_remove_list[@]}"
-    echo "Log directory removed: ${log_dir}"
+    batch_remove_paths_and_clean_dir "${log_dir:?}" "${log_remove_list[@]}"
+    echo "Log directory removed: ${log_dir:?}"
   fi
 }
-
-
 
 function remove_install_dir() {
   for dir in \
@@ -419,28 +435,26 @@ function remove_install_dir() {
     "${plugins_dir}" \
     "${share_dir}"
   do
-    if [ -d "$dir" ]; then
-      rm -rf "$dir"
+    if [ -d "${dir:?}" ]; then
+      rm -rf "${dir:?}"
     fi
   done
-  if [ -f "${install_main_dir}/README.md" ]; then
-    rm -f "${install_main_dir}/README.md"
+  if [ -f "${install_main_dir:?}/README.md" ]; then
+    rm -f "${install_main_dir:?}/README.md"
   fi
-  if [ -f "${install_main_dir}/uninstall_taosx.sh" ]; then
-    rm -f "${install_main_dir}/uninstall_taosx.sh"
+  if [ -f "${install_main_dir:?}/uninstall_taosx.sh" ]; then
+    rm -f "${install_main_dir:?}/uninstall_taosx.sh"
   fi
-  if [ -f "${install_main_dir}/uninstall.sh" ]; then
-    rm -f "${install_main_dir}/uninstall.sh"
+  if [ -f "${install_main_dir:?}/uninstall.sh" ]; then
+    rm -f "${install_main_dir:?}/uninstall.sh"
   fi
-  if [ -f "${install_main_dir}/.install_path" ]; then
-    rm -f "${install_main_dir}/.install_path"
-  fi  
-  if [ -d "${install_main_dir}" ] && [ -z "$(ls -A "${install_main_dir}")" ]; then
-    rm -rf "${install_main_dir}" || :
+  if [ -f "${install_main_dir:?}/.install_path" ]; then
+    rm -f "${install_main_dir:?}/.install_path"
+  fi
+  if [ -d "${install_main_dir:?}" ] && [ -z "$(ls -A "${install_main_dir:?}")" ]; then
+    rm -rf "${install_main_dir:?}" || :
   fi
 }
-
-
 # ====== main logic starts here ======
 if [ "$interactive_remove" == "yes" ]; then
   echo -e "\nDo you want to remove all the data, log and configuration files? [y/n]"
@@ -479,7 +493,6 @@ clean_lib
 clean_log
 # Remove link configuration file
 clean_config
-
 
 if [ X$remove_flag == X"true" ]; then
   remove_data_and_config
