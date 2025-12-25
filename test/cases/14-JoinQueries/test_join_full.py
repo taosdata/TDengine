@@ -2007,22 +2007,13 @@ class TestJoinFull:
         tdSql.checkData(1, 1, 3)
         tdSql.checkData(2, 1, 3)
 
-        tdSql.query(
+        tdSql.error(
             f"select a.ts from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4 order by count(*);"
         )
-        tdSql.checkRows(7)
 
-        tdSql.query(
+        tdSql.error(
             f"select a.ts from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4 order by count(*), a.ts;"
         )
-        tdSql.checkRows(7)
-        tdSql.checkData(0, 0, "2023-11-17 16:29:04")
-        tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-        tdSql.checkData(2, 0, "2023-11-17 16:29:00")
-        tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-        tdSql.checkData(4, 0, "2023-11-17 16:29:03")
-        tdSql.checkData(5, 0, "2023-11-17 16:29:01")
-        tdSql.checkData(6, 0, "2023-11-17 16:29:02")
 
         tdSql.query(
             f"select a.ts, count(*),last(b.ts) from sta a left window join sta b window_offset(-1s, 1s);"

@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
+#include "clientSession.h"
 #include "command.h"
 #include "decimal.h"
 #include "scheduler.h"
@@ -34,9 +35,6 @@
 
 static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode);
-
-int32_t connUpdateSessMgtMetric(int64_t connId, SSessParam* pParam);
-//int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam);
 
 void setQueryRequest(int64_t rId) {
   SRequestObj* pReq = acquireRequest(rId);
@@ -209,14 +207,6 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
   for (int32_t i = 0; i < epSet.epSet.numOfEps; ++i) {
     tscInfo("ep:%d, %s:%u", i, epSet.epSet.eps[i].fqdn, epSet.epSet.eps[i].port);
   }
-  // for (int32_t i = 0; i < epSet.epSet.numOfEps; i++) {
-  //   if ((code = taosValidFqdn(tsEnableIpv6, epSet.epSet.eps[i].fqdn)) != 0) {
-  //     taosMemFree(key);
-  //     tscError("ipv6 flag %d, the local FQDN %s does not resolve to the ip address since %s", tsEnableIpv6,
-  //              epSet.epSet.eps[i].fqdn, tstrerror(code));
-  //     TSC_ERR_RET(code);
-  //   }
-  // }
 
   SAppInstInfo** pInst = NULL;
   code = taosThreadMutexLock(&appInfo.mutex);
@@ -3144,8 +3134,7 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
     return;
   }
 
-  SSessParam para = {.type = SESSION_MAX_CONCURRENCY, .value = 1};
-  code = connUpdateSessMgtMetric(connId, &para);
+  code = connCheckAndUpateMetric(connId);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     fp(param, NULL, terrno);
@@ -3186,8 +3175,8 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
     return;
   }
 
-  SSessParam para = {.type = SESSION_MAX_CONCURRENCY, .value = 1};
-  code = connUpdateSessMgtMetric(connId, &para);
+  code = connCheckAndUpateMetric(connId);
+
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     fp(param, NULL, terrno);
@@ -3197,32 +3186,6 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   pRequest->body.queryFp = fp;
 
   doAsyncQuery(pRequest, false);
-}
-
-int32_t connUpdateSessMgtMetric(int64_t connId, SSessParam* pParam) {
-  int32_t code = 0;
-
-  STscObj* pTscObj = acquireTscObj(connId);
-  if (pTscObj == NULL) {
-    code = TSDB_CODE_INVALID_PARA;
-    return code;
-  }
-  code = sessMgtUpdateUserMetric(pTscObj->user, pParam);
-
-  releaseTscObj(connId);
-  return code;
-}
-
-int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam) {
-  int32_t code = 0;
-
-  if (pTscObj == NULL) {
-    code = TSDB_CODE_INVALID_PARA;
-    return code;
-  }
-  code = sessMgtUpdateUserMetric(pTscObj->user, pParam);
-
-  return code;
 }
 
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source) {
@@ -3405,7 +3368,6 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
     pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   }
 
-
   SRequestObj* pReq = acquireRequest(this);
   if (pReq != NULL) {
     pReq->inCallback = false;
@@ -3421,3 +3383,15 @@ int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool pa
   return clientParseSqlImpl(param, dbName, sql, parseOnly, effectiveUser, pRes);
 #endif
 }
+
+void updateConnAccessInfo(SConnAccessInfo *pInfo) {
+  if (pInfo == NULL) {
+    return;
+  }
+  int64_t ts = taosGetTimestampMs();
+  if (pInfo->startTime == 0) {
+    pInfo->startTime = ts;
+  }
+  pInfo->lastAccessTime = ts;
+}
+ 

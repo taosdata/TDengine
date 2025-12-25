@@ -15,6 +15,7 @@
 
 #include "transComm.h"
 #include "osTime.h"
+#include "tchecksum.h"
 #include "tqueue.h"
 #include "transLog.h"
 #include "transSasl.h"
@@ -320,7 +321,7 @@ int32_t transClearBuffer(SConnBuffer* buf) {
   return 0;
 }
 
-int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
+int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf, int32_t* len) {
   static const int HEADSIZE = sizeof(STransMsgHead);
   int32_t          code = 0;
   SConnBuffer*     p = connBuf;
@@ -337,11 +338,22 @@ int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
     if ((code = transResetBuffer(connBuf, resetBuf)) < 0) {
       return code;
     }
+
+    if (connBuf->total == 0) {
+      code = transDoCrcCheck(*buf, total);
+      if (code != 0) {
+        tError("failed to check crc for msg in buffer, total:%d since %s", total, tstrerror(code));
+        taosMemoryFree(*buf);
+        *buf = NULL;
+        return code;
+      }
+    }
+    *len = total;
   } else {
-    total = -1;
-    return TSDB_CODE_INVALID_MSG;
+    *len = -1;
+    code = TSDB_CODE_INVALID_MSG;
   }
-  return total;
+  return code;
 }
 
 int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {
@@ -408,7 +420,7 @@ bool transReadComplete(SConnBuffer* connBuf) {
       memcpy((char*)&head, connBuf->buf, sizeof(head));
       int32_t msgLen = (int32_t)htonl(head.msgLen);
       p->total = msgLen;
-      p->invalid = TRANS_NOVALID_PACKET(htonl(head.magicNum)) || head.version != TRANS_VER;
+      p->invalid = head.version != TRANS_VER;
     }
     if (p->total >= p->len) {
       p->left = p->total - p->len;
@@ -649,6 +661,25 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
   *msgType = ctx->brokenVal.msgType;
 
   return ret;
+}
+
+int32_t transDoCrc(char* buf, int32_t len) {
+  STransMsgHead* pHead = (STransMsgHead*)buf;
+  pHead->magicNum = 0;
+  uint32_t chechSum = taosCalcChecksum(0, (const uint8_t*)buf, len);
+  pHead->magicNum = htonl(chechSum);
+
+  return 0;
+}
+int32_t transDoCrcCheck(char* buf, int32_t len) {
+  STransMsgHead* pHead = (STransMsgHead*)buf;
+  uint32_t       checkSum = ntohl(pHead->magicNum);
+  pHead->magicNum = 0;
+  if (taosCheckChecksum((const uint8_t*)buf, len, checkSum)) {
+    return TSDB_CODE_INVALID_MSG;
+  } else {
+    return 0;
+  }
 }
 
 #if 0
@@ -1740,7 +1771,7 @@ int32_t transClearBuffer(SConnBuffer* buf) {
   return 0;
 }
 
-int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
+int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf, int32_t* len) {
   static const int HEADSIZE = sizeof(STransMsgHead);
   int32_t          code = 0;
   SConnBuffer*     p = connBuf;
@@ -1759,9 +1790,10 @@ int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf) {
     }
   } else {
     total = -1;
-    return TSDB_CODE_INVALID_MSG;
+    code = TSDB_CODE_INVALID_MSG;
   }
-  return total;
+  *len = total;
+  return code;
 }
 
 int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf) {

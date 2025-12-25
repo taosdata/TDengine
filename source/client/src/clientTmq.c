@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "parser.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
@@ -65,7 +66,6 @@ enum {
 enum {
   TMQ_CONSUMER_STATUS__INIT = 0,
   TMQ_CONSUMER_STATUS__READY,
-  TMQ_CONSUMER_STATUS__LOST,
   TMQ_CONSUMER_STATUS__CLOSED,
 };
 
@@ -769,7 +769,7 @@ static int32_t prepareCommitCbParamSet(tmq_t* tmq, tmq_commit_cb* pCommitFp, voi
   }
 
   pParamSet->refId = tmq->refId;
-  pParamSet->epoch = tmq->epoch;
+  pParamSet->epoch = atomic_load_32(&tmq->epoch);
   pParamSet->callbackFn = pCommitFp;
   pParamSet->userParam = userParam;
   pParamSet->waitingRspNum = rspNum;
@@ -1113,7 +1113,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
 
   SMqHbReq req = {0};
   req.consumerId = tmq->consumerId;
-  req.epoch = tmq->epoch;
+  req.epoch = atomic_load_32(&tmq->epoch);
   req.pollFlag = atomic_load_8(&tmq->pollFlag);
   tqDebugC("consumer:0x%" PRIx64 " send heartbeat, pollFlag:%d", tmq->consumerId, req.pollFlag);
   req.topics = taosArrayInit(taosArrayGetSize(tmq->clientTopics), sizeof(TopicOffsetRows));
@@ -1380,7 +1380,7 @@ static void doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
   int32_t topicNumGet = taosArrayGetSize(pRsp->topics);
   // vnode transform (epoch == tmq->epoch && topicNumGet != 0)
   // ask ep rsp (epoch == tmq->epoch && topicNumGet == 0)
-  if (epoch < tmq->epoch || (epoch == tmq->epoch && topicNumGet == 0)) {
+  if (epoch < atomic_load_32(&tmq->epoch) || (epoch == atomic_load_32(&tmq->epoch) && topicNumGet == 0)) {
     tqDebugC("consumer:0x%" PRIx64 " no update ep epoch from %d to epoch %d, incoming topics:%d", tmq->consumerId,
              tmq->epoch, epoch, topicNumGet);
     return;
@@ -1412,6 +1412,8 @@ static void doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
 }
 
 static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
+  SMqAskEpRsp rsp = {0};
+
   SMqAskEpCbParam* pParam = (SMqAskEpCbParam*)param;
   if (pParam == NULL) {
     goto _ERR;
@@ -1424,11 +1426,9 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    if (code != TSDB_CODE_MND_CONSUMER_NOT_READY){
-      tqErrorC("consumer:0x%" PRIx64 ", get topic endpoint error, code:%s", tmq->consumerId, tstrerror(code));
-      if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST){
-        atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__LOST);
-      }
+    tqErrorC("consumer:0x%" PRIx64 ", get topic endpoint error, code:%s", tmq->consumerId, tstrerror(code));
+    if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST){
+      atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__CLOSED);
     }
     goto END;
   }
@@ -1439,12 +1439,20 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqRspHead* head = pMsg->pData;
   int32_t     epoch = atomic_load_32(&tmq->epoch);
   tqDebugC("consumer:0x%" PRIx64 ", recv ep, msg epoch %d, current epoch %d", tmq->consumerId, head->epoch, epoch);
+
+  if (tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &rsp) == NULL) {
+    code = TSDB_CODE_TMQ_INVALID_MSG;
+    tqErrorC("consumer:0x%" PRIx64 ", decode ep rsp failed", tmq->consumerId);
+    goto END;
+  }
+
+  if (rsp.code != TSDB_CODE_SUCCESS) {
+    code = rsp.code;
+    goto END;
+  }
+
   if (pParam->sync) {
-    SMqAskEpRsp rsp = {0};
-    if (tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &rsp) != NULL) {
-      doUpdateLocalEp(tmq, head->epoch, &rsp);
-    }
-    tDeleteSMqAskEpRsp(&rsp);
+    doUpdateLocalEp(tmq, head->epoch, &rsp);
   } else {
     SMqRspWrapper* pWrapper = NULL;
     code = taosAllocateQitem(sizeof(SMqRspWrapper), DEF_QITEM, 0, (void**)&pWrapper);
@@ -1454,29 +1462,23 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
 
     pWrapper->tmqRspType = TMQ_MSG_TYPE__EP_RSP;
     pWrapper->epoch = head->epoch;
-    (void)memcpy(&pWrapper->epRsp, pMsg->pData, sizeof(SMqRspHead));
-    if (tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pWrapper->epRsp) == NULL) {
+    TSWAP(pWrapper->epRsp, rsp);
+    code = taosWriteQitem(tmq->mqueue, pWrapper);
+    if (code != 0) {
       tmqFreeRspWrapper((SMqRspWrapper*)pWrapper);
       taosFreeQitem(pWrapper);
-    } else {
-      code = taosWriteQitem(tmq->mqueue, pWrapper);
-      if (code != 0) {
-        tmqFreeRspWrapper((SMqRspWrapper*)pWrapper);
-        taosFreeQitem(pWrapper);
-        tqErrorC("consumer:0x%" PRIx64 " put ep res into mqueue failed, code:%d", tmq->consumerId, code);
-      }
+      tqErrorC("consumer:0x%" PRIx64 " put ep res into mqueue failed, code:%d", tmq->consumerId, code);
     }
   }
 
-  END:
-  {
-    int32_t ret = taosReleaseRef(tmqMgmt.rsetId, pParam->refId);
-    if (ret != 0){
-      tqErrorC("failed to release ref:%"PRId64 ", code:%d", pParam->refId, ret);
-    }
+END:
+  tDeleteSMqAskEpRsp(&rsp);
+  int32_t ret = taosReleaseRef(tmqMgmt.rsetId, pParam->refId);
+  if (ret != 0){
+    tqErrorC("failed to release ref:%"PRId64 ", code:%d", pParam->refId, ret);
   }
 
-  _ERR:
+_ERR:
   if (pParam && pParam->sync) {
     SAskEpInfo* pInfo = pParam->pParam;
     if (pInfo) {
@@ -1503,7 +1505,7 @@ static int32_t askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   int32_t lino = 0;
   SMqAskEpReq req = {0};
   req.consumerId = pTmq->consumerId;
-  req.epoch = updateEpSet ? -1 : pTmq->epoch;
+  req.epoch = updateEpSet ? -1 : atomic_load_32(&pTmq->epoch);
   tstrncpy(req.cgroup, pTmq->groupId, TSDB_CGROUP_LEN);
   SMqAskEpCbParam* pParam = NULL;
   void*            pReq = NULL;
@@ -1859,9 +1861,9 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   STqOffsetVal offset = {.type = pTmq->resetOffsetCfg};
   tFormatOffset(buf, tListLen(buf), &offset);
   tqInfoC("consumer:0x%" PRIx64 " is setup, refId:%" PRId64
-              ", groupId:%s, snapshot:%d, autoCommit:%d, commitInterval:%dms, offset:%s",
+              ", groupId:%s, snapshot:%d, autoCommit:%d, commitInterval:%dms, offset:%s, maxPollIntervalMs:%dms, sessionTimeoutMs:%dms",
           pTmq->consumerId, pTmq->refId, pTmq->groupId, pTmq->useSnapshot, pTmq->autoCommit, pTmq->autoCommitInterval,
-          buf);
+          buf, pTmq->maxPollIntervalMs, pTmq->sessionTimeoutMs);
 
   return pTmq;
 
@@ -2187,7 +2189,7 @@ void tmqBuildConsumeReqImpl(SMqPollReq* pReq, tmq_t* tmq, SMqClientTopic* pTopic
   pReq->consumerId = tmq->consumerId;
   pReq->timeout = tmq->maxPollWaitTime;
   pReq->minPollRows = tmq->minPollRows;
-  pReq->epoch = tmq->epoch;
+  pReq->epoch = atomic_load_32(&tmq->epoch);
   pReq->reqOffset = pVg->offsetInfo.endOffset;
   pReq->head.vgId = pVg->vgId;
   pReq->useSnapshot = tmq->useSnapshot;
@@ -2338,7 +2340,7 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
   int32_t code = 0;
   taosWLockLatch(&tmq->lock);
 
-  if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__LOST){
+  if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__CLOSED){
     code = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     goto end;
   }
@@ -2450,7 +2452,7 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
   if (pRspWrapper->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {  // for vnode transform
     code = askEp(tmq, NULL, false, true);
     if (code != 0) {
-      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep wher vnode transform, code:%s", tmq->consumerId, tstrerror(code));
+      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep when vnode transform, code:%s", tmq->consumerId, tstrerror(code));
     }
   } else if (pRspWrapper->code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
     code = syncAskEp(tmq);
@@ -2701,8 +2703,8 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
   tqInfoC("consumer:0x%" PRIx64 " start to unsubscribe consumer, status:%d", tmq->consumerId, status);
 
   displayConsumeStatistics(tmq);
-  if (status != TMQ_CONSUMER_STATUS__READY && status != TMQ_CONSUMER_STATUS__LOST) {
-    tqInfoC("consumer:0x%" PRIx64 " status:%d, already closed or not in ready state, no need unsubscribe", tmq->consumerId, status);
+  if (status != TMQ_CONSUMER_STATUS__READY) {
+    tqInfoC("consumer:0x%" PRIx64 " status:%d, not in ready state, no need unsubscribe", tmq->consumerId, status);
     goto END;
   }
   if (tmq->autoCommit) {
@@ -3519,7 +3521,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
         goto end;
       }
 
-      pParam->epoch = tmq->epoch;
+      pParam->epoch = atomic_load_32(&tmq->epoch);
       pParam->vgId = pClientVg->vgId;
       pParam->totalReq = *numOfAssignment;
       pParam->pCommon = pCommon;

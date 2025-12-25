@@ -19,6 +19,7 @@ class TestVTableQuerySameDBStbProject:
     def setup_class(cls):
         vtbUtil = TestVtableQueryUtil()
         vtbUtil.prepare_same_db_vtables()
+        tdSql.execute(f'alter local "multiResultFunctionStarReturnTags" "1";')
     def teardown_class(cls):
         vtbUtil = TestVtableQueryUtil()
         #vtbUtil.clean_up_same_db_vtables()
