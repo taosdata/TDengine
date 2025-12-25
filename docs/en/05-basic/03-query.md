@@ -333,6 +333,10 @@ The FILL clause is used to specify the fill mode when data is missing in a windo
 
 Among these fill modes, except for the NONE mode which does not fill by default, other modes will be ignored if there is no data in the entire query time range, resulting in no fill data and an empty query result. This behavior is reasonable under some modes (PREV, NEXT, LINEAR) because no data means no fill value can be generated.
 
+The definition of valid values differs between the INTERVAL clause and the INTERP clause:
+1. In the INTERVAL clause, all scanned data are valid values. For example, FILL(PREV) uses the previous data entry for filling.
+1. In the INTERP clause, starting from version v3.4.0.0, whether a NULL value is valid depends on the ignore_null_values parameter of the INTERP function. For example, if FILL(PREV) is specified and NULL values are invalid, the system skips NULL values and continues to search for non-NULL data.
+
 For other modes (NULL, VALUE), theoretically, fill values can be generated. Whether to output fill values depends on the application's requirements. To meet the needs of applications that require forced filling of data or NULL, and to maintain compatibility with existing fill modes, TDengine also supports two new fill modes from version 3.0.3.0:
 
 1. NULL_F: Force fill with NULL values
