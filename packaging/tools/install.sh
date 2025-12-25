@@ -196,9 +196,11 @@ while getopts "hv:e:d:sq:" arg; do
     ;;
   s)
     silent_mode=1
+    interactiveFqdn="no"
     ;;
   q)
     silent_mode=1
+    interactiveFqdn="no"
     taosDir="${OPTARG%/}/${PREFIX}"
     taosDir=$(eval echo "${taosDir}")
     taos_dir_set=1
