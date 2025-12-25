@@ -3066,7 +3066,8 @@ int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashOb
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols) {
+int32_t nodesCollectColumnsFromMultiNodes(SNode** pNodes, int32_t numNodes, const char* pTableAlias,
+                                          ECollectColType type, SNodeList** pCols) {
   if (NULL == pCols) {
     return TSDB_CODE_FAILED;
   }
@@ -3089,7 +3090,12 @@ int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, EColle
   }
   *pCols = NULL;
 
-  nodesWalkExpr(node, collectColumns, &cxt);
+  for (int32_t i = 0; i < numNodes; ++i) {
+    nodesWalkExpr(pNodes[i], collectColumns, &cxt);
+    if (TSDB_CODE_SUCCESS != cxt.errCode) {
+      break;
+    }
+  }
 
   taosHashCleanup(cxt.pColHash);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
@@ -3103,6 +3109,10 @@ int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, EColle
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols) {
+  return nodesCollectColumnsFromMultiNodes(&node, 1, pTableAlias, type, pCols);
 }
 
 typedef struct SCollectFuncsCxt {
