@@ -115,9 +115,6 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
-        tdSql.checkRows(5)
-
         tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
@@ -194,12 +191,6 @@ class TestStableQueryTagDatatypes:
 
         tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 1")
         tdSql.checkRows(75)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
-        tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
@@ -394,12 +385,6 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> '0'")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = '0'")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> '0'")
-        tdSql.checkRows(25)
-
         tdSql.query(
             f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> '0'"
         )
@@ -416,12 +401,6 @@ class TestStableQueryTagDatatypes:
 
         tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '1'")
         tdSql.checkRows(75)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0'")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0'")
-        tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0'")
         tdSql.checkRows(25)
@@ -449,16 +428,6 @@ class TestStableQueryTagDatatypes:
             f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '1' and tgcol <> '1'"
         )
         tdSql.checkRows(75)
-
-        tdSql.query(
-            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0' and tgcol = '0'"
-        )
-        tdSql.checkRows(25)
-
-        tdSql.query(
-            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0' and tgcol <> '0'"
-        )
-        tdSql.checkRows(25)
 
         tdSql.query(
             f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0' and tgcol = '0'"
@@ -629,9 +598,6 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
-        tdSql.checkRows(5)
-
         tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
@@ -702,12 +668,6 @@ class TestStableQueryTagDatatypes:
 
         tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> '1'")
         tdSql.checkRows(75)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = '0'")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> '0'")
-        tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = '0'")
         tdSql.checkRows(25)
@@ -902,12 +862,6 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = false")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> false")
-        tdSql.checkRows(25)
-
         tdSql.query(
             f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> false"
         )
@@ -924,12 +878,6 @@ class TestStableQueryTagDatatypes:
 
         tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '1'")
         tdSql.checkRows(75)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0'")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0'")
-        tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0'")
         tdSql.checkRows(25)
@@ -957,16 +905,6 @@ class TestStableQueryTagDatatypes:
             f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '1' and tgcol <> true"
         )
         tdSql.checkRows(75)
-
-        tdSql.query(
-            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0' and tgcol = false"
-        )
-        tdSql.checkRows(25)
-
-        tdSql.query(
-            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0' and tgcol <> false"
-        )
-        tdSql.checkRows(25)
 
         tdSql.query(
             f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0' and tgcol = false"
@@ -1209,12 +1147,6 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = false")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> false")
-        tdSql.checkRows(25)
-
         tdSql.query(
             f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> false"
         )
@@ -1231,12 +1163,6 @@ class TestStableQueryTagDatatypes:
 
         tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> 1")
         tdSql.checkRows(75)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> 0")
-        tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
@@ -1272,11 +1198,6 @@ class TestStableQueryTagDatatypes:
 
         tdSql.query(
             f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> 0 and tgcol <> false"
-        )
-        tdSql.checkRows(25)
-
-        tdSql.query(
-            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0 and tgcol = false"
         )
         tdSql.checkRows(25)
 
@@ -1442,9 +1363,6 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
-        tdSql.checkRows(5)
-
         tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
@@ -1512,12 +1430,6 @@ class TestStableQueryTagDatatypes:
 
         tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> true")
         tdSql.checkRows(75)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = false")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> false")
-        tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = false")
         tdSql.checkRows(25)
@@ -1653,9 +1565,6 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
-        tdSql.checkRows(5)
-
         tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
@@ -1732,12 +1641,6 @@ class TestStableQueryTagDatatypes:
 
         tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 1")
         tdSql.checkRows(75)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
-        tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
@@ -1870,9 +1773,6 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
-        tdSql.checkRows(5)
-
         tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
@@ -1949,12 +1849,6 @@ class TestStableQueryTagDatatypes:
 
         tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 1")
         tdSql.checkRows(75)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
-        tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
@@ -2149,12 +2043,6 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
-        tdSql.checkRows(25)
-
         tdSql.query(
             f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> 0"
         )
@@ -2171,12 +2059,6 @@ class TestStableQueryTagDatatypes:
 
         tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '1'")
         tdSql.checkRows(75)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0'")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0'")
-        tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0'")
         tdSql.checkRows(25)
@@ -2204,16 +2086,6 @@ class TestStableQueryTagDatatypes:
             f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> '1' and tgcol <> 1"
         )
         tdSql.checkRows(75)
-
-        tdSql.query(
-            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0' and tgcol = 0"
-        )
-        tdSql.checkRows(25)
-
-        tdSql.query(
-            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> '0' and tgcol <> 0"
-        )
-        tdSql.checkRows(25)
 
         tdSql.query(
             f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = '0' and tgcol = 0"
@@ -2462,12 +2334,6 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
-        tdSql.checkRows(25)
-
         tdSql.query(
             f"select * from {mt} where ts > {self.ts} + 4m and ts <= {self.ts} + 5m and tgcol <> 0"
         )
@@ -2484,12 +2350,6 @@ class TestStableQueryTagDatatypes:
 
         tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> 1")
         tdSql.checkRows(75)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> 0")
-        tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
@@ -2517,16 +2377,6 @@ class TestStableQueryTagDatatypes:
             f"select * from {mt} where ts > {self.ts} + 4m and tgcol2 <> 1 and tgcol <> 1"
         )
         tdSql.checkRows(75)
-
-        tdSql.query(
-            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0 and tgcol = 0"
-        )
-        tdSql.checkRows(25)
-
-        tdSql.query(
-            f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 <> 0 and tgcol <> 0"
-        )
-        tdSql.checkRows(25)
 
         tdSql.query(
             f"select * from {mt} where ts <= {self.ts} + 4m and tgcol2 = 0 and tgcol = 0"
@@ -2695,9 +2545,6 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
-        tdSql.checkRows(5)
-
         tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
@@ -2779,9 +2626,6 @@ class TestStableQueryTagDatatypes:
         tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
@@ -2914,9 +2758,6 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
-        tdSql.checkRows(5)
-
         tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
@@ -2987,12 +2828,6 @@ class TestStableQueryTagDatatypes:
 
         tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 1")
         tdSql.checkRows(75)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
-        tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
@@ -3127,9 +2962,6 @@ class TestStableQueryTagDatatypes:
         tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
         tdSql.checkRows(5)
 
-        tdSql.query(f"select * from {tb} where ts <= {self.ts} + 4m")
-        tdSql.checkRows(5)
-
         tdSql.query(f"select * from {tb} where ts > {self.ts} + 4m")
         tdSql.checkRows(15)
 
@@ -3212,12 +3044,6 @@ class TestStableQueryTagDatatypes:
 
         tdSql.query(f"select * from {mt} where ts > {self.ts} + 4m and tgcol <> 1")
         tdSql.checkRows(75)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
-        tdSql.checkRows(25)
-
-        tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol <> 0")
-        tdSql.checkRows(25)
 
         tdSql.query(f"select * from {mt} where ts <= {self.ts} + 4m and tgcol = 0")
         tdSql.checkRows(25)
