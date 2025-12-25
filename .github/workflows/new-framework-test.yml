@@ -45,7 +45,7 @@ concurrency:
 
 jobs:
   test-new-cases:
-    uses: taosdata/.github/.github/workflows/new-framework-test.yml@test/comment-check-return
+    uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
     with:
       tdinternal: false
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}
