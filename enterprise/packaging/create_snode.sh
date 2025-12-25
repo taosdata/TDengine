@@ -1,9 +1,9 @@
 #!/bin/bash
 
-TAOS_CLI=${TAOS_CLI:-taos}
-CFG_DIR="/etc/taos/"
+CFG_DIR=${CFG_DIR:-/etc/taos}
 CFG_FILE="${CFG_DIR}/snode_flag"
 TEMP_FILE="/tmp/snodes.txt"
+TAOS_CLI="taos -c $CFG_DIR"
 
 # clean up temporary file on script exit
 trap "rm -f $TEMP_FILE" EXIT

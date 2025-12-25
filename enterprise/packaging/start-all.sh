@@ -1,10 +1,5 @@
 #!/bin/bash
 
-csudo=""
-if command -v sudo >/dev/null; then
-  csudo="sudo "
-fi
-
 prefix="taos"
 versionType="enterprise"
 mode="full"
@@ -20,10 +15,15 @@ fi
 
 function start_service() {
     if [ "$osType" == "Linux" ]; then
-        ${csudo}systemctl start $1
+        if [ "$EUID" -eq 0 ]; then
+            sysctl_cmd_arr=(systemctl)
+        else
+            sysctl_cmd_arr=(systemctl --user)
+        fi
+        "${sysctl_cmd_arr[@]}" start "$1"
         while [ $MAX_RETRY -gt 0 ]; do
             sleep 0.5
-            if systemctl is-active $1 >/dev/null; then
+            if "${sysctl_cmd_arr[@]}" is-active "$1" >/dev/null; then
                 echo "$1 has been started successfully"
                 break            
             fi
@@ -33,10 +33,16 @@ function start_service() {
             echo "failed to start $1"
         fi
     elif [ "$osType" == "Darwin" ]; then
-        ${csudo}launchctl start com.tdengine.$1
+        # macOS launchctl: user-level
+        if [ "$EUID" -eq 0 ]; then
+            domain="system"
+        else
+            domain="gui/$(id -u)"
+        fi
+        launchctl start "${domain}/com.tdengine.$1"
         while [ $MAX_RETRY -gt 0 ]; do
             sleep 0.5
-            if launchctl print system/com.tdengine.$1 | grep 'state = running' > /dev/null; then
+            if launchctl print "${domain}/com.tdengine.$1" 2>/dev/null | grep 'state = running' > /dev/null; then
                 echo "$1 has been started successfully"
                 break
             fi
@@ -53,7 +59,7 @@ for service in "${services[@]}"; do
 done
 
 sleep 5
-
+cfg_dir="/etc/taos"
 if [ "$osType" != "Darwin" ]; then
   install_main_dir="/usr/local/taos"
 else
@@ -66,7 +72,6 @@ else
   fi
 fi
 
-    
-if [ -x ${install_main_dir}/bin/create_snode.sh ]; then
-  ${csudo} ${install_main_dir}/bin/create_snode.sh
+if [ -x "${install_main_dir}/bin/create_snode.sh" ]; then
+  CFG_DIR=${cfg_dir} "${install_main_dir}/bin/create_snode.sh"
 fi
