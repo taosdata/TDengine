@@ -23,7 +23,7 @@ extern "C" {
 #include "nodes.h"
 #include "querynodes.h"
 
-typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SRemoteValueNode*);
+typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SNode*);
 
 typedef struct SFilterInfo SFilterInfo;
 

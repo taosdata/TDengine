@@ -3909,12 +3909,12 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
 }
 
 
-static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode* pSubQuery) {
+static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode* pSubQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   
   switch (pCxt->expSubQueryType) {
     case E_SUB_QUERY_SCALAR: {
-      code = validateScalarSubQuery(pSubQuery);
+      code = validateExprSubQuery(pSubQuery);
       if (TSDB_CODE_SUCCESS == code) {
         *pNode = NULL;
         code = nodesMakeNode(QUERY_NODE_REMOTE_VALUE, pNode);
@@ -3925,8 +3925,25 @@ static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode*
         pValue->subQIdx = pCxt->pSubQueries->length - 1;
         tstrncpy(pValue->val.node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pValue->val.node.aliasName));
         tstrncpy(pValue->val.node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pValue->val.node.userAlias));
-        getScalarSubQueryResType(pSubQuery, &pValue->val.node.resType);
+        getExprSubQueryResType(pSubQuery, &pValue->val.node.resType);
       }
+      break;
+    }
+    case E_SUB_QUERY_COW: {
+      code = validateExprSubQuery(pSubQuery);
+      if (TSDB_CODE_SUCCESS == code) {
+        *pNode = NULL;
+        code = nodesMakeNode(QUERY_NODE_REMOTE_VALUE_LIST, pNode);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        SRemoteValueListNode* pValueList = (SRemoteValueListNode*)*pNode;
+        pValueList->flag |= VALUELIST_FLAG_VAL_UNSET;
+        pValueList->subQIdx = pCxt->pSubQueries->length - 1;
+        tstrncpy(pValue->val.node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pValue->val.node.aliasName));
+        tstrncpy(pValue->val.node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pValue->val.node.userAlias));
+        getExprSubQueryResType(pSubQuery, &pValue->val.node.resType);
+      }
+      break;
     }
     default:
       break;
@@ -3945,13 +3962,13 @@ static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
     pCxt->errCode = TSDB_CODE_PAR_STMT_NOT_SUPPORT_SCALAR_SUBQ;
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    pCxt->errCode = updateExprSubQueryType(*pNode, pCxt->expSubQueryType);
+    pCxt->errCode = updateExprSubQueryType(*pNode, &pCxt->expSubQueryType);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = translateExprSubqueryImpl(pCxt, *pNode);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    pCxt->errCode = rewriteExpSubQuery(pCxt, pNode, *pNode);
+    pCxt->errCode = rewriteExprSubQuery(pCxt, pNode, *pNode);
   }
   return (TSDB_CODE_SUCCESS == pCxt->errCode) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
@@ -4132,7 +4149,6 @@ static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseW
 
 static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
-  pCxt->expSubQueryType = E_SUB_QUERY_SCALAR;
 
   switch (nodeType(*pNode)) {
     case QUERY_NODE_COLUMN:
@@ -18085,11 +18101,11 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
   }
   if (pCxt->isCorrelatedSubQ) {
     parserError("Correlated subQuery not supported now");
-    code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
+    code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
   }
   if (pCxt->hasLocalSubQ) {
     parserError("Only query with FROM supported now");
-    code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
+    code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
   }
     
   return code;

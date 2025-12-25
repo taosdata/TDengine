@@ -1088,6 +1088,10 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
     pVal->node.resType.type = getMinusDataType(pVal->node.resType.type);
     return pLeft;
   }
+  if ((OP_TYPE_IN == type || OP_TYPE_NOT_IN == type) && pRight) {
+    SExprNode* pExpr = (SExprNode*)pRight;
+    pExpr->asList = true;
+  }
   if (pLeft && QUERY_NODE_VALUE == nodeType(pLeft)) {
     SValueNode* pVal = (SValueNode*)pLeft;
     pVal->tz = pCxt->pQueryCxt->timezone;

@@ -43,7 +43,7 @@ SGlobalExecInfo     gExecInfo = {0};
 void setTaskScalarExtraInfo(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   gTaskScalarExtra.pSubJobCtx = &pTaskInfo->subJobCtx;
-  gTaskScalarExtra.fp = qFetchRemoteValue;
+  gTaskScalarExtra.fp = qFetchRemoteNode;
 }
 
 void gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f getMnode) {

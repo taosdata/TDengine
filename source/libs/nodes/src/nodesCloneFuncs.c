@@ -514,6 +514,13 @@ static int32_t remoteValueCopy(const SRemoteValueNode* pSrc, SRemoteValueNode* p
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t remoteValueListCopy(const SRemoteValueListNode* pSrc, SRemoteValueListNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
+  COPY_SCALAR_FIELD(flag);
+  COPY_SCALAR_FIELD(subQIdx);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pTargets);
   CLONE_NODE_FIELD(pConditions);
@@ -1243,6 +1250,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_REMOTE_VALUE:
       code = remoteValueCopy((const SRemoteValueNode*)pNode, (SRemoteValueNode*)pDst);
+      break;
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      code = remoteValueListCopy((const SRemoteValueListNode*)pNode, (SRemoteValueListNode*)pDst);
       break;
     case QUERY_NODE_SET_OPERATOR:
       code = setOperatorCopy((const SSetOperator*)pNode, (SSetOperator*)pDst);

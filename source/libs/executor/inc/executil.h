@@ -38,12 +38,12 @@ typedef struct STaskSubJobCtx {
   void*              param;
   tsem_t             ready;
   SArray*            subEndPoints;  // SArray<SDownstreamSourceNode*>
-  SArray*            subResValues;  // SArray<SValueNode*>
+  SArray*            subResNodes;  // SArray<SNode*>
 } STaskSubJobCtx;
 
 typedef struct SScalarFetchParam {
   int32_t           subQIdx;
-  SRemoteValueNode* pRes;
+  SNode*            pRes;
   STaskSubJobCtx*   pSubJobCtx;
 } SScalarFetchParam;
 
@@ -275,6 +275,6 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* p
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
 int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId);
-int32_t qFetchRemoteValue(void* pCtx, int32_t subQIdx, SRemoteValueNode* pRes);
+int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
 
 #endif  // TDENGINE_EXECUTIL_H

@@ -524,6 +524,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_REMOTE_VALUE:
       code = makeNode(type, sizeof(SRemoteValueNode), &pNode);
       break;
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      code = makeNode(type, sizeof(SRemoteValueListNode), &pNode);
+      break;
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
       break;
@@ -1208,6 +1211,9 @@ void nodesDestroyNode(SNode* pNode) {
       if (IS_VAR_DATA_TYPE(pValue->node.resType.type) || pValue->node.resType.type == TSDB_DATA_TYPE_DECIMAL) {
         taosMemoryFreeClear(pValue->datum.p);
       }
+      break;
+    }
+    case QUERY_NODE_REMOTE_VALUE_LIST: {
       break;
     }
     case QUERY_NODE_OPERATOR: {

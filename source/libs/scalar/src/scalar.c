@@ -372,6 +372,30 @@ void sclDowngradeValueType(SValueNode *valueNode) {
   }
 }
 
+int32_t sclBuildRemoteListHash(SRemoteValueListNode* pRemote) {
+  int32_t  type = vectorGetConvertType(pRemote->targetType, pRemote->node.resType.type);
+  STypeMod typeMod = 0;
+
+  if (IS_DECIMAL_TYPE(type)) {
+    typeMod = decimalCalcTypeMod(TSDB_DECIMAL_MAX_PRECISION, getScaleFromTypeMod(type, pRemote->targetTypeMod));
+  }
+  
+  if (IS_VAR_DATA_TYPE(pRemote->targetType) && IS_NUMERIC_TYPE(type)) {
+    SCL_ERR_RET(scalarGenerateSetFromList((void **)&pRemote->pHashFilter, node, type, typeMod, 1));
+    SCL_ERR_RET(
+        scalarGenerateSetFromList((void **)&pRemote->pHashFilterOthers, node, pRemote->targetType, typeMod, 2));
+  } else if (IS_INTEGER_TYPE(pRemote->targetType) && IS_FLOAT_TYPE(type)) {
+    SCL_ERR_RET(scalarGenerateSetFromList((void **)&pRemote->pHashFilter, node, type, typeMod, 2));
+    SCL_ERR_RET(
+        scalarGenerateSetFromList((void **)&pRemote->pHashFilterOthers, node, pRemote->targetType, typeMod, 4));
+  } else {
+    SCL_ERR_RET(scalarGenerateSetFromList((void **)&pRemote->pHashFilter, node, type, typeMod, 0));
+  }
+
+  pRemote->filterValueTypeMod = typeMod;
+  pRemote->filterValueType = type;
+}
+
 int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t *rowNum) {
   switch (nodeType(node)) {
     case QUERY_NODE_LEFT_VALUE: {
@@ -423,8 +447,10 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       // All other types do not need scale info, so here we use self scale
       // When decimal types are supported in value list, we need to check convertability of different decimal types.
       // And the new decimal scale will also be calculated.
-      if (IS_DECIMAL_TYPE(type))
+      if (IS_DECIMAL_TYPE(type)) {
         typeMod = decimalCalcTypeMod(TSDB_DECIMAL_MAX_PRECISION, getScaleFromTypeMod(type, ctx->type.selfTypeMod));
+      }
+      
       type = ctx->type.peerType;
       if (IS_VAR_DATA_TYPE(ctx->type.selfType) && IS_NUMERIC_TYPE(type)) {
         SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, typeMod, 1));
@@ -2204,7 +2230,7 @@ EDealRes sclWalkRemoteValue(SNode *pNode, SScalarCtx *ctx) {
 EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
   if (QUERY_NODE_VALUE == nodeType(pNode) || QUERY_NODE_NODE_LIST == nodeType(pNode) ||
       QUERY_NODE_COLUMN == nodeType(pNode) || QUERY_NODE_LEFT_VALUE == nodeType(pNode) ||
-      QUERY_NODE_WHEN_THEN == nodeType(pNode)) {
+      QUERY_NODE_WHEN_THEN == nodeType(pNode) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(pNode)) {
     return DEAL_RES_CONTINUE;
   }
 

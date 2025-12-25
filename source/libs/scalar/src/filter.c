@@ -4949,7 +4949,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
     return DEAL_RES_CONTINUE;
   }
 
-  if (QUERY_NODE_REMOTE_VALUE == nodeType(*pNode)) {
+  if (QUERY_NODE_REMOTE_VALUE == nodeType(*pNode) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(*pNode)) {
     stat->scalarMode = true;
     return DEAL_RES_CONTINUE;
   }

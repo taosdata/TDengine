@@ -184,6 +184,11 @@ static bool remoteValueNodeEqual(const SRemoteValueNode* a, const SRemoteValueNo
   return valueNodeEqual(&a->val, &b->val);
 }
 
+static bool remoteValueNodeListEqual(const SRemoteValueListNode* a, const SRemoteValueListNode* b) {
+  COMPARE_SCALAR_FIELD(subQIdx);
+  return true;
+}
+
 bool nodesEqualNode(const SNode* a, const SNode* b) {
   if (a == b) {
     return true;
@@ -223,6 +228,8 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
       return false;
     case QUERY_NODE_REMOTE_VALUE:
       return remoteValueNodeEqual((const SRemoteValueNode*)a, (const SRemoteValueNode*)b);
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      return remoteValueNodeListEqual((const SRemoteValueListNode*)a, (const SRemoteValueListNode*)b);
     default:
       break;
   }

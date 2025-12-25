@@ -865,7 +865,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_TAG_REF_BY_STM,         "Col/Tag referenced 
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND,   "Invalid state window extend option")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_COLS,    "More than 1 column returned in subquery as expr")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS,    "More than 1 row returned in subquery as expr")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ,             "Not supported subquery as expr")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_EXPR_SUBQ,               "Not supported subquery as expr")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_STMT_NOT_SUPPORT_SCALAR_SUBQ,    "Current sql does not support subquery as expr")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE,       "Expr subquery not supported in current clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_POLICY,      "Expr subquery not supported in current query policy")

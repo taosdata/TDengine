@@ -123,6 +123,8 @@ const char* nodesNodeName(ENodeType type) {
       return "TimeRange";
     case QUERY_NODE_REMOTE_VALUE:
       return "RemoteValue";
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      return "RemoteValueList";
     case QUERY_NODE_SET_OPERATOR:
       return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
