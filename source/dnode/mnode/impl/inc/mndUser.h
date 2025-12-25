@@ -27,7 +27,6 @@ extern "C" {
 int32_t mndInitUser(SMnode *pMnode);
 void    mndCleanupUser(SMnode *pMnode);
 int32_t mndAcquireUser(SMnode *pMnode, const char *userName, SUserObj **ppUser);
-void    mndUpdateUser(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq);
 void    mndReleaseUser(SMnode *pMnode, SUserObj *pUser);
 int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo);
 

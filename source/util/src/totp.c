@@ -83,7 +83,7 @@ int taosGenerateTotpSecret(const char *seed, size_t seedLen, uint8_t *secret, si
     seedLen = strlen(seed);
   }
 
-  // calculate HMAC-SHA1
+  // calculate HMAC-SHA256
   uint8_t      hmacResult[EVP_MAX_MD_SIZE];
   unsigned int hmacLen;
   if (HMAC(EVP_sha256(), NULL, 0, seed, seedLen, hmacResult, &hmacLen) == NULL) {

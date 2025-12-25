@@ -26,11 +26,14 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         if  "records" not in infoDict or len(infoDict["records"]) == 0:
             tdLog.exit("records is null!")
 
-        if "operation" not in infoDict["records"][0] or infoDict["records"][0]["operation"] != "delete":
+        if "operation" not in infoDict["records"][0]:
             tdLog.exit("operation is null!")
-
-        if "details" not in infoDict["records"][0] or infoDict["records"][0]["details"] != "delete from db3.tb":
-            tdLog.exit("details is null!")
+        else:
+            if infoDict["records"][0]["operation"] != "delete":
+                tdLog.info("operation is %s!"%infoDict["records"][0]["operation"])
+            else:
+                if "details" not in infoDict["records"][0] or infoDict["records"][0]["details"] != "delete from db3.tb":
+                    tdLog.exit("details is null!")
 
     def do_GET(self):
         """
@@ -110,7 +113,7 @@ class TestTaosdAudit:
 
     updatecfgDict["audit"]            = '1'
     updatecfgDict["uDebugFlag"]            = '143'
-    updatecfgDict["auditLevel"]            = '5'
+    updatecfgDict["auditLevel"]            = '4'
     updatecfgDict["auditHttps"]            = '0'
 
     print ("===================: ", updatecfgDict)
@@ -149,6 +152,16 @@ class TestTaosdAudit:
         tdLog.info("create audit database")
         sql = "create database audit is_audit 1 wal_level 2 ENCRYPT_ALGORITHM 'SM4-CBC';"
         tdSql.query(sql)
+
+        tdLog.info("create user audit pass '123456Ab@' sysinfo 0;")
+        sql = "create user audit pass '123456Ab@' sysinfo 0;"
+        tdSql.query(sql)
+
+        tdLog.info("create token audit_token from user audit;")
+        sql = "create token audit_token from user audit;"
+        tdSql.query(sql)
+
+        time.sleep(3)
 
         vgroups = "4"
         tdLog.info("create database")

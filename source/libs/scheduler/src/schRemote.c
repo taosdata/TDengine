@@ -432,6 +432,13 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
       SCH_TASK_ELOG("link broken received, error:%x - %s", rspCode, tstrerror(rspCode));
       SCH_ERR_JRET(rspCode);
       break;
+    case TDMT_MND_CREATE_TOKEN_RSP:{
+      SCreateTokenRsp batchRsp = {0};
+      code = tDeserializeSCreateTokenResp(pMsg->pData, msgSize, &batchRsp);
+      SCH_ERR_JRET(code);
+      break;
+      
+    }
     default:
       SCH_TASK_ELOG("unknown rsp msg, type:%d, status:%s", msgType, SCH_GET_TASK_STATUS_STR(pTask));
       SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);

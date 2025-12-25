@@ -422,7 +422,7 @@ int32_t mndProcessConfigClusterReq(SRpcMsg *pReq) {
   }
 
   mInfo("cluster: start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_CLUSTER)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_CLUSTER)) != 0) {
     goto _exit;
   }
 
