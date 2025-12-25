@@ -24,7 +24,7 @@ parse_options() {
   done
   shift $((OPTIND-1))
   # return remaining args
-  echo "$@"
+  ARGS=("$@")
 }
 
 ini_get() {
@@ -53,9 +53,8 @@ ini_get() {
 
 main() {
   # parse options
-  local args
-  args=$(parse_options "$@")
-  set -- $args
+  parse_options "$@"
+  set -- "${ARGS[@]}"
 
   if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     show_help

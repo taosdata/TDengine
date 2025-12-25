@@ -431,11 +431,9 @@ function install_main_path() {
 
 function install_bin() {
   # Remove links
-  echo tools: ${tools[@]}
   for tool in "${tools[@]}"; do
     rm -f ${bin_link_dir}/${tool} || :
   done
-  echo services: ${services[@]}
   for service in "${services[@]}"; do
     rm -f ${bin_link_dir}/${service} || :
   done
@@ -446,10 +444,15 @@ function install_bin() {
     cp -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
     cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin || :
     cp -r ${script_dir}/bin/${taosgen_name} ${install_main_dir}/bin || :
-    cp -r ${script_dir}/bin/remove_client.sh ${install_main_dir}/bin
+    cp -r ${script_dir}/bin/${remove_name} ${install_main_dir}/bin
   else
-    cp -r ${script_dir}/bin/* ${install_main_dir}/bin
+    cp -r "${script_dir}/bin/*" "${install_main_dir}/bin"
     if [ "${pkgMode}" != "lite" ]; then
+      sed -i.bak \
+        -e "s|/usr/local/${PREFIX}|${install_main_dir}|g" \
+        -e "s|/etc/${PREFIX}|${configDir}|g" \
+        ${script_dir}/bin/start-all.sh || :
+      rm -f ${script_dir}/bin/start-all.sh.bak || :
       cp ${script_dir}/start-all.sh ${install_main_dir}/bin
       cp ${script_dir}/stop-all.sh ${install_main_dir}/bin
     fi
@@ -487,7 +490,7 @@ function install_bin() {
       [ -x ${install_main_dir}/uninstall.sh ] && ln -sf ${install_main_dir}/uninstall.sh ${bin_link_dir}/${uninstallScript} || :
     else
       if [ "${tool}" == "startPre.sh" ]; then
-        sed -i "s|/var/log/taos|${logDir}|g" ${install_main_dir}/bin/${tool} 
+        sed -i "s|/var/log/${PREFIX}|${logDir}|g" ${install_main_dir}/bin/${tool} 
       fi
       [ -x ${install_main_dir}/bin/${tool} ] && ln -sf ${install_main_dir}/bin/${tool} ${bin_link_dir}/${tool} || :
     fi
@@ -571,8 +574,9 @@ function install_lib() {
     ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.1.dylib
     ln -sf ${lib_link_dir}/libtaosnative.1.dylib ${lib_link_dir}/libtaosnative.dylib
 
-    [ -f ${driver_path}/libtaosws.dylib.* ] && ln -sf ${driver_path}/libtaosws.dylib.* ${lib_link_dir}/libtaosws.dylib || :
-
+    for f in ${driver_path}/libtaosws.dylib.*; do
+      [ -f "$f" ] && ln -sf "$f" "${lib_link_dir}/libtaosws.dylib"
+    done
     # Update dyld shared cache
     if [[ $user_mode -eq 0 ]]; then
       update_dyld_shared_cache 2>/dev/null || log warn "Failed to update dyld shared cache"
@@ -829,13 +833,13 @@ function install_taosx_config() {
 
   file_name="${script_dir}/${xname}/etc/${PREFIX}/${xname}.toml"
   if [ $taos_dir_set -eq 1 ]; then
-    mkdir -p "${dataDir}/taosx"
+    mkdir -p "${dataDir}/${xname}"
   fi
   if [ -f "${file_name}" ]; then
     sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" "${file_name}"
 
     # replace data_dir
-    sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/taosx\"|" "${file_name}"
+    sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/${xname}\"|" "${file_name}"
 
     # replace log path
     sed -i -r "0,/path\s*=\s*/s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
@@ -1144,7 +1148,7 @@ function install_service_on_systemd() {
     fi
     cfg_file=$(get_config_file "$1")
     sed -i \
-      -e "s|/usr/local/taos/bin|${bin_dir}|g" \
+      -e "s|/usr/local/${PREFIX}/bin|${bin_dir}|g" \
       -e "s|^ExecStart=.*|ExecStart=${bin_dir}/$1 -c ${configDir}/${cfg_file}|g" \
       "$tmp_service_file"
 
