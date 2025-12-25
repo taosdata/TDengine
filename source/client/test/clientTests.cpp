@@ -20,6 +20,7 @@
 #include "taoserror.h"
 #include "thash.h"
 #include "totp.h"
+#include "tarray.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -1836,21 +1837,37 @@ TEST(clientCase, sessControl) {
     }
 
     {
-      TAOS_RES* pRes = taos_query(pConn, "alter user root sessionPerUser 10");
-      TlOS_RES* pRes = taos_query(pConn, "alter user root sessionPerUser 10");
+      //TAOS_RES* pRes = taos_query(pConn, "alter user root sessionPerUser 10");
+      SArray *p = taosArrayInit(1, sizeof(void *));
+      ASSERT_NE(p, nullptr);
+
+      SArray *p = taosArrayInit()
+      TlOS_RES* pRes = taos_query(pConn, "alter user root SESSION_PER_USER 10");
       ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-
-      // TAOS_ROW    pRow = NULL;
-      // TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-      // int32_t     numOfFields = taos_num_fields(pRes);
-
-      // char str[512] = {0};
-      // while ((pRow = taos_fetch_row(pRes)) != NULL) {
-      //   int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-      //   (void)printf("%s\n", str);
-      //   (void)memset(str, 0, sizeof(str));
-      // }
       taos_free_result(pRes);
+
+      taosSleep(3);
+      for (int32_t i = 0; i < 10; i++) {
+        TAOS* pUserConn = taos_connect("localhost", "user", "taosdata", NULL, 0);
+        ASSERT_NE(pUserConn, nullptr);
+        taosArrayPush(p, &pUserConn);
+      }
+
+      {
+        TAOS* pUserConn = taos_connect("localhost", "user", "taosdata", NULL, 0);
+        ASSERT_EQ(pUserConn, nullptr); 
+
+      }
+
+      for (int32_t i = 0; i < 10; i++) {
+        TAOS* pUserConn = *(TAOS **)taosArrayGet(p, i);
+        taos_close(pUserConn);
+      }
+      {
+        TAOS* pUserConn = taos_connect("localhost", "user", "taosdata", NULL, 0);
+        ASSERT_NE(pUserConn, nullptr); 
+      }
+      
     }
 
 
