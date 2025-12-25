@@ -6,7 +6,7 @@
 set -e
 # set -x
 
-verMode=edge
+verMode=cluster
 pkgMode=full
 entMode=full
 
@@ -160,7 +160,7 @@ function log() {
 
 # set parameters by default value
 interactiveFqdn=yes # [yes | no]
-verType=server      # [server | client]
+verType=client      # [server | client]
 initType=systemd    # [systemd | service | ...]
 
 function show_help() {
@@ -216,18 +216,22 @@ done
 
 # ----------------------- Environment setup -----------------------
 function setup_env() {
-  # 1. Check service type
-  if ps aux | grep -v grep | grep systemd &>/dev/null; then
-    service_mod=0
-  elif $(which service &>/dev/null); then
-    service_mod=1
-    service_config_dir="/etc/init.d"
-    if $(which chkconfig &>/dev/null); then
-      initd_mod=1
-    elif $(which insserv &>/dev/null); then
-      initd_mod=2
-    elif $(which update-rc.d &>/dev/null); then
-      initd_mod=3
+  # 1. Check service type (skip on macOS)
+  if [ "$osType" != "Darwin" ]; then
+    if ps aux | grep -v grep | grep systemd &>/dev/null; then
+      service_mod=0
+    elif $(which service &>/dev/null); then
+      service_mod=1
+      service_config_dir="/etc/init.d"
+      if $(which chkconfig &>/dev/null); then
+        initd_mod=1
+      elif $(which insserv &>/dev/null); then
+        initd_mod=2
+      elif $(which update-rc.d &>/dev/null); then
+        initd_mod=3
+      else
+        service_mod=2
+      fi
     else
       service_mod=2
     fi
@@ -278,59 +282,91 @@ function setup_env() {
     fi
   fi
 
-  # 4. Set directories based on user mode
+  # 4. Set directories based on user mode and OS type
   if [[ $user_mode -eq 0 ]]; then
     # Root user directories
     installDir="${taosDir}"
-    dataDir="/var/lib/${PREFIX}"
-    logDir="/var/log/${PREFIX}"
-    configDir="/etc/${PREFIX}"
-    bin_link_dir="/usr/bin"
-    lib_link_dir="/usr/lib"
-    lib64_link_dir="/usr/lib64"
-    inc_link_dir="/usr/include"
-    service_config_dir="/etc/systemd/system"
-    sysctl_cmd="systemctl"
+    if [ "$osType" != "Darwin" ]; then
+      dataDir="/var/lib/${PREFIX}"
+      logDir="/var/log/${PREFIX}"
+      configDir="/etc/${PREFIX}"
+      bin_link_dir="/usr/bin"
+      lib_link_dir="/usr/lib"
+      lib64_link_dir="/usr/lib64"
+      inc_link_dir="/usr/include"
+      service_config_dir="/etc/systemd/system"
+      sysctl_cmd="systemctl"
+    else
+      dataDir="${installDir}/data"
+      logDir=~/${productName}/log
+      configDir="/etc/${PREFIX}"
+      bin_link_dir="/usr/local/bin"
+      lib_link_dir="/usr/local/lib"
+      lib64_link_dir=""
+      inc_link_dir="/usr/local/include"
+      service_config_dir=""
+      sysctl_cmd=""
+    fi
   else
     # Non-root user directories
     installDir="${taosDir}"
     dataDir="${installDir}/data"
     logDir="${installDir}/log"
     configDir="${installDir}/cfg"
-    bin_link_dir="$HOME/.local/bin"
-    lib_link_dir="$HOME/.local/lib"
-    lib64_link_dir="$HOME/.local/lib64"
-    inc_link_dir="$HOME/.local/include"
-    service_config_dir="$HOME/.config/systemd/user"
-    sysctl_cmd="systemctl --user"
+    if [ "$osType" != "Darwin" ]; then
+      bin_link_dir="$HOME/.local/bin"
+      lib_link_dir="$HOME/.local/lib"
+      lib64_link_dir="$HOME/.local/lib64"
+      inc_link_dir="$HOME/.local/include"
+      service_config_dir="$HOME/.config/systemd/user"
+      sysctl_cmd="systemctl --user"
+    else
+      bin_link_dir="$HOME/.local/bin"
+      lib_link_dir="$HOME/.local/lib"
+      lib64_link_dir=""
+      inc_link_dir="$HOME/.local/include"
+      service_config_dir=""
+      sysctl_cmd=""
+    fi
     
     # Create necessary directories for non-root user
-    mkdir -p "$bin_link_dir" "$lib_link_dir" "$lib64_link_dir" "$inc_link_dir" "$service_config_dir" 2>/dev/null || :
+    mkdir -p "$bin_link_dir" "$lib_link_dir" "$inc_link_dir" 2>/dev/null || :
+    if [ "$osType" != "Darwin" ]; then
+      mkdir -p "$lib64_link_dir" "$service_config_dir" 2>/dev/null || :
+    fi
   fi
   bin_dir="${installDir}/bin"
   driver_path=${installDir}/driver
   install_main_dir=${installDir}
   
   #  tools/services/config_files files setting
-  tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh ${taosgen_name})
-
-   # 3. services
-  if [ "${verMode}" == "cluster" ]; then
-    if [ "${entMode}" == "lite" ]; then
-      services=(${serverName} ${adapterName} ${explorerName} ${keeperName})
-    else
-      services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
-    fi
-  elif [ "${verMode}" == "edge" ]; then
-    if [ "${pkgMode}" == "full" ]; then
-      services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
-      tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${mqtt_name} remove.sh ${udfdName} set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh ${taosgen_name})
-    else
-      services=(${serverName})
-      tools=(${clientName} ${benchmarkName} remove.sh startPre.sh)
-    fi
+  if [ "$verType" == "client" ]; then
+    # 仅 client 工具，不含服务
+    remove_name="remove_client.sh"
+    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${taosgen_name}" "${remove_name}")
+    services=()
+    
   else
-    services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
+    # server/默认，按 verMode/pkgMode/entMode 细分
+    remove_name="remove.sh"
+    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}")
+    if [ "${verMode}" == "cluster" ]; then
+      if [ "${entMode}" == "lite" ]; then
+        services=("${serverName}" "${adapterName}" "${explorerName}" "${keeperName}")
+      else
+        services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
+      fi
+    elif [ "${verMode}" == "edge" ]; then
+      if [ "${pkgMode}" == "full" ]; then
+        services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
+        tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${mqtt_name}" "${remove_name}" "${udfdName}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}")
+      else
+        services=("${serverName}")
+        tools=("${clientName}" "${benchmarkName}" "${remove_name}" startPre.sh)
+      fi
+    else
+      services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
+    fi
   fi
   
   log info "TDengine installation path: ${installDir}"
@@ -338,10 +374,6 @@ function setup_env() {
   log info "Log directory: ${logDir}"
   log info "Config directory: ${configDir}"
 }
-
-# Call setup_env to initialize all directories and user mode settings
-setup_env
-
 
 function get_config_file() {
     case "$1" in
@@ -369,25 +401,27 @@ function kill_process() {
 
 function install_main_path() {
   #create install main dir and all sub dir
-  rm -rf ${install_main_dir}/cfg || :
-  rm -rf ${install_main_dir}/bin || :
-  rm -rf ${driver_path}/ || :
-  rm -rf ${install_main_dir}/examples || :
-  rm -rf ${install_main_dir}/include || :
-  rm -rf ${install_main_dir}/share || :
+  if [ $taos_dir_set -eq 0 ] && [ $user_mode -eq 0 ]; then
+    rm -rf "${install_main_dir}/cfg" || :
+  fi
+  rm -rf "${install_main_dir}/bin" || :
+  rm -rf "${driver_path}/" || :
+  rm -rf "${install_main_dir}/examples" || :
+  rm -rf "${install_main_dir}/include" || :
+  rm -rf "${install_main_dir}/share" || :
   rm -rf ${install_main_dir}/log || :
 
   mkdir -p ${install_main_dir}
   mkdir -p ${install_main_dir}/cfg
-  mkdir -p ${install_main_dir}/bin
+  mkdir -p "${install_main_dir}/bin"
   #  mkdir -p ${install_main_dir}/connector
-  mkdir -p ${driver_path}/
-  mkdir -p ${install_main_dir}/examples
-  mkdir -p ${install_main_dir}/include
-  mkdir -p ${configDir}
-  #  mkdir -p ${install_main_dir}/init.d
+  mkdir -p "${driver_path}/"
+  mkdir -p "${install_main_dir}/examples"
+  mkdir -p "${install_main_dir}/include"
+  mkdir -p "${configDir}"
+  #  mkdir -p "${install_main_dir}/init.d"
   if [ "$verMode" == "cluster" ]; then
-    mkdir -p ${install_main_dir}/share
+    mkdir -p "${install_main_dir}/share"
   fi
 
   if [[ -e ${script_dir}/email ]]; then
@@ -397,10 +431,11 @@ function install_main_path() {
 
 function install_bin() {
   # Remove links
+  echo tools: ${tools[@]}
   for tool in "${tools[@]}"; do
     rm -f ${bin_link_dir}/${tool} || :
   done
-
+  echo services: ${services[@]}
   for service in "${services[@]}"; do
     rm -f ${bin_link_dir}/${service} || :
   done
@@ -411,7 +446,7 @@ function install_bin() {
     cp -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
     cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin || :
     cp -r ${script_dir}/bin/${taosgen_name} ${install_main_dir}/bin || :
-    cp -r ${script_dir}/bin/remove.sh ${install_main_dir}/bin
+    cp -r ${script_dir}/bin/remove_client.sh ${install_main_dir}/bin
   else
     cp -r ${script_dir}/bin/* ${install_main_dir}/bin
     if [ "${pkgMode}" != "lite" ]; then
@@ -444,11 +479,11 @@ function install_bin() {
 
 
   chmod 0555 ${install_main_dir}/bin/*
-  [ -x ${install_main_dir}/bin/remove.sh ] && mv -f ${install_main_dir}/bin/remove.sh ${install_main_dir}/uninstall.sh || :
+  [ -x ${install_main_dir}/bin/${remove_name} ] && mv -f ${install_main_dir}/bin/${remove_name} ${install_main_dir}/uninstall.sh || :
 
   #Make link
   for tool in "${tools[@]}"; do
-    if [ "${tool}" == "remove.sh" ]; then
+    if [ "${tool}" == "${remove_name}" ]; then
       [ -x ${install_main_dir}/uninstall.sh ] && ln -sf ${install_main_dir}/uninstall.sh ${bin_link_dir}/${uninstallScript} || :
     else
       if [ "${tool}" == "startPre.sh" ]; then
@@ -487,44 +522,69 @@ function install_bin() {
     fi
 
   fi
+  if [ "$verType" != "client" ]; then
+    cp ${script_dir}/README.md ${install_main_dir}/ || echo "failed to copy README.md"
+  fi
 }
 
 function install_lib() {
   # Remove links
   rm -f ${lib_link_dir}/libtaos.* || :
-  rm -f ${lib64_link_dir}/libtaos.* || :
   rm -f ${lib_link_dir}/libtaosnative.* || :
-  rm -f ${lib64_link_dir}/libtaosnative.* || :
   rm -f ${lib_link_dir}/libtaosws.* || :
-  rm -f ${lib64_link_dir}/libtaosws.* || :
+  if [ "$osType" != "Darwin" ]; then
+    rm -f ${lib64_link_dir}/libtaos.* || :
+    rm -f ${lib64_link_dir}/libtaosnative.* || :
+    rm -f ${lib64_link_dir}/libtaosws.* || :
+  fi
   #rm -rf ${v15_java_app_dir}              || :
   cp -rf ${script_dir}/driver/* ${driver_path}/ && chmod 777 ${driver_path}/*
 
-  #link lib/link_dir
-  ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.so.1
-  ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
-  ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
-  ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
+  # Link libraries based on OS type
+  if [ "$osType" != "Darwin" ]; then
+    # Linux specific linking
+    ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.so.1
+    ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+    ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
+    ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
-  ln -sf ${driver_path}/libtaosws.so.* ${lib_link_dir}/libtaosws.so || :
+    ln -sf ${driver_path}/libtaosws.so.* ${lib_link_dir}/libtaosws.so || :
 
-  #link jemalloc.so and tcmalloc.so
-  jemalloc_file="${driver_path}/libjemalloc.so.2"
-  tcmalloc_file="${driver_path}/libtcmalloc.so.4.5.18"
-  [ -f "${jemalloc_file}" ] && ln -sf "${jemalloc_file}" "${driver_path}/libjemalloc.so" || echo "jemalloc file not found: ${jemalloc_file}"
-  [ -f "${tcmalloc_file}" ] && ln -sf "${tcmalloc_file}" "${driver_path}/libtcmalloc.so" || echo "tcmalloc file not found: ${tcmalloc_file}"
+    # Link lib64 if it exists
+    if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
+      ln -sf ${driver_path}/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
+      ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
+      ln -sf ${driver_path}/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 || :
+      ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so || :
 
-  #link lib64/link_dir
-  if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
-    ln -sf ${driver_path}/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
-    ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
-    ln -sf ${driver_path}/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 || :
-    ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so || :
+      ln -sf ${driver_path}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
+    fi
 
-    ln -sf ${driver_path}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
+    # Update library cache
+    if [[ $user_mode -eq 0 ]]; then
+      ldconfig 2>/dev/null || log warn "Failed to update library cache (ldconfig)"
+    fi
+  else
+    # macOS specific linking
+    ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.1.dylib
+    ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
+    ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.1.dylib
+    ln -sf ${lib_link_dir}/libtaosnative.1.dylib ${lib_link_dir}/libtaosnative.dylib
+
+    [ -f ${driver_path}/libtaosws.dylib.* ] && ln -sf ${driver_path}/libtaosws.dylib.* ${lib_link_dir}/libtaosws.dylib || :
+
+    # Update dyld shared cache
+    if [[ $user_mode -eq 0 ]]; then
+      update_dyld_shared_cache 2>/dev/null || log warn "Failed to update dyld shared cache"
+    fi
   fi
-  if [[ $user_mode -eq 0 && "$os_type" == "Linux" ]]; then
-    ldconfig 2>/dev/null || log warn "Failed to update library cache (ldconfig)"
+
+  # Link jemalloc.so and tcmalloc.so (Linux only)
+  if [ "$osType" != "Darwin" ]; then
+    jemalloc_file="${driver_path}/libjemalloc.so.2"
+    tcmalloc_file="${driver_path}/libtcmalloc.so.4.5.18"
+    [ -f "${jemalloc_file}" ] && ln -sf "${jemalloc_file}" "${driver_path}/libjemalloc.so" || echo "jemalloc file not found: ${jemalloc_file}"
+    [ -f "${tcmalloc_file}" ] && ln -sf "${tcmalloc_file}" "${driver_path}/libtcmalloc.so" || echo "tcmalloc file not found: ${tcmalloc_file}"
   fi
   
 }
@@ -596,11 +656,13 @@ function install_jemalloc() {
       /usr/bin/install -c -m 644 ${jemalloc_dir}/share/man/man3/jemalloc.3 /usr/local/share/man/man3
     fi
 
-    if [ -d /etc/ld.so.conf.d ]; then
-      echo "/usr/local/lib" | tee /etc/ld.so.conf.d/jemalloc.conf >/dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
-      ldconfig
-    else
-      echo "/etc/ld.so.conf.d not found!"
+    if [ "$osType" != "Darwin" ]; then
+      if [ -d /etc/ld.so.conf.d ]; then
+        echo "/usr/local/lib" | tee /etc/ld.so.conf.d/jemalloc.conf >/dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
+        ldconfig
+      else
+        echo "/etc/ld.so.conf.d not found!"
+      fi
     fi
   fi
 }
@@ -949,11 +1011,16 @@ function install_config() {
   done
 }
 
-function install_log() {
-  mkdir -p ${logDir} &&  mkdir -p ${logDir}/tcmalloc &&  mkdir -p ${logDir}/jemalloc && chmod 777 ${logDir}
-  if [ $taos_dir_set -eq 0 ] && [ $user_mode -eq 0 ]; then
-    ln -sf ${logDir} ${install_main_dir}/log
-  fi
+function install_log() {    
+    if [ "$osType" != "Darwin" ]; then
+        mkdir -p ${logDir} && mkdir -p ${logDir}/tcmalloc && mkdir -p ${logDir}/jemalloc && chmod 777 ${logDir}
+    else
+        mkdir -p ${logDir} && chmod 777 ${logDir}
+    fi
+    
+    if [ $taos_dir_set -eq 0 ] && [ $user_mode -eq 0 ]; then
+      ln -sf ${logDir} ${install_main_dir}/log
+    fi
 }
 
 function install_data() {
@@ -966,7 +1033,6 @@ function install_data() {
 function install_connector() {
   if [ -d "${script_dir}/connector/" ]; then
     cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"
-    cp ${script_dir}/README.md ${install_main_dir}/ || echo "failed to copy README.md"
   fi
 }
 
@@ -1442,17 +1508,25 @@ check_java_env() {
 }
 
 ## ==============================Main program starts from here============================
+# Call setup_env to initialize all directories and user mode settings
+setup_env
+# Determine installation type: server or client
+if [ "$verType" == "client" ] && [ -e "${bin_dir}/${serverName}" ]; then
+  echo -e "\033[44;32;1mThere is already an installed ${productName} server, so client installation is not needed!${NC}"
+  exit 0
+fi
+# 
 serverFqdn=$(hostname)
 if [ "$verType" == "server" ]; then
-  if [ -x ${script_dir}/${xname}/bin/${xname} ]; then
+  if [ -x "${script_dir}/${xname}/bin/${xname}" ]; then
     check_java_env
   fi
   # Check default 2.x data file.
-  if [ -x ${dataDir}/dnode/dnodeCfg.json ]; then
+  if [ -x "${dataDir}/dnode/dnodeCfg.json" ]; then
     echo -e "\033[44;31;5mThe default data directory ${dataDir} contains old data of ${productName} 2.x, please clear it before installing!\033[0m"
   else
     # Install server and client
-    if [ -x ${bin_dir}/${serverName} ]; then
+    if [ -x "${bin_dir}/${serverName}" ]; then
       update_flag=1
       updateProduct
     else
@@ -1463,7 +1537,7 @@ if [ "$verType" == "server" ]; then
 elif [ "$verType" == "client" ]; then
   interactiveFqdn=no
   # Only install client
-  if [ -x ${bin_dir}/${clientName} ]; then
+  if [ -x "${bin_dir}/${clientName}" ]; then
     update_flag=1
     updateProduct client
   else
