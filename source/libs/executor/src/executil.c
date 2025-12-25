@@ -1845,7 +1845,7 @@ void fprintDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdSt
     }
 }
 int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
-                                 SStorageAPI* pAPI, bool addUid, bool* listAdded, void* pStreamInfo) {
+                                 SIdxFltStatus status, SStorageAPI* pAPI, bool addUid, bool* listAdded, void* pStreamInfo) {
   *listAdded = false;
   if (pTagCond == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -1889,7 +1889,7 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
     qDebug("pUidTagList size:%d", (int32_t)taosArrayGetSize(pUidTagList));
 
     FilterCondType condType = checkTagCond(pTagCond);
-    if ((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && taosArrayGetSize(pUidTagList) > 0) {   // use tagIndex and operator is and
+    if ((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) {   // use tagIndex and operator is and
       code = pAPI->metaFn.getTableTagsByUid(pVnode, pListInfo->idInfo.suid, pUidTagList);
     } else {
       taosArrayClear(pUidTagList);
@@ -2105,7 +2105,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       void* tmp = taosArrayPush(pUidList, &pScanNode->uid);
       QUERY_CHECK_NULL(tmp, code, lino, _error, terrno);
     }
-    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, pStorageAPI, false, &listAdded, pStreamInfo);
+    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, false, &listAdded, pStreamInfo);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
     bool      isStream = (pStreamInfo != NULL);
@@ -2200,6 +2200,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       QUERY_CHECK_CODE(code, lino, _error);
       qTrace("no tag filter, get all child tables, numOfTables:%d", (int32_t)taosArrayGetSize(pUidList));
     } else {
+      SIdxFltStatus status = SFLT_NOT_INDEX;
       if (pTagIndexCond) {
         void* pIndex = pStorageAPI->metaFn.getInvertIndex(pVnode);
 
@@ -2207,7 +2208,6 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
                                  .idx = pStorageAPI->metaFn.storeGetIndexInfo(pVnode),
                                  .ivtIdx = pIndex,
                                  .suid = pScanNode->uid};
-        SIdxFltStatus status = SFLT_NOT_INDEX;
         code = doFilterTag(pTagIndexCond, &metaArg, pUidList, &status, &pStorageAPI->metaFilter);
         if (code != 0 || status == SFLT_NOT_INDEX) {  // temporarily disable it for performance sake
           qDebug("failed to get tableIds from index, suid:%" PRIu64 ", uidListSize:%d", pScanNode->uid, (int32_t)taosArrayGetSize(pUidList));
@@ -2216,7 +2216,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         }
       }
       qTrace("after index filter, pTagCond:%p uidListSize:%d", pTagCond, (int32_t)taosArrayGetSize(pUidList));
-      code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode,
+      code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status,
         pStorageAPI, tsTagFilterCache || tsStableTagFilterCache,
         &listAdded, pStreamInfo);
       QUERY_CHECK_CODE(code, lino, _error);
