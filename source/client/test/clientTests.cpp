@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "gtest/gtest.h"
 #include <iostream>
 #include "clientInt.h"
+#include "gtest/gtest.h"
 #include "osSemaphore.h"
 #include "taoserror.h"
 #include "thash.h"
@@ -43,7 +43,7 @@ void printSubResults(void* pRes, int32_t* totalRows) {
     }
 
     TAOS_FIELD* fields = taos_fetch_fields(pRes);
-    if(fields == NULL) {
+    if (fields == NULL) {
       std::cout << "fields is null" << std::endl;
       break;
     }
@@ -55,7 +55,7 @@ void printSubResults(void* pRes, int32_t* totalRows) {
               << std::endl;
   }
 
-//  taos_free_result(pRes);
+  //  taos_free_result(pRes);
 }
 
 void showDB(TAOS* pConn) {
@@ -126,14 +126,14 @@ void queryCallback(void* param, void* res, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     (void)printf("failed to execute, reason:%s\n", taos_errstr(res));
     taos_free_result(res);
-    tsem_t *sem = (tsem_t *)param;
+    tsem_t* sem = (tsem_t*)param;
     tsem_post(sem);
     return;
   }
   (void)printf("start to fetch data\n");
   taos_fetch_raw_block_a(res, fetchCallback, param);
   taos_free_result(res);
-  tsem_t *sem = (tsem_t *)param;
+  tsem_t* sem = (tsem_t*)param;
   tsem_post(sem);
 }
 
@@ -155,9 +155,10 @@ void createNewTable(TAOS* pConn, int32_t index, int32_t numOfRows, int64_t start
                     "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
                     "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
                     "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)",
-                    index, i, i, i + 1, i + 1, i + 2, i + 2, i + 3, i + 3, i + 4, i + 4, i + 5, i + 5, i + 6, i + 6, i + 7,
-                    i + 7, i + 8, i + 8, i + 9, i + 9, i + 10, i + 10, i + 11, i + 11, i + 12, i + 12, i + 13, i + 13, i + 14,
-                    i + 14, i + 15, i + 15, i + 16, i + 16, i + 17, i + 17, i + 18, i + 18, i + 19, i + 19);
+                    index, i, i, i + 1, i + 1, i + 2, i + 2, i + 3, i + 3, i + 4, i + 4, i + 5, i + 5, i + 6, i + 6,
+                    i + 7, i + 7, i + 8, i + 8, i + 9, i + 9, i + 10, i + 10, i + 11, i + 11, i + 12, i + 12, i + 13,
+                    i + 13, i + 14, i + 14, i + 15, i + 15, i + 16, i + 16, i + 17, i + 17, i + 18, i + 18, i + 19,
+                    i + 19);
       TAOS_RES* p = taos_query(pConn, sql);
       if (taos_errno(p) != 0) {
         (void)printf("failed to insert data, reason:%s\n", taos_errstr(p));
@@ -167,22 +168,25 @@ void createNewTable(TAOS* pConn, int32_t index, int32_t numOfRows, int64_t start
     }
   } else {
     for (int32_t i = 0; i < numOfRows; i += 20) {
-      char sql[1024*50] = {0};
-      (void)sprintf(sql,
-                    "insert into tu%d values(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, "
-                    "%d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, "
-                    "'%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')",
-                    index, startTs, i, pVarchar, startTs + 1, i + 1, pVarchar, startTs + 2, i + 2, pVarchar, startTs + 3, i + 3, pVarchar, startTs + 4, i + 4,
-                    pVarchar, startTs + 5, i + 5, pVarchar, startTs + 6, i + 6, pVarchar, startTs + 7, i + 7, pVarchar, startTs + 8, i + 8, pVarchar, startTs + 9, i + 9,
-                    pVarchar, startTs + 10, i + 10, pVarchar, startTs + 11, i + 11, pVarchar, startTs + 12, i + 12, pVarchar, startTs + 13, i + 13, pVarchar, startTs + 14,
-                    i + 14, pVarchar, startTs + 15, i + 15, pVarchar, startTs + 16, i + 16, pVarchar, startTs + 17, i + 17, pVarchar, startTs + 18, i + 18,
-                    pVarchar, startTs + 19, i + 19, pVarchar);
+      char sql[1024 * 50] = {0};
+      (void)sprintf(
+          sql,
+          "insert into tu%d values(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, "
+          "%d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, "
+          "%d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, "
+          "'%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')",
+          index, startTs, i, pVarchar, startTs + 1, i + 1, pVarchar, startTs + 2, i + 2, pVarchar, startTs + 3, i + 3,
+          pVarchar, startTs + 4, i + 4, pVarchar, startTs + 5, i + 5, pVarchar, startTs + 6, i + 6, pVarchar,
+          startTs + 7, i + 7, pVarchar, startTs + 8, i + 8, pVarchar, startTs + 9, i + 9, pVarchar, startTs + 10,
+          i + 10, pVarchar, startTs + 11, i + 11, pVarchar, startTs + 12, i + 12, pVarchar, startTs + 13, i + 13,
+          pVarchar, startTs + 14, i + 14, pVarchar, startTs + 15, i + 15, pVarchar, startTs + 16, i + 16, pVarchar,
+          startTs + 17, i + 17, pVarchar, startTs + 18, i + 18, pVarchar, startTs + 19, i + 19, pVarchar);
       TAOS_RES* p = taos_query(pConn, sql);
       if (taos_errno(p) != 0) {
         (void)printf("failed to insert data, reason:%s\n", taos_errstr(p));
       }
 
-//      startTs += 20;
+      //      startTs += 20;
       taos_free_result(p);
     }
   }
@@ -222,11 +226,11 @@ void* queryThread(void* arg) {
 int32_t numOfThreads = 1;
 
 void tmq_commit_cb_print(tmq_t* pTmq, int32_t code, void* param) {
-//  (void)printf("auto commit success, code:%d\n", code);
+  //  (void)printf("auto commit success, code:%d\n", code);
 }
 
 void* doConsumeData(void* param) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  TAOS*       pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   tmq_conf_t* conf = tmq_conf_new();
   (void)tmq_conf_set(conf, "enable.auto.commit", "true");
   (void)tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
@@ -303,13 +307,11 @@ void* doConsumeData(void* param) {
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   if (argc > 1) {
-    //numOfThreads = atoi(argv[1]);
+    // numOfThreads = atoi(argv[1]);
     int32_t code = taosStr2int32(argv[1], &numOfThreads);
     if (code != 0) {
       return code;
     }
-
-
   }
 
   numOfThreads = TMAX(numOfThreads, 1);
@@ -339,7 +341,6 @@ TEST(clientCase, connect_Test) {
   taos_close(pConn);
 }
 
-
 TEST(clientCase, connect_totp_Test) {
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -349,7 +350,7 @@ TEST(clientCase, connect_totp_Test) {
   ASSERT_NE(pConn, nullptr);
 
   uint8_t secret[64] = {0};
-  size_t secretLen = taosGenerateTotpSecret("AAbb1122", 8, secret, sizeof(secret));
+  size_t  secretLen = taosGenerateTotpSecret("AAbb1122", 8, secret, sizeof(secret));
 
   TAOS_RES* pRes = taos_query(pConn, "create user totp_u pass 'taosdata' totpseed 'AAbb1122'");
   if (pRes == NULL) {
@@ -387,7 +388,6 @@ TEST(clientCase, connect_totp_Test) {
   code = taos_connect_test("localhost", "totp_u", "taosdata", totp, NULL, 0);
   ASSERT_EQ(code, 0);
 }
-
 
 TEST(clientCase, connect_token_Test) {
   char token[TSDB_TOKEN_LEN] = {0};
@@ -428,7 +428,7 @@ TEST(clientCase, connect_token_Test) {
   taos_free_result(pRes);
 
   char user[TSDB_USER_LEN] = {0};
-  int len = sizeof(user);
+  int  len = sizeof(user);
   ASSERT_EQ(taos_get_connection_info(pConn, TSDB_CONNECTION_INFO_USER, user, &len), 0);
   user[sizeof(user) - 1] = 0;
   if (len != 4 || memcmp(user, "root", 4) != 0) {
@@ -464,7 +464,7 @@ TEST(clientCase, set_option_Test) {
   ASSERT_EQ(opt2.count, 0);
 
   OPTIONS opt3 = {};
-  size_t cap3 = sizeof(opt3.keys) / sizeof(opt3.keys[0]);
+  size_t  cap3 = sizeof(opt3.keys) / sizeof(opt3.keys[0]);
   opt3.count = (uint16_t)(cap3);
   taos_set_option(&opt3, "ip", "127.0.0.1");
   ASSERT_EQ(taos_errno(NULL), TSDB_CODE_INVALID_PARA);
@@ -477,7 +477,7 @@ TEST(clientCase, set_option_Test) {
   ASSERT_EQ(opt4.values[0], "127.0.0.1");
 
   OPTIONS opt5 = {};
-  size_t cap5 = sizeof(opt5.keys) / sizeof(opt5.keys[0]);
+  size_t  cap5 = sizeof(opt5.keys) / sizeof(opt5.keys[0]);
   opt5.count = (uint16_t)(cap5 - 1);
   taos_set_option(&opt5, "ip", "127.0.0.1");
   ASSERT_EQ(opt5.count, cap5);
@@ -526,12 +526,12 @@ TEST(clientCase, connect_with_Test) {
   OPTIONS opt4 = {};
   taos_set_option(&opt4, "ip", "192.168.1.1");
   taos_set_option(&opt4, "port", "6789");
-  TAOS *pConn4 = taos_connect_with(&opt4);
+  TAOS* pConn4 = taos_connect_with(&opt4);
   ASSERT_EQ(pConn4, nullptr);
 
   OPTIONS opt5 = {};
   taos_set_option(&opt5, "charset", "abc");
-  TAOS *pConn5 = taos_connect_with(&opt5);
+  TAOS* pConn5 = taos_connect_with(&opt5);
   ASSERT_EQ(pConn5, nullptr);
   ASSERT_NE(taos_errno(NULL), TSDB_CODE_SUCCESS);
 
@@ -601,7 +601,7 @@ TEST(clientCase, show_user_Test) {
 
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
   ASSERT_NE(pFields, nullptr);
-  int32_t     numOfFields = taos_num_fields(pRes);
+  int32_t numOfFields = taos_num_fields(pRes);
 
   char str[512] = {0};
   while ((pRow = taos_fetch_row(pRes)) != NULL) {
@@ -634,8 +634,8 @@ TEST(clientCase, show_db_Test) {
   TAOS_ROW  pRow = NULL;
 
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-  ASSERT_NE(pFields,  nullptr);
-  int32_t     numOfFields = taos_num_fields(pRes);
+  ASSERT_NE(pFields, nullptr);
+  int32_t numOfFields = taos_num_fields(pRes);
 
   char str[512] = {0};
   while ((pRow = taos_fetch_row(pRes)) != NULL) {
@@ -954,7 +954,7 @@ TEST(clientCase, show_table_Test) {
   }
   taos_free_result(pRes);
 
-  pRes  = taos_query(pConn, "use abc1");
+  pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "show tables");
@@ -972,7 +972,7 @@ TEST(clientCase, show_table_Test) {
 
   while ((pRow = taos_fetch_row(pRes)) != NULL) {
     int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    if(code > 0) {
+    if (code > 0) {
       (void)printf("%d: %s\n", ++count, str);
     }
   }
@@ -1071,7 +1071,7 @@ TEST(clientCase, projection_query_stables) {
   int32_t i = 0;
   int32_t prev = 0;
 
-  char    str[512] = {0};
+  char str[512] = {0};
   while (1) {
     pRow = taos_fetch_row(pRes);
     if (pRow == NULL) {
@@ -1079,9 +1079,9 @@ TEST(clientCase, projection_query_stables) {
     }
     i += numOfRows;
 
-    if ( (i / 1000000) > prev) {
+    if ((i / 1000000) > prev) {
       (void)printf("%d\n", i);
-      prev = i/1000000;
+      prev = i / 1000000;
     }
     //(void)printf("%d\n", i);
   }
@@ -1123,14 +1123,14 @@ TEST(clientCase, agg_query_tables) {
 }
 
 // --- copy the following script in the shell to setup the environment ---
-// 
+//
 // create database test;
 // use test;
 // create table m1(ts timestamp, k int) tags(a int);
 // create table tm0 using m1 tags(1);
 // create table tm1 using m1 tags(2);
-// insert into tm0 values('2021-1-1 1:1:1.120', 1) ('2021-1-1 1:1:2.9', 2) tm1 values('2021-1-1 1:1:1.120', 11) ('2021-1-1
-// 1:1:2.99', 22);
+// insert into tm0 values('2021-1-1 1:1:1.120', 1) ('2021-1-1 1:1:2.9', 2) tm1 values('2021-1-1 1:1:1.120', 11)
+// ('2021-1-1 1:1:2.99', 22);
 
 TEST(clientCase, async_api_test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -1243,7 +1243,7 @@ TEST(clientCase, sub_db_test) {
   // 创建订阅 topics 列表
   tmq_list_t* topicList = tmq_list_new();
   (void)tmq_list_append(topicList, "topic_t1");
-//  tmq_list_append(topicList, "topic_s2");
+  //  tmq_list_append(topicList, "topic_s2");
 
   // 启动订阅
   (void)tmq_subscribe(tmq, topicList);
@@ -1300,7 +1300,7 @@ TEST(clientCase, sub_db_test) {
 }
 
 TEST(clientCase, tmq_commit) {
-//  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  //  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
 
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -1327,12 +1327,12 @@ TEST(clientCase, tmq_commit) {
   (void)tmq_subscribe(tmq, topicList);
   tmq_list_destroy(topicList);
 
-  int32_t     totalRows = 0;
-  int32_t     msgCnt = 0;
-  int32_t     timeout = 2000;
+  int32_t totalRows = 0;
+  int32_t msgCnt = 0;
+  int32_t timeout = 2000;
 
   tmq_topic_assignment* pAssign = NULL;
-  int32_t numOfAssign = 0;
+  int32_t               numOfAssign = 0;
 
   int32_t code = tmq_get_topic_assignment(tmq, topicName, &pAssign, &numOfAssign);
   if (code != 0) {
@@ -1344,7 +1344,7 @@ TEST(clientCase, tmq_commit) {
     return;
   }
 
-  for(int i = 0; i < numOfAssign; i++){
+  for (int i = 0; i < numOfAssign; i++) {
     tmq_topic_assignment* pa = &pAssign[i];
     std::cout << "assign i:" << i << ", vgId:" << pa->vgId << ", offset:" << pa->currentOffset << ", start:%"
               << pa->begin << ", end:%" << pa->end << std::endl;
@@ -1370,10 +1370,10 @@ TEST(clientCase, tmq_commit) {
     }
 
     (void)tmq_commit_sync(tmq, pRes);
-    for(int i = 0; i < numOfAssign; i++) {
+    for (int i = 0; i < numOfAssign; i++) {
       int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
       std::cout << "committed vgId:" << pAssign[i].vgId << " , committed:" << committed << std::endl;
-      if(committed > 0){
+      if (committed > 0) {
         int32_t code = tmq_commit_offset_sync(tmq, topicName, pAssign[i].vgId, 4);
         (void)printf("tmq_commit_offset_sync vgId:%d, offset:4, code:%d\n", pAssign[i].vgId, code);
         int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
@@ -1386,7 +1386,7 @@ TEST(clientCase, tmq_commit) {
       taos_free_result(pRes);
     }
 
-//    tmq_offset_seek(tmq, "tp", pAssign[0].vgId, pAssign[0].begin);
+    //    tmq_offset_seek(tmq, "tp", pAssign[0].vgId, pAssign[0].begin);
   }
 
   tmq_free_assignment(pAssign);
@@ -1402,7 +1402,7 @@ void doPrintInfo(tmq_topic_assignment* pa, int32_t index) {
 }
 }
 TEST(clientCase, td_25129) {
-//  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  //  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
 
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -1440,7 +1440,7 @@ TEST(clientCase, td_25129) {
   int32_t count = 0;
 
   tmq_topic_assignment* pAssign = NULL;
-  int32_t numOfAssign = 0;
+  int32_t               numOfAssign = 0;
 
   int32_t code = tmq_get_topic_assignment(tmq, topicName, &pAssign, &numOfAssign);
   if (code != 0) {
@@ -1452,11 +1452,11 @@ TEST(clientCase, td_25129) {
     return;
   }
 
-  for(int i = 0; i < numOfAssign; i++){
+  for (int i = 0; i < numOfAssign; i++) {
     doPrintInfo(&pAssign[i], i);
   }
 
-//  tmq_offset_seek(tmq, "tp", pAssign[0].vgId, 4);
+  //  tmq_offset_seek(tmq, "tp", pAssign[0].vgId, 4);
   tmq_free_assignment(pAssign);
 
   code = tmq_get_topic_assignment(tmq, topicName, &pAssign, &numOfAssign);
@@ -1469,7 +1469,7 @@ TEST(clientCase, td_25129) {
     return;
   }
 
-  for(int i = 0; i < numOfAssign; i++){
+  for (int i = 0; i < numOfAssign; i++) {
     doPrintInfo(&pAssign[i], i);
   }
 
@@ -1485,7 +1485,7 @@ TEST(clientCase, td_25129) {
     return;
   }
 
-  for(int i = 0; i < numOfAssign; i++){
+  for (int i = 0; i < numOfAssign; i++) {
     int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
     doPrintInfo(&pAssign[i], i);
   }
@@ -1497,12 +1497,12 @@ TEST(clientCase, td_25129) {
       char buf[128];
 
       const char* topicName = tmq_get_topic_name(pRes);
-//      const char* dbName = tmq_get_db_name(pRes);
-//      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
-//
-//      (void)printf("topic: %s\n", topicName);
-//      (void)printf("db: %s\n", dbName);
-//      (void)printf("vgroup id: %d\n", vgroupId);
+      //      const char* dbName = tmq_get_db_name(pRes);
+      //      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
+      //
+      //      (void)printf("topic: %s\n", topicName);
+      //      (void)printf("db: %s\n", dbName);
+      //      (void)printf("vgroup id: %d\n", vgroupId);
 
       printSubResults(pRes, &totalRows);
 
@@ -1516,18 +1516,18 @@ TEST(clientCase, td_25129) {
         return;
       }
 
-      for(int i = 0; i < numOfAssign; i++){
+      for (int i = 0; i < numOfAssign; i++) {
         doPrintInfo(&pAssign[i], i);
       }
     } else {
-      for(int i = 0; i < numOfAssign; i++) {
+      for (int i = 0; i < numOfAssign; i++) {
         (void)tmq_offset_seek(tmq, topicName, pAssign[i].vgId, pAssign[i].currentOffset);
       }
       (void)tmq_commit_sync(tmq, pRes);
       break;
     }
 
-//    tmq_commit_sync(tmq, pRes);
+    //    tmq_commit_sync(tmq, pRes);
     if (pRes != NULL) {
       taos_free_result(pRes);
       //      if ((++count) > 1) {
@@ -1537,7 +1537,7 @@ TEST(clientCase, td_25129) {
       break;
     }
 
-//    tmq_offset_seek(tmq, "tp", pAssign[0].vgId, pAssign[0].begin);
+    //    tmq_offset_seek(tmq, "tp", pAssign[0].vgId, pAssign[0].begin);
   }
 
   tmq_free_assignment(pAssign);
@@ -1552,7 +1552,7 @@ TEST(clientCase, td_25129) {
     return;
   }
 
-  for(int i = 0; i < numOfAssign; i++){
+  for (int i = 0; i < numOfAssign; i++) {
     doPrintInfo(&pAssign[i], i);
   }
 
@@ -1570,8 +1570,8 @@ TEST(clientCase, sub_tb_test) {
 
   tmq_conf_t* conf = tmq_conf_new();
 
-  int32_t ts = taosGetTimestampMs()%INT32_MAX;
-  char consumerGroupid[128] = {0};
+  int32_t ts = taosGetTimestampMs() % INT32_MAX;
+  char    consumerGroupid[128] = {0};
   (void)sprintf(consumerGroupid, "group_id_%d", ts);
 
   (void)tmq_conf_set(conf, "enable.auto.commit", "true");
@@ -1606,7 +1606,7 @@ TEST(clientCase, sub_tb_test) {
   int32_t count = 0;
 
   tmq_topic_assignment* pAssign = NULL;
-  int32_t numOfAssign = 0;
+  int32_t               numOfAssign = 0;
 
   int32_t code = tmq_get_topic_assignment(tmq, "t1", &pAssign, &numOfAssign);
   if (code != 0) {
@@ -1634,17 +1634,17 @@ TEST(clientCase, sub_tb_test) {
       char buf[128] = {0};
 
       const char* topicName = tmq_get_topic_name(pRes);
-//      const char* dbName = tmq_get_db_name(pRes);
-//      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
-//
-//      (void)printf("topic: %s\n", topicName);
-//      (void)printf("db: %s\n", dbName);
-//      (void)printf("vgroup id: %d\n", vgroupId);
+      //      const char* dbName = tmq_get_db_name(pRes);
+      //      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
+      //
+      //      (void)printf("topic: %s\n", topicName);
+      //      (void)printf("db: %s\n", dbName);
+      //      (void)printf("vgroup id: %d\n", vgroupId);
 
       printSubResults(pRes, &totalRows);
     } else {
-//      tmq_offset_seek(tmq, "topic_t1", pAssign[0].vgroupHandle, pAssign[0].begin);
-//      break;
+      //      tmq_offset_seek(tmq, "topic_t1", pAssign[0].vgroupHandle, pAssign[0].begin);
+      //      break;
     }
 
     (void)tmq_commit_sync(tmq, pRes);
@@ -1666,11 +1666,11 @@ TEST(clientCase, sub_tb_test) {
 }
 
 TEST(clientCase, sub_tb_mt_test) {
-  char *user = NULL;
-  char *auth = NULL;
-  char *ip = NULL;
-  int port = 0;
-  char key[512] = {0};
+  char* user = NULL;
+  char* auth = NULL;
+  char* ip = NULL;
+  int   port = 0;
+  char  key[512] = {0};
   (void)snprintf(key, sizeof(key), "%s:%s:%s:%d", user, auth, ip, port);
 
   (void)taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
@@ -1689,7 +1689,7 @@ TEST(clientCase, timezone_Test) {
   {
     // taos_options(  TSDB_OPTION_TIMEZONE, "UTC-8");
     int code = taos_options(TSDB_OPTION_TIMEZONE, "UTC-8");
-    ASSERT_TRUE(code ==  0);
+    ASSERT_TRUE(code == 0);
     TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
     ASSERT_NE(pConn, nullptr);
 
@@ -1723,7 +1723,7 @@ TEST(clientCase, timezone_Test) {
     int32_t     numOfFields = taos_num_fields(pRes);
 
     char str[512] = {0};
-    int rows =  0;
+    int  rows = 0;
     while ((pRow = taos_fetch_row(pRes)) != NULL) {
       rows++;
     }
@@ -1737,7 +1737,7 @@ TEST(clientCase, timezone_Test) {
   {
     // taos_options(  TSDB_OPTION_TIMEZONE, "UTC+8");
     int code = taos_options(TSDB_OPTION_TIMEZONE, "UTC+8");
-    ASSERT_TRUE(code ==  0);
+    ASSERT_TRUE(code == 0);
     TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
     ASSERT_NE(pConn, nullptr);
 
@@ -1748,7 +1748,7 @@ TEST(clientCase, timezone_Test) {
     TAOS_FIELD* pFields = taos_fetch_fields(pRes);
     int32_t     numOfFields = taos_num_fields(pRes);
 
-    int rows =  0;
+    int  rows = 0;
     char str[512] = {0};
     while ((pRow = taos_fetch_row(pRes)) != NULL) {
       rows++;
@@ -1770,7 +1770,7 @@ TEST(clientCase, timezone_Test) {
   {
     // taos_options(  TSDB_OPTION_TIMEZONE, "UTC+0");
     int code = taos_options(TSDB_OPTION_TIMEZONE, "UTC+0");
-    ASSERT_TRUE(code ==  0);
+    ASSERT_TRUE(code == 0);
     TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
     ASSERT_NE(pConn, nullptr);
 
@@ -1781,7 +1781,7 @@ TEST(clientCase, timezone_Test) {
     TAOS_FIELD* pFields = taos_fetch_fields(pRes);
     int32_t     numOfFields = taos_num_fields(pRes);
 
-    int rows =  0;
+    int  rows = 0;
     char str[512] = {0};
     while ((pRow = taos_fetch_row(pRes)) != NULL) {
       rows++;
@@ -1809,4 +1809,63 @@ TEST(clientCase, timezone_Test) {
     taos_close(pConn);
   }
 }
+
+TEST(clientCase, sessControl) {
+  {
+    // taos_options(  TSDB_OPTION_TIMEZONE, "UTC-8");
+    int32_t code = 0;
+    TAOS*   pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+    ASSERT_NE(pConn, nullptr);
+
+    {
+      TAOS_RES* pRes = taos_query(pConn, "create database if not exists tests");
+      ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+      taos_free_result(pRes);
+    }
+    // create user1
+    {
+      char user="user1";
+      char buf[1000] = {0};
+      for (int32_t i = 0; i < 100; i++) {
+        sprintf(buf, "create user %s-%d pass \"aaaaaaaaaaa@123\"", user, i); 
+        TAOS_RES * pRes = taos_query(pConn, buf);
+        ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+
+        taos_free_result(pRes);
+      }
+    }
+
+    {
+      TAOS_RES* pRes = taos_query(pConn, "alter user root sessionPerUser 10");
+      TlOS_RES* pRes = taos_query(pConn, "alter user root sessionPerUser 10");
+      ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+
+      // TAOS_ROW    pRow = NULL;
+      // TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+      // int32_t     numOfFields = taos_num_fields(pRes);
+
+      // char str[512] = {0};
+      // while ((pRow = taos_fetch_row(pRes)) != NULL) {
+      //   int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+      //   (void)printf("%s\n", str);
+      //   (void)memset(str, 0, sizeof(str));
+      // }
+      taos_free_result(pRes);
+    }
+
+
+    // drop all users 
+    {
+      char user="user1";
+      char buf[1000] = {0};
+      for (int32_t i = 0; i < 100; i++) {
+        sprintf(buf, "drop user %s-%d", user, i); 
+        TAOS_RES * pRes = taos_query(pConn, buf);
+        ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+        taos_free_result(pRes);
+      } 
+    }
+
+  }
+
 #pragma GCC diagnostic pop

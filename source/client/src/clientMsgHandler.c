@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
+#include "clientSession.h"
 #include "cmdnodes.h"
 #include "command.h"
 #include "os.h"
@@ -175,6 +176,13 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
       monitorClientSQLReqInit(connectRsp.clusterId);
 #endif
     }
+  }
+
+  SSessParam pPara = {.type = SESSION_PER_USER, .value = 1};
+  code = sessMgtUpdateUserMetric((char*)pTscObj->user, &pPara);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to connect with user:%s, code:%s", pTscObj->user, tstrerror(code));
+    goto End;
   }
 
   (void)taosThreadMutexLock(&clientHbMgr.lock);
