@@ -3706,9 +3706,8 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
         break;
       default:
         vError("unknown inner msg type:%d in stream reader queue", req.base.type);
-        STREAM_CHECK_RET_GOTO(TSDB_CODE_APP_ERROR);
         sendRsp = false;
-        break;
+        STREAM_CHECK_RET_GOTO(TSDB_CODE_APP_ERROR);
     }
   } else {
     vError("unknown msg type:%d in stream reader queue", pMsg->msgType);
