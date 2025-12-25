@@ -1780,7 +1780,7 @@
         
   
     <li class="md-nav__item">
-      <a href="#10-Operators.05-Comparison.test_between_and.TestBetweenAnd.test_and_or" class="md-nav__link">
+      <a href="#10-Operators.05-Comparison.test_between_and.TestBetweenAnd.test_between_and" class="md-nav__link">
         Operator between and 
       </a>
       
@@ -1813,7 +1813,7 @@
         
   
     <li class="md-nav__item">
-      <a href="#10-Operators.05-Comparison.test_match.TestRegex.test_match" class="md-nav__link">
+      <a href="#10-Operators.05-Comparison.test_match.TestRegex.test_regex" class="md-nav__link">
         Operator match 
       </a>
       
@@ -2547,14 +2547,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../DataSubscription/Consume/" class="md-nav__link">
+      <a href="../../DataSubscription/Native/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02-Consume
+    02-Native
   
 
     
@@ -2582,7 +2582,7 @@
   <span class="md-ellipsis">
     
   
-    03-MQTT
+    04-MQTT
   
 
     
@@ -3882,7 +3882,7 @@
         
   
     <li class="md-nav__item">
-      <a href="#10-Operators.05-Comparison.test_between_and.TestBetweenAnd.test_and_or" class="md-nav__link">
+      <a href="#10-Operators.05-Comparison.test_between_and.TestBetweenAnd.test_between_and" class="md-nav__link">
         Operator between and 
       </a>
       
@@ -3915,7 +3915,7 @@
         
   
     <li class="md-nav__item">
-      <a href="#10-Operators.05-Comparison.test_match.TestRegex.test_match" class="md-nav__link">
+      <a href="#10-Operators.05-Comparison.test_match.TestRegex.test_regex" class="md-nav__link">
         Operator match 
       </a>
       
@@ -3959,9 +3959,9 @@
   
   
   
-<h2 id="10-Operators.05-Comparison.test_between_and.TestBetweenAnd.test_and_or" class="doc doc-heading">
+<h2 id="10-Operators.05-Comparison.test_between_and.TestBetweenAnd.test_between_and" class="doc doc-heading">
 
-<a href="#10-Operators.05-Comparison.test_between_and.TestBetweenAnd.test_and_or" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#10-Operators.05-Comparison.test_between_and.TestBetweenAnd.test_between_and" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
@@ -3971,12 +3971,8 @@
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Comparison of numeric types</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Comparison of timestamp types</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Multiple between and operators together</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Boundary value for numeric types</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Between and for tag columns</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Invalid between and usage</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Null value comparison</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Mixed data types comparison</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Multiple BETWEEN AND operators connected together</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -4037,22 +4033,9 @@
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Like in SELECT statements</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Like in SHOW statements</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Like in tag queries</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Like wildcard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Like cnc wildcard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Like multi wildcard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Like escape character</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Like unicode</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Like special character</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Like backslash</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Like backslash and wildcard </div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Like backslash and escape character</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Like backslash, wildcard and escape character</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Like backslash, wildcard and cnc character</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. Like on super/child table </div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Using LIKE operator in SELECT statements</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Using LIKE operator in SHOW statements</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Using LIKE operator in tag queries</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -4071,9 +4054,9 @@
   
   
   
-<h2 id="10-Operators.05-Comparison.test_match.TestRegex.test_match" class="doc doc-heading">
+<h2 id="10-Operators.05-Comparison.test_match.TestRegex.test_regex" class="doc doc-heading">
 
-<a href="#10-Operators.05-Comparison.test_match.TestRegex.test_match" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#10-Operators.05-Comparison.test_match.TestRegex.test_regex" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
@@ -4081,15 +4064,8 @@
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Match and nmatch for regular expression matching</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Match wildcard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Match cnc wildcard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Match error wildcard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Match multithread</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Match regexp cnc wildcard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Match error regexp wildcard</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Match regexp not cnc wildcard        </div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Match on super/child table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Using MATCH and NMATCH for regular expression matching</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

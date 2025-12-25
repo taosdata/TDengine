@@ -2420,14 +2420,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../DataSubscription/Consume/" class="md-nav__link">
+      <a href="../DataSubscription/Native/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02-Consume
+    02-Native
   
 
     
@@ -2455,7 +2455,7 @@
   <span class="md-ellipsis">
     
   
-    03-MQTT
+    04-MQTT
   
 
     
@@ -3136,17 +3136,6 @@
     <li class="md-nav__item">
       <a href="#25-Privileges.test_priv_bugs.TestGrantBugs.test_grant_bugs" class="md-nav__link">
         Privileges bugs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#25-Privileges.test_priv_subscribe.TestSubscribeStreamPrivilege.test_priv_subscribe" class="md-nav__link">
-        Privileges subscribe 
       </a>
       
     </li>
@@ -3877,17 +3866,6 @@
   
 
       
-        
-  
-    <li class="md-nav__item">
-      <a href="#25-Privileges.test_priv_subscribe.TestSubscribeStreamPrivilege.test_priv_subscribe" class="md-nav__link">
-        Privileges subscribe 
-      </a>
-      
-    </li>
-  
-
-      
     </ul>
   
 </nav>
@@ -3966,43 +3944,6 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/25-Privileges/test_priv_bugs.py" target="_blank">
                       cases/25-Privileges/test_priv_bugs.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="25-Privileges.test_priv_subscribe.TestSubscribeStreamPrivilege.test_priv_subscribe" class="doc doc-heading">
-
-<a href="#25-Privileges.test_priv_subscribe.TestSubscribeStreamPrivilege.test_priv_subscribe" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Privileges subscribe</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Prepare 1 database, 1 super table, 4 child tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data into child tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create topic on the database by admin user</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Create normal user</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Test subscribe topic privilege without granted</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Grant subscribe privilege on the topic to normal user</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Test subscribe topic privilege after granted</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Revoke subscribe privilege on the topic from normal user</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Test subscribe topic privilege after revoked</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/25-Privileges/test_priv_subscribe.py" target="_blank">
-                      cases/25-Privileges/test_priv_subscribe.py
                     </a>
                   </div>
         </div>

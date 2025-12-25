@@ -2420,14 +2420,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../DataSubscription/Consume/" class="md-nav__link">
+      <a href="../DataSubscription/Native/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02-Consume
+    02-Native
   
 
     
@@ -2455,7 +2455,7 @@
   <span class="md-ellipsis">
     
   
-    03-MQTT
+    04-MQTT
   
 
     
@@ -2961,41 +2961,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#19-TSMAs.test_sma_basic.TestSmabasic.test_sma_basic" class="md-nav__link">
-        Sma basic 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#19-TSMAs.test_sma_bugs.TestSmatest.test_smaTest" class="md-nav__link">
-        Sma bugs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#19-TSMAs.test_tsma.TestTsma.test_tsma" class="md-nav__link">
         TSMAs basic 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#19-TSMAs.test_time_range_wise.TestTimeRangeWise.test_time_range_wise" class="md-nav__link">
-        TSMAs correctness 
       </a>
       
     </li>
@@ -3869,41 +3836,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#19-TSMAs.test_sma_basic.TestSmabasic.test_sma_basic" class="md-nav__link">
-        Sma basic 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#19-TSMAs.test_sma_bugs.TestSmatest.test_smaTest" class="md-nav__link">
-        Sma bugs 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#19-TSMAs.test_tsma.TestTsma.test_tsma" class="md-nav__link">
         TSMAs basic 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#19-TSMAs.test_time_range_wise.TestTimeRangeWise.test_time_range_wise" class="md-nav__link">
-        TSMAs correctness 
       </a>
       
     </li>
@@ -3949,99 +3883,6 @@
   
   
   
-<h2 id="19-TSMAs.test_sma_basic.TestSmabasic.test_sma_basic" class="doc doc-heading">
-
-<a href="#19-TSMAs.test_sma_basic.TestSmabasic.test_sma_basic" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Sma basic</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create 1 super table and 5 child tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert 1 million rows data into each child table</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Put special number value (8764231) on c2 column interval 3200 rows</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Query and check the result of count/max/min/sum on c1/c2 column with different where condition</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Query count(*) where c2 != specail number(8764231) as no using sma</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Query count(*) no where as using sma</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Expect the performance step5 &lt; step6 * 8</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Query each function(count/max/min/avg/sum/spread/percentile/first/last) on all columns of the table ntb using sma</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/19-TSMAs/test_sma_basic.py" target="_blank">
-                      cases/19-TSMAs/test_sma_basic.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="19-TSMAs.test_sma_bugs.TestSmatest.test_smaTest" class="doc doc-heading">
-
-<a href="#19-TSMAs.test_sma_bugs.TestSmatest.test_smaTest" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Sma bugs</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. JIRA TD-33336</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. JIRA TS-5900        </div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/19-TSMAs/test_sma_bugs.py" target="_blank">
-                      cases/19-TSMAs/test_sma_bugs.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="19-TSMAs.test_time_range_wise.TestTimeRangeWise.test_time_range_wise" class="doc doc-heading">
-
-<a href="#19-TSMAs.test_time_range_wise.TestTimeRangeWise.test_time_range_wise" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>TSMAs correctness</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create database db1 without sma and db2 with sma</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create same super table and child tables on db1 and db2</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Insert same data into child tables of db1 and db2</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Query data from db1 and db2 </div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Expect query result same from db1 and db2</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/19-TSMAs/test_time_range_wise.py" target="_blank">
-                      cases/19-TSMAs/test_time_range_wise.py
-                    </a>
-                  </div>
-        </div>
-
   </div>
   
 <div class="doc doc-object doc-function">

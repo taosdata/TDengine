@@ -2201,30 +2201,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#13-TimeSeriesExt.02-Fill.test_ts_fill_datatype.TestFill2.test_ts_fill_datatype" class="md-nav__link">
-        Fill datatype 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#13-TimeSeriesExt.02-Fill.test_ts_fill_method.TestFill.test_ts_fill_method" class="md-nav__link">
-        Fill method 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#13-TimeSeriesExt.02-Fill.test_ts_fill.TestFill.test_fill_sliding_duration" class="md-nav__link">
-        Fill with sliding 
+        Fill with sliding test case 
       </a>
       
     </li>
@@ -2536,14 +2514,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../DataSubscription/Consume/" class="md-nav__link">
+      <a href="../../DataSubscription/Native/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02-Consume
+    02-Native
   
 
     
@@ -2571,7 +2549,7 @@
   <span class="md-ellipsis">
     
   
-    03-MQTT
+    04-MQTT
   
 
     
@@ -3871,30 +3849,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#13-TimeSeriesExt.02-Fill.test_ts_fill_datatype.TestFill2.test_ts_fill_datatype" class="md-nav__link">
-        Fill datatype 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#13-TimeSeriesExt.02-Fill.test_ts_fill_method.TestFill.test_ts_fill_method" class="md-nav__link">
-        Fill method 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#13-TimeSeriesExt.02-Fill.test_ts_fill.TestFill.test_fill_sliding_duration" class="md-nav__link">
-        Fill with sliding 
+        Fill with sliding test case 
       </a>
       
     </li>
@@ -3974,16 +3930,11 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fill with sliding</strong> 
+                    <strong>Fill with sliding test case</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Check the correctness of duration when filling null for sliding interval window</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Use first and last function to verify the window range</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Sliding window with duration overlapping</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Fill with null method</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify the correctness of _wstart, _wduration, _wend columns</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. check the correctness of duration when filling null for sliding interval window</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -3991,74 +3942,6 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/13-TimeSeriesExt/02-Fill/test_ts_fill.py" target="_blank">
                       cases/13-TimeSeriesExt/02-Fill/test_ts_fill.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="13-TimeSeriesExt.02-Fill.test_ts_fill_datatype.TestFill2.test_ts_fill_datatype" class="doc doc-heading">
-
-<a href="#13-TimeSeriesExt.02-Fill.test_ts_fill_datatype.TestFill2.test_ts_fill_datatype" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Fill datatype</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create normal/super tables with various decimal/decimal64 and other data types</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Insert data into the tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Run fill queries with different fill methods (PREV, NEXT, NULL, LINEAR, NULL_F)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Validate the results to ensure correctness of the fill operation        </div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/13-TimeSeriesExt/02-Fill/test_ts_fill_datatype.py" target="_blank">
-                      cases/13-TimeSeriesExt/02-Fill/test_ts_fill_datatype.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="13-TimeSeriesExt.02-Fill.test_ts_fill_method.TestFill.test_ts_fill_method" class="doc doc-heading">
-
-<a href="#13-TimeSeriesExt.02-Fill.test_ts_fill_method.TestFill.test_ts_fill_method" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Fill method</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create database with ns precision</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create table with different data types</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Insert data with nulls</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Perform fill queries with different data types and methods (value, null, prev, next)</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Query with multi-threaded fill range</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Validate the filled results for each data type</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Fill with group by queries</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Fill with complex expressions</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/13-TimeSeriesExt/02-Fill/test_ts_fill_method.py" target="_blank">
-                      cases/13-TimeSeriesExt/02-Fill/test_ts_fill_method.py
                     </a>
                   </div>
         </div>

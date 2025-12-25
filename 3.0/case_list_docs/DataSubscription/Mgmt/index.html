@@ -12,7 +12,7 @@
         <link rel="prev" href="../../Views/">
       
       
-        <link rel="next" href="../Consume/">
+        <link rel="next" href="../Native/">
       
       
         
@@ -2479,39 +2479,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#17-DataSubscription.01-Mgmt.test_tmq_drop_stb.TestCase.test_tmq_drop_stb" class="md-nav__link">
-        Tmq manager drop stb 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#17-DataSubscription.01-Mgmt.test_tmq_show.TestCase.test_tmq_show" class="md-nav__link">
-        Tmq manager show 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#17-DataSubscription.01-Mgmt.test_topic.TestTmpTopic.test_tmq_topic" class="md-nav__link">
-        Tmq manager topic 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#17-DataSubscription.01-Mgmt.test_drop_lost_comsumers.TestDropLostConsumers.test_drop_lost_comsumers" class="md-nav__link">
         Tmq: drop lost consumers 
       </a>
@@ -2525,6 +2492,17 @@
     <li class="md-nav__item">
       <a href="#17-DataSubscription.01-Mgmt.test_force_drop_topic.TestTmqForceDropTopic.test_force_drop_topic" class="md-nav__link">
         Tmq: force drop topic 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.01-Mgmt.test_topic.TestTmpTopic.test_tmq_topic" class="md-nav__link">
+        Tmq: topic mgmt 
       </a>
       
     </li>
@@ -2547,14 +2525,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../Consume/" class="md-nav__link">
+      <a href="../Native/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02-Consume
+    02-Native
   
 
     
@@ -2582,7 +2560,7 @@
   <span class="md-ellipsis">
     
   
-    03-MQTT
+    04-MQTT
   
 
     
@@ -3882,39 +3860,6 @@
         
   
     <li class="md-nav__item">
-      <a href="#17-DataSubscription.01-Mgmt.test_tmq_drop_stb.TestCase.test_tmq_drop_stb" class="md-nav__link">
-        Tmq manager drop stb 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#17-DataSubscription.01-Mgmt.test_tmq_show.TestCase.test_tmq_show" class="md-nav__link">
-        Tmq manager show 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
-      <a href="#17-DataSubscription.01-Mgmt.test_topic.TestTmpTopic.test_tmq_topic" class="md-nav__link">
-        Tmq manager topic 
-      </a>
-      
-    </li>
-  
-
-      
-        
-  
-    <li class="md-nav__item">
       <a href="#17-DataSubscription.01-Mgmt.test_drop_lost_comsumers.TestDropLostConsumers.test_drop_lost_comsumers" class="md-nav__link">
         Tmq: drop lost consumers 
       </a>
@@ -3928,6 +3873,17 @@
     <li class="md-nav__item">
       <a href="#17-DataSubscription.01-Mgmt.test_force_drop_topic.TestTmqForceDropTopic.test_force_drop_topic" class="md-nav__link">
         Tmq: force drop topic 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.01-Mgmt.test_topic.TestTmpTopic.test_tmq_topic" class="md-nav__link">
+        Tmq: topic mgmt 
       </a>
       
     </li>
@@ -4023,82 +3979,13 @@
   
   
   
-<h2 id="17-DataSubscription.01-Mgmt.test_tmq_drop_stb.TestCase.test_tmq_drop_stb" class="doc doc-heading">
-
-<a href="#17-DataSubscription.01-Mgmt.test_tmq_drop_stb.TestCase.test_tmq_drop_stb" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Tmq manager drop stb</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create database and stable</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create topic from database</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Insert data into stable</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Start consume processor</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Drop stable</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check consume result expected</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Drop topic</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/17-DataSubscription/01-Mgmt/test_tmq_drop_stb.py" target="_blank">
-                      cases/17-DataSubscription/01-Mgmt/test_tmq_drop_stb.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
-<h2 id="17-DataSubscription.01-Mgmt.test_tmq_show.TestCase.test_tmq_show" class="doc doc-heading">
-
-<a href="#17-DataSubscription.01-Mgmt.test_tmq_show.TestCase.test_tmq_show" class="headerlink" title="Permanent link">&para;</a></h2>  
-        <div class="doc doc-contents first">
-
-                  <div class="doc doc-docstring doc-summary">
-                    <strong>Tmq manager show</strong> 
-                  </div>
-                    <div class="doc doc-docstring doc-description">
-                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create database and stable</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create topics</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Insert data into stables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Start tmq_sim process to consume data</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check show topics, show consumers, show subscriptions</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Drop topics</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
-                      </div>
-                    </div>
-                  <div class="doc doc-docstring doc-function.path">
-                    path:
-                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/17-DataSubscription/01-Mgmt/test_tmq_show.py" target="_blank">
-                      cases/17-DataSubscription/01-Mgmt/test_tmq_show.py
-                    </a>
-                  </div>
-        </div>
-
-  </div>
-  
-<div class="doc doc-object doc-function">
-  
-  
-  
-  
 <h2 id="17-DataSubscription.01-Mgmt.test_topic.TestTmpTopic.test_tmq_topic" class="doc doc-heading">
 
 <a href="#17-DataSubscription.01-Mgmt.test_topic.TestTmpTopic.test_tmq_topic" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Tmq manager topic</strong> 
+                    <strong>Tmq: topic mgmt</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
