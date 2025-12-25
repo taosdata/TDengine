@@ -1310,6 +1310,7 @@ class Test_IDMP_Meters:
     def verify_stream5_sub5(self):
         # check
         result_sql = f"select ts,row,wend from tdasset.`result_stream5_sub5` "
+
         tdSql.checkResultsByFunc (
             sql=result_sql, 
             func=lambda: tdSql.getRows() >= 2
