@@ -6,7 +6,6 @@ description: 本节讲述基本的用户管理功能
 
 用户管理语法在所有版本中可用，但在 TDengine TSDB 社区版中仅基础功能实际可用，使用高级功能需要 TDengine TSDB 企业版。要想全面了解和使用的用户管理功能，请联系 TDengine TSDB 销售团队。
 
-
 ## 创建用户
 
 ```sql
@@ -47,9 +46,9 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `CHANGEPASS` 表示用户是否能够或必须修改密码。`2` 表示可以修改，`1`表示必须修改，`0`表示不能修改。缺省值为`2`。从企业版 v3.4.0.0 开始支持。
 - `SESSION_PER_USER` 限制用户同时建立的数据库连接数量，默认 32，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `CONNECT_TIME` 限制单次会话最大持续时间，单位为分钟，默认 480，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `CONNECT_IDLE_TIME` 允许的会话最大空闲时间，单位为分钟，默认 30，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。 
-- `CALL_PER_SESSION` 单会话最大并发子调用数量，默认 10，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。 
-- `FAILED_LOGIN_ATTEMPTS` 允许的连续失败登录次数，超过次数后账户将被锁定，默认 3，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。 
+- `CONNECT_IDLE_TIME` 允许的会话最大空闲时间，单位为分钟，默认 30，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
+- `CALL_PER_SESSION` 单会话最大并发子调用数量，默认 10，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
+- `FAILED_LOGIN_ATTEMPTS` 允许的连续失败登录次数，超过次数后账户将被锁定，默认 3，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_LOCK_TIME` 账户因登录失败被锁定后的解锁等待时间，单位分钟，默认 1440，最小 1，设置为 UNLIMITED 则永久锁定。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_LIFE_TIME` 密码有效期，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不过期。从企业版 v3.4.0.0 开始支持。 
 - `PASSWORD_GRACE_TIME` 密码过期后的宽限期，密码过期后允许修改的缓冲时间，宽限期内禁止执行除修改密码以外的其他操作，宽限期内如未修改密码则锁定账户，单位天，默认 7，最小 0，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
@@ -58,7 +57,7 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `INACTIVE_ACCOUNT_TIME` 账户不活动锁定时间，长期未使用的账户自动锁定，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
 - `ALLOW_TOKEN_NUM` 支持的令牌个数，默认 3，最小 0，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `HOST` 和 `NOT_ALLOW_HOST` IP 地址白名单和黑名单，可以是单个 IP 地址，如 `192.168.1.1`，也可以是一个地址段，如 `192.168.1.1/24`。当黑白名单同时存在时，只允许在白名单中且不在黑名单中的地址访问。从企业版 v3.4.0.0 开始支持。
-- `ALLOW_DATETIME` 和 `NOT_ALLOW_DATETIME` 允许和不允许登录的时间范围，包括日期、起始时间（精确到分钟）、时长（以分钟为单位）三部分，其中日期可以是具体的日期，也可以是 MON、TUE、WED、THU、FRI、SAT、SUN代表的日期，例如：`2025-12-25 08:00 120`、`TUE 08:00 120`。从企业版 v3.4.0.0 开始支持。
+- `ALLOW_DATETIME` 和 `NOT_ALLOW_DATETIME` 允许和不允许登录的时间范围，包括日期、起始时间（精确到分钟）、时长（以分钟为单位）三部分，其中日期可以是具体的日期，也可以是 MON、TUE、WED、THU、FRI、SAT、SUN 代表的日期，例如：`2025-12-25 08:00 120`、`TUE 08:00 120`。从企业版 v3.4.0.0 开始支持。
 
 在下面的示例中，我们创建一个密码为 `abc123!@#` 且可以查看系统信息的用户。
 
@@ -144,7 +143,6 @@ taos> alter user test enable 0;
 Query OK, 0 of 0 rows affected (0.001160s)
 ```
 
-
 ## 令牌管理
 
 令牌管理是 TDengine TSDB 企业版功能，从企业版 v3.4.0.0 开始支持。
@@ -208,7 +206,6 @@ ALTER TOKEN token_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO v
 ```
 
 当修改令牌的有效时长（TTL）时，新的有效时长从修改时起算。
-
 
 ### 删除令牌
 
