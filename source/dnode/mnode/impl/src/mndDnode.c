@@ -817,22 +817,33 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    auditTokenChanged = false;
   char    auditToken[TSDB_TOKEN_LEN] = {0};
 
-  SDbObj *pDb = mndAcquireAuditDb(pMnode);
-  if (pDb != NULL) {
-    tstrncpy(auditDB, pDb->name, TSDB_DB_FNAME_LEN);
-    mndReleaseDb(pMnode, pDb);
-  }
-  if (strncmp(statusReq.auditDB, auditDB, TSDB_DB_FNAME_LEN) != 0) auditDBChanged = true;
+  if (tsAuditUseToken) {
+    SDbObj *pDb = mndAcquireAuditDb(pMnode);
+    if (pDb != NULL) {
+      SName name = {0};
+      if (tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB) < 0)
+        mError("db:%s, failed to parse db name", pDb->name);
+      tstrncpy(auditDB, name.dbname, TSDB_DB_FNAME_LEN);
+      mndReleaseDb(pMnode, pDb);
+    }
+    if (strncmp(statusReq.auditDB, auditDB, TSDB_DB_FNAME_LEN) != 0) auditDBChanged = true;
 
-  // TODO dmchen get audit user
-  int32_t ret = 0;
-  if ((ret = mndGetUserActiveToken("audit", auditToken)) != 0) {
-    mError("dnode:%d, failed to get audit user active token, token:%s, since %s", pDnode->id, auditToken,
-           tstrerror(ret));
-  } else {
-    mInfo("dnode:%d, get audit user active token:%s", pDnode->id, auditToken);
-    if (strncmp(statusReq.auditToken, auditToken, TSDB_TOKEN_LEN) != 0) auditTokenChanged = true;
-  }
+    char    auditUser[TSDB_USER_LEN] = {0};
+    int32_t ret = 0;
+    if ((ret = mndGetAuditUser(pMnode, auditUser)) != 0) {
+      mTrace("dnode:%d, failed to get audit user since %s", pDnode->id, tstrerror(ret));
+    } else {
+      mTrace("dnode:%d, get audit user:%s", pDnode->id, auditUser);
+      int32_t ret = 0;
+      if ((ret = mndGetUserActiveToken("audit", auditToken)) != 0) {
+        mError("dnode:%d, failed to get audit user active token, token:%s, since %s", pDnode->id, auditToken,
+               tstrerror(ret));
+      } else {
+        mInfo("dnode:%d, get audit user active token:%s", pDnode->id, auditToken);
+        if (strncmp(statusReq.auditToken, auditToken, TSDB_TOKEN_LEN) != 0) auditTokenChanged = true;
+      }
+    }
+  } 
 
   bool needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || pMnode->timeWhiteVer != statusReq.timeWhiteVer ||

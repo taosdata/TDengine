@@ -3522,7 +3522,10 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   TAOS_RETURN(code);
 }
 
-
+int32_t mndGetAuditUser(SMnode *pMnode, char* user){
+  (void)tsnprintf(user, TSDB_USER_LEN, "audit");
+  return 0;
+}
 
 static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "drop-user");
