@@ -33,7 +33,6 @@
 #include "tjson.h"
 #include "xnode.h"
 
-#define TSDB_XNODE_VER_NUMBER   1
 #define TSDB_XNODE_RESERVE_SIZE 64
 // #define XNODED_URL              "http://localhost:6051"
 #define XNODED_PIPE_SOCKET_URL "http://localhost"

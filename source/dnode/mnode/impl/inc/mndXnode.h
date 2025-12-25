@@ -22,6 +22,8 @@
 extern "C" {
 #endif
 
+#define TSDB_XNODE_VER_NUMBER   1
+
 int32_t mndInitXnode(SMnode* pMnode);
 void    mndCleanupXnode(SMnode* pMnode);
 void    mndRetrieveTasks(SMnode* pMnode, SArray* pFc, SArray* pAd);
