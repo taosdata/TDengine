@@ -1992,8 +1992,19 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_fun_sca_char_length" class="md-nav__link">
+      <a href="#11-Functions.01-Scalar.test_fun_sca_char_length.TestCharLength.test_char_length" class="md-nav__link">
         Fun: char_length() 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_fun_sca_char_length" class="md-nav__link">
+        Fun: char_length() extend 
       </a>
       
     </li>
@@ -2015,7 +2026,7 @@
   
     <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_fun_sca_concat2.TestConcat2.test_fun_sca_concat2" class="md-nav__link">
-        Fun: concat() extend test 
+        Fun: concat() extend 
       </a>
       
     </li>
@@ -2245,6 +2256,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_fun_sca_now.TestNow.test_Now" class="md-nav__link">
+        Fun: now() 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_fun_sca_pi" class="md-nav__link">
         Fun: pi() 
       </a>
@@ -2368,6 +2390,17 @@
     <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_fun_sca_sqrt.TestFunSqrt.test_fun_sca_sqrt" class="md-nav__link">
         Fun: sqrt() 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_fun_sca_stateduration.TestFunctionStateduration.test_function_stateduration" class="md-nav__link">
+        Fun: stateduration() 
       </a>
       
     </li>
@@ -3240,14 +3273,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../DataSubscription/Native/" class="md-nav__link">
+      <a href="../../DataSubscription/Consume/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02-Native
+    02-Consume
   
 
     
@@ -3275,7 +3308,7 @@
   <span class="md-ellipsis">
     
   
-    04-MQTT
+    03-MQTT
   
 
     
@@ -4674,8 +4707,19 @@
         
   
     <li class="md-nav__item">
-      <a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_fun_sca_char_length" class="md-nav__link">
+      <a href="#11-Functions.01-Scalar.test_fun_sca_char_length.TestCharLength.test_char_length" class="md-nav__link">
         Fun: char_length() 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_fun_sca_char_length" class="md-nav__link">
+        Fun: char_length() extend 
       </a>
       
     </li>
@@ -4697,7 +4741,7 @@
   
     <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_fun_sca_concat2.TestConcat2.test_fun_sca_concat2" class="md-nav__link">
-        Fun: concat() extend test 
+        Fun: concat() extend 
       </a>
       
     </li>
@@ -4927,6 +4971,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_fun_sca_now.TestNow.test_Now" class="md-nav__link">
+        Fun: now() 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_fun_sca_pi" class="md-nav__link">
         Fun: pi() 
       </a>
@@ -5050,6 +5105,17 @@
     <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_fun_sca_sqrt.TestFunSqrt.test_fun_sca_sqrt" class="md-nav__link">
         Fun: sqrt() 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_fun_sca_stateduration.TestFunctionStateduration.test_function_stateduration" class="md-nav__link">
+        Fun: stateduration() 
       </a>
       
     </li>
@@ -5587,6 +5653,49 @@
   
   
   
+<h2 id="11-Functions.01-Scalar.test_fun_sca_char_length.TestCharLength.test_char_length" class="doc doc-heading">
+
+<a href="#11-Functions.01-Scalar.test_fun_sca_char_length.TestCharLength.test_char_length" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Fun: char_length()</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. char_length with conditions on character columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. char_length with conditions on non-character columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. char_length with group by and having</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. char_length error conditions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. char_length after wal log flush</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. char_length on stable and normal table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. char_length with null values</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. char_length with upper function</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. char_length with cast function</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. char_length with different data types</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. char_length with boundary values</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. char_length with multiple table types</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. char_length with various data distributions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">14. char_length with different timestamp formats</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">15. char_length with special characters in strings</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/01-Scalar/test_fun_sca_char_length.py" target="_blank">
+                      cases/11-Functions/01-Scalar/test_fun_sca_char_length.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="11-Functions.01-Scalar.test_fun_sca_concat.TestFunConcat.test_fun_sca_concat" class="doc doc-heading">
 
 <a href="#11-Functions.01-Scalar.test_fun_sca_concat.TestFunConcat.test_fun_sca_concat" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -5627,7 +5736,7 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: concat() extend test</strong> 
+                    <strong>Fun: concat() extend</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
@@ -5893,6 +6002,41 @@
   
   
   
+<h2 id="11-Functions.01-Scalar.test_fun_sca_now.TestNow.test_Now" class="doc doc-heading">
+
+<a href="#11-Functions.01-Scalar.test_fun_sca_now.TestNow.test_Now" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Fun: now()</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Now with insert clause</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Now with select clause</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Now with where clause</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Now with time arithmetic</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Now with different precisions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Now with error values</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/01-Scalar/test_fun_sca_now.py" target="_blank">
+                      cases/11-Functions/01-Scalar/test_fun_sca_now.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="11-Functions.01-Scalar.test_fun_sca_pow.TestPow.test_pow" class="doc doc-heading">
 
 <a href="#11-Functions.01-Scalar.test_fun_sca_pow.TestPow.test_pow" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -6058,6 +6202,47 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/01-Scalar/test_fun_sca_sqrt.py" target="_blank">
                       cases/11-Functions/01-Scalar/test_fun_sca_sqrt.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.01-Scalar.test_fun_sca_stateduration.TestFunctionStateduration.test_function_stateduration" class="doc doc-heading">
+
+<a href="#11-Functions.01-Scalar.test_fun_sca_stateduration.TestFunctionStateduration.test_function_stateduration" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Fun: stateduration()</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Query with support types</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Query with support operators</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Query with empty table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Unique with super tags</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Unique with common column</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Unique with scalar function</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Unique with filter where</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Unique with union all</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Unique with join</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Nest query</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Check boundary values</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. Check unit time</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. Check errors</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/01-Scalar/test_fun_sca_stateduration.py" target="_blank">
+                      cases/11-Functions/01-Scalar/test_fun_sca_stateduration.py
                     </a>
                   </div>
         </div>
@@ -7069,7 +7254,7 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Fun: char_length()</strong> 
+                    <strong>Fun: char_length() extend</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">

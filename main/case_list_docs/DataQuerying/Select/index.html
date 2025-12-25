@@ -1249,6 +1249,28 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_select_funtion_null.TestFunctionNull.test_function_null" class="md-nav__link">
+        Select function null 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_select_null.TestSelectNull.test_select_null" class="md-nav__link">
+        Select null 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -2525,14 +2547,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../DataSubscription/Native/" class="md-nav__link">
+      <a href="../../DataSubscription/Consume/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02-Native
+    02-Consume
   
 
     
@@ -2560,7 +2582,7 @@
   <span class="md-ellipsis">
     
   
-    04-MQTT
+    03-MQTT
   
 
     
@@ -3890,6 +3912,28 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_select_funtion_null.TestFunctionNull.test_function_null" class="md-nav__link">
+        Select function null 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.01-Select.test_query_select_null.TestSelectNull.test_select_null" class="md-nav__link">
+        Select null 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -3965,7 +4009,15 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Verify jira TD-31684</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Verify jira TS-5984</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Verify jira TS-6058</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Verify jira TS-5761</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Verify jira TS-7058</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Verify jira TS-5761 scalemode</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. Verify jira TS-5712</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. Verify jira TS-4348</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">14. Verify jira TS-4233</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">15. Verify jira TS-3405</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">16. Verify jira TD-32548</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">17. Verify jira TD-28068</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -4014,6 +4066,87 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/01-Select/test_query_select_exact.py" target="_blank">
                       cases/09-DataQuerying/01-Select/test_query_select_exact.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_select_funtion_null.TestFunctionNull.test_function_null" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_select_funtion_null.TestFunctionNull.test_function_null" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Select function null</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create table with various data types and insert data including nulls.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Execute various functions with parameter null or columns value null.</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     - abs</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     - floor</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     - ceil</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     - round </div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     - sin</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     - cos</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     - tan</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     - asin</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     - acos</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     - atan</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     - log</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     - pow</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify result as expected.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/01-Select/test_query_select_funtion_null.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_select_funtion_null.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.01-Select.test_query_select_null.TestSelectNull.test_select_null" class="doc doc-heading">
+
+<a href="#09-DataQuerying.01-Select.test_query_select_null.TestSelectNull.test_select_null" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Select null</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a super table with various data types including int, double, varchar, and timestamp.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create multiple sub-tables using the super table with different tag values.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Insert data into the sub-tables, leaving some fields as null.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Execute various SELECT queries to test the handling of null values, including:</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   - COUNT on columns with null values.</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   - MAX and MIN functions on columns with null values.</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   - Queries with LIMIT and OFFSET.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Validate the results of each query to ensure correct handling of null values.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Query using Chinese characters in column and table names to verify UTF-8 support.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Clean up by dropping the created database and tables.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/01-Select/test_query_select_null.py" target="_blank">
+                      cases/09-DataQuerying/01-Select/test_query_select_null.py
                     </a>
                   </div>
         </div>

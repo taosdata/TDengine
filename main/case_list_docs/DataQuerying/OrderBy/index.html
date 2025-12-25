@@ -1303,8 +1303,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#09-DataQuerying.04-OrderBy.test_orderby_double.TestOrderByDouble.test_orderby_double" class="md-nav__link">
-        Order by double 
+      <a href="#09-DataQuerying.04-OrderBy.test_orderby_basic.TestOrderByBasic.test_orderby_basic" class="md-nav__link">
+        Order by basic 
       </a>
       
     </li>
@@ -1314,8 +1314,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#09-DataQuerying.04-OrderBy.test_order_by_select_list.TestOrderBySelectList.test_order_by_select_list" class="md-nav__link">
-        Order By Select List 
+      <a href="#09-DataQuerying.04-OrderBy.test_orderby_double.TestOrderByDouble.test_orderby_double" class="md-nav__link">
+        Order by double 
       </a>
       
     </li>
@@ -2525,14 +2525,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../DataSubscription/Native/" class="md-nav__link">
+      <a href="../../DataSubscription/Consume/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02-Native
+    02-Consume
   
 
     
@@ -2560,7 +2560,7 @@
   <span class="md-ellipsis">
     
   
-    04-MQTT
+    03-MQTT
   
 
     
@@ -3860,8 +3860,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#09-DataQuerying.04-OrderBy.test_orderby_double.TestOrderByDouble.test_orderby_double" class="md-nav__link">
-        Order by double 
+      <a href="#09-DataQuerying.04-OrderBy.test_orderby_basic.TestOrderByBasic.test_orderby_basic" class="md-nav__link">
+        Order by basic 
       </a>
       
     </li>
@@ -3871,8 +3871,8 @@
         
   
     <li class="md-nav__item">
-      <a href="#09-DataQuerying.04-OrderBy.test_order_by_select_list.TestOrderBySelectList.test_order_by_select_list" class="md-nav__link">
-        Order By Select List 
+      <a href="#09-DataQuerying.04-OrderBy.test_orderby_double.TestOrderByDouble.test_orderby_double" class="md-nav__link">
+        Order by double 
       </a>
       
     </li>
@@ -3915,24 +3915,47 @@
   
   
   
-<h2 id="09-DataQuerying.04-OrderBy.test_order_by_select_list.TestOrderBySelectList.test_order_by_select_list" class="doc doc-heading">
+<h2 id="09-DataQuerying.04-OrderBy.test_orderby_basic.TestOrderByBasic.test_orderby_basic" class="doc doc-heading">
 
-<a href="#09-DataQuerying.04-OrderBy.test_order_by_select_list.TestOrderBySelectList.test_order_by_select_list" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#09-DataQuerying.04-OrderBy.test_orderby_basic.TestOrderByBasic.test_orderby_basic" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Order By Select List</strong> 
+                    <strong>Order by basic</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Query the table with order by select list</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Order by asc/desc</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Order by expr abs()</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Order by with limit</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Order by multiple columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Order by in sub query</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Order by _wstart with interval</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Order by with agg functions:</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - count</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - max</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - min</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - first</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - last</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - sum</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Order by with ambiguous names</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Order by same column from different tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Order by priority when column exists in both select list and table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Order by on joined tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. Memleak for order by</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. Bug TS-4467: join query with order by desc causes crash</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">14. Projection query with order by desc</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">15. Order by on select list columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">16. Order by with agg functions and alias</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">17. Order by with constant &#39;aaa&#39;</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
                   <div class="doc doc-docstring doc-function.path">
                     path:
-                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/04-OrderBy/test_order_by_select_list.py" target="_blank">
-                      cases/09-DataQuerying/04-OrderBy/test_order_by_select_list.py
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/04-OrderBy/test_orderby_basic.py" target="_blank">
+                      cases/09-DataQuerying/04-OrderBy/test_orderby_basic.py
                     </a>
                   </div>
         </div>

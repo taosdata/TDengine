@@ -1275,7 +1275,29 @@
         
   
     <li class="md-nav__item">
-      <a href="#09-DataQuerying.03-GroupBy.test_query_groupby_basic.TestGroupByBasic.test_groupby_basic" class="md-nav__link">
+      <a href="#09-DataQuerying.03-GroupBy.test_query_groupby_noreturn.TestAggGroupNotReturnValue.test_query_groupby_alwaysreturn" class="md-nav__link">
+        Group by always return close 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.03-GroupBy.test_query_groupby_alwaysreturn.TestAggGroupAlwarysReturnValue.test_query_groupby_alwaysreturn" class="md-nav__link">
+        Group by always return option 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.03-GroupBy.test_query_groupby_basic.TestGroupByBasic.test_query_groupby_basic" class="md-nav__link">
         Group by basic 
       </a>
       
@@ -2514,14 +2536,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../DataSubscription/Native/" class="md-nav__link">
+      <a href="../../DataSubscription/Consume/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02-Native
+    02-Consume
   
 
     
@@ -2549,7 +2571,7 @@
   <span class="md-ellipsis">
     
   
-    04-MQTT
+    03-MQTT
   
 
     
@@ -3849,7 +3871,29 @@
         
   
     <li class="md-nav__item">
-      <a href="#09-DataQuerying.03-GroupBy.test_query_groupby_basic.TestGroupByBasic.test_groupby_basic" class="md-nav__link">
+      <a href="#09-DataQuerying.03-GroupBy.test_query_groupby_noreturn.TestAggGroupNotReturnValue.test_query_groupby_alwaysreturn" class="md-nav__link">
+        Group by always return close 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.03-GroupBy.test_query_groupby_alwaysreturn.TestAggGroupAlwarysReturnValue.test_query_groupby_alwaysreturn" class="md-nav__link">
+        Group by always return option 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.03-GroupBy.test_query_groupby_basic.TestGroupByBasic.test_query_groupby_basic" class="md-nav__link">
         Group by basic 
       </a>
       
@@ -3893,9 +3937,50 @@
   
   
   
-<h2 id="09-DataQuerying.03-GroupBy.test_query_groupby_basic.TestGroupByBasic.test_groupby_basic" class="doc doc-heading">
+<h2 id="09-DataQuerying.03-GroupBy.test_query_groupby_alwaysreturn.TestAggGroupAlwarysReturnValue.test_query_groupby_alwaysreturn" class="doc doc-heading">
 
-<a href="#09-DataQuerying.03-GroupBy.test_query_groupby_basic.TestGroupByBasic.test_groupby_basic" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#09-DataQuerying.03-GroupBy.test_query_groupby_alwaysreturn.TestAggGroupAlwarysReturnValue.test_query_groupby_alwaysreturn" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Group by always return option</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. CountAlwaysReturnValue option is true (default)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Group by on super table with multiple subtables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Group by with various aggregate functions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Group by with various where/having/order by clauses</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Group by with nested queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Group by with join queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Group by after altering stable structure</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Group by on random data columns and tags</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Group by on random aggregate functions</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Group by on random where/having/order by clauses</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Group by on random nested queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. Group by on random join queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/03-GroupBy/test_query_groupby_alwaysreturn.py" target="_blank">
+                      cases/09-DataQuerying/03-GroupBy/test_query_groupby_alwaysreturn.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.03-GroupBy.test_query_groupby_basic.TestGroupByBasic.test_query_groupby_basic" class="doc doc-heading">
+
+<a href="#09-DataQuerying.03-GroupBy.test_query_groupby_basic.TestGroupByBasic.test_query_groupby_basic" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
@@ -3910,6 +3995,9 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. With filtering conditions</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">6. With various functions</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">7. With different windows</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. With join clauses</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. With group by now/now+1/1</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -3939,6 +4027,8 @@
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Verify bug TS-3821 (tag value not show with group by query)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify bug TD-28163 (group by query bugs with null values)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify bug TS-4382 (group by query bugs with various data types)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -3946,6 +4036,45 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/03-GroupBy/test_query_groupby_bugs.py" target="_blank">
                       cases/09-DataQuerying/03-GroupBy/test_query_groupby_bugs.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.03-GroupBy.test_query_groupby_noreturn.TestAggGroupNotReturnValue.test_query_groupby_alwaysreturn" class="doc doc-heading">
+
+<a href="#09-DataQuerying.03-GroupBy.test_query_groupby_noreturn.TestAggGroupNotReturnValue.test_query_groupby_alwaysreturn" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Group by always return close</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. CountAlwaysReturnValue option is false</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Group by with various count(*) queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Group by with various count(column) queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Group by with order by </div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Group by with having</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Group by with where clause</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Group by with union/union all</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Group by with null and not null values</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Group by on multiple tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Group by with nested queries</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Validate results against expected output</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/03-GroupBy/test_query_groupby_noreturn.py" target="_blank">
+                      cases/09-DataQuerying/03-GroupBy/test_query_groupby_noreturn.py
                     </a>
                   </div>
         </div>

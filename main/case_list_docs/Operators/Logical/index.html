@@ -1820,7 +1820,29 @@
   
     <li class="md-nav__item">
       <a href="#10-Operators.06-Logical.test_and_or.TestAndOr.test_and_or" class="md-nav__link">
-        Logical and & or 
+        Logical and & or & in 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#10-Operators.06-Logical.test_and_or_coltag.TestQueryColsTagsAndOr.test_and_or_coltag" class="md-nav__link">
+        Logical and & or on col and tag 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#10-Operators.06-Logical.test_logical_bugs.TestOperator.test_operator" class="md-nav__link">
+        Logical bugs 
       </a>
       
     </li>
@@ -2514,14 +2536,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../DataSubscription/Native/" class="md-nav__link">
+      <a href="../../DataSubscription/Consume/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02-Native
+    02-Consume
   
 
     
@@ -2549,7 +2571,7 @@
   <span class="md-ellipsis">
     
   
-    04-MQTT
+    03-MQTT
   
 
     
@@ -3861,7 +3883,29 @@
   
     <li class="md-nav__item">
       <a href="#10-Operators.06-Logical.test_and_or.TestAndOr.test_and_or" class="md-nav__link">
-        Logical and & or 
+        Logical and & or & in 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#10-Operators.06-Logical.test_and_or_coltag.TestQueryColsTagsAndOr.test_and_or_coltag" class="md-nav__link">
+        Logical and & or on col and tag 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#10-Operators.06-Logical.test_logical_bugs.TestOperator.test_operator" class="md-nav__link">
+        Logical bugs 
       </a>
       
     </li>
@@ -3899,11 +3943,21 @@
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>Logical and & or</strong> 
+                    <strong>Logical and & or & in</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Mixed usage of AND and OR operators</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. And or with super table tags and columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. And or with normal table columns</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. And or with abs function</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. And or with boundary values</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. And or for byte</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. In on select clause</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Is null / is not null on select clause</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Between and on select clause</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Not on select clause</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10.In and not in on where clause</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11.Query with timezone</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -3911,6 +3965,39 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/10-Operators/06-Logical/test_and_or.py" target="_blank">
                       cases/10-Operators/06-Logical/test_and_or.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="10-Operators.06-Logical.test_and_or_coltag.TestQueryColsTagsAndOr.test_and_or_coltag" class="doc doc-heading">
+
+<a href="#10-Operators.06-Logical.test_and_or_coltag.TestQueryColsTagsAndOr.test_and_or_coltag" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Logical and & or on col and tag</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. And/or on various data types of columns in ordinary table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. And/or on various data types of tags in super table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. And/or on timestamp and columns in ordinary table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. And/or on join clauses</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/10-Operators/06-Logical/test_and_or_coltag.py" target="_blank">
+                      cases/10-Operators/06-Logical/test_and_or_coltag.py
                     </a>
                   </div>
         </div>
@@ -3944,6 +4031,46 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/10-Operators/06-Logical/test_if_smoking.py" target="_blank">
                       cases/10-Operators/06-Logical/test_if_smoking.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="10-Operators.06-Logical.test_logical_bugs.TestOperator.test_operator" class="doc doc-heading">
+
+<a href="#10-Operators.06-Logical.test_logical_bugs.TestOperator.test_operator" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Logical bugs</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Jira TD-5757: </div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Logical operator with IS NULL/IS NOT NULL and IN/NOT IN returns incorrect results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Jira TD-5760: </div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Arithmetic operations on TIMESTAMP with negative numbers yield incorrect results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Jira TD-5758: </div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Combining IN operator with BETWEEN clause yields incorrect results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Jira TD-5759: </div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Combining BETWEEN clause with logical operators yields incorrect results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Jira TD-5823: </div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Arithmetic operations on TIMESTAMP with various numeric data types yield incorrect results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Validate arithmetic operations on TIMESTAMP with different numeric data types:</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - INT, BIGINT, SMALLINT, TINYINT, FLOAT, DOUBLE, etc.        </div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/10-Operators/06-Logical/test_logical_bugs.py" target="_blank">
+                      cases/10-Operators/06-Logical/test_logical_bugs.py
                     </a>
                   </div>
         </div>
