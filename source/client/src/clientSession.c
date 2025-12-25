@@ -223,7 +223,7 @@ int32_t sessMetricUpdate(SSessMetric *pMetric, SSessParam *p) {
   code = sessFnSet[p->type].updateFn(&pMetric->value[p->type], p->value);
 _error:
 
-  (void)taosThreadRwlockUnlock(&pMetric->lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMetric->lock));
   return code;
 }
 
