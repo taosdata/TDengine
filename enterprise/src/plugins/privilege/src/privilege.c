@@ -40,7 +40,7 @@ int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
 
 void mndCleanupPrivilege(SMnode *pMnode) {}
 
-int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType) {
+int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
 
@@ -50,7 +50,7 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operTy
     goto _OVER;
   }
 
-  if (mndMustChangePassword(pUser)) {
+  if (token == NULL && mndMustChangePassword(pUser)) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_PASSWORD_EXPIRED, NULL, _OVER);
   }
 
@@ -106,41 +106,46 @@ static bool canChangePassword(SUserObj *pOperUser, SUserObj *pUser) {
 
 
 
-int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) {
+int32_t mndCheckAlterUserPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, SAlterUserReq *pAlter) {
+  int32_t code = 0, lino = 0;
+  SUserObj *pOperUser = NULL;
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, opUser, &pOperUser), &lino, _OVER);
+
   if (pAlter->alterType != TSDB_ALTER_USER_BASIC_INFO) {
-    if (mndMustChangePassword(pOperUser)) {
-      TAOS_RETURN(TSDB_CODE_MND_USER_PASSWORD_EXPIRED);
+    if (opToken == NULL && mndMustChangePassword(pOperUser)) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_PASSWORD_EXPIRED, &lino, _OVER);
     }
     if (pOperUser->superUser && !pUser->superUser) {
-      return 0;
+      goto _OVER;
     }
-    TAOS_RETURN(TSDB_CODE_MND_USER_DISABLED);
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, &lino, _OVER);
   }
 
   if (pAlter->hasPassword) {
     if (!canChangePassword(pOperUser, pUser)) {
-      TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
     }
-  } else if (mndMustChangePassword(pOperUser)) {
-    TAOS_RETURN(TSDB_CODE_MND_USER_PASSWORD_EXPIRED);
+  } else if (opToken == NULL && mndMustChangePassword(pOperUser)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_PASSWORD_EXPIRED, &lino, _OVER);
   }
 
   if (pOperUser->superUser) {
     if (!pUser->superUser) {
       // super user can alter any non-super user
-      return 0;
+      goto _OVER;
     }
   } else if (!pOperUser->enable) {
-    TAOS_RETURN(TSDB_CODE_MND_USER_DISABLED);
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, &lino, _OVER);
   } else if (strcmp(pUser->user, pOperUser->user) != 0) {
-    TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
   } else if (pAlter->numIpRanges > 0 || pAlter->numDropIpRanges > 0) {
     // user can not alter its own ip white list
-    TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
   }
 
   // now there are two cases left:
-  // 1. if both pOperUser and pUser are superuser
+  // 1. both pOperUser and pUser are superuser
   // 2. pOperUser and pUser are same user
 
   if (pAlter->hasEnable || pAlter->hasSysinfo || pAlter->hasCreatedb ||
@@ -152,24 +157,58 @@ int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterU
       pAlter->hasPasswordLockTime || pAlter->hasPasswordGraceTime ||
       pAlter->hasInactiveAccountTime || pAlter->hasAllowTokenNum ||
       pAlter->numTimeRanges > 0 || pAlter->numDropTimeRanges > 0) {
-    TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
   }
 
   // super user can alter totp seed of any user, user can also alter its own totp seed
   // so no need to check pAlter->hasTotpseed here
-
-  return 0;
+_OVER:
+  mndReleaseUser(pMnode, pOperUser);
+  return code;
 }
 
 
 
-int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showType, const char *dbname) {
+int32_t mndCheckTokenPrivilege(SMnode* pMnode, const char* opUser, const char* opToken, const char *user, const char* token) {
+  int32_t   code = 0;
+  SUserObj *pOperUser = NULL;
+
+  if (opToken != NULL && token != NULL && taosStrcasecmp(opToken, token) == 0) {
+    return TSDB_CODE_MND_NO_RIGHTS; // token cannot alter/drop itself
+  }
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, opUser, &pOperUser), NULL, _OVER);
+
+  if (opToken == NULL && mndMustChangePassword(pOperUser)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+  }
+
+  if (pOperUser->superUser) {
+    goto _OVER;
+  }
+
+  if (!pOperUser->enable) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, NULL, _OVER);
+  }
+
+  if (strcmp(pOperUser->user, user) != 0) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+  }
+
+_OVER:
+  mndReleaseUser(pMnode, pOperUser);
+  TAOS_RETURN(code);
+}
+
+
+
+int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, const char* token, EShowType showType, const char *dbname) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
 
-  if (mndMustChangePassword(pUser)) {
+  if (token == NULL && mndMustChangePassword(pUser)) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_PASSWORD_EXPIRED, NULL, _OVER);
   }
 
@@ -207,7 +246,7 @@ int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showTy
   }
 
   if (showType == TSDB_MGMT_TABLE_STB || showType == TSDB_MGMT_TABLE_VGROUP || showType == TSDB_MGMT_TABLE_INDEX) {
-    code = mndCheckDbPrivilegeByName(pMnode, user, MND_OPER_READ_OR_WRITE_DB, dbname);
+    code = mndCheckDbPrivilegeByName(pMnode, user, token, MND_OPER_READ_OR_WRITE_DB, dbname);
   }
 
 _OVER:
@@ -215,13 +254,13 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb) {
+int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SDbObj *pDb) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
 
-  if (mndMustChangePassword(pUser)) {
+  if (token == NULL && mndMustChangePassword(pUser)) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_PASSWORD_EXPIRED, NULL, _OVER);
   }
 
@@ -269,7 +308,7 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *dbname) {
+int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char* token, EOperType operType, const char *dbname) {
   int32_t code = 0;
 
   const char *realDbName = NULL;
@@ -293,16 +332,16 @@ int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType op
     TAOS_RETURN(terrno);
   }
 
-  code = mndCheckDbPrivilege(pMnode, user, operType, pDb);
+  code = mndCheckDbPrivilege(pMnode, user, token, operType, pDb);
   mndReleaseDb(pMnode, pDb);
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckStbPrivilege(SMnode *pMnode, SUserObj *pUser, EOperType operType, SStbObj *pStb) {
+int32_t mndCheckStbPrivilege(SMnode *pMnode, SUserObj *pUser, const char* token, EOperType operType, SStbObj *pStb) {
   int32_t code = 0, lino = 0;
   SDbObj *pDb = NULL;
 
-  if (mndMustChangePassword(pUser)) {
+  if (token == NULL && mndMustChangePassword(pUser)) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_PASSWORD_EXPIRED);
   }
 
@@ -333,13 +372,13 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckViewPrivilege(SMnode *pMnode, const char *user, EOperType operType, const char *pViewFName) {
+int32_t mndCheckViewPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, const char *pViewFName) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
 
-  if (mndMustChangePassword(pUser)) {
+  if (token == NULL && mndMustChangePassword(pUser)) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_PASSWORD_EXPIRED, NULL, _OVER);
   }
 
@@ -360,13 +399,13 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operType, SMqTopicObj *pTopic) {
+int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SMqTopicObj *pTopic) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
 
-  if (mndMustChangePassword(pUser)) {
+  if (token == NULL && mndMustChangePassword(pUser)) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_PASSWORD_EXPIRED, NULL, _OVER);
   }
 
@@ -382,7 +421,7 @@ int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operT
   }
 
   if (operType == MND_OPER_CREATE_TOPIC) {
-    if (mndCheckDbPrivilegeByName(pMnode, user, MND_OPER_READ_DB, pTopic->db) == 0) goto _OVER;
+    if (mndCheckDbPrivilegeByName(pMnode, user, token, MND_OPER_READ_DB, pTopic->db) == 0) goto _OVER;
   }
 
   if (operType == MND_OPER_DROP_TOPIC) {

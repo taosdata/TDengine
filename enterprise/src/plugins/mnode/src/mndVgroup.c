@@ -58,7 +58,7 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP_LEADER)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_BALANCE_VGROUP_LEADER)) != 0) {
     goto _OVER;
   }
 
@@ -137,7 +137,7 @@ int32_t mndProcessSplitVgroupMsgImp(SRpcMsg *pReq) {
   }
 
   mInfo("vgId:%d, start to split", req.vgId);
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SPLIT_VGROUP)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SPLIT_VGROUP)) != 0) {
     goto _OVER;
   }
 

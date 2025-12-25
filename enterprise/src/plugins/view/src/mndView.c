@@ -369,9 +369,9 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
   SUserObj *pUser = NULL;
   SUserObj newUserObj = {0}, *pNewUserDuped = NULL;
 
-  TAOS_CHECK_RETURN(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+  TAOS_CHECK_RETURN(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser));
 
-  if (mndCreateViewObj(pMnode, &view, pCreate, pOldView, pReq->info.conn.user) != 0) {
+  if (mndCreateViewObj(pMnode, &view, pCreate, pOldView, RPC_MSG_USER(pReq)) != 0) {
     code = terrno;
     goto _OVER;
   }
@@ -562,7 +562,7 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
       goto _OVER;
     }
     
-    if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+    if (mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_WRITE_DB, pDb) != 0) {
       code = terrno;
       goto _OVER;
     }
@@ -577,7 +577,7 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
       mInfo("view %s already exist, or replace is set", pCreateView->fullname);
     }
     
-    if (0 != mndCheckViewPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_VIEW, pCreateView->fullname)) {
+    if (0 != mndCheckViewPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_VIEW, pCreateView->fullname)) {
       code = terrno;
       goto _OVER;
     }
@@ -630,7 +630,7 @@ int32_t mndProcessDropViewReqImpl(SCMDropViewReq* pDropView, SRpcMsg *pReq) {
     }
   }
 
-  if (0 != mndCheckViewPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_VIEW, pDropView->fullname)) {
+  if (0 != mndCheckViewPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_VIEW, pDropView->fullname)) {
     code = terrno;
     goto _OVER;
   }

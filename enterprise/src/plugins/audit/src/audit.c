@@ -34,15 +34,14 @@ extern SAudit tsAudit;
 void getAuditDbNameToken(char *pDb, char *pToken) {
   (void)taosThreadRwlockRdlock(&tsAudit.infoLock);
   tstrncpy(pDb, tsAudit.auditDB, TSDB_DB_FNAME_LEN);
-  // tstrncpy(pToken, tsAudit.auditToken, AUDIT_TOKEN_LEN);
-  tstrncpy(pToken, "xxxxxxxxxx", AUDIT_TOKEN_LEN);
+  tstrncpy(pToken, tsAudit.auditToken, TSDB_TOKEN_LEN);
   (void)taosThreadRwlockUnlock(&tsAudit.infoLock);
 }
 
 void setAuditDbNameToken(char *pDb, char *pToken) {
   (void)taosThreadRwlockWrlock(&tsAudit.infoLock);
   tstrncpy(tsAudit.auditDB, pDb, TSDB_DB_FNAME_LEN);
-  tstrncpy(tsAudit.auditToken, pToken, AUDIT_TOKEN_LEN);
+  tstrncpy(tsAudit.auditToken, pToken, TSDB_TOKEN_LEN);
   (void)taosThreadRwlockUnlock(&tsAudit.infoLock);
 }
 
@@ -169,7 +168,7 @@ _OVER:
 static int32_t auditSend(SJson *pJson) {
   int32_t code = 0;
   char    db[TSDB_DB_FNAME_LEN] = {0};
-  char    token[AUDIT_TOKEN_LEN] = {0};
+  char    token[TSDB_TOKEN_LEN] = {0};
 
   getAuditDbNameToken(db, token);
 
@@ -189,7 +188,7 @@ static int32_t auditSend(SJson *pJson) {
 
   char qid[100] = {0};
   (void)snprintf(qid, 100, "0x%" PRIxLEAST64, tGenQid64(tsAudit.dnodeId));
-  uDebug("audit record with QID:%s cont:%s\n", qid, pCont);
+  uDebug("audit record with path:%s QID:%s cont:%s\n", httpPath, qid, pCont);
 
   if (tsAuditHttps) {
 #ifndef WINDOWS
@@ -246,8 +245,8 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   }
 
   char user[TSDB_USER_LEN] = {0};
-  if(pReq != NULL && pReq->info.conn.user[0] != 0){
-    memcpy(user, pReq->info.conn.user, 24);
+  if(pReq != NULL && RPC_MSG_USER(pReq)[0] != 0){
+    tstrncpy(user, RPC_MSG_USER(pReq), sizeof(user));
   }
   uTrace("audit record user:%s, len:%" PRId32, user, (int32_t)strlen(user));
 
@@ -331,8 +330,8 @@ void auditAddRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *
     return;
   }
 
-  if(pReq != NULL && pReq->info.conn.user[0] != 0){
-    strncpy(record->user, pReq->info.conn.user, 24);
+  if(pReq != NULL && RPC_MSG_USER(pReq)[0] != 0){
+    tstrncpy(record->user, RPC_MSG_USER(pReq), sizeof(record->user));
   }
   uTrace("audit record user:%s, len:%" PRId32, record->user, (int32_t)strlen(record->user));
 
@@ -369,7 +368,7 @@ _exit:
 
 void auditSendRecordsInBatchImp(){
   char db[TSDB_DB_FNAME_LEN] = {0};
-  char token[AUDIT_TOKEN_LEN] = {0};
+  char token[TSDB_TOKEN_LEN] = {0};
 
   getAuditDbNameToken(db, token);
 
