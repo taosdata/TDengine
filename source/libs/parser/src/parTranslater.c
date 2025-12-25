@@ -3929,7 +3929,7 @@ static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
       }
       break;
     }
-    case E_SUB_QUERY_COW: {
+    case E_SUB_QUERY_COLUMN: {
       code = validateExprSubQuery(pSubQuery);
       if (TSDB_CODE_SUCCESS == code) {
         *pNode = NULL;

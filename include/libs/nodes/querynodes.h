@@ -601,7 +601,7 @@ typedef struct SExtWinTimeWindow {
 
 typedef enum ESubQueryType {
   E_SUB_QUERY_SCALAR = 1,
-  E_SUB_QUERY_COW,
+  E_SUB_QUERY_COLUMN,
   E_SUB_QUERY_TABLE
 } ESubQueryType;
 

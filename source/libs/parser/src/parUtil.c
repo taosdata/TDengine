@@ -1783,13 +1783,13 @@ int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType* type) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
-      pSelect->subQType = pSelect->node.asList ? E_SUB_QUERY_COW : E_SUB_QUERY_SCALAR;
+      pSelect->subQType = pSelect->node.asList ? E_SUB_QUERY_COLUMN : E_SUB_QUERY_SCALAR;
       *type = pSelect->subQType;
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSet = (SSetOperator*)pNode;
-      pSet->subQType = pSet->node.asList ? E_SUB_QUERY_COW : E_SUB_QUERY_SCALAR;
+      pSet->subQType = pSet->node.asList ? E_SUB_QUERY_COLUMN : E_SUB_QUERY_SCALAR;
       *type = pSet->subQType;
       break;
     }
