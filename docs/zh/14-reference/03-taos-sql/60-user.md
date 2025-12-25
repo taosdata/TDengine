@@ -50,7 +50,7 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `CALL_PER_SESSION` 单会话最大并发子调用数量，默认 10，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `FAILED_LOGIN_ATTEMPTS` 允许的连续失败登录次数，超过次数后账户将被锁定，默认 3，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_LOCK_TIME` 账户因登录失败被锁定后的解锁等待时间，单位分钟，默认 1440，最小 1，设置为 UNLIMITED 则永久锁定。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_LIFE_TIME` 密码有效期，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不过期。从企业版 v3.4.0.0 开始支持。 
+- `PASSWORD_LIFE_TIME` 密码有效期，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不过期。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_GRACE_TIME` 密码过期后的宽限期，密码过期后允许修改的缓冲时间，宽限期内禁止执行除修改密码以外的其他操作，宽限期内如未修改密码则锁定账户，单位天，默认 7，最小 0，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_REUSE_TIME` 密码重用时间，旧密码失效后不能在此期限内重复使用，单位天，默认 30，最小 0，最大 365。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_REUSE_MAX` 密码历史记录次数，需要多少次密码更改后才能重复使用旧密码。默认 5，最小 0，最大 100。新密码需同时满足 PASSWORD_REUSE_TIME 和 PASSWORD_REUSE_MAX 两项限制。从企业版 v3.4.0.0 开始支持。
