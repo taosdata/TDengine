@@ -10376,6 +10376,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "taosx-integration-tests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "taos",
+ "taosx-core",
+ "taosx-task",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "taosx-ipc"
 version = "0.1.0"
 dependencies = [

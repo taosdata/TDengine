@@ -1,0 +1,60 @@
+[package]
+name = "taosx-integration-tests"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "taosx_integration_tests"
+path = "integration/lib.rs"
+
+[features]
+default = []
+
+# Core features
+integration = []
+
+# Data source tests
+test-kafka = []
+test-mysql = []
+test-oracle = []
+test-postgres = []
+test-mongodb = []
+test-mssql = []
+test-mqtt = []
+test-opcua = []
+test-opcda = []
+test-pi = []
+test-historian = []
+
+# Test groups (by type)
+test-relational-db = ["test-mysql", "test-oracle", "test-postgres", "test-mssql"]
+test-nosql-db = ["test-mongodb"]
+test-message-queue = ["test-kafka", "test-mqtt"]
+test-industrial-protocol = ["test-opcua", "test-opcda", "test-pi", "test-historian"]
+
+# All datasources
+test-all-datasources = [
+    "test-relational-db",
+    "test-nosql-db",
+    "test-message-queue",
+    "test-industrial-protocol"
+]
+
+[dependencies]
+# Test framework
+tokio = { workspace = true, features = ["full", "test-util"] }
+tokio-util = { workspace = true }
+
+# taosX dependencies
+taosx-core = { path = "../taosx-core" }
+taosx-task = { path = "../crates/task" }
+taos = { workspace = true }
+
+# Utilities
+uuid = { version = "1.0", features = ["v4"] }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
+
