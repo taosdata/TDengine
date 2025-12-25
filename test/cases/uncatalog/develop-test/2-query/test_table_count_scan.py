@@ -81,7 +81,7 @@ class TestTableCountScan:
         for i in range(0, 3):
             db_name = tdSql.getData(i, 1)
             if db_name == 'information_schema':
-                tdSql.checkData(i, 0, 48)
+                tdSql.checkData(i, 0, 49)
                 tdSql.checkData(i, 2, None)
             elif db_name == 'performance_schema':
                 tdSql.checkData(i, 0, 6)
@@ -94,7 +94,7 @@ class TestTableCountScan:
         
         tdSql.query('select count(1) v,db_name, stable_name from information_schema.ins_tables group by db_name, stable_name order by v desc;')
         tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 48)
+        tdSql.checkData(0, 0, 49)
         tdSql.checkData(0, 1, 'information_schema')
         tdSql.checkData(0, 2, None)
         tdSql.checkData(1, 0, 6)
@@ -110,7 +110,7 @@ class TestTableCountScan:
         tdSql.checkData(1, 1, 'performance_schema')
         tdSql.checkData(0, 0, 3)
         tdSql.checkData(0, 1, 'tbl_count')
-        tdSql.checkData(2, 0, 48)
+        tdSql.checkData(2, 0, 49)
         tdSql.checkData(2, 1, 'information_schema')
 
         tdSql.query("select count(*) from information_schema.ins_tables where db_name='tbl_count'")
@@ -206,7 +206,7 @@ class TestTableCountScan:
         tdSql.checkData(2, 0, 6)
         tdSql.checkData(2, 1, 'performance_schema')
         tdSql.checkData(2, 2, None)
-        tdSql.checkData(3, 0, 48)
+        tdSql.checkData(3, 0, 49)
         tdSql.checkData(3, 1, 'information_schema')
         tdSql.checkData(3, 2, None)
 
@@ -221,7 +221,7 @@ class TestTableCountScan:
         tdSql.checkData(2, 0, 6)
         tdSql.checkData(2, 1, 'performance_schema')
         tdSql.checkData(2, 2, None)
-        tdSql.checkData(3, 0, 48)
+        tdSql.checkData(3, 0, 49)
         tdSql.checkData(3, 1, 'information_schema')
         tdSql.checkData(3, 2, None)
 
@@ -232,7 +232,7 @@ class TestTableCountScan:
         tdSql.checkData(0, 1, 'tbl_count')
         tdSql.checkData(1, 0, 6)
         tdSql.checkData(1, 1, 'performance_schema')
-        tdSql.checkData(2, 0, 48)
+        tdSql.checkData(2, 0, 49)
         tdSql.checkData(2, 1, 'information_schema')
 
         tdSql.query("select count(*) from information_schema.ins_tables where db_name='tbl_count'")
