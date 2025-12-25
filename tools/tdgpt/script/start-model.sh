@@ -89,7 +89,7 @@ main() {
   moment_venv="$(ini_get uwsgi momentfm_venv  "/var/lib/taos/taosanode/momentfm_venv")"
   logto="$(ini_get uwsgi logto "/var/log/taos/taosanode/taosanode.log")"
   log_dir="$(dirname "$logto")"
-  service_log="${log_dir}/taosanode_service_${model_name}.log"
+  service_log="${log_dir%/}/taosanode_service_${model_name}.log"
 
   # Model config
   case "$model_name" in
