@@ -127,76 +127,91 @@ select top(int_tag, 5) from test_vtable_select.vtb_virtual_stb partition by bool
 select top(u_tinyint_col, 9) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1;
 select top(int_tag, 9) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1;
 
+select first(ts) from test_vtable_select.vtb_virtual_stb;
 select first(u_tinyint_col) from test_vtable_select.vtb_virtual_stb;
 select first(u_tinyint_col), first(nchar_32_tag), first(binary_32_tag), first(int_tag), first(bool_tag), first(float_tag), first(double_tag), first(tbname) from test_vtable_select.vtb_virtual_stb;
 select first(*) from test_vtable_select.vtb_virtual_stb;
 select first(*), first(nchar_32_tag), first(binary_32_tag), first(int_tag), first(bool_tag), first(float_tag), first(double_tag), first(tbname) from test_vtable_select.vtb_virtual_stb;
 
+select first(ts) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1;
 select first(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1;
 select first(u_tinyint_col), first(nchar_32_tag), first(binary_32_tag), first(int_tag), first(bool_tag), first(float_tag), first(double_tag), first(tbname) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1,2,3,4,5;
 select first(*) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1;
 select first(*), first(nchar_32_tag), first(binary_32_tag), first(int_tag), first(bool_tag), first(float_tag), first(double_tag), first(tbname) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1,2,3,4,5;
 
+select first(ts) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1;
 select first(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1;
 select first(u_tinyint_col), first(nchar_32_tag), first(binary_32_tag), first(int_tag), first(bool_tag), first(float_tag), first(double_tag), first(tbname) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1,2,3,4,5;
 select first(*) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1;
 select first(*), first(nchar_32_tag), first(binary_32_tag), first(int_tag), first(bool_tag), first(float_tag), first(double_tag), first(tbname) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1,2,3,4,5;
 
+select first(ts) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1;
 select first(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1;
 select first(u_tinyint_col), first(nchar_32_tag), first(binary_32_tag), first(int_tag), first(bool_tag), first(float_tag), first(double_tag), first(tbname) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1,2,3,4,5;
 select first(*) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1;
 select first(*), first(nchar_32_tag), first(binary_32_tag), first(int_tag), first(bool_tag), first(float_tag), first(double_tag), first(tbname) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1,2,3,4,5;
 
+select first(ts) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1;
 select first(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1;
 select first(u_tinyint_col), first(nchar_32_tag), first(binary_32_tag), first(int_tag), first(bool_tag), first(float_tag), first(double_tag), first(tbname) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1,2,3,4,5;
 select first(*) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1;
 select first(*), first(nchar_32_tag), first(binary_32_tag), first(int_tag), first(bool_tag), first(float_tag), first(double_tag), first(tbname) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1,2,3,4,5;
 
+select last(ts) from test_vtable_select.vtb_virtual_stb;
 select last(u_tinyint_col) from test_vtable_select.vtb_virtual_stb;
 select last(u_tinyint_col), last(nchar_32_tag), last(binary_32_tag), last(int_tag), last(bool_tag), last(float_tag), last(double_tag), last(tbname) from test_vtable_select.vtb_virtual_stb;
 select last(*) from test_vtable_select.vtb_virtual_stb;
 select last(*), last(nchar_32_tag), last(binary_32_tag), last(int_tag), last(bool_tag), last(float_tag), last(double_tag), last(tbname) from test_vtable_select.vtb_virtual_stb;
 
+select last(ts) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1;
 select last(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1;
 select last(u_tinyint_col), last(nchar_32_tag), last(binary_32_tag), last(int_tag), last(bool_tag), last(float_tag), last(double_tag), last(tbname) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1,2,3,4,5;
 select last(*) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1;
 select last(*), last(nchar_32_tag), last(binary_32_tag), last(int_tag), last(bool_tag), last(float_tag), last(double_tag), last(tbname) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1,2,3,4,5;
 
+select last(ts) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1;
 select last(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1;
 select last(u_tinyint_col), last(nchar_32_tag), last(binary_32_tag), last(int_tag), last(bool_tag), last(float_tag), last(double_tag), last(tbname) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1,2,3,4,5;
 select last(*) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1;
 select last(*), last(nchar_32_tag), last(binary_32_tag), last(int_tag), last(bool_tag), last(float_tag), last(double_tag), last(tbname) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1,2,3,4,5;
 
+select last(ts) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1;
 select last(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1;
 select last(u_tinyint_col), last(nchar_32_tag), last(binary_32_tag), last(int_tag), last(bool_tag), last(float_tag), last(double_tag), last(tbname) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1,2,3,4,5;
 select last(*) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1;
 select last(*), last(nchar_32_tag), last(binary_32_tag), last(int_tag), last(bool_tag), last(float_tag), last(double_tag), last(tbname) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1,2,3,4,5;
 
+select last(ts) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1;
 select last(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1;
 select last(u_tinyint_col), last(nchar_32_tag), last(binary_32_tag), last(int_tag), last(bool_tag), last(float_tag), last(double_tag), last(tbname) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1,2,3,4,5;
 select last(*) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1;
 select last(*), last(nchar_32_tag), last(binary_32_tag), last(int_tag), last(bool_tag), last(float_tag), last(double_tag), last(tbname) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1,2,3,4,5;
 
+select last_row(ts) from test_vtable_select.vtb_virtual_stb;
 select last_row(u_tinyint_col) from test_vtable_select.vtb_virtual_stb;
 select last_row(u_tinyint_col), last_row(nchar_32_tag), last_row(binary_32_tag), last_row(int_tag), last_row(bool_tag), last_row(float_tag), last_row(double_tag), last_row(tbname) from test_vtable_select.vtb_virtual_stb;
 select last_row(*) from test_vtable_select.vtb_virtual_stb;
 select last_row(*), last_row(nchar_32_tag), last_row(binary_32_tag), last_row(int_tag), last_row(bool_tag), last_row(float_tag), last_row(double_tag), last_row(tbname) from test_vtable_select.vtb_virtual_stb;
 
+select last_row(ts) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1;
 select last_row(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1;
 select last_row(u_tinyint_col), last_row(nchar_32_tag), last_row(binary_32_tag), last_row(int_tag), last_row(bool_tag), last_row(float_tag), last_row(double_tag), last_row(tbname) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1,2,3,4,5;
 select last_row(*) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1;
 select last_row(*), last_row(nchar_32_tag), last_row(binary_32_tag), last_row(int_tag), last_row(bool_tag), last_row(float_tag), last_row(double_tag), last_row(tbname) from test_vtable_select.vtb_virtual_stb partition by nchar_32_tag order by 1,2,3,4,5;
 
+select last_row(ts) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1;
 select last_row(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1;
 select last_row(u_tinyint_col), last_row(nchar_32_tag), last_row(binary_32_tag), last_row(int_tag), last_row(bool_tag), last_row(float_tag), last_row(double_tag), last_row(tbname) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1,2,3,4,5;
 select last_row(*) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1;
 select last_row(*), last_row(nchar_32_tag), last_row(binary_32_tag), last_row(int_tag), last_row(bool_tag), last_row(float_tag), last_row(double_tag), last_row(tbname) from test_vtable_select.vtb_virtual_stb partition by binary_32_tag order by 1,2,3,4,5;
 
+select last_row(ts) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1;
 select last_row(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1;
 select last_row(u_tinyint_col), last_row(nchar_32_tag), last_row(binary_32_tag), last_row(int_tag), last_row(bool_tag), last_row(float_tag), last_row(double_tag), last_row(tbname) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1,2,3,4,5;
 select last_row(*) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1;
 select last_row(*), last_row(nchar_32_tag), last_row(binary_32_tag), last_row(int_tag), last_row(bool_tag), last_row(float_tag), last_row(double_tag), last_row(tbname) from test_vtable_select.vtb_virtual_stb partition by bool_tag order by 1,2,3,4,5;
 
+select last_row(ts) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1;
 select last_row(u_tinyint_col) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1;
 select last_row(u_tinyint_col), last_row(nchar_32_tag), last_row(binary_32_tag), last_row(int_tag), last_row(bool_tag), last_row(float_tag), last_row(double_tag), last_row(tbname) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1,2,3,4,5;
 select last_row(*) from test_vtable_select.vtb_virtual_stb partition by tbname order by 1;
