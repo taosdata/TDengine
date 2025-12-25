@@ -40,6 +40,8 @@ class TestSLimit:
         tdStream.dropAllStreamsAndDbs()
         self.SlimitAlterTag()
         tdStream.dropAllStreamsAndDbs()
+        self.GroupAggWithSlimit()
+        tdStream.dropAllStreamsAndDbs()
 
     def Slimit(self):
         dbPrefix = "slm_db"
@@ -672,3 +674,22 @@ class TestSLimit:
             f"select count(*), first(*) from stb partition by t2 slimit 6 soffset 1"
         )
         tdSql.checkRows(3)
+
+    def GroupAggWithSlimit(self):
+        tdSql.execute(f"drop database if exists db1;")
+        tdSql.execute(f"create database db1 vgroups 1;")
+        tdSql.execute(f"use db1;")
+        tdSql.execute(
+            f"create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);"
+        )
+        tdSql.execute(f"create table tb1 using sta tags(1, 1, 1);")
+        tdSql.execute(f"create table tb2 using sta tags(2, 2, 2);")
+        
+        tdSql.execute(f"insert into tb1 values ('2022-04-26 15:15:01', 1, \"a\");")
+        tdSql.execute(f"insert into tb1 values ('2022-04-26 15:15:02', 11, \"a\");")
+        tdSql.execute(f"insert into tb2 values ('2022-04-26 15:15:01', 2, \"a\");")
+        tdSql.execute(f"insert into tb2 values ('2022-04-26 15:15:02', 22, \"a\");")
+
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 1")
+        tdSql.checkRows(1)
+        
