@@ -155,7 +155,7 @@ int32_t mndGetUserActiveToken(const char* user, char* token) {
   void *pIter = taosHashIterate(tokenCache.tokens, NULL);
   while (pIter) {
     SCachedTokenInfo *ti = *(SCachedTokenInfo **)pIter;
-    if (ti != NULL && ti->enabled && ti->expireTime > now) {
+    if (ti != NULL && ti->enabled && (ti->expireTime > now || ti->expireTime == 0)) {
       if (taosStrcasecmp(ti->user, user) == 0) {
         const void* key = taosHashGetKey(pIter, NULL);
         tstrncpy(token, (const char*)key, TSDB_TOKEN_LEN);

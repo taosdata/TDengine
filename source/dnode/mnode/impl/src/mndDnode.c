@@ -26,6 +26,7 @@
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSnode.h"
+#include "mndToken.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -813,17 +814,29 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    analVerChanged = (analVer != statusReq.analVer);
   bool    auditDBChanged = false;
   char    auditDB[TSDB_DB_FNAME_LEN] = {0};
+  bool    auditTokenChanged = false;
+  char    auditToken[TSDB_TOKEN_LEN] = {0};
+
   SDbObj *pDb = mndAcquireAuditDb(pMnode);
   if (pDb != NULL) {
     tstrncpy(auditDB, pDb->name, TSDB_DB_FNAME_LEN);
     mndReleaseDb(pMnode, pDb);
   }
-
   if (strncmp(statusReq.auditDB, auditDB, TSDB_DB_FNAME_LEN) != 0) auditDBChanged = true;
+
+  // TODO dmchen get audit user
+  int32_t ret = 0;
+  if ((ret = mndGetUserActiveToken("audit", auditToken)) != 0) {
+    mError("dnode:%d, failed to get audit user active token, token:%s, since %s", pDnode->id, auditToken,
+           tstrerror(ret));
+  } else {
+    mInfo("dnode:%d, get audit user active token:%s", pDnode->id, auditToken);
+    if (strncmp(statusReq.auditToken, auditToken, TSDB_TOKEN_LEN) != 0) auditTokenChanged = true;
+  }
 
   bool needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || pMnode->timeWhiteVer != statusReq.timeWhiteVer ||
-                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged;
+                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged || auditTokenChanged;
   const STraceId *trace = &pReq->info.traceId;
   char            timestamp[TD_TIME_STR_LEN] = {0};
   if (mDebugFlag & DEBUG_TRACE) (void)formatTimestampLocal(timestamp, statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
@@ -978,7 +991,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       mInfo("dnode:%d, set audit db %s in process status rsp", statusReq.dnodeId, auditDB);
       tstrncpy(statusRsp.auditDB, auditDB, TSDB_DB_FNAME_LEN);
     }
-    // TODO dmchen get audit db token
+    if (auditToken[0] != '\0') {
+      mInfo("dnode:%d, set audit token %s in process status rsp", statusReq.dnodeId, auditToken);
+      tstrncpy(statusRsp.auditToken, auditToken, TSDB_TOKEN_LEN);
+    }
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);

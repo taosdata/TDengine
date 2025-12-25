@@ -2595,7 +2595,7 @@ typedef struct {
   int64_t     analVer;
   int64_t     timestamp;
   char        auditDB[TSDB_DB_FNAME_LEN];
-  char        auditToken[AUDIT_TOKEN_LEN];
+  char        auditToken[TSDB_TOKEN_LEN];
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -2694,7 +2694,7 @@ typedef struct {
   int64_t   analVer;
   int64_t   timeWhiteVer;
   char      auditDB[TSDB_DB_FNAME_LEN];
-  char      auditToken[AUDIT_TOKEN_LEN];
+  char      auditToken[TSDB_TOKEN_LEN];
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
