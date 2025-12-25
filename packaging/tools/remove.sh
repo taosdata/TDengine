@@ -106,14 +106,15 @@ fi
 
 validate_safe_path() {
   local path="$1"
-  # 禁止空、/、/etc、/bin、/lib、/usr、/sbin、/boot、/root、/home、/var、/tmp、/dev、/proc、/sys、/run
+  # Disallow empty path and critical system directories to avoid destructive operations
   case "$path" in
     ""|"/"|"/etc"|"/bin"|"/lib"|"/usr"|"/sbin"|"/boot"|"/root"|"/home"|"/var"|"/tmp"|"/dev"|"/proc"|"/sys"|"/run")
       echo -e "${RED}Refusing to operate on dangerous system path: $path${NC}"
       exit 1
       ;;
     *)
-      # 允许 /data/tdengin、/opt/taos、/usr/local/taos、$HOME/taos、$HOME/.local/ 等
+      # Allow application-specific directories such as /data/tdengine, /opt/taos, 
+      # /usr/local/taos, $HOME/taos, $HOME/.local/, etc.
       return 0
       ;;
   esac

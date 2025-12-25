@@ -208,6 +208,7 @@ function install_bin_and_lib() {
   -e "s|/var/lib/taos/taosanode|${dataDir}|g" \
   -e "s|/var/log/taos/taosanode|${logDir}|g" \
   "${install_main_dir}/bin/uninstall.sh"
+  rm -f "${install_main_dir}/bin/uninstall.sh.bak"
   [ -L "${bin_link_dir}/rmtaosanode" ] && ${csudo}rm -rf "${bin_link_dir}/rmtaosanode" || :
   ${csudo}ln -s "${install_main_dir}/bin/uninstall.sh" "${bin_link_dir}/rmtaosanode"
 

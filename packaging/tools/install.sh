@@ -199,7 +199,8 @@ while getopts "hv:e:d:sq:" arg; do
     ;;
   q)
     silent_mode=1
-    taosDir="$OPTARG"
+    taosDir="${OPTARG%/}/${PREFIX}"
+    taosDir=$(eval echo "${taosDir}")
     taos_dir_set=1
     ;;
   h)
@@ -341,7 +342,7 @@ function setup_env() {
   
   #  tools/services/config_files files setting
   if [ "$verType" == "client" ]; then
-    # 仅 client 工具，不含服务
+    # Only client tools, no services included
     remove_name="remove_client.sh"
     tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${taosgen_name}" "${remove_name}")
     services=()
@@ -1145,6 +1146,7 @@ function install_service_on_systemd() {
         -e 's|^WantedBy=.*|WantedBy=default.target|g' \
         -e "/^\[Service\]/a Environment=\"LD_LIBRARY_PATH=${lib_link_dir}\"" \
         "$tmp_service_file"
+      rm -f "${tmp_service_file}.bak"
     fi
     cfg_file=$(get_config_file "$1")
     sed -i \
