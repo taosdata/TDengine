@@ -304,7 +304,9 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.analVer = taosAnalyGetVersion();
   req.timeWhiteVer = pMgmt->pData->timeWhiteVer;
 
-  getAuditDbNameToken(req.auditDB, req.auditToken);
+  if (tsAuditUseToken) {
+    getAuditDbNameToken(req.auditDB, req.auditToken);
+  }
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   if (contLen < 0) {

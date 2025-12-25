@@ -564,6 +564,11 @@ int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
   return (*fp_taos_get_current_db)(taos, database, len, required);
 }
 
+int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char *buffer, int* len) {
+  CHECK_INT(fp_taos_get_connection_info);
+  return (*fp_taos_get_connection_info)(taos, info, buffer, len);
+}
+
 const char *taos_errstr(TAOS_RES *res) {
   (void)taos_init();
   if (fp_taos_errstr == NULL) {

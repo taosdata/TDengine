@@ -98,6 +98,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_USER;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USERS_FULL, len) == 0) {
     type = TSDB_MGMT_TABLE_USER_FULL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TOKENS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TOKEN;
   } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, len) == 0) {
@@ -315,12 +317,12 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
   code = -1;
   if (retrieveReq.db[0] &&
-      (code = mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type, retrieveReq.db)) != 0) {
+      (code = mndCheckShowPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pShow->type, retrieveReq.db)) != 0) {
     TAOS_RETURN(code);
   }
   if (pShow->type == TSDB_MGMT_TABLE_USER_FULL) {
-    if (strcmp(pReq->info.conn.user, "root") != 0) {
-      mError("The operation is not permitted, user:%s, pShow->type:%d", pReq->info.conn.user, pShow->type);
+    if (strcmp(RPC_MSG_USER(pReq), "root") != 0) {
+      mError("The operation is not permitted, user:%s, pShow->type:%d", RPC_MSG_USER(pReq), pShow->type);
       code = TSDB_CODE_MND_NO_RIGHTS;
       TAOS_RETURN(code);
     }

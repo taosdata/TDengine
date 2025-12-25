@@ -178,6 +178,7 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_get_server_info, "taos_get_server_info");
   LOAD_FUNC(fp_taos_get_client_info, "taos_get_client_info");
   LOAD_FUNC(fp_taos_get_current_db, "taos_get_current_db");
+  LOAD_FUNC(fp_taos_get_connection_info, "taos_get_connection_info");
 
   LOAD_FUNC(fp_taos_errstr, "taos_errstr");
   LOAD_FUNC(fp_taos_errno, "taos_errno");

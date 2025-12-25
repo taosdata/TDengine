@@ -111,6 +111,12 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pInit->user) {
     tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
   }
+
+  if (pInit->isToken && pInit->user) {
+    tstrncpy(pRpc->identifier, pInit->user, sizeof(pRpc->identifier));
+    pRpc->isToken = 1;
+  }
+
   pRpc->timeToGetConn = pInit->timeToGetConn;
   if (pRpc->timeToGetConn == 0) {
     pRpc->timeToGetConn = 10 * 1000;
@@ -406,6 +412,11 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->parent = pInit->parent;
   if (pInit->user) {
     tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
+  }
+
+  if (pInit->isToken && pInit->user) {
+    tstrncpy(pRpc->identifier, pInit->user, sizeof(pRpc->identifier));
+    pRpc->isToken = 1;
   }
   pRpc->timeToGetConn = pInit->timeToGetConn;
   if (pRpc->timeToGetConn == 0) {
