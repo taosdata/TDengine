@@ -80,6 +80,7 @@ if(${TD_WINDOWS})
 
     PUBLIC os
     PUBLIC util
+    PUBLIC crypt
     INTERFACE api
   )
 
