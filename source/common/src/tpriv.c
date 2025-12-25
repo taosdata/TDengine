@@ -547,8 +547,8 @@ _exit:
   return code;
 }
 
-bool privHasObjPrivilegeRec(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
-                            SPrivInfo* privInfo) {
+bool privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName, SPrivInfo* privInfo,
+                         bool recursive) {
 #if 0  // debug info, remove when release
   SPrivObjPolicies* pp = NULL;
   while ((pp = taosHashIterate(privs, pp))) {
@@ -572,6 +572,8 @@ _retry:
     return true;
   }
 
+  if (!recursive) goto _exit;
+
   if (pTbName && !(pTbName[0] == '*' && pTbName[1] == 0)) {
     pTbName = "*";
     goto _retry;
@@ -580,6 +582,7 @@ _retry:
     pObjName = "*";
     goto _retry;
   }
+_exit:
   return false;
 }
 

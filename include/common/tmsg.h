@@ -820,6 +820,7 @@ typedef struct {
   uint64_t    tuid;
   int32_t     vgId;
   int8_t      sysInfo;
+  int64_t     ownerId;
   SSchema*    pSchemas;
   SSchemaExt* pSchemaExt;
   int8_t      virtualStb;
@@ -1868,7 +1869,6 @@ typedef struct {
   char        tbName[TSDB_TABLE_NAME_LEN];
   char        stbName[TSDB_TABLE_NAME_LEN];
   char        dbFName[TSDB_DB_FNAME_LEN];
-  char        owner[TSDB_USER_LEN];
   int32_t     numOfTags;
   int32_t     numOfColumns;
   int8_t      tableType;
@@ -1878,6 +1878,7 @@ typedef struct {
   int64_t     watermark2;
   int32_t     ttl;
   int32_t     keep;
+  int64_t     ownerId;
   SArray*     pFuncs;
   int32_t     commentLen;
   char*       pComment;
@@ -4166,6 +4167,7 @@ typedef struct SVCreateStbReq {
   int8_t          colCmpred;
   SColCmprWrapper colCmpr;
   int64_t         keep;
+  int64_t         ownerId;
   SExtSchema*     pExtSchemas;
   int8_t          virtualStb;
 } SVCreateStbReq;

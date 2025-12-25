@@ -375,14 +375,14 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
                         bool fullDb);
 int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen);
 
-const char*     privObjGetName(EPrivObjType objType);
-int32_t         privObjGetLevel(EPrivObjType objType);
-const char*     privInfoGetName(EPrivType privType);
-SPrivInfo*      privInfoGet(EPrivType privType);
-int32_t         getSysRoleType(const char* roleName);
-bool            isPrivInheritName(const char* name);
-bool            privHasObjPrivilegeRec(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
-                                       SPrivInfo* privInfo);
+const char* privObjGetName(EPrivObjType objType);
+int32_t     privObjGetLevel(EPrivObjType objType);
+const char* privInfoGetName(EPrivType privType);
+SPrivInfo*  privInfoGet(EPrivType privType);
+int32_t     getSysRoleType(const char* roleName);
+bool        isPrivInheritName(const char* name);
+bool        privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName, SPrivInfo* privInfo,
+                         bool recursive);
 SPrivTblPolicy* privGetConstraintTblPrivileges(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
                                                SPrivInfo* privInfo);
 

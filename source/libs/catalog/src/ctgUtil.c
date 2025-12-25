@@ -2201,6 +2201,18 @@ _return:
   CTG_RET(code);
 }
 
+/**
+ * @brief check and set table level authorization response
+ *  priority of privileges :
+ *  1) child table: chile table or owner > super table or owner > any table
+ *  2) normal/super table: normal/super table or owner > any table
+ *
+ * @param pCtg
+ * @param req
+ * @param res
+ * @return int32_t
+ */
+
 static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
   STableMeta*      pMeta = NULL;
@@ -2230,13 +2242,7 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
   (void)snprintf(tbName, sizeof(tbName), "%s", pReq->tbName.tname);
 
   while (true) {
-    taosMemoryFreeClear(pMeta);
-
-    if (privHasObjPrivilegeRec(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, tbName, privInfo)) {
-      res->pRawRes->pass[AUTH_RES_BASIC] = true;
-      goto _return;
-    }
-
+    // check the tblPrivs first since the more specific fine-grained privileges has higher priority
     if (sizeTbPrivs > 0) {
       SPrivTblPolicy* tblPolicy =
           privGetConstraintTblPrivileges(req->tbPrivs, pReq->tbName.acctId, pReq->tbName.dbname, tbName, privInfo);
@@ -2248,11 +2254,6 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
         res->pRawRes->pass[AUTH_RES_BASIC] = true;
         goto _return;
       }
-    }
-
-    if (stbName) {
-      res->pRawRes->pass[AUTH_RES_BASIC] = false;
-      goto _return;
     }
 
     CTG_ERR_JRET(catalogGetCachedTableMeta(pCtg, &pReq->tbName, &pMeta));
@@ -2272,6 +2273,21 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
 
     if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType ||
         TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
+      if (pReq->userId == pMeta->ownerId) {
+        res->pRawRes->pass[AUTH_RES_BASIC] = true;
+      }
+      if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, tbName, privInfo, true)) {
+        res->pRawRes->pass[AUTH_RES_BASIC] = true;
+        goto _return;
+      }
+    } else {
+      if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, tbName, privInfo, false)) {
+        res->pRawRes->pass[AUTH_RES_BASIC] = true;
+        goto _return;
+      }
+    }
+
+    if (stbName) {
       res->pRawRes->pass[AUTH_RES_BASIC] = false;
       goto _return;
     }
@@ -2285,12 +2301,16 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
           goto _return;
         }
 
+        taosMemoryFreeClear(pMeta);
         continue;
       }
 
       (void)snprintf(tbName, sizeof(tbName), "%s", stbName);  // check privilege of it's super table
+      taosMemoryFreeClear(pMeta);
       continue;
     }
+
+    taosMemoryFreeClear(pMeta);
 
     ctgError("invalid table type %d for %s.%s", pMeta->tableType, dbFName, tbName);
     CTG_ERR_JRET(TSDB_CODE_INVALID_PARA);
@@ -2356,7 +2376,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       privInfo->objLevel = privObjGetLevel(privInfo->objType);
     }
     if (pReq->tbName.type == TSDB_DB_NAME_T) {
-      if (privHasObjPrivilegeRec(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, privInfo)) {
+      if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, privInfo, true)) {
         pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }
@@ -2409,8 +2429,8 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
           break;
         }
         default: {
-          if (privHasObjPrivilegeRec(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname,
-                                     privInfo)) {
+          if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname,
+                                  privInfo, true)) {
             pRes->pass[AUTH_RES_BASIC] = true;
             return TSDB_CODE_SUCCESS;
           }

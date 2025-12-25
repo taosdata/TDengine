@@ -6511,6 +6511,7 @@ int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) {
   }
 
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->keep));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pRsp->ownerId));
 
   tEndEncode(&encoder);
 
@@ -6617,6 +6618,12 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->keep));
   } else {
     pRsp->keep = 0;
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pRsp->ownerId));
+  } else {
+    pRsp->ownerId = 0;
   }
 
   tEndDecode(&decoder);
@@ -9470,6 +9477,7 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
     }
   }
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRsp->rversion));
+  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->ownerId));
 
   return 0;
 }
@@ -9538,6 +9546,9 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   }
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->rversion));
+  }
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pRsp->ownerId));
   }
 
   return 0;
@@ -13984,6 +13995,7 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
     TAOS_CHECK_EXIT(tEncodeI8(pCoder, 0));
   }
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->virtualStb));
+  TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pReq->ownerId));
   tEndEncode(pCoder);
 
 _exit:
@@ -14031,6 +14043,9 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
   }
   if (!tDecodeIsEnd(pCoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pReq->virtualStb));
+  }
+  if (!tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pReq->ownerId));
   }
   tEndDecode(pCoder);
 
