@@ -1149,6 +1149,12 @@ static int32_t dmVerifyEncryptionKeys(const char *svrKey, const char *dbKey, con
 
 // Public API: Verify and initialize encryption keys at startup
 int32_t dmVerifyAndInitEncryptionKeys(void) {
+  // Skip verification in dump sdb mode (taosd -s)
+  if (tsSkipKeyCheckMode) {
+    dInfo("skip encryption key verification in some special check mode");
+    return 0;
+  }
+
   // Check if encryption keys are loaded
   if (tsEncryptKeysStatus != TSDB_ENCRYPT_KEY_STAT_LOADED) {
     dDebug("encryption keys not loaded, skipping verification");

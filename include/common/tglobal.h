@@ -203,6 +203,7 @@ enum {
 };
 
 extern bool     tsUseTaoskEncryption;      // Flag: using taosk encrypt.bin format
+extern bool     tsSkipKeyCheckMode;        // Flag: skip key check mode
 extern char     tsSvrKey[129];             // SVR_KEY (server master key)
 extern char     tsDbKey[129];              // DB_KEY (database master key)
 extern char     tsCfgKey[129];             // CFG_KEY (config encryption key)

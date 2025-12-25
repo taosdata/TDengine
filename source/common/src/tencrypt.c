@@ -702,6 +702,12 @@ _err:
  * @return 0 if key loaded successfully, TSDB_CODE_TIMEOUT_ERROR if timeout occurs
  */
 int32_t taosWaitCfgKeyLoaded(void) {
+  // Skip key wait in some special check mode
+  if (tsSkipKeyCheckMode) {
+    uDebug("skip CFG encryption key wait in some special check mode");
+    return 0;
+  }
+
   int32_t encryptKeysLoaded = atomic_load_32(&tsEncryptKeysStatus);
   if (encryptKeysLoaded == TSDB_ENCRYPT_KEY_STAT_LOADED || encryptKeysLoaded == TSDB_ENCRYPT_KEY_STAT_NOT_EXIST ||
       encryptKeysLoaded == TSDB_ENCRYPT_KEY_STAT_DISABLED) {
