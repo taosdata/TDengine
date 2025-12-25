@@ -974,7 +974,7 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     if (isTaskKilled(pTaskInfo)) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->base.dataReader);
       code = pTaskInfo->code;
-      goto _end;
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (pOperator->status == OP_EXEC_DONE) {

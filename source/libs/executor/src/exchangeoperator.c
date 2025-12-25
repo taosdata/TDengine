@@ -2156,7 +2156,6 @@ static int32_t notifyReaderStepDoneForSource(SExchangeInfo* pExchangeInfo,
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SOperatorParam* pNotifyParam = NULL;
-  SMsgSendInfo*   pMsgSendInfo = NULL;
   void*           msg          = NULL;
 
   // TODO: optimize localExec
@@ -2178,29 +2177,31 @@ static int32_t notifyReaderStepDoneForSource(SExchangeInfo* pExchangeInfo,
 
   int32_t msgSize = tSerializeSTaskNotifyReq(NULL, 0, &req);
   if (msgSize < 0) {
-    QUERY_CHECK_CODE(msgSize, lino, _end);
+    code = msgSize;
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  msg = taosMemoryCalloc(1, msgSize);
+  msg = rpcMallocCont(msgSize);
   QUERY_CHECK_NULL(msg, code, lino, _end, terrno);
 
   msgSize = tSerializeSTaskNotifyReq(msg, msgSize, &req);
-  QUERY_CHECK_CODE(msgSize, lino, _end);
+  if (msgSize < 0) {
+    code = msgSize;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
-  pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
-  QUERY_CHECK_NULL(pMsgSendInfo, code, lino, _end, terrno);
-
-  pMsgSendInfo->msgInfo.pData   = msg;
-  pMsgSendInfo->msgInfo.len     = msgSize;
-  pMsgSendInfo->msgType         = TDMT_SCH_TASK_NOTIFY;
-  pMsgSendInfo->requestId       = pTaskInfo->id.queryId;
-  pMsgSendInfo->fp              = NULL;
-  pMsgSendInfo->param           = NULL;
-  pMsgSendInfo->paramFreeFp     = NULL;
-
-  int64_t transporterId = 0;
-  code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet,
-                              &transporterId, pMsgSendInfo);
+  SRpcMsg rpcMsg = {
+    .pCont = msg,
+    .contLen = msgSize,
+    .msgType = TDMT_SCH_TASK_NOTIFY,
+    .info.ahandle = 0,
+    .info.notFreeAhandle = 1,
+    .info.refId = 0,
+    .info.handle = 0,
+    .info.noResp = 1,  /* notifyMsg has no response */
+  };
+  code = rpcSendRequest(pExchangeInfo->pTransporter, &pSource->addr.epSet,
+                        &rpcMsg, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
   qDebug("%s notify msg sent to source %d (vgId:%d, taskId:0x%" PRIx64
@@ -2208,12 +2209,6 @@ static int32_t notifyReaderStepDoneForSource(SExchangeInfo* pExchangeInfo,
          pSource->taskId, pSource->execId);
 
 _end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d, failed to send notify msg to source %d,"
-           " since:%s", __func__, lino, sourceIdx, tstrerror(code));
-  }
-  taosMemoryFree(msg);
-  taosMemoryFree(pMsgSendInfo);
   freeOperatorParam(pNotifyParam, OP_NOTIFY_PARAM);
   return code;
 }
