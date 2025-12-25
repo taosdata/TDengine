@@ -160,7 +160,7 @@ function log() {
 
 # set parameters by default value
 interactiveFqdn=yes # [yes | no]
-verType=client      # [server | client]
+verType=server      # [server | client]
 initType=systemd    # [systemd | service | ...]
 
 function show_help() {
