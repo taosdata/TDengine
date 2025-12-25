@@ -847,17 +847,28 @@ typedef struct SSTriggerWalMetaNewRequest {
   int64_t              ctime;
 } SSTriggerWalMetaNewRequest;
 
+typedef enum {
+  TABLE_BLOCK_DROP = 0,
+  TABLE_BLOCK_ADD,
+  TABLE_BLOCK_RETIRE,
+} ETableBlockType;
+
 typedef struct SSTriggerWalNewRsp {
   SSHashObj*           indexHash;
-  SSHashObj*           uidHash;
   void*                dataBlock;
   void*                metaBlock;
   void*                deleteBlock;
-  void*                dropBlock;
+  void*                tableBlock;
   int64_t              ver;
   int64_t              verTime;
+
+  // The following fields are not serialized and only used by the reader task
+  SSHashObj*           uidHash;
   int32_t              totalRows;
+  int32_t              totalDataRows;
   bool                 isCalc;
+  bool                 checkAlter;
+  bool                 needReturn;
 } SSTriggerWalNewRsp;
 
 typedef struct SSTriggerWalDataNewRequest {
@@ -879,6 +890,8 @@ typedef struct SSTriggerGroupColValueRequest {
 typedef struct SSTriggerVirTableInfoRequest {
   SSTriggerPullRequest base;
   SArray*              cids;  // SArray<col_id_t>, col ids of the virtual table
+  SArray*              uids;
+  bool                 fetchAllTable;  // if true, ignore uids and fetch all virtual tables' info
 } SSTriggerVirTableInfoRequest;
 
 typedef struct SSTriggerVirTablePseudoColRequest {
