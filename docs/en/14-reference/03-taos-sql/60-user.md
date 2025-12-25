@@ -54,7 +54,7 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `PASSWORD_REUSE_TIME` The duration during which an old password cannot be reused,  in days. The default value is `30`, with a maximum of `365` and a minimum of `0`. Support in Enterprise Edition v3.4.0.0 and above.
 - `PASSWORD_REUSE_MAX` The number of password changes required before an old password can be reused. A new password must comply with both the `PASSWORD_REUSE_TIME` and `PASSWORD_REUSE_MAX` restrictions. The default value is `5`, with a maximum of `100` and a minimum of `0`. Support in Enterprise Edition v3.4.0.0 and above.
 - `INACTIVE_ACCOUNT_TIME` User inactivity lockout period, in days. The default value is `90`, with a minimum of `1`, set to `UNLIMITED` means never lockout the user. Support in Enterprise Edition v3.4.0.0 and above.
-- `ALLOW_TOKEN_NUM` The maximu allowed number of tokens. The default value is `3`, with a minimum of `0`, set to `UNLIMITED` disables this restriction. Support in Enterprise Edition v3.4.0.0 and above.
+- `ALLOW_TOKEN_NUM` The maximum allowed number of tokens. The default value is `3`, with a minimum of `0`, set to `UNLIMITED` disables this restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `HOST` and `NOT_ALLOW_HOST` IP address whitelist and blacklist. Entries can be a single IP address, such as `192.168.1.1`, or a subnet range, such as `192.168.1.1/24`. When both whitelist and blacklist are configured, only addresses that are on the whitelist and not on the blacklist are allowed access. Support in Enterprise Edition v3.4.0.0 and above.
 - `ALLOW_DATETIME` and `NOT_ALLOW_DATETIME` Permitted and prohibited login time ranges. A valid time range consist of three parts: date, start time (accurate to the minute), and duration (in minutes). The date can be a specific date or represented by MON, TUE, WED, THU, FRI, SAT, SUN, for example: `2025-12-25 08:00 120`, `TUE 08:00 120`. Support in Enterprise Edition v3.4.0.0 and above.
 
@@ -170,7 +170,7 @@ Query OK, 1 row(s) in set (0.003018s)
 
 ### View Tokens
 
-You can use the following command to view tokens in the system, but depending on your priviledge, you may only see tokens of your own.
+You can use the following command to view tokens in the system, but depending on your privilege, you may only see tokens of your own.
 
 ```sql
 SHOW TOKENS;
