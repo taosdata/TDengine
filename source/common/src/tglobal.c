@@ -2619,6 +2619,11 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   cfgDumpCfg(tsCfg, tsc, false);
   TAOS_CHECK_GOTO(taosCheckGlobalCfg(), &lino, _exit);
 
+  code = initTimezoneInfo();
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
 _exit:
   if (TSDB_CODE_SUCCESS != code) {
     cfgCleanup(tsCfg);
@@ -2633,6 +2638,7 @@ void taosCleanupCfg() {
   if (tsCfg) {
     cfgCleanup(tsCfg);
     tsCfg = NULL;
+    cleanupTimezoneInfo();
   }
 }
 
