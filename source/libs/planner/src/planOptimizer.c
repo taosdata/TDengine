@@ -9211,7 +9211,6 @@ static int32_t createPartAggNode(SAggLogicNode* pMergeAgg, SLogicNode** pOutput)
 
   *pOutput = (SLogicNode*)pPartAgg;
 
-  return code;
 _return:
   if (code) {
     planError("%s failed at line %d, code: %d", __func__, lino, code);
