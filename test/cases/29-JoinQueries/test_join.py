@@ -25,6 +25,8 @@ class TestJoin:
 
         """
 
+        self.join_bug_6613241466()
+        
         dbPrefix = "join_db"
         tbPrefix = "join_tb"
         mtPrefix = "join_mt"
@@ -522,3 +524,84 @@ class TestJoin:
         tdSql.execute(f"drop table tm2;")
         tdSql.query(f"select count(*) from m1, m2 where m1.ts=m2.ts and m1.b=m2.a;")
         tdSql.execute(f"drop database ux1;")
+
+    def join_bug_6613241466(self):
+        tdLog.info(f"=============== join_bug_6613241466")
+        tdSql.execute(f"drop database if exists test")
+        tdSql.execute(f"create database test")
+        tdSql.execute(f"use test")
+        
+        tdSql.execute(f"""CREATE STABLE `stable_olt_gpon_traffic_ods` (
+            `ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium',
+            `in_speed_kbps` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium',
+            `out_speed_kbps` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium'
+            ) TAGS (
+                `pid` INT
+            )""")
+        
+        tdSql.execute(f"""create table if not exists test.d1 using stable_olt_gpon_traffic_ods tags (1);""")
+        tdSql.execute(f"""create table if not exists test.d2 using stable_olt_gpon_traffic_ods tags (2);""")
+        
+        tdSql.execute(f"""INSERT INTO d1 USING stable_olt_gpon_traffic_ods TAGS (1) VALUES
+        ('2025-11-17 00:00:00', 100.0, 200.0),
+        ('2025-11-17 01:00:00', 150.0, 250.0),
+        ('2025-11-17 02:00:00', 200.0, 300.0),
+        ('2025-11-18 00:00:00', 300.0, 400.0),
+        ('2025-11-18 01:00:00', 350.0, 450.0),
+        ('2025-11-18 02:00:00', 400.0, 500.0);""")
+        
+        tdSql.execute(f"""INSERT INTO d2 USING stable_olt_gpon_traffic_ods TAGS (2) VALUES
+        ('2025-11-17 00:00:00', 100.0, 200.0),
+        ('2025-11-17 01:00:00', 150.0, 250.0),
+        ('2025-11-17 02:00:00', 200.0, 300.0),
+        ('2025-11-18 00:00:00', 300.0, 400.0),
+        ('2025-11-18 01:00:00', 350.0, 450.0),
+        ('2025-11-18 02:00:00', 400.0, 500.0);""")
+        
+        tdSql.query(f"""
+        select * from
+        (
+                SELECT
+                        TODAY() AS time,
+                        last_row(in_speed_spread),
+                        last_row(out_speed_spread),
+                        a.pid
+                FROM (
+                        SELECT
+                                _wstart,
+                                max(in_speed_kbps) AS in_speed_spread,
+                                max(out_speed_kbps) AS out_speed_spread,
+                                pid
+                        FROM test.stable_olt_gpon_traffic_ods
+                        WHERE ts > '2025-11-17 00:00:00'
+                        PARTITION BY pid
+                        INTERVAL (1d)
+                ) a
+                GROUP BY a.pid
+        ) b
+        JOIN (
+                SELECT
+                        ts,
+                        in_speed_kbps AS speed_spread,
+                        pid,
+                        TODAY() AS time
+                FROM test.stable_olt_gpon_traffic_ods
+                WHERE ts > '2025-11-17 00:00:00'
+                        AND pid = 1
+        ) c ON b.time = c.time """)
+        
+        tdSql.checkRows(10)
+        tdSql.checkData(0, 1, 400.0)
+        tdSql.checkData(0, 2, 500.0)
+        tdSql.checkData(0, 3, 2)
+        tdSql.checkData(0, 6, 1)
+        tdSql.checkData(2, 1, 400.0)
+        tdSql.checkData(2, 2, 500.0)
+        tdSql.checkData(2, 3, 2)
+        tdSql.checkData(2, 6, 1)
+        tdSql.checkData(3, 1, 400.0)
+        tdSql.checkData(3, 2, 500.0)
+        tdSql.checkData(3, 3, 2)
+        tdSql.checkData(3, 6, 1)
+        tdSql.execute(f"drop database if exists test")
+        
