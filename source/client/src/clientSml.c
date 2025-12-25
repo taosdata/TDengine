@@ -114,6 +114,7 @@ int64_t smlFactorS[] = {1000LL, 1000000LL, 1000000000LL};
 static int32_t smlCheckAuth(SSmlHandle *info, SRequestConnInfo *conn, const char *pTabName, EPrivType type, EPrivObjType objType) {
   SUserAuthInfo pAuth = {0};
   (void)snprintf(pAuth.user, sizeof(pAuth.user), "%s", info->taos->user);
+  pAuth.userId = info->taos->userId;
   if (NULL == pTabName) {
     if (tNameSetDbName(&pAuth.tbName, info->taos->acctId, info->pRequest->pDb, strlen(info->pRequest->pDb)) != 0) {
       return TSDB_CODE_SML_INVALID_DATA;

@@ -2035,6 +2035,7 @@ static int32_t parseUsingClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpS
 static void setUserAuthInfo(SParseContext* pCxt, SName* pTbName, SUserAuthInfo* pInfo) {
   snprintf(pInfo->user, sizeof(pInfo->user), "%s", pCxt->pUser);
   memcpy(&pInfo->tbName, pTbName, sizeof(SName));
+  pInfo->userId = pCxt->userId;
   pInfo->privType = PRIV_TBL_INSERT;
   pInfo->objType = PRIV_OBJ_TBL;
 }

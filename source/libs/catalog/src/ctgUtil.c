@@ -2241,11 +2241,14 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
   (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
   (void)snprintf(tbName, sizeof(tbName), "%s", pReq->tbName.tname);
 
+  SName  stbSName;
+  SName* pSName = &pReq->tbName;
+
   while (true) {
     // check the tblPrivs first since the more specific fine-grained privileges has higher priority
     if (sizeTbPrivs > 0) {
       SPrivTblPolicy* tblPolicy =
-          privGetConstraintTblPrivileges(req->tbPrivs, pReq->tbName.acctId, pReq->tbName.dbname, tbName, privInfo);
+          privGetConstraintTblPrivileges(req->tbPrivs, pSName->acctId, pSName->dbname, tbName, privInfo);
       if (tblPolicy) {
         if (strlen(tblPolicy->cond) > 0) {
           CTG_ERR_JRET(nodesStringToNode(tblPolicy->cond, &res->pRawRes->pCond[AUTH_RES_BASIC]));
@@ -2256,11 +2259,11 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       }
     }
 
-    CTG_ERR_JRET(catalogGetCachedTableMeta(pCtg, &pReq->tbName, &pMeta));
+    CTG_ERR_JRET(catalogGetCachedTableMeta(pCtg, pSName, &pMeta));
     if (NULL == pMeta) {
       if (req->onlyCache) {
         res->metaNotExists = true;
-        ctgDebug("db:%s, tb:%s meta not in cache for auth", pReq->tbName.dbname, pReq->tbName.tname);
+        ctgDebug("db:%s, tb:%s meta not in cache for auth", pSName->dbname, pSName->tname);
         goto _return;
       }
 
@@ -2271,17 +2274,20 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
     }
 
+    // compatible with old version without ownerId
+    if (pReq->userId == pMeta->ownerId || pMeta->ownerId == 0) {
+      res->pRawRes->pass[AUTH_RES_BASIC] = true;
+      goto _return;
+    }
+
     if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType ||
         TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
-      if (pReq->userId == pMeta->ownerId) {
-        res->pRawRes->pass[AUTH_RES_BASIC] = true;
-      }
-      if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, tbName, privInfo, true)) {
+      if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
         res->pRawRes->pass[AUTH_RES_BASIC] = true;
         goto _return;
       }
     } else {
-      if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, tbName, privInfo, false)) {
+      if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, false)) {
         res->pRawRes->pass[AUTH_RES_BASIC] = true;
         goto _return;
       }
@@ -2305,7 +2311,11 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
         continue;
       }
 
-      (void)snprintf(tbName, sizeof(tbName), "%s", stbName);  // check privilege of it's super table
+      // check privilege of it's super table
+      (void)snprintf(tbName, sizeof(tbName), "%s", stbName);
+      stbSName = pReq->tbName;
+      snprintf(stbSName.tname, sizeof(stbSName.tname), "%s", stbName);
+      pSName = &stbSName;
       taosMemoryFreeClear(pMeta);
       continue;
     }
