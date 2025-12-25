@@ -144,6 +144,7 @@ Below are the business error codes for each module.
 | 0x8000023B |   reached the maximum connection idle timeout limit| reached the maximum connection idle timeout limit |  Check user parameter |
 | 0x8000023C |   reached the maximum concurrency limit        |  reached the maximum concurrency limit           |  Check user parameter |
 | 0x8000023D | reached the maximum call vnode limit           | reached the maximum call vnode limit    | Check user parameter |
+| 0x8000023E | Invalid token                     | Invalid token format                            | Check and enter the correct token                                                 |
 | 0x800002FF | Tsc internal error                | TSC internal error                              | Preserve the scene and logs, report issue on GitHub                               |
 
 #### mnode

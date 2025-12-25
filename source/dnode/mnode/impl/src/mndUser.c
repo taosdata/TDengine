@@ -1039,7 +1039,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     userObj.vnodePerCall = -1;
     userObj.failedLoginAttempts = -1;
     userObj.passwordLifeTime = -1;
-    userObj.passwordLockTime = -1;
+    userObj.passwordLockTime = 1;
     userObj.inactiveAccountTime = -1;
     userObj.allowTokenNum = -1;
     userObj.tokenNum = 0;

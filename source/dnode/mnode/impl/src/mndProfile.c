@@ -397,7 +397,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
 
   if ((!viaToken) && pUser->failedLoginAttempts >= 0 & li.failedLoginCount >= pUser->failedLoginAttempts) {
-    if(now - li.lastFailedLoginTime < pUser->passwordLockTime) {
+    if(pUser->passwordLockTime < 0 || now - li.lastFailedLoginTime < pUser->passwordLockTime) {
       TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, &lino, _OVER);
     }
   }
