@@ -49,7 +49,7 @@ class TestPrivBasic:
         testSql = TDSql()
         testSql.init(cursor)
         # create db privilege
-        testSql.error("create database db1;", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
+        testSql.error("create database db1;", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
         # modify db、super table、child table、reguler table privilege
         testSql.error("alter database db buffer 512;")
         testSql.error("alter stable db.stb add column col4 float;")
@@ -79,7 +79,7 @@ class TestPrivBasic:
         testSql.query("select * from information_schema.ins_users;")
         testSql.checkRows(2)
         # drop db privilege
-        testSql.error("drop database db;", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
+        testSql.error("drop database db;", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
         # delete user
         self.delete_user("test")
         # drop db
@@ -96,7 +96,10 @@ class TestPrivBasic:
         testSql = TDSql()
         testSql.init(cursor)
         # grant create db privilege
-        tdSql.execute("alter user test createdb 1;")
+        # tdSql.execute("alter user test createdb 1;")
+        tdSql.execute("grant create database to test;")
+        tdSql.execute("grant select,insert,alter on db1.* to test;")
+        tdSql.execute("grant create view on db1.* to test;")
         # check user 'test' create db、super table、child table、reguler table、view privileges
         testSql.execute("create database db1;")
         testSql.execute("use db1;")
@@ -142,10 +145,13 @@ class TestPrivBasic:
         test1Sql.init(cursor1)
         # check user 'test' doesn't privilege to grant create db privilege to another user
         testSql.error("alter user test1 createdb 1;", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
-        testSql.error("grant all on db1.stb1 to test1;", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
+        testSql.error("grant select on db1.stb1 to test1;", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
 
         # grant read、write privilege to user 'test' and check user 'test' privileges
-        tdSql.execute("grant all on db.* to test;")
+        tdSql.execute("grant select,insert on db.* to test1;")
+        tdSql.execute("grant use on database db to test1;")
+        testSql.execute("use db;")
+        testSql.execute("show databases;")
         testSql.query("select * from db.stb;")
         testSql.checkRows(2)
         testSql.query("select * from db.ct1;")
@@ -160,7 +166,7 @@ class TestPrivBasic:
         testSql.query("select * from db.ct2;")
         testSql.checkRows(2)
         # grant all privilege to user 'test1' and check user 'test1' privileges
-        tdSql.execute("grant all on db1.* to test1;")
+        tdSql.execute("grant select,insert on db1.* to test1;")
         test1Sql.query("select * from db1.stb1;")
         test1Sql.checkRows(2)
         test1Sql.query("select * from db1.ct1;")
@@ -235,8 +241,9 @@ class TestPrivBasic:
         self.stbnum_grant = 200
 
     def grant_user(self):
-        tdSql.execute(f'grant read on {self.dbnames[0]}.{self.stbname} with t2 = "Beijing" to {self.user_name}')
-        tdSql.execute(f'grant write on {self.dbnames[1]}.{self.stbname} with t1 = 2 to {self.user_name}')
+        tdSql.execute(f'grant select on {self.dbnames[0]}.{self.stbname} with t2 = "Beijing" to {self.user_name}')
+        tdSql.execute(f'grant insert on {self.dbnames[1]}.{self.stbname} with t1 = 2 to {self.user_name}')
+        tdSql.execute(f'grant use on database {self.dbnames[1]} to {self.user_name}')
                 
     def prepare_data2(self):
         for db in self.dbnames:
@@ -311,8 +318,9 @@ class TestPrivBasic:
         for db in self.dbnames:
             tdSql.execute(f"use {db}")
             for i in range(self.stbnum_grant):
-                tdSql.execute(f'grant read on {db}.{self.stbname}_grant_{i} to {self.user_name}')
-                tdSql.execute(f'grant write on {db}.{self.stbname}_grant_{i} to {self.user_name}')
+                tdSql.execute(f'grant select on {db}.{self.stbname}_grant_{i} to {self.user_name}')
+                tdSql.execute(f'grant insert on {db}.{self.stbname}_grant_{i} to {self.user_name}')
+                tdSql.execute(f'grant use on database {db} to {self.user_name}')
 
     def do_grant_multi_tables(self):
         self.setup_class2()
@@ -448,7 +456,7 @@ class TestPrivBasic:
         # temp solution only for the db read privilege verification
         self.prepare_data3("table")
         # grant db read privilege
-        self.grant_privilege1(self.username, "read", "*")
+        self.grant_privilege1(self.username, "select", "*")
         # create the taos connection with -utest -ptest
         testconn = taos.connect(user=self.username, password=self.password)
         testconn.execute("use %s;" % self.dbname)

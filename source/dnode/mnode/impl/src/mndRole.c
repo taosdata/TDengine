@@ -57,7 +57,7 @@ static void     mndCancelGetNextColPrivileges(SMnode *pMnode, void *pIter);
 
 int32_t mndInitRole(SMnode *pMnode) {
   // role management init
-  roleMgmt.lastUpd = INT64_MAX;
+  roleMgmt.lastUpd = taosGetTimestampMs();
   TAOS_CHECK_RETURN(taosThreadRwlockInit(&roleMgmt.rw, NULL));
 
   SSdbTable table = {

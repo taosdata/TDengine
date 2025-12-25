@@ -558,6 +558,14 @@ bool privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, c
   while ((pp = taosHashIterate(privs, pp))) {
     char* pKey = taosHashGetKey(pp, NULL);
     printf("%s:%d key is %s\n", __func__, __LINE__, pKey);
+
+    SPrivIter privIter = {0};
+    privIterInit(&privIter, &pp->policy);
+    SPrivInfo* pPrivInfoIter = NULL;
+    while (privIterNext(&privIter, &pPrivInfoIter)) {
+      printf("    has privType:%d, privObj:%d, privLevel:%d, privName:%s\n", pPrivInfoIter->privType,
+             pPrivInfoIter->objType, pPrivInfoIter->objLevel, privInfoGetName(pPrivInfoIter->privType));
+    }
   }
 #endif
   if (tbName != NULL) {
