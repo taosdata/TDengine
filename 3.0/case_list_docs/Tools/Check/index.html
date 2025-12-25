@@ -2420,14 +2420,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../../DataSubscription/Native/" class="md-nav__link">
+      <a href="../../DataSubscription/Consume/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02-Native
+    02-Consume
   
 
     
@@ -2455,7 +2455,7 @@
   <span class="md-ellipsis">
     
   
-    04-MQTT
+    03-MQTT
   
 
     
@@ -3686,6 +3686,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#81-Tools.01-Check.test_check_scan.TestScan.test_check_scan" class="md-nav__link">
+        Scan database & vgroups 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#81-Tools.01-Check.test_check_systb_inspect.TestTaosinspect.test_taosinspect" class="md-nav__link">
         Tool system tables inspect 
       </a>
@@ -3860,6 +3871,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#81-Tools.01-Check.test_check_scan.TestScan.test_check_scan" class="md-nav__link">
+        Scan database & vgroups 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#81-Tools.01-Check.test_check_systb_inspect.TestTaosinspect.test_taosinspect" class="md-nav__link">
         Tool system tables inspect 
       </a>
@@ -3915,6 +3937,51 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/81-Tools/01-Check/test_check_error_code.py" target="_blank">
                       cases/81-Tools/01-Check/test_check_error_code.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="81-Tools.01-Check.test_check_scan.TestScan.test_check_scan" class="doc doc-heading">
+
+<a href="#81-Tools.01-Check.test_check_scan.TestScan.test_check_scan" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Scan database & vgroups</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Preapare 3 dnode cluster environment</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Check scan database command correctness</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check scan vgroups command correctness</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Check show scans command correctness</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check show scan &lt;scan_id&gt; command correctness</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check kill scan &lt;scan_id&gt; command correctness</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Check error cases of scan vgroups command</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - invalid sql</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - error without using database</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - error with duplicate vgroup</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - error with invalid vgroup id</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - error to scan vgroups not in the same database</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  - error with vgroup ids not in the same data node</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Check success cases of scan vgroups command</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Check scan vgroups in multiple databases command correctness</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Check scan vgroups command after using database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/81-Tools/01-Check/test_check_scan.py" target="_blank">
+                      cases/81-Tools/01-Check/test_check_scan.py
                     </a>
                   </div>
         </div>

@@ -2420,14 +2420,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../DataSubscription/Native/" class="md-nav__link">
+      <a href="../DataSubscription/Consume/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02-Native
+    02-Consume
   
 
     
@@ -2455,7 +2455,7 @@
   <span class="md-ellipsis">
     
   
-    04-MQTT
+    03-MQTT
   
 
     
@@ -3914,6 +3914,17 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_threads.TestDb.test_cluster_threads" class="md-nav__link">
+        Cluster threads 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -4740,6 +4751,17 @@
     <li class="md-nav__item">
       <a href="#70-Cluster.test_cluster_split_vgroup_by_learner.TestClusterSplitVgroupByLearner.test_split_vgroup_by_learner" class="md-nav__link">
         Cluster split vgroups by learner 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_cluster_threads.TestDb.test_cluster_threads" class="md-nav__link">
+        Cluster threads 
       </a>
       
     </li>
@@ -6161,6 +6183,44 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/70-Cluster/test_cluster_split_vgroup_by_learner.py" target="_blank">
                       cases/70-Cluster/test_cluster_split_vgroup_by_learner.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_cluster_threads.TestDb.test_cluster_threads" class="doc doc-heading">
+
+<a href="#70-Cluster.test_cluster_threads.TestDb.test_cluster_threads" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Cluster threads</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create 3 dnode cluster environment</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create 3 database for precision ns/us/ms</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Create 3 normal tables in each database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Insert 2 rows data for each table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Start 10 threads to `desc table` concurrently for 100 times</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check no coredump happen</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Show local/cluster variables like &#39;debugFlag&#39; and check the results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Show cluster variables like &#39;ss%&#39; and check the results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Show cluster variables like &#39;Max%&#39; and check the results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Show cluster variables like &#39;ttl%&#39; and check the results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/70-Cluster/test_cluster_threads.py" target="_blank">
+                      cases/70-Cluster/test_cluster_threads.py
                     </a>
                   </div>
         </div>
