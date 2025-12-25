@@ -813,13 +813,24 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    analVerChanged = (analVer != statusReq.analVer);
   bool    auditDBChanged = false;
   char    auditDB[TSDB_DB_FNAME_LEN] = {0};
-  SDbObj *pDb = mndAcquireAuditDb(pMnode);
-  if (pDb != NULL) {
-    tstrncpy(auditDB, pDb->name, TSDB_DB_FNAME_LEN);
-    mndReleaseDb(pMnode, pDb);
-  }
+  if (tsAuditUseToken) {
+    SDbObj *pDb = mndAcquireAuditDb(pMnode);
+    if (pDb != NULL) {
+      SName name = {0};
+      if (tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB) < 0)
+        mError("db:%s, failed to parse db name", pDb->name);
+      tstrncpy(auditDB, name.dbname, TSDB_DB_FNAME_LEN);
+      mndReleaseDb(pMnode, pDb);
+    }
 
-  if (strncmp(statusReq.auditDB, auditDB, TSDB_DB_FNAME_LEN) != 0) auditDBChanged = true;
+    char    auditUser[TSDB_USER_LEN] = {0};
+    int32_t ret = 0;
+    if ((ret = mndGetAuditUser(pMnode, auditUser)) != 0) {
+      mError("dnode:%d, failed to get audit user since %s", pDnode->id, tstrerror(ret));
+    }
+
+    if (strncmp(statusReq.auditDB, auditDB, TSDB_DB_FNAME_LEN) != 0) auditDBChanged = true;
+  }
 
   bool needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || pMnode->timeWhiteVer != statusReq.timeWhiteVer ||

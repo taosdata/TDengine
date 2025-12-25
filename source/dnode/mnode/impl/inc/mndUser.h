@@ -54,6 +54,8 @@ int64_t mndGetTimeWhiteListVersion(SMnode *pMnode);
 int32_t mndRefreshUserDateTimeWhiteList(SMnode *pMnode);
 int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 
+int32_t mndGetAuditUser(SMnode *pMnode, char *user);
+
 void mndGetUserLoginInfo(const char *user, SLoginInfo *pLoginInfo);
 void mndSetUserLoginInfo(const char *user, const SLoginInfo *pLoginInfo);
 bool mndIsTotpEnabledUser(SUserObj *pUser);
