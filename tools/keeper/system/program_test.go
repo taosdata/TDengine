@@ -27,8 +27,10 @@ func TestInit(t *testing.T) {
 
 	conn, err := db.NewConnectorWithDb(config.Conf.TDengine.Username, config.Conf.TDengine.Password, config.Conf.TDengine.Host, config.Conf.TDengine.Port, config.Conf.Metrics.Database.Name, config.Conf.TDengine.Usessl)
 	assert.NoError(t, err)
-	conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", config.Conf.Metrics.Database.Name), util.GetQidOwn(config.Conf.InstanceID))
-	conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", config.Conf.Audit.Database.Name), util.GetQidOwn(config.Conf.InstanceID))
+	defer conn.Close()
+
+	_, err = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", config.Conf.Metrics.Database.Name), util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
 }
 
 func Test_program(t *testing.T) {
@@ -52,7 +54,9 @@ func Test_program(t *testing.T) {
 }
 
 func Test_program_Start_HTTP(t *testing.T) {
-	config.InitConfig()
+	if config.Conf == nil {
+		config.InitConfig()
+	}
 
 	server := &http.Server{
 		Addr: "127.0.0.1:6662",
@@ -99,7 +103,9 @@ func Test_program_Start_HTTPS(t *testing.T) {
 	err := generateTestCert(certFile, keyFile)
 	assert.NoError(t, err)
 
-	config.InitConfig()
+	if config.Conf == nil {
+		config.InitConfig()
+	}
 
 	origConf := config.Conf
 	defer func() { config.Conf = origConf }()

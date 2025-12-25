@@ -4,6 +4,7 @@ go 1.23.0
 
 require (
 	github.com/BurntSushi/toml v0.4.1
+	github.com/agiledragon/gomonkey/v2 v2.13.0
 	github.com/gin-contrib/cors v1.6.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/kardianos/service v1.2.1

@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/agiledragon/gomonkey/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -203,12 +205,15 @@ func TestAudit_handleBatchFunc_NoConnection_Returns500(t *testing.T) {
 	a := &Audit{conn: nil}
 	r.POST("/audit-batch", a.handleBatchFunc())
 
+	patch := gomonkey.ApplyPrivateMethod(reflect.TypeOf(a), "prepareConnectionAndTable", func(_ *Audit, c *gin.Context) bool {
+		return true
+	})
+	defer patch.Reset()
+
 	req := httptest.NewRequest(http.MethodPost, "/audit-batch", strings.NewReader(`{"records":[]}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
-
 	r.ServeHTTP(w, req)
-
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 
 	var body map[string]string
@@ -226,6 +231,11 @@ func TestAudit_handleBatchFunc_GetRawDataError_Returns400(t *testing.T) {
 
 	a := &Audit{conn: &db.Connector{}}
 	r.POST("/audit-batch", a.handleBatchFunc())
+
+	patch := gomonkey.ApplyPrivateMethod(reflect.TypeOf(a), "prepareConnectionAndTable", func(_ *Audit, c *gin.Context) bool {
+		return true
+	})
+	defer patch.Reset()
 
 	boom := errors.New("boom")
 	req := httptest.NewRequest(http.MethodPost, "/audit-batch", errorReader{err: boom})
@@ -259,6 +269,11 @@ func TestAudit_handleBatchFunc_TraceLogsWhenEnabled(t *testing.T) {
 	a := &Audit{conn: &db.Connector{}}
 	r.POST("/audit-batch", a.handleBatchFunc())
 
+	patch := gomonkey.ApplyPrivateMethod(reflect.TypeOf(a), "prepareConnectionAndTable", func(_ *Audit, c *gin.Context) bool {
+		return true
+	})
+	defer patch.Reset()
+
 	req := httptest.NewRequest(http.MethodPost, "/audit-batch", strings.NewReader(`{"records":[]}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-QID", "123")
@@ -277,6 +292,11 @@ func TestAudit_handleBatchFunc_ParseError_Returns400(t *testing.T) {
 
 	a := &Audit{conn: &db.Connector{}}
 	r.POST("/audit-batch", a.handleBatchFunc())
+
+	patch := gomonkey.ApplyPrivateMethod(reflect.TypeOf(a), "prepareConnectionAndTable", func(_ *Audit, c *gin.Context) bool {
+		return true
+	})
+	defer patch.Reset()
 
 	req := httptest.NewRequest(http.MethodPost, "/audit-batch", strings.NewReader(`{`))
 	req.Header.Set("Content-Type", "application/json")
@@ -307,6 +327,11 @@ func TestAudit_handleBatchFunc_TraceNoRecords_LogsAndReturnsOK(t *testing.T) {
 	a := &Audit{conn: &db.Connector{}}
 	r.POST("/audit-batch", a.handleBatchFunc())
 
+	patch := gomonkey.ApplyPrivateMethod(reflect.TypeOf(a), "prepareConnectionAndTable", func(_ *Audit, c *gin.Context) bool {
+		return true
+	})
+	defer patch.Reset()
+
 	req := httptest.NewRequest(http.MethodPost, "/audit-batch", strings.NewReader(`{"records":[]}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-QID", "1")
@@ -325,6 +350,11 @@ func TestAudit_handleFunc_NoConnection_Returns500(t *testing.T) {
 
 	a := &Audit{conn: nil}
 	r.POST("/audit", a.handleFunc())
+
+	patch := gomonkey.ApplyPrivateMethod(reflect.TypeOf(a), "prepareConnectionAndTable", func(_ *Audit, c *gin.Context) bool {
+		return true
+	})
+	defer patch.Reset()
 
 	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(`{}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -351,6 +381,11 @@ func TestAudit_handleFunc_GetRawDataError_Returns400(t *testing.T) {
 
 	a := &Audit{conn: &db.Connector{}}
 	r.POST("/audit", a.handleFunc())
+
+	patch := gomonkey.ApplyPrivateMethod(reflect.TypeOf(a), "prepareConnectionAndTable", func(_ *Audit, c *gin.Context) bool {
+		return true
+	})
+	defer patch.Reset()
 
 	boom := errors.New("boom")
 	req := httptest.NewRequest(http.MethodPost, "/audit", errorReader{err: boom})
@@ -383,6 +418,11 @@ func TestAudit_handleFunc_TraceLogsWhenEnabled(t *testing.T) {
 	a := &Audit{conn: &db.Connector{}}
 	r.POST("/audit", a.handleFunc())
 
+	patch := gomonkey.ApplyPrivateMethod(reflect.TypeOf(a), "prepareConnectionAndTable", func(_ *Audit, c *gin.Context) bool {
+		return true
+	})
+	defer patch.Reset()
+
 	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(`{`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-QID", "123")
@@ -401,6 +441,11 @@ func TestAudit_handleFunc_ParseOldAuditError_ReturnsBadRequest(t *testing.T) {
 
 	a := &Audit{conn: &db.Connector{}}
 	r.POST("/audit", a.handleFunc())
+
+	patch := gomonkey.ApplyPrivateMethod(reflect.TypeOf(a), "prepareConnectionAndTable", func(_ *Audit, c *gin.Context) bool {
+		return true
+	})
+	defer patch.Reset()
 
 	body := `{
         "timestamp": 1690000000,
@@ -438,6 +483,11 @@ func TestAudit_handleFunc_ParseStringTimestamp_Error_ReturnsBadRequest(t *testin
 	a := &Audit{conn: &db.Connector{}}
 	r.POST("/audit", a.handleFunc())
 
+	patch := gomonkey.ApplyPrivateMethod(reflect.TypeOf(a), "prepareConnectionAndTable", func(_ *Audit, c *gin.Context) bool {
+		return true
+	})
+	defer patch.Reset()
+
 	body := `{
         "timestamp": "1690000000000000000",
         "cluster_id": "c1",
@@ -471,24 +521,27 @@ func TestAudit_handleFunc_ParseStringTimestamp_Error_ReturnsBadRequest(t *testin
 func TestAudit_createSTables(t *testing.T) {
 	cfg := config.GetCfg()
 
-	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	conn1, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
 	assert.NoError(t, err)
-	_, err = conn.Query(context.Background(), "drop database if exists test_1766474758", util.GetQidOwn(cfg.InstanceID))
+	defer conn1.Close()
+
+	_, err = conn1.Query(context.Background(), "drop database if exists test_1766474758", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
-	_, err = conn.Query(context.Background(), "create database test_1766474758", util.GetQidOwn(cfg.InstanceID))
+	_, err = conn1.Query(context.Background(), "create database test_1766474758", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
 
-	conn, err = db.NewConnectorWithDb(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, "test_1766474758", cfg.TDengine.Usessl)
+	conn2, err := db.NewConnectorWithDb(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, "test_1766474758", cfg.TDengine.Usessl)
 	assert.NoError(t, err)
+	defer conn2.Close()
 
 	audit := &Audit{
-		conn: conn,
+		conn: conn2,
 	}
 
 	err = audit.createSTable()
 	assert.NoError(t, err)
 
-	_, err = conn.Query(context.Background(), "drop table operations", util.GetQidOwn(cfg.InstanceID))
+	_, err = conn2.Query(context.Background(), "drop table operations", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
 
 	sql := `create stable operations(
@@ -502,13 +555,13 @@ func TestAudit_createSTables(t *testing.T) {
 	) tags (
 		cluster_id varchar(64)
 	)`
-	_, err = conn.Query(context.Background(), sql, util.GetQidOwn(cfg.InstanceID))
+	_, err = conn2.Query(context.Background(), sql, util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
 
 	err = audit.createSTable()
 	assert.NoError(t, err)
 
-	_, err = conn.Query(context.Background(), "drop database if exists test_1766474758", util.GetQidOwn(cfg.InstanceID))
+	_, err = conn2.Query(context.Background(), "drop database if exists test_1766474758", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
 }
 
@@ -597,6 +650,9 @@ func TestAuditInfo_AffectedRowsAndDurationVariants(t *testing.T) {
 		},
 	}
 
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
 	audit := NewAudit(cfg)
 	audit.Init(router)
 
@@ -639,6 +695,7 @@ func TestAuditInfo_AffectedRowsAndDurationVariants(t *testing.T) {
 
 	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
 	assert.NoError(t, err)
+	defer conn.Close()
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -692,6 +749,9 @@ func TestAuditV2DefaultDB(t *testing.T) {
 		},
 	}
 
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
 	audit := NewAudit(cfg)
 	audit.Init(router)
 
@@ -710,6 +770,7 @@ func TestAuditV2DefaultDB(t *testing.T) {
 
 	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
 	assert.NoError(t, err)
+	defer conn.Close()
 
 	data, err := conn.Query(context.Background(), "select * from test_1766564902.operations", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
@@ -727,6 +788,9 @@ func TestAuditDefaultDB(t *testing.T) {
 			Name: "test_1766566175",
 		},
 	}
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
 
 	audit := NewAudit(cfg)
 	audit.Init(router)
@@ -746,6 +810,7 @@ func TestAuditDefaultDB(t *testing.T) {
 
 	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
 	assert.NoError(t, err)
+	defer conn.Close()
 
 	data, err := conn.Query(context.Background(), "select * from test_1766566175.operations", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
@@ -764,6 +829,9 @@ func TestAuditBatchDefaultDB(t *testing.T) {
 		},
 	}
 
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
 	audit := NewAudit(cfg)
 	audit.Init(router)
 
@@ -775,6 +843,7 @@ func TestAuditBatchDefaultDB(t *testing.T) {
 
 	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
 	assert.NoError(t, err)
+	defer conn.Close()
 
 	data, err := conn.Query(context.Background(), "select * from test_1766566446.operations", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
@@ -785,12 +854,17 @@ func TestAuditBatchDefaultDB(t *testing.T) {
 }
 
 func TestAuditV2CustomDB(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
 	cfg := config.GetCfg()
 	audit := NewAudit(cfg)
 	audit.Init(router)
 
 	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
 	assert.NoError(t, err)
+	defer conn.Close()
+
 	_, err = conn.Exec(context.Background(), "drop database if exists test_1766567690", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
 	_, err = conn.Exec(context.Background(), "create database test_1766567690 precision 'ns'", util.GetQidOwn(cfg.InstanceID))
@@ -818,12 +892,17 @@ func TestAuditV2CustomDB(t *testing.T) {
 }
 
 func TestAuditCustomDB(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
 	cfg := config.GetCfg()
 	audit := NewAudit(cfg)
 	audit.Init(router)
 
 	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
 	assert.NoError(t, err)
+	defer conn.Close()
+
 	_, err = conn.Exec(context.Background(), "drop database if exists test_1766568746", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
 	_, err = conn.Exec(context.Background(), "create database test_1766568746 precision 'ns'", util.GetQidOwn(cfg.InstanceID))
@@ -851,12 +930,17 @@ func TestAuditCustomDB(t *testing.T) {
 }
 
 func TestAuditBatchCustomDB(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
 	cfg := config.GetCfg()
 	audit := NewAudit(cfg)
 	audit.Init(router)
 
 	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
 	assert.NoError(t, err)
+	defer conn.Close()
+
 	_, err = conn.Exec(context.Background(), "drop database if exists test_1766568859", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
 	_, err = conn.Exec(context.Background(), "create database test_1766568859 precision 'ns'", util.GetQidOwn(cfg.InstanceID))
