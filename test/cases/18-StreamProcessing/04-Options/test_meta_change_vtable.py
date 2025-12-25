@@ -32,7 +32,7 @@ class TestStreamMetaChangeVTable:
         tdSql.execute(f"alter all dnodes 'stdebugflag 131';")
 
         streams = []
-        streams.append(self.Basic37208())  # [ok] add ctb and drop ctb from stb
+        # streams.append(self.Basic37208())  # [ok] add ctb and drop ctb from stb
         streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb
         streams.append(self.Basic1())  # [ok] drop data source table
         

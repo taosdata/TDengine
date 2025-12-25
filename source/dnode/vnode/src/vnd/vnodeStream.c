@@ -768,6 +768,10 @@ static void getAlterColId(void* pVnode, int64_t uid, SVAlterTbReq* pReq) {
   return;
 }
 
+static bool checkAlterCondition() {
+  return true;
+}
+
 static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SSTriggerWalNewRsp* rsp, void* data, int32_t len, int64_t ver) {
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -810,6 +814,8 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
     goto end;
   }
   if (req.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF || req.action == TSDB_ALTER_TABLE_REMOVE_COLUMN_REF) {
+    uint64_t id = 0;
+    STREAM_CHECK_CONDITION_GOTO(!uidInTableListOrigin(sStreamReaderInfo, suid, uid, &id), TDB_CODE_SUCCESS);
     getAlterColId(sStreamReaderInfo->pVnode, uid, &req);
     if (atomic_load_8(&sStreamReaderInfo->isVtableOnlyTs) == 0 && !isColIdInList(sStreamReaderInfo->triggerCols, req.colId)) {    //todo calc cols
       ST_TASK_ILOG("stream reader scan alter table %s, colId %d not in trigger cols", req.tbName, req.colId);
@@ -3896,6 +3902,29 @@ end:
   return code;
 }
 
+static int32_t initTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, SVnode* pVnode) {
+  int32_t code = 0;
+  if (sStreamReaderInfo->tableList.pTableList != NULL) {  
+    return code;
+  }
+  taosWLockLatch(&sStreamReaderInfo->lock);
+  sStreamReaderInfo->pVnode = pVnode;
+  initStorageAPI(&sStreamReaderInfo->storageApi);
+  if (sStreamReaderInfo->tableList.pTableList == NULL) {
+    code = initStreamTableListInfo(&sStreamReaderInfo->tableList);
+    if (code == 0) {
+      code = generateTablistForStreamReader(pVnode, sStreamReaderInfo);
+      if (code != 0) {
+        qStreamDestroyTableInfo(&sStreamReaderInfo->tableList);
+      } else {
+        sStreamReaderInfo->tableList.version = pVnode->state.applied;
+      }
+    }
+  }
+  taosWUnLockLatch(&sStreamReaderInfo->lock);
+  return code;
+}
+
 int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   int32_t                   code = 0;
   int32_t                   lino = 0;
@@ -3918,24 +3947,7 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
             TD_VID(pVnode), __func__, req.base.type, req.base.streamId, req.base.readerTaskId, req.base.sessionId);
     SStreamTriggerReaderInfo* sStreamReaderInfo = qStreamGetReaderInfo(req.base.streamId, req.base.readerTaskId, &taskAddr);
     STREAM_CHECK_NULL_GOTO(sStreamReaderInfo, terrno);
-    if (sStreamReaderInfo->tableList.pTableList == NULL) {  
-      taosWLockLatch(&sStreamReaderInfo->lock);
-      sStreamReaderInfo->pVnode = pVnode;
-      initStorageAPI(&sStreamReaderInfo->storageApi);
-      if (sStreamReaderInfo->tableList.pTableList == NULL) {
-        code = initStreamTableListInfo(&sStreamReaderInfo->tableList);
-        if (code == 0) {
-          code = generateTablistForStreamReader(pVnode, sStreamReaderInfo);
-          if (code != 0) {
-            qStreamDestroyTableInfo(&sStreamReaderInfo->tableList);
-          } else {
-            sStreamReaderInfo->tableList.version = pVnode->state.applied;
-          }
-        }
-      }
-      taosWUnLockLatch(&sStreamReaderInfo->lock);
-      STREAM_CHECK_RET_GOTO(code);
-    }
+    STREAM_CHECK_RET_GOTO(initTableList(sStreamReaderInfo, pVnode));
     switch (req.base.type) {
       case STRIGGER_PULL_SET_TABLE:
         STREAM_CHECK_RET_GOTO(vnodeProcessStreamSetTableReq(pVnode, pMsg, &req, sStreamReaderInfo));
