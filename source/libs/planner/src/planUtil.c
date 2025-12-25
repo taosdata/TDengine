@@ -702,7 +702,7 @@ int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, b
   int32_t code = scalarCalculateConstants(*pPrimaryKeyCond, &pNew);
   if (TSDB_CODE_SUCCESS == code) {
     *pPrimaryKeyCond = pNew;
-    code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
+    code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict, NULL);
   }
   return code;
 }
