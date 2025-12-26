@@ -616,7 +616,7 @@ static int32_t httpCreateXnode(SXnodeObj *pObj) {
   }
   TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "id", (double)pObj->id), NULL, _OVER);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "url", pObj->url), NULL, _OVER);
-  pContStr = tjsonToString(postContent);
+  pContStr = tjsonToUnformattedString(postContent);
   if (pContStr == NULL) {
     code = terrno;
     goto _OVER;
@@ -3197,14 +3197,14 @@ void httpRebalanceAuto(SArray *pResult) {
     tjsonAddItemToArray(pJsonArr, pJsonObj);
   }
 
-  pContStr = tjsonToString(pJsonArr);
+  pContStr = tjsonToUnformattedString(pJsonArr);
   if (pContStr == NULL) {
     mError("xnode httpRebalanceAuto to json string error: %s", tstrerror(terrno));
     goto _OVER;
   }
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
   snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/rebalance/auto", XNODED_PIPE_SOCKET_URL);
-  (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, defaultTimeout, pContStr, strlen(pContStr) + 1);
+  (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, defaultTimeout, pContStr, strlen(pContStr));
 
 _OVER:
   if (pJsonArr != NULL) tjsonDelete(pJsonArr);
