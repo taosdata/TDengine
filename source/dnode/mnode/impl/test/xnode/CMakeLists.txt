@@ -94,6 +94,8 @@ target_link_libraries(xnodeProductionTest
     PUBLIC gtest_main
     PUBLIC pthread
     mnode
+    xnode
+    mgmt_xnode 
 )
 
 add_test(

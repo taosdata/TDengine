@@ -5297,8 +5297,6 @@ _err:
   return NULL;
 }
 
-/* walk throught node */
-
 SNode* rebalanceXnodeJobWhereDirectly(SAstCreateContext* pCxt, SNode* pWhere) {
   int32_t code = 0;
   SNode*  pStmt = NULL;
@@ -5311,28 +5309,7 @@ SNode* rebalanceXnodeJobWhereDirectly(SAstCreateContext* pCxt, SNode* pWhere) {
   pCxt->errCode = nodesMakeNode(QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
 
-  int32_t astLen = 0;
-  char*   past = taosMemoryCalloc(1, astLen);
-  nodesNodeToString(pWhere, true, &past, &astLen);
-  printf("xxxzgc *** where nodetype: %d, ast: %s\n", nodeType(pWhere), past);
-  if (nodeType(pWhere) == QUERY_NODE_LOGIC_CONDITION) {
-    SLogicConditionNode* node1 = (SLogicConditionNode*)pWhere;
-    printf("xxxzgc *** logic condition node: %d\n", node1->pParameterList->length);
-  }
-  SNode* pWhere2 = NULL;
-  nodesStringToNode(past, &pWhere2);
-
   SRebalanceXnodeJobWhereStmt* pJobStmt = (SRebalanceXnodeJobWhereStmt*)pStmt;
-  pJobStmt->pWhere = pWhere2;
-
-  // SBuildTopicContext colCxt = {.colExists = false, .colNotFound = false, .pMeta = pMeta, .pTags = NULL};
-  // nodesWalkExprPostOrder(pStmt->pWhere, checkColumnTagsInCond, &colCxt);
-
-  // SNode** ppWhere = &((SSelectStmt*)*pJobStmt->query)->pWhere;
-  // code = nodesCloneNode(pStmt->pWhere, ppWhere);
-  // COPY_STRING_FORM_ID_TOKEN(buf, pWhere);
-  // printf("rebalance xnode job where clause: %s\n", buf);
-
   pJobStmt->pWhere = pWhere;
 
   return (SNode*)pJobStmt;
@@ -5582,31 +5559,31 @@ SNode* dropXnodeResourceOn(SAstCreateContext* pCxt, EXnodeResourceType resourceT
 _err:
   return NULL;
 }
-SNode* dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere) {
-  CHECK_PARSER_STATUS(pCxt);
-  SShowStmt* pStmt = NULL;
-  switch (resourceType) {
-    case XNODE_TASK:
-      // pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_TASK_STMT, (SNode**)&pStmt);
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_TASKS_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
-      break;
-    case XNODE_AGENT:
-      // pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_AGENT_STMT, (SNode**)&pStmt);
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_AGENTS_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
-      break;
-    case XNODE_JOB:
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_JOBS_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
-      break;
-    default:
-      break;
-  }
-  return (SNode*)pStmt;
-_err:
-  return NULL;
-}
+// SNode* dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere) {
+//   CHECK_PARSER_STATUS(pCxt);
+//   SShowStmt* pStmt = NULL;
+//   switch (resourceType) {
+//     case XNODE_TASK:
+//       // pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_TASK_STMT, (SNode**)&pStmt);
+//       pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_TASKS_STMT, (SNode**)&pStmt);
+//       CHECK_MAKE_NODE(pStmt);
+//       break;
+//     case XNODE_AGENT:
+//       // pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_AGENT_STMT, (SNode**)&pStmt);
+//       pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_AGENTS_STMT, (SNode**)&pStmt);
+//       CHECK_MAKE_NODE(pStmt);
+//       break;
+//     case XNODE_JOB:
+//       pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_JOBS_STMT, (SNode**)&pStmt);
+//       CHECK_MAKE_NODE(pStmt);
+//       break;
+//     default:
+//       break;
+//   }
+//   return (SNode*)pStmt;
+// _err:
+//   return NULL;
+// }
 SNode* createDefaultXnodeTaskOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   SXnodeTaskOptions* pOptions = NULL;

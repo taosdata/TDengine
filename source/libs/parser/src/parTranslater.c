@@ -10840,7 +10840,10 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMUpdateXnodeReq, pReq);
       break;
     }
-
+    case TDMT_MND_REBALANCE_XNODE_JOBS_WHERE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMRebalanceXnodeJobsWhereReq, pReq);
+      break;
+    }
     case TDMT_MND_CREATE_MNODE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateMnodeReq, pReq);
       break;
@@ -13217,23 +13220,53 @@ static int32_t translateRebalanceXnodeJob(STranslateContext* pCxt, SRebalanceXno
   return code;
 }
 
+typedef struct SXnodeSupportFieldContext {
+  bool res;
+} SXnodeSupportFieldContext;
+
+static EDealRes supportNodeType(SNode* pNode, void* pContext) {
+  if (nodeType(pNode) != QUERY_NODE_COLUMN && nodeType(pNode) != QUERY_NODE_VALUE &&
+      nodeType(pNode) != QUERY_NODE_OPERATOR && nodeType(pNode) != QUERY_NODE_LOGIC_CONDITION) {
+    goto _exit;
+  }
+  return DEAL_RES_CONTINUE;
+
+_exit:
+  ((SXnodeSupportFieldContext*)pContext)->res = false;
+  return DEAL_RES_END;
+}
+
+bool isXnodeSupportNodeType(SNode* pWhere) {
+  if (nodeType(pWhere) != QUERY_NODE_OPERATOR && nodeType(pWhere) != QUERY_NODE_LOGIC_CONDITION) {
+    return false;
+  }
+  SXnodeSupportFieldContext ctx = {.res = true};
+  nodesWalkExpr(pWhere, supportNodeType, &ctx);
+  return ctx.res;
+}
+
 static int32_t translateRebalanceXnodeJobWhere(STranslateContext* pCxt, SRebalanceXnodeJobWhereStmt* pStmt) {
   int32_t                     code = 0;
-  SMRebalanceXnodeJobWhereReq rebalanceReq = {0};
-
-  // const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
-  // if (xnodeId == NULL) {
-  //   return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: xnode_id");
-  // }
-  char*   buf = taosMemoryCalloc(1, 2048);
+  SMRebalanceXnodeJobsWhereReq rebalanceReq = {0};
+  char*                        pAst = NULL;
   int32_t astLen = 0;
-  TAOS_CHECK_GOTO(nodesNodeToString(pStmt->pWhere, false, &buf, &astLen), NULL, _exit);
-  printf("xxxzgc *** node ast: %s, astLen: %d\n", buf, astLen);
 
-  code = buildCmdMsg(pCxt, TDMT_MND_REBALANCE_XNODE_JOB_WHERE, (FSerializeFunc)tSerializeSMRebalanceXnodeJobReq,
+  TAOS_CHECK_GOTO(nodesNodeToString(pStmt->pWhere, true, &pAst, &astLen), NULL, _exit);
+
+  if (!isXnodeSupportNodeType(pStmt->pWhere)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "WHERE condition is not valid");
+  }
+
+  rebalanceReq.ast = xCreateCowStr(strlen(pAst) + 1, pAst, false);
+
+  code = buildCmdMsg(pCxt, TDMT_MND_REBALANCE_XNODE_JOBS_WHERE, (FSerializeFunc)tSerializeSMRebalanceXnodeJobsWhereReq,
                      &rebalanceReq);
-  tFreeSMRebalanceXnodeJobWhereReq(&rebalanceReq);
+  tFreeSMRebalanceXnodeJobsWhereReq(&rebalanceReq);
 _exit:
+  if (pAst != NULL) {
+    taosMemoryFree(pAst);
+    pAst = NULL;
+  }
   return code;
 }
 

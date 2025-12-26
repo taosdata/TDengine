@@ -932,7 +932,7 @@ _exit:
 
 void tFreeSMRebalanceXnodeJobReq(SMRebalanceXnodeJobReq *pReq) { FREESQL(); }
 
-int32_t tSerializeSMRebalanceXnodeJobWhereReq(void *buf, int32_t bufLen, SMRebalanceXnodeJobWhereReq *pReq) {
+int32_t tSerializeSMRebalanceXnodeJobsWhereReq(void *buf, int32_t bufLen, SMRebalanceXnodeJobsWhereReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -942,10 +942,7 @@ int32_t tSerializeSMRebalanceXnodeJobWhereReq(void *buf, int32_t bufLen, SMRebal
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   ENCODESQL();
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->astLen));
-  if (pReq->astLen > 0) {
-    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->ast, pReq->astLen));
-  }
+  TAOS_CHECK_EXIT(xEncodeCowStr(&encoder, &pReq->ast));
   tEndEncode(&encoder);
 _exit:
   if (code) {
@@ -956,7 +953,7 @@ _exit:
   tEncoderClear(&encoder);
   return tlen;
 }
-int32_t tDeserializeSMRebalanceXnodeJobWhereReq(void *buf, int32_t bufLen, SMRebalanceXnodeJobWhereReq *pReq) {
+int32_t tDeserializeSMRebalanceXnodeJobsWhereReq(void *buf, int32_t bufLen, SMRebalanceXnodeJobsWhereReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -965,10 +962,7 @@ int32_t tDeserializeSMRebalanceXnodeJobWhereReq(void *buf, int32_t bufLen, SMReb
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   DECODESQL();
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->astLen));
-  if (pReq->astLen > 0) {
-    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->ast, NULL));
-  }
+  TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->ast, true));
 
   tEndDecode(&decoder);
 _exit:
@@ -976,9 +970,9 @@ _exit:
   return code;
 }
 
-void tFreeSMRebalanceXnodeJobWhereReq(SMRebalanceXnodeJobWhereReq *pReq) {
+void tFreeSMRebalanceXnodeJobsWhereReq(SMRebalanceXnodeJobsWhereReq *pReq) {
   FREESQL();
-  taosMemoryFreeClear(pReq->ast);
+  xFreeCowStr(&pReq->ast);
 }
 
 int32_t tSerializeSMDropXnodeJobReq(void *buf, int32_t bufLen, SMDropXnodeJobReq *pReq) {

@@ -21,16 +21,18 @@ typedef struct SXnodeObj {
   int64_t updateTime;
 } SXnodeObj;
 
-typedef struct SXnodeTaskObj {
-  int32_t tid;
-  char    name[64];
-  int32_t xnodeId;
-  int32_t agentId;
-  int32_t optionsLen;
-  char*   options;
-  int64_t createTime;
-  int64_t updateTime;
-} SXnodeTaskObj;
+// typedef struct SXnodeTaskObj {
+//   int32_t tid;
+//   char    name[64];
+//   int32_t xnodeId;
+//   int32_t agentId;
+//   int32_t optionsLen;
+//   char*   options;
+//   int64_t createTime;
+//   int64_t updateTime;
+// } SXnodeTaskObj;
+
+extern "C" {}
 
 class XnodeMemoryTest : public ::testing::Test {
  protected:

@@ -3619,14 +3619,13 @@ int32_t tDeserializeSMRebalanceXnodeJobReq(void* buf, int32_t bufLen, SMRebalanc
 void    tFreeSMRebalanceXnodeJobReq(SMRebalanceXnodeJobReq* pReq);
 
 typedef struct {
-  int32_t astLen;
+  CowStr  ast;
   int32_t sqlLen;
-  char*   ast;
   char*   sql;
-} SMRebalanceXnodeJobWhereReq;
-int32_t tSerializeSMRebalanceXnodeJobWhereReq(void* buf, int32_t bufLen, SMRebalanceXnodeJobWhereReq* pReq);
-int32_t tDeserializeSMRebalanceXnodeJobWhereReq(void* buf, int32_t bufLen, SMRebalanceXnodeJobWhereReq* pReq);
-void    tFreeSMRebalanceXnodeJobWhereReq(SMRebalanceXnodeJobWhereReq* pReq);
+} SMRebalanceXnodeJobsWhereReq;
+int32_t tSerializeSMRebalanceXnodeJobsWhereReq(void* buf, int32_t bufLen, SMRebalanceXnodeJobsWhereReq* pReq);
+int32_t tDeserializeSMRebalanceXnodeJobsWhereReq(void* buf, int32_t bufLen, SMRebalanceXnodeJobsWhereReq* pReq);
+void    tFreeSMRebalanceXnodeJobsWhereReq(SMRebalanceXnodeJobsWhereReq* pReq);
 
 typedef struct {
   int32_t jid;
