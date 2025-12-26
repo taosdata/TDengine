@@ -28,9 +28,10 @@ target_include_directories(
   mnode
   PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+  PUBLIC "${TD_SOURCE_DIR}/source/libs/totp/inc"
 )
 target_link_libraries(
-  mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw
+  mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp
 )
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)

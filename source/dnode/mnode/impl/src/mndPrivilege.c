@@ -17,11 +17,19 @@
 #include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndUser.h"
+#include "mndDef.h"
 
 #ifndef _PRIVILEGE
 int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
 void    mndCleanupPrivilege(SMnode *pMnode) {}
-bool    mndMustChangePassword(SUserObj* pUser) { return false; }
+
+
+int32_t mndCheckConnectPrivilege(SMnode *pMnode, SUserObj *pUser, const char* token, const SLoginInfo *pLoginInfo) {
+  if ((!pUser->superUser) && (!pUser->enable)) {
+    return TSDB_CODE_MND_USER_DISABLED;
+  }
+  return 0;
+}
 
 
 int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType) {

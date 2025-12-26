@@ -14,8 +14,8 @@
  */
 
 
-#ifndef _TD_UTIL_TOTP_H_
-#define _TD_UTIL_TOTP_H_
+#ifndef _TD_TOTP_H_
+#define _TD_TOTP_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -50,4 +50,4 @@ int taosGenerateTotpSecret(const char *seed, size_t seedLen, uint8_t *secret, si
 }
 #endif
 
-#endif /*_TD_UTIL_TOTP_H_*/
+#endif /*_TD_TOTP_H_*/
