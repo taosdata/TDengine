@@ -709,8 +709,14 @@ _exit:
  * @return 0 if key loaded successfully, TSDB_CODE_TIMEOUT_ERROR if timeout occurs
  */
 int32_t taosWaitCfgKeyLoaded(void) {
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   int32_t code = 0;
   int32_t lino = 0;
+
+  if (tsSkipKeyCheckMode) {
+    uDebug("skip encryption key verification in some special check mode");
+    return 0;
+  }
 
   int32_t encryptKeysLoaded = atomic_load_32(&tsEncryptKeysStatus);
   if (encryptKeysLoaded == TSDB_ENCRYPT_KEY_STAT_LOADED || encryptKeysLoaded == TSDB_ENCRYPT_KEY_STAT_NOT_EXIST ||
@@ -743,4 +749,8 @@ int32_t taosWaitCfgKeyLoaded(void) {
   uError("%s failed at %s:%d since %s, waited %d ms", __func__, __FILE__, lino, tstrerror(code), elapsedMs);
   terrno = code;
   return code;
+#else
+  uDebug("skip encryption key verification in non-enterprise mode");
+  return 0;
+#endif
 }
