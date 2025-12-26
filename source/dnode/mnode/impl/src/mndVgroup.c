@@ -1181,7 +1181,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
   bool      showAll = false, showIter = false;
   int64_t   dbUid = 0;
 
-  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_SHOW_VGROUPS, PRIV_OBJ_DB, 0, _OVER);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), PRIV_SHOW_VGROUPS, PRIV_OBJ_DB, 0, _OVER);
 
   if (strlen(pShow->db) > 0) {
     pDb = mndAcquireDb(pMnode, pShow->db);
@@ -1462,7 +1462,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   bool      showAll = false, showIter = false;
   int64_t   dbUid = 0;
 
-  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_SHOW_VNODES, PRIV_OBJ_DB, 0, _OVER);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), PRIV_SHOW_VNODES, PRIV_OBJ_DB, 0, _OVER);
 
   while (numOfRows < rows - TSDB_MAX_REPLICA) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);
@@ -2606,7 +2606,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
   }
 
   mInfo("vgId:%d, start to redistribute vgroup to dnode %d:%d:%d", req.vgId, req.dnodeId1, req.dnodeId2, req.dnodeId3);
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_REDISTRIBUTE_VGROUP)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_REDISTRIBUTE_VGROUP)) != 0) {
     goto _OVER;
   }
 
@@ -3953,7 +3953,7 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
   }
 
   mInfo("start to balance vgroup");
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_BALANCE_VGROUP)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_BALANCE_VGROUP)) != 0) {
     goto _OVER;
   }
 
@@ -4135,7 +4135,7 @@ static int32_t mndProcessSetVgroupKeepVersionReq(SRpcMsg *pReq) {
   mInfo("start to set vgroup keep version, vgId:%d, keepVersion:%" PRId64, req.vgId, req.keepVersion);
 
   // Check permission
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_WRITE_DB)) != 0) {
     goto _OVER;
   }
 

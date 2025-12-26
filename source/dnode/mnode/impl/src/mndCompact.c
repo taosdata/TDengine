@@ -322,7 +322,7 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
     }
   }
 
-  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_SHOW_COMPACTS, PRIV_OBJ_DB, 0, _OVER);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), PRIV_SHOW_COMPACTS, PRIV_OBJ_DB, 0, _OVER);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_COMPACT, pShow->pIter, (void **)&pCompact);
@@ -546,7 +546,7 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_COMPACT_DB), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_COMPACT_DB), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndKillCompact(pMnode, pReq, pCompact), &lino, _OVER);
 

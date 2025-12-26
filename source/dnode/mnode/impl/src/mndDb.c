@@ -1134,7 +1134,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     }
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_DB, NULL), &lino, _OVER);
 
   TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB), &lino, _OVER);
 
@@ -1149,7 +1149,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbDnodeList(pMnode, createReq.db, createReq.dnodeListStr, dnodeList), &lino, _OVER);
 
-  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser), &lino, _OVER);
 
   if (sdbGetSize(pMnode->pSdb, SDB_MOUNT) > 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_MOUNT_NOT_EMPTY, &lino, _OVER);
@@ -1505,7 +1505,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     }
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DB, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_DB, pDb), NULL, _OVER);
 
   if (alterReq.replications == 2) {
     TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DUAL_REPLICA_HA), NULL, _OVER);
@@ -1966,8 +1966,8 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_DB, pDb))) {
-    if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser))) {
+  if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_DB, pDb))) {
+    if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser))) {
       goto _OVER;
     }
     char objFName[TSDB_PRIV_MAX_KEY_LEN] = {0};
@@ -2184,7 +2184,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
       if (terrno != 0) code = terrno;
       goto _OVER;
     } else {
-      TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_USE_DB, pDb), NULL, _OVER);
+      TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL, _OVER);
 
       TAOS_CHECK_GOTO(mndExtractDbInfo(pMnode, pDb, &usedbRsp, &usedbReq), NULL, _OVER);
 
@@ -2560,7 +2560,7 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(code);
   }
 
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb));
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_TRIM_DB, pDb));
 
   if (pDb->cfg.isMount) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT);
@@ -2682,7 +2682,7 @@ static int32_t mndProcessTrimDbWalReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_TRIM_DB, pDb), NULL, _OVER);
 
   code = mndTrimDbWal(pMnode, pDb);
 
@@ -2782,7 +2782,7 @@ static int32_t mndProcessSsMigrateDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SSMIGRATE_DB, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SSMIGRATE_DB, pDb), NULL, _OVER);
 
   if(pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
@@ -3229,12 +3229,13 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   ESdbStatus objStatus = 0;
   SSHashObj *pUidNames = NULL;
 
-  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
+  (void)mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
   if (pOperUser == NULL) return 0;
   bool sysinfo = pOperUser->sysInfo;
   char objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
   bool showAnyDb = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_DB, 0, objFName, NULL));
+
   // Append the information_schema database into the result.
   if (!pShow->sysDbRsp) {
     SDbObj infoschemaDb = {0};
@@ -3258,7 +3259,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetchAll(pSdb, SDB_DB, pShow->pIter, (void **)&pDb, &objStatus, true);
     if (pShow->pIter == NULL) break;
-    if (showAnyDb || mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SHOW_DATABASES, pDb) == 0) {
+    if (showAnyDb || mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_DATABASES, pDb) == 0) {
       int32_t numOfTables = 0;
       sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, &pDb->uid, NULL);
       mndDumpDbInfoData(pMnode, pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo, &pUidNames);

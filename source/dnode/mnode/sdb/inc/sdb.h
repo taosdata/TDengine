@@ -180,8 +180,9 @@ typedef enum {
   SDB_RETENTION_DETAIL = 37,
   SDB_INSTANCE = 38,
   SDB_ENCRYPT_ALGORITHMS = 39,
-  SDB_ROLE = 40,
-  SDB_MAX = 41
+  SDB_TOKEN = 40,
+  SDB_ROLE = 41,
+  SDB_MAX = 42
 } ESdbType;
 
 typedef struct SSdbRaw {

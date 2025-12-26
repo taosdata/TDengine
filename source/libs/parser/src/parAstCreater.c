@@ -3665,6 +3665,16 @@ _err:
   return NULL;
 }
 
+SNode* createShowTokensStmt(SAstCreateContext* pCxt, ENodeType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowTokensStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind) {
   if (pStmt == NULL) {
     return NULL;
@@ -4373,10 +4383,6 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
 
 
 void setUserOptionsTotpseed(SAstCreateContext* pCxt, SUserOptions* pUserOptions, const SToken* pTotpseed) {
-  if (pUserOptions->hasTotpseed) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "TOTPSEED");
-      return;
-  }
   pUserOptions->hasTotpseed = true;
 
   if (pTotpseed == NULL) { // clear TOTP secret
@@ -4407,10 +4413,6 @@ void setUserOptionsTotpseed(SAstCreateContext* pCxt, SUserOptions* pUserOptions,
 
 
 void setUserOptionsPassword(SAstCreateContext* pCxt, SUserOptions* pUserOptions, const SToken* pPassword) {
-  if (pUserOptions->hasPassword) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PASS");
-      return;
-  }
   pUserOptions->hasPassword = true;
 
   if (pPassword->n >= sizeof(pUserOptions->password) * 2) {
@@ -4543,7 +4545,7 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
 
 
 
-SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOptions* opts, bool ignoreExisting) {
+SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOptions* opts, bool ignoreExists) {
   SCreateUserStmt* pStmt = NULL;
 
   CHECK_PARSER_STATUS(pCxt);
@@ -4559,7 +4561,7 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
   tstrncpy(pStmt->password, opts->password, sizeof(pStmt->password));
   tstrncpy(pStmt->totpseed, opts->totpseed, sizeof(pStmt->totpseed));
 
-  pStmt->ignoreExisting = ignoreExisting;
+  pStmt->ignoreExists = ignoreExists;
   pStmt->sysinfo = opts->sysinfo;
   pStmt->createDb = opts->createdb;
   pStmt->isImport = opts->isImport;
@@ -4665,6 +4667,150 @@ static bool checkRoleName(SAstCreateContext* pCxt, SToken* pName, bool checkSysN
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
+
+STokenOptions* createDefaultTokenOptions(SAstCreateContext* pCxt) {
+  STokenOptions* pOptions = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_TOKEN_OPTIONS, (SNode**)&pOptions);
+  if (pOptions == NULL) {
+    pCxt->errCode = code;
+    return NULL;
+  }
+
+  pOptions->enable = 1;
+  pOptions->ttl = 0;
+  return pOptions;
+}
+
+
+
+STokenOptions* mergeTokenOptions(SAstCreateContext* pCxt, STokenOptions* a, STokenOptions* b) {
+  if (a == NULL && b == NULL) {
+      return createDefaultTokenOptions(pCxt);
+  }
+  if (b == NULL) {
+    return a;
+  }
+  if (a == NULL) {
+    return b;
+  }
+
+  if (b->hasEnable) {
+    if (a->hasEnable) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "ENABLE");
+    } else {
+      a->hasEnable = true;
+      a->enable = b->enable;
+    }
+  }
+
+  if (b->hasTtl) {
+    if (a->hasTtl) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "TTL");
+    } else {
+      a->hasTtl = true;
+      a->ttl = b->ttl;
+    }
+  }
+
+  if (b->hasProvider) {
+    if (a->hasProvider) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "PROVIDER");
+    } else {
+      a->hasProvider = true;
+      tstrncpy(a->provider, b->provider, sizeof(a->provider));
+    }
+  }
+
+  if (b->hasExtraInfo) {
+    if (a->hasExtraInfo) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "EXTRA_INFO");
+    } else {
+      a->hasExtraInfo = true;
+      tstrncpy(a->extraInfo, b->extraInfo, sizeof(a->extraInfo));
+    }
+  }
+  nodesDestroyNode((SNode*)b);
+  return a;
+}
+
+
+
+void setTokenOptionsProvider(SAstCreateContext* pCxt, STokenOptions* pTokenOptions, const SToken* pProvider) {
+  pTokenOptions->hasProvider = true;
+
+  if (pProvider->n >= sizeof(pTokenOptions->provider) * 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "PROVIDER", sizeof(pTokenOptions->provider));
+    return;
+  }
+
+  char buf[sizeof(pTokenOptions->provider) * 2 + 1];
+  memcpy(buf, pProvider->z, pProvider->n);
+  buf[pProvider->n] = 0;
+  (void)strdequote(buf);
+  size_t len = strtrim(buf);
+
+  if (len >= sizeof(pTokenOptions->provider)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "PROVIDER", sizeof(pTokenOptions->provider));
+  } else {
+    tstrncpy(pTokenOptions->provider, buf, sizeof(pTokenOptions->provider));
+  }
+}
+
+
+
+void setTokenOptionsExtraInfo(SAstCreateContext* pCxt, STokenOptions* pTokenOptions, const SToken* pExtraInfo) {
+  pTokenOptions->hasExtraInfo = true;
+
+  if (pExtraInfo->n >= sizeof(pTokenOptions->extraInfo) * 2) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "EXTRA_INFO", sizeof(pTokenOptions->extraInfo));
+    return;
+  }
+
+  char buf[sizeof(pTokenOptions->extraInfo) * 2 + 1];
+  memcpy(buf, pExtraInfo->z, pExtraInfo->n);
+  buf[pExtraInfo->n] = 0;
+  (void)strdequote(buf);
+  size_t len = strtrim(buf);
+
+  if (len >= sizeof(pTokenOptions->extraInfo)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "EXTRA_INFO", sizeof(pTokenOptions->extraInfo));
+  } else {
+    tstrncpy(pTokenOptions->extraInfo, buf, sizeof(pTokenOptions->extraInfo));
+  }
+}
+
+
+
+static bool isValidTokenOptions(SAstCreateContext* pCxt, const STokenOptions* opts) {
+  if (opts->hasEnable && (opts->enable < 0 || opts->enable > 1)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "ENABLE");
+    return false;
+  }
+
+  if (opts->hasTtl && (opts->ttl < 0)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "TTL");
+    return false;
+  }
+
+  return true;
+}
+
+
+
+static bool checkTokenName(SAstCreateContext* pCxt, SToken* pTokenName) {
+  if (NULL == pTokenName) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  } else {
+    if (pTokenName->n >= TSDB_TOKEN_NAME_LEN) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "TOKEN_NAME", TSDB_TOKEN_NAME_LEN);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    trimEscape(pCxt, pTokenName, true);
+  }
+  return TSDB_CODE_SUCCESS == pCxt->errCode;
+}
+
 SNode* createCreateRoleStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pName) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkRoleName(pCxt, pName, true));
@@ -4712,6 +4858,82 @@ SNode* createAlterRoleStmt(SAstCreateContext* pCxt, SToken* pName, int8_t alterT
       break;
   }
   return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+
+SNode* createCreateTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, SToken* pUserName, STokenOptions* opts, bool ignoreExists) {
+  SCreateTokenStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkTokenName(pCxt, pTokenName));
+  CHECK_NAME(checkUserName(pCxt, pUserName));
+
+  if (opts == NULL) {
+    opts = createDefaultTokenOptions(pCxt);
+  } else if (!isValidTokenOptions(pCxt, opts)) {
+    goto _err;
+  }
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_TOKEN_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  COPY_STRING_FORM_ID_TOKEN(pStmt->name, pTokenName);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->user, pUserName);
+  pStmt->enable = opts->enable;
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->ttl = opts->ttl;
+  tstrncpy(pStmt->provider, opts->provider, sizeof(pStmt->provider));
+  tstrncpy(pStmt->extraInfo, opts->extraInfo, sizeof(pStmt->extraInfo));
+  nodesDestroyNode((SNode*)opts);
+  return (SNode*)pStmt;
+
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  nodesDestroyNode((SNode*)opts);
+  return NULL;
+}
+
+
+
+SNode* createAlterTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, STokenOptions* opts) {
+  SAlterTokenStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkTokenName(pCxt, pTokenName));
+  if (!isValidTokenOptions(pCxt, opts)) {
+    goto _err;
+  }
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TOKEN_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  COPY_STRING_FORM_ID_TOKEN(pStmt->name, pTokenName);
+  pStmt->pTokenOptions = opts;
+  return (SNode*)pStmt;
+
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  nodesDestroyNode((SNode*)opts);
+  return NULL;
+}
+
+
+
+SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName) {
+  SDropTokenStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkTokenName(pCxt, pTokenName));
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_TOKEN_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  COPY_STRING_FORM_ID_TOKEN(pStmt->name, pTokenName);
+  return (SNode*)pStmt;
+
 _err:
   nodesDestroyNode((SNode*)pStmt);
   return NULL;

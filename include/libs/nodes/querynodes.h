@@ -331,6 +331,7 @@ typedef enum EDynQueryType {
   DYN_QTYPE_STB_HASH = 1,
   DYN_QTYPE_VTB_SCAN,
   DYN_QTYPE_VTB_WINDOW,
+  DYN_QTYPE_VTB_AGG,
 } EDynQueryType;
 
 typedef struct SJoinTableNode {

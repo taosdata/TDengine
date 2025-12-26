@@ -596,9 +596,9 @@ static int32_t mndProcessDropRsmaReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_EXIST);
   }
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser));
 
-  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _exit);
+  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb), NULL, _exit);
   TAOS_CHECK_EXIT(
       mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_DROP, PRIV_OBJ_RSMA, pObj->ownerId, pObj->dbFName, pObj->name));
 
@@ -758,10 +758,10 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_SELECTED);
   }
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser));
 
-  // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
-  // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
+  // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_READ_DB, pDb));
+  // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb));
 
   // already check select table/insert table/create rsma privileges in parser
   TAOS_CHECK_EXIT(
@@ -995,10 +995,10 @@ static int32_t mndProcessAlterRsmaReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_EXIST);
   }
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser));
 
-  // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
-  // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
+  // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_READ_DB, pDb));
+  // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb));
   TAOS_CHECK_EXIT(
       mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_ALTER, PRIV_OBJ_RSMA, pObj->ownerId, pObj->dbFName, pObj->name));
 
@@ -1213,7 +1213,7 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   pBuf = tmp;
   bufLen = sizeof(tmp) - VARSTR_HEADER_SIZE;
   if (pShow->numOfRows < 1) {
-    TAOS_CHECK_EXIT(mndAcquireUser(pMnode, (pReq->info.conn.user), &pUser));
+    TAOS_CHECK_EXIT(mndAcquireUser(pMnode, (RPC_MSG_USER(pReq)), &pUser));
     (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
     int32_t objLevel = privObjGetLevel(PRIV_OBJ_RSMA);
     showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_RSMA, 0, objFName,

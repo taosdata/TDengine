@@ -432,7 +432,7 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
   goto _OVER;
 #endif
   mInfo("func:%s, start to create, size:%d", createReq.name, createReq.codeLen);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_FUNC), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_FUNC), NULL, _OVER);
 
   pFunc = mndAcquireFunc(pMnode, createReq.name);
   if (pFunc != NULL) {
@@ -493,7 +493,7 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSDropFuncReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
   mInfo("func:%s, start to drop", dropReq.name);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_FUNC), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_FUNC), NULL, _OVER);
 
   if (dropReq.name[0] == 0) {
     code = TSDB_CODE_MND_INVALID_FUNC_NAME;

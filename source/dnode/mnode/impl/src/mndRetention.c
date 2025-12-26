@@ -285,7 +285,7 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
   }
 
-  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_SHOW_RETENTIONS, PRIV_OBJ_DB, 0, _OVER);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), PRIV_SHOW_RETENTIONS, PRIV_OBJ_DB, 0, _OVER);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_RETENTION, pShow->pIter, (void **)&pObj);
@@ -516,7 +516,7 @@ int32_t mndProcessKillRetentionReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_TRIM_DB), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndKillRetention(pMnode, pReq, pObj), &lino, _OVER);
 

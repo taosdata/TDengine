@@ -427,7 +427,7 @@ int32_t mndRetrieveSsMigrate(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
     }
   }
 
-  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(pReq->info.conn.user, PRIV_SHOW_SSMIGRATES, PRIV_OBJ_DB, 0, _OVER);
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), PRIV_SHOW_SSMIGRATES, PRIV_OBJ_DB, 0, _OVER);
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_SSMIGRATE, pShow->pIter, (void **)&pSsMigrate);
@@ -678,7 +678,7 @@ int32_t mndProcessKillSsMigrateReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  //TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SSMIGRATE_DB), &lino, _OVER);
+  //TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SSMIGRATE_DB), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndKillSsMigrate(pMnode, pReq, pSsMigrate), &lino, _OVER);
 

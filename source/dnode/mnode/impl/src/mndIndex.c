@@ -512,11 +512,11 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
   // already check select table/create index privileges in parser
   TAOS_CHECK_GOTO(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL),
                   NULL, _OVER);
-  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
+  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb), NULL, _OVER);
 
   code = mndAddIndex(pMnode, pReq, &createReq, pDb, pStb, pOperUser);
   if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST || terrno == TSDB_CODE_MND_TAG_NOT_EXIST) {
@@ -589,7 +589,7 @@ int32_t mndRetrieveTagIdx(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, i
     if (pDb == NULL) return 0;
   }
 
-  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), &lino, _OVER);
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
   int32_t objLevel = privObjGetLevel(PRIV_OBJ_IDX);
   showAll =
@@ -942,8 +942,8 @@ int32_t mndProcessDropTagIdxReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
+  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
   TAOS_CHECK_GOTO(
       mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_IDX, pIdx->ownerId, pIdx->db, pIdx->name),
       NULL, _OVER);

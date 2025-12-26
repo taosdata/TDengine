@@ -1466,11 +1466,11 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = mndAcquireUser(pMnode, (pReq->info.conn.user), &pOperUser))) {
+  if ((code = mndAcquireUser(pMnode, (RPC_MSG_USER(pReq)), &pOperUser))) {
     goto _OVER;
   }
 
-  // if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb)) != 0) {
+  // if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb)) != 0) {
   //   goto _OVER;
   // }
   if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL))) {
@@ -2790,10 +2790,10 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   if ((ret = tNameFromString(&name, alterReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0)
     mError("stb:%s, failed to tNameFromString since %s", alterReq.name, tstrerror(ret));
 
-  // if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb)) != 0) {
+  // if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb)) != 0) {
   //   goto _OVER;
   // }
-  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
   TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL), NULL,
                   _OVER);
   TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, name.tname),
@@ -3009,10 +3009,10 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   if ((ret = tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0)
     mError("stb:%s, failed to tNameFromString since %s", dropReq.name, tstrerror(ret));
 
-  // if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb)) != 0) {
+  // if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb)) != 0) {
   //   goto _OVER;
   // }
-  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
   TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL), NULL,
                   _OVER);
   TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TBL, pDb->name, name.tname),
@@ -3054,7 +3054,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
   STableMetaRsp metaRsp = {0};
   SUserObj     *pUser = NULL;
 
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser);
   if (pUser == NULL) return 0;
   bool sysinfo = pUser->sysInfo;
 
@@ -3349,7 +3349,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     if (pDb == NULL) return terrno;
   }
 
-  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser)) != 0) {
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser)) != 0) {
     goto _ERROR;
   }
 
@@ -3370,8 +3370,9 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
       sdbRelease(pSdb, pStb);
       continue;
     }
+
 #if 0
-    if ((0 == pUser->superUser) && mndCheckStbPrivilege(pMnode, pUser, MND_OPER_SHOW_STB, pStb) != 0) {
+    if ((0 == pUser->superUser) && mndCheckStbPrivilege(pMnode, pUser, RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_STB, pStb) != 0) {
       sdbRelease(pSdb, pStb);
       terrno = 0;
       continue;
@@ -3896,7 +3897,7 @@ static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq) {
     terrno = TSDB_CODE_MND_STB_NOT_EXIST;
     goto _OVER;
   }
-  if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+  if (mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_WRITE_DB, pDb) != 0) {
     goto _OVER;
   }
 

@@ -458,7 +458,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   int32_t     code = 0, lino = 0;
   bool        showAll = false;
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
   showAll =
       (0 == mndCheckObjPrivilegeRec(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_STREAM, 0, pOperUser->acctId, "*", "*"));
 
@@ -638,9 +638,9 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
   
   mstsInfo("start to stop stream %s", pStream->name);
 
-  // code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
-  if((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser))) {
-    mstsError("user %s failed to stop stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
+  // code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
+  if((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser))) {
+    mstsError("user %s failed to stop stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
@@ -649,7 +649,7 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
                                             NULL)) ||
       (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_STOP, PRIV_OBJ_STREAM, pStream->ownerId,
                                        pStream->pCreate->streamDB, pStream->pCreate->name))) {
-    mstsError("user %s failed to stop stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
+    mstsError("user %s failed to stop stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     mndReleaseUser(pMnode, pOperUser);
     sdbRelease(pMnode->pSdb, pStream);
     return code;
@@ -659,7 +659,7 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
 
   if (atomic_load_8(&pStream->userDropped)) {
     code = TSDB_CODE_MND_STREAM_DROPPING;
-    mstsError("user %s failed to stop stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
+    mstsError("user %s failed to stop stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
@@ -738,9 +738,9 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
 
   mstsInfo("start to start stream %s from stopped", pStream->name);
 
-  // code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
-  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser))) {
-    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
+  // code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser))) {
+    mstsError("user %s failed to start stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
@@ -749,7 +749,7 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
                                             NULL)) ||
       (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_START, PRIV_OBJ_STREAM, pStream->ownerId,
                                        pStream->pCreate->streamDB, pStream->pCreate->name))) {
-    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
+    mstsError("user %s failed to start stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     mndReleaseUser(pMnode, pOperUser);
     sdbRelease(pMnode->pSdb, pStream);
     return code;
@@ -759,14 +759,14 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
 
   if (atomic_load_8(&pStream->userDropped)) {
     code = TSDB_CODE_MND_STREAM_DROPPING;
-    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
+    mstsError("user %s failed to start stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
 
   if (0 == atomic_load_8(&pStream->userStopped)) {
     code = TSDB_CODE_MND_STREAM_NOT_STOPPED;
-    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
+    mstsError("user %s failed to start stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
@@ -840,11 +840,11 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     }
   }
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
 
   int64_t streamId = pStream->pCreate->streamId;
 
-  // code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
+  // code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
   TAOS_CHECK_EXIT(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
                                                 NULL));
   TAOS_CHECK_EXIT(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_STREAM, pStream->ownerId,
@@ -975,7 +975,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
   if (pOperUser == NULL) {
     TSDB_CHECK_CODE(TSDB_CODE_MND_NO_USER_FROM_CONN, lino, _OVER);
   }
@@ -996,7 +996,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   // create stb for stream
   if (TSDB_SUPER_TABLE == pStream->pCreate->outTblType && !pStream->pCreate->outStbExists) {
     pStream->pCreate->outStbUid = mndGenerateUid(pStream->pCreate->outTblName, strlen(pStream->pCreate->outTblName));
-    code = mndStreamCreateOutStb(pMnode, pTrans, pStream->pCreate, pReq->info.conn.user);
+    code = mndStreamCreateOutStb(pMnode, pTrans, pStream->pCreate, RPC_MSG_USER(pReq));
     TSDB_CHECK_CODE(code, lino, _OVER);
   }
 
@@ -1077,16 +1077,16 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   
   mstsInfo("start to recalc stream %s", recalcReq.name);
 
-  // code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
+  // code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
   // if (code != TSDB_CODE_SUCCESS) {
-  //   mstsError("user %s failed to recalc stream %s since %s", pReq->info.conn.user, recalcReq.name, tstrerror(code));
+  //   mstsError("user %s failed to recalc stream %s since %s", RPC_MSG_USER(pReq), recalcReq.name, tstrerror(code));
   //   sdbRelease(pMnode->pSdb, pStream);
   //   tFreeMRecalcStreamReq(&recalcReq);
   //   return code;
   // }
 
-  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser))) {
-    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser))) {
+    mstsError("user %s failed to recalc stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMRecalcStreamReq(&recalcReq);
     TAOS_RETURN(code);
@@ -1096,7 +1096,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
                                             NULL)) ||
       (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_START, PRIV_OBJ_STREAM, pStream->ownerId,
                                        pStream->pCreate->streamDB, pStream->pCreate->name))) {
-    mstsError("user %s failed to start stream %s since %s", pReq->info.conn.user, pStream->name, tstrerror(code));
+    mstsError("user %s failed to recalc stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     mndReleaseUser(pMnode, pOperUser);
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMRecalcStreamReq(&recalcReq);
@@ -1107,7 +1107,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
 
   if (atomic_load_8(&pStream->userDropped)) {
     code = TSDB_CODE_MND_STREAM_DROPPING;
-    mstsError("user %s failed to recalc stream %s since %s", pReq->info.conn.user, recalcReq.name, tstrerror(code));
+    mstsError("user %s failed to recalc stream %s since %s", RPC_MSG_USER(pReq), recalcReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMRecalcStreamReq(&recalcReq);
     return code;
@@ -1115,7 +1115,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
 
   if (atomic_load_8(&pStream->userStopped)) {
     code = TSDB_CODE_MND_STREAM_STOPPED;
-    mstsError("user %s failed to recalc stream %s since %s", pReq->info.conn.user, recalcReq.name, tstrerror(code));
+    mstsError("user %s failed to recalc stream %s since %s", RPC_MSG_USER(pReq), recalcReq.name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMRecalcStreamReq(&recalcReq);
     return code;

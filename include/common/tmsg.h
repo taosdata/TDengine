@@ -204,6 +204,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_RETENTION_DETAIL,
   TSDB_MGMT_TABLE_INSTANCE,
   TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS,
+  TSDB_MGMT_TABLE_TOKEN,
   TSDB_MGMT_TABLE_ROLE,
   TSDB_MGMT_TABLE_ROLE_PRIVILEGES,
   TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES,
@@ -350,6 +351,7 @@ typedef enum ENodeType {
   QUERY_NODE_IP_RANGE,
   QUERY_NODE_USER_OPTIONS,
   QUERY_NODE_REMOTE_VALUE,
+  QUERY_NODE_TOKEN_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -419,6 +421,9 @@ typedef enum ENodeType {
   QUERY_NODE_SCAN_VGROUPS_STMT,
   QUERY_NODE_TRIM_DATABASE_WAL_STMT,
   QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT,
+  QUERY_NODE_CREATE_TOKEN_STMT,
+  QUERY_NODE_ALTER_TOKEN_STMT,
+  QUERY_NODE_DROP_TOKEN_STMT,
   QUERY_NODE_CREATE_ROLE_STMT,
   QUERY_NODE_DROP_ROLE_STMT,
   QUERY_NODE_ALTER_ROLE_STMT,
@@ -530,6 +535,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_RETENTION_DETAILS_STMT,
   QUERY_NODE_SHOW_INSTANCES_STMT,
   QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT,
+  QUERY_NODE_SHOW_TOKENS_STMT,
   QUERY_NODE_SHOW_ROLES_STMT,
   QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT,
   QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT,
@@ -1293,6 +1299,7 @@ typedef struct {
   char    db[TSDB_DB_NAME_LEN];
   char    user[TSDB_USER_LEN];
   char    passwd[TSDB_PASSWORD_LEN];
+  char    token[TSDB_TOKEN_LEN];
   int64_t startTime;
   char    sVer[TSDB_VERSION_LEN];
   int32_t totpCode;
@@ -1309,6 +1316,7 @@ typedef struct {
   int8_t        superUser;
   int8_t        sysInfo;
   int8_t        connType;
+  int8_t        enableAuditDelete;
   SEpSet        epSet;
   int32_t       svrTimestamp;
   int32_t       passVer;
@@ -1319,7 +1327,8 @@ typedef struct {
   int64_t       timeWhiteListVer;
   int64_t       userId;
   SMonitorParas monitorParas;
-  int8_t        enableAuditDelete;
+  char          user[TSDB_USER_LEN];
+  char          tokenName[TSDB_TOKEN_NAME_LEN];
   int8_t        enableAuditSelect;
   int8_t        enableAuditInsert;
   int8_t        auditLevel;
@@ -1521,7 +1530,7 @@ bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm);
 typedef struct {
   int8_t createType;
   int8_t superUser;  // denote if it is a super user or not
-  int8_t ignoreExisting;
+  int8_t ignoreExists;
 
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_USER_PASSWORD_LONGLEN];
@@ -1661,6 +1670,64 @@ typedef struct {
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
 int32_t tDeserializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
 void    tFreeSAlterUserReq(SAlterUserReq* pReq);
+
+typedef struct {
+  char    name[TSDB_TOKEN_NAME_LEN];
+  char    user[TSDB_USER_LEN];
+  int8_t  enable;
+  int8_t  ignoreExists;
+  int32_t ttl;
+  char    provider[TSDB_TOKEN_PROVIDER_LEN];
+  char    extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+
+  int32_t sqlLen;
+  char*   sql;
+} SCreateTokenReq;
+
+int32_t tSerializeSCreateTokenReq(void* buf, int32_t bufLen, SCreateTokenReq* pReq);
+int32_t tDeserializeSCreateTokenReq(void* buf, int32_t bufLen, SCreateTokenReq* pReq);
+void    tFreeSCreateTokenReq(SCreateTokenReq* pReq);
+
+typedef struct {
+  char name[TSDB_TOKEN_NAME_LEN];
+  char user[TSDB_USER_LEN];
+  char token[TSDB_TOKEN_LEN];
+} SCreateTokenRsp;
+
+int32_t tSerializeSCreateTokenResp(void* buf, int32_t bufLen, SCreateTokenRsp* pRsp);
+int32_t tDeserializeSCreateTokenResp(void* buf, int32_t bufLen, SCreateTokenRsp* pRsp);
+void    tFreeSCreateTokenResp(SCreateTokenRsp* pRsp);
+
+typedef struct {
+  char    name[TSDB_TOKEN_NAME_LEN];
+
+  int8_t hasEnable;
+  int8_t hasTtl;
+  int8_t hasProvider;
+  int8_t hasExtraInfo;
+
+  int8_t  enable;
+  int32_t ttl;
+  char    provider[TSDB_TOKEN_PROVIDER_LEN];
+  char    extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+
+  int32_t     sqlLen;
+  char*       sql;
+} SAlterTokenReq;
+
+int32_t tSerializeSAlterTokenReq(void* buf, int32_t bufLen, SAlterTokenReq* pReq);
+int32_t tDeserializeSAlterTokenReq(void* buf, int32_t bufLen, SAlterTokenReq* pReq);
+void    tFreeSAlterTokenReq(SAlterTokenReq* pReq);
+
+typedef struct {
+  char    name[TSDB_TOKEN_NAME_LEN];
+  int32_t sqlLen;
+  char*   sql;
+} SDropTokenReq;
+
+int32_t tSerializeSDropTokenReq(void* buf, int32_t bufLen, SDropTokenReq* pReq);
+int32_t tDeserializeSDropTokenReq(void* buf, int32_t bufLen, SDropTokenReq* pReq);
+void    tFreeSDropTokenReq(SDropTokenReq* pReq);
 
 typedef struct {
   char user[TSDB_USER_LEN];
@@ -2625,7 +2692,7 @@ typedef struct {
   int64_t     analVer;
   int64_t     timestamp;
   char        auditDB[TSDB_DB_FNAME_LEN];
-  char        auditToken[AUDIT_TOKEN_LEN];
+  char        auditToken[TSDB_TOKEN_LEN];
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -2724,7 +2791,7 @@ typedef struct {
   int64_t   analVer;
   int64_t   timeWhiteVer;
   char      auditDB[TSDB_DB_FNAME_LEN];
-  char      auditToken[AUDIT_TOKEN_LEN];
+  char      auditToken[TSDB_TOKEN_LEN];
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
@@ -3737,12 +3804,24 @@ typedef struct SOrgTbInfo {
   SArray* colMap;  // SArray<SColIdNameKV>
 } SOrgTbInfo;
 
+void destroySOrgTbInfo(void *info);
+
+typedef enum {
+  DYN_TYPE_STB_JOIN = 1,
+  DYN_TYPE_VSTB_SINGLE_SCAN,
+  DYN_TYPE_VSTB_BATCH_SCAN,
+} ETableScanDynType;
+
 typedef struct STableScanOperatorParam {
-  bool        tableSeq;
-  bool        isNewParam;
-  SArray*     pUidList;
-  SOrgTbInfo* pOrgTbInfo;
-  STimeWindow window;
+  bool              tableSeq;
+  bool              isNewParam;
+  uint64_t          groupid;
+  SArray*           pUidList;
+  SOrgTbInfo*       pOrgTbInfo;
+  SArray*           pBatchTbInfo;  // SArray<SOrgTbInfo>
+  SArray*           pTagList;
+  STimeWindow       window;
+  ETableScanDynType type;
 } STableScanOperatorParam;
 
 typedef struct STagScanOperatorParam {
@@ -3759,6 +3838,10 @@ typedef struct SVTableScanOperatorParam {
 typedef struct SMergeOperatorParam {
   int32_t         winNum;
 } SMergeOperatorParam;
+
+typedef struct SAggOperatorParam {
+  bool            needCleanRes;
+} SAggOperatorParam;
 
 typedef struct SExternalWindowOperatorParam {
   SArray*         ExtWins;  // SArray<SExtWinTimeWindow>
@@ -4496,6 +4579,8 @@ typedef struct {
   SAppHbReq         app;
   SQueryHbReqBasic* query;
   SHashObj*         info;  // hash<Skv.key, Skv>
+  char              user[TSDB_USER_LEN];
+  char              tokenName[TSDB_TOKEN_NAME_LEN];
   char              userApp[TSDB_APP_NAME_LEN];
   uint32_t          userIp;
   SIpRange          userDualIp;

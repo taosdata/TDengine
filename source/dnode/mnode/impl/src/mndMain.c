@@ -56,6 +56,7 @@
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndToken.h"
 #include "mndVgroup.h"
 #include "mndView.h"
 
@@ -719,6 +720,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-role", mndInitRole, mndCleanupRole));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-token", mndInitToken, mndCleanupToken));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-privilege", mndInitPrivilege, mndCleanupPrivilege));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-acct", mndInitAcct, mndCleanupAcct));
@@ -1064,6 +1066,28 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo) {
   SMnode         *pMnode = pMsg->info.node;
   const STraceId *trace = &pMsg->info.traceId;
   int32_t         code = TSDB_CODE_SUCCESS;
+
+#ifdef TD_ENTERPRISE
+  if (pMsg->info.conn.isToken) {
+    SCachedTokenInfo ti = {0};
+    if (mndGetCachedTokenInfo(pMsg->info.conn.identifier, &ti) == NULL) {
+      mGError("msg:%p, failed to get token info, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+      code = TSDB_CODE_MND_TOKEN_NOT_EXIST;
+      TAOS_RETURN(code);
+    }
+    if (ti.enabled == 0) {
+      mGError("msg:%p, token is disabled, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+      code = TSDB_CODE_MND_TOKEN_DISABLED;
+      TAOS_RETURN(code);
+    }
+    if (ti.expireTime > 0 && taosGetTimestampSec() > (ti.expireTime + TSDB_TOKEN_EXPIRY_LEEWAY)) {
+      mGError("msg:%p, token is expired, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+      code = TSDB_CODE_MND_TOKEN_EXPIRED;
+      TAOS_RETURN(code);
+    }
+    tstrncpy(pMsg->info.conn.user, ti.user, sizeof(pMsg->info.conn.user));
+  }
+#endif
 
   MndMsgFp    fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];
   MndMsgFpExt fpExt = NULL;

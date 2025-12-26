@@ -82,6 +82,7 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
 void    mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname);
+void    mndTransSetUserData(STrans *pTrans, void* data, int32_t dataLen);
 void    mndTransAddArbGroupId(STrans *pTrans, int32_t groupId);
 void    mndTransSetSerial(STrans *pTrans);
 void    mndTransSetGroupParallel(STrans *pTrans);

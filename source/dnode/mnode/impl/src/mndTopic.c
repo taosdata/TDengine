@@ -398,7 +398,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   tstrncpy(topicObj.createUser, pOperUser->name, TSDB_USER_LEN);
   topicObj.ownerId = pOperUser->uid;
 
-  // MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, &topicObj));
+  // MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_CREATE_TOPIC, &topicObj));
   if (pDb) {
     MND_TMQ_RETURN_CHECK(
         mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL));
@@ -479,7 +479,7 @@ static int32_t mndReloadTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   tstrncpy(topicObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   tstrncpy(topicObj.createUser, userName, TSDB_USER_LEN);
 
-  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_TOPIC, &topicObj));
+  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_TOPIC, &topicObj));
 
   taosRLockLatch(&topicObjOri->lock);
   topicObj.createTime = topicObjOri->createTime;
@@ -608,7 +608,7 @@ static int32_t reloadTopic(SRpcMsg *pReq, SCMCreateTopicReq *createTopicReq) {
   MND_TMQ_NULL_CHECK(pDb);
 
   MND_TMQ_RETURN_CHECK(grantCheck(TSDB_GRANT_SUBSCRIPTION));
-  MND_TMQ_RETURN_CHECK(mndReloadTopic(pMnode, pReq, createTopicReq, pDb, pReq->info.conn.user, pTopic));
+  MND_TMQ_RETURN_CHECK(mndReloadTopic(pMnode, pReq, createTopicReq, pDb, RPC_MSG_USER(pReq), pTopic));
 
   if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
     int64_t tse = taosGetTimestampMs();
@@ -654,7 +654,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   PRINT_LOG_START
   MND_TMQ_RETURN_CHECK(tDeserializeSCMCreateTopicReq(pReq->pCont, pReq->contLen, &createTopicReq));
 
-  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser)) != 0) goto END;
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser)) != 0) goto END;
 
   mInfo("topic:%s start to create, sql:%s", createTopicReq.name, createTopicReq.sql);
 
@@ -801,10 +801,10 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
   mInfo("trans:%d, used to drop topic:%s, force:%d", pTrans->id, pTopic->name, dropReq.force);
 
-  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser));
+  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
 
-  // MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_TOPIC, pTopic));
-  // MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pTopic->db));
+  // MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_DROP_TOPIC, pTopic));
+  // MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), MND_OPER_READ_DB, pTopic->db));
   MND_TMQ_RETURN_CHECK(
       mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pTopic->db, NULL));
   MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TOPIC, pTopic->ownerId,
@@ -1024,7 +1024,7 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   char         objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
   bool         showAll = false;
 
-  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser));
+  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
   int32_t objLevel = privObjGetLevel(PRIV_OBJ_TOPIC);
   showAll = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TOPIC, 0, objFName,

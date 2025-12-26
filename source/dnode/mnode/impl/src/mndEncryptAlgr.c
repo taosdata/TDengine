@@ -573,7 +573,7 @@ static int32_t mndProcessDropEncryptAlgrReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSDropEncryptAlgrReq(pReq->pCont, pReq->contLen, &dropReq), &lino, _OVER);
 
   mInfo("algr:%s, start to drop", dropReq.algorithmId);
-  // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_USER), &lino, _OVER);
+  // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_USER), &lino, _OVER);
 
   if (dropReq.algorithmId[0] == 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_ENCRYPT_ALGR_FORMAT, &lino, _OVER);

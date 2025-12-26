@@ -610,7 +610,7 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_WRITE_DB, pDb), NULL, _OVER);
 
   code = mndDropSma(pMnode, pReq, pDb, pSma);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -1159,7 +1159,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
 
   mInfo("start to create tsma: %s", createReq.name);
   if ((code = mndCheckCreateSmaReq(&createReq)) != 0) goto _OVER;
-  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser)) != 0) goto _OVER;
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser)) != 0) goto _OVER;
 
   if (createReq.normSourceTbUid == 0) {
     pStb = mndAcquireStb(pMnode, createReq.stb);
@@ -1219,7 +1219,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _OVER);
+  // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb), NULL, _OVER);
   if ((code = mndCheckObjPrivilegeRec(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, name.acctId, name.dbname,
                                       NULL))) {
     goto _OVER;
@@ -1392,10 +1392,10 @@ static int32_t mndProcessDropTSMAReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // if ((code = mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb)) != 0) {
+  // if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb)) != 0) {
   //   goto _OVER;
   // }
-  if ((code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser)) != 0) goto _OVER;
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser)) != 0) goto _OVER;
   if ((code =
            mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_CM_DROP, PRIV_OBJ_TSMA, pSma->ownerId, pSma->db, pSma->name))) {
     goto _OVER;
@@ -1456,7 +1456,7 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     }
   }
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser));
   int32_t objLevel = privObjGetLevel(PRIV_OBJ_TSMA);
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
   showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, 0, objFName,

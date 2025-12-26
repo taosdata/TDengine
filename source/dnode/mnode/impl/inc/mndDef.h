@@ -92,6 +92,9 @@ typedef enum {
   MND_OPER_SHOW_STB,
   MND_OPER_ALTER_RSMA,
   MND_OPER_ALTER_DNODE_RELOAD_TLS,
+  MND_OPER_CREATE_TOKEN,
+  MND_OPER_ALTER_TOKEN,
+  MND_OPER_DROP_TOKEN,
   MND_OPER_CREATE_ROLE,
   MND_OPER_DROP_ROLE,
   MND_OPER_ALTER_ROLE,
@@ -105,7 +108,6 @@ typedef enum {
   MND_OPER_SHOW_SSMIGRATES,
   MND_OPER_MAX // the max operation type
 } EOperType;
-
 typedef enum {
   MND_AUTH_ACCT_START = 0,
   MND_AUTH_ACCT_USER,
@@ -238,6 +240,13 @@ typedef struct {
   ETrnKillMode  killMode;
   SHashObj*     redoGroupActions;
   SHashObj*     groupActionPos;
+
+  // user data is for upper layer to store some additional infomation in the transaction,
+  // it is set and interpreted by upper layer, the transaction layer does not care about it.
+  // if user data is a complex structure, the upper layer should serialize/deserialize it.
+  // user data should always alloced from heap and can be freed by taosMemoryFree.
+  void*         userData;
+  int32_t       userDataLen;
 } STrans;
 
 typedef struct {
@@ -337,6 +346,18 @@ typedef struct {
   int64_t    updateTime;
   SDnodeObj* pDnode;
 } SBnodeObj;
+
+typedef struct {
+  char       name[TSDB_TOKEN_NAME_LEN];
+  char       token[TSDB_TOKEN_LEN];
+  char       provider[TSDB_TOKEN_PROVIDER_LEN];
+  char       user[TSDB_USER_LEN];
+  char       extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+  int8_t     enabled;
+  int32_t    expireTime;  // in seconds
+  int32_t    createdTime; // in seconds
+  SRWLatch   lock;
+} STokenObj;
 
 typedef struct {
   int32_t assignedDnodeId;
@@ -483,6 +504,7 @@ typedef struct {
   int32_t passwordGraceTime;    // unit is second
   int32_t inactiveAccountTime;  // unit is second
   int32_t allowTokenNum;
+  int32_t tokenNum;
 
   int32_t           acctId;
   int32_t           authVersion;

@@ -129,6 +129,8 @@ extern "C" {
 #define EXPLAIN_GRP_JOIN_FORMAT "group_join=%d"
 #define EXPLAIN_JOIN_ALGO "algo=%s"
 #define EXPLAIN_ORIGIN_VGROUP_NUM_FORMAT "origin_vgroup_num=%d"
+#define EXPLAIN_HAS_PARTITION_FORMAT "has_partition=%d"
+#define EXPLAIN_BATCH_PROCESS_CHILD_FORMAT "batch_process_child=%d"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"

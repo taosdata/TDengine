@@ -41,6 +41,8 @@ typedef struct {
   int64_t  applyIndex;
   uint64_t applyTerm;
   char     user[TSDB_USER_LEN];
+  char     identifier[128];
+  int8_t   isToken;
 } SRpcConnInfo;
 
 typedef struct SRpcHandleInfo {
@@ -80,6 +82,13 @@ typedef struct SRpcMsg {
   int32_t        code;
   SRpcHandleInfo info;
 } SRpcMsg;
+
+#define RPC_MSG_USER(pMsg)  ((pMsg)->info.conn.user)
+#ifdef TD_ENTERPRISE
+#define RPC_MSG_TOKEN(pMsg) ((pMsg)->info.conn.isToken ? (pMsg)->info.conn.identifier : NULL)
+#else
+#define RPC_MSG_TOKEN(pMsg) NULL
+#endif
 
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *epset);
 typedef bool (*RpcRfp)(int32_t code, tmsg_t msgType);
@@ -146,6 +155,7 @@ typedef struct SRpcInit {
   char keyPath[PATH_MAX];
   char cliCertPath[PATH_MAX];
   char cliKeyPath[PATH_MAX];
+  int8_t isToken;
 
   void *parent;
 } SRpcInit;

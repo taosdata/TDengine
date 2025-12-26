@@ -262,6 +262,12 @@ const char* nodesNodeName(ENodeType type) {
       return "SetVgroupKeepVersionStmt";
     case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
       return "TrimDbWalStmt";
+    case QUERY_NODE_CREATE_TOKEN_STMT:
+      return "CreateTokenStmt";
+    case QUERY_NODE_ALTER_TOKEN_STMT:
+      return "AlterTokenStmt";
+    case QUERY_NODE_DROP_TOKEN_STMT:
+      return "DropTokenStmt";
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return "MergeVgroupStmt";
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
@@ -387,6 +393,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowMountsStmt";
     case QUERY_NODE_SHOW_SSMIGRATES_STMT:
       return "ShowSSMigratesStmt";
+    case QUERY_NODE_SHOW_TOKENS_STMT:
+      return "ShowTokensStmt";
     case QUERY_NODE_SHOW_RSMAS_STMT:
       return "ShowRsmasStmt";
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
@@ -2320,6 +2328,7 @@ static const char* jkTableScanPhysiPlanExtStartKey = "ExtStartKey";
 static const char* jkTableScanPhysiPlanExtEndKey = "ExtEndKey";
 static const char* jkTableScanPhysiPlanTimeRangeExpr = "TimeRangeExpr";
 static const char* jkTableScanPhysiPlanExtTimeRangeExpr = "ExtTimeRangeExpr";
+static const char* jkTableScanPhysiPlanPrimCondExpr = "PrimCondExpr";
 static const char* jkTableScanPhysiPlanRatio = "Ratio";
 static const char* jkTableScanPhysiPlanDataRequired = "DataRequired";
 static const char* jkTableScanPhysiPlanDynamicScanFuncs = "DynamicScanFuncs";
@@ -2369,6 +2378,9 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkTableScanPhysiPlanExtTimeRangeExpr, nodeToJson, pNode->pExtTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkTableScanPhysiPlanPrimCondExpr, nodeToJson, pNode->pPrimaryCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddDoubleToObject(pJson, jkTableScanPhysiPlanRatio, pNode->ratio);
@@ -2476,6 +2488,9 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkTableScanPhysiPlanExtTimeRangeExpr, &pNode->pExtTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkTableScanPhysiPlanPrimCondExpr, &pNode->pPrimaryCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetDoubleValue(pJson, jkTableScanPhysiPlanRatio, &pNode->ratio);
@@ -4183,6 +4198,8 @@ static const char* jkDynQueryCtrlPhysiPlanUidSlot1 = "UidSlot[1]";
 static const char* jkDynQueryCtrlPhysiPlanSrcScan0 = "SrcScan[0]";
 static const char* jkDynQueryCtrlPhysiPlanSrcScan1 = "SrcScan[1]";
 static const char* jkDynQueryCtrlPhysiPlanDynTbname = "DynTbname";
+static const char* jkDynQueryCtrlPhysiPlanBatchProcessChild = "BatchProcessChild";
+static const char* jkDynQueryCtrlPhysiPlanHasPartition = "HasPartition";
 static const char* jkDynQueryCtrlPhysiPlanScanAllCols = "ScanAllCols";
 static const char* jkDynQueryCtrlPhysiPlanIsSuperTable = "IsSuperTable";
 static const char* jkDynQueryCtrlPhysiPlanDbName= "DbName";
@@ -4234,8 +4251,12 @@ static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
         }
         break;
       }
+      case DYN_QTYPE_VTB_AGG:
       case DYN_QTYPE_VTB_SCAN: {
-        code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanScanAllCols, pNode->vtbScan.scanAllCols);
+        code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanBatchProcessChild, pNode->vtbScan.batchProcessChild);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanScanAllCols, pNode->vtbScan.scanAllCols);
+        }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanIsSuperTable, pNode->vtbScan.isSuperTable);
         }
@@ -4265,6 +4286,9 @@ static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = nodeListToJson(pJson, jkDynQueryCtrlPhysiPlanOrgVgIds, pNode->vtbScan.pOrgVgIds);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanHasPartition, pNode->vtbScan.hasPartition);
         }
         break;
       }
@@ -4334,8 +4358,12 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
         }
         break;
       }
+      case DYN_QTYPE_VTB_AGG:
       case DYN_QTYPE_VTB_SCAN: {
-        code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanScanAllCols, &pNode->vtbScan.scanAllCols);
+        code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanBatchProcessChild, &pNode->vtbScan.batchProcessChild);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanScanAllCols, &pNode->vtbScan.scanAllCols);
+        }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanIsSuperTable, &pNode->vtbScan.isSuperTable);
         }
@@ -4365,6 +4393,9 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = jsonToNodeList(pJson, jkDynQueryCtrlPhysiPlanOrgVgIds, &pNode->vtbScan.pOrgVgIds);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanHasPartition, &pNode->vtbScan.hasPartition);
         }
         break;
       }

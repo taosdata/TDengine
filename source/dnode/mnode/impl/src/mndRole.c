@@ -601,14 +601,14 @@ static int32_t mndProcessCreateRoleReq(SRpcMsg *pReq) {
       goto _exit;
     }
   }
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
   if (pOperUser == NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_USER_FROM_CONN);
   }
 
   mInfo("role:%s, start to create by %s", createReq.name, pOperUser->user);
 
-  // TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_ROLE));
+  // TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_CREATE_ROLE));
   TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_ROLE_CREATE, 0, 0, NULL, NULL));
 
   if (createReq.name[0] == 0) {
@@ -681,12 +681,12 @@ static int32_t mndProcessDropRoleReq(SRpcMsg *pReq) {
   int64_t      tss = taosGetTimestampMs();
 
   TAOS_CHECK_EXIT(tDeserializeSDropRoleReq(pReq->pCont, pReq->contLen, &dropReq));
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
   if (pOperUser == NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_USER_FROM_CONN);
   }
   mInfo("role:%s, start to drop", dropReq.name);
-  // TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_ROLE));
+  // TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_DROP_ROLE));
   TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_ROLE_CREATE, 0, 0, NULL, NULL));
 
   if (dropReq.name[0] == 0) {
@@ -797,9 +797,9 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(tDeserializeSAlterRoleReq(pReq->pCont, pReq->contLen, &alterReq));
 
   mInfo("role:%s, start to alter, flag:%u", alterReq.principal, alterReq.flag);
-  TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_ROLE));
+  TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_ALTER_ROLE));
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
 
   if (alterReq.principal[0] == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_INVALID_FORMAT);

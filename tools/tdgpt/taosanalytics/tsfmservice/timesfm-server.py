@@ -160,7 +160,7 @@ def main():
                 context_len=2048,
             ),
             checkpoint=timesfm.TimesFmCheckpoint(
-                huggingface_repo_id=model_folder),
+                path=model_folder+'/torch_model.ckpt'),
         )
     else:
         print("invalid parameters")
