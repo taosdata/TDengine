@@ -6,9 +6,9 @@ import (
 )
 
 type SSL struct {
-	Enable   bool
-	CertFile string
-	KeyFile  string
+	Enable   bool   `toml:"enable"`
+	CertFile string `toml:"certFile"`
+	KeyFile  string `toml:"keyFile"`
 }
 
 func initSSL() {

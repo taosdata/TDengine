@@ -210,25 +210,15 @@ func (a *Audit) prepareConnectionAndTable(c *gin.Context) bool {
 		token := c.Query("token")
 		// Test log
 		auditLogger.Debugf("preparing audit connection and table, token: %s", token)
-		if !a.inited {
+		if !a.inited || db != a.db || token != a.token {
 			a.mu.Lock()
-			if !a.inited {
+			defer a.mu.Unlock()
+			if !a.inited || db != a.db || token != a.token {
 				if !a.setupConnectionAndTable(db, token, c) {
-					a.mu.Unlock()
 					return false
 				}
 				a.inited = true
 			}
-			a.mu.Unlock()
-		} else if db != a.db || token != a.token {
-			a.mu.Lock()
-			if db != a.db || token != a.token {
-				if !a.setupConnectionAndTable(db, token, c) {
-					a.mu.Unlock()
-					return false
-				}
-			}
-			a.mu.Unlock()
 		}
 	} else {
 		var onceErr error
