@@ -17,7 +17,6 @@
 #include "wrapper.h"
 
 static TdThreadOnce tsDriverEnvOnce = PTHREAD_ONCE_INIT;
-
 static TdThreadOnce tsDriverOnce = PTHREAD_ONCE_INIT;
 volatile int32_t    tsDriverOnceRet = 0;
 

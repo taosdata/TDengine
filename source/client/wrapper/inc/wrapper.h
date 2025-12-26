@@ -35,7 +35,7 @@ typedef enum {
 extern EDriverType tsDriverType;
 extern void       *tsDriver;
 
-extern void taosDriverEnvInit(void);
+extern void    taosDriverEnvInit(void);
 extern int32_t taosDriverInit(EDriverType driverType);
 extern void    taosDriverCleanup();
 
