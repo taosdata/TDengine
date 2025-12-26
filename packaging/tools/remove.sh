@@ -203,9 +203,9 @@ fi
 
 kill_service_of() {
   _service=$1
-  pids=$(pgrep -x "$_service")
+  pids=$(pgrep -x "$_service" | grep -v -x "$$")
   if [ -n "$pids" ]; then
-    kill -9 $pids || :
+    kill -9 "$pids" || :
   fi
 }
 
