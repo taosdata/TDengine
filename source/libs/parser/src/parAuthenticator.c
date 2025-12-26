@@ -154,6 +154,11 @@ static int32_t authObjPrivileges(SAuthCxt* pCxt, const char* pDbName, const char
   if (!pDbName) {
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
+#if 1 // remove this line
+  if(objType == PRIV_OBJ_DB && pTabName != NULL) {
+    assert(false); //app internal error
+  }
+#endif
   return checkAuth(pCxt, pDbName, pTabName, privType, objType, NULL);
 }
 
@@ -460,7 +465,7 @@ static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStm
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
-      code = authObjPrivileges(pCxt, pClause->dbName, pClause->tableName, PRIV_TBL_CREATE, PRIV_OBJ_DB);
+      code = authObjPrivileges(pCxt, pClause->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB);
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
@@ -470,7 +475,7 @@ static int32_t authCreateMultiTable(SAuthCxt* pCxt, SCreateMultiTablesStmt* pStm
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
-      code = authObjPrivileges(pCxt, pClause->useDbName, pClause->useTableName, PRIV_TBL_CREATE, PRIV_OBJ_DB);
+      code = authObjPrivileges(pCxt, pClause->useDbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB);
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }

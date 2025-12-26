@@ -2245,7 +2245,7 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       SPrivTblPolicy* tblPolicy =
           privGetConstraintTblPrivileges(req->tbPrivs, pSName->acctId, pSName->dbname, tbName, privInfo);
       if (tblPolicy) {
-        if (strlen(tblPolicy->cond) > 0) {
+        if (tblPolicy->condLen > 0) {
           CTG_ERR_JRET(nodesStringToNode(tblPolicy->cond, &res->pRawRes->pCond[AUTH_RES_BASIC]));
         }
         // TODO: check the columns

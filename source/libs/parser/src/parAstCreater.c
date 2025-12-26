@@ -219,7 +219,7 @@ static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool demandDb)
     }
   } else {
     trimEscape(pCxt, pDbName, true);
-    if (pDbName->n >= TSDB_DB_NAME_LEN || pDbName->n == 0) {
+    if (pDbName->n >= TSDB_DB_NAME_LEN || (demandDb && (pDbName->n == 0))) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pDbName->z);
     }
   }
