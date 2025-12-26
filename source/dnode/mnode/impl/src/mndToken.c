@@ -128,10 +128,11 @@ static void tokenCacheRemove(const char* token) {
   (void)taosThreadRwlockWrlock(&tokenCache.rw);
   SCachedTokenInfo** pp = taosHashGet(tokenCache.tokens, token, TSDB_TOKEN_LEN);
   if (pp != NULL) {
+    SCachedTokenInfo* ti = *pp;
     if (taosHashRemove(tokenCache.tokens, token, TSDB_TOKEN_LEN) != 0) {
       mDebug("failed to remove token %s from token cache", token);
     } else {
-      taosMemoryFree(*pp);
+      taosMemoryFree(ti);
     }
   }
   (void)taosThreadRwlockUnlock(&tokenCache.rw);
