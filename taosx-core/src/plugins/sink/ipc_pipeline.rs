@@ -7,26 +7,26 @@ use arrow::record_batch::RecordBatch;
 use arrow_schema::ArrowError;
 use bytes::Bytes;
 use flume;
-use futures::future::Either;
 use futures::StreamExt;
-use ring_channel::{ring_channel, RingReceiver};
+use futures::future::Either;
+use ring_channel::{RingReceiver, ring_channel};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, instrument, trace, warn, Span as TracingSpan};
+use tracing::{Span as TracingSpan, debug, info, instrument, trace, warn};
 use zerocopy::FromBytes;
 
 use arrow_flight::{
-    encode::FlightDataEncoderBuilder, error::FlightError,
-    flight_service_client::FlightServiceClient, FlightClient,
+    FlightClient, encode::FlightDataEncoderBuilder, error::FlightError,
+    flight_service_client::FlightServiceClient,
 };
 use taosx_ipc::prelude::*;
 
 use crate::core_metrics::get_metrics;
 use crate::utils::trace::BatchCounter;
-use crate::AGENT_COMPRESSION;
+use crate::{AGENT_COMPRESSION, Via};
 
-use super::ipc_transport::{retry_connect, DefaultChannelFactory, RetryConfig};
-use super::persist::PersistComponent;
 use super::MessageMetadata;
+use super::ipc_transport::{DefaultChannelFactory, RetryConfig, retry_connect};
+use super::persist::PersistComponent;
 use crate::plugins::sink::persist::get_stream;
 use crate::utils::trace::Qid;
 
@@ -40,7 +40,7 @@ pub struct IpcSinkPipeline {
     ack_tx: Option<flume::Sender<LushAck>>,
     schema: Arc<Schema>,
     cancel: CancellationToken,
-    with_agent: (i64, String, String),
+    with_agent: Via,
     batch_counter: Arc<BatchCounter>,
     config: Option<Arc<crate::plugins::sink::point::model::PointModelConfig>>,
     persist_component: Option<PersistComponent>,
@@ -52,7 +52,7 @@ impl IpcSinkPipeline {
         ack_tx: Option<flume::Sender<LushAck>>,
         schema: Arc<Schema>,
         cancel: CancellationToken,
-        with_agent: (i64, String, String),
+        with_agent: Via,
         batch_counter: Arc<BatchCounter>,
         config: Option<Arc<crate::plugins::sink::point::model::PointModelConfig>>,
         persist_component: Option<PersistComponent>,
@@ -82,7 +82,12 @@ impl IpcSinkPipeline {
             persist_component,
         } = self;
 
-        let (task_id, remote, token) = with_agent;
+        let Via {
+            task_id,
+            job_id,
+            endpoint,
+            token,
+        } = with_agent;
         use md5;
         tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
 
@@ -97,7 +102,7 @@ impl IpcSinkPipeline {
 
         info!("Reading batches");
 
-        let metrics = get_metrics(task_id).await;
+        let metrics = get_metrics(task_id, job_id).await;
 
         let (tables_cache_tx, tables_cache_rx) =
             ring_channel(crate::global::agent_in_memory_cache_capacity());
@@ -302,8 +307,8 @@ impl IpcSinkPipeline {
                 tracing::error!(error = ?cause_error, retries = last_retries, "Retry connections");
             }
 
-            use taoslog::utils::QidMetadataGetter;
             use taoslog::QidManager;
+            use taoslog::utils::QidMetadataGetter;
 
             let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
             qid.set_task_id(task_id as _);
@@ -337,14 +342,21 @@ impl IpcSinkPipeline {
             let retry_cfg =
                 RetryConfig::new(MAX_RETRIES, Duration::from_secs(3), MAX_RETRY_INTERVAL);
             let factory = DefaultChannelFactory;
-            let channel =
-                match retry_connect(&factory, &remote, retry_cfg, retry_forever, &cancel).await? {
-                    Some(ch) => ch,
-                    None => {
-                        // cancelled while waiting for connection
-                        break 'start;
-                    }
-                };
+            let channel = match retry_connect(
+                &factory,
+                &endpoint,
+                retry_cfg,
+                retry_forever,
+                &cancel,
+            )
+            .await?
+            {
+                Some(ch) => ch,
+                None => {
+                    // cancelled while waiting for connection
+                    break 'start;
+                }
+            };
             let alive = std::time::Instant::now();
 
             let mut client;
@@ -491,7 +503,10 @@ impl IpcSinkPipeline {
                                 if err_msg.contains("os error 10054")
                                     || err_msg.contains("os error 10053")
                                 {
-                                    warn!("ConnectionReset or ConnectionAborted, consider as success: {}", err_msg);
+                                    warn!(
+                                        "ConnectionReset or ConnectionAborted, consider as success: {}",
+                                        err_msg
+                                    );
                                     break 'start;
                                 }
                                 tracing::error!(alive = ?alive.elapsed(), "Arrow error: {arrow:#}");

@@ -10,11 +10,9 @@ use taos::Dsn;
 
 use taosx_core::{
     runners::NoCertificateVerification,
-    utils::{
-        codec::{Decompressor, StringDecoder},
-        dsn::parse_simple_params,
-    },
+    utils::codec::{Decompressor, StringDecoder},
 };
+use taosx_utils::dsn::parse_simple_params;
 
 use super::{client::Version, topic::TopicPattern};
 

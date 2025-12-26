@@ -374,10 +374,12 @@ mod tests {
         let dsn = Dsn::from_str("ds://?log_level=invalid_level").unwrap();
         let result = AdvancedOptions::from_dsn(&dsn);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("invalid log_level"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("invalid log_level")
+        );
     }
 
     #[test]
@@ -385,10 +387,12 @@ mod tests {
         let dsn = Dsn::from_str("ds://?read_concurrency=-1").unwrap();
         let result = AdvancedOptions::from_dsn(&dsn);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("invalid read_concurrency"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("invalid read_concurrency")
+        );
     }
 
     #[test]
@@ -396,10 +400,12 @@ mod tests {
         let dsn = Dsn::from_str("ds://?write_concurrency=-2").unwrap();
         let result = AdvancedOptions::from_dsn(&dsn);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("invalid write_concurrency"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("invalid write_concurrency")
+        );
     }
 
     #[test]
@@ -407,10 +413,12 @@ mod tests {
         let dsn = Dsn::from_str("ds://?keep_raw_data=maybe").unwrap();
         let result = AdvancedOptions::from_dsn(&dsn);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("invalid keep_raw_data"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("invalid keep_raw_data")
+        );
     }
 
     #[test]
@@ -418,35 +426,49 @@ mod tests {
         let dsn = Dsn::from_str("ds://?keep_raw_data_days=-5").unwrap();
         let result = AdvancedOptions::from_dsn(&dsn);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("invalid keep_raw_data_days"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("invalid keep_raw_data_days")
+        );
     }
 
     #[test]
     fn test_parse_options_absent_return_none() {
         let dsn = Dsn::from_str("ds://").unwrap();
         assert!(AdvancedOptions::parse_log_level(&dsn).unwrap().is_none());
-        assert!(AdvancedOptions::parse_read_concurrency(&dsn)
-            .unwrap()
-            .is_none());
-        assert!(AdvancedOptions::parse_write_concurrency(&dsn)
-            .unwrap()
-            .is_none());
+        assert!(
+            AdvancedOptions::parse_read_concurrency(&dsn)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            AdvancedOptions::parse_write_concurrency(&dsn)
+                .unwrap()
+                .is_none()
+        );
         assert!(AdvancedOptions::parse_batch_size(&dsn).unwrap().is_none());
-        assert!(AdvancedOptions::parse_batch_timeout(&dsn)
-            .unwrap()
-            .is_none());
-        assert!(AdvancedOptions::parse_keep_raw_data(&dsn)
-            .unwrap()
-            .is_none());
-        assert!(AdvancedOptions::parse_keep_raw_data_days(&dsn)
-            .unwrap()
-            .is_none());
-        assert!(AdvancedOptions::parse_keep_raw_data_dir(&dsn)
-            .unwrap()
-            .is_none());
+        assert!(
+            AdvancedOptions::parse_batch_timeout(&dsn)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            AdvancedOptions::parse_keep_raw_data(&dsn)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            AdvancedOptions::parse_keep_raw_data_days(&dsn)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            AdvancedOptions::parse_keep_raw_data_dir(&dsn)
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]

@@ -55,7 +55,7 @@ mod tests {
     use std::sync::Arc;
 
     use arrow::array::{
-        new_null_array, Array, Float32Array, Float64Array, Int64Array, StringArray,
+        Array, Float32Array, Float64Array, Int64Array, StringArray, new_null_array,
     };
     use arrow_schema::DataType;
     use taosx_ipc::prelude::IpcDataType;

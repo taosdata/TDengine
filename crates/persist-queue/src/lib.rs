@@ -22,7 +22,7 @@ pub enum Error {
     #[snafu(display("Lock file {} error", path.display()))]
     SharedLockFile {
         path: PathBuf,
-        source: std::fs::TryLockError,
+        source: std::io::Error,
     },
     #[snafu(display("Lock file {} error", path.display()))]
     ExclusiveLockFile {

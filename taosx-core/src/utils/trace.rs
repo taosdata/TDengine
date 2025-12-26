@@ -1,24 +1,30 @@
-use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
-use std::sync::{atomic::Ordering, OnceLock};
+use std::sync::{
+    OnceLock,
+    atomic::{AtomicU32, Ordering},
+};
 use std::time::Duration;
 
 use anyhow::Context;
 use bitfield::bitfield;
 use parking_lot::RwLock;
-use taoslog::utils::QidMetadataSetter;
 use taoslog::QidManager;
+use taoslog::utils::QidMetadataSetter;
 use tokio_util::sync::{CancellationToken, DropGuard};
 
 use crate::get_data_dir;
 
 pub static INSTANCE_ID: OnceLock<u8> = OnceLock::new();
-pub const DEFAULT_INSTANCE_ID: u8 = 16;
+pub const DEFAULT_TAOSX_INSTANCE_ID: u8 = 16;
+pub const DEFAULT_AGENT_INSTANCE_ID: u8 = 48;
 
 static QID_DB: OnceLock<sled::Db> = OnceLock::new();
 
-pub fn qid_db_init() -> anyhow::Result<()> {
-    let db_path = get_data_dir().join("tasks").join("qid");
+pub fn qid_db_init(instance_id: &u8) -> anyhow::Result<()> {
+    let db_path = get_data_dir()
+        .join("tasks")
+        .join("qid")
+        .join(instance_id.to_string());
     if !db_path.is_dir() {
         std::fs::create_dir_all(&db_path).context("create qid database path error")?;
     }
@@ -48,13 +54,18 @@ bitfield! {
 
     pub u8, sub_batch_id, inner_set_sub_batch_id: 7,0;
     pub u32, batch_id, inner_set_batch_id: 39,8;
-    pub u16, task_id, inner_set_task_id: 55, 40;
+    pub u8, job_id, inner_set_job_id: 47, 40;
+    pub u8, task_id, inner_set_task_id: 55, 47;
     pub u8, instance_id, inner_set_instance_id: 63, 56;
 }
 
 impl Qid {
-    pub fn set_task_id(&mut self, task_id: u16) {
+    pub fn set_task_id(&mut self, task_id: u8) {
         self.inner_set_task_id(task_id);
+        taoslog::utils::Span.set_qid(self);
+    }
+    pub fn set_job_id(&mut self, job_id: u8) {
+        self.inner_set_job_id(job_id);
         taoslog::utils::Span.set_qid(self);
     }
     pub fn set_batch_id(&mut self, batch_id: u32) {
@@ -99,11 +110,7 @@ impl IdCounter {
                     let array: [u8; 4] = bytes.try_into().expect("valid number");
                     let number = u32::from_be_bytes(array);
                     let (number, overflow) = number.overflowing_add(step);
-                    if overflow {
-                        step
-                    } else {
-                        number
-                    }
+                    if overflow { step } else { number }
                 }
                 None => step,
             };
@@ -147,9 +154,9 @@ pub struct BatchCounter {
 }
 
 impl BatchCounter {
-    pub async fn new(task_id: u16) -> anyhow::Result<Arc<Self>> {
+    pub async fn new(task_id: i64, job_id: i64) -> anyhow::Result<Arc<Self>> {
         let counter = match QID_DB.get().and_then(|db| {
-            db.open_tree(task_id.to_string())
+            db.open_tree(format!("{task_id}_{job_id}"))
                 .inspect_err(|e| tracing::warn!("open batch counter db tree error: {e}"))
                 .ok()
         }) {
@@ -242,7 +249,7 @@ impl QidManager for Qid {
         if let Some(instance_id) = INSTANCE_ID.get() {
             this.inner_set_instance_id(*instance_id);
         } else {
-            this.inner_set_instance_id(DEFAULT_INSTANCE_ID);
+            this.inner_set_instance_id(DEFAULT_TAOSX_INSTANCE_ID);
         }
         this
     }
@@ -261,14 +268,18 @@ impl From<u64> for Qid {
 #[cfg(test)]
 mod tests {
     use std::sync::{
-        atomic::{AtomicU32, Ordering},
         Arc,
+        atomic::{AtomicU32, Ordering},
+    };
+
+    use crate::{
+        set_env_data_dir,
+        utils::trace::{BatchCounter, IdCounter},
     };
 
     use parquet::data_type::AsBytes;
 
     use super::*;
-    use crate::set_env_data_dir;
 
     #[tokio::test]
     async fn test_add_batch_id() {
@@ -285,9 +296,9 @@ mod tests {
     async fn multi_qid_db_test() {
         let tmp = tempfile::TempDir::new().unwrap();
         set_env_data_dir(tmp.path().to_str().unwrap().to_string());
-        let counter = BatchCounter::new(1).await.unwrap();
+        let counter = BatchCounter::new(1, 1).await.unwrap();
         assert_eq!(1, counter.next());
-        let counter2 = BatchCounter::new(1).await.unwrap();
+        let counter2 = BatchCounter::new(1, 1).await.unwrap();
         assert_eq!(1, counter2.next());
     }
 

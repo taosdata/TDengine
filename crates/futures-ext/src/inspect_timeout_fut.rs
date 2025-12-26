@@ -56,8 +56,8 @@ where
 #[cfg(test)]
 mod tests {
     use std::sync::{
-        atomic::{AtomicU8, Ordering},
         Arc,
+        atomic::{AtomicU8, Ordering},
     };
 
     use super::*;

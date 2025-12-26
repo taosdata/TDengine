@@ -74,8 +74,8 @@
 //! [arrow::compute_guess_precision::cast]: https://docs.rs/arrow-cast-guess-precision/latest/arrow::compute_guess_precision/fn.cast.html
 
 use arrow::array::{
-    make_array, new_empty_array, new_null_array, Array, ArrayRef, BinaryArray,
-    FixedSizeBinaryArray, Int64Array, LargeBinaryArray, LargeStringArray, StringArray,
+    Array, ArrayRef, BinaryArray, FixedSizeBinaryArray, Int64Array, LargeBinaryArray,
+    LargeStringArray, StringArray, make_array, new_empty_array, new_null_array,
 };
 use arrow::util::display::FormatOptions;
 use arrow_schema::{ArrowError, DataType, TimeUnit};

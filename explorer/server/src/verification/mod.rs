@@ -1,6 +1,5 @@
 use captcha::filters::{Dots, Noise, Wave};
 use captcha::{Captcha, Geometry};
-use lazy_static::lazy_static;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
@@ -8,12 +7,12 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, Write};
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
-use taoslog::utils::{QidMetadataGetter, Span};
 use taoslog::QidManager;
+use taoslog::utils::{QidMetadataGetter, Span};
 
-use crate::qid::{headers_with_qid, Qid};
+use crate::qid::{Qid, headers_with_qid};
 
 pub fn sign_string(input: &str) -> String {
     let mut hasher = Sha1::new();
@@ -53,10 +52,9 @@ pub fn check_phone_email_verified(filename: &Path, current_server: &str) -> io::
 
             if let (Some(phone_email), Some(sign), true) =
                 (phone_email, sign, server == current_server)
+                && verify_string(phone_email, sign)
             {
-                if verify_string(phone_email, sign) {
-                    return Ok(());
-                }
+                return Ok(());
             }
         }
     }
@@ -70,10 +68,8 @@ struct VerificationCode {
     expire_time: u64,
 }
 
-lazy_static! {
-    static ref VERIFICATION_CODES: Mutex<HashMap<String, VerificationCode>> =
-        Mutex::new(HashMap::new());
-}
+static VERIFICATION_CODES: LazyLock<Mutex<HashMap<String, VerificationCode>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 // Use owned key type since it will be persisted in global cache.
 pub fn generate_verification_code(key: String) -> String {

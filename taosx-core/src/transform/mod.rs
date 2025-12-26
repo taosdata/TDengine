@@ -1,4 +1,4 @@
-use std::{hash::Hash, str::FromStr};
+use std::{hash::Hash, str::FromStr, sync::LazyLock};
 
 use faststr::FastStr;
 use itertools::Itertools;
@@ -79,13 +79,11 @@ impl FromStr for AddTag {
         if s.is_empty() {
             return Err(AddTagParseError::Empty);
         }
-        use lazy_static::lazy_static;
 
-        lazy_static! {
-            static ref RE: Regex =
-                Regex::new(r"(?P<f>[^=()\s]+)(\((?P<l>\d+)\))?=((?P<t>.*\{\{.*\}\}.*)|(?P<v>.*))")
-                    .unwrap();
-        }
+        static RE: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(r"(?P<f>[^=()\s]+)(\((?P<l>\d+)\))?=((?P<t>.*\{\{.*\}\}.*)|(?P<v>.*))")
+                .unwrap()
+        });
         // RE.matches(s).into_iter()
         if let Some(cap) = RE.captures(s) {
             let name = cap["f"].to_string();

@@ -3,8 +3,8 @@ use std::fmt::Display;
 use std::future::Future;
 use std::ops::RangeInclusive;
 use std::pin::Pin;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 use std::task::Poll;
 use std::time::Duration;
 
@@ -12,9 +12,9 @@ use anyhow::{Context, Result};
 use arrow::array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
-use arrow_flight::flight_service_client::FlightServiceClient;
 use arrow_flight::FlightClient;
-use arrow_flight::{encode::FlightDataEncoderBuilder, Action as FlightAction};
+use arrow_flight::flight_service_client::FlightServiceClient;
+use arrow_flight::{Action as FlightAction, encode::FlightDataEncoderBuilder};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
@@ -23,19 +23,19 @@ use hyper::Uri;
 use hyper_util::rt::TokioIo;
 use serde::{Deserialize, Serialize};
 use taosx_core::task_set::prelude::HealthOpts;
-use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::files::decompress_and_write_file;
 use taosx_task::sample::get_sample;
 use taosx_task::validate::validate_dsn;
+use taosx_utils::dsn::json_to_dsn;
 use tokio::net::{TcpSocket, TcpStream};
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 use tower::{BoxError, Service};
 use tracing::{info, instrument};
 
 use taosx_core::{
-    get_data_dir, list_datasets_from, plugins, Activity, CheckResponse, DataSetsReq, Fail,
-    HeartbeatResponse, ListResponse, PutFileReq, PutFileResp, QueryDataSourceReq,
-    QueryDataSourceResp, RespAction, Response, SampleResponse,
+    Activity, CheckResponse, DataSetsReq, Fail, HeartbeatResponse, ListResponse, PutFileReq,
+    PutFileResp, QueryDataSourceReq, QueryDataSourceResp, RespAction, Response, SampleResponse,
+    get_data_dir, list_datasets_from,
 };
 
 use crate::runner::Action;
@@ -65,9 +65,10 @@ pub struct Agent {
 pub struct Task {
     /// Unique id for the task item.
     pub id: i64,
+    pub job_id: i64,
 
-    /// Job id.
-    pub jid: uuid::Uuid,
+    /// schedule id.
+    pub sid: uuid::Uuid,
 
     /// Current run id in the job.
     pub rid: i64,
@@ -775,24 +776,26 @@ impl Client {
 
 #[instrument(skip_all)]
 pub async fn listen_task_metrics(resp_tx: Sender<RespAction>) -> Result<()> {
-    use crate::agent::plugins::sink::ipc_metric::AGENT_METRICS_SENDER;
+    use taosx_core::plugins::sink::ipc_metric::AGENT_METRICS_SENDER;
 
     let (tx, rx) = flume::bounded(100);
 
     let _ = AGENT_METRICS_SENDER.set(tx);
 
-    let mut interval = tokio::time::interval(Duration::from_secs(1));
-    loop {
-        interval.tick().await;
-        let mut vec = Vec::new();
-        while let Ok(v) = rx.try_recv() {
-            vec.push(v);
+    let rx = {
+        use tokio_stream::StreamExt as _;
+        rx.into_stream().chunks_timeout(100, Duration::from_secs(1))
+    };
+    tokio::pin!(rx);
+    while let Some(vec) = rx.next().await {
+        if vec.is_empty() {
+            continue;
         }
-        if !vec.is_empty() {
-            let resp = RespAction::TaskMetrics(vec);
-            resp_tx.send_async(resp).await?;
-        }
+        let resp = RespAction::TaskMetrics(vec);
+        resp_tx.send_async(resp).await?;
     }
+
+    Ok(())
 }
 
 async fn do_put_file(req: PutFileReq, req_id: u64, resp_tx: Sender<RespAction>) {
@@ -819,12 +822,12 @@ async fn do_put_file(req: PutFileReq, req_id: u64, resp_tx: Sender<RespAction>) 
         tracing::info!("[put-file] Write file to {}", path.display());
     }
     // If parent folders not exists, try to create them
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            match tokio::fs::create_dir_all(&parent).await {
-                Ok(_) => tracing::info!("[put-file] Directory created successfully"),
-                Err(e) => tracing::error!("[put-file] Failed to create directory: {}", e),
-            }
+    if let Some(parent) = path.parent()
+        && !parent.exists()
+    {
+        match tokio::fs::create_dir_all(&parent).await {
+            Ok(_) => tracing::info!("[put-file] Directory created successfully"),
+            Err(e) => tracing::error!("[put-file] Failed to create directory: {e}"),
         }
     }
     let result = if decompress {

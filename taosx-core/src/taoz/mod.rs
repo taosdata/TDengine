@@ -1,4 +1,4 @@
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use async_compression::tokio::write::ZstdEncoder;
 use async_compression::zstd::CParameter;
 use chrono::{DateTime, Utc};

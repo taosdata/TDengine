@@ -27,7 +27,7 @@ impl Parse for Join {
             None => {
                 return Err(super::ParseError::UnsupportedDataType(
                     field.data_type().clone(),
-                ))
+                ));
             }
         };
         // loop and join

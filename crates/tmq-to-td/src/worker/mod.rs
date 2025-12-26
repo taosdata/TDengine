@@ -3,6 +3,7 @@ use deadpool::managed::{Metrics, RecycleResult};
 use faststr::FastStr;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::sync::LazyLock;
 use std::{
     ops::Deref,
     sync::{Arc, atomic::AtomicUsize},
@@ -1356,9 +1357,8 @@ impl Worker {
                 if code == 0x0118 {
                     // Invalid parameters,detail:table:t_1e2f01eda79dc691cf0e7e3f3730d43b, err:column var data bytes error, name:field2, schema type:VARCHAR, bytes:10, data type:VARCHAR, bytes:18
                     let errstr = err.to_string();
-                    lazy_static::lazy_static! {
-                        static ref RE: regex::Regex = regex::Regex::new(r"table:(?P<table>\S+),").unwrap();
-                    }
+                    static RE: LazyLock<regex::Regex> =
+                        LazyLock::new(|| regex::Regex::new(r"table:(?P<table>\S+),").unwrap());
                     if let Some(table) = RE.captures(&errstr).and_then(|caps| caps.name("table")) {
                         let source_table_name = table.as_str();
                         tracing::warn!(

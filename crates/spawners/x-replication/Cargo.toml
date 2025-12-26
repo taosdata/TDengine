@@ -1,6 +1,6 @@
 [package]
 name = "x-spawner-replication"
-edition = "2021"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 

@@ -1,6 +1,6 @@
 [package]
 name = "sink-mqtt"
-edition = "2024"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
@@ -21,6 +21,7 @@ rumqttc.workspace = true
 
 source-mqtt = { path = "../source-mqtt" }
 taosx-core.workspace = true
+taosx-utils.workspace = true
 
 [lints]
 workspace = true

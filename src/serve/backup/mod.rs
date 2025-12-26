@@ -49,11 +49,13 @@ where
 #[get("/backup/{id}/points")]
 pub async fn get_backup_points(
     id: Path<i64>,
+    job_id: Path<i64>,
     task_store: Data<TaskControllerRef>,
 ) -> impl Responder {
     let id = id.into_inner();
+    let job_id = job_id.into_inner();
 
-    match get_backup_points_impl(id, task_store).await {
+    match get_backup_points_impl(id, job_id, task_store).await {
         Ok(v) => Ok(HttpResponse::Ok().json(v)),
         Err(err) => {
             tracing::error!("failed to get backup points: {:?}", err);
@@ -64,13 +66,14 @@ pub async fn get_backup_points(
 
 /// 列出备份目录下的所有备份点
 async fn get_backup_points_impl(
-    id: i64,
+    task_id: i64,
+    job_id: i64,
     task_store: Data<TaskControllerRef>,
 ) -> anyhow::Result<Vec<BackupPoint>> {
     let task = task_store
-        .get(id)
-        .await?
-        .ok_or(anyhow::anyhow!("task not found, id: {}", id))?;
+        .get_task(task_id, job_id)
+        .await
+        .with_context(|| format!("task not found, id: {task_id}"))?;
     let from = task.from.as_str().into_dsn().map_err(|err| {
         anyhow::Error::from(err).context(format!("failed to convert dsn: {}", &task.from))
     })?;
@@ -79,13 +82,11 @@ async fn get_backup_points_impl(
         .as_str()
         .into_dsn()
         .context(format!("failed to convert dsn: {}", &task.to))?;
-    let task_id = id.to_string();
-    let topic = task
-        .oneshot_topic
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("oneshot topic not found, task_id: {}", id))?;
+    let topic = task.oneshot_topic.as_ref().with_context(|| {
+        format!("oneshot topic not found, task_id: {task_id}, job_id: {job_id}")
+    })?;
 
-    let backup_dir = utils::parse_backup_dir(&to, Some(task_id.as_str()))?;
+    let backup_dir = utils::parse_backup_dir(&to, Some((task_id, job_id)))?;
     // 如果目录不存在，返回空列表，不报错，因为可能是备份计划还没有执行
     if tokio::fs::metadata(&backup_dir).await.is_err() {
         tracing::warn!("backup dir not found: {:?}", backup_dir);
@@ -147,7 +148,7 @@ async fn get_backup_points_impl(
             &from
         ))?
         .ok_or(anyhow::anyhow!("backup obj not found in dsn: {}", &from))?;
-    backup_obj.task_id = Some(task_id.clone());
+    backup_obj.task_id = Some(task_id);
     backup_obj.topic = Some(topic.clone());
 
     Ok(group_by_point(backup_files, &backup_obj))
@@ -196,7 +197,8 @@ mod tests {
         .collect_vec();
 
         let backup_obj = BackupObject {
-            task_id: Some("82".to_string()),
+            task_id: Some(82),
+            job_id: Some(0),
             topic: Some("abc".to_string()),
             db_name: Some("abc".to_string()),
             db_sql: Some("abc".to_string()),
@@ -226,6 +228,7 @@ mod tests {
         let p = BackupPoint {
             backup_obj: BackupObject {
                 task_id: None,
+                job_id: None,
                 topic: Some("abc".to_string()),
                 db_name: Some("abc".to_string()),
                 db_sql: Some("abc".to_string()),

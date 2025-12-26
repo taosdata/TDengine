@@ -76,6 +76,7 @@ impl Archive {
     pub fn organize_params(
         &mut self,
         task_id: i64,
+        job_id: i64,
         def_data_dir: PathBuf,
         is_cache: bool,
     ) -> Result<(), CollateError> {
@@ -91,6 +92,7 @@ impl Archive {
             self.location = def_data_dir
                 .join("tasks")
                 .join(task_id.to_string())
+                .join(job_id.to_string())
                 .join(last_dir_name)
                 .to_string_lossy()
                 .to_string();
@@ -115,7 +117,7 @@ impl Archive {
                 None => {
                     return Err(CollateError::KeepDaysFormatIncorrect {
                         input: self.keep_days.clone(),
-                    })
+                    });
                 }
             };
             match caps[1].parse::<usize>() {
@@ -142,7 +144,7 @@ impl Archive {
                 None => {
                     return Err(CollateError::MaxSizeFormatIncorrect {
                         input: self.max_size.clone(),
-                    })
+                    });
                 }
             };
             match caps[1].parse::<usize>() {
@@ -210,7 +212,9 @@ pub enum CollateError {
     KeepDaysFormatIncorrect { input: String },
     #[error("keep_days integer parse error, detail error: {0}")]
     KeepDaysParseIntError(ParseIntError),
-    #[error("max_size: {input} format error, support only integer number followed by GB/MB/KB, e.g. 1GB")]
+    #[error(
+        "max_size: {input} format error, support only integer number followed by GB/MB/KB, e.g. 1GB"
+    )]
     MaxSizeFormatIncorrect { input: String },
     #[error("max_size integer parse error, detail error: {0}")]
     MaxSizeParseIntError(ParseIntError),

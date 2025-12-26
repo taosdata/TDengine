@@ -1,6 +1,6 @@
 [package]
 name = "source-csv"
-edition = "2024"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
@@ -30,6 +30,7 @@ tempfile.workspace = true
 
 taosx-core.workspace = true
 taosx-ipc.workspace = true
+taosx-utils.workspace = true
 
 [lints]
 workspace = true

@@ -1,6 +1,6 @@
+use crate::runners::opc::OpcType;
 use crate::runners::opc::config::connect::da::DaConnectConfig;
 use crate::runners::opc::config::connect::ua::UaConnectConfig;
-use crate::runners::opc::OpcType;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 

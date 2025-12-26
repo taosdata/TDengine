@@ -3,18 +3,18 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 use anyhow::Context;
 use clap::Parser;
 use rumqttc::v5::{
-    mqttbytes::{
-        v5::{ConnectReturnCode, LastWill, SubscribeReasonCode},
-        QoS,
-    },
     AsyncClient, Event, EventLoop, Incoming, MqttOptions,
+    mqttbytes::{
+        QoS,
+        v5::{ConnectReturnCode, LastWill, SubscribeReasonCode},
+    },
 };
 use shadow_rs::{concatcp, shadow};
 use taosx_tools::{
-    fake_spb::{message_type::MessageType, topic::TopicComponents, NodeDeviceFaker, Schema},
+    Select3,
+    fake_spb::{NodeDeviceFaker, Schema, message_type::MessageType, topic::TopicComponents},
     generate_random_string, select3,
     signal::wait_signal,
-    Select3,
 };
 use tokio::{sync::Notify, task::JoinSet, time::sleep};
 use tokio_util::sync::CancellationToken;

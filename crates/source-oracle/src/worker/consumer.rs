@@ -218,7 +218,7 @@ mod tests {
         let dsn = Dsn::from_str("oracle://test_user:123456@192.168.1.40:1521/ORCLPDB1?sql=select * from t_metric&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let mut config = OracleConfig::from_dsn(&dsn).unwrap();
-        config.task_id = Some(1);
+        config.task_job_id = Some((1, 1));
         config.sub_task_id = Some("mig-1".to_string());
         config.ipc_port = Some(6666);
 
@@ -245,20 +245,5 @@ mod tests {
 
         // wait for consumer
         let _ = consumer.await;
-        // match result {
-        //     Ok(r) => match r {
-        //         Ok(_) => {
-        //             tracing::info!("test_consumer finished");
-        //         }
-        //         Err(e) => {
-        //             tracing::error!("test_consumer error: {e:?}",);
-        //             panic!("test_consumer error: {e}")
-        //         }
-        //     },
-        //     Err(e) => {
-        //         tracing::error!("test_consumer error: {e:?}",);
-        //         panic!("test_consumer error: {e}")
-        //     }
-        // }
     }
 }

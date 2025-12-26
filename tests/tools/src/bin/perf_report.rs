@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Parser;
 use serde::Deserialize;
 
@@ -169,42 +169,41 @@ fn generate_case_page(case: &Case, data_dir: &Path, output: &Path) -> Result<()>
                         continue;
                     }
                 };
-                if let (Some(ts_i), Some(val_i)) = (ts_idx, target_idx) {
-                    if let (Some(ts_raw), Some(val_raw)) = (rec.get(ts_i), rec.get(val_i)) {
-                        let ts_raw_trim = ts_raw.trim();
-                        if !ts_raw_trim.is_empty() {
-                            if let Ok(val) = val_raw.trim().parse::<f64>() {
-                                if let Some(ts_epoch) = parse_ts_to_epoch(ts_raw_trim) {
-                                    if trend_min_ts.map(|m| ts_epoch < m).unwrap_or(true) {
-                                        trend_min_ts = Some(ts_epoch);
-                                    }
-                                    if trend_max_ts.map(|m| ts_epoch > m).unwrap_or(true) {
-                                        trend_max_ts = Some(ts_epoch);
-                                    }
-                                    if trend_min_v.map(|m| val < m).unwrap_or(true) {
-                                        trend_min_v = Some(val);
-                                    }
-                                    if trend_max_v.map(|m| val > m).unwrap_or(true) {
-                                        trend_max_v = Some(val);
-                                    }
-                                    let td_full = tdengine_idx
-                                        .and_then(|idx| rec.get(idx))
-                                        .map(|s| s.trim().to_string())
-                                        .unwrap_or_default();
-                                    let tx_full = taosx_idx
-                                        .and_then(|idx| rec.get(idx))
-                                        .map(|s| s.trim().to_string())
-                                        .unwrap_or_default();
-                                    scatter_points.push(ScatterPoint {
-                                        row: records.len() + 1,
-                                        ts: ts_epoch,
-                                        val,
-                                        td_raw: td_full,
-                                        tx_raw: tx_full,
-                                    });
-                                }
-                            }
+                if let (Some(ts_i), Some(val_i)) = (ts_idx, target_idx)
+                    && let (Some(ts_raw), Some(val_raw)) = (rec.get(ts_i), rec.get(val_i))
+                {
+                    let ts_raw_trim = ts_raw.trim();
+                    if !ts_raw_trim.is_empty()
+                        && let Ok(val) = val_raw.trim().parse::<f64>()
+                        && let Some(ts_epoch) = parse_ts_to_epoch(ts_raw_trim)
+                    {
+                        if trend_min_ts.map(|m| ts_epoch < m).unwrap_or(true) {
+                            trend_min_ts = Some(ts_epoch);
                         }
+                        if trend_max_ts.map(|m| ts_epoch > m).unwrap_or(true) {
+                            trend_max_ts = Some(ts_epoch);
+                        }
+                        if trend_min_v.map(|m| val < m).unwrap_or(true) {
+                            trend_min_v = Some(val);
+                        }
+                        if trend_max_v.map(|m| val > m).unwrap_or(true) {
+                            trend_max_v = Some(val);
+                        }
+                        let td_full = tdengine_idx
+                            .and_then(|idx| rec.get(idx))
+                            .map(|s| s.trim().to_string())
+                            .unwrap_or_default();
+                        let tx_full = taosx_idx
+                            .and_then(|idx| rec.get(idx))
+                            .map(|s| s.trim().to_string())
+                            .unwrap_or_default();
+                        scatter_points.push(ScatterPoint {
+                            row: records.len() + 1,
+                            ts: ts_epoch,
+                            val,
+                            td_raw: td_full,
+                            tx_raw: tx_full,
+                        });
                     }
                 }
                 for (idx, val) in rec.iter().enumerate() {
@@ -343,12 +342,12 @@ fn compute_metric_correlations(
     let mut y_vals: Vec<f64> = Vec::new();
     let mut row_valid: Vec<bool> = Vec::new();
     for rec in records {
-        if let Some(v) = rec.get(target_idx) {
-            if let Ok(num) = v.trim().parse::<f64>() {
-                y_vals.push(num);
-                row_valid.push(true);
-                continue;
-            }
+        if let Some(v) = rec.get(target_idx)
+            && let Ok(num) = v.trim().parse::<f64>()
+        {
+            y_vals.push(num);
+            row_valid.push(true);
+            continue;
         }
         row_valid.push(false);
     }
@@ -430,11 +429,7 @@ fn compute_metric_correlations(
         let mut best_worst = avg.clone();
         best_worst.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
         let ratio = if let (Some(w), Some(b)) = (best_worst.first(), best_worst.last()) {
-            if w.1 > 0.0 {
-                b.1 / w.1
-            } else {
-                0.0
-            }
+            if w.1 > 0.0 { b.1 / w.1 } else { 0.0 }
         } else {
             0.0
         };
@@ -706,11 +701,7 @@ fn detect_delimiter(data: &[u8]) -> u8 {
             break;
         }
     }
-    if has_tab {
-        b'\t'
-    } else {
-        b','
-    }
+    if has_tab { b'\t' } else { b',' }
 }
 
 fn derive_mig_rate_param_analysis(

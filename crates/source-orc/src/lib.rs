@@ -17,7 +17,7 @@ pub async fn orc_to_taos(
     from: Dsn,
     parser: Option<Parser>,
     to: Dsn,
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     cancel: CancellationToken,
     notifier: TaskNotifySender,
 ) -> anyhow::Result<()> {
@@ -36,7 +36,7 @@ pub async fn orc_to_taos(
         task_cancel.child_token(),
         parser,
         Some("orc"),
-        task_id,
+        task_job_id,
         notifier,
         config.unprocessed_batches.unwrap_or(64),
     )

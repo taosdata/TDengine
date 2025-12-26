@@ -1502,14 +1502,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edca88bc138befd0323b20752846e6587272d3b03b0343c8ea28a6f819e6e71f"
 dependencies = [
  "async-trait",
- "axum-core",
+ "axum-core 0.4.5",
  "bytes",
  "futures-util",
  "http 1.3.1",
  "http-body 1.0.1",
  "http-body-util",
  "itoa",
- "matchit",
+ "matchit 0.7.3",
  "memchr",
  "mime",
  "percent-encoding",
@@ -1520,6 +1520,39 @@ dependencies = [
  "tower 0.5.2",
  "tower-layer",
  "tower-service",
+]
+
+[[package]]
+name = "axum"
+version = "0.8.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b098575ebe77cb6d14fc7f32749631a6e44edbef6b796f89b020e99ba20d425"
+dependencies = [
+ "axum-core 0.5.5",
+ "bytes",
+ "form_urlencoded",
+ "futures-util",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "http-body-util",
+ "hyper 1.6.0",
+ "hyper-util",
+ "itoa",
+ "matchit 0.8.4",
+ "memchr",
+ "mime",
+ "percent-encoding",
+ "pin-project-lite",
+ "serde_core",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_urlencoded",
+ "sync_wrapper 1.0.2",
+ "tokio",
+ "tower 0.5.2",
+ "tower-layer",
+ "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -1540,6 +1573,46 @@ dependencies = [
  "sync_wrapper 1.0.2",
  "tower-layer",
  "tower-service",
+]
+
+[[package]]
+name = "axum-core"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59446ce19cd142f8833f856eb31f3eb097812d1479ab224f54d72428ca21ea22"
+dependencies = [
+ "bytes",
+ "futures-core",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "http-body-util",
+ "mime",
+ "pin-project-lite",
+ "sync_wrapper 1.0.2",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "axum-extra"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbfe9f610fe4e99cf0cfcd03ccf8c63c28c616fe714d80475ef731f3b13dd21b"
+dependencies = [
+ "axum 0.8.7",
+ "axum-core 0.5.5",
+ "bytes",
+ "futures-core",
+ "futures-util",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "http-body-util",
+ "mime",
+ "pin-project-lite",
+ "tower-layer",
+ "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -3474,16 +3547,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24"
 
 [[package]]
-name = "file-guard"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21ef72acf95ec3d7dbf61275be556299490a245f017cf084bd23b4f68cf9407c"
-dependencies = [
- "libc",
- "winapi",
-]
-
-[[package]]
 name = "filetime"
 version = "0.2.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3693,9 +3756,11 @@ dependencies = [
  "anyhow",
  "futures",
  "futures-test",
+ "paste",
  "pin-project-lite",
  "tokio",
  "tokio-test",
+ "tokio-util",
 ]
 
 [[package]]
@@ -4010,6 +4075,40 @@ dependencies = [
  "slab 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio",
  "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "ha-core"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-schema",
+ "chrono",
+ "jsonwebtoken",
+ "serde",
+ "serde_json",
+ "taos",
+]
+
+[[package]]
+name = "ha-rpc-client"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-flight",
+ "flume",
+ "futures",
+ "ha-core",
+ "jsonwebtoken",
+ "serde",
+ "serde_json",
+ "snafu",
+ "tokio",
+ "tokio-util",
+ "tonic 0.12.3",
  "tracing",
 ]
 
@@ -4682,17 +4781,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "io-uring"
-version = "0.7.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b86e202f00093dcba4275d4636b93ef9dd75d025ae560d2521b45ea28ab49013"
-dependencies = [
- "bitflags 2.9.1",
- "cfg-if",
- "libc",
-]
-
-[[package]]
 name = "ipconfig"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4944,7 +5032,6 @@ dependencies = [
  "futures",
  "futures-util",
  "itertools 0.14.0",
- "lazy_static",
  "rand 0.8.5",
  "scc",
  "semver",
@@ -5380,6 +5467,12 @@ name = "matchit"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
+
+[[package]]
+name = "matchit"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
 name = "md-5"
@@ -6573,7 +6666,6 @@ dependencies = [
  "clap",
  "crc32fast",
  "flume",
- "fs2",
  "futures",
  "notify",
  "parking_lot 0.12.4",
@@ -8875,6 +8967,7 @@ dependencies = [
  "source-mqtt",
  "taos",
  "taosx-core",
+ "taosx-utils",
  "tokio",
  "tokio-util",
  "tracing",
@@ -9033,6 +9126,7 @@ dependencies = [
  "taos",
  "taosx-core",
  "taosx-ipc",
+ "taosx-utils",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -9073,6 +9167,7 @@ dependencies = [
  "serde",
  "taos",
  "taosx-core",
+ "taosx-utils",
  "tempfile",
  "tokio",
  "tokio-process-terminate",
@@ -9094,6 +9189,7 @@ dependencies = [
  "flume",
  "futures-ext",
  "futures-util",
+ "ha-core",
  "itertools 0.14.0",
  "linked-hash-map",
  "parking_lot 0.12.4",
@@ -9105,6 +9201,7 @@ dependencies = [
  "taos",
  "taosx-core",
  "taosx-ipc",
+ "taosx-utils",
  "tokio",
  "tokio-util",
  "tracing",
@@ -9169,6 +9266,7 @@ dependencies = [
  "faststr",
  "flume",
  "futures",
+ "ha-core",
  "itertools 0.14.0",
  "parking_lot 0.12.4",
  "regex",
@@ -9182,6 +9280,7 @@ dependencies = [
  "taos",
  "taosx-core",
  "taosx-ipc",
+ "taosx-utils",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -9253,6 +9352,7 @@ dependencies = [
  "taos",
  "taosx-core",
  "taosx-ipc",
+ "taosx-utils",
  "tempfile",
  "tokio",
  "tokio-process-terminate",
@@ -9316,6 +9416,7 @@ dependencies = [
  "orc-rust",
  "taos",
  "taosx-core",
+ "taosx-utils",
  "tokio-util",
  "tracing",
 ]
@@ -9399,6 +9500,7 @@ dependencies = [
  "taos",
  "taosx-core",
  "taosx-ipc",
+ "taosx-utils",
  "tempfile",
  "thiserror 2.0.12",
  "tokio",
@@ -9418,6 +9520,7 @@ dependencies = [
  "faststr",
  "flume",
  "futures",
+ "futures-ext",
  "parking_lot 0.12.4",
  "prost 0.14.1",
  "rayon",
@@ -9429,6 +9532,7 @@ dependencies = [
  "taos",
  "taosx-core",
  "taosx-ipc",
+ "taosx-utils",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -9459,17 +9563,6 @@ checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
 dependencies = [
  "base64ct",
  "der",
-]
-
-[[package]]
-name = "sqlite-optimizer"
-version = "1.11.0"
-dependencies = [
- "anyhow",
- "sqlx",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -9509,7 +9602,6 @@ dependencies = [
  "indexmap 2.10.0",
  "log",
  "memchr",
- "native-tls",
  "once_cell",
  "percent-encoding",
  "rustls 0.23.29",
@@ -9913,7 +10005,6 @@ dependencies = [
  "hmac",
  "http 0.2.12",
  "http-auth-basic",
- "lazy_static",
  "log",
  "metrics",
  "mimalloc",
@@ -10150,12 +10241,13 @@ dependencies = [
  "flume",
  "fundu",
  "futures",
+ "futures-ext",
  "futures-util",
  "gethostname",
+ "ha-core",
  "itertools 0.14.0",
  "jemalloc_pprof",
  "jsonwebtoken",
- "lazy_static",
  "legacy-to-taos",
  "linked-hash-map",
  "local-to-taos",
@@ -10169,6 +10261,7 @@ dependencies = [
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
+ "parking_lot 0.12.4",
  "prettytable",
  "rand 0.8.5",
  "reclaim-memory",
@@ -10193,8 +10286,6 @@ dependencies = [
  "source-opc",
  "source-oracle",
  "source-postgres",
- "sqlite-optimizer",
- "sqlx",
  "strum",
  "sysinfo",
  "taos",
@@ -10203,6 +10294,7 @@ dependencies = [
  "taosx-ipc",
  "taosx-metrics",
  "taosx-task",
+ "taosx-utils",
  "tempfile",
  "thiserror 2.0.12",
  "tikv-jemalloc-ctl",
@@ -10259,8 +10351,10 @@ dependencies = [
  "taosx-core",
  "taosx-metrics",
  "taosx-task",
+ "taosx-utils",
  "thiserror 2.0.12",
  "tokio",
+ "tokio-stream",
  "tokio-util",
  "tonic 0.12.3",
  "tower 0.5.2",
@@ -10311,7 +10405,6 @@ dependencies = [
  "either",
  "encoding_rs",
  "faststr",
- "file-guard",
  "flate2",
  "flume",
  "fundu",
@@ -10323,7 +10416,6 @@ dependencies = [
  "hex",
  "humantime",
  "itertools 0.14.0",
- "lazy_static",
  "libc",
  "linked-hash-map",
  "log",
@@ -10366,6 +10458,7 @@ dependencies = [
  "taos",
  "taoslog",
  "taosx-ipc",
+ "taosx-utils",
  "tempfile",
  "thiserror 2.0.12",
  "tinytemplate 1.2.1 (git+https://github.com/bitcapybara/TinyTemplate.git?rev=9085af2b9c824e670750369827b9d6bbf24ae876)",
@@ -10482,7 +10575,10 @@ dependencies = [
  "flume",
  "fundu",
  "futures",
+ "ha-core",
+ "ha-rpc-client",
  "http 0.2.12",
+ "jsonwebtoken",
  "lz4",
  "num-bigint",
  "num-integer",
@@ -10511,6 +10607,16 @@ dependencies = [
  "toml 0.9.2",
  "tonic 0.12.3",
  "zstd 0.13.3",
+]
+
+[[package]]
+name = "taosx-utils"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "serde_json",
+ "taos",
+ "tracing",
 ]
 
 [[package]]
@@ -10822,7 +10928,6 @@ dependencies = [
  "faststr",
  "flume",
  "humantime",
- "lazy_static",
  "legacy-to-taos",
  "linked-hash-map",
  "regex",
@@ -10831,6 +10936,7 @@ dependencies = [
  "serde_json",
  "taos",
  "taosx-core",
+ "taosx-utils",
  "tokio-util",
  "tracing",
  "tracing-subscriber",
@@ -10838,23 +10944,20 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.46.1"
+version = "1.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cc3a2344dafbe23a245241fe8b09735b521110d30fcefbbd5feb1797ca35d17"
+checksum = "ff360e02eab121e0bc37a2d3b4d4dc622e6eda3a8e5253d5435ecf5bd4c68408"
 dependencies = [
- "backtrace",
  "bytes",
- "io-uring",
  "libc",
  "mio",
  "parking_lot 0.12.4",
  "pin-project-lite",
  "signal-hook-registry",
- "slab 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
- "socket2 0.5.10",
+ "socket2 0.6.0",
  "tokio-macros",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -10882,9 +10985,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "2.5.0"
+version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
+checksum = "af407857209536a95c8e56f8231ef2c2e2aff839b22e07a1ffcbc617e9db9fa5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -11138,7 +11241,7 @@ checksum = "877c5b330756d856ffcc4553ab34a5684481ade925ecc54bcd1bf02b1d0d4d52"
 dependencies = [
  "async-stream",
  "async-trait",
- "axum",
+ "axum 0.7.9",
  "base64 0.22.1",
  "bytes",
  "flate2",
@@ -11245,6 +11348,7 @@ dependencies = [
  "tower 0.5.2",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -12364,6 +12468,42 @@ name = "xmlparser"
 version = "0.13.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "66fee0b777b0f5ac1c69bb06d361268faafa61cd4682ae064a171c16c433e9e4"
+
+[[package]]
+name = "xnoded"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "arrow-flight",
+ "axum 0.8.7",
+ "axum-extra",
+ "bitfield",
+ "clap",
+ "const_format",
+ "dotenv",
+ "flume",
+ "futures",
+ "futures-ext",
+ "ha-core",
+ "ha-rpc-client",
+ "itertools 0.14.0",
+ "mimalloc",
+ "parking_lot 0.12.4",
+ "serde",
+ "serde_json",
+ "shadow-rs 0.38.1",
+ "snafu",
+ "taos",
+ "taoslog",
+ "taosx-utils",
+ "tokio",
+ "tokio-util",
+ "tonic 0.12.3",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "yaml-rust2"

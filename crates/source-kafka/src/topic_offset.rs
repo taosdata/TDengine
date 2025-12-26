@@ -19,13 +19,13 @@ pub struct TopicOffsetInfo {
 }
 
 pub async fn get_topics_offset(
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     from: &Dsn,
 ) -> anyhow::Result<Vec<TopicOffsetInfo>> {
     // kafka task config
     let config = KafkaTaskConfig::from_dsn(from)?;
 
-    let metrics_arc = find_metrics_arc(task_id)
+    let metrics_arc = find_metrics_arc(task_job_id)
         .await
         .unwrap_or(Arc::new(CoreMetrics::IPC(IpcMetrics::default())));
 

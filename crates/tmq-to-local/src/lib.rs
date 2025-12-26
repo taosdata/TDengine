@@ -29,7 +29,7 @@ pub mod conf;
 #[instrument(skip_all, fields(task_id))]
 #[async_backtrace::framed]
 pub async fn tmq_to_local(
-    task_id: Option<String>,
+    task_job_id: Option<(i64, i64)>,
     from: Dsn,
     to: Dsn,
     cancel: CancellationToken,
@@ -37,7 +37,7 @@ pub async fn tmq_to_local(
     tracing::info!("tmq_to_local start");
 
     // 解析备份需要的参数
-    let mut config = BackupConfigBuilder::new(task_id.clone(), &from, &to)
+    let mut config = BackupConfigBuilder::new(task_job_id, &from, &to)
         .build()
         .await
         .context(format!(
@@ -102,12 +102,8 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
         writers: Default::default(),
     };
     // load metrics
-    let tid = config
-        .task_id
-        .clone()
-        .and_then(|id| id.parse::<i64>().ok())
-        .unwrap_or(-1);
-    let metrics = get_metrics(tid).await;
+    let (task_id, job_id) = config.task_job_id.unwrap_or((-1, -1));
+    let metrics = get_metrics(task_id, job_id).await;
 
     // 创建并启动 BackupWorker
     let man = Arc::new(man);

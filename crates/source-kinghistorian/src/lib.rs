@@ -21,6 +21,7 @@ use std::sync::OnceLock;
 use std::vec;
 use taos::*;
 use taosx_core::DataSet;
+use taosx_core::Via;
 use taosx_core::core_metrics::{CoreMetrics, get_metrics_arc_or, insert_metrics};
 use taosx_core::sink::ipc_metric::IpcMetrics;
 use taosx_core::sink::point::csv::CsvParser;
@@ -62,31 +63,33 @@ pub fn kinghist_datasets_lister(
 
 /// KingHistorian -> TDengine
 pub async fn kinghist_to_taos(
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     from: Dsn,
     to: Dsn,
     port_pool: &PortPool,
     cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
+    with_agent: Option<Via>,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     tracing::info!("kinghist_to_taos start");
 
-    let mut context = KingHistContext::new(task_id, &from, &to);
+    let mut context = KingHistContext::new(task_job_id, &from, &to);
     tracing::info!("kinghist_to_taos create context: {:#?}", context);
 
     // metrics
-    let metrics = get_metrics_arc_or(task_id, || {
+
+    let metrics = get_metrics_arc_or(task_job_id, || {
+        let (task_id, job_id) = task_job_id.unwrap_or((-1, -1));
         // task_id is None if taosx run
         Arc::new(CoreMetrics::IPC(IpcMetrics::new(
             format!("taosx_task_{}", KING_HIST_ID),
-            task_id.unwrap_or(-1),
-            None,
+            task_id,
+            job_id,
         )))
     })
     .await;
-    if task_id.is_none() {
-        insert_metrics(-1, metrics.clone()).await;
+    if task_job_id.is_none() {
+        insert_metrics(-1, -1, metrics.clone()).await;
     }
     context.metrics = Some(metrics.clone());
     tracing::info!("kinghist_to_taos metrics initialized");
@@ -130,8 +133,7 @@ pub async fn kinghist_to_taos(
         None,
         &ipc_cancel,
         with_agent,
-        None,
-        task_id,
+        task_job_id,
         notify,
         None,
     )
@@ -353,7 +355,7 @@ async fn kinghist_collect(
 }
 
 struct KingHistContext {
-    pub task_id: Option<i64>,
+    pub task_job_id: Option<(i64, i64)>,
     pub from: String,
     pub to: String,
     pub task_config: Option<Arc<KingHistConfig>>,
@@ -365,7 +367,7 @@ struct KingHistContext {
 impl std::fmt::Debug for KingHistContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("KingHistContext");
-        d.field("task_id", &self.task_id);
+        d.field("task_job_id", &self.task_job_id);
         if std::env::var("TAOSX_DEBUG_DSN").is_ok() {
             d.field("from", &self.from);
             d.field("to", &self.to);
@@ -387,9 +389,9 @@ impl std::fmt::Debug for KingHistContext {
 }
 
 impl KingHistContext {
-    pub fn new(task_id: Option<i64>, from: &Dsn, to: &Dsn) -> Self {
+    pub fn new(task_job_id: Option<(i64, i64)>, from: &Dsn, to: &Dsn) -> Self {
         Self {
-            task_id,
+            task_job_id,
             from: from.to_string(),
             to: to.to_string(),
             task_config: None,
@@ -1216,10 +1218,10 @@ mod tests {
         let from: Dsn = "kinghist://sa:sa@127.0.0.1:5678".into_dsn().unwrap();
         let to: Dsn = "taos:///".into_dsn().unwrap();
 
-        let context = KingHistContext::new(Some(1), &from, &to);
+        let context = KingHistContext::new(Some((1, 0)), &from, &to);
         let display = format!("{:?}", context);
 
-        assert!(display.contains("task_id: Some(1)"));
+        assert!(display.contains("task_job_id: Some((1, 0))"));
     }
 
     /// TAOS_DSN="taos+ws://192.168.2.139:6041/test" cargo nextest run -p source-kinghistorian test_kinghist_to_taos --retries 0 --nocapture

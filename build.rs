@@ -1,22 +1,8 @@
 use std::fs::File;
+use std::io::Write;
 use std::path::Path;
-use std::time::Duration;
-use std::{io::Write, str::FromStr};
 
 use shadow_rs::SdResult;
-use sqlx::migrate::Migrator;
-use sqlx::sqlite::SqliteJournalMode;
-static MIGRATOR: Migrator = sqlx::migrate!();
-
-async fn init_sqlx(dsn: &str) -> Result<(), sqlx::Error> {
-    let options = sqlx::sqlite::SqliteConnectOptions::from_str(dsn)?
-        .create_if_missing(true)
-        .busy_timeout(Duration::from_secs(30))
-        .journal_mode(SqliteJournalMode::Wal);
-    let pool = sqlx::SqlitePool::connect_with(options).await?;
-    MIGRATOR.run(&pool).await?;
-    Ok(())
-}
 
 const DEFAULT_CUS_NAME: &str = "TDengine";
 const DEFAULT_CUS_PROMPT: &str = "taos";
@@ -119,40 +105,6 @@ fn main() {
 
     println!("cargo:rerun-if-env-changed=PKG_TIME");
 
-    if let Ok(dsn) = std::env::var("DATABASE_URL") {
-        let file = dsn.replacen("sqlite:", "", 1);
-        println!("cargo:rerun-if-changed={file}");
-
-        let _ = sqlx::test_block_on(init_sqlx(&dsn));
-    } else {
-        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-        let root = std::path::Path::new(&manifest_dir);
-        let target = root.join("target");
-        if !target.exists() {
-            std::fs::create_dir_all(&target).unwrap();
-        }
-        let db = target.join("taosx.dev.db");
-        let file = db.display();
-        println!("cargo:rerun-if-changed={file}");
-
-        let dsn = format!("sqlite:{}", file.to_string().escape_default());
-        unsafe {
-            std::env::set_var("DATABASE_URL", &dsn);
-        }
-
-        let dotenv = root.join(".env");
-        let mut file = if dotenv.exists() {
-            std::fs::File::options().append(true).open(dotenv).unwrap()
-        } else {
-            std::fs::File::create(dotenv).unwrap()
-        };
-        file.write_fmt(format_args!("DATABASE_URL={dsn}\n"))
-            .unwrap();
-
-        sqlx::test_block_on(init_sqlx(&dsn)).unwrap();
-    }
-    // trigger recompilation when a new migration is added
-    println!("cargo:rerun-if-changed=migrations/**");
     // trigger recompilation when dotenv changed
     println!("cargo:rerun-if-changed=.env");
 }

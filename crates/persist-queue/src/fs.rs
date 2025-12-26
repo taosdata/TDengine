@@ -8,8 +8,8 @@ use bitfield::bitfield;
 use futures::TryStreamExt;
 
 use notify::{
-    event::{CreateKind, RemoveKind},
     Watcher,
+    event::{CreateKind, RemoveKind},
 };
 use parking_lot::Mutex;
 use snafu::ResultExt;

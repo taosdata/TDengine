@@ -4,7 +4,6 @@ pub mod validate;
 
 use std::sync::atomic::{AtomicU32, AtomicU64};
 
-use anyhow::Context;
 use sink_parquet::query_to_parquet;
 use source_csv::{csv_to_taos, query_to_csv};
 use source_mqtt::mqtt_to_taos;
@@ -16,6 +15,7 @@ use source_pulsar::pulsar_to_taos;
 use taos::Dsn;
 use taoslog::QidManager;
 use taoslog::utils::{QidMetadataGetter, Span};
+use taosx_core::Via;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, instrument};
 
@@ -58,10 +58,9 @@ pub struct TaskOpts {
     pub parser: Option<taosx_core::plugins::Parser>,
     pub health: Option<taosx_core::task_set::prelude::HealthOpts>,
     pub cancel: CancellationToken,
-    pub with_agent: Option<(i64, String, String)>,
-    // pub port_pool: OnceCell<PortPool>
+    pub with_agent: Option<Via>,
     pub breakpoints: Option<String>,
-    pub task_id: Option<String>,
+    pub task_job_id: Option<(i64, i64)>,
     pub notify: TaskNotifySender,
 }
 
@@ -78,7 +77,7 @@ impl TaskOpts {
         self.cancel.cancel();
     }
 
-    #[instrument(name = "task::spawned", skip_all, fields(task.id = self.task_id))]
+    #[instrument(name = "task::spawned", skip_all, fields(task.job.id = ?self.task_job_id))]
     pub async fn run(&self, port_pool: &PortPool) -> Result<(), anyhow::Error> {
         let Self {
             from,
@@ -89,29 +88,25 @@ impl TaskOpts {
             with_agent,
             // port_pool,
             breakpoints,
-            task_id,
+            task_job_id,
             notify,
             ..
         } = self;
         let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
-        qid.set_task_id(
-            task_id
-                .as_ref()
-                .and_then(|id| id.parse::<u16>().ok())
-                .unwrap_or_default(),
-        );
+        let (task_id, job_id) = task_job_id.unwrap_or((0, 0));
+        qid.set_task_id(task_id as _);
+        qid.set_job_id(job_id as _);
 
         let configs = failover::get_datasource_failover_config(from.clone(), to.clone())?;
         // Run task
         let mut last_error = None;
+
+        let task_job_id = *task_job_id;
         for (from, to) in configs {
             if cancel.is_cancelled() {
                 break;
             }
-            let task_id_number = task_id
-                .as_ref()
-                .map(|t| t.parse::<i64>().context("parse task id"))
-                .transpose()?;
+
             match (from.driver.as_str(), to.driver.as_str()) {
                 ("tmq" | "sync", "taos") => {
                     let mut from = from.clone();
@@ -121,7 +116,7 @@ impl TaskOpts {
                         transform.clone(),
                         to.clone(),
                         cancel.clone(),
-                        task_id.clone(),
+                        task_job_id,
                         notify.clone(),
                     )
                     .in_current_span()
@@ -131,7 +126,7 @@ impl TaskOpts {
                     let mut from = from.clone();
                     from.driver = "tmq".to_string();
                     tmq_to_local::tmq_to_local(
-                        task_id.clone(),
+                        task_job_id,
                         from.clone(),
                         to.clone(),
                         cancel.clone(),
@@ -142,7 +137,7 @@ impl TaskOpts {
                 ("local", "taos" | "tmq") => {
                     let mut to = to.clone();
                     to.driver = "taos".to_string();
-                    local_to_taos::local_to_taos(task_id.clone(), from.clone(), to, cancel.clone())
+                    local_to_taos::local_to_taos(task_job_id, from.clone(), to, cancel.clone())
                         .in_current_span()
                         .await?;
                 }
@@ -152,7 +147,7 @@ impl TaskOpts {
                         transform.clone(),
                         to.clone(),
                         cancel.clone(),
-                        task_id_number,
+                        task_job_id,
                     )
                     .await?;
                 }
@@ -179,8 +174,7 @@ impl TaskOpts {
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        None,
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await?;
@@ -188,14 +182,11 @@ impl TaskOpts {
                 ("opc" | "opcda" | "opcua", "taos") => {
                     if let Err(e) = opc_to_taos(
                         from.clone(),
-                        transform.clone(),
                         to.clone(),
-                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        None,
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await
@@ -211,14 +202,13 @@ impl TaskOpts {
                         to.clone(),
                         cancel.clone(),
                         with_agent.clone(),
-                        None,
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await?;
                 }
                 ("tmq", "mqtt") => {
-                    tmq_to_mqtt(&from, &to, task_id_number, cancel).await?;
+                    tmq_to_mqtt(&from, &to, task_job_id, cancel).await?;
                 }
                 (source_sparkplugb::SPARKPLUGB_ID, "taos") => {
                     sparkplugb_to_taos(
@@ -226,7 +216,7 @@ impl TaskOpts {
                         &to,
                         with_agent.clone(),
                         parser.clone(),
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                         cancel,
                     )
@@ -239,8 +229,7 @@ impl TaskOpts {
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        None,
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await?;
@@ -252,8 +241,7 @@ impl TaskOpts {
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        None,
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await?;
@@ -263,38 +251,23 @@ impl TaskOpts {
                         from.clone(),
                         parser.clone(),
                         to.clone(),
-                        port_pool,
                         cancel.clone(),
-                        with_agent.clone(),
-                        None,
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await?;
                 }
                 ("tmq", source_kafka::KAFKA_ID) => {
-                    let mut from = from.clone();
-                    if let Some(task_id) = task_id.clone() {
-                        from.params.insert("topic_suffix".parse()?, task_id);
-                    }
                     tmq_to_kafka(from, to.clone(), cancel.clone()).await?;
                 }
                 (source_kafka::KAFKA_ID, "taos") => {
-                    let mut dsn = from.clone();
-                    if !dsn.params.contains_key("group") {
-                        let group_id = task_id
-                            .clone()
-                            .ok_or(anyhow::anyhow!("group id is required for kafka to taos"))?;
-                        dsn.params.insert("group".to_string(), group_id);
-                    }
-
                     kafka_to_taos(
-                        dsn,
+                        from.clone(),
                         parser.clone(),
                         to.clone(),
                         cancel.clone(),
                         with_agent.clone(),
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await?;
@@ -306,7 +279,7 @@ impl TaskOpts {
                         to.clone(),
                         cancel.clone(),
                         with_agent.clone(),
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await?;
@@ -315,21 +288,18 @@ impl TaskOpts {
                     historian_to_taos(
                         from.clone(),
                         parser.clone(),
-                        transform.clone(),
                         to.clone(),
-                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        None,
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await?;
                 }
                 (source_kinghistorian::KING_HIST_ID, "taos") => {
                     source_kinghistorian::kinghist_to_taos(
-                        task_id_number,
+                        task_job_id,
                         from.clone(),
                         to.clone(),
                         port_pool,
@@ -347,8 +317,7 @@ impl TaskOpts {
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        None,
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await?;
@@ -363,8 +332,7 @@ impl TaskOpts {
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        None,
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await?;
@@ -379,8 +347,7 @@ impl TaskOpts {
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        None,
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await?;
@@ -389,14 +356,11 @@ impl TaskOpts {
                     mssql_to_taos(
                         from.clone(),
                         parser.clone(),
-                        transform.clone(),
                         to.clone(),
-                        0,
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        None,
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await?;
@@ -411,8 +375,7 @@ impl TaskOpts {
                         port_pool,
                         cancel.clone(),
                         with_agent.clone(),
-                        None,
-                        task_id_number,
+                        task_job_id,
                         notify.clone(),
                     )
                     .await?;
@@ -422,15 +385,14 @@ impl TaskOpts {
                         from.clone(),
                         parser.clone(),
                         to.clone(),
-                        task_id_number,
+                        task_job_id,
                         cancel.clone(),
                         notify.clone(),
                     )
                     .await?
                 }
                 ("taos", "local") => {
-                    taos_to_local(task_id.clone(), from.clone(), to.clone(), cancel.clone())
-                        .await?;
+                    taos_to_local(task_job_id, from.clone(), to.clone(), cancel.clone()).await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
@@ -446,10 +408,6 @@ impl TaskOpts {
         let Self { from, to, .. } = &self;
         match (from.driver.as_str(), to.driver.as_str()) {
             ("tmq", source_kafka::KAFKA_ID) => {
-                let mut from = from.clone();
-                if let Some(task_id) = self.task_id.clone() {
-                    from.params.insert("topic_suffix".parse()?, task_id);
-                }
                 clean_task(from.clone()).await?;
             }
             ("csv", _) => {

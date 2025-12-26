@@ -1,6 +1,6 @@
 use anyhow::bail;
-use base64::engine::general_purpose;
 use base64::Engine;
+use base64::engine::general_purpose;
 use csv_async::{AsyncReader, AsyncReaderBuilder, StringRecord};
 use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
@@ -13,11 +13,11 @@ use taosx_ipc::prelude::IpcDataType;
 use tokio::fs::File;
 use tokio_stream::StreamExt;
 
-use crate::sink::point::model::{generate_tbname_from_pattern, SourceType};
+use crate::sink::point::UpdateMode;
 use crate::sink::point::model::{
     ColumnConfig, GeneratePointMappingBy, PointConfig, PointModelConfig, TableConfig,
 };
-use crate::sink::point::UpdateMode;
+use crate::sink::point::model::{SourceType, generate_tbname_from_pattern};
 use crate::utils::files::{get_encode, get_encode_from_buffer};
 use crate::utils::{parse_key_in_dsn, validate_table_column_name};
 use crate::{get_data_dir, utils};
@@ -620,10 +620,10 @@ impl<'a> CsvParser<'a> {
 
         // 遍历 transform_map, 如果 col 对应的 Hashmap 为空，则删除
         for col in columns {
-            if let Some(map) = transform_map.get(*col) {
-                if map.is_empty() {
-                    transform_map.remove(*col);
-                }
+            if let Some(map) = transform_map.get(*col)
+                && map.is_empty()
+            {
+                transform_map.remove(*col);
             }
         }
 
@@ -983,7 +983,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_csv_headers() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
 
@@ -997,7 +999,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_open_csv_file() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         // file path
         let file = "@./tests/opc/opcua-utf8bom.csv".to_string();
@@ -1030,7 +1034,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_open_csv_files() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         let files = vec!["@./tests/opc/opcua-utf8bom.csv".to_string()];
         let res = CsvParser::open_csv_many(files).await.unwrap();
@@ -1053,7 +1059,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_from_dsn() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
         let ua_config = CsvParser::from_dsn(&dsn).unwrap();
@@ -1074,7 +1082,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
@@ -1089,7 +1099,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_point_id_and_tbname() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-utf8bom.csv").unwrap();
         let csv_parser = CsvParser::from_dsn(&dsn).unwrap();
@@ -1112,7 +1124,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_invalid_csv_file() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         // zero rows
         let dsn = Dsn::from_str("opcua://?csv_config_file=@./tests/opc/opcua-empty.csv").unwrap();
@@ -1156,7 +1170,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_error_name() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         let dsn =
             Dsn::from_str("opcda://?csv_config_file=@./tests/opc/opcda-name-error.csv").unwrap();

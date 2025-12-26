@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, skip_serializing_none, NoneAsEmptyString};
+use serde_with::{NoneAsEmptyString, serde_as, skip_serializing_none};
 use taos::{AsyncFetchable, AsyncQueryable, Itertools, TryStreamExt};
 
 #[skip_serializing_none]
@@ -27,16 +27,14 @@ impl User {
             self.name, self.encrypted_pass, self.sysinfo, self.createdb
         );
 
-        if with_whitelist {
-            if let Some(allowed_host) = &self.allowed_host {
-                create.push_str(" HOST ");
-                create.push_str(
-                    &allowed_host
-                        .split(',')
-                        .map(|host| format!("'{}'", host))
-                        .join(","),
-                );
-            }
+        if with_whitelist && let Some(allowed_host) = &self.allowed_host {
+            create.push_str(" HOST ");
+            create.push_str(
+                &allowed_host
+                    .split(',')
+                    .map(|host| format!("'{}'", host))
+                    .join(","),
+            );
         }
         let cap = match (self.is_super, self.enable) {
             (1, 0) => 3,
@@ -235,17 +233,16 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_user_full_with_taos() -> anyhow::Result<()> {
-        use file_guard::Lock;
         use std::fs::OpenOptions;
 
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(true)
             .open("./tests/migrations.lock")?;
 
-        let _lock = file_guard::lock(&mut file, Lock::Exclusive, 0, 1)?;
+        file.lock()?;
 
         let _ = tracing_subscriber::fmt()
             .with_env_filter(

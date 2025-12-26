@@ -1,5 +1,6 @@
 use anyhow::Context;
-use taosx_core::{ha, utils::dsn::dsn_to_json};
+use ha_core::types::{SplitJobResult, SplitJobTask};
+use taosx_utils::dsn::dsn_to_json;
 
 use crate::config::MqttConfig;
 
@@ -17,7 +18,7 @@ pub struct TopicInfo {
     concurrency: usize,
 }
 
-pub async fn split_job(task: ha::SplitJobTask) -> anyhow::Result<serde_json::Value> {
+pub async fn split_job(task: SplitJobTask) -> anyhow::Result<SplitJobResult> {
     let from = task.from;
     let config = MqttConfig::try_from(&from)?;
 
@@ -44,9 +45,9 @@ pub async fn split_job(task: ha::SplitJobTask) -> anyhow::Result<serde_json::Val
         from.insert("topics".into(), topics_value);
     }
 
-    Ok(serde_json::json!({
-        "from": from_json,
-        "to": task.to.to_string(),
-        "parser": task.parser
-    }))
+    Ok(SplitJobResult {
+        from: from_json,
+        to: task.to.to_string(),
+        parser: task.parser,
+    })
 }

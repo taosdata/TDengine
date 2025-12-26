@@ -3,7 +3,7 @@ pub mod stable;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use arrow::{
     array::{Array, ArrayRef, StringArray},
     datatypes::{DataType, Field, Schema},
@@ -27,8 +27,8 @@ use crate::plugins::{
 };
 
 use super::{
-    constants::{META_FIELD_SCOPE, META_FIELD_TYPE},
     TableOptions,
+    constants::{META_FIELD_SCOPE, META_FIELD_TYPE},
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]

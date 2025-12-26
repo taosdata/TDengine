@@ -48,7 +48,7 @@ impl<St: TryStream> Stream for TryReadyChunks<St> {
                         Poll::Ready(None)
                     } else {
                         Poll::Ready(Some(Ok(items)))
-                    }
+                    };
                 }
 
                 // Push the ready item into the buffer and check whether it is full.

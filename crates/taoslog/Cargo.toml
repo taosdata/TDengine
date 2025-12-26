@@ -1,11 +1,11 @@
 [package]
 name = "taoslog"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 
 [dependencies]
 actix-web.workspace = true
-tracing-actix-web = { version = "*" }
+tracing-actix-web.workspace = true
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt", "std"] }
 chrono.workspace = true

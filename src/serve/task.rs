@@ -1,38 +1,26 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::fs;
 
 use actix_files::NamedFile;
 use actix_multipart::form::{MultipartForm, tempfile::TempFile, text::Text};
 use actix_web::body::BoxBody;
-use actix_web::rt;
-use actix_web::web::{Json, Payload};
 use actix_web::{
-    Error, HttpRequest, HttpResponse, Responder, ResponseError, delete, get, patch, post,
+    HttpRequest, HttpResponse, Responder, ResponseError, get, post,
     web::{Data, Path, Query},
 };
-use actix_ws::{CloseCode, CloseReason, Session};
 use anyhow::Context;
 use anyhow::anyhow;
-use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Code;
-use tokio_util::sync::CancellationToken;
-use tracing::instrument;
+use taosx_core::core_metrics::CoreMetrics;
 use utoipa::*;
 
-use source_csv::get_csv_files_from_task;
-use taosx_core::core_metrics::CoreMetrics;
 use taosx_core::{get_data_dir, get_file_upload_home_dir};
 
-use super::controller::agent::AgentActivityFilter;
-use super::metrics::ws::echo_heartbeat_ws;
-use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
-use crate::serve::{
-    NewTask, TaskDecorator, TaskFilter, UpdateTask,
-    controller::{Status, TaskControllerRef},
-};
+use crate::serve::controller::TaskControllerRef;
+use crate::serve::metrics::try_get_metrics_from_task;
 
 /// Task endpoint error responses
 #[derive(Debug, Default, Serialize, Deserialize, Clone, ToSchema)]
@@ -87,258 +75,6 @@ where
     }
 }
 
-/// List tasks in current.
-///
-/// One could call the api endpoint with following curl.
-///
-/// ```shell
-/// curl localhost:6040/tasks
-/// ```
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "List current task items", body = [Task])
-    ),
-    params(
-        TaskFilter,
-        TaskDecorator,
-    )
-)]
-#[get("/tasks")]
-pub(super) async fn get_tasks(
-    task_store: Data<TaskControllerRef>,
-    filter: Query<TaskFilter>,
-    decorator: Query<TaskDecorator>,
-) -> impl Responder {
-    match task_store.tasks(filter.into_inner()).await {
-        Ok(tasks) => Ok(HttpResponse::Ok()
-            .append_header(("Count", tasks.len()))
-            .json(
-                tasks
-                    .into_iter()
-                    .map(|t| t.decorate(&decorator))
-                    .collect_vec(),
-            )),
-        Err(err) => Err(Failed::from_error(err)),
-    }
-}
-
-/// List tasks in current.
-///
-/// One could call the api endpoint with following curl.
-///
-/// ```shell
-/// curl localhost:6040/tasks
-/// ```
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-    (status = 200, description = "Tasks count (deleted tasks will not be included by default)", body = [usize])
-    ),
-    params(
-        TaskFilter,
-    )
-)]
-#[get("/tasks/count")]
-pub(super) async fn get_tasks_count(
-    task_store: Data<TaskControllerRef>,
-    filter: Query<TaskFilter>,
-) -> impl Responder {
-    match task_store.tasks_count(filter.into_inner()).await {
-        Ok(tasks) => Ok(HttpResponse::Ok().body(format!("{tasks}"))),
-        Err(err) => Err(Failed::from_error(err)),
-    }
-}
-
-#[derive(Debug, Deserialize, ToSchema, IntoParams)]
-pub struct ExportTasksParams {
-    /// task ids to export, split by ','
-    ids: Option<String>,
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct ExportTasksResult {
-    pub server_version: String,
-    pub version: String,
-    pub commit: String,
-    pub build: String,
-    pub cluster_id: String,
-    pub export_user: String,
-    pub export_time: String,
-    pub tasks_num: usize,
-    pub tasks: Vec<ExportTaskDetail>,
-}
-
-#[derive(Debug, Deserialize, Serialize, IntoParams)]
-pub struct ExportTaskDetail {
-    /// task id
-    pub id: i64,
-    /// task name
-    pub name: Option<String>,
-    /// task data source configuration
-    pub from: serde_json::Value,
-    /// task target cluster dsn
-    pub to: String,
-    /// task parse configuration
-    pub parser: Option<serde_json::Value>,
-    /// task agent id
-    pub via: Option<i64>,
-    /// task parallel num
-    pub jobs: u16,
-    /// cluster compression level
-    pub compression_level: Option<u8>,
-    pub oneshot_topic: Option<String>,
-    /// task create datetime
-    pub created_at: DateTime<Utc>,
-}
-
-/// Export tasks selected.
-///
-/// One could call the api endpoint with following curl.
-///
-/// ```shell
-/// curl localhost:6040/tasks/export
-/// ```
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "success", body = NamedFile),
-        (status = 500, description = "export tasks error", body = Failed)
-    ),
-    params(
-        ExportTasksParams
-    )
-)]
-#[get("/tasks/export")]
-pub(super) async fn export_tasks(
-    ids: Query<ExportTasksParams>,
-    task_store: Data<TaskControllerRef>,
-    req: HttpRequest,
-) -> impl Responder {
-    match task_store.tasks_export(ids.into_inner().ids).await {
-        Ok(named_file) => Ok(named_file.into_response(&req)),
-        Err(err) => Err(Failed::from_error(err)),
-    }
-}
-
-#[derive(Debug, Deserialize, ToSchema, IntoParams)]
-pub struct ImportTasksParams {
-    #[allow(dead_code)]
-    pub server_version: Option<String>,
-    #[allow(dead_code)]
-    pub version: Option<String>,
-    #[allow(dead_code)]
-    pub commit: Option<String>,
-    #[allow(dead_code)]
-    pub build: Option<String>,
-    #[allow(dead_code)]
-    pub cluster_id: Option<String>,
-    #[allow(dead_code)]
-    pub export_user: Option<String>,
-    #[allow(dead_code)]
-    pub export_time: Option<String>,
-    #[allow(dead_code)]
-    pub tasks_num: Option<usize>,
-    /// task details
-    pub tasks: Vec<ExportTaskDetail>,
-    pub labels: Option<Vec<String>>,
-}
-
-/// Import tasks.
-///
-/// One could call the api endpoint with following curl.
-///
-/// ```shell
-/// curl -X POST "localhost:6040/tasks/import" -d '{"file": "..", "ids": "..", "agents": "..", "targets": ".."}'
-/// ```
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "success", body = NamedFile),
-        (status = 500, description = "import tasks error", body = Failed)
-    ),
-    params(
-        ImportTasksParams
-    )
-)]
-#[post("/tasks/import")]
-pub(super) async fn import_tasks(
-    params: Json<ImportTasksParams>,
-    task_store: Data<TaskControllerRef>,
-) -> impl Responder {
-    match task_store.tasks_import(params.into_inner()).await {
-        Ok(count) => Ok(HttpResponse::Ok().json(serde_json::json!({"count": count}))),
-        Err(err) => Err(Failed::from_error(err)),
-    }
-}
-
-/// Create new streaming task.
-///
-/// Post a new `Task` in request body as json to store it. Api will return
-/// created `Task` on success.
-///
-/// One could call the api with.
-///
-/// ```shell
-/// curl localhost:8080/task -d '{"from": "tmq:///test", "to": "local:test"}'
-/// ```
-#[utoipa::path(
-    tag = "tasks",
-    request_body = NewTask,
-    params(
-        TaskDecorator,
-    ),
-    responses(
-        (status = 201, description = "Task created successfully", body = Task),
-        // (status = 409, description = "Task with id already exists", body = ErrorResponse, example = json!(ErrorResponse::Conflict(String::from("id = 1"))))
-    )
-)]
-#[post("/tasks")]
-#[instrument(level = "trace", skip(task_store))]
-pub(super) async fn create_task(
-    task: Json<NewTask>,
-    task_store: Data<TaskControllerRef>,
-    decorator: Query<TaskDecorator>,
-) -> impl Responder {
-    let task = task.into_inner();
-    tracing::info!(task.name, "create task with name");
-
-    // set current dir to DATA_DIR
-    let _ = std::env::set_current_dir(get_data_dir());
-
-    // validate parser
-    if let Some(parser) = task.parser.as_ref() {
-        // check TIMESTAMP Precision: all columns should have same precision
-        if !check_parser_timestamp_precision(parser) {
-            return Err(Failed::from_error(
-                "parser shouldn't contains different timestamp precision",
-            ));
-        }
-    }
-
-    // create task
-    let controller = task_store.into_inner();
-    match controller.create(task).await {
-        Ok(task) => Ok(HttpResponse::Created().json(task.decorate(&decorator))),
-        Err(err) => {
-            tracing::error!("create task error: {:?}", err);
-            Err(Failed::from_error(err))
-        }
-    }
-}
-
-pub fn check_parser_timestamp_precision(parser: &serde_json::Value) -> bool {
-    let mut parser = parser.clone();
-    if let Some(parser) = parser
-        .as_object_mut()
-        .and_then(|v| v.get_mut("parser").and_then(|v| v.as_object_mut()))
-    {
-        parser.remove("s_model");
-    }
-    let parser_string = parser.to_string();
-    check_parser_string_timestamp_precision(&parser_string)
-}
-
 pub fn check_parser_string_timestamp_precision(parser_string: &str) -> bool {
     !((parser_string.contains(r#""TIMESTAMP""#) && parser_string.contains(r#""TIMESTAMP(us)""#))
         || (parser_string.contains(r#""TIMESTAMP""#)
@@ -355,592 +91,25 @@ pub(super) enum FromOrTo {
     To(String),
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum TaskBatchOperation {
-    Start,
-    Stop,
-    Delete,
-}
-
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct TaskBatchReq {
     /// task ids
     ids: Vec<i64>,
 }
 
-/// Update Task by given path variable id.
-///
-/// This endpoint needs `api_key` authentication in order to call. Api key can be found from README.md.
-///
-/// Api will delete task from shared in-memory storage by the provided id and return success 200.
-/// If storage does not contain `Task` with given id 404 not found will be returned.
-#[utoipa::path(
-    tag = "tasks",
-    request_body = UpdateTask,
-    responses(
-        (status = 200, description = "Task deleted successfully"),
-        // (status = 401, description = "Unauthorized to delete Task", body = ErrorResponse, example = json!(ErrorResponse::Unauthorized(String::from("missing api key")))),
-        (status = 404, description = "Task not found by id", body = Failed)
-    ),
-    params(
-        ("id", description = "Unique storage id of Task")
-    ),
-    params(
-        TaskDecorator,
-    ),
-)]
-#[patch("/tasks/{id}")]
-pub(super) async fn update_task(
-    id: Path<i64>,
-    task: actix_web::web::Json<UpdateTask>,
-    task_store: Data<TaskControllerRef>,
-    decorator: Query<TaskDecorator>,
-) -> impl Responder {
-    // set current dir to DATA_DIR
-    let _ = std::env::set_current_dir(get_data_dir());
-
-    // validate parser
-    if let Some(parser) = task.parser.as_ref() {
-        // check TIMESTAMP Precision: all columns should have same precision
-        if !check_parser_timestamp_precision(parser) {
-            return Err(Failed::from_error(
-                "parser shouldn't contains different timestamp precision",
-            ));
-        }
-    }
-    match task_store.update(id.into_inner(), task.into_inner()).await {
-        Ok(Some(task)) => Ok(HttpResponse::Ok().json(task.decorate(&decorator))),
-        Ok(None) => Ok(HttpResponse::NotFound().finish()),
-        Err(err) => Err(Failed::from_error(err)),
-    }
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub struct DeleteTaskParam {
-    pub after_delete: Option<String>,
-}
-
-/// Delete Task by given path variable id.
-///
-/// This endpoint needs `api_key` authentication in order to call. Api key can be found from README.md.
-///
-/// Api will delete task from shared in-memory storage by the provided id and return success 200.
-/// If storage does not contain `Task` with given id 404 not found will be returned.
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "Task deleted successfully", body = Task),
-        // (status = 401, description = "Unauthorized to delete Task", body = ErrorResponse, example = json!(ErrorResponse::Unauthorized(String::from("missing api key")))),
-        (status = 404, description = "Task not found by id", body = Failed)
-    ),
-    params(
-        ("id", description = "Unique storage id of Task")
-    ),
-    params(
-        TaskDecorator,
-    ),
-)]
-#[delete("/tasks/{id}")]
-pub(super) async fn delete_task(
-    id: Path<i64>,
-    task_store: Data<TaskControllerRef>,
-    params: Query<DeleteTaskParam>,
-    decorator: Query<TaskDecorator>,
-) -> impl Responder {
-    let id = id.into_inner();
-    let params = params.into_inner();
-    match task_store.delete(id, Some(params)).await {
-        Ok(Some(task)) => Ok(HttpResponse::Ok().json(task.decorate(&decorator))),
-        Ok(None) => Ok(HttpResponse::NotFound().json(Failed::new(
-            Code::FAILED,
-            format!("Task {id} not found"),
-            (),
-        ))),
-        Err(err) => Err(Failed::from_error(err)),
-    }
-}
-
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "delete batch tasks"),
-        (status = 500, description = "failed to delete tasks", body = Failed),
-    )
-)]
-#[post("/tasks/delete")]
-pub async fn delete_tasks(
-    ids: Json<TaskBatchReq>,
-    task_store: Data<TaskControllerRef>,
-) -> impl Responder {
-    let result = batch_operation(
-        TaskBatchOperation::Delete,
-        ids.ids.clone(),
-        task_store.clone(),
-    )
-    .await;
-
-    if result.is_empty() {
-        return Ok(HttpResponse::Ok().finish());
-    }
-    Err(Failed::new(
-        Code::FAILED,
-        "failed to delete tasks".to_string(),
-        result,
-    ))
-}
-
-/// Get Task by given task id.
-///
-/// Return found `Task` with status 200 or 404 not found if `Task` is not found from shared in-memory storage.
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "Task found from storage", body = Task),
-        (status = 404, description = "Task not found by id", body = Failed)
-    ),
-    params(
-        TaskDecorator,
-    ),
-    params(
-        ("id", description = "Unique storage id of Task")
-    ),
-)]
-#[get("/tasks/{id}")]
-pub(super) async fn get_task_by_id(
-    id: Path<i64>,
-    task_store: Data<TaskControllerRef>,
-    decorator: Query<TaskDecorator>,
-) -> impl Responder {
-    let id = id.into_inner();
-    match task_store.get(id).await {
-        Ok(Some(task)) => Ok(HttpResponse::Ok().json(task.decorate(&decorator))),
-        Ok(None) => Ok(HttpResponse::NotFound().finish()),
-        Err(err) => Err(Failed::from_error(err)),
-    }
-}
-
-/// Start [Task] by given path variable id.
-///
-/// If storage does not contain `Task` with given id 404 not found will be returned.
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "Task started successfully"),
-        (status = 404, description = "Task not found by id", body = Failed),
-        (status = 500, description = "Server error", body = Failed),
-    ),
-    params(
-        ("id", description = "Unique storage id of Task")
-    ),
-)]
-#[post("/tasks/{id}/start")]
-pub(super) async fn start_task(
-    id: Path<i64>,
-    task_store: Data<TaskControllerRef>,
-) -> impl Responder {
-    let id = id.into_inner();
-    match task_store.start(id).await {
-        Ok(Some(_)) => Ok(HttpResponse::Ok().body("{}")),
-        Ok(None) => Ok(HttpResponse::NotFound().json(Failed::new(
-            Code::FAILED,
-            format!("Task {id} not found"),
-            (),
-        ))),
-        Err(err) => Err(Failed::from_error(err)),
-    }
-}
-
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-struct TaskBatchResponse {
-    id: Option<i64>,
-    error: Option<String>,
-}
-
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "start batch tasks"),
-        (status = 500, description = "failed to start tasks", body = Failed),
-    )
-)]
-#[post("/tasks/start")]
-pub async fn start_tasks(
-    req: Json<TaskBatchReq>,
-    task_store: Data<TaskControllerRef>,
-) -> impl Responder {
-    let result = batch_operation(
-        TaskBatchOperation::Start,
-        req.ids.clone(),
-        task_store.clone(),
-    )
-    .await;
-
-    if result.is_empty() {
-        return Ok(HttpResponse::Ok().body("{}"));
-    }
-    Err(Failed::new(
-        Code::FAILED,
-        "failed to start tasks".to_string(),
-        result,
-    ))
-}
-
-/// Stop [Task] by given path variable id.
-///
-/// If storage does not contain `Task` with given id 404 not found will be returned.
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "Task stopped successfully"),
-        (status = 404, description = "Task not found by id", body = Failed),
-        (status = 500, description = "Server error", body = Failed),
-
-    ),
-    params(
-        ("id", description = "Unique storage id of Task")
-    ),
-)]
-#[post("/tasks/{id}/stop")]
-pub(super) async fn stop_task(
-    id: Path<i64>,
-    task_store: Data<TaskControllerRef>,
-) -> impl Responder {
-    let id = id.into_inner();
-    match task_store.stop(id).await {
-        Ok(Some(_)) => Ok(HttpResponse::Ok().body("{}")),
-        Ok(None) => Ok(HttpResponse::NotFound().json(Failed::new(
-            Code::FAILED,
-            format!("Task {id} not found"),
-            (),
-        ))),
-        Err(err) => Err(Failed::from_error(err)),
-    }
-}
-
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "stop batch tasks"),
-        (status = 500, description = "failed to stop tasks", body = Failed),
-    )
-)]
-#[post("/tasks/stop")]
-pub async fn stop_tasks(
-    ids: Json<TaskBatchReq>,
-    task_store: Data<TaskControllerRef>,
-) -> impl Responder {
-    let result = batch_operation(
-        TaskBatchOperation::Stop,
-        ids.ids.clone(),
-        task_store.clone(),
-    )
-    .await;
-
-    if result.is_empty() {
-        return Ok(HttpResponse::Ok().body("{}"));
-    }
-    Err(Failed::new(
-        Code::FAILED,
-        "failed to stop tasks".to_string(),
-        result,
-    ))
-}
-
-/// 对 DataIn 任务做批量操作
-async fn batch_operation(
-    operation: TaskBatchOperation,
-    ids: Vec<i64>,
-    task_store: Data<TaskControllerRef>,
-) -> Vec<TaskBatchResponse> {
-    let mut set = tokio::task::JoinSet::new();
-    for id in ids.iter() {
-        let id_clone = *id;
-        let task_store_clone = task_store.clone();
-        set.spawn(async move {
-            match operation {
-                TaskBatchOperation::Start => match task_store_clone.start(id_clone).await {
-                    Ok(Some(_)) => TaskBatchResponse {
-                        id: Some(id_clone),
-                        error: None,
-                    },
-                    Ok(None) => TaskBatchResponse {
-                        id: Some(id_clone),
-                        error: Some(format!("Task {id_clone} not found")),
-                    },
-                    Err(err) => TaskBatchResponse {
-                        id: Some(id_clone),
-                        error: Some(format!("{:?}", err)),
-                    },
-                },
-                TaskBatchOperation::Stop => match task_store_clone.stop(id_clone).await {
-                    Ok(Some(_)) => TaskBatchResponse {
-                        id: Some(id_clone),
-                        error: None,
-                    },
-                    Ok(None) => TaskBatchResponse {
-                        id: Some(id_clone),
-                        error: Some(format!("Task {id_clone} not found")),
-                    },
-                    Err(err) => TaskBatchResponse {
-                        id: Some(id_clone),
-                        error: Some(format!("{:?}", err)),
-                    },
-                },
-                TaskBatchOperation::Delete => match task_store_clone.delete(id_clone, None).await {
-                    Ok(Some(_)) => TaskBatchResponse {
-                        id: Some(id_clone),
-                        error: None,
-                    },
-                    Ok(None) => TaskBatchResponse {
-                        id: Some(id_clone),
-                        error: Some(format!("Task {id_clone} not found")),
-                    },
-                    Err(err) => TaskBatchResponse {
-                        id: Some(id_clone),
-                        error: Some(format!("{:?}", err)),
-                    },
-                },
-            }
-        });
-    }
-
-    let mut result = Vec::new();
-    while let Some(res) = set.join_next().await {
-        match res {
-            Ok(response) => {
-                if response.error.is_some() {
-                    result.push(response);
-                }
-            }
-            Err(err) => {
-                result.push(TaskBatchResponse {
-                    id: None,
-                    error: Some(format!("{:?}", err)),
-                });
-            }
-        }
-    }
-
-    result
-}
-
-/// Get Task Offsets by given task id.
-///
-/// Return found `Task Offsets` with status 200 or 404 not found if `Task Offsets` is not found from shared in-memory storage.
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "Task offsets found from storage", body = String),
-        (status = 404, description = "Task not found by id", body = Failed)
-    ),
-    params(
-        ("id", description = "Unique storage id of Task")
-    ),
-)]
-#[get("/tasks/{id}/offsets")]
-pub(super) async fn get_task_offsets_by_id(
-    id: Path<i64>,
-    task_store: Data<TaskControllerRef>,
-) -> impl Responder {
-    let id = id.into_inner();
-    match task_store.offsets(id).await {
-        Ok(Some(offsets)) => Ok(HttpResponse::Ok().json(offsets)),
-        Ok(None) => Ok(HttpResponse::NotFound().json(Failed::new(
-            Code::FAILED,
-            format!("Task {id} not found"),
-            (),
-        ))),
-        Err(err) => Err(Failed::from_error(err)),
-    }
-}
-
-/// Get Task activities by given task id.
-///
-#[utoipa::path(
-    tag = "tasks",
-    responses(
-        (status = 200, description = "Task activities of the task", body = Vec<Activity>),
-        ),
-    params(
-        ("id", description = "Unique storage id of Task"),
-        AgentActivityFilter
-    ),
-)]
-#[get("/tasks/{id}/activities")]
-pub(super) async fn get_task_activities_by_id(
-    task_store: Data<TaskControllerRef>,
-    id: Path<i64>,
-    filter: Query<AgentActivityFilter>,
-) -> impl Responder {
-    let id = id.into_inner();
-    match task_store.task_activities(id, &filter.into_inner()).await {
-        Ok(acts) => Ok(HttpResponse::Ok().json(acts)),
-        Err(err) => Err(Failed::from_error(err)),
-    }
-}
-
-#[instrument(skip_all)]
-pub(crate) async fn send_all_tasks_activities(
-    req: HttpRequest,
-    stream: Payload,
-) -> Result<HttpResponse, Error> {
-    let (res, session, msg_stream) = actix_ws::handle(&req, stream)?;
-    // spawn websocket handler (and don't await it) so that the response is returned immediately
-    let cancel = CancellationToken::new();
-    rt::spawn(send_all_tasks_activities_ws(
-        req,
-        session.clone(),
-        cancel.clone(),
-    ));
-    rt::spawn(echo_heartbeat_ws(session, msg_stream, cancel));
-    Ok(res)
-}
-
-async fn send_all_tasks_activities_ws(
-    req: HttpRequest,
-    mut session: Session,
-    cancel: CancellationToken,
-) {
-    let task_store = match req.app_data::<Data<TaskControllerRef>>() {
-        Some(store) => store,
-        None => {
-            let reason = Some(CloseReason {
-                code: CloseCode::Abnormal,
-                description: Some("Failed to get task store".to_string()),
-            });
-            let _ = session.close(reason).await;
-            return;
-        }
-    };
-
-    let match_info = req.match_info();
-    let cluster_id = match_info.get("cluster_id").unwrap();
-    let mut filter = TaskFilter::default();
-    filter.labels = Some(format!("type::datain,cluster-id::{cluster_id}"));
-    let tasks = match task_store.tasks(filter).await {
-        Ok(tasks) => tasks,
-        Err(err) => {
-            tracing::error!("task-ws failed to get tasks: {:#}", err);
-            return;
-        }
-    };
-    let task_ids: HashSet<_> = tasks.into_iter().map(|t| t.id).collect();
-    // send the latest 5 activities for each task
-    match task_store.all_tasks_activities().await {
-        Ok(activities) => {
-            for activity in activities.into_iter() {
-                // only send activities for tasks in the current cluster
-                if task_ids.contains(&activity.id)
-                    && let Err(err) = session
-                        .text(serde_json::to_string(&activity).unwrap())
-                        .await
-                {
-                    tracing::info!("task-ws session closed: {:#}", err);
-                    break;
-                }
-            }
-        }
-        Err(err) => {
-            tracing::error!("task-ws failed to send latest task activities: {:#}", err);
-        }
-    }
-
-    let scheduler = task_store.scheduler.clone();
-    // get notify channel
-    let notify_channel = scheduler.notify_channel();
-    let mut rx = notify_channel;
-    'loop_send: loop {
-        let Some(res) = cancel.run_until_cancelled(rx.recv()).await else {
-            break;
-        };
-        match res {
-            Ok(notify) => match notify {
-                crate::serve::scheduler::SchedulerNotify::TaskActivity(activity) => {
-                    if let Err(err) = session
-                        .text(serde_json::to_string(&activity).unwrap())
-                        .await
-                    {
-                        tracing::info!("task-ws session closed: {:#}", err);
-                        break 'loop_send;
-                    }
-                }
-                crate::serve::scheduler::SchedulerNotify::AgentActivity(_) => {}
-            },
-            Err(err) => match err {
-                tokio::sync::broadcast::error::RecvError::Closed => break,
-                tokio::sync::broadcast::error::RecvError::Lagged(_) => {
-                    continue;
-                }
-            },
-        }
-    }
-}
-
-/// Get metrics json string of a task for displaying on the web UI
-#[get("/tasks/{id}/metrics")]
-pub(super) async fn get_task_metrics(
-    task_store: Data<TaskControllerRef>,
-    id: Path<i64>,
-) -> impl Responder {
-    let task_id = id.into_inner();
-    let task = task_store.get(task_id).await;
-    match task {
-        Ok(Some(task)) => {
-            let metrics = try_get_metrics_from_task_detail(&task).await;
-            match metrics {
-                Some(metrics) => {
-                    let status: &Status = task.status();
-                    get_task_metrics_string(status, metrics)
-                }
-                None => "{}".to_string(),
-            }
-        }
-        Ok(None) => "{}".to_string(),
-        Err(err) => {
-            tracing::error!("get task metrics error: {}", err);
-            "{}".to_string()
-        }
-    }
-}
-
-/// Get csv files json string of a task for displaying on the web UI
-#[get("/tasks/{id}/csv_files")]
-pub(super) async fn get_task_csv_files(
-    task_store: Data<TaskControllerRef>,
-    id: Path<i64>,
-) -> impl Responder {
-    let task_id = id.into_inner();
-    let task = task_store.get(task_id).await;
-    match task {
-        Ok(Some(task)) => {
-            let csv_files = get_csv_files_from_task(Some(task_id), &task.from).await;
-            match csv_files {
-                Ok(csv_files) => serde_json::to_string(&csv_files).unwrap(),
-                Err(err) => {
-                    tracing::error!("get task csv files error: {}", err);
-                    "{}".to_string()
-                }
-            }
-        }
-        Ok(None) => "{}".to_string(),
-        Err(err) => {
-            tracing::error!("get task csv files error: {}", err);
-            "{}".to_string()
-        }
-    }
-}
-
 /// Get tmq task progress by given task ID in respect of the vgroup consume progress.
-#[get("/tasks/{id}/vgroup_progress")]
+#[get("/tasks/{id}/{job_id}/vgroup_progress")]
 pub(super) async fn get_tmq_task_vgroup_progress(
     task_store: Data<TaskControllerRef>,
     id: Path<i64>,
+    job_id: Path<i64>,
 ) -> impl Responder {
     let task_id = id.into_inner();
-    let task = task_store.get(task_id).await;
+    let job_id = job_id.into_inner();
+    let task = task_store.get_task(task_id, job_id).await;
     match task {
-        Ok(Some(task)) => {
-            let metrics = try_get_metrics_from_task_detail(&task).await;
+        Some(task) => {
+            let metrics = try_get_metrics_from_task(&task).await;
             match metrics {
                 Some(metrics) => match metrics.as_ref() {
                     CoreMetrics::TMQ(tmq_metrics) => tmq_metrics.get_progress_string(),
@@ -955,25 +124,23 @@ pub(super) async fn get_tmq_task_vgroup_progress(
                 }
             }
         }
-        Ok(None) => {
+        None => {
             tracing::info!("Not found task by id: {}", task_id);
-            "{}".to_string()
-        }
-        Err(err) => {
-            tracing::error!("Get task error: {}", err);
             "{}".to_string()
         }
     }
 }
 
 /// Get tmq task progress by given task ID in respect of latest data in specific table.
-#[get("/tasks/{id}/table_progress")]
+#[get("/tasks/{id}/{job_id}/table_progress")]
 pub(super) async fn get_tmq_task_table_progress(
     task_store: Data<TaskControllerRef>,
     id: Path<i64>,
+    job_id: Path<i64>,
     query: Query<HashMap<String, String>>,
 ) -> impl Responder {
     let task_id = id.into_inner();
+    let job_id = job_id.into_inner();
     let table = query.get("table");
     if table.is_none() {
         return Err(Failed::from_error("table name is required"));
@@ -981,11 +148,11 @@ pub(super) async fn get_tmq_task_table_progress(
     let table = table.unwrap().as_str();
     let start = query.get("start");
     let end = query.get("end");
-    let task = task_store.get(task_id).await;
+    let task = task_store.get_task(task_id, job_id).await;
     match task {
-        Ok(Some(task)) => {
-            let from = &task.task.from;
-            let to = &task.task.to;
+        Some(task) => {
+            let from = &task.from;
+            let to = &task.to;
             let table_progress = tmq_to_td::get_table_progress(from, to, table, start, end).await;
             match table_progress {
                 Ok(progress) => Ok(serde_json::to_string(&progress).unwrap()),
@@ -995,12 +162,8 @@ pub(super) async fn get_tmq_task_table_progress(
                 }
             }
         }
-        Ok(None) => {
+        None => {
             tracing::info!("Not found task by id: {}", task_id);
-            Ok("{}".to_string())
-        }
-        Err(err) => {
-            tracing::error!("Get task error: {}", err);
             Ok("{}".to_string())
         }
     }

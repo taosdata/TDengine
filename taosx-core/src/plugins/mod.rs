@@ -6,16 +6,15 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
-use tracing::instrument;
 use tracing::Instrument;
+use tracing::instrument;
 
 use crate::plugins::sink::point::model::PointModelConfig;
 use crate::runners::influxdb::influxdb_datasets;
 use crate::runners::opentsdb::opentsdb_datasets;
-use crate::utils::dsn::json_to_dsn;
 use crate::utils::mask_dsn;
-use crate::Transferred;
 use runners::opc::opc_datasets;
+use taosx_utils::dsn::json_to_dsn;
 
 pub use runners::{
     get_data_dir, get_file_upload_home_dir, get_log_dir, get_log_keep_days, get_plugins_info,
@@ -76,8 +75,8 @@ impl std::ops::DerefMut for Parser {
     }
 }
 
-use self::sink::lush::LushModelConfig;
 use self::sink::IpcHandler;
+use self::sink::lush::LushModelConfig;
 
 pub mod config;
 pub mod expr;
@@ -85,7 +84,6 @@ pub mod raw_data;
 pub mod runners;
 mod service;
 pub mod sink;
-mod source;
 pub mod transform;
 
 /// ipc stream metrics
@@ -120,6 +118,14 @@ pub fn register_kinghist_datasets_lister(f: KinghistDatasetsFn) {
     let _ = KINGHIST_DATASETS_HOOK.set(f);
 }
 
+#[derive(Debug, Clone)]
+pub struct Via {
+    pub task_id: i64,
+    pub job_id: i64,
+    pub endpoint: String,
+    pub token: String,
+}
+
 #[instrument(skip_all)]
 pub async fn build_ipc(
     socket: Option<&str>,
@@ -129,14 +135,23 @@ pub async fn build_ipc(
     opc_model_config: Option<Arc<PointModelConfig>>,
     lush_model_config: Option<Arc<LushModelConfig>>,
     cancel: &CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    _transferred: Option<Arc<Transferred>>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: crate::TaskNotifySender,
     persist_config: Option<PersistConfig>,
 ) -> anyhow::Result<(IpcHandler, std::net::SocketAddr)> {
     tracing::info!(ipc.target = % mask_dsn(to), "build ipc listener");
-    if with_agent.is_none() {
+    if let Some(with_agent) = with_agent {
+        sink::listen_tcp_socket_with_agent(
+            socket,
+            cancel.clone(),
+            with_agent,
+            opc_model_config,
+            persist_config,
+        )
+        .in_current_span()
+        .await
+    } else {
         let pool = {
             let builder = taos::TaosBuilder::from_dsn(to)?;
             let mut pool_config = builder.default_pool_config();
@@ -162,18 +177,8 @@ pub async fn build_ipc(
             with_agent,
             parser,
             connector,
-            task_id,
+            task_job_id,
             notify,
-            persist_config,
-        )
-        .in_current_span()
-        .await
-    } else {
-        sink::listen_tcp_socket_with_agent(
-            socket,
-            cancel.clone(),
-            with_agent.unwrap(),
-            opc_model_config,
             persist_config,
         )
         .in_current_span()

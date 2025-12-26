@@ -15,7 +15,7 @@ use log::LevelFilter;
 use reqwest::RequestBuilder;
 use rustls::server::ServerConfig;
 use rustls_pemfile::{certs, private_key};
-use serde_with::{serde_as, FromInto};
+use serde_with::{FromInto, serde_as};
 use std::{
     borrow::Cow,
     collections::HashMap,
@@ -37,27 +37,27 @@ use tracing::{error, info, instrument};
 use tracing_actix_web::TracingLogger;
 
 use actix_web::{
+    App, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, Responder, ResponseError,
     body::BoxBody,
-    dev::{fn_service, ServiceRequest, ServiceResponse},
+    dev::{ServiceRequest, ServiceResponse, fn_service},
     error,
     http::header::X_FORWARDED_FOR,
     middleware::Compress,
     route,
     web::{self, Query},
-    App, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, Responder, ResponseError,
 };
 use anyhow::bail;
-use awc::{cookie::Cookie, Client as AwcClient};
+use awc::{Client as AwcClient, cookie::Cookie};
 use clap::Parser;
-use qid::{Qid, DEFAULT_INSTANCE_ID, INSTANCE_ID};
+use qid::{DEFAULT_INSTANCE_ID, INSTANCE_ID, Qid};
 use rust_embed::{EmbeddedFile, RustEmbed};
 use serde::{Deserialize, Serialize};
 use taoslog::{
+    QidManager,
     layer::TaosLayer,
     middleware::TaosRootSpanBuilder,
     utils::{QidMetadataGetter, Span},
     writer::RollingFileAppender,
-    QidManager,
 };
 use tracing::debug;
 use tracing_subscriber::{
@@ -125,10 +125,14 @@ async fn get_connection(dsn: &Dsn) -> anyhow::Result<Object<Manager<TaosBuilder>
 
     let pool_error = |err: PoolError<_>| -> anyhow::Error {
         match err {
-                PoolError::Backend(inner_err) => anyhow::Error::new(inner_err).context("failed to get connection from pool"),
-                PoolError::Timeout(timeout_type) => anyhow::anyhow!("Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"),
-                err => anyhow::anyhow!("Failed to get connection: {err:#}"),
+            PoolError::Backend(inner_err) => {
+                anyhow::Error::new(inner_err).context("failed to get connection from pool")
             }
+            PoolError::Timeout(timeout_type) => anyhow::anyhow!(
+                "Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"
+            ),
+            err => anyhow::anyhow!("Failed to get connection: {err:#}"),
+        }
     };
     if let Some(pool) = user_pool {
         return pool.get().await.map_err(pool_error);
@@ -176,10 +180,9 @@ async fn main() -> anyhow::Result<()> {
 
     if let Ok(config) = ConfigPath::try_parse().inspect_err(|err| {
         eprintln!("Failed to parse config path: {:?}", err);
-    }) {
-        if let Some(value) = config.config_file {
-            file_path = value;
-        }
+    }) && let Some(value) = config.config_file
+    {
+        file_path = value;
     }
     let _ = CONFIG_DIR.set(
         file_path
@@ -751,14 +754,13 @@ async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> i
     let client = client.get(url).headers(qid::headers_with_qid(&qid));
     let client = client.timeout(Duration::from_secs(10));
 
-    if let Ok(resp) = client.send().await {
-        if let Ok(json) = resp.json::<serde_json::Value>().await {
-            if let Some(version) = json.get("version") {
-                profile
-                    .version
-                    .replace(version.as_str().unwrap_or_default().into());
-            }
-        }
+    if let Ok(resp) = client.send().await
+        && let Ok(json) = resp.json::<serde_json::Value>().await
+        && let Some(version) = json.get("version")
+    {
+        profile
+            .version
+            .replace(version.as_str().unwrap_or_default().into());
     }
 
     HttpResponse::Ok().json(&profile)
@@ -1053,15 +1055,15 @@ fn real_ip_forward(req: &HttpRequest, mut builder: RequestBuilder) -> RequestBui
     static X_REAL_IP: &str = "x-real-ip";
     let info = req.connection_info();
     let real_ip = info.realip_remote_addr().or(info.peer_addr());
-    if !req.headers().contains_key(X_FORWARDED_FOR) {
-        if let Some(real_ip) = real_ip {
-            builder = builder.header(X_FORWARDED_FOR, real_ip);
-        }
+    if !req.headers().contains_key(X_FORWARDED_FOR)
+        && let Some(real_ip) = real_ip
+    {
+        builder = builder.header(X_FORWARDED_FOR, real_ip);
     }
-    if !req.headers().contains_key(X_REAL_IP) {
-        if let Some(real_ip) = real_ip {
-            builder = builder.header(X_REAL_IP, real_ip);
-        }
+    if !req.headers().contains_key(X_REAL_IP)
+        && let Some(real_ip) = real_ip
+    {
+        builder = builder.header(X_REAL_IP, real_ip);
     }
     for (key, value) in req.headers() {
         builder = builder.header(key, value);
@@ -2176,31 +2178,31 @@ impl Args {
                     desc: "active code or connector active code must exist at lease one".into(),
                 });
             }
-            if let Some(active_code) = license.active_code.as_ref() {
-                if !active_code.is_empty() {
-                    let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
-                    qid.add_sequence_id();
-                    debug!("exec sql");
-                    conn.exec_with_req_id(&sql, qid.get())
-                        .await
-                        .map_err(|err| {
-                            RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
-                        })
-                        .inspect(|_| debug!("Got sql result"))?;
-                }
+            if let Some(active_code) = license.active_code.as_ref()
+                && !active_code.is_empty()
+            {
+                let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
+                qid.add_sequence_id();
+                debug!("exec sql");
+                conn.exec_with_req_id(&sql, qid.get())
+                    .await
+                    .map_err(|err| {
+                        RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
+                    })
+                    .inspect(|_| debug!("Got sql result"))?;
             }
-            if let Some(c_active_code) = license.c_active_code.as_ref() {
-                if !c_active_code.is_empty() {
-                    let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
-                    qid.add_sequence_id();
-                    debug!("Exec sql");
-                    conn.exec_with_req_id(&sql, qid.get())
-                        .await
-                        .map_err(|err| {
-                            RestErrResponse::new(format!("Invalid connector active code: {err:#}"))
-                        })?;
-                    debug!("Got sql result");
-                }
+            if let Some(c_active_code) = license.c_active_code.as_ref()
+                && !c_active_code.is_empty()
+            {
+                let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
+                qid.add_sequence_id();
+                debug!("Exec sql");
+                conn.exec_with_req_id(&sql, qid.get())
+                    .await
+                    .map_err(|err| {
+                        RestErrResponse::new(format!("Invalid connector active code: {err:#}"))
+                    })?;
+                debug!("Got sql result");
             }
         }
         Ok(RestOkResponse {
@@ -2730,7 +2732,11 @@ certificate_key = "tests/assets/cert-key.pem"
 
         unsafe {
             std::env::set_var("MONITOR_FQDN", "fake1");
+        }
+        unsafe {
             std::env::set_var("MONITOR_PORT", "6044");
+        }
+        unsafe {
             std::env::set_var("MONITOR_INTERVAL", "5");
         }
         let args = Args::parse_from(["explorer"]).monitor;
@@ -2739,7 +2745,11 @@ certificate_key = "tests/assets/cert-key.pem"
         assert_eq!(args.monitor_interval, 5);
         unsafe {
             std::env::remove_var("MONITOR_FQDN");
+        }
+        unsafe {
             std::env::remove_var("MONITOR_PORT");
+        }
+        unsafe {
             std::env::remove_var("MONITOR_INTERVAL");
         }
 

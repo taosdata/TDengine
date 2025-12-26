@@ -9,7 +9,7 @@ use itertools::Itertools;
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json_path::JsonPath;
-use serde_with::{serde_as, DisplayFromStr};
+use serde_with::{DisplayFromStr, serde_as};
 use thiserror::Error;
 
 use taosx_ipc::prelude::IpcDataType;

@@ -1846,8 +1846,9 @@ async fn sync_specified_tables_with_workers(
     todo: &Arc<LegacyTodo>,
     target_opts: TargetOpts,
     workers: usize,
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
 ) -> anyhow::Result<()> {
+    let (task_id, job_id) = task_job_id.unzip();
     info!(
         tables = todo.tables_todo(),
         task_id, "Synchronize table data with {} workers", workers
@@ -1873,17 +1874,18 @@ async fn sync_specified_tables_with_workers(
                         {
                             let breakpoint = end.to_string();
                             debug!(
-                                task.id = task_id.as_ref(),
+                                task.id = task_id,
+                                job.id = job_id,
                                 "Set breakpoint, table: {table}, breakpoint: {breakpoint}"
                             );
                             if let Err(err) = breakpoints.set(&table, &breakpoint).await {
-                                warn!(task.id = task_id.as_ref(), "Set breakpoint error: {err:#}");
+                                warn!(task.id = task_id, "Set breakpoint error: {err:#}");
                             }
                         }
                     }
                 }
                 Err(err) => {
-                    tracing::error!(task.id = task_id.as_ref(), "Syncing error: {err:#}",);
+                    tracing::error!(task.id = task_id, "Syncing error: {err:#}",);
                     fails += 1;
                     if target_opts.fails_to.is_none() {
                         return Err(err);
@@ -3342,7 +3344,7 @@ pub async fn legacy_to_taos(
     actions: Vec<Action>,
     mut to: Dsn,
     cancel: CancellationToken,
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
 ) -> anyhow::Result<()> {
     tracing::info!("synchronization started in legacy mode");
     let cancel = cancel.child_token();
@@ -3356,12 +3358,12 @@ pub async fn legacy_to_taos(
         .unwrap_or(20);
 
     let metrics_arc = {
-        let task_id = task_id.unwrap_or(-1);
-        if let Some(arc) = get_metrics(task_id).await {
+        let (task_id, job_id) = task_job_id.unwrap_or((-1, -1));
+        if let Some(arc) = get_metrics(task_id, job_id).await {
             arc
         } else {
-            let _ = taosx_core::core_metrics::init_task_metrics(&from, &to, task_id, None).await;
-            get_metrics(task_id)
+            let _ = taosx_core::core_metrics::init_task_metrics(&from, &to, task_id, job_id).await;
+            get_metrics(task_id, job_id)
                 .await
                 .ok_or_else(|| anyhow::format_err!("Cannot get metrics"))?
         }
@@ -3570,9 +3572,9 @@ pub async fn legacy_to_taos(
         source_opts.workers
     );
 
-    let breakpoints = if let Some(id) = task_id {
+    let breakpoints = if let Some((task_id, job_id)) = task_job_id {
         Some(
-            BreakpointDb::new_with_task(&format!("{id}"))
+            BreakpointDb::new_with_task(task_id, job_id)
                 .await
                 .context("create breakpoint db failed")?, // TODO: handle error
         )
@@ -3691,7 +3693,7 @@ pub async fn legacy_to_taos(
         let schema_polling_source_opts = source_opts.clone();
         let schema_polling_target_opts = target_opts.clone();
         let schema_polling_pool = from_pool.clone();
-        let schema_polling_task_id = task_id;
+        let schema_polling_task_job_id = task_job_id;
         let schema_polling_metrics = metrics_arc.clone();
         let schema_polling_cancellation = cancel.clone();
         let schema_polling_task = if matches!(source_opts.mode, SyncMode::All | SyncMode::AsIs) {
@@ -3744,7 +3746,7 @@ pub async fn legacy_to_taos(
                                     &updates,
                                     schema_polling_target_opts.clone(),
                                     schema_polling_source_opts.workers as _,
-                                    schema_polling_task_id,
+                                    schema_polling_task_job_id,
                                 )
                                 .await
                                 .context("Spawn data syncing of the updated tables error")?;
@@ -3785,7 +3787,7 @@ pub async fn legacy_to_taos(
                 &todo_non_changed,
                 target_opts_cloned,
                 source_opts.workers as _,
-                task_id,
+                task_job_id,
             );
             tokio::select! {
                 _ = future => {}
@@ -3841,7 +3843,7 @@ pub async fn legacy_to_taos(
                                 &updates,
                                 schema_polling_target_opts.clone(),
                                 schema_polling_source_opts.workers as _,
-                                schema_polling_task_id,
+                                schema_polling_task_job_id,
                             )
                                 .await?;
                             Ok::<_, anyhow::Error>(())
@@ -3915,7 +3917,7 @@ pub async fn legacy_to_taos(
                     &todo,
                     target_opts_cloned,
                     source_opts.workers as _,
-                    task_id,
+                    task_job_id,
                 );
                 tokio::select! {
                     res = future => {
@@ -4832,9 +4834,16 @@ mod tests {
         let source = format!("taos://{host}/{db1}").into_dsn()?;
         let sink = format!("taos://{host}/{db2}").into_dsn()?;
         let actions = vec![Action::from_str("rename-table:map:nTb1,nTb2")?; 1];
-        taosx_core::core_metrics::clear_metrics(tid).await;
-        let _ = taosx_core::core_metrics::init_task_metrics(&source, &sink, tid, None).await;
-        legacy_to_taos(source, actions, sink, CancellationToken::new(), Some(tid)).await?;
+        taosx_core::core_metrics::clear_metrics(tid, -1).await;
+        let _ = taosx_core::core_metrics::init_task_metrics(&source, &sink, tid, -1).await;
+        legacy_to_taos(
+            source,
+            actions,
+            sink,
+            CancellationToken::new(),
+            Some((tid, -1)),
+        )
+        .await?;
 
         // check table schema
         let src_desc = taos1.describe("nTb1").await?;
@@ -4850,7 +4859,7 @@ mod tests {
                 format!("drop database if exists `{db2}`"),
             ])
             .await?;
-        taosx_core::core_metrics::clear_metrics(tid).await;
+        taosx_core::core_metrics::clear_metrics(tid, -1).await;
         Ok(())
     }
 
@@ -4903,9 +4912,16 @@ mod tests {
         let source: Dsn = format!("taos://{host}/{db1}").parse()?;
         let sink: Dsn = format!("taos://{host}/{db2}").parse()?;
         let actions = vec![Action::from_str("rename-table:map:nTb1,nTb2").unwrap(); 1];
-        taosx_core::core_metrics::clear_metrics(tid).await;
-        let _ = taosx_core::core_metrics::init_task_metrics(&source, &sink, tid, None).await;
-        legacy_to_taos(source, actions, sink, CancellationToken::new(), Some(tid)).await?;
+        taosx_core::core_metrics::clear_metrics(tid, -1).await;
+        let _ = taosx_core::core_metrics::init_task_metrics(&source, &sink, tid, -1).await;
+        legacy_to_taos(
+            source,
+            actions,
+            sink,
+            CancellationToken::new(),
+            Some((tid, -1)),
+        )
+        .await?;
 
         // table nTb2 should be created
         let count_src: u32 = taos1
@@ -4925,7 +4941,7 @@ mod tests {
                 format!("drop database if exists `{db2}`"),
             ])
             .await?;
-        taosx_core::core_metrics::clear_metrics(tid).await;
+        taosx_core::core_metrics::clear_metrics(tid, -1).await;
         Ok(())
     }
 

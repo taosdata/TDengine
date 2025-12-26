@@ -177,10 +177,10 @@ mod tests {
 
     use arrow::array::{
         BinaryArray, BooleanArray, FixedSizeBinaryArray, Float16Array, Float32Array, Float64Array,
-        Int16Array, Int32Array, Int64Array, Int8Array, LargeBinaryArray, LargeStringArray,
+        Int8Array, Int16Array, Int32Array, Int64Array, LargeBinaryArray, LargeStringArray,
         RecordBatch, StringArray, TimestampMicrosecondArray, TimestampMillisecondArray,
-        TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
-        UInt8Array,
+        TimestampNanosecondArray, TimestampSecondArray, UInt8Array, UInt16Array, UInt32Array,
+        UInt64Array,
     };
     use arrow::datatypes::{DataType, Field, Schema};
     use std::sync::Arc;

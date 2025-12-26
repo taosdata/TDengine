@@ -94,7 +94,7 @@ pub(crate) mod fake {
 
 #[cfg(test)]
 mod tests {
-    use crate::{fake, QidManager};
+    use crate::{QidManager, fake};
 
     #[test]
     fn display_test() {

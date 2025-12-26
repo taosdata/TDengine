@@ -3,18 +3,17 @@ use actix_web::web::Json;
 use actix_web::web::{Data, Query};
 use anyhow::{Context, anyhow};
 use csv::Reader;
-use lazy_static::lazy_static;
 use serde::Deserialize;
 use serde::Serialize;
 use source_opc::{DA_ROW, UA_ROW};
 use std::collections::HashMap;
 use std::io::Write;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use taos::IntoDsn;
 use taosx_core::runners::opc::OpcType;
-use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::{DataSetsReq, list_datasets_from};
 use taosx_ipc::types::DataSet;
+use taosx_utils::dsn::json_to_dsn;
 use tempfile::TempPath;
 use tokio::sync::RwLock;
 use utoipa::*;
@@ -164,12 +163,10 @@ enum TaskStatus {
 }
 
 // Define a static shared hashmap， task_id -> task_status
-lazy_static! {
-    static ref SHARED_MAP: Arc<RwLock<HashMap<String, TaskStatus>>> = {
-        let map = HashMap::new();
-        Arc::new(RwLock::new(map))
-    };
-}
+static SHARED_MAP: LazyLock<Arc<RwLock<HashMap<String, TaskStatus>>>> = LazyLock::new(|| {
+    let map = HashMap::new();
+    Arc::new(RwLock::new(map))
+});
 
 // 异步下载数据点位，会将当前任务id返回给前端
 pub async fn arrange_point_file_download_task(

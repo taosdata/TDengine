@@ -5,7 +5,6 @@ use linked_hash_map::LinkedHashMap;
 use serde_json::json;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Duration;
 use taos::Dsn;
 use tiberius::{ColumnType, Row};
@@ -15,7 +14,7 @@ use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::raw_data::RawDataLogger;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::utils::port_pool::PortPool;
-use taosx_core::{Action, Parser, Transferred, build_ipc};
+use taosx_core::{Parser, Via, build_ipc};
 
 use config::ConnectConfig;
 use config::TaskConfig;
@@ -235,24 +234,19 @@ fn to_json_value(row: &Row, idx: usize, col_type: ColumnType) -> anyhow::Result<
 pub async fn historian_to_taos(
     from: Dsn,
     parser: Option<Parser>,
-    _transform: Vec<Action>,
     to: Dsn,
-    _jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: taosx_core::TaskNotifySender,
 ) -> anyhow::Result<()> {
     assert_driver(&from)?;
     let mut config = TaskConfig::from_dsn(&from)?;
     // set task_id
-    config.task_id = task_id;
+    config.task_job_id = task_job_id;
     tracing::info!(
-        "{AVEVA_HISTORIAN_NAME} task start, id: {:?}, configuration: {:?}",
-        task_id,
-        config
+        "{AVEVA_HISTORIAN_NAME} task start, id: {task_job_id:?}, configuration: {config:?}"
     );
 
     let port = port_pool
@@ -273,8 +267,7 @@ pub async fn historian_to_taos(
         None,
         &cancel,
         with_agent,
-        transferred,
-        task_id,
+        task_job_id,
         notify,
         None,
     )
@@ -318,14 +311,14 @@ pub async fn historian_to_taos(
                 }
             },
             _ = cancel.cancelled() => {
-                tracing::info!("{AVEVA_HISTORIAN_NAME} task cancelled, id: {}", task_id.unwrap_or(-1));
+                tracing::info!("{AVEVA_HISTORIAN_NAME} task cancelled, id: {task_job_id:?}");
                 abort_handle.abort();
             }
         }
         // send an empty tuple
         let _ = ipc.send(());
         // stop the connector
-        tracing::info!("{AVEVA_HISTORIAN_NAME} task done, id: {}", task_id.unwrap_or(-1));
+        tracing::info!("{AVEVA_HISTORIAN_NAME} task done, id: {task_job_id:?}");
         ipc.close().await?;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -360,15 +353,19 @@ async fn exec_task(mut config: TaskConfig) -> anyhow::Result<()> {
     // keep_raw_data log
     let (logger_tx, logger_rx) = flume::bounded(0);
 
-    let task_id = config.task_id.unwrap_or_else(|| {
+    let (task_id, job_id) = config.task_job_id.unwrap_or_else(|| {
         tracing::warn!(
             "task_id is None, this task may be in run mode, use current timestamp as task_id"
         );
-        Local::now().timestamp()
+        {
+            let ts = Local::now();
+            (ts.timestamp(), ts.timestamp_millis())
+        }
     });
 
     let logger = RawDataLogger::new(
         task_id,
+        job_id,
         config.advanced_options.keep_raw_data.unwrap_or(false),
         config
             .advanced_options
@@ -523,12 +520,9 @@ mod tests {
         let res = historian_to_taos(
             "historian://".into_dsn().unwrap(),
             None,
-            vec![],
             "taos+ws://192.168.0.201/".into_dsn().unwrap(),
-            1,
             &PortPool::default(),
             CancellationToken::default(),
-            None,
             None,
             None,
             tx,

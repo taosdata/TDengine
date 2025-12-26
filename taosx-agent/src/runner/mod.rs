@@ -1,8 +1,8 @@
 use std::{
     fmt::Display,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -11,16 +11,16 @@ use anyhow::Result;
 use chrono::Utc;
 use dashmap::DashMap;
 use serde_json::json;
-use taosx_core::{
-    task_set::prelude::EventLevel, utils::dsn::json_to_dsn, Activity, LevelFilter, RespAction,
-    TaskNotify,
-};
 use taosx_task::TaskOpts;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
 use crate::agent::Task;
+use taosx_core::{
+    Activity, LevelFilter, RespAction, TaskNotify, Via, task_set::prelude::EventLevel,
+};
+use taosx_utils::dsn::json_to_dsn;
 
 #[allow(clippy::large_enum_variant)]
 pub enum Action {
@@ -81,13 +81,12 @@ pub fn spawn_runner(
                 if let Ok(action) = rx.recv_async().await {
                     match action {
                         Action::Run(task) => {
+                            let (task_id, job_id) = (task.id, task.job_id);
                             if let Some(running) = tasks.get(&task.id) {
                                 if running.value().is_finished() {
                                     running.cancelled();
                                     tasks.remove(&task.id);
                                 } else {
-                                    // TODO: 通知runner
-
                                     tracing::info!("[{}] Runner has been started", running.key());
                                     continue;
                                 }
@@ -118,14 +117,14 @@ pub fn spawn_runner(
                                 health: task.health,
                                 cancel,
                                 parser: None,
-                                // port_pool: ONCE,
-                                with_agent: Some((
-                                    task.id,
-                                    endpoint.to_string(),
-                                    token.to_string(),
-                                )),
+                                with_agent: Some(Via {
+                                    task_id,
+                                    job_id,
+                                    endpoint: endpoint.clone(),
+                                    token: token.clone(),
+                                }),
                                 breakpoints: task.breakpoints,
-                                task_id: Some(task.id.to_string()),
+                                task_job_id: Some((task_id, job_id)),
                                 notify: task_tx,
                             };
                             let status_sender = status_tx.clone();

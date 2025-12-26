@@ -207,7 +207,7 @@ pub async fn migrate_history_by_interval(
     tracing::debug!("migrate postgres, schema: {:?}", schema);
 
     // get break point
-    let breakpoint = get_breakpoint(config.task_id, &config.sub_task_id.clone().unwrap());
+    let breakpoint = get_breakpoint(config.task_job_id, &config.sub_task_id.clone().unwrap());
     if let Some(start) = breakpoint {
         config.task.start = start;
         tracing::info!("migrate postgres from breakpoint: {}", config.task.start);
@@ -455,20 +455,20 @@ pub async fn set_breakpoint(
     config: &PostgresConfig,
     breakpoint: &DateTime<Utc>,
 ) -> anyhow::Result<()> {
-    let task_id = format!("{}", config.task_id.unwrap_or(0));
+    let (task_id, job_id) = config.task_job_id.unwrap_or((0, 0));
     let sub_task_id = config.sub_task_id.clone().unwrap();
     let breakpoint = breakpoint.to_rfc3339().to_string();
 
     // set break point and ignore error
-    let _ = breakpoints::breakpoints_set(&task_id, &sub_task_id, &breakpoint);
+    let _ = breakpoints::breakpoints_set(task_id, job_id, &sub_task_id, &breakpoint);
     Ok(())
 }
 
-fn get_breakpoint(task_id: Option<i64>, sub_task_id: &String) -> Option<DateTime<Utc>> {
+fn get_breakpoint(task_job_id: Option<(i64, i64)>, sub_task_id: &String) -> Option<DateTime<Utc>> {
     // get break point by task_id, if not found, return None
-    task_id?;
+    let (task_id, job_id) = task_job_id?;
     // get all break points by task_id
-    let breakpoints = breakpoints::breakpoints_get_all(&format!("{}", task_id.unwrap()));
+    let breakpoints = breakpoints::breakpoints_get_all(task_id, job_id);
     // find the earliest break point
     match breakpoints {
         Ok(breakpoints) => {
@@ -503,7 +503,7 @@ mod tests {
         let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric&start=2024-03-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=5d&delay=0")
             .unwrap();
         let mut config = PostgresConfig::from_dsn(&dsn).unwrap();
-        config.task_id = Some(1);
+        config.task_job_id = Some((1, 1));
         config.ipc_port = Some(6666);
 
         // let _ = migrate_history(config).await;
@@ -515,7 +515,7 @@ mod tests {
             .unwrap();
         let mut config = PostgresConfig::from_dsn(&dsn).unwrap();
 
-        config.task_id = Some(1);
+        config.task_job_id = Some((1, 1));
         config.sub_task_id = Some(format!(
             "mig-{}-1",
             config.sub_task_id.unwrap_or("sub_task_id".to_string())
@@ -533,7 +533,7 @@ mod tests {
         // set breakpoint on 2024-04-01T00:00:00Z
         test_set_breakpoint();
         // get breakpoint
-        let task_id = Some(1);
+        let task_id = Some((1, 1));
         let breakpoint = get_breakpoint(task_id, &String::new());
 
         if breakpoint.is_some() {

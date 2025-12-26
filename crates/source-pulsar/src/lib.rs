@@ -16,7 +16,7 @@ use taos::{AsyncTBuilder, Dsn};
 use taosx_core::core_metrics::{CoreMetrics, get_metrics_arc_from_i64};
 use taosx_core::sink::{channel_based_transformer, ipc_forward};
 use taosx_core::utils::trace::BatchCounter;
-use taosx_core::{Parser, TaskNotify, TaskNotifySender};
+use taosx_core::{Parser, TaskNotify, TaskNotifySender, Via};
 use taosx_ipc::ack::LushAck;
 use taosx_ipc::prelude::ArrowDataType;
 use tokio::sync::{OwnedSemaphorePermit, oneshot};
@@ -91,29 +91,26 @@ pub async fn pulsar_to_taos(
     parser: Option<Parser>,
     to: Dsn,
     upstream_cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     let cancel = upstream_cancel.child_token();
     let _drop_guard = cancel.clone().drop_guard();
     tracing::info!(
-        "pulsar_to_taos, detail params task_id: {}, from: {}, parser: {}, to: {}",
-        task_id.unwrap_or(-1),
+        "pulsar_to_taos, detail params task_job_id: {:?}, from: {}, parser: {}, to: {}",
+        task_job_id.unwrap_or((-1, -1)),
         from,
         serde_json::to_string(&parser)?,
         to
     );
-    if with_agent.is_some() {
-        let _ = taosx_core::core_metrics::init_task_metrics(
-            &from,
-            &to,
-            task_id.ok_or_else(|| anyhow::anyhow!("No task id with agent runner"))?,
-            None,
-        )
-        .await;
+    if let Some(Via {
+        task_id, job_id, ..
+    }) = &with_agent
+    {
+        let _ = taosx_core::core_metrics::init_task_metrics(&from, &to, *task_id, *job_id).await;
     }
-    let metrics_arc = get_metrics_arc_from_i64(task_id).await;
+    let metrics_arc = get_metrics_arc_from_i64(task_job_id).await;
 
     let parallel = parser
         .as_ref()
@@ -130,7 +127,7 @@ pub async fn pulsar_to_taos(
             let (input_tx, input_rx) = flume::bounded(parallel);
             let (ack_tx, ack_rx) = flume::bounded(parallel);
             let schema = Arc::new(build_schema());
-            let batch_counter = BatchCounter::new(with_agent.0 as u16).await?;
+            let batch_counter = BatchCounter::new(with_agent.task_id, with_agent.job_id).await?;
             let cancel = cancel.clone();
             tokio::spawn(
                 async move {
@@ -164,7 +161,7 @@ pub async fn pulsar_to_taos(
                 cancel.child_token(),
                 parser,
                 Some(connector),
-                task_id,
+                task_job_id,
                 notify.clone(),
                 parallel,
             )
@@ -264,7 +261,8 @@ pub async fn pulsar_to_taos(
             reset_metrics!();
         }
     }
-    tracing::info!(task_id = task_id.unwrap_or(-1), "Pulsar task Done");
+    tracing::info!(task_job_id = ?task_job_id, "Pulsar task Done");
+
     // wait for completion
     tokio::time::sleep(Duration::from_millis(100)).await;
     Ok(())

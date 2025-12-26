@@ -39,6 +39,7 @@ async fn test_ts6499_with_taos() -> anyhow::Result<()> {
     const DB_DST: &str = "ts6499_dst";
     const STREAM: &str = "current_state_window";
     const TID: i64 = 6499;
+    const JID: i64 = 0;
     let ws_enable = true;
 
     let _ = tracing_subscriber::fmt::fmt()
@@ -117,7 +118,7 @@ async fn test_ts6499_with_taos() -> anyhow::Result<()> {
         (from, to)
     };
     let cancel = CancellationToken::new();
-    let res = legacy_to_taos(from, vec![], to, cancel, Some(TID)).await;
+    let res = legacy_to_taos(from, vec![], to, cancel, Some((TID, JID))).await;
     assert!(res.is_ok());
 
     // 4. write some data in DB_SRC
@@ -149,7 +150,7 @@ async fn test_ts6499_with_taos() -> anyhow::Result<()> {
         (from, to)
     };
     let cancel = CancellationToken::new();
-    let res = legacy_to_taos(from, vec![], to, cancel, Some(TID)).await;
+    let res = legacy_to_taos(from, vec![], to, cancel, Some((TID, JID))).await;
     assert!(res.is_ok());
 
     // 6. check the schema
@@ -245,10 +246,12 @@ async fn test_ts6402_with_taos() -> anyhow::Result<()> {
     .into_dsn()?;
     let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
     let tid = 6402;
+    let jid = 0;
 
     let breakpoints_dir = get_data_dir()
         .join("tasks")
         .join(tid.to_string())
+        .join(jid.to_string())
         .join("breakpoints");
     if breakpoints_dir.exists() {
         std::fs::remove_dir_all(&breakpoints_dir)?;
@@ -261,7 +264,7 @@ async fn test_ts6402_with_taos() -> anyhow::Result<()> {
     let to_clone = to.clone();
     let cancel_clone = cancel.clone();
     let h = tokio::spawn(async move {
-        let _ = legacy_to_taos(from_clone, vec![], to_clone, cancel_clone, Some(tid)).await;
+        let _ = legacy_to_taos(from_clone, vec![], to_clone, cancel_clone, Some((tid, jid))).await;
     });
     tokio::time::sleep(Duration::from_secs(60)).await;
     cancel.cancel();
@@ -290,7 +293,7 @@ async fn test_ts6402_with_taos() -> anyhow::Result<()> {
     let to_clone = to.clone();
     let cancel_clone = cancel.clone();
     let h = tokio::spawn(async move {
-        let _ = legacy_to_taos(from_clone, vec![], to_clone, cancel_clone, Some(tid)).await;
+        let _ = legacy_to_taos(from_clone, vec![], to_clone, cancel_clone, Some((tid, jid))).await;
     });
     tokio::time::sleep(Duration::from_secs(60)).await;
     cancel.cancel();
@@ -876,6 +879,7 @@ async fn test_sync_realtime_with_taos() -> anyhow::Result<()> {
     const DB_DST: &str = "test_sync_realtime_dst";
     const N: i32 = 10;
     const TID: i64 = 34842001;
+    const JID: i64 = 0;
 
     // create databases and stables
     let taos = if ws_enable {
@@ -923,10 +927,9 @@ async fn test_sync_realtime_with_taos() -> anyhow::Result<()> {
     };
     let cancel = CancellationToken::new();
     let cancel_clone = cancel.clone();
-    let handle =
-        tokio::spawn(
-            async move { legacy_to_taos(from, vec![], to, cancel_clone, Some(TID)).await },
-        );
+    let handle = tokio::spawn(async move {
+        legacy_to_taos(from, vec![], to, cancel_clone, Some((TID, JID))).await
+    });
 
     // write some realtime data
     for i in 0..N {
@@ -991,8 +994,9 @@ async fn test_sync_all_with_taos() -> anyhow::Result<()> {
     const DB_DST: &str = "test_sync_all_dst";
     const N: i32 = 10;
     const TID: i64 = 34842002;
+    const JID: i64 = 0;
 
-    clear_metrics(TID).await;
+    clear_metrics(TID, JID).await;
 
     // create databases and stables
     let taos = if ws_enable {
@@ -1039,10 +1043,9 @@ async fn test_sync_all_with_taos() -> anyhow::Result<()> {
     };
     let cancel = CancellationToken::new();
     let cancel_clone = cancel.clone();
-    let handle =
-        tokio::spawn(
-            async move { legacy_to_taos(from, vec![], to, cancel_clone, Some(TID)).await },
-        );
+    let handle = tokio::spawn(async move {
+        legacy_to_taos(from, vec![], to, cancel_clone, Some((TID, JID))).await
+    });
 
     // write some realtime data
     for i in 0..N {

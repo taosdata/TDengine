@@ -2,8 +2,8 @@ use std::{
     clone::Clone,
     collections::{HashMap, HashSet},
     sync::{
+        Arc, LazyLock,
         atomic::{AtomicUsize, Ordering},
-        Arc,
     },
     time::Duration,
 };
@@ -17,30 +17,30 @@ use chrono::Utc;
 use flume::Sender;
 use futures::{future::Either, pin_mut};
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
-use lazy_static::lazy_static;
 use serde_json::json;
-use taos::{taos_query::Manager, AsyncQueryable, Itertools, RawBlock, TaosBuilder, TaosPool, Ty};
+use taos::{AsyncQueryable, Itertools, RawBlock, TaosBuilder, TaosPool, Ty, taos_query::Manager};
 use taoslog::{
-    utils::{QidMetadataGetter, QidMetadataSetter, Span},
     QidManager,
+    utils::{QidMetadataGetter, QidMetadataSetter, Span},
 };
 use taosx_ipc::ack::LushAck;
 use thiserror::Error;
 
 use tokio::{sync::oneshot, task::JoinSet};
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, instrument, trace, Instrument};
+use tracing::{Instrument, error, info, instrument, trace};
 
 use crate::{
+    Parser,
     core_metrics::{CoreMetrics, TaskMetrics},
     plugins::transform::{
-        get_primary_timestamp_ns, parse::ArrayForTaos, ConcatBatches, MessageArrowRecords,
-        MessageTableMeta,
+        ConcatBatches, MessageArrowRecords, MessageTableMeta, get_primary_timestamp_ns,
+        parse::ArrayForTaos,
     },
     sink::{
-        consume_flat_record, persist::get_stream, process_archive, process_cache,
-        transform::handling_strategy::HandlingResult, DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-        LARGE_RECORD_LEN,
+        DEFAULT_MAX_RETRIES_FOR_CONNECTION, LARGE_RECORD_LEN, consume_flat_record,
+        persist::get_stream, process_archive, process_cache,
+        transform::handling_strategy::HandlingResult,
     },
     utils::{
         sql::{
@@ -49,14 +49,13 @@ use crate::{
         },
         trace::{BatchCounter, Qid},
     },
-    Parser,
 };
 
 use crate::global::SQL_TAG_CACHE_CAPACITY;
 use crate::global::TABLE_TAG_CACHE;
 
 use super::{
-    ipc_metric::IpcMetrics, persist::PersistComponent, transform::TableOptions, IpcErrorStrategy,
+    IpcErrorStrategy, ipc_metric::IpcMetrics, persist::PersistComponent, transform::TableOptions,
 };
 
 /// All the messages should be in the same stable.
@@ -327,10 +326,8 @@ async fn assert_create_stable(
     }
 }
 
-lazy_static! {
-    static ref RE_0X2653: regex::Regex =
-        regex::Regex::new(r"`Value too long for column/tag: (.*)`").unwrap();
-}
+static RE_0X2653: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"`Value too long for column/tag: (.*)`").unwrap());
 
 #[instrument(skip_all)]
 pub async fn write_stable_with_sql(
@@ -476,7 +473,7 @@ pub async fn flat_write_with_sql(
             return match handling_database_not_exist(global, &groups, err, archive_tx).await {
                 Ok(_) => Ok(0),
                 Err(e) => Err(e),
-            }
+            };
         }
     };
 
@@ -531,12 +528,10 @@ pub async fn flat_write_with_sql(
                                             .batches
                                             .concat_batches()
                                             .context("concat archive invalid column error")?
-                                        {
-                                            if let Err(e) =
+                                            && let Err(e) =
                                                 process_archive(&err, &batch, archive_tx).await
-                                            {
-                                                tracing::error!("archive error: {e:#}");
-                                            }
+                                        {
+                                            tracing::error!("archive error: {e:#}");
                                         }
                                         metrics_failed!(records.records, cols);
                                         break;
@@ -623,12 +618,10 @@ pub async fn flat_write_with_sql(
                                             .batches
                                             .concat_batches()
                                             .context("concat archive table not exits error")?
-                                        {
-                                            if let Err(e) =
+                                            && let Err(e) =
                                                 process_archive(&err, &batch, archive_tx).await
-                                            {
-                                                tracing::error!("archive error: {e:#}");
-                                            }
+                                        {
+                                            tracing::error!("archive error: {e:#}");
                                         }
                                         metrics_failed!(records.records, cols);
                                         break;
@@ -847,12 +840,10 @@ pub async fn flat_write_with_sql(
                                             .batches
                                             .concat_batches()
                                             .context("concat archive db not exits error")?
-                                        {
-                                            if let Err(e) =
+                                            && let Err(e) =
                                                 process_archive(&err, &batch, archive_tx).await
-                                            {
-                                                tracing::error!("archive error: {e:#}");
-                                            }
+                                        {
+                                            tracing::error!("archive error: {e:#}");
                                         }
                                         break;
                                     }
@@ -1076,10 +1067,9 @@ async fn handle_field_length_overflow_and_rewrite(
                 if let Some(batch) = batches
                     .concat_batches()
                     .context("concat archive field length overflow error")?
+                    && let Err(e) = process_archive(&err, &batch, archive_tx).await
                 {
-                    if let Err(e) = process_archive(&err, &batch, archive_tx).await {
-                        tracing::error!("archive error: {e:#}");
-                    }
+                    tracing::error!("archive error: {e:#}");
                 }
             }
             Ok((HandlingResult::Retry, _)) => unreachable!(),
@@ -1182,15 +1172,13 @@ async fn handle_field_length_overflow_and_rewrite(
                 }
             };
         }
-        if is_archive {
-            if let Some(batch) = batches
+        if is_archive
+            && let Some(batch) = batches
                 .concat_batches()
                 .context("concat archive field length overflow error")?
-            {
-                if let Err(e) = process_archive(&err_msg, &batch, archive_tx).await {
-                    tracing::error!("archive error: {e:#}");
-                }
-            }
+            && let Err(e) = process_archive(&err_msg, &batch, archive_tx).await
+        {
+            tracing::error!("archive error: {e:#}");
         }
     }
     Ok(success)
@@ -1321,10 +1309,9 @@ async fn handle_ingesting_error(
             if let Some(batch) = batches
                 .concat_batches()
                 .context("concat invalid archive columns error")?
+                && let Err(e) = process_archive(&err, &batch, archive_tx).await
             {
-                if let Err(e) = process_archive(&err, &batch, archive_tx).await {
-                    tracing::error!("archive error: {e:#}");
-                }
+                tracing::error!("archive error: {e:#}");
             }
         }
         Ok((HandlingResult::Modify(_), _)) => unreachable!(),
@@ -1418,10 +1405,10 @@ pub async fn flat_write_with_raw_block(
                 .collect_vec();
             if !var_views.is_empty() {
                 for (name, ty, length) in var_views {
-                    if let Some(max) = max_lengths.get(*name) {
-                        if *max >= length {
-                            continue;
-                        }
+                    if let Some(max) = max_lengths.get(*name)
+                        && *max >= length
+                    {
+                        continue;
                     }
                     loop {
                         let res = describe_table_with_connection_retries(
@@ -1547,11 +1534,11 @@ pub async fn flat_write_with_raw_block(
                                                         f.is_tag() && f.ty().is_var_type()
                                                     }) {
                                                         let sql = format!(
-                                                                        "alter table `{table}` modify tag `{}` {}({})",
-                                                                        f.field(),
-                                                                        f.ty(),
-                                                                        f.length() * 2
-                                                                    );
+                                                            "alter table `{table}` modify tag `{}` {}({})",
+                                                            f.field(),
+                                                            f.ty(),
+                                                            f.length() * 2
+                                                        );
 
                                                         qid.add_sub_batch_id();
                                                         let _ = exec_sql_with_connection_retries(
@@ -1593,11 +1580,18 @@ pub async fn flat_write_with_raw_block(
                                                         if need_add {
                                                             qid.add_sub_batch_id();
                                                             let add_tag_sql = format!(
-                                                                            "alter table `{table}` add tag `{}` {}",
-                                                                            tag_meta.field(),
-                                                                            parser.get_ipcdatatype_from_parser(tag_meta.field()).unwrap().sql_repr()
-                                                                        );
-                                                            tracing::info!("table {table} add tag sql: {add_tag_sql}");
+                                                                "alter table `{table}` add tag `{}` {}",
+                                                                tag_meta.field(),
+                                                                parser
+                                                                    .get_ipcdatatype_from_parser(
+                                                                        tag_meta.field()
+                                                                    )
+                                                                    .unwrap()
+                                                                    .sql_repr()
+                                                            );
+                                                            tracing::info!(
+                                                                "table {table} add tag sql: {add_tag_sql}"
+                                                            );
                                                             exec_sql_with_connection_retries(
                                                                 pool,
                                                                 taos,
@@ -1800,7 +1794,9 @@ pub async fn flat_write_with_raw_block(
                                         // 0x03C7: stable uid not match
                                         // 0x03D3: conflict transaction not completed
                                         // Table already exists, do nothing
-                                        tracing::debug!("error encountered, ignore(table already exists): {err:#}",);
+                                        tracing::debug!(
+                                            "error encountered, ignore(table already exists): {err:#}",
+                                        );
                                     }
                                     _ => {
                                         tracing::error!(sql, "create stable error: {err:#}");
@@ -3122,7 +3118,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                             }
 
                             if let Err(error) = notifier
-                                .send_async(crate::TaskNotify::sink_error(format!("{:#}", err)))
+                                .send_async(crate::TaskNotify::sink_error(format!("{err:#}")))
                                 .await
                             {
                                 tracing::warn!(%error, "Send error notify failed");
@@ -3199,7 +3195,6 @@ pub async fn ipc_flat_stream_worker_concurrent(
             error!(error = "Writer error: {err:#}");
             Err(err).context("IPC writer fail with error")?;
         }
-
         tokio::select! {
             res = stream.next() => {
                 let Some((record, ack_wait_tx)) = res else {
@@ -3277,16 +3272,16 @@ pub async fn ipc_flat_stream_worker_concurrent(
 pub mod tests {
     use super::*;
 
+    use IpcDataType::*;
     use arrow::array::*;
     use arrow_schema::{DataType, Field, FieldRef, Schema};
     use serde_json::json;
     use taos::{AsyncTBuilder, IntoDsn};
     use taosx_ipc::prelude::IpcDataType;
-    use IpcDataType::*;
 
     use crate::{
         core_metrics::insert_metrics,
-        plugins::transform::{handling_strategy::HandlingTableNotExist, MessageTableMeta},
+        plugins::transform::{MessageTableMeta, handling_strategy::HandlingTableNotExist},
         sink::transform::STable,
     };
 
@@ -3763,8 +3758,8 @@ pub mod tests {
         let target_precision = taos::Precision::Millisecond;
 
         let stable = String::from("taosx_task_t1");
-        let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(stable, task_id, None)));
-        insert_metrics(task_id, metrics.clone()).await;
+        let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(stable, task_id, -1)));
+        insert_metrics(task_id, -1, metrics.clone()).await;
 
         let cancel = CancellationToken::new();
 

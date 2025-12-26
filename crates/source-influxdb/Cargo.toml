@@ -1,6 +1,6 @@
 [package]
 name = "source-influxdb"
-edition = "2024"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
@@ -21,6 +21,7 @@ tempfile.workspace = true
 serde.workspace = true
 
 taosx-core.workspace = true
+taosx-utils.workspace = true
 
 [lints]
 workspace = true

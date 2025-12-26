@@ -42,10 +42,10 @@ pub(crate) fn agent_in_memory_cache_capacity() -> NonZeroUsize {
 }
 
 pub fn set_agent_in_memory_cache_capacity(capacity: usize) {
-    if let Some(capacity) = NonZeroUsize::new(capacity) {
-        if AGENT_IN_MEMORY_CACHE_CAPACITY.set(capacity).is_ok() {
-            tracing::info!("Set agent cache queue capacity to {}", capacity);
-        }
+    if let Some(capacity) = NonZeroUsize::new(capacity)
+        && AGENT_IN_MEMORY_CACHE_CAPACITY.set(capacity).is_ok()
+    {
+        tracing::info!("Set agent cache queue capacity to {capacity}");
     }
 }
 

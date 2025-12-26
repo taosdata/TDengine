@@ -1,8 +1,8 @@
 pub mod common;
 
 use persist_queue::{
-    fs::{EntryPosition, FsQueue, ReadFrom},
     RawReader,
+    fs::{EntryPosition, FsQueue, ReadFrom},
 };
 use tempfile::tempdir;
 

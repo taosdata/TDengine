@@ -1,7 +1,7 @@
 [package]
 name = "taos-explorer"
 version = "1.10.0"
-edition = "2021"
+edition.workspace = true
 description = "TDengine Explorer UI"
 
 [dependencies]
@@ -23,7 +23,7 @@ reqwest = { version = "0.11", default-features = false, features = [
 ] }
 clap-verbosity-flag = { workspace = true }
 anyhow.workspace = true
-clap = { workspace = true, features = ["derive", "env"] }
+clap.workspace = true
 sqlx = { workspace = true, features = ["sqlite", "chrono", "runtime-tokio"] }
 tokio = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true, features = ["compat"] }
@@ -38,11 +38,10 @@ serde_json = { version = "1", features = ["arbitrary_precision"] }
 thiserror.workspace = true
 toml.workspace = true
 tracing.workspace = true
-tracing-actix-web = "0.7.11"
+tracing-actix-web.workspace = true
 tracing-subscriber.workspace = true
 sha1 = "0.10.6"
 rand.workspace = true
-lazy_static.workspace = true
 captcha = "1"
 deadpool.workspace = true
 const_format.workspace = true

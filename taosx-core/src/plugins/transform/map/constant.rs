@@ -81,11 +81,13 @@ mod tests {
         assert_eq!(field.name(), "n1");
         assert_eq!(*field.data_type(), DataType::Utf8);
         assert_eq!(value.len(), 3);
-        assert!(value
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .unwrap()
-            .is_null(0));
+        assert!(
+            value
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .is_null(0)
+        );
     }
 
     #[test]
@@ -98,11 +100,13 @@ mod tests {
         assert_eq!(field.name(), "n1");
         assert_eq!(*field.data_type(), DataType::Boolean);
         assert_eq!(value.len(), 3);
-        assert!(value
-            .as_any()
-            .downcast_ref::<BooleanArray>()
-            .unwrap()
-            .value(0));
+        assert!(
+            value
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap()
+                .value(0)
+        );
     }
 
     #[test]

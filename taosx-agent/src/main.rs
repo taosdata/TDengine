@@ -20,27 +20,27 @@ use tokio::task::JoinHandle;
 use tonic::transport::Certificate;
 
 use tracing_subscriber::{
-    prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt, Layer as _,
+    Layer as _, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
 };
-use twelf::{config, Layer};
+use twelf::{Layer, config};
 
-use taosx_core::global::GLOBAL_LOG_OPTS;
+use taosx_core::{
+    AGENT_COMPRESSION, Activity, RespAction, get_log_dir, get_log_keep_days, set_env_data_dir,
+    set_env_log_home_dir, set_env_log_keep_days, set_env_plugins_home_dir,
+};
 use taosx_core::{
     get_data_dir,
     runners::{
-        get_plugins_home_dir, ENV_LOGS_HOME, ENV_PLUGINS_HOME, ENV_TAOSX_DATA_DIR,
-        ENV_TAOSX_LOGS_HOME, ENV_TAOSX_PLUGINS_HOME,
+        ENV_LOGS_HOME, ENV_PLUGINS_HOME, ENV_TAOSX_DATA_DIR, ENV_TAOSX_LOGS_HOME,
+        ENV_TAOSX_PLUGINS_HOME, get_plugins_home_dir,
     },
     utils::{
         monitor::update_sub_connector_process_metrics,
-        trace::{self, Qid, INSTANCE_ID},
+        trace::{self, INSTANCE_ID, Qid},
     },
 };
-use taosx_core::{
-    get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
-    set_env_plugins_home_dir, Activity, RespAction, AGENT_COMPRESSION,
-};
-use tracing::{log::LevelFilter, Instrument};
+use taosx_core::{global::GLOBAL_LOG_OPTS, utils::trace::DEFAULT_AGENT_INSTANCE_ID};
+use tracing::{Instrument, log::LevelFilter};
 
 const LOG_FILE: &str = "agent.log";
 
@@ -397,31 +397,6 @@ impl Args {
     pub fn init() -> Result<Args, ArgsError> {
         let args = ArgsParser::parse();
         let path = get_effective_config_path(&args);
-        // let path = if let Ok(c) = ArgsParser::try_parse() {
-        //     c.config
-        //         .map(|p| {
-        //             if p.exists() {
-        //                 Ok(p)
-        //             } else {
-        //                 Err(ArgsError::ConfigNotFound(p.display().to_string()))
-        //             }
-        //         })
-        //         .transpose()?
-        // } else {
-        //     None
-        // }
-        // .unwrap_or_else(|| {
-        //     if cfg!(windows) {
-        //         std::path::Path::new("C:\\")
-        //             .join("TDengine")
-        //             .join("cfg")
-        //             .join("agent.toml")
-        //     } else {
-        //         std::path::Path::new("/etc")
-        //             .join(build::CUS_PROMPT)
-        //             .join("agent.toml")
-        //     }
-        // });
 
         let mut layers = vec![];
 
@@ -485,7 +460,7 @@ impl Args {
             }
         }
 
-        INSTANCE_ID.get_or_init(|| instance_id.unwrap_or(48));
+        INSTANCE_ID.get_or_init(|| instance_id.unwrap_or(DEFAULT_AGENT_INSTANCE_ID));
 
         AGENT_COMPRESSION.set(compression.unwrap_or(false)).unwrap();
 
@@ -694,10 +669,10 @@ fn get_monitor_interval(monitor_config: Option<&HashMap<String, String>>) -> u64
     if monitor_config.is_none() {
         30
     } else {
-        if let Some(interval) = monitor_config.and_then(|c| c.get("interval")) {
-            if let Ok(interval) = interval.parse::<u64>() {
-                return interval;
-            }
+        if let Some(interval) = monitor_config.and_then(|c| c.get("interval"))
+            && let Ok(interval) = interval.parse::<u64>()
+        {
+            return interval;
         }
         30
     }
@@ -884,34 +859,6 @@ fn main() -> anyhow::Result<()> {
 
     let log_keep_days = get_log_keep_days();
 
-    // let (_non_blocking, _guard) = tracing_appender::non_blocking(rolling_file_appender);
-
-    // let timer = LocalTime::new(format_description!(
-    //     "[month]/[day] [hour]:[minute]:[second].[subsecond digits:6]"
-    // ));
-
-    // let chrono_local = Local::now();
-    // let timezone_offset = (chrono_local.offset().local_minus_utc()
-    //     / chrono::Duration::hours(1).num_seconds() as i32) as i8;
-
-    // println!("local timezone offset: {}", timezone_offset);
-
-    // let timer = OffsetTime::new(
-    //     UtcOffset::from_hms(timezone_offset, 0, 0).unwrap(),
-    //     format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
-    // );
-
-    // let log_level = args.log_level.unwrap_or(Level::INFO);
-
-    // let log_level_directive = match log_level {
-    //     Level::ERROR => "error",
-    //     Level::WARN => "warn",
-    //     Level::INFO => "info",
-    //     Level::DEBUG => "debug",
-    //     Level::TRACE => "trace",
-    // };
-    // let _default_directive = format!("tungstenite=warn,tokio_tungstenite=warn,mio=warn,h2=warn,runtime=warn,actix_server={log_level_directive},actix_http={log_level_directive},{log_level_directive}", log_level_directive = log_level_directive);
-
     let mut layers = Vec::new();
 
     let LogOpts {
@@ -926,7 +873,7 @@ fn main() -> anyhow::Result<()> {
     let appender = RollingFileAppender::builder(
         get_env_log_dir(),
         format!("{}x_agent", build::CUS_PROMPT),
-        *INSTANCE_ID.get().unwrap(),
+        *INSTANCE_ID.get_or_init(|| DEFAULT_AGENT_INSTANCE_ID),
     )
     .compress(compress.unwrap().to_bool()?)
     .reserved_disk_size(reserved_disk_size.as_ref().unwrap())
@@ -966,7 +913,7 @@ fn main() -> anyhow::Result<()> {
     let _span = tracing::info_span!("main").entered();
 
     // init qid batch_id db
-    trace::qid_db_init()?;
+    trace::qid_db_init(INSTANCE_ID.get_or_init(|| DEFAULT_AGENT_INSTANCE_ID))?;
 
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;

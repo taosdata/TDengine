@@ -12,10 +12,7 @@ use std::{
     time::Instant,
 };
 use taos::{AsyncQueryable, Dsn, IntoDsn};
-use taosx_core::{
-    Parser,
-    utils::{port_pool::PortPool, sql::connect_taos_pool},
-};
+use taosx_core::{Parser, utils::sql::connect_taos_pool};
 use tempfile::tempdir;
 use tokio_util::sync::CancellationToken;
 
@@ -338,19 +335,7 @@ async fn run_csv2td(f: &CSV2TDFactors) -> anyhow::Result<CSV2TDMetrics> {
     let t0 = Instant::now();
     let drain = tokio::spawn(async move { while rx.recv_async().await.is_ok() {} });
     let sys_metrics = collect_system_metrics(|| async {
-        if let Err(err) = csv_to_taos(
-            from,
-            parser,
-            to,
-            &PortPool::default(),
-            cancel,
-            None,
-            None,
-            None,
-            tx,
-        )
-        .await
-        {
+        if let Err(err) = csv_to_taos(from, parser, to, cancel, None, tx).await {
             tracing::error!("csv2td failed: {:?}", err);
         }
     })

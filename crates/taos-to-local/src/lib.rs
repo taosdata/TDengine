@@ -27,26 +27,26 @@ mod worker;
 
 /// 基于 TDengine 查询的备份
 pub async fn taos_to_local(
-    task_id: Option<String>,
+    task_job_id: Option<(i64, i64)>,
     from: Dsn,
     to: Dsn,
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     tracing::info!(
-        "taos_to_local started, task_id: {:?}, from: {}, to: {}",
-        task_id,
+        "taos_to_local start,id: {:?}, from: {} to: {}",
+        task_job_id,
         from,
         to
     );
 
     // parse Td2LocalConfig
-    let config = Td2LocalConfigBuilder::new(task_id.as_deref(), &from, &to)
+    let config = Td2LocalConfigBuilder::new(task_job_id, &from, &to)
         .build()
         .context("failed to parse taos_to_local configuration")?;
     tracing::info!("taos_to_local config: {:#?}", config);
 
     let mut ctx = Td2LocalContext {
-        task_id: task_id.clone(),
+        task_job_id,
         raw_from: from.clone(),
         raw_to: to.clone(),
         config: config.clone(),

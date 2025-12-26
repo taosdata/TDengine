@@ -8,13 +8,13 @@ use tokio_util::sync::CancellationToken;
 
 use source_mqtt::client::{GenericMessagePoller, MessagePoller};
 
+use futures_ext::select::{Select2, Select3, select2, select3};
 use taosx_core::{
     Pipeline,
     plugins::transform::{
         parse::ParserImpl,
         sample::multi_schema::{MultiSchemaSamples, SampleWithSchema},
     },
-    utils::futs_helper::{Select2, Select3, select2, select3},
 };
 
 use super::{batch::BatchPayload, pb::rebirth_payload, process_message};

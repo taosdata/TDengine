@@ -32,8 +32,8 @@ use metrics_util::MetricKindMask;
 use quanta::Clock;
 use registry::AtomicStorage;
 use registry::GenerationalAtomicStorage;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 #[derive(Debug)]
@@ -73,8 +73,11 @@ impl Inner {
         let counter_handles = self.registry.get_counter_handles();
 
         for (key, counter) in counter_handles {
-            let gen = counter.get_generation();
-            if !self.recency.should_store_counter(&key, gen, &self.registry) {
+            let generation = counter.get_generation();
+            if !self
+                .recency
+                .should_store_counter(&key, generation, &self.registry)
+            {
                 continue;
             }
             let value = counter.get_inner().load(Ordering::Acquire);
@@ -84,8 +87,11 @@ impl Inner {
         let gauge_handles = self.registry.get_gauge_handles();
 
         for (key, gauge) in gauge_handles {
-            let gen = gauge.get_generation();
-            if !self.recency.should_store_gauge(&key, gen, &self.registry) {
+            let generation = gauge.get_generation();
+            if !self
+                .recency
+                .should_store_gauge(&key, generation, &self.registry)
+            {
                 continue;
             }
             let value = f64::from_bits(gauge.get_inner().load(Ordering::Acquire));
@@ -213,8 +219,8 @@ impl TaosXRecorderHandle {
 mod test {
     use super::DebugValue;
     use super::TaosXRecorder;
-    use metrics::counter;
     use metrics::Key;
+    use metrics::counter;
     use std::time::Duration;
     #[test]
     fn test_taosx_recorder() {

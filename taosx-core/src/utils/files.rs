@@ -3,10 +3,10 @@ use std::fs::{DirEntry, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use arrow::array::RecordBatch;
-use base64::engine::general_purpose;
 use base64::Engine;
+use base64::engine::general_purpose;
 use chardetng::EncodingDetector;
 use chrono::{Duration, Utc};
 use encoding_rs::Encoding;
@@ -129,10 +129,10 @@ pub fn decompress_and_write_file(
 pub fn write_to_file(task_id: i64, filename: &String, record: &String) -> anyhow::Result<()> {
     let data_dir = get_data_dir();
     let path = data_dir.join("tasks").join(format!("{task_id}"));
-    if !path.exists() {
-        if let Err(err) = std::fs::create_dir_all(&path) {
-            tracing::error!("failed to create dir {:?}: {}", path, err);
-        }
+    if !path.exists()
+        && let Err(err) = std::fs::create_dir_all(&path)
+    {
+        tracing::error!("failed to create dir {:?}: {}", path, err);
     }
     let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
     let mut file = OpenOptions::new().create(true).append(true).open(path)?;
@@ -153,10 +153,10 @@ pub fn write_to_parquet_file(
 ) -> anyhow::Result<()> {
     let data_dir = get_data_dir();
     let path = data_dir.join("tasks").join(format!("{task_id}"));
-    if !path.exists() {
-        if let Err(err) = std::fs::create_dir_all(&path) {
-            tracing::error!("failed to create dir {:?}: {}", path, err);
-        }
+    if !path.exists()
+        && let Err(err) = std::fs::create_dir_all(&path)
+    {
+        tracing::error!("failed to create dir {:?}: {}", path, err);
     }
     // delete old files
     if keep_days > 0 {
@@ -191,10 +191,10 @@ pub fn delete_old_parquet_files_by_date(
     let path = data_dir.join("tasks").join(format!("{task_id}"));
     let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
     let path = path.parent().context("get parent path error")?;
-    if !path.exists() {
-        if let Err(err) = std::fs::create_dir_all(path) {
-            tracing::error!("failed to create dir {:?}: {}", path, err);
-        }
+    if !path.exists()
+        && let Err(err) = std::fs::create_dir_all(path)
+    {
+        tracing::error!("failed to create dir {:?}: {}", path, err);
     }
 
     let cutoff_date = Utc::now() - Duration::days(keep_days as i64);
@@ -206,11 +206,11 @@ pub fn delete_old_parquet_files_by_date(
                 .split('.')
                 .next_back()
                 .context("get file date error")?;
-            if let Ok(file_date) = chrono::NaiveDate::parse_from_str(file_date, "%Y%m%d") {
-                if file_date <= cutoff_date.naive_utc().date() {
-                    tracing::info!("delete archived file: {:?}, since out of date", file);
-                    fs::remove_file(file)?;
-                }
+            if let Ok(file_date) = chrono::NaiveDate::parse_from_str(file_date, "%Y%m%d")
+                && file_date <= cutoff_date.naive_utc().date()
+            {
+                tracing::info!("delete archived file: {:?}, since out of date", file);
+                fs::remove_file(file)?;
             }
         }
     }
@@ -310,10 +310,10 @@ fn read_parquet_dir_entries(task_id: i64, filename: &String) -> anyhow::Result<V
     let path = data_dir.join("tasks").join(format!("{task_id}"));
     let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
     let path = path.parent().context("get parent path error")?;
-    if !path.exists() {
-        if let Err(err) = std::fs::create_dir_all(path) {
-            tracing::error!("failed to create dir {:?}: {}", path, err);
-        }
+    if !path.exists()
+        && let Err(err) = std::fs::create_dir_all(path)
+    {
+        tracing::error!("failed to create dir {:?}: {}", path, err);
     }
 
     let entries = fs::read_dir(path)?

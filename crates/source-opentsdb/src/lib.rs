@@ -7,6 +7,7 @@ use ringbuf::traits::Consumer;
 use ringbuf::traits::RingBuffer;
 use taos::Dsn;
 use taosx_core::TaskNotifySender;
+use taosx_core::Via;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
@@ -19,7 +20,7 @@ use taosx_core::runners::get_data_dir;
 use taosx_core::runners::get_plugin_dir;
 use taosx_core::runners::new_rolling_file_appender;
 use taosx_core::utils::monitor::send_sub_process_info;
-use taosx_core::{DataSet, Transferred, build_ipc, utils::port_pool::PortPool};
+use taosx_core::{DataSet, build_ipc, utils::port_pool::PortPool};
 use tracing_subscriber::fmt::MakeWriter;
 
 mod config;
@@ -60,9 +61,8 @@ pub async fn opentsdb_to_taos(
     to: Dsn,
     port_pool: &PortPool,
     cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     tracing::info!("opentsdb_to_taos start");
@@ -84,12 +84,13 @@ pub async fn opentsdb_to_taos(
     let temp_path = config_file.into_temp_path();
     tracing::info!("Using config file {}", config_path.display());
     // save the temporary file to task dir
-    if let Some(task_id) = task_id {
+    if let Some((task_id, job_id)) = task_job_id {
         let path = get_data_dir().join("tasks").join(task_id.to_string());
         std::fs::create_dir_all(&path).unwrap();
         let path = path.join(format!(
-            "{}-{}-{}.{}",
+            "{}-{}-{}-{}.{}",
             task_id,
+            job_id,
             "opentsdb",
             chrono::Local::now().format("%Y%m%d%H%M"),
             "toml"
@@ -109,8 +110,7 @@ pub async fn opentsdb_to_taos(
         None,
         &cancel,
         with_agent,
-        transferred,
-        task_id,
+        task_job_id,
         notify,
         None,
     )
@@ -120,9 +120,10 @@ pub async fn opentsdb_to_taos(
     // 连接器路径
     let connector_path = opentsdb_jar_path()?;
 
+    let (task_id, job_id) = task_job_id.unwrap_or((0, 0));
     let log_dir = log_path();
     std::fs::create_dir_all(&log_dir).with_context(|| format!("Log path {}", log_dir.display()))?;
-    let component = format!("opentsdb-{}", task_id.unwrap_or(0));
+    let component = format!("opentsdb-{task_id}-{job_id}");
     let appender = new_rolling_file_appender(log_dir.as_path(), &component)
         .context("failed to create opentsdb log")?;
 
@@ -179,7 +180,7 @@ pub async fn opentsdb_to_taos(
 
     {
         let mut child = child.spawn().context("Start OpenTSDB collector error")?;
-        send_sub_process_info(child.id(), task_id, "opentsdb").await;
+        send_sub_process_info(child.id(), task_job_id, "opentsdb").await;
         const ERROR_BUF_SIZE: usize = 2;
         let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
         let error_buf_producer = error_buf.clone();

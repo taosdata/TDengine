@@ -1,6 +1,5 @@
-use lazy_static::lazy_static;
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::{LazyLock, RwLock};
 use taos::Dsn;
 
 pub enum TimeoutType {
@@ -17,10 +16,8 @@ pub struct Timeout {
     get_sample: HashMap<String, u64>,
 }
 
-lazy_static! {
-    /// 各个数据源默认是 30s，这里全局超时设置要大于 30s
-    static ref DEFAULT_TIMEOUT: RwLock<u64> = RwLock::new(35);
-}
+/// 各个数据源默认是 30s，这里全局超时设置要大于 30s
+static DEFAULT_TIMEOUT: LazyLock<RwLock<u64>> = LazyLock::new(|| RwLock::new(35));
 
 impl Timeout {
     pub fn set_default_timeout(timeout: Option<u64>) {
@@ -32,9 +29,7 @@ impl Timeout {
     }
 
     pub fn get(r#type: TimeoutType) -> u64 {
-        lazy_static! {
-            static ref TIMEOUT: Timeout = Timeout::default();
-        }
+        static TIMEOUT: LazyLock<Timeout> = LazyLock::new(Timeout::default);
 
         match r#type {
             TimeoutType::Default => {

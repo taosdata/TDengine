@@ -25,10 +25,12 @@ use taosx_core::get_data_dir;
 #[post("/kafka/{id}/seek_to_end")]
 pub async fn seek_to_end(
     task_id: Path<i64>,
+    job_id: Path<i64>,
     task_store: Data<TaskControllerRef>,
 ) -> impl Responder {
-    let id = task_id.into_inner();
-    match seek_to_end_impl(id, task_store).await {
+    let task_id = task_id.into_inner();
+    let job_id = job_id.into_inner();
+    match seek_to_end_impl(task_id, job_id, task_store).await {
         Ok(Some(_)) => Ok(HttpResponse::Ok().json("{}")),
         Ok(None) => Ok(HttpResponse::NotFound().finish()),
         Err(err) => {
@@ -40,18 +42,17 @@ pub async fn seek_to_end(
 
 async fn seek_to_end_impl(
     task_id: i64,
+    job_id: i64,
     task_store: Data<TaskControllerRef>,
 ) -> anyhow::Result<Option<()>> {
     // 从数据库中获取 kafka 任务的 DSN
-    let task = task_store.get(task_id).await?;
-    if task.is_none() {
+    let Some(mut task) = task_store.get_task(task_id, job_id).await else {
         return Ok(None);
-    }
-    let mut task = task.unwrap();
+    };
 
     let mut from = task.from.as_str().into_dsn().context("invalid from")?;
     // 从 Kafka 获取当前任务相关的 Offset
-    let offsets = source_kafka::get_topics_offset(Some(task_id), &from)
+    let offsets = source_kafka::get_topics_offset(Some((task_id, job_id)), &from)
         .await
         .context("failed to get topics offset")?;
 
@@ -77,7 +78,8 @@ async fn seek_to_end_impl(
     task.from = from.to_string();
 
     // 启动 kafka 任务
-    task_store.start_task(&task).await?;
+    let (tx, _) = flume::bounded(0);
+    task_store.start_task(task, tx).await?;
 
     Ok(Some(()))
 }

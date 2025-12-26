@@ -9,13 +9,13 @@ use arrow::{
 
 pub use arrow::datatypes::DataType as ArrowDataType;
 use faststr::FastStr;
-use serde::{de::Visitor, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Visitor};
 
 use taos::{Itertools, Ty, Value};
 
 use crate::{
     ack::AckType,
-    constants::{__ATTRS__, __RECORDS__, __TABLES__, __TABLE_NAME__, __TYPE__},
+    constants::{__ATTRS__, __RECORDS__, __TABLE_NAME__, __TABLES__, __TYPE__},
 };
 
 use self::attrs_builder::AttrsBuilder;

@@ -35,9 +35,9 @@ pub struct LegacyToTaosMetrics {
 }
 
 impl LegacyToTaosMetrics {
-    pub fn new(stable: String, task_id: i64, task_name: Option<String>) -> Self {
+    pub fn new(stable: String, task_id: i64, job_id: i64) -> Self {
         Self {
-            com: CommonMetrics::new(stable, task_id, task_name),
+            com: CommonMetrics::new(stable, task_id, job_id),
             read_concurrency: Default::default(),
             total_stables: Default::default(),
             total_tables: Default::default(),
@@ -173,7 +173,7 @@ mod tests {
     use serde_json;
 
     fn sample_metrics() -> LegacyToTaosMetrics {
-        LegacyToTaosMetrics::new("stable".to_string(), 42, Some("task".to_string()))
+        LegacyToTaosMetrics::new("stable".to_string(), 42, -1)
     }
 
     #[test]

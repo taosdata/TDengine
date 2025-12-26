@@ -1,7 +1,8 @@
-use crate::utils::{self, dsn::DsnParamGetter};
-use anyhow::{anyhow, Context};
+use crate::utils;
+use anyhow::{Context, anyhow};
 use std::str::FromStr;
 use taos::Dsn;
+use taosx_utils::dsn::DsnParamGetter;
 use toml::value::Datetime;
 
 use crate::get_data_dir;
@@ -73,7 +74,7 @@ pub struct PiConfig {
     #[serde(rename = "LogLevel", skip_serializing_if = "Option::is_none")]
     log_level: Option<String>,
     #[serde(rename = "TaskID", skip_serializing_if = "Option::is_none")]
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
 
     #[serde(rename = "SyncAddElement", skip_serializing_if = "Option::is_none")]
     sync_add_element: Option<bool>,
@@ -125,7 +126,7 @@ impl PiConfig {
             backfill_start_time: Self::parse_backfill_start_time(dsn)?,
             backfill_end_time: Self::parse_backfill_end_time(dsn)?,
             log_level: Self::parse_log_level(dsn)?,
-            task_id: None,
+            task_job_id: None,
             sync_add_element: None,
             sync_delete_element: None,
             sync_update_attribute: None,
@@ -140,7 +141,7 @@ impl PiConfig {
         td_database: String,
         ipc_port: u16,
         sql_port: u16,
-        task_id: Option<i64>,
+        task_job_id: Option<(i64, i64)>,
     ) -> anyhow::Result<PiConfig> {
         let server_name = Self::parse_server_name(&from)?;
         let system_name = Self::parse_system_name(&from);
@@ -153,7 +154,7 @@ impl PiConfig {
         let mut backfill_breakpoint_file = None;
         let for_backfill = match from.driver.as_str() {
             "pibackfill" => {
-                backfill_breakpoint_file = Self::check_backfill_breakpoint_file(task_id);
+                backfill_breakpoint_file = Self::check_backfill_breakpoint_file(task_job_id);
                 true
             }
             _ => false,
@@ -268,7 +269,7 @@ impl PiConfig {
             backfill_start_time,
             backfill_end_time,
             log_level,
-            task_id,
+            task_job_id,
             sync_add_element,
             sync_delete_element,
             sync_update_attribute,
@@ -277,11 +278,13 @@ impl PiConfig {
         })
     }
 
-    fn check_backfill_breakpoint_file(task_id: Option<i64>) -> Option<String> {
+    fn check_backfill_breakpoint_file(task_job_id: Option<(i64, i64)>) -> Option<String> {
+        let (task_id, job_id) = task_job_id?;
         let data_dir = get_data_dir();
         let breakpoint_file = data_dir
             .join("tasks")
-            .join(task_id.unwrap().to_string())
+            .join(task_id.to_string())
+            .join(job_id.to_string())
             .join("breakpoints.csv");
         if breakpoint_file.exists() {
             Some(breakpoint_file.display().to_string())
@@ -346,10 +349,10 @@ impl PiConfig {
                 })
                 .transpose()?;
         }
-        if let Some(mwl) = max_wait_len {
-            if !(1..=10000).contains(&mwl) {
-                return Err(anyhow!("MaxWaitLen should be in range 1..10000"));
-            }
+        if let Some(mwl) = max_wait_len
+            && !(1..=10000).contains(&mwl)
+        {
+            return Err(anyhow!("MaxWaitLen should be in range 1..10000"));
         }
         Ok(max_wait_len)
     }
@@ -374,10 +377,10 @@ impl PiConfig {
                 })
                 .transpose()?;
         }
-        if let Some(ui) = update_interval {
-            if !(100..=60000).contains(&ui) {
-                return Err(anyhow!("UpdateInterval should be in range 100..60000 ms"));
-            }
+        if let Some(ui) = update_interval
+            && !(100..=60000).contains(&ui)
+        {
+            return Err(anyhow!("UpdateInterval should be in range 100..60000 ms"));
         }
         Ok(update_interval)
     }
@@ -743,7 +746,10 @@ mod tests {
         let dsn = Dsn::from_str("pi:///?BackfillStartTime=2021-01-01 00:00:00.000").unwrap();
         let config = PiConfig::parse_backfill_start_time(&dsn);
         assert!(config.is_err());
-        assert_eq!("invalid BackfillStartTime, cause: failed to parse date time: 2021-01-01 00:00:00.000, cause: trailing input", config.unwrap_err().to_string());
+        assert_eq!(
+            "invalid BackfillStartTime, cause: failed to parse date time: 2021-01-01 00:00:00.000, cause: trailing input",
+            config.unwrap_err().to_string()
+        );
 
         let dsn = Dsn::from_str("pi:///?BackfillStartTime=auto").unwrap();
         let config = PiConfig::parse_backfill_start_time(&dsn).unwrap();
@@ -766,7 +772,10 @@ mod tests {
         let dsn = Dsn::from_str("pi:///?BackfillEndTime=2021-01-01 00:00:00.000").unwrap();
         let config = PiConfig::parse_backfill_end_time(&dsn);
         assert!(config.is_err());
-        assert_eq!("invalid BackfillEndTime, cause: failed to parse date time: 2021-01-01 00:00:00.000, cause: trailing input", config.unwrap_err().to_string());
+        assert_eq!(
+            "invalid BackfillEndTime, cause: failed to parse date time: 2021-01-01 00:00:00.000, cause: trailing input",
+            config.unwrap_err().to_string()
+        );
 
         let dsn = Dsn::from_str("pi:///?BackfillEndTime=auto").unwrap();
         let config = PiConfig::parse_backfill_end_time(&dsn).unwrap();

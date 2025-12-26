@@ -1,6 +1,6 @@
 [package]
 name = "source-mqtt"
-edition = "2024"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
@@ -34,7 +34,8 @@ tokio-stream.workspace = true
 
 taosx-core.workspace = true
 taosx-ipc.workspace = true
-
+ha-core.workspace = true
+taosx-utils.workspace = true
 
 [lints]
 workspace = true

@@ -1,6 +1,7 @@
 use crate::{PULSAR_TUYA_ID, config::tuya::TuyaEnv};
 use taos::Dsn;
-use taosx_core::{runners::get_string_from_param_or_file, utils::dsn::parse_simple_params};
+use taosx_core::runners::get_string_from_param_or_file;
+use taosx_utils::dsn::parse_simple_params;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum DataVendor {
@@ -150,7 +151,7 @@ mod tests {
     use super::*;
     use std::str::FromStr;
     use taos::IntoDsn;
-    use taosx_core::utils::dsn::json_to_dsn;
+    use taosx_utils::dsn::json_to_dsn;
 
     #[test]
     fn test_parse_broker_url() {

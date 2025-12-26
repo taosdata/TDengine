@@ -4,8 +4,8 @@ use taos::Dsn;
 
 use crate::plugins::sink::point::csv::CsvParser;
 use crate::plugins::sink::point::model::SourceType;
-use crate::runners::opc::config::collect::{parse_opc_node_ids, CollectMode};
 use crate::runners::opc::config::PointsMode;
+use crate::runners::opc::config::collect::{CollectMode, parse_opc_node_ids};
 use crate::sink::point::csv::parse_csv_config_files;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,7 +71,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_nodes() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         let dsn =
             Dsn::from_str("opcua://?ua.nodes=ns=3;i=1002::d1dfao123,ns=3;i=1007::dns31007double")

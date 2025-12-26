@@ -22,10 +22,10 @@ use archive::ArchiveType;
 use arrow::{
     array::{
         Array, ArrayRef, AsArray, BinaryArray, BinaryViewArray, BooleanArray, Decimal128Array,
-        Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
+        Float32Array, Float64Array, Int8Array, Int16Array, Int32Array, Int64Array,
         LargeBinaryArray, LargeStringArray, StringArray, StringViewArray,
         TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
-        TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        TimestampSecondArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
     },
     compute::{and, concat_batches},
     datatypes::{DataType, Field, Schema},
@@ -45,11 +45,11 @@ use itertools::Itertools;
 use modeler::stable::STableModel;
 use serde::{Deserialize, Serialize};
 use taos::{
+    JsonMeta, RawBlock, Ty, Value,
     taos_query::{
         common::Describe,
         helpers::{ColumnMeta, Described},
     },
-    JsonMeta, RawBlock, Ty, Value,
 };
 use thiserror::Error;
 use tinytemplate::TinyTemplate;
@@ -1138,20 +1138,20 @@ impl Parser {
         Arc::make_mut(&mut self.global).minimum_timestamp = Some(ts);
     }
 
-    pub fn organize_cache(&mut self, task_id: i64) -> Result<(), ParserError> {
+    pub fn organize_cache(&mut self, task_id: i64, job_id: i64) -> Result<(), ParserError> {
         let cache = &mut Arc::make_mut(&mut self.global).process_on_abnormal.cache;
         let data_dir = get_data_dir();
         cache
-            .organize_params(task_id, data_dir, true)
+            .organize_params(task_id, job_id, data_dir, true)
             .map_err(|error| ParserError::OrganizeCacheError { error })?;
         Ok(())
     }
 
-    pub fn organize_archive(&mut self, task_id: i64) -> Result<(), ParserError> {
+    pub fn organize_archive(&mut self, task_id: i64, job_id: i64) -> Result<(), ParserError> {
         let archive = &mut Arc::make_mut(&mut self.global).process_on_abnormal.archive;
         let data_dir = get_data_dir();
         archive
-            .organize_params(task_id, data_dir, false)
+            .organize_params(task_id, job_id, data_dir, false)
             .map_err(|error| ParserError::OrganizeArchiveError { error })?;
         Ok(())
     }
@@ -1479,15 +1479,15 @@ impl Parser {
                     let ts = ts.unwrap();
                     let ts = ts / 1_000_000;
                     let mut primary_timestamp_overflow_flag = false;
-                    if let Some(max_ts) = self.global.maximum_timestamp {
-                        if ts > max_ts.timestamp_millis() {
-                            primary_timestamp_overflow_flag = true;
-                        }
+                    if let Some(max_ts) = self.global.maximum_timestamp
+                        && ts > max_ts.timestamp_millis()
+                    {
+                        primary_timestamp_overflow_flag = true;
                     }
-                    if let Some(min_ts) = self.global.minimum_timestamp {
-                        if ts < min_ts.timestamp_millis() {
-                            primary_timestamp_overflow_flag = true;
-                        }
+                    if let Some(min_ts) = self.global.minimum_timestamp
+                        && ts < min_ts.timestamp_millis()
+                    {
+                        primary_timestamp_overflow_flag = true;
                     }
                     if primary_timestamp_overflow_flag {
                         match self
@@ -3252,7 +3252,7 @@ pub enum Error {
     EmptySTableName,
     #[error("STable name should not contain dot: {0}")]
     STableNameContainsDot(String),
-    #[error("Internal transform error: {0:#}")]
+    #[error("Internal transform error")]
     ArrowError(#[from] ArrowError),
     #[error("Transform mapper error: {0:#}")]
     MapValueError(#[from] map::ValueBuilderError),
@@ -3304,8 +3304,8 @@ mod parser_tests {
 
     use super::*;
     use crate::plugins::transform::{
-        modeler::Modeler, mutate::Mutate, parse::ParserImpl, Message, ProcessOnAbnormal, STable,
-        TableOptions,
+        Message, ProcessOnAbnormal, STable, TableOptions, modeler::Modeler, mutate::Mutate,
+        parse::ParserImpl,
     };
     use crate::sink::ipc_metric::IpcMetrics;
 
@@ -3438,7 +3438,7 @@ mod parser_tests {
             }
         });
         let mut parser: Parser = serde_json::from_value(parser)?;
-        let metrics = IpcMetrics::new("stb".to_string(), 1, None);
+        let metrics = IpcMetrics::new("stb".to_string(), 1, -1);
         parser.metrics = Some(Arc::new(CoreMetrics::IPC(metrics)));
         let (tx, _rx) = flume::bounded(10);
 
@@ -4450,7 +4450,10 @@ mod parser_tests {
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
-                assert_eq!(vec[0].table_name(), "table_123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456");
+                assert_eq!(
+                    vec[0].table_name(),
+                    "table_123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456"
+                );
             }
             _ => unreachable!(),
         }
@@ -4473,7 +4476,10 @@ mod parser_tests {
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
-                assert_eq!(vec[0].table_name(), "table_123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456");
+                assert_eq!(
+                    vec[0].table_name(),
+                    "table_123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456"
+                );
             }
             _ => unreachable!(),
         }
@@ -4608,10 +4614,12 @@ mod parser_tests {
         .unwrap();
         let result = template.render("name", &map);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Failed to find value 'var1' from path 'var1'"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to find value 'var1' from path 'var1'")
+        );
     }
 
     #[test]

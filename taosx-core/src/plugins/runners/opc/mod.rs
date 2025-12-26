@@ -1,4 +1,4 @@
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::{io::prelude::*, path::PathBuf};
@@ -13,8 +13,8 @@ use crate::runners::new_rolling_file_appender;
 use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::sink::point::csv::parse_csv_config_files;
 use crate::sink::point::model::SourceType;
-use crate::utils::dsn::json_to_dsn;
 use crate::{DataSet, DataSetsReq};
+use taosx_utils::dsn::json_to_dsn;
 
 pub mod config;
 
@@ -312,7 +312,9 @@ mod tests {
 
     #[test]
     fn test_get_temp_file() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         let dsn = Dsn::from_str("opcua://").unwrap();
         let file = get_temp_file(&dsn, "certificate");

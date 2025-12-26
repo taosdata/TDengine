@@ -1,6 +1,6 @@
 use crate::{
+    RequestMsg, RotateFileError, SEP, SNAPSHOT_PREFIX, SinkFn, SinkGenFn,
     utils::{self, scan_files_with},
-    RequestMsg, RotateFileError, SinkFn, SinkGenFn, SEP, SNAPSHOT_PREFIX,
 };
 use chrono::{Local, TimeZone};
 use faststr::FastStr;
@@ -184,6 +184,7 @@ impl Ord for FileName {
 
 pub struct InnerRotateWriter<Item, E1, E2> {
     pub id: i64,
+    pub job_id: i64,
     pub max_num_file: usize,
     pub max_size: usize,
     pub num_of_time_unit: usize,
@@ -255,6 +256,7 @@ where
             .await
             .map_err(|e| RotateFileError::ExecSinkFnError {
                 id: self.id,
+                job_id: self.job_id,
                 error: e.into().into(),
             })?;
         Ok(())
@@ -280,6 +282,7 @@ where
         if old_file.exists() {
             std::fs::rename(&old_file, &sp_file).map_err(|e| RotateFileError::RenameFileError {
                 id: self.id,
+                job_id: self.job_id,
                 from: old_file.to_string_lossy().to_string(),
                 to: sp_file.to_string_lossy().to_string(),
                 error: e,
@@ -306,6 +309,7 @@ where
             .await
             .map_err(|e| RotateFileError::CloseSinkError {
                 id: self.id,
+                job_id: self.job_id,
                 error: e.into().into(),
             })?;
         Ok(())
@@ -316,6 +320,7 @@ where
         let sink =
             self.gen_sink.as_ref()(file_path).map_err(|e| RotateFileError::GenSinkError {
                 id: self.id,
+                job_id: self.job_id,
                 error: e.into().into(),
             })?;
         self.sink = sink;
@@ -412,6 +417,7 @@ where
         }
         if let Err(e) = std::fs::remove_file(path).map_err(|e| RotateFileError::RemoveFileError {
             id: self.id,
+            job_id: self.job_id,
             file: path.to_string_lossy().to_string(),
             error: e,
         }) {
@@ -445,6 +451,7 @@ where
         self.init()?;
 
         let id = self.id;
+        let job_id = self.job_id;
         let cap = std::thread::available_parallelism()
             .map(|v| v.get() * 2)
             .unwrap_or(DEF_QUEUE_CAP);
@@ -459,7 +466,11 @@ where
                     Ok(rt) => rt,
                     Err(e) => {
                         tracing::error!("Rotate {id} failed to create tokio runtime: {:?}", e);
-                        return Err(RotateFileError::CreateTokioRuntimeError { id, error: e });
+                        return Err(RotateFileError::CreateTokioRuntimeError {
+                            id,
+                            job_id,
+                            error: e,
+                        });
                     }
                 };
                 rt.block_on(async move {
@@ -468,10 +479,10 @@ where
                         let msg = if let Ok(v) = msg {
                             v
                         } else {
-                            if self.is_fail_time_limit() {
-                                if let Err(e) = self.rotate_by_time() {
-                                    tracing::error!("Rotate {id} failed to rotate by time: {e:?}");
-                                }
+                            if self.is_fail_time_limit()
+                                && let Err(e) = self.rotate_by_time()
+                            {
+                                tracing::error!("Rotate {id} failed to rotate by time: {e:?}");
                             }
                             continue;
                         };
@@ -516,7 +527,11 @@ where
                 });
                 Ok(())
             })
-            .map_err(|e| RotateFileError::CreateThreadError { id, error: e })?;
+            .map_err(|e| RotateFileError::CreateThreadError {
+                id,
+                job_id,
+                error: e,
+            })?;
         Ok(tx)
     }
 }

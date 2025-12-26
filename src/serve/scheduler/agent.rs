@@ -8,15 +8,13 @@ use multi_index_map::MultiIndexMap;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::{DsSampleIn, DsSamples};
 use taosx_core::{DataSet, PutFileReq};
-use tokio::{
-    runtime::Handle,
-    sync::{RwLock, broadcast::error::RecvError},
-};
+use tokio::sync::RwLock;
+use tokio::{runtime::Handle, sync::broadcast::error::RecvError};
 use tracing::Instrument;
 use utoipa::openapi::path;
 use uuid::Uuid;
 
-use crate::serve::controller::{Activity, AgentAction};
+use crate::serve::controller::{AgentAction, activity::Activity};
 use crate::serve::scheduler::NotifySenderExt;
 
 use super::NotifySender;
@@ -38,9 +36,11 @@ pub type AgentSpawnReceiver = flume::Receiver<(
     tokio::sync::oneshot::Sender<anyhow::Result<()>>,
 )>;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AgentState {
     #[default]
+    Idle,
     Wait,
     Connected,
     Disconnected,
@@ -53,12 +53,24 @@ impl AgentState {
     }
 }
 
+impl From<AgentState> for ha_core::types::AgentState {
+    fn from(value: AgentState) -> Self {
+        match value {
+            AgentState::Idle => ha_core::types::AgentState::Idle,
+            AgentState::Wait => ha_core::types::AgentState::Wait,
+            AgentState::Connected => ha_core::types::AgentState::Connected,
+            AgentState::Disconnected => ha_core::types::AgentState::Disconnected,
+            AgentState::Closed => ha_core::types::AgentState::Closed,
+        }
+    }
+}
+
 #[derive(MultiIndexMap, Debug)]
 pub struct AgentTask {
     #[multi_index(hashed_non_unique)]
     pub agent_id: i64,
     #[multi_index(ordered_unique)]
-    pub task_id: TaskId,
+    pub task_job_id: (i64, i64),
     pub agent_state: Arc<RwLock<AgentState>>,
     pub sender: tokio::sync::mpsc::Sender<Activity>,
     pub stop_sender: Arc<tokio::sync::oneshot::Sender<anyhow::Result<()>>>,
@@ -67,7 +79,7 @@ pub struct AgentTask {
 impl Debug for MultiIndexAgentTaskMap {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut debug = f.debug_list();
-        for task in self.iter_by_task_id() {
+        for task in self.iter_by_task_job_id() {
             debug.entry(task);
         }
         debug.finish()
@@ -88,7 +100,7 @@ pub enum AgentNotify {
     /// Put stream writer error.
     ///
     /// This error is sent by agent when it encounters an error while writing data to TDengine.
-    WriterError(AgentId, TaskId, String),
+    WriterError(AgentId, i64, i64, String),
     /// Agent task activity.
     TaskActivity(AgentId, Activity),
     /// Agent activity.
@@ -98,11 +110,10 @@ pub enum AgentNotify {
 #[derive(Debug, Clone)]
 pub struct AgentWorker {
     agent_states: Arc<RwLock<HashMap<AgentId, AgentState>>>,
-    agent_tasks_sender: Arc<RwLock<MultiIndexAgentTaskMap>>,
-    agent_activity_sender: AgentActionsSender,
+    agent_tasks: Arc<RwLock<MultiIndexAgentTaskMap>>,
+    agent_action_sender: AgentActionsSender,
     weak_spawn_receiver: Weak<AgentSpawnReceiver>,
     task_set: Arc<tokio::task::JoinSet<()>>,
-    // agent_notify_receiver: tokio::sync::mpsc::Receiver<(AgentId, AgentAction)>,
 }
 
 macro_rules! check_agent_exists {
@@ -116,7 +127,7 @@ macro_rules! check_agent_exists {
 
 impl AgentWorker {
     pub async fn new(
-        agent_activity_sender: AgentActionsSender,
+        agent_action_sender: AgentActionsSender,
         agent_notify_receiver: AgentNotifyReceiver,
         scheduler_notify_sender: NotifySender,
         agent_spawn_receiver: AgentSpawnReceiver,
@@ -151,8 +162,6 @@ impl AgentWorker {
         let agent_states: Arc<RwLock<HashMap<AgentId, AgentState>>> = Default::default();
         let agent_states_cloned = agent_states.clone();
 
-        let agent_activity_sender_clone = agent_activity_sender.clone();
-
         task_set.spawn(
             async move {
                 tokio::pin!(agent_notify_receiver);
@@ -163,173 +172,126 @@ impl AgentWorker {
                             let agent_tasks_sender_clone = agent_tasks_sender_clone.clone();
                             let agent_states_cloned = agent_states_cloned.clone();
                             let scheduler_notify_sender = scheduler_notify_sender.clone();
-                            let agent_activity_sender_clone = agent_activity_sender_clone.clone();
-                            tokio::spawn(
-                                async move {
-                                    match item {
-                                        AgentNotify::ServerStopped => {
-                                            let mut agent_tasks =
-                                                agent_tasks_sender_clone.write().await;
-                                            agent_tasks.clear();
-                                        }
-                                        AgentNotify::AgentConnected(agent_id) => {
-                                            tracing::info!("Agent connected: {}", agent_id);
-                                            {
-                                                let mut states = agent_states_cloned.write().await;
-                                                if let std::collections::hash_map::Entry::Vacant(
-                                                    e,
-                                                ) = states.entry(agent_id)
-                                                {
-                                                    e.insert(AgentState::Connected);
-                                                } else {
-                                                    states
-                                                        .get_mut(&agent_id)
-                                                        .unwrap()
-                                                        .clone_from(&AgentState::Connected);
-                                                }
-                                            }
-                                            let mut agent_tasks =
-                                                agent_tasks_sender_clone.write().await;
-                                            agent_tasks.modify_by_agent_id(&agent_id, |t| {
-                                                tokio::task::block_in_place(|| {
-                                                    Handle::current().block_on(async {
-                                                        *t.agent_state.write().await =
-                                                            AgentState::Connected;
-                                                        t.sender
-                                                            .send(Activity::agent_resumed(
-                                                                t.task_id, agent_id,
-                                                            ))
-                                                            .await;
-                                                    });
-                                                });
-                                            });
-                                        }
-                                        AgentNotify::AgentDisconnected(agent_id) => {
-                                            tracing::info!("Agent disconnected: {}", agent_id);
-                                            {
-                                                let mut states = agent_states_cloned.write().await;
-                                                if states.contains_key(&agent_id) {
-                                                    states
-                                                        .get_mut(&agent_id)
-                                                        .unwrap()
-                                                        .clone_from(&AgentState::Disconnected);
-                                                }
-                                            }
-                                            let mut agent_tasks =
-                                                agent_tasks_sender_clone.write().await;
-                                            agent_tasks.modify_by_agent_id(&agent_id, |t| {
-                                                tokio::task::block_in_place(|| {
-                                                    Handle::current().block_on(async {
-                                                        *t.agent_state.write().await =
-                                                            AgentState::Disconnected;
-
-                                                        t.sender
-                                                            .send(Activity::waiting(
-                                                                t.task_id,
-                                                                format!(
-                                                                "Agent {agent_id} is disconnected"
-                                                            ),
-                                                            ))
-                                                            .await;
-                                                    });
-                                                });
-                                            });
-                                        }
-                                        AgentNotify::AgentClosed(agent_id) => {
-                                            tracing::info!("Agent closed: {}", agent_id);
-                                            {
-                                                let mut states = agent_states_cloned.write().await;
-                                                if let std::collections::hash_map::Entry::Vacant(
-                                                    e,
-                                                ) = states.entry(agent_id)
-                                                {
-                                                    e.insert(AgentState::Closed);
-                                                } else {
-                                                    states
-                                                        .get_mut(&agent_id)
-                                                        .unwrap()
-                                                        .clone_from(&AgentState::Closed);
-                                                }
-                                            }
-                                            let mut agent_tasks =
-                                                agent_tasks_sender_clone.write().await;
-                                            agent_tasks.modify_by_agent_id(&agent_id, |t| {
-                                                tokio::task::block_in_place(|| {
-                                                    Handle::current().block_on(async {
-                                                        *t.agent_state.write().await =
-                                                            AgentState::Closed;
-                                                    });
-                                                });
-                                            });
-                                        }
-                                        AgentNotify::TaskActivity(aid, activity) => {
-                                            tracing::info!(
-                                                agent.id = aid,
-                                                task.id = activity.id,
-                                                "Task activity: {:?}",
-                                                activity
-                                            );
-                                            let agent_tasks = agent_tasks_sender_clone.read().await;
-                                            // dbg!(&agent_tasks);
-                                            if let Some(task) =
-                                                agent_tasks.get_by_task_id(&activity.id)
-                                            {
-                                                if let Err(err) = task.sender.send(activity).await {
-                                                    tracing::warn!(
-                                                        "Error sending task activity {:?}",
-                                                        err
-                                                    );
-                                                }
-                                                // scheduler_notify_sender.push_task_activity(activity);
-                                            } else {
-                                                tracing::warn!(
-                                                    agent.id = aid,
-                                                    task.id = activity.id,
-                                                    task.activity = activity.activity,
-                                                    "Task worker not found: {:?}",
-                                                    activity.id
-                                                );
-                                            }
-                                        }
-                                        AgentNotify::AgentActivity(aid, activity) => {
-                                            tracing::info!(
-                                                agent.id = aid,
-                                                "Agent activity: {:?}",
-                                                activity
-                                            );
-                                            scheduler_notify_sender.push_agent_activity(activity);
-                                        }
-                                        AgentNotify::WriterError(agent_id, task_id, message) => {
-                                            tracing::warn!(
-                                                agent_id = agent_id,
-                                                task_id = task_id,
-                                                message = message.as_str(),
-                                                "Writer error: {}",
-                                                message
-                                            );
-                                            let mut agent_tasks =
-                                                agent_tasks_sender_clone.write().await;
-                                            // let agent_activity_sender = agent_activity_sender_clone.clone();
-                                            agent_tasks.modify_by_task_id(&task_id, |t| {
-                                                tokio::task::block_in_place(|| {
-                                                    Handle::current().block_on(async {
-                                                        t.sender
-                                                            .send(Activity::interrupt(
-                                                                t.task_id,
-                                                                format!(
-                                                                    "Writer error: {}",
-                                                                    message
-                                                                ),
-                                                            ))
-                                                            .await;
-                                                    });
-                                                });
-                                            });
+                            match item {
+                                AgentNotify::ServerStopped => {
+                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
+                                    agent_tasks.clear();
+                                }
+                                AgentNotify::AgentConnected(agent_id) => {
+                                    tracing::info!("Agent connected: {}", agent_id);
+                                    {
+                                        let mut states = agent_states_cloned.write().await;
+                                        if let std::collections::hash_map::Entry::Vacant(e) =
+                                            states.entry(agent_id)
+                                        {
+                                            e.insert(AgentState::Connected);
+                                        } else {
+                                            states
+                                                .get_mut(&agent_id)
+                                                .unwrap()
+                                                .clone_from(&AgentState::Connected);
                                         }
                                     }
+                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
+                                    for task in agent_tasks.get_by_agent_id(&agent_id) {
+                                        let (task_id, job_id) = task.task_job_id;
+                                        *task.agent_state.write().await = AgentState::Connected;
+                                        task.sender
+                                            .send(Activity::agent_resumed(
+                                                task_id, job_id, agent_id,
+                                            ))
+                                            .await;
+                                    }
                                 }
-                                .in_current_span(),
-                            );
+                                AgentNotify::AgentDisconnected(agent_id) => {
+                                    tracing::info!("Agent disconnected: {}", agent_id);
+                                    {
+                                        let mut states = agent_states_cloned.write().await;
+                                        if states.contains_key(&agent_id) {
+                                            states
+                                                .get_mut(&agent_id)
+                                                .unwrap()
+                                                .clone_from(&AgentState::Disconnected);
+                                        }
+                                    }
+                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
+                                    for task in agent_tasks.get_by_agent_id(&agent_id) {
+                                        *task.agent_state.write().await = AgentState::Disconnected;
+                                        let (task_id, job_id) = task.task_job_id;
+                                        task.sender
+                                            .send(Activity::waiting(
+                                                task_id,
+                                                job_id,
+                                                agent_id,
+                                                format!("Agent {agent_id} is disconnected"),
+                                            ))
+                                            .await;
+                                    }
+                                }
+                                AgentNotify::AgentClosed(agent_id) => {
+                                    tracing::info!("Agent closed: {}", agent_id);
+                                    {
+                                        let mut states = agent_states_cloned.write().await;
+                                        if let std::collections::hash_map::Entry::Vacant(e) =
+                                            states.entry(agent_id)
+                                        {
+                                            e.insert(AgentState::Closed);
+                                        } else {
+                                            states
+                                                .get_mut(&agent_id)
+                                                .unwrap()
+                                                .clone_from(&AgentState::Closed);
+                                        }
+                                    }
+                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
+                                    for task in agent_tasks.get_by_agent_id(&agent_id) {
+                                        *task.agent_state.write().await = AgentState::Closed;
+                                    }
+                                }
+                                AgentNotify::TaskActivity(aid, activity) => {
+                                    tracing::info!(
+                                        agent.id = aid,
+                                        task.id = activity.task_id,
+                                        job.id = activity.job_id,
+                                        "Task activity: {:?}",
+                                        activity
+                                    );
+                                    let agent_tasks = agent_tasks_sender_clone.read().await;
+                                    if let Some(task) = agent_tasks
+                                        .get_by_task_job_id(&(activity.task_id, activity.job_id))
+                                    {
+                                        if let Err(err) = task.sender.send(activity).await {
+                                            tracing::warn!("Error sending task activity {:?}", err);
+                                        }
+                                    } else {
+                                        tracing::warn!(
+                                            agent.id = aid,
+                                            task.id = activity.task_id,
+                                            job.id = %activity.job_id,
+                                            task.activity = activity.activity,
+                                            "Task worker not found: {}",
+                                            activity.task_id
+                                        );
+                                    }
+                                }
+                                AgentNotify::AgentActivity(aid, activity) => {
+                                    tracing::info!(
+                                        agent.id = aid,
+                                        "Agent activity: {:?}",
+                                        activity
+                                    );
+                                    scheduler_notify_sender.push_agent_activity(activity);
+                                }
+                                AgentNotify::WriterError(agent_id, task_id, job_id, message) => {
+                                    tracing::warn!(
+                                        agent_id = agent_id,
+                                        task_id = task_id,
+                                        message = message.as_str(),
+                                        "Writer error: {}",
+                                        message
+                                    );
+                                }
+                            }
                         }
                         Err(RecvError::Lagged(_)) => continue,
                         Err(RecvError::Closed) => {
@@ -346,8 +308,8 @@ impl AgentWorker {
         );
         Self {
             agent_states,
-            agent_tasks_sender,
-            agent_activity_sender,
+            agent_tasks: agent_tasks_sender,
+            agent_action_sender,
             weak_spawn_receiver,
             task_set: Arc::new(task_set),
             // agent_notify_receiver,
@@ -355,45 +317,45 @@ impl AgentWorker {
     }
 
     pub async fn insert(&self, task: AgentTask) {
-        let mut agent_tasks = self.agent_tasks_sender.write().await;
+        let mut agent_tasks = self.agent_tasks.write().await;
         // Ensure task id is unique.
-        agent_tasks.remove_by_task_id(&task.task_id);
+        agent_tasks.remove_by_task_job_id(&task.task_job_id);
         agent_tasks.insert(task);
     }
 
-    pub async fn remove(&self, task_id: TaskId) {
-        let mut agent_tasks = self.agent_tasks_sender.write().await;
-        if let Some(task) = agent_tasks.remove_by_task_id(&task_id) {
+    pub async fn remove(&self, task_id: i64, job_id: i64) {
+        let mut agent_tasks = self.agent_tasks.write().await;
+        if let Some(task) = agent_tasks.remove_by_task_job_id(&(task_id, job_id)) {
             task.sender
-                .send(Activity::suspended(task_id, uuid::Uuid::nil()))
+                .send(Activity::stopped(task_id, job_id))
                 .await
                 .ok();
             if let Err(err) = self
-                .agent_activity_sender
-                .send((task.agent_id, AgentAction::Cancel(task_id)))
+                .agent_action_sender
+                .send((task.agent_id, AgentAction::Cancel(task_id, job_id)))
             {
                 tracing::warn!("Error sending cancel task: {:?}", err);
             }
         }
     }
 
-    pub async fn stop(&self, task_id: TaskId) {
-        let agent_tasks = self.agent_tasks_sender.read().await;
-        if let Some(task) = agent_tasks.get_by_task_id(&task_id)
+    pub async fn stop(&self, task_id: i64, job_id: i64) {
+        let agent_tasks = self.agent_tasks.read().await;
+        if let Some(task) = agent_tasks.get_by_task_job_id(&(task_id, job_id))
             && let Err(err) = self
-                .agent_activity_sender
-                .send((task.agent_id, AgentAction::Stop(task_id)))
+                .agent_action_sender
+                .send((task.agent_id, AgentAction::Stop(task_id, job_id)))
         {
             tracing::warn!("Error sending cancel task: {:?}", err);
         }
     }
 
-    pub async fn suspend(&self, task_id: TaskId) {
-        let agent_tasks = self.agent_tasks_sender.read().await;
-        if let Some(task) = agent_tasks.get_by_task_id(&task_id)
+    pub async fn suspend(&self, task_id: i64, job_id: i64) {
+        let agent_tasks = self.agent_tasks.read().await;
+        if let Some(task) = agent_tasks.get_by_task_job_id(&(task_id, job_id))
             && let Err(err) = self
-                .agent_activity_sender
-                .send((task.agent_id, AgentAction::Cancel(task_id)))
+                .agent_action_sender
+                .send((task.agent_id, AgentAction::Cancel(task_id, job_id)))
         {
             tracing::warn!("Error sending cancel task: {:?}", err);
         }
@@ -407,12 +369,16 @@ impl AgentWorker {
         false
     }
 
+    pub async fn list_agent_states(&self) -> HashMap<i64, AgentState> {
+        self.agent_states.read().await.clone()
+    }
+
     pub(crate) async fn push_action(
         &self,
         agent_id: i64,
         action: AgentAction,
     ) -> anyhow::Result<()> {
-        self.agent_activity_sender.send((agent_id, action))?;
+        self.agent_action_sender.send((agent_id, action))?;
         Ok(())
     }
 
@@ -424,7 +390,7 @@ impl AgentWorker {
         check_agent_exists!(self, agent_id);
         let (sender, receiver) = flume::bounded(1);
         if let Err(err) = self
-            .agent_activity_sender
+            .agent_action_sender
             .send((agent_id, AgentAction::ListDataSets(req, sender)))
         {
             tracing::warn!("Error sending list data sets: {:?}", err);
@@ -448,7 +414,7 @@ impl AgentWorker {
         check_agent_exists!(self, agent_id);
         let (sender, receiver) = flume::bounded(1);
         if let Err(err) = self
-            .agent_activity_sender
+            .agent_action_sender
             .send((agent_id, AgentAction::Check(dsn, sender)))
         {
             tracing::warn!("Error sending data source validation: {:?}", err);
@@ -465,7 +431,7 @@ impl AgentWorker {
         check_agent_exists!(self, agent_id);
         let (sender, receiver) = flume::bounded(1);
         if let Err(err) = self
-            .agent_activity_sender
+            .agent_action_sender
             .send((agent_id, AgentAction::GetSample(dsn, sender)))
         {
             tracing::warn!("failed to send GetSample action, cause: {:?}", err);
@@ -491,11 +457,11 @@ impl AgentWorker {
         }
     }
 
-    pub(crate) async fn remove_task(&self, task_id: TaskId) {
-        self.agent_tasks_sender
+    pub(crate) async fn remove_task(&self, task_id: i64, job_id: i64) {
+        self.agent_tasks
             .write()
             .await
-            .remove_by_task_id(&task_id);
+            .remove_by_task_job_id(&(task_id, job_id));
     }
 
     /// Put file to agent.
@@ -519,7 +485,7 @@ impl AgentWorker {
             decompress,
         };
         if let Err(err) = self
-            .agent_activity_sender
+            .agent_action_sender
             .send((agent_id, AgentAction::PutFile(req, sender)))
         {
             bail!("failed to send PutFile action, cause: {:?}", err);
@@ -551,7 +517,7 @@ impl AgentWorker {
         check_agent_exists!(self, agent_id);
         let (sender, receiver) = flume::bounded(1);
         if let Err(err) = self
-            .agent_activity_sender
+            .agent_action_sender
             .send((agent_id, AgentAction::QueryDataSource(req, sender)))
         {
             bail!("failed to send PutFile action, cause: {:?}", err);
@@ -586,6 +552,5 @@ impl Drop for AgentWorker {
             );
             let _ = receiver.drain();
         }
-        // self.task_set.shutdown();
     }
 }

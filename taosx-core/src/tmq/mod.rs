@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use taos::*;
@@ -270,10 +270,10 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
     }
     let current_version = parse_server_version(version);
 
-    if let Some((a, b, c, d)) = current_version {
-        if need_remove_wal_marker(a, b, c, d) {
-            from.remove("enable.wal.marker");
-        }
+    if let Some((a, b, c, d)) = current_version
+        && need_remove_wal_marker(a, b, c, d)
+    {
+        from.remove("enable.wal.marker");
     }
 
     let source = builder.build().await?;
@@ -869,7 +869,9 @@ pub async fn check_wal_enabled(taos_builder: &TaosBuilder, topics: &[Topic]) -> 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupObject {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub task_id: Option<String>,
+    pub task_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub job_id: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub topic: Option<String>,
     pub db_name: Option<String>,
@@ -884,7 +886,8 @@ impl TryFrom<&Dsn> for BackupObject {
     type Error = anyhow::Error;
 
     fn try_from(dsn: &Dsn) -> std::result::Result<Self, Self::Error> {
-        let task_id = utils::parse_key_in_dsn::<String>(dsn, "task_id")?;
+        let task_id = taosx_utils::dsn::parse_simple_params::<i64>(dsn, "task_id")?;
+        let job_id = taosx_utils::dsn::parse_simple_params::<i64>(dsn, "job_id")?;
         let topic = utils::parse_key_in_dsn::<String>(dsn, "topic")?;
         let db_name = utils::parse_key_in_dsn::<String>(dsn, "db_name")?;
         let db_sql = utils::parse_key_in_dsn::<String>(dsn, "db_sql")?;
@@ -892,6 +895,7 @@ impl TryFrom<&Dsn> for BackupObject {
         let stable_sql = utils::parse_key_in_dsn::<String>(dsn, "stable_sql")?;
         Ok(Self {
             task_id,
+            job_id,
             topic,
             db_name,
             db_sql,
@@ -910,6 +914,7 @@ impl BackupObject {
 
         let mut backup_obj = BackupObject {
             task_id: None,
+            job_id: None,
             topic: None,
             db_name: None,
             db_sql: None,
@@ -1186,10 +1191,11 @@ mod tests {
             .await;
 
         assert!(res.is_err());
-        assert!(res
-            .unwrap_err()
-            .to_string()
-            .contains("WAL retention period is zero"));
+        assert!(
+            res.unwrap_err()
+                .to_string()
+                .contains("WAL retention period is zero")
+        );
 
         // clean
         drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
@@ -1239,10 +1245,12 @@ mod tests {
 
         // assert the result
         assert!(alter_database_res.is_err());
-        assert!(alter_database_res
-            .unwrap_err()
-            .to_string()
-            .contains("WAL retention period is zero"));
+        assert!(
+            alter_database_res
+                .unwrap_err()
+                .to_string()
+                .contains("WAL retention period is zero")
+        );
 
         // clear the test data
         drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;

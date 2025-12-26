@@ -1,10 +1,10 @@
 use std::{num::ParseIntError, str::FromStr};
 
 use rand::{
-    distributions::{Alphanumeric, DistString, Slice},
     Rng,
+    distributions::{Alphanumeric, DistString, Slice},
 };
-use snafu::{ensure, ResultExt};
+use snafu::{ResultExt, ensure};
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {

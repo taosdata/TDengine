@@ -1,6 +1,6 @@
 [package]
 name = "source-kafka"
-edition = "2024"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
@@ -28,6 +28,8 @@ parking_lot.workspace = true
 taosx-core.workspace = true
 taosx-ipc.workspace = true
 futures-ext.workspace = true
+ha-core.workspace = true
+taosx-utils.workspace = true
 
 rdkafka = { version = "0.38.0", features = ["cmake-build", "ssl", "tracing"] }
 [target.'cfg(not(windows))'.dependencies]

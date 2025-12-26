@@ -1,6 +1,6 @@
 [package]
 name = "futures-ext"
-edition = "2021"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
@@ -8,6 +8,8 @@ rust-version.workspace = true
 futures.workspace = true
 pin-project-lite.workspace = true
 tokio = { workspace = true, features = ["time"] }
+paste.workspace = true
+tokio-util.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true

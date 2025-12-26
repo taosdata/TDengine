@@ -17,13 +17,14 @@ use taosx_core::{
     TaskNotify, TaskNotifySender, core_metrics::CoreMetrics, utils::codec::StringDecoder,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::Instrument;
+use tracing::{Instrument, instrument};
 
 use crate::{
     ExitStatus, LoggingConsumer, PendingBatches, PendingState, message_sender::MessagesSender,
     pending_ack_fut::PendingAckResult,
 };
 
+#[instrument(skip_all)]
 pub async fn poll_message(
     index: usize,
     consumer: &mut LoggingConsumer,

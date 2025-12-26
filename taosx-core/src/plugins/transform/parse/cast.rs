@@ -11,7 +11,7 @@ use arrow::{
 };
 use arrow_cast_guess_precision::cast;
 use arrow_schema::ArrowError;
-use chrono::{format, DateTime, ParseResult};
+use chrono::{DateTime, ParseResult, format};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 use taosx_ipc::prelude::IpcDataType;

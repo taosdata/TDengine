@@ -459,10 +459,12 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("OIDC client_id is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("OIDC client_id is required")
+        );
     }
 
     #[test]
@@ -480,10 +482,12 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("OIDC client_secret is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("OIDC client_secret is required")
+        );
     }
 
     #[test]
@@ -501,10 +505,12 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("OIDC issuer_url is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("OIDC issuer_url is required")
+        );
     }
 
     #[test]
@@ -523,10 +529,12 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Invalid OIDC issuer_url"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Invalid OIDC issuer_url")
+        );
     }
 
     #[test]
@@ -563,10 +571,12 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("plain OAuth client_id is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("plain OAuth client_id is required")
+        );
     }
 
     #[test]
@@ -586,10 +596,12 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("plain OAuth authorize_url is required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("plain OAuth authorize_url is required")
+        );
     }
 
     #[test]
@@ -610,10 +622,12 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Invalid plain OAuth token_url"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Invalid plain OAuth token_url")
+        );
     }
 
     #[test]
@@ -665,10 +679,12 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Invalid Custom OAuth profile_url"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Invalid Custom OAuth profile_url")
+        );
     }
 
     #[test]
@@ -730,10 +746,12 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Invalid Custom OAuth fetch_users"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Invalid Custom OAuth fetch_users")
+        );
     }
 
     #[test]
@@ -746,10 +764,12 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Unknown OAuth provider type"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Unknown OAuth provider type")
+        );
     }
 
     #[test]
@@ -758,15 +778,17 @@ mod tests {
         // Save current state
         let prev_val = std::env::var("EXPLORER_OAUTH_ENABLED").ok();
 
-        std::env::set_var("EXPLORER_OAUTH_ENABLED", "true");
+        unsafe {
+            std::env::set_var("EXPLORER_OAUTH_ENABLED", "true");
+        }
         let mut config = OAuthConfig::default();
         config.update_by_env();
         assert!(config.enabled);
 
         // Restore previous state
         match prev_val {
-            Some(val) => std::env::set_var("EXPLORER_OAUTH_ENABLED", val),
-            None => std::env::remove_var("EXPLORER_OAUTH_ENABLED"),
+            Some(val) => unsafe { std::env::set_var("EXPLORER_OAUTH_ENABLED", val) },
+            None => unsafe { std::env::remove_var("EXPLORER_OAUTH_ENABLED") },
         }
     }
 
@@ -777,7 +799,9 @@ mod tests {
         let prev_val = std::env::var("EXPLORER_OAUTH_ENABLED").ok();
 
         for val in ["1", "true", "True", "TRUE", "yes", "Yes"] {
-            std::env::set_var("EXPLORER_OAUTH_ENABLED", val);
+            unsafe {
+                std::env::set_var("EXPLORER_OAUTH_ENABLED", val);
+            }
             let mut config = OAuthConfig::default();
             config.update_by_env();
             assert!(config.enabled, "Failed for value: {}", val);
@@ -785,8 +809,8 @@ mod tests {
 
         // Restore previous state
         match prev_val {
-            Some(val) => std::env::set_var("EXPLORER_OAUTH_ENABLED", val),
-            None => std::env::remove_var("EXPLORER_OAUTH_ENABLED"),
+            Some(val) => unsafe { std::env::set_var("EXPLORER_OAUTH_ENABLED", val) },
+            None => unsafe { std::env::remove_var("EXPLORER_OAUTH_ENABLED") },
         }
     }
 
@@ -796,15 +820,17 @@ mod tests {
         // Save current state
         let prev_val = std::env::var("EXPLORER_OAUTH_ENABLED").ok();
 
-        std::env::set_var("EXPLORER_OAUTH_ENABLED", "false");
+        unsafe {
+            std::env::set_var("EXPLORER_OAUTH_ENABLED", "false");
+        }
         let mut config = OAuthConfig::default();
         config.update_by_env();
         assert!(!config.enabled);
 
         // Restore previous state
         match prev_val {
-            Some(val) => std::env::set_var("EXPLORER_OAUTH_ENABLED", val),
-            None => std::env::remove_var("EXPLORER_OAUTH_ENABLED"),
+            Some(val) => unsafe { std::env::set_var("EXPLORER_OAUTH_ENABLED", val) },
+            None => unsafe { std::env::remove_var("EXPLORER_OAUTH_ENABLED") },
         }
     }
 
@@ -813,14 +839,16 @@ mod tests {
     fn test_update_by_env_client_id() {
         let prev_val = std::env::var("EXPLORER_OAUTH_CLIENT_ID").ok();
 
-        std::env::set_var("EXPLORER_OAUTH_CLIENT_ID", "test_client");
+        unsafe {
+            std::env::set_var("EXPLORER_OAUTH_CLIENT_ID", "test_client");
+        }
         let mut config = OAuthConfig::default();
         config.update_by_env();
         assert_eq!(config.oidc.client_id, "test_client");
 
         match prev_val {
-            Some(val) => std::env::set_var("EXPLORER_OAUTH_CLIENT_ID", val),
-            None => std::env::remove_var("EXPLORER_OAUTH_CLIENT_ID"),
+            Some(val) => unsafe { std::env::set_var("EXPLORER_OAUTH_CLIENT_ID", val) },
+            None => unsafe { std::env::remove_var("EXPLORER_OAUTH_CLIENT_ID") },
         }
     }
 
@@ -829,14 +857,16 @@ mod tests {
     fn test_update_by_env_client_secret() {
         let prev_val = std::env::var("EXPLORER_OAUTH_CLIENT_SECRET").ok();
 
-        std::env::set_var("EXPLORER_OAUTH_CLIENT_SECRET", "test_secret");
+        unsafe {
+            std::env::set_var("EXPLORER_OAUTH_CLIENT_SECRET", "test_secret");
+        }
         let mut config = OAuthConfig::default();
         config.update_by_env();
         assert_eq!(config.oidc.client_secret, "test_secret");
 
         match prev_val {
-            Some(val) => std::env::set_var("EXPLORER_OAUTH_CLIENT_SECRET", val),
-            None => std::env::remove_var("EXPLORER_OAUTH_CLIENT_SECRET"),
+            Some(val) => unsafe { std::env::set_var("EXPLORER_OAUTH_CLIENT_SECRET", val) },
+            None => unsafe { std::env::remove_var("EXPLORER_OAUTH_CLIENT_SECRET") },
         }
     }
 
@@ -845,14 +875,16 @@ mod tests {
     fn test_update_by_env_issuer_url() {
         let prev_val = std::env::var("EXPLORER_OAUTH_ISSUER_URL").ok();
 
-        std::env::set_var("EXPLORER_OAUTH_ISSUER_URL", "https://issuer.example.com");
+        unsafe {
+            std::env::set_var("EXPLORER_OAUTH_ISSUER_URL", "https://issuer.example.com");
+        }
         let mut config = OAuthConfig::default();
         config.update_by_env();
         assert_eq!(config.oidc.issuer_url, "https://issuer.example.com");
 
         match prev_val {
-            Some(val) => std::env::set_var("EXPLORER_OAUTH_ISSUER_URL", val),
-            None => std::env::remove_var("EXPLORER_OAUTH_ISSUER_URL"),
+            Some(val) => unsafe { std::env::set_var("EXPLORER_OAUTH_ISSUER_URL", val) },
+            None => unsafe { std::env::remove_var("EXPLORER_OAUTH_ISSUER_URL") },
         }
     }
 
@@ -861,17 +893,19 @@ mod tests {
     fn test_update_by_env_redirect_uri() {
         let prev_val = std::env::var("EXPLORER_OAUTH_REDIRECT_URI").ok();
 
-        std::env::set_var(
-            "EXPLORER_OAUTH_REDIRECT_URI",
-            "https://app.example.com/callback",
-        );
+        unsafe {
+            std::env::set_var(
+                "EXPLORER_OAUTH_REDIRECT_URI",
+                "https://app.example.com/callback",
+            );
+        }
         let mut config = OAuthConfig::default();
         config.update_by_env();
         assert_eq!(config.oidc.redirect_uri, "https://app.example.com/callback");
 
         match prev_val {
-            Some(val) => std::env::set_var("EXPLORER_OAUTH_REDIRECT_URI", val),
-            None => std::env::remove_var("EXPLORER_OAUTH_REDIRECT_URI"),
+            Some(val) => unsafe { std::env::set_var("EXPLORER_OAUTH_REDIRECT_URI", val) },
+            None => unsafe { std::env::remove_var("EXPLORER_OAUTH_REDIRECT_URI") },
         }
     }
 
@@ -880,7 +914,9 @@ mod tests {
     fn test_update_by_env_scopes() {
         let prev_val = std::env::var("EXPLORER_OAUTH_SCOPES").ok();
 
-        std::env::set_var("EXPLORER_OAUTH_SCOPES", "openid,profile,email,groups");
+        unsafe {
+            std::env::set_var("EXPLORER_OAUTH_SCOPES", "openid,profile,email,groups");
+        }
         let mut config = OAuthConfig::default();
         config.update_by_env();
         assert_eq!(
@@ -889,8 +925,8 @@ mod tests {
         );
 
         match prev_val {
-            Some(val) => std::env::set_var("EXPLORER_OAUTH_SCOPES", val),
-            None => std::env::remove_var("EXPLORER_OAUTH_SCOPES"),
+            Some(val) => unsafe { std::env::set_var("EXPLORER_OAUTH_SCOPES", val) },
+            None => unsafe { std::env::remove_var("EXPLORER_OAUTH_SCOPES") },
         }
     }
 
@@ -899,14 +935,16 @@ mod tests {
     fn test_update_by_env_scopes_with_spaces() {
         let prev_val = std::env::var("EXPLORER_OAUTH_SCOPES").ok();
 
-        std::env::set_var("EXPLORER_OAUTH_SCOPES", "openid, profile, email");
+        unsafe {
+            std::env::set_var("EXPLORER_OAUTH_SCOPES", "openid, profile, email");
+        }
         let mut config = OAuthConfig::default();
         config.update_by_env();
         assert_eq!(config.oidc.scopes, vec!["openid", "profile", "email"]);
 
         match prev_val {
-            Some(val) => std::env::set_var("EXPLORER_OAUTH_SCOPES", val),
-            None => std::env::remove_var("EXPLORER_OAUTH_SCOPES"),
+            Some(val) => unsafe { std::env::set_var("EXPLORER_OAUTH_SCOPES", val) },
+            None => unsafe { std::env::remove_var("EXPLORER_OAUTH_SCOPES") },
         }
     }
 

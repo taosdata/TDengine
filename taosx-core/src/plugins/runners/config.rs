@@ -1,6 +1,7 @@
 use taos::Dsn;
 
-use crate::{plugins::config::AdvancedOptions, utils::dsn::parse_simple_params};
+use crate::plugins::config::AdvancedOptions;
+use taosx_utils::dsn::parse_simple_params;
 
 #[derive(Debug, serde::Serialize)]
 pub struct PerformanceConfig {

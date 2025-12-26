@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, skip_serializing_none, NoneAsEmptyString};
+use serde_with::{NoneAsEmptyString, serde_as, skip_serializing_none};
 use taos::{AsyncFetchable, AsyncQueryable, TryStreamExt};
 
 #[skip_serializing_none]
@@ -218,17 +218,16 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_privileges_roundtrip_with_taos() -> anyhow::Result<()> {
-        use file_guard::Lock;
         use std::fs::OpenOptions;
 
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(true)
             .open("./tests/migrations.lock")?;
 
-        let _lock = file_guard::lock(&mut file, Lock::Exclusive, 0, 1)?;
+        file.lock()?;
 
         let pool = TaosBuilder::from_dsn("taos://")?.pool()?;
         let conn = pool.get().await?;
@@ -246,17 +245,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_user_privileges_with_taos() -> anyhow::Result<()> {
-        use file_guard::Lock;
         use std::fs::OpenOptions;
 
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(true)
             .open("./tests/migrations.lock")?;
 
-        let _lock = file_guard::lock(&mut file, Lock::Exclusive, 0, 1)?;
+        file.lock()?;
 
         let _ = tracing_subscriber::fmt()
             .with_env_filter(

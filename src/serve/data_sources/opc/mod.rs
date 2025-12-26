@@ -1,10 +1,11 @@
 use actix_web::web::{Data, Json, Query};
 use actix_web::{HttpResponse, Responder, get, post};
+use anyhow::Context;
 use csv_async::AsyncWriter;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{Code, IntoDsn};
-use taosx_core::utils::dsn::json_to_dsn;
+use taosx_utils::dsn::json_to_dsn;
 use utoipa::*;
 
 use taosx_core::get_data_dir;
@@ -165,11 +166,13 @@ impl PointDetail {
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct GetPointsHeaderReq {
     task_id: i64,
+    job_id: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct AddPointReq {
     task_id: i64,
+    job_id: i64,
     point: Vec<PointDetail>,
     via: Option<i64>,
 }
@@ -198,8 +201,8 @@ pub async fn get_point_header(
     task_store: Data<TaskControllerRef>,
 ) -> impl Responder {
     let task_id = req.task_id;
-
-    match get_point_header_impl(task_id, task_store).await {
+    let job_id = req.job_id;
+    match get_point_header_impl(task_id, job_id, task_store).await {
         Ok(headers) => Ok(HttpResponse::Ok().json(headers)),
         Err(err) => Err(Failed::new(
             Code::FAILED,
@@ -211,13 +214,14 @@ pub async fn get_point_header(
 
 async fn get_point_header_impl(
     task_id: i64,
+    job_id: i64,
     task_store: Data<TaskControllerRef>,
 ) -> anyhow::Result<Vec<PointDetail>> {
     // find task detail
     let task = task_store
-        .get(task_id)
-        .await?
-        .ok_or(anyhow::anyhow!("task: {} not found", task_id))?;
+        .get_task(task_id, job_id)
+        .await
+        .with_context(|| format!("task: ({task_id},{job_id}) not found"))?;
 
     // get dsn
     // let dsn = task.from.clone().into_dsn()?;
@@ -282,12 +286,13 @@ async fn append_point_impl(
     task_store: Data<TaskControllerRef>,
 ) -> anyhow::Result<()> {
     let task_id = req.task_id;
+    let job_id = req.job_id;
     let point = req.point.clone();
     // find task detail
     let task = task_store
-        .get(task_id)
-        .await?
-        .ok_or(anyhow::anyhow!("task: {} not found", task_id))?;
+        .get_task(task_id, job_id)
+        .await
+        .with_context(|| format!("task: ({task_id},{job_id}) not found"))?;
     tracing::debug!("append point for task: {}", task_id);
 
     // set current dir to DATA_DIR

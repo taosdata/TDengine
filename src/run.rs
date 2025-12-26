@@ -78,6 +78,10 @@ pub(super) struct Cli {
     /// Task id, default is -1.
     #[clap(long, hide = true)]
     task_id: Option<i64>,
+
+    /// Job id, default is -1.
+    #[clap(long, hide = true)]
+    job_id: Option<i64>,
 }
 
 #[config]
@@ -160,7 +164,7 @@ impl Cli {
             cancel: cancel.clone(),
             with_agent: None,
             breakpoints: None,
-            task_id: args.task_id.map(|v| v.to_string()),
+            task_job_id: args.task_id.map(|v| (v, -1)),
             notify,
         };
 
@@ -173,7 +177,7 @@ impl Cli {
             &task_opt.from,
             &task_opt.to,
             args.task_id.unwrap_or(-1),
-            None,
+            args.job_id.unwrap_or(-1),
         )
         .await;
         let port_pool = Default::default();

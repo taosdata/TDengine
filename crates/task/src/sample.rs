@@ -1,12 +1,11 @@
 use std::time::Duration;
 
+use anyhow::Context;
 use taos::{Dsn, IntoDsn};
 use taosx_core::plugins::transform::sample::DsSamples;
 
 pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSamples> {
-    let dsn = dsn
-        .into_dsn()
-        .map_err(|err| anyhow::format_err!("invalid dsn, cause: {err}"))?;
+    let dsn = dsn.into_dsn().context("invalid dsn")?;
     match dsn.driver.as_str() {
         source_historian::AVEVA_HISTORIAN_ID => source_historian::get_sample(&dsn)
             .await

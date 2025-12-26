@@ -10,7 +10,7 @@ use source_mqtt::{
         parse_version,
     },
 };
-use taosx_core::utils::dsn::{option_param, parse_option_param};
+use taosx_utils::dsn::{option_param, parse_option_param};
 
 use super::variables::NAMESPACE;
 

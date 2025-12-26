@@ -68,9 +68,9 @@ impl TaskExecutor for ReplicationExecutor {
             parser: _,
             to,
         } = self.opts.clone();
-        let tid = context.env.tid().map(|id| id.to_string());
+        let task_job_id = context.env.task_job_id();
         let (notify, _receiver) = flume::unbounded();
-        tmq_to_td::tmq_to_td(from, transform, to, cancel, tid, notify).await?;
+        tmq_to_td::tmq_to_td(from, transform, to, cancel, task_job_id, notify).await?;
 
         Ok(Exit::Completed)
     }

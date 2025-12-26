@@ -1,6 +1,6 @@
 use anyhow::{Context, bail};
 use taos::Dsn;
-use taosx_core::utils::dsn::{parse_multiple_value, parse_simple_params};
+use taosx_utils::dsn::{parse_multiple_value, parse_simple_params};
 
 #[derive(Debug, Clone)]
 pub enum Projection {

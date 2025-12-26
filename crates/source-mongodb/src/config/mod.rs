@@ -16,7 +16,7 @@ pub mod connect;
 #[derive(Debug, Clone)]
 pub struct MongoDBConfig {
     // task info
-    pub task_id: Option<i64>,
+    pub task_job_id: Option<(i64, i64)>,
     pub sub_task_id: Option<String>,
     pub ipc_port: Option<u16>,
     // the datasource config
@@ -33,23 +33,12 @@ impl MongoDBConfig {
             return Err(anyhow::anyhow!("invalid driver: {}", dsn.driver));
         }
         Ok(MongoDBConfig {
-            task_id: Self::parse_task_id(dsn),
+            task_job_id: None,
             sub_task_id: None,
             ipc_port: None,
             connect: ConnectConfig::from_dsn(dsn)?,
             task: TaskConfig::from_dsn(dsn)?,
             advanced: AdvancedOptions::from_dsn(dsn)?,
-        })
-    }
-
-    fn parse_task_id(dsn: &Dsn) -> Option<i64> {
-        dsn.params.get("taskId").and_then(|s| {
-            s.parse::<i64>()
-                .map(Some)
-                .inspect_err(|_err| {
-                    tracing::warn!("failed to parse taskId: {}, use None", s);
-                })
-                .unwrap_or(None)
         })
     }
 }

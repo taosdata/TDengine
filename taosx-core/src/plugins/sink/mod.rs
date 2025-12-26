@@ -1,6 +1,6 @@
-use anyhow::{anyhow, bail, Context};
+use anyhow::{Context, anyhow, bail};
 use archive::utils::files::read_parquet_file;
-use archive::{get_rewrite_files, Archive, ArchiveConsumer, ArchiveType, Cache};
+use archive::{Archive, ArchiveConsumer, ArchiveType, Cache, get_rewrite_files};
 use arrow::array::{Array, StringArray};
 use arrow::{datatypes::Schema, record_batch::RecordBatch};
 use arrow_compute_ext::RecordBatchExt;
@@ -14,12 +14,12 @@ use flume::Sender;
 use futures::future::Either;
 use futures_ext::OptionFuture;
 use futures_util::{Sink, Stream, StreamExt};
-use persist::{get_stream, PersistComponent, PersistComponents};
+use persist::{PersistComponent, PersistComponents, get_stream};
 use serde_json::json;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::PathBuf;
-use std::sync::atomic::AtomicU64;
 use std::sync::LazyLock;
+use std::sync::atomic::AtomicU64;
 use std::{
     any::Any,
     collections::{HashMap, HashSet},
@@ -32,29 +32,29 @@ use std::{
 };
 use taos::Precision;
 use taos::{
-    taos_query::{common::Describe, Manager},
     Itertools, Taos, TaosPool, Value,
+    taos_query::{Manager, common::Describe},
 };
-use taoslog::utils::QidMetadataGetter;
 use taoslog::QidManager;
+use taoslog::utils::QidMetadataGetter;
 use taosx_ipc::{prelude::*, stream::point::PointMessage};
 use tokio::sync::{Mutex, Notify, OnceCell};
 use tracing::{debug, error, info, instrument};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-use crate::core_metrics::{get_metrics_arc_from_i64, get_metrics_arc_or};
+use crate::Parser;
 use crate::core_metrics::{CoreMetrics, TaskMetrics};
+use crate::core_metrics::{get_metrics_arc_from_i64, get_metrics_arc_or};
 use crate::plugins::runners::opc::config::OPCConfig;
 use crate::plugins::sink::point::model::PointModelConfig;
+use crate::plugins::transform::WrittenMethod;
 use crate::plugins::transform::archive_records;
 use crate::plugins::transform::handling_strategy::{HandlingResult, ProcessOnAbnormalEnum};
-use crate::plugins::transform::WrittenMethod;
 use crate::plugins::*;
 use crate::sink::flat::handle_sql_too_long;
 use crate::utils::breakpoints::BreakpointDb;
 use crate::utils::sql::get_minimum_timestamp;
 use crate::utils::trace::{BatchCounter, Qid};
-use crate::{ConnectorLicense, Parser, Transferred};
 
 use self::point::handle_transform;
 use self::point::point_records_to_sql;
@@ -150,7 +150,7 @@ impl MessageMetadata {
 async fn ipc_tcp_forward(
     stream: std::net::TcpStream, // socket2::Socket,
     cancel: CancellationToken,
-    with_agent: (i64, String, String),
+    with_agent: Via,
     batch_counter: Arc<BatchCounter>,
     config: Option<Arc<PointModelConfig>>,
     persist_components: Option<PersistComponents>,
@@ -226,7 +226,7 @@ pub async fn ipc_forward(
     ack_tx: Option<flume::Sender<LushAck>>,
     schema: Arc<Schema>,
     cancel: CancellationToken,
-    with_agent: (i64, String, String),
+    with_agent: Via,
     batch_counter: Arc<BatchCounter>,
     config: Option<Arc<PointModelConfig>>,
     persist_component: Option<PersistComponent>,
@@ -255,7 +255,7 @@ async fn ipc_tcp_read(
     cancel: CancellationToken,
     parser: Option<Parser>,
     connector: Option<&'static str>,
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     batch_counter: Option<Arc<BatchCounter>>,
     notifier: crate::TaskNotifySender,
     persist_component: Option<PersistComponents>,
@@ -286,7 +286,7 @@ async fn ipc_tcp_read(
         cancel,
         parser,
         connector,
-        task_id,
+        task_job_id,
         batch_counter,
         notifier,
         persist_component,
@@ -348,7 +348,7 @@ async fn consume_lush_record(
     record: LushMessage,
     columns: &[String],
     count: &mut usize,
-    task: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     metrics: &IpcMetrics,
     breakpoint_db: Option<BreakpointDb>,
     target_precision: Precision,
@@ -412,7 +412,9 @@ async fn consume_lush_record(
                                     .in_current_span()
                                     .await
                                 {
-                                    tracing::info!("Try to alter table {table_name} tag `{tagname}` error: {err:#}");
+                                    tracing::info!(
+                                        "Try to alter table {table_name} tag `{tagname}` error: {err:#}"
+                                    );
                                 }
                             }
                         }
@@ -548,7 +550,7 @@ async fn consume_lush_record(
                 // RawBlock
                 // taos.write_raw_block()
                 let sqls = record.generate_insert_sql_from_tablename(&data, columns);
-                if let Some((task, stable, sqls)) = task
+                if let Some(((task_id, job_id), stable, sqls)) = task_job_id
                     .and_then(|task| record.stable_name().map(|stable| (task, stable)))
                     .and_then(|(task, stable)| sqls.as_ref().map(|(sqls, _)| (task, stable, sqls)))
                 {
@@ -557,7 +559,7 @@ async fn consume_lush_record(
                             Ok(duration) => duration.as_secs(),
                             Err(_) => 0,
                         };
-                    let key = format!("{task}_{stable}");
+                    let key = format!("{task_id}_{job_id}_{stable}");
                     if now_sec
                         - LUSH_BREAKPOINTS_LAST_TIME
                             .entry(key.clone())
@@ -572,26 +574,16 @@ async fn consume_lush_record(
 
                         for sql in sqls {
                             if let Some(ts) = get_ts_from_sql(sql) {
-                                let task_clone = task.to_string();
-                                let stable_clone = stable.to_string();
-                                let ts_clone = ts.clone();
-
                                 let breakpoint_db = breakpoint_db.clone();
                                 tokio::spawn(async move {
                                     if let Some(ref db) = breakpoint_db {
                                         tracing::debug!(
-                                            "breakpoints set start, task: {} stable: {} ts: {}",
-                                            &task_clone,
-                                            &stable_clone,
-                                            &ts_clone
+                                            "breakpoints set start, task: {task_id} stable: {stable} ts: {ts}"
                                         );
-                                        let res = db.set(&stable_clone, &ts_clone).await;
+                                        let res = db.set(&stable, &ts).await;
                                         if res.is_err() {
                                             tracing::error!(
-                                                "breakpoints set error, task: {} stable: {} \n{:#?}",
-                                                &task_clone,
-                                                &stable_clone,
-                                                res
+                                                "breakpoints set error, task: {task_id} stable: {stable} \n{res:#?}",
                                             );
                                         }
                                     }
@@ -666,8 +658,8 @@ async fn consume_lush_record(
                                             let stable_name = record.stable_name();
                                             if stable_name.is_none() {
                                                 tracing::error!(
-                                        "record should contains init message for stable name"
-                                    );
+                                                    "record should contains init message for stable name"
+                                                );
                                                 break;
                                             }
                                             let stable_name = stable_name.unwrap();
@@ -1072,10 +1064,10 @@ async fn consume_lush_record_with_transform(
 fn get_ts_from_sql(sql: &str) -> Option<String> {
     let re = regex::Regex::new(r"(?U)VALUES \((\d+),").unwrap();
 
-    if let Some(caps) = re.captures(sql) {
-        if let Some(value) = caps.get(1) {
-            return Some(value.as_str().to_string());
-        }
+    if let Some(caps) = re.captures(sql)
+        && let Some(value) = caps.get(1)
+    {
+        return Some(value.as_str().to_string());
     }
 
     None
@@ -1291,7 +1283,9 @@ async fn consume_point_record(
                                 for (child_table_name, child_table_create_sql) in
                                     child_table_create_sql_map
                                 {
-                                    let suffix_sql = format!(" `{child_table_name}` USING `{stable_name}` {child_table_create_sql}");
+                                    let suffix_sql = format!(
+                                        " `{child_table_name}` USING `{stable_name}` {child_table_create_sql}"
+                                    );
                                     if sql_prefix.len() + suffix_sql.len() > 1024 * 1024 {
                                         child_table_create_sqls.push(sql_prefix);
                                         sql_prefix = "CREATE TABLE".to_string();
@@ -1390,7 +1384,10 @@ async fn consume_point_record(
                                     if need_add {
                                         if column_config.r#type.is_none() {
                                             // shouldn't happen if normal, encounter when rename value column
-                                            tracing::error!("column {} column_type is error, maybe stable set error", column_real_name);
+                                            tracing::error!(
+                                                "column {} column_type is error, maybe stable set error",
+                                                column_real_name
+                                            );
                                             break 'outer;
                                         }
                                         let add_column_sql = format!(
@@ -1988,7 +1985,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
     lush_model_config: Option<&LushModelConfig>,
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     notifier: crate::TaskNotifySender,
     ipc_error_strategy: IpcErrorStrategy,
     metrics: &IpcMetrics,
@@ -2047,7 +2044,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 record,
                 &columns,
                 &mut count,
-                task_id,
+                task_job_id,
                 metrics,
                 breakpoint_db.clone(),
                 target_precision,
@@ -2102,7 +2099,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         metrics.add_processed_messages(raw_rows as u64);
         drop(taos);
     }
-    tracing::info!("task {task_id:?} finished, totally {count} rows");
+    tracing::info!("task {task_job_id:?} finished, totally {count} rows");
     Ok(())
 }
 
@@ -2315,7 +2312,7 @@ async fn ipc_flat_stream_worker(
                 cancel,
                 archive_tx,
             )
-            .await
+            .await;
         }
         WrittenMethod::VgroupSequential => {
             return ipc_flat_stream_worker_vgroup_sequential(
@@ -2331,7 +2328,7 @@ async fn ipc_flat_stream_worker(
                 cancel,
                 archive_tx,
             )
-            .await
+            .await;
         }
         WrittenMethod::Sequential => {
             return ipc_flat_stream_worker_vgroup_sequential(
@@ -2347,7 +2344,7 @@ async fn ipc_flat_stream_worker(
                 cancel,
                 archive_tx,
             )
-            .await
+            .await;
         }
     }
 }
@@ -2530,14 +2527,14 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     cancel: CancellationToken,
     parser: Option<Parser>,
     connector: Option<&str>,
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     batch_counter: Option<Arc<BatchCounter>>,
     notifier: crate::TaskNotifySender,
     persist_component: Option<PersistComponents>,
     breakpoint_db: Option<BreakpointDb>,
 ) -> anyhow::Result<()> {
     // the queue for transmitting cache and archived data
-    let (archive_tx, archive_rx) = if parser.is_some() && task_id.is_some() {
+    let (archive_tx, archive_rx) = if parser.is_some() && task_job_id.is_some() {
         let (archive_tx, archive_rx) = flume::bounded(0);
         (Some(archive_tx), Some(archive_rx))
     } else {
@@ -2547,41 +2544,45 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     let parser_clone = parser.clone();
     let cancel_clone = cancel.clone();
     // spawn a thread to write data to files
-    let process_archive = archive_rx.map(|archive_rx| {
-        tokio::spawn(async move {
-            let _a = crate::utils::defer::defer(|| {
-                tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
-            });
-            let (cache, archive) = match parser_clone {
-                Some(parser) => (
-                    parser.global().process_on_abnormal.cache.clone(),
-                    parser.global().process_on_abnormal.archive.clone(),
-                ),
-                None => (Cache::default(), Archive::default()),
-            };
-            let metrics = get_metrics_arc_from_i64(task_id).await;
-            let mut fut =
-                ArchiveConsumer::new(task_id.unwrap_or(-1), cache, archive, |num_rows: u64| {
-                    let metrics = metrics.ipc();
-                    metrics.add_archived_rows(num_rows);
-                    Ok::<_, anyhow::Error>(())
+    let process_archive =
+        archive_rx.map(|archive_rx| {
+            tokio::spawn(async move {
+                let _a = crate::utils::defer::defer(|| {
+                    tracing::info!(
+                        "the 'cache & archive' thread has completed, task: {task_job_id:?}",
+                    );
                 });
-            tokio::select! {
-                res = fut.consume(archive_rx) => {
-                    match res {
-                        Ok(_) => Ok(()),
-                        Err(err) => {
-                            tracing::error!("archive consumer error: {err:#}");
-                            Err(err)
+                let (task_id, job_id) = task_job_id.unwrap_or((-1, -1));
+                let (cache, archive) = match parser_clone {
+                    Some(parser) => (
+                        parser.global().process_on_abnormal.cache.clone(),
+                        parser.global().process_on_abnormal.archive.clone(),
+                    ),
+                    None => (Cache::default(), Archive::default()),
+                };
+                let metrics = get_metrics_arc_from_i64(task_job_id).await;
+                let mut fut =
+                    ArchiveConsumer::new(task_id, job_id, cache, archive, |num_rows: u64| {
+                        let metrics = metrics.ipc();
+                        metrics.add_archived_rows(num_rows);
+                        Ok::<_, anyhow::Error>(())
+                    });
+                tokio::select! {
+                    res = fut.consume(archive_rx) => {
+                        match res {
+                            Ok(_) => Ok(()),
+                            Err(err) => {
+                                tracing::error!("archive consumer error: {err:#}");
+                                Err(err)
+                            }
                         }
                     }
+                    _ = cancel_clone.cancelled() => {
+                        Ok(())
+                    }
                 }
-                _ = cancel_clone.cancelled() => {
-                    Ok(())
-                }
-            }
-        })
-    });
+            })
+        });
     // spawn a thread to rewrite cache data to files
     let pool_clone = pool.clone();
     let parser_clone = parser.clone();
@@ -2589,17 +2590,17 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     let archive_tx_clone = archive_tx.clone();
     let process_cache = tokio::spawn(async move {
         let _a = crate::utils::defer::defer(|| {
-            tracing::info!("the 'rewrite file' thread has completed, task id: {task_id:?}",);
+            tracing::info!("the 'rewrite file' thread has completed, task id: {task_job_id:?}",);
         });
-        if task_id.is_none() {
+        let Some((task_id, job_id)) = task_job_id else {
             return Ok(());
-        }
+        };
         let Some(archive_tx) = archive_tx_clone else {
             return Ok(());
         };
         if let Some(parser) = parser_clone {
             read_cache_and_rewrite(
-                task_id.unwrap(),
+                (task_id, job_id),
                 &pool_clone,
                 &parser,
                 &archive_tx,
@@ -2637,14 +2638,14 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     let ipc_error_strategy = IpcErrorStrategy::from_connector(connector.unwrap_or("taos"));
     let metadata = ipc_reader.metadata();
     let stream_type = *metadata.stream_type();
-    let metrics_arc = get_metrics_arc_from_i64(task_id).await;
+    let metrics_arc = get_metrics_arc_from_i64(task_job_id).await;
     let metrics = metrics_arc.ipc();
     // handle lush message init
-    if lush_model_config.is_none() {
-        if let Some(sql) = metadata.init_sql_string() {
-            let init = metadata.init().unwrap();
-            handle_lush_message_init(init, &taos, &sql, metrics).await?;
-        }
+    if lush_model_config.is_none()
+        && let Some(sql) = metadata.init_sql_string()
+    {
+        let init = metadata.init().unwrap();
+        handle_lush_message_init(init, &taos, &sql, metrics).await?;
     }
     // handle point message init
     if let Some(opc_model_config) = opc_model_config {
@@ -2695,7 +2696,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                 ipc_reader,
                 ipc_ack_writer,
                 lush_model_config,
-                task_id,
+                task_job_id,
                 notifier,
                 ipc_error_strategy,
                 metrics,
@@ -2821,15 +2822,13 @@ pub struct IpcStreamWorker {
     pool: TaosPool,
     pub parser: IpcParser,
     lock: Arc<Mutex<()>>,
-    task: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     from: Dsn,
     config: Option<Arc<OPCConfig>>,
     opc_table_config: OnceCell<PointModelConfig>,
     pub lush_model_config: OnceCell<Arc<LushModelConfig>>,
     pub lush_table_cache: Option<Arc<TableTagCache>>,
     breakpoint_db: Option<BreakpointDb>,
-    license: Option<Arc<ConnectorLicense>>,
-    transferred: Option<Arc<Transferred>>,
     target_precision: taos::Precision,
     span: tracing::Span,
     cancel: CancellationToken,
@@ -2841,15 +2840,13 @@ impl Clone for IpcStreamWorker {
             pool: self.pool.clone(),
             parser: self.parser.clone(),
             lock: self.lock.clone(),
-            task: self.task,
+            task_job_id: self.task_job_id,
             from: self.from.clone(),
             config: self.config.clone(),
             opc_table_config: self.opc_table_config.clone(),
             lush_model_config: self.lush_model_config.clone(),
             lush_table_cache: self.lush_table_cache.clone(),
             breakpoint_db: self.breakpoint_db.clone(),
-            license: self.license.clone(),
-            transferred: self.transferred.clone(),
             span: self.span.clone(),
             target_precision: self.target_precision,
             cancel: self.cancel.clone(),
@@ -2863,13 +2860,10 @@ impl IpcStreamWorker {
         from: Dsn,
         lock: Arc<Mutex<()>>,
         schema: Arc<Schema>,
-        license: Option<ConnectorLicense>,
-        transferred: Option<Transferred>,
         lush_table_cache: Option<Arc<TableTagCache>>,
         breakpoint_db: Option<BreakpointDb>,
         span: tracing::Span,
-        task: Option<i64>,
-        // license: Option<>
+        task_job_id: Option<(i64, i64)>,
     ) -> anyhow::Result<Self> {
         let opc_table_config: OnceCell<PointModelConfig> = OnceCell::const_new();
         if let Some(config) = schema.metadata().get("config") {
@@ -2899,14 +2893,12 @@ impl IpcStreamWorker {
             from,
             parser: IpcParser::new(schema),
             lock,
-            task,
+            task_job_id,
             config: None,
             opc_table_config,
             lush_model_config,
             lush_table_cache,
             breakpoint_db,
-            license: license.map(Arc::new),
-            transferred: transferred.map(Arc::new), // stmt: Arc::new(UnsafeCell::new(stmt)),
             target_precision,
             span,
             cancel,
@@ -2969,8 +2961,6 @@ impl IpcStreamWorker {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
                 .map_err(|_| anyhow::format_err!("Unable to read lush message"))?;
-                tracing::debug!("processing LushMessage, len: {}", record.nrows());
-                let task = self.task;
                 let lush_model_config = self.lush_model_config.get();
                 if let Some(lush_model_config) = lush_model_config {
                     let is_tables = record.is_tables();
@@ -3011,7 +3001,7 @@ impl IpcStreamWorker {
                         record,
                         &columns,
                         &mut count,
-                        task,
+                        self.task_job_id,
                         metrics,
                         self.breakpoint_db.clone(),
                         self.target_precision,
@@ -3041,9 +3031,6 @@ impl IpcStreamWorker {
                     metrics,
                 )
                 .await?;
-                if let Some(transferred) = &self.transferred {
-                    transferred.points.fetch_add(_n as _, Ordering::SeqCst);
-                }
                 Ok(count)
             }
         }
@@ -3088,7 +3075,7 @@ async fn get_taos_with_retry(
 pub async fn listen_tcp_socket_with_agent(
     socket: Option<impl AsRef<str>>,
     cancel: CancellationToken,
-    with_agent: (i64, String, String),
+    with_agent: Via,
     config: Option<Arc<PointModelConfig>>,
     persist_config: Option<PersistConfig>,
 ) -> anyhow::Result<(IpcHandler, SocketAddr)> {
@@ -3096,7 +3083,7 @@ pub async fn listen_tcp_socket_with_agent(
 
     let (listener, listen_addr) = bind_tcp(socket).await?;
 
-    let batch_counter = BatchCounter::new(with_agent.0 as u16).await?;
+    let batch_counter = BatchCounter::new(with_agent.task_id, with_agent.job_id).await?;
 
     // let (closer, mut receiver) = tokio::sync::mpsc::channel::<()>(1);
     // let closed = Arc::new(AtomicBool::new(false));
@@ -3305,10 +3292,10 @@ pub async fn listen_tcp_socket(
     opc_model_config: Option<Arc<PointModelConfig>>,
     lush_model_config: Option<Arc<LushModelConfig>>,
     cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
+    with_agent: Option<Via>,
     parser: Option<Parser>,
     connector: Option<&'static str>,
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     notifier: crate::TaskNotifySender,
     persist_config: Option<PersistConfig>,
 ) -> anyhow::Result<(IpcHandler, SocketAddr)> {
@@ -3322,14 +3309,17 @@ pub async fn listen_tcp_socket(
     let notified = notify.clone();
 
     let mut batch_counter = None;
-    if let Some((task_id, _, _)) = with_agent.as_ref() {
-        batch_counter = Some(BatchCounter::new(*task_id as u16).await?);
-    } else if let Some(task_id) = task_id.as_ref() {
-        batch_counter = Some(BatchCounter::new(*task_id as u16).await?);
+    if let Some(Via {
+        task_id, job_id, ..
+    }) = with_agent.as_ref()
+    {
+        batch_counter = Some(BatchCounter::new(*task_id, *job_id).await?);
+    } else if let Some((task_id, job_id)) = task_job_id.as_ref() {
+        batch_counter = Some(BatchCounter::new(*task_id, *job_id).await?);
     };
 
-    let breakpoint_db: Option<BreakpointDb> = if let Some(task_id) = task_id {
-        BreakpointDb::new_with_task(&task_id.to_string())
+    let breakpoint_db: Option<BreakpointDb> = if let Some((task_id, job_id)) = task_job_id {
+        BreakpointDb::new_with_task(task_id, job_id)
             .await
             .map_err(|e| tracing::warn!("task {task_id:?} get breakpoint db error: {e:#}"))
             .ok()
@@ -3382,7 +3372,7 @@ pub async fn listen_tcp_socket(
                         cancel,
                         parser,
                         connector,
-                        task_id,
+                        task_job_id,
                         batch_counter,
                         notifier,
                         persist_components,
@@ -3544,7 +3534,7 @@ pub async fn channel_based_transformer(
     cancel: CancellationToken,
     parser: Option<Parser>,
     connector: Option<&'static str>,
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     notifier: crate::TaskNotifySender,
     send_capacity: usize,
 ) -> anyhow::Result<(
@@ -3552,7 +3542,7 @@ pub async fn channel_based_transformer(
     flume::Receiver<LushAck>,
 )> {
     // the queue for transmitting cache and archived data
-    let (archive_tx, archive_rx) = if parser.is_some() && task_id.is_some() {
+    let (archive_tx, archive_rx) = if parser.is_some() && task_job_id.is_some() {
         let (archive_tx, archive_rx) = flume::bounded(0);
         (Some(archive_tx), Some(archive_rx))
     } else {
@@ -3566,7 +3556,9 @@ pub async fn channel_based_transformer(
     let process_archive = archive_rx.map(|archive_rx| {
         tokio::spawn(async move {
             let _a = crate::utils::defer::defer(|| {
-                tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
+                tracing::info!(
+                    "the 'cache & archive' thread has completed, task id: {task_job_id:?}",
+                );
             });
 
             let (cache, archive) = match parser_clone {
@@ -3576,14 +3568,14 @@ pub async fn channel_based_transformer(
                 ),
                 None => (Cache::default(), Archive::default()),
             };
-            let metrics = get_metrics_arc_from_i64(task_id).await;
+            let (task_id, job_id) = task_job_id.unwrap_or((-1, -1));
+            let metrics = get_metrics_arc_from_i64(task_job_id).await;
 
-            let mut fut =
-                ArchiveConsumer::new(task_id.unwrap_or(-1), cache, archive, |num_rows: u64| {
-                    let metrics = metrics.ipc();
-                    metrics.add_archived_rows(num_rows);
-                    Ok::<_, anyhow::Error>(())
-                });
+            let mut fut = ArchiveConsumer::new(task_id, job_id, cache, archive, |num_rows: u64| {
+                let metrics = metrics.ipc();
+                metrics.add_archived_rows(num_rows);
+                Ok::<_, anyhow::Error>(())
+            });
             tokio::select! {
                 res = fut.consume(archive_rx) => {
                     res
@@ -3602,13 +3594,19 @@ pub async fn channel_based_transformer(
     let archive_tx_clone = archive_tx.clone();
     let process_cache = tokio::spawn(async move {
         let _a = crate::utils::defer::defer(|| {
-            tracing::info!("the 'rewrite file' thread has completed, task id: {task_id:?}",);
+            tracing::info!("the 'rewrite file' thread has completed, task id: {task_job_id:?}",);
         });
 
-        match (parser_clone, task_id, archive_tx_clone) {
-            (Some(parser), Some(task_id), Some(archive_tx)) => {
-                read_cache_and_rewrite(task_id, &pool_clone, &parser, &archive_tx, &cancel_clone)
-                    .await
+        match (parser_clone, task_job_id, archive_tx_clone) {
+            (Some(parser), Some(task_job_id), Some(archive_tx)) => {
+                read_cache_and_rewrite(
+                    task_job_id,
+                    &pool_clone,
+                    &parser,
+                    &archive_tx,
+                    &cancel_clone,
+                )
+                .await
             }
             _ => Ok(()),
         }
@@ -3631,12 +3629,12 @@ pub async fn channel_based_transformer(
 
     let ipc_error_strategy = IpcErrorStrategy::from_connector(connector.unwrap_or("taos"));
 
-    let batch_counter = if let Some(task_id) = task_id {
-        Some(BatchCounter::new(task_id as u16).await?)
+    let batch_counter = if let Some((task_id, job_id)) = task_job_id {
+        Some(BatchCounter::new(task_id, job_id).await?)
     } else {
         None
     };
-    let metrics = get_metrics_arc_or(task_id, || {
+    let metrics = get_metrics_arc_or(task_job_id, || {
         Arc::new(CoreMetrics::IPC(IpcMetrics::default()))
     })
     .await;
@@ -3647,34 +3645,27 @@ pub async fn channel_based_transformer(
                 _ = cancel.cancelled() => {
                     tracing::info!("IPC stream cancelled");
                 },
-                res = async {
-                    ipc_flat_stream_worker(
-                        &target,
-                        stream,
-                        sink,
-                        cancel.clone(),
-                        parser.as_ref(),
-                        target_precision,
-                        notifier,
-                        ipc_error_strategy,
-                        metrics,
-                        batch_counter,
-                        archive_tx.as_ref(),
-                        None,
-                    )
-                    .in_current_span()
-                    .await
-                } => {
+                res = ipc_flat_stream_worker(
+                    &target,
+                    stream,
+                    sink,
+                    cancel.clone(),
+                    parser.as_ref(),
+                    target_precision,
+                    notifier,
+                    ipc_error_strategy,
+                    metrics,
+                    batch_counter,
+                    archive_tx.as_ref(),
+                    None,
+                )
+                .in_current_span() => {
                     if let Err(e) = res {
                         tracing::error!("ipc flat stream worker error: {e}");
                     }
-                },
-                status = OptionFuture::from(process_archive) => {
-                    if let Err(e) = status {
-                        tracing::error!("archive consumer error: {e:#}");
-                    }
                 }
             }
+
             if let Some(abort_handle_process_archive) = abort_handle_process_archive {
                 abort_handle_process_archive.abort();
             }
@@ -3687,14 +3678,14 @@ pub async fn channel_based_transformer(
 }
 
 pub async fn read_cache_and_rewrite(
-    task_id: i64,
+    task_job_id: (i64, i64),
     pool: &TaosPool,
     parser: &Parser,
     archive_tx: &Sender<ArchiveType>,
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     let cache_path = parser.global().process_on_abnormal.cache.location.clone();
-    let metrics_arc = get_metrics_arc_from_i64(Some(task_id)).await;
+    let metrics_arc = get_metrics_arc_from_i64(Some(task_job_id)).await;
     let metrics = metrics_arc.ipc();
     loop {
         tokio::select! {
@@ -3742,7 +3733,7 @@ pub async fn read_cache_and_rewrite(
                 }
             }
         }
-        tracing::debug!("rewrite file loop, task: {task_id}, cache: {cache_path}");
+        tracing::debug!("rewrite file loop, task: {task_job_id:?}, cache: {cache_path}");
     }
     Ok(())
 }
@@ -3788,7 +3779,7 @@ mod tests {
     use crate::plugins::sink::point::model::TableConfig;
     use crate::sink::point::model::SourceType;
     use crate::utils::port_pool::PortPool;
-    use crate::utils::trace::{DEFAULT_INSTANCE_ID, INSTANCE_ID};
+    use crate::utils::trace::{DEFAULT_TAOSX_INSTANCE_ID, INSTANCE_ID};
     use linked_hash_map::LinkedHashMap;
     use std::env;
     use taos::sync::Fetchable;
@@ -3804,7 +3795,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_handle_point_message_init_with_taos() {
         tracing_subscriber::fmt::try_init().ok();
-        INSTANCE_ID.set(DEFAULT_INSTANCE_ID).unwrap();
+        INSTANCE_ID.set(DEFAULT_TAOSX_INSTANCE_ID).unwrap();
 
         // given
         let dsn = env::var("TAOS_ADDR").ok().unwrap_or("taos://".to_string());

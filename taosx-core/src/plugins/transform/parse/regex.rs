@@ -2,8 +2,8 @@ use arrow::array::{BooleanArray, Float32Array, Float64Array, StringBuilder};
 use arrow::datatypes::Field;
 use arrow::{
     array::{
-        Array, ArrayRef, BinaryArray, Int16Array, Int32Array, Int64Array, Int8Array, StringArray,
-        UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        Array, ArrayRef, BinaryArray, Int8Array, Int16Array, Int32Array, Int64Array, StringArray,
+        UInt8Array, UInt16Array, UInt32Array, UInt64Array,
     },
     datatypes::{DataType, Schema},
     record_batch::RecordBatch,

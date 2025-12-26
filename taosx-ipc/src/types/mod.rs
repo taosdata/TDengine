@@ -218,7 +218,15 @@ pub enum TaskMetricsVariant {
     Inc,
     Dec,
 }
-pub type TaskMetricItem = (i64, FastStr, TaskMetricsVariant, u64);
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TaskMetricItem {
+    pub task_id: i64,
+    pub job_id: i64,
+    pub key: FastStr,
+    pub var: TaskMetricsVariant,
+    pub value: u64,
+}
 pub type TaskMetrics = Vec<TaskMetricItem>;
 pub enum RespAction {
     Heartbeat,

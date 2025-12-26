@@ -2,8 +2,8 @@ use std::{
     future::pending,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -12,16 +12,16 @@ use anyhow::Context;
 use clap::Parser;
 use crossterm::event::EventStream;
 use faststr::FastStr;
-use futures::{future::Either, StreamExt};
+use futures::{StreamExt, future::Either};
 use rumqttc::{
+    Outgoing,
     v5::{
+        Event, Incoming, MqttOptions,
         mqttbytes::{
             qos,
             v5::{ConnAck, ConnectReturnCode, PubAckReason, PubRecReason},
         },
-        Event, Incoming, MqttOptions,
     },
-    Outgoing,
 };
 use serde_with::serde_as;
 use tokio::{signal::ctrl_c, task::JoinSet};
@@ -250,39 +250,45 @@ async fn main() -> anyhow::Result<()> {
                         let topic = topic.clone();
                         let data_tx = data_tx.clone();
                         let payload = payload.clone();
-                        std::thread::spawn(move || loop {
-                            if data_tx.is_disconnected() {
-                                break;
-                            }
-                            let payload = payload.clone();
-                            let payload_result = payload
-                                .rand_json_value()
-                                .context("gen fake data error")
-                                .and_then(|value| {
-                                    serde_json::to_vec(&value).context("serialize json error")
-                                })
-                                .and_then(|value| {
-                                    processor.process(value).context("processor process error")
-                                })
-                                .context("get value error");
-                            let payload = match payload_result {
-                                Ok(p) => p,
-                                Err(e) => {
-                                    eprintln!("Error generating payload: {e:#}, thread will exit.",);
+                        std::thread::spawn(move || {
+                            loop {
+                                if data_tx.is_disconnected() {
                                     break;
                                 }
-                            };
-                            let topic_str = match topic.next() {
-                                Ok(t) => t,
-                                Err(e) => {
-                                    eprintln!("Error generating topic: {e:#}, thread will exit.");
+                                let payload = payload.clone();
+                                let payload_result = payload
+                                    .rand_json_value()
+                                    .context("gen fake data error")
+                                    .and_then(|value| {
+                                        serde_json::to_vec(&value).context("serialize json error")
+                                    })
+                                    .and_then(|value| {
+                                        processor.process(value).context("processor process error")
+                                    })
+                                    .context("get value error");
+                                let payload = match payload_result {
+                                    Ok(p) => p,
+                                    Err(e) => {
+                                        eprintln!(
+                                            "Error generating payload: {e:#}, thread will exit.",
+                                        );
+                                        break;
+                                    }
+                                };
+                                let topic_str = match topic.next() {
+                                    Ok(t) => t,
+                                    Err(e) => {
+                                        eprintln!(
+                                            "Error generating topic: {e:#}, thread will exit."
+                                        );
+                                        break;
+                                    }
+                                };
+                                let data =
+                                    Data::new(topic_str, payload, schema.qos.unwrap_or_default());
+                                if data_tx.send(data).is_err() {
                                     break;
                                 }
-                            };
-                            let data =
-                                Data::new(topic_str, payload, schema.qos.unwrap_or_default());
-                            if data_tx.send(data).is_err() {
-                                break;
                             }
                         });
                     }
@@ -306,7 +312,10 @@ async fn main() -> anyhow::Result<()> {
     drop(data_rx);
 
     tasks.spawn({
-        let mut ticker = tokio::time::interval(args.report_interval);
+        let mut ticker = tokio::time::interval_at(
+            tokio::time::Instant::now() + args.report_interval,
+            args.report_interval,
+        );
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let cancel = cancel.clone();
         async move {

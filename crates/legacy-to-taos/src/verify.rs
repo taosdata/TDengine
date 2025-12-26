@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::LazyLock};
 
 pub const CLIENT_OPTIONS: [&str; 71] = [
     // taos.cfg options
@@ -77,9 +77,8 @@ pub const CLIENT_OPTIONS: [&str; 71] = [
     "version_prefer",
 ];
 
-lazy_static::lazy_static! {
-    static ref TAOS_PARAMS: HashSet<&'static str> = CLIENT_OPTIONS.into_iter().collect();
-}
+static TAOS_PARAMS: LazyLock<HashSet<&'static str>> =
+    LazyLock::new(|| CLIENT_OPTIONS.into_iter().collect());
 
 #[allow(unused)]
 pub fn verify_dsn(dsn: &taos::Dsn) -> anyhow::Result<()> {

@@ -1,5 +1,5 @@
 use super::client::UserInfo;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chrono::{DateTime, Months, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -12,10 +12,10 @@ use taos::*;
 use tracing::instrument;
 use uuid::Uuid;
 
+use crate::Args;
 use crate::oauth::middleware::{AuthType, TsdbCredential};
 use crate::utils::aes::{aes_decrypt_base64, aes_encrypt_base64};
 use crate::utils::cbc::derive_key_from_user_agent;
-use crate::Args;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct OAuthUser {

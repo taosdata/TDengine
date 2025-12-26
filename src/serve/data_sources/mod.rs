@@ -5,10 +5,9 @@ use actix_web::{
     HttpRequest, HttpResponse, Responder, get,
     http::header::{ContentDisposition, ContentType},
     post,
-    web::{self, Data, Json, Query},
+    web::{Data, Json, Query},
 };
 use anyhow::Context;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{Code, Dsn, IntoDsn};
 use taosx_task::validate::validate_dsn;
@@ -17,11 +16,9 @@ use tracing::{Instrument, Span, instrument};
 use utoipa::*;
 
 use crate::serve::{controller::TaskControllerRef, task::Failed};
-pub use definition::*;
 pub use point_loader::*;
 use taosx_core::plugins::sink::point::{csv::CsvParser, model::ModelType};
 use taosx_core::plugins::transform::sample::DsSamples;
-use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::timeout::{Timeout, TimeoutType};
 use taosx_core::{DataSetsReq, get_data_dir, list_datasets_from};
 use taosx_core::{QueryDataSourceReq, dsv::DataSourceValidation};
@@ -32,8 +29,8 @@ use taosx_core::{
         transform::{PIElementModelConfig, PIPointModelConfig},
     },
 };
+use taosx_utils::dsn::json_to_dsn;
 
-mod definition;
 pub(crate) mod kafka;
 pub(crate) mod opc;
 mod point_loader;
@@ -137,65 +134,6 @@ impl LangQuery {
     }
 }
 
-/// List available data source definitions.
-#[utoipa::path(
-    tag = "data sources",
-    responses(
-        (status = 200, description = "Available data sources", body = Vec<DataSourceDefinition>),
-    ),
-    params(
-        LangQuery,
-    ),
-)]
-#[get("/ds/in")]
-pub(super) async fn data_sources_in(lang: Query<LangQuery>) -> impl Responder {
-    HttpResponse::Ok()
-        .content_type(ContentType::json())
-        .json(if lang.is_cn() {
-            super::controller::DATA_SOURCE_DEFINITIONS_CN
-                .values()
-                .collect_vec()
-        } else {
-            super::controller::DATA_SOURCE_DEFINITIONS
-                .values()
-                .collect_vec()
-        })
-}
-
-/// Get data source definition by name(id).
-#[utoipa::path(
-    tag = "data sources",
-    responses(
-        (status = 200, description = "Data source definition of some", body = DataSourceDefinition),
-    ),
-    params(
-        LangQuery,
-    ),
-)]
-#[get("/ds/in/{name}")]
-pub(super) async fn data_sources_in_one(
-    name: web::Path<String>,
-    lang: Query<LangQuery>,
-) -> impl Responder {
-    let name = name.as_str();
-    match if lang.is_cn() {
-        super::controller::DATA_SOURCE_DEFINITIONS_CN.get(name)
-    } else {
-        super::controller::DATA_SOURCE_DEFINITIONS.get(name)
-    } {
-        Some(ds) => HttpResponse::Ok()
-            .content_type(ContentType::json())
-            .json(ds),
-        None => HttpResponse::NotFound()
-            .content_type(ContentType::json())
-            .json(Failed::new(
-                Code::new(-1),
-                "Data source not found".to_string(),
-                (),
-            )),
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct DsField {
     name: String,
@@ -213,6 +151,7 @@ pub struct TzQuery {
     /// Timezone name, e.g. "Asia/Shanghai"
     tz: Option<String>,
 }
+
 /// Flat stream transform sample data simulation.
 #[utoipa::path(
     tag = "transform",

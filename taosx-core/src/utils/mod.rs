@@ -1,6 +1,5 @@
 use anyhow::bail;
 use chrono::{DateTime, FixedOffset, Utc};
-use dsn::json_to_dsn;
 use serde::ser::StdError;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -8,15 +7,15 @@ use std::{io::BufRead, path::Path, thread::JoinHandle};
 use taos::*;
 use tokio_util::sync::CancellationToken;
 
+use taosx_utils::dsn::json_to_dsn;
+
 pub mod breakpoints;
 pub mod cert;
 pub mod codec;
 pub mod constants;
 pub mod defer;
-pub mod dsn;
 pub mod duration;
 pub mod files;
-pub mod futs_helper;
 pub mod interval;
 pub mod license;
 pub mod log_cache;
@@ -242,10 +241,6 @@ pub async fn get_server_version(taos: &Taos) -> anyhow::Result<String> {
     }
 }
 
-lazy_static::lazy_static! {
-    static ref TABLE_COLUMN_NAME_REGEX: regex::Regex = regex::Regex::new(r"^[a-zA-Z][a-zA-Z0-9_]*$").unwrap();
-}
-
 pub fn validate_table_column_name(col_name: &str, name_value: &str) -> anyhow::Result<()> {
     if name_value.len() > 192 {
         bail!(
@@ -416,7 +411,7 @@ pub fn parse_dir_in_dsn(dsn: &Dsn, key: Option<&str>) -> anyhow::Result<Option<P
 }
 
 /// 解析 dsn 中的备份目录 local:/<BACKUP_DIR>
-pub fn parse_backup_dir(dsn: &Dsn, task_id: Option<&str>) -> anyhow::Result<PathBuf> {
+pub fn parse_backup_dir(dsn: &Dsn, task_job_id: Option<(i64, i64)>) -> anyhow::Result<PathBuf> {
     let mut dir = match parse_dir_in_dsn(dsn, None)? {
         // dir 为空，使用默认路径: $TAOSX_DATA_DIR/backup
         None => {
@@ -443,8 +438,8 @@ pub fn parse_backup_dir(dsn: &Dsn, task_id: Option<&str>) -> anyhow::Result<Path
         }
     };
 
-    if let Some(task_id) = task_id {
-        dir = dir.join(task_id);
+    if let Some((task_id, job_id)) = task_job_id {
+        dir = dir.join(task_id.to_string()).join(job_id.to_string());
     }
 
     Ok(dir)
@@ -775,10 +770,14 @@ mod tests {
     #[test]
     fn test_parse_backup_dir() {
         let dsn = "local:/tmp".into_dsn().unwrap();
-        let task_id = Some("123".to_string());
-        let backup_dir = parse_backup_dir(&dsn, task_id.as_deref()).unwrap();
+        let task_id = Some((123, 1));
+        let backup_dir = parse_backup_dir(&dsn, task_id).unwrap();
 
-        let cur_dir = Path::new("/tmp").canonicalize().unwrap().join("123");
+        let cur_dir = Path::new("/tmp")
+            .canonicalize()
+            .unwrap()
+            .join("123")
+            .join("1");
         assert_eq!(backup_dir, cur_dir);
     }
 

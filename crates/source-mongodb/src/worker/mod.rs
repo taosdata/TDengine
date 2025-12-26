@@ -4,6 +4,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::Context;
 use chrono::{DateTime, Days, FixedOffset, Utc};
 use mongodb::bson::Bson;
 use std::collections::HashSet;
@@ -220,7 +221,7 @@ pub async fn migrate_history_by_interval(
     tracing::debug!("migrate mongodb, schema: {:?}", schema);
 
     // get break point
-    let breakpoint = get_breakpoint(config.task_id, &config.sub_task_id.clone().unwrap());
+    let breakpoint = get_breakpoint(config.task_job_id, &config.sub_task_id.clone().unwrap());
     if let Some(breakpoint) = breakpoint {
         config.task.start = breakpoint;
         tracing::info!("migrate mongodb from breakpoint: {}", config.task.start);
@@ -411,20 +412,23 @@ pub async fn set_breakpoint(
     config: &MongoDBConfig,
     breakpoint: &DateTime<Utc>,
 ) -> anyhow::Result<()> {
-    let task_id = format!("{}", config.task_id.unwrap_or(0));
-    let sub_task_id = config.sub_task_id.clone().unwrap();
+    let (task_id, job_id) = config.task_job_id.unwrap_or((-1, -1));
+    let sub_task_id = config
+        .sub_task_id
+        .clone()
+        .context("mongodb set breakpoint without sub task id")?;
     let breakpoint = breakpoint.to_rfc3339().to_string();
 
     // set break point and ignore error
-    let _ = breakpoints::breakpoints_set(&task_id, &sub_task_id, &breakpoint);
+    let _ = breakpoints::breakpoints_set(task_id, job_id, &sub_task_id, &breakpoint);
     Ok(())
 }
 
-fn get_breakpoint(task_id: Option<i64>, sub_task_id: &String) -> Option<DateTime<Utc>> {
+fn get_breakpoint(task_job_id: Option<(i64, i64)>, sub_task_id: &String) -> Option<DateTime<Utc>> {
     // get break point by task_id, if not found, return None
-    task_id?;
+    let (task_id, job_id) = task_job_id?;
     // get all break points by task_id
-    let breakpoints = breakpoints::breakpoints_get_all(&format!("{}", task_id.unwrap()));
+    let breakpoints = breakpoints::breakpoints_get_all(task_id, job_id);
     // find the earliest break point
     match breakpoints {
         Ok(breakpoints) => {
@@ -459,10 +463,8 @@ mod tests {
         let dsn = Dsn::from_str("mongodb://admin:tbase125!@192.168.1.40:27017?source=admin&database=test_taosx&collection=metrics&sql_placeholder={\"double\":\"\\\"double\\\":${v}\",\"string\":\"\\\"string\\\":${v}\"}&sql={\"datetime\":{\"$gte\":${start_datetime},\"$lt\":${end_datetime}},${double},${string}}&start=2024-07-01T00:00:00+00:00&end=2024-08-01T00:00:00+00:00&interval=12h&delay=0&sample_data_limit=4")
             .unwrap();
         let mut config = MongoDBConfig::from_dsn(&dsn).unwrap();
-        config.task_id = Some(1);
+        config.task_job_id = Some((1, -1));
         config.ipc_port = Some(6666);
-
-        // let _ = migrate_history(config).await;
     }
 
     #[tokio::test]
@@ -483,7 +485,7 @@ mod tests {
             .unwrap();
         let mut config = MongoDBConfig::from_dsn(&dsn).unwrap();
 
-        config.task_id = Some(1);
+        config.task_job_id = Some((1, -1));
         config.sub_task_id = Some(format!("mig-{}-1", config.task.sql));
         let breakpoint = DateTime::parse_from_rfc3339("2024-04-01T00:00:00Z")
             .map(|dt| dt.with_timezone(&Utc))
@@ -498,7 +500,7 @@ mod tests {
         // set breakpoint on 2024-04-01T00:00:00Z
         test_set_breakpoint();
         // get breakpoint
-        let task_id = Some(1);
+        let task_id = Some((1, -1));
         let breakpoint = get_breakpoint(task_id, &String::new());
 
         if breakpoint.is_some() {

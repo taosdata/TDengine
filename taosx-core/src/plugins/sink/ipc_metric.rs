@@ -1,8 +1,8 @@
-use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics};
+use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics, update_metrics};
 use faststr::FastStr;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
-use std::sync::{atomic::Ordering::SeqCst, OnceLock};
+use std::sync::{OnceLock, atomic::Ordering::SeqCst};
 use taosx_ipc::types::{TaskMetricItem, TaskMetricsVariant};
 
 /// Metrics sender for agent.
@@ -94,9 +94,9 @@ pub struct IpcMetrics {
 }
 
 impl IpcMetrics {
-    pub fn new(stable: String, task_id: i64, task_name: Option<String>) -> Self {
+    pub fn new(stable: String, task_id: i64, job_id: i64) -> Self {
         Self {
-            com: CommonMetrics::new(stable, task_id, task_name),
+            com: CommonMetrics::new(stable, task_id, job_id),
             ..Default::default()
         }
     }
@@ -105,25 +105,45 @@ impl IpcMetrics {
         self.com.task_id
     }
 
+    fn job_id(&self) -> i64 {
+        self.com.job_id
+    }
+
     /// parsed_rows - filter_skipped_rows - check_skipped_rows = write_ready_rows
     pub fn add_parsed_rows(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_parsed_rows.fetch_add(n, SeqCst);
         self.parsed_rows.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     pub fn add_filter_skipped_rows(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_filter_skipped_rows.fetch_add(n, SeqCst);
         self.filter_skipped_rows.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     pub fn add_check_skipped_rows(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_check_skipped_rows.fetch_add(n, SeqCst);
         self.check_skipped_rows.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     pub fn add_write_ready_rows(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_write_ready_rows.fetch_add(n, SeqCst);
         self.write_ready_rows.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     pub fn set_extra_metric(&self, key: &FastStr, value: u64) {
@@ -132,8 +152,15 @@ impl IpcMetrics {
         } else {
             self.extras.entry(key.clone()).or_insert_with(|| value);
         }
+        update_metrics(self.task_id(), self.job_id());
         if let Some(sender) = AGENT_METRICS_SENDER.get() {
-            let _ = sender.try_send((self.task_id(), key.clone(), TaskMetricsVariant::Set, value));
+            let _ = sender.try_send(TaskMetricItem {
+                task_id: self.task_id(),
+                job_id: self.job_id(),
+                key: key.clone(),
+                var: TaskMetricsVariant::Set,
+                value,
+            });
         }
     }
 
@@ -144,9 +171,15 @@ impl IpcMetrics {
         } else {
             self.extras.entry(key.clone()).or_insert_with(|| value);
         }
-
+        update_metrics(self.task_id(), self.job_id());
         if let Some(sender) = AGENT_METRICS_SENDER.get() {
-            let _ = sender.try_send((self.task_id(), key.clone(), TaskMetricsVariant::Inc, value));
+            let _ = sender.try_send(TaskMetricItem {
+                task_id: self.task_id(),
+                job_id: self.job_id(),
+                key: key.clone(),
+                var: TaskMetricsVariant::Inc,
+                value,
+            });
         }
     }
 
@@ -161,15 +194,26 @@ impl IpcMetrics {
         } else {
             self.extras.entry(key.clone()).or_insert_with(|| 0);
         }
+        update_metrics(self.task_id(), self.job_id());
         if let Some(sender) = AGENT_METRICS_SENDER.get() {
-            let _ = sender.try_send((self.task_id(), key.clone(), TaskMetricsVariant::Dec, value));
+            let _ = sender.try_send(TaskMetricItem {
+                task_id: self.task_id(),
+                job_id: self.job_id(),
+                key: key.clone(),
+                var: TaskMetricsVariant::Dec,
+                value,
+            });
         }
     }
 
     #[inline]
     pub fn add_received_batches(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_received_batches.fetch_add(n, SeqCst);
         self.received_batches.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
     #[inline]
     pub fn total_received_batches(&self) -> u64 {
@@ -178,80 +222,132 @@ impl IpcMetrics {
 
     #[inline]
     pub fn add_processed_batches(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_processed_batches.fetch_add(n, SeqCst);
         self.processed_batches.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     #[inline]
     pub fn add_processed_rows(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_processed_rows.fetch_add(n, SeqCst);
         self.processed_rows.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     #[inline]
     pub fn add_inserted_sqls(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_inserted_sqls.fetch_add(n, SeqCst);
         self.inserted_sqls.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     #[inline]
     pub fn add_failed_sqls(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_failed_sqls.fetch_add(n, SeqCst);
         self.failed_sqls.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     #[inline]
     pub fn add_created_stables(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_created_stables.fetch_add(n, SeqCst);
         self.created_stables.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     #[inline]
     pub fn add_created_tables(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_created_tables.fetch_add(n, SeqCst);
         self.created_tables.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     #[inline]
     pub fn add_failed_rows(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_failed_rows.fetch_add(n, SeqCst);
         self.failed_rows.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     #[inline]
     pub fn add_drained_rows(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_drained_rows.fetch_add(n, SeqCst);
         self.drained_rows.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     #[inline]
     pub fn add_failed_points(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_failed_points.fetch_add(n, SeqCst);
         self.failed_points.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     #[inline]
     pub fn add_written_raw_blocks(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_written_raw_blocks.fetch_add(n, SeqCst);
         self.written_raw_blocks.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     #[inline]
     pub fn add_failed_raw_blocks(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_failed_raw_blocks.fetch_add(n, SeqCst);
         self.failed_raw_blocks.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     #[inline]
     pub fn add_failed_batches(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_failed_batches.fetch_add(n, SeqCst);
         self.failed_batches.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 
     #[inline]
     pub fn add_archived_rows(&self, n: u64) {
+        if n == 0 {
+            return;
+        }
         self.total_archived_rows.fetch_add(n, SeqCst);
         self.archived_rows.fetch_add(n, SeqCst);
+        update_metrics(self.task_id(), self.job_id());
     }
 }
 
@@ -280,6 +376,7 @@ impl TaskMetrics for IpcMetrics {
         self.archived_rows.store(0, SeqCst);
 
         self.extras.retain(|k, _| k.contains("total"));
+        update_metrics(self.task_id(), self.job_id());
     }
 
     fn com(&self) -> &CommonMetrics {
@@ -304,7 +401,7 @@ mod tests {
 
     #[test]
     fn test_counters_and_reset() {
-        let metrics = IpcMetrics::new("stable".into(), 7, Some("task".into()));
+        let metrics = IpcMetrics::new("stable".into(), 7, -1);
 
         metrics.add_received_batches(3);
         metrics.add_processed_batches(2);
@@ -380,7 +477,7 @@ mod tests {
 
     #[test]
     fn test_json_roundtrip() {
-        let metrics = IpcMetrics::new("stable".into(), 9, None);
+        let metrics = IpcMetrics::new("stable".into(), 9, -1);
         metrics.add_processed_rows(11);
         metrics.add_failed_rows(2);
         let key = FastStr::from_static_str("total_custom");

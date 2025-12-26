@@ -1,13 +1,9 @@
 use std::sync::atomic::Ordering::SeqCst;
 
-use super::AgentFilter;
 use super::TaskControllerRef;
-use super::controller::TaskController;
 use super::scheduler::runner::MultiIndexTaskJobMap;
 use clap::Parser;
 use dashmap::DashMap;
-use gethostname::gethostname;
-use lazy_static::lazy_static;
 use metrics::Label;
 use metrics::gauge;
 use serde::Deserialize;
@@ -96,34 +92,16 @@ impl MonitorCfg {
 #[derive(Debug, Clone)]
 pub struct Monitor {
     pub cfg: MonitorCfg,
-    pub taosx_id: &'static str,
-    controller: TaskControllerRef,
+    pub taosx_id: String,
     tasks: Arc<RwLock<MultiIndexTaskJobMap>>,
 }
 
-// cache a map of agent id to agent name
-lazy_static! {
-    static ref AGENT_NAME_MAP: RwLock<HashMap<String, String>> = RwLock::new(HashMap::new());
-}
-
 impl Monitor {
-    pub fn new(cfg: MonitorCfg, taosx_port: u16, controller: TaskControllerRef) -> Self {
-        let hostname = gethostname();
-        let hostname = match hostname.to_str() {
-            Some(hostname) => hostname.to_string(),
-            None => {
-                tracing::error!("gethostname error");
-                "unknown".to_string()
-            }
-        };
-        let taosx_id = format!("{}:{}", hostname, taosx_port);
-        let taosx_id = Box::leak(taosx_id.into_boxed_str());
-        tracing::info!("taosx_id: {}", taosx_id);
+    pub fn new(cfg: MonitorCfg, taosx_id: String, controller: TaskControllerRef) -> Self {
         let tasks = controller.scheduler.tasks.clone();
         Self {
             cfg,
             taosx_id,
-            controller,
             tasks,
         }
     }
@@ -136,12 +114,9 @@ impl Monitor {
         let recorder_handle: TaosXRecorderHandle = recorder.handle();
         let handle_clone = recorder_handle.clone();
         recorder.install();
-        let taosx_id = self.taosx_id;
-        let controller = self.controller.clone();
-        let monitor_enabled = self.cfg.fqdn.is_some();
+        let taosx_id = self.taosx_id.clone();
         tokio::spawn(
             async move {
-                init_agents(&controller).await.unwrap();
                 use sysinfo::*;
                 tracing::info!("start update process metrics task");
                 let duration = Duration::from_secs(monitor_interval);
@@ -161,16 +136,7 @@ impl Monitor {
                 };
                 loop {
                     interval.tick().await;
-                    let _ = process_metrics(
-                        &mut sys,
-                        kind,
-                        taosx_id,
-                        process_id,
-                        &controller,
-                        monitor_interval,
-                        monitor_enabled,
-                    )
-                    .await;
+                    process_metrics(&mut sys, kind, &taosx_id, process_id, monitor_interval).await;
                 }
             }
             .in_current_span(),
@@ -179,7 +145,7 @@ impl Monitor {
         if let Some(fqdn) = &self.cfg.fqdn {
             tracing::info!("monitor is enabled");
             let url = format!("http://{}:{}/general-metric", fqdn, self.cfg.port);
-            let controller = self.controller.clone();
+            let taosx_id = self.taosx_id.clone();
             tokio::spawn(
                 async move {
                     tracing::info!("start send metrics task");
@@ -193,8 +159,7 @@ impl Monitor {
                         let snapshot: taosx_metrics::Snapshot = recorder_handle.snapshot();
                         let records = snapshot2records(snapshot);
                         let mut tables = records2tables(records);
-                        add_extra_tags_to_tables(&controller, &mut tables).await;
-                        add_task_metrics_tables(&tasks, &mut tables, taosx_id).await;
+                        add_task_metrics_tables(&tasks, &mut tables, &taosx_id).await;
                         let stables = grouptables2stable(tables);
                         if stables.is_empty() {
                             continue;
@@ -219,57 +184,6 @@ impl Monitor {
     }
 }
 
-async fn init_agents(controller: &TaskController) -> anyhow::Result<()> {
-    let agents = controller.get_agents(AgentFilter::default()).await?;
-    let mut agent_name_map = AGENT_NAME_MAP.write().await;
-    for agent in agents {
-        agent_name_map.insert(agent.id.to_string(), agent.name.clone());
-    }
-    Ok(())
-}
-
-async fn get_agent_name_by_id(controller: &TaskController, agent_id: &str) -> Option<String> {
-    let agent_name_map = AGENT_NAME_MAP.read().await;
-    if let Some(agent_name) = agent_name_map.get(agent_id) {
-        return Some(agent_name.clone());
-    }
-    drop(agent_name_map);
-    let agent_id: i64 = agent_id.parse().unwrap();
-    let agent = controller.get_agent_by_id(agent_id).await.unwrap();
-    if let Some(agent) = agent {
-        let mut agent_name_map = AGENT_NAME_MAP.write().await;
-        agent_name_map.insert(agent.id.to_string(), agent.name.clone());
-        return Some(agent.name);
-    }
-    None
-}
-
-/// 为 table 添加额外的 tag, 这些 tag 不是 metrics 自带的（即从 metrics 的 label 来的）,而是为了其它目的额外加的。
-async fn add_extra_tags_to_tables(controller: &TaskController, tables: &mut [Table]) {
-    // 为 taosx_agent 表添加 agent_name 标签
-    for table in tables.iter_mut() {
-        if table.table_key.stable == "taosx_agent" {
-            let agent_id = table
-                .table_key
-                .tags
-                .iter()
-                .find(|tag| tag.name == "agent_id")
-                .map(|tag| tag.value.clone());
-            if let Some(agent_id) = agent_id {
-                let agent_name = get_agent_name_by_id(controller, &agent_id).await;
-                if let Some(agent_name) = agent_name {
-                    table.table_key.tags.push(Tag {
-                        name: "agent_name".to_string(),
-                        value: agent_name.to_string(),
-                    });
-                } else {
-                    tracing::warn!("agent_name for agent_id {} not found", agent_id);
-                }
-            }
-        }
-    }
-}
-
 /// 遍历 scheduler 中的所有 task, 将 task 的 metric 转换成 Table, 并加入 tables 中
 async fn add_task_metrics_tables(
     tasks: &Arc<RwLock<MultiIndexTaskJobMap>>,
@@ -277,8 +191,9 @@ async fn add_task_metrics_tables(
     taosx_id: &str,
 ) {
     for (_, task) in tasks.read().await.iter() {
-        let task_id = task.task_id;
-        let metrics = core_metrics::get_metrics(task_id).await;
+        let (task_id, job_id) = task.task_job_id;
+
+        let metrics = core_metrics::get_metrics(task_id, job_id).await;
         match metrics {
             Some(metrics) => match metrics.as_ref() {
                 core_metrics::CoreMetrics::Legacy(metrics) => {
@@ -352,12 +267,10 @@ fn add_task_progress_tables(
 pub async fn process_metrics(
     sys: &mut sysinfo::System,
     kind: sysinfo::RefreshKind,
-    taosx_id: &'static str,
+    taosx_id: &str,
     process_id: sysinfo::Pid,
-    controller: &TaskController,
     monitor_interval: u64,
-    monitor_enabled: bool,
-) -> anyhow::Result<()> {
+) {
     sys.refresh_specifics(kind);
     sys.refresh_processes_specifics(
         ProcessesToUpdate::Some(&[process_id]),
@@ -368,7 +281,10 @@ pub async fn process_metrics(
             .with_disk_usage()
             .with_tasks(),
     );
-    let labels = [("stable", "taosx_sys"), ("taosx_id", taosx_id)];
+    let labels = [
+        ("stable", "taosx_sys".to_string()),
+        ("taosx_id", taosx_id.to_string()),
+    ];
     // system metrics
     let cpu_cores = sys.cpus().len() as f64;
     gauge!("sys_cpu_cores", &labels).set(cpu_cores);
@@ -389,14 +305,6 @@ pub async fn process_metrics(
             .set(disk.written_bytes as f64 / monitor_interval as f64);
         gauge!("process_uptime", &labels).set(ps.run_time() as f64);
     }
-    if monitor_enabled {
-        // task summaries
-        let (running_tasks, completed_tasks, failed_tasks) =
-            controller.get_task_summaries(monitor_interval).await;
-        gauge!("running_tasks", &labels).set(running_tasks as f64);
-        gauge!("completed_tasks", &labels).set(completed_tasks as f64);
-        gauge!("failed_tasks", &labels).set(failed_tasks as f64);
-    }
     // connector process metrics
     update_sub_connector_process_metrics(
         sys,
@@ -406,7 +314,6 @@ pub async fn process_metrics(
         cpu_cores,
     )
     .await;
-    Ok(())
 }
 
 struct TaosKeeperExporter<'a> {
@@ -593,22 +500,16 @@ trait IntoTags {
 
 impl IntoTags for CommonMetrics {
     fn gen_tags(&self, taosx_id: String) -> Vec<Tag> {
-        let mut vec: Vec<Tag> = Vec::new();
-        vec.push(Tag {
-            name: "taosx_id".to_string(),
-            value: taosx_id,
-        });
-        vec.push(Tag {
-            name: "task_id".to_string(),
-            value: self.task_id.to_string(),
-        });
-        if let Some(task_name) = &self.task_name {
-            vec.push(Tag {
-                name: "task_name".to_string(),
-                value: task_name.clone(),
-            });
-        }
-        vec
+        vec![
+            Tag {
+                name: "taosx_id".to_string(),
+                value: taosx_id,
+            },
+            Tag {
+                name: "task_id".to_string(),
+                value: self.task_id.to_string(),
+            },
+        ]
     }
 }
 

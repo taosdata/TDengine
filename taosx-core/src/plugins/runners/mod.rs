@@ -33,12 +33,14 @@ const ENV_PLUGINS_HOME_DEFAULT: &str = {
 pub fn set_env_plugins_home_dir(config: String) {
     // 使用配置、环境变量、默认值
     if !config.trim().is_empty() {
-        std::env::set_var(ENV_PLUGINS_HOME, config);
+        unsafe {
+            std::env::set_var(ENV_PLUGINS_HOME, config);
+        }
         return;
     }
     let plugins_home_dir = std::env::var(ENV_TAOSX_PLUGINS_HOME);
     match plugins_home_dir {
-        Ok(home) => std::env::set_var(ENV_PLUGINS_HOME, home),
+        Ok(home) => unsafe { std::env::set_var(ENV_PLUGINS_HOME, home) },
         Err(_) => {
             #[cfg(unix)]
             {
@@ -46,21 +48,25 @@ pub fn set_env_plugins_home_dir(config: String) {
                 let default = "/usr/local/taos/plugins";
                 let path = Path::new(default);
                 if path.exists() {
-                    std::env::set_var(ENV_PLUGINS_HOME, default);
+                    unsafe {
+                        std::env::set_var(ENV_PLUGINS_HOME, default);
+                    }
                 } else {
                     // 兼容旧版本默认路径
                     let default = "/usr/local/taosx/plugins";
                     let path = Path::new(default);
                     if path.exists() {
-                        std::env::set_var(ENV_PLUGINS_HOME, default);
+                        unsafe {
+                            std::env::set_var(ENV_PLUGINS_HOME, default);
+                        }
                     }
                     // 兼容日志路径
                     let logs_home =
                         std::env::var(ENV_LOGS_HOME).or(std::env::var(ENV_TAOSX_LOGS_HOME));
                     match logs_home {
-                        Ok(home) => {
+                        Ok(home) => unsafe {
                             std::env::set_var(ENV_LOGS_HOME, home);
-                        }
+                        },
                         Err(_) => {
                             #[cfg(unix)]
                             {
@@ -68,10 +74,14 @@ pub fn set_env_plugins_home_dir(config: String) {
                                 let default = "/usr/local/taosx/logs";
                                 let path = Path::new(default);
                                 if path.exists() {
-                                    std::env::set_var(ENV_LOGS_HOME, default);
+                                    unsafe {
+                                        std::env::set_var(ENV_LOGS_HOME, default);
+                                    }
                                 } else {
                                     let default = "/var/log/taos/";
-                                    std::env::set_var(ENV_LOGS_HOME, default);
+                                    unsafe {
+                                        std::env::set_var(ENV_LOGS_HOME, default);
+                                    }
                                 }
                             }
                         }
@@ -87,10 +97,14 @@ pub fn set_env_plugins_home_dir(config: String) {
                                 let default = "/usr/local/taosx";
                                 let path = Path::new(default);
                                 if path.exists() {
-                                    std::env::set_var(ENV_TAOSX_DATA_DIR, default);
+                                    unsafe {
+                                        std::env::set_var(ENV_TAOSX_DATA_DIR, default);
+                                    }
                                 } else {
                                     let default = "/var/lib/taos/taosx";
-                                    std::env::set_var(ENV_TAOSX_DATA_DIR, default);
+                                    unsafe {
+                                        std::env::set_var(ENV_TAOSX_DATA_DIR, default);
+                                    }
                                 }
                             }
                         }
@@ -136,7 +150,9 @@ pub fn set_tcp_keepalive(stream: &std::net::TcpStream) -> anyhow::Result<()> {
 }
 
 pub fn set_env_data_dir(config: String) {
-    std::env::set_var(ENV_TAOSX_DATA_DIR, config);
+    unsafe {
+        std::env::set_var(ENV_TAOSX_DATA_DIR, config);
+    }
 }
 
 #[inline]
@@ -159,7 +175,9 @@ pub const ENV_LOGS_HOME: &str = "LOGS_HOME";
 pub const ENV_TAOSX_LOGS_HOME: &str = "TAOSX_LOGS_HOME";
 
 pub fn set_env_log_home_dir(config: String) {
-    std::env::set_var(ENV_LOGS_HOME, config);
+    unsafe {
+        std::env::set_var(ENV_LOGS_HOME, config);
+    }
 }
 
 #[inline]
@@ -175,8 +193,11 @@ pub fn get_log_dir(plugin: &str) -> PathBuf {
 const ENV_TAOSX_LOGS_KEEP_DAYS: &str = "TAOSX_LOGS_KEEP_DAYS";
 
 pub fn set_env_log_keep_days(config: Option<i64>) {
-    if let Some(log_keep_days) = config {
-        if log_keep_days > 0 && valid_env_log_keep_days().is_none() {
+    if let Some(log_keep_days) = config
+        && log_keep_days > 0
+        && valid_env_log_keep_days().is_none()
+    {
+        unsafe {
             std::env::set_var(ENV_TAOSX_LOGS_KEEP_DAYS, log_keep_days.to_string());
         }
     }
@@ -486,14 +507,20 @@ MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
         let result = get_string_from_param_or_file(&mut dsn, "ca", false, None)
             .unwrap()
             .unwrap();
-        assert_eq!("123456-----BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE----------BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE-----", result);
+        assert_eq!(
+            "123456-----BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE----------BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE-----",
+            result
+        );
 
         let mut dsn =
             Dsn::from_str("driver:///?ca=123,456,@../tests/mqtt/ca,@../tests/mqtt/ca").unwrap();
         let result = get_string_from_param_or_file(&mut dsn, "ca", false, Some(","))
             .unwrap()
             .unwrap();
-        assert_eq!("123,456,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----", result);
+        assert_eq!(
+            "123,456,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----",
+            result
+        );
 
         let mut dsn = Dsn::from_str("opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double").unwrap();
         let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").unwrap();

@@ -1,11 +1,9 @@
 use std::{collections::HashSet, time::Duration};
 
 use anyhow::Context;
+use ha_core::types::{SplitJobResult, SplitJobTask};
 use rdkafka::consumer::{BaseConsumer, Consumer};
-use taosx_core::{
-    ha,
-    utils::dsn::{dsn_to_json, parse_multiple_value},
-};
+use taosx_utils::dsn::{dsn_to_json, parse_multiple_value};
 
 use crate::config::task::{KafkaTaskConfig, build_client_config};
 
@@ -15,7 +13,7 @@ pub struct TopicInfo {
     partitions: usize,
 }
 
-pub async fn split_job(task: ha::SplitJobTask) -> anyhow::Result<serde_json::Value> {
+pub async fn split_job(task: SplitJobTask) -> anyhow::Result<SplitJobResult> {
     let from = task.from;
     let config = KafkaTaskConfig::from_dsn(&from)?;
     let client_config = build_client_config(config.connect)?;
@@ -51,9 +49,9 @@ pub async fn split_job(task: ha::SplitJobTask) -> anyhow::Result<serde_json::Val
         from.insert("topics".into(), topics_value);
     }
 
-    Ok(serde_json::json!({
-        "from": from_json,
-        "to": task.to.to_string(),
-        "parser": task.parser
-    }))
+    Ok(SplitJobResult {
+        from: from_json,
+        to: task.to.to_string(),
+        parser: task.parser,
+    })
 }
