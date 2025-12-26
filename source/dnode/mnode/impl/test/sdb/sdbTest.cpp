@@ -12,6 +12,7 @@
 #include <gtest/gtest.h>
 
 #include "sdb.h"
+#include "tglobal.h"
 
 class MndTestSdb : public ::testing::Test {
  protected:
@@ -30,6 +31,7 @@ class MndTestSdb : public ::testing::Test {
     tsdbDebugFlag = 0;
     tsLogEmbedded = 1;
     tsAsyncLog = 0;
+    tsSkipKeyCheckMode = true;
 
     const char *path = TD_TMP_DIR_PATH "td";
     taosRemoveDir(path);

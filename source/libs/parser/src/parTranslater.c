@@ -465,6 +465,12 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  { .showType = QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_ENCRYPT_STATUS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
   {
     .showType = QUERY_NODE_SHOW_TOKENS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -13108,6 +13114,24 @@ static int32_t translateAlterCluster(STranslateContext* pCxt, SAlterClusterStmt*
   return code;
 }
 
+static int32_t translateAlterEncryptKey(STranslateContext* pCxt, SAlterEncryptKeyStmt* pStmt) {
+  SMAlterEncryptKeyReq alterReq = {0};
+  alterReq.keyType = pStmt->keyType;
+  tstrncpy(alterReq.newKey, pStmt->newKey, sizeof(alterReq.newKey));
+
+  // Get SQL text
+  alterReq.sql = taosStrdup(pCxt->pParseCxt->pSql);
+  if (NULL == alterReq.sql) {
+    return terrno;
+  }
+  alterReq.sqlLen = pCxt->pParseCxt->sqlLen + 1;
+
+  int32_t code =
+      buildCmdMsg(pCxt, TDMT_MND_ALTER_ENCRYPT_KEY, (FSerializeFunc)tSerializeSMAlterEncryptKeyReq, &alterReq);
+  tFreeSMAlterEncryptKeyReq(&alterReq);
+  return code;
+}
+
 static int32_t getSmaIndexSql(STranslateContext* pCxt, char** pSql, int32_t* pLen) {
   *pSql = taosStrdup(pCxt->pParseCxt->pSql);
   if (NULL == *pSql) {
@@ -17883,6 +17907,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_ALTER_CLUSTER_STMT:
       code = translateAlterCluster(pCxt, (SAlterClusterStmt*)pNode);
       break;
+    case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
+      code = translateAlterEncryptKey(pCxt, (SAlterEncryptKeyStmt*)pNode);
+      break;
     case QUERY_NODE_KILL_CONNECTION_STMT:
       code = translateKillConnection(pCxt, (SKillStmt*)pNode);
       break;
@@ -22612,6 +22639,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
+    case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
     case QUERY_NODE_SHOW_RSMAS_STMT:

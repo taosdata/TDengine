@@ -571,6 +571,7 @@ int mainWindows(int argc, char **argv) {
 
   if (global.dumpSdb) {
     int32_t code = 0;
+    tsSkipKeyCheckMode = true;  // Set global flag to skip key check mode
     TAOS_CHECK_RETURN(mndDumpSdb());
     taosCleanupCfg();
     taosCloseLog();
