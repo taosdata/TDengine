@@ -6,6 +6,7 @@ import socket
 import os
 import threading
 import platform
+from taos.tmq import Consumer
 
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
 from new_test_framework.utils.sqlset import TDSetSql
