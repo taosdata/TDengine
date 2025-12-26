@@ -44,6 +44,7 @@ TDengine 提供了一个功能强大的安装脚本 `install.sh`，用于在 Lin
 ### 2.7 组件安装
 
 根据安装模式和版本类型，自动安装相应的组件：
+
 - 客户端工具：taos、taosBenchmark、taosDump、taosDemo 等
 - 服务器组件：taosd、taosAdapter、taosX、taos-explorer、taosKeeper 等
 - 示例代码和文档
@@ -91,7 +92,7 @@ TDengine 提供了一个功能强大的安装脚本 `install.sh`，用于在 Lin
 ./install.sh -e no
 ```
 
-#### 3.3.2 客户端模式安装(暂不支持)
+#### 3.3.2 客户端模式安装 (暂不支持)
 
 ```bash
 # 交互式安装客户端
@@ -130,21 +131,24 @@ TDengine 提供了一个功能强大的安装脚本 `install.sh`，用于在 Lin
 
 ### 5.1 指定路径模式
 
-TDengine安装脚本支持用户自定义安装路径，通过命令行参数或交互式选择来指定安装位置。
+TDengine 安装脚本支持用户自定义安装路径，通过命令行参数或交互式选择来指定安装位置。
 
 #### 5.1.1 指定路径的方式
 
-**1. 命令行参数指定**
+我们可以使用命令行参数指定安装：
+
 - 使用 `-d` 参数在非静默模式下指定安装路径
 - 使用 `-q` 参数在静默模式下指定安装路径
 
-**2. 路径规范化处理**
+需要注意以下几点：
+
 - 安装脚本会自动对输入路径进行规范化处理，确保末尾不包含斜杠
 - 实际安装目录会在指定路径后自动添加 `taos` 后缀（例如：指定路径为 `/opt/myapp`，实际安装目录为 `/opt/myapp/taos`）
 
 #### 5.1.2 指定路径示例
 
 **非静默模式指定路径**：
+
 ```bash
 # Root用户指定安装路径
 ./install.sh -d /opt/taos-install
@@ -154,6 +158,7 @@ TDengine安装脚本支持用户自定义安装路径，通过命令行参数或
 ```
 
 **静默模式指定路径**：
+
 ```bash
 # Root用户静默安装并指定路径
 ./install.sh -q /opt/taos-install
@@ -272,7 +277,6 @@ systemctl status taosd  # 查看服务状态
 
 如果您在安装或使用 TDengine 过程中遇到问题，请联系我们：
 
-- 官方网站：https://www.taosdata.com
-- 技术支持：support@taosdata.com
-- 社区论坛：https://ask.taosdata.com/latest
-- GitHub：https://github.com/taosdata/TDengine
+- [官方网站](https://www.taosdata.com)
+- [社区论坛](https://ask.taosdata.com/latest)
+- [TDengine GitHub](https://github.com/taosdata/TDengine)
