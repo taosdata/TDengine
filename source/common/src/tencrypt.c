@@ -46,24 +46,27 @@
  * @return 0 on success, error code on failure
  */
 int32_t taosWriteEncryptFileHeader(const char *filepath, int32_t algorithm, const void *data, int32_t dataLen) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  TdFilePtr pFile = NULL;
+  char      tempFile[PATH_MAX] = {0};
+
   if (filepath == NULL) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    code = TSDB_CODE_INVALID_PARA;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Validate algorithm
   if (algorithm < 0) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    code = TSDB_CODE_INVALID_PARA;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Validate data parameters
   if (dataLen > 0 && data == NULL) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    code = TSDB_CODE_INVALID_PARA;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
-
-  int32_t code = 0;
 
   // Prepare encryption header (plaintext)
   STdEncryptFileHeader header;
@@ -74,24 +77,20 @@ int32_t taosWriteEncryptFileHeader(const char *filepath, int32_t algorithm, cons
   header.dataLen = dataLen;
 
   // Create temporary file for atomic write
-  char tempFile[PATH_MAX];
   snprintf(tempFile, sizeof(tempFile), "%s.tmp", filepath);
 
   // Open temp file
-  TdFilePtr pFile = taosOpenFile(tempFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  pFile = taosOpenFile(tempFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     code = terrno;
-    return code;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Write header (plaintext)
   int64_t written = taosWriteFile(pFile, &header, sizeof(STdEncryptFileHeader));
   if (written != sizeof(STdEncryptFileHeader)) {
     code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
-    (void)taosCloseFile(&pFile);
-    (void)taosRemoveFile(tempFile);
-    terrno = code;
-    return code;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Write data if present
@@ -99,32 +98,33 @@ int32_t taosWriteEncryptFileHeader(const char *filepath, int32_t algorithm, cons
     written = taosWriteFile(pFile, data, dataLen);
     if (written != dataLen) {
       code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
-      (void)taosCloseFile(&pFile);
-      (void)taosRemoveFile(tempFile);
-      terrno = code;
-      return code;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
   // Sync to disk
   code = taosFsyncFile(pFile);
-  if (code != 0) {
-    (void)taosCloseFile(&pFile);
-    (void)taosRemoveFile(tempFile);
-    return code;
-  }
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // Close temp file
   (void)taosCloseFile(&pFile);
 
   // Atomic replacement - rename temp file to target
   code = taosRenameFile(tempFile, filepath);
-  if (code != 0) {
-    (void)taosRemoveFile(tempFile);
-    return code;
-  }
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  return 0;
+_exit:
+  if (pFile != NULL) {
+    (void)taosCloseFile(&pFile);
+  }
+  if (code != 0) {
+    if (tempFile[0] != '\0') {
+      (void)taosRemoveFile(tempFile);
+    }
+    uError("%s failed at %s:%d since %s, file:%s", __func__, __FILE__, lino, tstrerror(code), filepath);
+    terrno = code;
+  }
+  return code;
 }
 
 /**
@@ -140,39 +140,50 @@ int32_t taosWriteEncryptFileHeader(const char *filepath, int32_t algorithm, cons
  * @return 0 on success, error code on failure
  */
 int32_t taosReadEncryptFileHeader(const char *filepath, STdEncryptFileHeader *header) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  TdFilePtr pFile = NULL;
+
   if (filepath == NULL || header == NULL) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    code = TSDB_CODE_INVALID_PARA;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Open file for reading
-  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
+  pFile = taosOpenFile(filepath, TD_FILE_READ);
   if (pFile == NULL) {
-    return terrno;
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Read header
   int64_t nread = taosReadFile(pFile, header, sizeof(STdEncryptFileHeader));
-  (void)taosCloseFile(&pFile);
-
   if (nread != sizeof(STdEncryptFileHeader)) {
-    terrno = TSDB_CODE_FILE_CORRUPTED;
-    return terrno;
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Verify magic number
   if (strncmp(header->magic, TD_ENCRYPT_FILE_MAGIC, strlen(TD_ENCRYPT_FILE_MAGIC)) != 0) {
-    terrno = TSDB_CODE_FILE_CORRUPTED;
-    return terrno;
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Verify version (currently only version 1 is supported)
   if (header->version != TD_ENCRYPT_FILE_VERSION) {
-    terrno = TSDB_CODE_FILE_CORRUPTED;
-    return terrno;
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  return 0;
+_exit:
+  if (pFile != NULL) {
+    (void)taosCloseFile(&pFile);
+  }
+  if (code != 0) {
+    uError("%s failed at %s:%d since %s, file:%s", __func__, __FILE__, lino, tstrerror(code), filepath);
+    terrno = code;
+  }
+  return code;
 }
 
 /**
@@ -187,8 +198,11 @@ int32_t taosReadEncryptFileHeader(const char *filepath, STdEncryptFileHeader *he
  * @return true if file is encrypted, false otherwise
  */
 bool taosIsEncryptedFile(const char *filepath, int32_t *algorithm) {
+  int32_t lino = 0;
+  
   if (filepath == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
+    uError("%s failed at %s:%d since %s, file:%s", __func__, __FILE__, lino, tstrerror(terrno), "NULL");
     return false;
   }
 
@@ -232,60 +246,55 @@ bool taosIsEncryptedFile(const char *filepath, int32_t *algorithm) {
  * @return 0 on success, error code on failure
  */
 int32_t taosWriteCfgFile(const char *filepath, const void *data, int32_t dataLen) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  TdFilePtr pFile = NULL;
+  char      tempFile[PATH_MAX] = {0};
+  char     *plainBuf = NULL;
+  char     *encryptedBuf = NULL;
+
   if (filepath == NULL || data == NULL || dataLen <= 0) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    code = TSDB_CODE_INVALID_PARA;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  int32_t code = 0;
-  char    tempFile[PATH_MAX];
   snprintf(tempFile, sizeof(tempFile), "%s.tmp", filepath);
 
   // Check if CFG_KEY encryption is enabled
   if (tsCfgKey[0] == '\0') {
     // No encryption, write file normally with atomic operation
-    TdFilePtr pFile = taosOpenFile(tempFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    pFile = taosOpenFile(tempFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
     if (pFile == NULL) {
-      return terrno;
+      code = terrno;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     if (taosWriteFile(pFile, data, dataLen) != dataLen) {
       code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
-      (void)taosCloseFile(&pFile);
-      (void)taosRemoveFile(tempFile);
-      terrno = code;
-      return code;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     code = taosFsyncFile(pFile);
-    if (code != 0) {
-      (void)taosCloseFile(&pFile);
-      (void)taosRemoveFile(tempFile);
-      return code;
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     (void)taosCloseFile(&pFile);
+    pFile = NULL;
 
     // Atomic replacement - rename temp file to target
     code = taosRenameFile(tempFile, filepath);
-    if (code != 0) {
-      (void)taosRemoveFile(tempFile);
-      return code;
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     return 0;
   }
 
   // Encryption enabled - encrypt data first
   int32_t cryptedDataLen = ENCRYPTED_LEN(dataLen);
-  char *plainBuf = NULL;
-  char *encryptedBuf = NULL;
 
   // Allocate buffer for padding
   plainBuf = taosMemoryMalloc(cryptedDataLen);
   if (plainBuf == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return terrno;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Copy data and zero padding
@@ -295,9 +304,8 @@ int32_t taosWriteCfgFile(const char *filepath, const void *data, int32_t dataLen
   // Allocate buffer for encrypted data
   encryptedBuf = taosMemoryMalloc(cryptedDataLen);
   if (encryptedBuf == NULL) {
-    taosMemoryFree(plainBuf);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return terrno;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Setup encryption options (similar to walWrite.c)
@@ -313,17 +321,28 @@ int32_t taosWriteCfgFile(const char *filepath, const void *data, int32_t dataLen
   int32_t count = Builtin_CBC_Encrypt(&opts);
   if (count != opts.len) {
     code = TSDB_CODE_FAILED;
-    goto _cleanup;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Write encrypted file with header (uses atomic operation internally)
   code = taosWriteEncryptFileHeader(filepath, TSDB_ENCRYPT_ALGO_SM4, encryptedBuf, cryptedDataLen);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-_cleanup:
-  if (plainBuf != NULL) taosMemoryFree(plainBuf);
-  if (encryptedBuf != NULL) taosMemoryFree(encryptedBuf);
-
+_exit:
+  if (pFile != NULL) {
+    (void)taosCloseFile(&pFile);
+  }
+  if (plainBuf != NULL) {
+    taosMemoryFree(plainBuf);
+  }
+  if (encryptedBuf != NULL) {
+    taosMemoryFree(encryptedBuf);
+  }
   if (code != 0) {
+    if (tempFile[0] != '\0') {
+      (void)taosRemoveFile(tempFile);
+    }
+    uError("%s failed at %s:%d since %s, file:%s", __func__, __FILE__, lino, tstrerror(code), filepath);
     terrno = code;
   }
   return code;
@@ -345,26 +364,20 @@ _cleanup:
  * @return 0 on success, error code on failure
  */
 int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
+  int32_t              code = 0;
+  int32_t              lino = 0;
+  TdFilePtr            pFile = NULL;
+  char                *fileContent = NULL;
+  char                *plainContent = NULL;
+  STdEncryptFileHeader header;
+
   if (filepath == NULL || data == NULL || dataLen == NULL) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
+    code = TSDB_CODE_INVALID_PARA;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   *data = NULL;
   *dataLen = 0;
-
-  int32_t              code = 0;
-  TdFilePtr            pFile = NULL;
-  char                *fileContent = NULL;
-  char                *decryptedBuf = NULL;
-  STdEncryptFileHeader header;
-
-  // Check if file exists
-  if (!taosCheckExistFile(filepath)) {
-    terrno = TSDB_CODE_FILE_CORRUPTED;
-    return terrno;
-  }
-
   // Check if file is encrypted
   bool isEncrypted = taosIsEncryptedFile(filepath, NULL);
 
@@ -372,21 +385,17 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
   pFile = taosOpenFile(filepath, TD_FILE_READ);
   if (pFile == NULL) {
     code = terrno;
-    return code;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Get file size
   int64_t fileSize = 0;
   code = taosFStatFile(pFile, &fileSize, NULL);
-  if (code != 0) {
-    (void)taosCloseFile(&pFile);
-    return code;
-  }
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   if (fileSize <= 0) {
-    (void)taosCloseFile(&pFile);
-    terrno = TSDB_CODE_FILE_CORRUPTED;
-    return terrno;
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (isEncrypted) {
@@ -394,61 +403,49 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
     int64_t nread = taosReadFile(pFile, &header, sizeof(STdEncryptFileHeader));
     if (nread != sizeof(STdEncryptFileHeader)) {
       code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
-      (void)taosCloseFile(&pFile);
-      terrno = code;
-      return code;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     // Verify magic number
     if (strncmp(header.magic, TD_ENCRYPT_FILE_MAGIC, strlen(TD_ENCRYPT_FILE_MAGIC)) != 0) {
-      (void)taosCloseFile(&pFile);
-      terrno = TSDB_CODE_FILE_CORRUPTED;
-      return terrno;
+      code = TSDB_CODE_FILE_CORRUPTED;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     // Read encrypted data
     int32_t encryptedDataLen = header.dataLen;
     if (encryptedDataLen <= 0 || encryptedDataLen > fileSize) {
-      (void)taosCloseFile(&pFile);
-      terrno = TSDB_CODE_FILE_CORRUPTED;
-      return terrno;
+      code = TSDB_CODE_FILE_CORRUPTED;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     fileContent = taosMemoryMalloc(encryptedDataLen);
     if (fileContent == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      (void)taosCloseFile(&pFile);
-      terrno = code;
-      return code;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     nread = taosReadFile(pFile, fileContent, encryptedDataLen);
     if (nread != encryptedDataLen) {
       code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
-      taosMemoryFree(fileContent);
-      (void)taosCloseFile(&pFile);
-      terrno = code;
-      return code;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     (void)taosCloseFile(&pFile);
+    pFile = NULL;
 
     // Check if CFG_KEY is available
     if (tsCfgKey[0] == '\0') {
-      // File is encrypted but no key available
-      taosMemoryFree(fileContent);
-      terrno = TSDB_CODE_FAILED;
-      return terrno;
+      code = TSDB_CODE_FAILED;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     // Decrypt data (reference: sdbFile.c decrypt implementation)
     // Allocate buffer for plaintext (same size as encrypted data for CBC padding)
-    char *plainContent = taosMemoryMalloc(encryptedDataLen);
+    plainContent = taosMemoryMalloc(encryptedDataLen);
     if (plainContent == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      taosMemoryFree(fileContent);
-      terrno = code;
-      return code;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     // Setup decryption options
@@ -463,48 +460,58 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
     int32_t count = Builtin_CBC_Decrypt(&opts);
     if (count != encryptedDataLen) {
       code = TSDB_CODE_FAILED;
-      taosMemoryFree(fileContent);
-      taosMemoryFree(plainContent);
-      terrno = code;
-      return code;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     taosMemoryFree(fileContent);
+    fileContent = NULL;
 
     // Return decrypted data (JSON parser will handle the content)
     // Note: plainContent already has padding zeros from decryption, which is fine for JSON
     *data = plainContent;
     *dataLen = encryptedDataLen;
+    plainContent = NULL;  // Transfer ownership to caller
 
   } else {
     // File is not encrypted - read directly
     fileContent = taosMemoryMalloc(fileSize + 1);
     if (fileContent == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
-      (void)taosCloseFile(&pFile);
-      terrno = code;
-      return code;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     int64_t nread = taosReadFile(pFile, fileContent, fileSize);
     if (nread != fileSize) {
       code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
-      taosMemoryFree(fileContent);
-      (void)taosCloseFile(&pFile);
-      terrno = code;
-      return code;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     (void)taosCloseFile(&pFile);
+    pFile = NULL;
 
     fileContent[fileSize] = '\0';
 
     // Return file content
     *data = fileContent;
     *dataLen = fileSize;
+    fileContent = NULL;  // Transfer ownership to caller
   }
 
-  return 0;
+_exit:
+  if (pFile != NULL) {
+    (void)taosCloseFile(&pFile);
+  }
+  if (fileContent != NULL) {
+    taosMemoryFree(fileContent);
+  }
+  if (plainContent != NULL) {
+    taosMemoryFree(plainContent);
+  }
+  if (code != 0) {
+    uError("%s failed at %s:%d since %s, file:%s", __func__, __FILE__, lino, tstrerror(code), filepath);
+    terrno = code;
+  }
+  return code;
 }
 
 /**
@@ -517,8 +524,14 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
  * @return 0 on success or file already encrypted, error code on failure
  */
 static int32_t taosEncryptSingleCfgFile(const char *filepath) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  TdFilePtr pFile = NULL;
+  char     *plainData = NULL;
+
   if (filepath == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Check if file exists
@@ -534,42 +547,52 @@ static int32_t taosEncryptSingleCfgFile(const char *filepath) {
   }
 
   // Read plaintext file
-  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
+  pFile = taosOpenFile(filepath, TD_FILE_READ);
   if (pFile == NULL) {
-    return terrno;
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   int64_t fileSize = 0;
-  int32_t code = taosFStatFile(pFile, &fileSize, NULL);
-  if (code != 0) {
-    (void)taosCloseFile(&pFile);
-    return code;
-  }
+  code = taosFStatFile(pFile, &fileSize, NULL);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   if (fileSize <= 0) {
     (void)taosCloseFile(&pFile);
+    pFile = NULL;
     // Empty file, just skip it
     return 0;
   }
 
-  char *plainData = taosMemoryMalloc(fileSize);
+  plainData = taosMemoryMalloc(fileSize);
   if (plainData == NULL) {
-    (void)taosCloseFile(&pFile);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   int64_t nread = taosReadFile(pFile, plainData, fileSize);
-  (void)taosCloseFile(&pFile);
-
   if (nread != fileSize) {
-    taosMemoryFree(plainData);
-    return (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
+    code = (terrno != 0) ? terrno : TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
+
+  (void)taosCloseFile(&pFile);
+  pFile = NULL;
 
   // Encrypt the file using taosWriteCfgFile (which handles encryption and atomic write)
   code = taosWriteCfgFile(filepath, plainData, fileSize);
-  taosMemoryFree(plainData);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
+_exit:
+  if (pFile != NULL) {
+    (void)taosCloseFile(&pFile);
+  }
+  if (plainData != NULL) {
+    taosMemoryFree(plainData);
+  }
+  if (code != 0) {
+    uError("%s failed at %s:%d since %s, file:%s", __func__, __FILE__, lino, tstrerror(code), filepath);
+  }
   return code;
 }
 
@@ -590,8 +613,13 @@ static int32_t taosEncryptSingleCfgFile(const char *filepath) {
  * @return 0 on success, error code on failure (first error encountered)
  */
 int32_t taosEncryptExistingCfgFiles(const char *dataDir) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  char    filepath[PATH_MAX];
+
   if (dataDir == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // Check if encryption is enabled
@@ -600,71 +628,51 @@ int32_t taosEncryptExistingCfgFiles(const char *dataDir) {
     return 0;
   }
 
-  int32_t code = 0;
-  char    filepath[PATH_MAX];
-
   // 1. Encrypt dnode config files
   // dnode.info
   snprintf(filepath, sizeof(filepath), "%s%sdnode%sdnode.info", dataDir, TD_DIRSEP, TD_DIRSEP);
   if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
     code = taosEncryptSingleCfgFile(filepath);
-    if (code != 0) {
-      goto _err;
-    } else {
-      uInfo("successfully encrypted file %s", filepath);
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
+    uInfo("successfully encrypted file %s", filepath);
   }
 
   // dnode.json (ep.json)
   snprintf(filepath, sizeof(filepath), "%s%sdnode%sdnode.json", dataDir, TD_DIRSEP, TD_DIRSEP);
   if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
     code = taosEncryptSingleCfgFile(filepath);
-    if (code != 0) {
-      goto _err;
-    } else {
-      uInfo("successfully encrypted file %s", filepath);
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
+    uInfo("successfully encrypted file %s", filepath);
   }
 
   // 2. Encrypt mnode config files
   snprintf(filepath, sizeof(filepath), "%s%smnode%smnode.json", dataDir, TD_DIRSEP, TD_DIRSEP);
   if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
     code = taosEncryptSingleCfgFile(filepath);
-    if (code != 0) {
-      goto _err;
-    } else {
-      uInfo("successfully encrypted file %s", filepath);
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
+    uInfo("successfully encrypted file %s", filepath);
   }
 
   snprintf(filepath, sizeof(filepath), "%s%smnode%ssync%sraft_config.json", dataDir, TD_DIRSEP, TD_DIRSEP, TD_DIRSEP);
   if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
     code = taosEncryptSingleCfgFile(filepath);
-    if (code != 0) {
-      goto _err;
-    } else {
-      uInfo("successfully encrypted file %s", filepath);
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
+    uInfo("successfully encrypted file %s", filepath);
   }
 
   snprintf(filepath, sizeof(filepath), "%s%smnode%ssync%sraft_store.json", dataDir, TD_DIRSEP, TD_DIRSEP, TD_DIRSEP);
   if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
     code = taosEncryptSingleCfgFile(filepath);
-    if (code != 0) {
-      goto _err;
-    } else {
-      uInfo("successfully encrypted file %s", filepath);
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
+    uInfo("successfully encrypted file %s", filepath);
   }
+
   // 3. Encrypt snode config files
   snprintf(filepath, sizeof(filepath), "%s%ssnode%ssnode.json", dataDir, TD_DIRSEP, TD_DIRSEP);
   if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
     code = taosEncryptSingleCfgFile(filepath);
-    if (code != 0) {
-      goto _err;
-    } else {
-      uInfo("successfully encrypted file %s", filepath);
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
+    uInfo("successfully encrypted file %s", filepath);
   }
 
   // 4. Encrypt vnode config files
@@ -672,11 +680,8 @@ int32_t taosEncryptExistingCfgFiles(const char *dataDir) {
   snprintf(filepath, sizeof(filepath), "%s%svnode%svnodes.json", dataDir, TD_DIRSEP, TD_DIRSEP);
   if (taosCheckExistFile(filepath) && !taosIsEncryptedFile(filepath, NULL)) {
     code = taosEncryptSingleCfgFile(filepath);
-    if (code != 0) {
-      goto _err;
-    } else {
-      uInfo("successfully encrypted file %s", filepath);
-    }
+    TSDB_CHECK_CODE(code, lino, _exit);
+    uInfo("successfully encrypted file %s", filepath);
   }
 
   // Note: Individual vnode directories (vnode1, vnode2, etc.) are not traversed here
@@ -684,9 +689,11 @@ int32_t taosEncryptExistingCfgFiles(const char *dataDir) {
   // These files will be encrypted on next write by taosWriteCfgFile.
 
   uInfo("finished encrypting existing config files");
-  return 0;
-_err:
-  uError("failed to encrypt existing config files, code:%s", tstrerror(code));
+
+_exit:
+  if (code != 0) {
+    uError("%s failed at %s:%d since %s, dataDir:%s", __func__, __FILE__, lino, tstrerror(code), dataDir);
+  }
   return code;
 }
 
@@ -702,6 +709,8 @@ _err:
  * @return 0 if key loaded successfully, TSDB_CODE_TIMEOUT_ERROR if timeout occurs
  */
 int32_t taosWaitCfgKeyLoaded(void) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
   int32_t encryptKeysLoaded = atomic_load_32(&tsEncryptKeysStatus);
   if (encryptKeysLoaded == TSDB_ENCRYPT_KEY_STAT_LOADED || encryptKeysLoaded == TSDB_ENCRYPT_KEY_STAT_NOT_EXIST ||
@@ -729,7 +738,9 @@ int32_t taosWaitCfgKeyLoaded(void) {
   }
 
   // Timeout occurred
-  uError("failed to wait for CFG encryption key to load, waited %d ms", elapsedMs);
-  terrno = TSDB_CODE_TIMEOUT_ERROR;
-  return TSDB_CODE_TIMEOUT_ERROR;
+  code = TSDB_CODE_TIMEOUT_ERROR;
+  lino = __LINE__;
+  uError("%s failed at %s:%d since %s, waited %d ms", __func__, __FILE__, lino, tstrerror(code), elapsedMs);
+  terrno = code;
+  return code;
 }
