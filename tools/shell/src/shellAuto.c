@@ -86,6 +86,7 @@ SWords shellCommands[] = {
 #ifdef TD_ENTERPRISE
     {"balance vgroup ;", 0, 0, NULL},
     {"balance vgroup leader on <vgroup_id>", 0, 0, NULL},
+    {"alter token <token_name> <token_opt> <anyword> ;", 0, 0, NULL},
     {"alter user <user_name> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword>", 0, 0, NULL},
 #else
    {"alter user <user_name> <user_actions> <anyword> ;", 0, 0, NULL},
@@ -117,7 +118,8 @@ SWords shellCommands[] = {
     {"compact database <db_name>", 0, 0, NULL},
     {"compact vgroups in( <anyword>", 0, 0, NULL},
     {"create mount <mount_name> on dnode <dnode_id> from <path>;", 0, 0, NULL},
-    {"create user <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword>", 0, 0, NULL},    
+    {"create token <anyword> from user <user_name> <token_opt> <anyword> <token_opt> <anyword> <token_opt> <anyword> <token_opt> <anyword> ;", 0, 0, NULL},
+    {"create user <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword>", 0, 0, NULL},
 #else
     {"create user <anyword> pass <anyword> createdb 1;", 0, 0, NULL},
     {"create user <anyword> pass <anyword> createdb 0;", 0, 0, NULL},
@@ -156,6 +158,7 @@ SWords shellCommands[] = {
     {"kill transaction ", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
     {"merge vgroup <vgroup_id> <vgroup_id>;", 0, 0, NULL},
+    {"drop token <token_name>;", 0, 0, NULL},
     {"drop mount <mount_name>;", 0, 0, NULL},
 #endif
     {"pause stream <stream_name>;", 0, 0, NULL},
@@ -195,6 +198,7 @@ SWords shellCommands[] = {
     {"show create view <all_table> \\G;", 0, 0, NULL},
     {"show compact", 0, 0, NULL},
     {"show compacts;", 0, 0, NULL},
+    {"show tokens;", 0, 0, NULL},
 #endif
     {"show connections;", 0, 0, NULL},
     {"show cluster;", 0, 0, NULL},
@@ -397,7 +401,7 @@ char* key_systable[] = {
     "ins_databases",     "ins_functions",  "ins_indexes",      "ins_stables", "ins_tables",          "ins_tags",
     "ins_users",         "ins_grants",     "ins_vgroups",      "ins_configs", "ins_dnode_variables", "ins_topics",
     "ins_subscriptions", "ins_streams",    "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges", "ins_filesets",
-    "ins_bnodes",        "ins_disk_usage", "ins_retentions",
+    "ins_bnodes",        "ins_disk_usage", "ins_retentions",   "ins_tokens",
     "perf_connections", "perf_queries",    "perf_consumers", "perf_trans",       "perf_apps"};
 
 char* udf_language[] = {"\'Python\'", "\'C\'"};
@@ -470,6 +474,14 @@ char * alter_uopt[] = {
     "drop not_allow_datetime "
 };
 
+// alter user options
+char * token_opt[] = {
+    "enable ",
+    "provider ",
+    "ttl ",
+    "extra_info "
+};
+
 // global keys can tips on anywhere
 char* global_keys[] = {
     "tbname",         
@@ -513,30 +525,31 @@ bool    waitAutoFill = false;
 #define WT_VAR_TSMA           9
 #define WT_VAR_RSMA           10
 #define WT_VAR_ANODE          11
+#define WT_VAR_TOKEN          12
 
-#define WT_FROM_DB_MAX        11  // max get content from db
+#define WT_FROM_DB_MAX        12  // max get content from db
 #define WT_FROM_DB_CNT (WT_FROM_DB_MAX + 1)
 
-#define WT_VAR_ALLTABLE       12
-#define WT_VAR_FUNC           13
-#define WT_VAR_KEYWORD        14
-#define WT_VAR_TBACTION       15
-#define WT_VAR_DBOPTION       16
-#define WT_VAR_ALTER_DBOPTION 17
-#define WT_VAR_DATATYPE       18
-#define WT_VAR_KEYTAGS        19
-#define WT_VAR_ANYWORD        20
-#define WT_VAR_TBOPTION       21
-#define WT_VAR_USERACTION     22
-#define WT_VAR_KEYSELECT      23
-#define WT_VAR_SYSTABLE       24
-#define WT_VAR_LANGUAGE       25
-#define WT_VAR_GLOBALKEYS     26
-#define WT_VAR_FIELD_OPTIONS  27
-#define WT_VAR_CREATE_USER_OPT 28
-#define WT_VAR_ALTER_USER_OPT 29
-
-#define WT_VAR_CNT 30
+#define WT_VAR_ALLTABLE       WT_FROM_DB_MAX + 1
+#define WT_VAR_FUNC           WT_FROM_DB_MAX + 2
+#define WT_VAR_KEYWORD        WT_FROM_DB_MAX + 3
+#define WT_VAR_TBACTION       WT_FROM_DB_MAX + 4
+#define WT_VAR_DBOPTION       WT_FROM_DB_MAX + 5
+#define WT_VAR_ALTER_DBOPTION WT_FROM_DB_MAX + 6
+#define WT_VAR_DATATYPE       WT_FROM_DB_MAX + 7
+#define WT_VAR_KEYTAGS        WT_FROM_DB_MAX + 8
+#define WT_VAR_ANYWORD        WT_FROM_DB_MAX + 9
+#define WT_VAR_TBOPTION       WT_FROM_DB_MAX + 10
+#define WT_VAR_USERACTION     WT_FROM_DB_MAX + 11
+#define WT_VAR_KEYSELECT      WT_FROM_DB_MAX + 12
+#define WT_VAR_SYSTABLE       WT_FROM_DB_MAX + 13
+#define WT_VAR_LANGUAGE       WT_FROM_DB_MAX + 14
+#define WT_VAR_GLOBALKEYS     WT_FROM_DB_MAX + 15
+#define WT_VAR_FIELD_OPTIONS  WT_FROM_DB_MAX + 16
+#define WT_VAR_CREATE_USER_OPT WT_FROM_DB_MAX + 17
+#define WT_VAR_ALTER_USER_OPT  WT_FROM_DB_MAX + 18
+#define WT_VAR_TOKEN_OPT       WT_FROM_DB_MAX + 19
+#define WT_VAR_CNT             WT_FROM_DB_MAX + 20
 
 
 #define WT_TEXT 0xFF
@@ -551,15 +564,16 @@ TdThread* threads[WT_FROM_DB_CNT];
 char varTypes[WT_VAR_CNT][64] = {
     // get from db
     "<db_name>",    "<stb_name>",  "<tb_name>",  "<dnode_id>",  "<user_name>",    "<topic_name>", "<stream_name>",
-    "<udf_name>",   "<vgroup_id>", "<tsma_name>", "<rsma_name>", "<anode_id>", 
+    "<udf_name>",   "<vgroup_id>", "<tsma_name>", "<rsma_name>", "<anode_id>", "<token_name>",
     // get from code
     "<all_table>",  "<function>",  "<keyword>",  "<tb_actions>",   "<db_options>", "<alter_db_options>",
     "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "<sys_table>", 
-    "<udf_language>", "<global_keys>", "<field_options>", "<create_uopt>", "<alter_uopt>"};
+    "<udf_language>", "<global_keys>", "<field_options>", "<create_uopt>", "<alter_uopt>", "<token_opt>"};
 
 char varSqls[WT_FROM_DB_CNT][64] = {"show databases;", "show stables;", "show tables;", "show dnodes;",
                                     "show users;",     "show topics;",  "show streams;", "show functions;", 
-                                    "show vgroups;",   "show tsmas;",   "show rsmas;",  "show anodes;"};
+                                    "show vgroups;",   "show tsmas;",   "show rsmas;",  "show anodes;",
+                                    "show tokens;"};
 
 // var words current cursor, if user press any one key except tab, cursorVar can be reset to -1
 int  cursorVar = -1;
@@ -772,23 +786,28 @@ void showHelp() {
   printf(
       "\n\n\
   ----- special commands on enterpise version ----- \n\
+    alter token <token_name> [token options];\n\
     balance vgroup ;\n\
     balance vgroup leader on <vgroup_id> \n\
     compact database <db_name>; \n\
     compact vgroups in (vgroupId,vgroupId, ...); \n\
     create view <view_name> as select ...\n\
     create mount <mount_name> on dnode <dnode_id> from <path>;\n\
+    create token <token_name> from user <user_name> [token options];\n\
     drop mount <mount_name>;\n\
+    drop token <token_name>;\n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
     split vgroup <vgroup_id>;\n\
     ssmigrate database <db_name>;\n\
+    show arbgroups;\n\
     show compacts;\n\
     show compact \n\
+    show tokens;\n\
     show ssmigrates;\n\
-    show arbgroups;\n\
     show mounts;\n\
     show views;\n\
     show create view <all_table>;");
+    
 #endif
 
   printf("\n\n");
@@ -962,6 +981,7 @@ void shellAutoInit() {
   GenerateVarType(WT_VAR_FIELD_OPTIONS, field_options, sizeof(field_options) / sizeof(char*));
   GenerateVarType(WT_VAR_CREATE_USER_OPT, create_uopt, sizeof(create_uopt) / sizeof(char*));
   GenerateVarType(WT_VAR_ALTER_USER_OPT, alter_uopt, sizeof(alter_uopt) / sizeof(char*));
+  GenerateVarType(WT_VAR_TOKEN_OPT, token_opt, sizeof(token_opt) / sizeof(char*));
 }
 
 // set conn
