@@ -221,8 +221,11 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosudf ] && ${csudo}cp -r ${binary_dir}/build/bin/taosudf ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosmqtt ] && ${csudo}cp -r ${binary_dir}/build/bin/taosmqtt ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
-    [ -f ${binary_dir}/build/bin/*explorer ] && ${csudo}cp -r ${binary_dir}/build/bin/*explorer ${install_main_dir}/bin || :
-    ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
+      # Check if explorer files exist using ls instead of -f with glob
+      if ls ${binary_dir}/build/bin/*explorer > /dev/null 2>&1; then
+        ${csudo}cp -r ${binary_dir}/build/bin/*explorer ${install_main_dir}/bin
+      fi
+      ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
 
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin || :
     ${csudo}chmod 0555 ${install_main_dir}/bin/*
