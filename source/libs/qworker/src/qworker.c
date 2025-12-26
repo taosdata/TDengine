@@ -1224,20 +1224,19 @@ int32_t qwProcessNotify(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   QW_LOCK(QW_WRITE, &ctx->lock);
-
   locked = true;
 
-  if (QW_QUERY_RUNNING(ctx)) {
-    QW_ERR_JRET(qwKillTaskHandle(ctx, TSDB_CODE_TSC_QUERY_CANCELLED));
-    QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC, ctx->dynamicTask));
-  }
-
   switch (qwMsg->msgType) {
-    case TASK_NOTIFY_FINISHED:
+    case TASK_NOTIFY_FINISHED: {
+      if (QW_QUERY_RUNNING(ctx)) {
+        QW_ERR_JRET(qwKillTaskHandle(ctx, TSDB_CODE_TSC_QUERY_CANCELLED));
+        QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC, ctx->dynamicTask));
+      }
       if (ctx->explain && !ctx->explainRsped) {
         QW_ERR_RET(qwSendExplainResponse(QW_FPARAMS(), ctx));
       }
       break;
+    }
     case TASK_NOTIFY_STEP_DONE: {
       if (ctx->taskHandle != NULL) {
         QW_ERR_JRET(

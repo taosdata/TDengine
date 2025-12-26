@@ -54,6 +54,7 @@ extern "C" {
 typedef enum {
   READER_STATUS_SUSPEND = 0x1,
   READER_STATUS_NORMAL = 0x2,
+  READER_STATUS_CLOSED = 0x4,
 } EReaderStatus;
 
 typedef enum {
