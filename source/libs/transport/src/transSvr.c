@@ -908,14 +908,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   // set up conn info
   uvSetConnInfo(pConn, &(transMsg.info.conn));
-
-  if (pConn->isToken) {
-    tstrncpy(pConnInfo->identifier, pConn->identifier, sizeof(pConnInfo->identifier));
-    pConnInfo->isToken = 1;
-  } else {
-    pConnInfo->isToken = 0;
-  }
-
   transReleaseExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
 
   (*pInst->cfp)(pInst->parent, &transMsg, NULL);
