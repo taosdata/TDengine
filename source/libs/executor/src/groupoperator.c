@@ -309,18 +309,27 @@ static void doAssignGroupKeys(SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t
   }
 }
 
-static void addNewGroupForSLimit(SLimitInfo* pLimitInfo) {
+static bool addNewGroupForSLimit(SLimitInfo* pLimitInfo) {
   if (pLimitInfo) {
-    pLimitInfo->numOfOutputGroups += 1;
+    if (pLimitInfo->remainGroupOffset > 0) {
+      pLimitInfo->remainGroupOffset -= 1;
+      return false;
+    } else {
+      pLimitInfo->numOfOutputGroups += 1;
+    }
   }
+  return true;
 }
 
-static void initFirstGroupForSLimit(SLimitInfo* pLimitInfo) {
-  if (pLimitInfo) pLimitInfo->numOfOutputGroups = 1;
+static bool isFirstGroupForSLimit(SLimitInfo* pLimitInfo) {
+  if (pLimitInfo) {
+    return pLimitInfo->numOfOutputGroups == 1;
+  }
+  return false;
 }
 
 static bool slimitReached(SLimitInfo* pLimitInfo) {
-  if (pLimitInfo && pLimitInfo->slimit.limit > 0 &&
+  if (pLimitInfo && pLimitInfo->slimit.limit >= 0 &&
       pLimitInfo->numOfOutputGroups >= pLimitInfo->slimit.limit) {
     return true;  // limit reached, stop processing further rows
   }
@@ -343,10 +352,6 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock, SLim
 
   int32_t num = 0;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-    if (slimitReached(pLimitInfo)) {
-      break;  // limit reached, stop processing further rows
-    }
-
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (!pInfo->isInit) {
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
@@ -354,8 +359,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock, SLim
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
       pInfo->isInit = true;
+      if(!addNewGroupForSLimit(pLimitInfo)) continue;
       num++;
-      initFirstGroupForSLimit(pLimitInfo);
       continue;
     }
 
@@ -365,18 +370,33 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock, SLim
       continue;
     }
 
+    if (slimitReached(pLimitInfo)) {
+      break;  // limit reached, stop processing further rows
+    }
+
     // The first row of a new block does not belongs to the previous existed group
     if (j == 0) {
-      num++;
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
       if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
-      addNewGroupForSLimit(pLimitInfo);
+      if(!addNewGroupForSLimit(pLimitInfo)) continue;
+      num++;
       continue;
     }
 
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
+
+    if(!addNewGroupForSLimit(pLimitInfo)) continue;
+
+    // the new group is found, set the result output buffer for the previous group
+    // if this new group is the first group, it means the previous group need be skipped by soffset
+    // but the num is still needed to be updated for new group
+    if (isFirstGroupForSLimit(pLimitInfo)) {
+      num = 1;
+      continue;
+    }
+
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
                                           len, pBlock->info.id.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
@@ -390,13 +410,13 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock, SLim
       T_LONG_JMP(pTaskInfo->env, ret);
     }
 
-    addNewGroupForSLimit(pLimitInfo);
     // assign the group keys or user input constant values if required
     doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
     recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     num = 1;
   }
 
+  // the last group data will set result after all rows are processed, be set here
   if (num > 0) {
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,

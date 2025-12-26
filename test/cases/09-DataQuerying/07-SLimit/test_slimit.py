@@ -690,6 +690,52 @@ class TestSLimit:
         tdSql.execute(f"insert into tb2 values ('2022-04-26 15:15:01', 2, \"a\");")
         tdSql.execute(f"insert into tb2 values ('2022-04-26 15:15:02', 22, \"a\");")
 
-        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 1")
-        tdSql.checkRows(1)
+        for _ in range(20):
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 1")
+            tdSql.checkRows(1)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 1 offset 1")
+            tdSql.checkRows(1)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 1 offset 2")
+            tdSql.checkRows(1)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 1 offset 3")
+            tdSql.checkRows(0)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 2 offset 1")
+            tdSql.checkRows(2)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 2 offset 2")
+            tdSql.checkRows(1)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 2 offset 3")
+            tdSql.checkRows(0)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 3 offset 1")
+            tdSql.checkRows(2)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 3 offset 2")
+            tdSql.checkRows(1)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 3 offset 3")
+            tdSql.checkRows(0)
+                        
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 100 offset 1")
+            tdSql.checkRows(2)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 100 offset 2")
+            tdSql.checkRows(1)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 100 offset 3")
+            tdSql.checkRows(0)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 0 offset 1")
+            tdSql.checkRows(0)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 0 offset 2")
+            tdSql.checkRows(0)
+            
+            tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 0 offset 3")
+            tdSql.checkRows(0)
         
