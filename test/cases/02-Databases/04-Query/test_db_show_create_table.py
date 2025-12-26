@@ -99,12 +99,14 @@ class TestDatabaseShowCreateTable:
         tdSql.execute(f"drop database db")
 
     def test_empty_nchar_tag(self):
-        """show create table with empty nchar tag
+        """Show create table empty nchar tag
 
         1. when nchar-type tag is empty, show create table should output an empty string
+        2. alter table to set nchar-type tag to a non-empty string, show create table should output the new string
+        3. alter table to set nchar-type tag to an empty string, show create table should output an empty string again
+        4. alter table to set nchar-type tag to a non-empty string again, show create table should output the new string again
+        5. drop database
 
-        Catalog:
-            - Database:Create
 
         Since: v3.3.6.14
 
