@@ -2714,6 +2714,11 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
   tFreeSGetUserAuthRsp(&pUser->userAuth);
   // copy new auth info
   TAOS_MEMCPY(&pUser->userAuth, &msg->userAuth, sizeof(msg->userAuth));
+  // reset pointers to avoid double free
+  msg->userAuth.objPrivs = NULL;
+  msg->userAuth.selectTbs = NULL;
+  msg->userAuth.insertTbs = NULL;
+  msg->userAuth.deleteTbs = NULL;
 
   CTG_UNLOCK(CTG_WRITE, &pUser->lock);
 

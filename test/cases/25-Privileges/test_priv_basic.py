@@ -84,6 +84,7 @@ class TestPrivBasic:
         self.delete_user("test")
         # drop db
         tdSql.execute("drop database db;")
+        testconn.close()
         tdLog.info("test_common_user_privileges successfully executed")
 
     def run_test_common_user_with_createdb_privileges(self):
@@ -208,9 +209,13 @@ class TestPrivBasic:
         self.delete_user("test")
         self.delete_user("test1")
 
+        # close connection
+        testconn.close()
+        test1conn.close()
+
     def do_common_user_privileges(self):
         self.run_test_common_user_privileges()
-        self.run_test_common_user_with_createdb_privileges()
+        self.run_test_common_user_with_createdb_privileges() # PRIV_TODO: add test with conditions to check memory leak
         print("\n")
         print("do common user privileges ............. [passed]")
     
