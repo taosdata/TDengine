@@ -363,7 +363,33 @@ cmd ::= ALTER USER user_name(A) alter_user_options(B).                          
 cmd ::= DROP USER user_name(A).                                                  { pCxt->pRootNode = createDropUserStmt(pCxt, &A); }
 cmd ::= ALTER DNODES RELOAD general_name(A).                                                 { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
 
-cmd ::= CREATE TOKEN. {}
+
+/************************************************ create/alter/drop token **********************************************/
+
+%type token_option                                                               { STokenOptions* }
+token_option(A) ::= PROVIDER NK_STRING(B).                                       { A = mergeTokenOptions(pCxt, NULL, NULL); setTokenOptionsProvider(pCxt, A, &B); }
+token_option(A) ::= ENABLE NK_INTEGER(B).                                        { A = mergeTokenOptions(pCxt, NULL, NULL);  A->enable = taosStr2Int8(B.z, NULL, 10); A->hasEnable = true; }
+token_option(A) ::= TTL NK_INTEGER(B).                                           { A = mergeTokenOptions(pCxt, NULL, NULL);  A->ttl = taosStr2Int32(B.z, NULL, 10) * 86400; A->hasTtl = true; }
+token_option(A) ::= EXTRA_INFO NK_STRING(B).                                     { A = mergeTokenOptions(pCxt, NULL, NULL); setTokenOptionsExtraInfo(pCxt, A, &B); }
+
+%type token_options                                                              { STokenOptions* }
+token_options(A) ::= token_option(B).                                            { A = B; }
+token_options(A) ::= token_options(B) token_option(C).                           { A = mergeTokenOptions(pCxt, B, C); }
+
+%type token_options_opt                                                          { STokenOptions* }
+token_options_opt(A) ::= .                                                       { A = NULL; }
+token_options_opt(A) ::= token_options(B).                                       { A = B; }
+
+
+cmd ::= CREATE TOKEN not_exists_opt(A) NK_ID(B) FROM USER user_name(C) token_options_opt(D).       {
+    pCxt->pRootNode = createCreateTokenStmt(pCxt, &B, &C, D, A);
+  }
+cmd ::= ALTER TOKEN NK_ID(A) token_options(B). {
+    pCxt->pRootNode = createAlterTokenStmt(pCxt, &A, B);
+  }
+cmd ::= DROP TOKEN NK_ID(A). {
+    pCxt->pRootNode = createDropTokenStmt(pCxt, &A);
+  }
 
 
 
@@ -927,6 +953,7 @@ cmd ::= SHOW db_name_cond_opt(A) DISK_INFO.                                     
 cmd ::= SHOW SCANS.                                                               { pCxt->pRootNode = createShowScansStmt(pCxt, QUERY_NODE_SHOW_SCANS_STMT); }
 cmd ::= SHOW SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createShowScanDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
 cmd ::= SHOW SSMIGRATES.                                                          { pCxt->pRootNode = createShowSsMigratesStmt(pCxt, QUERY_NODE_SHOW_SSMIGRATES_STMT); }
+cmd ::= SHOW TOKENS.                                                              { pCxt->pRootNode = createShowTokensStmt(pCxt, QUERY_NODE_SHOW_TOKENS_STMT); }
 
 %type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
 %destructor table_kind_db_name_cond_opt                                           { }

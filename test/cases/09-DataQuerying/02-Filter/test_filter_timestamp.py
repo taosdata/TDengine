@@ -15,6 +15,7 @@ class TestFilterTimestamp:
         4. Verify with different data types
         5. Verify with addition, subtraction, multiplication, and division
         6. Verify with complex expressions
+        7. Filter with timestamp range like ts > start and ts < end
         
         Since: v3.0.0.0
 
@@ -27,6 +28,7 @@ class TestFilterTimestamp:
             - 2025-8-19 Simon Guan Migrated from tsim/parser/timestamp.sim
             - 2025-8-19 Simon Guan Migrated from tsim/vector/table_mix.sim
             - 2025-8-19 Simon Guan Migrated from tsim/vector/metrics_time.sim
+            - 2025-12-22 Alex Duan Migrated from uncatalog/system-test/2-query/test_ts_range.py
 
         """
 
@@ -38,6 +40,7 @@ class TestFilterTimestamp:
         tdStream.dropAllStreamsAndDbs()
         self.MetricsTime()
         tdStream.dropAllStreamsAndDbs()
+        self.do_ts_range()
 
     def TableTime(self):
         dbPrefix = "m_tt_db"
@@ -1517,3 +1520,49 @@ class TestFilterTimestamp:
         tdSql.execute(f"drop database {db}")
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(2)
+
+
+    #
+    # ------------------- main ----------------
+    #
+    def do_ts_range(self):
+        tdSql.execute("create database if not exists ts_range")
+        tdSql.execute('use ts_range')
+        tdSql.execute('create table stb1 (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 float, c7 double, c8 binary(10), c9 nchar(10), c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned) TAGS(t1 int, t2 binary(10), t3 double);')
+
+        sql = "create table "
+        sql += " tb1 using stb1 tags(1,'1',1.0)"
+        sql += " tb2 using stb1 tags(2,'2',2.0)"
+        sql += " tb3 using stb1 tags(3,'3',3.0)"
+        tdSql.execute(sql)
+
+        sql = "insert into "
+        sql += ' tb1 values (\'2021-11-11 09:00:00\',true,1,1,1,1,1,1,"123","1234",1,1,1,1)'
+        sql += ' (\'2021-11-11 09:00:01\',true,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)'
+        sql += ' (\'2021-11-11 09:00:02\',true,2,NULL,2,NULL,2,NULL,"234",NULL,2,NULL,2,NULL)'
+        sql += ' (\'2021-11-11 09:00:03\',false,NULL,3,NULL,3,NULL,3,NULL,"3456",NULL,3,NULL,3)'
+        sql += ' (\'2021-11-11 09:00:04\',true,4,4,4,4,4,4,"456","4567",4,4,4,4)'
+        sql += ' (\'2021-11-11 09:00:05\',true,127,32767,2147483647,9223372036854775807,3.402823466e+38,1.79769e+308,"567","5678",254,65534,4294967294,9223372036854775807)'
+        sql += ' (\'2021-11-11 09:00:06\',true,-127,-32767,-2147483647,-9223372036854775807,-3.402823466e+38,-1.79769e+308,"678","6789",0,0,0,0)'
+        sql += ' tb2 values (\'2021-11-11 09:00:00\',true,1,1,1,1,1,1,"111","1111",1,1,1,1)'
+        sql += ' (\'2021-11-11 09:00:01\',true,2,2,2,2,2,2,"222","2222",2,2,2,2)'
+        sql += ' (\'2021-11-11 09:00:02\',true,3,3,2,3,3,3,"333","3333",3,3,3,3)'
+        sql += ' (\'2021-11-11 09:00:03\',false,4,4,4,4,4,4,"444","4444",4,4,4,4)'
+        sql += ' (\'2021-11-11 09:00:04\',true,5,5,5,5,5,5,"555","5555",5,5,5,5)'
+        sql += ' (\'2021-11-11 09:00:05\',true,6,6,6,6,6,6,"666","6666",6,6,6,6)'
+        sql += ' (\'2021-11-11 09:00:06\',true,7,7,7,7,7,7,"777","7777",7,7,7,7)'
+        tdSql.execute(sql)     
+        	
+        tdSql.query('select count(*) from stb1 where ts < 1000000000000 + 10s')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)        	
+        tdSql.query('select count(*) from stb1 where ts >= 1000000000000 + 10s')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 14)  
+        	
+        tdSql.query('select count(*) from stb1 where ts > 1000000000000 - 10s and ts <= 1000000000000 + 10s')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)   
+	 
+        tdSql.query('select count(*) from stb1 where ts > 1636592400000 + 3s')
+        tdSql.checkData(0, 0, 6)

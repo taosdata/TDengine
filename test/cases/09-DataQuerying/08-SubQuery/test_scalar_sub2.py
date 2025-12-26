@@ -31,6 +31,13 @@ class TestScalarSubQuery2:
         "alter table tb1 set tag tg1 = {scalarSql}",
     ]
 
+    specSqls = [
+        "select f1 from {tableName} where ts >= (select last(_c0) from {tableName}) and ts <= (select last(_c0) from {tableName}) order by 1",
+        "select f1 from {tableName} where ts >= (select first(_c0) from {tableName}) and ts <= (select last(_c0) from {tableName}) order by 1",
+        "select f1 from {tableName} where _c0 between (select last(_c0) from {tableName}) and (select last(_c0) from {tableName}) order by 1",
+        "select f1 from {tableName} where _c0 between (select first(_c0) from {tableName}) and (select last(_c0) from {tableName}) order by 1",
+    ]
+
     speCFuncSqls = [
         "select position({scalarSql} in 'abc') from {tableName}",
         "select position('a' in {scalarSql}) from {tableName}",
@@ -142,7 +149,7 @@ class TestScalarSubQuery2:
         "select f1 from {tableName} where {scalarSql} > 0 and f1 > {scalarSql} order by 1",
         "select f1 from {tableName} where tg1 = {scalarSql} order by 1",
         "select f1 from {tableName} where tbname = cast({scalarSql} as varchar) order by 1",
-        "select f1 from {tableName} where ts >= {scalarSql} and ts < {scalarSql} order by 1",
+        "select f1 from {tableName} where ts >= {scalarSql} and ts <= {scalarSql} order by 1",
         "select f1 from {tableName} where _c0 between {scalarSql} and {scalarSql} order by 1",
         "select table_name from information_schema.ins_tables where table_name = cast({scalarSql} as varchar) order by 1 limit 3",
         "select * from information_schema.ins_tables where db_name = cast({scalarSql} as varchar) order by 1 limit 3",
@@ -356,6 +363,17 @@ class TestScalarSubQuery2:
 
                 self.generated_queries_file.write(self.querySql.strip() + "\n")
                 self.generated_queries_file.flush()
+
+        for self.mainIdx in range(len(self.specSqls)):
+            self.querySql = self.specSqls[self.mainIdx].replace("{tableName}", "st1")
+            # ensure exactly one trailing semicolon
+            self.querySql = self.querySql.rstrip().rstrip(';') + ';'
+            tdLog.info(f"generated sql: {self.querySql}")
+
+            self.saved_count += 1
+
+            self.generated_queries_file.write(self.querySql.strip() + "\n")
+            self.generated_queries_file.flush()
 
         for self.mainIdx in range(len(self.unsupportedSqls)):
             self.querySql = self.unsupportedSqls[self.mainIdx].replace("{scalarSql}", self.scalarSqls[1])
