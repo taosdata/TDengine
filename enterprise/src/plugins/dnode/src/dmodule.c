@@ -17,6 +17,7 @@
 
 #include "dmMgmt.h"
 #include "tchecksum.h"
+#include "tencrypt.h"
 
 #if defined(GRANTS_CFG) || defined(_TD_DARWIN_64)
 #define _TD_DM_SKIP_CHECK
@@ -224,94 +225,68 @@ _exit:
 }
 
 static int32_t dmReadVars(SEngineInfo *pInfo) {
-  int32_t   code = 0;
-  int32_t   lino = 0;
-  TdFilePtr pFile = NULL;
-  void     *buffer = NULL;
-  void     *ptr;
-  SDFHeader dHeader;
-  char      fname[FILENAME_MAX] = "\0";
+  int32_t code = 0;
+  int32_t lino = 0;
+  char    fname[FILENAME_MAX] = "\0";
+  char   *fileContent = NULL;
+  int32_t dataLen = 0;
+  void   *ptr = NULL;
 
   dmGetFname(DM_ENGINE_FILE, fname);
 
-  errno = 0;  // clear errno
-
+  // Check if file exists
   if (!taosCheckExistFile(fname)) {
     TAOS_CHECK_GOTO(TSDB_CODE_NOT_FOUND, &lino, _exit);
   }
 
-  pFile = taosOpenFile(fname, TD_FILE_READ);
-  if (!pFile) {
-    if (errno == ENOENT) {
-      TAOS_CHECK_GOTO(TSDB_CODE_NOT_FOUND, &lino, _exit);
-    } else {
-      TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
-    }
-  }
-
-  if (!(buffer = taosMemoryMalloc(DM_FILE_HEAD_SIZE))) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
-  }
-
-  int64_t nRead = taosReadFile(pFile, buffer, DM_FILE_HEAD_SIZE);
-  if (nRead < 0) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _exit);
-  }
-
-  if (nRead != DM_FILE_HEAD_SIZE) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    dTrace("failed to read %d bytes from vars head since %s", DM_FILE_HEAD_SIZE, tstrerror(code));
+  // Wait for encryption key to be loaded if needed
+  code = taosWaitCfgKeyLoaded();
+  if (code != 0) {
+    dError("failed to wait for CFG key to load since %s", tstrerror(code));
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
-  if (!taosCheckChecksumWhole((uint8_t *)buffer, DM_FILE_HEAD_SIZE)) {
-    dTrace("failed to read vars head since wrong checksum");
-    TAOS_CHECK_GOTO(TSDB_CODE_CHECKSUM_ERROR, &lino, _exit);
+  // Read file with automatic decryption support
+  code = taosReadCfgFile(fname, &fileContent, &dataLen);
+  if (code != 0) {
+    dError("failed to read dnode.info file since %s", tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
-  ptr = buffer;
+  if (fileContent == NULL || dataLen <= 0) {
+    dError("dnode.info file is empty");
+    TAOS_CHECK_GOTO(TSDB_CODE_FILE_CORRUPTED, &lino, _exit);
+  }
+
+  // Decode file header
+  SDFHeader dHeader;
+  ptr = fileContent;
+
+  // Check if we have enough data for header
+  if (dataLen < (int32_t)sizeof(SDFHeader)) {
+    dError("dnode.info file too small: %d bytes", dataLen);
+    TAOS_CHECK_GOTO(TSDB_CODE_FILE_CORRUPTED, &lino, _exit);
+  }
+
   ptr = dmDecodeDFHeader(ptr, &dHeader);
 
   if (dHeader.version != DM_ENG_FVER_1) {
-    // TODO
+    dWarn("dnode.info version %d not supported, expected %d", dHeader.version, DM_ENG_FVER_1);
+    // TODO: handle version upgrade
   }
 
   if (dHeader.len > 0) {
-    if (dHeader.len > DM_FILE_HEAD_SIZE) {
-      void *tmpBuf = NULL;
-      if (!(tmpBuf = taosMemoryRealloc(buffer, dHeader.len))) {
-        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
-      }
-      buffer = tmpBuf;
-    }
-
-    nRead = (int)taosReadFile(pFile, buffer, dHeader.len);
-    if (nRead < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      TAOS_CHECK_GOTO(code, &lino, _exit);
-    }
-
-    if (nRead != dHeader.len) {
-      code = TSDB_CODE_FILE_CORRUPTED;
-      dTrace("failed to read %d bytes from vars body since %s", dHeader.len, tstrerror(code));
-      TAOS_CHECK_GOTO(code, &lino, _exit);
-    }
-
-    if (!taosCheckChecksumWhole((uint8_t *)buffer, dHeader.len)) {
-      dTrace("failed to read vars body since wrong checksum");
-      TAOS_CHECK_GOTO(TSDB_CODE_FILE_CORRUPTED, &lino, _exit);
-    }
-
-    ptr = buffer;
+    // Decode engine info
     TAOS_CHECK_GOTO(dmDecodeVars(ptr, dHeader.len, pInfo), &lino, _exit);
+    dTrace("dnode:%" PRId32 " ver:%" PRId32 " cluster:%" PRId64 " eType:%d", pInfo->dnodeId, pInfo->engineVer,
+           pInfo->clusterId, (int32_t)pInfo->type);
   }
 
 _exit:
   if (code != 0) {
     dError("failed to read vars at line %d since %s", lino, tstrerror(code));
   }
-  taosMemoryFreeClear(buffer);
-  (void)taosCloseFile(&pFile);
+  taosMemoryFreeClear(fileContent);
   return code;
 }
 
@@ -362,78 +337,66 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
   SDFHeader fHeader;
   void     *pBuf = NULL;
   void     *ptr;
-  char      hbuf[DM_FILE_HEAD_SIZE] = "\0";
-  char      tfname[PATH_MAX] = "\0";
   char      cfname[PATH_MAX] = "\0";
   int32_t   code = 0;
   int32_t   lino = 0;
+  int32_t   totalLen = 0;
 
-  dmGetFname(DM_ENGINE_FILE_T, tfname);
   dmGetFname(DM_ENGINE_FILE, cfname);
 
-  errno = 0;  // clear errno
-
-  TdFilePtr tFile = taosOpenFile(tfname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (!tFile) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  // Wait for encryption key to be loaded if needed
+  code = taosWaitCfgKeyLoaded();
+  if (code != 0) {
+    dError("failed to wait for CFG key to load since %s", tstrerror(code));
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
+  // Calculate lengths
   fHeader.version = DM_ENG_FVER_MAX;
-  fHeader.len = dmEncodeVars(NULL, 0, pInfo) + sizeof(TSCKSUM);
-  if (fHeader.len < 0) {
-    TAOS_CHECK_GOTO(fHeader.len, &lino, _exit);
+  int32_t dataLen = dmEncodeVars(NULL, 0, pInfo);
+  if (dataLen < 0) {
+    code = dataLen;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
+  fHeader.len = dataLen;
 
-  ptr = hbuf;
-  TAOS_UNUSED(dmEncodeDFHeader(&ptr, &fHeader));
-  TAOS_CHECK_EXIT(taosCalcChecksumAppend(0, (uint8_t *)hbuf, DM_FILE_HEAD_SIZE));
-
-  if (taosWriteFile(tFile, hbuf, DM_FILE_HEAD_SIZE) < DM_FILE_HEAD_SIZE) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  // Allocate buffer for header + data
+  totalLen = sizeof(SDFHeader) + dataLen;
+  pBuf = taosMemoryMalloc(totalLen);
+  if (pBuf == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
-  if (fHeader.len > 0) {
-    if (!(pBuf = taosMemoryMalloc(fHeader.len))) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      TAOS_CHECK_GOTO(code, &lino, _exit);
-    }
-
-    ptr = pBuf;
-    int32_t len = dmEncodeVars(ptr, fHeader.len - sizeof(TSCKSUM), pInfo);
-    if (len < 0) {
-      TAOS_CHECK_GOTO(len, &lino, _exit);
-    }
-
-    TAOS_CHECK_EXIT(taosCalcChecksumAppend(0, (uint8_t *)pBuf, fHeader.len));
-
-    if (taosWriteFile(tFile, pBuf, fHeader.len) < fHeader.len) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      TAOS_CHECK_GOTO(code, &lino, _exit);
-    }
-  }
-
-  // fsync, close and rename
-  if (taosFsyncFile(tFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+  // Encode header
+  ptr = pBuf;
+  int32_t headerLen = dmEncodeDFHeader(&ptr, &fHeader);
+  if (headerLen < 0) {
+    code = headerLen;
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
-  if (taosCloseFile(&tFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+
+  // Encode data
+  int32_t encLen = dmEncodeVars(ptr, dataLen, pInfo);
+  if (encLen < 0) {
+    code = encLen;
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
-  if (taosRenameFile(tfname, cfname) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+
+  // Write file with automatic encryption support (using taosWriteCfgFile)
+  code = taosWriteCfgFile(cfname, pBuf, totalLen);
+  if (code != 0) {
+    dError("failed to write dnode.info file since %s", tstrerror(code));
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
+
+  dTrace("successfully wrote dnode.info: dnode:%" PRId32 " ver:%" PRId32 " cluster:%" PRId64 " eType:%d",
+         pInfo->dnodeId, pInfo->engineVer, pInfo->clusterId, (int32_t)pInfo->type);
 
 _exit:
   taosMemoryFreeClear(pBuf);
   if (code != 0) {
     dError("failed to write vars at line %d since %s", lino, tstrerror(code));
-    TAOS_UNUSED(taosCloseFile(&tFile));
-    TAOS_UNUSED(taosRemoveFile(tfname));
   }
 
   return code;
