@@ -170,7 +170,9 @@ static int32_t auditSend(SJson *pJson) {
   char    db[TSDB_DB_FNAME_LEN] = {0};
   char    token[TSDB_TOKEN_LEN] = {0};
 
-  getAuditDbNameToken(db, token);
+  if (tsAuditUseToken) {
+    getAuditDbNameToken(db, token);
+  }
 
   if (db[0] == 0 || token[0] == 0) {
     uTrace("auditDB or auditToken is empty, can't send audit record, db:%s, token:%s", db, token);
@@ -184,7 +186,11 @@ static int32_t auditSend(SJson *pJson) {
   }
 
   char httpPath[1000] = {0};
-  tsnprintf(httpPath, 1000, "%s?db=%s&token=%s", tsAuditUri, db, token);
+  if (tsAuditUseToken) {
+    tsnprintf(httpPath, 1000, "%s?db=%s&token=%s", tsAuditUri, db, token);
+  } else {
+    tsnprintf(httpPath, 1000, "%s", tsAuditUri);
+  }
 
   char qid[100] = {0};
   (void)snprintf(qid, 100, "0x%" PRIxLEAST64, tGenQid64(tsAudit.dnodeId));
@@ -370,7 +376,9 @@ void auditSendRecordsInBatchImp(){
   char db[TSDB_DB_FNAME_LEN] = {0};
   char token[TSDB_TOKEN_LEN] = {0};
 
-  getAuditDbNameToken(db, token);
+  if (tsAuditUseToken) {
+    getAuditDbNameToken(db, token);
+  }
 
   if (db[0] == 0 || token[0] == 0) {
     uTrace("auditDB or auditToken is empty, can't send audit  record, db:%s, token:%s", db, token);
@@ -436,7 +444,11 @@ void auditSendRecordsInBatchImp(){
   char *pCont = tjsonToString(pJson);
   if (pCont != NULL) {
     char httpPath[1000] = {0};
-    tsnprintf(httpPath, 1000, "%s?db=%s&token=%s", tsAuditBatchUri, db, token);
+    if (tsAuditUseToken) {
+      tsnprintf(httpPath, 1000, "%s?db=%s&token=%s", tsAuditBatchUri, db, token);
+    } else {
+      tsnprintf(httpPath, 1000, "%s", tsAuditBatchUri);
+    }
 
     char qid[100] = {0};
     (void)snprintf(qid, 100, "0x%" PRIxLEAST64, tGenQid64(tsAudit.dnodeId));
