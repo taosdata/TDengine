@@ -205,8 +205,11 @@ func (a *Audit) handleFunc() gin.HandlerFunc {
 
 func (a *Audit) prepareConnectionAndTable(c *gin.Context) bool {
 	db := c.Query("db")
+	auditLogger.Debugf("preparing audit connection and table for db: %s", db)
 	if db != "" {
 		token := c.Query("token")
+		// Test log
+		auditLogger.Debugf("preparing audit connection and table, token: %s", token)
 		if !a.inited {
 			a.mu.Lock()
 			if !a.inited {
