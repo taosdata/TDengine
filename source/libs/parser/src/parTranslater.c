@@ -21197,7 +21197,7 @@ _err:
   return code;
 }
 
-static int32_t checkColRef(STranslateContext* pCxt, char* pRefDbName, char* pRefTableName, char* pRefColName,
+static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbName, char* pRefTableName, char* pRefColName,
                            SDataType type, int8_t precision) {
   STableMeta* pRefTableMeta = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
@@ -21210,24 +21210,28 @@ static int32_t checkColRef(STranslateContext* pCxt, char* pRefDbName, char* pRef
   // org table cannot has composite primary key
   if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                         "virtual table's column reference can not from table with composite key"));
+                                         "virtual table's column:\"%s\"'s reference can not from table with composite key",
+                                         colName));
   }
 
   // org table must be child table or normal table
   if (pRefTableMeta->tableType != TSDB_NORMAL_TABLE && pRefTableMeta->tableType != TSDB_CHILD_TABLE) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                         "virtual table's column reference can only be normal table or child table"));
+                                         "virtual table's column:\"%s\"'s reference can only be normal table or child table",
+                                         colName));
   }
 
   const SSchema* pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
   if (NULL == pRefCol) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                         "virtual table's column reference column not exist"));
+                                         "virtual table's column:\"%s\"'s reference column:\"%s\" not exist",
+                                         colName, pRefColName));
   }
 
   if (pRefCol->type != type.type || pRefCol->bytes != type.bytes) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
-                                         "virtual table's column type and reference column type not match"));
+                                         "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match",
+                                         colName, pRefColName));
   }
 
 _return:
@@ -21272,7 +21276,7 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     }
 
     // check ref column exists and check type
-    PAR_ERR_RET(checkColRef(pCxt, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
+    PAR_ERR_RET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
                             (SDataType){.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)},
                             pTableMeta->tableInfo.precision));
 
@@ -21485,7 +21489,7 @@ static int buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pS
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
   }
 
-  PAR_ERR_JRET(checkColRef(pCxt, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
+  PAR_ERR_JRET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
                            (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
                            pTableMeta->tableInfo.precision));
 
@@ -21799,7 +21803,7 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
         PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE));
       }
       PAR_ERR_JRET(
-          checkColRef(pCxt, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
+          checkColRef(pCxt, pColNode->colName, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
                       (SDataType){.type = pColNode->dataType.type, .bytes = calcTypeBytes(pColNode->dataType)},
                       dbCfg.precision));
     }
@@ -21855,7 +21859,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
       if (pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         PAR_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
       }
-      PAR_ERR_JRET(checkColRef(pCxt, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
+      PAR_ERR_JRET(checkColRef(pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
                                (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
                                pSuperTableMeta->tableInfo.precision));
     }
@@ -21864,7 +21868,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
       PAR_ERR_JRET(checkColRef(
-          pCxt, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
+          pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
           (SDataType){.type = pSuperTableMeta->schema[index].type, .bytes = pSuperTableMeta->schema[index].bytes},
           pSuperTableMeta->tableInfo.precision));
       index++;
