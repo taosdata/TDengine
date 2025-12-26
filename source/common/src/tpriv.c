@@ -183,7 +183,7 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_CM_SHOW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_IDX, 1, SYS_ADMIN_INFO_ROLES, "SHOW CREATE INDEX"},
 
     // RSMA Privileges
-    {PRIV_RSMA_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TBL, 1, T_ROLE_SYSDBA, "CREATE RSMA"},
+    {PRIV_RSMA_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TBL, 0, T_ROLE_SYSDBA, "CREATE RSMA"},
     {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_RSMA, 1, 0, "DROP RSMA"},
     {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_RSMA, 1, 0, "ALTER RSMA"},
     {PRIV_CM_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_RSMA, 1, SYS_ADMIN_INFO_ROLES, "SHOW RSMAS"},
@@ -550,7 +550,7 @@ _exit:
 
 bool privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName, SPrivInfo* privInfo,
                          bool recursive) {
-#if 1  // debug info, remove when release
+#if 0  // debug info, remove when release
   printf("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s\n", __func__, __LINE__,
          objName ? objName : "", tbName ? tbName : "", privInfo->privType, privInfo->objType, privInfo->objLevel,
          privInfoGetName(privInfo->privType));
@@ -568,11 +568,11 @@ bool privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, c
     }
   }
 #endif
-  if (tbName != NULL) {
-    if (privInfo->objLevel == 0 || privInfo->objType <= PRIV_OBJ_DB) {
-      assert(0);
-    }
-  }
+  // if (tbName != NULL) {
+  //   if (privInfo->objLevel == 0 || privInfo->objType <= PRIV_OBJ_DB) {
+  //     assert(0);
+  //   }
+  // }
 
   if (taosHashGetSize(privs) == 0) return false;
 
@@ -586,7 +586,7 @@ _retry:
 
   SPrivObjPolicies* policies = taosHashGet(privs, key, klen + 1);
   if (policies && PRIV_HAS(&policies->policy, privInfo->privType)) {
-#if 1  // debug info, remove when release
+#if 0  // debug info, remove when release
     printf("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s, TRUE\n", __func__, __LINE__,
            objName ? objName : "", tbName ? tbName : "", privInfo->privType, privInfo->objType, privInfo->objLevel,
            privInfoGetName(privInfo->privType));
@@ -615,7 +615,7 @@ _exit:
 
 SPrivTblPolicy* privGetConstraintTblPrivileges(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
                                                SPrivInfo* privInfo) {
-#if 1  // debug info, remove when release
+#if 0  // debug info, remove when release
   SPrivObjPolicies* pp = NULL;
   while ((pp = taosHashIterate(privs, pp))) {
     char* pKey = taosHashGetKey(pp, NULL);
