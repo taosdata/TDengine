@@ -101,7 +101,7 @@ void mndCleanupToken(SMnode *pMnode) {
 
 
 
-int32_t mndAcquireToken(SMnode *pMnode, const char *token, STokenObj **ppToken) {
+int32_t mndAcquireToken(SMnode *pMnode, const char *name, STokenObj **ppToken) {
   TAOS_RETURN(TSDB_CODE_MND_TOKEN_NOT_EXIST);
 }
 

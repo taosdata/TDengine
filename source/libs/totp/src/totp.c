@@ -15,6 +15,7 @@
 #define _DEFAULT_SOURCE
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 
 // formatTotp formats the TOTP code with leading zeros to match the specified digit length.
 int taosFormatTotp(int32_t totp, int digits, char *buffer, size_t size) {
