@@ -26,7 +26,7 @@ TDengine 提供了一个功能强大的安装脚本 `install.sh`，用于在 Lin
 ### 2.4 环境适配
 
 - 支持主流 Linux 发行版（Ubuntu、Debian、CentOS、Fedora 等）
-- 支持 macOS 系统
+- 支持 macOS 系统 (待调试，未发布)
 - 自动检测系统架构和配置
 
 ### 2.5 安装配置
@@ -86,9 +86,12 @@ TDengine 提供了一个功能强大的安装脚本 `install.sh`，用于在 Lin
 
 # 静默模式+自定义路径安装服务器
 ./install.sh -q /opt/tdengine
+
+# 安装服务器并禁用 FQDN 交互
+./install.sh -e no
 ```
 
-#### 3.3.2 客户端模式安装
+#### 3.3.2 客户端模式安装(暂不支持)
 
 ```bash
 # 交互式安装客户端
@@ -99,13 +102,6 @@ TDengine 提供了一个功能强大的安装脚本 `install.sh`，用于在 Lin
 
 # 自定义路径安装客户端
 ./install.sh -v client -d /opt/tdengine-client
-```
-
-#### 3.3.3 禁用 FQDN 交互
-
-```bash
-# 安装服务器并禁用 FQDN 交互
-./install.sh -e no
 
 # 安装客户端并禁用 FQDN 交互
 ./install.sh -v client -e no
@@ -132,27 +128,61 @@ TDengine 提供了一个功能强大的安装脚本 `install.sh`，用于在 Lin
 
 ## 5. 目录结构
 
-### 5.1 服务器模式安装目录
+### 5.1 指定路径模式
 
-| 目录 | 用途 | 默认路径（root） | 默认路径（普通用户） |
-|------|------|------------------|----------------------|
-| 安装目录 | 程序文件 | `/usr/local/taos` | `$HOME/taos` |
-| 数据目录 | 数据库数据 | `/var/lib/taos` | `$HOME/taos/data` |
-| 日志目录 | 日志文件 | `/var/log/taos` | `$HOME/taos/log` |
-| 配置目录 | 配置文件 | `/etc/taos` | `$HOME/taos/cfg` |
-| 命令链接 | 系统命令链接 | `/usr/bin` | `$HOME/.local/bin` |
-| 库文件链接 | 系统库文件链接 | `/usr/lib`/`/usr/lib64` | `$HOME/.local/lib` |
-| 头文件链接 | 系统头文件链接 | `/usr/include` | `$HOME/.local/include` |
+TDengine安装脚本支持用户自定义安装路径，通过命令行参数或交互式选择来指定安装位置。
 
-### 5.2 客户端模式安装目录
+#### 5.1.1 指定路径的方式
 
-| 目录 | 用途 | 默认路径（root） | 默认路径（普通用户） |
-|------|------|------------------|----------------------|
-| 安装目录 | 程序文件 | `/usr/local/taos` | `$HOME/taos` |
-| 配置目录 | 配置文件 | `/etc/taos` | `$HOME/taos/cfg` |
-| 命令链接 | 系统命令链接 | `/usr/bin` | `$HOME/.local/bin` |
-| 库文件链接 | 系统库文件链接 | `/usr/lib`/`/usr/lib64` | `$HOME/.local/lib` |
-| 头文件链接 | 系统头文件链接 | `/usr/include` | `$HOME/.local/include` |
+**1. 命令行参数指定**
+- 使用 `-d` 参数在非静默模式下指定安装路径
+- 使用 `-q` 参数在静默模式下指定安装路径
+
+**2. 路径规范化处理**
+- 安装脚本会自动对输入路径进行规范化处理，确保末尾不包含斜杠
+- 实际安装目录会在指定路径后自动添加 `taos` 后缀（例如：指定路径为 `/opt/myapp`，实际安装目录为 `/opt/myapp/taos`）
+
+#### 5.1.2 指定路径示例
+
+**非静默模式指定路径**：
+```bash
+# Root用户指定安装路径
+./install.sh -d /opt/taos-install
+
+# 普通用户指定安装路径
+./install.sh -d /home/user/taos-install
+```
+
+**静默模式指定路径**：
+```bash
+# Root用户静默安装并指定路径
+./install.sh -q /opt/taos-install
+
+# 普通用户静默安装并指定路径
+./install.sh -q /home/user/taos-install
+```
+
+### 5.2 服务器模式安装目录
+
+| 目录 | 用途 | 默认路径（root） | 默认路径（普通用户） | 指定路径模式 |
+|------|------|------------------|----------------------|--------------|
+| 安装目录 | 程序文件 | `/usr/local/taos` | `$HOME/taos` | `${指定路径}/taos` |
+| 数据目录 | 数据库数据 | `/var/lib/taos` | `$HOME/taos/data` | `$HOME/taos/data`（普通用户） |
+| 日志目录 | 日志文件 | `/var/log/taos` | `$HOME/taos/log` | `$HOME/taos/log`（普通用户） |
+| 配置目录 | 配置文件 | `/etc/taos` | `$HOME/taos/cfg` | `$HOME/taos/cfg`（普通用户） |
+| 命令链接 | 系统命令链接 | `/usr/bin` | `$HOME/.local/bin` | 保持不变 |
+| 库文件链接 | 系统库文件链接 | `/usr/lib`/`/usr/lib64` | `$HOME/.local/lib` | 保持不变 |
+| 头文件链接 | 系统头文件链接 | `/usr/include` | `$HOME/.local/include` | 保持不变 |
+
+### 5.3 客户端模式安装目录
+
+| 目录 | 用途 | 默认路径（root） | 默认路径（普通用户） | 指定路径模式 |
+|------|------|------------------|----------------------|--------------|
+| 安装目录 | 程序文件 | `/usr/local/taos` | `$HOME/taos` | `${指定路径}/taos` |
+| 配置目录 | 配置文件 | `/etc/taos` | `$HOME/taos/cfg` | `$HOME/taos/cfg`（普通用户） |
+| 命令链接 | 系统命令链接 | `/usr/bin` | `$HOME/.local/bin` | 保持不变 |
+| 库文件链接 | 系统库文件链接 | `/usr/lib`/`/usr/lib64` | `$HOME/.local/lib` | 保持不变 |
+| 头文件链接 | 系统头文件链接 | `/usr/include` | `$HOME/.local/include` | 保持不变 |
 
 ## 6. 注意事项
 
@@ -166,7 +196,7 @@ TDengine 提供了一个功能强大的安装脚本 `install.sh`，用于在 Lin
 ### 6.2 权限要求
 
 - **root 用户安装**：可以安装完整的服务器和客户端，自动配置系统服务
-- **普通用户安装**：可以安装客户端和非系统服务的服务器组件，部分功能可能受限
+- **普通用户安装**：可以安装客户端和用户服务级别的服务器组件
 
 ### 6.3 数据迁移
 
@@ -180,17 +210,15 @@ TDengine 提供了一个功能强大的安装脚本 `install.sh`，用于在 Lin
 
 ### 6.5 卸载方法
 
-使用安装脚本自动创建的卸载脚本：
+安装完成后，使用 `rmtaos` 命令卸载 TDengine 服务。卸载时会提示确认，确保卸载前备份数据。`rmtaos` 指向 `/usr/local/taos/bin/uninstall.sh`。
+rmtaos 会自动切换服务和客户端模式的卸载脚本，也会自动检测默认路径和安装路径是否存在 TDengine 服务，若不存在则提示用户指定路径。
 
 ```bash
 # 服务器模式卸载
-/usr/local/taos/bin/remove.sh
+rmtaos 
 
-# 客户端模式卸载
-/usr/local/taos/bin/remove_client.sh
-
-# 自定义路径卸载
-<自定义安装路径>/bin/remove.sh 或 <自定义安装路径>/bin/remove_client.sh
+# 指定路径卸载
+rmtaos -d /opt/taos-install/taos
 ```
 
 ## 7. 常见问题
@@ -237,22 +265,6 @@ systemctl status taosd  # 查看服务状态
 可以通过修改服务配置文件来自定义服务行为：
 
 - systemd 服务文件：`/etc/systemd/system/taosd.service`（root 用户）或 `$HOME/.config/systemd/user/taosd.service`（普通用户）
-- SysVinit 服务文件：`/etc/init.d/taosd`
-
-### 8.2 环境变量配置
-
-可以通过设置环境变量来影响 TDengine 的行为：
-
-```bash
-# 设置 TDengine 配置文件路径
-export TAOS_CONFIG_DIR=/etc/taos
-
-# 设置 TDengine 日志文件路径
-export TAOS_LOG_DIR=/var/log/taos
-
-# 设置 TDengine 数据文件路径
-export TAOS_DATA_DIR=/var/lib/taos
-```
 
 ---
 
@@ -262,5 +274,5 @@ export TAOS_DATA_DIR=/var/lib/taos
 
 - 官方网站：https://www.taosdata.com
 - 技术支持：support@taosdata.com
-- 社区论坛：https://community.taosdata.com
+- 社区论坛：https://ask.taosdata.com/latest
 - GitHub：https://github.com/taosdata/TDengine
