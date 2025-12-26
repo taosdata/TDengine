@@ -16788,6 +16788,7 @@ static int32_t buildTriggerOptionForCreateStream(SStreamTriggerOptions** ppOptio
   pOptions->fillHistoryFirst = true;
   pOptions->deleteOutputTable = true;
   pOptions->deleteRecalc = true;
+  pOptions->ignoreNoDataTrigger = true;
   PAR_ERR_JRET(nodesMakeDurationValueNodeFromString("3s", (SValueNode**)&pOptions->pMaxDelay));
 
   *ppOptions = pOptions;
