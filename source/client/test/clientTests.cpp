@@ -13,14 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// clang-format off
+
 #include "gtest/gtest.h"
 #include <iostream>
 #include "clientInt.h"
 #include "osSemaphore.h"
 #include "taoserror.h"
+#include "tarray.h"
 #include "thash.h"
 #include "totp.h"
-#include "tarray.h"
+
+// clang-format on
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -1401,7 +1405,7 @@ void doPrintInfo(tmq_topic_assignment* pa, int32_t index) {
   std::cout << "assign i:" << index << ", vgId:" << pa->vgId << ", offset:%" << pa->currentOffset << ", start:%"
             << pa->begin << ", end:%" << pa->end << std::endl;
 }
-}
+}  // namespace
 TEST(clientCase, td_25129) {
   //  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
 
@@ -1811,80 +1815,132 @@ TEST(clientCase, timezone_Test) {
   }
 }
 
-TEST(clientCase, sessControl) {
+void testSessionPerUser() {
+  int32_t code = 0;
+  TAOS*   pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(pConn, nullptr);
+
   {
-    // taos_options(  TSDB_OPTION_TIMEZONE, "UTC-8");
-    int32_t code = 0;
-    TAOS*   pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-    ASSERT_NE(pConn, nullptr);
-
-    {
-      TAOS_RES* pRes = taos_query(pConn, "create database if not exists tests");
-      ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-      taos_free_result(pRes);
-    }
-    // create user1
-    {
-      const char *user="user1";
-      char buf[1000] = {0};
-      for (int32_t i = 0; i < 100; i++) {
-        sprintf(buf, "create user %s_%d pass \"aaaaaaaaaaa@123\"", user, i); 
-        TAOS_RES * pRes = taos_query(pConn, buf);
-        ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-
-        taos_free_result(pRes);
-      }
-    }
-
-    {
-      //TAOS_RES* pRes = taos_query(pConn, "alter user root sessionPerUser 10");
-      SArray *p = taosArrayInit(1, sizeof(void *));
-      ASSERT_NE(p, nullptr);
-
-      //SArray *p = taosArrayInit()
-      TAOS_RES* pRes = taos_query(pConn, "alter user root SESSION_PER_USER 10");
-      ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-      taos_free_result(pRes);
-
-      taosMsleep(6*1000);
-      for (int32_t i = 0; i < 10; i++) {
-        TAOS* pUserConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-        //ASSERT_NE(pUserConn, nullptr);
-        taosArrayPush(p, &pUserConn);
-      }
-
-      {
-        TAOS* pUserConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-        ASSERT_EQ(pUserConn, nullptr); 
-
-      }
-
-      for (int32_t i = 0; i < 10; i++) {
-        TAOS* pUserConn = *(TAOS **)taosArrayGet(p, i);
-        taos_close(pUserConn);
-      }
-      {
-        TAOS* pUserConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-        
-        ASSERT_NE(pUserConn, nullptr); 
-      }
-      
-    }
-
-
-    // drop all users 
-    {
-      const char *user="user1";
-      char buf[1000] = {0};
-      for (int32_t i = 0; i < 100; i++) {
-        sprintf(buf, "drop user %s-%d", user, i); 
-        TAOS_RES * pRes = taos_query(pConn, buf);
-        ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-        taos_free_result(pRes);
-      } 
-    }
-
+    TAOS_RES* pRes = taos_query(pConn, "create database if not exists tests");
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
   }
+  // create user1
+  {
+    const char* user = "user1";
+    char        buf[1000] = {0};
+    for (int32_t i = 0; i < 100; i++) {
+      sprintf(buf, "create user %s_%d pass \"aaaaaaaaaaa@123\"", user, i);
+      TAOS_RES* pRes = taos_query(pConn, buf);
+      ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+
+      taos_free_result(pRes);
+    }
+  }
+
+  {
+    SArray* p = taosArrayInit(1, sizeof(void*));
+    ASSERT_NE(p, nullptr);
+
+    // SArray *p = taosArrayInit()
+    TAOS_RES* pRes = taos_query(pConn, "alter user root SESSION_PER_USER 10");
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+
+    taosMsleep(6 * 1000);
+    for (int32_t i = 0; i < 10; i++) {
+      TAOS* pUserConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+      // ASSERT_NE(pUserConn, nullptr);
+      taosArrayPush(p, &pUserConn);
+    }
+
+    {
+      TAOS* pUserConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+      ASSERT_EQ(pUserConn, nullptr);
+    }
+
+    for (int32_t i = 0; i < 10; i++) {
+      TAOS* pUserConn = *(TAOS**)taosArrayGet(p, i);
+      taos_close(pUserConn);
+    }
+
+    taosArrayDestroyx(p);
+    {
+      taosMsleep(6 * 1000);
+      TAOS* pUserConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+      ASSERT_NE(pUserConn, nullptr);
+      taos_close(pUserConn);
+    }
+  }
+
+  // drop all users
+  {
+    const char* user = "user1";
+    char        buf[1000] = {0};
+    for (int32_t i = 0; i < 100; i++) {
+      sprintf(buf, "drop user %s_%d", user, i);
+      TAOS_RES* pRes = taos_query(pConn, buf);
+      ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+      taos_free_result(pRes);
+    }
+  }
+  taos_close(pConn);
+}
+
+void testSessionConnTime() {}
+
+void testSessionConnIdleTime() {}
+
+void testSessionMaxVnodeCall() {
+  int32_t code = 0;
+
+  char char *maxVnodeDB = "maxVnod";
+  TAOS*   pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(pConn, nullptr);
+
+  TAOS_RES* pRes = taos_query(pConn, "drop database if exists db_max_vnode");
+  ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create database db_max_vnode vgroups 4");
+  ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+
+
+  pRes = taos_query(pConn, "create stable db_max_vnode.t1 (ts timestamp, v int) tags (t1 int)"); 
+  ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+
+  char buf[100] = {0};  
+  for (int32_t i = 0; i < 10; i++) {
+    char tbname[24] = {0}  
+    sprintf(tbname, "test_tbname_%d", i);
+    sprintf(buf, "insert into db_max_vnode.%s using db_max_vnode.t1 tags(%d) values(now, %d)", tbname, i, i);
+    pRes = taos_query(pConn, buf);
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+    taosMsleep(10);
+  } 
+  
+  pReq = taos_query("select * from db_max_vnode.t1");;
+  ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+
+  pReq = taos_query(pConn, "alter user root CALL_PER_SESSION 2");
+  aosMsleep(6000);
+  ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+
+
+}
+
+void testSessionConncurentCall() {}
+TEST(clientCase, sessControl) {
+  testSessionPerUser();
+  testSessionConnTime();
+  testSessionConnIdleTime();
+  testSessionMaxVnodeCall();
+  testSessionConncurentCall()
 }
 
 #pragma GCC diagnostic pop
