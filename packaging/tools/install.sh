@@ -549,19 +549,19 @@ function install_lib() {
   # Link libraries based on OS type
   if [ "$osType" != "Darwin" ]; then
     # Linux specific linking
-    ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.so.1
-    ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
-    ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
-    ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
+    ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.so.3
+    ln -sf ${lib_link_dir}/libtaos.so.3 ${lib_link_dir}/libtaos.so
+    ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.so.3
+    ln -sf ${lib_link_dir}/libtaosnative.so.3 ${lib_link_dir}/libtaosnative.so
 
     ln -sf ${driver_path}/libtaosws.so.* ${lib_link_dir}/libtaosws.so
 
     # Link lib64 if it exists
     if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
-      ln -sf ${driver_path}/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
-      ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
-      ln -sf ${driver_path}/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 || :
-      ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so || :
+      ln -sf ${driver_path}/libtaos.* ${lib64_link_dir}/libtaos.so.3 || :
+      ln -sf ${lib64_link_dir}/libtaos.so.3 ${lib64_link_dir}/libtaos.so || :
+      ln -sf ${driver_path}/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.3 || :
+      ln -sf ${lib64_link_dir}/libtaosnative.so.3 ${lib64_link_dir}/libtaosnative.so || :
 
       ln -sf ${driver_path}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
     fi
@@ -572,10 +572,10 @@ function install_lib() {
     fi
   else
     # macOS specific linking
-    ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.1.dylib
-    ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
-    ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.1.dylib
-    ln -sf ${lib_link_dir}/libtaosnative.1.dylib ${lib_link_dir}/libtaosnative.dylib
+    ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.3.dylib
+    ln -sf ${lib_link_dir}/libtaos.3.dylib ${lib_link_dir}/libtaos.dylib
+    ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.3.dylib
+    ln -sf ${lib_link_dir}/libtaosnative.3.dylib ${lib_link_dir}/libtaosnative.dylib
 
     for f in ${driver_path}/libtaosws.dylib.*; do
       [ -f "$f" ] && ln -sf "$f" "${lib_link_dir}/libtaosws.dylib"
