@@ -329,7 +329,7 @@ static int32_t mndRetrieveScan(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     pShow->pIter = sdbFetch(pSdb, SDB_SCAN, pShow->pIter, (void **)&pScan);
     if (pShow->pIter == NULL) break;
 
-    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pScan->dbname, pScan, MND_OPER_SHOW_SCANS, _OVER);
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pScan->dbname, pScan, RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_SCANS, _OVER);
 
     SColumnInfoData *pColInfo;
     SName            n;

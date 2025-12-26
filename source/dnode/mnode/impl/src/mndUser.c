@@ -3194,7 +3194,7 @@ void mndUpdateUser(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq) {
   mndTransDrop(pTrans);
 }
 
-static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpcMsg *pReq) {
+static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "alter-user");
   if (pTrans == NULL) {
@@ -3222,7 +3222,7 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
   }
 _exit:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("user:%s, failed to alter at line %d since %s", pOld->user, lino, tstrerror(code));
+    mError("user:%s, failed to alter at line %d since %s", pNew->user, lino, tstrerror(code));
   }
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
@@ -3317,7 +3317,7 @@ static int32_t mndRemoveTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj
 }
 
 
-
+#if 0
 static int32_t mndProcessAlterUserPrivilegesReq(SRpcMsg* pReq, SAlterUserReq *pAlterReq) {
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
@@ -3550,6 +3550,7 @@ _OVER:
   mndUserFreeObj(&newUser);
   TAOS_RETURN(code);
 }
+#endif
 
 #ifdef TD_ENTERPRISE
 extern int32_t mndAlterUserPrivInfo(SMnode *pMnode, SUserObj *pOperUser, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
@@ -3590,7 +3591,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   } else {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
-  code = mndAlterUser(pMnode, pUser, &newUser, pReq);
+  code = mndAlterUser(pMnode, &newUser, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _exit:
@@ -3976,7 +3977,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   if (alterReq.alterType == TSDB_ALTER_USER_BASIC_INFO) {
     code = mndProcessAlterUserBasicInfoReq(pReq, &alterReq);
   } else {
-    code = mndProcessAlterUserPrivilegesReq(pReq, &alterReq);
+    // code = mndProcessAlterUserPrivilegesReq(pReq, &alterReq); // obsolete
   }
 
   tFreeSAlterUserReq(&alterReq);

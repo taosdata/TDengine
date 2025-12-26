@@ -797,7 +797,7 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(tDeserializeSAlterRoleReq(pReq->pCont, pReq->contLen, &alterReq));
 
   mInfo("role:%s, start to alter, flag:%u", alterReq.principal, alterReq.flag);
-  TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_ALTER_ROLE));
+  TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_ROLE));
 
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
 

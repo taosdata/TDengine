@@ -291,7 +291,7 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     pShow->pIter = sdbFetch(pSdb, SDB_RETENTION, pShow->pIter, (void **)&pObj);
     if (pShow->pIter == NULL) break;
 
-    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pObj->dbname, pObj, MND_OPER_SHOW_RETENTIONS, _OVER);
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pObj->dbname, pObj, RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_RETENTIONS, _OVER);
 
     SColumnInfoData *pColInfo;
     int32_t          cols = 0;

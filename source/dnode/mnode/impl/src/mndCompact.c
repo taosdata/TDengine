@@ -328,7 +328,7 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
     pShow->pIter = sdbFetch(pSdb, SDB_COMPACT, pShow->pIter, (void **)&pCompact);
     if (pShow->pIter == NULL) break;
 
-    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pCompact->dbname, pCompact, MND_OPER_SHOW_COMPACTS, _OVER);
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pCompact->dbname, pCompact, RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_COMPACTS, _OVER);
 
     SColumnInfoData *pColInfo;
     SName            n;
