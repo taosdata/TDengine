@@ -39,11 +39,14 @@ void       truncateTimezoneString(char *tz);
 
 #endif
 
-
 int32_t taosGetLocalTimezoneOffset();
 int32_t taosGetSystemTimezone(char *outTimezone);
 int32_t taosSetGlobalTimezone(const char *tz);
-int32_t taosFormatTimezoneStr(time_t t, const char* tzStr, timezone_t sp, char *outTimezoneStr);
+int32_t taosFormatTimezoneStr(time_t t, const char *tzStr, timezone_t sp, char *outTimezoneStr);
+int32_t initTimezoneInfo();
+void    cleanupTimezoneInfo();
+
+timezone_t getGlobalDefaultTZ();
 #ifdef __cplusplus
 }
 #endif

@@ -470,7 +470,14 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pTableName = TSDB_INS_TABLE_ENCRYPT_STATUS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  }
+  },
+  {
+    .showType = QUERY_NODE_SHOW_TOKENS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_TOKENS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -7071,7 +7078,7 @@ static int32_t getTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bo
     if (nodeType(pNew) == QUERY_NODE_VALUE) {
       TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
     } else {
-      code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
+      code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict, NULL);
     }
   }
   return code;
@@ -10928,6 +10935,19 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       break;
     }
 
+    case TDMT_MND_CREATE_TOKEN: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateTokenReq, pReq);
+      break;
+    }
+    case TDMT_MND_ALTER_TOKEN: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SAlterTokenReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_TOKEN: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropTokenReq, pReq);
+      break;
+    }
+
     default: {
       break;
     }
@@ -11098,6 +11118,58 @@ static int32_t translateTrimDbWal(STranslateContext* pCxt, STrimDbWalStmt* pStmt
   (void)tNameGetFullDbName(&name, req.db);
   return buildCmdMsg(pCxt, TDMT_MND_TRIM_DB_WAL, (FSerializeFunc)tSerializeSTrimDbReq, &req);
 }
+
+
+static int32_t translateCreateToken(STranslateContext* pCxt, SCreateTokenStmt* pStmt) {
+  SCreateTokenReq req = {0};
+
+  tstrncpy(req.name, pStmt->name, sizeof(req.name));
+  tstrncpy(req.user, pStmt->user, sizeof(req.user));
+  req.enable = pStmt->enable;
+  req.ignoreExists = pStmt->ignoreExists;
+  req.ttl = pStmt->ttl;
+  tstrncpy(req.provider, pStmt->provider, sizeof(req.provider));
+  tstrncpy(req.extraInfo, pStmt->extraInfo, sizeof(req.extraInfo));
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TOKEN, (FSerializeFunc)tSerializeSCreateTokenReq, &req);
+  tFreeSCreateTokenReq(&req);
+  return code;
+}
+
+
+static int32_t translateAlterToken(STranslateContext* pCxt, SAlterTokenStmt* pStmt) {
+  SAlterTokenReq req = {0};
+  STokenOptions* opts = pStmt->pTokenOptions;
+
+  tstrncpy(req.name, pStmt->name, sizeof(req.name));
+
+  req.hasEnable = opts->hasEnable;
+  req.enable = opts->enable;
+  req.hasTtl = opts->hasTtl;
+  req.ttl = opts->ttl;
+  req.hasProvider = opts->hasProvider;
+  if (opts->hasProvider) {
+    tstrncpy(req.provider, opts->provider, sizeof(req.provider));
+  }
+  req.hasExtraInfo = opts->hasExtraInfo;
+  if (opts->hasExtraInfo) {
+    tstrncpy(req.extraInfo, opts->extraInfo, sizeof(req.extraInfo));
+  }
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_ALTER_TOKEN, (FSerializeFunc)tSerializeSAlterTokenReq, &req);
+  tFreeSAlterTokenReq(&req);
+  return code;
+}
+
+
+static int32_t translateDropToken(STranslateContext* pCxt, SDropTokenStmt* pStmt) {
+  SDropTokenReq req = {0};
+  tstrncpy(req.name, pStmt->name, sizeof(req.name));
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_TOKEN, (FSerializeFunc)tSerializeSDropTokenReq, &req);
+  tFreeSDropTokenReq(&req);
+  return code;
+}
+
 
 static int32_t checkColumnOptions(SNodeList* pList, bool virtual) {
   SNode* pNode;
@@ -12678,7 +12750,7 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
 
   createReq.createType = 0;
   createReq.superUser = 0;
-  createReq.ignoreExisting = pStmt->ignoreExisting;
+  createReq.ignoreExists = pStmt->ignoreExists;
 
   tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
   tstrncpy(createReq.pass, pStmt->password, sizeof(createReq.pass));
@@ -16740,6 +16812,7 @@ static int32_t buildTriggerOptionForCreateStream(SStreamTriggerOptions** ppOptio
   pOptions->fillHistoryFirst = true;
   pOptions->deleteOutputTable = true;
   pOptions->deleteRecalc = true;
+  pOptions->ignoreNoDataTrigger = true;
   PAR_ERR_JRET(nodesMakeDurationValueNodeFromString("3s", (SValueNode**)&pOptions->pMaxDelay));
 
   *ppOptions = pOptions;
@@ -17702,6 +17775,15 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
       code = translateTrimDbWal(pCxt, (STrimDbWalStmt*)pNode);
       break;
+    case QUERY_NODE_CREATE_TOKEN_STMT:
+      code = translateCreateToken(pCxt, (SCreateTokenStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_TOKEN_STMT:
+      code = translateAlterToken(pCxt, (SAlterTokenStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_TOKEN_STMT:
+      code = translateDropToken(pCxt, (SDropTokenStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       code = translateCreateSuperTable(pCxt, (SCreateTableStmt*)pNode);
       break;
@@ -18394,6 +18476,20 @@ static int32_t extractScanDbResultSchema(int32_t* numOfCols, SSchema** pSchema) 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractCreateTokenResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = CREATE_USER_TOKEN_RESULT_COLS;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return terrno;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[0].bytes = SCAN_DB_RESULT_FIELD1_LEN;
+  tstrncpy((*pSchema)[0].name, "token", TSDB_COL_NAME_LEN);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema, SExtSchema** ppExtSchemas) {
   if (NULL == pRoot) {
     return TSDB_CODE_SUCCESS;
@@ -18432,6 +18528,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_SCAN_DATABASE_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
       return extractScanDbResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_CREATE_TOKEN_STMT:
+      return extractCreateTokenResultSchema(numOfCols, pSchema);
     default:
       break;
   }
@@ -21126,7 +21224,7 @@ _err:
   return code;
 }
 
-static int32_t checkColRef(STranslateContext* pCxt, char* pRefDbName, char* pRefTableName, char* pRefColName,
+static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbName, char* pRefTableName, char* pRefColName,
                            SDataType type, int8_t precision) {
   STableMeta* pRefTableMeta = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
@@ -21139,24 +21237,28 @@ static int32_t checkColRef(STranslateContext* pCxt, char* pRefDbName, char* pRef
   // org table cannot has composite primary key
   if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                         "virtual table's column reference can not from table with composite key"));
+                                         "virtual table's column:\"%s\"'s reference can not from table with composite key",
+                                         colName));
   }
 
   // org table must be child table or normal table
   if (pRefTableMeta->tableType != TSDB_NORMAL_TABLE && pRefTableMeta->tableType != TSDB_CHILD_TABLE) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                         "virtual table's column reference can only be normal table or child table"));
+                                         "virtual table's column:\"%s\"'s reference can only be normal table or child table",
+                                         colName));
   }
 
   const SSchema* pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
   if (NULL == pRefCol) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                         "virtual table's column reference column not exist"));
+                                         "virtual table's column:\"%s\"'s reference column:\"%s\" not exist",
+                                         colName, pRefColName));
   }
 
   if (pRefCol->type != type.type || pRefCol->bytes != type.bytes) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
-                                         "virtual table's column type and reference column type not match"));
+                                         "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match",
+                                         colName, pRefColName));
   }
 
 _return:
@@ -21201,7 +21303,7 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     }
 
     // check ref column exists and check type
-    PAR_ERR_RET(checkColRef(pCxt, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
+    PAR_ERR_RET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
                             (SDataType){.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)},
                             pTableMeta->tableInfo.precision));
 
@@ -21414,7 +21516,7 @@ static int buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pS
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
   }
 
-  PAR_ERR_JRET(checkColRef(pCxt, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
+  PAR_ERR_JRET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
                            (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
                            pTableMeta->tableInfo.precision));
 
@@ -21728,7 +21830,7 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
         PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE));
       }
       PAR_ERR_JRET(
-          checkColRef(pCxt, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
+          checkColRef(pCxt, pColNode->colName, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
                       (SDataType){.type = pColNode->dataType.type, .bytes = calcTypeBytes(pColNode->dataType)},
                       dbCfg.precision));
     }
@@ -21784,7 +21886,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
       if (pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         PAR_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
       }
-      PAR_ERR_JRET(checkColRef(pCxt, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
+      PAR_ERR_JRET(checkColRef(pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
                                (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
                                pSuperTableMeta->tableInfo.precision));
     }
@@ -21793,7 +21895,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
       PAR_ERR_JRET(checkColRef(
-          pCxt, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
+          pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
           (SDataType){.type = pSuperTableMeta->schema[index].type, .bytes = pSuperTableMeta->schema[index].bytes},
           pSuperTableMeta->tableInfo.precision));
       index++;
@@ -21974,6 +22076,19 @@ static int32_t rewriteShowSsMigrates(STranslateContext* pCxt, SQuery* pQuery) {
   SShowSsMigratesStmt* pShow = (SShowSsMigratesStmt*)(pQuery->pRoot);
   SSelectStmt*         pStmt = NULL;
   int32_t              code = createSelectStmtForShow(QUERY_NODE_SHOW_SSMIGRATES_STMT, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
+static int32_t rewriteShowTokens(STranslateContext* pCxt, SQuery* pQuery) {
+  SShowTokensStmt* pShow = (SShowTokensStmt*)(pQuery->pRoot);
+  SSelectStmt*     pStmt = NULL;
+  int32_t          code = createSelectStmtForShow(QUERY_NODE_SHOW_TOKENS_STMT, &pStmt);
   if (TSDB_CODE_SUCCESS == code) {
     pCxt->showRewrite = true;
     pQuery->showRewrite = true;
@@ -22614,6 +22729,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_SSMIGRATES_STMT:
       code = rewriteShowSsMigrates(pCxt, pQuery);
       break;
+    case QUERY_NODE_SHOW_TOKENS_STMT:
+      code = rewriteShowTokens(pCxt, pQuery);
+      break;
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
       code = rewriteShowTransactionDetailsStmt(pCxt, pQuery);
       break;
@@ -22746,6 +22864,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
+    case QUERY_NODE_CREATE_TOKEN_STMT:
       pQuery->haveResultSet = true;
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {

@@ -27,7 +27,6 @@ extern "C" {
 int32_t mndInitUser(SMnode *pMnode);
 void    mndCleanupUser(SMnode *pMnode);
 int32_t mndAcquireUser(SMnode *pMnode, const char *userName, SUserObj **ppUser);
-void    mndUpdateUser(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq);
 void    mndReleaseUser(SMnode *pMnode, SUserObj *pUser);
 int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo);
 
@@ -53,6 +52,8 @@ int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 int64_t mndGetTimeWhiteListVersion(SMnode *pMnode);
 int32_t mndRefreshUserDateTimeWhiteList(SMnode *pMnode);
 int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser);
+
+int32_t mndGetAuditUser(SMnode *pMnode, char *user);
 
 void mndGetUserLoginInfo(const char *user, SLoginInfo *pLoginInfo);
 void mndSetUserLoginInfo(const char *user, const SLoginInfo *pLoginInfo);

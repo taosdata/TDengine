@@ -56,29 +56,8 @@ class TestInformationSchema:
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_virtual_child_columns', 'ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
                 'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes",
-                        "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts", "ins_stream_recalculates", "ins_ssmigrates", 'ins_scans', 'ins_scan_details', 'ins_rsmas', 'ins_retentions', 'ins_retention_details', 'ins_encrypt_algorithms', 'ins_encrypt_status']
-        cls.perf_list = ['perf_connections', 'perf_queries',
-                         'perf_consumers',  'perf_trans', 'perf_apps', 'perf_instances']
+                        "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts", "ins_stream_recalculates", "ins_ssmigrates", 'ins_scans', 'ins_scan_details', 'ins_rsmas', 'ins_retentions', 'ins_retention_details', 'ins_encrypt_algorithms', "ins_tokens" , 'ins_encrypt_status']
 
-    def insert_data(self,column_dict,tbname,row_num):
-        insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
-        for i in range(row_num):
-            insert_list = []
-            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
-    def prepare_data(self):
-        tdSql.execute(f"create database if not exists {self.dbname} vgroups 2")
-        tdSql.execute(f'use {self.dbname}')
-        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
-        for i in range(self.tbnum):
-            tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]}, {self.tag_values[1]})")
-            self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)
-    def count_check(self):
-        tdSql.query('select count(*) from information_schema.ins_tables')
-        tdSql.checkEqual(tdSql.queryResult[0][0],self.tbnum+len(self.ins_list)+len(self.perf_list))
-        tdSql.query(f'select count(*) from information_schema.ins_tables where db_name = "{self.dbname}"')
-        tdSql.checkEqual(tdSql.queryResult[0][0],self.tbnum)
-        tdSql.query(f'select count(*) from information_schema.ins_tables where db_name = "{self.dbname}" and stable_name = "{self.stbname}"')
-        tdSql.checkEqual(tdSql.queryResult[0][0],self.tbnum)
         tdSql.execute('create database db1')
         tdSql.execute('create table stb1 (ts timestamp,c0 int) tags(t0 int)')
         tdSql.execute('create table tb1 using stb1 tags(1)')
@@ -218,7 +197,7 @@ class TestInformationSchema:
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkRows(70)
+        tdSql.checkRows(71)
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')

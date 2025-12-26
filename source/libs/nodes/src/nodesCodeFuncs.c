@@ -258,6 +258,12 @@ const char* nodesNodeName(ENodeType type) {
       return "SetVgroupKeepVersionStmt";
     case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
       return "TrimDbWalStmt";
+    case QUERY_NODE_CREATE_TOKEN_STMT:
+      return "CreateTokenStmt";
+    case QUERY_NODE_ALTER_TOKEN_STMT:
+      return "AlterTokenStmt";
+    case QUERY_NODE_DROP_TOKEN_STMT:
+      return "DropTokenStmt";
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return "MergeVgroupStmt";
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
@@ -377,6 +383,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowMountsStmt";
     case QUERY_NODE_SHOW_SSMIGRATES_STMT:
       return "ShowSSMigratesStmt";
+    case QUERY_NODE_SHOW_TOKENS_STMT:
+      return "ShowTokensStmt";
     case QUERY_NODE_SHOW_RSMAS_STMT:
       return "ShowRsmasStmt";
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
@@ -2308,6 +2316,7 @@ static const char* jkTableScanPhysiPlanExtStartKey = "ExtStartKey";
 static const char* jkTableScanPhysiPlanExtEndKey = "ExtEndKey";
 static const char* jkTableScanPhysiPlanTimeRangeExpr = "TimeRangeExpr";
 static const char* jkTableScanPhysiPlanExtTimeRangeExpr = "ExtTimeRangeExpr";
+static const char* jkTableScanPhysiPlanPrimCondExpr = "PrimCondExpr";
 static const char* jkTableScanPhysiPlanRatio = "Ratio";
 static const char* jkTableScanPhysiPlanDataRequired = "DataRequired";
 static const char* jkTableScanPhysiPlanDynamicScanFuncs = "DynamicScanFuncs";
@@ -2357,6 +2366,9 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkTableScanPhysiPlanExtTimeRangeExpr, nodeToJson, pNode->pExtTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkTableScanPhysiPlanPrimCondExpr, nodeToJson, pNode->pPrimaryCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddDoubleToObject(pJson, jkTableScanPhysiPlanRatio, pNode->ratio);
@@ -2464,6 +2476,9 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkTableScanPhysiPlanExtTimeRangeExpr, &pNode->pExtTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkTableScanPhysiPlanPrimCondExpr, &pNode->pPrimaryCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetDoubleValue(pJson, jkTableScanPhysiPlanRatio, &pNode->ratio);

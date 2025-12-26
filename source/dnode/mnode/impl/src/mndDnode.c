@@ -26,6 +26,7 @@
 #include "mndQnode.h"
 #include "mndShow.h"
 #include "mndSnode.h"
+#include "mndToken.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -823,17 +824,40 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    analVerChanged = (analVer != statusReq.analVer);
   bool    auditDBChanged = false;
   char    auditDB[TSDB_DB_FNAME_LEN] = {0};
-  SDbObj *pDb = mndAcquireAuditDb(pMnode);
-  if (pDb != NULL) {
-    tstrncpy(auditDB, pDb->name, TSDB_DB_FNAME_LEN);
-    mndReleaseDb(pMnode, pDb);
-  }
+  bool    auditTokenChanged = false;
+  char    auditToken[TSDB_TOKEN_LEN] = {0};
 
-  if (strncmp(statusReq.auditDB, auditDB, TSDB_DB_FNAME_LEN) != 0) auditDBChanged = true;
+  if (tsAuditUseToken) {
+    SDbObj *pDb = mndAcquireAuditDb(pMnode);
+    if (pDb != NULL) {
+      SName name = {0};
+      if (tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB) < 0)
+        mError("db:%s, failed to parse db name", pDb->name);
+      tstrncpy(auditDB, name.dbname, TSDB_DB_FNAME_LEN);
+      mndReleaseDb(pMnode, pDb);
+    }
+    if (strncmp(statusReq.auditDB, auditDB, TSDB_DB_FNAME_LEN) != 0) auditDBChanged = true;
+
+    char    auditUser[TSDB_USER_LEN] = {0};
+    int32_t ret = 0;
+    if ((ret = mndGetAuditUser(pMnode, auditUser)) != 0) {
+      mTrace("dnode:%d, failed to get audit user since %s", pDnode->id, tstrerror(ret));
+    } else {
+      mTrace("dnode:%d, get audit user:%s", pDnode->id, auditUser);
+      int32_t ret = 0;
+      if ((ret = mndGetUserActiveToken("audit", auditToken)) != 0) {
+        mTrace("dnode:%d, failed to get audit user active token, token:%s, since %s", pDnode->id, auditToken,
+               tstrerror(ret));
+      } else {
+        mTrace("dnode:%d, get audit user active token:%s", pDnode->id, auditToken);
+        if (strncmp(statusReq.auditToken, auditToken, TSDB_TOKEN_LEN) != 0) auditTokenChanged = true;
+      }
+    }
+  } 
 
   bool needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || pMnode->timeWhiteVer != statusReq.timeWhiteVer ||
-                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged;
+                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged || auditTokenChanged;
   const STraceId *trace = &pReq->info.traceId;
   char            timestamp[TD_TIME_STR_LEN] = {0};
   if (mDebugFlag & DEBUG_TRACE) (void)formatTimestampLocal(timestamp, statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
@@ -988,7 +1012,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       mInfo("dnode:%d, set audit db %s in process status rsp", statusReq.dnodeId, auditDB);
       tstrncpy(statusRsp.auditDB, auditDB, TSDB_DB_FNAME_LEN);
     }
-    // TODO dmchen get audit db token
+    if (auditToken[0] != '\0') {
+      mInfo("dnode:%d, set audit token %s in process status rsp", statusReq.dnodeId, auditToken);
+      tstrncpy(statusRsp.auditToken, auditToken, TSDB_TOKEN_LEN);
+    }
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
@@ -1200,7 +1227,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(code, &lino, _OVER);
 
   mInfo("dnode:%s:%d, start to create", createReq.fqdn, createReq.port);
-  code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DNODE);
+  code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_DNODE);
   TAOS_CHECK_GOTO(code, &lino, _OVER);
 
   if (createReq.fqdn[0] == 0 || createReq.port <= 0 || createReq.port > UINT16_MAX) {
@@ -1370,7 +1397,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   mInfo("dnode:%d, start to drop, ep:%s:%d, force:%s, unsafe:%s", dropReq.dnodeId, dropReq.fqdn, dropReq.port,
         dropReq.force ? "true" : "false", dropReq.unsafe ? "true" : "false");
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_MNODE), NULL, _OVER);
 
   bool force = dropReq.force;
   if (dropReq.unsafe) {
@@ -1578,7 +1605,7 @@ static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq) {
   SMCfgDnodeReq cfgReq = {0};
   TAOS_CHECK_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));
 
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_DNODE)) != 0) {
     tFreeSMCfgDnodeReq(&cfgReq);
     TAOS_RETURN(code);
   }
@@ -2027,7 +2054,7 @@ static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_ALTER_DNODE_RELOAD_TLS)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_DNODE_RELOAD_TLS)) != 0) {
     goto _OVER;
   }
 

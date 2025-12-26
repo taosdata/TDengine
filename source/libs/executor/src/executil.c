@@ -34,6 +34,7 @@
 #include "tutil.h"
 #include "tjson.h"
 #include "trpc.h"
+#include "filter.h"
 
 typedef struct tagFilterAssist {
   SHashObj* colHash;
@@ -3152,7 +3153,19 @@ static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* ran
   return code;
 }
 
-int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode,
+static int32_t getPrimaryTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* isStrict) {
+  SNode*  pNew = NULL;
+  int32_t code = scalarCalculateRemoteConstants(*pPrimaryKeyCond, &pNew);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPrimaryKeyCond = pNew;
+    if (nodeType(pNew) != QUERY_NODE_VALUE) {
+      code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, isStrict, NULL);
+    }
+  }
+  return code;
+}
+
+int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* pTableScanNode,
                                const SReadHandle* readHandle, bool applyExtWin) {
   int32_t code = 0;                             
   pCond->order = pTableScanNode->scanSeq[0] > 0 ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
@@ -3215,7 +3228,15 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
       code = getQueryExtWindow(&pCond->twindows, &readHandle->extWinRange, &pCond->twindows, pCond->extTwindows);
     }
   }
-  
+
+  if (pTableScanNode->pPrimaryCond) {
+    bool isStrict = false;
+    code = getPrimaryTimeRange((SNode**)&pTableScanNode->pPrimaryCond, &pCond->twindows, &isStrict);
+    if (code || !isStrict) {
+      code = nodesMergeNode((SNode**)&pTableScanNode->scan.node.pConditions, &pTableScanNode->pPrimaryCond);
+    }
+  }
+
   return code;
 }
 

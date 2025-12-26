@@ -193,8 +193,7 @@ The basic API is used to establish database connections and provide a runtime en
   - **Interface Description**: Gets client version information.
   - **Return Value**: Returns client version information.
 
-- `TAOS *taos_connect(const char *ip, the char *user, the char *pass, the char *db, uint16_t port);`
-
+- `TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);`
   - **Interface Description**: Creates a database connection, initializes the connection context.
   - **Parameter Description**:
     - ip: [Input] FQDN of any node in the TDengine cluster.
@@ -204,11 +203,32 @@ The basic API is used to establish database connections and provide a runtime en
     - port: [Input] Port on which the taosd program listens.
   - **Return Value**: Returns the database connection, a null return value indicates failure. The application needs to save the returned parameter for subsequent use.
     :::info
-    The same process can connect to multiple TDengine clusters based on different hosts/ports.
+    The same process can connect to multiple TDengine clusters based on different hosts/ports. When TOTP is enabled for the user, calling this function fails with error code `TSDB_CODE_MND_WRONG_TOTP_CODE`, in which case the application should ask user for the TOTP code and call `taos_connect_totp` to try again.
     :::
 
-- `TAOS *taos_connect_auth(const char *host, const char *user, const char *auth, const char *db, uint16_t port)`
+- `TAOS *taos_connect_totp(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);`
+  - **Interface Description**: Same functionality as `taos_connect` but support using [TOTP](https://www.rfc-editor.org/rfc/rfc6238) as 2FA method.
+  - **Parameter Description**:
+    - ip: [Input] FQDN of any node in the TDengine cluster.
+    - user: [Input] Username.
+    - pass: [Input] Password.
+    - totp: [Input] TOTP code, if NULL, the behavior of this function is same as `taos_connect`.
+    - db: [Input] Database name, if not provided by the user, connection can still be established, and the user can create a new database through this connection. If a database name is provided, it indicates that the database has already been created by the user, and it will be used by default.
+    - port: [Input] Port on which the taosd program listens.
+  - **Return Value**: Returns the database connection, a null return value indicates failure. The application needs to save the returned parameter for subsequent use.
+  - **Supported Versions**: `v3.4.0.0` and above
 
+- `TAOS *taos_connect_token(const char *ip, const char *token, const char *db, uint16_t port);`
+  - **Interface Description**: Same functionality as `taos_connect` but use token instead of user name and password for authentication.
+  - **Parameter Description**:
+    - ip: [Input] FQDN of any node in the TDengine cluster.
+    - token: [Input] Token.
+    - db: [Input] Database name, if not provided by the user, connection can still be established, and the user can create a new database through this connection. If a database name is provided, it indicates that the database has already been created by the user, and it will be used by default.
+    - port: [Input] Port on which the taosd program listens.
+  - **Return Value**: Returns the database connection, a null return value indicates failure. The application needs to save the returned parameter for subsequent use.
+  - **Supported Versions**: `v3.4.0.0` and above
+
+- `TAOS *taos_connect_auth(const char *host, const char *user, const char *auth, const char *db, uint16_t port)`
   - **Interface Description**: Same functionality as taos_connect. Except the pass parameter is replaced by auth, other parameters are the same as taos_connect.
   - **Parameter Description**:
     - ip: [Input] FQDN of any node in the TDengine cluster.
@@ -217,6 +237,23 @@ The basic API is used to establish database connections and provide a runtime en
     - db: [Input] Database name, if not provided by the user, connection can still be established, and the user can create a new database through this connection. If a database name is provided, it indicates that the database has already been created, and it will be used by default.
     - port: [Input] Port listened by the taosd program.
   - **Return Value**: Returns the database connection, a null return value indicates failure. The application needs to save the returned parameter for subsequent use.
+
+- `int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer, int* len);`
+  - **Interface Description**: Get connection information。
+  - **Parameter Description**:
+    - taos: [Input] Database connection.
+    - info: [Input] Specifies which information item to get.
+    - buffer: [Output] Buffer to receive the information data. Note that the buffer is always treated as a byte array, this is to say, it does not include the trailing zero even if the data is a zero-terminated string.
+    - len: [Input/Output] As input, represent the size of the buffer; as output, returns the size of the result information.
+  - **Supported Information Items**:
+
+    | Key                        |  Description                                                                                                 |
+    |----------------------------|--------------------------------------------------------------------------------------------------------------|
+    | TSDB_CONNECTION_INFO_USER  |  The name of the user who create this connection                                                             |
+    | TSDB_CONNECTION_INFO_TOKEN |  The name of the token which was used to create this connection (if the connection was created via a token)  |
+
+  - **Return Value**: Error code.
+  - **Supported Versions**: `v3.4.0.0` and above
 
 - `void taos_set_option(OPTIONS *options, const char *key, const char *value)`
 

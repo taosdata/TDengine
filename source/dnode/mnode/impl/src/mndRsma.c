@@ -593,7 +593,7 @@ static int32_t mndProcessDropRsmaReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_SELECTED);
   }
 
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb), NULL, _exit);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_WRITE_DB, pDb), NULL, _exit);
 
   code = mndDropRsma(pMnode, pReq, pDb, pObj);
   if (code == TSDB_CODE_SUCCESS) {
@@ -749,8 +749,8 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_SELECTED);
   }
 
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_READ_DB, pDb));
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_WRITE_DB, pDb));
 
   pStb = mndAcquireStb(pMnode, createReq.tbFName);
   if (pStb == NULL) {
@@ -759,7 +759,7 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_EXIT(mndCheckRsmaConflicts(pMnode, pDb, &createReq));
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser));
   TAOS_CHECK_EXIT(mndCreateRsma(pMnode, pReq, pUser, pDb, pStb, &createReq));
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -981,8 +981,8 @@ static int32_t mndProcessAlterRsmaReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_DB_NOT_SELECTED);
   }
 
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, pDb));
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb));
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_READ_DB, pDb));
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_WRITE_DB, pDb));
 
   (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", pObj->dbFName, pObj->tbName);
 
@@ -991,7 +991,7 @@ static int32_t mndProcessAlterRsmaReq(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STB_NOT_EXIST);
   }
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser));
   TAOS_CHECK_EXIT(mndAlterRsma(pMnode, pReq, pUser, pDb, pStb, &req, pObj));
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;

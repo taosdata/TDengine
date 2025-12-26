@@ -187,7 +187,6 @@ TDengine TSDB 客户端驱动支持 WebSocket 连接和原生连接两种方式�
   - **返回值**：返回客户端版本信息。
 
 - `TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);`
-
   - **接口说明**：创建数据库连接，初始化连接上下文。
   - **参数说明**：
     - ip：[入参] TDengine TSDB 集群中任一节点的 FQDN。
@@ -197,11 +196,32 @@ TDengine TSDB 客户端驱动支持 WebSocket 连接和原生连接两种方式�
     - port：[入参] taosd 程序监听的端口。
   - **返回值**：返回数据库连接，返回值为空表示失败。应用程序需要保存返回的参数，以便后续使用。
     :::info
-    同一进程可以根据不同的 host/port 连接多个 TDengine TSDB 集群
+    同一进程可以根据不同的 host/port 连接多个 TDengine TSDB 集群。用户启用 TOTP 双因认证后，调用此函数返回的错误代码是 `TSDB_CODE_MND_WRONG_TOTP_CODE`，应用程序此时应提示用户输入 TOTP 验证码并通过 `taos_connect_totp` 创建连接。
     :::
 
-- `TAOS *taos_connect_auth(const char *host, const char *user, const char *auth, const char *db, uint16_t port)`
+- `TAOS *taos_connect_totp(const char *ip, const char *user, const char *pass, const char* totp, const char *db, uint16_t port);`
+  - **接口说明**：功能同 `taos_connect`，但支持使用 [TOTP](https://www.rfc-editor.org/rfc/rfc6238) 进行双因认证。
+  - **参数说明**：
+    - ip：[入参] TDengine TSDB 集群中任一节点的 FQDN。
+    - user：[入参] 用户名。
+    - pass：[入参] 密码。
+    - totp：[入参] TOTP 验证码，如果此参数的值为 NULL，则此函数的行为与 `taos_connect` 完全相同。
+    - db：[入参] 数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库。
+    - port：[入参] taosd 程序监听的端口。
+  - **返回值**：返回数据库连接，返回值为空表示失败。应用程序需要保存返回的参数，以便后续使用。
+  - **支持版本**：`v3.4.0.0` 及以上
 
+- `TAOS *taos_connect_token(const char *ip, const char *token, const char *db, uint16_t port);`
+  - **接口说明**：功能同 `taos_connect`，但使用令牌而不是用户名/密码进行身份验证。
+  - **参数说明**：
+    - ip：[入参] TDengine TSDB 集群中任一节点的 FQDN。
+    - token：[入参] 令牌。
+    - db：[入参] 数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库。
+    - port：[入参] taosd 程序监听的端口。
+  - **返回值**：返回数据库连接，返回值为空表示失败。应用程序需要保存返回的参数，以便后续使用。
+  - **支持版本**：`v3.4.0.0` 及以上
+
+- `TAOS *taos_connect_auth(const char *host, const char *user, const char *auth, const char *db, uint16_t port)`
   - **接口说明**：功能同 taos_connect。除 pass 参数替换为 auth 外，其他参数同 taos_connect。
   - **参数说明**：
     - ip：[入参] TDengine TSDB 集群中任一节点的 FQDN。
@@ -210,6 +230,23 @@ TDengine TSDB 客户端驱动支持 WebSocket 连接和原生连接两种方式�
     - db：[入参] 数据库名称，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库。
     - port：[入参] taosd 程序监听的端口。
   - **返回值**：返回数据库连接，返回值为空表示失败。应用程序需要保存返回的参数，以便后续使用。
+
+- `int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer, int* len);`
+  - **接口说明**：获取连接信息。
+  - **参数说明**：
+    - taos：[入参] 数据库连接。
+    - info：[入参] 一个枚举值，用于指定要获取哪项连接信息。
+    - buffer：[出参] 用于接收实际数据的缓冲区，内存由调用方负责管理。由于此函数是用于获取连接信息的通用函数，故 buffer 是一个字节数组，也就是说，即使实际数据是字符串，buffer 也不包含结尾 0。
+    - len：[出入参] 作为入参，代表 buffer 的大小，作为出参，代表实际数据的大小。
+  - **支持的信息项**:
+  
+    | 名称                       |  说明                                                            |
+    |----------------------------|------------------------------------------------------------------|
+    | TSDB_CONNECTION_INFO_USER  |  连接对应的用户名                                                |
+    | TSDB_CONNECTION_INFO_TOKEN |  连接对应的令牌名称（如果连接使用令牌创建）                      |
+
+  - **返回值**：错误代码。
+  - **支持版本**：`v3.4.0.0` 及以上
 
 - `void taos_set_option(OPTIONS *options, const char *key, const char *value)`
 
