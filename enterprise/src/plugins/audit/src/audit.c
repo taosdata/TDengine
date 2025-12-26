@@ -126,8 +126,10 @@ static int32_t taosAuditPostRequest(const char *url, SAuditResp *pRsp, const cha
   if ((code = curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf)) != CURLE_OK) goto _OVER;
   if ((code = curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L)) != CURLE_OK) goto _OVER;
   if ((code = curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L)) != CURLE_OK) goto _OVER;
+  if ((code = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L)) != CURLE_OK) goto _OVER;
+  if ((code = curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L)) != CURLE_OK) goto _OVER;
 
-  uDebugL("curl post request will sent, url:%s len:%d content:%s", url, bufLen, buf);
+  uDebug("curl post request will sent, url:%s len:%d", url, bufLen);
   code = curl_easy_perform(curl);
   if (code != CURLE_OK) {
     uError("failed to perform curl action, code:%d", code);
@@ -199,7 +201,7 @@ static int32_t auditSend(SJson *pJson) {
   if (tsAuditHttps) {
 #ifndef WINDOWS
     char path[1000] = {0};
-    (void)tsnprintf(path, 1000, "https://%s:%d/%s", tsAudit.cfg.server, tsAudit.cfg.port, httpPath);
+    (void)tsnprintf(path, 1000, "https://%s:%d%s", tsAudit.cfg.server, tsAudit.cfg.port, httpPath);
     if ((code = taosAuditSendReqByCurl(path, pCont, strlen(pCont), AUDIT_CURL_TIMEOUT, qid)) != 0) {
       uError("failed to send audit msg, cont:%s, since %s", pCont, terrstr(code));
       taosMemoryFree(pCont);
@@ -286,7 +288,7 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "db", target1), &lino, _error);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "resource", target2), &lino, _error);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "details", buf), &lino, _error);
-  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "affected_rows", affectedRows), &lino, _error);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "affected_rows", affectedRows), &lino, _error);
   TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJson, "duration", duration), &lino, _error);
 
   TAOS_CHECK_GOTO(auditSend(pJson), &lino, _error);
@@ -432,7 +434,7 @@ void auditSendRecordsInBatchImp(){
     TAOS_CHECK_GOTO(tjsonAddStringToObject(item, "db", pRecord->target1), &lino, _error);
     TAOS_CHECK_GOTO(tjsonAddStringToObject(item, "resource", pRecord->target2), &lino, _error);
     TAOS_CHECK_GOTO(tjsonAddStringToObject(item, "details", pRecord->detail), &lino, _error);
-    TAOS_CHECK_GOTO(tjsonAddIntegerToObject(item, "affected_rows", pRecord->affectedRows), &lino, _error);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(item, "affected_rows", pRecord->affectedRows), &lino, _error);
     TAOS_CHECK_GOTO(tjsonAddDoubleToObject(item, "duration", pRecord->duration), &lino, _error);
 
     taosMemoryFree(pRecord->detail);
@@ -457,7 +459,7 @@ void auditSendRecordsInBatchImp(){
     if (tsAuditHttps) {
 #ifndef WINDOWS
       char path[1000] = {0};
-      (void)tsnprintf(path, 1000, "https://%s:%d/%s", tsAudit.cfg.server, tsAudit.cfg.port, httpPath);
+      (void)tsnprintf(path, 1000, "https://%s:%d%s", tsAudit.cfg.server, tsAudit.cfg.port, httpPath);
       if ((code = taosAuditSendReqByCurl(path, pCont, strlen(pCont), AUDIT_CURL_TIMEOUT, qid)) != 0) {
         uError("failed to send audit msg, cont:%s, since %s", pCont, terrstr(code));
       }
