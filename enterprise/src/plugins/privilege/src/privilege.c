@@ -18,10 +18,10 @@
 #include "mndPrivilege.h"
 #include "mndTopic.h"
 #include "mndUser.h"
+#include "mndDef.h"
 
 
-
-bool mndMustChangePassword(SUserObj* pUser) {
+static bool mndMustChangePassword(SUserObj* pUser) {
   if (pUser->changePass == 1) {
     return true;
   }
@@ -40,15 +40,57 @@ int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
 
 void mndCleanupPrivilege(SMnode *pMnode) {}
 
+
+
+int32_t mndCheckConnectPrivilege(SMnode *pMnode, SUserObj *pUser, const char* token, const SLoginInfo *li) {
+  if ((!pUser->superUser) && (!pUser->enable)) {
+    return TSDB_CODE_MND_USER_DISABLED;
+  }
+
+  int64_t          now = taosGetTimestampSec();
+
+  if (token == NULL && pUser->passwordLifeTime > 0 && pUser->passwordGraceTime >= 0) {
+    int32_t age = now - pUser->passwords[0].setTime;
+    int32_t maxLifeTime = pUser->passwordLifeTime + pUser->passwordGraceTime;
+    if (age >= maxLifeTime) {
+      return TSDB_CODE_MND_USER_PASSWORD_EXPIRED;
+    }
+  }
+
+  if (!isTimeInDateTimeWhiteList(pUser->pTimeWhiteList, now)) {
+    return TSDB_CODE_MND_USER_DISABLED;
+  }
+
+  if (pUser->inactiveAccountTime >= 0 && (now - li->lastLoginTime >= pUser->inactiveAccountTime)) {
+    return TSDB_CODE_MND_USER_DISABLED;
+  }
+
+  if (token == NULL && pUser->failedLoginAttempts >= 0 && li->failedLoginCount >= pUser->failedLoginAttempts) {
+    if(pUser->passwordLockTime < 0 || now - li->lastFailedLoginTime < pUser->passwordLockTime) {
+      return TSDB_CODE_MND_USER_DISABLED;
+    }
+  }
+
+  // this function is implemented in mndProfile.c
+  int32_t mndCountUserConns(SMnode *pMnode, const char *user);
+
+  if (pUser->sessionPerUser >= 0) {
+    int32_t currentSessions = mndCountUserConns(pMnode, pUser->user);
+    if (currentSessions >= pUser->sessionPerUser) {
+      return TSDB_CODE_MND_TOO_MANY_CONNECTIONS;
+    }
+  }
+
+  return 0;
+}
+
+
+
 int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType) {
   int32_t   code = 0;
   SUserObj *pUser = NULL;
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
-
-  if (operType == MND_OPER_CONNECT && (pUser->superUser || pUser->enable)) {
-    goto _OVER;
-  }
 
   if (token == NULL && mndMustChangePassword(pUser)) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_PASSWORD_EXPIRED, NULL, _OVER);
