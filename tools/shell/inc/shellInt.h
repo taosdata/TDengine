@@ -68,7 +68,7 @@ typedef struct {
   const char* commands;
   const char* netrole;
   char        file[PATH_MAX];
-  char        password[TSDB_USER_PASSWORD_LONGLEN];
+  char        password[TSDB_USER_PASSWORD_LONGLEN + 1];
 #ifdef TD_ENTERPRISE
   char        token[SHELL_TOKEN_LEN];
 #endif  

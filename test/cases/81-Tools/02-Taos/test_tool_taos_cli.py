@@ -431,6 +431,28 @@ class TestTaosCli:
         rlist = etool.runRetList(command, checkRun=True, show= True)
         self.checkListString(rlist, "Query OK,")
     
+    # check token login
+    def checkTokenLogin(self):
+        # create user and token
+        tdSql.execute(f"create user jack pass 'jack123@password' ")
+        token1 = tdSql.getFirstValue("create token jack_token1 from user jack")
+    
+        # login with token
+        taosFile = etool.taosFile()
+        success = [
+            "Connect with token ...... [ OK ]",
+            "Query OK"
+        ]
+        
+        # input
+        command = f"echo '{token1}' | {taosFile} -q -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=True, show= True)
+        self.checkManyString(rlist, success)
+        # arg
+        command = f"{taosFile} -q{token1} -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=True, show= True)
+        self.checkManyString(rlist, success)
+    
     def checkPasswordExpiredTips(self):
         # create expired user exp_user1
         tdSql.execute("create user exp_user1 pass 'exp_user1@password' changepass 1;")
@@ -451,8 +473,9 @@ class TestTaosCli:
         6. Check data dump in/out
         7. Check conn mode priority and except cmd
         8. Check max password length
-        9. Check totp code
+        9. Check totp code with input
         10. Check password expired tips
+        11. Check token login with input/args
 
         Since: v3.0.0.0
 
@@ -462,6 +485,7 @@ class TestTaosCli:
 
         History:
             - 2025-10-23 Alex Duan Migrated from uncatalog/army/cmdline/test_taos_cli.py
+            - 2025-12-25 Alex Duan Add totp code and token login check
 
         """
         tdLog.debug(f"start to excute {__file__}")
@@ -496,5 +520,6 @@ class TestTaosCli:
         
         # password expired tips
         self.checkPasswordExpiredTips()
-
-        tdLog.success(f"{__file__} successfully executed")
+        
+        # token login
+        self.checkTokenLogin()

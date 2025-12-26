@@ -1407,6 +1407,7 @@ TAOS *createConnect(SShellArgs *pArgs) {
           return taos;
         }
         printf("... [ FAILED ]\n");
+        return NULL;
       }
 #endif      
       taos = taos_connect(host, user, pwd, pArgs->database, port);
@@ -1427,6 +1428,7 @@ TAOS *createConnect(SShellArgs *pArgs) {
             return taos;
           }
           printf("... [ FAILED ]\n");
+          return NULL;
         }
       }
       // token
