@@ -396,9 +396,9 @@ function install_services() {
 }
 
 function kill_process() {
-  pid=$(ps -ef | grep "$1" | grep -v "grep" | awk '{print $2}')
+  pid=$(pgrep -x  "$1")
   if [ -n "$pid" ]; then
-    kill -9 $pid || :
+    kill -9 "$pid" || :
   fi
 }
 
