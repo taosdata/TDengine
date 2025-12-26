@@ -203,7 +203,7 @@ fi
 
 kill_service_of() {
   _service=$1
-  pids=$(pgrep -x "$_service" | grep -v -x "$$")
+  pids=$(pgrep -x "$_service" | grep -v -x "$$" | xargs -r ps -o pid=,comm= -p 2>/dev/null | awk '$2 != "rmtaos" && $2 != "uninstall.sh" {print $1}')
   if [ -n "$pids" ]; then
     kill -9 "$pids" || :
   fi
