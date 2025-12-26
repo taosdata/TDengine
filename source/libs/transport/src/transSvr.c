@@ -908,6 +908,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   // set up conn info
   uvSetConnInfo(pConn, &(transMsg.info.conn));
+
   transReleaseExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
 
   (*pInst->cfp)(pInst->parent, &transMsg, NULL);
