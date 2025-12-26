@@ -1618,6 +1618,7 @@ _exit:
     numOfRows = code;
   }
   mndReleaseDb(pMnode, pDb);
+  mndReleaseUser(pMnode, pUser);
   pShow->numOfRows += numOfRows;
   if (numOfRows < rows) {
     taosMemoryFree(pShow->pIter);

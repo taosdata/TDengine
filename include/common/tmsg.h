@@ -1680,14 +1680,14 @@ typedef struct {
   int8_t    dropped;
   SPrivSet  sysPrivs;
   SHashObj* objPrivs;
-  SHashObj* createdDbs;
+  // SHashObj* createdDbs;
   SHashObj* selectTbs;
   SHashObj* insertTbs;
   SHashObj* deleteTbs;
-  SHashObj* readViews;
-  SHashObj* writeViews;
-  SHashObj* alterViews;
-  SHashObj* useDbs;
+  // SHashObj* readViews;
+  // SHashObj* writeViews;
+  // SHashObj* alterViews;
+  // SHashObj* useDbs;
   int64_t   whiteListVer;
 
   SUserSessCfg sessCfg;

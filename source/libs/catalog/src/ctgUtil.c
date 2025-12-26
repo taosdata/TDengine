@@ -210,22 +210,7 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosMemoryFreeClear(pData->pSvrVer);
 }
 
-void ctgFreeSCtgUserAuth(SCtgUserAuth* userCache) {
-  taosHashCleanup(userCache->userAuth.createdDbs);
-  // taosHashCleanup(userCache->userAuth.readDbs);
-  // taosHashCleanup(userCache->userAuth.writeDbs);
-  // taosHashCleanup(userCache->userAuth.readTbs);
-  // taosHashCleanup(userCache->userAuth.writeTbs);
-  // taosHashCleanup(userCache->userAuth.alterTbs);
-  taosHashCleanup(userCache->userAuth.readViews);
-  taosHashCleanup(userCache->userAuth.writeViews);
-  taosHashCleanup(userCache->userAuth.alterViews);
-  taosHashCleanup(userCache->userAuth.useDbs);
-  taosHashCleanup(userCache->userAuth.objPrivs);
-  taosHashCleanup(userCache->userAuth.selectTbs);
-  taosHashCleanup(userCache->userAuth.insertTbs);
-  taosHashCleanup(userCache->userAuth.deleteTbs);
-}
+void ctgFreeSCtgUserAuth(SCtgUserAuth* userCache) { tFreeSGetUserAuthRsp(&userCache->userAuth); }
 
 void ctgFreeMetaRent(SCtgRentMgmt* mgmt) {
   if (NULL == mgmt->slots) {
@@ -628,20 +613,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
     }
     case TDMT_MND_GET_USER_AUTH: {
       SGetUserAuthRsp* pOut = (SGetUserAuthRsp*)pCtx->out;
-      taosHashCleanup(pOut->createdDbs);
-      // taosHashCleanup(pOut->readDbs);
-      // taosHashCleanup(pOut->writeDbs);
-      // taosHashCleanup(pOut->readTbs);
-      // taosHashCleanup(pOut->writeTbs);
-      // taosHashCleanup(pOut->alterTbs);
-      taosHashCleanup(pOut->readViews);
-      taosHashCleanup(pOut->writeViews);
-      taosHashCleanup(pOut->alterViews);
-      taosHashCleanup(pOut->useDbs);
-      taosHashCleanup(pOut->objPrivs);
-      taosHashCleanup(pOut->selectTbs);
-      taosHashCleanup(pOut->insertTbs);
-      taosHashCleanup(pOut->deleteTbs);
+      tFreeSGetUserAuthRsp(pOut);
       taosMemoryFreeClear(pCtx->out);
       break;
     }
@@ -2647,7 +2619,7 @@ int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res)
     }
   }
   int32_t len = strlen(viewFName) + 1;
-
+#ifdef PRIV_TODO
   switch (pReq->privType) {
     case PRIV_VIEW_SELECT: {
       char* value = taosHashGet(pInfo->readViews, viewFName, len);
@@ -2676,7 +2648,7 @@ int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res)
     default:
       break;
   }
-
+#endif
   pRes->pass[AUTH_RES_VIEW] = true;
   return TSDB_CODE_SUCCESS;
 }
@@ -2882,6 +2854,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
   }
 
   uint64_t cacheSize = 0;
+#if 0
   char*    p = taosHashIterate(pAuth->createdDbs, NULL);
   while (p != NULL) {
     size_t len = 0;
@@ -2890,7 +2863,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
 
     p = taosHashIterate(pAuth->createdDbs, p);
   }
-#if 0
+
   p = taosHashIterate(pAuth->readDbs, NULL);
   while (p != NULL) {
     size_t len = 0;
@@ -2935,7 +2908,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
 
     p = taosHashIterate(pAuth->alterTbs, p);
   }
-#endif
+
   p = taosHashIterate(pAuth->readViews, NULL);
   while (p != NULL) {
     size_t len = 0;
@@ -2971,7 +2944,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
 
     ref = taosHashIterate(pAuth->useDbs, ref);
   }
-
+#endif
   cacheSize += tGetPrivObjPoliciesSize(pAuth->objPrivs);
   cacheSize += tGetPrivTblPoliciesSize(pAuth->selectTbs);
   cacheSize += tGetPrivTblPoliciesSize(pAuth->insertTbs);

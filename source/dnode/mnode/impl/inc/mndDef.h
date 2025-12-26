@@ -506,23 +506,23 @@ typedef struct {
 
   // SHashObj* readDbs;  // obsolete:  migrate to selectTbs and insertTbs when update from 3.3.x.y
   // SHashObj* writeDbs;
-  SHashObj* topics;
+  // SHashObj* topics;
 
   // table level privileges
   SHashObj* selectTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
   SHashObj* insertTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
   SHashObj* updateTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
   SHashObj* deleteTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
-  SHashObj* alterTbs;   // obsolete: migrate to objPrivs
+  // SHashObj* alterTbs;   // obsolete: migrate to objPrivs
 
   // 1.*.*           
   // 1.db.*
   // 1.db.tbName     with tag condition, specific columns
 
-  SHashObj* readViews;
-  SHashObj* writeViews;
-  SHashObj* alterViews;
-  SHashObj* useDbs;
+  // SHashObj* readViews;
+  // SHashObj* writeViews;
+  // SHashObj* alterViews;
+  // SHashObj* useDbs;
   SRWLatch  lock;
   int8_t    passEncryptAlgorithm;
 } SUserObj;
@@ -555,7 +555,7 @@ typedef struct {
   SHashObj* updateTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
   SHashObj* deleteTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
   // SHashObj* alterTbs;   // k:tbFName, v: empty
-  SHashObj* useDbs;
+  // SHashObj* useDbs;
 
   SHashObj* parentRoles;  // not supported yet
   SHashObj* subRoles;     // not supported yet

@@ -1160,8 +1160,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     if (pAuditDb != NULL) {
       mndReleaseDb(pMnode, pAuditDb);
       mError("db:%s, audit db already exist, %s", createReq.db, pAuditDb->name);
-      code = TSDB_CODE_AUDIT_DB_ALREADY_EXIST;
-      return code;
+      TAOS_CHECK_GOTO(TSDB_CODE_AUDIT_DB_ALREADY_EXIST, &lino, _OVER);
     }
   }
 

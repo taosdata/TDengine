@@ -2711,56 +2711,17 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
   CTG_LOCK(CTG_WRITE, &pUser->lock);
 
   // clean up old auth info
-  taosHashCleanup(pUser->userAuth.createdDbs);
-  // taosHashCleanup(pUser->userAuth.readDbs);
-  // taosHashCleanup(pUser->userAuth.writeDbs);
-  // taosHashCleanup(pUser->userAuth.readTbs);
-  // taosHashCleanup(pUser->userAuth.writeTbs);
-  // taosHashCleanup(pUser->userAuth.alterTbs);
-  taosHashCleanup(pUser->userAuth.readViews);
-  taosHashCleanup(pUser->userAuth.writeViews);
-  taosHashCleanup(pUser->userAuth.alterViews);
-  taosHashCleanup(pUser->userAuth.useDbs);
-  taosHashCleanup(pUser->userAuth.objPrivs);
-  taosHashCleanup(pUser->userAuth.selectTbs);
-  taosHashCleanup(pUser->userAuth.insertTbs);
-  taosHashCleanup(pUser->userAuth.deleteTbs);
-
+  tFreeSGetUserAuthRsp(&pUser->userAuth);
+  // copy new auth info
   TAOS_MEMCPY(&pUser->userAuth, &msg->userAuth, sizeof(msg->userAuth));
 
-  msg->userAuth.createdDbs = NULL;
-  // msg->userAuth.readDbs = NULL;
-  // msg->userAuth.writeDbs = NULL;
-  // msg->userAuth.readTbs = NULL;
-  // msg->userAuth.writeTbs = NULL;
-  // msg->userAuth.alterTbs = NULL;
-  msg->userAuth.readViews = NULL;
-  msg->userAuth.writeViews = NULL;
-  msg->userAuth.alterViews = NULL;
-  msg->userAuth.useDbs = NULL;
-  msg->userAuth.selectTbs = NULL;
-  msg->userAuth.insertTbs = NULL;
-  msg->userAuth.deleteTbs = NULL;
-
   CTG_UNLOCK(CTG_WRITE, &pUser->lock);
-  
+
   (void)atomic_store_64(&pUser->userCacheSize, ctgGetUserCacheSize(&pUser->userAuth));
 
 _return:
 
-  taosHashCleanup(msg->userAuth.createdDbs);
-  // taosHashCleanup(msg->userAuth.readDbs);
-  // taosHashCleanup(msg->userAuth.writeDbs);
-  // taosHashCleanup(msg->userAuth.readTbs);
-  // taosHashCleanup(msg->userAuth.writeTbs);
-  // taosHashCleanup(msg->userAuth.alterTbs);
-  taosHashCleanup(msg->userAuth.readViews);
-  taosHashCleanup(msg->userAuth.writeViews);
-  taosHashCleanup(msg->userAuth.alterViews);
-  taosHashCleanup(msg->userAuth.useDbs);
-  taosHashCleanup(msg->userAuth.selectTbs);
-  taosHashCleanup(msg->userAuth.insertTbs);
-  taosHashCleanup(msg->userAuth.deleteTbs);
+  tFreeSGetUserAuthRsp(&msg->userAuth);
 
   taosMemoryFreeClear(msg);
 
@@ -3274,20 +3235,7 @@ void ctgFreeCacheOperationData(SCtgCacheOperation *op) {
     }
     case CTG_OP_UPDATE_USER: {
       SCtgUpdateUserMsg *msg = op->data;
-      taosHashCleanup(msg->userAuth.createdDbs);
-      // taosHashCleanup(msg->userAuth.readDbs);
-      // taosHashCleanup(msg->userAuth.writeDbs);
-      // taosHashCleanup(msg->userAuth.readTbs);
-      // taosHashCleanup(msg->userAuth.writeTbs);
-      // taosHashCleanup(msg->userAuth.alterTbs);
-      taosHashCleanup(msg->userAuth.readViews);
-      taosHashCleanup(msg->userAuth.writeViews);
-      taosHashCleanup(msg->userAuth.alterViews);
-      taosHashCleanup(msg->userAuth.useDbs);
-      taosHashCleanup(msg->userAuth.objPrivs);
-      taosHashCleanup(msg->userAuth.selectTbs);
-      taosHashCleanup(msg->userAuth.insertTbs);
-      taosHashCleanup(msg->userAuth.deleteTbs);
+      tFreeSGetUserAuthRsp(&msg->userAuth);
       taosMemoryFreeClear(op->data);
       break;
     }

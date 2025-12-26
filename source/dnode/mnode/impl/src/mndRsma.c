@@ -1300,7 +1300,7 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   pShow->numOfRows += numOfRows;
 
 _exit:
-  if (!pUser) mndReleaseUser(pMnode, pUser);
+  if (pUser) mndReleaseUser(pMnode, pUser);
   if (code < 0) {
     mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
