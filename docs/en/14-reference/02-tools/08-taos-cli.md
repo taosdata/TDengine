@@ -42,7 +42,9 @@ You can change the behavior of the TDengine CLI by configuring command line para
 - -h HOST: The FQDN of the server where the TDengine service is located, default is to connect to the local service.
 - -P PORT: Specifies the port number used by the server.
 - -u USER: Username to use when connecting.
-- -p PASSWORD: Password to use when connecting to the server.
+- -p PASSWORD: Password to use when connecting to the server. Special characters such as `! & ( ) < > ; |` need to be escaped with `\`. Default value: taosdata.
+    - If the `-p` parameter is not followed by a password string, the user will be prompted to enter the password, e.g., `taos -u root -p`.
+    - If the `-p` parameter is directly followed by a password string, that password will be used for connection, e.g., `taos -u root -ptaosdata`.
 - -?, --help: Prints out all command line parameters.
 - -s COMMAND: SQL command executed in non-interactive mode.  
     Use the `-s` parameter to execute SQL non interactively, and exit after execution. This mode is suitable for use in automated scripts.
@@ -74,6 +76,9 @@ You can change the behavior of the TDengine CLI by configuring command line para
 - -l PKTLEN: Test packet size used during network testing.
 - -n NETROLE: Test range during network connection testing, default is `client`, options are `client`, `server`.
 - -N PKTNUM: Number of test packets used during network testing.
+- -q TOKEN: Use token to connect to the server (Enterprise Edition only).
+    - If the `-q` parameter is not followed by a token string, the user will be prompted to enter the token, e.g., `taos -u root -q`.
+    - If the `-q` parameter is directly followed by a token string, that token will be used for connection, e.g., `taos -u root -q<token_string>`.
 - -r: Convert time columns to unsigned 64-bit integer type output (i.e., uint64_t in C language).
 - -R: Connect to the server using RESTful mode.
 - -t: Test the startup status of the server, status same as -k.

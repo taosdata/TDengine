@@ -353,9 +353,11 @@ static void shellInitArgs(int argc, char *argv[]) {
       memset(shell.args.token, 0, sizeof(shell.args.token));
       if (strlen(argv[i]) == 2) {
         printf("Enter token: ");
+        taosSetConsoleEcho(false);
         if (scanf("%255s", shell.args.token) != 1) {
           fprintf(stderr, "token reading error\n");
         }
+        taosSetConsoleEcho(true);
         if (EOF == getchar()) {
           fprintf(stderr, "getchar() return EOF\r\n");
         }

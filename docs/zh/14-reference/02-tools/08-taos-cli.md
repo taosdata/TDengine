@@ -43,6 +43,8 @@ taos> quit
 - -P PORT：指定服务端所用端口号，默认值：6030。
 - -u USER：连接时使用的用户名，默认值：root。
 - -p PASSWORD：连接服务端时使用的密码，特殊字符如 `! & ( ) < > ; |` 需使用字符 `\` 进行转义处理，默认值：taosdata。
+    - 如果 `-p` 参数后面不跟密码字符串，则会提示用户输入密码，如：`taos -u root -p`。
+    - 如果 `-p` 参数后面直接跟密码字符串，则使用该密码字符串进行连接，如：`taos -u root -ptaosdata`。
 - -?, --help：打印出所有命令行参数。
 - -s COMMAND：以非交互模式执行的 SQL 命令。
 
@@ -78,6 +80,9 @@ taos> quit
 - -l PKTLEN：网络测试时使用的测试包大小。
 - -n NETROLE：网络连接测试时的测试范围，默认为 `client`，可选值为 `client`、`server`。
 - -N PKTNUM：网络测试时使用的测试包数量。
+- -q TOKEN：使用 Token 连接服务端（仅企业版支持）。
+    - 如果 `-q` 参数后面不跟 Token 字符串，则会提示用户输入 Token，如：`taos -u root -q`。
+    - 如果 `-q` 参数后面直接跟 Token 字符串，则使用该 Token 进行连接，如：`taos -u root -q<token_string>`。
 - -r：将时间列转化为无符号 64 位整数类型输出 (即 C 语言中 uint64_t)。
 - -R：使用 RESTful 模式连接服务端。
 - -t：测试服务端启动状态，状态同 -k。
