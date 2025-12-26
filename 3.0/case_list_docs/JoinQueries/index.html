@@ -2390,6 +2390,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#14-JoinQueries.test_join_func.TestParaTms.test_para_tms" class="md-nav__link">
+        Join functions cursor 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#14-JoinQueries.test_join_func_cursor.TestParaTms2.test_para_tms2" class="md-nav__link">
+        Join functions cursor 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#14-JoinQueries.test_join_pk.TestJoinPk.test_join_pk" class="md-nav__link">
         Join inner 
       </a>
@@ -2655,14 +2677,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../DataSubscription/Native/" class="md-nav__link">
+      <a href="../DataSubscription/Consume/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    02-Native
+    02-Consume
   
 
     
@@ -2690,7 +2712,7 @@
   <span class="md-ellipsis">
     
   
-    04-MQTT
+    03-MQTT
   
 
     
@@ -4034,6 +4056,28 @@
         
   
     <li class="md-nav__item">
+      <a href="#14-JoinQueries.test_join_func.TestParaTms.test_para_tms" class="md-nav__link">
+        Join functions cursor 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#14-JoinQueries.test_join_func_cursor.TestParaTms2.test_para_tms2" class="md-nav__link">
+        Join functions cursor 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#14-JoinQueries.test_join_pk.TestJoinPk.test_join_pk" class="md-nav__link">
         Join inner 
       </a>
@@ -4192,12 +4236,16 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Join with tb1.int = tb2.int limit </div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Join with tb1.int = tb2.int and ts filter</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Join with multiple tables</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Join with group by</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Join with group by/order by/limit</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Join with having condition</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Join error cases</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Cross database join test</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">10. Join semantic test</div>
-                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Verify bug TS-5863</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. Join on two database</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">11. Join on two super table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">12. Join on two normal table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">13. Join on normal table and super table</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">14. Join semantic test</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">15. Join with interval</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">16. Join bug TS-5863</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -4434,6 +4482,84 @@
   
   
   
+<h2 id="14-JoinQueries.test_join_func.TestParaTms.test_para_tms" class="doc doc-heading">
+
+<a href="#14-JoinQueries.test_join_func.TestParaTms.test_para_tms" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Join functions cursor</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Generate random sql than explain/execute</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Join with math functions </div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - unique/mode/sample/abs/sqrt/sin/cos/tan/asin/acos/atan/pow/</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - log/floor/ceil/round/mavg/hyperloglog/tail/csum/statecount/</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - stateduration/histogram</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Join with string functions </div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - ltrim/rtrim/lower/upper/length/</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - char_length/substr/concat/concat_ws</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Join with time functions </div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - cast/now/today/timezone/timetruncate/to_iso8601/</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - to_unixtimestamp/elapsed/timediff</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. taos -f sql execution</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/14-JoinQueries/test_join_func.py" target="_blank">
+                      cases/14-JoinQueries/test_join_func.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="14-JoinQueries.test_join_func_cursor.TestParaTms2.test_para_tms2" class="doc doc-heading">
+
+<a href="#14-JoinQueries.test_join_func_cursor.TestParaTms2.test_para_tms2" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Join functions cursor</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Generate random sql than explain/execute</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create another cursor to execute the same sql</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Join with math functions </div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - unique/mode/sample/csum</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - statecount/stateduration/histogram</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Join with time functions </div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - TIMEDIFF_1/TIMEDIFF_2</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. taos -f sql execution</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/14-JoinQueries/test_join_func_cursor.py" target="_blank">
+                      cases/14-JoinQueries/test_join_func_cursor.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="14-JoinQueries.test_join_interval.TestJoinInterval.test_join_interval" class="doc doc-heading">
 
 <a href="#14-JoinQueries.test_join_interval.TestJoinInterval.test_join_interval" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4450,6 +4576,7 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">4.Insert data into d2.t1 with same timestamps as d1.t1</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5.Join query between d1.t1 and d2.t1 with interval(1a)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check the result of join correctly</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Jira TS-5803</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
