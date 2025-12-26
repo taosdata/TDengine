@@ -5851,12 +5851,6 @@ void tsdbReaderClose2(void* ptr) {
     return;
   }
 
-  /*
-    Set closed flag immediately after acquiring lock to prevent other
-    threads from using the reader.
-  */
-  pReader->flag = READER_STATUS_CLOSED;
-
   {
     if (pReader->innerReader[0] != NULL || pReader->innerReader[1] != NULL) {
       STsdbReader* p = pReader->innerReader[0];
@@ -5925,15 +5919,6 @@ void tsdbReaderClose2(void* ptr) {
   if (code != 0) {
     tsdbWarn("faild to destroy tsem"); 
   }
-  
-  /*
-    Clear idStr before releasing lock to signal that reader is being closed.
-    This allows other threads to detect that reader is invalid before
-    attempting to acquire lock.
-  */
-  char* idStr = pReader->idStr;
-  pReader->idStr = NULL;
-  
   (void)tsdbReleaseReader(pReader);
   (void)tsdbUninitReaderLock(pReader);
 
@@ -5949,9 +5934,9 @@ void tsdbReaderClose2(void* ptr) {
       pCost->blockLoadTime, pCost->buildmemBlock, pCost->sttCost.loadBlocks, pCost->sttCost.blockElapsedTime,
       pCost->sttCost.loadStatisBlocks, pCost->sttCost.statisElapsedTime, pCost->composedBlocks,
       pCost->buildComposedBlockTime, numOfTables * sizeof(STableBlockScanInfo) / 1000.0, pCost->createScanInfoList,
-      pCost->createSkylineIterTime, pCost->initSttBlockReader, idStr);
+      pCost->createSkylineIterTime, pCost->initSttBlockReader, pReader->idStr);
 
-  taosMemoryFree(idStr);
+  taosMemoryFree(pReader->idStr);
 
   tsdbRowMergerCleanup(&pReader->status.merger);
   taosMemoryFree(pReader->info.pSchema);
@@ -7418,14 +7403,7 @@ void tsdbDestroyFirstLastTsIter(void* pIter) {
 }
 
 /*
-  @brief Mark the current step done, so next step will be triggered. This
-         function might be called in another thread, so we need to use
-         tsdbTryAcquireReader to safely check if mutex is valid. Note that
-         tsdbTryAcquireReader will return EBUSY if the mutex is locked by
-         other threads. In this case, we return success even it notify message
-         is not processed. This is not a problem, because the next step will be
-         triggered by the next notify message or the active stop of the current
-         step.
+  @brief Mark the current step done, so next step will be triggered.
   @param pReader the reader to mark the step done
   @param notifyTs the timestamp to notify, used to determine whether  
          to mark the current step as done
@@ -7435,34 +7413,9 @@ int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  tsdbDebug("tsdb/read: %s, try to mark step done, notifyTs:%" PRId64,
-            pReader->idStr, notifyTs);
-  int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  /*
-    Use tsdbTryAcquireReader to safely check if mutex is valid.
-    This prevents use-after-free if reader is being closed in another thread.
-  */
-  code = tsdbTryAcquireReader(pReader);
-  if (code != TSDB_CODE_SUCCESS) {
-    /*
-      If trylock fails, reader might be closed, mutex destroyed,
-      or locked by other threads.
-      Return success to indicate reader is busy or no longer available.
-    */
-    tsdbDebug("tsdb/read: %s, try to mark step done, notifyTs:%" PRId64
-              "failed to acquire reader lock", pReader->idStr, notifyTs);
-    code = TSDB_CODE_SUCCESS;
-    goto _end;
-  }
-
-  /*
-    After acquiring lock, check if reader is closed.
-  */
-  if (pReader->flag == READER_STATUS_CLOSED) {
-    code = tsdbReleaseReader(pReader);
-    TSDB_CHECK_CODE(code, lino, _end);
-  }
+  int32_t code = tsdbAcquireReader(pReader);
+  TSDB_CHECK_CODE(code, lino, _end);
 
   if (pReader->step == EXTERNAL_ROWS_PREV && NULL != pReader->innerReader[0]) {
     /*
@@ -7472,8 +7425,6 @@ int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
     */
     if (notifyTs <= pReader->innerReader[0]->info.window.ekey) {
       pReader->currentStepDone = true;
-      tsdbDebug("tsdb/read: %s, mark PREV step done, notifyTs:%" PRId64,
-                pReader->idStr, notifyTs);
     }
   }
 
@@ -7485,8 +7436,6 @@ int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
     */
     if (notifyTs >= pReader->innerReader[1]->info.window.skey) {
       pReader->currentStepDone = true;
-      tsdbDebug("tsdb/read: %s, mark NEXT step done, notifyTs:%" PRId64,
-                pReader->idStr, notifyTs);
     }
   }
 
@@ -7494,8 +7443,8 @@ int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
   TSDB_CHECK_CODE(code, lino, _end);
 
 _end:
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  if (TSDB_CODE_SUCCESS != code) {
+    tsdbError("%s failed at %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }
