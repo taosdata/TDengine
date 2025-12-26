@@ -154,11 +154,7 @@ static int32_t authObjPrivileges(SAuthCxt* pCxt, const char* pDbName, const char
   if (!pDbName) {
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
-#if 0 // remove this line
-  if(objType == PRIV_OBJ_DB && pTabName != NULL) {
-    assert(false); //app internal error
-  }
-#endif
+
   return checkAuth(pCxt, pDbName, pTabName, privType, objType, NULL);
 }
 
