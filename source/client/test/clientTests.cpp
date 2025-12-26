@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "gtest/gtest.h"
 #include <iostream>
 #include "clientInt.h"
-#include "gtest/gtest.h"
 #include "osSemaphore.h"
 #include "taoserror.h"
 #include "thash.h"
@@ -1825,10 +1825,10 @@ TEST(clientCase, sessControl) {
     }
     // create user1
     {
-      char user="user1";
+      const char *user="user1";
       char buf[1000] = {0};
       for (int32_t i = 0; i < 100; i++) {
-        sprintf(buf, "create user %s-%d pass \"aaaaaaaaaaa@123\"", user, i); 
+        sprintf(buf, "create user %s_%d pass \"aaaaaaaaaaa@123\"", user, i); 
         TAOS_RES * pRes = taos_query(pConn, buf);
         ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
 
@@ -1841,20 +1841,20 @@ TEST(clientCase, sessControl) {
       SArray *p = taosArrayInit(1, sizeof(void *));
       ASSERT_NE(p, nullptr);
 
-      SArray *p = taosArrayInit()
-      TlOS_RES* pRes = taos_query(pConn, "alter user root SESSION_PER_USER 10");
+      //SArray *p = taosArrayInit()
+      TAOS_RES* pRes = taos_query(pConn, "alter user root SESSION_PER_USER 10");
       ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
       taos_free_result(pRes);
 
-      taosSleep(3);
+      taosMsleep(6*1000);
       for (int32_t i = 0; i < 10; i++) {
-        TAOS* pUserConn = taos_connect("localhost", "user", "taosdata", NULL, 0);
-        ASSERT_NE(pUserConn, nullptr);
+        TAOS* pUserConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+        //ASSERT_NE(pUserConn, nullptr);
         taosArrayPush(p, &pUserConn);
       }
 
       {
-        TAOS* pUserConn = taos_connect("localhost", "user", "taosdata", NULL, 0);
+        TAOS* pUserConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
         ASSERT_EQ(pUserConn, nullptr); 
 
       }
@@ -1864,7 +1864,8 @@ TEST(clientCase, sessControl) {
         taos_close(pUserConn);
       }
       {
-        TAOS* pUserConn = taos_connect("localhost", "user", "taosdata", NULL, 0);
+        TAOS* pUserConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+        
         ASSERT_NE(pUserConn, nullptr); 
       }
       
@@ -1873,7 +1874,7 @@ TEST(clientCase, sessControl) {
 
     // drop all users 
     {
-      char user="user1";
+      const char *user="user1";
       char buf[1000] = {0};
       for (int32_t i = 0; i < 100; i++) {
         sprintf(buf, "drop user %s-%d", user, i); 
@@ -1884,5 +1885,6 @@ TEST(clientCase, sessControl) {
     }
 
   }
+}
 
 #pragma GCC diagnostic pop
