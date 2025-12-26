@@ -568,11 +568,12 @@ bool privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, c
     }
   }
 #endif
-  // if (tbName != NULL) {
-  //   if (privInfo->objLevel == 0 || privInfo->objType <= PRIV_OBJ_DB) {
-  //     assert(0);
-  //   }
-  // }
+  if (tbName != NULL) {
+    if (privInfo->objLevel == 0 || privInfo->objType <= PRIV_OBJ_DB) {
+      uError("invalid privilege info for table level check, privType:%d, objType:%d, objLevel:%d\n",
+             privInfo->privType, privInfo->objType, privInfo->objLevel);
+    }
+  }
 
   if (taosHashGetSize(privs) == 0) return false;
 
