@@ -27,11 +27,23 @@ add_test(
 
 # Memory management tests
 add_executable(xnodeMemoryTest "xnodeMemoryTest.cpp")
+target_include_directories(
+  xnodeMemoryTest
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/dnode/mnode"
+  "${TD_SOURCE_DIR}/include/dnode/mgmt"
+  "${TD_SOURCE_DIR}/include/dnode/xnode"
+  "${TD_SOURCE_DIR}/include/dnode/impl/inc"
+  "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
+)
 target_link_libraries(
     xnodeMemoryTest
     PUBLIC gtest
     PUBLIC gtest_main
     PUBLIC pthread
+    mnode
+    xnode
+    mgmt_xnode 
 )
 
 add_test(
