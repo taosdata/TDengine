@@ -1864,7 +1864,7 @@ void testSessionPerUser() {
       taos_close(pUserConn);
     }
 
-    taosArrayDestroyx(p);
+    taosArrayDestroy(p);
     {
       taosMsleep(6 * 1000);
       TAOS* pUserConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -1894,7 +1894,7 @@ void testSessionConnIdleTime() {}
 void testSessionMaxVnodeCall() {
   int32_t code = 0;
 
-  char char *maxVnodeDB = "maxVnod";
+  const char *maxVnodeDB = "maxVnod";
   TAOS*   pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
@@ -1913,7 +1913,7 @@ void testSessionMaxVnodeCall() {
 
   char buf[100] = {0};  
   for (int32_t i = 0; i < 10; i++) {
-    char tbname[24] = {0}  
+    char tbname[24] = {0};  
     sprintf(tbname, "test_tbname_%d", i);
     sprintf(buf, "insert into db_max_vnode.%s using db_max_vnode.t1 tags(%d) values(now, %d)", tbname, i, i);
     pRes = taos_query(pConn, buf);
@@ -1922,16 +1922,16 @@ void testSessionMaxVnodeCall() {
     taosMsleep(10);
   } 
   
-  pReq = taos_query("select * from db_max_vnode.t1");;
+  pRes = taos_query(pConn, "select * from db_max_vnode.t1");;
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
-  pReq = taos_query(pConn, "alter user root CALL_PER_SESSION 2");
-  aosMsleep(6000);
+  pRes = taos_query(pConn, "alter user root CALL_PER_SESSION 2");
+  taosMsleep(6000);
   ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
-
+  taos_close(pConn);
 }
 
 void testSessionConncurentCall() {}
@@ -1940,7 +1940,7 @@ TEST(clientCase, sessControl) {
   testSessionConnTime();
   testSessionConnIdleTime();
   testSessionMaxVnodeCall();
-  testSessionConncurentCall()
+  testSessionConncurentCall();
 }
 
 #pragma GCC diagnostic pop
