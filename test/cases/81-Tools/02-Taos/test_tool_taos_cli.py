@@ -443,6 +443,7 @@ class TestTaosCli:
             "Connect with token ...... [ OK ]",
             "Query OK"
         ]
+        failed = "Connect with token ...... [ FAILED ]"
         
         # input
         command = f"echo '{token1}' | {taosFile} -q -s 'show databases;' "
@@ -452,6 +453,17 @@ class TestTaosCli:
         command = f"{taosFile} -q{token1} -s 'show databases;' "
         rlist = etool.runRetList(command, checkRun=True, show= True)
         self.checkManyString(rlist, success)
+        
+        # error token
+        command = f"{taosFile} -qerror_token -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=False, show= True)
+        self.checkListString(rlist, failed)
+        
+        # big length token
+        bigToken = 'B' * 2048
+        command = f"{taosFile} -q{bigToken} -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=False, show= True)
+        self.checkListString(rlist, failed)
     
     def checkPasswordExpiredTips(self):
         # create expired user exp_user1
@@ -489,37 +501,26 @@ class TestTaosCli:
 
         """
         tdLog.debug(f"start to excute {__file__}")
-
+        
         # check show whole
         self.checkDescribe()
-
         # check basic
         self.checkBasic()
-
         # version
         self.checkVersion()
-
         # help
         self.checkHelp()
-
         # check command
         self.checkCommand()
-
         # check data in/out
         self.checkDumpInOut()
-
-
         # check conn mode
         self.checkConnMode()
-
         # max password
         self.checkPassword()
-        
         # totp code
         self.checkTotpCode()
-        
         # password expired tips
         self.checkPasswordExpiredTips()
-        
         # token login
         self.checkTokenLogin()
