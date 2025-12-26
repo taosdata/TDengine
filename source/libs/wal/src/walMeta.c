@@ -1105,13 +1105,11 @@ int32_t walSaveMeta(SWal* pWal) {
   int len = strlen(serialized);
 
   // Use encrypted write if tsCfgKey is enabled
-  if (pWal->cfg.level != TAOS_WAL_SKIP) {
-    code = taosWriteCfgFile(tmpFnameStr, serialized, len);
-    if (code != 0) {
-      wError("vgId:%d, failed to write file %s since %s", pWal->cfg.vgId, tmpFnameStr, tstrerror(code));
-      TAOS_CHECK_GOTO(code, &lino, _err);
+  code = taosWriteCfgFile(tmpFnameStr, serialized, len);
+  if (code != 0) {
+    wError("vgId:%d, failed to write file %s since %s", pWal->cfg.vgId, tmpFnameStr, tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _err);
     }
-  }
 
   wInfo("vgId:%d, save meta file %s, first index:%" PRId64 ", last index:%" PRId64, pWal->cfg.vgId, tmpFnameStr,
         pWal->vers.firstVer, pWal->vers.lastVer);

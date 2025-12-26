@@ -180,7 +180,7 @@ _exit:
     (void)taosCloseFile(&pFile);
   }
   if (code != 0) {
-    uError("%s failed at %s:%d since %s, file:%s", __func__, __FILE__, lino, tstrerror(code), filepath);
+    uDebug("%s failed at %s:%d since %s, file:%s", __func__, __FILE__, lino, tstrerror(code), filepath);
     terrno = code;
   }
   return code;
