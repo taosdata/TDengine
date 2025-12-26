@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tencrypt.h"
 #include "tjson.h"
 #include "vmInt.h"
 
@@ -191,8 +192,8 @@ _OVER:
 
 int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes) {
   int32_t      code = -1;
-  TdFilePtr    pFile = NULL;
   char        *pData = NULL;
+  int32_t      dataLen = 0;
   SJson       *pJson = NULL;
   char         file[PATH_MAX] = {0};
   SWrapperCfg *pCfgs = NULL;
@@ -205,33 +206,12 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
     return code;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    code = terrno;
-    dError("failed to open vnode file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  int64_t size = 0;
-  code = taosFStatFile(pFile, &size, NULL);
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  code = taosReadCfgFile(file, &pData, &dataLen);
   if (code != 0) {
-    dError("failed to fstat vnode file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  pData = taosMemoryMalloc(size + 1);
-  if (pData == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosReadFile(pFile, pData, size) != size) {
-    code = terrno;
     dError("failed to read vnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
-
-  pData[size] = '\0';
 
   pJson = tjsonParse(pData);
   if (pJson == NULL) {
@@ -250,7 +230,6 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to read vnode file:%s since %s", file, tstrerror(code));
@@ -295,19 +274,11 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   int32_t     code = -1;
   char       *buffer = NULL;
   SJson      *pJson = NULL;
-  TdFilePtr   pFile = NULL;
   SVnodeObj **ppVnodes = NULL;
-  char        file[PATH_MAX] = {0};
   char        realfile[PATH_MAX] = {0};
   int32_t     lino = 0;
-  int32_t     ret = -1;
 
-  int32_t nBytes = snprintf(file, sizeof(file), "%s%svnodes_tmp.json", pMgmt->path, TD_DIRSEP);
-  if (nBytes <= 0 || nBytes >= sizeof(file)) {
-    return TSDB_CODE_OUT_OF_RANGE;
-  }
-
-  nBytes = snprintf(realfile, sizeof(realfile), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
+  int32_t nBytes = snprintf(realfile, sizeof(realfile), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= sizeof(realfile)) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
@@ -331,33 +302,14 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
     goto _OVER;
   }
 
-
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) {
-    code = terrno;
-    lino = __LINE__;
-    goto _OVER;
-  }
-
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) {
-    code = terrno;
-    lino = __LINE__;
-    goto _OVER;
-  }
-  if (taosFsyncFile(pFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(ERRNO);
-    lino = __LINE__;
-    goto _OVER;
-  }
-
-  code = taosCloseFile(&pFile);
+  
+  // Use encrypted write if tsCfgKey is enabled
+  code = taosWriteCfgFile(realfile, buffer, len);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(ERRNO);
     lino = __LINE__;
     goto _OVER;
   }
-  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), &lino, _OVER);
 
   dInfo("succeed to write vnodes file:%s, vnodes:%d", realfile, numOfVnodes);
 
@@ -366,7 +318,6 @@ _OVER:
 
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) taosCloseFile(&pFile);
   if (ppVnodes != NULL) {
     for (int32_t i = 0; i < numOfVnodes; ++i) {
       SVnodeObj *pVnode = ppVnodes[i];

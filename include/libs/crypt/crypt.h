@@ -27,7 +27,7 @@ typedef struct SCryptOpts {
   char*   result;
   int32_t unitLen;
   char    key[ENCRYPT_KEY_LEN + 1];
-  char*   pOsslAlgrName;
+  const char*   pOsslAlgrName;
 } SCryptOpts;
 
 int32_t CBC_Decrypt(SCryptOpts* opts);

@@ -80,6 +80,7 @@ if(${TD_WINDOWS})
 
     PUBLIC os
     PUBLIC util
+    PUBLIC crypt
     INTERFACE api
   )
 
@@ -89,6 +90,7 @@ else()
 
     PUBLIC os
     PUBLIC util
+    PUBLIC crypt
     INTERFACE api
   )
   DEP_ext_curl(common)

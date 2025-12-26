@@ -15,12 +15,13 @@
 
 #define MND_ENCRYPT_ALGR_VER_NUMBER 1
 
-#include "mndEncryptAlgr.h"
 #include "audit.h"
+#include "mndEncryptAlgr.h"
 #include "mndMnode.h"
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndTrans.h"
+#include "tencrypt.h"
 
 static void tFreeEncryptAlgrObj(SEncryptAlgrObj *pEncryptAlgr) {}
 
@@ -626,9 +627,96 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static int32_t mndRetrieveEncryptStatus(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  int32_t numOfRows = 0;
+  int32_t cols = 0;
+  char    tmpBuf[1000] = {0};
+
+  // Only return data if not already retrieved
+  if (pShow->numOfRows > 0) {
+    return 0;
+  }
+
+  // Row 1: config encryption status
+  if (numOfRows < rows) {
+    cols = 0;
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    tstrncpy(varDataVal(tmpBuf), "config", 32);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    tstrncpy(varDataVal(tmpBuf), taosGetEncryptAlgoName(tsCfgAlgorithm), 32);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    tstrncpy(varDataVal(tmpBuf), (tsCfgKey[0] != '\0') ? "enabled" : "disabled", 16);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
+
+    numOfRows++;
+  }
+
+  // Row 2: metadata encryption status
+  if (numOfRows < rows) {
+    cols = 0;
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    tstrncpy(varDataVal(tmpBuf), "metadata", 32);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    tstrncpy(varDataVal(tmpBuf), taosGetEncryptAlgoName(tsMetaAlgorithm), 32);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    tstrncpy(varDataVal(tmpBuf), (tsMetaKey[0] != '\0') ? "enabled" : "disabled", 16);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
+
+    numOfRows++;
+  }
+
+  // Row 3: data encryption status
+  if (numOfRows < rows) {
+    cols = 0;
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    tstrncpy(varDataVal(tmpBuf), "data", 32);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    // Data key uses the master algorithm (usually SM4)
+    tstrncpy(varDataVal(tmpBuf), taosGetEncryptAlgoName(tsEncryptAlgorithmType), 32);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    tstrncpy(varDataVal(tmpBuf), (tsDataKey[0] != '\0') ? "enabled" : "disabled", 16);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), &lino, _OVER);
+
+    numOfRows++;
+  }
+
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
+
+_OVER:
+  if (code != 0) {
+    mError("failed to retrieve encrypt status at line %d since %s", lino, tstrerror(code));
+  }
+  return numOfRows;
+}
+
 int32_t mndInitEncryptAlgr(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_ALGR, mndProcessCreateEncryptAlgrReq);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS, mndRetrieveEncryptAlgr);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ENCRYPT_STATUS, mndRetrieveEncryptStatus);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_ENCRYPT_ALGR, mndProcessDropEncryptAlgrReq);
   mndSetMsgHandle(pMnode, TDMT_MND_BUILTIN_ENCRYPT_ALGR, mndProcessBuiltinReq);
   mndSetMsgHandle(pMnode, TDMT_MND_BUILTIN_ENCRYPT_ALGR_RSP, mndProcessBuiltinRsp);

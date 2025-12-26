@@ -205,6 +205,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_INSTANCE,
   TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS,
   TSDB_MGMT_TABLE_TOKEN,
+  TSDB_MGMT_TABLE_ENCRYPT_STATUS,
   TSDB_MGMT_TABLE_ROLE,
   TSDB_MGMT_TABLE_ROLE_PRIVILEGES,
   TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES,
@@ -424,11 +425,12 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_TOKEN_STMT,
   QUERY_NODE_ALTER_TOKEN_STMT,
   QUERY_NODE_DROP_TOKEN_STMT,
+  QUERY_NODE_ALTER_ENCRYPT_KEY_STMT,
   QUERY_NODE_CREATE_ROLE_STMT,
   QUERY_NODE_DROP_ROLE_STMT,
   QUERY_NODE_ALTER_ROLE_STMT,
 
-  // placeholder for [154, 180]
+  // placeholder for [155, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
   QUERY_NODE_SHOW_CREATE_TABLE_STMT,
@@ -536,6 +538,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_INSTANCES_STMT,
   QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT,
   QUERY_NODE_SHOW_TOKENS_STMT,
+  QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT,
   QUERY_NODE_SHOW_ROLES_STMT,
   QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT,
   QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT,
@@ -2811,6 +2814,34 @@ int32_t tDeserializeSConfigRsp(void* buf, int32_t bufLen, SConfigRsp* pRsp);
 void    tFreeSConfigRsp(SConfigRsp* pRsp);
 
 typedef struct {
+  int32_t dnodeId;
+  int32_t keyVersion;  // Local key version
+} SKeySyncReq;
+
+int32_t tSerializeSKeySyncReq(void* buf, int32_t bufLen, SKeySyncReq* pReq);
+int32_t tDeserializeSKeySyncReq(void* buf, int32_t bufLen, SKeySyncReq* pReq);
+
+typedef struct {
+  int32_t keyVersion;        // mnode's key version
+  int8_t  needUpdate;        // 1 if dnode needs to update keys
+  int32_t encryptionKeyStatus;  // Encryption key status (TSDB_ENCRYPT_KEY_STAT_*)
+  char    svrKey[129];       // Server key (if needUpdate)
+  char    dbKey[129];        // Database key (if needUpdate)
+  char    cfgKey[129];       // Config key (if needUpdate)
+  char    metaKey[129];      // Metadata key (if needUpdate)
+  char    dataKey[129];      // Data key (if needUpdate)
+  int32_t algorithm;         // Encryption algorithm for master keys
+  int32_t cfgAlgorithm;      // Encryption algorithm for CFG_KEY
+  int32_t metaAlgorithm;     // Encryption algorithm for META_KEY
+  int64_t createTime;        // Key creation time
+  int64_t svrKeyUpdateTime;  // Server key update time
+  int64_t dbKeyUpdateTime;   // Database key update time
+} SKeySyncRsp;
+
+int32_t tSerializeSKeySyncRsp(void* buf, int32_t bufLen, SKeySyncRsp* pRsp);
+int32_t tDeserializeSKeySyncRsp(void* buf, int32_t bufLen, SKeySyncRsp* pRsp);
+
+typedef struct {
   int32_t reserved;
 } SMTimerReq;
 
@@ -3391,6 +3422,17 @@ typedef struct {
 int32_t tSerializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
 int32_t tDeserializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
 void    tFreeSMCfgDnodeReq(SMCfgDnodeReq* pReq);
+
+typedef struct {
+  int8_t  keyType;  // 0: SVR_KEY, 1: DB_KEY
+  char    newKey[ENCRYPT_KEY_LEN + 1];
+  int32_t sqlLen;
+  char*   sql;
+} SMAlterEncryptKeyReq;
+
+int32_t tSerializeSMAlterEncryptKeyReq(void* buf, int32_t bufLen, SMAlterEncryptKeyReq* pReq);
+int32_t tDeserializeSMAlterEncryptKeyReq(void* buf, int32_t bufLen, SMAlterEncryptKeyReq* pReq);
+void    tFreeSMAlterEncryptKeyReq(SMAlterEncryptKeyReq* pReq);
 
 typedef struct {
   char    config[TSDB_DNODE_CONFIG_LEN];

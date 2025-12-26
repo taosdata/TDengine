@@ -842,6 +842,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
     case QUERY_NODE_SHOW_INSTANCES_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
+    case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
       code = makeNode(type, sizeof(SShowStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -1126,6 +1127,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
       code = makeNode(type, sizeof(SAlterDnodeStmt), &pNode);
+      break;
+    case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
+      code = makeNode(type, sizeof(SAlterEncryptKeyStmt), &pNode);
       break;
     default:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
@@ -1906,6 +1910,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
+    case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_USAGE_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:

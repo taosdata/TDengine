@@ -1246,6 +1246,12 @@ static int32_t collectMetaKeyFromShowEncryptAlgorithms(SCollectMetaKeyCxt* pCxt,
   return code;
 }
 
+static int32_t collectMetaKeyFromShowEncryptStatus(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_ENCRYPT_STATUS,
+                                         pCxt->pMetaCache);
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowMounts(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MOUNTS,
                                          pCxt->pMetaCache);
@@ -1852,6 +1858,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowEncryptions(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
       return collectMetaKeyFromShowEncryptAlgorithms(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
+      return collectMetaKeyFromShowEncryptStatus(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_MOUNTS_STMT:
       return collectMetaKeyFromShowMounts(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:

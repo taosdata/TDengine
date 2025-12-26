@@ -191,6 +191,8 @@ const char* nodesNodeName(ENodeType type) {
       return "AlterDnodeStmt";
     case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
       return "AlterDnodesReloadTLSStmt";
+    case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
+      return "AlterEncryptKeyStmt";
     case QUERY_NODE_CREATE_INDEX_STMT:
       return "CreateIndexStmt";
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -405,6 +407,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowRetentionDetailsStmt";
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
       return "ShowEncryptAlgorithmsStmt";
+    case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
+      return "ShowEncryptStatusStmt";
     case QUERY_NODE_DELETE_STMT:
       return "DeleteStmt";
     case QUERY_NODE_INSERT_STMT:
@@ -8931,6 +8935,31 @@ static int32_t jsonToAlterLocalStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkAlterEncryptKeyStmtKeyType = "KeyType";
+static const char* jkAlterEncryptKeyStmtNewKey = "NewKey";
+
+static int32_t alterEncryptKeyStmtToJson(const void* pObj, SJson* pJson) {
+  const SAlterEncryptKeyStmt* pNode = (const SAlterEncryptKeyStmt*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkAlterEncryptKeyStmtKeyType, pNode->keyType);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkAlterEncryptKeyStmtNewKey, pNode->newKey);
+  }
+
+  return code;
+}
+
+static int32_t jsonToAlterEncryptKeyStmt(const SJson* pJson, void* pObj) {
+  SAlterEncryptKeyStmt* pNode = (SAlterEncryptKeyStmt*)pObj;
+
+  int32_t code = tjsonGetTinyIntValue(pJson, jkAlterEncryptKeyStmtKeyType, &pNode->keyType);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkAlterEncryptKeyStmtNewKey, pNode->newKey);
+  }
+
+  return code;
+}
+
 static const char* jkExplainStmtAnalyze = "Analyze";
 static const char* jkExplainStmtOptions = "Options";
 static const char* jkExplainStmtQuery = "Query";
@@ -10023,6 +10052,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return alterDnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
       return alterDnodeStmtToJson(pObj, pJson);
+    case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
+      return alterEncryptKeyStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_INDEX_STMT:
       return createIndexStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -10195,6 +10226,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
       return showRsmasStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
+      return showStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
       return showStmtToJson(pObj, pJson);
     case QUERY_NODE_DELETE_STMT:
       return deleteStmtToJson(pObj, pJson);
@@ -10478,6 +10511,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToAlterDnodeStmt(pJson, pObj);
     case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
       return jsonToAlterDnodeStmt(pJson, pObj);
+    case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
+      return jsonToAlterEncryptKeyStmt(pJson, pObj);
     case QUERY_NODE_CREATE_INDEX_STMT:
       return jsonToCreateIndexStmt(pJson, pObj);
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -10595,6 +10630,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
       return jsonToShowEncryptionsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
+      return jsonToShowStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
       return jsonToShowStmt(pJson, pObj);
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return jsonToShowDnodeVariablesStmt(pJson, pObj);
