@@ -194,7 +194,27 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
 
 static int32_t adjustJoinDataRequirement(SJoinLogicNode* pJoin, EDataOrderLevel requirement) {
   // The lowest sort level of join input and output data is DATA_ORDER_LEVEL_GLOBAL
-  return TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!pJoin->leftConstPrimGot) {
+    code = adjustLogicNodeDataRequirement((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0),
+                                          pJoin->node.requireDataOrder);
+  } else {
+    code =
+        adjustScanDataRequirement((SScanLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0), DATA_ORDER_LEVEL_NONE);
+  }
+  if (TSDB_CODE_SUCCESS == code && pJoin->node.pChildren->length > 1) {
+    if (!pJoin->rightConstPrimGot) {
+      code = adjustLogicNodeDataRequirement((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1),
+                                            pJoin->node.requireDataOrder);
+    } else {
+      code =
+          adjustScanDataRequirement((SScanLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1), DATA_ORDER_LEVEL_NONE);
+    }
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    planError("adjust join input data requirement failed, err:%s", tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel requirement) {
@@ -367,7 +387,7 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
       break;
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       code = adjustJoinDataRequirement((SJoinLogicNode*)pNode, requirement);
-      break;
+      return code;
     case QUERY_NODE_LOGIC_PLAN_AGG:
       code = adjustAggDataRequirement((SAggLogicNode*)pNode, requirement);
       break;
