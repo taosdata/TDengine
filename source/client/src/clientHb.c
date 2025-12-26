@@ -75,7 +75,7 @@ _return:
   return code;
 }
 
-static int32_t updateUserSessMetric(const char *user, SUserSessCfg *pCfg) {
+static int32_t hbUpdateUserSessMertric(const char *user, SUserSessCfg *pCfg) {
   int32_t code = 0;
   int32_t lino = 0;
   if (user == NULL || pCfg == NULL) {
@@ -170,7 +170,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       }
 
       pTscObj->authVer = pRsp->version;
-      if (updateUserSessMetric(pTscObj->user, &pRsp->sessCfg) != 0) {
+      if (hbUpdateUserSessMertric(pTscObj->user, &pRsp->sessCfg) != 0) {
         tscError("failed to update user session metric, user:%s", pTscObj->user);
       }
 
