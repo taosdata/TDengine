@@ -2174,7 +2174,8 @@ static int32_t mndProcessAlterEncryptKeyReq(SRpcMsg *pReq) {
   int32_t              lino = 0;
 
   // Check privilege - only admin can alter encryption keys
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_DNODE),
+                  &lino, _OVER);
 
   // Deserialize request
   code = tDeserializeSMAlterEncryptKeyReq(pReq->pCont, pReq->contLen, &alterReq);
