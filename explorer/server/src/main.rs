@@ -172,15 +172,10 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(not(target_os = "windows"))]
     let path = format!("/etc/{}", env!("CUS_PROMPT"));
 
-    let mut file_path = std::path::Path::new(&path).join("explorer.toml");
-
-    if let Ok(config) = ConfigPath::try_parse().inspect_err(|err| {
-        eprintln!("Failed to parse config path: {:?}", err);
-    }) {
-        if let Some(value) = config.config_file {
-            file_path = value;
-        }
-    }
+    let config = ConfigPath::parse();
+    let file_path = config
+        .config_file
+        .unwrap_or_else(|| std::path::Path::new(&path).join("explorer.toml"));
     let _ = CONFIG_DIR.set(
         file_path
             .parent()
@@ -194,7 +189,7 @@ async fn main() -> anyhow::Result<()> {
             file_path.display()
         ))?;
         let mut args: Args = toml::from_str(&content).unwrap();
-        args.update_from(std::env::args());
+        args.update_from(config.raw_args);
         println!("Use configuration file path: {}", file_path.display());
         args
     } else {
@@ -1694,7 +1689,7 @@ async fn static_assets(path: web::Path<String>) -> CustomizeResponder<EmbedRespo
 #[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
 struct Profile {
     /// Cluster endpoint. Use taosAdapter endpoint like `http://192.168.0.201:16041`.
-    #[clap(short, long, env = "EXPLORER_CLUSTER")]
+    #[clap(long, env = "EXPLORER_CLUSTER")]
     cluster: Option<String>,
 
     #[clap(long, env = "EXPLORER_CLUSTER_NATIVE")]
@@ -1733,7 +1728,7 @@ struct GrafanaConfig {
 #[clap(trailing_var_arg = true)]
 struct ConfigPath {
     /// Configuration file
-    #[clap(short = 'C', long, alias = "config", env = "EXPLORER_CONFIG_FILE")]
+    #[clap(short = 'c', long, alias = "config", env = "EXPLORER_CONFIG_FILE")]
     config_file: Option<PathBuf>,
 
     #[clap(allow_hyphen_values = true)]
@@ -1774,7 +1769,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
 #[clap(name = env!("CUS_CLI_NAME"), author, version = CLAP_SHORT_VERSION, about, long_about = include_str!(env!("CUS_README")))]
 struct Args {
     /// Configuration file
-    #[clap(short = 'C', long, env = "EXPLORER_CONFIG_FILE")]
+    #[clap(short = 'c', long, alias = "config", env = "EXPLORER_CONFIG_FILE")]
     config_file: Option<PathBuf>,
     /// Port
     #[clap(short, long, global = true, env = "EXPLORER_PORT")]
@@ -2407,7 +2402,7 @@ cors = true
 
         let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
         let assert = cmd
-            .arg("-C")
+            .arg("-c")
             .arg(config_file.path().to_str().unwrap())
             .timeout(std::time::Duration::from_secs(3))
             .assert();
@@ -2433,7 +2428,7 @@ cors = true
 
         let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
         let assert = cmd
-            .arg("-C")
+            .arg("-c")
             .arg(config_file.path().to_str().unwrap())
             .timeout(std::time::Duration::from_secs(15))
             .assert();
@@ -2462,7 +2457,7 @@ certificate_key = "tests/assets/cert-key.pem"
 
         let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
         let assert = cmd
-            .arg("-C")
+            .arg("-c")
             .arg(config_file.path().to_str().unwrap())
             .timeout(std::time::Duration::from_secs(3))
             .assert();
