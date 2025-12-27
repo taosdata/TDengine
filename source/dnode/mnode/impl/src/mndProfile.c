@@ -360,6 +360,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
   TAOS_CHECK_GOTO(tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq), &lino, _OVER);
   TAOS_CHECK_GOTO(taosCheckVersionCompatibleFromStr(connReq.sVer, td_version, 3), &lino, _OVER);
+  TAOS_CHECK_GOTO(tVerifyConnectReqSignature(&connReq), &lino, _OVER);
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), &lino, _OVER);
 
   SLoginInfo li = {0};

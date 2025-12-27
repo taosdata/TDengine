@@ -1807,12 +1807,14 @@ static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInf
   connectReq.pid = appInfo.pid;
   connectReq.startTime = appInfo.startTime;
   connectReq.totpCode = totpCode;
+  connectReq.connectTime = taosGetTimestampMs();
 
   tstrncpy(connectReq.app, appInfo.appName, sizeof(connectReq.app));
   tstrncpy(connectReq.user, pObj->user, sizeof(connectReq.user));
   tstrncpy(connectReq.passwd, pObj->pass, sizeof(connectReq.passwd));
   tstrncpy(connectReq.token, pObj->token, sizeof(connectReq.token));
   tstrncpy(connectReq.sVer, td_version, sizeof(connectReq.sVer));
+  tSignConnectReq(&connectReq);
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = taosMemoryMalloc(contLen);
