@@ -190,7 +190,8 @@ class TestViewMgmt:
         )
         tdSql.checkRows(1) # not show "root all all" for root, but show the privileges from grant statement
         tdSql.checkData(0, 0, "u1")
-        tdSql.checkData(0, 1, "select")
+        tdSql.checkData(0, 1, "SELECT")
+        tdSql.execute(f"grant use on database testa to u1;")
 
         tdSql.connect("u1")
         tdSql.execute(f"use testa")
