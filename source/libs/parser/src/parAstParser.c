@@ -1546,8 +1546,8 @@ static int32_t collectMetaKeyFromCreateTSMAStmt(SCollectMetaKeyCxt* pCxt, SCreat
                                     PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
-                                    PRIV_STREAM_CREATE, PRIV_OBJ_TBL, pCxt->pMetaCache);
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, NULL,
+                                    PRIV_STREAM_CREATE, PRIV_OBJ_DB, pCxt->pMetaCache);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,

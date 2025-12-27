@@ -424,15 +424,18 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     MND_TMQ_NULL_CHECK(pStb);
     char stbName[TSDB_TABLE_NAME_LEN] = {0};
     mndExtractTbNameFromStbFullName(pStb->name, stbName, TSDB_TABLE_NAME_LEN);
-    MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_CREATE, PRIV_OBJ_TBL, pStb->ownerId,
-                                                  pDb->name, stbName));
+    MND_TMQ_RETURN_CHECK(
+        mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_CREATE, PRIV_OBJ_DB, pStb->ownerId, pDb->name, NULL));
+    MND_TMQ_RETURN_CHECK(
+        mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pStb->ownerId, pDb->name, stbName));
     topicObj.stbUid = pStb->uid;
     mndReleaseStb(pMnode, pStb);
   }
 
   if (pCreate->subType == TOPIC_SUB_TYPE__DB) {
     MND_TMQ_RETURN_CHECK(
-        mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_CREATE, PRIV_OBJ_TBL, pDb->ownerId, pDb->name, "*"));
+        mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TOPIC_CREATE, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL));
+    MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_TBL_SELECT, PRIV_OBJ_TBL, 0, pDb->name, "*"));
   } else if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
     // TODO: check privilege on table
   }
