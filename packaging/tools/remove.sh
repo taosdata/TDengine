@@ -203,9 +203,9 @@ fi
 
 kill_service_of() {
   _service=$1
-  pid=$(ps aux | grep -w $_service | grep -v grep | grep -v $uninstallScript | awk '{print $2}')
-  if [ -n "$pid" ]; then
-    kill -9 $pid || :
+  pids=$(pgrep -x "$_service" | grep -v -x "$$")
+  if [ -n "$pids" ]; then
+    kill -9 "$pids" || :
   fi
 }
 
