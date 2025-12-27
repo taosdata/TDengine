@@ -45,6 +45,7 @@ class TestViewMgmt:
         """
 
         self.prepare_data()
+        tdLog.info(f"================== start view management tests")
         self.privilege_basic_view()
         self.privilege_nested_view()
         self.create_drop_view()
@@ -68,6 +69,7 @@ class TestViewMgmt:
         self.show_desc_view()
         self.same_name_tb_view()
 
+        tdLog.info(f"================== alter keepColumnName to 0 and retest")
         tdSql.execute(f"alter local 'keepColumnName' '1'")
         self.privilege_basic_view()
         self.privilege_nested_view()
@@ -176,18 +178,19 @@ class TestViewMgmt:
         tdSql.execute(f"create view view2 as select * from view1;")
         tdSql.execute(f"create view view3 as select * from view2;")
 
-        tdSql.error(f"grant all on view1 to root;")
-        tdSql.error(f"revoke all on view1 from root;")
+        # grant/revoke to or from root is allowed since 3.4.0.0
+        tdSql.error(f"grant all on view1 to root;") # default obj is table since not specified, view1 is parsed as database here thus return error since not exist
+        tdSql.execute(f"revoke all on view1 from root;") # view1 is parsed as database here, don't check the existence of view1 when revoke
 
-        tdSql.error(f"grant read on view1 to u1;")
-        tdSql.execute(f"grant read on testa.view1 to u1;")
+        tdSql.error(f"grant select on view1 to u1;")
+        tdSql.execute(f"grant select on view testa.view1 to u1;")
 
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges order by user_name, privilege;"
+            f"select * from information_schema.ins_user_privileges order by user_name, priv_type;"
         )
-        tdSql.checkRows(2)
-        tdSql.checkData(1, 0, "u1")
-        tdSql.checkData(1, 1, "read")
+        tdSql.checkRows(1) # not show "root all all" for root, but show the privileges from grant statement
+        tdSql.checkData(0, 0, "u1")
+        tdSql.checkData(0, 1, "select")
 
         tdSql.connect("u1")
         tdSql.execute(f"use testa")

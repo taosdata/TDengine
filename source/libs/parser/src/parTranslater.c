@@ -16663,9 +16663,16 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
     case PRIV_OBJ_TBL:
       TAOS_CHECK_EXIT(translateGrantFillColPrivileges(pCxt, pStmt, pReq));
     case PRIV_OBJ_VIEW: {
+      if (grant && (strncmp(pStmt->objName, "*", 2) != 0)) {
+        SDbCfgInfo  dbCfg = {0};
+        if (0 != (code = getDBCfg(pCxt, pStmt->objName, &dbCfg))) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
+                                         "Failed to get database %s since %s", pStmt->objName, tstrerror(code));
+        }
+      }
       if (0 != pStmt->tabName[0]) {
         // not validate the object when revoke
-        if (grant &&strncmp(pStmt->tabName, "*", 2) != 0) {
+        if (grant && (strncmp(pStmt->tabName, "*", 2) != 0)) {
             SName       name = {0};
             STableMeta* pTableMeta = NULL;
             toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
