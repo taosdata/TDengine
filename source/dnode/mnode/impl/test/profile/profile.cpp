@@ -120,7 +120,7 @@ TEST_F(MndTestProfile, 04_HeartBeatMsg) {
   SClientHbBatchRsp rsp = {0};
   tDeserializeSClientHbBatchRsp(pMsg->pCont, pMsg->contLen, &rsp);
   int sz = taosArrayGetSize(rsp.rsps);
-  ASSERT_EQ(sz, 0);
+  ASSERT_EQ(sz, 1);
 
   // SClientHbRsp* pRsp = (SClientHbRsp*) taosArrayGet(rsp.rsps, 0);
   // EXPECT_EQ(pRsp->connKey.connId, 123);
