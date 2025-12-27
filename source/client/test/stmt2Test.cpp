@@ -956,7 +956,7 @@ TEST(stmt2Case, insert_ntb_get_fields_Test) {
   {
     const char* sql = "insert into ntb values(?,?,?,?)";
     printf("case 1 : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_TSC_INVALID_OPERATION);
+    getFieldsError(taos, sql, TSDB_CODE_PAR_DB_NOT_SPECIFIED);
   }
 
   // case 2 :  normal table must have tbnam
@@ -3518,6 +3518,98 @@ TEST(stmt2Case, tbname) {
     do_query(taos, "drop table if exists stmt2_testdb_22.tb1");
     do_query(taos, "drop table if exists stmt2_testdb_22.tb2");
   }
+
+  for (int i = 0; i < 2; i++) {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option[i]);
+    ASSERT_NE(stmt, nullptr);
+
+    const char* sql = "insert into stmt2_testdb_22.stb (tbname,ts,b,t1,t2)values(?,?,?,?,?)";
+    int         code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+
+    int             fieldNum = 0;
+    TAOS_FIELD_ALL* pFields = NULL;
+    code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+    checkError(stmt, code);
+    ASSERT_EQ(fieldNum, 5);
+
+    int     t1 = 1;
+    char*   t2 = "abc";
+    int32_t t2_len = 3;
+    int32_t t1_len = sizeof(int);
+
+    int64_t ts[2] = {1591060628000, 1591060628001};
+    int32_t len[2] = {sizeof(int64_t), sizeof(int64_t)};
+
+    char tbname192[192 + 2 + 1];
+    char tbname193[193 + 2 + 1];
+    tbname192[0] = '`';
+    tbname193[0] = '`';
+    for (int i = 1; i < 193; ++i) {
+      tbname192[i] = 'a';
+      tbname193[i] = 'b';
+    }
+    tbname192[193] = '`';
+    tbname192[194] = '\0';
+
+    tbname193[193] = 'b';
+    tbname193[194] = '`';
+    tbname193[195] = '\0';
+
+    char* tbname[2] = {&tbname192[0], &tbname193[0]};
+
+    TAOS_STMT2_BIND tag[2] = {{TSDB_DATA_TYPE_INT, &t1, &t1_len, NULL, 1},
+                              {TSDB_DATA_TYPE_BINARY, &t2, &t2_len, NULL, 1}};
+
+    TAOS_STMT2_BIND col[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &len[0], NULL, 2},
+                              {TSDB_DATA_TYPE_BINARY, &tbname[0], &len[0], NULL, 2}};
+
+    TAOS_STMT2_BIND* pTag[2] = {&tag[0], &tag[0]};
+    TAOS_STMT2_BIND* pCol[2] = {&col[0], &col[0]};
+
+    TAOS_STMT2_BINDV bindv = {1, &tbname[0], &pTag[0], &pCol[0]};
+
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code);
+
+    bindv = {1, &tbname[1], &pTag[0], &pCol[0]};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    ASSERT_EQ(code, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME);
+    ASSERT_STREQ(taos_stmt2_error(stmt), "Invalid identifier name: table name is too long");
+    taos_stmt2_close(stmt);
+
+    stmt = taos_stmt2_init(taos, &option[i]);
+    ASSERT_NE(stmt, nullptr);
+    code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+    bindv = {2, &tbname[0], &pTag[0], &pCol[0]};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    ASSERT_EQ(code, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME);
+    ASSERT_STREQ(taos_stmt2_error(stmt), "Invalid identifier name: table name is too long");
+    taos_stmt2_close(stmt);
+
+    stmt = taos_stmt2_init(taos, &option[i]);
+    ASSERT_NE(stmt, nullptr);
+    code = taos_stmt2_prepare(stmt, "insert into ? using stmt2_testdb_22.stb tags(?,?)values(?,?)", 0);
+    checkError(stmt, code);
+    char full_tbname[256];
+    sprintf(full_tbname, "`stmt2_testdb_22`.%s", tbname[0]);
+
+    char* tbname_ptr = &full_tbname[0];
+    bindv = {1, &tbname_ptr, &pTag[0], &pCol[0]};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code);
+
+    sprintf(full_tbname, "`stmt2_testdb_22`.`%s`", tbname[1]);
+    bindv = {1, &tbname_ptr, &pTag[0], &pCol[0]};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    ASSERT_EQ(code, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME);
+    ASSERT_STREQ(taos_stmt2_error(stmt), "Invalid identifier name: table name is too long");
+
+    taos_stmt2_close(stmt);
+  }
+
+  do_query(taos, "drop database if exists stmt2_testdb_22");
 }
 
 TEST(stmt2Case, bool_bind) {
