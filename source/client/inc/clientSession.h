@@ -76,9 +76,11 @@ int32_t sessMgtRemoveUser(char* user);
 void    sessMgtDestroy();
 
 int32_t sessMgtCheckConnStatus(char* user, SConnAccessInfo* pInfo);
+int32_t sessMgtCheckValue(char* user, ESessionType type, int64_t value);
 
 int32_t connCheckAndUpateMetric(int64_t connId);
 int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam);
+
 #ifdef __cplusplus
 }
 #endif

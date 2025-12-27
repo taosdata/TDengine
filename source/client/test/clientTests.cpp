@@ -1887,46 +1887,130 @@ void testSessionPerUser() {
   taos_close(pConn);
 }
 
-void testSessionConnTime() {}
-
-void testSessionConnIdleTime() {}
-
-void testSessionMaxVnodeCall() {
+void initTestEnv(const char* database, const char* stb, TAOS** pConnect) {
   int32_t code = 0;
 
-  const char *maxVnodeDB = "maxVnod";
-  TAOS*   pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  const char* maxVnodeDB = "maxVnod";
+
+  char  sql[128] = {0};
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES* pRes = taos_query(pConn, "drop database if exists db_max_vnode");
+  sprintf(sql, "drop database if exists %s", database);
+  TAOS_RES* pRes = taos_query(pConn, sql);
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create database db_max_vnode vgroups 4");
+  sprintf(sql, "create database %s vgroups 4", database);
+  pRes = taos_query(pConn, sql);
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
-
-  pRes = taos_query(pConn, "create stable db_max_vnode.t1 (ts timestamp, v int) tags (t1 int)"); 
+  sprintf(sql, "create stable %s.%s (ts timestamp, v int) tags (t1 int)", database, stb);
+  pRes = taos_query(pConn, sql);
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
-  char buf[100] = {0};  
+  char buf[100] = {0};
   for (int32_t i = 0; i < 10; i++) {
-    char tbname[24] = {0};  
+    char tbname[24] = {0};
     sprintf(tbname, "test_tbname_%d", i);
-    sprintf(buf, "insert into db_max_vnode.%s using db_max_vnode.t1 tags(%d) values(now, %d)", tbname, i, i);
+    sprintf(buf, "insert into %s.%s using %s.%s tags(%d) values(now, %d)", database, tbname, database, stb, i, i);
     pRes = taos_query(pConn, buf);
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
     taos_free_result(pRes);
-    taosMsleep(10);
-  } 
-  
-  pRes = taos_query(pConn, "select * from db_max_vnode.t1");;
+  }
+
+  *pConnect = pConn;
+}
+void testSessionConnTime() {
+  int32_t     code = 0;
+  TAOS*       pConn = nullptr;
+  const char* databName = "db_conn";
+  const char* rstb = "db_conn_time";
+  initTestEnv(databName, rstb, &pConn);
+
+  {
+    char sql[128] = {0};
+    sprintf(sql, "select * from %s.%s", databName, rstb);
+
+    TAOS_RES* pRes = taos_query(pConn, sql);
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+  }
+
+  {
+    char sql[128] = {0};
+    sprintf(sql, "alter user root connect_time 1");
+    TAOS_RES* pRes = taos_query(pConn, sql);
+    taos_free_result(pRes);
+  }
+
+  taosMsleep(1000 * 70);
+  {
+    char sql[128] = {0};
+    sprintf(sql, "select * from %s.%s", databName, rstb);
+
+    TAOS_RES* pRes = taos_query(pConn, sql);
+    ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+
+    taos_close(pConn);
+  }
+}
+
+void testSessionConnIdleTime() {
+  int32_t     code = 0;
+  TAOS*       pConn = nullptr;
+  const char* databName = "db_conn_idle";
+  const char* rstb = "db_conn_time_idle";
+  initTestEnv(databName, rstb, &pConn);
+
+  {
+    char sql[128] = {0};
+    sprintf(sql, "select * from %s.%s", databName, rstb);
+
+    TAOS_RES* pRes = taos_query(pConn, sql);
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+  }
+
+  {
+    char sql[128] = {0};
+    sprintf(sql, "alter user root connect_idel_time 2");
+    TAOS_RES* pRes = taos_query(pConn, sql);
+    taos_free_result(pRes);
+  }
+
+  taosMsleep(7 * 1000);
+  {
+    char sql[128] = {0};
+    sprintf(sql, "select * from %s.%s", databName, rstb);
+
+    TAOS_RES* pRes = taos_query(pConn, sql);
+    ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+  }
+  taos_close(pConn);
+}
+
+void testSessionMaxVnodeCall() {
+  int32_t     code = 0;
+  TAOS*       pConn = nullptr;
+  const char* databName = "db_max_vnode";
+  const char* rstb = "stb1";
+  initTestEnv(databName, rstb, &pConn);
+
+  char sql[128] = {0};
+  sprintf(sql, "select * from %s.%s", databName, rstb);
+
+  TAOS_RES* pRes = taos_query(pConn, sql);
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "alter user root CALL_PER_SESSION 2");
+  sprintf(sql, "alter user root CALL_PER_SESSION 2");
+  pRes = taos_query(pConn, sql);
+
   taosMsleep(6000);
   ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
@@ -1934,7 +2018,35 @@ void testSessionMaxVnodeCall() {
   taos_close(pConn);
 }
 
-void testSessionConncurentCall() {}
+void testSessionConncurentCall() {
+  int32_t code = 0;
+  TAOS*   pConn = nullptr;
+
+  const char* db = "conn_data";
+  const char* stb = "conn_stp";
+  char        sql[256] = {0};
+
+  initTestEnv(db, stb, &pConn);
+  sprintf(sql, "select * from %s.%s", db, stb);
+
+  TAOS_RES* pRes = taos_query(pConn, sql);
+  ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+
+  sprintf(sql, "alter user root VNODE_PER_CALL 2");
+  pRes = taos_query(pConn, sql);
+  ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+
+  taosMsleep(6000);
+
+  sprintf(sql, "select * from %s.%s", db, stb);
+  pRes = taos_query(pConn, sql);
+  ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+
+  taos_close(pConn);
+}
 TEST(clientCase, sessControl) {
   testSessionPerUser();
   testSessionConnTime();

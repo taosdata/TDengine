@@ -32,6 +32,7 @@
 #include "tref.h"
 #include "tsched.h"
 #include "tversion.h"
+#include "clientSession.h"
 
 static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode);
@@ -1400,8 +1401,7 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
           code = buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList);
 
           if (TSDB_CODE_SUCCESS == code) {
-            SSessParam para = {.type = SESSION_MAX_CALL_VNODE_NUM, .value = taosArrayGetSize(pNodeList)};
-            code = tscUpdateSessMgtMetric(pRequest->pTscObj, &para);
+            code = sessMgtCheckValue(pRequest->pTscObj->user, SESSION_MAX_CALL_VNODE_NUM, taosArrayGetSize(pNodeList));
           }
 
           if (TSDB_CODE_SUCCESS == code) {
