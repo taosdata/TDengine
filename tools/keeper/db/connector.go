@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-
 	_ "github.com/taosdata/driver-go/v3/taosRestful"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
 	"github.com/taosdata/taoskeeper/infrastructure/log"
