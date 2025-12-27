@@ -11,6 +11,7 @@ env:
   REPORT_BASE_URL: http://192.168.1.45:8787
   GRANT_SSH: root@192.168.1.55
   CARGO_OPTS: --locked
+  COVERAGE_THRESHOLD: 48.0 # Start at current level, gradually increase
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -24,6 +25,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           clean: false
+
+      - name: Cache Explorer UI
+        id: cache-explorer-ui
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-explorer-ui
+        with:
+          # npm cache files are stored in `~/.npm`
+          path: explorer/dist
+          key: build-${{ env.cache-name }}-${{ hashFiles('explorer/pnpm-lock.yaml', 'explorer/src/**/*.*', 'explorer/taos-ui/**/*.*') }}
+          restore-keys: |
+            build-${{ env.cache-name }}-
+
+      - if: ${{ steps.cache-explorer-ui.outputs.cache-hit != 'true' }}
+        name: Build Explorer UI
+        continue-on-error: true
+        run: cargo make explorer-ui-prod
+
       - name: Code Coverage Test
         run: |
           cargo make test
@@ -37,9 +56,11 @@ jobs:
     name: Upload Coverage Report
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: taosx-coverage-report
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

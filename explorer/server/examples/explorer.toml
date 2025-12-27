@@ -119,11 +119,11 @@ cors = true
 # Configuration for monitoring with taosKeeper service
 [monitor]
 # FQDN of taosKeeper service
-#fqdn = "localhost"
+fqdn = "localhost"
 # Port of taosKeeper service
-#port = 6043
+port = 6043
 # Monitor interval in seconds, minimum is 1, maximum is 10
-#interval = 10
+interval = 10
 
 # Security configurations
 #

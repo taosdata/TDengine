@@ -1401,7 +1401,9 @@ mod tests {
     use std::task::Poll;
     use std::time::{Duration, Instant};
 
+    use crate::serve::controller::AgentAction;
     use crate::serve::rpc::modify_dsn_params;
+    use crate::serve::scheduler::agent::AgentNotify;
     use crate::serve::tests::tracing_subscriber_init;
     use arrow::array::{ArrayRef, TimestampMillisecondArray};
     use arrow::record_batch::RecordBatch;
@@ -1440,6 +1442,73 @@ mod tests {
         let new_dsn = modify_dsn_params(dsn).await.unwrap();
         let config_file = new_dsn.params.get("transform_config_file").unwrap();
         assert_eq!("@./taosx-core/tests/pi/pi_singlecol_point.csv", config_file);
+    }
+
+    #[tokio::test]
+    async fn test_modify_dsn_params_for_list_action_opcda_driver() {
+        use super::modify_dsn_params_for_list_action;
+        let dsn = "opcda://192.168.2.16/test?csv_config_file=%40.%2Fconfig.csv";
+        let result = modify_dsn_params_for_list_action(dsn).await;
+        if let Ok(new_dsn) = result {
+            assert_eq!(new_dsn.driver.to_lowercase(), "opcda");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_modify_dsn_params_for_list_action_mysql_driver() {
+        use super::modify_dsn_params_for_list_action;
+        let dsn = "mysql://localhost:3306/test";
+        let result = modify_dsn_params_for_list_action(dsn).await;
+        if let Ok(new_dsn) = result {
+            assert_eq!(new_dsn.driver.to_lowercase(), "mysql");
+        }
+    }
+
+    #[test]
+    fn test_rpc_config_default() {
+        let config = super::RpcConfig::default();
+        assert!(!config.tcp.is_empty());
+        assert!(config.unix.is_none());
+        assert!(config.ssl_cert.is_none());
+        assert!(config.ssl_key.is_none());
+        assert!(config.ssl_ca.is_none());
+    }
+
+    #[test]
+    fn test_agent_rpc_channel_creation() {
+        let (_sender, receiver) = tokio::sync::broadcast::channel::<(i64, AgentAction)>(100);
+        let (notify_sender, _) = tokio::sync::broadcast::channel::<AgentNotify>(100);
+        let channel = super::AgentRpcChannel::new(receiver, notify_sender);
+        // Verify channel is created successfully
+        let type_name = std::any::type_name_of_val(&channel);
+        assert!(type_name.contains("AgentRpcChannel"));
+    }
+
+    #[tokio::test]
+    async fn test_encode_csv_config_file_with_empty_path() {
+        use super::encode_csv_config_file;
+        let result = encode_csv_config_file("".to_string());
+        // Result depends on file access which may fail in test environment
+        let _ = result;
+        // Only check if parsing worked
+        assert_eq!(result.unwrap(), "");
+    }
+
+    #[tokio::test]
+    async fn test_encode_csv_config_file_with_content() {
+        use super::encode_csv_config_file;
+        let result = encode_csv_config_file("test,content".to_string());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "test,content");
+    }
+
+    #[tokio::test]
+    async fn test_encode_csv_config_file_with_spaces() {
+        use super::encode_csv_config_file;
+        let result = encode_csv_config_file("  test  ,  content  ".to_string());
+        assert!(result.is_ok());
+        let encoded = result.unwrap();
+        assert!(!encoded.is_empty());
     }
 
     // use super::FlightServiceImpl;

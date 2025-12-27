@@ -21,7 +21,7 @@ use taosx_core::utils::monitor::send_sub_process_info;
 use taosx_core::{
     Action, DataSet, DataSetsReq, Transferred, build_ipc, utils::port_pool::PortPool,
 };
-use taosx_core::{TaskNotifySender, core_metrics, get_log_dir};
+use taosx_core::{TaskNotify, TaskNotifySender, core_metrics, get_log_dir};
 use taosx_ipc::types::OptionSet;
 use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt;
@@ -122,7 +122,7 @@ pub async fn opc_to_taos(
         with_agent,
         transferred,
         task_id,
-        notify,
+        notify.clone(),
         persist_config,
     )
     .await?;
@@ -186,6 +186,8 @@ pub async fn opc_to_taos(
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();
+    // clone notify sender for use in stderr reader task
+    let notify_for_stderr = notify.clone();
     let stderr = child.stderr.take().expect("Failed to capture stderr");
 
     // let log_rotation_clone = Arc::clone(&log_rotation);
@@ -202,6 +204,14 @@ pub async fn opc_to_taos(
             if line.contains("panic") {
                 let mut guard = error_buf_producer.lock().await;
                 let _ = guard.push_overwrite(line.clone());
+            }
+
+            // If OPC process reports a reconnect event, forward it to task notification
+            // so it will appear in Explorer as a task activity.
+            if line.contains("[RECONNECT]") {
+                // best-effort notify, ignore send errors
+                let tn = TaskNotify::info(line.trim().to_string());
+                let _ = notify_for_stderr.send_async(tn).await;
             }
 
             // Write the line to log_rotation
@@ -517,6 +527,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 
     is_valid_impl(dsn)
         .await
+        .inspect_err(|err| tracing::error!("{err:?}"))
         .unwrap_or_else(|err| DataSourceValidation::invalid("opc".to_string(), err.to_string()))
 }
 
@@ -526,13 +537,10 @@ async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<DataSourceValidation> {
     let auth_certificate = get_temp_file(dsn, "auth_certificate");
     let auth_private_key = get_temp_file(dsn, "auth_private_key");
 
-    let mut config = OPCConfig::from_dsn_check_mode(dsn).await.map_err(|err| {
-        anyhow::anyhow!(
-            "failed to create opc config from dsn: {}, cause: {}",
-            dsn.to_string(),
-            err.to_string()
-        )
-    })?;
+    let mut config = OPCConfig::from_dsn_check_mode(dsn)
+        .await
+        .inspect_err(|err| tracing::error!(dsn=%dsn, "{err:?}"))
+        .context("failed to create opc config")?;
 
     config.set_temp_filepath("certificate", certificate.as_ref())?;
     config.set_temp_filepath("private_key", private_key.as_ref())?;
@@ -559,7 +567,8 @@ async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<DataSourceValidation> {
         .stdout(std::process::Stdio::inherit())
         .output()
         .await
-        .with_context(|| format!("failed to execute: {:?}", opc_exe_path.as_path()))?;
+        .inspect_err(|err| tracing::error!(conf=%config_file.path().display(), "{err:?}"))
+        .context("failed to execute taosx-opc check")?;
 
     let result = if output.status.success() {
         let mut result: DataSourceValidation =

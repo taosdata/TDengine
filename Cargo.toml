@@ -11,6 +11,7 @@ members = [
   "crates/taoslog",
   "crates/tokio-cron-scheduler",
   "explorer/server",
+  "tests",
   "tests/tools",
   "crates/spawners/x-replication",
   "crates/persist-queue",

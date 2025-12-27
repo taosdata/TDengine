@@ -19,6 +19,56 @@ export default {
           pattern: null,
           defaultValue: '',
           type: 'input'
+        },
+        {
+          label: '重连尝试次数',
+          description: '重连尝试次数，不设置默认 100',
+          field: 'reconnect_times',
+          required: false,
+          placeholder: '100',
+          defaultValue: '100',
+          type: 'number',
+          min: 1
+        },
+        {
+          label: '重连间隔（毫秒）',
+          description: '重连间隔，单位毫秒，不设置默认 1000',
+          field: 'reconnect_interval',
+          required: false,
+          placeholder: '1000',
+          defaultValue: '1000',
+          type: 'number',
+          min: 1
+        },
+        {
+          label: '添加点位重试次数',
+          description: '重连后重新添加点位尝试次数，不设置默认 100',
+          field: 'add_tag_retry_times',
+          required: false,
+          placeholder: '100',
+          defaultValue: '100',
+          type: 'number',
+          min: 1
+        },
+        {
+          label: '添加点位重试间隔',
+          description: '重新添加点位失败时下次重试间隔，单位毫秒，不设置默认 500',
+          field: 'add_tag_retry_interval',
+          required: false,
+          placeholder: '500',
+          defaultValue: '500',
+          type: 'number',
+          min: 1
+        },
+        {
+          label: '重连的最大失败次数',
+          description: '累计读取失败达到次数将强制重连，不设置默认 50',
+          field: 'failed_reads_to_force_reconnect',
+          required: false,
+          placeholder: '50',
+          defaultValue: '50',
+          type: 'number',
+          min: 1
         }
       ]
     },

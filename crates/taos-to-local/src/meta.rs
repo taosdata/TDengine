@@ -530,6 +530,541 @@ pub struct DatabaseOptions {
 mod tests {
     use super::*;
 
+    // ============ Schema tests ============
+
+    #[test]
+    fn test_schema_creation() {
+        let db_meta = DbMeta {
+            name: "test_db".to_string(),
+            create_time: 1000,
+            ntables: 10,
+            strict: "off".to_string(),
+            status: "ready".to_string(),
+            retentions: None,
+            ss_chunkpages: None,
+            ss_keeplocal: None,
+            ss_compact: None,
+            with_arbitrator: None,
+            encrypt_algorithm: None,
+            opts: None,
+        };
+
+        let schema = Schema {
+            db_meta: db_meta.clone(),
+            metas: vec![],
+        };
+
+        assert_eq!(schema.db_meta.name, "test_db");
+        assert_eq!(schema.metas.len(), 0);
+    }
+
+    #[test]
+    fn test_schema_serialization() {
+        let db_meta = DbMeta {
+            name: "test_db".to_string(),
+            create_time: 1000,
+            ntables: 10,
+            strict: "off".to_string(),
+            status: "ready".to_string(),
+            retentions: None,
+            ss_chunkpages: None,
+            ss_keeplocal: None,
+            ss_compact: None,
+            with_arbitrator: None,
+            encrypt_algorithm: None,
+            opts: None,
+        };
+
+        let schema = Schema {
+            db_meta,
+            metas: vec![],
+        };
+
+        let json = serde_json::to_string(&schema).unwrap();
+        assert!(json.contains("test_db"));
+
+        let deserialized: Schema = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.db_meta.name, "test_db");
+    }
+
+    #[test]
+    fn test_meta_create_iter_empty() {
+        let db_meta = DbMeta {
+            name: "test_db".to_string(),
+            create_time: 1000,
+            ntables: 10,
+            strict: "off".to_string(),
+            status: "ready".to_string(),
+            retentions: None,
+            ss_chunkpages: None,
+            ss_keeplocal: None,
+            ss_compact: None,
+            with_arbitrator: None,
+            encrypt_algorithm: None,
+            opts: None,
+        };
+
+        let schema = Schema {
+            db_meta,
+            metas: vec![],
+        };
+
+        let count = schema.meta_create_iter().count();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_meta_create_iter_with_creates() {
+        let db_meta = DbMeta {
+            name: "test_db".to_string(),
+            create_time: 1000,
+            ntables: 10,
+            strict: "off".to_string(),
+            status: "ready".to_string(),
+            retentions: None,
+            ss_chunkpages: None,
+            ss_keeplocal: None,
+            ss_compact: None,
+            with_arbitrator: None,
+            encrypt_algorithm: None,
+            opts: None,
+        };
+
+        let meta_create = MetaCreate::Super {
+            table_name: "stb1".to_string(),
+            columns: vec![],
+            tags: vec![],
+        };
+
+        let schema = Schema {
+            db_meta,
+            metas: vec![MetaUnit::Create(meta_create)],
+        };
+
+        let count = schema.meta_create_iter().count();
+        assert_eq!(count, 1);
+    }
+
+    // ============ DbMeta Display tests ============
+
+    #[test]
+    fn test_db_meta_display_simple() {
+        let db_meta = DbMeta {
+            name: "test_db".to_string(),
+            create_time: 1000,
+            ntables: 10,
+            strict: "off".to_string(),
+            status: "ready".to_string(),
+            retentions: None,
+            ss_chunkpages: None,
+            ss_keeplocal: None,
+            ss_compact: None,
+            with_arbitrator: None,
+            encrypt_algorithm: None,
+            opts: None,
+        };
+
+        let result = format!("{}", db_meta);
+        assert!(result.contains("CREATE DATABASE IF NOT EXISTS `test_db`"));
+    }
+
+    #[test]
+    fn test_db_meta_display_with_retentions() {
+        let db_meta = DbMeta {
+            name: "test_db".to_string(),
+            create_time: 1000,
+            ntables: 10,
+            strict: "off".to_string(),
+            status: "ready".to_string(),
+            retentions: Some("30d:1d".to_string()),
+            ss_chunkpages: None,
+            ss_keeplocal: None,
+            ss_compact: None,
+            with_arbitrator: None,
+            encrypt_algorithm: None,
+            opts: None,
+        };
+
+        let result = format!("{}", db_meta);
+        assert!(result.contains("test_db"));
+        assert!(result.contains("RETENTIONS '30d:1d'"));
+    }
+
+    #[test]
+    fn test_db_meta_display_with_arbitrator() {
+        let db_meta = DbMeta {
+            name: "test_db".to_string(),
+            create_time: 1000,
+            ntables: 10,
+            strict: "off".to_string(),
+            status: "ready".to_string(),
+            retentions: None,
+            ss_chunkpages: None,
+            ss_keeplocal: None,
+            ss_compact: None,
+            with_arbitrator: Some(1),
+            encrypt_algorithm: None,
+            opts: None,
+        };
+
+        let result = format!("{}", db_meta);
+        assert!(result.contains("WITH_ARBITRATOR 1"));
+    }
+
+    #[test]
+    fn test_db_meta_display_with_encryption() {
+        let db_meta = DbMeta {
+            name: "test_db".to_string(),
+            create_time: 1000,
+            ntables: 10,
+            strict: "off".to_string(),
+            status: "ready".to_string(),
+            retentions: None,
+            ss_chunkpages: None,
+            ss_keeplocal: None,
+            ss_compact: None,
+            with_arbitrator: None,
+            encrypt_algorithm: Some("aes".to_string()),
+            opts: None,
+        };
+
+        let result = format!("{}", db_meta);
+        assert!(result.contains("ENCRYPT_ALGORITHM 'aes'"));
+    }
+
+    #[test]
+    fn test_db_meta_display_with_ss_options() {
+        let db_meta = DbMeta {
+            name: "test_db".to_string(),
+            create_time: 1000,
+            ntables: 10,
+            strict: "off".to_string(),
+            status: "ready".to_string(),
+            retentions: None,
+            ss_chunkpages: Some(256),
+            ss_keeplocal: Some("7d".to_string()),
+            ss_compact: Some(1),
+            with_arbitrator: None,
+            encrypt_algorithm: None,
+            opts: None,
+        };
+
+        let result = format!("{}", db_meta);
+        assert!(result.contains("SS_CHUNKPAGES 256"));
+        assert!(result.contains("SS_KEEPLOCAL 7d"));
+        assert!(result.contains("SS_COMPACT 1"));
+    }
+
+    #[test]
+    fn test_db_meta_display_with_database_options() {
+        let opts = DatabaseOptions {
+            vgroups: 4,
+            precision: "ms".to_string(),
+            replica: 1,
+            buffer: 256,
+            pages: 256,
+            pagesize: 4096,
+            cachemodel: "last_row".to_string(),
+            cachesize: 1,
+            comp: 2,
+            duration: "10d".to_string(),
+            maxrows: 4096,
+            minrows: 100,
+            keep: "30d".to_string(),
+            keep_time_offset: 0,
+            stt_trigger: 12,
+            single_stable: false,
+            table_prefix: 0,
+            table_suffix: 0,
+            tsdb_pagesize: 4096,
+            wal_level: 1,
+            wal_fsync_period: 3000,
+            wal_retention_period: 0,
+            wal_retention_size: 0,
+            compact_interval: "0".to_string(),
+            compact_time_range: "0".to_string(),
+            compact_time_offset: "0".to_string(),
+        };
+
+        let db_meta = DbMeta {
+            name: "test_db".to_string(),
+            create_time: 1000,
+            ntables: 10,
+            strict: "off".to_string(),
+            status: "ready".to_string(),
+            retentions: None,
+            ss_chunkpages: None,
+            ss_keeplocal: None,
+            ss_compact: None,
+            with_arbitrator: None,
+            encrypt_algorithm: None,
+            opts: Some(opts),
+        };
+
+        let result = format!("{}", db_meta);
+        assert!(result.contains("BUFFER 256"));
+        assert!(result.contains("CACHEMODEL 'last_row'"));
+        assert!(result.contains("DURATION 10d"));
+        assert!(result.contains("REPLICA 1"));
+    }
+
+    // ============ to_json_value tests ============
+
+    #[test]
+    fn test_to_json_value_null() {
+        use taos::taos_query::common::Ty;
+        let val = BorrowedValue::Null(Ty::Null);
+        let result = to_json_value(val);
+        assert_eq!(result, Value::Null);
+    }
+
+    #[test]
+    fn test_to_json_value_bool() {
+        let val = BorrowedValue::Bool(true);
+        let result = to_json_value(val);
+        assert_eq!(result, Value::Bool(true));
+
+        let val = BorrowedValue::Bool(false);
+        let result = to_json_value(val);
+        assert_eq!(result, Value::Bool(false));
+    }
+
+    #[test]
+    fn test_to_json_value_integers() {
+        let val = BorrowedValue::TinyInt(42);
+        let result = to_json_value(val);
+        assert_eq!(result, Value::Number(42.into()));
+
+        let val = BorrowedValue::SmallInt(1000);
+        let result = to_json_value(val);
+        assert_eq!(result, Value::Number(1000.into()));
+
+        let val = BorrowedValue::Int(100000);
+        let result = to_json_value(val);
+        assert_eq!(result, Value::Number(100000.into()));
+
+        let val = BorrowedValue::BigInt(999999999);
+        let result = to_json_value(val);
+        assert_eq!(result, Value::Number(999999999.into()));
+    }
+
+    #[test]
+    fn test_to_json_value_unsigned_integers() {
+        let val = BorrowedValue::UTinyInt(42);
+        let result = to_json_value(val);
+        assert_eq!(result, Value::Number(42.into()));
+
+        let val = BorrowedValue::USmallInt(1000);
+        let result = to_json_value(val);
+        assert_eq!(result, Value::Number(1000.into()));
+
+        let val = BorrowedValue::UInt(100000);
+        let result = to_json_value(val);
+        assert_eq!(result, Value::Number(100000.into()));
+
+        let val = BorrowedValue::UBigInt(999999999);
+        let result = to_json_value(val);
+        assert_eq!(result, Value::Number(999999999.into()));
+    }
+
+    #[test]
+    fn test_to_json_value_varchar() {
+        let val = BorrowedValue::VarChar("hello");
+        let result = to_json_value(val);
+        assert_eq!(result, Value::String("hello".to_string()));
+    }
+
+    #[test]
+    fn test_to_json_value_nchar() {
+        let val = BorrowedValue::NChar(std::borrow::Cow::Borrowed("世界"));
+        let result = to_json_value(val);
+        assert_eq!(result, Value::String("世界".to_string()));
+    }
+
+    #[test]
+    fn test_to_json_value_float() {
+        let val = BorrowedValue::Float(std::f32::consts::PI);
+        let result = to_json_value(val);
+        match result {
+            Value::Number(n) => {
+                assert!((n.as_f64().unwrap() - std::f32::consts::PI as f64).abs() < 0.01);
+            }
+            _ => panic!("Expected number"),
+        }
+    }
+
+    #[test]
+    fn test_to_json_value_double() {
+        let val = BorrowedValue::Double(std::f64::consts::PI);
+        let result = to_json_value(val);
+        match result {
+            Value::Number(n) => {
+                assert!((n.as_f64().unwrap() - std::f64::consts::PI).abs() < 0.0001);
+            }
+            _ => panic!("Expected number"),
+        }
+    }
+
+    #[test]
+    fn test_to_json_value_timestamp() {
+        use taos::taos_query::common::{Precision, Timestamp};
+        let ts = Timestamp::new(1000, Precision::Millisecond);
+        let val = BorrowedValue::Timestamp(ts);
+        let result = to_json_value(val);
+        assert_eq!(result, Value::Number(1000.into()));
+    }
+
+    #[test]
+    fn test_to_json_value_varbinary() {
+        let val = BorrowedValue::VarBinary(std::borrow::Cow::Borrowed(b"binary_data"));
+        let result = to_json_value(val);
+        assert_eq!(result, Value::String("binary_data".to_string()));
+    }
+
+    #[test]
+    fn test_to_json_value_json_valid() {
+        let json_bytes = br#"{"key":"value"}"#;
+        let val = BorrowedValue::Json(std::borrow::Cow::Borrowed(json_bytes));
+        let result = to_json_value(val);
+        match result {
+            Value::Object(obj) => {
+                assert_eq!(obj.get("key").and_then(|v| v.as_str()), Some("value"));
+            }
+            _ => panic!("Expected object"),
+        }
+    }
+
+    #[test]
+    fn test_to_json_value_json_invalid() {
+        let json_bytes = b"not valid json";
+        let val = BorrowedValue::Json(std::borrow::Cow::Borrowed(json_bytes));
+        let result = to_json_value(val);
+        assert_eq!(result, Value::String("not valid json".to_string()));
+    }
+
+    // ============ DbMeta Serialization tests ============
+
+    #[test]
+    fn test_db_meta_serialization() {
+        let db_meta = DbMeta {
+            name: "test_db".to_string(),
+            create_time: 1000,
+            ntables: 10,
+            strict: "off".to_string(),
+            status: "ready".to_string(),
+            retentions: Some("30d:1d".to_string()),
+            ss_chunkpages: Some(256),
+            ss_keeplocal: Some("7d".to_string()),
+            ss_compact: Some(1),
+            with_arbitrator: Some(1),
+            encrypt_algorithm: Some("aes".to_string()),
+            opts: None,
+        };
+
+        let json = serde_json::to_string(&db_meta).unwrap();
+        let deserialized: DbMeta = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.name, db_meta.name);
+        assert_eq!(deserialized.create_time, db_meta.create_time);
+        assert_eq!(deserialized.ntables, db_meta.ntables);
+        assert_eq!(deserialized.retentions, db_meta.retentions);
+        assert_eq!(deserialized.ss_chunkpages, db_meta.ss_chunkpages);
+    }
+
+    // ============ DatabaseOptions tests ============
+
+    #[test]
+    fn test_database_options_serialization() {
+        let opts = DatabaseOptions {
+            vgroups: 4,
+            precision: "ms".to_string(),
+            replica: 1,
+            buffer: 256,
+            pages: 256,
+            pagesize: 4096,
+            cachemodel: "last_row".to_string(),
+            cachesize: 1,
+            comp: 2,
+            duration: "10d".to_string(),
+            maxrows: 4096,
+            minrows: 100,
+            keep: "30d".to_string(),
+            keep_time_offset: 0,
+            stt_trigger: 12,
+            single_stable: false,
+            table_prefix: 0,
+            table_suffix: 0,
+            tsdb_pagesize: 4096,
+            wal_level: 1,
+            wal_fsync_period: 3000,
+            wal_retention_period: 0,
+            wal_retention_size: 0,
+            compact_interval: "0".to_string(),
+            compact_time_range: "0".to_string(),
+            compact_time_offset: "0".to_string(),
+        };
+
+        let json = serde_json::to_string(&opts).unwrap();
+        let deserialized: DatabaseOptions = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.vgroups, opts.vgroups);
+        assert_eq!(deserialized.precision, opts.precision);
+        assert_eq!(deserialized.replica, opts.replica);
+        assert_eq!(deserialized.cachemodel, opts.cachemodel);
+    }
+
+    // ============ Integration tests ============
+
+    #[test]
+    fn test_schema_clone() {
+        let db_meta = DbMeta {
+            name: "test_db".to_string(),
+            create_time: 1000,
+            ntables: 10,
+            strict: "off".to_string(),
+            status: "ready".to_string(),
+            retentions: None,
+            ss_chunkpages: None,
+            ss_keeplocal: None,
+            ss_compact: None,
+            with_arbitrator: None,
+            encrypt_algorithm: None,
+            opts: None,
+        };
+
+        let schema1 = Schema {
+            db_meta,
+            metas: vec![],
+        };
+
+        let schema2 = schema1.clone();
+        assert_eq!(schema1.db_meta.name, schema2.db_meta.name);
+    }
+
+    #[test]
+    fn test_db_meta_debug() {
+        let db_meta = DbMeta {
+            name: "test_db".to_string(),
+            create_time: 1000,
+            ntables: 10,
+            strict: "off".to_string(),
+            status: "ready".to_string(),
+            retentions: None,
+            ss_chunkpages: None,
+            ss_keeplocal: None,
+            ss_compact: None,
+            with_arbitrator: None,
+            encrypt_algorithm: None,
+            opts: None,
+        };
+
+        let debug_str = format!("{:?}", db_meta);
+        assert!(debug_str.contains("test_db"));
+        assert!(debug_str.contains("DbMeta"));
+    }
+
+    // ============ Integration tests with real Taos (ignored by default) ============
+
     #[ignore]
     #[tokio::test]
     async fn test_fetch_database_meta() {

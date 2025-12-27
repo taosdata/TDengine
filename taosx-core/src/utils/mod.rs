@@ -530,6 +530,8 @@ pub async fn wait_for_upcoming(
 mod tests {
     use super::*;
     use chrono::Local;
+    use std::io::Write;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn test_parse_bytes() {
@@ -837,5 +839,55 @@ mod tests {
             "invalid compression level: abc",
             format!("{}", level.err().unwrap())
         );
+    }
+
+    #[test]
+    fn test_mask_dsn_and_value_equals() {
+        let dsn = "taos://user:pass@localhost:6030/db?param=1"
+            .into_dsn()
+            .unwrap();
+        let masked = mask_dsn(&dsn);
+        assert!(masked.username.is_none());
+        assert!(masked.password.is_none());
+        assert!(masked.params.is_empty());
+        assert_eq!(masked.driver, dsn.driver);
+        assert_eq!(masked.addresses, dsn.addresses);
+
+        assert!(value_equals(&Value::Int(5), &Value::Int(5)));
+        assert!(value_equals(
+            &Value::VarChar("abc".into()),
+            &Value::NChar("abc".into())
+        ));
+        assert!(!value_equals(&Value::Int(1), &Value::BigInt(1)));
+    }
+
+    #[test]
+    fn test_get_string_content_from_param_value() -> anyhow::Result<()> {
+        let mut tmp = NamedTempFile::new()?;
+        writeln!(tmp, "file_line")?;
+        let param = format!("@{},inline", tmp.path().display());
+        let file_first = get_string_content_from_param_value(&param, false, true)?;
+        assert_eq!(Some("file_line".to_string()), file_first);
+
+        let param_inline = "alpha,beta";
+        let inline_only = get_string_content_from_param_value(param_inline, true, true)?;
+        assert_eq!(Some("alpha".to_string()), inline_only);
+
+        let none = get_string_content_from_param_value("", true, true)?;
+        assert!(none.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn test_replace_date_placeholder_and_validate() {
+        let dt = DateTime::parse_from_rfc3339("2021-12-03T12:34:56+00:00").unwrap();
+        let replaced = replace_date_placeholder("path/${Y}/${m}/${d}".to_string(), dt);
+        assert_eq!("path/2021/12/03", replaced);
+
+        assert!(validate_table_column_name("col", "valid_name").is_ok());
+        assert!(validate_table_column_name("col", "has.dot").is_err());
+        assert!(validate_table_column_name("col", "has`backtick").is_err());
+        let long_name = "a".repeat(193);
+        assert!(validate_table_column_name("col", &long_name).is_err());
     }
 }

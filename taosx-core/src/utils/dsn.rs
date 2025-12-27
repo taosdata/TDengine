@@ -384,6 +384,12 @@ where
 mod tests {
     use crate::utils::dsn::dsn_to_json;
     use crate::utils::dsn::json_to_dsn;
+    use crate::utils::dsn::{
+        option_param, parse_multiple_dsn_value, parse_multiple_value, parse_option_param,
+        parse_simple_params,
+    };
+    use std::str::FromStr;
+    use taos::Dsn;
 
     /// test Value::String(json_string)
     #[test]
@@ -642,5 +648,65 @@ mod tests {
         assert_eq!(dsn.driver, "tmq");
         assert!(dsn.protocol.is_some_and(|s| s == "ws"));
         Ok(())
+    }
+
+    #[test]
+    fn test_option_param_and_parse_option_param() {
+        let dsn = Dsn::from_str("taos://?keep_raw_data=true&empty=").unwrap();
+        assert_eq!(option_param(&dsn, "keep_raw_data"), Some("true"));
+        assert!(option_param(&dsn, "empty").is_none());
+
+        let parsed = parse_option_param::<bool>(&dsn, "keep_raw_data").unwrap();
+        assert_eq!(parsed, Some(true));
+        let parsed_empty = parse_option_param::<bool>(&dsn, "empty").unwrap();
+        assert!(parsed_empty.is_none());
+    }
+
+    #[test]
+    fn test_parse_simple_params() {
+        let dsn = Dsn::from_str("taos://?timeout=10").unwrap();
+        assert_eq!(
+            parse_simple_params::<u32>(&dsn, "timeout").unwrap(),
+            Some(10)
+        );
+
+        let dsn = Dsn::from_str("taos://?timeout=").unwrap();
+        assert!(parse_simple_params::<u32>(&dsn, "timeout")
+            .unwrap()
+            .is_none());
+
+        let dsn = Dsn::from_str("taos://?timeout=abc").unwrap();
+        let err = parse_simple_params::<u32>(&dsn, "timeout").unwrap_err();
+        assert!(err.to_string().contains("invalid timeout"));
+    }
+
+    #[test]
+    fn test_parse_multiple_dsn_value() {
+        let values = parse_multiple_dsn_value::<u32>("numbers", "1, 2 ,3").unwrap();
+        assert_eq!(values, Some(vec![1, 2, 3]));
+
+        let values = parse_multiple_dsn_value::<u32>("numbers", "").unwrap();
+        assert!(values.is_none());
+
+        let err = parse_multiple_dsn_value::<u32>("numbers", "1,a").unwrap_err();
+        assert!(err.to_string().contains("invalid numbers"));
+    }
+
+    #[test]
+    fn test_parse_multiple_value() {
+        let dsn = Dsn::from_str("taos://?numbers=1,2,3").unwrap();
+        assert_eq!(
+            parse_multiple_value::<u32>(&dsn, "numbers").unwrap(),
+            Some(vec![1, 2, 3])
+        );
+
+        let dsn = Dsn::from_str("taos://").unwrap();
+        assert!(parse_multiple_value::<u32>(&dsn, "numbers")
+            .unwrap()
+            .is_none());
+
+        let dsn = Dsn::from_str("taos://?numbers=1,a").unwrap();
+        let err = parse_multiple_value::<u32>(&dsn, "numbers").unwrap_err();
+        assert!(err.to_string().contains("invalid numbers"));
     }
 }
