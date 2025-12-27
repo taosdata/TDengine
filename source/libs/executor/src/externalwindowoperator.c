@@ -2034,6 +2034,10 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
 
   if (pOperator->status == OP_EXEC_DONE) {
+    if (pTaskInfo->pStreamRuntimeInfo) {
+      extWinFreeResultRow(pExtW);
+    }
+
     *ppRes = NULL;
     return code;
   }
@@ -2060,7 +2064,6 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 #else
     TAOS_CHECK_EXIT(extWinAggOutputRes(pOperator, ppRes));
     setOperatorCompleted(pOperator);
-    extWinFreeResultRow(pExtW);
 #endif      
   }
 
