@@ -41,9 +41,4 @@
 /home/TDinternal/community/source/libs/executor/src/scanoperator.c
 /home/TDinternal/community/source/dnode/vnode/src/tsdb/tsdbUtil.c
 /home/TDinternal/community/source/common/src/msg/streamMsg.c
-/home/TDinternal/community/source/client/src/clientTmq.c
-/home/TDinternal/community/source/common/src/ttime.c
-/home/TDinternal/community/source/libs/nodes/src/nodesCloneFuncs.c
-/home/TDinternal/community/source/libs/executor/src/tsort.c
-
 
