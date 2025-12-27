@@ -38,8 +38,8 @@
 #include "ttime.h"
 #include "tversion.h"
 
-#include "cus_name.h"
 #include "clientSession.h"
+#include "cus_name.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0

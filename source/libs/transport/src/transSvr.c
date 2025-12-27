@@ -795,6 +795,9 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
   int8_t     forbiddenIp = 0;
   int8_t     timeForbiddenIp = 0;
 
+  if (pConn->isToken) {
+    return status;
+  }
   if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
     forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
     if (forbiddenIp == 0) {
@@ -818,17 +821,25 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
 
   return status;
 }
+static void uvSetConnInfo(SSvrConn* pConn, SRpcConnInfo* pInfo) {
+  pInfo->cliAddr = pConn->clientIp;
 
+  if (pConn->isToken) {
+    tstrncpy(pInfo->identifier, pConn->identifier, sizeof(pInfo->identifier));
+    pInfo->isToken = 1;
+  } else {
+    tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
+    pInfo->isToken = 0;
+  }
+}
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
-  int32_t        code = 0;
-  int8_t         acquire = 0;
+   
   STransMsgHead* pHead = NULL;
-
   int8_t resetBuf = 0;
   int32_t msgLen = 0;
-  code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
+  int32_t code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
   if (code != 0) {
     tError("%s conn:%p, read invalid packet since %s", transLabel(pInst), pConn, tstrerror(code));
     return false;
@@ -860,16 +871,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
   pConn->inType = pHead->msgType;
 
   int8_t forbiddenIp = uvCheckConn(pConn);
-  // int8_t forbiddenIp = 0;
-  // int8_t timeForbiddenIp = 0;
-  // if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
-  //   forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
-  //   if (forbiddenIp == 0) {
-  //     uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
-  //   }
-  // }
-
-  // timeForbiddenIp = uvDataTimeWhiteListCheckConn(pThrd->pDataTimeWhiteList, pConn);
 
   if (uvMayHandleReleaseReq(pConn, pHead)) {
     return true;
@@ -906,17 +907,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   uvPerfLog_receive(pConn, pHead, &transMsg);
 
   // set up conn info
-  SRpcConnInfo* pConnInfo = &(transMsg.info.conn);
-  pConnInfo->cliAddr = pConn->clientIp;
-  // pConnInfo->clientPort = pConn->port;
-  tstrncpy(pConnInfo->user, pConn->user, sizeof(pConnInfo->user));
-
-  if (pConn->isToken) {
-    tstrncpy(pConnInfo->identifier, pConn->identifier, sizeof(pConnInfo->identifier));
-    pConnInfo->isToken = 1;
-  } else {
-    pConnInfo->isToken = 0;
-  }
+  uvSetConnInfo(pConn, &(transMsg.info.conn));
 
   transReleaseExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
 
@@ -1059,6 +1050,7 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   } else {
     tError("%s conn:%p, read error since %s, received from %s, local info:%s", transLabel(pInst), conn,
            uv_err_name(nread), conn->dst, conn->src);
+    conn->broken = true;
     transUnrefSrvHandle(conn);
     return;
   }
