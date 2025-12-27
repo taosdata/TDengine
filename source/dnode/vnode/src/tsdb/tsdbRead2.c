@@ -3993,7 +3993,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   code = getTableBlockScanInfo(pReader->status.pTableMap, pBlockInfo->uid, &pScanInfo, pReader->idStr);
   TSDB_CHECK_CODE(code, lino, _end);
 
-  if (pScanInfo->sttKeyInfo.status == STT_FILE_READER_UNINIT || pSttBlockReader->uid != pScanInfo->uid) {
+  if ((pScanInfo->sttKeyInfo.status == STT_FILE_READER_UNINIT) || (pSttBlockReader->uid != pScanInfo->uid)) {
     initSttBlockReader(pSttBlockReader, pScanInfo, pReader);
     code = pReader->code;
     TSDB_CHECK_CODE(code, lino, _end);
