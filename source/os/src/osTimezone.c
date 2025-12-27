@@ -992,7 +992,6 @@ int32_t initTimezoneInfo(void) {
   g_tz_slots[0].tz = tz;
   g_tz_slots[0].gen = 0;
 
-  atomic_store_64((int64_t *)&g_tz_gen, 0);
   atomic_store_32((int32_t *)&g_tz_idx, 0);
 
   uInfo("[tz]timezone initTimezoneInfo.");
