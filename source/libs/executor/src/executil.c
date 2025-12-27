@@ -4345,6 +4345,7 @@ int32_t fetchRemoteValueImpl(STaskSubJobCtx* ctx, int32_t subQIdx, SRemoteValueN
     qError("task has been killed, error:%s", tstrerror(ctx->code));
     taosMemoryFree(param);
     code = ctx->code;
+    taosWUnLockLatch(&ctx->lock);
     goto _end;
   } else {
     ctx->param = param;
