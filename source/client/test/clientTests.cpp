@@ -309,6 +309,7 @@ void* doConsumeData(void* param) {
 
 }  // namespace
 
+void testSessionCtrl();
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   if (argc > 1) {
@@ -329,6 +330,7 @@ TEST(clientCase, driverInit_Test) {
   // taosInitGlobalCfg();
   //  taos_init();
 }
+TEST(clientCase, sessControl) { testSessionCtrl(); }
 
 TEST(clientCase, connect_Test) {
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
@@ -2011,7 +2013,7 @@ void testSessionMaxVnodeCall() {
   sprintf(sql, "alter user root CALL_PER_SESSION 2");
   pRes = taos_query(pConn, sql);
 
-  taosMsleep(6000);
+  taosMsleep(4000);
   ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
@@ -2035,10 +2037,10 @@ void testSessionConncurentCall() {
 
   sprintf(sql, "alter user root VNODE_PER_CALL 2");
   pRes = taos_query(pConn, sql);
-  ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
-  taosMsleep(6000);
+  taosMsleep(4000);
 
   sprintf(sql, "select * from %s.%s", db, stb);
   pRes = taos_query(pConn, sql);
@@ -2047,12 +2049,13 @@ void testSessionConncurentCall() {
 
   taos_close(pConn);
 }
-TEST(clientCase, sessControl) {
+
+void testSessionCtrl() {
   testSessionPerUser();
   testSessionConnTime();
   testSessionConnIdleTime();
-  testSessionMaxVnodeCall();
   testSessionConncurentCall();
+  testSessionMaxVnodeCall();
 }
 
 #pragma GCC diagnostic pop
