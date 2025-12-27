@@ -333,9 +333,9 @@ function setup_env() {
     fi
     
     # Create necessary directories for non-root user
-    mkdir -p "$bin_link_dir" "$lib_link_dir" "$inc_link_dir" 2>/dev/null || :
+    mkdir -p "$bin_link_dir" "$lib_link_dir" "$inc_link_dir" 2>/dev/null
     if [ "$osType" != "Darwin" ]; then
-      mkdir -p "$lib64_link_dir" "$service_config_dir" 2>/dev/null || :
+      mkdir -p "$lib64_link_dir" "$service_config_dir" 2>/dev/null
     fi
   fi
   bin_dir="${installDir}/bin"
@@ -396,9 +396,9 @@ function install_services() {
 }
 
 function kill_process() {
-  pid=$(ps -ef | grep "$1" | grep -v "grep" | awk '{print $2}')
+  pid=$(pgrep -x  "$1")
   if [ -n "$pid" ]; then
-    kill -9 $pid || :
+    kill -9 "$pid" || :
   fi
 }
 
@@ -445,17 +445,17 @@ function install_bin() {
     cp -r ${script_dir}/bin/${clientName} ${install_main_dir}/bin
     cp -r ${script_dir}/bin/${benchmarkName} ${install_main_dir}/bin
     cp -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
-    cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin || :
-    cp -r ${script_dir}/bin/${taosgen_name} ${install_main_dir}/bin || :
+    cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin
+    cp -r ${script_dir}/bin/${taosgen_name} ${install_main_dir}/bin
     cp -r ${script_dir}/bin/${remove_name} ${install_main_dir}/bin
   else
-    cp -r "${script_dir}/bin/*" "${install_main_dir}/bin"
+    cp -r "${script_dir}/bin/"* "${install_main_dir}/bin"
     if [ "${pkgMode}" != "lite" ]; then
       sed -i.bak \
         -e "s|/usr/local/${PREFIX}|${install_main_dir}|g" \
         -e "s|/etc/${PREFIX}|${configDir}|g" \
-        ${script_dir}/bin/start-all.sh || :
-      rm -f ${script_dir}/bin/start-all.sh.bak || :
+        ${script_dir}/start-all.sh
+      rm -f ${script_dir}/start-all.sh.bak
       cp ${script_dir}/start-all.sh ${install_main_dir}/bin
       cp ${script_dir}/stop-all.sh ${install_main_dir}/bin
     fi
@@ -549,19 +549,19 @@ function install_lib() {
   # Link libraries based on OS type
   if [ "$osType" != "Darwin" ]; then
     # Linux specific linking
-    ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.so.1
-    ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
-    ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
-    ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
+    ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.so.3
+    ln -sf ${lib_link_dir}/libtaos.so.3 ${lib_link_dir}/libtaos.so
+    ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.so.3
+    ln -sf ${lib_link_dir}/libtaosnative.so.3 ${lib_link_dir}/libtaosnative.so
 
-    ln -sf ${driver_path}/libtaosws.so.* ${lib_link_dir}/libtaosws.so || :
+    ln -sf ${driver_path}/libtaosws.so.* ${lib_link_dir}/libtaosws.so
 
     # Link lib64 if it exists
     if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
-      ln -sf ${driver_path}/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
-      ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
-      ln -sf ${driver_path}/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1 || :
-      ln -sf ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so || :
+      ln -sf ${driver_path}/libtaos.* ${lib64_link_dir}/libtaos.so.3 || :
+      ln -sf ${lib64_link_dir}/libtaos.so.3 ${lib64_link_dir}/libtaos.so || :
+      ln -sf ${driver_path}/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.3 || :
+      ln -sf ${lib64_link_dir}/libtaosnative.so.3 ${lib64_link_dir}/libtaosnative.so || :
 
       ln -sf ${driver_path}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
     fi
@@ -572,10 +572,10 @@ function install_lib() {
     fi
   else
     # macOS specific linking
-    ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.1.dylib
-    ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
-    ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.1.dylib
-    ln -sf ${lib_link_dir}/libtaosnative.1.dylib ${lib_link_dir}/libtaosnative.dylib
+    ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.3.dylib
+    ln -sf ${lib_link_dir}/libtaos.3.dylib ${lib_link_dir}/libtaos.dylib
+    ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.3.dylib
+    ln -sf ${lib_link_dir}/libtaosnative.3.dylib ${lib_link_dir}/libtaosnative.dylib
 
     for f in ${driver_path}/libtaosws.dylib.*; do
       [ -f "$f" ] && ln -sf "$f" "${lib_link_dir}/libtaosws.dylib"
@@ -675,9 +675,9 @@ function install_jemalloc() {
 }
 
 function install_header() {
-  rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
+  rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h
 
-  [ -f ${inc_link_dir}/taosws.h ] && rm -f ${inc_link_dir}/taosws.h || :
+  [ -f ${inc_link_dir}/taosws.h ] && rm -f ${inc_link_dir}/taosws.h
 
   cp -f ${script_dir}/inc/* ${install_main_dir}/include && chmod 644 ${install_main_dir}/include/*
   ln -sf ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
@@ -686,7 +686,7 @@ function install_header() {
   ln -sf ${install_main_dir}/include/tdef.h ${inc_link_dir}/tdef.h
   ln -sf ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h
 
-  [ -f ${install_main_dir}/include/taosws.h ] && ln -sf ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h || :
+  [ -f ${install_main_dir}/include/taosws.h ] && ln -sf ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h
 }
 
 function add_newHostname_to_hosts() {
@@ -725,7 +725,7 @@ function set_hostname() {
     fi
   done
 
-  # hostname $newHostname || :
+  # hostname $newHostname
   # retval=$(echo $?)
   # if [[ $retval != 0 ]]; then
   #   echo
@@ -735,12 +735,12 @@ function set_hostname() {
 
   # #ubuntu/centos /etc/hostname
   # if [[ -e /etc/hostname ]]; then
-  #   echo $newHostname >/etc/hostname || :
+  #   echo $newHostname >/etc/hostname
   # fi
 
   # #debian: #HOSTNAME=yourname
   # if [[ -e /etc/sysconfig/network ]]; then
-  #   sed -i -r "s/#*\s*(HOSTNAME=\s*).*/\1$newHostname/" /etc/sysconfig/network || :
+  #   sed -i -r "s/#*\s*(HOSTNAME=\s*).*/\1$newHostname/" /etc/sysconfig/network
   # fi
 
   if [ -f ${configDir}/${configFile} ]; then

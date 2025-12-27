@@ -13,6 +13,21 @@ echo -e "${script_dir}"
 
 custom_dir_set=0
 all_venv=0
+
+show_help() {
+  echo "Usage: $(basename $0) -d [install dir] -a"
+  echo
+  echo "Help:"
+  echo "  -d [install dir]   Specify installation directory"
+  echo "  -a                 Install all model virtual environments"
+  echo
+  echo "Environment variables for pip mirror (optional):"
+  echo "  PIP_INDEX_URL  Set pip index mirror, e.g. https://pypi.tuna.tsinghua.edu.cn/simple"
+  echo
+  echo "Example:"
+  echo "  PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple bash $0"
+}
+
 while getopts "hd:a" arg; do
   case $arg in
     d)
@@ -23,7 +38,7 @@ while getopts "hd:a" arg; do
       all_venv=1
       ;;
     h)
-      echo "Usage: $(basename $0) -d [install dir] -a"
+      show_help
       exit 0
       ;;
     ?)
@@ -67,6 +82,14 @@ else
   venvDir="${dataDir}/venv"
 fi
 
+# get pip mirror and index url from env
+PIP_INDEX_URL="${PIP_INDEX_URL:-}"
+
+# build pip extra args
+pip_extra_args=()
+if [ -n "$PIP_INDEX_URL" ]; then
+  pip_extra_args+=(-i "$PIP_INDEX_URL")
+fi
 
 #install main path
 install_main_dir=${installDir}
@@ -185,7 +208,7 @@ function kill_model_service() {
 
 function install_main_path() {
   # only delete non-data/log/cfg files
-  if [ ! -z "${install_main_dir}" ]; then
+  if [ -d "${install_main_dir}" ]; then
     find "${install_main_dir}" -mindepth 1 -maxdepth 1 \
       ! -name 'data' ! -name 'log' ! -name 'cfg' \
       -exec ${csudo}rm -rf {} +
@@ -339,7 +362,7 @@ function install_anode_venv() {
     source ${venvDir}/bin/activate
     # Install default virtualenv dependencies; requirements_ess.txt pins transformers==4.40.0
     echo -e "install the required packages by pip3, this may take a while depending on the network condition"
-    ${csudo}${venvDir}/bin/pip3 install -r ${script_dir}/requirements_ess.txt
+   ${csudo}${venvDir}/bin/pip3 install -r "${script_dir}/requirements_ess.txt" "${pip_extra_args[@]}"
 
     echo -e "Install python library for venv completed!"
   else
@@ -357,7 +380,7 @@ function install_extra_venvs() {
   echo "Activating timesfm venv and installing dependencies..."
   source "${timesfm_venv_dir}/bin/activate"
   "${timesfm_venv_dir}/bin/pip3" install torch==2.3.1+cpu jax timesfm flask==3.0.3 \
-      -f https://download.pytorch.org/whl/torch_stable.html
+      -f https://download.pytorch.org/whl/torch_stable.html "${pip_extra_args[@]}"
   deactivate
 
   echo -e "${GREEN}Creating moirai venv at ${moirai_venv_dir}${NC}"
@@ -369,7 +392,7 @@ function install_extra_venvs() {
   echo "Activating moirai venv and installing dependencies..."
   source "${moirai_venv_dir}/bin/activate"
   "${moirai_venv_dir}/bin/pip3" install torch==2.3.1+cpu uni2ts flask \
-   -f https://download.pytorch.org/whl/torch_stable.html
+   -f https://download.pytorch.org/whl/torch_stable.html "${pip_extra_args[@]}"
   deactivate
 
   echo -e "${GREEN}Creating chronos venv at ${chronos_venv_dir}${NC}"
@@ -381,7 +404,7 @@ function install_extra_venvs() {
   echo "Activating chronos venv and installing dependencies..."
   source "${chronos_venv_dir}/bin/activate"
   "${chronos_venv_dir}/bin/pip3" install --upgrade torch==2.3.1+cpu chronos-forecasting flask \
-    -f https://download.pytorch.org/whl/torch_stable.html
+    -f https://download.pytorch.org/whl/torch_stable.html  "${pip_extra_args[@]}"
   deactivate
 
   echo -e "${GREEN}Creating momentfm venv at ${momentfm_venv_dir}${NC}"
@@ -394,7 +417,7 @@ function install_extra_venvs() {
   source "${momentfm_venv_dir}/bin/activate"
   "${momentfm_venv_dir}/bin/pip3" install --upgrade torch==2.3.1+cpu transformers==4.33.3 numpy==1.25.2 \
     matplotlib pandas==1.5 scikit-learn flask==3.0.3 momentfm \
-    -f https://download.pytorch.org/whl/torch_stable.html
+    -f https://download.pytorch.org/whl/torch_stable.html "${pip_extra_args[@]}"
   deactivate
 
   echo -e "${GREEN}All extra venvs created and dependencies installed.${NC}"

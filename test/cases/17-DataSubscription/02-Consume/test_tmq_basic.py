@@ -6,6 +6,7 @@ import socket
 import os
 import threading
 import platform
+from taos.tmq import Consumer
 
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
 from new_test_framework.utils.sqlset import TDSetSql
@@ -613,6 +614,29 @@ class TestBasic5:
                 tdSql.error(f'create topic tpn as select percentile({column},1) from {stbname}_tb1')
         pass
 
+    def tmq_connection(self):
+        tdSql.execute(f'create database if not exists db_conn vgroups 1')
+        tdSql.execute(f'use db_conn')
+        tdSql.execute(f'CREATE STABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)')
+        tdSql.execute("INSERT INTO d1001 USING meters TAGS('California.SanFrancisco1', 2) VALUES('2018-10-05 14:38:05.000',10.30000,219,0.31000)")
+
+
+        tdSql.execute(f'create topic t0 as select * from meters')
+
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer = Consumer(consumer_dict)
+        tdSql.query("show connections")
+        tdSql.checkRows(2)
+        time.sleep(10)
+        tdSql.query("show connections")
+        tdSql.checkRows(2)
+
+        consumer.close()
     #
     # ------------------- main ----------------
     #
@@ -639,4 +663,5 @@ class TestBasic5:
 
         """
         self.do_basic5()
+        self.tmq_connection()
         self.do_wrong_topic()
