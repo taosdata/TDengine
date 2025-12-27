@@ -1156,9 +1156,12 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
   if (pSource->localExec) {
     SDataBuf pBuf = {0};
-    int32_t  code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId, pTaskInfo->id.queryId,
-                                               pSource->clientId, pSource->taskId, 0, pSource->execId, &pBuf.pData,
-                                               pTaskInfo->localFetch.explainRes);
+    int32_t  code =
+      (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId,
+                                  pTaskInfo->id.queryId, pSource->clientId,
+                                  pSource->taskId, 0, pSource->execId,
+                                  &pBuf.pData,
+                                  pTaskInfo->localFetch.explainRes);
     code = loadRemoteDataCallback(pWrapper, &pBuf, code);
     taosMemoryFree(pWrapper);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2143,4 +2146,92 @@ static int32_t exchangeWait(SOperatorInfo* pOperator, SExchangeInfo* pExchangeIn
     }
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t notifyReaderStepDoneForSource(SExchangeInfo* pExchangeInfo,
+                                             SExecTaskInfo* pTaskInfo,
+                                             SDownstreamSourceNode* pSource,
+                                             int32_t sourceIdx,
+                                             int64_t notifyTs) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t         lino = 0;
+  SOperatorParam* pNotifyParam = NULL;
+  void*           msg          = NULL;
+
+  // TODO: optimize localExec
+  code = buildOperatorStepDoneNotifyParam(&pNotifyParam, 
+                                          QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+                                          notifyTs);
+  QUERY_CHECK_NULL(pNotifyParam, code, lino, _end, terrno);
+
+  STaskNotifyReq req = {0};
+  req.header.vgId    = pSource->addr.nodeId;
+  req.sId            = pSource->sId;
+  req.queryId        = pTaskInfo->id.queryId;
+  req.clientId       = pSource->clientId;
+  req.taskId         = pSource->taskId;
+  req.execId         = pSource->execId;
+  req.refId          = 0;
+  req.type           = TASK_NOTIFY_STEP_DONE;
+  req.pOpParam       = pNotifyParam;
+
+  int32_t msgSize = tSerializeSTaskNotifyReq(NULL, 0, &req);
+  if (msgSize < 0) {
+    code = msgSize;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  msg = rpcMallocCont(msgSize);
+  QUERY_CHECK_NULL(msg, code, lino, _end, terrno);
+
+  msgSize = tSerializeSTaskNotifyReq(msg, msgSize, &req);
+  if (msgSize < 0) {
+    code = msgSize;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  SRpcMsg rpcMsg = {
+    .pCont = msg,
+    .contLen = msgSize,
+    .msgType = TDMT_SCH_TASK_NOTIFY,
+    .info.ahandle = 0,
+    .info.notFreeAhandle = 1,
+    .info.refId = 0,
+    .info.handle = 0,
+    .info.noResp = 1,  /* notifyMsg has no response */
+  };
+  code = rpcSendRequest(pExchangeInfo->pTransporter, &pSource->addr.epSet,
+                        &rpcMsg, NULL);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  qDebug("%s notify msg sent to source %d (vgId:%d, taskId:0x%" PRIx64
+         ", execId:%d)", GET_TASKID(pTaskInfo), sourceIdx, pSource->addr.nodeId,
+         pSource->taskId, pSource->execId);
+
+_end:
+  freeOperatorParam(pNotifyParam, OP_NOTIFY_PARAM);
+  return code;
+}
+
+int32_t exchangeOptrNotifyReaderStepDone(struct SOperatorInfo* pOperator,
+                                         SOperatorParam* param) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SExchangeInfo* pExchangeInfo = pOperator->info;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+
+  if (pExchangeInfo == NULL || pExchangeInfo->pSources == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
+  for (int32_t i = 0; i < totalSources; ++i) {
+    SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, i);
+    if (NULL != pSource) {
+      code = notifyReaderStepDoneForSource(pExchangeInfo, pTaskInfo, pSource, i,
+                                           *(int64_t*)param->value);
+    }
+  }
+
+  return code;
 }

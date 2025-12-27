@@ -974,7 +974,7 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     if (isTaskKilled(pTaskInfo)) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->base.dataReader);
       code = pTaskInfo->code;
-      goto _end;
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (pOperator->status == OP_EXEC_DONE) {
@@ -2434,8 +2434,12 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
 
   pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScanNext, NULL, destroyTableScanOperatorInfo,
-                                         optrDefaultBufFn, getTableScannerExecInfo, optrDefaultGetNextExtFn, NULL);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScanNext, NULL,
+                                         destroyTableScanOperatorInfo,
+                                         optrDefaultBufFn,
+                                         getTableScannerExecInfo,
+                                         optrDefaultGetNextExtFn,
+                                         scanOptrNotifyReaderStepDone);
 
   setOperatorResetStateFn(pOperator, resetTableScanOperatorState); 
   // for non-blocking operator, the open cost is always 0
@@ -5860,4 +5864,22 @@ static void destoryTableCountScanOperator(void* param) {
 
   taosArrayDestroy(pTableCountScanInfo->stbUidList);
   taosMemoryFreeClear(param);
+}
+
+int32_t scanOptrNotifyReaderStepDone(struct SOperatorInfo* pOptr,
+                                     SOperatorParam* param) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (param == NULL || param->value == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int64_t notifyTs = *(int64_t*)param->value;
+  STableScanInfo* pTableScanInfo = (STableScanInfo*)pOptr->info;
+  TsdReader* pAPI = &pOptr->pTaskInfo->storageAPI.tsdReader;
+  code = pAPI->tsdReaderStepDone(pTableScanInfo->base.dataReader, notifyTs);
+  
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed to notify reader step done, since:%s", 
+           GET_TASKID(pOptr->pTaskInfo), tstrerror(code));
+  }
+  return code;
 }

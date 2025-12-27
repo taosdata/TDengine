@@ -993,6 +993,28 @@ void resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
 
 int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
 
+/*
+  @brief the scan operator's reader that current step is done
+*/
+int32_t scanOptrNotifyReaderStepDone(struct SOperatorInfo* pOptr,
+                                     SOperatorParam* param);
+
+/*
+  @brief notify the exchange operator to send the step done message
+    to downstream
+*/
+int32_t exchangeOptrNotifyReaderStepDone(struct SOperatorInfo* pOptr,
+                                         SOperatorParam* param);
+
+/*
+  @brief build the step done notify parameter
+  @param ppRes the pointer to the notify parameter
+  @param opType the type of the operator
+  @param ts the timestamp to notify
+*/
+int32_t buildOperatorStepDoneNotifyParam(SOperatorParam** ppRes,
+                                         int32_t opType, int64_t ts);
+
 #ifdef __cplusplus
 }
 #endif
