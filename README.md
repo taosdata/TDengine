@@ -15,6 +15,7 @@
 - [9. CI/CD](#9-cicd)
 - [10. Coverage](#10-coverage)
 - [11. Contributing](#11-contributing)
+- [12. Documentation](#12-documentation)
 
 ## 1. Introduction
 
@@ -330,3 +331,14 @@ Contributions are welcome! Please follow these steps:
 - Submit a Pull Request.
 
 For detailed contribution guidelines, please refer to [CONTRIBUTING.md](https://github.com/taosdata/taosx/blob/main/CONTRIBUTING.md).
+
+## 12. Documentation
+
+For developers:
+- [Development Documentation](docs/dev/README.md) - Development guides and technical documentation
+- **Test Architecture**:
+  - [Phase 1 Completion Report](docs/dev/PHASE_1_COMPLETION_REPORT.md) - Phase 1 implementation status and results ✅
+  - [Test Refactoring Summary](docs/dev/TEST_REFACTORING_SUMMARY.md) - Project overview and timeline
+  - [Technical Design Plan](docs/dev/TEST_REFACTORING_PLAN.md) - Complete architecture design
+  - [Quick Start Guide](docs/dev/TEST_QUICKSTART.md) - Common commands and development scenarios
+  - [Kafka Migration Example](docs/dev/TEST_MIGRATION_EXAMPLE.md) - Reference implementation

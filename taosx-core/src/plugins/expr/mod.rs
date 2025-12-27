@@ -520,6 +520,46 @@ mod tests {
         assert_eq!(values.as_boolean().iter().collect_vec(), [Some(true)]);
     }
 
+    #[test]
+    fn test_array_from_rhai_dynamics_all_unit() {
+        let values: Vec<Dynamic> = vec![Dynamic::UNIT, Dynamic::UNIT];
+        let result = super::array_from_rhai_dynamics(values);
+        assert!(result.is_none(), "unit-only vector should produce None");
+    }
+
+    #[test]
+    fn test_array_from_rhai_dynamics_mixed_units_strings() {
+        let values: Vec<Dynamic> = vec![
+            Dynamic::UNIT,
+            Dynamic::from("hello"),
+            Dynamic::UNIT,
+            Dynamic::from("world"),
+        ];
+        let result = super::array_from_rhai_dynamics(values).unwrap();
+        let array = result
+            .as_any()
+            .downcast_ref::<arrow::array::StringArray>()
+            .unwrap();
+        assert_eq!(
+            array.iter().collect_vec(),
+            vec![None, Some("hello"), None, Some("world")]
+        );
+    }
+
+    #[test]
+    fn test_array_from_rhai_dynamics_empty() {
+        let values: Vec<Dynamic> = vec![];
+        let result = super::array_from_rhai_dynamics(values);
+        assert!(result.is_none(), "empty vector should produce None");
+    }
+
+    #[test]
+    fn test_array_from_rhai_dynamics_unsupported_type() {
+        let values: Vec<Dynamic> = vec![Dynamic::from(rhai::Map::new())];
+        let result = super::array_from_rhai_dynamics(values);
+        assert!(result.is_none(), "unsupported type should produce None");
+    }
+
     fn get_time_str(n: i64) -> String {
         let dt = chrono::Utc::now() + chrono::Duration::seconds(n);
         dt.to_rfc3339()
@@ -655,6 +695,51 @@ mod tests {
         let expr = BooleanExpr::try_new("!a".to_string()).unwrap();
         let values = expr.eval(&batch).unwrap();
         assert_eq!(values, [false, true, false, true]);
+    }
+
+    #[test]
+    fn test_binary_column_is_exposed_as_string() {
+        let a = BinaryArray::from(vec![Some(b"hello" as &[u8]), Some(b"world")]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let expr = Expr::try_new("a", true).unwrap();
+        let values = expr.eval_as(&batch, DataType::Utf8).unwrap();
+        assert_eq!(
+            values.as_string::<i32>().iter().collect_vec(),
+            [Some("hello"), Some("world")]
+        );
+    }
+
+    #[test]
+    fn test_eval_error_when_null_if_error_is_false() {
+        let a = Int32Array::from(vec![1, 2]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let expr = Expr::try_new("missing + 1", false).unwrap();
+        let err = expr.eval(&batch, None).unwrap_err();
+        assert!(matches!(err, EvalError::RhaiError(_, _)));
+    }
+
+    #[test]
+    fn test_invalid_result_when_all_unit_and_no_null_if_error() {
+        let a = Int32Array::from(vec![1, 2]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let expr = Expr::try_new("if a > 0 { () } else { () }", false).unwrap();
+        let err = expr.eval(&batch, None).unwrap_err();
+        assert!(matches!(err, EvalError::InvalidResult));
+    }
+
+    #[test]
+    fn test_null_if_error_returns_null_array() {
+        let a = Int32Array::from(vec![1, 2]);
+        let batch = RecordBatch::try_from_iter(vec![("a", Arc::new(a) as ArrayRef)]).unwrap();
+
+        let expr = Expr::try_new("missing + 1", true).unwrap();
+        let arr = expr.eval(&batch, Some(DataType::Int64)).unwrap();
+        assert_eq!(arr.len(), 2);
+        assert!(arr.is_null(0));
+        assert!(arr.is_null(1));
     }
 
     #[test]
@@ -794,6 +879,18 @@ mod tests {
         let expr = Expr::try_new("a + 10", true).unwrap();
         let values = expr.eval_inner(&batch).unwrap();
         assert_eq!(values.len(), 0);
+    }
+
+    #[test]
+    fn test_eval_as_empty_batch_returns_empty_array() {
+        let empty_array: Int32Array = Int32Array::from(vec![] as Vec<Option<i32>>);
+        let batch =
+            RecordBatch::try_from_iter(vec![("a", Arc::new(empty_array) as ArrayRef)]).unwrap();
+
+        let expr = Expr::try_new("a", true).unwrap();
+        let array = expr.eval_as(&batch, DataType::Int32).unwrap();
+        assert_eq!(array.len(), 0);
+        assert_eq!(array.data_type(), &DataType::Int32);
     }
 
     #[test]

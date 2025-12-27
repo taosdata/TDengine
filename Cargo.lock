@@ -8657,6 +8657,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "serial_test"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b258109f244e1d6891bf1053a55d63a5cd4f8f4c30cf9a1280989f80e7a1fa9"
+dependencies = [
+ "futures",
+ "log",
+ "once_cell",
+ "parking_lot 0.12.4",
+ "scc",
+ "serial_test_derive",
+]
+
+[[package]]
+name = "serial_test_derive"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d69265a08751de7844521fd15003ae0a888e035773ba05695c5c759a6f89eef"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.104",
+]
+
+[[package]]
 name = "sha1"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9905,6 +9930,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "serial_test",
  "sha1",
  "sha2",
  "shadow-rs 0.38.1",
@@ -10347,6 +10373,22 @@ dependencies = [
  "winapi",
  "zerocopy",
  "zstd 0.13.3",
+]
+
+[[package]]
+name = "taosx-integration-tests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "taos",
+ "taosx-core",
+ "taosx-task",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

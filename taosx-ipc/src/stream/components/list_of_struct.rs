@@ -478,6 +478,7 @@ impl ListOfStructBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::array::Array;
     use arrow::datatypes::DataType;
 
     #[test]
@@ -514,6 +515,87 @@ mod tests {
         let array = builder.finish();
         // assert!(array.value_length(0) == 2);
         dbg!(&array);
+        Ok(())
+    }
+
+    #[test]
+    fn append_more_types_and_finish_empty() -> anyhow::Result<()> {
+        let fields = vec![
+            Field::new("b", DataType::Boolean, true),
+            Field::new("i", DataType::Int32, true),
+            Field::new(
+                "ts_ns",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                true,
+            ),
+            Field::new("s", DataType::Utf8, true),
+            Field::new("bin", DataType::Binary, true),
+        ];
+        let mut builder = ListOfStructBuilder::new(fields, 2);
+
+        // First row with explicit values
+        builder
+            .append(&true as &dyn Any)?
+            .append(&7i32 as &dyn Any)?
+            .append(&(999_999i64) as &dyn Any)?
+            .append(&"hi" as &dyn Any)?
+            .append(&"bb".to_string() as &dyn Any)?;
+
+        // Close current row and create another row with nulls
+        builder.fill_nulls_to_end();
+        builder.append_null_row();
+
+        let list = builder.finish();
+        assert_eq!(list.len(), 1);
+
+        // Empty builder should still finish with one element
+        let fields2 = vec![Field::new("v", DataType::Utf8, true)];
+        let mut builder2 = ListOfStructBuilder::new(fields2, 1);
+        let list2 = builder2.finish();
+        assert_eq!(list2.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn fill_nulls_and_append_null_row() {
+        // Validate null handling paths
+        let fields = vec![
+            Field::new("u8", DataType::UInt8, true),
+            Field::new("f64", DataType::Float64, true),
+            Field::new(
+                "ts_ms",
+                DataType::Timestamp(TimeUnit::Millisecond, None),
+                true,
+            ),
+            Field::new("s", DataType::Utf8, true),
+        ];
+        let mut builder = ListOfStructBuilder::new(fields, 2);
+        builder.append_null_row().fill_nulls_to_end();
+        let list = builder.finish();
+        assert_eq!(list.len(), 1);
+    }
+
+    #[test]
+    fn append_timestamps_and_numbers() -> anyhow::Result<()> {
+        // Cover timestamp microsecond/second and numeric types
+        let fields = vec![
+            Field::new(
+                "ts_us",
+                DataType::Timestamp(TimeUnit::Microsecond, None),
+                true,
+            ),
+            Field::new("ts_s", DataType::Timestamp(TimeUnit::Second, None), true),
+            Field::new("u16", DataType::UInt16, true),
+            Field::new("f64", DataType::Float64, true),
+        ];
+        let mut builder = ListOfStructBuilder::new(fields, 2);
+        builder
+            .append(&(123_456i64) as &dyn Any)?
+            .append(&(789i64) as &dyn Any)?
+            .append(&(42u16) as &dyn Any)?
+            .append(&(std::f64::consts::PI) as &dyn Any)?;
+        let list = builder.finish();
+        assert_eq!(list.len(), 1);
         Ok(())
     }
 }

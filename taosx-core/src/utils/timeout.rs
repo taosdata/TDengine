@@ -79,10 +79,15 @@ impl Timeout {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
     use taos::IntoDsn;
+
+    static TEST_GUARD: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_timeout() {
+        let _guard = TEST_GUARD.lock().unwrap();
+        Timeout::set_default_timeout(Some(35));
         let timeout = Timeout::get(TimeoutType::Default);
         assert_eq!(timeout, 35);
 
@@ -106,6 +111,35 @@ mod tests {
         let timeout = Timeout::get(TimeoutType::ValidateDataSource(
             "avevaHistorian://".into_dsn().unwrap(),
         ));
+        assert_eq!(timeout, 35);
+
+        Timeout::set_default_timeout(Some(35));
+    }
+
+    #[test]
+    fn test_set_default_timeout_override() {
+        let _guard = TEST_GUARD.lock().unwrap();
+        Timeout::set_default_timeout(Some(35));
+
+        Timeout::set_default_timeout(Some(50));
+        let timeout = Timeout::get(TimeoutType::Default);
+        assert_eq!(timeout, 50);
+
+        let timeout = Timeout::get(TimeoutType::ValidateDataSource(
+            "mysql://".into_dsn().unwrap(),
+        ));
+        assert_eq!(timeout, 50);
+
+        Timeout::set_default_timeout(Some(35));
+    }
+
+    #[test]
+    fn test_set_default_timeout_none_noop() {
+        let _guard = TEST_GUARD.lock().unwrap();
+        Timeout::set_default_timeout(Some(35));
+
+        Timeout::set_default_timeout(None);
+        let timeout = Timeout::get(TimeoutType::Default);
         assert_eq!(timeout, 35);
     }
 }

@@ -106,4 +106,36 @@ mod tests {
             json
         );
     }
+
+    #[test]
+    fn test_valid_invalid_unknown_and_support_paths() {
+        // valid + supported
+        let v_ok = DataSourceValidation::valid("kafka", Some("1.2".to_string()));
+        assert!(v_ok.ok().is_ok());
+
+        // invalid
+        let v_bad = DataSourceValidation::invalid("kafka", "bad config".to_string());
+        let err = v_bad.ok().unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("invalid since bad config"));
+
+        // unknown
+        let v_unknown = DataSourceValidation::unknown();
+        let err = v_unknown.ok().unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("unknown data source"));
+
+        // valid but not supported
+        let v_nsup = DataSourceValidation {
+            valid: true,
+            support: false,
+            data_source: "kafka".to_string(),
+            version: Some("1.0".to_string()),
+            message: Some("not supported yet".to_string()),
+            namespaces: None,
+        };
+        let err = v_nsup.ok().unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("valid but not supported"));
+    }
 }

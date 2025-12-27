@@ -1590,6 +1590,8 @@ mod tests {
     use super::*;
 
     use crate::sink::flat::tests::STableMessagesBuilder;
+    use arrow::array::*;
+    use arrow_schema::{DataType, Field};
 
     #[tokio::test]
     async fn test_process_archive() {
@@ -1648,5 +1650,114 @@ mod tests {
         );
         dbg!(&records[0].sql);
         // assert_eq!(records[0].sql, "INSERT INTO  `tb_0_suffix` (`ts`,`v0`,`v1`,`v2`,`v3`,`v4`,`v5`,`v6`,`v7`,`v8`,`v9`,`v10`,`v11`,`v12`) values (1739437204548,true,0,0,0,0,0,0,0,0,0,0,'varchar_0varchar_0','nchar_0nchar_0') `tb_0_suffix` (`ts`,`v0`,`v1`,`v2`,`v3`,`v4`,`v5`,`v6`,`v7`,`v8`,`v9`,`v10`,`v11`,`v12`) values (1739437205548,false,1,1,1,1,1,1,1,1,1,1,'varchar_1varchar_1','nchar_1nchar_1')");
+    }
+
+    #[test]
+    fn test_table_tag_cache_new() {
+        let cache = TableTagCache::new();
+        assert!(cache.get("nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_table_tag_cache_default() {
+        let cache = TableTagCache::default();
+        assert!(cache.get("nonexistent").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_table_tag_cache_insert_async() {
+        let cache = TableTagCache::new();
+        // Test that cache operations don't panic
+        cache
+            .insert_async("table1", Arc::new(LushInsertAttrs::default()))
+            .await;
+        let retrieved = cache.get("table1");
+        assert!(retrieved.is_some());
+    }
+
+    #[test]
+    fn test_join_record_batch() {
+        let tags_batch = arrow::array::record_batch!(
+            ("tag1", Utf8, ["value1", "value2"]),
+            ("tag2", Utf8, ["tagv1", "tagv2"])
+        )
+        .unwrap();
+
+        let ts_array = TimestampMillisecondArray::from(vec![1000i64, 2000i64]);
+        let value_array = Float32Array::from(vec![3.15f32, 2.71f32]);
+
+        let values_batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![
+                Field::new(
+                    "ts",
+                    DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+                    false,
+                ),
+                Field::new("value", DataType::Float32, false),
+            ])),
+            vec![Arc::new(ts_array), Arc::new(value_array)],
+        )
+        .unwrap();
+
+        let joined = join_record_batch(&tags_batch, &values_batch);
+
+        // Verify that joined batch has all fields from both batches
+        assert_eq!(joined.num_columns(), 4); // tag1, tag2, ts, value
+        assert_eq!(joined.num_rows(), 2);
+        assert!(joined.column_by_name("tag1").is_some());
+        assert!(joined.column_by_name("tag2").is_some());
+        assert!(joined.column_by_name("ts").is_some());
+        assert!(joined.column_by_name("value").is_some());
+    }
+
+    #[test]
+    fn test_join_record_batch_no_duplicate_columns() {
+        let tags_batch = arrow::array::record_batch!(
+            ("common_col", Utf8, ["value1", "value2"]),
+            ("tag1", Utf8, ["tagv1", "tagv2"])
+        )
+        .unwrap();
+
+        let values_batch = arrow::array::record_batch!(
+            ("common_col", Utf8, ["override1", "override2"]),
+            ("value", Float32, [Some(3.15f32), Some(2.71f32)])
+        )
+        .unwrap();
+
+        let joined = join_record_batch(&tags_batch, &values_batch);
+
+        // Verify that duplicate columns are not duplicated (from tags_batch is used)
+        assert_eq!(joined.num_columns(), 3); // common_col (from tags), tag1, value
+        assert_eq!(joined.num_rows(), 2);
+    }
+
+    #[test]
+    fn test_lush_model_config_constructor() {
+        let config = LushModelConfig {
+            table_id_column: "table_id".to_string(),
+            super_table_parsers: Default::default(),
+            super_table_sqls: Default::default(),
+            super_table_name_mapping: Default::default(),
+            skip_null: false,
+        };
+
+        assert_eq!(config.table_id_column, "table_id");
+        assert!(!config.skip_null);
+        assert!(config.super_table_parsers.is_empty());
+        assert!(config.super_table_sqls.is_empty());
+    }
+
+    #[test]
+    fn test_lush_model_config_with_skip_null_true() {
+        let config = LushModelConfig {
+            table_id_column: "element_id".to_string(),
+            super_table_parsers: Default::default(),
+            super_table_sqls: Default::default(),
+            super_table_name_mapping: Default::default(),
+            skip_null: true,
+        };
+
+        assert_eq!(config.table_id_column, "element_id");
+        assert!(config.skip_null);
     }
 }

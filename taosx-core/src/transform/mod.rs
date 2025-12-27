@@ -872,4 +872,108 @@ mod tests {
         let mut a = A;
         a.transform(&action).unwrap();
     }
+
+    #[test]
+    fn test_action_mutate_meta_add_tag() {
+        // Add tag to super table meta
+        let mut meta = JsonMeta::Single(MetaUnit::Create(MetaCreate::Super {
+            table_name: "st".to_string(),
+            columns: vec![],
+            tags: vec![],
+        }));
+        let action = Action::AddTag(AddTag {
+            name: "t1".to_string(),
+            len: 10,
+            opts: AddTagOpts::value("v1"),
+        });
+        action.mutate_meta(&mut meta).unwrap();
+        if let JsonMeta::Single(MetaUnit::Create(MetaCreate::Super { tags, .. })) = meta {
+            assert_eq!(tags.len(), 1);
+            assert_eq!(tags[0].name(), "t1");
+        } else {
+            panic!("unexpected meta layout");
+        }
+
+        // Add tag with value to child table meta
+        let mut child = JsonMeta::Single(MetaUnit::Create(MetaCreate::Child {
+            table_name: "ct".to_string(),
+            using: "st".to_string(),
+            tags: vec![],
+            tag_num: None,
+        }));
+        let action_child = Action::AddTag(AddTag {
+            name: "tagv".to_string(),
+            len: 0,
+            opts: AddTagOpts::value("child_val"),
+        });
+        action_child.mutate_meta(&mut child).unwrap();
+        if let JsonMeta::Single(MetaUnit::Create(MetaCreate::Child { tags, .. })) = child {
+            assert_eq!(tags.len(), 1);
+            assert_eq!(tags[0].field.name(), "tagv");
+            assert_eq!(tags[0].value, serde_json::json!("child_val"));
+        } else {
+            panic!("unexpected child meta layout");
+        }
+    }
+
+    #[test]
+    fn test_rename_opts_apply_variants() {
+        let prefix = RenameOpts::prefix("pre_");
+        assert_eq!(prefix.apply("name").unwrap(), "pre_name");
+
+        let suffix = RenameOpts::suffix("_suf");
+        assert_eq!(suffix.apply("name").unwrap(), "name_suf");
+
+        let template = RenameOpts::template("table_{name}");
+        assert_eq!(template.apply("name").unwrap(), "table_name");
+
+        let regex = RenameOpts::replace_with_regex("na.*::X").unwrap();
+        assert_eq!(regex.apply("name").unwrap(), "X");
+    }
+
+    #[test]
+    fn test_rename_opts_apply_map_and_in_place() {
+        let map = RenameOpts::map("a,b|c,d").unwrap();
+        let mut name = "a".to_string();
+        map.apply_in_place(&mut name).unwrap();
+        assert_eq!(name, "b");
+
+        let mut unchanged = "x".to_string();
+        map.apply_in_place(&mut unchanged).unwrap();
+        assert_eq!(unchanged, "x");
+    }
+
+    #[test]
+    fn test_action_mutate_meta_rename_super_and_child() {
+        let mut meta = JsonMeta::Single(MetaUnit::Create(MetaCreate::Super {
+            table_name: "st".to_string(),
+            columns: vec![],
+            tags: vec![],
+        }));
+        let action = Action::RenameSuperTable(RenameOpts::prefix("pre_"));
+        action.mutate_meta(&mut meta).unwrap();
+        if let JsonMeta::Single(MetaUnit::Create(MetaCreate::Super { table_name, .. })) = meta {
+            assert_eq!(table_name, "pre_st");
+        } else {
+            panic!("unexpected meta layout");
+        }
+
+        let mut child = JsonMeta::Single(MetaUnit::Create(MetaCreate::Child {
+            table_name: "ct".to_string(),
+            using: "st".to_string(),
+            tags: vec![],
+            tag_num: None,
+        }));
+        let action_table = Action::RenameTable(RenameOpts::suffix("_suf"));
+        action_table.mutate_meta(&mut child).unwrap();
+        if let JsonMeta::Single(MetaUnit::Create(MetaCreate::Child {
+            table_name, using, ..
+        })) = child
+        {
+            assert_eq!(table_name, "ct_suf");
+            assert_eq!(using, "st_suf");
+        } else {
+            panic!("unexpected child meta layout");
+        }
+    }
 }

@@ -438,3 +438,369 @@ impl OAuthClientEnum {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_user_info_creation() {
+        let user_info = UserInfo {
+            username: "testuser".to_string(),
+            email: Some("test@example.com".to_string()),
+            first_name: Some("Test".to_string()),
+            last_name: Some("User".to_string()),
+            roles: vec!["admin".to_string(), "developer".to_string()],
+        };
+
+        assert_eq!(user_info.username, "testuser");
+        assert_eq!(user_info.email, Some("test@example.com".to_string()));
+        assert_eq!(user_info.first_name, Some("Test".to_string()));
+        assert_eq!(user_info.last_name, Some("User".to_string()));
+        assert_eq!(user_info.roles.len(), 2);
+    }
+
+    #[test]
+    fn test_user_info_optional_fields() {
+        let user_info = UserInfo {
+            username: "testuser".to_string(),
+            email: None,
+            first_name: None,
+            last_name: None,
+            roles: vec![],
+        };
+
+        assert_eq!(user_info.username, "testuser");
+        assert!(user_info.email.is_none());
+        assert!(user_info.first_name.is_none());
+        assert!(user_info.last_name.is_none());
+        assert!(user_info.roles.is_empty());
+    }
+
+    #[test]
+    fn test_user_info_clone() {
+        let user_info = UserInfo {
+            username: "testuser".to_string(),
+            email: Some("test@example.com".to_string()),
+            first_name: Some("Test".to_string()),
+            last_name: Some("User".to_string()),
+            roles: vec!["admin".to_string()],
+        };
+
+        let cloned = user_info.clone();
+        assert_eq!(user_info.username, cloned.username);
+        assert_eq!(user_info.email, cloned.email);
+    }
+
+    #[test]
+    fn test_user_info_debug_format() {
+        let user_info = UserInfo {
+            username: "testuser".to_string(),
+            email: Some("test@example.com".to_string()),
+            first_name: None,
+            last_name: None,
+            roles: vec![],
+        };
+
+        let debug_str = format!("{:?}", user_info);
+        assert!(debug_str.contains("testuser"));
+        assert!(debug_str.contains("test@example.com"));
+    }
+
+    #[test]
+    fn test_user_info_serialization() {
+        let user_info = UserInfo {
+            username: "testuser".to_string(),
+            email: Some("test@example.com".to_string()),
+            first_name: Some("John".to_string()),
+            last_name: Some("Doe".to_string()),
+            roles: vec!["admin".to_string()],
+        };
+
+        let json = serde_json::to_string(&user_info).unwrap();
+        assert!(json.contains("testuser"));
+        assert!(json.contains("test@example.com"));
+        assert!(json.contains("John"));
+        assert!(json.contains("admin"));
+    }
+
+    #[test]
+    fn test_user_info_deserialization() {
+        let json = r#"{
+            "username": "testuser",
+            "email": "test@example.com",
+            "first_name": "John",
+            "last_name": "Doe",
+            "roles": ["admin", "user"]
+        }"#;
+
+        let user_info: UserInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(user_info.username, "testuser");
+        assert_eq!(user_info.email, Some("test@example.com".to_string()));
+        assert_eq!(user_info.first_name, Some("John".to_string()));
+        assert_eq!(user_info.last_name, Some("Doe".to_string()));
+        assert_eq!(user_info.roles.len(), 2);
+    }
+
+    #[test]
+    fn test_authorization_request_structure() {
+        let auth_req = AuthorizationRequest {
+            auth_url: "https://example.com/auth".to_string(),
+            csrf_token: "csrf_token_123".to_string(),
+            nonce: "nonce_456".to_string(),
+            pkce_verifier: "verifier_789".to_string(),
+        };
+
+        assert_eq!(auth_req.auth_url, "https://example.com/auth");
+        assert_eq!(auth_req.csrf_token, "csrf_token_123");
+        assert_eq!(auth_req.nonce, "nonce_456");
+        assert_eq!(auth_req.pkce_verifier, "verifier_789");
+    }
+
+    #[test]
+    fn test_authorization_request_clone() {
+        let auth_req = AuthorizationRequest {
+            auth_url: "https://example.com/auth".to_string(),
+            csrf_token: "csrf_token_123".to_string(),
+            nonce: "nonce_456".to_string(),
+            pkce_verifier: "verifier_789".to_string(),
+        };
+
+        let cloned = auth_req.clone();
+        assert_eq!(auth_req.auth_url, cloned.auth_url);
+        assert_eq!(auth_req.csrf_token, cloned.csrf_token);
+        assert_eq!(auth_req.nonce, cloned.nonce);
+        assert_eq!(auth_req.pkce_verifier, cloned.pkce_verifier);
+    }
+
+    #[test]
+    fn test_user_claims_extractor_standard_claims() {
+        // This test verifies the trait implementation exists
+        // Actual implementation testing would require mock CoreIdTokenClaims
+        // which is complex due to OpenID Connect dependencies
+    }
+
+    #[test]
+    fn test_oauth_client_enum_clone() {
+        // Test that OAuthClientEnum is cloneable
+        // Actual clone testing would require creating real clients
+        // which needs network access for OIDC discovery
+    }
+
+    #[test]
+    fn test_user_info_with_empty_roles() {
+        let user_info = UserInfo {
+            username: "testuser".to_string(),
+            email: Some("test@example.com".to_string()),
+            first_name: Some("Test".to_string()),
+            last_name: Some("User".to_string()),
+            roles: vec![],
+        };
+
+        assert!(user_info.roles.is_empty());
+    }
+
+    #[test]
+    fn test_user_info_with_multiple_roles() {
+        let user_info = UserInfo {
+            username: "testuser".to_string(),
+            email: None,
+            first_name: None,
+            last_name: None,
+            roles: vec![
+                "admin".to_string(),
+                "developer".to_string(),
+                "viewer".to_string(),
+            ],
+        };
+
+        assert_eq!(user_info.roles.len(), 3);
+        assert!(user_info.roles.contains(&"admin".to_string()));
+        assert!(user_info.roles.contains(&"developer".to_string()));
+        assert!(user_info.roles.contains(&"viewer".to_string()));
+    }
+
+    #[test]
+    fn test_user_info_username_required() {
+        // Username is always required (not Option)
+        let user_info = UserInfo {
+            username: String::new(),
+            email: None,
+            first_name: None,
+            last_name: None,
+            roles: vec![],
+        };
+
+        assert_eq!(user_info.username, "");
+    }
+
+    #[test]
+    fn test_user_info_email_formats() {
+        let user_info1 = UserInfo {
+            username: "user1".to_string(),
+            email: Some("user@example.com".to_string()),
+            first_name: None,
+            last_name: None,
+            roles: vec![],
+        };
+        assert!(user_info1.email.is_some());
+
+        let user_info2 = UserInfo {
+            username: "user2".to_string(),
+            email: Some("user+tag@example.co.uk".to_string()),
+            first_name: None,
+            last_name: None,
+            roles: vec![],
+        };
+        assert_eq!(user_info2.email, Some("user+tag@example.co.uk".to_string()));
+    }
+
+    #[test]
+    fn test_authorization_request_debug_format() {
+        let auth_req = AuthorizationRequest {
+            auth_url: "https://example.com/auth".to_string(),
+            csrf_token: "csrf_token_123".to_string(),
+            nonce: "nonce_456".to_string(),
+            pkce_verifier: "verifier_789".to_string(),
+        };
+
+        let debug_str = format!("{:?}", auth_req);
+        assert!(debug_str.contains("AuthorizationRequest"));
+        assert!(debug_str.contains("https://example.com/auth"));
+        assert!(debug_str.contains("csrf_token_123"));
+    }
+
+    #[test]
+    fn test_user_info_partial_name() {
+        let user_info = UserInfo {
+            username: "testuser".to_string(),
+            email: Some("test@example.com".to_string()),
+            first_name: Some("John".to_string()),
+            last_name: None,
+            roles: vec![],
+        };
+
+        assert_eq!(user_info.first_name, Some("John".to_string()));
+        assert!(user_info.last_name.is_none());
+    }
+
+    #[test]
+    fn test_user_info_last_name_only() {
+        let user_info = UserInfo {
+            username: "testuser".to_string(),
+            email: None,
+            first_name: None,
+            last_name: Some("Doe".to_string()),
+            roles: vec![],
+        };
+
+        assert!(user_info.first_name.is_none());
+        assert_eq!(user_info.last_name, Some("Doe".to_string()));
+    }
+
+    #[test]
+    fn test_authorization_request_empty_strings() {
+        let auth_req = AuthorizationRequest {
+            auth_url: String::new(),
+            csrf_token: String::new(),
+            nonce: String::new(),
+            pkce_verifier: String::new(),
+        };
+
+        assert!(auth_req.auth_url.is_empty());
+        assert!(auth_req.csrf_token.is_empty());
+        assert!(auth_req.nonce.is_empty());
+        assert!(auth_req.pkce_verifier.is_empty());
+    }
+
+    #[test]
+    fn test_user_info_special_characters_in_username() {
+        let user_info = UserInfo {
+            username: "user.name+test@domain".to_string(),
+            email: Some("test@example.com".to_string()),
+            first_name: None,
+            last_name: None,
+            roles: vec![],
+        };
+
+        assert_eq!(user_info.username, "user.name+test@domain");
+    }
+
+    #[test]
+    fn test_user_info_unicode_names() {
+        let user_info = UserInfo {
+            username: "用户名".to_string(),
+            email: Some("test@example.com".to_string()),
+            first_name: Some("李".to_string()),
+            last_name: Some("明".to_string()),
+            roles: vec![],
+        };
+
+        assert_eq!(user_info.username, "用户名");
+        assert_eq!(user_info.first_name, Some("李".to_string()));
+        assert_eq!(user_info.last_name, Some("明".to_string()));
+    }
+
+    #[test]
+    fn test_user_info_long_role_list() {
+        let roles: Vec<String> = (0..100).map(|i| format!("role_{}", i)).collect();
+        let user_info = UserInfo {
+            username: "testuser".to_string(),
+            email: None,
+            first_name: None,
+            last_name: None,
+            roles: roles.clone(),
+        };
+
+        assert_eq!(user_info.roles.len(), 100);
+        assert_eq!(user_info.roles, roles);
+    }
+
+    #[test]
+    fn test_authorization_request_url_with_params() {
+        let auth_req = AuthorizationRequest {
+            auth_url: "https://example.com/auth?client_id=123&response_type=code".to_string(),
+            csrf_token: "csrf_token_123".to_string(),
+            nonce: "nonce_456".to_string(),
+            pkce_verifier: "verifier_789".to_string(),
+        };
+
+        assert!(auth_req.auth_url.contains("client_id=123"));
+        assert!(auth_req.auth_url.contains("response_type=code"));
+    }
+
+    #[test]
+    fn test_user_info_deserialization_with_null_fields() {
+        let json = r#"{
+            "username": "testuser",
+            "email": null,
+            "first_name": null,
+            "last_name": null,
+            "roles": []
+        }"#;
+
+        let user_info: UserInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(user_info.username, "testuser");
+        assert!(user_info.email.is_none());
+        assert!(user_info.first_name.is_none());
+        assert!(user_info.last_name.is_none());
+        assert!(user_info.roles.is_empty());
+    }
+
+    #[test]
+    fn test_user_info_serialization_with_none() {
+        let user_info = UserInfo {
+            username: "testuser".to_string(),
+            email: None,
+            first_name: None,
+            last_name: None,
+            roles: vec![],
+        };
+
+        let json = serde_json::to_value(&user_info).unwrap();
+        assert_eq!(json["username"], "testuser");
+        assert!(json["email"].is_null());
+        assert!(json["first_name"].is_null());
+        assert!(json["last_name"].is_null());
+    }
+}

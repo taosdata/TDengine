@@ -1274,3 +1274,135 @@ async fn download(file_path: Query<DownloadParams>) -> anyhow::Result<NamedFile>
         Ok(NamedFile::open(file_path)?)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_failed_from_error() {
+        let err = anyhow::anyhow!("test error");
+        let failed = Failed::from_error(err);
+        assert_eq!(failed.code, Code::FAILED);
+        assert!(failed.message.contains("test error"));
+    }
+
+    #[test]
+    fn test_failed_new() {
+        let failed = Failed::new(Code::FAILED, "test message".to_string(), ());
+        assert_eq!(failed.code, Code::FAILED);
+        assert_eq!(failed.message, "test message");
+    }
+
+    #[test]
+    fn test_failed_display() {
+        let failed = Failed::new(Code::FAILED, "test".to_string(), ());
+        let display = format!("{}", failed);
+        assert!(display.contains("test"));
+    }
+
+    #[test]
+    fn test_failed_debug() {
+        let failed = Failed::new(Code::FAILED, "test".to_string(), ());
+        let debug = format!("{:?}", failed);
+        assert!(debug.contains("Failed"));
+    }
+
+    #[test]
+    fn test_failed_clone() {
+        let failed = Failed::new(Code::FAILED, "test".to_string(), ());
+        let cloned = failed.clone();
+        assert_eq!(failed.code, cloned.code);
+        assert_eq!(failed.message, cloned.message);
+    }
+
+    #[test]
+    fn test_failed_serialize() {
+        let failed = Failed::new(Code::FAILED, "test".to_string(), ());
+        let json = serde_json::to_string(&failed);
+        assert!(json.is_ok());
+    }
+
+    #[test]
+    fn test_failed_with_data() {
+        #[derive(Debug, Serialize, Deserialize)]
+        struct TestData {
+            value: i32,
+        }
+        let data = TestData { value: 42 };
+        let failed = Failed::new(Code::FAILED, "test".to_string(), data);
+        assert_eq!(failed.data.value, 42);
+    }
+
+    #[test]
+    fn test_failed_from_error_with_multiple_sources() {
+        let err = anyhow::anyhow!("first error").context("second error");
+        let failed = Failed::from_error(err);
+        assert_eq!(failed.code, Code::FAILED);
+        assert!(!failed.message.is_empty());
+    }
+
+    #[test]
+    fn test_failed_error_response() {
+        let failed = Failed::new(Code::FAILED, "test error".to_string(), ());
+        let response = failed.error_response();
+        assert_eq!(
+            response.status(),
+            actix_web::http::StatusCode::INTERNAL_SERVER_ERROR
+        );
+    }
+
+    #[test]
+    fn test_failed_default() {
+        let failed: Failed<()> = Failed::default();
+        // Default value uses Code::FAILED (0xFFFF) but may have different default
+        assert!(failed.message.is_empty());
+    }
+
+    #[test]
+    fn test_download_params_deserialization() {
+        let json = r#"{"file_path": "/test/file.txt"}"#;
+        let params: Result<DownloadParams, _> = serde_json::from_str(json);
+        assert!(params.is_ok());
+        assert_eq!(params.unwrap().file_path, "/test/file.txt");
+    }
+
+    #[test]
+    fn test_failed_with_various_codes() {
+        let codes = vec![Code::FAILED];
+        for code in codes {
+            let failed = Failed::new(code, "message".to_string(), ());
+            assert_eq!(failed.code, code);
+        }
+    }
+
+    #[test]
+    fn test_failed_message_truncation() {
+        let long_message = "a".repeat(10000);
+        let failed: Failed<()> = Failed::new(Code::FAILED, long_message, ());
+        assert!(!failed.message.is_empty());
+    }
+
+    #[test]
+    fn test_failed_special_characters_in_message() {
+        let special = "Error: <>&\"'";
+        let failed: Failed<()> = Failed::new(Code::FAILED, special.to_string(), ());
+        assert_eq!(failed.message, special);
+    }
+
+    #[tokio::test]
+    async fn test_download_params_query() {
+        use actix_web::web::Query;
+        let json = r#"file_path=/test/file.txt"#;
+        let query = Query::<DownloadParams>::from_query(json);
+        assert!(query.is_ok());
+    }
+
+    #[test]
+    fn test_failed_serialization_preserves_data() {
+        let failed = Failed::new(Code::FAILED, "msg".to_string(), ());
+        let serialized = serde_json::to_string(&failed).unwrap();
+        let deserialized: Failed = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(failed.message, deserialized.message);
+    }
+}

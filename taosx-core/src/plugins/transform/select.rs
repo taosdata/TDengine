@@ -753,9 +753,133 @@ mod tests {
 
         let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
 
-        let _ = select;
+        // ensure schema projection keeps expected columns
+        let projected = select.schema(&records.schema());
+        assert_eq!(projected.fields().len(), 2);
+        assert_eq!(projected.field(0).name(), "c");
+        assert_eq!(projected.field(1).name(), "b");
 
-        dbg!(&records);
+        // ensure record batch selection respects alias and ordering
+        let batch = select.record_batch(&records).unwrap();
+        assert_eq!(batch.num_columns(), 2);
+        assert_eq!(
+            batch.column(0).as_ref().data_type(),
+            batch.column(1).data_type()
+        );
+        assert_eq!(
+            batch
+                .column(0)
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .value(0),
+            r#"{"a1": "a1", "b1": 1}"#
+        );
+    }
+
+    #[test]
+    fn schema_with_cast_and_missing_fields() {
+        let fields: Fields = Fields::from(vec![
+            Field::new("a", DataType::Utf8, false),
+            Field::new("b", DataType::Int64, false),
+        ]);
+        let schema = Schema::new(fields.clone());
+
+        // includes an existing field with cast and a missing field with alias
+        let select = Select::Include(Include(vec![
+            IncludeItem::new("a").with_cast(IpcDataType::Float64),
+            IncludeItem::new("c").with_alias("alias_c"),
+        ]));
+
+        let projected = select.schema(&schema);
+        assert_eq!(projected.fields().len(), 2);
+        let casted = projected.field(0);
+        assert_eq!(casted.data_type(), &DataType::Float64);
+        assert_eq!(casted.metadata().get("cast_from").unwrap(), "Utf8");
+        let missing = projected.field(1);
+        assert_eq!(missing.name(), "alias_c");
+        assert_eq!(missing.data_type(), &DataType::Null);
+    }
+
+    #[test]
+    fn query_supports_json_path_structs_and_lists() {
+        let inner_fields: Fields = Fields::from(vec![Field::new("b", DataType::Utf8, false)]);
+        let inner = Schema::new(inner_fields);
+        let schema_fields: Fields = Fields::from(vec![
+            Field::new("a", DataType::Struct(inner.fields().clone()), false),
+            Field::new(
+                "list",
+                DataType::List(FieldRef::from(Field::new(
+                    "f",
+                    DataType::Struct(inner.fields().clone()),
+                    true,
+                ))),
+                false,
+            ),
+        ]);
+        let schema = Schema::new(schema_fields);
+
+        let (_, field) = query(schema.fields(), "$.a.b").expect("struct field");
+        assert_eq!(field.name(), "b");
+
+        let list_result = query(schema.fields(), "$.list[0].f.b");
+        assert!(
+            list_result.is_none(),
+            "list path is not supported in current query"
+        );
+    }
+
+    #[test]
+    fn parse_json_with_include_pattern_and_aliases() {
+        let select = Select::Include(Include(vec![
+            IncludeItem::new("foo"),
+            IncludeItem::new_json_path_item("$.bar.baz").with_alias("bz"),
+        ]));
+        let value = serde_json::json!({"foo": 1, "bar": { "baz": 2 }});
+        let parsed = select.parse_json("root", value).unwrap();
+        let obj = parsed.as_object().unwrap();
+        assert_eq!(obj.get("foo").unwrap(), &serde_json::json!(1));
+        assert_eq!(obj.get("bz").unwrap(), &serde_json::json!(2));
+
+        // missing path yields null
+        let value = serde_json::json!({"foo": 1});
+        let parsed = select.parse_json("root", value).unwrap();
+        let obj = parsed.as_object().unwrap();
+        assert_eq!(obj.get("bz").unwrap(), &serde_json::Value::Null);
+    }
+
+    #[test]
+    fn exclude_removes_fields_and_handles_empty() {
+        let select = Select::Exclude(Exclude {
+            exclude: vec!["keep".into(), "drop".into()],
+        });
+
+        let mut value = serde_json::json!({"keep": 1, "drop": 2, "other": 3});
+        let parsed = select.parse_json("root", value.take()).unwrap();
+        let obj = parsed.as_object().unwrap();
+        assert_eq!(obj.len(), 1);
+        assert_eq!(obj.get("other").unwrap(), &serde_json::json!(3));
+
+        let value = serde_json::json!({"drop": 2});
+        let parsed = select.parse_json("root", value);
+        assert!(parsed.is_none(), "excluding all fields should yield None");
+
+        let value = serde_json::json!({"drop": 2});
+        let parsed = Select::Exclude(Exclude {
+            exclude: vec!["drop".into()],
+        })
+        .parse_json("root", value);
+        assert!(parsed.is_none(), "excluding all fields should yield None");
+    }
+
+    #[test]
+    fn pattern_parse_json_extracts_named_groups() {
+        let select = Select::Pattern(Regex::new("(?P<first>\\d+)-(?P<second>\\w+)").unwrap());
+        let value = serde_json::json!("123-abc");
+        let parsed = select.parse_json("field", value).unwrap();
+        let obj = parsed.as_object().unwrap();
+        assert_eq!(obj.get("first").unwrap(), "123");
+        assert_eq!(obj.get("second").unwrap(), "abc");
     }
 
     #[test]
@@ -780,5 +904,13 @@ mod tests {
         for (input, expected) in test_cases {
             assert_eq!(get_json_path_last_field(input), expected);
         }
+    }
+
+    #[test]
+    fn extract_bracket_parses_last_segment() {
+        assert_eq!(extract_bracket("$['a']"), Some("a"));
+        assert_eq!(extract_bracket(r#"$["a"]"#), Some("a"));
+        assert_eq!(extract_bracket("$['users'][0]"), None);
+        assert_eq!(extract_bracket("$[12]"), None);
     }
 }

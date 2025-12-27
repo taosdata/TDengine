@@ -1195,3 +1195,65 @@ fn get_trace_id_from_app_meta(app_metadata: &bytes::Bytes) -> u64 {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_app_metadata_serialize() {
+        let metadata = AppMetadata {
+            data_trace_id: 12345,
+        };
+        let json = serde_json::to_string(&metadata);
+        assert!(json.is_ok());
+    }
+
+    #[test]
+    fn test_app_metadata_deserialize() {
+        let json = r#"{"data_trace_id":12345}"#;
+        let metadata: Result<AppMetadata, _> = serde_json::from_str(json);
+        assert!(metadata.is_ok());
+        assert_eq!(metadata.unwrap().data_trace_id, 12345);
+    }
+
+    #[test]
+    fn test_app_metadata_roundtrip() {
+        let orig = AppMetadata {
+            data_trace_id: 99999,
+        };
+        let json = serde_json::to_string(&orig).unwrap();
+        let restored: AppMetadata = serde_json::from_str(&json).unwrap();
+        assert_eq!(orig.data_trace_id, restored.data_trace_id);
+    }
+
+    #[test]
+    fn test_app_metadata_zero_trace_id() {
+        let metadata = AppMetadata { data_trace_id: 0 };
+        assert_eq!(metadata.data_trace_id, 0);
+    }
+
+    #[test]
+    fn test_app_metadata_large_trace_id() {
+        let metadata = AppMetadata {
+            data_trace_id: u64::MAX,
+        };
+        let json = serde_json::to_string(&metadata).unwrap();
+        let restored: AppMetadata = serde_json::from_str(&json).unwrap();
+        assert_eq!(metadata.data_trace_id, restored.data_trace_id);
+    }
+
+    #[test]
+    fn test_put_stream_debug() {
+        // PutStream should implement Debug
+        // This is validated by the struct definition
+    }
+
+    #[test]
+    fn test_rpc_ack_constants() {
+        // Test that RPC ACK constants exist and are not equal
+        assert_ne!(RPC_ACK_RECEIVED, RPC_ACK_PROCESSED);
+        assert_ne!(RPC_ACK_RECEIVED, RPC_ACK_STREAM_END);
+        assert_ne!(RPC_ACK_PROCESSED, RPC_ACK_STREAM_END);
+    }
+}

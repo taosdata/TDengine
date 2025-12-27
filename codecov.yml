@@ -1,0 +1,13 @@
+coverage:
+  range: 50..75
+  status:
+    project:
+      default: # default is the status check's name, not default settings
+        target: auto
+        threshold: "0.2"
+        base: auto
+        branches:
+          - main
+          - 3.0
+        if_not_found: success
+        if_ci_failed: success

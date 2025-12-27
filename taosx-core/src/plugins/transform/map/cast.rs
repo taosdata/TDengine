@@ -255,6 +255,21 @@ mod tests {
     }
 
     #[test]
+    fn test_missing_field_without_default_produces_nulls() {
+        let builder: CastValueBuilder =
+            serde_json::from_str(r#"{"cast": "missing_field"}"#).unwrap();
+        let batch = init_record_batch();
+
+        let (field, value) = builder.build_field("missing", &batch, None).unwrap();
+
+        assert_eq!(field.name(), "missing");
+        assert_eq!(*field.data_type(), DataType::Utf8);
+        let arr = value.as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(arr.len(), batch.num_rows());
+        assert!(arr.iter().all(|v| v.is_none()));
+    }
+
+    #[test]
     fn test_field_default_full_type() {
         // test default value with empty value
         let batch_with_none = RecordBatch::try_from_iter([

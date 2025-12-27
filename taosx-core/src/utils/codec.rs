@@ -196,6 +196,23 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn unsupported_decompressor_fails() {
+        assert!("bad-compress".parse::<Decompressor>().is_err());
+    }
+
+    #[test]
+    fn unsupported_string_decoder_fails() {
+        assert!("BAD_ENCODING".parse::<StringDecoder>().is_err());
+    }
+
+    #[test]
+    fn processor_chain_runs_in_sequence() {
+        let pipeline = (Some(Decompressor::Noop), Some(StringDecoder::Utf8));
+        let res = pipeline.process(b"data".to_vec()).unwrap();
+        assert_eq!(res, b"data");
+    }
+
     fn decode(name: &str, payload: &str) -> anyhow::Result<()> {
         let b = general_purpose::STANDARD.decode(payload)?;
         let decoder: StringDecoder = name.parse()?;
