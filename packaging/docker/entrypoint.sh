@@ -36,7 +36,7 @@ declare -A MODEL_NAMES=(
 
 declare -A MODEL_VENV_MAP=(
     ["chronos"]="/var/lib/taos/taosanode/venv_chronos"
-    ["moirai"]="/var/lib/taos/taosanode/venv"
+    ["moirai"]="/var/lib/taos/taosanode/venv_moirai"
     ["tdtsfm"]="/var/lib/taos/taosanode/venv"
     ["timemoe"]="/var/lib/taos/taosanode/venv"
     ["timesfm"]="/var/lib/taos/taosanode/venv_timesfm"
@@ -200,7 +200,8 @@ if mount | grep -q "${MODEL_BASE_PATH}"; then
     fi
 else
     echo "Non-mounted mode: starting built-in models..."
-    for model in tdtsfm timemoe moment; do
+    models=(tdtsfm timemoe moment moirai)
+    for model in "${models[@]}"; do
         model_dir=$(find_model_file "${model}")
         if [ -n "${model_dir}" ]; then
             echo "✓ Found ${model} model at: ${model_dir}"
