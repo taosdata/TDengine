@@ -23,7 +23,7 @@
         "rows_file": "./rows_file_sequ",
         "expect_rows": -1,
         "topic_list": [
-            {"name": "topic_benchmark_meters", "sql": "select * from test.meters;"}
+            {"name": "topic_benchmark_meters", "sql": "select * from dbcancel.meters;"}
         ]
     }
 }
