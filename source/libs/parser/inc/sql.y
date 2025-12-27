@@ -407,22 +407,6 @@ cmd ::= UNLOCK ROLE role_name(A).                                               
 cmd ::= GRANT ROLE role_name(A) TO role_name(C).                                  { pCxt->pRootNode = createGrantStmt(pCxt, &A, NULL, &C, NULL, TSDB_ALTER_ROLE_ROLE); }
 cmd ::= REVOKE ROLE role_name(A) FROM role_name(C).                               { pCxt->pRootNode = createRevokeStmt(pCxt, &A, NULL, &C, NULL, TSDB_ALTER_ROLE_ROLE); }
 /************************************************ grant/revoke ********************************************************/
-/*cmd ::= GRANT ALL priv_level_opt(B) with_clause_opt(D) TO user_name(C).           {
-                                                                                    SPrivSet A = PRIV_TYPE(PRIV_CM_ALL);
-                                                                                    pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
-                                                                                  }
-cmd ::= REVOKE ALL  priv_level_opt(B) with_clause_opt(D)  FROM user_name(C).      {
-                                                                                    SPrivSet A = PRIV_TYPE(PRIV_CM_ALL);
-                                                                                    pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
-                                                                                  }
-cmd ::= GRANT ALL PRIVILEGES priv_level_opt(B) with_clause_opt(D) TO user_name(C). {
-                                                                                    SPrivSet A = PRIV_TYPE(PRIV_CM_ALL);
-                                                                                    pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
-                                                                                  }
-cmd ::= REVOKE ALL PRIVILEGES priv_level_opt(B) with_clause_opt(D) FROM user_name(C). {
-                                                                                    SPrivSet A = PRIV_TYPE(PRIV_CM_ALL);
-                                                                                    pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES);
-                                                                                  }*/
 cmd ::= GRANT privileges(A) priv_level_opt(B) with_clause_opt(D) TO user_name(C). { pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES); }
 cmd ::= REVOKE privileges(A) priv_level_opt(B) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES); }
 
@@ -470,6 +454,8 @@ priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                  
                                                                                     }
 
                                                                                   }
+priv_type(A) ::= ALL.                                                             { A = PRIV_SET_TYPE(PRIV_CM_ALL); }
+priv_type(A) ::= ALL PRIVILEGES.                                                  { A = PRIV_SET_TYPE(PRIV_CM_ALL); }
 priv_type(A) ::= ALTER.                                                           { A = PRIV_SET_TYPE(PRIV_CM_ALTER); }
 priv_type(A) ::= DROP.                                                            { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
 priv_type(A) ::= SHOW.                                                            { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }

@@ -472,7 +472,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pShowCols = {"*"}
   },
   {
-        .showType = QUERY_NODE_SHOW_TOKENS_STMT,
+    .showType = QUERY_NODE_SHOW_TOKENS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_TOKENS,
     .numOfShowCols = 1,
@@ -16387,23 +16387,28 @@ _tagCond:
     return TSDB_CODE_SUCCESS;
   }
 
-  if (PRIV_HAS(privSet, PRIV_CM_DROP)) {
+  if (!PRIV_HAS(privSet, PRIV_CM_ALL)) {
+    if (PRIV_HAS(privSet, PRIV_CM_DROP)) {
+      nodesDestroyNode((SNode*)pTable);
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "Not support with condition for table privilege:%s",
-                                     privInfoGetName(PRIV_CM_DROP));
-  }
-  if (PRIV_HAS(privSet, PRIV_CM_ALTER)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "Not support with condition for table privilege:%s", privInfoGetName(PRIV_CM_ALTER));
-  }
-  if (PRIV_HAS(privSet, PRIV_CM_SHOW)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "Not support with condition for table privilege:%s", privInfoGetName(PRIV_CM_SHOW));
-  }
-  if (PRIV_HAS(privSet, PRIV_CM_SHOW_CREATE)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "Not support with condition for table privilege:%s",
-                                   privInfoGetName(PRIV_CM_SHOW_CREATE));
+                                     "Not support with clause for table privilege:%s", privInfoGetName(PRIV_CM_DROP));
+    }
+    if (PRIV_HAS(privSet, PRIV_CM_ALTER)) {
+      nodesDestroyNode((SNode*)pTable);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Not support with clause for table privilege:%s", privInfoGetName(PRIV_CM_ALTER));
+    }
+    if (PRIV_HAS(privSet, PRIV_CM_SHOW)) {
+      nodesDestroyNode((SNode*)pTable);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Not support with clause for table privilege:%s", privInfoGetName(PRIV_CM_SHOW));
+    }
+    if (PRIV_HAS(privSet, PRIV_CM_SHOW_CREATE)) {
+      nodesDestroyNode((SNode*)pTable);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Not support with clause for table privilege:%s",
+                                     privInfoGetName(PRIV_CM_SHOW_CREATE));
+    }
   }
 
   pCxt->pCurrStmt = (SNode*)pStmt;
@@ -16431,131 +16436,6 @@ _tagCond:
   return code;
 }
 
-static int32_t translateGrantCheckObject(STranslateContext* pCxt, SGrantStmt* pStmt, EPrivCategory category,
-                                         SAlterRoleReq* pReq, bool grant) {
-  SName       name = {0};
-  STableMeta* pTableMeta = NULL;
-  int32_t     code = TSDB_CODE_SUCCESS;
-
-  EPrivObjType objType = pReq->objType;
-  int32_t      objLevel = pReq->objLevel;
-
-  if (objType < PRIV_OBJ_DB || objType >= PRIV_OBJ_MAX) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid object type for privileges");
-  }
-
-  if (pStmt->objName[0] == '\0') {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "Target name cannot be empty for non-system privileges");
-  }
-
-  if (objLevel == 0) {
-    if (pStmt->tabName[0] != '\0') {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "Table name should be empty for database level privileges");
-    }
-  } else if (objLevel > 0) {
-    if (pStmt->tabName[0] == '\0') {
-      pStmt->tabName[0] = '*';
-      pStmt->tabName[1] = '\0';
-    }
-  }
-
-  if (strncmp(pStmt->objName, "*", 2) == 0 && pStmt->tabName[0] != 0 && strncmp(pStmt->tabName, "*", 2) != 0) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid privilege target format");
-  }
-
-  if (IS_SYS_DBNAME(pStmt->objName)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                   "Cannot grant/revoke privileges on system database");
-  }
-
-  switch (objType) {
-    case PRIV_OBJ_NODE:
-      break;
-    case PRIV_OBJ_DB: {
-      if (pStmt->tabName[0] != '\0') {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                       "Table name should be empty for database level privileges");
-      }
-      // don't validate the object when revoke
-      if (grant && (strncmp(pStmt->objName, "*", 2) != 0)) {
-        SDbCfgInfo dbCfg = {0};
-        if (0 != (code = getDBCfg(pCxt, pStmt->objName, &dbCfg))) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
-                                         "Failed to get database %s since %s", pStmt->objName, tstrerror(code));
-        }
-      }
-      break;
-    }
-    case PRIV_OBJ_TBL:
-    case PRIV_OBJ_VIEW: {
-      if (0 != pStmt->tabName[0]) {
-        // not validate the object when revoke
-        if (grant &&strncmp(pStmt->tabName, "*", 2) != 0) {
-            SName       name = {0};
-            STableMeta* pTableMeta = NULL;
-            toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
-            code = getTargetMeta(pCxt, &name, &pTableMeta, true);
-            if (TSDB_CODE_SUCCESS != code) {
-              return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, "%s", tstrerror(code));
-            }
-            if (((PRIV_OBJ_TBL == objType) && (TSDB_VIEW_TABLE == pTableMeta->tableType)) ||
-                ((PRIV_OBJ_VIEW == objType) && (TSDB_VIEW_TABLE != pTableMeta->tableType))) {
-              taosMemoryFree(pTableMeta);
-              TAOS_RETURN(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT);
-            }
-            taosMemoryFree(pTableMeta);
-        }
-      } else {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                       "Table name cannot be empty for table or view level privileges");
-      }
-      if (objType == PRIV_OBJ_TBL) {
-        code = translateGrantTagCond(pCxt, pStmt, pReq, grant);
-        if (TSDB_CODE_SUCCESS != code) {
-          return code;
-        }
-      }
-      break;
-    }
-    case PRIV_OBJ_FUNC:
-      break;
-    case PRIV_OBJ_IDX:
-      break;
-    case PRIV_OBJ_USER:
-      break;
-    case PRIV_OBJ_ROLE:
-      break;
-    case PRIV_OBJ_RSMA:
-      break;
-    case PRIV_OBJ_TSMA:
-      break;
-    case PRIV_OBJ_TOPIC:
-      break;
-    case PRIV_OBJ_STREAM:
-      break;
-    case PRIV_OBJ_MOUNT:
-      break;
-    case PRIV_OBJ_AUDIT:
-      break;
-    case PRIV_OBJ_TOKEN:
-      break;
-    default:
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "Unsupported object type for privilege");
-  }
-_exit:
-  if (code == TSDB_CODE_SUCCESS) {
-    if(pStmt->objName[0] != 0) {
-      (void)snprintf(pReq->objFName, sizeof(pReq->objFName), "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
-    }
-    if(pStmt->tabName[0] != 0) {
-      (void)snprintf(pReq->tblName, sizeof(pReq->tblName), "%s", pStmt->tabName);
-    }
-  }
-  TAOS_RETURN(code);
-}
 
 static int32_t comparePrivColWithColId(SNode* pNode1, SNode* pNode2) { return compareTsmaColWithColId(pNode1, pNode2); }
 static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, STableMeta* pTableMeta, SNodeList* pCols) {
@@ -16626,7 +16506,7 @@ _exit:
   return code;
 }
 
-static int32_t translateGrantFillPrivileges(STranslateContext* pCxt, SGrantStmt* pStmt, SAlterRoleReq* pReq) {
+static int32_t translateGrantFillColPrivileges(STranslateContext* pCxt, SGrantStmt* pStmt, SAlterRoleReq* pReq) {
   SName            name = {0};
   STableMeta*      pTableMeta = NULL;
   SRealTableNode*  pTable = NULL;
@@ -16712,6 +16592,140 @@ _exit:
   TAOS_RETURN(code);
 }
 
+static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt* pStmt, EPrivCategory category,
+                                         SAlterRoleReq* pReq, bool grant) {
+  SName       name = {0};
+  STableMeta* pTableMeta = NULL;
+  int32_t     code = 0, lino = 0;
+
+  EPrivObjType objType = pReq->objType;
+  int32_t      objLevel = pReq->objLevel;
+
+  if (objType < PRIV_OBJ_DB || objType >= PRIV_OBJ_MAX) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid object type for privileges");
+  }
+
+  if (pStmt->objName[0] == '\0') {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "Target name cannot be empty for non-system privileges");
+  }
+
+  if (objLevel == 0) {
+    if (pStmt->tabName[0] != '\0') {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Table name should be empty for database level privileges");
+    }
+  } else if (objLevel > 0) {
+    if (pStmt->tabName[0] == '\0') {
+      pStmt->tabName[0] = '*';
+      pStmt->tabName[1] = '\0';
+    }
+  }
+
+  if (strncmp(pStmt->objName, "*", 2) == 0 && pStmt->tabName[0] != 0 && strncmp(pStmt->tabName, "*", 2) != 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid privilege target format");
+  }
+
+  if (IS_SYS_DBNAME(pStmt->objName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                   "Cannot grant/revoke privileges on system database");
+  }
+
+  switch (objType) {
+    case PRIV_OBJ_NODE:
+      break;
+    case PRIV_OBJ_DB: {
+      if (pStmt->tabName[0] != '\0') {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "Table name should be empty for database level privileges");
+      }
+      // don't validate the object when revoke
+      if (grant && (strncmp(pStmt->objName, "*", 2) != 0)) {
+        SDbCfgInfo dbCfg = {0};
+        if (0 != (code = getDBCfg(pCxt, pStmt->objName, &dbCfg))) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
+                                         "Failed to get database %s since %s", pStmt->objName, tstrerror(code));
+        }
+      }
+      TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      break;
+    }
+    case PRIV_OBJ_TBL:
+      TAOS_CHECK_EXIT(translateGrantFillColPrivileges(pCxt, pStmt, pReq));
+    case PRIV_OBJ_VIEW: {
+      if (0 != pStmt->tabName[0]) {
+        // not validate the object when revoke
+        if (grant &&strncmp(pStmt->tabName, "*", 2) != 0) {
+            SName       name = {0};
+            STableMeta* pTableMeta = NULL;
+            toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name);
+            code = getTargetMeta(pCxt, &name, &pTableMeta, true);
+            if (TSDB_CODE_SUCCESS != code) {
+              return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, "%s", tstrerror(code));
+            }
+            if (((PRIV_OBJ_TBL == objType) && (TSDB_VIEW_TABLE == pTableMeta->tableType)) ||
+                ((PRIV_OBJ_VIEW == objType) && (TSDB_VIEW_TABLE != pTableMeta->tableType))) {
+              taosMemoryFree(pTableMeta);
+              TAOS_RETURN(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT);
+            }
+            taosMemoryFree(pTableMeta);
+        }
+      } else {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "Table name cannot be empty for table or view level privileges");
+      }
+      TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      if (objType == PRIV_OBJ_TBL) {
+        code = translateGrantTagCond(pCxt, pStmt, pReq, grant);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+      }
+      break;
+    }
+    case PRIV_OBJ_FUNC:
+      break;
+    case PRIV_OBJ_IDX:
+      TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      break;
+    case PRIV_OBJ_USER:
+      break;
+    case PRIV_OBJ_ROLE:
+      break;
+    case PRIV_OBJ_RSMA:
+      TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      break;
+    case PRIV_OBJ_TSMA:
+      TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      break;
+    case PRIV_OBJ_TOPIC:
+      TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      break;
+    case PRIV_OBJ_STREAM:
+      TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
+      break;
+    case PRIV_OBJ_MOUNT:
+      break;
+    case PRIV_OBJ_AUDIT:
+      break;
+    case PRIV_OBJ_TOKEN:
+      break;
+    default:
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "Unsupported object type for privilege");
+  }
+_exit:
+  if (code == TSDB_CODE_SUCCESS) {
+    if(pStmt->objName[0] != 0) {
+      (void)snprintf(pReq->objFName, sizeof(pReq->objFName), "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
+    }
+    if(pStmt->tabName[0] != 0) {
+      (void)snprintf(pReq->tblName, sizeof(pReq->tblName), "%s", pStmt->tabName);
+    }
+  }
+  TAOS_RETURN(code);
+}
+
 static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, bool grant) {
   int32_t       code = 0, lino = 0;
   SAlterRoleReq req = {0};
@@ -16747,7 +16761,15 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
       if (pStmt->privileges.selectCols) privAddType(&privSet, PRIV_TBL_SELECT);
       if (pStmt->privileges.insertCols) privAddType(&privSet, PRIV_TBL_INSERT);
       if (pStmt->privileges.updateCols) privAddType(&privSet, PRIV_TBL_UPDATE);
-      int32_t conflict = checkPrivConflicts(&privSet, &category, &objType, &objLevel, &conflict0, &conflict1);
+      if (PRIV_HAS(&privSet, PRIV_CM_ALL)) {
+        privRemoveType(&privSet, PRIV_CM_ALL);
+        if (!privIsEmptySet(&privSet)) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                         "Cannot mix ALL PRIVILEGES with other privileges");
+        }
+      }
+
+      int32_t conflict = privCheckConflicts(&privSet, &category, &objType, &objLevel, &conflict0, &conflict1);
       if (conflict > 0) {
         // SPrivInfo* info0 = privInfoGet(conflict0);
         // SPrivInfo* info1 = privInfoGet(conflict1);
@@ -16777,8 +16799,11 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
         }
       } else if (conflict != 0) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, conflict);
+      } else if(pStmt->pCond != NULL && objType != PRIV_OBJ_TBL) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "The With clause can only be used for table privileges");
       }
-      req.privileges.privSet = pStmt->privileges.privSet;
+      req.privileges.privSet = pStmt->privileges.privSet; // assign the privileges
       if (category == PRIV_CATEGORY_SYSTEM) {
         req.sysPriv = 1;
         if (pStmt->objName[0] != '\0' || pStmt->tabName[0] != '\0') {
@@ -16793,8 +16818,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
       } else {
         req.objType = objType;
         req.objLevel = objLevel;
-        TAOS_CHECK_EXIT(translateGrantFillPrivileges(pCxt, pStmt, &req));
-        TAOS_CHECK_EXIT(translateGrantCheckObject(pCxt, pStmt, category, &req, grant));
+        TAOS_CHECK_EXIT(translateGrantCheckFillObject(pCxt, pStmt, category, &req, grant));
       }
       break;
     }

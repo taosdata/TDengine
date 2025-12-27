@@ -233,11 +233,39 @@ static void initPrivLookup(void) {
   }
 }
 
-int32_t checkPrivConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
+int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel) {
+  (void)taosThreadOnce(&privInit, initPrivLookup);
+
+  if (!privSet) return TSDB_CODE_APP_ERROR;
+  if (!PRIV_HAS(privSet, PRIV_CM_ALL)) return TSDB_CODE_SUCCESS;
+
+  SPrivInfoIter iter = {0};
+  privInfoIterInit(&iter);
+
+  SPrivInfo* pPrivInfo = NULL;
+  while (privInfoIterNext(&iter, &pPrivInfo)) {
+    if (pPrivInfo->objType != pObjType) continue;
+    if (pPrivInfo->objLevel != pObjLevel) {
+      uWarn("privExpandAll: skip privType %d due to level mismatch, expected %d vs %d", pPrivInfo->privType, pObjLevel,
+            pPrivInfo->objLevel);
+      continue;
+    }
+    if (pPrivInfo->category != PRIV_CATEGORY_OBJECT) {
+      uWarn("privExpandAll: skip privType %d due to category mismatch, expected OBJECT vs %d", pPrivInfo->privType,
+            pPrivInfo->category);
+      continue;
+    }
+    privAddType(privSet, pPrivInfo->privType);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t privCheckConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
                            uint8_t* pObjLevel, EPrivType* conflict0, EPrivType* conflict1) {
   (void)taosThreadOnce(&privInit, initPrivLookup);
 
-  if (!privSet) return TSDB_CODE_PAR_INTERNAL_ERROR;
+  if (!privSet) return TSDB_CODE_APP_ERROR;
 
   int32_t          code = 0;
   const SPrivInfo* privInfo = NULL;

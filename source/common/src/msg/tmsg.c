@@ -4632,7 +4632,7 @@ int32_t tSerializePrivTblPolicies(SEncoder *pEncoder, SHashObj *pHash) {
           TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->colName));
           TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pCol->flags));
         }
-        // encode with condition
+        // encode with clause
         TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pPolicy->condLen));
         if (pPolicy->condLen > 0) { // the condLen contains the last '\0'
           TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pPolicy->cond, pPolicy->condLen - 1));
@@ -4677,7 +4677,7 @@ int32_t tDeserializePrivTblPolicies(SDecoder *pDecoder, SHashObj **pHash) {
               TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &col->flags));
           }
         }
-        // decode with condition
+        // decode with clause
         TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &policy.condLen));
         if (policy.condLen > 0) {
           TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &policy.cond));
