@@ -67,7 +67,7 @@ As shown in the image, the textarea input box contains the sample data, which ca
 
 Each piece of sample data ends with a carriage return.
 
-#### Parsing<a name="parse"></a>
+#### Parsing
 
 Parsing is the process of parsing unstructured strings into structured data. The message body's parsing rules currently support JSON, Regex, and UDT.
 
@@ -99,7 +99,7 @@ The following nested JSON data can automatically parse fields `groupid`, `data_v
 
 ![JSON parsing](../../assets/data-connectors-03.png)
 
-##### Regex Regular Expressions<a name="regex"></a>
+##### Regex Regular Expressions
 
 You can use **named capture groups** in regular expressions to extract multiple fields from any string (text) field. As shown in the figure, extract fields such as access IP, timestamp, and accessed URL from nginx logs.
 
@@ -157,7 +157,7 @@ Using json rules, the voltage is parsed as a string with units, and it is desire
 
 As shown in the figure below, you can use the split rule on the source field `ts` to split it into date and time, and use regex to extract the voltage value and unit from the field `voltage`. The split rule needs to set **delimiter** and **number of splits**, and the naming rule for the split fields is `{original field name}_{sequence number}`. The Regex rule is the same as in the parsing process, using **named capture groups** to name the extracted fields.
 
-### Filtering<a name="filter"></a>
+### Filtering
 
 The filtering feature can set filtering conditions, and only data rows that meet the conditions will be written to the target table. The result of the filter condition expression must be of boolean type. Before writing filter conditions, it is necessary to determine the type of parsed fields, and based on the type of parsed fields, judgment functions and comparison operators (`>`, `>=`, `<=`, `<`, `==`, `!=`) can be used to judge.
 
@@ -228,7 +228,7 @@ After selecting the target supertable, all tags and columns of the supertable wi
 The source field is automatically mapped to the tag and column of the target supertable using the mapping rule based on the name.
 For example, the following parsed, extracted, or split preview data:
 
-#### Mapping Rules <a name="expression"></a>
+#### Mapping Rules
 
 The supported mapping rules are shown in the following table:
 

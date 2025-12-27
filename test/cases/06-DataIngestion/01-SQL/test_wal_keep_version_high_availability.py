@@ -14,7 +14,7 @@ class TestWalKeepVersionTrim:
 
 
     def test_wal_keep_version_high_availability(self):
-        """Test WAL keep version and trim functionality
+        """Wal keep restart
         
         This test verifies:
         1. prepare data

@@ -126,7 +126,7 @@ class TestCompatibilityRollingUpgrade:
 
             tdCb.verifyData(corss_major_version=False)
 
-            tdCb.verifyBackticksInTaosSql(tdCom.getBuildPath())
+            tdCb.verifyBackticksInTaosSql(tdCom.getBuildPath(),lastBigVersion)
 
         tdLog.printNoPrefix("========== Rolling Upgrade Compatibility Test Completed Successfully ==========")
 

@@ -34,7 +34,7 @@ def time_moe():
 
 Change `ds_predict` to the URL that you want to use in your environment.
 
-```Python
+```python
     app.run(
             host='0.0.0.0',
             port=5001,

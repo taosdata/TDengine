@@ -1,4 +1,3 @@
-from distutils.log import error
 import taos
 import sys
 import time

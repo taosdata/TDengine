@@ -14,7 +14,7 @@ class TestWalKeepVersionTrim:
 
 
     def test_wal_keep_version_high_availability(self):
-        """Test WAL keep version and trim functionality
+        """Wal keep availability
         
         This test verifies:
         1. prepare data
@@ -22,9 +22,6 @@ class TestWalKeepVersionTrim:
         3. set keep version 0
         4. start dnode 3
         5. check wal keep version
-
-        Catalog:
-            - Database:WAL
 
         Since: v3.3.6.31
 
@@ -60,8 +57,8 @@ class TestWalKeepVersionTrim:
         tdSql.execute("flush database test")
 
         tdSql.query("show test.vgroups")
-        tdSql.checkData(0, 19, 0)
-        tdSql.checkData(1, 19, -1)
+        tdSql.checkData(0, 20, 0)
+        tdSql.checkData(1, 20, -1)
 
         max_retry = 240
         # check wal vgId 3 firstVer is greater than 0 means flush finished

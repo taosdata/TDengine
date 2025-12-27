@@ -15,8 +15,7 @@ import taos
 import sys
 import time
 import os
-from new_test_framework.utils import tdSql, tdLog, cluster
-from clusterCommonCheck import *
+from new_test_framework.utils import tdSql, tdLog, cluster, clusterComCheck
 
 
 class Test5dnode3mnodeStop:

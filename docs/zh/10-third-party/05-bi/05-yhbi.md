@@ -25,12 +25,12 @@ toc_max_heading_level: 4
 
 **第 1 步**，在打开的永洪 BI 中点击【添加数据源】按钮，选择 SQL 数据源中的“GENERIC”类型。
 
-**第 2 步**，点击【选择自定义驱动】按钮，在【驱动管理】对话框中点击【驱动列表】旁边的“+”，输入名称“MyTDengine”。然后点击【上传文件】按钮，上传刚刚下载的 TDengine TSDB JDBC 连接器文件 `taos-jdbcdriver-3.2.7-dist.jar`，并选择 `com.taosdata.jdbc.rs.RestfulDriver` 驱动，最后点击“确定”按钮，完成驱动添加步骤。  
+**第 2 步**，点击【选择自定义驱动】按钮，在【驱动管理】对话框中点击【驱动列表】旁边的“+”，输入名称“MyTDengine”。然后点击【上传文件】按钮，上传刚刚下载的 TDengine TSDB JDBC 连接器文件 `taos-jdbcdriver-3.4.0-dist.jar`，并选择 `com.taosdata.jdbc.ws.WebSocketDriver` 驱动，最后点击“确定”按钮，完成驱动添加步骤。  
 
 **第 3 步**，复制下面的内容到【URL】字段。  
 
 ```text
-jdbc:TAOS-RS://127.0.0.1:6041?user=root&password=taosdata
+jdbc:TAOS-WS://127.0.0.1:6041?user=root&password=taosdata&conmode=1&varcharAsString=true
 ```
 
 **第 4 步**，在【认证方式】中点击【无身份认证】单选按钮。

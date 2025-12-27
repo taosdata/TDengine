@@ -71,7 +71,7 @@ python_error=$(cat "${LOG_DIR}"/*.info | grep -w "stack" | wc -l)
 # shellcheck disable=SC2126
 python_taos_error=$(
   cat "${LOG_DIR}"/*.info |
-  grep -E  "#[0-9]+ 0x[0-9a-f]+ .*?(TDinternal|TDengine|/taosws/)" |
+  grep -E  "#[0-9]+ 0x[0-9a-f]+ .*(TDinternal|TDengine|/taosws/)" |
   grep -E -v "venv|taosws.abi3.so" |
   wc -l
 )
@@ -107,7 +107,7 @@ python_taos_error=$(
 runtime_error=$(
   cat "${LOG_DIR}"/*.asan | 
   grep "runtime error" | 
-  grep -E -v "trees.c:873|sclfunc.c.*outside the range of representable values of type|signed integer overflow|strerror.c|asan_malloc_linux.cc|strerror.c|asan_malloc_linux.cpp|sclvector.c|sclfunc.c:808|sz_double.c:388|sz_float.c:407:59" | 
+  grep -E -v "trees.c:873|sclfunc.c.*outside the range of representable values of type|signed integer overflow|strerror.c|asan_malloc_linux.cc|asan_malloc_linux.cpp|sclvector.c|sclfunc.c:808|sz_double.c:388|sz_float.c:407:59" |
   wc -l
 )
 

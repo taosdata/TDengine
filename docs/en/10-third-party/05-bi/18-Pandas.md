@@ -40,7 +40,7 @@ For detailed specifications of the Pandas interfaces, please refer to [Pandas Ap
 
 TDengine currently supports timestamp, number, character, and boolean types, and the corresponding type conversions with Fsqlalchemy.types are as follows:
 
-|  Sqlalchemy Types       |  TDengine TSDB DataType |       
+|  Sqlalchemy Types       |  TDengine TSDB DataType |
 | ------------------------|-------------------------|
 | sqltypes.Boolean        | BOOL                    |
 | sqltypes.TIMESTAMP      | TIMESTAMP               |

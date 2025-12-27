@@ -240,12 +240,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 
 ##### 本地集成开发环境执行示例程序
 
-1. clone TDengine 仓库
-
-   ```bash
-   git clone git@github.com:taosdata/TDengine.git --depth 1
-   ```
-
+1. clone TDengine 仓库:`git clone git@github.com:taosdata/TDengine.git --depth 1`
 2. 用集成开发环境打开 `TDengine/docs/examples/JDBC/highvolume` 目录。
 3. 在开发环境中配置环境变量 `TDENGINE_JDBC_URL`。如果已配置了全局的环境变量 `TDENGINE_JDBC_URL` 可跳过这一步。
 4. 如果要运行 Kafka 示例，需要设置 Kafka 集群地址的环境变量 `KAFKA_BOOTSTRAP_SERVERS`。

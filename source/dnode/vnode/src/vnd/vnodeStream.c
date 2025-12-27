@@ -1277,6 +1277,8 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     int64_t* pRange = (int64_t*)timerange;
     window.skey = pRange[0];
     window.ekey = pRange[1];
+    ST_TASK_DLOG("%s get time range from ranges, uid:%" PRId64 ", suid:%" PRId64 ", gid:%" PRIu64 ", skey:%" PRId64 ", ekey:%" PRId64,
+      __func__, submitTbData.uid, submitTbData.suid, id, window.skey, window.ekey);
   }
   
   if (tDecodeI32v(pCoder, &submitTbData.sver) < 0) {
@@ -1456,13 +1458,17 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
     SColumnInfoData* pColData = taosArrayGetLast(pBlock->pDataBlock);
     STREAM_CHECK_NULL_GOTO(pColData, terrno);
     STREAM_CHECK_RET_GOTO(colDataSetNItems(pColData, blockStart, (const char*)&ver, numOfRows, 1, false));
+
+    STREAM_CHECK_NULL_GOTO(pSlice, TSDB_CODE_INVALID_PARA);
+    ST_TASK_DLOG("%s process submit data:skey %" PRId64 ", ekey %" PRId64 ", id %" PRIu64
+      ", uid:%" PRId64 ", ver:%"PRId64 ", row index:%d, rows:%d", __func__, window.skey, window.ekey, 
+      id, submitTbData.uid, ver, pSlice->currentRowIdx, numOfRows);
+    pSlice->currentRowIdx += numOfRows;
+    pBlock->info.rows += numOfRows;
+  } else {
+    ST_TASK_DLOG("%s no valid data in time range:skey %" PRId64 ", ekey %" PRId64 ", uid:%" PRId64 ", suid:%" PRId64,
+      __func__, window.skey, window.ekey, submitTbData.uid, submitTbData.suid);
   }
-  STREAM_CHECK_NULL_GOTO(pSlice, TSDB_CODE_INVALID_PARA);
-  ST_TASK_DLOG("%s process submit data:skey %" PRId64 ", ekey %" PRId64 ", id %" PRIu64
-    ", uid:%" PRId64 ", ver:%"PRId64 ", row index:%d, rows:%d", __func__, window.skey, window.ekey, 
-    id, submitTbData.uid, ver, pSlice->currentRowIdx, numOfRows);
-  pSlice->currentRowIdx += numOfRows;
-  pBlock->info.rows += numOfRows;
   
   if (gidHash == NULL) goto end;
 
@@ -1661,7 +1667,7 @@ static int32_t scanSubmitDataPre(SStreamTriggerReaderInfo* sStreamReaderInfo, vo
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, end);
   }
-  ST_TASK_TLOG("%s nSubmitTbData:%" PRIu64 ", ver:%"PRId64, __func__, nSubmitTbData, ver);
+  ST_TASK_DLOG("%s nSubmitTbData:%" PRIu64 ", ver:%"PRId64, __func__, nSubmitTbData, ver);
 
   for (int32_t i = 0; i < nSubmitTbData; i++) {
     uint64_t gid = -1;
@@ -1669,6 +1675,7 @@ static int32_t scanSubmitDataPre(SStreamTriggerReaderInfo* sStreamReaderInfo, vo
     int32_t numOfRows = 0;
     STREAM_CHECK_RET_GOTO(scanSubmitTbDataPre(&decoder, sStreamReaderInfo, ranges, &gid, &uid, &numOfRows, rsp));
     if (numOfRows <= 0) {
+      ST_TASK_DLOG("%s no valid data uid:%" PRId64 ", gid:%" PRIu64 ", numOfRows:%d, ver:%"PRId64, __func__, uid, gid, numOfRows, ver);
       continue;
     }
     rsp->totalRows += numOfRows;
@@ -2564,7 +2571,9 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
   STableKeyInfo* pList = NULL;
 
   void* pTask = sStreamReaderInfo->pTask;
-  ST_TASK_DLOG("vgId:%d %s start", TD_VID(pVnode), __func__);
+  ST_TASK_DLOG("vgId:%d %s start, ver:%" PRId64 ",skey:%" PRId64 ",ekey:%" PRId64 ",gid:%" PRId64, TD_VID(pVnode),
+               __func__, req->tsdbMetaReq.ver, req->tsdbMetaReq.startTime, req->tsdbMetaReq.endTime,
+               req->tsdbMetaReq.gid);
 
   SStreamReaderTaskInner* pTaskInner = NULL;
   int64_t                 key = getSessionKey(req->base.sessionId, STRIGGER_PULL_TSDB_META);
@@ -3608,6 +3617,7 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   int32_t                   lino = 0;
   SSTriggerPullRequestUnion req = {0};
   void*                     taskAddr = NULL;
+  bool                      sendRsp = false;
 
   vDebug("vgId:%d, msg:%p in stream reader queue is processing", pVnode->config.vgId, pMsg);
   if (!syncIsReadyForRead(pVnode->sync)) {
@@ -3636,6 +3646,7 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       taosWUnLockLatch(&sStreamReaderInfo->lock);
       STREAM_CHECK_RET_GOTO(code);
     }
+    sendRsp = true;
     switch (req.base.type) {
       case STRIGGER_PULL_SET_TABLE:
         STREAM_CHECK_RET_GOTO(vnodeProcessStreamSetTableReq(pVnode, pMsg, &req, sStreamReaderInfo));
@@ -3695,8 +3706,8 @@ int32_t vnodeProcessStreamReaderMsg(SVnode* pVnode, SRpcMsg* pMsg) {
         break;
       default:
         vError("unknown inner msg type:%d in stream reader queue", req.base.type);
+        sendRsp = false;
         STREAM_CHECK_RET_GOTO(TSDB_CODE_APP_ERROR);
-        break;
     }
   } else {
     vError("unknown msg type:%d in stream reader queue", pMsg->msgType);
@@ -3708,5 +3719,14 @@ end:
 
   tDestroySTriggerPullRequest(&req);
   STREAM_PRINT_LOG_END(code, lino);
+  if (!sendRsp) {
+    SRpcMsg rsp = {
+      .code = code,
+      .pCont = pMsg->info.rsp,
+      .contLen = pMsg->info.rspLen,
+      .info = pMsg->info,
+    };
+    tmsgSendRsp(&rsp);
+  }
   return code;
 }

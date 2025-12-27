@@ -577,7 +577,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bi
   } else {
     pBind = bind;
   }
-  
+
   code = tColDataAddValueByBind(pCol, pBind,
                                 IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
                                 initCtxAsText, checkWKB);
@@ -736,7 +736,11 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
         val.nData = output;
 
       } else {
-        memcpy(&val.i64, bindData.buffer, colLen);
+        uint8_t* buf = (uint8_t*)bindData.buffer;
+        if (TSDB_DATA_TYPE_BOOL == pTagSchema->type && *buf > 1) {
+          *buf = 1;
+        }
+        memcpy(&val.i64, buf, colLen);
       }
       if (IS_VAR_DATA_TYPE(pTagSchema->type) && val.nData > pTagSchema->bytes) {
         code = TSDB_CODE_PAR_VALUE_TOO_LONG;
@@ -1362,7 +1366,8 @@ int32_t buildBoundFields(int32_t numOfBound, int16_t* boundColumns, SSchema* pSc
 }
 
 int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32_t* fieldNum, TAOS_FIELD_ALL** fields,
-                            STableMeta* pMeta, void* boundTags, SSHashObj* parsedCols, uint8_t tbNameFlag) {
+                            STableMeta* pMeta, void* boundTags, SSHashObj* parsedCols, uint8_t tbNameFlag,
+                            int32_t* placeholderOfTags, int32_t* placeholderOfCols) {
   SBoundColInfo* tags = (SBoundColInfo*)boundTags;
   bool           hastag = (tags != NULL) && !(tbNameFlag & IS_FIXED_TAG);
   bool           hasPreBindTbname =
@@ -1373,7 +1378,7 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
   }
 
   // Adjust the number of bound fields if there are parsed tags or parsed columns
-  if (tags->parseredTags) {
+  if (tags && tags->parseredTags) {
     numOfBound -= tags->parseredTags->numOfTags;
   }
   if (parsedCols) {
@@ -1386,23 +1391,81 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
     if (NULL == *fields) {
       return terrno;
     }
+  }
 
-    if (hasPreBindTbname) {
-      (*fields)[idx].field_type = TAOS_FIELD_TBNAME;
-      tstrncpy((*fields)[idx].name, "tbname", sizeof((*fields)[idx].name));
-      (*fields)[idx].type = TSDB_DATA_TYPE_BINARY;
-      (*fields)[idx].bytes = TSDB_TABLE_FNAME_LEN;
+  if (hasPreBindTbname && fields != NULL) {
+    (*fields)[idx].field_type = TAOS_FIELD_TBNAME;
+    tstrncpy((*fields)[idx].name, "tbname", sizeof((*fields)[idx].name));
+    (*fields)[idx].type = TSDB_DATA_TYPE_BINARY;
+    (*fields)[idx].bytes = TSDB_TABLE_FNAME_LEN;
+    idx++;
+  }
+
+  if (hastag && tags->numOfBound > 0 && !tags->mixTagsCols) {
+    SSchema* tagSchema = getTableTagSchema(pMeta);
+
+    for (int32_t i = 0; i < tags->numOfBound; ++i) {
+      SSchema* schema = &tagSchema[tags->pColIndex[i]];
+
+      if (tags->parseredTags && tags->parseredTags->numOfTags > 0) {
+        int32_t tag_idx = schema->colId - 1 - pMeta->tableInfo.numOfColumns;
+        bool    found = false;
+        for (int k = 0; k < tags->parseredTags->numOfTags; k++) {
+          if (tags->parseredTags->pTagIndex[k] == tag_idx) {
+            found = true;
+            break;
+          }
+        }
+        if (found) {
+          continue;
+        }
+      }
+
+      if (placeholderOfTags != NULL) {
+        (*placeholderOfTags)++;
+      }
+
+      if (fields != NULL) {
+        (*fields)[idx].field_type = TAOS_FIELD_TAG;
+        tstrncpy((*fields)[idx].name, schema->name, sizeof((*fields)[i].name));
+        (*fields)[idx].type = schema->type;
+        (*fields)[idx].bytes = schema->bytes;
+        if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
+          (*fields)[idx].precision = pMeta->tableInfo.precision;
+        }
+      }
       idx++;
     }
+  }
 
-    if (hastag && tags->numOfBound > 0 && !tags->mixTagsCols) {
-      SSchema* tagSchema = getTableTagSchema(pMeta);
+  if (boundColsInfo.numOfBound > 0) {
+    SSchema* schema = &pSchema[boundColsInfo.pColIndex[0]];
 
-      for (int32_t i = 0; i < tags->numOfBound; ++i) {
-        SSchema* schema = &tagSchema[tags->pColIndex[i]];
+    for (int32_t i = 0; i < boundColsInfo.numOfBound; ++i) {
+      int16_t idxCol = boundColsInfo.pColIndex[i];
 
+      if (idxCol == pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) {
+        if (fields != NULL) {
+          (*fields)[idx].field_type = TAOS_FIELD_TBNAME;
+          tstrncpy((*fields)[idx].name, "tbname", sizeof((*fields)[idx].name));
+          (*fields)[idx].type = TSDB_DATA_TYPE_BINARY;
+          (*fields)[idx].bytes = TSDB_TABLE_FNAME_LEN;
+        }
+        idx++;
+        continue;
+      } else if (idxCol < pMeta->tableInfo.numOfColumns) {
+        if (parsedCols && tSimpleHashGet(parsedCols, &pSchema[idxCol].colId, sizeof(int16_t))) {
+          continue;
+        }
+        if (fields != NULL) {
+          (*fields)[idx].field_type = TAOS_FIELD_COL;
+        }
+        if (placeholderOfCols != NULL) {
+          (*placeholderOfCols)++;
+        }
+      } else {
         if (tags->parseredTags && tags->parseredTags->numOfTags > 0) {
-          int32_t tag_idx = schema->colId - 1 - pMeta->tableInfo.numOfColumns;
+          int32_t tag_idx = idxCol - pMeta->tableInfo.numOfColumns;
           bool    found = false;
           for (int k = 0; k < tags->parseredTags->numOfTags; k++) {
             if (tags->parseredTags->pTagIndex[k] == tag_idx) {
@@ -1414,55 +1477,15 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
             continue;
           }
         }
-
-        (*fields)[idx].field_type = TAOS_FIELD_TAG;
-
-        tstrncpy((*fields)[idx].name, schema->name, sizeof((*fields)[i].name));
-        (*fields)[idx].type = schema->type;
-        (*fields)[idx].bytes = schema->bytes;
-        if (TSDB_DATA_TYPE_TIMESTAMP == schema->type) {
-          (*fields)[idx].precision = pMeta->tableInfo.precision;
-        }
-        idx++;
-      }
-    }
-
-    if (boundColsInfo.numOfBound > 0) {
-      SSchema* schema = &pSchema[boundColsInfo.pColIndex[0]];
-
-      for (int32_t i = 0; i < boundColsInfo.numOfBound; ++i) {
-        int16_t idxCol = boundColsInfo.pColIndex[i];
-
-        if (idxCol == pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) {
-          (*fields)[idx].field_type = TAOS_FIELD_TBNAME;
-          tstrncpy((*fields)[idx].name, "tbname", sizeof((*fields)[idx].name));
-          (*fields)[idx].type = TSDB_DATA_TYPE_BINARY;
-          (*fields)[idx].bytes = TSDB_TABLE_FNAME_LEN;
-
-          idx++;
-          continue;
-        } else if (idxCol < pMeta->tableInfo.numOfColumns) {
-          if (parsedCols && tSimpleHashGet(parsedCols, &pSchema[idxCol].colId, sizeof(int16_t))) {
-            continue;
-          }
-          (*fields)[idx].field_type = TAOS_FIELD_COL;
-        } else {
-          if (tags->parseredTags && tags->parseredTags->numOfTags > 0) {
-            int32_t tag_idx = idxCol - pMeta->tableInfo.numOfColumns;
-            bool    found = false;
-            for (int k = 0; k < tags->parseredTags->numOfTags; k++) {
-              if (tags->parseredTags->pTagIndex[k] == tag_idx) {
-                found = true;
-                break;
-              }
-            }
-            if (found) {
-              continue;
-            }
-          }
+        if (fields != NULL) {
           (*fields)[idx].field_type = TAOS_FIELD_TAG;
         }
+        if (placeholderOfTags != NULL) {
+          (*placeholderOfTags)++;
+        }
+      }
 
+      if (fields != NULL) {
         schema = &pSchema[idxCol];
         tstrncpy((*fields)[idx].name, schema->name, sizeof((*fields)[idx].name));
         (*fields)[idx].type = schema->type;
@@ -1473,12 +1496,14 @@ int32_t buildStbBoundFields(SBoundColInfo boundColsInfo, SSchema* pSchema, int32
         if (TSDB_DATA_TYPE_DECIMAL64 == schema->type || TSDB_DATA_TYPE_DECIMAL == schema->type) {
           decimalFromTypeMod(pMeta->schemaExt[idxCol].typeMod, &(*fields)[idx].precision, &(*fields)[idx].scale);
         }
-        idx++;
       }
+      idx++;
     }
   }
 
-  *fieldNum = numOfBound;
+  if (fieldNum != NULL) {
+    *fieldNum = numOfBound;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1568,7 +1593,8 @@ int32_t qBuildUpdateStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E*
 }
 
 int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, SSHashObj* parsedCols, uint8_t tbNameFlag,
-                               int32_t* fieldNum, TAOS_FIELD_ALL** fields) {
+                               int32_t* fieldNum, TAOS_FIELD_ALL** fields, int32_t* placeholderOfTags,
+                               int32_t* placeholderOfCols) {
   STableDataCxt* pDataBlock = (STableDataCxt*)pBlock;
   SSchema*       pSchema = getTableColumnSchema(pDataBlock->pMeta);
   if (pDataBlock->boundColsInfo.numOfBound <= 0) {
@@ -1581,7 +1607,7 @@ int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, SSHashObj* parsedC
   }
 
   CHECK_CODE(buildStbBoundFields(pDataBlock->boundColsInfo, pSchema, fieldNum, fields, pDataBlock->pMeta, boundTags,
-                                 parsedCols, tbNameFlag));
+                                 parsedCols, tbNameFlag, placeholderOfTags, placeholderOfCols));
 
   return TSDB_CODE_SUCCESS;
 }

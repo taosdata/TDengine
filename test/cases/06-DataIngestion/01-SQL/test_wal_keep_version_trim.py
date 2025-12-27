@@ -12,7 +12,7 @@ class TestWalKeepVersionTrim:
 
 
     def test_wal_keep_version_and_trim(self):
-        """Test WAL keep version and trim functionality
+        """Wal keep trim
         
         This test verifies:
         1. prepare data

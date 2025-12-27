@@ -21,7 +21,7 @@ The task saves progress information to the disk during operation, so if the task
 
 Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the add data source page, as shown below:
 
-![](../../assets/influxdb-01.png)
+![Add data source](../../assets/influxdb-01.png)
 
 ### 2. Configure Basic Information
 
@@ -33,13 +33,13 @@ Select *`InfluxDB`* from the **Type** dropdown menu, as shown below (the fields 
 
 **Target Database** is required. Since InfluxDB can store data with time precision of seconds, milliseconds, microseconds, and nanoseconds, you need to select a *`nanosecond precision database`* here, or click the **+ Create Database** button on the right.
 
-![](../../assets/influxdb-02.png)
+![Configure basic settings](../../assets/influxdb-02.png)
 
 ### 3. Configure Connection Information
 
 Fill in the *`connection information for the source InfluxDB database`* in the **Connection Configuration** area, as shown below:
 
-![](../../assets/influxdb-03.png)
+![Configure connection information](../../assets/influxdb-03.png)
 
 ### 4. Configure Authentication Information
 
@@ -49,7 +49,7 @@ In the **Authentication** area, there are two tabs, *`1.x version`* and *`2.x ve
   **User** Enter the user of the source InfluxDB database, who must have read permissions in that organization.  
   **Password** Enter the login password for the above user in the source InfluxDB database.
 
-   ![](../../assets/influxdb-04.png)
+   ![Configure authentication information for InfluxDB 1.x](../../assets/influxdb-04.png)
 
   *`2.x version`*  
   **Version** Select the version of the source InfluxDB database from the dropdown menu.  
@@ -57,19 +57,19 @@ In the **Authentication** area, there are two tabs, *`1.x version`* and *`2.x ve
   **Token** Enter the access token for the source InfluxDB database, which must have read permissions in that organization.  
   **Add Database Retention Policy** This is a *`Yes/No`* toggle. InfluxQL requires a combination of database and retention policy (DBRP) to query data. The cloud version of InfluxDB and some 2.x versions require manually adding this mapping. Turn on this switch, and the connector can automatically add it when executing tasks.  
 
-   ![](../../assets/influxdb-05.png)
+   ![Configure authentication information for InfluxDB 2.x](../../assets/influxdb-05.png)
 
 Below the **Authentication** area, there is a **Connectivity Check** button. Users can click this button to check if the information filled in above can normally access the data of the source InfluxDB database. The check results are shown below:  
 
-![](../../assets/influxdb-06.png)
+![Connectivity check failed](../../assets/influxdb-06.png)
 
-![](../../assets/influxdb-07.png)
+![Connectivity check succeeded](../../assets/influxdb-07.png)
 
 ### 5. Configure Task Information
 
 **Bucket** is a named space in the InfluxDB database for storing data. Each task needs to specify a bucket. Users need to first click the **Get Schema** button on the right to obtain the data structure information of the current source InfluxDB database, and then select from the dropdown menu as shown below:
 
-![](../../assets/influxdb-08.png)
+![Configure task information](../../assets/influxdb-08.png)
 
 **Measurements** are optional. Users can select one or more Measurements to synchronize from the dropdown menu. If none are specified, all will be synchronized.
 
@@ -85,9 +85,9 @@ Below the **Authentication** area, there is a **Connectivity Check** button. Use
 
 The **Advanced Options** area is collapsed by default. Click the `>` on the right to expand it, as shown below:
 
-![](../../assets/influxdb-09.png)
+![Configure advanced options](../../assets/influxdb-09.png)
 
-![](../../assets/influxdb-10.png)
+![Expanded advanced options](../../assets/influxdb-10.png)
 
 ### 7. Completion of Creation
 

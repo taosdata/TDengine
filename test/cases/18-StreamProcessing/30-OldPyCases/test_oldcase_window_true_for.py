@@ -52,12 +52,14 @@ class TestWindowTrueFor:
                 "CREATE STREAM s_event_4 EVENT_WINDOW(start with c1 > 0 end with c1 < 0) TRUE_FOR(2999)  FROM ct_0                                 INTO d_event_4 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
                 "CREATE STREAM s_event_5 EVENT_WINDOW(start with c1 > 0 end with c1 < 0) TRUE_FOR(3001a) FROM ct_0 STREAM_OPTIONS(IGNORE_DISORDER) INTO d_event_5 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
                 "CREATE STREAM s_event_6 EVENT_WINDOW(start with c1 > 0 end with c1 < 0) TRUE_FOR(3001a) FROM ct_0                                 INTO d_event_6 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
+                "CREATE STREAM s_event_7 EVENT_WINDOW(start with c1 > 0 end with c1 < 0) TRUE_FOR(3s)    FROM ct_0 STREAM_OPTIONS(IGNORE_DISORDER | EVENT_TYPE(WINDOW_OPEN)) INTO d_event_7 AS SELECT _twstart, _twend, count(*) FROM ct_0 where _c0 >= _twstart and _c0 <= _twend;",
                 "CREATE STREAM s_state_1 STATE_WINDOW(c1) TRUE_FOR(3s)    FROM ct_1 STREAM_OPTIONS(IGNORE_DISORDER) INTO d_state_1 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
                 "CREATE STREAM s_state_2 STATE_WINDOW(c1) TRUE_FOR(3s)    FROM ct_1                                 INTO d_state_2 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
                 "CREATE STREAM s_state_3 STATE_WINDOW(c1) TRUE_FOR(2999)  FROM ct_1 STREAM_OPTIONS(IGNORE_DISORDER) INTO d_state_3 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
                 "CREATE STREAM s_state_4 STATE_WINDOW(c1) TRUE_FOR(2999)  FROM ct_1                                 INTO d_state_4 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
                 "CREATE STREAM s_state_5 STATE_WINDOW(c1) TRUE_FOR(3001a) FROM ct_1 STREAM_OPTIONS(IGNORE_DISORDER) INTO d_state_5 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
                 "CREATE STREAM s_state_6 STATE_WINDOW(c1) TRUE_FOR(3001a) FROM ct_1                                 INTO d_state_6 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
+                "CREATE STREAM s_state_7 STATE_WINDOW(c1) TRUE_FOR(3s)    FROM ct_1 STREAM_OPTIONS(IGNORE_DISORDER | EVENT_TYPE(WINDOW_OPEN)) INTO d_state_7 AS SELECT _twstart, _twend, count(*) FROM ct_1 where _c0 >= _twstart and _c0 <= _twend;",
             ],
             queryTimes=1,
         )
@@ -316,6 +318,23 @@ class TestWindowTrueFor:
         )
 
         tdSql.checkResultsByFunc(
+            sql="SELECT * FROM d_event_7;",
+            func=lambda: tdSql.getRows() == 4
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(0, 2, 1)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(1, 2, 1)
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(2, 2, 1)
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(3, 2, 1),
+        )
+
+        tdSql.checkResultsByFunc(
             sql="SELECT * FROM d_state_1;",
             func=lambda: tdSql.getRows() == 4
             and tdSql.compareData(0, 0, "2025-01-01 00:00:10.000")
@@ -466,6 +485,23 @@ class TestWindowTrueFor:
             and tdSql.compareData(2, 0, "2025-01-01 00:00:24.000")
             and tdSql.compareData(2, 1, "2025-01-01 00:00:28.000")
             and tdSql.compareData(2, 2, 5),
+        )
+
+        tdSql.checkResultsByFunc(
+            sql="SELECT * FROM d_state_7;",
+            func=lambda: tdSql.getRows() == 4
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(0, 2, 1)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(1, 2, 1)
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(2, 2, 1)
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(3, 2, 1),
         )
 
         # test abnormal

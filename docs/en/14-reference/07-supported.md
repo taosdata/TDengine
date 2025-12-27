@@ -28,8 +28,9 @@ import PlatformSupported from "../assets/resources/_platform_supported.mdx";
 | **macOS**             | **14.0 and above**   |                | ●         |
 
 Note: 1) ● indicates officially tested and verified, ○ indicates unofficially tested, E indicates only supported by the TDengine TSDB-Enterprise.
+
    1) The TDengine TSDB-OSS only supports newer versions of mainstream operating systems, including Ubuntu 18+/CentOS 7+/CentOS Stream/RedHat/Debian/CoreOS/FreeBSD/OpenSUSE/SUSE Linux/Fedora/macOS, etc. For other operating systems and versions, please contact enterprise support.
 
 ## List of Platforms Supported by TDengine Client and Connectors
 
-<PlatformSupported /> 
+<PlatformSupported />

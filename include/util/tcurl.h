@@ -27,6 +27,8 @@ typedef struct SCurl {
   char* url;
 } SCURL;
 
+int32_t tcurlConnect(CURL** ppConn, const char* url);
+void    tcurlClose(void* pConn);
 int32_t tcurlGetConnection(const char* url, SCURL** pConn);
 int32_t tcurlSend(SCURL* curl, const void* buffer, size_t buflen, size_t* sent, curl_off_t fragsize,
                    unsigned int flags);

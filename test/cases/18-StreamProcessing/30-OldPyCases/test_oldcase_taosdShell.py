@@ -42,8 +42,10 @@ class TestOthersOldCaseTaosdshell:
             - 2025-6-16 lihui from old cases
 
         """
-
-        tdStream.createSnode()
+        if platform.system().lower() == 'windows':
+            tdLog.info("windows skip create snode")
+        else:
+            tdStream.createSnode()
 
         # streams = []
         # streams.append(self.Basic0())
@@ -138,18 +140,19 @@ class TestOthersOldCaseTaosdshell:
         tdSql.execute(f"create topic tpc1 as select * from {self.db}.ct2; ")
 
         #stream
-        tdSql.execute(f"drop database if exists {self.sdb};")
-        tdSql.query(f"create database {self.sdb} vgroups 3 wal_retention_period 3600;")
-        tdSql.query(f"use {self.sdb}")
-        tdSql.query(f"create table if not exists {self.sdb}.stb (ts timestamp, k int) tags (a int);")
-        tdSql.query(f"create table {self.sdb}.ct1 using {self.sdb}.stb tags(1000);create table {self.sdb}.ct2 using {self.sdb}.stb tags(2000);create table {self.sdb}.ct3 using {self.sdb}.stb tags(3000);")
-        tdSql.query(f"create stream s1 interval(10m) sliding(10m) from {self.sdb}.stb partition by tbname into {self.sdb}.output_stb as select _twstart AS startts, min(k), max(k), sum(k) from %%trows;")
+        if platform.system().lower() != 'windows':
+            tdSql.execute(f"drop database if exists {self.sdb};")
+            tdSql.query(f"create database {self.sdb} vgroups 3 wal_retention_period 3600;")
+            tdSql.query(f"use {self.sdb}")
+            tdSql.query(f"create table if not exists {self.sdb}.stb (ts timestamp, k int) tags (a int);")
+            tdSql.query(f"create table {self.sdb}.ct1 using {self.sdb}.stb tags(1000);create table {self.sdb}.ct2 using {self.sdb}.stb tags(2000);create table {self.sdb}.ct3 using {self.sdb}.stb tags(3000);")
+            tdSql.query(f"create stream s1 interval(10m) sliding(10m) from {self.sdb}.stb partition by tbname into {self.sdb}.output_stb as select _twstart AS startts, min(k), max(k), sum(k) from %%trows;")
+        
+            #TD-19944 -Q=3
+            # tdsqlN=tdCom.newTdSql()
 
-        #TD-19944 -Q=3
-        # tdsqlN=tdCom.newTdSql()
-
-        tdSql.query(f"select * from {self.sdb}.stb")
-        tdSql.query(f"select * from {self.db}.stb")
+            tdSql.query(f"select * from {self.sdb}.stb")
+            tdSql.query(f"select * from {self.db}.stb")
 
     # def insert1(self):
     #     pass

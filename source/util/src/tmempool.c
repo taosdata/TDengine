@@ -66,7 +66,7 @@ void mpFreeCacheGroup(SMPCacheGroup* pGrp) {
 
 int32_t mpAddCacheGroup(SMemPool* pPool, SMPCacheGroupInfo* pInfo, SMPCacheGroup* pHead) {
   SMPCacheGroup* pGrp = NULL;
-  if (NULL == pInfo->pGrpHead) {
+  if (NULL == atomic_load_ptr(&pInfo->pGrpHead)) {
     pInfo->pGrpHead = taosMemoryCalloc(1, sizeof(*pInfo->pGrpHead));
     if (NULL == pInfo->pGrpHead) {
       uError("malloc pGrpHead failed, error:%s", tstrerror(terrno));
@@ -1236,7 +1236,7 @@ void taosMemPoolDestroySession(void* poolHandle, void* session) {
     mpDestroyPosStat(&pSession->stat.posStat);
   }
   
-  taosMemFreeClear(pSession->sessionId);
+  //taosMemFreeClear(pSession->sessionId);
 
   TAOS_MEMSET(pSession, 0, sizeof(*pSession));
 
@@ -1250,11 +1250,13 @@ int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob, c
 
   MP_ERR_JRET(mpPopIdleNode(pPool, &pPool->sessionCache, (void**)&pSession));
 
+/*
   pSession->sessionId = taosStrdup(sessionId);
   if (NULL == pSession->sessionId) {
     uError("strdup sessionId failed, error:%s", tstrerror(terrno));
     MP_ERR_JRET(terrno);
   }
+*/
 
   TAOS_MEMCPY(&pSession->ctrl, &gMPMgmt.ctrl, sizeof(pSession->ctrl));
 

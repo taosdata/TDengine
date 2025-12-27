@@ -217,7 +217,7 @@ class TestCompositePrimaryKeyDelete:
                     tdSql.checkEqual(False, True)
 
     def test_primary_key_delete(self):
-        """ Composite Primary Key Delete Tests
+        """Composite Primary Key Delete
 
         This test ensures that TDengine's delete operations strictly follow time-series database design principles: only allowing data deletion by time dimension.
 

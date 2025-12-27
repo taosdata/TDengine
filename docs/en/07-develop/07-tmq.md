@@ -16,6 +16,7 @@ The above SQL will create a subscription named topic_meters. Each record in the 
 
 **Note**
 In the implementation of TDengine connectors, there are the following limitations for subscription queries.
+
 - Only data subscription is supported, and subscription with `with meta` is not supported.
   - Java(WebSocket connection), Go, and Rust connectors support subscribing to databases, super tables, and `SELECT` queries.
   - Java(Native connection), C#, Python, and Node.js connectors only support subscribing to `SELECT` statements and do not support other types of SQL, such as subscribing to databases or super tables.
@@ -290,7 +291,7 @@ After subscribing to a topic, consumers can start receiving and processing messa
 <TabItem label="Node.js" value="node">
 
 ```js
-    {{#include docs/examples/node/websocketexample/tmq_seek_example.js:subscribe}}
+{{#include docs/examples/node/websocketexample/tmq_seek_example.js}}
 ```
 
 </TabItem>

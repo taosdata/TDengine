@@ -16,24 +16,24 @@ Using qStudio to connect to TDengine requires the following preparations.
 
 1. Launch the qStudio application, select "Server" and "Add Server..." from the menu items, then choose TDengine from the Server Type dropdown.
 
-   ![](../../assets/qstudio-01.png)
+   ![Add TDengine server in qStudio](../../assets/qstudio-01.png)
 
 2. Configure the TDengine connection by entering the host address, port number, username, and password. If TDengine is deployed on the local machine, you can just enter the username and password, with the default username being root and the default password being taosdata. Click "Test" to check if the connection is available. If the TDengine Java connector is not installed on the local machine, qStudio will prompt to download and install it.
 
-   ![](../../assets/qstudio-02.png)
+   ![Configure TDengine connection and download client library](../../assets/qstudio-02.png)
 
 3. A successful connection will be displayed as shown below. If the connection fails, please check whether the TDengine service and taosAdapter are running correctly, and whether the host address, port number, username, and password are correct.
 
-   ![](../../assets/qstudio-03.png)
+   ![qStudio connected successfully to TDengine](../../assets/qstudio-03.png)
 
 4. Using qStudio to select databases and tables allows you to browse data from the TDengine service.
 
-   ![](../../assets/qstudio-04.png)
+   ![Select tables to browse in qStudio](../../assets/qstudio-04.png)
 
 5. You can also operate on TDengine data by executing SQL commands.
 
-   ![](../../assets/qstudio-05.png)
+   ![Run SQL statements on TDengine data](../../assets/qstudio-05.png)
 
 6. qStudio supports features like charting based on data, please refer to [qStudio's help documentation](https://www.timestored.com/qstudio/help)
 
-   ![](../../assets/qstudio-06.png)
+   ![Configure visualizations](../../assets/qstudio-06.png)

@@ -313,7 +313,7 @@ As shown below:
 # default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
 #request_timeout = 30
 
-# GRPC listen address，use ip:port like `0.0.0.0:6055`.
+# GRPC listen address; use ip:port like `0.0.0.0:6055`.
 #
 # When use this in explorer, please set explorer grpc configuration to **Public** IP or
 # FQDN with correct port, which might be changed exposing to Public network.
@@ -576,8 +576,6 @@ The taosX Parser plugin is a dynamic library compatible with the C ABI, develope
 ### Plugin Deployment
 
 After the plugin development is completed, the compilation environment needs to be compatible with the target operating environment. Copy the compiled plugin dynamic library to the plugin directory. After taosX starts, the system initializes and loads the plugin the first time it is used. You can check whether it is loaded successfully on the kafka or mqtt data access configuration page in explorer.
-
-![](../../assets/taosx-01.png)
 
 The plugin directory reuses the plugins configuration in the `taosx.toml` configuration file, appending `/parsers` as the plugin installation path. The default value in UNIX environment is `/usr/local/taos/plugins/parsers`, and in Windows it is `C:\TDengine\plugins\parsers`.
 

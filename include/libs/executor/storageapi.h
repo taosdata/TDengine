@@ -264,8 +264,6 @@ typedef struct SStoreTqReader {
 
   int32_t (*tqReaderSetSubmitMsg)();  // todo remove it
   //  bool (*tqReaderNextBlockFilterOut)();
-
-  int32_t (*tqReaderSetVtableInfo)();
 } SStoreTqReader;
 
 typedef struct SStoreSnapshotFn {

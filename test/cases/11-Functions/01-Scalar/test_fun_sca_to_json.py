@@ -387,7 +387,8 @@ class TestJsonTag:
         tdSql.execute(f"insert into {dbname}.jsons1_14 using {dbname}.jsons1 tags('{{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":null}}') values(1591062628000, 2, NULL, '你就会', 'dws')")
         tdSql.query(f"select distinct jtag->'tag1' from {dbname}.jsons1")
         tdSql.checkRows(8)
-        tdSql.error(f"select distinct jtag from {dbname}.jsons1")
+        tdSql.query(f"select distinct jtag from {dbname}.jsons1")
+        tdSql.checkRows(8)
 
         #test dumplicate key with normal colomn
         tdSql.execute(f"insert into {dbname}.jsons1_15 using {dbname}.jsons1 tags('{{\"tbname\":\"tt\",\"databool\":true,\"datastr\":\"是是是\"}}') values(1591060828000, 4, false, 'jjsf', \"你就会\")")
@@ -425,8 +426,8 @@ class TestJsonTag:
         tdSql.checkData(2, 1, '"femail"')
         tdSql.checkData(7, 1, "false")
 
-        tdSql.error(f"select count(*) from {dbname}.jsons1 group by jtag")
-        tdSql.error(f"select count(*) from {dbname}.jsons1 partition by jtag")
+        tdSql.query(f"select count(*) from {dbname}.jsons1 group by jtag")
+        tdSql.query(f"select count(*) from {dbname}.jsons1 partition by jtag")
         tdSql.error(f"select count(*) from {dbname}.jsons1 group by jtag order by jtag")
         tdSql.error(f"select count(*) from {dbname}.jsons1 group by jtag->'tag1' order by jtag->'tag2'")
         tdSql.error(f"select count(*) from {dbname}.jsons1 group by jtag->'tag1' order by jtag")
@@ -704,6 +705,65 @@ class TestJsonTag:
         tdSql.execute(f"insert into {dbname}.jsons_13918_4 using {dbname}.jsons_stb tags(\"NULL\") values(1591061628006, 11)")
         tdSql.query(f"select * from {dbname}.jsons_stb")
         tdSql.checkRows(4)
+        
+        createSql = r'''CREATE TABLE `jsons1_t1` USING `jsons1` (`jtag`) TAGS ('{"tag1":5,"tag2":"beijing"}')'''
+        tdSql.execute(createSql)
+        tdSql.query(f"show create table {dbname}.jsons1_t1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, createSql)
+        
+        createSql = r'''CREATE TABLE `jsons1_t2` USING `jsons1` (`jtag`) TAGS ('{"tag1":false,"tag2":"beijing"}')'''
+        tdSql.execute(createSql)
+        tdSql.query(f"show create table {dbname}.jsons1_t2")
+        tdSql.checkRows(1)
+        
+        createSql = r'''CREATE TABLE `jsons1_t3` USING `jsons1` (`jtag`) TAGS ('null')'''
+        tdSql.execute(createSql)
+        tdSql.query(f"show create table {dbname}.jsons1_t3")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, createSql)
+        
+        
+        sql = f"SELECT distinct tbname, jtag from {dbname}.jsons1  where tbname IN('jsons1_t1', 'jsons1_t2', 'jsons1_t3')"
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        
+        # select count(*) from db.jsons1;
+        sql = f"select jtag->'tag1', count(*) from {dbname}.jsons1 group by jtag->'tag1'"
+        tdSql.query(sql)
+        tdSql.checkRows(7)
 
+        sql = f"select jtag, count(*) from {dbname}.jsons1 group by jtag"
+        tdSql.query(sql)
+        tdSql.checkRows(10)
+        
+        sql = f"select jtag->'tag1', count(*) from {dbname}.jsons1 group by jtag"
+        tdSql.query(sql)
+        tdSql.checkRows(10)
+        
+        sql = f"select jtag, count(*) from {dbname}.jsons1 group by jtag->'tag1'"
+        tdSql.error(sql)
+        
+        sql = f"select jtag->'tag1', count(*) from {dbname}.jsons1 partition by jtag->'tag1'"
+        tdSql.query(sql)
+        tdSql.checkRows(7)
+
+        sql = f"select jtag, count(*) from {dbname}.jsons1 partition by jtag"
+        tdSql.query(sql)
+        tdSql.checkRows(10)
+        
+        sql = f"select jtag->'tag1', count(*) from {dbname}.jsons1 partition by jtag"
+        tdSql.query(sql)
+        tdSql.checkRows(10)
+        
+        sql = f"select jtag, count(*) from {dbname}.jsons1 partition by jtag->'tag1'"
+        tdSql.error(sql)
+        
+        createSql = r'''CREATE TABLE `jsons1_t4` USING `jsons1` (`jtag`) TAGS ('{"tag1":false,"tag2":"xi''an"}')'''
+        tdSql.execute(createSql)
+        tdSql.query(f"show create table {dbname}.jsons1_t4")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, createSql)
+        
         #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

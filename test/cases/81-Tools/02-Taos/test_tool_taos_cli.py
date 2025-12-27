@@ -93,7 +93,7 @@ class TestTaosCli:
         self.taos(f'-s "create table if not exists testdec.test(ts timestamp, dec64 decimal(10,6), dec128 decimal(24,10)) tags (note nchar(20))"')
         self.taos(f'-s "create table testdec.d0 using testdec.test(note) tags(\'test\')"')
         self.taos(f'-s "insert into testdec.d0 values(now(), \'9876.123456\', \'123456789012.0987654321\')"')
-        
+
         # check decimal64
         self.checkDecimalCommon("dec64", "9876.123456")
 
@@ -117,12 +117,13 @@ class TestTaosCli:
 
         # native restful websock test
         args = [
-            ["-Z native"], 
-            ["-T 40 -E http://localhost:6041"]
+            ["-Z native"],
+            ["-T 40 -E http://localhost:6041"],
+            ["-T 40 -E http://root:taosdata@localhost:6041"]
         ]
         for arg in args:
             self.checkResultWithMode(db, stb, arg)
-        
+
         self.checkDecimal()
 
 
@@ -130,7 +131,7 @@ class TestTaosCli:
         mode = arg[0]
         self.taos(f'{mode} -s "source {source}" ')
         self.taos(f'{mode} -s "select * from {db}.d0>>d0.csv" ')
-        
+
         # use db
         rlist = self.taos(f'{mode} -s "show databases;use {db};show databases;" ')
         # update sql
@@ -141,7 +142,7 @@ class TestTaosCli:
         if mode == "":
             self.taos(f'{mode} -s "delete from {db}.d0" ')
             self.taos(f'{mode} -s "insert into {db}.d0 file d0.csv" ')
-        
+
         sql = f"select count(*) from {db}.d0"
         self.taos(f'{mode} -B -s "{sql}" ')
         tdSql.checkAgg(sql, insertRows)
@@ -160,7 +161,7 @@ class TestTaosCli:
         db = "db"
         insertRows = 5
         for arg in args:
-            # insert 
+            # insert
             self.checkDumpInOutMode(source, arg, db, insertRows)
 
     def checkVersion(self):
@@ -177,7 +178,7 @@ class TestTaosCli:
 
         if len(rlist1[2]) < 42:
             tdLog.exit("git commit id length is invalid: " + rlist1[2])
-        
+
         keys = [
             "version:",
             "git:",
@@ -192,7 +193,7 @@ class TestTaosCli:
         rlist2 = self.taos("-?")
         self.checkSame(rlist1, rlist2)
 
-        # check return 
+        # check return
         if platform.system() == "Windows":
             strings = [
             "-a,",
@@ -209,7 +210,7 @@ class TestTaosCli:
 
         for string in strings:
             self.checkListString(rlist1, string)
-    
+
     def checkCommand(self):
         # check coredump
         queryOK = "Query OK"
@@ -235,7 +236,7 @@ class TestTaosCli:
             ['-s "help;"', "Timestamp expression Format"],
             ['-s ""', "Invalid commands"],
             ['-t', "2: service ok"],
-            
+
         ]
         if platform.system() != "Windows":
             args.append(['-o "./current/log/files/" -h localhost -uroot -ptaosdata  -s"show databases;"', queryOK])
@@ -252,10 +253,10 @@ class TestTaosCli:
         #
         # support native only
         #
-        
+
         # o logpath
         char = 'a'
-        lname =f'-o "/root/log/{char * 1000}/" -s "quit;"' 
+        lname =f'-o "/root/log/{char * 1000}/" -s "quit;"'
 
         args = [
             ['-a ""', "Invalid auth"],
@@ -273,7 +274,7 @@ class TestTaosCli:
         #
         #  cmd & env
         #
-        
+
         # env  6043 - invalid
         os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6043"
         # cmd 6041 - valid
@@ -281,7 +282,7 @@ class TestTaosCli:
         rlist = self.taos(cmd, checkRun = True)
         results = [
             "WebSocket Client Version",
-            "2022-10-01 00:01:39.000", 
+            "2022-10-01 00:01:39.000",
             "Query OK, 200 row(s) in set"
         ]
         self.checkManyString(rlist, results)
@@ -339,30 +340,30 @@ class TestTaosCli:
         # do check
         for option in options:
             self.checkExcept(taos + " -s 'show dnodes;' " + option)
-    
-    def checkModeVersion(self):    
 
-        # check default conn mode        
+    def checkModeVersion(self):
+
+        # check default conn mode
         #DEFAULT_CONN = "WebSocket"
         DEFAULT_CONN = "Native"
 
         # results
         results = [
             f"{DEFAULT_CONN} Client Version",
-            "2022-10-01 00:01:39.000", 
+            "2022-10-01 00:01:39.000",
             "Query OK, 100 row(s) in set"
         ]
-    
+
         # default
         cmd = f'-s "select ts from test.d0"'
         rlist = self.taos(cmd, checkRun = True)
         self.checkManyString(rlist, results)
-        
+
         # websocket
         cmd = f'-Z 1 -s "select ts from test.d0"'
         results[0] = "WebSocket Client Version"
         rlist = self.taos(cmd, checkRun = True)
-        self.checkManyString(rlist, results)        
+        self.checkManyString(rlist, results)
 
         # native
         cmd = f'-Z 0 -s "select ts from test.d0"'
@@ -377,7 +378,7 @@ class TestTaosCli:
         self.checkExceptCmd()
         # mode version
         self.checkModeVersion()
-    
+
     # password
     def checkPassword(self):
         # 255 char max password
@@ -386,10 +387,10 @@ class TestTaosCli:
         pwdFile = f"{os.path.dirname(__file__)}/data/pwdMax.txt"
         with open(pwdFile) as file:
             pwd = file.readline()
-        
+
         sql = f"create user {user} pass '{pwd}' "
         tdSql.execute(sql)
-         
+
         cmds = [
             f"-u{user} -p'{pwd}'      -s 'show databases;'",  # command pass
             f"-u{user} -p < {pwdFile} -s 'show databases;'"   # input   pass
@@ -402,7 +403,7 @@ class TestTaosCli:
     # run
     def test_tool_taos_cli(self):
         """taos-CLI basic test
-        
+
         1. Insert data with taosBenchmark json format
         2. Check describe show full
         3. Check basic command in different conn mode

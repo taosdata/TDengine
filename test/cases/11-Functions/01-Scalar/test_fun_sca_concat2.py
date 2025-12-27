@@ -258,7 +258,7 @@ class TestConcat2:
         )
 
     def test_fun_sca_concat2(self):
-        """ Fun: concat() extend test
+        """ Fun: concat() extend
 
         1. Create super table and child tables
         2. Insert data with null/chinese/single char values

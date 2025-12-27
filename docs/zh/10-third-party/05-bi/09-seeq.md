@@ -21,7 +21,7 @@ Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在
 
 **第 1 步**，查看 data 存储位置
 
-```shell
+```bash
 sudo seeq config get Folders/Data
 ```
 
@@ -29,7 +29,7 @@ sudo seeq config get Folders/Data
 
 **第 3 步**，重新启动 seeq server
 
-```shell
+```bash
 sudo seeq restart
 ```
 
@@ -56,7 +56,7 @@ CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 
 **第 2 步**，在 TDengine TSDB 中构造数据。
 
-```shell
+```bash
 python mockdata.py
 taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from power.meters interval(10d);"
 ```

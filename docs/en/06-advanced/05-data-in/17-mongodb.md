@@ -19,7 +19,7 @@ MongoDB is a product that lies between relational and non-relational databases, 
 
 Click the **+ Add Data Source** button in the top right corner of the data writing page to enter the Add Data Source page, as shown below:
 
-![](../../assets/mongodb-01.png)
+![Add data source](../../assets/mongodb-01.png)
 
 ### 2. Configure Basic Information
 
@@ -31,13 +31,13 @@ Select `MongoDB` from the **Type** dropdown menu, as shown below (the fields on 
 
 **Target Database** is mandatory. You can select a specific database from the dropdown menu, or click the **+ Create Database** button on the right to create a new database.
 
-![](../../assets/mongodb-02.png)
+![Configure basic settings](../../assets/mongodb-02.png)
 
 ### 3. Configure Connection Information
 
 Fill in the *connection information for the source MongoDB database* in the **Connection Configuration** area, as shown below:
 
-![](../../assets/mongodb-03.png)
+![Configure connection information](../../assets/mongodb-03.png)
 
 ### 4. Configure Authentication Information
 
@@ -47,7 +47,7 @@ Fill in the *connection information for the source MongoDB database* in the **Co
 
 **Authentication Database** The database in MongoDB where user information is stored, default is admin.
 
-![](../../assets/mongodb-04.png)
+![Configure authentication information](../../assets/mongodb-04.png)
 
 ### 5. Configure Connection Options
 
@@ -59,7 +59,7 @@ Fill in the *connection information for the source MongoDB database* in the **Co
 
 &emsp; 2. **Certificate File** Upload the SSL encryption certificate file.
 
-![](../../assets/mongodb-05.png)
+![Configure application name and SSL certificate](../../assets/mongodb-05.png)
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally retrieve data from the source MongoDB database.
 
@@ -109,7 +109,7 @@ Different placeholders represent different time format requirements, specificall
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
 
-![](../../assets/mongodb-06.png)
+![Configure data collection](../../assets/mongodb-06.png)
 
 ### 7. Configure Data Mapping
 
@@ -125,7 +125,7 @@ In **Filter**, fill in the filtering conditions, for example: write `Value > 0`,
 
 In **Mapping**, select the supertable in TDengine to which the data will be mapped, as well as the columns to map to the supertable, and click the **Preview** button on the right to view the mapping results after configuration.
 
-![](../../assets/mongodb-07.png)
+![Configure data mapping](../../assets/mongodb-07.png)
 
 ### 8. Configure Advanced Options
 
@@ -135,7 +135,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. Default is 10000.
 
-![](../../assets/mongodb-08.png)
+![Configure advanced options](../../assets/mongodb-08.png)
 
 ### 9. Completion
 

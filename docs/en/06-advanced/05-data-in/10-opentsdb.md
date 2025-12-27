@@ -21,7 +21,7 @@ During the operation, the task will save progress information to the disk, so if
 
 Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the add data source page, as shown below:
 
-![](../../assets/opentsdb-01.png)
+![Add data source](../../assets/opentsdb-01.png)
 
 ### 2. Configure Basic Information
 
@@ -33,25 +33,25 @@ Select *`OpenTSDB`* from the **Type** dropdown menu, as shown below (the fields 
 
 **Target Database** is required. Since OpenTSDB stores data with millisecond precision, you need to select a *`millisecond precision database`*, or click the **+ Create Database** button on the right.
 
-![](../../assets/opentsdb-02.png)
+![Configure basic settings](../../assets/opentsdb-02.png)
 
 ### 3. Configure Connection Information
 
 Fill in the *`connection information for the source OpenTSDB database`* in the **Connection Configuration** area, as shown below:
 
-![](../../assets/opentsdb-03.png)
+![Configure connection information](../../assets/opentsdb-03.png)
 
 Below the **Connection Configuration** area, there is a **Connectivity Check** button. Users can click this button to check whether the information filled in above can normally access the data from the source OpenTSDB database. The check results are shown below:  
 
-![](../../assets/opentsdb-04.png)
+![Connectivity check failed](../../assets/opentsdb-04.png)
 
-![](../../assets/opentsdb-05.png)
+![Connectivity check succeeded](../../assets/opentsdb-05.png)
 
 ### 4. Configure Task Information
 
 **Metrics** are the physical quantities in which data is stored in the OpenTSDB database. Users can specify multiple metrics to synchronize, or synchronize all data in the database if none are specified. If users specify metrics, they need to first click the **Get Metrics** button on the right to obtain all the metric information from the current source OpenTSDB database, and then select from the dropdown menu, as shown below:
 
-![](../../assets/opentsdb-06.png)
+![Configure task information](../../assets/opentsdb-06.png)
 
 **Start Time** refers to the start time of the data in the source OpenTSDB database, using the timezone selected in explorer, and this field is required.
 
@@ -65,9 +65,9 @@ Below the **Connection Configuration** area, there is a **Connectivity Check** b
 
 The **Advanced Options** area is collapsed by default. Click the `>` on the right to expand it, as shown in the following images:
 
-![](../../assets/opentsdb-07.png)
+![Configure advanced options](../../assets/opentsdb-07.png)
 
-![](../../assets/opentsdb-08.png)
+![Expanded advanced options](../../assets/opentsdb-08.png)
 
 ### 6. Completion of Creation
 

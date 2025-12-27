@@ -20,7 +20,7 @@ import VerifyMacOS from "../assets/resources/_verify_macos.mdx";
 import VerifyWindows from "../assets/resources/_verify_windows.mdx";
 import ConnectorType from "../assets/resources/_connector_type.mdx";
 
-<ConnectorType /> 
+<ConnectorType />
 
 ## Installing the Client Driver taosc
 
@@ -176,7 +176,7 @@ import taosws
 
 Edit `go.mod` to add the `driver-go` dependency.
 
-```go-mod title=go.mod
+```go-mod title="go.mod"
 module goexample
 
 go 1.17
@@ -196,7 +196,7 @@ driver-go uses cgo to wrap the taosc API. cgo requires GCC to compile C source c
 
 Edit `Cargo.toml` to add the `taos` dependency.
 
-```toml title=Cargo.toml
+```toml title="Cargo.toml"
 [dependencies]
 taos = { version = "*"}
 ```
@@ -245,7 +245,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 
 Edit the project configuration file to add a reference to [TDengine.Connector](https://www.nuget.org/packages/TDengine.Connector/):
 
-```xml title=csharp.csproj
+```xml title="csharp.csproj"
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
@@ -492,6 +492,7 @@ SQLAlchemy supports configuring multiple server addresses through the `hosts` pa
 ```python
 {{#include docs/examples/python/connect_websocket_sqlalchemy_examples.py:connect_sqlalchemy}}
 ```
+
 </TabItem>
 
 <TabItem label="Go" value="go">

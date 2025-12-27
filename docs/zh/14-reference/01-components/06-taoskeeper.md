@@ -68,7 +68,7 @@ taosKeeper 支持用 `taoskeeper -c <keeper config file>` 命令来指定配置�
 若不指定配置文件，taosKeeper 会使用默认配置文件，其路径为：`/etc/taos/taoskeeper.toml` 。
 若既不指定 taosKeeper 配置文件，且 `/etc/taos/taoskeeper.toml` 也不存在，将使用默认配置。
 
-##### 配置文件示例
+**下面是配置文件的示例** ：
 
 ```toml
 # The ID of the currently running taoskeeper instance, default is 64.
@@ -540,7 +540,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 Prometheus 提供了 `scrape_configs` 配置如何从 endpoint 抽取监控数据，通常只需要修改 `static_configs` 中的 targets 配置为 taoskeeper 的 endpoint 地址，更多配置信息请参考 [Prometheus 配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config)。
 
-```json
+```yaml
 # A scrape configuration containing exactly one endpoint to scrape:
 # Here it's Prometheus itself.
 scrape_configs:

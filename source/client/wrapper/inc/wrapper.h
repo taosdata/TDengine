@@ -43,6 +43,7 @@ extern int (*fp_taos_options)(TSDB_OPTION option, const void *arg, ...);
 extern int (*fp_taos_options_connection)(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
 extern TAOS *(*fp_taos_connect)(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 extern TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+extern TAOS *(*fp_taos_connect_with_dsn)(const char *dsn);
 extern void (*fp_taos_close)(TAOS *taos);
 
 extern const char *(*fp_taos_data_type)(int type);

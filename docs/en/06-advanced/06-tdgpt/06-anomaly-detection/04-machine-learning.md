@@ -17,7 +17,7 @@ The `model` directory structure is as follows:
         └── sample-ad-autoencoder.info
 ```
 
-```SQL
+```sql
 --- In the anomaly window, set the algorithm to `sample_ad_model` and the model to `sample-ad-autoencoder`.
 SELECT _wstart, count(*) 
 FROM foo anomaly_window(val, 'algo=sample_ad_model,model=sample-ad-autoencoder');

@@ -128,7 +128,7 @@ Query OK, 1 row(s) in set (0.037205s)
 
 #### View Advanced Analytics Services
 
-```SQL
+```sql
 SHOW ANODES FULL;
 
 taos> show anodes full;                                                      
@@ -166,7 +166,7 @@ These algorithms and models are described in detail in the relevant documentatio
 
 #### Refresh the Algorithm Cache
 
-```SQL
+```sql
 UPDATE ANODE {anode_id}
 UPDATE ALL ANODES
 ```

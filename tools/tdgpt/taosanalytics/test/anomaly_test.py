@@ -96,13 +96,20 @@ class AnomalyDetectionTest(unittest.TestCase):
         """
 
         s = loader.get_service("shesd")
-        s.set_params({"period": 3})
-        s.set_input_list(AnomalyDetectionTest.input_list, None)
 
-        r = s.execute()
-        draw_ad_results(AnomalyDetectionTest.input_list, r, "shesd", s.valid_code)
+        ver = sys.version_info
 
-        self.assertEqual(r[-1], -1)
+        # Python3.12 not loaded shesd service
+        if (ver.major, ver.minor) == (3, 12):
+            self.assertTrue(s is None)
+        else:
+            s.set_params({"period": 3})
+            s.set_input_list(AnomalyDetectionTest.input_list, None)
+
+            r = s.execute()
+            draw_ad_results(AnomalyDetectionTest.input_list, r, "shesd", s.valid_code)
+
+            self.assertEqual(r[-1], -1)
 
     def test_lof(self):
         """
@@ -123,11 +130,11 @@ class AnomalyDetectionTest(unittest.TestCase):
 
     def test_multithread_safe(self):
         """ Test the multithread safe function"""
-        s1 = loader.get_service("shesd")
-        s2 = loader.get_service("shesd")
+        s1 = loader.get_service("ksigma")
+        s2 = loader.get_service("ksigma")
 
-        s1.set_params({"period": 3})
-        self.assertNotEqual(s1.period, s2.period)
+        s1.set_params({"k": 1})
+        self.assertNotEqual(s1.k_val, s2.k_val)
 
     def __load_remote_data_for_ad(self):
         """load the remote data for anomaly detection"""

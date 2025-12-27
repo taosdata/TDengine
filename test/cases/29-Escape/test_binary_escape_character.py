@@ -1,32 +1,13 @@
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
-
+import taos
+import os
 
 class TestBinaryEscapeCharacter:
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_binary_escape_character(self):
-        """Escape character
-
-        1. Validates escape characters in binary data types
-        2. Test the insertion and retrieval of strings containing various escape sequences like single quotes ('), double quotes ("), and backslashes () within binary columns.
-        3. Ensures that these special characters are correctly stored, processed, and returned in query results without causing parsing errors or data corruption.
-
-        Catalog:
-            - EscapeCharacters
-
-        Since: v3.0.0.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        History:
-            - 2025-5-6 Simon Guan Migrated from tsim/parser/binary_escapeCharacter.sim
-
-        """
-
+    def do_binary_escape_character(self):
         tdSql.execute(f"drop database if exists ecdb")
         tdSql.execute(f"create database ecdb")
         tdSql.execute(f"use ecdb")
@@ -103,3 +84,78 @@ class TestBinaryEscapeCharacter:
         tdSql.error(f"insert into tb values(now, '\\');")
         # sql_error insert into tb values(now, '\\\n');
         tdSql.execute(f"insert into tb values(now, '\n');")
+
+    #
+    # ------------------- test_backslash_g.py ----------------
+    # 
+    def checksql(self, sql):
+        result = os.popen(f"taos -s \"{sql}\" ")
+        res = result.read()
+        print(res)
+        if ("Query OK" in res):
+            tdLog.info(f"checkEqual success")
+        else :
+            tdLog.exit(f"checkEqual error")
+
+    def do_td_28164(self):
+        tdSql.execute("drop database if exists td_28164;")
+        tdSql.execute("create database td_28164;")
+        tdSql.execute("create table td_28164.test (ts timestamp, name varchar(10));")
+        tdSql.execute("insert into td_28164.test values (now(), 'ac\\\\G') (now() + 1s, 'ac\\\\G') (now()+2s, 'ac\\G') (now()+3s, 'acG') (now()+4s, 'acK') ;")
+
+        tdSql.query(f"select * from td_28164.test;")
+        tdSql.checkRows(5)
+
+        tdSql.query(f"select * from td_28164.test where name like 'ac\\\\\\G';")
+        tdSql.checkRows(2)
+
+        tdSql.query(f"select * from td_28164.test where name like 'ac\\\\G';")
+        tdSql.checkRows(2)
+
+        tdSql.query(f"select * from td_28164.test where name like 'ac\\G';")
+        tdSql.checkRows(2)
+
+        # tdSql.query(f"select * from td_28164.test where name like 'ac\\\g';")
+        # tdSql.checkRows(0)
+        #
+        # tdSql.query(f"select * from td_28164.test where name like 'ac\\g';")
+        # tdSql.checkRows(0)
+
+        self.checksql(f'select * from td_28164.test where name like \'ac\\G\'\G;')
+        # tdSql.checkRows(2)
+
+        self.checksql(f"select * from td_28164.test where name like \'ac\\G\'   \G;")
+        # tdSql.checkRows(2)
+
+        tdSql.query(f"select * from td_28164.test where name like 'ac/\\G';")
+        tdSql.checkRows(0)
+
+        tdSql.query(f"select * from td_28164.test where name like 'ac/G';")
+        tdSql.checkRows(0)
+
+    #
+    # ------------------- main ----------------
+    # 
+    def test_query_tag_filter(self):
+        """Escape character
+
+        1. Validates escape characters in binary data types
+        2. Test the insertion and retrieval of strings containing various escape sequences like:
+            - single quotes ('), double quotes ("), and backslashes () within binary columns.
+        3. Ensures that these special characters are correctly stored, processed, and returned in query results 
+        4. Check without causing parsing errors or data corruption.
+        5. Jira TD-28164: Support backslash g escape character in like queries
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-5-6 Simon Guan Migrated from tsim/parser/binary_escapeCharacter.sim
+            - 2025-12-21 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_backslash_g.py
+
+        """
+        self.do_binary_escape_character()
+        self.do_td_28164()

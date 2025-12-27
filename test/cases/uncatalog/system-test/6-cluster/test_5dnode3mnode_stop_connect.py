@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils import tdLog, tdSql, clusterComCheck
 from ssl import ALERT_DESCRIPTION_CERTIFICATE_UNOBTAINABLE
 import taos
 import sys
@@ -8,8 +8,7 @@ import os
 from test import tdDnodes
 sys.path.append("./6-cluster")
 
-from clusterCommonCreate import *
-from clusterCommonCheck import *
+from cluster_common_create import *
 import time
 import socket
 import subprocess

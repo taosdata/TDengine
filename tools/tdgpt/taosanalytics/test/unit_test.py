@@ -162,9 +162,14 @@ class ServiceTest(unittest.TestCase):
         service_list = loader.get_service_list()
         self.assertEqual(len(service_list["details"]), 4)
 
+        version = sys.version_info
+
         for item in service_list["details"]:
             if item["type"] == "anomaly-detection":
-                self.assertEqual(len(item["algo"]), 6)
+                if (version.major, version.minor) == (3, 12):
+                    self.assertEqual(len(item["algo"]), 5)
+                else:
+                    self.assertEqual(len(item["algo"]), 6)
             elif item["type"] == "forecast":
                 self.assertEqual(len(item["algo"]), 8)
             elif item["type"] == 'correlation':

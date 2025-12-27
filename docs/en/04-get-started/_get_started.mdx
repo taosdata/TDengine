@@ -4,7 +4,7 @@
 
 To easily check the status of TDengine TSDB and perform various ad-hoc database queries, TDengine TSDB provides a command-line interface. To enter the TDengine CLI, simply execute `taos` (on Linux/Mac) or `taos.exe` (on Windows) in your terminal. The prompt appears as:
 
-```text
+```sql
 taos>
 ```
 
@@ -18,7 +18,8 @@ INSERT INTO t VALUES ('2019-07-15 00:00:00', 10);
 INSERT INTO t VALUES ('2019-07-15 01:00:00', 20);
 SELECT * FROM t;
 ```
-```text
+
+```sql
            ts            |    speed    |
 ========================================
  2019-07-15 00:00:00.000 |          10 |
@@ -127,6 +128,7 @@ Grafana is a popular open-source platform for data visualization and monitoring.
    ```
 
 #### Install the Grafana Plugin
+
 Communication between Grafana and TDengine is handled via the TDengine Datasource plugin.
 
 On Linux, you can install the plugin by running the following command:
@@ -203,19 +205,21 @@ The following example shows how to create an MQTT data ingestion task to subscri
 
    1. Click the Preview icon on the right to preview parsing results.
    1. Under Mapping, create a supertable with the following schema:
-      
+
       Columns:
+
       | Data Type    | Name     |
-      | ------------ | -------- | 
+      | ------------ | -------- |
       | TIMESTAMP    | ts       |
       | INT          | id       |
       | DOUBLE       | current  |
-      | DOUBLE       | phase    | 
+      | DOUBLE       | phase    |
       | INT          | voltage  |
-      
+
       Tags:
+
       | Data Type    | Name     |
-      | ------------ | -------- | 
+      | ------------ | -------- |
       | INT          | groupid  |
       | VARCHAR(128) | location |
 
@@ -228,13 +232,16 @@ The following example shows how to create an MQTT data ingestion task to subscri
 You can use the MQTT client tool MQTTX to send test data. For more information, see [the documentation](https://docs.emqx.com/en/emqx/latest/getting-started/getting-started.html).
 
 Use the same broker and topic configuration as your MQTT task:
+
 - Broker Address: broker.emqx.io
 - Port: 1883
 - Topic: tdengine-topic1
 - Sample Data:
+
    ```json
    { "id": 1, "current": 10.42, "phase": 1.38, "voltage":200, "groupid": 7, "location": "beijing" }
    ```
+
 #### Verify Data
 
 After sending test data, you can check whether it has been successfully written to TDengine TSDB. In TDengine TSDB Explorer, run the following SQL statement:

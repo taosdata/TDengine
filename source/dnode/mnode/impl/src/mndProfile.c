@@ -561,7 +561,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
     SConnObj *pConn = mndAcquireConn(pMnode, pBasic->connId);
     if (pConn == NULL) {
-      pConn = mndCreateConn(pMnode, connInfo.user, CONN_TYPE__QUERY, &connInfo.cliAddr, pHbReq->app.pid,
+      pConn = mndCreateConn(pMnode, connInfo.user, pHbReq->connKey.connType, &connInfo.cliAddr, pHbReq->app.pid,
                             pHbReq->app.name, 0, pHbReq->sVer);
       if (pConn == NULL) {
         mError("user:%s, conn:%u is freed and failed to create new since %s", connInfo.user, pBasic->connId, terrstr());
@@ -777,17 +777,9 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   int32_t sz = taosArrayGetSize(batchReq.reqs);
   for (int i = 0; i < sz; i++) {
     SClientHbReq *pHbReq = taosArrayGet(batchReq.reqs, i);
-    if (pHbReq->connKey.connType == CONN_TYPE__QUERY) {
+    if (pHbReq->connKey.connType == CONN_TYPE__QUERY || pHbReq->connKey.connType == CONN_TYPE__TMQ) {
       TAOS_CHECK_EXIT(mndProcessQueryHeartBeat(pMnode, pReq, pHbReq, &batchRsp, &obj));
-    } else if (pHbReq->connKey.connType == CONN_TYPE__TMQ) {
-      SClientHbRsp *pRsp = mndMqHbBuildRsp(pMnode, pHbReq);
-      if (pRsp != NULL) {
-        if (taosArrayPush(batchRsp.rsps, pRsp) == NULL) {
-          mError("failed to put kv into array, but continue at this heartbeat");
-        }
-        taosMemoryFree(pRsp);
-      }
-    }
+    } 
   }
   taosArrayDestroyEx(batchReq.reqs, tFreeClientHbReq);
 
@@ -1025,6 +1017,15 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     code = colDataSetVal(pColInfo, numOfRows, (const char *)cInfo, false);
     if (code != 0) {
       mError("failed to set connector info since %s", tstrerror(code));
+      return code;
+    }
+
+    char type[16 + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(type, pConn->connType == CONN_TYPE__QUERY ? "QUERY" : (pConn->connType == CONN_TYPE__TMQ ? "TMQ" : "UNKNOWN"));
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)type, false);
+    if (code != 0) {
+      mError("failed to set type info since %s", tstrerror(code));
       return code;
     }
     numOfRows++;

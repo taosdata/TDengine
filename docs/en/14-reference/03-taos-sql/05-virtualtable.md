@@ -11,7 +11,7 @@ The `CREATE VTABLE` statement is used to create virtual basic tables and virtual
 
 ### Create Virtual Supertables
 
-Refer to the `VIRTUAL` parameter in [Create Supertable](../manage-supertables/#create-supertable).
+Refer to the `VIRTUAL` parameter in [Create Supertable](../manage-supertables/#create-a-supertable).
 
 ### Create Virtual Basic Table
 

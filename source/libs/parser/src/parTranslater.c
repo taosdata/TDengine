@@ -1343,11 +1343,11 @@ static int32_t isTimeLineAlignedQuery(SNode* pStmt, bool* pRes) {
   if (QUERY_NODE_SELECT_STMT == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     SSelectStmt* pSub = (SSelectStmt*)((STempTableNode*)pSelect->pFromTable)->pSubquery;
     if (pSelect->pPartitionByList) {
-      if (!pSub->timeLineFromOrderBy && nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
+      if (pSub->timeLineFromOrderBy == ORDER_UNKNOWN && nodesListMatch(pSelect->pPartitionByList, pSub->pPartitionByList)) {
         *pRes = true;
         return code;
       }
-      if (pSub->timeLineFromOrderBy && pSub->pOrderByList->length > 1) {
+      if (pSub->timeLineFromOrderBy != ORDER_UNKNOWN && pSub->pOrderByList->length > 1) {
         SNodeList* pPartitionList = NULL;
         code = buildPartitionListFromOrderList(pSub->pOrderByList, pSelect->pPartitionByList->length, &pPartitionList);
         if (TSDB_CODE_SUCCESS == code) {
@@ -1385,8 +1385,11 @@ static int32_t isTimeLineAlignedQuery(SNode* pStmt, bool* pRes) {
 }
 
 bool isPrimaryKeyImpl(SNode* pExpr) {
+  if(!pExpr) {
+    return false;
+  }
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
-    return ((PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId) && ((SColumnNode*)pExpr)->isPrimTs);
+    return ((SColumnNode*)pExpr)->isPrimTs;
   } else if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
     SFunctionNode* pFunc = (SFunctionNode*)pExpr;
     if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType || FUNCTION_TYPE_GROUP_KEY == pFunc->funcType ||
@@ -1745,6 +1748,7 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
   SNodeList*      pProjectList = getProjectList(pTempTable->pSubquery);
   SNode*          pNode;
   SExprNode*      pFoundExpr = NULL;
+  bool            foundPrimTs = false;
   FOREACH(pNode, pProjectList) {
     SExprNode* pExpr = (SExprNode*)pNode;
     if (0 == strcmp(pCol->colName, pExpr->aliasName)) {
@@ -1753,10 +1757,12 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
       }
       pFoundExpr = pExpr;
       *pFound = true;
-    } else if (isPrimaryKeyImpl(pNode) && isInternalPrimaryKey(pCol)) {
+    }
+    if (!foundPrimTs && isPrimaryKeyImpl(pNode) && isInternalPrimaryKey(pCol)) {
       pFoundExpr = pExpr;
       pCol->isPrimTs = true;
       *pFound = true;
+      foundPrimTs = true;
     }
   }
   if (pFoundExpr) {
@@ -1864,11 +1870,17 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
   return DEAL_RES_CONTINUE;
 }
 
-static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNode** pCol) {
+/**
+  translate column in tables without table prefix
+ */
+static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt,
+                                             SColumnNode** pCol,
+                                             bool* pFound) {
   SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
   size_t  nums = taosArrayGetSize(pTables);
-  bool    found = false;
   bool    isInternalPk = isInternalPrimaryKey(*pCol);
+  *pFound = false;
+
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
     bool        foundCol = false;
@@ -1877,30 +1889,24 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
       return DEAL_RES_ERROR;
     }
     if (foundCol) {
-      if (found) {
+      if (*pFound) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, (*pCol)->colName);
       }
-      found = true;
+      *pFound = true;
     }
     if (isInternalPk) {  // this value should be updated
       break;
     }
   }
-  if (!found) {
-    if (isInternalPk) {
-      if (isSelectStmt(pCxt->pCurrStmt) && NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pWindow) {
-        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
-      }
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_INTERNAL_PK);
-    } else {
-      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
-    }
-  }
+
   return DEAL_RES_CONTINUE;
 }
 
 static int32_t getFuncInfo(STranslateContext* pCxt, SFunctionNode* pFunc);
 
+/**
+  translate column using alias in projection list
+ */
 static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** pCol, bool* pFound) {
   SNodeList* pProjectionList = getProjectListFromCurrStmt(pCxt->pCurrStmt);
   SNode*     pNode;
@@ -2196,11 +2202,23 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
     res = translateColumnWithPrefix(pCxt, pCol);
   } else {
     bool found = false;
-    res = translateColumnWithoutPrefix(pCxt, pCol);
-    if (!(*pCol)->node.asParam && res != DEAL_RES_CONTINUE && res != DEAL_RES_END &&
-        pCxt->errCode != TSDB_CODE_PAR_AMBIGUOUS_COLUMN) {
+    res = translateColumnWithoutPrefix(pCxt, pCol, &found);
+    if (!found && !(*pCol)->node.asParam) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
       *translateAsAlias = true;
+    }
+    if (!found && res != DEAL_RES_ERROR) {
+      if (isInternalPrimaryKey(*pCol)) {
+        if (isSelectStmt(pCxt->pCurrStmt) &&
+            NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pWindow) {
+          return generateDealNodeErrMsg(pCxt,
+                                        TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
+        }
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_INTERNAL_PK);
+      } else {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN,
+                                      (*pCol)->colName);
+      }
     }
   }
   return res;
@@ -2228,31 +2246,64 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   }
 
   EDealRes res = DEAL_RES_CONTINUE;
+  // if has table prefix, directly match column in specified table
   if ('\0' != (*pCol)->tableAlias[0]) {
-    res = translateColumnWithPrefix(pCxt, pCol);
-  } else {
-    bool found = false;
-    if (pCxt->currClause == SQL_CLAUSE_ORDER_BY) {
-      if ((isSelectStmt(pCxt->pCurrStmt) && !(*pCol)->node.asParam) ||
-          isSetOperator(pCxt->pCurrStmt)) {
-        // match column in alias first if column is 'bare' in select stmt
-        // or it is in set operator
-        res = translateColumnUseAlias(pCxt, pCol, &found);
-      }
+    return translateColumnWithPrefix(pCxt, pCol);
+  }
+
+  bool found = false;
+  // for SET(e.g. UNION) statement, only check select list alias
+  if (isSetOperator(pCxt->pCurrStmt)) {
+    res = translateColumnUseAlias(pCxt, pCol, &found);
+    if (!found && res != DEAL_RES_ERROR) {
+      res = generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR, (*pCol)->colName);
     }
-    if (DEAL_RES_ERROR != res && !found) {
-      if (isSetOperator(pCxt->pCurrStmt)) {
-        res = generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR, (*pCol)->colName);
-      } else {
-        // match column in table if not found or column is part of an expression in select stmt
-        res = translateColumnWithoutPrefix(pCxt, pCol);
+    return res;
+  }
+
+  /*
+    For nonparametric columns in ORDER BY clause, first try to match alias in
+    select list. If not found, then match them in all tables.
+  */
+  bool alreadyCheckedAlias = false;
+  if (pCxt->currClause == SQL_CLAUSE_ORDER_BY &&
+      isSelectStmt(pCxt->pCurrStmt) &&
+      !(*pCol)->node.asParam) {
+    res = translateColumnUseAlias(pCxt, pCol, &found);
+    alreadyCheckedAlias = true;
+  }
+
+  /*
+    For most cases, try to match column in all tables directly. If not found,
+    then try to match alias in select list (only for supported clause).
+  */
+  if (!found && res != DEAL_RES_ERROR) {
+    res = translateColumnWithoutPrefix(pCxt, pCol, &found);
+  }
+
+  /*
+    For supported clauses, if column not found in all tables, try to match
+    alias in select list.
+  */
+  if (!found && res != DEAL_RES_ERROR && clauseSupportAlias(pCxt->currClause) &&
+      !alreadyCheckedAlias) {
+    res = translateColumnUseAlias(pCxt, pCol, &found);
+  }
+
+  if (!found && res != DEAL_RES_ERROR) {
+    if (isInternalPrimaryKey(*pCol)) {
+      if (isSelectStmt(pCxt->pCurrStmt) &&
+          NULL != ((SSelectStmt*)pCxt->pCurrStmt)->pWindow) {
+        return generateDealNodeErrMsg(pCxt,
+                                      TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
       }
-    }
-    if (clauseSupportAlias(pCxt->currClause) && !(*pCol)->node.asParam && res != DEAL_RES_CONTINUE &&
-        res != DEAL_RES_END) {
-      res = translateColumnUseAlias(pCxt, pCol, &found);
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_INTERNAL_PK);
+    } else {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN,
+                                    (*pCol)->colName);
     }
   }
+
   return res;
 }
 
@@ -4871,9 +4922,20 @@ static int32_t setVSuperTableRefScanVgroupList(STranslateContext* pCxt, SName* p
   vgroupList = taosArrayInit(1, sizeof(SVgroupInfo));
   QUERY_CHECK_NULL(vgroupList, code, lino, _return, terrno);
 
-
   SArray* pVStbRefs = NULL;
-  PAR_ERR_JRET(getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs));
+  code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
+
+  // Handle the case where VStbRefDbs data is not available (e.g., stmt scenario)
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_PAR_INTERNAL_ERROR == code) {
+    // VStbRefDbs not available in cache (stmt scenario without async metadata fetch)
+    // Use empty vgroup list - the executor will resolve vgroups at runtime
+    taosMemoryFreeClear(pRefScanTable->pVgroupList);
+    PAR_ERR_JRET(toVgroupsInfo(vgroupList, &pRefScanTable->pVgroupList));
+    code = TSDB_CODE_SUCCESS;
+    goto _return;
+  }
+  PAR_ERR_JRET(code);
+
   dbNameHash = tSimpleHashInit(taosArrayGetSize(pVStbRefs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   QUERY_CHECK_NULL(dbNameHash, code, lino, _return, terrno);
 
@@ -5549,6 +5611,7 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
   STableMeta*        pMeta = pRealTable->pMeta;
   int32_t            code = TSDB_CODE_SUCCESS;
   SRealTableNode*    pInsCols = NULL;
+  bool               refTablesAdded = false;
 
   if (!pMeta->virtualStb) {
     PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TABLE_TYPE);
@@ -5562,7 +5625,7 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
     PAR_ERR_JRET(cloneVgroups(&pRealTable->pVgroupList, pVTable->pVgroupList));
   }
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRealTable));
-
+  refTablesAdded = true;
   PAR_ERR_JRET(makeVtableMetaScanTable(pCxt, &pInsCols));
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pInsCols));
 
@@ -5572,6 +5635,9 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
 _return:
   if (code != TSDB_CODE_SUCCESS) {
     qError("translateVirtualSuperTable failed, code:%d, errmsg:%s", code, tstrerror(code));
+  }
+  if (refTablesAdded) {
+    *pTable = (SNode*)pVTable;
   }
   nodesDestroyNode((SNode*)pInsCols);
   return code;
@@ -5703,9 +5769,7 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
     // virtual table only support select operation
     PAR_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
   }
-  if (pCxt->pParseCxt->stmtBindVersion > 0) {
-    PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_SUPPORT_STMT);
-  }
+
   if (pCxt->pParseCxt->topicQuery) {
     PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC);
   }
@@ -5741,6 +5805,9 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   return code;
 _return:
   qError("translateVirtualTable failed, code:%d, errmsg:%s", code, tstrerror(code));
+  if ((SNode*)pVTable == *pTable) {
+    *pTable = NULL;
+  }
   nodesDestroyNode((SNode*)pVTable);
   return code;
 }
@@ -8902,10 +8969,11 @@ static void resetResultTimeline(SSelectStmt* pSelect) {
     return;
   } else if (pSelect->pOrderByList->length > 1) {
     for (int32_t i = 1; i < pSelect->pOrderByList->length; ++i) {
-      pOrder = ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, i))->pExpr;
+      SOrderByExprNode* pOrderByExpr = (SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, i);
+      pOrder = pOrderByExpr->pExpr;
       if (isPrimaryKeyImpl(pOrder)) {
         pSelect->timeLineResMode = TIME_LINE_MULTI;
-        pSelect->timeLineFromOrderBy = true;
+        pSelect->timeLineFromOrderBy = pOrderByExpr->order;
         return;
       }
     }
@@ -9083,6 +9151,7 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
         return DEAL_RES_ERROR;
       } else {
         ((SExprNode*)pExpr)->asAlias = true;
+        tstrncpy(((SExprNode*)pExpr)->aliasName, pFunc->node.aliasName, TSDB_COL_NAME_LEN);
         tstrncpy(((SExprNode*)pExpr)->userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
       }
     }
@@ -14046,9 +14115,11 @@ static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTag
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag count mismatch");
     }
     // tags not support decimal, so scale and precision are always 0
-    if (pTagDef->dataType.type != pMeta->schema[tagIndex].type ||
-        strcmp(pTagDef->tagName, pMeta->schema[tagIndex].name) != 0) {
+    if (pTagDef->dataType.type != pMeta->schema[tagIndex].type) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag type mismatch");
+    }
+    if (strcmp(pTagDef->tagName, pMeta->schema[tagIndex].name) != 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag name mismatch");
     }
     tagIndex++;
   }
@@ -20435,12 +20506,15 @@ _err:
 }
 
 static int32_t checkColRef(STranslateContext* pCxt, char* pRefDbName, char* pRefTableName, char* pRefColName,
-                           SDataType type) {
+                           SDataType type, int8_t precision) {
   STableMeta* pRefTableMeta = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
 
   PAR_ERR_JRET(getTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta));
 
+  if (pRefTableMeta->tableInfo.precision != precision) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE, "timestamp precision of virtual table and its reference table do not match"));
+  }
   // org table cannot has composite primary key
   if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN, "virtual table's column reference can not from table with composite key"));
@@ -20501,7 +20575,8 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
 
     // check ref column exists and check type
     PAR_ERR_RET(checkColRef(pCxt, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
-                            (SDataType){.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)}));
+                            (SDataType){.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)},
+                            pTableMeta->tableInfo.precision));
 
     pReq->type = pStmt->dataType.type;
     pReq->bytes = calcTypeBytes(pStmt->dataType);
@@ -20712,7 +20787,8 @@ static int buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pS
   }
 
   PAR_ERR_JRET(checkColRef(pCxt, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
-                           (SDataType){.type = pSchema->type, .bytes = pSchema->bytes}));
+                           (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
+                           pTableMeta->tableInfo.precision));
 
   pReq->colName = taosStrdup(pStmt->colName);
   pReq->refDbName = taosStrdup(pStmt->refDbName);
@@ -21000,6 +21076,8 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
   SArray*            pBufArray = NULL;
   SNode*             pNode = NULL;
   int32_t            index = 0;
+  SDbCfgInfo         dbCfg = {0};
+  int8_t             precision = 0;
 
   PAR_ERR_JRET(checkCreateVirtualTable(pCxt, pStmt));
 
@@ -21009,6 +21087,7 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
   }
 
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+
 
   FOREACH(pNode, pStmt->pCols) {
     SColumnDefNode* pColNode = (SColumnDefNode*)pNode;
@@ -21022,7 +21101,8 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
       }
       PAR_ERR_JRET(
           checkColRef(pCxt, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
-                      (SDataType){.type = pColNode->dataType.type, .bytes = calcTypeBytes(pColNode->dataType)}));
+                      (SDataType){.type = pColNode->dataType.type, .bytes = calcTypeBytes(pColNode->dataType)},
+                      dbCfg.precision));
     }
     index++;
   }
@@ -21077,7 +21157,8 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
         PAR_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
       }
       PAR_ERR_JRET(checkColRef(pCxt, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
-                               (SDataType){.type = pSchema->type, .bytes = pSchema->bytes}));
+                               (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
+                               pSuperTableMeta->tableInfo.precision));
     }
   } else if (pStmt->pColRefs) {
     int32_t index = 1;
@@ -21085,7 +21166,8 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
       PAR_ERR_JRET(checkColRef(
           pCxt, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
-          (SDataType){.type = pSuperTableMeta->schema[index].type, .bytes = pSuperTableMeta->schema[index].bytes}));
+          (SDataType){.type = pSuperTableMeta->schema[index].type, .bytes = pSuperTableMeta->schema[index].bytes},
+          pSuperTableMeta->tableInfo.precision));
       index++;
     }
   } else {

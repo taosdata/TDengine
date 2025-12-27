@@ -14,7 +14,7 @@ RUN set -eux; \
     mkdir -p "${TDGPT_INSTALL_DIR}"; \
     tar -zxf /tmp/"${pkgFile}" --strip-components=1 --directory="${TDGPT_INSTALL_DIR}"; \
     cd "${TDGPT_INSTALL_DIR}"; \
-    /bin/bash install.sh -e no; \
+    /bin/bash install.sh; \
     rm -rf /tmp/*
 
 WORKDIR /root

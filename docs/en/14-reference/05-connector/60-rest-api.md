@@ -118,7 +118,7 @@ Here, `TOKEN` is the string `{username}:{password}` after Base64 encoding, for e
 
 By default, `taosAdapter` returns a 200 response code for most C interface call errors, but the HTTP body contains error information. Starting from `TDengine 3.0.3.0`, `taosAdapter` provides a configuration parameter `httpCodeServerError` to set whether to return a non-200 HTTP response code when the C interface returns an error. Regardless of whether this parameter is set, the response body contains detailed error codes and error information, please refer to [Errors](../rest-api/).
 
-**When httpCodeServerError is false:**
+When httpCodeServerError is false:
 
 | **Description**             |**HTTP Response Code** |
 |--------------------|-------------------------------|
@@ -129,7 +129,7 @@ By default, `taosAdapter` returns a 200 response code for most C interface call 
 | Interface does not exist              | 404                           |
 | Insufficient system resources             | 503                          |
 
-**When httpCodeServerError is true:**
+When httpCodeServerError is true:
 
 | **Description**             |  **HTTP Response Code**          |
 |--------------------|-------------------------------|

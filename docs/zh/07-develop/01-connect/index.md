@@ -73,6 +73,7 @@ import ConnectorType from "../../14-reference/05-connector/_connector_type.mdx";
 ```
 
 </TabItem>
+
 <TabItem label="Python" value="python">
 
 - **安装前准备**
@@ -148,6 +149,7 @@ import ConnectorType from "../../14-reference/05-connector/_connector_type.mdx";
     </Tabs>
 
 </TabItem>
+
 <TabItem label="Go" value="go">
 
 编辑 `go.mod` 添加 `driver-go` 依赖即可。
@@ -185,6 +187,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 :::
 
 </TabItem>
+
 <TabItem label="Node.js" value="node">
 
 - **安装前准备**
@@ -211,6 +214,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
   - 执行以上步骤后，在命令行会输出 nodeChecker.js 连接 TDengine TSDB 实例，并执行简单插入和查询的结果。
 
 </TabItem>
+
 <TabItem label="C#" value="csharp">
 
 编辑项目配置文件中添加 [TDengine TSDB.Connector](https://www.nuget.org/packages/TDengine.Connector/) 的引用即可：
@@ -245,11 +249,13 @@ dotnet add package TDengine.Connector
 :::
 
 </TabItem>
+
 <TabItem label="C" value="c">
 
 如果已经安装了 TDengine TSDB 服务端软件或 TDengine TSDB 客户端驱动 taosc，那么已经安装了 C 连接器，无需额外操作。
 
 </TabItem>
+
 <TabItem label="REST API" value="rest">
 使用 REST API 方式访问 TDengine TSDB，无需安装任何驱动和连接器。
 

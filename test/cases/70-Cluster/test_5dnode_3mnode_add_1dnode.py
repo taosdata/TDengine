@@ -7,10 +7,9 @@ import socket
 import threading
 import inspect
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes, cluster, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, cluster, tdCom, clusterComCheck
 #sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from clusterCommonCreate import *
-from clusterCommonCheck import clusterComCheck
+from cluster_common_create import *
 
 import ctypes
 

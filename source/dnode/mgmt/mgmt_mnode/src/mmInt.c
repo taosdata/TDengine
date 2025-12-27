@@ -125,6 +125,8 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     mmBuildOptionForOpen(pMgmt, &option);
   }
 
+  dInfo("mnode open with options: deploy:%d, dnodeId:%d, selfIndex:%d, numOfReplicas:%d, numOfTotalReplicas:%d",
+        option.deploy, option.dnodeId, option.selfIndex, option.numOfReplicas, option.numOfTotalReplicas);
   code = mndOpenWrapper(pMgmt->path, &option, &pMgmt->pMnode);
   if (code != 0) {
     dError("failed to open mnode since %s", tstrerror(code));

@@ -624,6 +624,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80006205 | Virtual table not support in STMT query and STMT insert                     | 不支持在 stmt 写入和查询中使用虚拟表                                           | 不在 stmt 写入和查询中使用虚拟表               |
 | 0x80006206 | Virtual table not support in Topic                                          | 不支持在订阅中使用虚拟表                                                       | 不在订阅中使用虚拟表                           |
 | 0x80006207 | Virtual super table query not support origin table from different databases | 虚拟超级表不支持子表的数据源来自不同的数据库                                   | 确保虚拟超级表的子表的数据源都来自同一个数据库 |
+| 0x80006208 | Virtual super table query find column type mismatch     | 虚拟超级表查询时发现虚拟子表的列来源和虚拟子表的列类型不匹配                 | 确保原始表和虚拟子表的列类型匹配           |
 
 #### TDgpt
 

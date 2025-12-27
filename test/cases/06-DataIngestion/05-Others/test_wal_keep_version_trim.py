@@ -12,7 +12,7 @@ class TestWalKeepVersionTrim:
 
 
     def test_wal_keep_version_and_trim(self):
-        """Test WAL keep version and trim functionality
+        """WAL keep log dropped
         
         This test verifies:
         1. prepare data
@@ -20,9 +20,6 @@ class TestWalKeepVersionTrim:
         3. check wal keep version
         4. trim database wal
         5. check wal log dropped after trim
-
-        Catalog:
-            - Database:WAL
 
         Since: v3.3.6.31
 
@@ -44,8 +41,8 @@ class TestWalKeepVersionTrim:
         tdSql.execute("flush database test")
 
         tdSql.query("show test.vgroups")
-        tdSql.checkData(0, 19, 0)
-        tdSql.checkData(1, 19, -1)
+        tdSql.checkData(0, 20, 0)
+        tdSql.checkData(1, 20, -1)
 
         max_retry = 240
         # check wal vgId 3 firstVer is greater than 0 means flush finished

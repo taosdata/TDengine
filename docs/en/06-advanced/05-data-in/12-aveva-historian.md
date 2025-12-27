@@ -21,7 +21,7 @@ TDengine can efficiently read data from AVEVA Historian and write it into TDengi
 
 On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
-![](../../assets/aveva-historian-01.png)
+![Add data source](../../assets/aveva-historian-01.png)
 
 ### 2. Configure Basic Information
 
@@ -33,7 +33,7 @@ Select **AVEVA Historian** from the **Type** dropdown list.
 
 Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
 
-![](../../assets/aveva-historian-02.png)
+![Configure basic settings](../../assets/aveva-historian-02.png)
 
 ### 3. Configure Connection Information
 
@@ -43,7 +43,7 @@ In the **Authentication** area, fill in the **Username** and **Password**.
 
 Click the **Connectivity Check** button to check if the data source is available.
 
-![](../../assets/aveva-historian-03.png)
+![Configure connection information](../../assets/aveva-historian-03.png)
 
 ### 4. Configure Collection Information
 
@@ -65,7 +65,7 @@ In **Task End Time**, fill in the end time of the data migration task.
 
 In **Query Time Window**, fill in a time interval, the data migration task will divide time windows according to this interval.
 
-![](../../assets/aveva-historian-04.png)
+![Migrate data](../../assets/aveva-historian-04.png)
 
 #### 4.2. Synchronize Data from the History Table
 
@@ -87,7 +87,7 @@ In **Real-time Synchronization Interval**, fill in a time interval, the real-tim
 
 In **Disorder Time Upper Limit**, fill in a time interval, data that enters the database after this time during real-time data synchronization may be lost.
 
-![](../../assets/aveva-historian-05.png)
+![Synchronize historical data](../../assets/aveva-historian-05.png)
 
 #### 4.3. Synchronize Data from the Live Table
 
@@ -101,7 +101,7 @@ In **Tags**, fill in the list of tags to migrate, separated by commas (,).
 
 In **Real-time Synchronization Interval**, fill in a time interval, the real-time data part will poll data according to this interval.
 
-![](../../assets/aveva-historian-06.png)
+![Synchronize real-time data](../../assets/aveva-historian-06.png)
 
 ### 5. Configure Data Mapping
 
@@ -117,7 +117,7 @@ In **Mapping**, select the supertable in TDengine to which you want to map, as w
 
 Click **Preview** to view the results of the mapping.
 
-![](../../assets/aveva-historian-07.png)
+![Configure mapping options](../../assets/aveva-historian-07.png)
 
 ### 6. Configure Advanced Options
 
@@ -135,7 +135,7 @@ Set the maximum retention days for raw data in **Maximum Retention Days**.
 
 Set the storage path for raw data in **Raw Data Storage Directory**.
 
-![](../../assets/aveva-historian-08.png)
+![Configure advanced options](../../assets/aveva-historian-08.png)
 
 ### 7. Completion of Creation
 

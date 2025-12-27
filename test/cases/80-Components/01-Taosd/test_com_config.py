@@ -201,6 +201,15 @@ class TestAlterConfig:
 
         tdSql.error("alter all dnodes 'minReservedMemorySize 0'")
         tdSql.error("alter all dnodes 'minReservedMemorySize 100000000000'")
+    
+    def check_trans_end(self):
+        max_retry_times = 30    
+        for i in range(max_retry_times):
+            res = tdSql.getResult("show transactions;")
+            if len(res) == 0:
+                return True
+            time.sleep(1)
+        return False
 
     # run
     def do_alter_config(self):
@@ -220,7 +229,11 @@ class TestAlterConfig:
         self.alter_memPoolReservedSizeMB_case()
 
         self.alter_timezone_case()
-        print("do alter config ....................... [passed]")
+
+        trans_end = self.check_trans_end()
+        assert trans_end, "transactions not end"
+        
+        tdLog.success(f"{__file__} successfully executed")
 
     #
     # ------------------- test_dismatch_config.py ----------------

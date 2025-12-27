@@ -165,10 +165,10 @@ class Test_ThreeGorges:
             c5 = random.randint(0, 1000)
             c6 = random.randint(0, 1000)
             for tb in tables:
-                sql1 = "INSERT INTO test1.%s VALUES (now,%d,%d,%d,%d,%d,%d)" % (tb, c1,c2,c3,c4,c5,c6)
-                sql2 = "INSERT INTO test1.%s VALUES (now+5m,%d,%d,%d,%d,%d,%d)" % (tb, c1,c2+2,c3,c4,c5,c6)
-                sql3 = "INSERT INTO test1.%s VALUES (now+350s,%d,%d,%d,%d,%d,%d)" % (tb, c1+1,c2+1,c3,c4,c5,c6)
-                sql4 = "INSERT INTO test1.%s VALUES (now+10m,%d,%d,%d,%d,%d,%d)" % (tb, c1+10,c2+10,c3,c4,c5,c6)
+                sql1 = "INSERT INTO test1.%s VALUES (1766592000000,%d,%d,%d,%d,%d,%d)" % (tb, c1,c2,c3,c4,c5,c6)
+                sql2 = "INSERT INTO test1.%s VALUES (1766592300000,%d,%d,%d,%d,%d,%d)" % (tb, c1,c2+2,c3,c4,c5,c6)
+                sql3 = "INSERT INTO test1.%s VALUES (1766592350000,%d,%d,%d,%d,%d,%d)" % (tb, c1+1,c2+1,c3,c4,c5,c6)
+                sql4 = "INSERT INTO test1.%s VALUES (1766592600000,%d,%d,%d,%d,%d,%d)" % (tb, c1+10,c2+10,c3,c4,c5,c6)
                 
                 tdSql.execute(sql1)          
                 tdSql.execute(sql2)          

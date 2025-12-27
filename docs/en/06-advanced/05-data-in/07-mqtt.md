@@ -21,7 +21,7 @@ TDengine can subscribe to data from an MQTT broker via an MQTT connector and wri
 
 On the data writing page, click the **+Add Data Source** button to enter the add data source page.
 
-![](../../assets/mqtt-01.png)
+![Add data source](../../assets/mqtt-01.png)
 
 ### 2. Configure Basic Information
 
@@ -33,7 +33,7 @@ Select **MQTT** from the **Type** dropdown list.
 
 Select a target database from the **Target Database** dropdown list, or click the **+Create Database** button on the right.
 
-![](../../assets/mqtt-02.png)
+![Configure basic settings](../../assets/mqtt-02.png)
 
 ### 3. Configure Connection and Authentication Information
 
@@ -45,13 +45,13 @@ Enter the MQTT broker's username in **User**.
 
 Enter the MQTT broker's password in **Password**.
 
-![](../../assets/mqtt-03.png)
+![Configure connection information](../../assets/mqtt-03.png)
 
 ### 4. Configure SSL Certificate
 
 If the MQTT broker uses an SSL certificate, upload the certificate file in **SSL Certificate**.
 
-![](../../assets/mqtt-04.png)
+![Configure SSL certificate](../../assets/mqtt-04.png)
 
 ### 5. Configure Collection Information
 
@@ -76,7 +76,7 @@ In the **Char Encoding**, configure the message body encoding format. After rece
 
 Click the **Check Connection** button to check if the data source is available.
 
-![](../../assets/mqtt-05.png)
+![Configure collection settings](../../assets/mqtt-05.png)
 
 ### 6. Configure MQTT Payload Parsing
 
@@ -109,17 +109,17 @@ or
 
 The analysis results are as follows:
 
-![](../../assets/mqtt-06.png)
+![Payload parsing results](../../assets/mqtt-06.png)
 
 Click the **magnifying glass icon** to view the preview of the analysis results.
 
-![](../../assets/mqtt-07.png)
+![Preview analysis results](../../assets/mqtt-07.png)
 
 #### 6.2 Field Splitting
 
 In **Extract or Split from Column**, fill in the fields to extract or split from the message body, for example: split the `message` field into `message_0` and `message_1`, select the split extractor, fill in the separator as -, and number as 2.
 
-![](../../assets/mqtt-08.png)
+![Extract or split from column](../../assets/mqtt-08.png)
 
 Click **Delete** to remove the current extraction rule.
 
@@ -127,19 +127,19 @@ Click **Add** to add more extraction rules.
 
 Click the **magnifying glass icon** to view the preview of the extraction/split results.
 
-![](import imgStep09 from '../../assets/mqtt-09.png)
+![Preview results](../../assets/mqtt-09.png)
 
 #### 6.3 Data Filtering
 
 In **Filter**, fill in the filtering conditions, for example: write `id != 1`, then only data with id not equal to 1 will be written to TDengine.
 
-![](../../assets/mqtt-10.png)
+![Data filtering conditions](../../assets/mqtt-10.png)
 
 Click **Delete** to remove the current filtering rule.
 
 Click the **magnifying glass icon** to view the preview of the filtering results.
 
-![](../../assets/mqtt-11.png)
+![Preview filtering results](../../assets/mqtt-11.png)
 
 #### 6.4 Table Mapping
 
@@ -147,11 +147,11 @@ In the **Target Supertable** dropdown, select a target supertable, or click the 
 
 In **Mapping**, fill in the subtable name in the target supertable, for example: `t_{id}`. Fill in the mapping rules according to the requirements, where mapping supports setting default values.
 
-![](../../assets/mqtt-12.png)
+![Table mapping](../../assets/mqtt-12.png)
 
 Click **Preview** to view the mapping results.
 
-![](../../assets/mqtt-13.png)
+![Preview mapping results](../../assets/mqtt-13.png)
 
 ### 7. Advanced Options
 
@@ -163,7 +163,7 @@ Set the maximum retention days for raw data in **Maximum Retention Days**.
 
 Set the storage path for raw data in **Raw Data Storage Directory**.
 
-![](../../assets/mqtt-14.png)
+![Configure advanced options](../../assets/mqtt-14.png)
 
 ### 8. Completion
 

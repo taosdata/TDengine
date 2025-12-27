@@ -2639,7 +2639,13 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
     if (TSDB_CODE_SUCCESS == code && i < pCols->numOfBound - 1) {
       NEXT_VALID_TOKEN(*pSql, *pToken);
       if (TK_NK_COMMA != pToken->type) {
-        code = buildSyntaxErrMsg(&pCxt->msg, ", expected", pToken->z);
+        if (!pCxt->forceUpdate) {
+          code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+          parserWarn("QID:0x%" PRIx64 ", column number is smaller than %d, need retry", pCxt->pComCxt->requestId,
+                     pCols->numOfBound);
+        } else {
+          code = buildSyntaxErrMsg(&pCxt->msg, ", expected", pToken->z);
+        }
       }
     }
   }
@@ -3277,8 +3283,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
       }
     } else {
       pCxt->stmtTbNameFlag |= IS_FIXED_VALUE;
-      parserWarn("QID:0x%" PRIx64 ", table name is specified in sql, ignore the table name in bind param",
-                 pCxt->pComCxt->requestId);
+      parserTrace("QID:0x%" PRIx64 ", stmt tbname:%s is specified in sql", pCxt->pComCxt->requestId, pTbName->z);
       *pHasData = true;
     }
     return TSDB_CODE_SUCCESS;

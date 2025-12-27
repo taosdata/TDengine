@@ -28,7 +28,7 @@
 static threadlocal SHashObj* tNotificationConnHash = NULL;  // key: url, value: CURL*
 static threadlocal bool      tInitialized = false;
 
-static int32_t tcurlConnect(CURL** ppConn, const char* url) {
+int32_t tcurlConnect(CURL** ppConn, const char* url) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   CURLcode res = CURLE_OK;
@@ -86,7 +86,7 @@ _end:
   return code;
 }
 
-static void tcurlClose(void* pConn) {
+void tcurlClose(void* pConn) {
   SCURL* pCurl = (SCURL*)pConn;
   if (pCurl == NULL) {
     return;

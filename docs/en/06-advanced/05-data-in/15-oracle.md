@@ -21,7 +21,7 @@ TDengine can efficiently read data from Oracle and write it to TDengine, enablin
 
 Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the Add Data Source page, as shown below:
 
-![](../../assets/oracle-database-01.png)
+![Add data source](../../assets/oracle-database-01.png)
 
 ### 2. Configure Basic Information
 
@@ -33,13 +33,13 @@ Select *`Oracle`* from the **Type** dropdown menu, as shown below (the fields on
 
 **Target Database** is required. You can click the **+ Create Database** button on the right to create a new database.
 
-![](../../assets/oracle-database-02.png)
+![Configure basic settings](../../assets/oracle-database-02.png)
 
 ### 3. Configure Connection Information
 
 Fill in the *`connection information for the source Oracle database`* in the **Connection Configuration** area, as shown below:
 
-![](../../assets/oracle-database-03.png)
+![Configure connection information](../../assets/oracle-database-03.png)
 
 ### 4. Configure Authentication Information
 
@@ -47,7 +47,7 @@ Fill in the *`connection information for the source Oracle database`* in the **C
 
 **Password** Enter the login password for the user mentioned above in the source Oracle database.
 
-![](../../assets/oracle-database-04.png)
+![Configure authentication information](../../assets/oracle-database-04.png)
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally access data from the source Oracle database.
 
@@ -77,7 +77,7 @@ Then click the **Check Connectivity** button, where users can click this button 
 
 **Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
 
-![](../../assets/oracle-database-05.png)
+![Configure data collection](../../assets/oracle-database-05.png)
 
 ### 6. Configure Data Mapping
 
@@ -93,7 +93,7 @@ In **Mapping**, select the supertable in TDengine to map to, and the columns to 
 
 Click **Preview** to view the results of the mapping.
 
-![](../../assets/oracle-database-06.png)
+![Configure data mapping](../../assets/oracle-database-06.png)
 
 ### 7. Configure Advanced Options
 
@@ -103,7 +103,7 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
 
-![](../../assets/oracle-database-07.png)
+![Configure advanced options](../../assets/oracle-database-07.png)
 
 ### 8. Completion
 

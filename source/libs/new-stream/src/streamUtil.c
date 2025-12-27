@@ -772,7 +772,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
   SStringBuilder sb = {0};
   const char*    msgTail = "]}]}";
   char*          msg = NULL;
-  SCURL*         conn = NULL;
+  SCURL          conn = {0};
   bool           shouldNotify = false;
 
   // Remove prefix 1. 
@@ -815,16 +815,18 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
   msg = taosStringBuilderGetResult(&sb, NULL);
 
   for (int32_t i = 0; i < TARRAY_SIZE(pNotifyAddrUrls); ++i) {
-    const char** pUrl = TARRAY_GET_ELEM(pNotifyAddrUrls, i);
+    char** pUrl = TARRAY_GET_ELEM(pNotifyAddrUrls, i);
     if (*pUrl == NULL) {
       continue;
     }
 
     // todo(kjq): check if task should stop
-
-    code = tcurlGetConnection(*pUrl, &conn);
+    conn.url = taosStrdup(*pUrl);
+    QUERY_CHECK_NULL(conn.url, code, lino, _end, terrno);
+    code = tcurlConnect(&conn.pConn, *pUrl);
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("failed to get stream notify handle of %s", *pUrl);
+      tcurlClose(&conn);
       if (addOptions & NOTIFY_ON_FAILURE_PAUSE) {
         // retry for event message sending in PAUSE error handling mode
         taosMsleep(STREAM_EVENT_NOTIFY_RETRY_MS);
@@ -843,15 +845,16 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
     while (sentLen < totalLen) {
       size_t nbytes = 0;
       if (sentLen == 0) {
-        res = tcurlSend(conn, msg, totalLen, &nbytes, totalLen, CURLWS_TEXT | CURLWS_OFFSET);
+        res = tcurlSend(&conn, msg, totalLen, &nbytes, totalLen, CURLWS_TEXT | CURLWS_OFFSET);
       } else {
-        res = tcurlSend(conn, msg + sentLen, totalLen - sentLen, &nbytes, 0, CURLWS_TEXT | CURLWS_OFFSET);
+        res = tcurlSend(&conn, msg + sentLen, totalLen - sentLen, &nbytes, 0, CURLWS_TEXT | CURLWS_OFFSET);
       }
       if (res != CURLE_OK) {
         break;
       }
       sentLen += nbytes;
     }
+    tcurlClose(&conn);
     if (res != CURLE_OK) {
       ST_TASK_ELOG("failed to send stream notify msg to %s for %d", *pUrl, res);
       if (addOptions & NOTIFY_ON_FAILURE_PAUSE) {
@@ -868,7 +871,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
   }
 
 _end:
-
+  tcurlClose(&conn);
   taosStringBuilderDestroy(&sb);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));

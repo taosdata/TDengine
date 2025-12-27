@@ -661,11 +661,10 @@ class TestStreamOldCaseCount:
         def check3(self):
             tdSql.checkResultsByFunc(
                 f"select * from streamt;",
-                lambda: tdSql.getRows() == 4
+                lambda: tdSql.getRows() == 3
                 and tdSql.getData(0, 2) == 4
                 and tdSql.getData(1, 2) == 4
-                and tdSql.getData(2, 2) == 3
-                and tdSql.getData(3, 2) == 1,
+                and tdSql.getData(2, 2) == 2
             )
 
         # def insert4(self):

@@ -208,3 +208,4 @@ class TestCompactDbConflict:
         return False  
 
 
+event = threading.Event()

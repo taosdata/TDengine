@@ -2151,9 +2151,14 @@ class TestFill:
         self.do_window_fill_value()
 
     def test_fill_sliding_duration(self):
-        """Fill with sliding test case
+        """Fill with sliding
 
-        1. check the correctness of duration when filling null for sliding interval window
+        1. Check the correctness of duration when filling null for sliding interval window
+        2. Use first and last function to verify the window range
+        3. Sliding window with duration overlapping
+        4. Fill with null method
+        5. Verify the correctness of _wstart, _wduration, _wend columns
+
 
         Since: v3.3.6
 

@@ -13,5 +13,3 @@ else
     echo "Directory /var/lib/taos/taosanode/model/tdtsfm does not exist."
     exit 1
 fi
-
-

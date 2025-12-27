@@ -145,7 +145,7 @@ class TestCompatibilityRollingUpgradeAll:
             tdCb.verifyData(corss_major_version=False)
 
             # Verify backticks in SQL
-            tdCb.verifyBackticksInTaosSql(bPath)
+            tdCb.verifyBackticksInTaosSql(bPath,lastBigVersion)
         
         tdLog.printNoPrefix("========== Rolling Upgrade All Dnodes Compatibility Test Completed Successfully ==========")
 
