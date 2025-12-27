@@ -449,6 +449,8 @@ static char *tdbEncryptPage(SPager *pPager, char *pPageData, int32_t pageSize, c
       return NULL;
     }
 
+
+    
     unsigned char packetData[128];
 
     int32_t count = 0;
