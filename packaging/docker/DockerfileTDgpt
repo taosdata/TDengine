@@ -1,4 +1,5 @@
-FROM tdgpt_env:1.1 AS tdgpt
+ARG ARCH=amd64
+FROM tdgpt_env:${ARCH}-1.1 AS tdgpt
 
 ARG pkgFile
 ARG modelDlUrl
