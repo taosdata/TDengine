@@ -36,7 +36,7 @@ declare -A MODEL_NAMES=(
 
 declare -A MODEL_VENV_MAP=(
     ["chronos"]="/var/lib/taos/taosanode/venv_chronos"
-    ["moirai"]="/var/lib/taos/taosanode/venv"
+    ["moirai"]="/var/lib/taos/taosanode/venv_moirai"
     ["tdtsfm"]="/var/lib/taos/taosanode/venv"
     ["timemoe"]="/var/lib/taos/taosanode/venv"
     ["timesfm"]="/var/lib/taos/taosanode/venv_timesfm"

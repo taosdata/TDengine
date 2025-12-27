@@ -27,3 +27,5 @@ COPY ${modelDlUrl}/timemoe/* \
     /var/lib/taos/taosanode/model/timemoe/
 COPY --link ${modelDlUrl}/moment/* \
     /var/lib/taos/taosanode/model/moment/
+COPY --link ${modelDlUrl}/moirai-small/* \
+    /var/lib/taos/taosanode/model/moirai/

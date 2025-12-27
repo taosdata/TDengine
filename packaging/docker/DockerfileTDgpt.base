@@ -1,15 +1,25 @@
 # docker build -f DockerfileTDgpt.base -t tdgpt_env:1.1 .
-FROM python:3.10-slim AS base-builder
+ARG ARCH=amd64
 
+FROM python:3.10-slim AS base-builder
+ARG ARCH=amd64
 RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update -y && \
     apt-get install -y --no-install-recommends gcc libc-dev procps && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --upgrade pip && \
+RUN if [ "$ARCH" = "arm64" ]; then \
+        TORCH_PKG="torch"; \
+        TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
+        TENSORFLOW_PKG="tensorflow"; \
+    else \
+        TORCH_PKG="torch==2.3.1+cpu"; \
+        TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
+        TENSORFLOW_PKG="tensorflow-cpu==2.15.0"; \
+    fi; \ 
+    pip3 install --upgrade pip && \
     pip3 install --no-cache-dir --ignore-installed blinker && \
-    pip3 install --no-cache-dir torch==2.3.1+cpu --index-url https://download.pytorch.org/whl/cpu && \
-    # arm64 use: pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
     pip3 install --no-cache-dir \
                     numpy==1.26.4 \
                     pandas==1.5.0 \
@@ -23,8 +33,7 @@ RUN pip3 install --upgrade pip && \
                     taospy \
                     uwsgi==2.0.30 \
                     accelerate==1.8.1 \
-                    tensorflow-cpu==2.15.0 \
-                    # arm64 use: tensorflow==2.15.0 \
+                    $TENSORFLOW_PKG \
                     prophet==1.1.7 \
                     fastdtw==0.3.4 \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
@@ -66,6 +75,17 @@ RUN python -m venv --system-site-packages $VIRTUAL_ENV && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
+FROM python:3.10-slim AS venv4-builder
+COPY --from=base-builder /usr/local/bin /usr/local/bin
+ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv_moirai
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+RUN python -m venv --system-site-packages $VIRTUAL_ENV && \
+    pip install --no-cache-dir uni2ts flask   \
+        -i https://pypi.tuna.tsinghua.edu.cn/simple && \
+    pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
+    find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
+    find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
+
 FROM python:3.10-slim
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends procps && \
@@ -76,3 +96,4 @@ COPY --from=base-builder /usr/local/bin /usr/local/bin
 COPY --from=venv1-builder /var/lib/taos/taosanode/venv /var/lib/taos/taosanode/venv
 COPY --from=venv2-builder /var/lib/taos/taosanode/venv_chronos /var/lib/taos/taosanode/venv_chronos
 COPY --from=venv3-builder /var/lib/taos/taosanode/venv_timesfm /var/lib/taos/taosanode/venv_timesfm
+COPY --from=venv4-builder /var/lib/taos/taosanode/venv_moirai /var/lib/taos/taosanode/venv_moirai
