@@ -33,6 +33,7 @@ typedef struct SAuthRewriteCxt {
 } SAuthRewriteCxt;
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt);
+static int32_t authSelect(SAuthCxt* pCxt, SSelectStmt* pSelect);
 
 static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const char* pTabName, EPrivType privType,
                                EPrivObjType objType, bool isView, bool effective, SUserAuthInfo* pAuth) {
@@ -546,7 +547,14 @@ static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
-  return checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL);
+  int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB, NULL);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authSelect(pCxt, (SSelectStmt*)pStmt->pQuery);
+  }
+  return code;
 }
 
 static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
