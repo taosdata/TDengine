@@ -71,6 +71,8 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 | ------------------------ | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
 | countAlwaysReturnValue   |                   | Supported, effective immediately   | Whether count/hyperloglog functions return a value when input data is empty or NULL; 0: return empty row, 1: return; default value 1; When this parameter is set to 1, if the query contains an INTERVAL clause or the query uses TSMA, and the corresponding group or window has empty or NULL data, the corresponding group or window will not return a query result; Note that this parameter should be consistent between client and server |
 | tagFilterCache           |                   | Not supported                      | Whether to cache tag filter results                          |
+| metaEntryCache           | since  3.3.6.35   | Not supported                      | Whether to cache meta tags                                   |
+| metaEntryCacheSize       | since  3.3.6.35   | Supported, effective immediately   | The reserved memory size to cache meta tags                  |
 | queryBufferSize          |                   | Supported, effective after restart | Not effective yet                                            |
 | queryRspPolicy           |                   | Supported, effective immediately   | Query response strategy                                      |
 | queryUseMemoryPool       |                   | Not supported                      | Whether query will use memory pool to manage memory, default value: 1 (on); 0: off, 1: on |

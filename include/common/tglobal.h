@@ -71,7 +71,7 @@ extern char          tsEncryptScope[];
 extern EEncryptAlgor tsiEncryptAlgorithm;
 extern EEncryptScope tsiEncryptScope;
 // extern char     tsAuthCode[];
-extern char tsEncryptKey[];
+extern char   tsEncryptKey[];
 extern int8_t tsEnableStrongPassword;
 
 // common
@@ -84,6 +84,8 @@ extern int32_t tsCountAlwaysReturnValue;
 extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsBypassFlag;
+extern int64_t tsMetaEntryCacheSize;
+extern char    tsMetaEntryCache;
 
 // queue & threads
 extern int32_t tsQueryMinConcurrentTaskNum;
