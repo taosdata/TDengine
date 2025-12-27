@@ -268,15 +268,6 @@ _return:
       tscError("failed to unlock app info, code:%s", tstrerror(TAOS_SYSTEM_ERROR(code)));
       return code;
     }
-    
-    // TODO: this block should not be here as user may be NULL in token auth mode
-    // SSessParam pPara = {.type = SESSION_PER_USER, .value = 1};
-    // code = sessMgtUpdateUserMetric((char*)user, &pPara);
-    // if (TSDB_CODE_SUCCESS != code) {
-    //  tscError("failed to connect with user:%s, code:%s", user ? user : "", tstrerror(code));
-    //  return code;
-    // }
-    
     return taosConnectImpl(user, auth, totpCode, localDb, NULL, NULL, *pInst, connType, pObj);
   }
 }

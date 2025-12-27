@@ -254,7 +254,7 @@ void *taosDecodeSEpSet(const void *buf, SEpSet *pEp) {
 static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pReq) {
   TAOS_CHECK_RETURN(tEncodeSClientHbKey(pEncoder, &pReq->connKey));
 
-  if (pReq->connKey.connType == CONN_TYPE__QUERY) {
+  if (pReq->connKey.connType == CONN_TYPE__QUERY || pReq->connKey.connType == CONN_TYPE__TMQ) {
     TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pReq->app.appId));
     TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pReq->app.pid));
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pReq->app.name));
@@ -326,7 +326,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
   int32_t line = 0;
   TAOS_CHECK_RETURN(tDecodeSClientHbKey(pDecoder, &pReq->connKey));
 
-  if (pReq->connKey.connType == CONN_TYPE__QUERY) {
+  if (pReq->connKey.connType == CONN_TYPE__QUERY || pReq->connKey.connType == CONN_TYPE__TMQ) {
     TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pReq->app.appId));
     TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pReq->app.pid));
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pReq->app.name));
