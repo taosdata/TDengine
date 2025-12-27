@@ -3948,4 +3948,129 @@ pub mod tests {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         Ok(())
     }
+
+    #[test]
+    fn test_records_structure_and_accessors() {
+        let batch = arrow::array::record_batch!(
+            ("a", Int32, [1, 2, 3]),
+            ("b", Float64, [Some(4.0), None, Some(5.0)])
+        )
+        .unwrap();
+
+        let records = Records {
+            stable: Some("test_stable".to_string()),
+            sql: "INSERT INTO test VALUES (...)".to_string(),
+            tables: 5,
+            records: 10,
+            batches: vec![batch.clone()],
+        };
+
+        // Test sql() method
+        assert_eq!(records.sql(), "INSERT INTO test VALUES (...)");
+
+        // Test records() method
+        assert_eq!(records.records(), 10);
+
+        // Test stable() method
+        assert_eq!(records.stable(), Some("test_stable"));
+
+        // Test AsRef<str> implementation
+        assert_eq!(records.as_ref(), "INSERT INTO test VALUES (...)");
+    }
+
+    #[test]
+    fn test_records_without_stable() {
+        let batch = arrow::array::record_batch!(("a", Int32, [1, 2, 3])).unwrap();
+
+        let records = Records {
+            stable: None,
+            sql: "INSERT INTO ordinary_table VALUES (...)".to_string(),
+            tables: 1,
+            records: 3,
+            batches: vec![batch],
+        };
+
+        assert_eq!(records.stable(), None);
+        assert_eq!(records.records(), 3);
+        assert_eq!(records.tables, 1);
+    }
+
+    #[test]
+    fn test_recordbatch_to_sql_basic() {
+        let ts_array = TimestampMillisecondArray::from(vec![1000i64, 2000i64]);
+        let value_array = Float32Array::from(vec![3.15f32, 2.71f32]);
+
+        let batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![
+                Field::new(
+                    "ts",
+                    DataType::Timestamp(arrow_schema::TimeUnit::Millisecond, None),
+                    false,
+                ),
+                Field::new("value", DataType::Float32, false),
+            ])),
+            vec![Arc::new(ts_array), Arc::new(value_array)],
+        )
+        .unwrap();
+
+        let super_table_name = "meters";
+        let precision = taos::Precision::Millisecond;
+        let database_name = Some("testdb");
+
+        let records = recordbatch_to_sql(
+            database_name,
+            super_table_name,
+            &batch,
+            precision,
+            false,
+            false,
+            &MessageTableMeta {
+                name: Arc::new("t1".into()),
+                using: Some(Arc::new(STable::Name(super_table_name.to_string()))),
+                tags: None,
+            },
+            &Arc::new(TableOptions::default()),
+        );
+
+        assert!(!records.is_empty());
+        assert!(records[0].sql.contains("INSERT INTO"));
+        assert_eq!(records[0].records, 2);
+        assert_eq!(records[0].batches.len(), 1);
+    }
+
+    #[test]
+    fn test_message_to_sql_empty_messages() {
+        let messages: Vec<MessageArrowRecords> = vec![];
+        let (records, _) =
+            message_to_sql(&messages, taos::Precision::Millisecond, false, false, None);
+        assert!(records.is_empty());
+    }
+
+    #[test]
+    fn test_flat_error_types() {
+        // Test that FlatWriteError variants can be created and matched
+        let _conn_error = FlatWriteError::DatabaseNotExits;
+        let _table_error = FlatWriteError::TableNotExits("test_table".to_string());
+        let _col_error = FlatWriteError::InvalidColumn;
+        let _ts_error = FlatWriteError::PrimaryTimestampNull;
+
+        // Verify Display trait works
+        assert!(!format!("{}", _conn_error).is_empty());
+        assert!(!format!("{}", _table_error).is_empty());
+    }
+
+    #[test]
+    fn test_choose_flat_write_mode_threshold() {
+        // Test SQL mode with small data
+        let builder = STableMessagesBuilder::new().table_num(10).string_repeats(1);
+        let messages = builder.build();
+        assert_eq!(choose_flat_write_mode(&messages), FlatWriteMode::Sql);
+
+        // Test RawBlock mode with large data
+        let builder = STableMessagesBuilder::new()
+            .table_num(500)
+            .string_repeats(1);
+        let messages = builder.build();
+        assert_eq!(choose_flat_write_mode(&messages), FlatWriteMode::RawBlock);
+    }
 }

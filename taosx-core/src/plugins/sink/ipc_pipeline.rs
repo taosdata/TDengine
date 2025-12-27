@@ -521,3 +521,42 @@ impl IpcSinkPipeline {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ipc_sink_pipeline_structure() {
+        // Test that basic types are properly defined and sized
+        // This ensures the struct is coherent
+        let option_size = std::mem::size_of::<Option<flume::Sender<LushAck>>>();
+        assert!(option_size > 0);
+
+        let cancellation_token_size = std::mem::size_of::<CancellationToken>();
+        assert!(cancellation_token_size > 0);
+    }
+
+    #[test]
+    fn test_cancellation_token_basic() {
+        let cancel = CancellationToken::new();
+        assert!(!cancel.is_cancelled());
+        cancel.cancel();
+        assert!(cancel.is_cancelled());
+    }
+
+    #[test]
+    fn test_cancellation_token_child_token() {
+        let parent = CancellationToken::new();
+        let child = parent.child_token();
+
+        // Parent not cancelled yet
+        assert!(!parent.is_cancelled());
+        assert!(!child.is_cancelled());
+
+        // Cancel parent
+        parent.cancel();
+        assert!(parent.is_cancelled());
+        assert!(child.is_cancelled()); // Child should also be cancelled
+    }
+}

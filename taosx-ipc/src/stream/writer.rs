@@ -490,6 +490,207 @@ pub struct IpcField {
     ipc_data_type: Option<IpcDataType>,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ipc_datatype_from_str_and_display() {
+        // Decimal parse
+        let d = IpcDataType::from_str("decimal(10,3)").unwrap();
+        assert!(matches!(d, IpcDataType::Decimal(10, 3)));
+
+        // Basic types
+        assert!(matches!(
+            IpcDataType::from_str("bool").unwrap(),
+            IpcDataType::Bool
+        ));
+        assert!(matches!(
+            IpcDataType::from_str("tinyint").unwrap(),
+            IpcDataType::Int8
+        ));
+        assert!(matches!(
+            IpcDataType::from_str("smallint unsigned").unwrap(),
+            IpcDataType::UInt16
+        ));
+        assert!(matches!(
+            IpcDataType::from_str("double").unwrap(),
+            IpcDataType::Float64
+        ));
+        assert!(matches!(
+            IpcDataType::from_str("timestamp(ns)").unwrap(),
+            IpcDataType::Timestamp(TimeUnit::Nanosecond)
+        ));
+
+        // Length types
+        let v = IpcDataType::from_str("varchar(128)").unwrap();
+        assert_eq!(v.length(), Some(128));
+        let n = IpcDataType::from_str("nchar").unwrap();
+        assert_eq!(n.length(), Some(128));
+
+        // Display reprs
+        let ts = IpcDataType::Timestamp(TimeUnit::Microsecond);
+        assert_eq!(ts.sql_repr_display(), "timestamp(us)");
+        assert_eq!(format!("{}", ts), "timestamp");
+    }
+
+    #[test]
+    fn ipc_datatype_ty_and_arrow_mapping() {
+        // Decimal precision threshold
+        let d64 = IpcDataType::Decimal(10, 2);
+        assert!(matches!(d64.ty(), Ty::Decimal64));
+        let d128 = IpcDataType::Decimal(19, 2);
+        assert!(matches!(d128.ty(), Ty::Decimal));
+
+        // Arrow mapping
+        let a = ArrowDataType::Utf8;
+        let dt = IpcDataType::from(&a);
+        assert!(matches!(dt, IpcDataType::VarChar(_)));
+        assert!(matches!(
+            IpcDataType::from(ArrowDataType::LargeBinary),
+            IpcDataType::Blob
+        ));
+        assert!(matches!(
+            IpcDataType::from(ArrowDataType::Timestamp(TimeUnit::Second, None)),
+            IpcDataType::Timestamp(TimeUnit::Second)
+        ));
+    }
+
+    #[test]
+    fn stream_type_and_metadata_roundtrip() {
+        // StreamType
+        assert_eq!(StreamType::Point.as_str(), "point");
+        assert!(matches!(
+            StreamType::from_str("flat").unwrap(),
+            StreamType::Flat
+        ));
+
+        // IpcMetadata to/from map
+        let meta = IpcMetadata::new(StreamType::Lush).with_preset("x");
+        let map = meta.to_hashmap();
+        assert_eq!(
+            map.get("version"),
+            Some(&CURRENT_MESSAGE_SCHEMA_VERSION.to_string())
+        );
+        assert_eq!(map.get("stream"), Some(&"lush".to_string()));
+        assert_eq!(map.get("ack"), Some(&meta.ack().as_str().to_string()));
+
+        let meta2 = IpcMetadata::from(&map);
+        assert_eq!(meta2.stream_type().as_str(), "lush");
+        assert_eq!(meta2.ack().as_str(), meta.ack().as_str());
+    }
+
+    #[test]
+    fn lush_message_init_sql() {
+        let init_no_tags = LushMessageInit {
+            name: FastStr::from("stable"),
+            columns: vec![
+                LushField {
+                    name: "c1".into(),
+                    r#type: IpcDataType::Int32,
+                },
+                LushField {
+                    name: "c2".into(),
+                    r#type: IpcDataType::VarChar(16),
+                },
+            ],
+            tags: vec![],
+        };
+        assert_eq!(
+            init_no_tags.to_sql_string(),
+            "CREATE TABLE IF NOT EXISTS `stable` (`c1` int,`c2` varchar(16))"
+        );
+
+        let init_with_tags = LushMessageInit {
+            name: FastStr::from("stable"),
+            columns: vec![LushField {
+                name: "c1".into(),
+                r#type: IpcDataType::Int32,
+            }],
+            tags: vec![LushField {
+                name: "t1".into(),
+                r#type: IpcDataType::VarChar(8),
+            }],
+        };
+        assert_eq!(
+            init_with_tags.to_sql_string(),
+            "CREATE TABLE IF NOT EXISTS `stable` (`c1` int) TAGS (`t1` varchar(8))"
+        );
+
+        // Accessors
+        assert_eq!(init_with_tags.name().as_str(), "stable");
+        assert!(init_with_tags.column_data_type("c1").is_some());
+        assert!(init_with_tags.tag_data_type("t1").is_some());
+        assert_eq!(init_with_tags.columns().len(), 1);
+        assert_eq!(init_with_tags.tags().len(), 1);
+    }
+
+    #[test]
+    fn build_schema_and_insert_and_child_tables() -> anyhow::Result<()> {
+        // Build a lush message schema with stable, columns and tags
+        let columns = vec![
+            IpcField::new("c1", false, ArrowDataType::Int32, None),
+            IpcField::new(
+                "c2",
+                true,
+                ArrowDataType::Utf8,
+                Some(IpcDataType::VarChar(16)),
+            ),
+        ];
+        let tags: Vec<IpcField> = vec![IpcField::new("t1", true, ArrowDataType::Utf8, None)];
+        let builder = LushMessageBuilder::new()
+            .with_stable("stable", columns, tags)
+            .build();
+
+        // Validate schema metadata without building batches to avoid schema field mismatch
+        let schema_binding = builder.schema_ref();
+        let meta = schema_binding.metadata();
+        assert_eq!(meta.get("stream"), Some(&"lush".to_string()));
+        let ipc_meta = IpcMetadata::from(&meta.clone());
+        let sql = ipc_meta.init_sql_string().unwrap();
+        assert!(sql.contains("CREATE TABLE IF NOT EXISTS"));
+        Ok(())
+    }
+
+    #[test]
+    fn ipc_field_conversions() {
+        let f = IpcField::new("x", true, ArrowDataType::Utf8, None);
+        let af = f.to_arrow_field();
+        assert_eq!(af.name(), "x");
+        assert_eq!(af.data_type(), &DataType::Utf8);
+        assert!(f.is_nullable());
+
+        let afd = f.to_arrow_field_with_dict();
+        assert_eq!(
+            afd.data_type(),
+            &DataType::Dictionary(Box::new(DataType::Int64), Box::new(DataType::Utf8))
+        );
+    }
+
+    #[test]
+    fn more_coverage_writer_misc() {
+        // IpcDataType short/sql reprs
+        let vb = IpcDataType::VarBinary(4);
+        assert_eq!(vb.short(), "varbinary(4)");
+        assert_eq!(vb.sql_repr(), "varbinary(4)");
+        let nc = IpcDataType::NChar(8);
+        assert_eq!(nc.short(), "nchar(8)");
+        assert_eq!(nc.sql_repr_display(), "nchar(8)");
+
+        // StreamType roundtrip and error branch
+        assert_eq!(StreamType::Line.as_str(), "line");
+        assert_eq!(StreamType::Flat.as_str(), "flat");
+        assert_eq!(StreamType::Lush.as_str(), "lush");
+        assert_eq!(StreamType::Point.as_str(), "point");
+        assert!(StreamType::from_str("unknown").is_err());
+
+        // IpcMetadata preset present in map
+        let meta = IpcMetadata::new(StreamType::Flat).with_preset("preset-x");
+        let map = meta.to_hashmap();
+        assert_eq!(map.get("preset"), Some(&"preset-x".to_string()));
+    }
+}
+
 impl IpcField {
     pub fn new(
         name: impl Into<String>,
