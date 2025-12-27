@@ -1,7 +1,7 @@
 # docker build -f DockerfileTDgpt.base -t tdgpt_env:1.1 .
 ARG ARCH=amd64
 
-FROM python:3.10-slim AS base-builder
+FROM python:3.10-slim-trixie AS base-builder
 ARG ARCH=amd64
 RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update -y && \
     apt-get install -y --no-install-recommends gcc libc-dev procps && \
@@ -41,7 +41,7 @@ RUN if [ "$ARCH" = "arm64" ]; then \
     find /usr/local/lib/python3.10 -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
     find /usr/local/lib/python3.10 -type d -name 'tests' -exec rm -rf {} + 2>/dev/null || true
 
-FROM python:3.10-slim AS venv1-builder
+FROM python:3.10-slim-trixie AS venv1-builder
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv
@@ -52,7 +52,7 @@ RUN python3.10 -m venv --system-site-packages $VIRTUAL_ENV && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
-FROM python:3.10-slim AS venv2-builder
+FROM python:3.10-slim-trixie AS venv2-builder
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv_chronos
@@ -64,7 +64,7 @@ RUN python -m venv --system-site-packages $VIRTUAL_ENV && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
-FROM python:3.10-slim AS venv3-builder
+FROM python:3.10-slim-trixie AS venv3-builder
 COPY --from=base-builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
 COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv_timesfm
@@ -75,18 +75,20 @@ RUN python -m venv --system-site-packages $VIRTUAL_ENV && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
-FROM python:3.10-slim AS venv4-builder
+
+FROM python:3.10-slim-trixie AS venv4-builder
+ARG ARCH=amd64
 COPY --from=base-builder /usr/local/bin /usr/local/bin
 ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv_moirai
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python -m venv --system-site-packages $VIRTUAL_ENV && \
-    pip install --no-cache-dir uni2ts flask   \
+    pip install --no-cache-dir uni2ts flask \
         -i https://pypi.tuna.tsinghua.edu.cn/simple && \
     pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
-FROM python:3.10-slim
+FROM python:3.10-slim-trixie
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends procps && \
     apt-get clean && \
