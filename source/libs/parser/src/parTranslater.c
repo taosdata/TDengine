@@ -16365,7 +16365,7 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
 
     if (TSDB_SUPER_TABLE != pTable->pMeta->tableType && TSDB_NORMAL_TABLE != pTable->pMeta->tableType &&
         TSDB_VIRTUAL_NORMAL_TABLE != pTable->pMeta->tableType) {
-      if (TSDB_CHILD_TABLE == pTable->pMeta->tableType) {
+      if (TSDB_CHILD_TABLE == pTable->pMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pTable->pMeta->tableType) {
         if ((PRIV_HAS(privSet, PRIV_CM_DROP) || PRIV_HAS(privSet, PRIV_CM_ALTER) || PRIV_HAS(privSet, PRIV_CM_SHOW) ||
              PRIV_HAS(privSet, PRIV_CM_SHOW_CREATE))) {
           goto _tagCond;
