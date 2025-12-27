@@ -694,6 +694,7 @@ typedef struct SShowCreateViewStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
   char      viewName[TSDB_VIEW_NAME_LEN];
+  bool      hasPrivilege;
   void*     pViewMeta;
 } SShowCreateViewStmt;
 
@@ -967,6 +968,7 @@ typedef struct SDropViewStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   char      viewName[TSDB_VIEW_NAME_LEN];
   bool      ignoreNotExists;
+  bool      hasPrivilege;
 } SDropViewStmt;
 
 typedef struct SGrantStmt {

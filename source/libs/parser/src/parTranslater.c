@@ -16227,7 +16227,7 @@ static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pSt
 static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
+#else
 
   SCMDropViewReq dropReq = {0};
   SName          name = {0};
@@ -16245,11 +16245,21 @@ static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) 
     code = collectUseTable(&name, pCxt->pTargetTables);
   }
 
+  if ((TSDB_CODE_SUCCESS == code) && !pStmt->hasPrivilege) {
+    SViewMeta* pMeta = NULL;
+    if (getViewMetaFromMetaCache(pCxt, &name, &pMeta) == TSDB_CODE_SUCCESS) {
+      if (pMeta->ownerId != pCxt->pParseCxt->userId) {
+        code = TSDB_CODE_PAR_PERMISSION_DENIED;
+      }
+    }
+  }
+
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
 
   return buildCmdMsg(pCxt, TDMT_MND_DROP_VIEW, (FSerializeFunc)tSerializeSCMDropViewReq, &dropReq);
+#endif
 }
 
 static int32_t readFromFile(char* pName, int32_t* len, char** buf) {
@@ -16740,8 +16750,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
   (void)snprintf(req.principal, TSDB_ROLE_LEN, "%s", pStmt->principal);
 
   switch (req.alterType) {
-// #ifdef TD_ENTERPRISE
-#if 1
+#ifdef TD_ENTERPRISE
     case TSDB_ALTER_ROLE_PRIVILEGES: {
       EPrivCategory category = PRIV_CATEGORY_UNKNOWN;
       EPrivObjType  objType = pStmt->privileges.objType;
@@ -16766,6 +16775,14 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
         if (!privIsEmptySet(&privSet)) {
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                          "Cannot mix ALL PRIVILEGES with other privileges");
+        }
+      }
+
+      // rewrite query for view to improve usability
+      if(objType == PRIV_OBJ_VIEW) {
+        if(PRIV_HAS(&privSet, PRIV_TBL_SELECT)) {
+          privAddType(&privSet, PRIV_VIEW_SELECT);
+          privRemoveType(&privSet, PRIV_TBL_SELECT);
         }
       }
 

@@ -356,9 +356,9 @@ static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) 
 static int32_t authShowCreateView(SAuthCxt* pCxt, SShowCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
-
+#else
   return TSDB_CODE_SUCCESS;
+#endif
 }
 
 static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
@@ -546,7 +546,7 @@ static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
 static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
+#else
   int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB, NULL);
@@ -555,17 +555,24 @@ static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
     code = authSelect(pCxt, (SSelectStmt*)pStmt->pQuery);
   }
   return code;
+#endif
 }
 
 static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
+#else
   int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, PRIV_CM_DROP, PRIV_OBJ_VIEW, NULL);
   }
+  if (code == 0) {
+    pStmt->hasPrivilege = true;
+  } else {
+    code = 0;  // check owner in parTranslater
+  }
   return code;
+#endif
 }
 
 static int32_t authCreateIndex(SAuthCxt* pCxt, SCreateIndexStmt* pStmt) {
@@ -785,8 +792,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_CREATE_VTABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return authShowCreateTable(pCxt, (SShowCreateTableStmt*)pStmt);
-      //    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
-      //      return authShowCreateView(pCxt, (SShowCreateViewStmt*)pStmt);
+    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
+      return authShowCreateView(pCxt, (SShowCreateViewStmt*)pStmt);
     case QUERY_NODE_CREATE_VIEW_STMT:
       return authCreateView(pCxt, (SCreateViewStmt*)pStmt);
     case QUERY_NODE_DROP_VIEW_STMT:
