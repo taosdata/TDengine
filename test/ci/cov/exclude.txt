@@ -37,4 +37,5 @@
 /home/TDinternal/community/source/libs/planner/src/planLogicCreater.c
 /home/TDinternal/community/source/libs/scalar/src/sclfunc.c
 /home/TDinternal/community/source/common/src/msg/streamMsg.c
-
+/home/TDinternal/community/source/client/src/clientTmq.c
+/home/TDinternal/community/source/common/src/ttime.c
