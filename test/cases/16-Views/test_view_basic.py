@@ -359,6 +359,8 @@ class TestViewBasic:
         self.create_user(username, password)
         # grant all db permission to user
         tdSql.execute("grant all on view_db.* to view_test;")
+        tdSql.execute("grant use on database view_db to view_test;")
+        tdSql.execute("grant create view on database view_db to view_test;")
         
         conn = taos.connect(user=username, password=password)
         conn.execute(f"use {self.dbname};")

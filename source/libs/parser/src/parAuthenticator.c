@@ -549,7 +549,7 @@ static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
 #else
   int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB, NULL);
+    code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_VIEW_CREATE, PRIV_OBJ_DB, NULL);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = authSelect(pCxt, (SSelectStmt*)pStmt->pQuery);
