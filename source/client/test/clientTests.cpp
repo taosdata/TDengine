@@ -1992,7 +1992,7 @@ void testSessionConnIdleTime() {
 
   {
     char sql[128] = {0};
-    sprintf(sql, "alter user root connect_idel_time 1");
+    sprintf(sql, "alter user root connect_idle_time 1");
     TAOS_RES* pRes = taos_query(pConn, sql);
     taos_free_result(pRes);
   }

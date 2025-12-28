@@ -140,7 +140,7 @@ static int32_t sessVnodeCallCheckFn(int64_t *value, int64_t *limit) {
     return code;
   }
 
-  if (value > limit) {
+  if (cValue > cLimit) {
     code = TSDB_CODE_TSC_SESS_MAX_CALL_VNODE_LIMIT;
   }
   return code;
@@ -478,7 +478,12 @@ int32_t tscUpdateSessMetric(STscObj *pTscObj, SSessParam *pParam) {
   }
 
   SSessMetric *pMetric = (SSessMetric *)pTscObj->pSessMetric;
+  if (pTscObj->pSessMetric == NULL) {
+    return code;
+  }
+
   code = sessMetricUpdate(pMetric, pParam);
+
   TAOS_CHECK_GOTO(code, &lino, _error);
 
 _error:
