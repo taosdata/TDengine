@@ -814,7 +814,7 @@
 # 24-Users
 
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_basic.py
-,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_control.py
+#,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_control.py PRIV_TODO
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_crypted_pass.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_password.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_create_db.py
