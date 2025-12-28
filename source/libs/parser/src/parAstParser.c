@@ -727,12 +727,14 @@ static int32_t collectMetaKeyFromCreateTopic(SCollectMetaKeyCxt* pCxt, SCreateTo
   if (NULL != pStmt->pWhere) {
     code = collectMetaKeyFromRealTableImpl(pCxt, pStmt->subDbName, pStmt->subSTbName, PRIV_TBL_SELECT, PRIV_OBJ_TBL);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->subDbName, pCxt->pMetaCache);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->subDbName, NULL, PRIV_DB_USE,
-                                  PRIV_OBJ_DB, pCxt->pMetaCache);
+  if (pStmt->subDbName[0] != '\0') {
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->subDbName, pCxt->pMetaCache);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->subDbName, NULL,
+                                    PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
+    }
   }
   return code;
 }

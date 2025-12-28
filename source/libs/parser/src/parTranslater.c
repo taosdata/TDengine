@@ -16627,13 +16627,20 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
     }
   } else if (objLevel > 0) {
     if (pStmt->tabName[0] == '\0') {
-      pStmt->tabName[0] = '*';
-      pStmt->tabName[1] = '\0';
+      if (strncmp(pStmt->objName, "*", 2) == 0) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "Table name cannot be empty for table level privileges");
+      } else {
+        // set table name to * automatically for specific db name
+        pStmt->tabName[0] = '*';
+        pStmt->tabName[1] = '\0';
+      }
     }
   }
 
   if (strncmp(pStmt->objName, "*", 2) == 0 && pStmt->tabName[0] != 0 && strncmp(pStmt->tabName, "*", 2) != 0) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid privilege target format");
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid privilege target format: %s.%s",
+                                   pStmt->objName, pStmt->tabName);
   }
 
   if (IS_SYS_DBNAME(pStmt->objName)) {
@@ -16762,7 +16769,7 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
       EPrivCategory category = PRIV_CATEGORY_UNKNOWN;
       EPrivObjType  objType = pStmt->privileges.objType;
       uint8_t       objLevel = privObjGetLevel(objType);
-      SPrivSet      privSet = pStmt->privileges.privSet;
+      SPrivSet      tmpPrivSet = pStmt->privileges.privSet; // for conflict check
       EPrivType     conflict0 = PRIV_TYPE_UNKNOWN, conflict1 = PRIV_TYPE_UNKNOWN;
 
       if (objType <= PRIV_OBJ_UNKNOWN || objType >= PRIV_OBJ_MAX) {
@@ -16774,12 +16781,12 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
       // granted simultaneously. It is equivalent to "grant select on d0.t1 to u1" combined with "grant select(c0,c1) on
       // d0.t1 to u1". And "revoke select on d0.t1 from u1" will revoked the table-level and column-level privileges
       // simultaneously, but "revoke select(c0,c1) on d0.t1 from u1" only revokes the column-level privileges.
-      if (pStmt->privileges.selectCols) privAddType(&privSet, PRIV_TBL_SELECT);
-      if (pStmt->privileges.insertCols) privAddType(&privSet, PRIV_TBL_INSERT);
-      if (pStmt->privileges.updateCols) privAddType(&privSet, PRIV_TBL_UPDATE);
-      if (PRIV_HAS(&privSet, PRIV_CM_ALL)) {
-        privRemoveType(&privSet, PRIV_CM_ALL);
-        if (!privIsEmptySet(&privSet)) {
+      if (pStmt->privileges.selectCols) privAddType(&tmpPrivSet, PRIV_TBL_SELECT);
+      if (pStmt->privileges.insertCols) privAddType(&tmpPrivSet, PRIV_TBL_INSERT);
+      if (pStmt->privileges.updateCols) privAddType(&tmpPrivSet, PRIV_TBL_UPDATE);
+      if (PRIV_HAS(&tmpPrivSet, PRIV_CM_ALL)) {
+        privRemoveType(&tmpPrivSet, PRIV_CM_ALL);
+        if (!privIsEmptySet(&tmpPrivSet)) {
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                          "Cannot mix ALL PRIVILEGES with other privileges");
         }
@@ -16787,13 +16794,13 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
 
       // rewrite query for view to improve usability
       if(objType == PRIV_OBJ_VIEW) {
-        if(PRIV_HAS(&privSet, PRIV_TBL_SELECT)) {
-          privAddType(&privSet, PRIV_VIEW_SELECT);
-          privRemoveType(&privSet, PRIV_TBL_SELECT);
+        if(PRIV_HAS(&tmpPrivSet, PRIV_TBL_SELECT)) {
+          privAddType(&tmpPrivSet, PRIV_VIEW_SELECT);
+          privRemoveType(&tmpPrivSet, PRIV_TBL_SELECT);
         }
       }
 
-      int32_t conflict = privCheckConflicts(&privSet, &category, &objType, &objLevel, &conflict0, &conflict1);
+      int32_t conflict = privCheckConflicts(&tmpPrivSet, &category, &objType, &objLevel, &conflict0, &conflict1);
       if (conflict > 0) {
         // SPrivInfo* info0 = privInfoGet(conflict0);
         // SPrivInfo* info1 = privInfoGet(conflict1);
@@ -16827,7 +16834,13 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                        "The With clause can only be used for table privileges");
       }
-      req.privileges.privSet = pStmt->privileges.privSet; // assign the privileges
+      req.privileges.privSet = pStmt->privileges.privSet;  // assign the privileges
+      if(objType == PRIV_OBJ_VIEW) { // rewrite query for view to improve usability
+        if (PRIV_HAS(&req.privileges.privSet, PRIV_TBL_SELECT)) {
+          privAddType(&req.privileges.privSet, PRIV_VIEW_SELECT);
+          privRemoveType(&req.privileges.privSet, PRIV_TBL_SELECT);
+        }
+      }
       if (category == PRIV_CATEGORY_SYSTEM) {
         req.sysPriv = 1;
         if (pStmt->objName[0] != '\0' || pStmt->tabName[0] != '\0') {

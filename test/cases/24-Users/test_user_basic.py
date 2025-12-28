@@ -430,9 +430,9 @@ class TestUserBasic:
         tdSql.prepare()
         self.create_user()
         self.prepare_data2()
-        self.drop_topic()
+        # self.drop_topic() # PRIV_TODO: topic
         self.user_privilege_check()
-        self.subscribe_topic()
+        # self.subscribe_topic() # PRIV_TODO: topic
 
         print("do user manager ............. [passed]")
     

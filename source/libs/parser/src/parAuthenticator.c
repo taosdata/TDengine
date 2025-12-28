@@ -447,7 +447,9 @@ static int32_t authCreateTopic(SAuthCxt* pCxt, SCreateTopicStmt* pStmt) {
     PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateTopicStmt*)pStmt)->subDbName, ((SCreateTopicStmt*)pStmt)->subSTbName,
                                   PRIV_TBL_SELECT, PRIV_OBJ_TBL));
   }
-  PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateTopicStmt*)pStmt)->subDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB));
+  if (((SCreateTopicStmt*)pStmt)->subDbName[0] != '\0') {
+    PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateTopicStmt*)pStmt)->subDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB));
+  }
 
   return code;
 }

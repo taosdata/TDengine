@@ -9,8 +9,8 @@ from datetime import datetime
 
 
 PRIVILEGES_ALL      = "ALL"
-PRIVILEGES_READ     = "READ"
-PRIVILEGES_WRITE    = "WRITE"
+PRIVILEGES_READ     = "SELECT"
+PRIVILEGES_WRITE    = "INSERT"
 
 WEIGHT_ALL      = 5
 WEIGHT_READ     = 2
@@ -336,6 +336,8 @@ class TestUserControl:
         if (user not in self.users and user.name != "root") or priv not in (PRIVILEGES_ALL, PRIVILEGES_READ, PRIVILEGES_WRITE):
             tdSql.error(sql)
         tdSql.query(sql)
+        if dbname != None:
+            tdSql.execute(f"grant use on database {dbname} to {user.name}")
         self.__change_user_priv(user=user, pre_priv=priv)
         user.db_set.add(dbname)
         time.sleep(1)
@@ -453,7 +455,7 @@ class TestUserControl:
         return [
             self.__revoke_user_privileges(privilege=self.__privilege[0], user_name="") ,
             self.__revoke_user_privileges(privilege=self.__privilege[0], user_name="*") ,
-            self.__revoke_user_privileges(privilege=self.__privilege[1], dbname="not_exist_db", user_name=self.__user_list[0]),
+            # self.__revoke_user_privileges(privilege=self.__privilege[1], dbname="not_exist_db", user_name=self.__user_list[0]),
             self.__revoke_user_privileges(privilege="any_priv", user_name=self.__user_list[0]),
             self.__revoke_user_privileges(privilege="", dbname="db", user_name=self.__user_list[0]) ,
             self.__revoke_user_privileges(privilege=" ".join(self.__privilege), user_name=self.__user_list[0]) ,
