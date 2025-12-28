@@ -400,6 +400,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
 
   // MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_CREATE_TOPIC, &topicObj));
   if (pDb) {
+    // already checked in parser, just check db use privilege here
     MND_TMQ_RETURN_CHECK(
         mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL));
   }

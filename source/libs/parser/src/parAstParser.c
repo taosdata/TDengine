@@ -735,6 +735,10 @@ static int32_t collectMetaKeyFromCreateTopic(SCollectMetaKeyCxt* pCxt, SCreateTo
       code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->subDbName, NULL,
                                     PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache);
     }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->subDbName, NULL,
+                                    PRIV_TOPIC_CREATE, PRIV_OBJ_DB, pCxt->pMetaCache);
+    }
   }
   return code;
 }

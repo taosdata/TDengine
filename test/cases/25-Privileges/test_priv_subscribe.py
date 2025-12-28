@@ -21,7 +21,7 @@ class TestSubscribeStreamPrivilege:
     updatecfgDict = {'debugFlag': 143, 'clientCfg':clientCfgDict}
 
     def setup_class(cls):
-        tdLog.debug("start to execute %s" % __file__)
+        tdLog.info("start to execute %s" % __file__)
         cls.setsql = TDSetSql()
         cls.stbname = 'stb'
         cls.user_name = 'test'
@@ -67,7 +67,10 @@ class TestSubscribeStreamPrivilege:
 
     def checkUserPrivileges(self, rowCnt):
         tdSql.query("show user privileges")
+        tdLog.info(f"start to check user privileges:{rowCnt} rows expected")
+        printf(tdSql.queryResult)
         tdSql.checkRows(rowCnt)
+        tdLog.info(f"check user privileges passed: {rowCnt} rows expected")
 
     def consumeTest(self):
         consumer_dict = {
@@ -78,7 +81,7 @@ class TestSubscribeStreamPrivilege:
         }
         consumer = Consumer(consumer_dict)
 
-        tdLog.debug("test subscribe topic created by other user")
+        tdLog.info("test subscribe topic created by other user")
         exceptOccured = False
         try:
             consumer.subscribe([self.topic_name])
@@ -89,7 +92,7 @@ class TestSubscribeStreamPrivilege:
             tdLog.exit(f"has no privilege, should except")
 
         self.checkUserPrivileges(1)
-        tdLog.debug("test subscribe topic privilege granted by other user")
+        tdLog.info("test subscribe topic privilege granted by other user")
         tdSql.execute(f'grant subscribe on topic {self.dbnames[0]}.{self.topic_name} to {self.user_name}')
         self.checkUserPrivileges(2)
 
@@ -116,7 +119,7 @@ class TestSubscribeStreamPrivilege:
                     else:
                         break
 
-                tdLog.debug("test subscribe topic privilege revoked by other user")
+                tdLog.info("test subscribe topic privilege revoked by other user")
                 tdSql.execute(f'revoke subscribe on topic {self.dbnames[0]}.{self.topic_name} from {self.user_name}')
                 self.checkUserPrivileges(1)
                 time.sleep(5)
