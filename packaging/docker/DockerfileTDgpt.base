@@ -1,4 +1,4 @@
-# docker build -f DockerfileTDgpt.base -t tdgpt_env:1.1 .
+# tdgpt-env-amd64:1.1
 ARG ARCH=amd64
 
 FROM python:3.10-slim-trixie AS base-builder

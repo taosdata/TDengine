@@ -72,11 +72,7 @@ execute_startup() {
         echo "Running startup script: ${startup_script}"
         cd "${script_path}" || exit
         echo "Current directory: $(pwd)"
-        if [ "${model}" == "moment" ]; then
-            echo "modifying moment-server.py model list"
-            sed -i "s|_model_list\[0\]|'${subdir}'|g" "${model}-server.py" && echo "${model}-server.py updated"
-        fi
-        if [ "${model}" == "tdtsfm" ] || [ "${model}" == "moment" ]; then
+        if [ "${model}" == "tdtsfm" ]; then
             echo "Running command: nohup python3 /usr/local/taos/taosanode/lib/taosanalytics/tsfmservice/${model}-server.py &"
             nohup python3 "${model}-server.py" --action server &
         else
