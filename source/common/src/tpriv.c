@@ -580,27 +580,28 @@ _exit:
 bool privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName, SPrivInfo* privInfo,
                          bool recursive) {
 #if 0  // debug info, remove when release
-  printf("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s\n", __func__, __LINE__,
+  uInfo("--------------------------------");
+  uInfo("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s", __func__, __LINE__,
          objName ? objName : "", tbName ? tbName : "", privInfo->privType, privInfo->objType, privInfo->objLevel,
          privInfoGetName(privInfo->privType));
   SPrivObjPolicies* pp = NULL;
   while ((pp = taosHashIterate(privs, pp))) {
     char* pKey = taosHashGetKey(pp, NULL);
-    printf("%s:%d key is %s\n", __func__, __LINE__, pKey);
+    uInfo("%s:%d key is %s", __func__, __LINE__, pKey);
 
     SPrivIter privIter = {0};
     privIterInit(&privIter, &pp->policy);
     SPrivInfo* pPrivInfoIter = NULL;
     while (privIterNext(&privIter, &pPrivInfoIter)) {
-      printf("    has privType:%d, privObj:%d, privLevel:%d, privName:%s\n", pPrivInfoIter->privType,
+      uInfo("    has privType:%d, privObj:%d, privLevel:%d, privName:%s", pPrivInfoIter->privType,
              pPrivInfoIter->objType, pPrivInfoIter->objLevel, privInfoGetName(pPrivInfoIter->privType));
     }
   }
 #endif
   if (tbName != NULL) {
     if (privInfo->objLevel == 0 || privInfo->objType <= PRIV_OBJ_DB) {
-      uError("invalid privilege info for table level check, privType:%d, objType:%d, objLevel:%d\n",
-             privInfo->privType, privInfo->objType, privInfo->objLevel);
+      uError("invalid privilege info for table level check, privType:%d, objType:%d, objLevel:%d\n", privInfo->privType,
+             privInfo->objType, privInfo->objLevel);
     }
   }
 
@@ -617,9 +618,9 @@ _retry:
   SPrivObjPolicies* policies = taosHashGet(privs, key, klen + 1);
   if (policies && PRIV_HAS(&policies->policy, privInfo->privType)) {
 #if 0  // debug info, remove when release
-    printf("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s, TRUE\n", __func__, __LINE__,
+    uInfo("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s, key:%s TRUE", __func__, __LINE__,
            objName ? objName : "", tbName ? tbName : "", privInfo->privType, privInfo->objType, privInfo->objLevel,
-           privInfoGetName(privInfo->privType));
+           privInfoGetName(privInfo->privType), key);
 #endif
     return true;
   }
@@ -635,10 +636,10 @@ _retry:
     goto _retry;
   }
 _exit:
-#if 1  // debug info, remove when release
-  printf("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s, FALSE\n", __func__, __LINE__,
+#if 0  // debug info, remove when release
+  uInfo("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s, key:%s, FALSE", __func__, __LINE__,
          objName ? objName : "", tbName ? tbName : "", privInfo->privType, privInfo->objType, privInfo->objLevel,
-         privInfoGetName(privInfo->privType));
+         privInfoGetName(privInfo->privType), key);
 #endif
   return false;
 }

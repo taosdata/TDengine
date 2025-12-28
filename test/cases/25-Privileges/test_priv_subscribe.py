@@ -67,10 +67,8 @@ class TestSubscribeStreamPrivilege:
 
     def checkUserPrivileges(self, rowCnt):
         tdSql.query("show user privileges")
-        tdLog.info(f"start to check user privileges:{rowCnt} rows expected")
-        printf(tdSql.queryResult)
+        print(tdSql.queryResult)
         tdSql.checkRows(rowCnt)
-        tdLog.info(f"check user privileges passed: {rowCnt} rows expected")
 
     def consumeTest(self):
         consumer_dict = {
@@ -91,9 +89,10 @@ class TestSubscribeStreamPrivilege:
         if not exceptOccured:
             tdLog.exit(f"has no privilege, should except")
 
-        self.checkUserPrivileges(1)
+        self.checkUserPrivileges(0)
         tdLog.info("test subscribe topic privilege granted by other user")
         tdSql.execute(f'grant subscribe on topic {self.dbnames[0]}.{self.topic_name} to {self.user_name}')
+        tdSql.execute(f'grant use on database {self.dbnames[0]} to {self.user_name}')
         self.checkUserPrivileges(2)
 
         exceptOccured = False
@@ -121,7 +120,8 @@ class TestSubscribeStreamPrivilege:
 
                 tdLog.info("test subscribe topic privilege revoked by other user")
                 tdSql.execute(f'revoke subscribe on topic {self.dbnames[0]}.{self.topic_name} from {self.user_name}')
-                self.checkUserPrivileges(1)
+                tdSql.execute(f'revoke use on database {self.dbnames[0]} from {self.user_name}')
+                self.checkUserPrivileges(0)
                 time.sleep(5)
 
         finally:
