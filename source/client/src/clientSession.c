@@ -257,7 +257,7 @@ int32_t sessMgtGetOrCreateUserMetric(char *user, SSessMetric **pMetric) {
     p = *ppMetric;
   }
 
-  *ppMetric = p;
+  *pMetric = p;
 
 _error:
   (void)taosThreadRwlockUnlock(&sessMgt.lock);
