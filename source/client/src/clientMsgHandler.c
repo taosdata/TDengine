@@ -178,8 +178,14 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
+  code = sessMgtGetOrCreateUserMetric((char*)pTscObj->user, (SSessMetric**)&pTscObj->pSessMetric);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to connect with user:%s, code:%s", pTscObj->user, tstrerror(code));
+    goto End;
+  }
+
   SSessParam pPara = {.type = SESSION_PER_USER, .value = 1};
-  code = sessMgtUpdateUserMetric((char*)pTscObj->user, &pPara);
+  code = tscUpdateSessMetric(pTscObj, &pPara);
   if (TSDB_CODE_SUCCESS != code) {
     tscError("failed to connect with user:%s, code:%s", pTscObj->user, tstrerror(code));
     goto End;

@@ -34,8 +34,8 @@ extern "C" {
 #include "tmsgtype.h"
 #include "trpc.h"
 
-#include "tconfig.h"
 // #include "clientSession.h"
+#include "tconfig.h"
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
@@ -201,7 +201,9 @@ typedef struct STscObj {
   SWhiteListInfo dateTimeWhiteListInfo;  // date time white list info
   STscNotifyInfo userDroppedInfo;
   SOptionInfo    optionInfo;
+
   SConnAccessInfo sessInfo;
+  void*           pSessMetric;
 } STscObj;
 
 typedef struct STscDbg {

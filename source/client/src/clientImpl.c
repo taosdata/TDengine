@@ -1392,7 +1392,8 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
           code = buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList);
 
           if (TSDB_CODE_SUCCESS == code) {
-            code = sessMgtCheckValue(pRequest->pTscObj->user, SESSION_MAX_CALL_VNODE_NUM, taosArrayGetSize(pNodeList));
+            code = sessMetricCheckValue((SSessMetric*)pRequest->pTscObj->pSessMetric, SESSION_MAX_CALL_VNODE_NUM,
+                                        taosArrayGetSize(pNodeList));
           }
 
           if (TSDB_CODE_SUCCESS == code) {
@@ -1485,7 +1486,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     }
 
     if (code == TSDB_CODE_SUCCESS) {
-      code = sessMgtCheckValue(pRequest->pTscObj->user, SESSION_MAX_CALL_VNODE_NUM, taosArrayGetSize(pNodeList));
+      code = sessMetricCheckValue((SSessMetric*)pRequest->pTscObj->pSessMetric, SESSION_MAX_CALL_VNODE_NUM,
+                                  taosArrayGetSize(pNodeList));
     }
 
     if (code == TSDB_CODE_SUCCESS) {

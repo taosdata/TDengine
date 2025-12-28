@@ -944,7 +944,8 @@ void taos_close_internal(void *taos) {
   tscDebug("conn:0x%" PRIx64 ", try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
 
   SSessParam para = {.type = SESSION_PER_USER, .value = -1};
-  code = sessMgtUpdateUserMetric((char *)pTscObj->user, &para);
+
+  code = tscUpdateSessMetric(pTscObj, &para);
   if (code != TSDB_CODE_SUCCESS) {
     tscWarn("conn:0x%" PRIx64 ", failed to update user:%s metric when close connection, code:%d", pTscObj->id,
             pTscObj->user, code);
@@ -2966,7 +2967,7 @@ int32_t taos_connect_is_alive(TAOS *taos) {
     return terrno;
   }
 
-  code = sessMgtCheckConnStatus(pObj->user, &pObj->sessInfo);
+  code = sessMetricCheckConnStatus(pObj->pSessMetric, &pObj->sessInfo);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
 _error:

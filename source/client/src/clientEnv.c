@@ -734,7 +734,7 @@ void doDestroyRequest(void *p) {
   }
 
   SSessParam para = {.type = SESSION_MAX_CONCURRENCY, .value = -1};
-  code = tscUpdateSessMgtMetric(pRequest->pTscObj, &para);
+  code = tscUpdateSessMetric(pRequest->pTscObj, &para);
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->targetTableList);
