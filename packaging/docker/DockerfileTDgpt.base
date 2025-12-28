@@ -1,4 +1,4 @@
-# tdgpt-env-amd64:1.1
+# tdengine/tdgpt-env-amd64:1.1
 ARG ARCH=amd64
 
 FROM python:3.10-slim-trixie AS base-builder
@@ -17,10 +17,12 @@ RUN if [ "$ARCH" = "arm64" ]; then \
         TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
         TENSORFLOW_PKG="tensorflow-cpu==2.15.0"; \
     fi && \
+    echo "arch=$ARCH, pkg1=${TORCH_PKG}, pkg2=${TENSORFLOW_PKG}" && \
     pip3 install --upgrade pip && \
     pip3 install --no-cache-dir --ignore-installed blinker && \
     pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
     pip3 install --no-cache-dir \
+                    $TENSORFLOW_PKG \
                     numpy==1.26.4 \
                     pandas==1.5.0 \
                     scikit-learn==1.7.0 \
@@ -33,7 +35,6 @@ RUN if [ "$ARCH" = "arm64" ]; then \
                     taospy \
                     uwsgi==2.0.30 \
                     accelerate==1.8.1 \
-                    $TENSORFLOW_PKG \
                     prophet==1.1.7 \
                     fastdtw==0.3.4 \
                     -i https://pypi.tuna.tsinghua.edu.cn/simple && \
@@ -89,9 +90,9 @@ RUN if [ "$ARCH" = "arm64" ]; then \
         TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
     fi && \
     python -m venv --system-site-packages $VIRTUAL_ENV && \
+    pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
     pip install --no-cache-dir uni2ts flask \
         -i https://pypi.tuna.tsinghua.edu.cn/simple && \
-    pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
     find $VIRTUAL_ENV -type d -name '__pycache__' -exec rm -rf {} + && \
     find $VIRTUAL_ENV -type d -name 'tests' -exec rm -rf {} +
 
