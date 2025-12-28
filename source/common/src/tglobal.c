@@ -45,6 +45,7 @@ int32_t       tsVersion = 30000000;
 int32_t       tsForceReadConfig = 0;
 int32_t       tsdmConfigVersion = -1;
 int32_t       tsConfigInited = 0;
+int32_t       tsLocalKeyVersion = 0;
 int32_t       tsStatusInterval = 1;  // second
 int32_t       tsStatusIntervalMs = 1000;
 int32_t       tsStatusSRTimeoutMs = 5000;
@@ -176,6 +177,24 @@ int64_t tsDndUpTime = 0;
 // dnode misc
 uint32_t tsEncryptionKeyChksum = 0;
 int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_UNSET;
+
+// taosk encryption keys (multi-layer encryption)
+bool     tsUseTaoskEncryption = false;  // Flag: using taosk encrypt.bin format
+bool     tsSkipKeyCheckMode = false;    // Flag: skip key check mode
+int32_t  tsEncryptKeysStatus = 0;       // 0: not loaded, 1: loaded from file, 2: loaded from mnode
+char     tsSvrKey[129] = {0};           // SVR_KEY (server master key)
+char     tsDbKey[129] = {0};            // DB_KEY (database master key)
+char     tsCfgKey[129] = {0};           // CFG_KEY (config encryption key)
+char     tsMetaKey[129] = {0};          // META_KEY (metadata encryption key)
+char     tsDataKey[129] = {0};          // DATA_KEY (data encryption key)
+int32_t  tsEncryptAlgorithmType = 0;    // Algorithm type for master keys (SVR_KEY, DB_KEY)
+int32_t  tsCfgAlgorithm = 0;            // Algorithm type for CFG_KEY
+int32_t  tsMetaAlgorithm = 0;           // Algorithm type for META_KEY
+int32_t  tsEncryptFileVersion = 0;      // File format version for compatibility
+int32_t  tsEncryptKeyVersion = 0;       // Key update version (starts from 1, increments on update)
+int64_t  tsEncryptKeyCreateTime = 0;    // Key creation timestamp
+int64_t  tsSvrKeyUpdateTime = 0;        // SVR_KEY last update timestamp
+int64_t  tsDbKeyUpdateTime = 0;         // DB_KEY last update timestamp
 uint32_t tsGrant = 1;
 
 bool tsCompareAsStrInGreatest = true;

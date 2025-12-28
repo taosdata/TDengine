@@ -1855,3 +1855,7 @@ int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt) {
   return (int64_t)totalWritten;
 #endif
 }
+
+// ============================================================================
+// Encrypted File Operations Implementation
+// ============================================================================

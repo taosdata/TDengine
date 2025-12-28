@@ -465,6 +465,12 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  { .showType = QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_ENCRYPT_STATUS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
   {
     .showType = QUERY_NODE_SHOW_TOKENS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -13108,6 +13114,24 @@ static int32_t translateAlterCluster(STranslateContext* pCxt, SAlterClusterStmt*
   return code;
 }
 
+static int32_t translateAlterEncryptKey(STranslateContext* pCxt, SAlterEncryptKeyStmt* pStmt) {
+  SMAlterEncryptKeyReq alterReq = {0};
+  alterReq.keyType = pStmt->keyType;
+  tstrncpy(alterReq.newKey, pStmt->newKey, sizeof(alterReq.newKey));
+
+  // Get SQL text
+  alterReq.sql = taosStrdup(pCxt->pParseCxt->pSql);
+  if (NULL == alterReq.sql) {
+    return terrno;
+  }
+  alterReq.sqlLen = pCxt->pParseCxt->sqlLen + 1;
+
+  int32_t code =
+      buildCmdMsg(pCxt, TDMT_MND_ALTER_ENCRYPT_KEY, (FSerializeFunc)tSerializeSMAlterEncryptKeyReq, &alterReq);
+  tFreeSMAlterEncryptKeyReq(&alterReq);
+  return code;
+}
+
 static int32_t getSmaIndexSql(STranslateContext* pCxt, char** pSql, int32_t* pLen) {
   *pSql = taosStrdup(pCxt->pParseCxt->pSql);
   if (NULL == *pSql) {
@@ -16788,6 +16812,7 @@ static int32_t buildTriggerOptionForCreateStream(SStreamTriggerOptions** ppOptio
   pOptions->fillHistoryFirst = true;
   pOptions->deleteOutputTable = true;
   pOptions->deleteRecalc = true;
+  pOptions->ignoreNoDataTrigger = true;
   PAR_ERR_JRET(nodesMakeDurationValueNodeFromString("3s", (SValueNode**)&pOptions->pMaxDelay));
 
   *ppOptions = pOptions;
@@ -17881,6 +17906,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_ALTER_CLUSTER_STMT:
       code = translateAlterCluster(pCxt, (SAlterClusterStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
+      code = translateAlterEncryptKey(pCxt, (SAlterEncryptKeyStmt*)pNode);
       break;
     case QUERY_NODE_KILL_CONNECTION_STMT:
       code = translateKillConnection(pCxt, (SKillStmt*)pNode);
@@ -21196,7 +21224,7 @@ _err:
   return code;
 }
 
-static int32_t checkColRef(STranslateContext* pCxt, char* pRefDbName, char* pRefTableName, char* pRefColName,
+static int32_t checkColRef(STranslateContext* pCxt, char* colName, char* pRefDbName, char* pRefTableName, char* pRefColName,
                            SDataType type, int8_t precision) {
   STableMeta* pRefTableMeta = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
@@ -21209,24 +21237,28 @@ static int32_t checkColRef(STranslateContext* pCxt, char* pRefDbName, char* pRef
   // org table cannot has composite primary key
   if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                         "virtual table's column reference can not from table with composite key"));
+                                         "virtual table's column:\"%s\"'s reference can not from table with composite key",
+                                         colName));
   }
 
   // org table must be child table or normal table
   if (pRefTableMeta->tableType != TSDB_NORMAL_TABLE && pRefTableMeta->tableType != TSDB_CHILD_TABLE) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                         "virtual table's column reference can only be normal table or child table"));
+                                         "virtual table's column:\"%s\"'s reference can only be normal table or child table",
+                                         colName));
   }
 
   const SSchema* pRefCol = getNormalColSchema(pRefTableMeta, pRefColName);
   if (NULL == pRefCol) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN,
-                                         "virtual table's column reference column not exist"));
+                                         "virtual table's column:\"%s\"'s reference column:\"%s\" not exist",
+                                         colName, pRefColName));
   }
 
   if (pRefCol->type != type.type || pRefCol->bytes != type.bytes) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
-                                         "virtual table's column type and reference column type not match"));
+                                         "virtual table's column:\"%s\"'s type and reference column:\"%s\"'s type not match",
+                                         colName, pRefColName));
   }
 
 _return:
@@ -21271,7 +21303,7 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     }
 
     // check ref column exists and check type
-    PAR_ERR_RET(checkColRef(pCxt, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
+    PAR_ERR_RET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
                             (SDataType){.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)},
                             pTableMeta->tableInfo.precision));
 
@@ -21484,7 +21516,7 @@ static int buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pS
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
   }
 
-  PAR_ERR_JRET(checkColRef(pCxt, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
+  PAR_ERR_JRET(checkColRef(pCxt, pStmt->colName, pStmt->refDbName, pStmt->refTableName, pStmt->refColName,
                            (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
                            pTableMeta->tableInfo.precision));
 
@@ -21798,7 +21830,7 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
         PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_VTABLE_NOT_SUPPORT_DATA_TYPE));
       }
       PAR_ERR_JRET(
-          checkColRef(pCxt, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
+          checkColRef(pCxt, pColNode->colName, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
                       (SDataType){.type = pColNode->dataType.type, .bytes = calcTypeBytes(pColNode->dataType)},
                       dbCfg.precision));
     }
@@ -21854,7 +21886,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
       if (pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         PAR_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
       }
-      PAR_ERR_JRET(checkColRef(pCxt, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
+      PAR_ERR_JRET(checkColRef(pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
                                (SDataType){.type = pSchema->type, .bytes = pSchema->bytes},
                                pSuperTableMeta->tableInfo.precision));
     }
@@ -21863,7 +21895,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
       PAR_ERR_JRET(checkColRef(
-          pCxt, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
+          pCxt, pColRef->colName, pColRef->refDbName, pColRef->refTableName, pColRef->refColName,
           (SDataType){.type = pSuperTableMeta->schema[index].type, .bytes = pSuperTableMeta->schema[index].bytes},
           pSuperTableMeta->tableInfo.precision));
       index++;
@@ -22607,6 +22639,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
+    case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
     case QUERY_NODE_SHOW_RSMAS_STMT:

@@ -365,6 +365,7 @@ SNode* createDropBnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeID);
 SNode* createDefaultBnodeOptions(SAstCreateContext* pCxt);
 SNode* setBnodeOption(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pOption, void* pVal);
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);
+SNode* createAlterEncryptKeyStmt(SAstCreateContext* pCxt, int8_t keyType, const SToken* pValue);
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName);
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SNode* pIndexName,
                              SNode* pRealTable, SNodeList* pCols, SNode* pOptions);

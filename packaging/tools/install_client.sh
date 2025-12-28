@@ -162,7 +162,10 @@ function install_lib() {
         ${csudo}ln -s ${install_main_dir}/driver/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
         ${csudo}ln -s ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
-        [ -f ${install_main_dir}/driver/libtaosws.so.* ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib_link_dir}/libtaosws.so || :
+        # Check if libtaosws.so.* files exist using ls instead of -f with glob
+        if ls ${install_main_dir}/driver/libtaosws.so.* > /dev/null 2>&1; then
+            ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib_link_dir}/libtaosws.so
+        fi
 
         if [ -d "${lib64_link_dir}" ]; then
             ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
@@ -170,7 +173,10 @@ function install_lib() {
             ${csudo}ln -s ${install_main_dir}/driver/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1       || :
             ${csudo}ln -s ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so               || :
 
-            [ -f ${install_main_dir}/driver/libtaosws.so.* ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
+            # Check if libtaosws.so.* files exist using ls instead of -f with glob
+            if ls ${install_main_dir}/driver/libtaosws.so.* > /dev/null 2>&1; then
+                ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib64_link_dir}/libtaosws.so
+            fi
         fi
     else
         ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
@@ -178,7 +184,10 @@ function install_lib() {
         ${csudo}ln -s ${install_main_dir}/driver/libtaosnative.* ${lib_link_dir}/libtaosnative.1.dylib
         ${csudo}ln -s ${lib_link_dir}/libtaosnative.1.dylib ${lib_link_dir}/libtaosnative.dylib
 
-        [ -f ${install_main_dir}/driver/libtaosws.dylib.* ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.dylib.* ${lib_link_dir}/libtaosws.dylib || :
+        # Check if libtaosws.dylib.* files exist using ls instead of -f with glob
+        if ls ${install_main_dir}/driver/libtaosws.dylib.* > /dev/null 2>&1; then
+            ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.dylib.* ${lib_link_dir}/libtaosws.dylib
+        fi
     fi
 
     if [ "$osType" != "Darwin" ]; then

@@ -33,7 +33,7 @@ typedef struct {
 
 int32_t mndInitToken(SMnode *pMnode);
 void    mndCleanupToken(SMnode *pMnode);
-int32_t mndAcquireToken(SMnode *pMnode, const char *token, STokenObj **ppToken);
+int32_t mndAcquireToken(SMnode *pMnode, const char *name, STokenObj **ppToken);
 void    mndReleaseToken(SMnode *pMnode, STokenObj *pToken);
 
 int32_t mndDropTokensByUser(SMnode *pMnode, STrans* pTrans, const char* user);

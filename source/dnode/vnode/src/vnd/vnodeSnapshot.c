@@ -14,6 +14,7 @@
  */
 
 #include "bse.h"
+#include "tencrypt.h"
 #include "tsdb.h"
 #include "vnd.h"
 
@@ -722,6 +723,10 @@ static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_
   int32_t       lino;
   SVnode       *pVnode = pWriter->pVnode;
   SSnapDataHdr *pHdr = (SSnapDataHdr *)pData;
+
+  if (taosWaitCfgKeyLoaded() != 0) {
+    TSDB_CHECK_CODE(code = terrno, lino, _exit);
+  }
 
   // decode info
   code = vnodeDecodeInfo(pHdr->data, &pWriter->info);

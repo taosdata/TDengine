@@ -18,6 +18,7 @@ from momentfm import MOMENTPipeline
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+pretrained_model = None
 control_randomness(seed=13) # Set random seeds for PyTorch, Numpy etc.
 
 app = Flask(__name__)
@@ -25,6 +26,11 @@ device = "cuda:1" if torch.cuda.is_available() else "cpu"
 
 @app.route('/imputation', methods=['POST'])
 def moment():
+    if pretrained_model is None:
+        return jsonify({
+            'status': 'error',
+            'error': 'Model not loaded yet'
+        }), 503
     data = request.get_json()
     if not data or 'input' not in data:
         return jsonify({
@@ -298,9 +304,9 @@ def usage():
     name = os.path.basename(__file__)
     s = [
         "Usage:",
-        f"Python {name}                    #use implicit download of small model",
-        f"Python {name} model_index        #specify the model that would load when starting",
-        f"Python {name} model_path model_name enable_ep  #specify the model name, local directory, and the proxy",
+        f"python {name}                    #use implicit download of small model",
+        f"python {name} model_index        #specify the model that would load when starting",
+        f"python {name} model_path model_name enable_ep  #specify the model name, local directory, and the proxy",
         "",
         "Available models as follows:",
         'AutonLab/MOMENT-1-small',  # small model with 37.9M parameters

@@ -58,6 +58,7 @@
 #include "mndToken.h"
 #include "mndVgroup.h"
 #include "mndView.h"
+#include "tencrypt.h"
 
 static inline int32_t mndAcquireRpc(SMnode *pMnode) {
   int32_t code = 0;
@@ -626,14 +627,12 @@ static int32_t mndInitWal(SMnode *pMnode) {
                  .encryptData = {0}};
 
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
-  if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL) {
-    cfg.encryptAlgr = (tsiEncryptScope & DND_CS_MNODE_WAL) ? tsiEncryptAlgorithm : 0;
-    if (tsEncryptKey[0] == '\0') {
-      code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
-      TAOS_RETURN(code);
-    } else {
-      tstrncpy(cfg.encryptData.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
-    }
+  if (taosWaitCfgKeyLoaded() != 0) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+  if (tsMetaKey[0] != '\0') {
+    tstrncpy(cfg.encryptData.encryptKey, tsMetaKey, ENCRYPT_KEY_LEN + 1);
   }
 #endif
 
@@ -838,6 +837,9 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     terrno = code;
     return NULL;
   }
+
+  mInfo("vgId:1, mnode set options to syncMgmt, dnodeId:%d, numOfTotalReplicas:%d", pOption->selfIndex,
+        pOption->numOfTotalReplicas);
   mndSetOptions(pMnode, pOption);
 
   pMnode->deploy = pOption->deploy;

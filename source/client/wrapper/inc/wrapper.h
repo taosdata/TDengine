@@ -23,6 +23,9 @@
 extern "C" {
 #endif
 
+#define STR_NATIVE    "native"
+#define STR_WEBSOCKET "websocket"
+
 typedef enum {
   DRIVER_NATIVE = 0,
   DRIVER_WEBSOCKET = 1,
@@ -32,6 +35,7 @@ typedef enum {
 extern EDriverType tsDriverType;
 extern void       *tsDriver;
 
+extern void    taosDriverEnvInit(void);
 extern int32_t taosDriverInit(EDriverType driverType);
 extern void    taosDriverCleanup();
 

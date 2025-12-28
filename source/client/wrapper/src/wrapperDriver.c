@@ -51,6 +51,17 @@ static int32_t taosGetDevelopPath(char *driverPath, const char *driverName) {
   return ret;
 }
 
+void taosDriverEnvInit() {
+  const char *driver = getenv("TDENGINE_DRIVER");
+  if (driver) {
+    if (strcasecmp(driver, STR_NATIVE) == 0) {
+      tsDriverType = DRIVER_NATIVE;
+    } else if (strcasecmp(driver, STR_WEBSOCKET) == 0) {
+      tsDriverType = DRIVER_WEBSOCKET;
+    }
+  }
+}
+
 int32_t taosDriverInit(EDriverType driverType) {
   int32_t     code = -1;
   char        driverPath[PATH_MAX + 32] = {0};
@@ -73,7 +84,7 @@ int32_t taosDriverInit(EDriverType driverType) {
     tsDriver = taosLoadDll(driverName);
   }
 
-  // load from install path on mac
+// load from install path on mac
 #if defined(DARWIN)
   if (tsDriver == NULL) {
     snprintf(driverPath, PATH_MAX, "/usr/local/lib/%s", driverName);
@@ -87,7 +98,6 @@ int32_t taosDriverInit(EDriverType driverType) {
     return code;
   }
 
-  // printf("load driver from %s\r\n", driverPath);
   LOAD_FUNC(fp_taos_set_config, "taos_set_config");
 
   LOAD_FUNC(fp_taos_init, "taos_init");

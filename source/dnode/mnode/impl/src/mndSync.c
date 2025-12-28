@@ -514,8 +514,8 @@ int32_t mndInitSync(SMnode *pMnode) {
   syncInfo.pFsm = mndSyncMakeFsm(pMnode);
 
   SSyncCfg *pCfg = &syncInfo.syncCfg;
-  mInfo("vgId:1, start to open mnode sync, replica:%d selfIndex:%d, electMs:%d, heartbeatMs:%d", pMgmt->numOfReplicas, 
-    pMgmt->selfIndex, syncInfo.electMs, syncInfo.heartbeatMs);
+  mInfo("vgId:1, start to open mnode sync, in syncMgmt, numOfTotalReplicas:%d selfIndex:%d, electMs:%d, heartbeatMs:%d",
+        pMgmt->numOfTotalReplicas, pMgmt->selfIndex, syncInfo.electMs, syncInfo.heartbeatMs);
   pCfg->totalReplicaNum = pMgmt->numOfTotalReplicas;
   pCfg->replicaNum = pMgmt->numOfReplicas;
   pCfg->myIndex = pMgmt->selfIndex;

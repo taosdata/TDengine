@@ -4985,6 +4985,22 @@ SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
   return createAlterDnodeStmt(pCxt, NULL, &config, pValue);
 }
 
+SNode* createAlterEncryptKeyStmt(SAstCreateContext* pCxt, int8_t keyType, const SToken* pValue) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterEncryptKeyStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_ENCRYPT_KEY_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  pStmt->keyType = keyType;
+  if (NULL != pValue) {
+    (void)trimString(pValue->z, pValue->n, pStmt->newKey, sizeof(pStmt->newKey));
+  }
+
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName) {
   if (!checkIndexName(pCxt, pIndexName)) {
     return NULL;

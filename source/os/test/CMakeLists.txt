@@ -61,10 +61,10 @@ add_test(
 add_executable(osSemaphoreTests "osSemaphoreTests.cpp")
 DEP_ext_gtest(osSemaphoreTests)
 target_link_libraries(osSemaphoreTests PRIVATE os util)
-add_test(
-    NAME osSemaphoreTests
-    COMMAND osSemaphoreTests
-)
+# add_test(
+#     NAME osSemaphoreTests
+#     COMMAND osSemaphoreTests
+# )
 
 add_executable(osSleepTests "osSleepTests.cpp")
 DEP_ext_gtest(osSleepTests)

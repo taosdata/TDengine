@@ -993,7 +993,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   }
   taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.passwords[0].pass);
   userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
-  if (tsiEncryptPassAlgorithm == DND_CA_SM4 && strlen(tsEncryptKey) > 0) {
+  if (tsiEncryptPassAlgorithm == DND_CA_SM4 && strlen(tsDbKey) > 0) {
     generateSalt(userObj.salt, sizeof(userObj.salt));
     TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino, _ERROR);
   }
@@ -2080,12 +2080,8 @@ void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
 
 int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo) {
   int32_t code = 0;
-  if (tsiEncryptPassAlgorithm != DND_CA_SM4) {
+  if (tsMetaKey[0] == '\0') {
     return 0;
-  }
-
-  if (strlen(tsEncryptKey) == 0) {
-    return TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
   }
 
   if (salt[0] != 0) {
@@ -2101,7 +2097,7 @@ int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo) {
   opts.source = pass;
   opts.result = packetData;
   opts.unitLen = TSDB_PASSWORD_LEN;
-  tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+  tstrncpy(opts.key, tsDbKey, ENCRYPT_KEY_LEN + 1);
   int newLen = Builtin_CBC_Encrypt(&opts);
   if (newLen <= 0) return terrno;
 
