@@ -148,10 +148,10 @@ static SSessionError sessFnSet[] = {
     {SESSION_MAX_CALL_VNODE_NUM, sessVnodeCallCheckFn, sessVnodeCallNumUpdateFn, sessSetValueLimitFn},
 };
 
-int32_t sessMetricCreate(SSessMetric **ppMetric) {
+int32_t sessMetricCreate(const char *user, SSessMetric **ppMetric) {
   HANDLE_SESSION_CONTROL();
   int32_t      code = 0;
-  SSessMetric *pMetric = (SSessMetric *)taosMemoryMalloc(sizeof(SSessMetric));
+  SSessMetric *pMetric = (SSessMetric *)taosMemoryCalloc(1, sizeof(SSessMetric));
   if (pMetric == NULL) {
     code = terrno;
     return code;
@@ -165,6 +165,7 @@ int32_t sessMetricCreate(SSessMetric **ppMetric) {
   pMetric->limit[SESSION_MAX_CONCURRENCY] = sessionMaxConcurrency;
   pMetric->limit[SESSION_MAX_CALL_VNODE_NUM] = sessionMaxCallVnodeNum;
 
+  tstrncpy(pMetric->user, user, sizeof(pMetric->user));
   *ppMetric = pMetric;
   return code;
 }
@@ -215,7 +216,7 @@ void   sessMetricRef(SSessMetric *pMetric) { (void)atomic_add_fetch_32(&pMetric-
 int32_t sessMetricUnref(SSessMetric *pMetric) {
   int32_t ref = atomic_sub_fetch_32(&pMetric->refCnt, 1);
   if (ref == 0) {
-    sessMetricDestroy(pMetric);
+    sessMgtRemoveUser(pMetric->user);
   }
   return ref;
 }
@@ -248,10 +249,10 @@ int32_t sessMgtGetOrCreateUserMetric(char *user, SSessMetric **pMetric) {
   (void)taosThreadRwlockWrlock(&sessMgt.lock);
   SSessMetric **ppMetric = taosHashGet(sessMgt.pSessMetricMap, user, strlen(user));
   if (ppMetric == NULL || *ppMetric == NULL) {
-    code = sessMetricCreate(&p);
+    code = sessMetricCreate(user, &p);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
-    code = taosHashPut(sessMgt.pSessMetricMap, user, strlen(user), &pMetric, sizeof(SSessMetric *));
+    code = taosHashPut(sessMgt.pSessMetricMap, user, strlen(user), &p, sizeof(SSessMetric *));
     TAOS_CHECK_GOTO(code, &lino, _error);
   } else {
     p = *ppMetric;
@@ -279,7 +280,7 @@ int32_t sessMgtUpdataLimit(char *user, ESessionType type, int32_t value) {
 
   SSessMetric **ppMetric = taosHashGet(pMgt->pSessMetricMap, user, strlen(user));
   if (ppMetric == NULL || *ppMetric == NULL) {
-    code = sessMetricCreate(&pMetric);
+    code = sessMetricCreate(user, &pMetric);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
     code = taosHashPut(pMgt->pSessMetricMap, user, strlen(user), &pMetric, sizeof(SSessMetric *));
@@ -315,7 +316,7 @@ int32_t sessMgtUpdateUserMetric(char *user, SSessParam *pPara) {
 
   SSessMetric **ppMetric = taosHashGet(pMgt->pSessMetricMap, user, strlen(user));
   if (ppMetric == NULL || *ppMetric == NULL) {
-    code = sessMetricCreate(&pMetric);
+    code = sessMetricCreate(user, &pMetric);
     TAOS_CHECK_GOTO(code, &lino, _error);
 
     code = taosHashPut(pMgt->pSessMetricMap, user, strlen(user), &pMetric, sizeof(SSessMetric *));
@@ -349,10 +350,9 @@ int32_t sessMgtRemoveUser(char *user) {
   SSessMetric **ppMetric = taosHashGet(pMgt->pSessMetricMap, user, strlen(user));
   if (ppMetric != NULL && *ppMetric != NULL) {
     if (*ppMetric != NULL) {
-      int32_t ref = sessMetricUnref(*ppMetric);
-      if (ref == 0) {
-        taosHashRemove(pMgt->pSessMetricMap, user, strlen(user));
-      }
+      SSessMetric *p = *ppMetric;
+      taosHashRemove(pMgt->pSessMetricMap, user, strlen(user));
+      sessMetricDestroy(p);
     }
   }
 _error:

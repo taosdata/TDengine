@@ -52,7 +52,7 @@ typedef struct SSessMetric {
 
   int64_t value[SESSION_MAX_TYPE];
   int64_t limit[SESSION_MAX_TYPE];
-
+  char    user[TSDB_USER_LEN];
 } SSessMetric;
 
 typedef struct {
@@ -73,7 +73,7 @@ int32_t sessMgtUpdateUserMetric(char* user, SSessParam* pPara);
 int32_t sessMgtRemoveUser(char* user);
 void    sessMgtDestroy();
 
-int32_t sessMetricCreate(SSessMetric** ppMetric);
+int32_t sessMetricCreate(const char* user, SSessMetric** ppMetric);
 void    sessMetricRef(SSessMetric* pMetric);
 int32_t sessMetricUnref(SSessMetric* pMetric);
 int32_t sessMetricUpdateLimit(SSessMetric* pMetric, ESessionType type, int32_t value);

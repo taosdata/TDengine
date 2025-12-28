@@ -156,10 +156,6 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
             }
           }
         }
-        code = sessMgtRemoveUser(pTscObj->user);
-        if (code != 0) {
-          tscError("failed to remove user session metric, user:%s, code:%d", pTscObj->user, code);  
-        }
         releaseTscObj(pReq->connKey.tscRid);
         continue;
       }
