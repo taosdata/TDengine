@@ -943,7 +943,7 @@ void taos_close_internal(void *taos) {
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("conn:0x%" PRIx64 ", try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
 
-  SSessParam para = {.type = SESSION_PER_USER, .value = -1};
+  SSessParam para = {.type = SESSION_PER_USER, .value = -1, .noCheck = 1};
 
   code = tscUpdateSessMetric(pTscObj, &para);
   if (code != TSDB_CODE_SUCCESS) {

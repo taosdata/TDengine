@@ -58,6 +58,7 @@ typedef struct SSessMetric {
 typedef struct {
   ESessionType type;
   int64_t      value;
+  int8_t       noCheck;
 } SSessParam;
 
 typedef struct SSessionMgt {

@@ -46,7 +46,11 @@ static int32_t sessPerUserCheckFn(int64_t *value, int64_t *limit) {
 
 static int32_t sessPerUserUpdateFn(int64_t *value, int64_t limit) {
   int32_t code = 0;
-  atomic_add_fetch_64(value, limit);
+  if (limit > 0) {
+    atomic_add_fetch_64(value, limit);
+  } else {
+    atomic_sub_fetch_64(value, -limit);
+  }
   return code;
 }
 
@@ -104,6 +108,9 @@ static int32_t sessMaxConnCurrencyCheckFn(int64_t *value, int64_t *limit) {
   if (cLimit == -1) {
     return code;
   }
+  if (cValue > cLimit) {
+    code = TSDB_CODE_TSC_SESS_MAX_CONCURRENCY_LIMIT;
+  }
   return code;
 }
 
@@ -111,6 +118,11 @@ static int32_t sessMaxConnCurrencyUpdateFn(int64_t *value, int64_t delta) {
   int32_t code = 0;
   if (delta == -1) {
     return code;
+  }
+  if (delta > 0) {
+    atomic_fetch_add_64(value, delta);
+  } else {
+    atomic_fetch_sub_64(value, -delta);
   }
   return code;
 }
@@ -131,7 +143,11 @@ static int32_t sessVnodeCallCheckFn(int64_t *value, int64_t *limit) {
 
 static int32_t sessVnodeCallNumUpdateFn(int64_t *value, int64_t delta) {
   int32_t code = 0;
-  atomic_fetch_add_64(value, delta);
+  if (delta > 0) {
+    atomic_fetch_add_64(value, delta);
+  } else {
+    atomic_fetch_sub_64(value, -delta);
+  }
   return code;
 }
 static int32_t sessSetValueLimitFn(int64_t *pLimit, int64_t src) {
@@ -197,12 +213,13 @@ int32_t sessMetricUpdate(SSessMetric *pMetric, SSessParam *p) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = sessMetricCheckByTypeImpl(pMetric, p->type);
-  TAOS_CHECK_GOTO(code, &lino, _error);
+  if (p->noCheck == 0) {
+    code = sessMetricCheckByTypeImpl(pMetric, p->type);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
 
   code = sessFnSet[p->type].updateFn(&pMetric->value[p->type], p->value);
 _error:
-
   return code;
 }
 
@@ -416,6 +433,12 @@ int32_t connCheckAndUpateMetric(int64_t connId) {
     code = TSDB_CODE_INVALID_PARA;
     return code;
   }
+  if (pTscObj->pSessMetric == NULL) {
+    code = sessMgtGetOrCreateUserMetric((char *)pTscObj->user, (SSessMetric **)&pTscObj->pSessMetric);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+
+    sessMetricRef((SSessMetric *)pTscObj->pSessMetric);
+  }
 
   code = tscCheckConnStatus(pTscObj);
   TAOS_CHECK_GOTO(code, &lino, _error);
@@ -479,6 +502,9 @@ int32_t tscRefSessMetric(STscObj *pTscObj) {
   int32_t lino = 0;
 
   SSessMetric *pMetric = NULL;
+  if (pTscObj->pSessMetric != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
   code = sessMgtGetOrCreateUserMetric((char *)pTscObj->user, &pMetric);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
