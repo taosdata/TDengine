@@ -1886,6 +1886,13 @@ void testSessionPerUser() {
       taos_free_result(pRes);
     }
   }
+
+  {
+    TAOS_RES* pRes = taos_query(pConn, "alter user root SESSION_PER_USER 100");
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+  }
+
   taos_close(pConn);
 }
 
@@ -1956,9 +1963,15 @@ void testSessionConnTime() {
     TAOS_RES* pRes = taos_query(pConn, sql);
     ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
     taos_free_result(pRes);
-
-    taos_close(pConn);
   }
+
+  {
+    char sql[128] = {0};
+    sprintf(sql, "alter user root connect_time 10000");
+    TAOS_RES* pRes = taos_query(pConn, sql);
+    taos_free_result(pRes);
+  }
+  taos_close(pConn);
 }
 
 void testSessionConnIdleTime() {
@@ -1979,18 +1992,25 @@ void testSessionConnIdleTime() {
 
   {
     char sql[128] = {0};
-    sprintf(sql, "alter user root connect_idel_time 2");
+    sprintf(sql, "alter user root connect_idel_time 1");
     TAOS_RES* pRes = taos_query(pConn, sql);
     taos_free_result(pRes);
   }
 
-  taosMsleep(7 * 1000);
+  taosMsleep(70 * 1000);
   {
     char sql[128] = {0};
     sprintf(sql, "select * from %s.%s", databName, rstb);
 
     TAOS_RES* pRes = taos_query(pConn, sql);
     ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+  }
+
+  {
+    char sql[128] = {0};
+    sprintf(sql, "alter user root connect_idel_time 1000");
+    TAOS_RES* pRes = taos_query(pConn, sql);
     taos_free_result(pRes);
   }
   taos_close(pConn);
@@ -2012,9 +2032,13 @@ void testSessionMaxVnodeCall() {
 
   sprintf(sql, "alter user root CALL_PER_SESSION 2");
   pRes = taos_query(pConn, sql);
+  ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
 
   taosMsleep(4000);
-  ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
+
+  sprintf(sql, "alter user root CALL_PER_SESSION 1023");
+  pRes = taos_query(pConn, sql);
   taos_free_result(pRes);
 
   taos_close(pConn);
@@ -2046,6 +2070,12 @@ void testSessionConncurentCall() {
   pRes = taos_query(pConn, sql);
   ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
+
+  sprintf(sql, "alter user root VNODE_PER_CALL 1023");
+  pRes = taos_query(pConn, sql);
+  ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+  taosMsleep(4000);
 
   taos_close(pConn);
 }
