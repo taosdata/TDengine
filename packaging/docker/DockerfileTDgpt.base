@@ -16,7 +16,7 @@ RUN if [ "$ARCH" = "arm64" ]; then \
         TORCH_PKG="torch==2.3.1+cpu"; \
         TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
         TENSORFLOW_PKG="tensorflow-cpu==2.15.0"; \
-    fi; \ 
+    fi && \
     pip3 install --upgrade pip && \
     pip3 install --no-cache-dir --ignore-installed blinker && \
     pip3 install --no-cache-dir $TORCH_PKG --index-url $TORCH_INDEX && \
@@ -84,12 +84,10 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN if [ "$ARCH" = "arm64" ]; then \
         TORCH_PKG="torch"; \
         TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
-        TENSORFLOW_PKG="tensorflow"; \
     else \
         TORCH_PKG="torch==2.3.1+cpu"; \
         TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
-        TENSORFLOW_PKG="tensorflow-cpu==2.15.0"; \
-    fi; && \
+    fi && \
     python -m venv --system-site-packages $VIRTUAL_ENV && \
     pip install --no-cache-dir uni2ts flask \
         -i https://pypi.tuna.tsinghua.edu.cn/simple && \
