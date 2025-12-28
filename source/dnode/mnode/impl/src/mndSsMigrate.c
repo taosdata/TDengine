@@ -375,6 +375,8 @@ int32_t mndAddSsMigrateToTran(SMnode *pMnode, STrans *pTrans, SSsMigrateObj *pSs
       code = terrno;
       taosArrayDestroy(pSsMigrate->vgroups);
       pSsMigrate->vgroups = NULL;
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pVgroup);
       TAOS_RETURN(code);
     }
   }

@@ -600,6 +600,8 @@ static int32_t authDropIndex(SAuthCxt* pCxt, SDropIndexStmt* pStmt) {
   return code;
 }
 
+static int32_t authShowIndexes(SAuthCxt* pCxt, SShowStmt* pStmt) { return authShowTables(pCxt, pStmt); }
+
 static int32_t authCreateTsma(SAuthCxt* pCxt, SCreateTSMAStmt* pStmt) {
   int32_t code = authObjPrivileges(pCxt, ((SCreateTSMAStmt*)pStmt)->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
   if (TSDB_CODE_SUCCESS == code) {
@@ -802,6 +804,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authCreateIndex(pCxt, (SCreateIndexStmt*)pStmt);
     case QUERY_NODE_DROP_INDEX_STMT:
       return authDropIndex(pCxt, (SDropIndexStmt*)pStmt);
+    case QUERY_NODE_SHOW_INDEXES_STMT:
+      return authShowIndexes(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_CREATE_TSMA_STMT:
       return authCreateTsma(pCxt, (SCreateTSMAStmt*)pStmt);
     case QUERY_NODE_DROP_TSMA_STMT:

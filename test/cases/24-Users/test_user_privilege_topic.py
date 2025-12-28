@@ -32,9 +32,10 @@ class TestUserPrivilegeTopic:
         tdSql.execute(f"create database root_d3 vgroups 1 wal_retention_period 3600;")
 
         tdSql.query(f"show user privileges")
-        tdSql.checkRows(1)
-        tdSql.checkKeyData("root", 1, "all")
-        tdSql.checkKeyData("root", 2, "all")
+        tdSql.checkRows(0)
+        # root cannot read user's private data since 3.4.0.0, thus all privilege is not shown for root
+        # tdSql.checkKeyData("root", 1, "all")
+        # tdSql.checkKeyData("root", 2, "all")
 
         tdLog.info(f"=============== create users")
         tdSql.execute(f"create user user1 PASS 'taosdata'")
@@ -48,16 +49,16 @@ class TestUserPrivilegeTopic:
         tdSql.query(f"select * from information_schema.ins_users")
         tdSql.checkRows(7)
 
-        tdSql.execute(f"GRANT read ON root_d1.* to user1;")
-        tdSql.execute(f"GRANT write ON root_d2.* to user2;")
-        tdSql.execute(f"GRANT read ON root_d3.* to user3;")
-        tdSql.execute(f"GRANT write ON root_d3.* to user3;")
+        tdSql.execute(f"GRANT select ON root_d1.* to user1;")
+        tdSql.execute(f"GRANT insert ON root_d2.* to user2;")
+        tdSql.execute(f"GRANT select ON root_d3.* to user3;")
+        tdSql.execute(f"GRANT insert ON root_d3.* to user3;")
 
         tdSql.query(f"show user privileges")
-        tdSql.checkRows(5)
-        tdSql.checkKeyData("user1", 1, "read")
+        tdSql.checkRows(4)
+        tdSql.checkKeyData("user1", 1, "SELECT")
         tdSql.checkKeyData("user1", 2, "root_d1")
-        tdSql.checkKeyData("user2", 1, "write")
+        tdSql.checkKeyData("user2", 1, "INSERT")
         tdSql.checkKeyData("user2", 2, "root_d2")
 
         tdLog.info(f"=============== create topis")

@@ -1257,6 +1257,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     code = tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     if (code < 0) {
       mError("failed to get db name since %s", tstrerror(code));
+      sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
       TAOS_RETURN(code);
     }

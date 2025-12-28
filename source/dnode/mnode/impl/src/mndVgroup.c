@@ -1212,7 +1212,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
       mError("vgId:%d, failed to set dbName, since %s", pVgroup->vgId, tstrerror(code));
       sdbRelease(pSdb, pVgroup);
       sdbCancelFetch(pSdb, pShow->pIter);
-      return code;
+      goto _OVER;
     }
     (void)tNameGetDbName(&name, varDataVal(db));
     varDataSetLen(db, strlen(varDataVal(db)));
@@ -1320,11 +1320,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
       if (isLeaderRestored) isReady = true;
     }
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)&isReady, false);
-    if (code != 0) {
-      mError("vgId:%d, failed to set is_ready, since %s", pVgroup->vgId, tstrerror(code));
-      return code;
-    }
+    COL_DATA_SET_VAL_GOTO((const char *)&isReady, false, pVgroup, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int32_t cacheUsage = (int32_t)pVgroup->cacheUsage;
