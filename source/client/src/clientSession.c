@@ -46,11 +46,13 @@ static int32_t sessPerUserCheckFn(int64_t *value, int64_t *limit) {
 
 static int32_t sessPerUserUpdateFn(int64_t *value, int64_t limit) {
   int32_t code = 0;
+  int64_t ref = 0;
   if (limit > 0) {
-    atomic_add_fetch_64(value, limit);
+    ref = atomic_add_fetch_64(value, limit);
   } else {
-    atomic_sub_fetch_64(value, -limit);
+    ref = atomic_sub_fetch_64(value, -limit);
   }
+  tscDebug("sessPerUserUpdateFn updated value:%" PRId64 ", limit:%" PRId64, ref, limit);
   return code;
 }
 
@@ -119,11 +121,14 @@ static int32_t sessMaxConnCurrencyUpdateFn(int64_t *value, int64_t delta) {
   if (delta == -1) {
     return code;
   }
+  int64_t ref = 0;
   if (delta > 0) {
-    atomic_fetch_add_64(value, delta);
+    ref = atomic_fetch_add_64(value, delta);
   } else {
-    atomic_fetch_sub_64(value, -delta);
+    ref = atomic_fetch_sub_64(value, -delta);
   }
+
+  tscDebug("sessMaxConnCurrencyUpdateFn updated value:%" PRId64 ", delta:%" PRId64, ref, delta);
   return code;
 }
 
@@ -143,16 +148,19 @@ static int32_t sessVnodeCallCheckFn(int64_t *value, int64_t *limit) {
 
 static int32_t sessVnodeCallNumUpdateFn(int64_t *value, int64_t delta) {
   int32_t code = 0;
+  int64_t ref = 0;
   if (delta > 0) {
-    atomic_fetch_add_64(value, delta);
+    ref = atomic_fetch_add_64(value, delta);
   } else {
-    atomic_fetch_sub_64(value, -delta);
+    ref = atomic_fetch_sub_64(value, -delta);
   }
+  tscDebug("sessVnodeCallNumUpdateFn updated value:%" PRId64 ", delta:%" PRId64, ref, delta);
   return code;
 }
 static int32_t sessSetValueLimitFn(int64_t *pLimit, int64_t src) {
   int32_t code = 0;
   atomic_store_64(pLimit, src);
+  tscDebug("sessSetValueLimitFn set limit value:%" PRId64, src);
   return code;
 }
 
@@ -229,11 +237,11 @@ int32_t sessMetricCheckValue(SSessMetric *pMetric, ESessionType type, int64_t va
   return code;
 }
 void    sessMetricDestroy(SSessMetric *pMetric) { taosMemoryFree(pMetric); }
-void   sessMetricRef(SSessMetric *pMetric) { (void)atomic_add_fetch_32(&pMetric->refCnt, 1); }
+void    sessMetricRef(SSessMetric *pMetric) { TAOS_UNUSED(atomic_add_fetch_32(&pMetric->refCnt, 1)); }
 int32_t sessMetricUnref(SSessMetric *pMetric) {
   int32_t ref = atomic_sub_fetch_32(&pMetric->refCnt, 1);
   if (ref == 0) {
-    sessMgtRemoveUser(pMetric->user);
+    TAOS_UNUSED(sessMgtRemoveUser(pMetric->user));
   }
   return ref;
 }
@@ -368,7 +376,7 @@ int32_t sessMgtRemoveUser(char *user) {
   if (ppMetric != NULL && *ppMetric != NULL) {
     if (*ppMetric != NULL) {
       SSessMetric *p = *ppMetric;
-      taosHashRemove(pMgt->pSessMetricMap, user, strlen(user));
+      TAOS_UNUSED(taosHashRemove(pMgt->pSessMetricMap, user, strlen(user)));
       sessMetricDestroy(p);
     }
   }
@@ -516,9 +524,11 @@ int32_t tscUnrefSessMetric(STscObj *pTscObj) {
   HANDLE_SESSION_CONTROL();
   int32_t code = 0;
 
+  int32_t      ref = 0;
   SSessMetric *pMetric = (SSessMetric *)pTscObj->pSessMetric;
   if (pMetric != NULL) {
-    sessMetricUnref(pMetric);
+    ref = sessMetricUnref(pMetric);
+    tscDebug("tscUnrefSessMetric conn:0x%" PRIx64 ", sess metric ref:%d", pTscObj->id, ref);
     pTscObj->pSessMetric = NULL;
   }
   return code;
