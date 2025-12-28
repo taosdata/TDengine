@@ -158,7 +158,9 @@ class TestTaosShell:
         tdSql.prepare()
         # time.sleep(2)
         tdSql.query("create user testpy pass 'testpy243#@'")
-        tdSql.query("alter user testpy createdb 1")
+        # tdSql.query("alter user testpy createdb 1")
+        tdSql.execute("grant create database to testpy")
+
 
         #hostname = socket.gethostname()
         #tdLog.info ("hostname: %s" % hostname)

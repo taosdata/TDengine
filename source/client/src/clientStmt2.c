@@ -2337,6 +2337,7 @@ static int32_t createParseContext(const SRequestObj* pRequest, SParseContext** p
                            .pTransporter = pTscObj->pAppInfo->pTransporter,
                            .pStmtCb = NULL,
                            .pUser = pTscObj->user,
+                           .userId = pTscObj->userId,
                            .pEffectiveUser = pRequest->effectiveUser,
                            .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
                            .enableSysInfo = pTscObj->sysInfo,

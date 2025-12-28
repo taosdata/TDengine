@@ -25,6 +25,7 @@
 #include "thash.h"
 #include "tlist.h"
 #include "tname.h"
+#include "tpriv.h"
 #include "trow.h"
 #include "tuuid.h"
 
@@ -205,6 +206,9 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS,
   TSDB_MGMT_TABLE_TOKEN,
   TSDB_MGMT_TABLE_ENCRYPT_STATUS,
+  TSDB_MGMT_TABLE_ROLE,
+  TSDB_MGMT_TABLE_ROLE_PRIVILEGES,
+  TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -255,7 +259,12 @@ typedef enum {
 #define TSDB_ALTER_USER_DEL_PRIVILEGES         6
 
 
-#define TSDB_ALTER_RSMA_FUNCTION 0x1
+#define TSDB_ALTER_ROLE_LOCK            0x1
+#define TSDB_ALTER_ROLE_ROLE            0x2
+#define TSDB_ALTER_ROLE_PRIVILEGES      0x3
+#define TSDB_ALTER_ROLE_MAX             0x4 // increase according to actual use
+
+#define TSDB_ALTER_RSMA_FUNCTION        0x1
 
 #define TSDB_KILL_MSG_LEN 30
 
@@ -417,6 +426,9 @@ typedef enum ENodeType {
   QUERY_NODE_ALTER_TOKEN_STMT,
   QUERY_NODE_DROP_TOKEN_STMT,
   QUERY_NODE_ALTER_ENCRYPT_KEY_STMT,
+  QUERY_NODE_CREATE_ROLE_STMT,
+  QUERY_NODE_DROP_ROLE_STMT,
+  QUERY_NODE_ALTER_ROLE_STMT,
 
   // placeholder for [155, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -527,6 +539,9 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT,
   QUERY_NODE_SHOW_TOKENS_STMT,
   QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT,
+  QUERY_NODE_SHOW_ROLES_STMT,
+  QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT,
+  QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -814,6 +829,7 @@ typedef struct {
   uint64_t    tuid;
   int32_t     vgId;
   int8_t      sysInfo;
+  int64_t     ownerId;
   SSchema*    pSchemas;
   SSchemaExt* pSchemaExt;
   int8_t      virtualStb;
@@ -1312,6 +1328,7 @@ typedef struct {
   char          sDetailVer[128];
   int64_t       whiteListVer;
   int64_t       timeWhiteListVer;
+  int64_t       userId;
   SMonitorParas monitorParas;
   char          user[TSDB_USER_LEN];
   char          tokenName[TSDB_TOKEN_NAME_LEN];
@@ -1346,6 +1363,78 @@ typedef struct {
 int32_t tSerializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 int32_t tDeserializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 void    tFreeSDropUserReq(SDropUserReq* pReq);
+
+typedef struct {
+  char name[TSDB_ROLE_LEN];
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t ignoreExists : 1;
+      uint8_t reserve : 7;
+    };
+  };
+  int32_t sqlLen;
+  char*   sql;
+} SCreateRoleReq;
+
+int32_t tSerializeSCreateRoleReq(void* buf, int32_t bufLen, SCreateRoleReq* pReq);
+int32_t tDeserializeSCreateRoleReq(void* buf, int32_t bufLen, SCreateRoleReq* pReq);
+void    tFreeSCreateRoleReq(SCreateRoleReq* pReq);
+
+typedef struct {
+  char name[TSDB_ROLE_LEN];
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t ignoreNotExists : 1;
+      uint8_t reserve : 7;
+    };
+  };
+  int32_t sqlLen;
+  char*   sql;
+} SDropRoleReq;
+
+int32_t tSerializeSDropRoleReq(void* buf, int32_t bufLen, SDropRoleReq* pReq);
+int32_t tDeserializeSDropRoleReq(void* buf, int32_t bufLen, SDropRoleReq* pReq);
+void    tFreeSDropRoleReq(SDropRoleReq* pReq);
+
+typedef struct {
+  SPrivSet privSet;
+  SArray*  selectCols;  // SColIdNameKV, for table privileges
+  SArray*  insertCols;  // SColIdNameKV, for table privileges
+  SArray*  updateCols;  // SColIdNameKV, for table privileges
+  // delete can only specify conditions by cond and cannot specify columns
+  char*    cond;     // for table privileges
+  int32_t  condLen;  // for table privileges
+} SPrivSetReqArgs;
+
+typedef struct {
+  uint8_t alterType;  // TSDB_ALTER_ROLE_LOCK, TSDB_ALTER_ROLE_ROLE, TSDB_ALTER_ROLE_PRIVILEGES
+  uint8_t objType;    // db, table, view, rsma, etc.
+  union {
+    uint32_t flag;
+    struct {
+      uint32_t lock : 1;     // lock or unlock role
+      uint32_t add : 1;      // add or remove
+      uint32_t sysPriv : 1;  // system or object privileges
+      uint32_t objLevel : 2;
+      uint32_t reserve : 27;
+    };
+  };
+  union {
+    SPrivSetReqArgs privileges;
+    char            roleName[TSDB_ROLE_LEN];
+  };
+  char    principal[TSDB_ROLE_LEN];      // role or user name
+  char    objFName[TSDB_OBJ_FNAME_LEN];  // db or topic
+  char    tblName[TSDB_TABLE_NAME_LEN];
+  int32_t sqlLen;
+  char*   sql;
+} SAlterRoleReq;
+
+int32_t tSerializeSAlterRoleReq(void* buf, int32_t bufLen, SAlterRoleReq* pReq);
+int32_t tDeserializeSAlterRoleReq(void* buf, int32_t bufLen, SAlterRoleReq* pReq);
+void    tFreeSAlterRoleReq(SAlterRoleReq* pReq);
 
 typedef struct {
   char    algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
@@ -1571,14 +1660,14 @@ typedef struct {
   SDateTimeRange* pTimeRanges;
   SIpRange*       pDropIpRanges;
   SDateTimeRange* pDropTimeRanges;
+  SPrivSet        privileges;
 
-  char        objname[TSDB_DB_FNAME_LEN];  // db or topic
+  char        objname[TSDB_OBJ_FNAME_LEN];  // db or topic
   char        tabName[TSDB_TABLE_NAME_LEN];
   char*       tagCond;
   int32_t     tagCondLen;
   int32_t     sqlLen;
   char*       sql;
-  int64_t     privileges;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
@@ -1652,22 +1741,23 @@ int32_t tDeserializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* 
 
 typedef struct {
   char      user[TSDB_USER_LEN];
+  int64_t   userId;
   int32_t   version;
   int32_t   passVer;
   int8_t    superAuth;
   int8_t    sysInfo;
   int8_t    enable;
   int8_t    dropped;
-  SHashObj* createdDbs;
-  SHashObj* readDbs;
-  SHashObj* writeDbs;
-  SHashObj* readTbs;
-  SHashObj* writeTbs;
-  SHashObj* alterTbs;
-  SHashObj* readViews;
-  SHashObj* writeViews;
-  SHashObj* alterViews;
-  SHashObj* useDbs;
+  SPrivSet  sysPrivs;
+  SHashObj* objPrivs;
+  // SHashObj* createdDbs;
+  SHashObj* selectTbs;
+  SHashObj* insertTbs;
+  SHashObj* deleteTbs;
+  // SHashObj* readViews;
+  // SHashObj* writeViews;
+  // SHashObj* alterViews;
+  // SHashObj* useDbs;
   int64_t   whiteListVer;
 
   SUserSessCfg sessCfg;
@@ -1677,6 +1767,11 @@ typedef struct {
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
+
+int32_t tSerializePrivSysObjPolicies(SEncoder* pEncoder, SPrivSet* sysPriv, SHashObj* pHash);
+int32_t tDeserializePrivSysObjPolicies(SDecoder* pDecoder, SPrivSet* sysPriv, SHashObj** pHash);
+int32_t tSerializePrivTblPolicies(SEncoder* pEncoder, SHashObj* pHash);
+int32_t tDeserializePrivTblPolicies(SDecoder* pDecoder, SHashObj** pHash);
 
 int32_t tSerializeIpRange(SEncoder* encoder, SIpRange* pRange);
 int32_t tDeserializeIpRange(SDecoder* decoder, SIpRange* pRange, bool supportNeg);
@@ -1853,6 +1948,7 @@ typedef struct {
   int64_t     watermark2;
   int32_t     ttl;
   int32_t     keep;
+  int64_t     ownerId;
   SArray*     pFuncs;
   int32_t     commentLen;
   char*       pComment;
@@ -2187,6 +2283,7 @@ int32_t tDeserializeSVDropTtlTableReq(void* buf, int32_t bufLen, SVDropTtlTableR
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int64_t dbId;
+  int64_t ownerId;
   int32_t cfgVersion;
   int32_t numOfVgroups;
   int32_t numOfStables;
@@ -3719,6 +3816,19 @@ typedef struct SColIdNameKV {
   char     colName[TSDB_COL_NAME_LEN];
 } SColIdNameKV;
 
+#define COL_MASK_ON   ((int8_t)0x1)
+#define IS_MASK_ON(c) (((c)->flags & 0x01) == COL_MASK_ON)
+#define COL_SET_MASK_ON(c)     \
+  do {                         \
+    (c)->flags |= COL_MASK_ON; \
+  } while (0)
+
+typedef struct SColNameFlag {
+  col_id_t colId;
+  char     colName[TSDB_COL_NAME_LEN];
+  int8_t   flags;  // 0x01: COL_MASK_ON
+} SColNameFlag;
+
 typedef struct SColIdPair {
   col_id_t  vtbColId;
   col_id_t  orgColId;
@@ -4182,6 +4292,7 @@ typedef struct SVCreateStbReq {
   int8_t          colCmpred;
   SColCmprWrapper colCmpr;
   int64_t         keep;
+  int64_t         ownerId;
   SExtSchema*     pExtSchemas;
   int8_t          virtualStb;
 } SVCreateStbReq;
@@ -5027,6 +5138,7 @@ typedef struct {
   int64_t    id;
   char       name[TSDB_TABLE_NAME_LEN];
   char       tbFName[TSDB_TABLE_FNAME_LEN];
+  int64_t    ownerId;
   int32_t    code;
   int32_t    version;
   int8_t     tbType;
@@ -5210,6 +5322,7 @@ typedef struct {
   char dbFName[TSDB_DB_FNAME_LEN];
   char tblFName[TSDB_TABLE_FNAME_LEN];
   char colName[TSDB_COL_NAME_LEN];
+  char owner[TSDB_USER_LEN];
   char indexType[TSDB_INDEX_TYPE_LEN];
   char indexExts[TSDB_INDEX_EXTS_LEN];
 } SUserIndexRsp;
@@ -5696,7 +5809,8 @@ int32_t tDeserializeSViewMetaReq(void* buf, int32_t bufLen, SViewMetaReq* pReq);
 typedef struct {
   char     name[TSDB_VIEW_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
-  char*    user;
+  char*    createUser;
+  int64_t  ownerId;
   uint64_t dbId;
   uint64_t viewId;
   char*    querySql;
@@ -6066,3 +6180,4 @@ int32_t tDeserializeSScanVnodeReq(void* buf, int32_t bufLen, SScanVnodeReq* pReq
 #endif
 
 #endif /*_TD_COMMON_TAOS_MSG_H_*/
+ 

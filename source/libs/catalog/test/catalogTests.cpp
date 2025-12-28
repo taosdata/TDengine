@@ -2923,7 +2923,8 @@ TEST(apiTest, catalogChkAuth_test) {
   SUserAuthRes  authRes = {0};
   TAOS_STRCPY(authInfo.user, ctgTestUsername);
   toName(1, ctgTestDbname, ctgTestSTablename, &authInfo.tbName);
-  authInfo.type = AUTH_TYPE_READ;
+  authInfo.privType = PRIV_TBL_SELECT;
+  authInfo.objType = PRIV_OBJ_TBL;
   bool exists = false;
   code = catalogChkAuthFromCache(pCtg, &authInfo, &authRes, &exists);
   ASSERT_EQ(code, 0);

@@ -170,6 +170,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       schemaTag = mer1.me.stbEntry.schemaTag;
       metaRsp.suid = mer1.me.uid;
       metaRsp.virtualStb = TABLE_IS_VIRTUAL(mer1.me.flags);
+      metaRsp.ownerId = mer1.me.stbEntry.ownerId;
       break;
     }
     case TSDB_CHILD_TABLE:
@@ -186,6 +187,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     case TSDB_NORMAL_TABLE:
     case TSDB_VIRTUAL_NORMAL_TABLE: {
       schema = mer1.me.ntbEntry.schemaRow;
+      metaRsp.ownerId = mer1.me.ntbEntry.ownerId;
       break;
     }
     default: {
@@ -365,6 +367,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   } else if (mer1.me.type == TSDB_NORMAL_TABLE || mer1.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
     schema = mer1.me.ntbEntry.schemaRow;
     cfgRsp.ttl = mer1.me.ntbEntry.ttlDays;
+    cfgRsp.ownerId = mer1.me.ntbEntry.ownerId;
     cfgRsp.commentLen = mer1.me.ntbEntry.commentLen;
     if (mer1.me.ntbEntry.commentLen > 0) {
       cfgRsp.pComment = taosStrdup(mer1.me.ntbEntry.comment);
