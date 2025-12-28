@@ -26,7 +26,7 @@
 
 
 //
-// ---------------- util ----------------
+// -------------------------------------- UTIL -----------------------------------------
 //
 
 int genBackFileName(BackFileType fileType, const char *dbName, const char *tableName, char *fileName, int len) {
@@ -42,7 +42,7 @@ int genBackTableSql(const char *dbName, const char *tableName, char *sql, int le
 
 
 //
-// ------------------- meta ---------------------
+// -------------------------------------- META -----------------------------------------
 //
 
 int backCreateDbSql(const char *dbName) {
@@ -58,9 +58,51 @@ int backCreateStbSql(const char *dbName, const char *stbName) {
     return code;
 }
 
+//
+// back data thread
+//
+static void* backTagThread(void *arg) {
+    return NULL;
+}
+
+//
+// split tags with vgroups
+//
+TagThread ** splitTagWithVGroups(const char *dbName, const char *stbName, int *code, int *outCount) {
+    *code = TSDB_CODE_SUCCESS;
+    *outCount = 0;
+    return NULL;
+}
+
+//
+// tag create threads
+//
 int backChildTableTags(const char *dbName, const char *stbName) {
     int code = TSDB_CODE_FAILED;
+    int count = 0;
 
+    // splite tags with vgroups
+    TagThread ** threads = splitTagWithVGroups(dbName, stbName, &code, &count);
+    if (threads == NULL) {
+        return code;
+    }
+
+    // create threads
+    for (int i = 0; i < count; i++) {
+        if(pthread_create(&threads[i]->pid, NULL, backTagThread, (void *)threads[i]) != 0) {
+            logError("create backup thread failed(%s) for stb: %s.%s", strerror(errno), dbName, stbName);
+            free(threads);
+            return TSDB_CODE_BACKUP_CREATE_THREAD_FAILED;
+        }
+    }
+
+    // wait threads
+    for (int i = 0; i < count; i++) {
+        pthread_join(threads[i]->pid, NULL);
+    }
+
+    // free
+    free(threads);
     return code;
 }
 
@@ -117,8 +159,10 @@ int backDatabaseMeta(const char *dbName) {
     return code;
 }
 
+
+
 //
-// ------------------- data ---------------------
+// -------------------------------------- DATA -----------------------------------------
 //
 
 
@@ -134,7 +178,7 @@ int writeBlockToFile(const char *fileName, void *block) {
 //
 // back child table data on thread group
 //
-int backChildTableData(GroupThread* group, const char *childTableName) {
+int backChildTableData(DataThread* group, const char *childTableName) {
     int code = TSDB_CODE_FAILED;
     // get write file name
     char fileName[MAX_PATH_LEN];
@@ -178,15 +222,14 @@ int backChildTableData(GroupThread* group, const char *childTableName) {
     return code;
 }
 
-
 //
-// back thread
+// back data thread
 //
-static void* backGroupThread(void *arg) {
+static void* backDataThread(void *arg) {
     int retryCount   = argRetryCount();
     int retrySleepMs = argRetrySleepMs();
 
-    GroupThread * group = (GroupThread *)arg;
+    DataThread * group = (DataThread *)arg;
     for (int i = 0; i < group->numChildTables; i++) {
         logInfo("backup child table data: %s", group->childTableNames[i]);
         
@@ -218,37 +261,42 @@ static void* backGroupThread(void *arg) {
 }
 
 //
-// back stb data
+// split child tables to thread groups
+//
+DataThread ** splitTablesToThread(const char *dbName, const char *stbName, int *code, int threadCount) {
+    *code = TSDB_CODE_SUCCESS;
+    return NULL;
+}
+
+//
+// data create threads
 //
 int backStbData(const char *dbName, const char *stbName) {
     int code = TSDB_CODE_FAILED;
-    int count = 0;
+    int count = argDataThread();
 
     // splite child tables to thread groups
-    GroupThread ** groups = splitChildTablesToThreadGroups(dbName, stbName, &code, &count);
-    if (groups == NULL) {
+    DataThread ** threads = splitTablesToThread(dbName, stbName, &code, count);
+    if (threads == NULL) {
         return code;
     }
-    pthread_t *pids = calloc(1, count * sizeof(pthread_t));
 
     // create threads
     for (int i = 0; i < count; i++) {
-        if(pthread_create(pids[i], NULL, backGroupThread, (void *)groups[i]) != 0) {
+        if(pthread_create(&threads[i]->pid, NULL, backDataThread, (void *)threads[i]) != 0) {
             logError("create backup thread failed(%s) for stb: %s.%s", strerror(errno), dbName, stbName);
-            free(pids);
-            free(groups);
+            free(threads);
             return TSDB_CODE_BACKUP_CREATE_THREAD_FAILED;
         }
     }
 
     // wait threads
     for (int i = 0; i < count; i++) {
-        pthread_join(pids[i], NULL);
+        pthread_join(threads[i]->pid, NULL);
     }
 
     // free
-    free(pids);
-    free(groups);
+    free(threads);
     return code;
 }
 
@@ -315,7 +363,7 @@ int backDatabase(const char *dbName) {
 //
 // backup main function
 //
-int backupMain(){
+int backupMain() {
     // init
     int code = TSDB_CODE_FAILED;
 

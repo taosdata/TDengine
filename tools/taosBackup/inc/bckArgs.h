@@ -55,4 +55,7 @@ enum ActionType argAction();
 int argRetryCount();
 int argRetrySleepMs();
 
+int argDataThread();
+
+
 #endif  // INC_BACKARGS_H_

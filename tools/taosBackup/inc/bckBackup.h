@@ -25,13 +25,26 @@
 //
 // ---------------- struct ----------------
 //
-typedef struct GroupThread {
+
+// data
+typedef struct DataThread {
     char ** childTableNames;
     int numChildTables;
     char dbName[TSDB_DB_NAME_LEN];
     char stbName[TSDB_TABLE_NAME_LEN];
     TAOS* conn;
-} GroupThread;
+    pthread_t pid;
+} DataThread;
+
+// tag
+typedef struct TagThread {
+    char ** childTableNames;
+    int numChildTables;
+    char dbName[TSDB_DB_NAME_LEN];
+    char stbName[TSDB_TABLE_NAME_LEN];
+    TAOS* conn;
+    pthread_t pid;
+} TagThread;
 
 
 //
