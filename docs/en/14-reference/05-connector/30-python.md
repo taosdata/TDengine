@@ -90,7 +90,7 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
-|0.6.4 | Support report connector version information | - |
+|0.6.4 | Supports reporting connector version information | - |
 |0.6.3 | Support configuring the response timeout for WebSocket connections (excluding data subscription) | - |
 |0.6.2 | Fixes memory leaks | - |
 |0.6.1 | 1. Support BLOB data type <br/> 2. Support timezone <br/> 3. Support load balancing | - |
