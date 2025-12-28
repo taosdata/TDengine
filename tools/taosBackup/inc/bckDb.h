@@ -9,17 +9,23 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef INC_BACKARGS_H_
-#define INC_BACKARGS_H_
-
+#ifndef INC_BCKDB_H_
+#define INC_BCKDB_H_
+#include <taos.h>
+#include <taoserror.h>
 
 //
 // ---------------- define ----------------
 //
-#define MAX_PATH_LEN                    4096
 
-// ---------------- error code ----------------
+int initConnectionPool(int poolSize);
+void destroyConnectionPool();
+
+TAOS* getConnection();
+
+TAOS* createConnection();
+
+void releaseConnection(TAOS* conn);
 
 
-
-#endif  // INC_BACKARGS_H_
+#endif  // INC_BCKDB_H_

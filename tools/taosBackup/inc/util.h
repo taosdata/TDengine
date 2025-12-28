@@ -9,13 +9,16 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef INC_BACKARGS_H_
-#define INC_BACKARGS_H_
+#ifndef INC_UTIL_H_
+#define INC_UTIL_H_
 
 
 //
 // ---------------- define ----------------
 //
+
+// ---------------- interface ----------------
+unsigned int getCrc(const char *name);
 
 void sleepMs(int ms);
 
@@ -23,4 +26,4 @@ void freeArrayPtr(char **ptr);
 
 bool errorCodeCanRetry(int code);
 
-#endif  // INC_BACKARGS_H_
+#endif  // INC_UTIL_H_

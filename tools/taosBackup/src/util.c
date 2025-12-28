@@ -40,3 +40,13 @@ bool errorCodeCanRetry(int code) {
     return false;
 }
 
+unsigned int getCrc(const char *name) {
+    unsigned int crc = 0xFFFFFFFF;
+    while (*name) {
+        crc ^= (unsigned char)(*name++);
+        for (int i = 0; i < 8; i++) {
+            crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
+        }
+    }
+    return ~crc;
+}

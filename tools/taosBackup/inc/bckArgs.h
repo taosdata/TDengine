@@ -57,5 +57,12 @@ int argRetrySleepMs();
 
 int argDataThread();
 
+char* argOutPath();
+
+// connection args
+char*  argHost();
+int    argPort();
+char*  argUser();
+char*  argPassword();
 
 #endif  // INC_BACKARGS_H_

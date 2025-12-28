@@ -48,5 +48,8 @@
 // ---------------- define ----------------
 //
 
+#define MAX_PATH_LEN 512
+#define FILE_DBSQL "db.sql"
+
 
 #endif  // INC_TAOSBACKUP_H_

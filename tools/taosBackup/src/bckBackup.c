@@ -17,12 +17,12 @@
 #include "tdef.h"
 #include "taoserror.h"
 
-#include "back.h"
 #include "bckLog.h"
 #include "bckError.h"
 #include "bckArgs.h"
 #include "util.h"
 #include "bckBackup.h"
+#include "taosBackup.h"
 
 
 //
@@ -41,12 +41,63 @@ int genBackTableSql(const char *dbName, const char *tableName, char *sql, int le
 }
 
 
+void obtainDBFile(const char *dbName,  char *dbPath, int len, char* fileName) {
+    // db path: <outPath>/db_<crc>/
+    snprintf(dbPath, len, "%s/db_%u/%s", argOutPath(), getCrc(dbName), fileName);
+    return TSDB_CODE_SUCCESS;
+}
+
+int queryWriteFile(const char *sql, const char *pathFile) {
+    TAOS *conn = getConnection();
+    if (!conn) {
+        logError("get connection failed");
+        return TSDB_CODE_FAILED;
+    }
+
+    TAOS_RES *res = taos_query(conn, sql);
+    if (!res || taos_errno(res)) {
+        logError("query failed: %s", taos_errstr(res));
+        if (res) taos_free_result(res);
+        releaseConnection(conn);
+        return TSDB_CODE_FAILED;
+    }
+
+    FILE *fp = fopen(pathFile, "w");
+    if (!fp) {
+        logError("open file failed: %s", pathFile);
+        taos_free_result(res);
+        releaseConnection(conn);
+        return TSDB_CODE_FAILED;
+    }
+
+    TAOS_ROW row;
+    while ((row = taos_fetch_row(res))) {
+        if (row[1]) {
+            fprintf(fp, "%s;\n", (char *)row[1]);
+        }
+    }
+
+    fclose(fp);
+    taos_free_result(res);
+    releaseConnection(conn);
+    return TSDB_CODE_SUCCESS;
+}
+
+
 //
 // -------------------------------------- META -----------------------------------------
 //
-
 int backCreateDbSql(const char *dbName) {
     int code = TSDB_CODE_FAILED;
+    
+    // path
+    char sqlFile[MAX_PATH_LEN] = {0};
+    obtainDBFile(dbName, sqlFile, sizeof(sqlFile), FILE_DBSQL);
+
+    // sql
+    char sql[512] = {0};
+    snprintf(sql, sizeof(sql), "show create database %s;", dbName);
+    code = queryWriteFile(sql, sqlFile);
 
     return code;
 }
@@ -107,6 +158,15 @@ int backChildTableTags(const char *dbName, const char *stbName) {
 }
 
 //
+// normal tables create sql
+//
+int backNormalTablesSql(const char *dbName) {
+    int code = TSDB_CODE_FAILED;
+
+    return code;
+}
+
+//
 // backup database meta
 //
 int backDatabaseMeta(const char *dbName) {
@@ -151,7 +211,7 @@ int backDatabaseMeta(const char *dbName) {
     //
     // normal tables sql
     //
-    code = backCreateNormalTablesSql(dbName);
+    code = backNormalTablesSql(dbName);
     if (code != TSDB_CODE_SUCCESS) {
         return code;
     }
