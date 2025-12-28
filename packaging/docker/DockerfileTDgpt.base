@@ -83,10 +83,8 @@ ENV VIRTUAL_ENV=/var/lib/taos/taosanode/venv_moirai
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN if [ "$ARCH" = "arm64" ]; then \
         TORCH_PKG="torch"; \
-        TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
     else \
         TORCH_PKG="torch==2.3.1+cpu"; \
-        TORCH_INDEX="https://download.pytorch.org/whl/cpu"; \
     fi && \
     python -m venv --system-site-packages $VIRTUAL_ENV && \
     pip install --no-cache-dir uni2ts flask \
