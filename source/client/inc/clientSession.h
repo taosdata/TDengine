@@ -53,7 +53,6 @@ typedef struct SSessMetric {
   int64_t value[SESSION_MAX_TYPE];
   int64_t limit[SESSION_MAX_TYPE];
 
-  TdThreadRwlock lock;
 } SSessMetric;
 
 typedef struct {
@@ -69,16 +68,14 @@ typedef struct SSessionMgt {
 
 int32_t sessMgtInit();
 
-int32_t sessMgtGetOrCreateUserMetric(char* user, SSessMetric** ppMetric);
 int32_t sessMgtUpdataLimit(char* user, ESessionType type, int32_t value);
 int32_t sessMgtUpdateUserMetric(char* user, SSessParam* pPara);
 int32_t sessMgtRemoveUser(char* user);
 void    sessMgtDestroy();
 
-int32_t sessMetricCheckConnStatus(SSessMetric* pMetric, SConnAccessInfo* pInfo);
 int32_t sessMetricCreate(SSessMetric** ppMetric);
 void    sessMetricRef(SSessMetric* pMetric);
-int8_t  sessMetricUnref(SSessMetric* pMetric);
+int32_t sessMetricUnref(SSessMetric* pMetric);
 int32_t sessMetricUpdateLimit(SSessMetric* pMetric, ESessionType type, int32_t value);
 int32_t sessMetricUpdate(SSessMetric* pMetric, SSessParam* p);
 int32_t sessMetricCheckValue(SSessMetric* pMetric, ESessionType type, int64_t value);
@@ -86,6 +83,9 @@ void    sessMetricDestroy(SSessMetric* pMetric);
 
 int32_t connCheckAndUpateMetric(int64_t connId);
 int32_t tscUpdateSessMetric(STscObj* pTscObj, SSessParam* pParam);
+int32_t tscCheckConnSessionMetric(STscObj* pTscObj);
+int32_t tscRefSessMetric(STscObj* pTscObj);
+int32_t tscUnrefSessMetric(STscObj* pTscObj);
 
 #ifdef __cplusplus
 }
