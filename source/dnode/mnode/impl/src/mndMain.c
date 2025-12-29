@@ -323,6 +323,8 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
           pGid->syncRestore = 0;
           pGid->syncCanRead = 0;
           pGid->startTimeMs = 0;
+          pGid->learnerProgress = 0;
+          pGid->snapSeq = -1;
           stateChanged = true;
         }
         break;
