@@ -1861,6 +1861,13 @@ void initTestEnv(const char* database, const char* stb, TAOS** pConnect, TAOS** 
 
   *pConnect = pRootConn;
 
+  {
+    sprintf(buf, "grant all on %s.* to %s", database, tempUser);
+    TAOS_RES* pRes = taos_query(pRootConn, buf);
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+  }
+
   pUserConn = taos_connect("localhost", tempUser, "taosdata", NULL, 0);
   ASSERT_NE(pUserConn, nullptr);
   *pUserConnect = pUserConn;
