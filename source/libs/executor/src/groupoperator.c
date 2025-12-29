@@ -389,6 +389,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock, SLim
 
     if(!addNewGroupForSLimit(pLimitInfo)) continue;
 
+    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
+
     // the new group is found, set the result output buffer for the previous group
     // if this new group is the first group, it means the previous group need be skipped by soffset
     // but the num is still needed to be updated for new group
@@ -412,7 +414,6 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock, SLim
 
     // assign the group keys or user input constant values if required
     doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
-    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     num = 1;
   }
 
