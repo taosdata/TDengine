@@ -534,8 +534,8 @@ static int32_t uvDataTimeWhiteListToStr(SUserDateTimeWhiteList* plist, char* use
       len = snprintf(pBuf, limit, "user:%s duration:%" PRId64 ", start:%" PRId64 "; ", user, (int64_t)(pItem->duration),
                      pItem->start);
     } else {
-      len = sprintf(pBuf + strlen(pBuf), "duration:%" PRId64 ", start:%" PRId64 "; ", (int64_t)(pItem->duration),
-                    pItem->start);
+      len += snprintf(pBuf + strlen(pBuf), limit - strlen(pBuf), "duration:%" PRId64 ", start:%" PRId64 "; ",
+                      (int64_t)(pItem->duration), pItem->start);
     }
   }
   *ppBuf = pBuf;
