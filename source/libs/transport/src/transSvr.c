@@ -521,12 +521,17 @@ void uvDataTimeWhiteListDestroy(SDataTimeWhiteListTab* pWhite) {
 
 static int32_t uvDataTimeWhiteListToStr(SUserDateTimeWhiteList* plist, char* user, char** ppBuf) {
   int32_t code = 0;
-  if (plist == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
   int32_t len = 0;
+  if (plist == NULL) {
+    tError("failed to convert data time white list to str, invalid para");
+    return len;
+  }
   int32_t limit = plist->numWhiteLists * sizeof(SDateTimeWhiteListItem) + 128;
   char*   pBuf = taosMemoryCalloc(1, limit);
+  if (pBuf == NULL) {
+    tError("failed to alloc memory for data time white list string");
+    return len;
+  }
 
   for (int32_t i = 0; i < plist->numWhiteLists; i++) {
     SDateTimeWhiteListItem* pItem = &plist->pWhiteLists[i];
