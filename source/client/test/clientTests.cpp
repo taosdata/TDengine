@@ -1908,7 +1908,7 @@ void testSessionPerUser() {
 
     taosArrayDestroy(p);
     {
-      taosMsleep(62000);
+      taosMsleep(6200);
       TAOS* pUserConn = taos_connect("localhost", userBuf, "taosdata", NULL, 0);
       ASSERT_NE(pUserConn, nullptr);
       taos_close(pUserConn);
