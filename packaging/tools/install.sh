@@ -396,12 +396,12 @@ function install_services() {
 }
 
 function kill_process() {
-  local pname="$1"
-  local pids
-  pids=$(pgrep -x "$pname" || :)
-  if [ -n "$pids" ]; then
-    echo "$pids" | xargs kill || :
-  fi
+    # use pkill if available, otherwise fallback to pgrep + xargs
+    if command -v pkill >/dev/null 2>&1; then
+        pkill -x -9 "$1" 2>/dev/null || true
+    else
+        pgrep -x "$1" | xargs -r kill -9 2>/dev/null || true
+    fi
 }
 
 function install_main_path() {
@@ -1181,8 +1181,9 @@ function install_service() {
     install_service_on_systemd $1
   elif ((${service_mod} == 1)); then
     install_service_on_sysvinit $1
+  else
+    kill_process $1
   fi
-  kill_process $1
 }
 
 vercomp() {
