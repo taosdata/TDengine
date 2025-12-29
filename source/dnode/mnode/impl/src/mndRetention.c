@@ -297,7 +297,6 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     SName name = {0};
     if ((code = tNameFromString(&name, pObj->dbname, T_NAME_ACCT | T_NAME_DB)) != 0) {
       sdbRelease(pSdb, pObj);
-      sdbCancelFetch(pSdb, pShow->pIter);
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
     (void)tNameGetDbName(&name, varDataVal(tmpBuf));

@@ -932,7 +932,6 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
     if (code != 0) {
       mError("mnode:%d, failed to set col data val since %s", pObj->id, tstrerror(code));
-      sdbCancelFetch(pSdb, pShow->pIter);
       sdbRelease(pSdb, pObj);
       goto _out;
     }
