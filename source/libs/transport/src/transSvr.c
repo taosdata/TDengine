@@ -527,16 +527,18 @@ static int32_t uvDataTimeWhiteListToStr(SUserDateTimeWhiteList* plist, char* use
   int32_t len = 0;
   int32_t limit = plist->numWhiteLists * sizeof(SDateTimeWhiteListItem) + 128;
   char*   pBuf = taosMemoryCalloc(1, limit);
+
   for (int32_t i = 0; i < plist->numWhiteLists; i++) {
     SDateTimeWhiteListItem* pItem = &plist->pWhiteLists[i];
     if (i == 0) {
-      len = snprintf(pBuf + strlen(pBuf), limit - strlen(pBuf), "user:%s duration:%" PRId64 ", start:%" PRId64 "; ",
-                     user, (int64_t)(pItem->duration), pItem->start);
+      len = snprintf(pBuf, limit, "user:%s duration:%" PRId64 ", start:%" PRId64 "; ", user, (int64_t)(pItem->duration),
+                     pItem->start);
     } else {
       len = sprintf(pBuf + strlen(pBuf), "duration:%" PRId64 ", start:%" PRId64 "; ", (int64_t)(pItem->duration),
                     pItem->start);
     }
   }
+  *ppBuf = pBuf;
   return len;
 }
 void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
@@ -561,8 +563,8 @@ void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
     len = uvDataTimeWhiteListToStr(pUserList, user, &pBuf);
     if (len > 0) {
       tDebug("dataTime white list %s", pBuf);
-      taosMemoryFree(pBuf);
     }
+    taosMemoryFree(pBuf);
 
     pIter = taosHashIterate(pWhiteList, pIter);
   }
