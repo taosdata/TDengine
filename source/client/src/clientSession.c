@@ -118,9 +118,6 @@ static int32_t sessMaxConnCurrencyCheckFn(int64_t *value, int64_t *limit) {
 
 static int32_t sessMaxConnCurrencyUpdateFn(int64_t *value, int64_t delta) {
   int32_t code = 0;
-  if (delta == -1) {
-    return code;
-  }
   int64_t ref = 0;
   if (delta > 0) {
     ref = atomic_fetch_add_64(value, delta);
