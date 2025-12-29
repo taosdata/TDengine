@@ -1224,8 +1224,10 @@ static int32_t buildCreateUserBlock(SCreateUserRsp* pRsp, SSDataBlock** block) {
   return TSDB_CODE_SUCCESS;
 
 END:
-  taosMemoryFree(pBlock);
-  taosArrayDestroy(pBlock->pDataBlock);
+  if (pBlock) {
+    taosMemoryFree(pBlock);
+    taosArrayDestroy(pBlock->pDataBlock);
+  }
   return code;
 }
 

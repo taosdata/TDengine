@@ -1583,7 +1583,7 @@ void    tFreeSCreateUserReq(SCreateUserReq* pReq);
 // NOTE: create user response is optional, only when TOTP is enabled, the TOTP secret will be returned to client
 typedef struct {
   char user[TSDB_USER_LEN];
-  char totpSecret[TSDB_TOTP_SECRET_LEN * 8 / 5 + 1 + 1]; // base32 encoded totp secret + null terminator
+  char totpSecret[(TSDB_TOTP_SECRET_LEN * 8 + 4) / 5 + 1]; // base32 encoded totp secret + null terminator
 } SCreateUserRsp;
 
 int32_t tSerializeSCreateUserRsp(void* buf, int32_t bufLen, SCreateUserRsp* pRsp);
