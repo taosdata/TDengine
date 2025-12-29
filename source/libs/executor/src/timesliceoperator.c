@@ -216,15 +216,20 @@ static void tRowGetKeyFromColData(int64_t ts, SColumnInfoData* pPkCol, int32_t r
   }
 }
 
+typedef enum {
+  INVALID_TIMESTAMP_REASON_NONE = 0,
+  INVALID_TIMESTAMP_REASON_PREV_TS_EQUAL = 1,
+  INVALID_TIMESTAMP_REASON_PREV_TS_SMALLER = 2,
+}EInvalidTimestampReason;
 /*
   Timestamp is invalid if current timestamp <= previous timestamp.
   Only timestamp is considered even if composite primary key exists.
 */
-static bool isInvalidTimestamp(STimeSliceOperatorInfo* pSliceInfo,
+static EInvalidTimestampReason isInvalidTimestamp(STimeSliceOperatorInfo* pSliceInfo,
                                    int64_t currentTs, SColumnInfoData* pPkCol,
                                    int32_t curIndex) {
   if (currentTs > pSliceInfo->win.ekey) {
-    return false;
+    return INVALID_TIMESTAMP_REASON_NONE;
   }
   if (pSliceInfo->prevTsSet && currentTs <= pSliceInfo->prevKey.ts) {
     /*
@@ -232,7 +237,9 @@ static bool isInvalidTimestamp(STimeSliceOperatorInfo* pSliceInfo,
       timestamp ascendingly, except the prev scan.
       So prevTs should never be updated to equal or smaller timestamp.
     */
-    return true;
+    return currentTs == pSliceInfo->prevKey.ts ?
+      INVALID_TIMESTAMP_REASON_PREV_TS_EQUAL :
+      INVALID_TIMESTAMP_REASON_PREV_TS_SMALLER;
   }
 
   SRowKey cur = {.ts = currentTs, .numOfPKs = (pPkCol != NULL) ? 1 : 0};
@@ -249,7 +256,7 @@ static bool isInvalidTimestamp(STimeSliceOperatorInfo* pSliceInfo,
   pSliceInfo->prevTsSet = true;
   tRowKeyAssign(&pSliceInfo->prevKey, &cur);
 
-  return false;
+  return INVALID_TIMESTAMP_REASON_NONE;
 }
 
 bool isInterpFunc(SExprInfo* pExprInfo) {
@@ -948,8 +955,7 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
   for (; i < pBlock->info.rows; ++i) {
     int64_t ts = *(int64_t*)colDataGetData(pTsCol, i);
 
-    if (checkNullRow(&pOperator->exprSupp, pBlock, i, ignoreNull) ||
-        isInvalidTimestamp(pSliceInfo, ts, pPkCol, i)) {
+    if (checkNullRow(&pOperator->exprSupp, pBlock, i, ignoreNull)) {
       continue;
     }
 
@@ -962,6 +968,16 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
       code = timeSliceOptrNotifyDownstream(pOperator->pDownstream[0], ts);
       QUERY_CHECK_CODE(code, lino, _end);
       notified = true;
+    }
+
+    EInvalidTimestampReason invalidReason = isInvalidTimestamp(pSliceInfo, ts,
+                                                               pPkCol, i);
+    if (invalidReason != INVALID_TIMESTAMP_REASON_NONE) {
+      if (invalidReason == INVALID_TIMESTAMP_REASON_PREV_TS_EQUAL) {
+        continue;
+      } else if (invalidReason == INVALID_TIMESTAMP_REASON_PREV_TS_SMALLER) {
+        break;
+      }
     }
 
     if (ts == pSliceInfo->current) {

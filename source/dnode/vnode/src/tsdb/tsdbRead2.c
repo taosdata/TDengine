@@ -592,10 +592,12 @@ static int32_t tsdbAcquireReader(STsdbReader* pReader) {
 
   TSDB_CHECK_CONDITION((pReader != NULL) && (pReader->idStr != NULL), code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  tsdbTrace("tsdb/read: %s, pre-take read mutex: %p, code: %d", pReader->idStr, &pReader->readerMutex, code);
+  tsdbTrace("tsdb/read: %s, pre-take read mutex: %p",
+            pReader->idStr, &pReader->readerMutex);
   code = taosThreadMutexLock(&pReader->readerMutex);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("tsdb/read:%p, failed to lock reader mutex, code:%s", pReader->idStr, tstrerror(code));
+    tsdbError("tsdb/read: %s, failed to lock reader mutex, code:%d - %s",
+              pReader->idStr, code, tstrerror(code));
   } else {
     tsdbTrace("tsdb/read: %s, post-take read mutex: %p, code: %d", pReader->idStr, &pReader->readerMutex, code);
   }
@@ -7425,6 +7427,8 @@ int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
     */
     if (notifyTs <= pReader->innerReader[0]->info.window.ekey) {
       pReader->currentStepDone = true;
+      tsdbDebug("%s, tsdbReaderStepDone, step: PREV, notifyTs: %ld, window.ekey: %ld",
+                pReader->idStr, notifyTs, (int64_t)pReader->innerReader[0]->info.window.ekey);
     }
   }
 
@@ -7436,6 +7440,8 @@ int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
     */
     if (notifyTs >= pReader->innerReader[1]->info.window.skey) {
       pReader->currentStepDone = true;
+      tsdbDebug("%s, tsdbReaderStepDone, step: NEXT, notifyTs: %ld, window.skey: %ld",
+                pReader->idStr, notifyTs, (int64_t)pReader->innerReader[1]->info.window.skey);
     }
   }
 

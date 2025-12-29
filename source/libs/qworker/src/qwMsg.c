@@ -752,7 +752,13 @@ int32_t qWorkerProcessNotifyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
 
   QW_SCH_TASK_DLOG("processNotify start, node:%p, handle:%p", node, pMsg->info.handle);
 
-  code = qwProcessNotify(QW_FPARAMS(), &qwMsg);
+  switch (msg.type) {
+    case TASK_NOTIFY_STEP_DONE:
+      code = qwProcessNotifyUnfinished(QW_FPARAMS(), &qwMsg);
+      break;
+    default:
+      code = qwProcessNotify(QW_FPARAMS(), &qwMsg);
+  }
 
   QW_SCH_TASK_DLOG("processNotify end, node:%p, code:%x", node, code);
 

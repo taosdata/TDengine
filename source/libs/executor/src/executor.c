@@ -2284,6 +2284,10 @@ end:
 int32_t notifyTableScanTask(qTaskInfo_t tinfo, SOperatorParam* pNotifyParam) {
   int32_t code = TSDB_CODE_SUCCESS;
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  /*
+    here we don't need to check the owner of the task,
+    because the task is already running.
+  */
   if (pTaskInfo->pRoot != NULL) {
     SOperatorInfo* pOperator = pTaskInfo->pRoot;
     if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&

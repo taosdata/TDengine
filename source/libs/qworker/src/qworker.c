@@ -161,6 +161,11 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
     }
 
     if (numOfResBlock == 0 || (hasMore == false)) {
+      /*
+        lock the ctx to prevent the taskHandle being freed while other threads
+        are using it
+      */
+      QW_LOCK(QW_WRITE, &ctx->lock);
       if (!ctx->dynamicTask) {
         if (numOfResBlock == 0) {
           QW_TASK_DLOG("qExecTask end with empty res, useconds:%" PRIu64, useconds);
@@ -178,6 +183,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
 
         ctx->queryExecDone = true;
       }
+      QW_UNLOCK(QW_WRITE, &ctx->lock);
 
       QW_SINK_ENABLE_MEMPOOL(ctx);
       dsEndPut(sinkHandle, useconds);
@@ -1238,14 +1244,6 @@ int32_t qwProcessNotify(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
         QW_ERR_RET(qwSendExplainResponse(QW_FPARAMS(), ctx));
       }
       break;
-    case TASK_NOTIFY_STEP_DONE: {
-      if (ctx->taskHandle != NULL) {
-        QW_ERR_JRET(
-          notifyTableScanTask(ctx->taskHandle,
-                              ((STaskNotifyReq*)qwMsg->msg)->pOpParam));
-      }
-      break;
-    }
     default:
       QW_ELOG("Invalid task notify type %d", qwMsg->msgType);
       QW_ERR_JRET(TSDB_CODE_INVALID_MSG);
@@ -1260,6 +1258,54 @@ _return:
       (void)qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_FAIL,
                                ctx->dynamicTask);  // task already failed, no more error handling
     }
+  }
+
+  if (locked) {
+    QW_UNLOCK(QW_WRITE, &ctx->lock);
+  }
+
+  if (ctx) {
+    qwReleaseTaskCtx(mgmt, ctx);
+  }
+
+  QW_RET(TSDB_CODE_SUCCESS);
+}
+
+/*
+  Call this function when the notify message is for running tasks.
+*/
+int32_t qwProcessNotifyUnfinished(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
+  int32_t     code = 0;
+  SQWTaskCtx *ctx = NULL;
+  bool        locked = false;
+
+  QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
+
+  QW_LOCK(QW_WRITE, &ctx->lock);
+  locked = true;
+
+  if (QW_QUERY_RUNNING(ctx)) {
+    switch (qwMsg->msgType) {
+      case TASK_NOTIFY_STEP_DONE: {
+        if (ctx->taskHandle != NULL) {
+          STaskNotifyReq* pNotifyReq = (STaskNotifyReq*)qwMsg->msg;
+          QW_ERR_JRET(notifyTableScanTask(ctx->taskHandle,
+                                          pNotifyReq->pOpParam));
+        }
+        break;
+      }
+      default:
+        QW_ELOG("Invalid task notify type %d", qwMsg->msgType);
+        QW_ERR_JRET(TSDB_CODE_INVALID_MSG);
+        break;
+    }
+  }
+
+_return:
+
+  if (code) {
+    qError("notify unfinished failed, msgType:%d, code:%d - %s",
+           qwMsg->msgType, code, tstrerror(code));
   }
 
   if (locked) {
