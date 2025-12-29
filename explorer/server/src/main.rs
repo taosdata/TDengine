@@ -173,9 +173,18 @@ async fn main() -> anyhow::Result<()> {
     let path = format!("/etc/{}", env!("CUS_PROMPT"));
 
     let config = ConfigPath::parse();
-    let file_path = config
-        .config_file
-        .unwrap_or_else(|| std::path::Path::new(&path).join("explorer.toml"));
+    let file_path = if let Some(config_file) = config.config_file {
+        if config_file.exists() {
+            config_file
+        } else {
+            bail!(
+                "Custom configuration file {} not found",
+                config_file.display()
+            );
+        }
+    } else {
+        std::path::Path::new(&path).join("explorer.toml")
+    };
     let _ = CONFIG_DIR.set(
         file_path
             .parent()
@@ -188,8 +197,10 @@ async fn main() -> anyhow::Result<()> {
             "Failed to read configuration from {}",
             file_path.display()
         ))?;
-        let mut args: Args = toml::from_str(&content).unwrap();
-        args.update_from(config.raw_args);
+        let mut args: Args = toml::from_str(&content).with_context(|| {
+            format!("Failed to parse configuration from {}", file_path.display())
+        })?;
+        args.update_from(std::env::args());
         println!("Use configuration file path: {}", file_path.display());
         args
     } else {
@@ -1725,7 +1736,7 @@ struct GrafanaConfig {
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]
-#[clap(trailing_var_arg = true)]
+#[clap(trailing_var_arg = true, disable_help_flag = true)]
 struct ConfigPath {
     /// Configuration file
     #[clap(short = 'c', long, alias = "config", env = "EXPLORER_CONFIG_FILE")]
