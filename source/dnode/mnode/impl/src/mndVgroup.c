@@ -1331,7 +1331,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    int32_t cacheUsage = (int32_t)pVgroup->cacheUsage;
+    int64_t cacheUsage = pVgroup->cacheUsage;
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&cacheUsage, false);
     if (code != 0) {
       mError("vgId:%d, failed to set cacheUsage, since %s", pVgroup->vgId, tstrerror(code));
