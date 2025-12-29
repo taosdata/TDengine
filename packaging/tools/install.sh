@@ -396,9 +396,11 @@ function install_services() {
 }
 
 function kill_process() {
-  pid=$(pgrep -x  "$1")
-  if [ -n "$pid" ]; then
-    kill -9 "$pid" || :
+  local pname="$1"
+  local pids
+  pids=$(pgrep -x "$pname" || :)
+  if [ -n "$pids" ]; then
+    echo "$pids" | xargs kill || :
   fi
 }
 
@@ -1179,9 +1181,8 @@ function install_service() {
     install_service_on_systemd $1
   elif ((${service_mod} == 1)); then
     install_service_on_sysvinit $1
-  else
-    kill_process $1
   fi
+  kill_process $1
 }
 
 vercomp() {
