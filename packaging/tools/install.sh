@@ -395,13 +395,13 @@ function install_services() {
   done
 }
 
-function kill_process() {
-  local pname="$1"
-  local pids
-  pids=$(pgrep -x "$pname" || :)
-  if [ -n "$pids" ]; then
-    echo "$pids" | xargs kill || :
-  fi
+kill_process() {
+    # use pkill if available, otherwise fallback to pgrep + xargs
+    if command -v pkill >/dev/null 2>&1; then
+        pkill -x -9 "$1" 2>/dev/null || true
+    else
+        pgrep -x "$1" | xargs -r kill -9 2>/dev/null || true
+    fi
 }
 
 function install_main_path() {
