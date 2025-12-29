@@ -977,7 +977,9 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
 
   // add database privileges for user
   SUserObj *pNewUserDuped = NULL;
-#if 0 // 在 DB 中，记录 DB owner 即可。Owner 拥有在 DB 下创建对象的权限，但是 DB 下其他的创建的对象，DB owner 默认是没有权限的。因此，readDbs/writeDbs 不再适用。
+#if 0
+  // We record the DB's owner id instread. The owner has the permission to create objects under the DB, but does not
+  // have default permissions on objects created by others .Therefore, readDbs/writeDbs are no longer applicable.
   if (!pUser->superUser) {
     TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUserObj), NULL, _OVER);
     TAOS_CHECK_GOTO(taosHashPut(newUserObj.readDbs, dbObj.name, strlen(dbObj.name) + 1, dbObj.name, TSDB_FILENAME_LEN),

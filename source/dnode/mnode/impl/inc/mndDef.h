@@ -521,7 +521,7 @@ typedef struct {
 
   SPrivSet sysPrivs;
   /**
-   * N.B. The privileges of "select/insert/update/delete tables without specifiy tags or cols or rowSpan" are also
+   * N.B. The privileges of "select/insert/update/delete tables without row/col/tag conditions" are also
    * stored in objPrivs.
    */
   SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies.
@@ -572,10 +572,10 @@ typedef struct {
   SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies.
   
   // table level privileges combined with row/col/tag conditions
-  SHashObj* selectTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  SHashObj* insertTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  SHashObj* updateTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
-  SHashObj* deleteTbs;  // k:tbFName  1) 1.db(means all tbl in the db); 2) 1.db.tbName, v: SPrivTblPolicies
+  SHashObj* selectTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* insertTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* updateTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* deleteTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
   // SHashObj* alterTbs;   // k:tbFName, v: empty
   // SHashObj* useDbs;
 
@@ -1013,7 +1013,6 @@ typedef struct {
   SCMCreateStreamReq* pCreate;
 
   SRWLatch lock;
-
   // dynamic info
   int32_t mainSnodeId;
   int8_t  userDropped;  // no need to serialize

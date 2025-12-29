@@ -66,8 +66,6 @@ ignoreCodes = [
     '0x800004B4', '0x800004B5', '0x800004B6', '0x80006001', '0x8000073F', '0x80000740', '0x800026A4', '0x800026A5', '0x800026A6', '0x800026A7',
     '0x800026A8', '0x800026A9', '0x80000543']
 
-    
-
 class TestCheckErrorCode:
     # parse line
     def parseLine(self, line, show):

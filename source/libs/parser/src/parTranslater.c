@@ -16432,16 +16432,6 @@ _tagCond:
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesNodeToString(pStmt->pCond, false, &pReq->privileges.cond, &pReq->privileges.condLen);
   }
-#if 0
-  if (TSDB_CODE_SUCCESS == code) {
-    char    buffer[512] = {0};  // TODO: use the real length
-    int32_t outLen = 0;
-    code = nodesNodeToSQLFormat(pStmt->pTagCond, buffer, sizeof(buffer), &outLen, true);
-    if (TSDB_CODE_SUCCESS == code) {
-      pReq->privileges.tagHash = MurmurHash3_32(buffer, outLen);
-    }
-  }
-#endif
   nodesDestroyNode((SNode*)pTable);
   return code;
 }

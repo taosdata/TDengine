@@ -173,6 +173,7 @@ static int32_t tDeserializeSMountObj(void *buf, int32_t bufLen, SMountObj *pObj)
       TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->dbObj[i].name));
     }
   }
+
 _exit:
   tEndDecode(&decoder);
   tDecoderClear(&decoder);

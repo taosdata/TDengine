@@ -29,7 +29,6 @@ void    mndCleanupUser(SMnode *pMnode);
 int32_t mndAcquireUser(SMnode *pMnode, const char *userName, SUserObj **ppUser);
 int32_t mndAcquireUserById(SMnode *pMnode, int64_t userId, SUserObj **ppUser);
 int32_t mndBuildUidNamesHash(SMnode *pMnode, SSHashObj **ppHash);
-void    mndUpdateUser(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq);
 void    mndReleaseUser(SMnode *pMnode, SUserObj *pUser);
 
 int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo);

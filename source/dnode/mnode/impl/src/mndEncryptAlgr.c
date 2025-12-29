@@ -453,6 +453,11 @@ _OVER:
   return numOfRows;
 }
 
+static void mndCancelRetrieveEncryptAlgr(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetchByType(pSdb, pIter, SDB_ENCRYPT_ALGORITHMS);
+}
+
 static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
   SMnode               *pMnode = pReq->info.node;
   int32_t               code = 0;
@@ -717,6 +722,7 @@ int32_t mndInitEncryptAlgr(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ENCRYPT_ALGR, mndProcessCreateEncryptAlgrReq);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS, mndRetrieveEncryptAlgr);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ENCRYPT_STATUS, mndRetrieveEncryptStatus);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS, mndCancelRetrieveEncryptAlgr);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_ENCRYPT_ALGR, mndProcessDropEncryptAlgrReq);
   mndSetMsgHandle(pMnode, TDMT_MND_BUILTIN_ENCRYPT_ALGR, mndProcessBuiltinReq);
   mndSetMsgHandle(pMnode, TDMT_MND_BUILTIN_ENCRYPT_ALGR_RSP, mndProcessBuiltinRsp);

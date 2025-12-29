@@ -1451,7 +1451,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     SDB_SET_INT32(pRaw, dataPos, keyLen, _OVER)
     SDB_SET_BINARY(pRaw, dataPos, key, keyLen, _OVER);
 
-    SDB_SET_INT32(pRaw, dataPos, *useDb, _OVER);
+    SDB_SET_INT32(pRaw, dataPos, *useDb, _OVER)
     useDb = taosHashIterate(pUser->useDbs, useDb);
   }
 #endif
@@ -2224,16 +2224,10 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   pNew->pIpWhiteListDual = NULL;
   pNew->passwords = NULL;
   pNew->objPrivs = NULL;
-  // pNew->topics = NULL;
   pNew->selectTbs = NULL;
   pNew->insertTbs = NULL;
   pNew->updateTbs = NULL;
   pNew->deleteTbs = NULL;
-  // pNew->alterTbs = NULL;
-  // pNew->readViews = NULL;
-  // pNew->writeViews = NULL;
-  // pNew->alterViews = NULL;
-  // pNew->useDbs = NULL;
   pNew->pTimeWhiteList = NULL;
   pNew->roles = NULL;
 
@@ -2244,19 +2238,11 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
     goto _OVER;
   }
   (void)memcpy(pNew->passwords, pUser->passwords, pUser->numOfPasswords * sizeof(SUserPassword));
-  // TAOS_CHECK_GOTO(mndDupDbHash(pUser->readDbs, &pNew->readDbs), NULL, _OVER);
-  // TAOS_CHECK_GOTO(mndDupDbHash(pUser->writeDbs, &pNew->writeDbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupPrivObjHash(pUser->objPrivs, &pNew->objPrivs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->selectTbs, &pNew->selectTbs, false), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->insertTbs, &pNew->insertTbs, false), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->updateTbs, &pNew->updateTbs, false), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->deleteTbs, &pNew->deleteTbs, false), NULL, _OVER);
-  // TAOS_CHECK_GOTO(mndDupTableHash(pUser->alterTbs, &pNew->alterTbs), NULL, _OVER);
-  // TAOS_CHECK_GOTO(mndDupTableHash(pUser->readViews, &pNew->readViews), NULL, _OVER);
-  // TAOS_CHECK_GOTO(mndDupTableHash(pUser->writeViews, &pNew->writeViews), NULL, _OVER);
-  // TAOS_CHECK_GOTO(mndDupTableHash(pUser->alterViews, &pNew->alterViews), NULL, _OVER);
-  // TAOS_CHECK_GOTO(mndDupTopicHash(pUser->topics, &pNew->topics), NULL, _OVER);
-  // TAOS_CHECK_GOTO(mndDupUseDbHash(pUser->useDbs, &pNew->useDbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupRoleHash(pUser->roles, &pNew->roles), NULL, _OVER);
   pNew->pIpWhiteListDual = cloneIpWhiteList(pUser->pIpWhiteListDual);
   if (pNew->pIpWhiteListDual == NULL) {
@@ -2276,16 +2262,6 @@ _OVER:
 }
 
 void mndUserFreeObj(SUserObj *pUser) {
-  // taosHashCleanup(pUser->readDbs);
-  // taosHashCleanup(pUser->writeDbs);
-  // taosHashCleanup(pUser->topics);
-  // taosHashCleanup(pUser->readTbs);
-  // taosHashCleanup(pUser->writeTbs);
-  // taosHashCleanup(pUser->alterTbs);
-  // taosHashCleanup(pUser->readViews);
-  // taosHashCleanup(pUser->writeViews);
-  // taosHashCleanup(pUser->alterViews);
-  // taosHashCleanup(pUser->useDbs);
   taosHashCleanup(pUser->objPrivs);
   taosHashCleanup(pUser->selectTbs);
   taosHashCleanup(pUser->insertTbs);
@@ -2295,16 +2271,6 @@ void mndUserFreeObj(SUserObj *pUser) {
   taosMemoryFreeClear(pUser->passwords);
   taosMemoryFreeClear(pUser->pIpWhiteListDual);
   taosMemoryFreeClear(pUser->pTimeWhiteList);
-  // pUser->readDbs = NULL;
-  // pUser->writeDbs = NULL;
-  // pUser->topics = NULL;
-  // pUser->readTbs = NULL;
-  // pUser->writeTbs = NULL;
-  // pUser->alterTbs = NULL;
-  // pUser->readViews = NULL;
-  // pUser->writeViews = NULL;
-  // pUser->alterViews = NULL;
-  // pUser->useDbs = NULL;
   pUser->objPrivs = NULL;
   pUser->selectTbs = NULL;
   pUser->insertTbs = NULL;
@@ -2351,21 +2317,11 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   (void)memcpy(pOld->salt, pNew->salt, sizeof(pOld->salt));
   (void)memcpy(pOld->totpsecret, pNew->totpsecret, sizeof(pOld->totpsecret));
   pOld->sysPrivs = pNew->sysPrivs;
-  // TSWAP(pOld->readDbs, pNew->readDbs);
-  // TSWAP(pOld->writeDbs, pNew->writeDbs);
-  // TSWAP(pOld->topics, pNew->topics);
-  // TSWAP(pOld->readTbs, pNew->readTbs);
-  // TSWAP(pOld->writeTbs, pNew->writeTbs);
-  // TSWAP(pOld->alterTbs, pNew->alterTbs);
-  // TSWAP(pOld->readViews, pNew->readViews);
-  // TSWAP(pOld->writeViews, pNew->writeViews);
-  // TSWAP(pOld->alterViews, pNew->alterViews);
   TSWAP(pOld->objPrivs, pNew->objPrivs);
   TSWAP(pOld->selectTbs, pNew->selectTbs);
   TSWAP(pOld->insertTbs, pNew->insertTbs);
   TSWAP(pOld->updateTbs, pNew->updateTbs);
   TSWAP(pOld->deleteTbs, pNew->deleteTbs);
-  // TSWAP(pOld->useDbs, pNew->useDbs);
   TSWAP(pOld->roles, pNew->roles);
 
   TSWAP(pOld->pIpWhiteListDual, pNew->pIpWhiteListDual);
@@ -3158,36 +3114,6 @@ _OVER:
 
   tFreeSUpdateIpWhiteReq(&ipWhite);
   TAOS_RETURN(code);
-}
-
-void mndUpdateUser(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq) {
-  int32_t code = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-user");
-  if (pTrans == NULL) {
-    mError("user:%s, failed to update since %s", pUser->user, terrstr());
-    return;
-  }
-  mInfo("trans:%d, used to update user:%s", pTrans->id, pUser->user);
-
-  SSdbRaw *pCommitRaw = mndUserActionEncode(pUser);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return;
-  }
-  code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-  if (code < 0) {
-    mndTransDrop(pTrans);
-    return;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return;
-  }
-
-  mndTransDrop(pTrans);
 }
 
 static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq) {
@@ -4581,7 +4507,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         rows) {
       mInfo(
           "will restore. current num of rows: %d, read dbs %d, write dbs %d, topics %d, read tables %d, write tables "
-          "%d, alter tables %d, SELECT VIEWs %d, write views %d, alter views %d",
+          "%d, alter tables %d, select views %d, write views %d, alter views %d",
           numOfRows, numOfReadDbs, numOfWriteDbs, numOfTopics, numOfReadTbs, numOfWriteTbs, numOfAlterTbs,
           numOfReadViews, numOfWriteViews, numOfAlterViews);
       pShow->restore = true;

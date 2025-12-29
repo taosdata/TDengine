@@ -296,7 +296,7 @@ class TestMountBasic:
         tdSql.query("show mounts")
         tdSql.checkRows(0)
         tdSql.query(f"select * from information_schema.ins_user_privileges where user_name = 'u1'")
-        # tdSql.checkRows(0) -- TODO: drop mount should remove related privileges
+        # tdSql.checkRows(0) -- PRIV_TODO: drop mount should remove related privileges
 
     def s4_recheck_mount_path(self):
         tdLog.info(" =============== step 4 recheck mount path")

@@ -28,7 +28,6 @@ extern "C" {
     if (pColInfo && (code = colDataSetVal(pColInfo, numOfRows, (pData), (isNull))) != 0) { \
       lino = __LINE__;                                                                     \
       if (pObj) sdbRelease(pSdb, (pObj));                                                  \
-      if (pIter) sdbCancelFetch(pSdb, (pIter));                                            \
       goto LABEL;                                                                          \
     }                                                                                      \
   } while (0)
@@ -72,7 +71,6 @@ extern "C" {
     if (pDb) {                                                                           \
       if (dbUid != pDb->uid) {                                                           \
         if (0 != mndCheckDbPrivilege(pMnode, pUser->name, (token), (operType), pDb)) {   \
-          sdbCancelFetch(pSdb, pShow->pIter);                                            \
           sdbRelease(pSdb, (pSdbObj));                                                   \
           goto LABEL;                                                                    \
         }                                                                                \

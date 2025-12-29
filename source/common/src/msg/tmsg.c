@@ -4526,18 +4526,6 @@ _exit:
   return code;
 }
 
-int32_t tSerializeHashString(SEncoder *pEncoder, SHashObj *pHash) {
-  int32_t numOfItems = taosHashGetSize(pHash);
-  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, numOfItems));
-
-  char *item = taosHashIterate(pHash, NULL);
-  while (item != NULL) {
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, item));
-    item = taosHashIterate(pHash, item);
-  }
-  return 0;
-}
-
 int32_t tSerializePrivSysObjPolicies(SEncoder *pEncoder, SPrivSet *sysPriv, SHashObj *pHash) {
   int32_t code = 0, lino = 0;
   TAOS_CHECK_EXIT(tEncodeU8(pEncoder, PRIV_GROUP_CNT));
@@ -10211,7 +10199,6 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->tokenName));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->userId));
   } else {
-    pRsp->timeWhiteListVer = 0;
     pRsp->enableAuditSelect = 0;
     pRsp->enableAuditInsert = 0;
     pRsp->auditLevel = 0;

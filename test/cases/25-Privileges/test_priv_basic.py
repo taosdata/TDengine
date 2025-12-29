@@ -768,7 +768,7 @@ class TestPrivBasic:
             #         "select * from tb;"],
             #     "res": [True, True, True, True, True, False, False]
             # },
-            # "test_db_no_permission_childtable_all": { // TODO: rbac refact
+            # "test_db_no_permission_childtable_all": { // PRIV_TODO: rbac refact
             #     "db_privilege": "none",
             #     "stable_priviege": "none",
             #     "child_table_ct1_privilege": "all",
@@ -967,5 +967,5 @@ class TestPrivBasic:
         """
         self.do_common_user_privileges()
         self.do_grant_multi_tables()
-        # self.do_revoke_privilege() // TODO: rbac refact
+        # self.do_revoke_privilege() // PRIV_TODO: rbac refact
         self.do_user_privilege_all()

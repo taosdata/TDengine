@@ -465,6 +465,8 @@ priv_type(A) ::= STOP.                                                          
 priv_type(A) ::= KILL.                                                            { A = PRIV_SET_TYPE(PRIV_CM_KILL); }
 priv_type(A) ::= RECALCULATE.                                                     { A = PRIV_SET_TYPE(PRIV_CM_RECALC); }
 priv_type(A) ::= SUBSCRIBE.                                                       { A = PRIV_SET_TYPE(PRIV_CM_SUBSCRIBE); }
+priv_type(A) ::= READ.                                                            { A = PRIV_SET_TYPE(PRIV_TYPE_UNKNOWN); }
+priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_TYPE_UNKNOWN); }
 
 priv_type(A) ::= CREATE DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_CREATE); }
 priv_type(A) ::= DROP OWNED DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_DB_DROP_OWNED); }
@@ -634,16 +636,6 @@ priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                 
 priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= topic_name(B).                                                  { A.first = B; A.second = nil_token; }
-
-/*%type between_clause_opt                                                          { SNodeList* }
-%destructor between_clause_opt                                                    { nodesDestroyList($$); }
-between_clause_opt(A) ::= .                                                       { A = NULL; }
-between_clause_opt(A) ::= BETWEEN signed_integer(B) AND signed_integer(C).        { A = createNodeList(pCxt, B);
-                                                                                    A = addNodeToList(pCxt, A, C);
-                                                                                  }
-between_clause_opt(A) ::= BETWEEN NK_STRING(B) AND NK_STRING(C).                  { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B));
-                                                                                    A = addNodeToList(pCxt, A, createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &C));
-                                                                                  }*/
 
 with_clause_opt(A) ::= .                                                          { A = NULL; }
 with_clause_opt(A) ::= WITH search_condition(B).                                  { A = B; }

@@ -31,8 +31,9 @@
 #include "tlockfree.h"
 #include "tname.h"
 
-#define MND_TOPIC_VER_NUMBER   4
-#define MND_TOPIC_RESERVE_SIZE 64
+#define MND_TOPIC_VER_SUPPORT_OWNER 4
+#define MND_TOPIC_VER_NUMBER        MND_TOPIC_VER_SUPPORT_OWNER
+#define MND_TOPIC_RESERVE_SIZE      64
 
 SHashObj *topicsToReload = NULL;
 
@@ -211,7 +212,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   }
   SDB_GET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_DECODE_OVER);
 
-  if (sver < 4) {
+  if (sver < MND_TOPIC_VER_SUPPORT_OWNER) {
     int32_t astLen = 0;
     SDB_GET_INT32(pRaw, dataPos, &astLen, TOPIC_DECODE_OVER);
     if (astLen) {

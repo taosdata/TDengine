@@ -130,8 +130,6 @@ class TestStreamPrivilegesRecalc:
     def grantRead(self):
         tdLog.info(f"grant read privilege to user")
         tdSql.connect("root")
-        # tdSql.execute(f"grant read on {self.dbname} to {self.username1}")
-        # tdSql.execute(f"grant read on {self.dbname2} to {self.username2}")
         tdSql.execute(f"grant select on {self.dbname}.* to {self.username1}")
         tdSql.execute(f"grant select on {self.dbname2}.* to {self.username2}")
 

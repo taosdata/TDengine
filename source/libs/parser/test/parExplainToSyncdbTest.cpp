@@ -30,7 +30,7 @@ TEST_F(ParserExplainToSyncdbTest, explain) {
 
   run("EXPLAIN ANALYZE VERBOSE true RATIO 0.01 SELECT * FROM t1");
 }
-#if 0
+#ifdef PRIV_TODO
 TEST_F(ParserExplainToSyncdbTest, grant) {
   useDb("root", "test");
 
