@@ -1924,7 +1924,7 @@ void testSessionPerUser() {
   }
 
   taos_close(pRootConn);
-  taos_close(pUserConn);u
+  taos_close(pUserConn);
 }
 void testSessionConnTime() {
   int32_t     code = 0;
