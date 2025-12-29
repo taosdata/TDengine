@@ -40,6 +40,7 @@ typedef struct SGroupbyOperatorInfo {
   SGroupResInfo  groupResInfo;
   SExprSupp      scalarSup;
   SOperatorInfo  *pOperator;
+  SLimitInfo     limitInfo;
 } SGroupbyOperatorInfo;
 
 // The sort in partition may be needed later.
@@ -285,7 +286,34 @@ static void doAssignGroupKeys(SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t
   }
 }
 
-static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+static bool addNewGroupForSLimit(SLimitInfo* pLimitInfo) {
+  if (pLimitInfo) {
+    if (pLimitInfo->remainGroupOffset > 0) {
+      pLimitInfo->remainGroupOffset -= 1;
+      return false;
+    } else {
+      pLimitInfo->numOfOutputGroups += 1;
+    }
+  }
+  return true;
+}
+
+static bool isFirstGroupForSLimit(SLimitInfo* pLimitInfo) {
+  if (pLimitInfo) {
+    return pLimitInfo->numOfOutputGroups == 1;
+  }
+  return false;
+}
+
+static bool slimitReached(SLimitInfo* pLimitInfo) {
+  if (pLimitInfo && pLimitInfo->slimit.limit >= 0 &&
+      pLimitInfo->numOfOutputGroups >= pLimitInfo->slimit.limit) {
+    return true;  // limit reached, stop processing further rows
+  }
+  return false;
+}
+
+static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock, SLimitInfo* pLimitInfo) {
   SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
   SGroupbyOperatorInfo* pInfo = pOperator->info;
 
@@ -308,6 +336,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
       pInfo->isInit = true;
+      if(!addNewGroupForSLimit(pLimitInfo)) continue;
       num++;
       continue;
     }
@@ -318,17 +347,33 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       continue;
     }
 
+    if (slimitReached(pLimitInfo)) {
+      break;  // limit reached, stop processing further rows
+    }
+
     // The first row of a new block does not belongs to the previous existed group
     if (j == 0) {
-      num++;
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
       if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
+      if(!addNewGroupForSLimit(pLimitInfo)) continue;
+      num++;
       continue;
     }
 
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
+
+    if(!addNewGroupForSLimit(pLimitInfo)) continue;
+
+    // the new group is found, set the result output buffer for the previous group
+    // if this new group is the first group, it means the previous group need be skipped by soffset
+    // but the num is still needed to be updated for new group
+    if (isFirstGroupForSLimit(pLimitInfo)) {
+      num = 1;
+      continue;
+    }
+
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
                                           len, pBlock->info.id.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
@@ -348,6 +393,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     num = 1;
   }
 
+  // the last group data will set result after all rows are processed, be set here
   if (num > 0) {
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
@@ -462,7 +508,12 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     return code;
   }
 
+  SLimitInfo* pLimitInfo = &pInfo->limitInfo;
+
   while (1) {
+    if (slimitReached(pLimitInfo)) {
+      break;
+    }
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       break;
@@ -481,7 +532,7 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    doHashGroupbyAgg(pOperator, pBlock);
+    doHashGroupbyAgg(pOperator, pBlock, pLimitInfo);
   }
 
   pOperator->status = OP_RES_TO_RETURN;
@@ -535,6 +586,8 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
     goto _error;
   }
   initBasicInfo(&pInfo->binfo, pResBlock);
+
+  initLimitInfo(pAggNode->node.pLimit, pAggNode->node.pSlimit, &pInfo->limitInfo);
 
   pInfo->pGroupCols = NULL;
   code = extractColumnInfo(pAggNode->pGroupKeys, &pInfo->pGroupCols);
