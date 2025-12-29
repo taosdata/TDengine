@@ -30,6 +30,7 @@ target_include_directories(
   PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
   PUBLIC "${TD_SOURCE_DIR}/source/libs/totp/inc"
+  PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/privilege/inc"
 )
 
 if(TD_ENTERPRISE)
