@@ -173,24 +173,21 @@ class Test_IDMP_Meters:
             # "grant write on db3        to user1",
             # "grant write on db3_out    to user1",
             # db1 all
-            "grant insert,select on db1.* to user1",
-            "grant create stream on db1.* to user1",
+            "grant all on db1.* to user1",
+            "grant create stream on database db1 to user1",
             "grant use on database db1 to user1",
-            "grant select,insert on db1_out.* to user1",
-            "grant create stream on db1_out.* to user1",
+            "grant all on db1_out.* to user1",
             "grant use,create table on database db1_out to user1",
             # db2 read
-            "grant select  on db2.*        to user1",
+            "grant select on db2.* to user1",
             "grant use on database db2 to user1",
-            "grant select  on db2_out.*    to user1",
+            "grant select  on db2_out.* to user1",
             "grant use on database db2_out to user1",
             # db3 write
-            "grant insert on db3.*        to user1",
-            "grant use on database db3 to user1",
-            "grant create stream on db3.* to user1",
+            "grant insert on db3.* to user1",
+            "grant use,create stream on database db3 to user1",
             "grant insert on db3_out.*    to user1",
             "grant use,create table on database db3_out to user1",
-            "grant create stream on db3_out.* to user1",
         ]
 
         self.execs(sqls)

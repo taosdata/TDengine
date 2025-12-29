@@ -427,10 +427,13 @@ static int32_t authCreateStream(SAuthCxt* pCxt, SCreateStreamStmt* pStmt) {
   }
 
   PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->streamDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB));
+  PAR_ERR_RET(
+      authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->streamDbName, NULL, PRIV_STREAM_CREATE, PRIV_OBJ_DB));
   PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->targetDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB));
   PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->targetDbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
-  // TODO: check PRIV_STREAM_CREATE on db.table
-
+  if (pStmt->pQuery) {
+    PAR_ERR_RET(authSelect(pCxt, (SSelectStmt*)pStmt->pQuery));
+  }
   return code;
 }
 

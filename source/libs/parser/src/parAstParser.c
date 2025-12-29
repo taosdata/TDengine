@@ -791,6 +791,8 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
   }
   PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->streamDbName, NULL,
                                      PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache));
+  PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->streamDbName, NULL,
+                                     PRIV_STREAM_CREATE, PRIV_OBJ_DB, pCxt->pMetaCache));
   PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->targetDbName, NULL,
                                      PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache));
   PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->targetDbName, NULL,
