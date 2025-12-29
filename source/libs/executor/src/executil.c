@@ -1889,10 +1889,11 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
     qDebug("pUidTagList size:%d", (int32_t)taosArrayGetSize(pUidTagList));
 
     FilterCondType condType = checkTagCond(pTagCond);
-    if ((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) {   // use tagIndex and operator is and
+    if (((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) || // (super table) use tagIndex and operator is and
+        (status == SFLT_NOT_INDEX && taosArrayGetSize(pUidTagList) > 0)) {                       // (child table with tagCond)
       code = pAPI->metaFn.getTableTagsByUid(pVnode, pListInfo->idInfo.suid, pUidTagList);
     } else {
-      taosArrayClear(pUidTagList);
+      taosArrayClear(pUidTagList);        // clear tablelist if using tagIndex and or condition
       code = pAPI->metaFn.getTableTags(pVnode, pListInfo->idInfo.suid, pUidTagList);
     }
     if (code != TSDB_CODE_SUCCESS) {

@@ -1806,7 +1806,7 @@ end:
 
 static int32_t doFilterTableByTagCond(void* pVnode, void* pListInfo, SArray* pUidList, SNode* pTagCond, SStorageAPI* pStorageAPI){
   bool   listAdded = false;
-  int32_t code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, SFLT_NOT_INDEX,pStorageAPI, true, &listAdded, NULL);
+  int32_t code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, true, &listAdded, NULL);
   if (code == 0 && !listAdded) {
     int32_t numOfTables = taosArrayGetSize(pUidList);
     for (int i = 0; i < numOfTables; i++) {
