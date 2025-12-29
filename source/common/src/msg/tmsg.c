@@ -10001,7 +10001,7 @@ int32_t tSerializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->totpCode));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->token));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->connectTime));
-  TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pReq->signature, sizeof(pReq->signature)));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->signature, sizeof(pReq->signature)));
   tEndEncode(&encoder);
 
 _exit:
@@ -10042,7 +10042,7 @@ int32_t tDeserializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->totpCode));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->token));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->connectTime));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->signature));
+  TAOS_CHECK_EXIT(tDecodeBinaryTo(&decoder, pReq->signature, sizeof(pReq->signature)));
 
   tEndDecode(&decoder);
 
