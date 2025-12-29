@@ -187,6 +187,8 @@ const char* nodesNodeName(ENodeType type) {
       return "AlterDnodeStmt";
     case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
       return "AlterDnodesReloadTLSStmt";
+    case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
+      return "AlterEncryptKeyStmt";
     case QUERY_NODE_CREATE_INDEX_STMT:
       return "CreateIndexStmt";
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -258,6 +260,12 @@ const char* nodesNodeName(ENodeType type) {
       return "SetVgroupKeepVersionStmt";
     case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
       return "TrimDbWalStmt";
+    case QUERY_NODE_CREATE_TOKEN_STMT:
+      return "CreateTokenStmt";
+    case QUERY_NODE_ALTER_TOKEN_STMT:
+      return "AlterTokenStmt";
+    case QUERY_NODE_DROP_TOKEN_STMT:
+      return "DropTokenStmt";
     case QUERY_NODE_MERGE_VGROUP_STMT:
       return "MergeVgroupStmt";
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
@@ -377,6 +385,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowMountsStmt";
     case QUERY_NODE_SHOW_SSMIGRATES_STMT:
       return "ShowSSMigratesStmt";
+    case QUERY_NODE_SHOW_TOKENS_STMT:
+      return "ShowTokensStmt";
     case QUERY_NODE_SHOW_RSMAS_STMT:
       return "ShowRsmasStmt";
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
@@ -387,6 +397,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowRetentionDetailsStmt";
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
       return "ShowEncryptAlgorithmsStmt";
+    case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
+      return "ShowEncryptStatusStmt";
     case QUERY_NODE_DELETE_STMT:
       return "DeleteStmt";
     case QUERY_NODE_INSERT_STMT:
@@ -2306,6 +2318,7 @@ static const char* jkTableScanPhysiPlanExtStartKey = "ExtStartKey";
 static const char* jkTableScanPhysiPlanExtEndKey = "ExtEndKey";
 static const char* jkTableScanPhysiPlanTimeRangeExpr = "TimeRangeExpr";
 static const char* jkTableScanPhysiPlanExtTimeRangeExpr = "ExtTimeRangeExpr";
+static const char* jkTableScanPhysiPlanPrimCondExpr = "PrimCondExpr";
 static const char* jkTableScanPhysiPlanRatio = "Ratio";
 static const char* jkTableScanPhysiPlanDataRequired = "DataRequired";
 static const char* jkTableScanPhysiPlanDynamicScanFuncs = "DynamicScanFuncs";
@@ -2355,6 +2368,9 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkTableScanPhysiPlanExtTimeRangeExpr, nodeToJson, pNode->pExtTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkTableScanPhysiPlanPrimCondExpr, nodeToJson, pNode->pPrimaryCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddDoubleToObject(pJson, jkTableScanPhysiPlanRatio, pNode->ratio);
@@ -2462,6 +2478,9 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkTableScanPhysiPlanExtTimeRangeExpr, &pNode->pExtTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkTableScanPhysiPlanPrimCondExpr, &pNode->pPrimaryCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetDoubleValue(pJson, jkTableScanPhysiPlanRatio, &pNode->ratio);
@@ -8840,6 +8859,31 @@ static int32_t jsonToAlterLocalStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkAlterEncryptKeyStmtKeyType = "KeyType";
+static const char* jkAlterEncryptKeyStmtNewKey = "NewKey";
+
+static int32_t alterEncryptKeyStmtToJson(const void* pObj, SJson* pJson) {
+  const SAlterEncryptKeyStmt* pNode = (const SAlterEncryptKeyStmt*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkAlterEncryptKeyStmtKeyType, pNode->keyType);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkAlterEncryptKeyStmtNewKey, pNode->newKey);
+  }
+
+  return code;
+}
+
+static int32_t jsonToAlterEncryptKeyStmt(const SJson* pJson, void* pObj) {
+  SAlterEncryptKeyStmt* pNode = (SAlterEncryptKeyStmt*)pObj;
+
+  int32_t code = tjsonGetTinyIntValue(pJson, jkAlterEncryptKeyStmtKeyType, &pNode->keyType);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkAlterEncryptKeyStmtNewKey, pNode->newKey);
+  }
+
+  return code;
+}
+
 static const char* jkExplainStmtAnalyze = "Analyze";
 static const char* jkExplainStmtOptions = "Options";
 static const char* jkExplainStmtQuery = "Query";
@@ -9878,6 +9922,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return alterDnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
       return alterDnodeStmtToJson(pObj, pJson);
+    case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
+      return alterEncryptKeyStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_INDEX_STMT:
       return createIndexStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -10044,6 +10090,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_SHOW_RETENTION_DETAILS_STMT:
       return showRsmasStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
+      return showStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
       return showStmtToJson(pObj, pJson);
     case QUERY_NODE_DELETE_STMT:
       return deleteStmtToJson(pObj, pJson);
@@ -10321,6 +10369,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToAlterDnodeStmt(pJson, pObj);
     case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
       return jsonToAlterDnodeStmt(pJson, pObj);
+    case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
+      return jsonToAlterEncryptKeyStmt(pJson, pObj);
     case QUERY_NODE_CREATE_INDEX_STMT:
       return jsonToCreateIndexStmt(pJson, pObj);
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -10436,6 +10486,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
       return jsonToShowEncryptionsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
+      return jsonToShowStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
       return jsonToShowStmt(pJson, pObj);
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       return jsonToShowDnodeVariablesStmt(pJson, pObj);

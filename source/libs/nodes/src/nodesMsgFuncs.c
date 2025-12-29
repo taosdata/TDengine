@@ -2517,7 +2517,8 @@ enum {
   PHY_TABLE_SCAN_CODE_SUBTABLE,
   PHY_TABLE_SCAN_CODE_TIME_RANGE_EXPR,
   PHY_TABLE_SCAN_CODE_EXT_SCAN_RANGE,
-  PHY_TABLE_SCAN_CODE_EXT_TIME_RANGE_EXPR
+  PHY_TABLE_SCAN_CODE_EXT_TIME_RANGE_EXPR,
+  PHY_TABLE_SCAN_CODE_PRIM_COND_EXPR,
 };
 
 static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2614,6 +2615,9 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_EXT_TIME_RANGE_EXPR, nodeToMsg, pNode->pExtTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_PRIM_COND_EXPR, nodeToMsg, pNode->pPrimaryCond);
   }
 
   return code;
@@ -2724,6 +2728,9 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_TABLE_SCAN_CODE_EXT_TIME_RANGE_EXPR:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pExtTimeRange);
+        break;
+      case PHY_TABLE_SCAN_CODE_PRIM_COND_EXPR:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pPrimaryCond);
         break;
       default:
         break;

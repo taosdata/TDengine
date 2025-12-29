@@ -4750,7 +4750,7 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
+int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict, bool* hasRemoteNode) {
   SFilterInfo *info = NULL;
   int32_t      code = 0;
 
@@ -4795,6 +4795,10 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
   FLT_ERR_JRET(filterGetTimeRangeImpl(info, win, isStrict));
 
 _return:
+
+  if (hasRemoteNode && info && !(*isStrict)) {
+    *hasRemoteNode = info->hasRemoteNode;
+  }
 
   filterFreeInfo(info);
 
@@ -4951,6 +4955,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
 
   if (QUERY_NODE_REMOTE_VALUE == nodeType(*pNode) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(*pNode)) {
     stat->scalarMode = true;
+    stat->info->hasRemoteNode = true;
     return DEAL_RES_CONTINUE;
   }
 

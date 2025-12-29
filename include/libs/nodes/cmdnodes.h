@@ -66,6 +66,9 @@ extern "C" {
 
 #define SHOW_ALIVE_RESULT_COLS 1
 
+#define CREATE_USER_TOKEN_RESULT_COLS       1
+#define CREATE_USER_TOKEN_RESULT_FIELD1_LEN (TSDB_TOKEN_LEN + VARSTR_HEADER_SIZE)
+
 #define BIT_FLAG_MASK(n)               (1 << n)
 #define BIT_FLAG_SET_MASK(val, mask)   ((val) |= (mask))
 #define BIT_FLAG_UNSET_MASK(val, mask) ((val) &= ~(mask))
@@ -481,7 +484,7 @@ typedef struct SCreateUserStmt {
   char      password[TSDB_USER_PASSWORD_LONGLEN];
   char      totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
 
-  int8_t ignoreExisting;
+  int8_t  ignoreExists;
   int8_t sysinfo;
   int8_t createDb;
   int8_t isImport;
@@ -528,6 +531,46 @@ typedef struct SDropUserStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
 } SDropUserStmt;
+
+typedef struct STokenOptions {
+  ENodeType type;
+
+  bool hasEnable;
+  bool hasTtl;
+  bool hasProvider;
+  bool hasExtraInfo;
+
+  int8_t  enable;
+  int32_t ttl;
+  char    provider[TSDB_TOKEN_PROVIDER_LEN];
+  char    extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+} STokenOptions;
+
+typedef struct SCreateTokenStmt {
+  ENodeType type;
+
+  char    name[TSDB_TOKEN_NAME_LEN];
+  char    user[TSDB_USER_LEN];
+  int8_t  enable;
+  int8_t  ignoreExists;
+  int32_t ttl;
+  char    provider[TSDB_TOKEN_PROVIDER_LEN];
+  char    extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+} SCreateTokenStmt;
+
+typedef struct SAlterTokenStmt {
+  ENodeType type;
+
+  char           name[TSDB_TOKEN_NAME_LEN];
+  STokenOptions* pTokenOptions;
+} SAlterTokenStmt;
+
+typedef struct SDropTokenStmt {
+  ENodeType type;
+
+  char      name[TSDB_TOKEN_NAME_LEN];
+} SDropTokenStmt;
+
 
 typedef struct SDropEncryptAlgrStmt {
   ENodeType type;
@@ -691,6 +734,10 @@ typedef struct SShowSsMigratesStmt {
   ENodeType type;
 } SShowSsMigratesStmt;
 
+typedef struct SShowTokensStmt {
+  ENodeType type;
+} SShowTokensStmt;
+
 typedef struct SShowTransactionDetailsStmt {
   ENodeType type;
   SNode*    pTransactionId;
@@ -780,6 +827,12 @@ typedef struct SAlterLocalStmt {
   char      config[TSDB_DNODE_CONFIG_LEN];
   char      value[TSDB_DNODE_VALUE_LEN];
 } SAlterLocalStmt;
+
+typedef struct SAlterEncryptKeyStmt {
+  ENodeType type;
+  int8_t    keyType;  // 0: SVR_KEY, 1: DB_KEY
+  char      newKey[ENCRYPT_KEY_LEN + 1];
+} SAlterEncryptKeyStmt;
 
 typedef struct SDescribeStmt {
   ENodeType   type;

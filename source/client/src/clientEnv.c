@@ -38,8 +38,8 @@
 #include "ttime.h"
 #include "tversion.h"
 
-#include "cus_name.h"
 #include "clientSession.h"
+#include "cus_name.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -363,7 +363,7 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   rpcInit.rfp = clientRpcRfp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.user = (char *)user;
+  rpcInit.user = (char *)(user ? user : auth);
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.dfp = destroyAhandle;
@@ -384,6 +384,7 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   rpcInit.ipv6 = tsEnableIpv6;
   rpcInit.enableSSL = tsEnableTLS;
   rpcInit.enableSasl = tsEnableSasl;
+  rpcInit.isToken = user == NULL ? 1 : 0;
 
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
   memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
@@ -518,8 +519,15 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
   (*pObj)->connType = connType;
   (*pObj)->pAppInfo = pAppInfo;
   (*pObj)->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
-  tstrncpy((*pObj)->user, user, sizeof((*pObj)->user));
-  (void)memcpy((*pObj)->pass, auth, TSDB_PASSWORD_LEN);
+  if (user == NULL) {
+    (*pObj)->user[0] = 0;
+    (*pObj)->pass[0] = 0;
+    tstrncpy((*pObj)->token, auth, sizeof((*pObj)->token));
+  } else {
+    tstrncpy((*pObj)->user, user, sizeof((*pObj)->user));
+    (void)memcpy((*pObj)->pass, auth, TSDB_PASSWORD_LEN);
+  }
+  (*pObj)->tokenName[0] = 0;
 
   if (db != NULL) {
     tstrncpy((*pObj)->db, db, tListLen((*pObj)->db));

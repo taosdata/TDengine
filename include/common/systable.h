@@ -45,6 +45,7 @@ extern "C" {
 #define TSDB_INS_TABLE_TABLE_DISTRIBUTED   "ins_table_distributed"
 #define TSDB_INS_TABLE_USERS               "ins_users"
 #define TSDB_INS_TABLE_USERS_FULL          "ins_users_full"
+#define TSDB_INS_TABLE_TOKENS              "ins_tokens"
 #define TSDB_INS_TABLE_LICENCES            "ins_grants"
 #define TSDB_INS_TABLE_VGROUPS             "ins_vgroups"
 #define TSDB_INS_TABLE_VNODES              "ins_vnodes"
@@ -75,6 +76,7 @@ extern "C" {
 #define TSDB_INS_TABLE_RETENTIONS          "ins_retentions"
 #define TSDB_INS_TABLE_RETENTION_DETAILS   "ins_retention_details"
 #define TSDB_INS_TABLE_ENCRYPT_ALGORITHMS  "ins_encrypt_algorithms"
+#define TSDB_INS_TABLE_ENCRYPT_STATUS      "ins_encrypt_status"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "perf_smas"

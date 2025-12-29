@@ -26,6 +26,13 @@ static inline void dmSendRsp(SRpcMsg *pMsg) {
   }
 }
 
+static char *getUserFromConnInfo(SRpcConnInfo *pConnInfo) {
+  if (pConnInfo == NULL) {
+    return "unknown";
+  }
+  return pConnInfo->isToken ? pConnInfo->identifier : pConnInfo->user;
+}
+
 static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   SEpSet epSet = {0};
   dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &epSet);
@@ -118,7 +125,7 @@ static int32_t dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) 
     return TSDB_CODE_IP_NOT_IN_WHITE_LIST;
 
   } else if (IP_FORBIDDEN_CHECK_DATA_TIME_WHITE_LIST(forbidden)) {
-    dError("User:%s host:%s alread expired", user, IP_ADDR_STR(clientIp));
+    dError("User:%s host:%s already expired", user, IP_ADDR_STR(clientIp));
     return TSDB_CODE_MND_USER_DISABLED;
   } else {
     return 0;
@@ -175,7 +182,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  code = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, &pRpc->info.conn.cliAddr);
+  code = dmIsForbiddenIp(pRpc->info.forbiddenIp, RPC_MSG_USER(pRpc), &pRpc->info.conn.cliAddr);
   if (code != 0) {
     goto _OVER;
   }

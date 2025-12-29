@@ -23,6 +23,9 @@
 extern "C" {
 #endif
 
+#define STR_NATIVE    "native"
+#define STR_WEBSOCKET "websocket"
+
 typedef enum {
   DRIVER_NATIVE = 0,
   DRIVER_WEBSOCKET = 1,
@@ -32,6 +35,7 @@ typedef enum {
 extern EDriverType tsDriverType;
 extern void       *tsDriver;
 
+extern void    taosDriverEnvInit(void);
 extern int32_t taosDriverInit(EDriverType driverType);
 extern void    taosDriverCleanup();
 
@@ -126,6 +130,7 @@ extern TAOS_ROW *(*fp_taos_result_block)(TAOS_RES *res);
 extern const char *(*fp_taos_get_server_info)(TAOS *taos);
 extern const char *(*fp_taos_get_client_info)();
 extern int (*fp_taos_get_current_db)(TAOS *taos, char *database, int len, int *required);
+extern int (*fp_taos_get_connection_info)(TAOS *taos, TSDB_CONNECTION_INFO info, char *buffer, int* len);
 
 extern const char *(*fp_taos_errstr)(TAOS_RES *res);
 extern int (*fp_taos_errno)(TAOS_RES *res);

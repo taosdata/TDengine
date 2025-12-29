@@ -245,6 +245,7 @@ typedef enum ELogicConditionType {
 #define TSDB_INT32_ID_LEN 11
 
 #define TSDB_NAME_DELIMITER_LEN 1
+#define TSDB_NAME_QUOTE         2
 
 #define TSDB_UNI_LEN  24
 #define TSDB_USER_LEN TSDB_UNI_LEN
@@ -263,6 +264,11 @@ typedef enum ELogicConditionType {
 #define TSDB_NODE_NAME_LEN            64
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
+#define TSDB_TOKEN_NAME_LEN           32                                 // it is a null-terminated string
+#define TSDB_TOKEN_LEN                64                                 // it is a null-terminated string
+#define TSDB_TOKEN_EXPIRY_LEEWAY      30                                 // in seconds
+#define TSDB_TOKEN_PROVIDER_LEN       64                                 // it is a null-terminated string
+#define TSDB_TOKEN_EXTRA_INFO_LEN     1024                               // it is a null-terminated string
 #define TSDB_CGROUP_LEN               193                                // it is a null-terminated string
 #define TSDB_CLIENT_ID_LEN            256                                // it is a null-terminated string
 #define TSDB_CONSUMER_ID_LEN          32                                 // it is a null-terminated string
@@ -275,8 +281,6 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_FNAME_LEN             (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_PRIVILEDGE_CONDITION_LEN 48 * 1024
 #define TSDB_PRIVILEDGE_HOST_LEN      48 * 1024
-//todo dmchen
-#define AUDIT_TOKEN_LEN 1000
 
 #define TSDB_FUNC_NAME_LEN       65
 #define TSDB_FUNC_COMMENT_LEN    1024 * 1024
@@ -672,7 +676,7 @@ typedef enum ELogicConditionType {
 
 enum { TRANS_STAT_INIT = 0, TRANS_STAT_EXECUTING, TRANS_STAT_EXECUTED, TRANS_STAT_ROLLBACKING, TRANS_STAT_ROLLBACKED };
 enum { TRANS_OPER_INIT = 0, TRANS_OPER_EXECUTE, TRANS_OPER_ROLLBACK };
-enum { ENCRYPT_KEY_STAT_UNKNOWN = 0, ENCRYPT_KEY_STAT_UNSET, ENCRYPT_KEY_STAT_SET, ENCRYPT_KEY_STAT_LOADED };
+enum { ENCRYPT_KEY_STAT_UNKNOWN = 0, ENCRYPT_KEY_STAT_UNSET, ENCRYPT_KEY_STAT_SET, ENCRYPT_KEY_STAT_LOADED, ENCRYPT_KEY_STAT_NOT_EXIST };
 
 typedef struct {
   char    dir[TSDB_FILENAME_LEN];

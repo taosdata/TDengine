@@ -179,6 +179,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_SLIDING_OFFSET,   "Invalid sliding offse
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_INTERVAL_OFFSET,  "Invalid interval offset")
 TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS,    "Operation not supported in windows")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TOTP_CODE,        "Invalid TOTP code")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TOKEN,            "Invalid token")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SESS_PER_USER_LIMIT,         "reached the maximum sessions per user limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SESS_CONN_TIMEOUT,           "reached the maximum connection timeout limit")
@@ -229,6 +230,15 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ACCT_OPTION,      "Invalid account optio
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_EXPIRED,             "Account authorization has expired")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ACCT_NOT_EXIST,           "Invalid account")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_ACCTS,           "Too many accounts")
+
+// mnode-token
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOKEN_NOT_AVAILABLE,       "Token not available")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOKEN_NOT_EXIST,           "Token not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOKEN_ALREADY_EXIST,       "Token already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TOKENS,           "Too many tokens")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOKEN_NAME,        "Invalid token name")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOKEN_EXPIRED,             "Token expired")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOKEN_DISABLED,            "Token disabled")
 
 // mnode-user
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_ALREADY_EXIST,       "User already exists")

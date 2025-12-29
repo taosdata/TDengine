@@ -2161,23 +2161,41 @@ EDealRes sclRewriteCaseWhen(SNode **pNode, SScalarCtx *ctx) {
   return DEAL_RES_CONTINUE;
 }
 
+EDealRes sclRewriteRemoteValue(SNode **pNode, SScalarCtx *ctx) {
+  SRemoteValueNode *node = (SRemoteValueNode *)*pNode;
+
+  if (NULL == ctx->pSubJobCtx) {
+    sclError("no subJob ctx for subQIdx %d", node->subQIdx);
+    return DEAL_RES_ERROR;
+  }
+  
+  ctx->code = (*ctx->fetchFp)(ctx->pSubJobCtx, node->subQIdx, node);
+  if (ctx->code) {
+    return DEAL_RES_ERROR;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
 EDealRes sclConstantsRewriter(SNode **pNode, void *pContext) {
   SScalarCtx *ctx = (SScalarCtx *)pContext;
 
-  if (QUERY_NODE_OPERATOR == nodeType(*pNode)) {
-    return sclRewriteOperator(pNode, ctx);
-  }
-
-  if (QUERY_NODE_FUNCTION == nodeType(*pNode)) {
-    return sclRewriteFunction(pNode, ctx);
-  }
-
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pNode)) {
-    return sclRewriteLogic(pNode, ctx);
-  }
-
-  if (QUERY_NODE_CASE_WHEN == nodeType(*pNode)) {
-    return sclRewriteCaseWhen(pNode, ctx);
+  switch (nodeType(*pNode)) {
+    case QUERY_NODE_OPERATOR:
+      return sclRewriteOperator(pNode, ctx);
+    case QUERY_NODE_FUNCTION:
+      return sclRewriteFunction(pNode, ctx);
+    case QUERY_NODE_LOGIC_CONDITION:
+      return sclRewriteLogic(pNode, ctx);
+    case QUERY_NODE_CASE_WHEN:
+      return sclRewriteCaseWhen(pNode, ctx);
+    case QUERY_NODE_REMOTE_VALUE:
+      if (ctx->remoteIncluded) {
+        return sclRewriteRemoteValue(pNode, ctx);
+      }
+      //FALL THROUGH
+    default:
+      break;
   }
 
   return DEAL_RES_CONTINUE;
@@ -2388,7 +2406,7 @@ EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
   return DEAL_RES_ERROR;
 }
 
-int32_t sclCalcConstants(SNode *pNode, bool dual, SNode **pRes) {
+int32_t sclCalcConstants(SNode *pNode, bool dual, bool remoteIncluded, SNode **pRes, SScalarExtraInfo* pExtra) {
   if (NULL == pNode) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -2396,12 +2414,20 @@ int32_t sclCalcConstants(SNode *pNode, bool dual, SNode **pRes) {
   int32_t    code = 0;
   SScalarCtx ctx = {0};
   ctx.dual = dual;
+  ctx.remoteIncluded = remoteIncluded;
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
     sclError("taosHashInit failed, num:%d", SCL_DEFAULT_OP_NUM);
     SCL_ERR_RET(terrno);
   }
 
+  if (NULL != pExtra) {
+    ctx.stream.pStreamRuntimeFuncInfo = pExtra->pStreamInfo;
+    ctx.stream.streamTsRange = pExtra->pStreamRange;
+    ctx.pSubJobCtx = pExtra->pSubJobCtx;
+    ctx.fetchFp = pExtra->fp;
+  }
+  
   nodesRewriteExprPostOrder(&pNode, sclConstantsRewriter, (void *)&ctx);
   SCL_ERR_JRET(ctx.code);
   *pRes = pNode;
@@ -2551,9 +2577,15 @@ int32_t scalarConvertOpValueNodeTs(SOperatorNode *node) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, false, pRes); }
+int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, false, false, pRes, NULL); }
 
-int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, true, pRes); }
+int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, true, false, pRes, NULL); }
+
+int32_t scalarCalculateRemoteConstants(SNode *pNode, SNode **pRes) { 
+  gTaskScalarExtra.pStreamInfo = NULL;
+  gTaskScalarExtra.pStreamRange = NULL;
+  return sclCalcConstants(pNode, false, true, pRes, &gTaskScalarExtra); 
+}
 
 int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, SScalarExtraInfo* pExtra) {
   return scalarCalculateInRange(pNode, pBlockList, pDst, -1, -1, pExtra);
