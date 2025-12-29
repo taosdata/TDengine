@@ -160,6 +160,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   pTscObj->passInfo.ver = connectRsp.passVer;
   pTscObj->authVer = connectRsp.authVer;
   pTscObj->whiteListInfo.ver = connectRsp.whiteListVer;
+  pTscObj->userId = connectRsp.userId;
 
   if (taosHashGet(appInfo.pInstMapByClusterId, &connectRsp.clusterId, LONG_BYTES) == NULL) {
     if (taosHashPut(appInfo.pInstMapByClusterId, &connectRsp.clusterId, LONG_BYTES, &pTscObj->pAppInfo,
