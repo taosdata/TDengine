@@ -100,6 +100,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
   qTaskInfo_t    taskHandle = ctx->taskHandle;
   DataSinkHandle sinkHandle = ctx->sinkHandle;
   SLocalFetch    localFetch = {(void *)mgmt, ctx->localExec, qWorkerProcessLocalFetch, ctx->explainRes};
+  bool           locked = false;
 
   if (ctx->queryExecDone) {
     if (queryStop) {
@@ -166,6 +167,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
         are using it
       */
       QW_LOCK(QW_WRITE, &ctx->lock);
+      locked = true;
       if (!ctx->dynamicTask) {
         if (numOfResBlock == 0) {
           QW_TASK_DLOG("qExecTask end with empty res, useconds:%" PRIu64, useconds);
@@ -184,6 +186,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
         ctx->queryExecDone = true;
       }
       QW_UNLOCK(QW_WRITE, &ctx->lock);
+      locked = false;
 
       QW_SINK_ENABLE_MEMPOOL(ctx);
       dsEndPut(sinkHandle, useconds);
@@ -220,6 +223,10 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
 _return:
 
   taosArrayDestroy(pResList);
+  
+  if (locked) {
+    QW_UNLOCK(QW_WRITE, &ctx->lock);
+  }
 
   if (TSDB_CODE_SUCCESS != code) {
     qwFreeTaskHandle(ctx);
@@ -1287,10 +1294,10 @@ int32_t qwProcessNotifyUnfinished(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   if (QW_QUERY_RUNNING(ctx)) {
     switch (qwMsg->msgType) {
       case TASK_NOTIFY_STEP_DONE: {
-        if (ctx->taskHandle != NULL) {
+        qTaskInfo_t taskHandle = atomic_load_ptr(&ctx->taskHandle);
+        if (taskHandle != NULL) {
           STaskNotifyReq* pNotifyReq = (STaskNotifyReq*)qwMsg->msg;
-          QW_ERR_JRET(notifyTableScanTask(ctx->taskHandle,
-                                          pNotifyReq->pOpParam));
+          QW_ERR_JRET(notifyTableScanTask(taskHandle, pNotifyReq->pOpParam));
         }
         break;
       }
