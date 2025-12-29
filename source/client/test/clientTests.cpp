@@ -1849,7 +1849,7 @@ void testSessionPerUser() {
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
     taos_free_result(pRes);
 
-    taosMsleep(6 * 1000);
+    taosMsleep(3100);
     for (int32_t i = 0; i < 10; i++) {
       TAOS* pUserConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
       // ASSERT_NE(pUserConn, nullptr);
@@ -1868,7 +1868,7 @@ void testSessionPerUser() {
 
     taosArrayDestroy(p);
     {
-      taosMsleep(6 * 1000);
+      taosMsleep(3100);
       TAOS* pUserConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
       ASSERT_NE(pUserConn, nullptr);
       taos_close(pUserConn);
@@ -1952,10 +1952,11 @@ void testSessionConnTime() {
     char sql[128] = {0};
     sprintf(sql, "alter user root connect_time 1");
     TAOS_RES* pRes = taos_query(pConn, sql);
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
     taos_free_result(pRes);
   }
 
-  taosMsleep(1000 * 70);
+  taosMsleep(61000);
   {
     char sql[128] = {0};
     sprintf(sql, "select * from %s.%s", databName, rstb);
@@ -1997,7 +1998,7 @@ void testSessionConnIdleTime() {
     taos_free_result(pRes);
   }
 
-  taosMsleep(70 * 1000);
+  taosMsleep(61000);
   {
     char sql[128] = {0};
     sprintf(sql, "select * from %s.%s", databName, rstb);
@@ -2035,7 +2036,7 @@ void testSessionMaxVnodeCall() {
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
-  taosMsleep(4000);
+  taosMsleep(3100);
 
   sprintf(sql, "alter user root CALL_PER_SESSION 1023");
   pRes = taos_query(pConn, sql);
@@ -2064,7 +2065,7 @@ void testSessionConncurentCall() {
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
-  taosMsleep(4000);
+  taosMsleep(3100);
 
   sprintf(sql, "select * from %s.%s", db, stb);
   pRes = taos_query(pConn, sql);
@@ -2075,7 +2076,7 @@ void testSessionConncurentCall() {
   pRes = taos_query(pConn, sql);
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
-  taosMsleep(4000);
+  taosMsleep(3100);
 
   taos_close(pConn);
 }
