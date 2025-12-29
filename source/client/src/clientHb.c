@@ -37,7 +37,9 @@ SClientHbMgr clientHbMgr = {0};
 
 static int32_t hbCreateThread();
 static void    hbStopThread();
+static int32_t hbUpdateUserSessMertric(const char *user, SUserSessCfg *pCfg);
 static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *batchRsp);
+
 static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog,
                                         SAppHbMgr *pAppHbMgr) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -57,6 +59,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
     tscDebug("hb to update user auth, user:%s, version:%d", rsp->user, rsp->version);
 
     TSC_ERR_JRET(catalogUpdateUserAuthInfo(pCatalog, rsp));
+    TSC_ERR_JRET(hbUpdateUserSessMertric(rsp->user, &rsp->sessCfg));
   }
 
   if (numOfBatchs > 0) {
