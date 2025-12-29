@@ -451,7 +451,7 @@ HTTP request headers must contain identity authentication information. For Token
 Authorization: Bearer <TOKEN>
 ```
 
-TOKEN is created using the SQL statement `CREATE TOKEN`
+TOKEN is created using the SQL statement `CREATE TOKEN`, detailed usage can be found in the [Token Management](../../sql-manual/manage-users/#token-management) section.
 
 Examples:
 
