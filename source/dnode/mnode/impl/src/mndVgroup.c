@@ -1211,7 +1211,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     if (code != 0) {
       mError("vgId:%d, failed to set dbName, since %s", pVgroup->vgId, tstrerror(code));
       sdbRelease(pSdb, pVgroup);
-      sdbCancelFetch(pSdb, pShow->pIter);
+      // sdbCancelFetch(pSdb, pShow->pIter);
       goto _OVER;
     }
     (void)tNameGetDbName(&name, varDataVal(db));
