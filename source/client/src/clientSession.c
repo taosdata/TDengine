@@ -238,7 +238,7 @@ void    sessMetricRef(SSessMetric *pMetric) { TAOS_UNUSED(atomic_add_fetch_32(&p
 int32_t sessMetricUnref(SSessMetric *pMetric) {
   int32_t ref = atomic_sub_fetch_32(&pMetric->refCnt, 1);
   if (ref == 0) {
-    // TAOS_UNUSED(sessMgtRemoveUser(pMetric->user));
+    tscDebug("sessMetricUnref, destroy sess metric for user:%s", pMetric->user);
   }
   return ref;
 }
