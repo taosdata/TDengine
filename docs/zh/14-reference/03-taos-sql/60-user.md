@@ -14,6 +14,7 @@ CREATE USER user_name PASS 'password'
   [CREATEDB {1|0}]
   [ENABLE {1|0}]
   [CHANGEPASS {2|1|0}]
+  [TOTP_SECRET {1|0}]
   [SESSION_PER_USER {value | DEFAULT | UNLIMITED}]
   [CONNECT_TIME {value | DEFAULT | UNLIMITED}]
   [CONNECT_IDLE_TIME {value | DEFAULT | UNLIMITED}]
@@ -44,6 +45,7 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `ENABLE` 表示是否启用该用户。`1` 表示启用，`0` 表示未启用，未启用的用户不能登录系统。缺省值为 `1`。
 - `CREATEDB` 表示该用户是否能够创建数据库。`1` 表示可以创建，`0` 表示无权创建。缺省值为 `0`。从企业版 v3.3.2.0 开始支持。
 - `CHANGEPASS` 表示用户是否能够或必须修改密码。`2` 表示可以修改，`1`表示必须修改，`0`表示不能修改。缺省值为`2`。从企业版 v3.4.0.0 开始支持。
+- `TOTP_SECRET` 表示是否为用户生成 TOTP 密钥并启用 TOTP 双因认证。`1` 表示生成密钥，`0`表示不生成密钥。缺省值为`0`。从企业版 v3.4.0.0 开始支持。
 - `SESSION_PER_USER` 限制用户同时建立的数据库连接数量，默认 32，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `CONNECT_TIME` 限制单次会话最大持续时间，单位为分钟，默认 480，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `CONNECT_IDLE_TIME` 允许的会话最大空闲时间，单位为分钟，默认 30，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
@@ -64,6 +66,15 @@ alter all dnodes 'EnableStrongPassword' '0'
 ```sql
 taos> create user test pass 'abc123!@#' sysinfo 1;
 Query OK, 0 of 0 rows affected (0.001254s)
+```
+
+在下面的示例中，我们创建了一个新的用户并启用了 TOTP 双因认证，此时将返回 TOTP 密钥，此密钥仅在此时展示一次，后续无法查询，所以请在 SQL 命令的最后使用 `\G` 以便完整显示。
+
+```sql
+taos> create user test2 pass 'abc123!@#' totp_secret 1 \G;
+*************************** 1.row ***************************
+totp_secret: 7PVGJGAMGUNYJGVWUGCBCMTTN2HME27WYJCR3F7ORCI74LORQFIA
+Query OK, 1 row(s) in set (0.005233s)
 ```
 
 ## 查看用户
@@ -113,6 +124,8 @@ alter_user_clause: {
   [CREATEDB {1|0}]
   [ENABLE {1|0}]
   [CHANGEPASS {2|1|0}]
+  [UPDATE TOTP_SECRET]
+  [DROP TOTP_SECRET]
   [SESSION_PER_USER {value | DEFAULT | UNLIMITED}]
   [CONNECT_TIME {value | DEFAULT | UNLIMITED}]
   [CONNECT_IDLE_TIME {value | DEFAULT | UNLIMITED}]
@@ -141,6 +154,22 @@ alter_user_clause: {
 ```sql
 taos> alter user test enable 0;
 Query OK, 0 of 0 rows affected (0.001160s)
+```
+
+下面的示例可以更新用户的 TOTP 密钥（如未启用 TOTP 双因认证，则同时启用）：
+
+```sql
+taos> alter user test update totp_secret \G;
+*************************** 1.row ***************************
+totp_secret: SHSWCBEGZHDGOGGNS2YNYKHD75WD7LWGQ4QJYBVF2BKU6A5SMO4A
+Query OK, 1 row(s) in set (0.004663s)
+```
+
+下面的示例将禁用用户的 TOTP 双因认证并清除其 TOTP 密钥：
+
+```sql
+taos> alter user test drop totp_secret;
+Query OK, 0 row(s) in set (0.004851s)
 ```
 
 ## 令牌管理

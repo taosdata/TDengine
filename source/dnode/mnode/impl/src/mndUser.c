@@ -2465,6 +2465,36 @@ _error:
   return code;
 }
 
+
+
+static int32_t base32Encode(const uint8_t *in, int32_t inLen, char *out) {
+  int buffer = 0, bits = 0;
+  int outLen = 0;
+
+  // process all input bytes
+  for (int i = 0; i < inLen; i++) {
+    buffer = (buffer << 8) | in[i];
+    bits += 8;
+
+    while (bits >= 5) {
+      int v = (buffer >> (bits - 5)) & 0x1F;
+      out[outLen++] = (v >= 26) ? (v - 26 + '2') : (v + 'A');
+      bits -= 5;
+    }
+  }
+
+  // process remaining bits
+  if (bits > 0) {
+    int v = (buffer << (5 - bits)) & 0x1F;
+    out[outLen++] = (v >= 26) ? (v - 26 + '2') : (v + 'A');
+  }
+
+  out[outLen] = '\0';
+  return outLen;
+}
+
+
+
 static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate, SRpcMsg *pReq) {
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -2489,7 +2519,9 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
 
   tstrncpy(userObj.user, pCreate->user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
-  if (pCreate->totpseed[0] != 0) {
+  if (pCreate->totpSecret) {
+    taosSafeRandBytes((uint8_t *)userObj.totpsecret, sizeof(userObj.totpsecret));
+  } else if (pCreate->totpseed[0] != 0) {
     int len = taosGenerateTotpSecret(pCreate->totpseed, 0, userObj.totpsecret, sizeof(userObj.totpsecret));
     if (len < 0) {
       TAOS_CHECK_GOTO(TSDB_CODE_PAR_INVALID_OPTION_VALUE, &lino, _OVER);
@@ -2643,6 +2675,28 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   }
   mInfo("trans:%d, used to create user:%s", pTrans->id, pCreate->user);
 
+  if (pCreate->totpSecret) {
+    SCreateUserRsp resp = { 0 };
+    tstrncpy(resp.user, userObj.user, sizeof(resp.user));
+    base32Encode((uint8_t *)userObj.totpsecret, sizeof(userObj.totpsecret), resp.totpSecret);
+
+    int32_t len = tSerializeSCreateUserRsp(NULL, 0, &resp);
+    if (len < 0) {
+      TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
+    }
+
+    void *pData = taosMemoryMalloc(len);
+    if (pData == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
+
+    if (tSerializeSCreateUserRsp(pData, len, &resp) != len) {
+      taosMemoryFree(pData);
+      TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
+    }
+    mndTransSetUserData(pTrans, pData, len);
+  }
+
   SSdbRaw *pCommitRaw = mndUserActionEncode(&userObj);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
@@ -2668,6 +2722,18 @@ _OVER:
   mndUserFreeObj(&userObj);
   TAOS_RETURN(code);
 }
+
+
+
+int32_t mndBuildSMCreateUserResp(STrans *pTrans, void **ppResp, int32_t *pRespLen) {
+  // user data is the response
+  *ppResp = pTrans->userData;
+  *pRespLen = pTrans->userDataLen;
+  pTrans->userData = NULL;
+  pTrans->userDataLen = 0;
+  return 0;
+}
+
 
 
 static int32_t mndCheckPasswordFmt(const char *pwd) {
@@ -3116,7 +3182,7 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq) {
+static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq, SAlterUserReq *pAlter) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "alter-user");
   if (pTrans == NULL) {
@@ -3124,6 +3190,34 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq) {
     TAOS_RETURN(terrno);
   }
   mInfo("trans:%d, used to alter user:%s", pTrans->id, pNew->user);
+
+  if (pAlter != NULL && pAlter->hasTotpSecret && pAlter->totpSecret) {
+    SCreateUserRsp resp = { 0 };
+    tstrncpy(resp.user, pNew->user, sizeof(resp.user));
+    base32Encode((uint8_t *)pNew->totpsecret, sizeof(pNew->totpsecret), resp.totpSecret);
+
+    int32_t len = tSerializeSCreateUserRsp(NULL, 0, &resp);
+    if (len < 0) {
+      mError("trans:%d, failed to get totp secret rsp size", pTrans->id);
+      mndTransDrop(pTrans);
+      TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+    }
+
+    void *pData = taosMemoryMalloc(len);
+    if (pData == NULL) {
+      mError("trans:%d, failed to malloc totp secret rsp", pTrans->id);
+      mndTransDrop(pTrans);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+
+    if (tSerializeSCreateUserRsp(pData, len, &resp) != len) {
+      mError("trans:%d, failed to serialize totp secret rsp", pTrans->id);
+      mndTransDrop(pTrans);
+      taosMemoryFree(pData);
+      TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+    }
+    mndTransSetUserData(pTrans, pData, len);
+  }
 
   SSdbRaw *pCommitRaw = mndUserActionEncode(pNew);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
@@ -3149,6 +3243,19 @@ _exit:
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
+
+
+
+int32_t mndBuildSMAlterUserResp(STrans *pTrans, void **ppResp, int32_t *pRespLen) {
+  // user data is the response
+  *ppResp = pTrans->userData;
+  *pRespLen = pTrans->userDataLen;
+  pTrans->userData = NULL;
+  pTrans->userDataLen = 0;
+  return 0;
+}
+
+
 
 static int32_t mndDupObjHash(SHashObj *pOld, int32_t dataLen, SHashObj **ppNew) {
   int32_t code = 0;
@@ -3429,7 +3536,7 @@ static int32_t mndProcessAlterUserPrivilegesReq(SRpcMsg* pReq, SAlterUserReq *pA
   }
 #endif
 
-  TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq, NULL), &lino, _OVER);
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
@@ -3577,9 +3684,15 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     }
   }
 
-  if (pAlterReq->hasTotpseed) {
+  if (pAlterReq->hasTotpSecret) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "totpsecret,");
+    if (pAlterReq->totpSecret == 0) {
+      memset(newUser.totpsecret, 0, sizeof(newUser.totpsecret));
+    } else {
+      taosSafeRandBytes(newUser.totpsecret, sizeof(newUser.totpsecret));
+    }
+  } else if (pAlterReq->hasTotpseed) {
     auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "totpseed,");
-
     if (pAlterReq->totpseed[0] == 0) { // clear totp secret
       memset(newUser.totpsecret, 0, sizeof(newUser.totpsecret));
     } else if (taosGenerateTotpSecret(pAlterReq->totpseed, 0, newUser.totpsecret, sizeof(newUser.totpsecret)) < 0) {
@@ -3855,7 +3968,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     newUser.timeWhiteListVer++;
   }
 
-  TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq, pAlterReq), &lino, _OVER);
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   if (auditLen > 0) {

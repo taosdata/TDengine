@@ -12804,6 +12804,7 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.isImport = pStmt->isImport;
   createReq.changepass = pStmt->changepass;
   createReq.enable = pStmt->enable;
+  createReq.totpSecret = pStmt->totpSecret;
 
   createReq.sessionPerUser = pStmt->sessionPerUser;
   createReq.connectTime = pStmt->connectTime;
@@ -12867,6 +12868,7 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.hasSysinfo = opts->hasSysinfo;
   alterReq.hasCreatedb = opts->hasCreatedb;
   alterReq.hasChangepass = opts->hasChangepass;
+  alterReq.hasTotpSecret = opts->hasTotpSecret;
   alterReq.hasSessionPerUser = opts->hasSessionPerUser;
   alterReq.hasConnectTime = opts->hasConnectTime;
   alterReq.hasConnectIdleTime = opts->hasConnectIdleTime;
@@ -12885,6 +12887,7 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.sysinfo = opts->sysinfo;
   alterReq.createdb = opts->createdb;
   alterReq.changepass = opts->changepass;
+  alterReq.totpSecret = opts->totpSecret;
 
   if (opts->hasPassword) {
     tstrncpy(alterReq.pass, opts->password, sizeof(alterReq.pass));
@@ -12910,7 +12913,7 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.numTimeRanges = LIST_LENGTH(opts->pTimeRanges);
   alterReq.numDropIpRanges = LIST_LENGTH(opts->pDropIpRanges);
   alterReq.numDropTimeRanges = LIST_LENGTH(opts->pDropTimeRanges);
-if (alterReq.numIpRanges > 0) {
+  if (alterReq.numIpRanges > 0) {
     alterReq.pIpRanges = taosMemoryMalloc(alterReq.numIpRanges * sizeof(SIpRange));
     if (!alterReq.pIpRanges) {
       tFreeSAlterUserReq(&alterReq);
@@ -19025,6 +19028,21 @@ static int32_t extractCreateTokenResultSchema(int32_t* numOfCols, SSchema** pSch
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractCreateUserResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = CREATE_USER_TOKEN_RESULT_COLS;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return terrno;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[0].bytes = SCAN_DB_RESULT_FIELD1_LEN;
+  tstrncpy((*pSchema)[0].name, "totp_secret", TSDB_COL_NAME_LEN);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema, SExtSchema** ppExtSchemas) {
   if (NULL == pRoot) {
     return TSDB_CODE_SUCCESS;
@@ -19065,6 +19083,9 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
       return extractScanDbResultSchema(numOfCols, pSchema);
     case QUERY_NODE_CREATE_TOKEN_STMT:
       return extractCreateTokenResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_CREATE_USER_STMT:
+    case QUERY_NODE_ALTER_USER_STMT:
+      return extractCreateUserResultSchema(numOfCols, pSchema);
     default:
       break;
   }
@@ -23403,6 +23424,8 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
     case QUERY_NODE_CREATE_TOKEN_STMT:
+    case QUERY_NODE_CREATE_USER_STMT:
+    case QUERY_NODE_ALTER_USER_STMT:
       pQuery->haveResultSet = true;
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {

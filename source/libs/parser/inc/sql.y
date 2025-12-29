@@ -278,6 +278,7 @@ datetime_range_list(A) ::= datetime_range_list(B) NK_COMMA NK_STRING(C).        
 
 
 %type create_user_option                                                         { SUserOptions* }
+create_user_option(A) ::= TOTP_SECRET NK_INTEGER(B).                             { A = mergeUserOptions(pCxt, NULL, NULL); A->totpSecret = taosStr2Int8(B.z, NULL, 10); A->hasTotpSecret = true; }
 create_user_option(A) ::= HOST ip_range_list(B).                                 { A = mergeUserOptions(pCxt, NULL, NULL); A->pIpRanges = B; }
 create_user_option(A) ::= NOT_ALLOW_HOST ip_range_list(B).                       {
     SNode* pNode = NULL;
@@ -309,6 +310,8 @@ create_user_options_opt(A) ::= create_user_options(B).                          
 
 
 %type alter_user_option                                                          { SUserOptions* }
+alter_user_option(A) ::= UPDATE TOTP_SECRET.                                     { A = mergeUserOptions(pCxt, NULL, NULL); A->totpSecret = 1; A->hasTotpSecret = true; }
+alter_user_option(A) ::= DROP TOTP_SECRET.                                       { A = mergeUserOptions(pCxt, NULL, NULL); A->totpSecret = 0; A->hasTotpSecret = true; }
 alter_user_option(A) ::= PASS NK_STRING(B).                                      { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsPassword(pCxt, A, &B); }
 alter_user_option(A) ::= ADD HOST ip_range_list(B).                              { A = mergeUserOptions(pCxt, NULL, NULL); A->pIpRanges = B; }
 alter_user_option(A) ::= ADD NOT_ALLOW_HOST ip_range_list(B).                    {

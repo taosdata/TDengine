@@ -437,7 +437,15 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
       code = tDeserializeSCreateTokenResp(pMsg->pData, msgSize, &batchRsp);
       SCH_ERR_JRET(code);
       break;
-      
+    }
+    case TDMT_MND_CREATE_USER_RSP:
+    case TDMT_MND_ALTER_USER_RSP:{
+      SCreateUserRsp batchRsp = {0};
+      if (pMsg->len > 0) {
+        code = tDeserializeSCreateUserRsp(pMsg->pData, msgSize, &batchRsp);
+        SCH_ERR_JRET(code);
+      }
+      break;
     }
     default:
       SCH_TASK_ELOG("unknown rsp msg, type:%d, status:%s", msgType, SCH_GET_TASK_STATUS_STR(pTask));

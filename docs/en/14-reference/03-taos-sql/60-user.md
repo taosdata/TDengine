@@ -13,6 +13,7 @@ CREATE USER user_name PASS 'password'
   [CREATEDB {1|0}]
   [ENABLE {1|0}]
   [CHANGEPASS {2|1|0}]
+  [TOTP_SECRET {1|0}]
   [SESSION_PER_USER {value | DEFAULT | UNLIMITED}]
   [CONNECT_TIME {value | DEFAULT | UNLIMITED}]
   [CONNECT_IDLE_TIME {value | DEFAULT | UNLIMITED}]
@@ -43,6 +44,7 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `CREATEDB` indicates whether the user can create databases. `1` means they can create databases, `0` means they have no permission to create databases. The default value is `0`. // Supported starting from TDengine Enterprise version 3.3.2.0
 - `ENABLE` indicates whether the user is enabled, `1` means enabled, `0` means disabled. A disabled user cannot connect to the database. The default value is `1`.
 - `CHANGEPASS` indicate whether the use can or must change password, `2` means can change password, `1` means must change password, `0` means cannot change password. The default value is `2`. Support in Enterprise Edition v3.4.0.0 and above.
+- `TOTP_SECRET` indicate whether to generate a TOTP secret for the user and enable TOTP two-factor authentication. `1` means generating the secret, 0 means not generating the secret. The default value is `0`. Support in Enterprise Edition v3.4.0.0 and above.
 - `SESSION_PER_USER` The maximum allowed simulaneous connections of the user. The default value is `32`, with a minimal of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `CONNECT_TIME` The maximum allowed duration for a single session in minutes. The default value is `480`, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `CONNECT_IDLE_TIME` The maximum allowed idle duration for a single session in minutes. The default value is `30`, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
@@ -63,6 +65,15 @@ In the example below, we create a user with the password `abc123!@#` who can vie
 ```sql
 taos> create user test pass 'abc123!@#' sysinfo 1;
 Query OK, 0 of 0 rows affected (0.001254s)
+```
+
+In the example below, we create a new user and enable TOTP two-factor authentication. At this case, the TOTP secret will be returned. This secret is displayed only once and cannot be queried later. Therefore, please use `\G` at the end of the SQL command to ensure complete display.
+
+```sql
+taos> create user test2 pass 'abc123!@#' totp_secret 1 \G;
+*************************** 1.row ***************************
+totp_secret: 7PVGJGAMGUNYJGVWUGCBCMTTN2HME27WYJCR3F7ORCI74LORQFIA
+Query OK, 1 row(s) in set (0.005233s)
 ```
 
 ## View Users
@@ -112,6 +123,8 @@ alter_user_clause: {
   [CREATEDB {1|0}]
   [ENABLE {1|0}]
   [CHANGEPASS {2|1|0}]
+  [UPDATE TOTP_SECRET]
+  [DROP TOTP_SECRET]
   [SESSION_PER_USER {value | DEFAULT | UNLIMITED}]
   [CONNECT_TIME {value | DEFAULT | UNLIMITED}]
   [CONNECT_IDLE_TIME {value | DEFAULT | UNLIMITED}]
@@ -140,6 +153,22 @@ The following example disables the user named `test`:
 ```sql
 taos> alter user test enable 0;
 Query OK, 0 of 0 rows affected (0.001160s)
+```
+
+The following example updates the user's TOTP secret, and enable TOTP two-factor authentication, if not enabled yet.
+
+```sql
+taos> alter user test update totp_secret \G;
+*************************** 1.row ***************************
+totp_secret: SHSWCBEGZHDGOGGNS2YNYKHD75WD7LWGQ4QJYBVF2BKU6A5SMO4A
+Query OK, 1 row(s) in set (0.004663s)
+```
+
+The following example disables TOTP two-factor authentication for the user and clears the TOTP secret:
+
+```sql
+taos> alter user test drop totp_secret;
+Query OK, 0 row(s) in set (0.004851s)
 ```
 
 ## Token Management

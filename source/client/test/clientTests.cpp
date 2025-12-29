@@ -339,6 +339,35 @@ TEST(clientCase, connect_Test) {
   taos_close(pConn);
 }
 
+static int32_t base32Decode(const char *in, int32_t inLen, uint8_t *out) {
+  int     buffer = 0, bits = 0;
+  int32_t outLen = 0;
+
+  for (int32_t i = 0; i < inLen; i++) {
+    char c = in[i];
+
+    if (c >= 'a' && c <= 'z') {
+      c -= 'a';
+    } else if (c >= 'A' && c <= 'Z') {
+      c -= 'A';
+    } else if (c >= '2' && c <= '7') {
+      c = c - '2' + 26;
+    } else if (c == '=') {
+      break;  // padding character
+    } else {
+      return -1;  // invalid character
+    }
+    buffer = (buffer << 5) | c;
+    bits += 5;
+    if (bits >= 8) {
+      out[outLen++] = (buffer >> (bits - 8)) & 0xFF;
+      bits -= 8;
+    }
+  }
+
+  return outLen;  // success
+}
+
 
 TEST(clientCase, connect_totp_Test) {
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
@@ -348,25 +377,31 @@ TEST(clientCase, connect_totp_Test) {
   }
   ASSERT_NE(pConn, nullptr);
 
-  uint8_t secret[64] = {0};
-  size_t secretLen = taosGenerateTotpSecret("AAbb1122", 8, secret, sizeof(secret));
-
-  TAOS_RES* pRes = taos_query(pConn, "create user totp_u pass 'taosdata' totpseed 'AAbb1122'");
+  TAOS_RES* pRes = taos_query(pConn, "create user totp_u pass 'taosdata' totp_secret 1");
   if (pRes == NULL) {
     (void)printf("failed to create user, reason:%s\n", taos_errstr(NULL));
   }
   ASSERT_NE(pRes, nullptr);
   ASSERT_EQ(taos_errno(pRes), 0);
+
+  char secretStr[64] = {0};
+  TAOS_ROW row = taos_fetch_row(pRes);
+  ASSERT_NE(row, nullptr);
+  tstrncpy(secretStr, (char*)row[0], sizeof(secretStr));
+  (void)printf("secret is: %s\n", secretStr);
   taos_free_result(pRes);
   taos_close(pConn);
 
-  int totpCode = taosGenerateTotpCode(secret, secretLen, 6);
+  uint8_t secret[TSDB_TOTP_SECRET_LEN] = {0};
+  base32Decode(secretStr, (int32_t)strlen(secretStr), secret);
+
   pConn = taos_connect_totp("localhost", "totp_u", "taosdata", "123456", NULL, 0);
   ASSERT_EQ(pConn, nullptr);
 
   int code = taos_connect_test("localhost", "totp_u", "taosdata", "123456", NULL, 0);
   ASSERT_EQ(code, TSDB_CODE_MND_WRONG_TOTP_CODE);
 
+  int totpCode = taosGenerateTotpCode(secret, sizeof(secret), 6);
   char totp[16] = {0};
   (void)taosFormatTotp(totpCode, 6, totp, sizeof(totp));
   pConn = taos_connect_totp("localhost", "totp_u", "taosdata", totp, NULL, 0);
@@ -382,7 +417,7 @@ TEST(clientCase, connect_totp_Test) {
 
   taos_close(pConn);
 
-  totpCode = taosGenerateTotpCode(secret, secretLen, 6);
+  totpCode = taosGenerateTotpCode(secret, sizeof(secret), 6);
   (void)taosFormatTotp(totpCode, 6, totp, sizeof(totp));
   code = taos_connect_test("localhost", "totp_u", "taosdata", totp, NULL, 0);
   ASSERT_EQ(code, 0);
@@ -448,6 +483,68 @@ TEST(clientCase, connect_token_Test) {
 
   taos_close(pConn);
 }
+
+
+#if 0
+void* createTokenThread(void* arg) {
+  int idx = (int)(intptr_t)arg;
+  char sql[64] = {0};
+  char token[TSDB_TOKEN_LEN] = {0};
+  (void)sprintf(sql, "create token root%d from user root", idx);
+
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  if (pConn == NULL) {
+    (void)printf("failed to connect to server via password, reason:%s\n", taos_errstr(NULL));
+    return NULL;
+  }
+
+  TAOS_RES* pRes = taos_query(pConn, sql);
+  if (pRes == NULL) {
+    (void)printf("thread %d, failed to create token, reason:%s\n", idx, taos_errstr(NULL));
+    taos_close(pConn);
+    return NULL;
+  }
+
+  TAOS_ROW row = taos_fetch_row(pRes);
+  if (row == NULL) {
+    (void)printf("thread %d, failed to fetch token row, reason: %s.\n", idx, taos_errstr(pRes));
+    taos_free_result(pRes);
+    taos_close(pConn);
+    return NULL;
+  }
+
+  tstrncpy(token, (char*)row[0], TSDB_TOKEN_LEN);
+  taos_free_result(pRes);
+  taos_close(pConn);
+
+  pConn = taos_connect_token("localhost", token, NULL, 0);
+  if (pConn == NULL) {
+    (void)printf("thread %d, failed to connect to server via token, reason:%s\n", idx, taos_errstr(NULL));
+    return NULL;
+  }
+
+  (void)sprintf(sql, "drop token root%d from user root", idx);
+  pRes = taos_query(pConn, sql);
+
+  taos_free_result(pRes);
+  taos_close(pConn);
+  return NULL;
+}
+
+
+
+TEST(clientCase, concurrent_create_token_Test) {
+  TdThread qid[20] = {0};
+
+  for (int32_t i = 0; i < sizeof(qid)/sizeof(qid[0]); ++i) {
+    (void)taosThreadCreate(&qid[i], NULL, createTokenThread, (void*)(intptr_t)i);
+  }
+  for (int32_t i = 0; i < sizeof(qid)/sizeof(qid[0]); ++i) {
+    (void)taosThreadJoin(qid[i], NULL);
+  }
+}
+#endif
 
 TEST(clientCase, set_option_Test) {
   taos_set_option(NULL, "ip", "127.0.0.1");

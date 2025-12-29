@@ -1621,6 +1621,18 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         if (0 == mndBuildSMCreateTokenResp(pTrans, &pCont, &contLen)) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
+      } else if (pTrans->originRpcType == TDMT_MND_CREATE_USER) {
+        void   *pCont = NULL;
+        int32_t contLen = 0;
+        if (0 == mndBuildSMCreateUserResp(pTrans, &pCont, &contLen)) {
+          mndTransSetRpcRsp(pTrans, pCont, contLen);
+        }
+      } else if (pTrans->originRpcType == TDMT_MND_ALTER_USER) {
+        void   *pCont = NULL;
+        int32_t contLen = 0;
+        if (0 == mndBuildSMAlterUserResp(pTrans, &pCont, &contLen)) {
+          mndTransSetRpcRsp(pTrans, pCont, contLen);
+        }
       }
 
       if (pTrans->rpcRspLen != 0) {

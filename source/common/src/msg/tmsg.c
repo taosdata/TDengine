@@ -3346,8 +3346,8 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
 
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ignoreExists));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->totpseed));
-
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->changepass));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->totpSecret));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->negIpRanges));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->negTimeRanges));
 
@@ -3424,6 +3424,7 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->totpseed));
 
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->changepass));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->totpSecret));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->negIpRanges));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->negTimeRanges));
 
@@ -3457,6 +3458,47 @@ _exit:
   tDecoderClear(&decoder);
   return code;
 }
+
+int32_t tSerializeSCreateUserRsp(void* buf, int32_t bufLen, SCreateUserRsp* pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->user));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->totpSecret));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCreateUserRsp(void* buf, int32_t bufLen, SCreateUserRsp* pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->user));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->totpSecret));
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
 
 static int32_t getIpv4Range(SUpdateUserIpWhite *pReq, SIpV4Range **pIpRange, int32_t *num) {
   int32_t code = 0;
@@ -3956,6 +3998,7 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasSysinfo));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasCreatedb));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasChangepass));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasTotpSecret));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasSessionPerUser));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasConnectTime));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->hasConnectIdleTime));
@@ -3981,6 +4024,9 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
   }
   if (pReq->hasChangepass) {
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->changepass));
+  }
+  if (pReq->hasTotpSecret) {
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->totpSecret));
   }
 
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->user));
@@ -4106,6 +4152,7 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasSysinfo));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasCreatedb));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasChangepass));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasTotpSecret));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasSessionPerUser));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasConnectTime));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->hasConnectIdleTime));
@@ -4131,6 +4178,9 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
   }
   if (pReq->hasChangepass) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->changepass));
+  }
+  if (pReq->hasTotpSecret) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->totpSecret));
   }
 
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));

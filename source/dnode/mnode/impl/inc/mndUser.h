@@ -68,6 +68,9 @@ void mndGetUserLoginInfo(const char *user, SLoginInfo *pLoginInfo);
 void mndSetUserLoginInfo(const char *user, const SLoginInfo *pLoginInfo);
 bool mndIsTotpEnabledUser(SUserObj *pUser);
 
+int32_t mndBuildSMCreateUserResp(STrans *pTrans, void **ppResp, int32_t *pRespLen);
+int32_t mndBuildSMAlterUserResp(STrans *pTrans, void **ppResp, int32_t *pRespLen);
+
 int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *pAlterReq);
 #ifdef __cplusplus

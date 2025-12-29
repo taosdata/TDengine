@@ -436,6 +436,7 @@ typedef struct SUserOptions {
   bool hasIsImport;
   bool hasCreatedb;
   bool hasChangepass;
+  bool hasTotpSecret;
   bool hasSessionPerUser;
   bool hasConnectTime;
   bool hasConnectIdleTime;
@@ -457,6 +458,7 @@ typedef struct SUserOptions {
   int8_t isImport;
   int8_t createdb;
   int8_t changepass;
+  int8_t  totpSecret;  // 0: clear secret, 1: generate/update secret
   int32_t sessionPerUser;
   int32_t connectTime;
   int32_t connectIdleTime;
@@ -484,12 +486,13 @@ typedef struct SCreateUserStmt {
   char      password[TSDB_USER_PASSWORD_LONGLEN];
   char      totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
 
-  int8_t  ignoreExists;
+  int8_t ignoreExists;
   int8_t sysinfo;
   int8_t createDb;
   int8_t isImport;
   int8_t changepass;
   int8_t enable;
+  int8_t totpSecret;
 
   int32_t sessionPerUser;
   int32_t connectTime;

@@ -4127,6 +4127,7 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   pOptions->createdb = 0;
   pOptions->isImport = 0;
   pOptions->changepass = 2;
+  pOptions->totpSecret = 0;
   pOptions->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
   pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
   pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
@@ -4172,6 +4173,15 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
     } else {
       a->hasTotpseed = true;
       tstrncpy(a->totpseed, b->totpseed, sizeof(a->totpseed));
+    }
+  }
+
+  if (b->hasTotpSecret) {
+    if (a->hasTotpSecret) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "TOTPSECRET");
+    } else {
+      a->hasTotpSecret = true;
+      a->totpSecret = b->totpSecret;
     }
   }
 
@@ -4463,6 +4473,11 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
     return false;
   }
 
+  if (opts->hasTotpSecret && (opts->totpSecret < 0 || opts->totpSecret > 1)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "TOTPSECRET");
+    return false;
+  }
+
   if (opts->hasPassword && !isValidPassword(pCxt, opts->password, opts->hasIsImport && opts->isImport)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PASSWD);
     return false;
@@ -4567,6 +4582,7 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
   pStmt->isImport = opts->isImport;
   pStmt->changepass = opts->changepass;
   pStmt->enable = opts->enable;
+  pStmt->totpSecret = opts->totpSecret;
 
   pStmt->sessionPerUser = opts->sessionPerUser;
   pStmt->connectTime = opts->connectTime;

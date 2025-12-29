@@ -1548,6 +1548,7 @@ typedef struct {
   int8_t isImport;
   int8_t changepass;
   int8_t enable;
+  int8_t totpSecret;
 
   int8_t negIpRanges;
   int8_t negTimeRanges;
@@ -1578,6 +1579,15 @@ typedef struct {
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
 int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
 void    tFreeSCreateUserReq(SCreateUserReq* pReq);
+
+// NOTE: create user response is optional, only when TOTP is enabled, the TOTP secret will be returned to client
+typedef struct {
+  char user[TSDB_USER_LEN];
+  char totpSecret[TSDB_TOTP_SECRET_LEN * 8 / 5 + 1 + 1]; // base32 encoded totp secret + null terminator
+} SCreateUserRsp;
+
+int32_t tSerializeSCreateUserRsp(void* buf, int32_t bufLen, SCreateUserRsp* pRsp);
+int32_t tDeserializeSCreateUserRsp(void* buf, int32_t bufLen, SCreateUserRsp* pRsp);
 
 typedef struct {
   char    algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
@@ -1620,6 +1630,7 @@ typedef struct {
   int8_t hasSysinfo;
   int8_t hasCreatedb;
   int8_t hasChangepass;
+  int8_t hasTotpSecret;
   int8_t hasSessionPerUser;
   int8_t hasConnectTime;
   int8_t hasConnectIdleTime;
@@ -1638,6 +1649,7 @@ typedef struct {
   int8_t sysinfo;
   int8_t createdb;
   int8_t changepass;
+  int8_t totpSecret;
 
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_USER_PASSWORD_LONGLEN];
@@ -1677,6 +1689,11 @@ typedef struct {
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
 int32_t tDeserializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
 void    tFreeSAlterUserReq(SAlterUserReq* pReq);
+
+// NOTE: alter user response is optional, only when TOTP is enabled/changed, the TOTP secret will be returned to client
+typedef SCreateUserRsp SAlterUserRsp;
+#define tSerializeSAlterUserRsp    tSerializeSCreateUserRsp
+#define tDeserializeSAlterUserRsp  tDeserializeSCreateUserRsp
 
 typedef struct {
   char    name[TSDB_TOKEN_NAME_LEN];
