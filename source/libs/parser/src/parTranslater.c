@@ -12983,6 +12983,7 @@ static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) 
 }
 
 static int32_t translateCreateRole(STranslateContext* pCxt, SCreateRoleStmt* pStmt) {
+#ifdef TD_ENTERPRISE
   int32_t        code = 0;
   SCreateRoleReq req = {0};
   tstrncpy(req.name, pStmt->name, sizeof(req.name));
@@ -12990,18 +12991,29 @@ static int32_t translateCreateRole(STranslateContext* pCxt, SCreateRoleStmt* pSt
   code = buildCmdMsg(pCxt, TDMT_MND_CREATE_ROLE, (FSerializeFunc)tSerializeSCreateRoleReq, &req);
   tFreeSCreateRoleReq(&req);
   return code;
+#else
+  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                 "Role management is only supported in TDengine Enterprise edition");
+#endif
 }
 
 static int32_t translateDropRole(STranslateContext* pCxt, SDropRoleStmt* pStmt) {
+#ifdef TD_ENTERPRISE
   SDropRoleReq req = {0};
   tstrncpy(req.name, pStmt->name, sizeof(req.name));
   req.ignoreNotExists = pStmt->ignoreNotExists ? 1 : 0;
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_ROLE, (FSerializeFunc)tSerializeSDropRoleReq, &req);
   tFreeSDropRoleReq(&req);
   return code;
+  return TSDB_CODE_SUCCESS;
+#else
+  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                 "Role management is only supported in TDengine Enterprise edition");
+#endif
 }
 
 static int32_t translateAlterRole(STranslateContext* pCxt, SAlterRoleStmt* pStmt) {
+#ifdef TD_ENTERPRISE
   int32_t       code = 0;
   SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_LOCK};
   tstrncpy(alterReq.principal, pStmt->name, TSDB_ROLE_LEN);
@@ -13010,6 +13022,10 @@ static int32_t translateAlterRole(STranslateContext* pCxt, SAlterRoleStmt* pStmt
   code = buildCmdMsg(pCxt, TDMT_MND_ALTER_ROLE, (FSerializeFunc)tSerializeSAlterRoleReq, &alterReq);
   tFreeSAlterRoleReq(&alterReq);
   return code;
+#else
+  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                 "Role management is only supported in TDengine Enterprise edition");
+#endif
 }
 
 static int32_t translateDropEncryptAlgr(STranslateContext* pCxt, SDropEncryptAlgrStmt* pStmt) {
