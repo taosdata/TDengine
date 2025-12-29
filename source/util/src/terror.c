@@ -252,7 +252,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_USER_FROM_CONN,        "Can not get user from
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USERS,           "Too many users")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ALTER_OPER,       "Invalid alter operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_AUTH_FAILURE,             "Authentication failure")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_PRIVILEDGE_EXIST,         "User already have this priviledge")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_PRIVILEGE_EXIST,          "Already have this privilege")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_PASSWORD_REUSE,      "Password reuse detected")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_WRONG_TOTP_CODE,          "Wrong TOTP code")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_IP_RANGE,   "Too many ranges in IP white list")
@@ -476,6 +476,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_SSMIGRATE_ALREADY_EXIST,  "ssmigrate already exi
 // mnode-trim
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_RETENTION_ID,     "Invalid retention id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRIM_ALREADY_EXIST,       "Trim or rollup already exist")
+
+// mnode-role
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_ALREADY_EXIST,       "Role already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_EXIST,           "Invalid role")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_AVAILABLE,       "Role not available")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_INVALID_FORMAT,      "Invalid role format")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_SUBROLE_EXCEEDED,    "Subrole count exceeded")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
@@ -894,6 +901,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG,       "Option value too bi
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL,     "Option value too small")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ORDERBY_INVALID_EXPR,       "Aggregate functions cannot be used for sorting in non-aggregate queries")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT,  "Conflict between privilege type and target")
+
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")

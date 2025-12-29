@@ -616,6 +616,15 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_USER_STMT:
       code = makeNode(type, sizeof(SDropUserStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_ROLE_STMT:
+      code = makeNode(type, sizeof(SCreateRoleStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_ROLE_STMT:
+      code = makeNode(type, sizeof(SDropRoleStmt), &pNode);
+      break;
+    case QUERY_NODE_ALTER_ROLE_STMT:
+      code = makeNode(type, sizeof(SAlterRoleStmt), &pNode);
+      break;
     case QUERY_NODE_USE_DATABASE_STMT:
       code = makeNode(type, sizeof(SUseDatabaseStmt), &pNode);
       break;
@@ -804,6 +813,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_VTABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_USERS_FULL_STMT:
+    case QUERY_NODE_SHOW_ROLES_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
@@ -818,6 +828,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_VIEWS_STMT:
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
@@ -1848,10 +1860,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SYNCDB_STMT:        // no pointer field
       break;
     case QUERY_NODE_GRANT_STMT:
-      nodesDestroyNode(((SGrantStmt*)pNode)->pTagCond);
+      nodesDestroyNode(((SGrantStmt*)pNode)->pCond);
       break;
     case QUERY_NODE_REVOKE_STMT:
-      nodesDestroyNode(((SRevokeStmt*)pNode)->pTagCond);
+      nodesDestroyNode(((SRevokeStmt*)pNode)->pCond);
       break;
     case QUERY_NODE_ALTER_CLUSTER_STMT:  // no pointer field
       break;
@@ -1874,6 +1886,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_VTABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_USERS_FULL_STMT:
+    case QUERY_NODE_SHOW_ROLES_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
@@ -1889,6 +1902,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_VIEWS_STMT:
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:

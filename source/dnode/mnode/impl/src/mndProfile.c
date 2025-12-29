@@ -407,7 +407,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
       }
     }
 
-    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, user, RPC_MSG_TOKEN(pReq), MND_OPER_READ_OR_WRITE_DB, pDb), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, user,RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL, _OVER);
   }
 
   if (connReq.connType == CONN_TYPE__AUTH_TEST) {
@@ -444,6 +444,8 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   tstrncpy(connectRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   connectRsp.whiteListVer = pUser->ipWhiteListVer;
   connectRsp.timeWhiteListVer = pUser->timeWhiteListVer;
+  connectRsp.userId = pUser->uid;
+
 
   tstrncpy(connectRsp.sVer, td_version, sizeof(connectRsp.sVer));
   tstrncpy(connectRsp.user, user, sizeof(connectRsp.user));
