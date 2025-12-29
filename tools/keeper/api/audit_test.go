@@ -29,6 +29,12 @@ func TestAudit(t *testing.T) {
 		Enable: true,
 	}
 
+	dbname := config.Conf.Audit.Database.Name
+	defer func() {
+		config.Conf.Audit.Database.Name = dbname
+	}()
+	config.Conf.Audit.Database.Name = "keeper_test_audit"
+
 	audit := NewAudit(cfg)
 	audit.Init(router)
 
@@ -650,6 +656,12 @@ func TestAuditInfo_AffectedRowsAndDurationVariants(t *testing.T) {
 		},
 	}
 
+	dbname := config.Conf.Audit.Database.Name
+	defer func() {
+		config.Conf.Audit.Database.Name = dbname
+	}()
+	config.Conf.Audit.Database.Name = "test_1766482953"
+
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
@@ -749,6 +761,12 @@ func TestAuditV2DefaultDB(t *testing.T) {
 		},
 	}
 
+	dbname := config.Conf.Audit.Database.Name
+	defer func() {
+		config.Conf.Audit.Database.Name = dbname
+	}()
+	config.Conf.Audit.Database.Name = "test_1766564902"
+
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
@@ -789,6 +807,12 @@ func TestAuditDefaultDB(t *testing.T) {
 		},
 	}
 
+	dbname := config.Conf.Audit.Database.Name
+	defer func() {
+		config.Conf.Audit.Database.Name = dbname
+	}()
+	config.Conf.Audit.Database.Name = "test_1766566175"
+
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
@@ -828,6 +852,12 @@ func TestAuditBatchDefaultDB(t *testing.T) {
 			Name: "test_1766566446",
 		},
 	}
+
+	dbname := config.Conf.Audit.Database.Name
+	defer func() {
+		config.Conf.Audit.Database.Name = dbname
+	}()
+	config.Conf.Audit.Database.Name = "test_1766566446"
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

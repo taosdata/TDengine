@@ -201,48 +201,38 @@ func (a *Audit) handleFunc() gin.HandlerFunc {
 func (a *Audit) prepareConnectionAndTable(c *gin.Context, logger *logrus.Entry) bool {
 	db := c.Query("db")
 	token := c.Query("token")
-	logger.Tracef("prepare audit connection for db: %s, token len: %v", db, len(token))
-	if db != "" {
+
+	isDefault := db == ""
+	if isDefault {
+		db = config.Conf.Audit.Database.Name
+	}
+
+	logger.Tracef("prepare audit connection for db: %s, token is empty: %v", db, token == "")
+
+	if !a.inited || db != a.db || token != a.token {
+		a.mu.Lock()
+		defer a.mu.Unlock()
 		if !a.inited || db != a.db || token != a.token {
-			a.mu.Lock()
-			defer a.mu.Unlock()
-			if !a.inited || db != a.db || token != a.token {
-				a.db = db
-				a.token = token
-				logger.Infof("create audit connection and table, db: %s", a.db)
-				if err := a.createConnect(); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create connect error: %s", err)})
-					return false
-				}
-				if err := a.createSTable(); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create stable error: %s", err)})
-					return false
-				}
-				a.inited = true
-			}
-		}
-	} else {
-		if !a.inited || token != a.token {
-			a.mu.Lock()
-			defer a.mu.Unlock()
-			if !a.inited || token != a.token {
-				a.db = config.Conf.Audit.Database.Name
-				a.token = ""
-				logger.Infof("create audit database, connection and table, db: %s", a.db)
+			logger.Infof("create audit connection for db: %s", db)
+			a.db = db
+			a.token = token
+
+			if isDefault {
 				if err := a.createDatabase(); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create database error: %s", err)})
 					return false
 				}
-				if err := a.createConnect(); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create connect error: %s", err)})
-					return false
-				}
-				if err := a.createSTable(); err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create stable error: %s", err)})
-					return false
-				}
-				a.inited = true
 			}
+
+			if err := a.createConnect(); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create connect error: %s", err)})
+				return false
+			}
+			if err := a.createSTable(); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create stable error: %s", err)})
+				return false
+			}
+			a.inited = true
 		}
 	}
 	return true
