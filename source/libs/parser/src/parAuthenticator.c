@@ -83,7 +83,7 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
         }
         if (dbCfgInfo.ownerId == pAuthInfo->userId) {
           pAuthRes->pass[pAuthInfo->isView ? AUTH_RES_VIEW : AUTH_RES_BASIC] = true;
-#if 1
+#if 0
           printf("%s:%d db %s owner match, pass\n", __func__, __LINE__, dbFName);
 #endif
           return TSDB_CODE_SUCCESS;
