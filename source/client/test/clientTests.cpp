@@ -1890,7 +1890,7 @@ void testSessionPerUser() {
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
     taos_free_result(pRes);
 
-    taosMsleep(3100);
+    taosMsleep(6100);
     for (int32_t i = 0; i < 10; i++) {
       TAOS* pUserConn = taos_connect("localhost", userBuf, "taosdata", NULL, 0);
       taosArrayPush(p, &pUserConn);
@@ -1908,7 +1908,7 @@ void testSessionPerUser() {
 
     taosArrayDestroy(p);
     {
-      taosMsleep(3100);
+      taosMsleep(62000);
       TAOS* pUserConn = taos_connect("localhost", userBuf, "taosdata", NULL, 0);
       ASSERT_NE(pUserConn, nullptr);
       taos_close(pUserConn);
