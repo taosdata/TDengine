@@ -31,7 +31,7 @@ int32_t getViewQuerySqlUser(STranslateContext* pCxt, SName* pName, char** queryS
     if (NULL == *querySql) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    *user = tstrdup(pViewMeta->user);
+    *user = tstrdup(pViewMeta->createUser);
     if (NULL == *user) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }

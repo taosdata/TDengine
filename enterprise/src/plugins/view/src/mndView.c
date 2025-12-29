@@ -45,7 +45,7 @@ int32_t tSerializeSViewObj(void *buf, int32_t bufLen, const SViewObj *pObj) {
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->fullname));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->name));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->dbFName));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->user));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->createUser));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pObj->querySql));
   if (NULL != pObj->parameters) {
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1));
@@ -76,6 +76,7 @@ int32_t tSerializeSViewObj(void *buf, int32_t bufLen, const SViewObj *pObj) {
     SSchema *pSchema = &pObj->pSchema[i];
     TAOS_CHECK_EXIT(tEncodeSSchema(&encoder, pSchema));
   }
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->ownerId));
 
   tEndEncode(&encoder);
 
@@ -100,7 +101,7 @@ int32_t tDeserializeSViewObj(void *buf, int32_t bufLen, SViewObj *pObj) {
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->fullname));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->name));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->dbFName));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->user));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pObj->createUser));
   TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pObj->querySql));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &ex));
   if (0 != ex) {
@@ -138,6 +139,9 @@ int32_t tDeserializeSViewObj(void *buf, int32_t bufLen, SViewObj *pObj) {
       SSchema *pSchema = pObj->pSchema + i;
       TAOS_CHECK_EXIT(tDecodeSSchema(&decoder, pSchema));
     }
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->ownerId));
   }
 
   tEndDecode(&decoder);
@@ -291,7 +295,8 @@ int32_t mndViewActionUpdate(SSdb *pSdb, SViewObj *pOldView, SViewObj *pNewView) 
   TSWAP(pOldView->defaultValues, pNewView->defaultValues);
   TSWAP(pOldView->targetTable, pNewView->targetTable);
   TSWAP(pOldView->pSchema, pNewView->pSchema);
-  tstrncpy(pOldView->user, pNewView->user, sizeof(pOldView->user));
+  tstrncpy(pOldView->createUser, pNewView->createUser, sizeof(pOldView->createUser));
+  pOldView->ownerId = pNewView->ownerId;
 
   taosWUnLockLatch(&pOldView->lock);
 
@@ -345,7 +350,7 @@ static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewRe
   tstrncpy(pView->fullname, pCreate->fullname, sizeof(pView->fullname));
   tstrncpy(pView->name, pCreate->name, sizeof(pView->name));
   tstrncpy(pView->dbFName, dbFName, sizeof(pView->dbFName));
-  tstrncpy(pView->user, user, sizeof(pView->user));
+  tstrncpy(pView->createUser, user, sizeof(pView->createUser));
   pView->precision = pCreate->precision;
   pView->numOfCols = pCreate->numOfCols;
   if (NULL != pOldView) {
@@ -366,10 +371,10 @@ _OVER:
 static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg *pReq, SViewObj *pOldView) {
   SViewObj view = {0};
   int32_t code = -1;
-  SUserObj *pUser = NULL;
+  SUserObj *pOperUser = NULL;
   SUserObj newUserObj = {0}, *pNewUserDuped = NULL;
 
-  TAOS_CHECK_RETURN(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser));
+  TAOS_CHECK_RETURN(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
 
   if (mndCreateViewObj(pMnode, &view, pCreate, pOldView, RPC_MSG_USER(pReq)) != 0) {
     code = terrno;
@@ -377,12 +382,13 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
   }
 
   // add view privileges for user
-  if (!pUser->superUser) {
-    code = mndUserDupObj(pUser, &newUserObj);
+  if (!pOperUser->superUser) {
+    code = mndUserDupObj(pOperUser, &newUserObj);
     if (code != 0) {
       terrno = code;
       goto _OVER;
     }
+#ifdef PRIV_TODO
     if (taosHashPut(newUserObj.readViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2)) {
       code = terrno;
       goto _OVER;
@@ -405,6 +411,7 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
       code = terrno;
       goto _OVER;
     }
+#endif
 
     pNewUserDuped = &newUserObj;
   }
@@ -451,7 +458,7 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
 
 _OVER:
 
-  mndReleaseUser(pMnode, pUser);
+  mndReleaseUser(pMnode, pOperUser);
 
   mndUserFreeObj(&newUserObj);  
   tFreeViewObj(&view);
@@ -512,11 +519,12 @@ static void mndLogDropViewAudit(SRpcMsg *pReq, SMnode *pMnode, SCMDropViewReq *p
 static int32_t dumpViewMetaRspFromView(SViewMetaRsp *pRsp, SViewObj* pView) {
   tstrncpy(pRsp->name, pView->name, sizeof(pRsp->name));
   tstrncpy(pRsp->dbFName, pView->dbFName, sizeof(pRsp->dbFName));
-  pRsp->user = tstrdup(pView->user);
-  if (pRsp->user == NULL) {
+  pRsp->createUser = tstrdup(pView->createUser);
+  if (pRsp->createUser == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return terrno;
   }
+  pRsp->ownerId = pView->ownerId;
   pRsp->dbId = pView->dbId;
   pRsp->viewId = pView->viewId;
   pRsp->querySql = tstrdup(pView->querySql);
@@ -544,6 +552,7 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
   SViewObj *pOldView = NULL;
   SViewObj  newObj = {0};
   SDbObj   *pDb = NULL;
+  SUserObj *pOperUser = NULL;
   char* dbFName = pCreateView->dbFName;
   int64_t   tss = taosGetTimestampMs();
 
@@ -561,24 +570,28 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
       code = terrno;
       goto _OVER;
     }
-    
-    if (mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_WRITE_DB, pDb) != 0) {
-      code = terrno;
-      goto _OVER;
-    }
+    TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
+
+    TAOS_CHECK_GOTO(
+        mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL), NULL,
+        _OVER);
   }
 
   pOldView = mndAcquireView(pMnode, pCreateView->fullname);
   if (pOldView != NULL) {
     if (!pCreateView->orReplace) {
-      terrno = TSDB_CODE_MND_VIEW_ALREADY_EXIST;
+      code = TSDB_CODE_MND_VIEW_ALREADY_EXIST;
       goto _OVER;
     } else {
       mInfo("view %s already exist, or replace is set", pCreateView->fullname);
     }
-    
-    if (0 != mndCheckViewPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_VIEW, pCreateView->fullname)) {
-      code = terrno;
+
+    // if (0 != mndCheckViewPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_VIEW,
+    // pCreateView->fullname)) {
+    //   code = terrno;
+    //   goto _OVER;
+    // }
+    if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_VIEW_CREATE, PRIV_OBJ_DB, pDb->name, NULL))) {
       goto _OVER;
     }
   } else if (terrno != TSDB_CODE_SUCCESS) {
@@ -607,9 +620,10 @@ _OVER:
 
   mndReleaseDb(pMnode, pDb);
   mndReleaseView(pMnode, pOldView);
+  mndReleaseUser(pMnode, pOperUser);
 
   tFreeSCMCreateViewReq(pCreateView);
-  return code;
+  TAOS_RETURN(code);
 }
 
 int32_t mndProcessDropViewReqImpl(SCMDropViewReq* pDropView, SRpcMsg *pReq) {
@@ -817,7 +831,7 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false), NULL, _return);
 
-    STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->user, sizeof(tmpBuf));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->createUser, sizeof(tmpBuf));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (NULL == pColInfo) {
       TAOS_CHECK_GOTO(TSDB_CODE_QRY_INVALID_INPUT, NULL, _return);
@@ -996,8 +1010,8 @@ int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t
       metaRsp->numOfCols = -1;
       metaRsp->viewId = pViewVersion->viewId;
       metaRsp->dbId = pViewVersion->dbId;
-      metaRsp->user = taosMemoryCalloc(1, 1);
-      if (NULL == metaRsp->user) {
+      metaRsp->createUser = taosMemoryCalloc(1, 1);
+      if (NULL == metaRsp->createUser) {
         code = terrno;
         tFreeSViewMetaRsp(metaRsp);
         goto _OVER;
@@ -1030,8 +1044,8 @@ int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t
       metaRsp->numOfCols = -1;
       metaRsp->viewId = pViewVersion->viewId;
       metaRsp->dbId = pViewVersion->dbId;
-      metaRsp->user = taosMemoryCalloc(1, 1);
-      if (NULL == metaRsp->user) {
+      metaRsp->createUser = taosMemoryCalloc(1, 1);
+      if (NULL == metaRsp->createUser) {
         code = terrno;
         tFreeSViewMetaRsp(metaRsp);
         mndReleaseView(pMnode, pView);      
