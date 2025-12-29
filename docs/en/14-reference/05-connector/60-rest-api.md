@@ -460,13 +460,13 @@ Examples:
     ```bash
     taos> create token root_token from user root\G;
     *************************** 1.row ***************************
-    token: uzy8YOhBKy14fR8ZDwcE7hKIQjeSRo8IN4XlKUg5LoCatgyZQTYlCM4ypUeWe1m
+    token: bjUvkeBfqFsrXBSj8QjnORJcN0nyA6vdkLNAbkI2MhbWPt289OnIQcZHDIDa8SR
     ```
 
 2. Use the created token to access the RESTful API:
 
     ```bash
-    curl -L -H "Authorization: Bearer uzy8YOhBKy14fR8ZDwcE7hKIQjeSRo8IN4XlKUg5LoCatgyZQTYlCM4ypUeWe1m" \
+    curl -L -H "Authorization: Bearer bjUvkeBfqFsrXBSj8QjnORJcN0nyA6vdkLNAbkI2MhbWPt289OnIQcZHDIDa8SR" \
       -d "select name, ntables, status from information_schema.ins_databases;" \
       h1.taosdata.com:6041/rest/sql
     ```

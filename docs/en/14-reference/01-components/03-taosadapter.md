@@ -782,7 +782,7 @@ You can set the taosAdapter log output detail level by setting the --log.level p
 
 - **`collectd.token`**
 
-  Database token (Default:`""`),TDengine TSDB 3.4.0.0 and above Enterprise Edition is effective.
+  Database token (Default: `""`). Available in TDengine Enterprise Edition 3.4.0.0 and above.
 
 - **`collectd.ttl`**
 
@@ -830,7 +830,7 @@ You can set the taosAdapter log output detail level by setting the --log.level p
 
 - **`opentsdb_telnet.token`**
 
-  Database token (Default:`""`),TDengine TSDB 3.4.0.0 and above Enterprise Edition is effective.
+  Database token (Default: `""`). Available in TDengine Enterprise Edition 3.4.0.0 and above.
 
 - **`opentsdb_telnet.batchSize`**
 
@@ -876,7 +876,7 @@ You can set the taosAdapter log output detail level by setting the --log.level p
 
 - **`statsd.token`**
 
-  Database token (Default:`""`),TDengine TSDB 3.4.0.0 and above Enterprise Edition is effective.
+  Database token (Default: `""`). Available in TDengine Enterprise Edition 3.4.0.0 and above.
 
 - **`statsd.ttl`**
 
@@ -984,7 +984,7 @@ You can set the taosAdapter log output detail level by setting the --log.level p
 
 - **`open_metrics.token`**
 
-  Database token (Default:`""`),TDengine TSDB 3.4.0.0 and above Enterprise Edition is effective.
+  Database token (Default: `""`). Available in TDengine Enterprise Edition 3.4.0.0 and above.
 
 - **`open_metrics.ttl`**
 
@@ -1026,7 +1026,7 @@ You can set the taosAdapter log output detail level by setting the --log.level p
 
 - **`node_exporter.token`**
 
-  Database token (Default:`""`),TDengine TSDB 3.4.0.0 and above Enterprise Edition is effective.
+  Database token (Default: `""`). Available in TDengine Enterprise Edition 3.4.0.0 and above.
 
 - **`node_exporter.ttl`**
 
@@ -1634,275 +1634,275 @@ Starting from version **3.3.6.10**, the `adapter_c_interface` table has been add
 <details>
 <summary>Details</summary>
 
-| field                                               | type      | is\_tag | comment                                                                     |
-|:----------------------------------------------------|:----------|:--------|:----------------------------------------------------------------------------|
-| _ts                                                 | TIMESTAMP |         | Data collection timestamp                                                   |
-| taos_connect_total                                  | DOUBLE    |         | Count of total connection attempts                                          |
-| taos_connect_success                                | DOUBLE    |         | Count of successful connections                                             |
-| taos_connect_fail                                   | DOUBLE    |         | Count of failed connections                                                 |
-| taos_close_total                                    | DOUBLE    |         | Count of total close attempts                                               |
-| taos_close_success                                  | DOUBLE    |         | Count of successful closes                                                  |
-| taos_schemaless_insert_total                        | DOUBLE    |         | Count of schemaless insert operations                                       |
-| taos_schemaless_insert_success                      | DOUBLE    |         | Count of successful schemaless inserts                                      |
-| taos_schemaless_insert_fail                         | DOUBLE    |         | Count of failed schemaless inserts                                          |
-| taos_schemaless_free_result_total                   | DOUBLE    |         | Count of schemaless result set releases                                     |
-| taos_schemaless_free_result_success                 | DOUBLE    |         | Count of successful schemaless result set releases                          |
-| taos_query_total                                    | DOUBLE    |         | Count of synchronous SQL executions                                         |
-| taos_query_success                                  | DOUBLE    |         | Count of successful synchronous SQL executions                              |
-| taos_query_fail                                     | DOUBLE    |         | Count of failed synchronous SQL executions                                  |
-| taos_query_free_result_total                        | DOUBLE    |         | Count of synchronous SQL result set releases                                |
-| taos_query_free_result_success                      | DOUBLE    |         | Count of successful synchronous SQL result set releases                     |
-| taos_query_a_with_reqid_total                       | DOUBLE    |         | Count of async SQL with request ID                                          |
-| taos_query_a_with_reqid_success                     | DOUBLE    |         | Count of successful async SQL with request ID                               |
-| taos_query_a_with_reqid_callback_total              | DOUBLE    |         | Count of async SQL callbacks with request ID                                |
-| taos_query_a_with_reqid_callback_success            | DOUBLE    |         | Count of successful async SQL callbacks with request ID                     |
-| taos_query_a_with_reqid_callback_fail               | DOUBLE    |         | Count of failed async SQL callbacks with request ID                         |
-| taos_query_a_free_result_total                      | DOUBLE    |         | Count of async SQL result set releases                                      |
-| taos_query_a_free_result_success                    | DOUBLE    |         | Count of successful async SQL result set releases                           |
-| tmq_consumer_poll_result_total                      | DOUBLE    |         | Count of consumer polls with data                                           |
-| tmq_free_result_total                               | DOUBLE    |         | Count of TMQ data releases                                                  |
-| tmq_free_result_success                             | DOUBLE    |         | Count of successful TMQ data releases                                       |
-| taos_stmt2_init_total                               | DOUBLE    |         | Count of stmt2 initializations                                              |
-| taos_stmt2_init_success                             | DOUBLE    |         | Count of successful stmt2 initializations                                   |
-| taos_stmt2_init_fail                                | DOUBLE    |         | Count of failed stmt2 initializations                                       |
-| taos_stmt2_close_total                              | DOUBLE    |         | Count of stmt2 closes                                                       |
-| taos_stmt2_close_success                            | DOUBLE    |         | Count of successful stmt2 closes                                            |
-| taos_stmt2_close_fail                               | DOUBLE    |         | Count of failed stmt2 closes                                                |
-| taos_stmt2_get_fields_total                         | DOUBLE    |         | Count of stmt2 field fetches                                                |
-| taos_stmt2_get_fields_success                       | DOUBLE    |         | Count of successful stmt2 field fetches                                     |
-| taos_stmt2_get_fields_fail                          | DOUBLE    |         | Count of failed stmt2 field fetches                                         |
-| taos_stmt2_free_fields_total                        | DOUBLE    |         | Count of stmt2 field releases                                               |
-| taos_stmt2_free_fields_success                      | DOUBLE    |         | Count of successful stmt2 field releases                                    |
-| taos_stmt_init_with_reqid_total                     | DOUBLE    |         | Count of stmt initializations with request ID                               |
-| taos_stmt_init_with_reqid_success                   | DOUBLE    |         | Count of successful stmt initializations with request ID                    |
-| taos_stmt_init_with_reqid_fail                      | DOUBLE    |         | Count of failed stmt initializations with request ID                        |
-| taos_stmt_close_total                               | DOUBLE    |         | Count of stmt closes                                                        |
-| taos_stmt_close_success                             | DOUBLE    |         | Count of successful stmt closes                                             |
-| taos_stmt_close_fail                                | DOUBLE    |         | Count of failed stmt closes                                                 |
-| taos_stmt_get_tag_fields_total                      | DOUBLE    |         | Count of stmt tag field fetches                                             |
-| taos_stmt_get_tag_fields_success                    | DOUBLE    |         | Count of successful stmt tag field fetches                                  |
-| taos_stmt_get_tag_fields_fail                       | DOUBLE    |         | Count of failed stmt tag field fetches                                      |
-| taos_stmt_get_col_fields_total                      | DOUBLE    |         | Count of stmt column field fetches                                          |
-| taos_stmt_get_col_fields_success                    | DOUBLE    |         | Count of successful stmt column field fetches                               |
-| taos_stmt_get_col_fields_fail                       | DOUBLE    |         | Count of failed stmt column field fetches                                   |
-| taos_stmt_reclaim_fields_total                      | DOUBLE    |         | Count of stmt field releases                                                |
-| taos_stmt_reclaim_fields_success                    | DOUBLE    |         | Count of successful stmt field releases                                     |
-| tmq_get_json_meta_total                             | DOUBLE    |         | Count of TMQ JSON metadata fetches                                          |
-| tmq_get_json_meta_success                           | DOUBLE    |         | Count of successful TMQ JSON metadata fetches                               |
-| tmq_free_json_meta_total                            | DOUBLE    |         | Count of TMQ JSON metadata releases                                         |
-| tmq_free_json_meta_success                          | DOUBLE    |         | Count of successful TMQ JSON metadata releases                              |
-| taos_fetch_whitelist_a_total                        | DOUBLE    |         | Count of async whitelist fetches                                            |
-| taos_fetch_whitelist_a_success                      | DOUBLE    |         | Count of successful async whitelist fetches                                 |
-| taos_fetch_whitelist_a_callback_total               | DOUBLE    |         | Count of async whitelist callbacks                                          |
-| taos_fetch_whitelist_a_callback_success             | DOUBLE    |         | Count of successful async whitelist callbacks                               |
-| taos_fetch_whitelist_a_callback_fail                | DOUBLE    |         | Count of failed async whitelist callbacks                                   |
-| taos_fetch_rows_a_total                             | DOUBLE    |         | Count of async row fetches                                                  |
-| taos_fetch_rows_a_success                           | DOUBLE    |         | Count of successful async row fetches                                       |
-| taos_fetch_rows_a_callback_total                    | DOUBLE    |         | Count of async row callbacks                                                |
-| taos_fetch_rows_a_callback_success                  | DOUBLE    |         | Count of successful async row callbacks                                     |
-| taos_fetch_rows_a_callback_fail                     | DOUBLE    |         | Count of failed async row callbacks                                         |
-| taos_fetch_raw_block_a_total                        | DOUBLE    |         | Count of async raw block fetches                                            |
-| taos_fetch_raw_block_a_success                      | DOUBLE    |         | Count of successful async raw block fetches                                 |
-| taos_fetch_raw_block_a_callback_total               | DOUBLE    |         | Count of async raw block callbacks                                          |
-| taos_fetch_raw_block_a_callback_success             | DOUBLE    |         | Count of successful async raw block callbacks                               |
-| taos_fetch_raw_block_a_callback_fail                | DOUBLE    |         | Count of failed async raw block callbacks                                   |
-| tmq_get_raw_total                                   | DOUBLE    |         | Count of raw data fetches                                                   |
-| tmq_get_raw_success                                 | DOUBLE    |         | Count of successful raw data fetches                                        |
-| tmq_get_raw_fail                                    | DOUBLE    |         | Count of failed raw data fetches                                            |
-| tmq_free_raw_total                                  | DOUBLE    |         | Count of raw data releases                                                  |
-| tmq_free_raw_success                                | DOUBLE    |         | Count of successful raw data releases                                       |
-| tmq_consumer_new_total                              | DOUBLE    |         | Count of new consumer creations                                             |
-| tmq_consumer_new_success                            | DOUBLE    |         | Count of successful new consumer creations                                  |
-| tmq_consumer_new_fail                               | DOUBLE    |         | Count of failed new consumer creations                                      |
-| tmq_consumer_close_total                            | DOUBLE    |         | Count of consumer closes                                                    |
-| tmq_consumer_close_success                          | DOUBLE    |         | Count of successful consumer closes                                         |
-| tmq_consumer_close_fail                             | DOUBLE    |         | Count of failed consumer closes                                             |
-| tmq_subscribe_total                                 | DOUBLE    |         | Count of topic subscriptions                                                |
-| tmq_subscribe_success                               | DOUBLE    |         | Count of successful topic subscriptions                                     |
-| tmq_subscribe_fail                                  | DOUBLE    |         | Count of failed topic subscriptions                                         |
-| tmq_unsubscribe_total                               | DOUBLE    |         | Count of unsubscriptions                                                    |
-| tmq_unsubscribe_success                             | DOUBLE    |         | Count of successful unsubscriptions                                         |
-| tmq_unsubscribe_fail                                | DOUBLE    |         | Count of failed unsubscriptions                                             |
-| tmq_list_new_total                                  | DOUBLE    |         | Count of new topic list creations                                           |
-| tmq_list_new_success                                | DOUBLE    |         | Count of successful new topic list creations                                |
-| tmq_list_new_fail                                   | DOUBLE    |         | Count of failed new topic list creations                                    |
-| tmq_list_destroy_total                              | DOUBLE    |         | Count of topic list destructions                                            |
-| tmq_list_destroy_success                            | DOUBLE    |         | Count of successful topic list destructions                                 |
-| tmq_conf_new_total                                  | DOUBLE    |         | Count of TMQ new config creations                                           |
-| tmq_conf_new_success                                | DOUBLE    |         | Count of successful TMQ new config creations                                |
-| tmq_conf_new_fail                                   | DOUBLE    |         | Count of failed TMQ new config creations                                    |
-| tmq_conf_destroy_total                              | DOUBLE    |         | Count of TMQ config destructions                                            |
-| tmq_conf_destroy_success                            | DOUBLE    |         | Count of successful TMQ config destructions                                 |
-| taos_stmt2_prepare_total                            | DOUBLE    |         | Count of stmt2 prepares                                                     |
-| taos_stmt2_prepare_success                          | DOUBLE    |         | Count of successful stmt2 prepares                                          |
-| taos_stmt2_prepare_fail                             | DOUBLE    |         | Count of failed stmt2 prepares                                              |
-| taos_stmt2_is_insert_total                          | DOUBLE    |         | Count of insert checks                                                      |
-| taos_stmt2_is_insert_success                        | DOUBLE    |         | Count of successful insert checks                                           |
-| taos_stmt2_is_insert_fail                           | DOUBLE    |         | Count of failed insert checks                                               |
-| taos_stmt2_bind_param_total                         | DOUBLE    |         | Count of stmt2 parameter bindings                                           |
-| taos_stmt2_bind_param_success                       | DOUBLE    |         | Count of successful stmt2 parameter bindings                                |
-| taos_stmt2_bind_param_fail                          | DOUBLE    |         | Count of failed stmt2 parameter bindings                                    |
-| taos_stmt2_exec_total                               | DOUBLE    |         | Count of stmt2 executions                                                   |
-| taos_stmt2_exec_success                             | DOUBLE    |         | Count of successful stmt2 executions                                        |
-| taos_stmt2_exec_fail                                | DOUBLE    |         | Count of failed stmt2 executions                                            |
-| taos_stmt2_error_total                              | DOUBLE    |         | Count of stmt2 error checks                                                 |
-| taos_stmt2_error_success                            | DOUBLE    |         | Count of successful stmt2 error checks                                      |
-| taos_fetch_row_total                                | DOUBLE    |         | Count of sync row fetches                                                   |
-| taos_fetch_row_success                              | DOUBLE    |         | Count of successful sync row fetches                                        |
-| taos_is_update_query_total                          | DOUBLE    |         | Count of update statement checks                                            |
-| taos_is_update_query_success                        | DOUBLE    |         | Count of successful update statement checks                                 |
-| taos_affected_rows_total                            | DOUBLE    |         | Count of SQL affected rows fetches                                          |
-| taos_affected_rows_success                          | DOUBLE    |         | Count of successful SQL affected rows fetches                               |
-| taos_num_fields_total                               | DOUBLE    |         | Count of field count fetches                                                |
-| taos_num_fields_success                             | DOUBLE    |         | Count of successful field count fetches                                     |
-| taos_fetch_fields_e_total                           | DOUBLE    |         | Count of extended field info fetches                                        |
-| taos_fetch_fields_e_success                         | DOUBLE    |         | Count of successful extended field info fetches                             |
-| taos_fetch_fields_e_fail                            | DOUBLE    |         | Count of failed extended field info fetches                                 |
-| taos_result_precision_total                         | DOUBLE    |         | Count of precision fetches                                                  |
-| taos_result_precision_success                       | DOUBLE    |         | Count of successful precision fetches                                       |
-| taos_get_raw_block_total                            | DOUBLE    |         | Count of raw block fetches                                                  |
-| taos_get_raw_block_success                          | DOUBLE    |         | Count of successful raw block fetches                                       |
-| taos_fetch_raw_block_total                          | DOUBLE    |         | Count of raw block pulls                                                    |
-| taos_fetch_raw_block_success                        | DOUBLE    |         | Count of successful raw block pulls                                         |
-| taos_fetch_raw_block_fail                           | DOUBLE    |         | Count of failed raw block pulls                                             |
-| taos_fetch_lengths_total                            | DOUBLE    |         | Count of field length fetches                                               |
-| taos_fetch_lengths_success                          | DOUBLE    |         | Count of successful field length fetches                                    |
-| taos_write_raw_block_with_reqid_total               | DOUBLE    |         | Count of request ID raw block writes                                        |
-| taos_write_raw_block_with_reqid_success             | DOUBLE    |         | Count of successful request ID raw block writes                             |
-| taos_write_raw_block_with_reqid_fail                | DOUBLE    |         | Count of failed request ID raw block writes                                 |
-| taos_write_raw_block_with_fields_with_reqid_total   | DOUBLE    |         | Count of request ID field raw block writes                                  |
-| taos_write_raw_block_with_fields_with_reqid_success | DOUBLE    |         | Count of successful request ID field raw block writes                       |
-| taos_write_raw_block_with_fields_with_reqid_fail    | DOUBLE    |         | Count of failed request ID field raw block writes                           |
-| tmq_write_raw_total                                 | DOUBLE    |         | Count of TMQ raw data writes                                                |
-| tmq_write_raw_success                               | DOUBLE    |         | Count of successful TMQ raw data writes                                     |
-| tmq_write_raw_fail                                  | DOUBLE    |         | Count of failed TMQ raw data writes                                         |
-| taos_stmt_prepare_total                             | DOUBLE    |         | Count of stmt prepares                                                      |
-| taos_stmt_prepare_success                           | DOUBLE    |         | Count of successful stmt prepares                                           |
-| taos_stmt_prepare_fail                              | DOUBLE    |         | Count of failed stmt prepares                                               |
-| taos_stmt_is_insert_total                           | DOUBLE    |         | Count of stmt insert checks                                                 |
-| taos_stmt_is_insert_success                         | DOUBLE    |         | Count of successful stmt insert checks                                      |
-| taos_stmt_is_insert_fail                            | DOUBLE    |         | Count of failed stmt insert checks                                          |
-| taos_stmt_set_tbname_total                          | DOUBLE    |         | Count of stmt table name sets                                               |
-| taos_stmt_set_tbname_success                        | DOUBLE    |         | Count of successful stmt table name sets                                    |
-| taos_stmt_set_tbname_fail                           | DOUBLE    |         | Count of failed stmt table name sets                                        |
-| taos_stmt_set_tags_total                            | DOUBLE    |         | Count of stmt tag sets                                                      |
-| taos_stmt_set_tags_success                          | DOUBLE    |         | Count of successful stmt tag sets                                           |
-| taos_stmt_set_tags_fail                             | DOUBLE    |         | Count of failed stmt tag sets                                               |
-| taos_stmt_bind_param_batch_total                    | DOUBLE    |         | Count of stmt batch parameter bindings                                      |
-| taos_stmt_bind_param_batch_success                  | DOUBLE    |         | Count of successful stmt batch parameter bindings                           |
-| taos_stmt_bind_param_batch_fail                     | DOUBLE    |         | Count of failed stmt batch parameter bindings                               |
-| taos_stmt_add_batch_total                           | DOUBLE    |         | Count of stmt batch additions                                               |
-| taos_stmt_add_batch_success                         | DOUBLE    |         | Count of successful stmt batch additions                                    |
-| taos_stmt_add_batch_fail                            | DOUBLE    |         | Count of failed stmt batch additions                                        |
-| taos_stmt_execute_total                             | DOUBLE    |         | Count of stmt executions                                                    |
-| taos_stmt_execute_success                           | DOUBLE    |         | Count of successful stmt executions                                         |
-| taos_stmt_execute_fail                              | DOUBLE    |         | Count of failed stmt executions                                             |
-| taos_stmt_num_params_total                          | DOUBLE    |         | Count of stmt parameter count fetches                                       |
-| taos_stmt_num_params_success                        | DOUBLE    |         | Count of successful stmt parameter count fetches                            |
-| taos_stmt_num_params_fail                           | DOUBLE    |         | Count of failed stmt parameter count fetches                                |
-| taos_stmt_get_param_total                           | DOUBLE    |         | Count of stmt parameter fetches                                             |
-| taos_stmt_get_param_success                         | DOUBLE    |         | Count of successful stmt parameter fetches                                  |
-| taos_stmt_get_param_fail                            | DOUBLE    |         | Count of failed stmt parameter fetches                                      |
-| taos_stmt_errstr_total                              | DOUBLE    |         | Count of stmt error info fetches                                            |
-| taos_stmt_errstr_success                            | DOUBLE    |         | Count of successful stmt error info fetches                                 |
-| taos_stmt_affected_rows_once_total                  | DOUBLE    |         | Count of stmt affected rows fetches                                         |
-| taos_stmt_affected_rows_once_success                | DOUBLE    |         | Count of successful stmt affected rows fetches                              |
-| taos_stmt_use_result_total                          | DOUBLE    |         | Count of stmt result set uses                                               |
-| taos_stmt_use_result_success                        | DOUBLE    |         | Count of successful stmt result set uses                                    |
-| taos_stmt_use_result_fail                           | DOUBLE    |         | Count of failed stmt result set uses                                        |
-| taos_select_db_total                                | DOUBLE    |         | Count of database selections                                                |
-| taos_select_db_success                              | DOUBLE    |         | Count of successful database selections                                     |
-| taos_select_db_fail                                 | DOUBLE    |         | Count of failed database selections                                         |
-| taos_get_tables_vgId_total                          | DOUBLE    |         | Count of table vgroup ID fetches                                            |
-| taos_get_tables_vgId_success                        | DOUBLE    |         | Count of successful table vgroup ID fetches                                 |
-| taos_get_tables_vgId_fail                           | DOUBLE    |         | Count of failed table vgroup ID fetches                                     |
-| taos_options_connection_total                       | DOUBLE    |         | Count of connection option sets                                             |
-| taos_options_connection_success                     | DOUBLE    |         | Count of successful connection option sets                                  |
-| taos_options_connection_fail                        | DOUBLE    |         | Count of failed connection option sets                                      |
-| taos_validate_sql_total                             | DOUBLE    |         | Count of SQL validations                                                    |
-| taos_validate_sql_success                           | DOUBLE    |         | Count of successful SQL validations                                         |
-| taos_validate_sql_fail                              | DOUBLE    |         | Count of failed SQL validations                                             |
-| taos_check_server_status_total                      | DOUBLE    |         | Count of server status checks                                               |
-| taos_check_server_status_success                    | DOUBLE    |         | Count of successful server status checks                                    |
-| taos_get_current_db_total                           | DOUBLE    |         | Count of current database fetches                                           |
-| taos_get_current_db_success                         | DOUBLE    |         | Count of successful current database fetches                                |
-| taos_get_current_db_fail                            | DOUBLE    |         | Count of failed current database fetches                                    |
-| taos_get_server_info_total                          | DOUBLE    |         | Count of server info fetches                                                |
-| taos_get_server_info_success                        | DOUBLE    |         | Count of successful server info fetches                                     |
-| taos_options_total                                  | DOUBLE    |         | Count of option sets                                                        |
-| taos_options_success                                | DOUBLE    |         | Count of successful option sets                                             |
-| taos_options_fail                                   | DOUBLE    |         | Count of failed option sets                                                 |
-| taos_set_conn_mode_total                            | DOUBLE    |         | Count of connection mode sets                                               |
-| taos_set_conn_mode_success                          | DOUBLE    |         | Count of successful connection mode sets                                    |
-| taos_set_conn_mode_fail                             | DOUBLE    |         | Count of failed connection mode sets                                        |
-| taos_reset_current_db_total                         | DOUBLE    |         | Count of current database resets                                            |
-| taos_reset_current_db_success                       | DOUBLE    |         | Count of successful current database resets                                 |
-| taos_set_notify_cb_total                            | DOUBLE    |         | Count of notification callback sets                                         |
-| taos_set_notify_cb_success                          | DOUBLE    |         | Count of successful notification callback sets                              |
-| taos_set_notify_cb_fail                             | DOUBLE    |         | Count of failed notification callback sets                                  |
-| taos_errno_total                                    | DOUBLE    |         | Count of error code fetches                                                 |
-| taos_errno_success                                  | DOUBLE    |         | Count of successful error code fetches                                      |
-| taos_errstr_total                                   | DOUBLE    |         | Count of error message fetches                                              |
-| taos_errstr_success                                 | DOUBLE    |         | Count of successful error message fetches                                   |
-| tmq_consumer_poll_total                             | DOUBLE    |         | Count of TMQ consumer polls                                                 |
-| tmq_consumer_poll_success                           | DOUBLE    |         | Count of successful TMQ consumer polls                                      |
-| tmq_consumer_poll_fail                              | DOUBLE    |         | Count of failed TMQ consumer polls                                          |
-| tmq_subscription_total                              | DOUBLE    |         | Count of TMQ subscription info fetches                                      |
-| tmq_subscription_success                            | DOUBLE    |         | Count of successful TMQ subscription info fetches                           |
-| tmq_subscription_fail                               | DOUBLE    |         | Count of failed TMQ subscription info fetches                               |
-| tmq_list_append_total                               | DOUBLE    |         | Count of TMQ list appends                                                   |
-| tmq_list_append_success                             | DOUBLE    |         | Count of successful TMQ list appends                                        |
-| tmq_list_append_fail                                | DOUBLE    |         | Count of failed TMQ list appends                                            |
-| tmq_list_get_size_total                             | DOUBLE    |         | Count of TMQ list size fetches                                              |
-| tmq_list_get_size_success                           | DOUBLE    |         | Count of successful TMQ list size fetches                                   |
-| tmq_err2str_total                                   | DOUBLE    |         | Count of TMQ error code to string conversions                               |
-| tmq_err2str_success                                 | DOUBLE    |         | Count of successful TMQ error code to string conversions                    |
-| tmq_conf_set_total                                  | DOUBLE    |         | Count of TMQ config sets                                                    |
-| tmq_conf_set_success                                | DOUBLE    |         | Count of successful TMQ config sets                                         |
-| tmq_conf_set_fail                                   | DOUBLE    |         | Count of failed TMQ config sets                                             |
-| tmq_get_res_type_total                              | DOUBLE    |         | Count of TMQ resource type fetches                                          |
-| tmq_get_res_type_success                            | DOUBLE    |         | Count of successful TMQ resource type fetches                               |
-| tmq_get_topic_name_total                            | DOUBLE    |         | Count of TMQ topic name fetches                                             |
-| tmq_get_topic_name_success                          | DOUBLE    |         | Count of successful TMQ topic name fetches                                  |
-| tmq_get_vgroup_id_total                             | DOUBLE    |         | Count of TMQ vgroup ID fetches                                              |
-| tmq_get_vgroup_id_success                           | DOUBLE    |         | Count of successful TMQ vgroup ID fetches                                   |
-| tmq_get_vgroup_offset_total                         | DOUBLE    |         | Count of TMQ vgroup offset fetches                                          |
-| tmq_get_vgroup_offset_success                       | DOUBLE    |         | Count of successful TMQ vgroup offset fetches                               |
-| tmq_get_db_name_total                               | DOUBLE    |         | Count of TMQ database name fetches                                          |
-| tmq_get_db_name_success                             | DOUBLE    |         | Count of successful TMQ database name fetches                               |
-| tmq_get_table_name_total                            | DOUBLE    |         | Count of TMQ table name fetches                                             |
-| tmq_get_table_name_success                          | DOUBLE    |         | Count of successful TMQ table name fetches                                  |
-| tmq_get_connect_total                               | DOUBLE    |         | Count of TMQ connection fetches                                             |
-| tmq_get_connect_success                             | DOUBLE    |         | Count of successful TMQ connection fetches                                  |
-| tmq_commit_sync_total                               | DOUBLE    |         | Count of TMQ sync commits                                                   |
-| tmq_commit_sync_success                             | DOUBLE    |         | Count of successful TMQ sync commits                                        |
-| tmq_commit_sync_fail                                | DOUBLE    |         | Count of failed TMQ sync commits                                            |
-| tmq_fetch_raw_block_total                           | DOUBLE    |         | Count of TMQ raw block fetches                                              |
-| tmq_fetch_raw_block_success                         | DOUBLE    |         | Count of successful TMQ raw block fetches                                   |
-| tmq_fetch_raw_block_fail                            | DOUBLE    |         | Count of failed TMQ raw block fetches                                       |
-| tmq_get_topic_assignment_total                      | DOUBLE    |         | Count of TMQ topic assignment fetches                                       |
-| tmq_get_topic_assignment_success                    | DOUBLE    |         | Count of successful TMQ topic assignment fetches                            |
-| tmq_get_topic_assignment_fail                       | DOUBLE    |         | Count of failed TMQ topic assignment fetches                                |
-| tmq_offset_seek_total                               | DOUBLE    |         | Count of TMQ offset seeks                                                   |
-| tmq_offset_seek_success                             | DOUBLE    |         | Count of successful TMQ offset seeks                                        |
-| tmq_offset_seek_fail                                | DOUBLE    |         | Count of failed TMQ offset seeks                                            |
-| tmq_committed_total                                 | DOUBLE    |         | Count of TMQ committed offset fetches                                       |
-| tmq_committed_success                               | DOUBLE    |         | Count of successful TMQ committed offset fetches                            |
-| tmq_commit_offset_sync_fail                         | DOUBLE    |         | Count of failed TMQ sync offset commits                                     |
-| tmq_position_total                                  | DOUBLE    |         | Count of TMQ current position fetches                                       |
-| tmq_position_success                                | DOUBLE    |         | Count of successful TMQ current position fetches                            |
-| tmq_commit_offset_sync_total                        | DOUBLE    |         | Count of TMQ sync offset commits                                            |
-| tmq_commit_offset_sync_success                      | DOUBLE    |         | Count of successful TMQ sync offset commits                                 |
-| taos_connect_totp_total                             | DOUBLE    |         | Count of Total TOTP authentication attempts(Available since v3.4.0.0)       |
-| taos_connect_totp_success                           | DOUBLE    |         | Count of successful TOTP authentication attempts(Available since v3.4.0.0)  |
-| taos_connect_totp_fail                              | DOUBLE    |         | Count of failed TOTP authentication attempts(Available since v3.4.0.0)      |
-| taos_connect_token_total                            | DOUBLE    |         | Count of Total token authentication attempts(Available since v3.4.0.0)      |
-| taos_connect_token_success                          | DOUBLE    |         | Count of successful token authentication attempts(Available since v3.4.0.0) |
-| taos_connect_token_fail                             | DOUBLE    |         | Count of failed token authentication attempts(Available since v3.4.0.0)     |
-| taos_get_connection_info_total                      | DOUBLE    |         | Count of get_connection_info calls(Available since v3.4.0.0)                |
-| taos_get_connection_info_success                    | DOUBLE    |         | Count of successful get_connection_info calls(Available since v3.4.0.0)     |
-| taos_get_connection_info_fail                       | DOUBLE    |         | Count of failed get_connection_info calls(Available since v3.4.0.0)         |
-| endpoint                                            | NCHAR     | TAG     | Request endpoint                                                            |
+| field                                               | type      | is\_tag | comment                                                                      |
+|:----------------------------------------------------|:----------|:--------|:-----------------------------------------------------------------------------|
+| _ts                                                 | TIMESTAMP |         | Data collection timestamp                                                    |
+| taos_connect_total                                  | DOUBLE    |         | Count of total connection attempts                                           |
+| taos_connect_success                                | DOUBLE    |         | Count of successful connections                                              |
+| taos_connect_fail                                   | DOUBLE    |         | Count of failed connections                                                  |
+| taos_close_total                                    | DOUBLE    |         | Count of total close attempts                                                |
+| taos_close_success                                  | DOUBLE    |         | Count of successful closes                                                   |
+| taos_schemaless_insert_total                        | DOUBLE    |         | Count of schemaless insert operations                                        |
+| taos_schemaless_insert_success                      | DOUBLE    |         | Count of successful schemaless inserts                                       |
+| taos_schemaless_insert_fail                         | DOUBLE    |         | Count of failed schemaless inserts                                           |
+| taos_schemaless_free_result_total                   | DOUBLE    |         | Count of schemaless result set releases                                      |
+| taos_schemaless_free_result_success                 | DOUBLE    |         | Count of successful schemaless result set releases                           |
+| taos_query_total                                    | DOUBLE    |         | Count of synchronous SQL executions                                          |
+| taos_query_success                                  | DOUBLE    |         | Count of successful synchronous SQL executions                               |
+| taos_query_fail                                     | DOUBLE    |         | Count of failed synchronous SQL executions                                   |
+| taos_query_free_result_total                        | DOUBLE    |         | Count of synchronous SQL result set releases                                 |
+| taos_query_free_result_success                      | DOUBLE    |         | Count of successful synchronous SQL result set releases                      |
+| taos_query_a_with_reqid_total                       | DOUBLE    |         | Count of async SQL with request ID                                           |
+| taos_query_a_with_reqid_success                     | DOUBLE    |         | Count of successful async SQL with request ID                                |
+| taos_query_a_with_reqid_callback_total              | DOUBLE    |         | Count of async SQL callbacks with request ID                                 |
+| taos_query_a_with_reqid_callback_success            | DOUBLE    |         | Count of successful async SQL callbacks with request ID                      |
+| taos_query_a_with_reqid_callback_fail               | DOUBLE    |         | Count of failed async SQL callbacks with request ID                          |
+| taos_query_a_free_result_total                      | DOUBLE    |         | Count of async SQL result set releases                                       |
+| taos_query_a_free_result_success                    | DOUBLE    |         | Count of successful async SQL result set releases                            |
+| tmq_consumer_poll_result_total                      | DOUBLE    |         | Count of consumer polls with data                                            |
+| tmq_free_result_total                               | DOUBLE    |         | Count of TMQ data releases                                                   |
+| tmq_free_result_success                             | DOUBLE    |         | Count of successful TMQ data releases                                        |
+| taos_stmt2_init_total                               | DOUBLE    |         | Count of stmt2 initializations                                               |
+| taos_stmt2_init_success                             | DOUBLE    |         | Count of successful stmt2 initializations                                    |
+| taos_stmt2_init_fail                                | DOUBLE    |         | Count of failed stmt2 initializations                                        |
+| taos_stmt2_close_total                              | DOUBLE    |         | Count of stmt2 closes                                                        |
+| taos_stmt2_close_success                            | DOUBLE    |         | Count of successful stmt2 closes                                             |
+| taos_stmt2_close_fail                               | DOUBLE    |         | Count of failed stmt2 closes                                                 |
+| taos_stmt2_get_fields_total                         | DOUBLE    |         | Count of stmt2 field fetches                                                 |
+| taos_stmt2_get_fields_success                       | DOUBLE    |         | Count of successful stmt2 field fetches                                      |
+| taos_stmt2_get_fields_fail                          | DOUBLE    |         | Count of failed stmt2 field fetches                                          |
+| taos_stmt2_free_fields_total                        | DOUBLE    |         | Count of stmt2 field releases                                                |
+| taos_stmt2_free_fields_success                      | DOUBLE    |         | Count of successful stmt2 field releases                                     |
+| taos_stmt_init_with_reqid_total                     | DOUBLE    |         | Count of stmt initializations with request ID                                |
+| taos_stmt_init_with_reqid_success                   | DOUBLE    |         | Count of successful stmt initializations with request ID                     |
+| taos_stmt_init_with_reqid_fail                      | DOUBLE    |         | Count of failed stmt initializations with request ID                         |
+| taos_stmt_close_total                               | DOUBLE    |         | Count of stmt closes                                                         |
+| taos_stmt_close_success                             | DOUBLE    |         | Count of successful stmt closes                                              |
+| taos_stmt_close_fail                                | DOUBLE    |         | Count of failed stmt closes                                                  |
+| taos_stmt_get_tag_fields_total                      | DOUBLE    |         | Count of stmt tag field fetches                                              |
+| taos_stmt_get_tag_fields_success                    | DOUBLE    |         | Count of successful stmt tag field fetches                                   |
+| taos_stmt_get_tag_fields_fail                       | DOUBLE    |         | Count of failed stmt tag field fetches                                       |
+| taos_stmt_get_col_fields_total                      | DOUBLE    |         | Count of stmt column field fetches                                           |
+| taos_stmt_get_col_fields_success                    | DOUBLE    |         | Count of successful stmt column field fetches                                |
+| taos_stmt_get_col_fields_fail                       | DOUBLE    |         | Count of failed stmt column field fetches                                    |
+| taos_stmt_reclaim_fields_total                      | DOUBLE    |         | Count of stmt field releases                                                 |
+| taos_stmt_reclaim_fields_success                    | DOUBLE    |         | Count of successful stmt field releases                                      |
+| tmq_get_json_meta_total                             | DOUBLE    |         | Count of TMQ JSON metadata fetches                                           |
+| tmq_get_json_meta_success                           | DOUBLE    |         | Count of successful TMQ JSON metadata fetches                                |
+| tmq_free_json_meta_total                            | DOUBLE    |         | Count of TMQ JSON metadata releases                                          |
+| tmq_free_json_meta_success                          | DOUBLE    |         | Count of successful TMQ JSON metadata releases                               |
+| taos_fetch_whitelist_a_total                        | DOUBLE    |         | Count of async whitelist fetches                                             |
+| taos_fetch_whitelist_a_success                      | DOUBLE    |         | Count of successful async whitelist fetches                                  |
+| taos_fetch_whitelist_a_callback_total               | DOUBLE    |         | Count of async whitelist callbacks                                           |
+| taos_fetch_whitelist_a_callback_success             | DOUBLE    |         | Count of successful async whitelist callbacks                                |
+| taos_fetch_whitelist_a_callback_fail                | DOUBLE    |         | Count of failed async whitelist callbacks                                    |
+| taos_fetch_rows_a_total                             | DOUBLE    |         | Count of async row fetches                                                   |
+| taos_fetch_rows_a_success                           | DOUBLE    |         | Count of successful async row fetches                                        |
+| taos_fetch_rows_a_callback_total                    | DOUBLE    |         | Count of async row callbacks                                                 |
+| taos_fetch_rows_a_callback_success                  | DOUBLE    |         | Count of successful async row callbacks                                      |
+| taos_fetch_rows_a_callback_fail                     | DOUBLE    |         | Count of failed async row callbacks                                          |
+| taos_fetch_raw_block_a_total                        | DOUBLE    |         | Count of async raw block fetches                                             |
+| taos_fetch_raw_block_a_success                      | DOUBLE    |         | Count of successful async raw block fetches                                  |
+| taos_fetch_raw_block_a_callback_total               | DOUBLE    |         | Count of async raw block callbacks                                           |
+| taos_fetch_raw_block_a_callback_success             | DOUBLE    |         | Count of successful async raw block callbacks                                |
+| taos_fetch_raw_block_a_callback_fail                | DOUBLE    |         | Count of failed async raw block callbacks                                    |
+| tmq_get_raw_total                                   | DOUBLE    |         | Count of raw data fetches                                                    |
+| tmq_get_raw_success                                 | DOUBLE    |         | Count of successful raw data fetches                                         |
+| tmq_get_raw_fail                                    | DOUBLE    |         | Count of failed raw data fetches                                             |
+| tmq_free_raw_total                                  | DOUBLE    |         | Count of raw data releases                                                   |
+| tmq_free_raw_success                                | DOUBLE    |         | Count of successful raw data releases                                        |
+| tmq_consumer_new_total                              | DOUBLE    |         | Count of new consumer creations                                              |
+| tmq_consumer_new_success                            | DOUBLE    |         | Count of successful new consumer creations                                   |
+| tmq_consumer_new_fail                               | DOUBLE    |         | Count of failed new consumer creations                                       |
+| tmq_consumer_close_total                            | DOUBLE    |         | Count of consumer closes                                                     |
+| tmq_consumer_close_success                          | DOUBLE    |         | Count of successful consumer closes                                          |
+| tmq_consumer_close_fail                             | DOUBLE    |         | Count of failed consumer closes                                              |
+| tmq_subscribe_total                                 | DOUBLE    |         | Count of topic subscriptions                                                 |
+| tmq_subscribe_success                               | DOUBLE    |         | Count of successful topic subscriptions                                      |
+| tmq_subscribe_fail                                  | DOUBLE    |         | Count of failed topic subscriptions                                          |
+| tmq_unsubscribe_total                               | DOUBLE    |         | Count of unsubscriptions                                                     |
+| tmq_unsubscribe_success                             | DOUBLE    |         | Count of successful unsubscriptions                                          |
+| tmq_unsubscribe_fail                                | DOUBLE    |         | Count of failed unsubscriptions                                              |
+| tmq_list_new_total                                  | DOUBLE    |         | Count of new topic list creations                                            |
+| tmq_list_new_success                                | DOUBLE    |         | Count of successful new topic list creations                                 |
+| tmq_list_new_fail                                   | DOUBLE    |         | Count of failed new topic list creations                                     |
+| tmq_list_destroy_total                              | DOUBLE    |         | Count of topic list destructions                                             |
+| tmq_list_destroy_success                            | DOUBLE    |         | Count of successful topic list destructions                                  |
+| tmq_conf_new_total                                  | DOUBLE    |         | Count of TMQ new config creations                                            |
+| tmq_conf_new_success                                | DOUBLE    |         | Count of successful TMQ new config creations                                 |
+| tmq_conf_new_fail                                   | DOUBLE    |         | Count of failed TMQ new config creations                                     |
+| tmq_conf_destroy_total                              | DOUBLE    |         | Count of TMQ config destructions                                             |
+| tmq_conf_destroy_success                            | DOUBLE    |         | Count of successful TMQ config destructions                                  |
+| taos_stmt2_prepare_total                            | DOUBLE    |         | Count of stmt2 prepares                                                      |
+| taos_stmt2_prepare_success                          | DOUBLE    |         | Count of successful stmt2 prepares                                           |
+| taos_stmt2_prepare_fail                             | DOUBLE    |         | Count of failed stmt2 prepares                                               |
+| taos_stmt2_is_insert_total                          | DOUBLE    |         | Count of insert checks                                                       |
+| taos_stmt2_is_insert_success                        | DOUBLE    |         | Count of successful insert checks                                            |
+| taos_stmt2_is_insert_fail                           | DOUBLE    |         | Count of failed insert checks                                                |
+| taos_stmt2_bind_param_total                         | DOUBLE    |         | Count of stmt2 parameter bindings                                            |
+| taos_stmt2_bind_param_success                       | DOUBLE    |         | Count of successful stmt2 parameter bindings                                 |
+| taos_stmt2_bind_param_fail                          | DOUBLE    |         | Count of failed stmt2 parameter bindings                                     |
+| taos_stmt2_exec_total                               | DOUBLE    |         | Count of stmt2 executions                                                    |
+| taos_stmt2_exec_success                             | DOUBLE    |         | Count of successful stmt2 executions                                         |
+| taos_stmt2_exec_fail                                | DOUBLE    |         | Count of failed stmt2 executions                                             |
+| taos_stmt2_error_total                              | DOUBLE    |         | Count of stmt2 error checks                                                  |
+| taos_stmt2_error_success                            | DOUBLE    |         | Count of successful stmt2 error checks                                       |
+| taos_fetch_row_total                                | DOUBLE    |         | Count of sync row fetches                                                    |
+| taos_fetch_row_success                              | DOUBLE    |         | Count of successful sync row fetches                                         |
+| taos_is_update_query_total                          | DOUBLE    |         | Count of update statement checks                                             |
+| taos_is_update_query_success                        | DOUBLE    |         | Count of successful update statement checks                                  |
+| taos_affected_rows_total                            | DOUBLE    |         | Count of SQL affected rows fetches                                           |
+| taos_affected_rows_success                          | DOUBLE    |         | Count of successful SQL affected rows fetches                                |
+| taos_num_fields_total                               | DOUBLE    |         | Count of field count fetches                                                 |
+| taos_num_fields_success                             | DOUBLE    |         | Count of successful field count fetches                                      |
+| taos_fetch_fields_e_total                           | DOUBLE    |         | Count of extended field info fetches                                         |
+| taos_fetch_fields_e_success                         | DOUBLE    |         | Count of successful extended field info fetches                              |
+| taos_fetch_fields_e_fail                            | DOUBLE    |         | Count of failed extended field info fetches                                  |
+| taos_result_precision_total                         | DOUBLE    |         | Count of precision fetches                                                   |
+| taos_result_precision_success                       | DOUBLE    |         | Count of successful precision fetches                                        |
+| taos_get_raw_block_total                            | DOUBLE    |         | Count of raw block fetches                                                   |
+| taos_get_raw_block_success                          | DOUBLE    |         | Count of successful raw block fetches                                        |
+| taos_fetch_raw_block_total                          | DOUBLE    |         | Count of raw block pulls                                                     |
+| taos_fetch_raw_block_success                        | DOUBLE    |         | Count of successful raw block pulls                                          |
+| taos_fetch_raw_block_fail                           | DOUBLE    |         | Count of failed raw block pulls                                              |
+| taos_fetch_lengths_total                            | DOUBLE    |         | Count of field length fetches                                                |
+| taos_fetch_lengths_success                          | DOUBLE    |         | Count of successful field length fetches                                     |
+| taos_write_raw_block_with_reqid_total               | DOUBLE    |         | Count of request ID raw block writes                                         |
+| taos_write_raw_block_with_reqid_success             | DOUBLE    |         | Count of successful request ID raw block writes                              |
+| taos_write_raw_block_with_reqid_fail                | DOUBLE    |         | Count of failed request ID raw block writes                                  |
+| taos_write_raw_block_with_fields_with_reqid_total   | DOUBLE    |         | Count of request ID field raw block writes                                   |
+| taos_write_raw_block_with_fields_with_reqid_success | DOUBLE    |         | Count of successful request ID field raw block writes                        |
+| taos_write_raw_block_with_fields_with_reqid_fail    | DOUBLE    |         | Count of failed request ID field raw block writes                            |
+| tmq_write_raw_total                                 | DOUBLE    |         | Count of TMQ raw data writes                                                 |
+| tmq_write_raw_success                               | DOUBLE    |         | Count of successful TMQ raw data writes                                      |
+| tmq_write_raw_fail                                  | DOUBLE    |         | Count of failed TMQ raw data writes                                          |
+| taos_stmt_prepare_total                             | DOUBLE    |         | Count of stmt prepares                                                       |
+| taos_stmt_prepare_success                           | DOUBLE    |         | Count of successful stmt prepares                                            |
+| taos_stmt_prepare_fail                              | DOUBLE    |         | Count of failed stmt prepares                                                |
+| taos_stmt_is_insert_total                           | DOUBLE    |         | Count of stmt insert checks                                                  |
+| taos_stmt_is_insert_success                         | DOUBLE    |         | Count of successful stmt insert checks                                       |
+| taos_stmt_is_insert_fail                            | DOUBLE    |         | Count of failed stmt insert checks                                           |
+| taos_stmt_set_tbname_total                          | DOUBLE    |         | Count of stmt table name sets                                                |
+| taos_stmt_set_tbname_success                        | DOUBLE    |         | Count of successful stmt table name sets                                     |
+| taos_stmt_set_tbname_fail                           | DOUBLE    |         | Count of failed stmt table name sets                                         |
+| taos_stmt_set_tags_total                            | DOUBLE    |         | Count of stmt tag sets                                                       |
+| taos_stmt_set_tags_success                          | DOUBLE    |         | Count of successful stmt tag sets                                            |
+| taos_stmt_set_tags_fail                             | DOUBLE    |         | Count of failed stmt tag sets                                                |
+| taos_stmt_bind_param_batch_total                    | DOUBLE    |         | Count of stmt batch parameter bindings                                       |
+| taos_stmt_bind_param_batch_success                  | DOUBLE    |         | Count of successful stmt batch parameter bindings                            |
+| taos_stmt_bind_param_batch_fail                     | DOUBLE    |         | Count of failed stmt batch parameter bindings                                |
+| taos_stmt_add_batch_total                           | DOUBLE    |         | Count of stmt batch additions                                                |
+| taos_stmt_add_batch_success                         | DOUBLE    |         | Count of successful stmt batch additions                                     |
+| taos_stmt_add_batch_fail                            | DOUBLE    |         | Count of failed stmt batch additions                                         |
+| taos_stmt_execute_total                             | DOUBLE    |         | Count of stmt executions                                                     |
+| taos_stmt_execute_success                           | DOUBLE    |         | Count of successful stmt executions                                          |
+| taos_stmt_execute_fail                              | DOUBLE    |         | Count of failed stmt executions                                              |
+| taos_stmt_num_params_total                          | DOUBLE    |         | Count of stmt parameter count fetches                                        |
+| taos_stmt_num_params_success                        | DOUBLE    |         | Count of successful stmt parameter count fetches                             |
+| taos_stmt_num_params_fail                           | DOUBLE    |         | Count of failed stmt parameter count fetches                                 |
+| taos_stmt_get_param_total                           | DOUBLE    |         | Count of stmt parameter fetches                                              |
+| taos_stmt_get_param_success                         | DOUBLE    |         | Count of successful stmt parameter fetches                                   |
+| taos_stmt_get_param_fail                            | DOUBLE    |         | Count of failed stmt parameter fetches                                       |
+| taos_stmt_errstr_total                              | DOUBLE    |         | Count of stmt error info fetches                                             |
+| taos_stmt_errstr_success                            | DOUBLE    |         | Count of successful stmt error info fetches                                  |
+| taos_stmt_affected_rows_once_total                  | DOUBLE    |         | Count of stmt affected rows fetches                                          |
+| taos_stmt_affected_rows_once_success                | DOUBLE    |         | Count of successful stmt affected rows fetches                               |
+| taos_stmt_use_result_total                          | DOUBLE    |         | Count of stmt result set uses                                                |
+| taos_stmt_use_result_success                        | DOUBLE    |         | Count of successful stmt result set uses                                     |
+| taos_stmt_use_result_fail                           | DOUBLE    |         | Count of failed stmt result set uses                                         |
+| taos_select_db_total                                | DOUBLE    |         | Count of database selections                                                 |
+| taos_select_db_success                              | DOUBLE    |         | Count of successful database selections                                      |
+| taos_select_db_fail                                 | DOUBLE    |         | Count of failed database selections                                          |
+| taos_get_tables_vgId_total                          | DOUBLE    |         | Count of table vgroup ID fetches                                             |
+| taos_get_tables_vgId_success                        | DOUBLE    |         | Count of successful table vgroup ID fetches                                  |
+| taos_get_tables_vgId_fail                           | DOUBLE    |         | Count of failed table vgroup ID fetches                                      |
+| taos_options_connection_total                       | DOUBLE    |         | Count of connection option sets                                              |
+| taos_options_connection_success                     | DOUBLE    |         | Count of successful connection option sets                                   |
+| taos_options_connection_fail                        | DOUBLE    |         | Count of failed connection option sets                                       |
+| taos_validate_sql_total                             | DOUBLE    |         | Count of SQL validations                                                     |
+| taos_validate_sql_success                           | DOUBLE    |         | Count of successful SQL validations                                          |
+| taos_validate_sql_fail                              | DOUBLE    |         | Count of failed SQL validations                                              |
+| taos_check_server_status_total                      | DOUBLE    |         | Count of server status checks                                                |
+| taos_check_server_status_success                    | DOUBLE    |         | Count of successful server status checks                                     |
+| taos_get_current_db_total                           | DOUBLE    |         | Count of current database fetches                                            |
+| taos_get_current_db_success                         | DOUBLE    |         | Count of successful current database fetches                                 |
+| taos_get_current_db_fail                            | DOUBLE    |         | Count of failed current database fetches                                     |
+| taos_get_server_info_total                          | DOUBLE    |         | Count of server info fetches                                                 |
+| taos_get_server_info_success                        | DOUBLE    |         | Count of successful server info fetches                                      |
+| taos_options_total                                  | DOUBLE    |         | Count of option sets                                                         |
+| taos_options_success                                | DOUBLE    |         | Count of successful option sets                                              |
+| taos_options_fail                                   | DOUBLE    |         | Count of failed option sets                                                  |
+| taos_set_conn_mode_total                            | DOUBLE    |         | Count of connection mode sets                                                |
+| taos_set_conn_mode_success                          | DOUBLE    |         | Count of successful connection mode sets                                     |
+| taos_set_conn_mode_fail                             | DOUBLE    |         | Count of failed connection mode sets                                         |
+| taos_reset_current_db_total                         | DOUBLE    |         | Count of current database resets                                             |
+| taos_reset_current_db_success                       | DOUBLE    |         | Count of successful current database resets                                  |
+| taos_set_notify_cb_total                            | DOUBLE    |         | Count of notification callback sets                                          |
+| taos_set_notify_cb_success                          | DOUBLE    |         | Count of successful notification callback sets                               |
+| taos_set_notify_cb_fail                             | DOUBLE    |         | Count of failed notification callback sets                                   |
+| taos_errno_total                                    | DOUBLE    |         | Count of error code fetches                                                  |
+| taos_errno_success                                  | DOUBLE    |         | Count of successful error code fetches                                       |
+| taos_errstr_total                                   | DOUBLE    |         | Count of error message fetches                                               |
+| taos_errstr_success                                 | DOUBLE    |         | Count of successful error message fetches                                    |
+| tmq_consumer_poll_total                             | DOUBLE    |         | Count of TMQ consumer polls                                                  |
+| tmq_consumer_poll_success                           | DOUBLE    |         | Count of successful TMQ consumer polls                                       |
+| tmq_consumer_poll_fail                              | DOUBLE    |         | Count of failed TMQ consumer polls                                           |
+| tmq_subscription_total                              | DOUBLE    |         | Count of TMQ subscription info fetches                                       |
+| tmq_subscription_success                            | DOUBLE    |         | Count of successful TMQ subscription info fetches                            |
+| tmq_subscription_fail                               | DOUBLE    |         | Count of failed TMQ subscription info fetches                                |
+| tmq_list_append_total                               | DOUBLE    |         | Count of TMQ list appends                                                    |
+| tmq_list_append_success                             | DOUBLE    |         | Count of successful TMQ list appends                                         |
+| tmq_list_append_fail                                | DOUBLE    |         | Count of failed TMQ list appends                                             |
+| tmq_list_get_size_total                             | DOUBLE    |         | Count of TMQ list size fetches                                               |
+| tmq_list_get_size_success                           | DOUBLE    |         | Count of successful TMQ list size fetches                                    |
+| tmq_err2str_total                                   | DOUBLE    |         | Count of TMQ error code to string conversions                                |
+| tmq_err2str_success                                 | DOUBLE    |         | Count of successful TMQ error code to string conversions                     |
+| tmq_conf_set_total                                  | DOUBLE    |         | Count of TMQ config sets                                                     |
+| tmq_conf_set_success                                | DOUBLE    |         | Count of successful TMQ config sets                                          |
+| tmq_conf_set_fail                                   | DOUBLE    |         | Count of failed TMQ config sets                                              |
+| tmq_get_res_type_total                              | DOUBLE    |         | Count of TMQ resource type fetches                                           |
+| tmq_get_res_type_success                            | DOUBLE    |         | Count of successful TMQ resource type fetches                                |
+| tmq_get_topic_name_total                            | DOUBLE    |         | Count of TMQ topic name fetches                                              |
+| tmq_get_topic_name_success                          | DOUBLE    |         | Count of successful TMQ topic name fetches                                   |
+| tmq_get_vgroup_id_total                             | DOUBLE    |         | Count of TMQ vgroup ID fetches                                               |
+| tmq_get_vgroup_id_success                           | DOUBLE    |         | Count of successful TMQ vgroup ID fetches                                    |
+| tmq_get_vgroup_offset_total                         | DOUBLE    |         | Count of TMQ vgroup offset fetches                                           |
+| tmq_get_vgroup_offset_success                       | DOUBLE    |         | Count of successful TMQ vgroup offset fetches                                |
+| tmq_get_db_name_total                               | DOUBLE    |         | Count of TMQ database name fetches                                           |
+| tmq_get_db_name_success                             | DOUBLE    |         | Count of successful TMQ database name fetches                                |
+| tmq_get_table_name_total                            | DOUBLE    |         | Count of TMQ table name fetches                                              |
+| tmq_get_table_name_success                          | DOUBLE    |         | Count of successful TMQ table name fetches                                   |
+| tmq_get_connect_total                               | DOUBLE    |         | Count of TMQ connection fetches                                              |
+| tmq_get_connect_success                             | DOUBLE    |         | Count of successful TMQ connection fetches                                   |
+| tmq_commit_sync_total                               | DOUBLE    |         | Count of TMQ sync commits                                                    |
+| tmq_commit_sync_success                             | DOUBLE    |         | Count of successful TMQ sync commits                                         |
+| tmq_commit_sync_fail                                | DOUBLE    |         | Count of failed TMQ sync commits                                             |
+| tmq_fetch_raw_block_total                           | DOUBLE    |         | Count of TMQ raw block fetches                                               |
+| tmq_fetch_raw_block_success                         | DOUBLE    |         | Count of successful TMQ raw block fetches                                    |
+| tmq_fetch_raw_block_fail                            | DOUBLE    |         | Count of failed TMQ raw block fetches                                        |
+| tmq_get_topic_assignment_total                      | DOUBLE    |         | Count of TMQ topic assignment fetches                                        |
+| tmq_get_topic_assignment_success                    | DOUBLE    |         | Count of successful TMQ topic assignment fetches                             |
+| tmq_get_topic_assignment_fail                       | DOUBLE    |         | Count of failed TMQ topic assignment fetches                                 |
+| tmq_offset_seek_total                               | DOUBLE    |         | Count of TMQ offset seeks                                                    |
+| tmq_offset_seek_success                             | DOUBLE    |         | Count of successful TMQ offset seeks                                         |
+| tmq_offset_seek_fail                                | DOUBLE    |         | Count of failed TMQ offset seeks                                             |
+| tmq_committed_total                                 | DOUBLE    |         | Count of TMQ committed offset fetches                                        |
+| tmq_committed_success                               | DOUBLE    |         | Count of successful TMQ committed offset fetches                             |
+| tmq_commit_offset_sync_fail                         | DOUBLE    |         | Count of failed TMQ sync offset commits                                      |
+| tmq_position_total                                  | DOUBLE    |         | Count of TMQ current position fetches                                        |
+| tmq_position_success                                | DOUBLE    |         | Count of successful TMQ current position fetches                             |
+| tmq_commit_offset_sync_total                        | DOUBLE    |         | Count of TMQ sync offset commits                                             |
+| tmq_commit_offset_sync_success                      | DOUBLE    |         | Count of successful TMQ sync offset commits                                  |
+| taos_connect_totp_total                             | DOUBLE    |         | Count of total TOTP authentication attempts (Available since v3.4.0.0)       |
+| taos_connect_totp_success                           | DOUBLE    |         | Count of successful TOTP authentication attempts (Available since v3.4.0.0)  |
+| taos_connect_totp_fail                              | DOUBLE    |         | Count of failed TOTP authentication attempts (Available since v3.4.0.0)      |
+| taos_connect_token_total                            | DOUBLE    |         | Count of total token authentication attempts (Available since v3.4.0.0)      |
+| taos_connect_token_success                          | DOUBLE    |         | Count of successful token authentication attempts (Available since v3.4.0.0) |
+| taos_connect_token_fail                             | DOUBLE    |         | Count of failed token authentication attempts (Available since v3.4.0.0)     |
+| taos_get_connection_info_total                      | DOUBLE    |         | Count of get_connection_info calls (Available since v3.4.0.0)                |
+| taos_get_connection_info_success                    | DOUBLE    |         | Count of successful get_connection_info calls (Available since v3.4.0.0)     |
+| taos_get_connection_info_fail                       | DOUBLE    |         | Count of failed get_connection_info calls (Available since v3.4.0.0)         |
+| endpoint                                            | NCHAR     | TAG     | Request endpoint                                                             |
 
 </details>
 

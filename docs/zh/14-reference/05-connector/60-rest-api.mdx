@@ -84,7 +84,7 @@ http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_m
 
 例如：`http://h1.taos.com:6041/rest/sql/test` 是指向地址为 `h1.taos.com:6041` 的 URL，并将默认使用的数据库库名设置为 `test`。
 
-HTTP 请求的 Header 里需带有身份认证信息，TDengine TSDB 支持 Basic 认证、 Token 认证与自定义认证三种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
+HTTP 请求的 Header 里需带有身份认证信息，TDengine TSDB 支持 Basic 认证、Token 认证与自定义认证三种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
 
 - [自定义身份认证信息](#自定义授权码)如下所示：
 
@@ -460,13 +460,13 @@ TOKEN 使用 SQL 语句 `CREATE TOKEN` 创建，具体见 [令牌管理](../../t
     ```bash
     taos> create token root_token from user root\G;
     *************************** 1.row ***************************
-    token: uzy8YOhBKy14fR8ZDwcE7hKIQjeSRo8IN4XlKUg5LoCatgyZQTYlCM4ypUeWe1m
+    token: bjUvkeBfqFsrXBSj8QjnORJcN0nyA6vdkLNAbkI2MhbWPt289OnIQcZHDIDa8SR
     ```
 
 2. 使用 token 进行查询：
 
     ```bash
-    curl -L -H "Authorization: Bearer uzy8YOhBKy14fR8ZDwcE7hKIQjeSRo8IN4XlKUg5LoCatgyZQTYlCM4ypUeWe1m" \
+    curl -L -H "Authorization: Bearer bjUvkeBfqFsrXBSj8QjnORJcN0nyA6vdkLNAbkI2MhbWPt289OnIQcZHDIDa8SR" \
       -d "select name, ntables, status from information_schema.ins_databases;" \
       h1.taosdata.com:6041/rest/sql
     ```
