@@ -360,6 +360,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   }
   TAOS_CHECK_GOTO(tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq), &lino, _OVER);
   TAOS_CHECK_GOTO(taosCheckVersionCompatibleFromStr(connReq.sVer, td_version, 3), &lino, _OVER);
+  TAOS_CHECK_GOTO(tVerifyConnectReqSignature(&connReq), &lino, _OVER);
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), &lino, _OVER);
 
   SLoginInfo li = {0};
@@ -1028,15 +1029,6 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       return code;
     }
 
-    char tokenName[TSDB_TOKEN_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(tokenName, pConn->tokenName);
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)tokenName, false);
-    if (code != 0) {
-      mError("failed to set token name since %s", tstrerror(code));
-      return code;
-    }
-
     char app[TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE];
     STR_TO_VARSTR(app, pConn->app);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1129,6 +1121,16 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       mError("failed to set type info since %s", tstrerror(code));
       return code;
     }
+
+    char tokenName[TSDB_TOKEN_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(tokenName, pConn->tokenName);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)tokenName, false);
+    if (code != 0) {
+      mError("failed to set token name since %s", tstrerror(code));
+      return code;
+    }
+
     numOfRows++;
   }
 
