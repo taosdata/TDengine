@@ -59,7 +59,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
     tscDebug("hb to update user auth, user:%s, version:%d", rsp->user, rsp->version);
 
     TSC_ERR_JRET(catalogUpdateUserAuthInfo(pCatalog, rsp));
-    TSC_ERR_JRET(hbUpdateUserSessMertric(rsp->user, &rsp->sessCfg));
+
   }
 
   if (numOfBatchs > 0) {
