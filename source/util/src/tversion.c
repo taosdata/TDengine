@@ -102,11 +102,11 @@ int32_t taosCheckEditionCompatible(const char *pClientVersion, const char *pServ
   const char *pServerEdition = strrchr(pServerVersion, '-');
 
   if ((pServerEdition == NULL) != (pClientEdition == NULL)) {
-    return TSDB_CODE_VERSION_NOT_COMPATIBLE;
+    return TSDB_CODE_EDITION_NOT_COMPATIBLE;
   }
   
   if (pServerEdition != NULL && strcmp(pServerEdition, pClientEdition) != 0) {
-    return TSDB_CODE_VERSION_NOT_COMPATIBLE;
+    return TSDB_CODE_EDITION_NOT_COMPATIBLE;
   }
 
   return TSDB_CODE_SUCCESS;

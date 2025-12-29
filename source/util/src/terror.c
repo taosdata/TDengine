@@ -123,6 +123,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TIME_ERROR,                   "Internal error in tim
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DISK_ID,              "Internal error invalid disk id")
 TAOS_DEFINE_ERROR(TSDB_CODE_DECIMAL_OVERFLOW,             "Decimal value overflow")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_EDITION_NOT_COMPATIBLE,       "Edition not compatible")
+
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_QHANDLE,          "Invalid qhandle")
