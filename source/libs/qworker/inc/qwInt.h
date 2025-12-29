@@ -161,20 +161,21 @@ typedef struct SQWSubQRes {
 } SQWSubQRes;
 
 typedef struct SQWTaskCtx {
-  SRWLatch lock;
-  int8_t   phase;
-  int8_t   inFetch;
-  int8_t   taskType;
-  int8_t   explain;
-  int8_t   needFetch;
-  int8_t   localExec;
-  int8_t   dynamicTask;
-  int8_t   subQuery;
-  int32_t  queryMsgType;
-  int32_t  fetchMsgType;
-  int32_t  level;
-  int32_t  dynExecId;
-  uint64_t sId;
+  SRWLatch      lock;
+  int8_t        phase;
+  int8_t        inFetch;
+  int8_t        taskType;
+  int8_t        explain;
+  int8_t        needFetch;
+  int8_t        localExec;
+  int8_t        dynamicTask;
+  int8_t        subQuery;
+  ESubQueryType subQType;
+  int32_t       queryMsgType;
+  int32_t       fetchMsgType;
+  int32_t       level;
+  int32_t       dynExecId;
+  uint64_t      sId;
 
   bool    queryGotData;
   bool    queryRsped;
@@ -338,6 +339,8 @@ extern SQueryMgmt gQueryMgmt;
 
 #define QW_SET_RSP_CODE(ctx, code)    atomic_store_32(&(ctx)->rspCode, code)
 #define QW_UPDATE_RSP_CODE(ctx, code) (void)atomic_val_compare_exchange_32(&(ctx)->rspCode, 0, code)
+
+#define QW_IS_SCALAR_SUBQ(_ctx) ((_ctx) && (_ctx)->subQuery && E_SUB_QUERY_SCALAR == (_ctx)->subQType)
 
 #define QW_QUERY_RUNNING(ctx)     (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
 #define QW_FETCH_RUNNING(ctx)     ((ctx)->inFetch)

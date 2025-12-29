@@ -69,6 +69,7 @@ static int64_t getOffset(const SNode* pLimit) {
   return (NULL == pLimit || NULL == ((SLimitNode*)pLimit)->offset) ? -1 : ((SLimitNode*)pLimit)->offset->datum.i;
 }
 static void releaseColInfoData(void* pCol);
+int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes);
 
 void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
   pResultRowInfo->size = 0;
@@ -1278,7 +1279,7 @@ int32_t getColInfoResultForGroupby(void* pVnode, SNodeList* group, STableListInf
       }
       case QUERY_NODE_REMOTE_VALUE: {
         SRemoteValueNode* pRemote = (SRemoteValueNode*)pNode;
-        code = qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, pRemote);
+        code = qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, pNode);
         QUERY_CHECK_CODE(code, lino, end);
         break;
       }
@@ -2624,7 +2625,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (type == QUERY_NODE_REMOTE_VALUE) {
     SRemoteValueNode* pRemote = (SRemoteValueNode*)pNode;
-    code = qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, pRemote);
+    code = qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, pNode);
     QUERY_CHECK_CODE(code, lino, _end);
 
     pExp->pExpr->nodeType = QUERY_NODE_VALUE;
@@ -2704,7 +2705,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
         QUERY_CHECK_CODE(code, lino, _end);
       } else if (p1->type == QUERY_NODE_REMOTE_VALUE) {
         SRemoteValueNode* pRemote = (SRemoteValueNode*)p1;
-        code = qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, pRemote);
+        code = qFetchRemoteNode(gTaskScalarExtra.pSubJobCtx, pRemote->subQIdx, p1);
         QUERY_CHECK_CODE(code, lino, _end);
 
         SValueNode* pvn = (SValueNode*)pRemote;
@@ -4250,7 +4251,7 @@ int32_t updateValueListFromResBlock(STaskSubJobCtx* ctx, SRemoteValueListNode* p
   pRes->hasValue = true;
   
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 0);
-  TAOS_CHECK_EXIT(sclBuildRemoteListHash(pRes, pCol, pBlock->info.rows));
+  TAOS_CHECK_EXIT(scalarBuildRemoteListHash(pRes, pCol, pBlock->info.rows));
 
 _exit:
 
@@ -4262,8 +4263,10 @@ _exit:
 }
 
 
+
 void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetrieveTableRsp* pRsp, bool* fetchDone) {
   SSDataBlock* pResBlock = NULL;
+  SRemoteValueListNode* pRemote = (SRemoteValueListNode*)pParam->pRes;
 
   qDebug("%s scl fetch rsp received, subQIdx:%d, rows:%" PRId64 , ctx->idStr, pParam->subQIdx, pRsp->numOfRows);
 
@@ -4276,14 +4279,22 @@ void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SR
       ctx->code = extractSingleRspBlock(pRsp, pResBlock);
     }
     if (TSDB_CODE_SUCCESS == ctx->code) {
-      ctx->code = updateValueListFromResBlock(ctx, (SRemoteValueListNode*)pParam->pRes, pResBlock);
+      ctx->code = updateValueListFromResBlock(ctx, pRemote, pResBlock);
     }
     if (TSDB_CODE_SUCCESS == ctx->code && pRsp->completed) {
-      ((SRemoteValueListNode*)pParam->pRes)->flag &= (~VALUELIST_FLAG_VAL_UNSET);
+      pRemote->flag &= (~VALUELIST_FLAG_VAL_UNSET);
       taosArraySet(ctx->subResNodes, pParam->subQIdx, &pParam->pRes);
     }
 
     blockDataDestroy(pResBlock);  
+  } else if (0 == pRsp->numOfRows && pRsp->completed) {
+    if (!pRemote->hasValue) {
+      ctx->code = scalarBuildRemoteListHash(pRemote, NULL, 0);
+    }
+    if (TSDB_CODE_SUCCESS == ctx->code) {    
+      pRemote->flag &= (~VALUELIST_FLAG_VAL_UNSET);
+      taosArraySet(ctx->subResNodes, pParam->subQIdx, &pParam->pRes);
+    }
   }
 
   *fetchDone = (TSDB_CODE_SUCCESS != ctx->code || pRsp->completed) ? true : false;
@@ -4495,7 +4506,7 @@ int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst) {
   
   switch (nodeType(pSrc)) {
     case QUERY_NODE_VALUE:
-      TAOS_CHECK_EXIT(valueNodeCopy(pSrc, &((SRemoteValueNode*)pDst)->val));
+      TAOS_CHECK_EXIT(valueNodeCopy((SValueNode*)pSrc, &((SRemoteValueNode*)pDst)->val));
       ((SRemoteValueNode*)pDst)->val.node.type = QUERY_NODE_VALUE;
       break;
     case QUERY_NODE_REMOTE_VALUE_LIST:

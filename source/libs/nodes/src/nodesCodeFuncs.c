@@ -5551,6 +5551,40 @@ static int32_t jsonToRemoteValue(const SJson* pJson, void* pObj) {
 
 
 
+static const char* jkRemoteValueListFlag = "flag";
+static const char* jkRemoteValueListSubQIdx = "subQIdx";
+
+static int32_t remoteValueListToJson(const void* pObj, SJson* pJson) {
+  const SRemoteValueListNode* pNode = (const SRemoteValueListNode*)pObj;
+
+  int32_t code = exprNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRemoteValueListFlag, pNode->flag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRemoteValueListSubQIdx, pNode->subQIdx);
+  }
+
+  return code;
+}
+
+
+
+static int32_t jsonToRemoteValueList(const SJson* pJson, void* pObj) {
+  SRemoteValueListNode* pNode = (SRemoteValueListNode*)pObj;
+
+  int32_t code = jsonToExprNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkRemoteValueListFlag, &pNode->flag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkRemoteValueListSubQIdx, &pNode->subQIdx);
+  }
+
+  return code;
+}
+
+
 static const char* jkOperatorType = "OpType";
 static const char* jkOperatorLeft = "Left";
 static const char* jkOperatorRight = "Right";
@@ -9864,6 +9898,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return streamNotifyOptionsToJson(pObj, pJson);
     case QUERY_NODE_REMOTE_VALUE:
       return remoteValueToJson(pObj, pJson);
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      return remoteValueListToJson(pObj, pJson);
     case QUERY_NODE_SET_OPERATOR:
       return setOperatorToJson(pObj, pJson);
     case QUERY_NODE_TIME_RANGE:
@@ -10311,6 +10347,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToStreamNotifyOptions(pJson, pObj);
     case QUERY_NODE_REMOTE_VALUE:
       return jsonToRemoteValue(pJson, pObj);
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      return jsonToRemoteValueList(pJson, pObj);
     case QUERY_NODE_SET_OPERATOR:
       return jsonToSetOperator(pJson, pObj);
     case QUERY_NODE_TIME_RANGE:

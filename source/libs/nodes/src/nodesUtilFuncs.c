@@ -4005,4 +4005,24 @@ char* nodesGetSubSql(SNode* pNode) {
   return NULL;
 }
 
+void nodesGetSubQType(SNode* pNode, int32_t* pType) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      *pType = pSelect->subQType;
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      *pType = pSet->subQType;
+      break;
+    }
+    default:
+      *pType = E_SUB_QUERY_ERROR;
+      break;
+  }
+
+  return;
+}
+
 

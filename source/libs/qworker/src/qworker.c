@@ -820,6 +820,7 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   ctx->subQuery = TEST_SUBQUERY_MASK(qwMsg->msgMask);
+  ctx->subQType = qwMsg->subQType;
   ctx->ctrlConnInfo = qwMsg->connInfo;
   ctx->sId = sId;
   ctx->phase = -1;
@@ -1058,7 +1059,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     goto _return;
   }
 
-  if (ctx->subQuery) {
+  if (QW_IS_SCALAR_SUBQ(ctx)) {
     bool toFetch = false;
     code = qwHandleSubQueryFetch(QW_FPARAMS(), ctx, &toFetch, &rsp, &dataLen);
     if (code || !toFetch) {
@@ -1134,7 +1135,7 @@ _return:
     }
 
     if (!rsped) {
-      if (ctx && ctx->subQuery && !atomic_load_8(&ctx->subQRes.resGot)) {
+      if (QW_IS_SCALAR_SUBQ(ctx) && !atomic_load_8(&ctx->subQRes.resGot)) {
         code = qwChkSaveSubQueryFetchRsp(ctx, rsp, dataLen, code, sOutput.queryEnd);
       }
       

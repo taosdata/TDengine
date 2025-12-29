@@ -50,8 +50,6 @@ void qwFreeFetchRsp(SQWTaskCtx *ctx, void *msg) {
   
   if (!ctx->localExec) {
     rpcFreeCont(msg);
-  } else {
-
   }
 }
 
@@ -472,7 +470,7 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
   *qType = msg.taskType;  // task type: TASK_TYPE_HQUERY or TASK_TYPE_QUERY
 
   SQWMsg qwMsg = {
-      .msgType = pMsg->msgType, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info, .msgMask = msg.msgMask};
+      .msgType = pMsg->msgType, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info, .msgMask = msg.msgMask, .subQType = msg.subQType};
 
   QW_SCH_TASK_DLOG("prerocessQuery start, handle:%p, SQL:%s", pMsg->info.handle, msg.sql);
   code = qwPreprocessQuery(QW_FPARAMS(), &qwMsg);

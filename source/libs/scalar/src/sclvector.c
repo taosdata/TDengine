@@ -854,10 +854,8 @@ void vectorConvertCheckOverflow(SColumnInfoData *pInputCol, int16_t inType, int1
 
     if (value > maxValue) {
       *overflow = 1;
-      return TSDB_CODE_SUCCESS;
     } else if (value < minValue) {
       *overflow = -1;
-      return TSDB_CODE_SUCCESS;
     } else {
       *overflow = 0;
     }
@@ -875,10 +873,8 @@ void vectorConvertCheckOverflow(SColumnInfoData *pInputCol, int16_t inType, int1
 
     if (value > maxValue) {
       *overflow = 1;
-      return TSDB_CODE_SUCCESS;
     } else if (value < minValue) {
       *overflow = -1;
-      return TSDB_CODE_SUCCESS;
     } else {
       *overflow = 0;
     }

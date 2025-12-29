@@ -3662,6 +3662,7 @@ typedef struct SSubQueryMsg {
   int64_t  refId;
   int32_t  execId;
   int32_t  msgMask;
+  int32_t  subQType;
   int8_t   taskType;
   int8_t   explain;
   int8_t   needFetch;

@@ -1162,6 +1162,51 @@ static int32_t msgToRemoteValueNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+enum {
+  REMOTE_VALUELIST_CODE_EXPR = 1,
+  REMOTE_VALUELIST_CODE_FLAG,
+  REMOTE_VALUELIST_CODE_SUBQ_IDX
+};
+
+static int32_t remoteValueListNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SRemoteValueListNode* pNode = (const SRemoteValueListNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, REMOTE_VALUELIST_CODE_EXPR, exprNodeToMsg, pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, REMOTE_VALUELIST_CODE_FLAG, pNode->flag);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, REMOTE_VALUELIST_CODE_SUBQ_IDX, pNode->subQIdx);
+  }
+
+  return code;
+}
+
+
+static int32_t msgToRemoteValueListNode(STlvDecoder* pDecoder, void* pObj) {
+  SRemoteValueListNode* pNode = (SRemoteValueListNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case REMOTE_VALUELIST_CODE_EXPR:
+        code = tlvDecodeObjFromTlv(pTlv, msgToExprNode, &pNode->node);
+        break;
+      case REMOTE_VALUELIST_CODE_FLAG:
+        code = tlvDecodeI32(pTlv, &pNode->flag);
+        break;
+      case REMOTE_VALUELIST_CODE_SUBQ_IDX:
+        code = tlvDecodeI32(pTlv, &pNode->subQIdx);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
 
 
 
@@ -5152,6 +5197,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_REMOTE_VALUE:
       code = remoteValueNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      code = remoteValueListNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       code = physiTagScanNodeToMsg(pObj, pEncoder);
       break;
@@ -5320,6 +5368,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_REMOTE_VALUE:
       code = msgToRemoteValueNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      code = msgToRemoteValueListNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       code = msgToPhysiTagScanNode(pDecoder, pObj);

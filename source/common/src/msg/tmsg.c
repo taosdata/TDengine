@@ -12566,6 +12566,7 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->refId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->execId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->msgMask));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->subQType));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->taskType));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->explain));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->needFetch));
@@ -12641,6 +12642,7 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->refId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->execId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->msgMask));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->subQType));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->taskType));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->explain));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->needFetch));

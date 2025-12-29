@@ -186,8 +186,8 @@ int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t ty
       extractTypeFromTypeMod(type, typeMod, &out.columnData->info.precision, &out.columnData->info.scale, NULL);
     }
 
-    SCL_ERR_JRET(colInfoDataEnsureCapacity(out->columnData, rows, true));
-    SCL_ERR_JRET(vectorConvertSingleColImpl(&in, out, overflow, -1, -1));
+    SCL_ERR_JRET(colInfoDataEnsureCapacity(out.columnData, rows, true));
+    SCL_ERR_JRET(vectorConvertSingleColImpl(&in, &out, overflow, -1, -1));
   }
 
   for (uint32_t i = 0; i < rows; ++i) {
@@ -207,7 +207,7 @@ int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t ty
       buf = colDataGetNumData(out.columnData, i);
     }
 
-    SCL_ERR_JRET(taosHashPut(pObj, buf, (size_t)len, NULL, 0);
+    SCL_ERR_JRET(taosHashPut(pObj, buf, (size_t)len, NULL, 0));
   }
 
   *data = pObj;
@@ -460,7 +460,7 @@ void sclDowngradeValueType(SValueNode *valueNode) {
   }
 }
 
-int32_t sclBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData* pCol, int64_t rows) {
+int32_t scalarBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData* pCol, int64_t rows) {
   int32_t  code = 0;
   int32_t  type = vectorGetConvertType(pRemote->targetType, pRemote->node.resType.type);
   STypeMod typeMod = 0;
@@ -468,15 +468,17 @@ int32_t sclBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData* p
   if (IS_DECIMAL_TYPE(type)) {
     typeMod = decimalCalcTypeMod(TSDB_DECIMAL_MAX_PRECISION, getScaleFromTypeMod(type, pRemote->targetTypeMod));
   }
-  
-  if (IS_VAR_DATA_TYPE(pRemote->targetType) && IS_NUMERIC_TYPE(type)) {
-    SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 1, rows));
-  } else if (IS_INTEGER_TYPE(pRemote->targetType) && IS_FLOAT_TYPE(type)) {
-    SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 2, rows));
-    SCL_ERR_RET(
-        scalarGenerateSetFromCol((void **)&pRemote->pHashFilterOthers, pCol, pRemote->targetType, typeMod, 4, rows));
-  } else {
-    SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 0, rows));
+
+  if (rows > 0) {
+    if (IS_VAR_DATA_TYPE(pRemote->targetType) && IS_NUMERIC_TYPE(type)) {
+      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 1, rows));
+    } else if (IS_INTEGER_TYPE(pRemote->targetType) && IS_FLOAT_TYPE(type)) {
+      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 2, rows));
+      SCL_ERR_RET(
+          scalarGenerateSetFromCol((void **)&pRemote->pHashFilterOthers, pCol, pRemote->targetType, typeMod, 4, rows));
+    } else {
+      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 0, rows));
+    }
   }
 
   pRemote->filterValueTypeMod = typeMod;
@@ -2169,7 +2171,7 @@ EDealRes sclRewriteRemoteValue(SNode **pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
   
-  ctx->code = (*ctx->fetchFp)(ctx->pSubJobCtx, node->subQIdx, node);
+  ctx->code = (*ctx->fetchFp)(ctx->pSubJobCtx, node->subQIdx, *pNode);
   if (ctx->code) {
     return DEAL_RES_ERROR;
   }
@@ -2347,7 +2349,7 @@ int32_t sclExecRemoteValue(SRemoteValueNode *node, SScalarCtx *ctx, SScalarParam
     return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
   }
   
-  SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, node->subQIdx, node));
+  SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, node->subQIdx, (SNode*)node));
   
   SCL_ERR_JRET(sclInitParam((SNode*)node, pOutput, ctx, &rowNum));
 

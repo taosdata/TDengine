@@ -188,6 +188,7 @@ void    destroyFuncParam(void* pFuncStruct);
 int32_t nodesListDeduplicate(SNodeList** pList);
 bool    nodesIsScalarSubQuery(SNode* pNode);
 char*   nodesGetSubSql(SNode* pNode);
+void    nodesGetSubQType(SNode* pNode, int32_t* pType);
 
 #ifdef __cplusplus
 }
