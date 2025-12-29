@@ -676,11 +676,15 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pReq->forceOutCols ? pReq->forceOutCols->elemSize : 0,
     pReq->forceOutCols ? pReq->forceOutCols->size : 0));
   TAOS_CHECK_RETURN(tjsonAddArray(
-      pJson, jkCreateStreamReqColCids, int16ToJson, pReq->colCids ? TARRAY_GET_ELEM(pReq->colCids, 0) : NULL,
-      pReq->colCids ? pReq->colCids->elemSize : 0, pReq->colCids ? pReq->colCids->size : 0));
+      pJson, jkCreateStreamReqColCids, int16ToJson,
+      pReq->colCids ? TARRAY_GET_ELEM(pReq->colCids, 0) : NULL,
+      pReq->colCids ? pReq->colCids->elemSize : 0,
+      pReq->colCids ? pReq->colCids->size : 0));
   TAOS_CHECK_RETURN(tjsonAddArray(
-      pJson, jkCreateStreamReqTagCids, int16ToJson, pReq->tagCids ? TARRAY_GET_ELEM(pReq->tagCids, 0) : NULL,
-      pReq->tagCids ? pReq->tagCids->elemSize : 0, pReq->tagCids ? pReq->tagCids->size : 0));
+      pJson, jkCreateStreamReqTagCids, int16ToJson,
+      pReq->tagCids ? TARRAY_GET_ELEM(pReq->tagCids, 0) : NULL,
+      pReq->tagCids ? pReq->tagCids->elemSize : 0,
+      pReq->tagCids ? pReq->tagCids->size : 0));
 
   return TSDB_CODE_SUCCESS;
 }
