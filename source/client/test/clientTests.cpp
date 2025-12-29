@@ -1896,7 +1896,7 @@ void testSessionPerUser() {
   taos_close(pConn);
 }
 
-void initTestEnv(const char* database, const char* stb, TAOS** pConnect) {
+void initTestEnv(const char* database, const char* stb, TAOS** pConnect, char userBuf[]) {
   int32_t code = 0;
 
   const char* maxVnodeDB = "maxVnod";
@@ -1930,14 +1930,27 @@ void initTestEnv(const char* database, const char* stb, TAOS** pConnect) {
     taos_free_result(pRes);
   }
 
-  *pConnect = pConn;
+  char* tempUser = "control_user";
+  sprintf(buf, "create user if not exists %s pass \'taosdata\'", tempUser);
+  pRes = taos_query(pConn, buf);
+  ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes);
+  taos_close(pConn);
+
+  {
+    memcpy(userBuf, tempUser, strlen(tempUser));
+    pConn = taos_connect("localhost", tempUser, "taosdata", NULL, 0);
+    ASSERT_NE(pConn, nullptr);
+    *pConnect = pConn;
+  }
 }
 void testSessionConnTime() {
   int32_t     code = 0;
   TAOS*       pConn = nullptr;
   const char* databName = "db_conn";
   const char* rstb = "db_conn_time";
-  initTestEnv(databName, rstb, &pConn);
+  char        userBuf[32] = {0};
+  initTestEnv(databName, rstb, &pConn, userBuf);
 
   {
     char sql[128] = {0};
@@ -1950,7 +1963,7 @@ void testSessionConnTime() {
 
   {
     char sql[128] = {0};
-    sprintf(sql, "alter user root connect_time 1");
+    sprintf(sql, "alter user %s connect_time 1", userBuf);
     TAOS_RES* pRes = taos_query(pConn, sql);
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
     taos_free_result(pRes);
@@ -1968,7 +1981,7 @@ void testSessionConnTime() {
 
   {
     char sql[128] = {0};
-    sprintf(sql, "alter user root connect_time 10000");
+    sprintf(sql, "alter user %s connect_time 10000", userBuf);
     TAOS_RES* pRes = taos_query(pConn, sql);
     taos_free_result(pRes);
   }
@@ -1980,7 +1993,8 @@ void testSessionConnIdleTime() {
   TAOS*       pConn = nullptr;
   const char* databName = "db_conn_idle";
   const char* rstb = "db_conn_time_idle";
-  initTestEnv(databName, rstb, &pConn);
+  char        userBuf[32] = {0};
+  initTestEnv(databName, rstb, &pConn, userBuf);
 
   {
     char sql[128] = {0};
@@ -1993,7 +2007,7 @@ void testSessionConnIdleTime() {
 
   {
     char sql[128] = {0};
-    sprintf(sql, "alter user root connect_idle_time 1");
+    sprintf(sql, "alter user %s connect_idle_time 1", userBuf);
     TAOS_RES* pRes = taos_query(pConn, sql);
     taos_free_result(pRes);
   }
@@ -2010,7 +2024,7 @@ void testSessionConnIdleTime() {
 
   {
     char sql[128] = {0};
-    sprintf(sql, "alter user root connect_idel_time 1000");
+    sprintf(sql, "alter user %s connect_idel_time 1000", userBuf);
     TAOS_RES* pRes = taos_query(pConn, sql);
     taos_free_result(pRes);
   }
@@ -2022,7 +2036,8 @@ void testSessionMaxVnodeCall() {
   TAOS*       pConn = nullptr;
   const char* databName = "db_max_vnode";
   const char* rstb = "stb1";
-  initTestEnv(databName, rstb, &pConn);
+  char        userBuf[32] = {0};
+  initTestEnv(databName, rstb, &pConn, userBuf);
 
   char sql[128] = {0};
   sprintf(sql, "select * from %s.%s", databName, rstb);
@@ -2031,14 +2046,14 @@ void testSessionMaxVnodeCall() {
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
-  sprintf(sql, "alter user root CALL_PER_SESSION 2");
+  sprintf(sql, "alter user %s CALL_PER_SESSION 2", userBuf);
   pRes = taos_query(pConn, sql);
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
   taosMsleep(3100);
 
-  sprintf(sql, "alter user root CALL_PER_SESSION 1023");
+  sprintf(sql, "alter user %s CALL_PER_SESSION 1023", userBuf);
   pRes = taos_query(pConn, sql);
   taos_free_result(pRes);
 
@@ -2053,14 +2068,15 @@ void testSessionConncurentCall() {
   const char* stb = "conn_stp";
   char        sql[256] = {0};
 
-  initTestEnv(db, stb, &pConn);
+  char userBuf[32] = {0};
+  initTestEnv(db, stb, &pConn, userBuf);
   sprintf(sql, "select * from %s.%s", db, stb);
 
   TAOS_RES* pRes = taos_query(pConn, sql);
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
-  sprintf(sql, "alter user root VNODE_PER_CALL 2");
+  sprintf(sql, "alter user %s VNODE_PER_CALL 2", userBuf);
   pRes = taos_query(pConn, sql);
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
@@ -2072,7 +2088,7 @@ void testSessionConncurentCall() {
   ASSERT_NE(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
-  sprintf(sql, "alter user root VNODE_PER_CALL 1023");
+  sprintf(sql, "alter user %s VNODE_PER_CALL 1023", userBuf);
   pRes = taos_query(pConn, sql);
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
