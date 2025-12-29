@@ -1080,10 +1080,10 @@ static int32_t extWinGetMultiTbNoOvlpWin(SOperatorInfo* pOperator, int64_t* tsCo
 
     extWinSetCurWinIdx(pOperator, pExtW->blkWinIdx);
     *ppWin = taosArrayGet(pExtW->pWins, pExtW->blkWinIdx);
-    *winRows = getNumOfRowsInTimeWindow(pInfo, tsCol, *startPos, (*ppWin)->tw.ekey - 1, binarySearchForKey, NULL, pExtW->binfo.inputTsOrder);
+    *winRows = getNumOfRowsInTimeWindow(pInfo, tsCol, *startPos, (*ppWin)->tw.ekey - 2, binarySearchForKey, NULL, pExtW->binfo.inputTsOrder);
 
     qDebug("%s %s the %dth ext win TR[%" PRId64 ", %" PRId64 ") got %d rows rowStartidx %d ts[%" PRId64 ", %" PRId64 "] in blk", 
-        GET_TASKID(pOperator->pTaskInfo), __func__, pExtW->blkWinIdx, (*ppWin)->tw.skey, (*ppWin)->tw.ekey, *winRows, *startPos, tsCol[*startPos], tsCol[*startPos + *winRows - 1]);
+        GET_TASKID(pOperator->pTaskInfo), __func__, pExtW->blkWinIdx, (*ppWin)->tw.skey, (*ppWin)->tw.ekey, *winRows, *startPos, tsCol[*startPos], tsCol[TMAX(*startPos + *winRows - 1, 0)]);
     
     return TSDB_CODE_SUCCESS;
   } else {
@@ -1121,10 +1121,10 @@ static int32_t extWinGetMultiTbNoOvlpWin(SOperatorInfo* pOperator, int64_t* tsCo
         extWinSetCurWinIdx(pOperator, pExtW->blkWinIdx);
         *ppWin = pWin;
         *startPos = r;
-        *winRows = getNumOfRowsInTimeWindow(pInfo, tsCol, r, pWin->tw.ekey - 1, binarySearchForKey, NULL, pExtW->binfo.inputTsOrder);
+        *winRows = getNumOfRowsInTimeWindow(pInfo, tsCol, r, pWin->tw.ekey - 2, binarySearchForKey, NULL, pExtW->binfo.inputTsOrder);
 
         qDebug("%s %s the %dth ext win TR[%" PRId64 ", %" PRId64 ") got %d rows rowStartidx %d ts[%" PRId64 ", %" PRId64 "] in blk", 
-            GET_TASKID(pOperator->pTaskInfo), __func__, pExtW->blkWinIdx, pWin->tw.skey, pWin->tw.ekey, *winRows, r, tsCol[r], tsCol[r + *winRows - 1]);
+            GET_TASKID(pOperator->pTaskInfo), __func__, pExtW->blkWinIdx, pWin->tw.skey, pWin->tw.ekey, *winRows, r, tsCol[r], tsCol[TMAX(r + *winRows - 1, 0)]);
         
         return TSDB_CODE_SUCCESS;
       }
@@ -2034,17 +2034,15 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
 
   if (pOperator->status == OP_EXEC_DONE) {
-    if (pTaskInfo->pStreamRuntimeInfo) {
-      extWinFreeResultRow(pExtW);
-    }
-
     *ppRes = NULL;
     return code;
   }
 
   extWinRecycleBlkNode(pExtW, &pExtW->pLastBlkNode);
 
-  TAOS_CHECK_EXIT(pOperator->fpSet._openFn(pOperator));
+  if (pOperator->status == OP_NOT_OPENED) {
+    TAOS_CHECK_EXIT(pOperator->fpSet._openFn(pOperator));
+  }
 
   if (pExtW->mode == EEXT_MODE_SCALAR || pExtW->mode == EEXT_MODE_INDEFR_FUNC) {
     TAOS_CHECK_EXIT(extWinNonAggOutputRes(pOperator, ppRes));
@@ -2063,7 +2061,10 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pExtW->binfo.pRes->info.rows > 0) break;
 #else
     TAOS_CHECK_EXIT(extWinAggOutputRes(pOperator, ppRes));
-    setOperatorCompleted(pOperator);
+    if (NULL == *ppRes) {
+      setOperatorCompleted(pOperator);
+      extWinFreeResultRow(pExtW);
+    }
 #endif      
   }
 
