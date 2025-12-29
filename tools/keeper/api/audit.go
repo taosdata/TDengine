@@ -74,13 +74,18 @@ func NewAudit(cfg *config.Config) *Audit {
 		host:      cfg.TDengine.Host,
 		port:      cfg.TDengine.Port,
 		usessl:    cfg.TDengine.Usessl,
-		db:        cfg.Audit.Database.Name,
+		db:        getAuditDBName(cfg),
 		dbOptions: cfg.Audit.Database.Options,
 	}
-	if audit.db == "" {
-		audit.db = "audit"
-	}
 	return &audit
+}
+
+func getAuditDBName(cfg *config.Config) string {
+	name := cfg.Audit.Database.Name
+	if name == "" {
+		return "audit"
+	}
+	return name
 }
 
 func (a *Audit) Init(c gin.IRouter) {
@@ -204,7 +209,7 @@ func (a *Audit) prepareConnectionAndTable(c *gin.Context, logger *logrus.Entry) 
 
 	isDefault := db == ""
 	if isDefault {
-		db = config.Conf.Audit.Database.Name
+		db = getAuditDBName(config.Conf)
 	}
 
 	logger.Tracef("prepare audit connection for db: %s, token is empty: %v", db, token == "")
