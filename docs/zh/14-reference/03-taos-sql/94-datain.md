@@ -147,7 +147,7 @@ task_options:
 **示例**
 
 ```sql
-taos> create xnode task "t4" from 'kafka://localhost:9092?topics=abc&group=abcgroup' to 'taos+ws://localhost:6041/test' with parser '{"model":{"name":"cc_abc","using":"cc","tags":["g"],"columns":["ts","b"]},"mutate":[{"map":{"ts":{"cast":"ts","as":"TIMESTAMP(ms)"},"b":{"cast":"a","as":"VARCHAR"},"g":{"value":"1","as":"INT"}}}]}';
+taos> CREATE XNODE TASK "t4" FROM 'kafka://localhost:9092?topics=abc&group=abcgroup' TO 'taos+ws://localhost:6041/test' WITH parser '{"model":{"name":"cc_abc","using":"cc","tags":["g"],"columns":["ts","b"]},"mutate":[{"map":{"ts":{"cast":"ts","as":"TIMESTAMP(ms)"},"b":{"cast":"a","as":"VARCHAR"},"g":{"value":"1","as":"INT"}}}]}';
 Create OK, 0 row(s) affected (0.038959s)
 ```
 
@@ -228,7 +228,7 @@ alter_options:
   [ PARSER 'parser' ]
   [ NAME 'name' ]
   [ STATUS 'status' ]
-  [ VIA viaID ]
+  [ VIA viaId ]
   [ XNODE_ID xnodeId ]
   [ REASON 'reason' ]
 ```
@@ -238,7 +238,7 @@ alter_options:
 **示例**
 
 ```sql
-taos> ALTER XNODE TASK 3 FROM 'pulsar://zgc...' TO 'testdb' WITH XNODE_ID 33 VIA 333 REASON 'zgc_test';
+taos> ALTER XNODE TASK 3 FROM 'pulsar://zgc...' TO 'testdb' WITH xnode_id 33 via 333 reason 'zgc_test';
 Query OK, 0 row(s) affected (0.036077s)
 ```
 
@@ -263,42 +263,6 @@ Drop OK, 0 row(s) affected (0.038191s)
 
 JOB 是 TASK 任务的执行分片，支持手动和自动负载均衡。
 
-### 创建 JOB 分片
-
-**语法**
-
-```sql
-CREATE XNODE JOB ON taskId
-  WITH CONFIG 'config' [ job_options ]
-
-job_options:
-  [ XNODE_ID xnodeId ]
-  [ VIA viaId ]
-  [ TASK_ID taskId ]
-  [ STATUS 'status' ]
-  [ REASON 'reason' ]
-```
-
-语法说明：job_options 各选项可同时使用，空格分隔，顺序无关
-
-**参数说明**
-
-| 参数            | 说明                                           |
-| :-------------- | :--------------------------------------------- |
-| **taskId**      | 所属任务的 ID                                  |
-| **config**      | 分片配置（JSON 格式）                             |
-| **status**      | 分片状态                                        |
-| **xnodeId**     | 分片所在的 xnode 节点 ID                         |
-| **viaId**       | 分片所在的 agent 的 ID                           |
-| **reason**      | 分片最近执行失败原因                               |
-
-**示例**
-
-```sql
-taos> CREATE XNODE JOB ON 3 WITH CONFIG 'config_json' XNODE_ID 11;
-Create OK, 0 row(s) affected (0.046671s)
-```
-
 ### 查看 JOB 分片
 
 **语法**
@@ -317,7 +281,7 @@ taos> SHOW XNODE JOBS\G;
    config: config_json
       via: -1
  xnode_id: 11
-   status: Stopped
+   status: running
    reason: NULL
 create_time: 2025-12-14 02:52:31.281
 update_time: 2025-12-14 02:52:31.281
@@ -331,7 +295,7 @@ Query OK, 1 row(s) in set (0.004714s)
 **语法**
 
 ```sql
-REBALANCE XNODE JOB jid WITH XNODE_ID xnode_id;
+REBALANCE XNODE JOB jid WITH XNODE_ID xnodeId;
 ```
 
 语法说明：手动负载均衡当前只支持 xnode_id 参数，必须附带 xnode id 信息。
@@ -339,11 +303,8 @@ REBALANCE XNODE JOB jid WITH XNODE_ID xnode_id;
 **示例**
 
 ```sql
-taos> REBALANCE XNODE JOB 1 WITH XNODE_ID 1;
+taos> REBALANCE XNODE JOB 1 WITH xnode_id 1;
 Query OK, 0 row(s) affected (0.011808s)
-
-taos> REBALANCE XNODE JOB 1 WITH ABC 1;
-DB error: Missing option: xnode_id [0x8000800F] (0.000395s)
 ```
 
 ### 自动负载均衡
@@ -365,60 +326,6 @@ Query OK, 0 row(s) affected (0.014246s)
 taos> REBALANCE XNODE JOBS WHERE task_id=1 and (xnode_id=3 or xnode_id=4);
 Query OK, 0 row(s) affected (0.007237s)
 
-taos> rebalance xnode jobs;
+taos> REBALANCE XNODE JOBS;
 Query OK, 0 row(s) affected (0.023245s)
 ```
-
-### 修改 JOB 分片
-
-**语法**
-
-```sql
-ALTER XNODE JOB jid WITH alter_options
-
-alter_options
-{ CONFIG 'config'
-  | XNODE_ID xnodeId
-  | VIA viaID
-  | STATUS 'status'
-  | REASON 'reason' }
-[,... ]
-```
-
-语法说明：alter_options 各选项至少指定一个，可同时使用多个，用空格分隔
-
-**示例**
-
-```sql
-taos> ALTER XNODE JOB 1 WITH STATUS "running" VIA 10 XNODE_ID 77;
-Query OK, 0 row(s) affected (0.030972s)
-
-taos> SHOW XNODE JOBS\G;
-*************************** 1.row ***************************
-       id: 7
-    task_id: 1
-     config: {"from":"kafka://localhost:9092?group=abcgroup&read_concurrency=3&topics=abc","to":"taos+ws://localhost:6041/test","parser":{"model":{"name":"cc_abc","using":"cc","tags":["g"],"columns":["ts","b"]},"mutate":[{"map":{"ts":{"cast":"ts","as":"TIMESTAMP(ms)"},"b":{"cast":"a","as":"VARCHAR"},"g":{"value":"1","as":"INT"}}}]}}
-        via: NULL
-   xnode_id: 1
-     status: running
-     reason: 
-create_time: 2025-12-29 13:51:22.077
-update_time: 2025-12-29 13:51:22.347
-Query OK, 1 row(s) in set (0.004616s)
-```
-
-### 删除 JOB 分片
-
-**语法**
-
-```sql
-DROP XNODE JOB jid;
-```
-
-**示例**
-
-```sql
-taos> DROP XNODE JOB 1;
-Drop OK, 0 row(s) affected (0.053669s)
-```
-
