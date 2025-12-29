@@ -12,142 +12,59 @@
 #include "bckArgs.h"
 #include "bckLog.h"
 #include "bckDb.h"
-#include <stdarg.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <string.h>
 
-typedef struct {
-    TAOS **pool;
-    int *used;
-    int size;
-    int count;
-    pthread_mutex_t mutex;
-} ConnectionPool;
-
-static ConnectionPool g_pool = {0};
-
-int initConnectionPool(int poolSize) {
-    if (poolSize <= 0) return -1;
+char ** getDBSuperTableNames(const char *dbName, int *code) {
+    *code = TSDB_CODE_FAILED;
     
-    g_pool.pool = (TAOS **)calloc(poolSize, sizeof(TAOS *));
-    g_pool.used = (int *)calloc(poolSize, sizeof(int));
-    if (!g_pool.pool || !g_pool.used) {
-        free(g_pool.pool);
-        free(g_pool.used);
-        return -1;
-    }
-    
-    g_pool.size = poolSize;
-    g_pool.count = 0;
-    pthread_mutex_init(&g_pool.mutex, NULL);
-    
-    return 0;
-}
-
-void destroyConnectionPool() {
-    pthread_mutex_lock(&g_pool.mutex);
-    
-    for (int i = 0; i < g_pool.count; i++) {
-        if (g_pool.pool[i]) {
-            taos_close(g_pool.pool[i]);
-        }
-    }
-    
-    free(g_pool.pool);
-    free(g_pool.used);
-    g_pool.pool = NULL;
-    g_pool.used = NULL;
-    g_pool.size = 0;
-    g_pool.count = 0;
-    
-    pthread_mutex_unlock(&g_pool.mutex);
-    pthread_mutex_destroy(&g_pool.mutex);
-}
-
-TAOS* getConnection() {
-    pthread_mutex_lock(&g_pool.mutex);
-    
-    // find idle connection
-    for (int i = 0; i < g_pool.count; i++) {
-        if (!g_pool.used[i] && g_pool.pool[i]) {
-            g_pool.used[i] = 1;
-            pthread_mutex_unlock(&g_pool.mutex);
-            return g_pool.pool[i];
-        }
-    }
-    
-    // pool not full
-    if (g_pool.count < g_pool.size) {
-        TAOS *conn = taos_connect(argHost(), argUser(), argPassword(), NULL, argPort());
-        if (conn) {
-            g_pool.pool[g_pool.count] = conn;
-            g_pool.used[g_pool.count] = 1;
-            g_pool.count++;
-            pthread_mutex_unlock(&g_pool.mutex);
-            return conn;
-        }
-    }
-    
-    pthread_mutex_unlock(&g_pool.mutex);
-    return NULL;
-}
-
-TAOS* createConnection() {
-    pthread_mutex_lock(&g_pool.mutex);
-    
-    TAOS *conn = taos_connect(argHost(), argUser(), argPassword(), NULL, argPort());
+    // get connection
+    TAOS *conn = getConnection();
     if (!conn) {
-        pthread_mutex_unlock(&g_pool.mutex);
+        logError("get connection failed");
         return NULL;
     }
-    
-    // pool not full
-    if (g_pool.count < g_pool.size) {
-        g_pool.pool[g_pool.count] = conn;
-        g_pool.used[g_pool.count] = 1;
-        g_pool.count++;
-        pthread_mutex_unlock(&g_pool.mutex);
-        return conn;
+
+    // query stables
+    char sql[256];
+    snprintf(sql, sizeof(sql), "SHOW %s.STABLES", dbName);
+    TAOS_RES *res = taos_query(conn, sql);
+    if (!res || taos_errno(res)) {
+        logError("query stables failed: %s", taos_errstr(res));
+        if (res) taos_free_result(res);
+        releaseConnection(conn);
+        return NULL;
     }
-    
-    // replace idle connection
-    for (int i = 0; i < g_pool.size; i++) {
-        if (!g_pool.used[i]) {
-            if (g_pool.pool[i]) {
-                taos_close(g_pool.pool[i]);
+
+    // count rows
+    int count = 0;
+    int capacity = 16;
+    char **names = (char **)calloc(capacity + 1, sizeof(char *));
+    if (!names) {
+        taos_free_result(res);
+        releaseConnection(conn);
+        return NULL;
+    }
+
+    // fetch rows
+    TAOS_ROW row;
+    while ((row = taos_fetch_row(res))) {
+        if (count >= capacity) {
+            capacity *= 2;
+            char **tmp = (char **)realloc(names, (capacity + 1) * sizeof(char *));
+            if (!tmp) {
+                freeArrayPtr(names);
+                taos_free_result(res);
+                releaseConnection(conn);
+                return NULL;
             }
-            g_pool.pool[i] = conn;
-            g_pool.used[i] = 1;
-            pthread_mutex_unlock(&g_pool.mutex);
-            return conn;
+            names = tmp;
         }
+        names[count++] = strdup((char *)row[0]);
     }
-    
-    // replace first connection
-    if (g_pool.pool[0]) {
-        taos_close(g_pool.pool[0]);
-    }
-    g_pool.pool[0] = conn;
-    g_pool.used[0] = 1;
-    
-    pthread_mutex_unlock(&g_pool.mutex);
-    return conn;
-}
+    names[count] = NULL;
 
-void releaseConnection(TAOS* conn) {
-    if (!conn) return;
-    
-    pthread_mutex_lock(&g_pool.mutex);
-    
-    for (int i = 0; i < g_pool.count; i++) {
-        if (g_pool.pool[i] == conn) {
-            g_pool.used[i] = 0;
-            break;
-        }
-    }
-    
-    pthread_mutex_unlock(&g_pool.mutex);
+    taos_free_result(res);
+    releaseConnection(conn);
+    *code = TSDB_CODE_SUCCESS;
+    return names;
 }
-

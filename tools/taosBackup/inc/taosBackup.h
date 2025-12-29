@@ -50,6 +50,7 @@
 
 #define MAX_PATH_LEN 512
 #define FILE_DBSQL "db.sql"
+#define FILE_DBJSON "db.json"
 
 
 #endif  // INC_TAOSBACKUP_H_

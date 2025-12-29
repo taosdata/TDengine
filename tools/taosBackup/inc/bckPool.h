@@ -14,11 +14,18 @@
 #include <taos.h>
 #include <taoserror.h>
 
-
+//
 // ---------------- define ----------------
+//
 
+int initConnectionPool(int poolSize);
+void destroyConnectionPool();
 
-// ---------------- interface ----------------
-char ** getDBSuperTableNames(const char *dbName, int *code);
+TAOS* getConnection();
+
+TAOS* createConnection();
+
+void releaseConnection(TAOS* conn);
+
 
 #endif  // INC_BCKDB_H_

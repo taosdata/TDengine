@@ -43,43 +43,7 @@ int genBackTableSql(const char *dbName, const char *tableName, char *sql, int le
 
 void obtainDBFile(const char *dbName,  char *dbPath, int len, char* fileName) {
     // db path: <outPath>/db_<crc>/
-    snprintf(dbPath, len, "%s/db_%u/%s", argOutPath(), getCrc(dbName), fileName);
-    return TSDB_CODE_SUCCESS;
-}
-
-int queryWriteFile(const char *sql, const char *pathFile) {
-    TAOS *conn = getConnection();
-    if (!conn) {
-        logError("get connection failed");
-        return TSDB_CODE_FAILED;
-    }
-
-    TAOS_RES *res = taos_query(conn, sql);
-    if (!res || taos_errno(res)) {
-        logError("query failed: %s", taos_errstr(res));
-        if (res) taos_free_result(res);
-        releaseConnection(conn);
-        return TSDB_CODE_FAILED;
-    }
-
-    FILE *fp = fopen(pathFile, "w");
-    if (!fp) {
-        logError("open file failed: %s", pathFile);
-        taos_free_result(res);
-        releaseConnection(conn);
-        return TSDB_CODE_FAILED;
-    }
-
-    TAOS_ROW row;
-    while ((row = taos_fetch_row(res))) {
-        if (row[1]) {
-            fprintf(fp, "%s;\n", (char *)row[1]);
-        }
-    }
-
-    fclose(fp);
-    taos_free_result(res);
-    releaseConnection(conn);
+    snprintf(dbPath, len, "%s/db_%x/%s", argOutPath(), getCrc(dbName), fileName);
     return TSDB_CODE_SUCCESS;
 }
 
@@ -105,6 +69,33 @@ int backCreateDbSql(const char *dbName) {
 
 int backCreateStbSql(const char *dbName, const char *stbName) {
     int code = TSDB_CODE_FAILED;
+    
+    // path
+    char sqlFile[MAX_PATH_LEN] = {0};
+    obtainDBFile(dbName, sqlFile, sizeof(sqlFile), FILE_DBSQL);
+
+    // sql
+    char sql[512] = {0};
+    snprintf(sql, sizeof(sql), "show create table %s.%s;", dbName, stbName);
+    code = queryWriteFile(sql, sqlFile);
+
+    return code;
+}
+
+int backStbSchema(const char *dbName, const char *stbName, char ** selectTags) {
+    int code = TSDB_CODE_FAILED;
+    
+    // path
+    char jsonFile[MAX_PATH_LEN] = {0};
+    char name[64] = {0};
+    snprintf(name, sizeof(name), "stb_%x.json", getCrc(stbName));
+    
+    obtainDBFile(dbName, jsonFile, sizeof(jsonFile), name);
+    
+    // json
+    char sql[512] = {0};
+    snprintf(sql, sizeof(sql), "show create table %s.%s;", dbName, stbName);
+    code = queryWriteJson(sql, jsonFile, selectTags);
 
     return code;
 }
@@ -193,17 +184,35 @@ int backDatabaseMeta(const char *dbName) {
         printf("backup super table meta: %s.%s\n", dbName, stbNames[i]);
 
         // super tables
+
+        // sql
         code = backCreateStbSql(dbName, stbNames[i]);
         if (code != TSDB_CODE_SUCCESS) {
             freeArrayPtr(stbNames);
             return code;
         }
-
-        code = backChildTableTags(dbName, stbNames[i]);
+        // schema
+        char * selectTags = NULL; 
+        code = backStbSchema(dbName, stbNames[i], &selectTags);
         if (code != TSDB_CODE_SUCCESS) {
             freeArrayPtr(stbNames);
+            if(selectTags) {
+                free(selectTags);
+            }            
             return code;
         }
+
+
+        code = backChildTableTags(dbName, stbNames[i], selectTags);
+        if (code != TSDB_CODE_SUCCESS) {
+            freeArrayPtr(stbNames);
+            if(selectTags) {
+                free(selectTags);
+
+            return code;
+        }
+        if(selectTags) {
+            free(selectTags);
     }    
 
     freeArrayPtr(stbNames);

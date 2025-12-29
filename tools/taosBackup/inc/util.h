@@ -12,6 +12,7 @@
 #ifndef INC_UTIL_H_
 #define INC_UTIL_H_
 
+#include <stdbool.h>
 
 //
 // ---------------- define ----------------
@@ -25,5 +26,7 @@ void sleepMs(int ms);
 void freeArrayPtr(char **ptr);
 
 bool errorCodeCanRetry(int code);
+
+unsigned int getCrc(const char *name);
 
 #endif  // INC_UTIL_H_

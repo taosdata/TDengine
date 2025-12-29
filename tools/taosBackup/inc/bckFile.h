@@ -9,16 +9,18 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef INC_BCKDB_H_
-#define INC_BCKDB_H_
-#include <taos.h>
-#include <taoserror.h>
+#ifndef INC_BCKFILE_H_
+#define INC_BCKFILE_H_
 
+#include <stdbool.h>
 
+//
 // ---------------- define ----------------
-
+//
 
 // ---------------- interface ----------------
-char ** getDBSuperTableNames(const char *dbName, int *code);
+int queryWriteJson(const char *sql, const char *pathFile, char ** selectTags);
 
-#endif  // INC_BCKDB_H_
+
+
+#endif  // INC_BCKFILE_H_
