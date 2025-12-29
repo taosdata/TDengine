@@ -421,8 +421,8 @@ bool transReadComplete(SConnBuffer* connBuf) {
       int32_t msgLen = (int32_t)ntohl(head.msgLen);
       p->total = msgLen;
       p->invalid = head.version != TRANS_VER;
-      if (p->invalid) {
-        tError("recv invalid msg, version:%d, expect:%d", head.version, TRANS_VER);
+      if (p->invalid || msgLen >= TRANS_MSG_LIMIT) {
+        tError("recv invalid msg, version:%d, expect:%d, msg len %d", head.version, TRANS_VER, msgLen);
       }
     }
     if (p->total >= p->len) {
