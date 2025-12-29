@@ -1181,8 +1181,9 @@ function install_service() {
     install_service_on_systemd $1
   elif ((${service_mod} == 1)); then
     install_service_on_sysvinit $1
+  else
+    kill_process $1
   fi
-  kill_process $1
 }
 
 vercomp() {
