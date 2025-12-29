@@ -228,6 +228,98 @@ class TestBoundary:
         tdSql.checkEqual(tdSql.queryResult[0][3],tag_max_16382)
 
         tdSql.execute('drop database db')
+    
+    def fullname_length_check(self):
+        # dbname_length = self.dbname_length_boundary
+        dbname1 = tdCom.get_long_name(self.dbname_length_boundary)
+        dbname2 = tdCom.get_long_name(self.dbname_length_boundary)
+        tdSql.execute(f'create database if not exists {dbname1}')
+        tdSql.execute(f'create database if not exists `{dbname2}`')
+        stbname = tdCom.get_long_name(self.stbname_length_boundary)
+        tbname1 = tdCom.get_long_name(self.tbname_length_boundary)
+        tbname2 = tdCom.get_long_name(self.tbname_length_boundary)
+
+        tdLog.info(f'database1: {dbname1}, database2: {dbname2}')
+        tdLog.info(f'stable name: {stbname}')
+        tdLog.info(f'table name1: {tbname1}, table name2: {tbname2}')
+
+        tdSql.execute(f'create stable {dbname1}.{stbname} (ts timestamp,c0 int) tags(t0 int)')
+        tdSql.execute(f'create stable `{dbname2}`.`{stbname}` (ts timestamp,c0 int) tags(t0 int)')
+        tdSql.execute(f'insert into {dbname1}.{tbname1} using {dbname1}.{stbname} tags(1) values(now,1)')
+        tdSql.execute(f'insert into `{dbname2}`.`{tbname2}` using `{dbname2}`.`{stbname}` tags(2) values(now,1)')
+
+        tbnameTooLong = tdCom.get_long_name(self.tbname_length_boundary + 1)
+        dbnameTooLong = tdCom.get_long_name(self.dbname_length_boundary + 1)
+
+        tdSql.error(f'insert into {dbname1}.{tbnameTooLong} using {dbname1}.{stbname} tags(1) values(now,1)')
+        tdSql.error(f'insert into `{dbname1}`.`{tbnameTooLong}` using `{dbname1}`.`{stbname}` tags(1) values(now,1)')
+
+        tdSql.error(f'create database if not exists {dbnameTooLong}')
+        tdSql.error(f'create database if not exists `{dbnameTooLong}`')
+
+        tdSql.execute(f'use {dbname1}')
+        tdSql.execute(f'insert into `{dbname2}`.`{tbname1}` using `{dbname2}`.`{stbname}` tags(1) values(now,1)')
+        tdSql.execute(f'insert into  {stbname} (tbname,t0,ts,c0)values("{tbname2}",1,now,1)')
+
+
+        tdSql.error(f'insert into {tbnameTooLong} using {stbname} tags(1) values(now,1)')
+        tdSql.error(f'insert into `{tbnameTooLong}` using `{stbname}` tags(1) values(now,1)')
+        tdSql.error(f'insert into  {dbname1}.{stbname} (tbname,t0,ts,c0)values("{tbnameTooLong}",1,now,1)')
+
+        tdSql.query(f'select * from {dbname1}.{tbname1}')
+        tdSql.checkRows(1)
+        tdSql.query(f'select * from {dbname1}.{tbname2}')
+        tdSql.checkRows(1)
+        tdSql.query(f'select * from {dbname2}.{tbname1}')
+        tdSql.checkRows(1)
+        tdSql.query(f'select * from {dbname2}.{tbname2}')
+        tdSql.checkRows(1)
+
+    def fullname_length_check(self):
+        # dbname_length = self.dbname_length_boundary
+        dbname1 = tdCom.get_long_name(self.dbname_length_boundary)
+        dbname2 = tdCom.get_long_name(self.dbname_length_boundary)
+        tdSql.execute(f'create database if not exists {dbname1}')
+        tdSql.execute(f'create database if not exists `{dbname2}`')
+        stbname = tdCom.get_long_name(self.stbname_length_boundary)
+        tbname1 = tdCom.get_long_name(self.tbname_length_boundary)
+        tbname2 = tdCom.get_long_name(self.tbname_length_boundary)
+
+        tdLog.info(f'database1: {dbname1}, database2: {dbname2}')
+        tdLog.info(f'stable name: {stbname}')
+        tdLog.info(f'table name1: {tbname1}, table name2: {tbname2}')
+
+        tdSql.execute(f'create stable {dbname1}.{stbname} (ts timestamp,c0 int) tags(t0 int)')
+        tdSql.execute(f'create stable `{dbname2}`.`{stbname}` (ts timestamp,c0 int) tags(t0 int)')
+        tdSql.execute(f'insert into {dbname1}.{tbname1} using {dbname1}.{stbname} tags(1) values(now,1)')
+        tdSql.execute(f'insert into `{dbname2}`.`{tbname2}` using `{dbname2}`.`{stbname}` tags(2) values(now,1)')
+
+        tbnameTooLong = tdCom.get_long_name(self.tbname_length_boundary + 1)
+        dbnameTooLong = tdCom.get_long_name(self.dbname_length_boundary + 1)
+
+        tdSql.error(f'insert into {dbname1}.{tbnameTooLong} using {dbname1}.{stbname} tags(1) values(now,1)')
+        tdSql.error(f'insert into `{dbname1}`.`{tbnameTooLong}` using `{dbname1}`.`{stbname}` tags(1) values(now,1)')
+
+        tdSql.error(f'create database if not exists {dbnameTooLong}')
+        tdSql.error(f'create database if not exists `{dbnameTooLong}`')
+
+        tdSql.execute(f'use {dbname1}')
+        tdSql.execute(f'insert into `{dbname2}`.`{tbname1}` using `{dbname2}`.`{stbname}` tags(1) values(now,1)')
+        tdSql.execute(f'insert into  {stbname} (tbname,t0,ts,c0)values("{tbname2}",1,now,1)')
+
+
+        tdSql.error(f'insert into {tbnameTooLong} using {stbname} tags(1) values(now,1)')
+        tdSql.error(f'insert into `{tbnameTooLong}` using `{stbname}` tags(1) values(now,1)')
+        tdSql.error(f'insert into  {dbname1}.{stbname} (tbname,t0,ts,c0)values("{tbnameTooLong}",1,now,1)')
+
+        tdSql.query(f'select * from {dbname1}.{tbname1}')
+        tdSql.checkRows(1)
+        tdSql.query(f'select * from {dbname1}.{tbname2}')
+        tdSql.checkRows(1)
+        tdSql.query(f'select * from {dbname2}.{tbname1}')
+        tdSql.checkRows(1)
+        tdSql.query(f'select * from {dbname2}.{tbname2}')
+        tdSql.checkRows(1)
 
     def test_boundary(self):
         """Name length boundary
@@ -240,6 +332,7 @@ class TestBoundary:
         6. Password length boundary check
         7. SQL length boundary check
         8. Row/Column/Tag max length check
+        9. Full name length check
 
         Since: v3.0.0.0
 
@@ -249,6 +342,7 @@ class TestBoundary:
 
         History:
             - 2025-9-15 Alex  Duan Migrated from uncatalog/system-test/1-insert/test_boundary.py
+            - 2025-12-19 pengrk add full name length check.
 
         """
         self.dbname_length_check()
@@ -259,6 +353,7 @@ class TestBoundary:
         self.password_length_check()
         self.sql_length_check()
         self.row_col_tag_maxlen_check()
+        self.fullname_length_check()
         
         #tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

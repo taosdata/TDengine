@@ -66,7 +66,6 @@ class TestTDgptBasic:
 
         tdSql.checkRows(1)
         tdLog.info("create anode: 192.168.2.90:6090 successfully")
-
         tdSql.query("show anodes full")
 
         # there are 17 analysis model for forecasting or anomaly-detection.
