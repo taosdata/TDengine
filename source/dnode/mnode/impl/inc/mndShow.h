@@ -27,7 +27,6 @@ extern "C" {
   do {                                                                                     \
     if (pColInfo && (code = colDataSetVal(pColInfo, numOfRows, (pData), (isNull))) != 0) { \
       if (pObj) sdbRelease(pSdb, (pObj));                                                  \
-      if (pIter) sdbCancelFetch(pSdb, (pIter));                                            \
       lino = __LINE__;                                                                     \
       goto LABEL;                                                                          \
     }                                                                                      \
