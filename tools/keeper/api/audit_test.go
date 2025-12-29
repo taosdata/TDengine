@@ -1396,3 +1396,167 @@ func TestAuditBatchCustomDBWithToken(t *testing.T) {
 	_, err = conn.Exec(context.Background(), "drop user audit_batch_user", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
 }
+
+func TestAuditV2SwitchDBAndToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	cfg := config.GetCfg()
+	cfg.TDengine.Host = "192.168.1.98"
+	cfg.Audit.Database.Name = "test_1767001978"
+
+	dbname := config.Conf.Audit.Database.Name
+	defer func() {
+		config.Conf.Audit.Database.Name = dbname
+	}()
+	config.Conf.Audit.Database.Name = "test_1767001978"
+
+	audit := NewAudit(cfg)
+	audit.Init(router)
+
+	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+	defer conn.Close()
+
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1767007899", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "create database test_1767007899 precision 'ns'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	conn.Exec(context.Background(), "drop user sw_token_user", util.GetQidOwn(cfg.InstanceID))
+	_, err = conn.Exec(context.Background(), "create user sw_token_user pass 'token_pass_1'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1767007899 to sw_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	records := []string{
+		`{"timestamp":"1699839716442000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+		`{"timestamp":"1699839716452000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+		`{"timestamp":"1699839716462000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+		`{"timestamp":"1699839716472000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/audit_v2", strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	_, err = conn.Exec(context.Background(), "grant all on test_1767001978 to sw_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	data, err := conn.Query(context.Background(), "create token test_sw_token from user sw_token_user", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	token := data.Data[0][0].(string)
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("/audit_v2?token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/audit_v2", strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("/audit_v2?token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/audit_v2?db=test_1767007899", strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost,
+			fmt.Sprintf("/audit_v2?db=test_1767001978&token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost,
+			fmt.Sprintf("/audit_v2?db=test_1767007899&token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/audit_v2?db=test_1767001978", strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("/audit_v2?token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/audit_v2", strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("/audit_v2?token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost,
+			fmt.Sprintf("/audit_v2?db=test_1767007899&token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost,
+			fmt.Sprintf("/audit_v2?db=test_1767001978&token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/audit_v2?db=test_1767007899", strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	data, err = conn.Query(context.Background(), "select * from test_1767001978.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+	_, err = conn.Query(context.Background(), "drop database if exists tetest_1767001978st_1766991210", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	data, err = conn.Query(context.Background(), "select * from test_1767007899.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+	_, err = conn.Query(context.Background(), "drop database if exists test_1767007899", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(context.Background(), "drop user sw_token_user", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+}
