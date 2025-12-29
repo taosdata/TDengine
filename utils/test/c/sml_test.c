@@ -26,7 +26,10 @@
 int smlProcess_influx_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "drop database if exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "create database if not exists sml_db schemaless 1 keep 36500");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
