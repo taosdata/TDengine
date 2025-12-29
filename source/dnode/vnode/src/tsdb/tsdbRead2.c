@@ -7427,8 +7427,9 @@ int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
     */
     if (notifyTs <= pReader->innerReader[0]->info.window.ekey) {
       pReader->currentStepDone = true;
-      tsdbDebug("%s, tsdbReaderStepDone, step: PREV, notifyTs: %ld, window.ekey: %ld",
-                pReader->idStr, notifyTs, (int64_t)pReader->innerReader[0]->info.window.ekey);
+      tsdbDebug("%s, %s, step: PREV, notifyTs: %" PRIu64
+                ", window.ekey: %" PRIu64, pReader->idStr, __func__, notifyTs,
+                (int64_t)pReader->innerReader[0]->info.window.ekey);
     }
   }
 
@@ -7440,8 +7441,9 @@ int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
     */
     if (notifyTs >= pReader->innerReader[1]->info.window.skey) {
       pReader->currentStepDone = true;
-      tsdbDebug("%s, tsdbReaderStepDone, step: NEXT, notifyTs: %ld, window.skey: %ld",
-                pReader->idStr, notifyTs, (int64_t)pReader->innerReader[1]->info.window.skey);
+      tsdbDebug("%s, %s, step: NEXT, notifyTs: %" PRIu64
+                ", window.skey: %" PRIu64, pReader->idStr, __func__, notifyTs,
+                (int64_t)pReader->innerReader[1]->info.window.skey);
     }
   }
 
