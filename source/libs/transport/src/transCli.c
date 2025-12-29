@@ -13,7 +13,6 @@
  */
 
 // clang-format off
-#include "osSocket.h"
 #include "taoserror.h"
 #include "transComm.h"
 #include "tutil.h"
