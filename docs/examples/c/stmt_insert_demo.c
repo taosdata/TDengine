@@ -50,7 +50,7 @@ void executeSQL(TAOS *taos, const char *sql) {
 void checkErrorCode(TAOS_STMT *stmt, int code, const char *msg) {
   if (code != 0) {
     printf("stmt failed:%s, code: %d, error: %s\n", msg, code, taos_stmt_errstr(stmt));
-    taos_stmt_close(stmt);
+    (void)taos_stmt_close(stmt);
     exit(EXIT_FAILURE);
   }
 }
@@ -134,13 +134,10 @@ void insertData(TAOS *taos) {
     params[3].num = 1;
 
     for (int j = 0; j < num_of_row; j++) {
-      struct timeval tv;
-      gettimeofday(&tv, NULL);
-      long long milliseconds = tv.tv_sec * 1000LL + tv.tv_usec / 1000;  // current timestamp in milliseconds
-      int64_t   ts = milliseconds + j;
-      float     current = (float)rand() / RAND_MAX * 30;
-      int       voltage = rand() % 300;
-      float     phase = (float)rand() / RAND_MAX;
+      int64_t   ts = 1609459200000LL + i * num_of_row * 1000LL + j * 1000LL;
+      float     current = 10.0f + j * 0.5f;
+      int       voltage = 100 + j * 10;
+      float     phase = 0.1f + j * 0.05f;
       params[0].buffer = &ts;
       params[1].buffer = &current;
       params[2].buffer = &voltage;
@@ -159,8 +156,8 @@ void insertData(TAOS *taos) {
     int affected = taos_stmt_affected_rows_once(stmt);
     total_affected += affected;
   }
-  fprintf(stdout, "Successfully inserted %d rows to power.meters.\n", total_affected);
-  taos_stmt_close(stmt);
+  printf("Successfully inserted %d rows to power.meters.\n", total_affected);
+  (void)taos_stmt_close(stmt);
 }
 
 int main() {

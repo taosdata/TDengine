@@ -53,7 +53,7 @@ void executeSQL(TAOS *taos, const char *sql) {
 void checkErrorCode(TAOS_STMT2 *stmt2, int code, const char *msg) {
   if (code != 0) {
     printf("%s. Code: %d, Error: %s\n", msg, code, taos_stmt2_error(stmt2));
-    taos_stmt2_close(stmt2);
+    (void)taos_stmt2_close(stmt2);
     exit(EXIT_FAILURE);
   }
 }
@@ -175,7 +175,7 @@ void insertData(TAOS *taos) {
   printf("Successfully inserted %d rows.\n", affected);
   // free and close
   freeBindData(&table_name, &tags, &params);
-  taos_stmt2_close(stmt2);
+  (void)taos_stmt2_close(stmt2);
 }
 
 int main() {
