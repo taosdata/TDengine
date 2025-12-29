@@ -395,7 +395,7 @@ function install_services() {
   done
 }
 
-kill_process() {
+function kill_process() {
     # use pkill if available, otherwise fallback to pgrep + xargs
     if command -v pkill >/dev/null 2>&1; then
         pkill -x -9 "$1" 2>/dev/null || true

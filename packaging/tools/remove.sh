@@ -207,8 +207,8 @@ kill_service_of() {
   pids=$(pgrep -x "$svc" | grep -v -x "$$" || true)
   if [ -n "$pids" ]; then
     echo "$pids" | xargs -r ps -o pid=,comm= -p 2>/dev/null \
-      | awk '$2!="rmtaos" && $2!="uninstall.sh" {print $1}' \
-      | xargs -r kill -9 2>/dev/null
+      | awk '$2 != "rmtaos" && $2 != "uninstall.sh" {print $1}' \
+      | xargs -r kill -9 2>/dev/null || true
   fi
 }
 
