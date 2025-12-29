@@ -2510,6 +2510,8 @@ typedef struct {
   int64_t syncCommitIndex;
   int64_t bufferSegmentUsed;
   int64_t bufferSegmentSize;
+  int32_t snapSeq;
+  int64_t syncTotalIndex;
 } SVnodeLoad;
 
 typedef struct {
