@@ -2097,7 +2097,6 @@ void testSessionConncurentCall() {
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
   taosMsleep(6100);
-
   taos_close(pRootConn);
   taos_close(pUserConn);
 }
