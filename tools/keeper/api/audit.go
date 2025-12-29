@@ -37,7 +37,6 @@ type Audit struct {
 
 	inited bool
 	mu     sync.Mutex
-	once   sync.Once
 }
 
 type AuditInfo struct {
@@ -92,16 +91,14 @@ func (a *Audit) Init(c gin.IRouter) {
 
 func (a *Audit) handleBatchFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !a.prepareConnectionAndTable(c) {
-			return
-		}
-
 		qid := util.GetQid(c.GetHeader("X-QID"))
-
 		auditLogger := auditLogger.WithFields(
 			logrus.Fields{config.ReqIDKey: qid},
 		)
 
+		if !a.prepareConnectionAndTable(c, auditLogger) {
+			return
+		}
 		if a.conn == nil {
 			auditLogger.Error("no connection")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "no connection"})
@@ -146,16 +143,14 @@ func (a *Audit) handleBatchFunc() gin.HandlerFunc {
 
 func (a *Audit) handleFunc() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !a.prepareConnectionAndTable(c) {
-			return
-		}
-
 		qid := util.GetQid(c.GetHeader("X-QID"))
-
 		auditLogger := auditLogger.WithFields(
 			logrus.Fields{config.ReqIDKey: qid},
 		)
 
+		if !a.prepareConnectionAndTable(c, auditLogger) {
+			return
+		}
 		if a.conn == nil {
 			auditLogger.Error("no connection")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "no connection"})
@@ -203,18 +198,18 @@ func (a *Audit) handleFunc() gin.HandlerFunc {
 	}
 }
 
-func (a *Audit) prepareConnectionAndTable(c *gin.Context) bool {
+func (a *Audit) prepareConnectionAndTable(c *gin.Context, logger *logrus.Entry) bool {
 	db := c.Query("db")
-	auditLogger.Debugf("preparing audit connection and table, db: %s", db)
+	token := c.Query("token")
+	logger.Tracef("prepare audit connection for db: %s, token len: %v", db, len(token))
 	if db != "" {
-		token := c.Query("token")
-		auditLogger.Debugf("preparing audit connection and table, token len: %v", len(token))
 		if !a.inited || db != a.db || token != a.token {
 			a.mu.Lock()
 			defer a.mu.Unlock()
 			if !a.inited || db != a.db || token != a.token {
 				a.db = db
 				a.token = token
+				logger.Infof("create audit connection and table, db: %s", a.db)
 				if err := a.createConnect(); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create connect error: %s", err)})
 					return false
@@ -227,24 +222,27 @@ func (a *Audit) prepareConnectionAndTable(c *gin.Context) bool {
 			}
 		}
 	} else {
-		var onceErr error
-		a.once.Do(func() {
-			if err := a.createDatabase(); err != nil {
-				onceErr = fmt.Errorf("create database error: %s", err)
-				return
+		if !a.inited || token != a.token {
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			if !a.inited || token != a.token {
+				a.db = config.Conf.Audit.Database.Name
+				a.token = ""
+				logger.Infof("create audit database, connection and table, db: %s", a.db)
+				if err := a.createDatabase(); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create database error: %s", err)})
+					return false
+				}
+				if err := a.createConnect(); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create connect error: %s", err)})
+					return false
+				}
+				if err := a.createSTable(); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create stable error: %s", err)})
+					return false
+				}
+				a.inited = true
 			}
-			if err := a.createConnect(); err != nil {
-				onceErr = fmt.Errorf("create connect error: %s", err)
-				return
-			}
-			if err := a.createSTable(); err != nil {
-				onceErr = fmt.Errorf("create stable error: %s", err)
-				return
-			}
-		})
-		if onceErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": onceErr.Error()})
-			return false
 		}
 	}
 	return true
