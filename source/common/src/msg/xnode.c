@@ -583,6 +583,7 @@ int32_t tSerializeSMUpdateXnodeTaskReq(void *buf, int32_t bufLen, SMUpdateXnodeT
   TAOS_CHECK_EXIT(xSerializeTaskSink(&encoder, &pReq->sink));
   TAOS_CHECK_EXIT(xEncodeCowStr(&encoder, &pReq->parser));
   TAOS_CHECK_EXIT(xEncodeCowStr(&encoder, &pReq->reason));
+  TAOS_CHECK_EXIT(xEncodeCowStr(&encoder, &pReq->updateName));
   tEndEncode(&encoder);
 
 _exit:
@@ -613,6 +614,7 @@ int32_t tDeserializeSMUpdateXnodeTaskReq(void *buf, int32_t bufLen, SMUpdateXnod
   TAOS_CHECK_EXIT(xDeserializeTaskSink(&decoder, &pReq->sink));
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->parser, true));
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->reason, true));
+  TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->updateName, true));
   tEndDecode(&decoder);
 
 _exit:
@@ -628,6 +630,7 @@ void tFreeSMUpdateXnodeTaskReq(SMUpdateXnodeTaskReq *pReq) {
   xFreeCowStr(&pReq->parser);
   xFreeCowStr(&pReq->reason);
   xFreeCowStr(&pReq->status);
+  xFreeCowStr(&pReq->updateName);
   FREESQL();
 }
 

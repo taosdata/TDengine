@@ -13062,6 +13062,9 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
   SMUpdateXnodeTaskReq updateReq = {0};
   updateReq.tid = pStmt->tid;
 
+  if (pStmt->name.len > 0) {
+    updateReq.name = xCloneRefCowStr(&pStmt->name);
+  }
   if (pStmt->source != NULL) {
     updateReq.source = xCloneTaskSourceRef(&pStmt->source->source);
   }
@@ -13073,7 +13076,7 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
     updateReq.via = pStmt->options->via;
     const char* name = getXnodeTaskOptionByName(pStmt->options, "name");
     if (name != NULL) {
-      updateReq.name = xCreateCowStr(strlen(name) + 1, name, false);
+      updateReq.updateName = xCreateCowStr(strlen(name) + 1, name, false);
     }
     const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
     if (xnodeId != NULL) {

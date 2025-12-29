@@ -491,6 +491,8 @@ cmd ::= REBALANCE XNODE xnode_resource_type(A) where_clause_opt(B).
 /* alter xnode task 't1' from 'mqtt://xxx' to database s1 with parser '{...}' */
 cmd ::= ALTER XNODE xnode_resource_type(A) NK_INTEGER(B) xnode_task_from_opt(C) xnode_task_to_opt(D) with_task_options_opt(E).
                                                                                   { pCxt->pRootNode = alterXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
+cmd ::= ALTER XNODE xnode_resource_type(A) NK_STRING(B) xnode_task_from_opt(C) xnode_task_to_opt(D) with_task_options_opt(E).
+                                                                                  { pCxt->pRootNode = alterXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
 
 /* drop xnode agent 'a1'; drop xnode task 't1'; drop xnode job 1; drop xnode task 1; */
 cmd ::= DROP XNODE xnode_resource_type(A) NK_STRING(B).                           { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }

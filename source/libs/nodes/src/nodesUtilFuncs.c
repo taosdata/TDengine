@@ -2507,6 +2507,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->source);
       nodesDestroyNode((SNode*)pStmt->sink);
       nodesDestroyNode((SNode*)pStmt->options);
+      xFreeCowStr(&pStmt->name);
       break;
     }
     case QUERY_NODE_REBALANCE_XNODE_JOB_STMT: {

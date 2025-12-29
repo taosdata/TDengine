@@ -5329,19 +5329,10 @@ _err:
   return NULL;
 }
 
-SNode* updateXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceId, SNode* pSource,
-                                         SNode* pSink, SNode* pNode) {
+SNode* updateXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResIdOrName, SNode* pSource,
+                                          SNode* pSink, SNode* pNode) {
   SNode* pStmt = NULL;
-  if (pResourceId == NULL) {
-    pCxt->errCode =
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task id should not be NULL");
-    goto _err;
-  }
-  if (pResourceId->type != TK_NK_INTEGER) {
-    pCxt->errCode =
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task id should be an integer");
-    goto _err;
-  }
+
   if ((pSource != NULL && nodeType(pSource) != QUERY_NODE_XNODE_TASK_SOURCE_OPT) ||
       (pSink != NULL && nodeType(pSink) != QUERY_NODE_XNODE_TASK_SINK_OPT)) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -5357,7 +5348,18 @@ SNode* updateXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_XNODE_TASK_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   SUpdateXnodeTaskStmt* pTaskStmt = (SUpdateXnodeTaskStmt*)pStmt;
-  pTaskStmt->tid = taosStr2Int32(pResourceId->z, NULL, 10);
+  if (pResIdOrName->type == TK_NK_INTEGER) {
+    pTaskStmt->tid = taosStr2Int32(pResIdOrName->z, NULL, 10);
+  } else {
+    if (pResIdOrName->n <= 2) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task name be empty string");
+      goto _err;
+    }
+    char buf[TSDB_XNODE_NAME_LEN];
+    COPY_STRING_FORM_STR_TOKEN(buf, pResIdOrName);
+    pTaskStmt->name = xCreateCowStr(strlen(buf) + 1, buf, true);
+  }
 
   if (pSource != NULL) {
     SXTaskSource* source = (SXTaskSource*)(pSource);

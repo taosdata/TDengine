@@ -3543,6 +3543,7 @@ typedef struct {
   xTaskSink   sink;
   CowStr      parser;
   CowStr      reason;
+  CowStr      updateName;
   int32_t     sqlLen;
   char*       sql;
 } SMUpdateXnodeTaskReq;

@@ -1743,11 +1743,11 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
     (void)memcpy(taskObj.status, pUpdate->status.ptr, taskObj.statusLen);
     isChange.status = true;
   }
-  if (pUpdate->name.len > 0) {
-    taskObj.nameLen = pUpdate->name.len;
-    taskObj.name = taosMemoryCalloc(1, pUpdate->name.len);
+  if (pUpdate->updateName.len > 0) {
+    taskObj.nameLen = pUpdate->updateName.len;
+    taskObj.name = taosMemoryCalloc(1, pUpdate->updateName.len);
     if (taskObj.name == NULL) goto _OVER;
-    (void)memcpy(taskObj.name, pUpdate->name.ptr, pUpdate->name.len);
+    (void)memcpy(taskObj.name, pUpdate->updateName.ptr, pUpdate->updateName.len);
     isChange.name = true;
   }
   if (pUpdate->source.cstr.len > 0) {
@@ -1831,7 +1831,11 @@ static int32_t mndProcessUpdateXnodeTaskReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMUpdateXnodeTaskReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
 
-  pObj = mndAcquireXnodeTaskById(pMnode, updateReq.tid);
+  if (updateReq.tid > 0) {
+    pObj = mndAcquireXnodeTaskById(pMnode, updateReq.tid);
+  } else {
+    pObj = mndAcquireXnodeTaskByName(pMnode, updateReq.name.ptr);
+  }
   if (pObj == NULL) {
     code = terrno;
     goto _OVER;
