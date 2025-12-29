@@ -33,7 +33,7 @@ static int32_t sessPerUserCheckFn(int64_t *value, int64_t *limit) {
   int32_t code = 0;
   int64_t cValue = atomic_load_64(value);
   int64_t cLimit = atomic_load_64(limit);
-  if (cLimit == -1) {
+  if (cLimit <= 0) {
     return 0;
   }
 
@@ -61,7 +61,7 @@ static int32_t sessConnTimeCheckFn(int64_t *value, int64_t *limit) {
 
   int64_t cValue = atomic_load_64(value);
   int64_t cLimit = atomic_load_64(limit);
-  if (cLimit == -1) {
+  if (cLimit <= 0) {
     return code;
   }
   int64_t currentTime = taosGetTimestampMs();
@@ -85,7 +85,7 @@ static int32_t sessConnIdleTimeCheckFn(int64_t *value, int64_t *limit) {
   int64_t currentTime = taosGetTimestampMs();
   int64_t cValue = atomic_load_64(value);
   int64_t cLimit = atomic_load_64(limit);
-  if (cLimit == -1) {
+  if (cLimit <= 0) {
     return 0;
   }
 
@@ -107,7 +107,7 @@ static int32_t sessMaxConnCurrencyCheckFn(int64_t *value, int64_t *limit) {
   int32_t code = 0;
   int64_t cValue = atomic_load_64(value);
   int64_t cLimit = atomic_load_64(limit);
-  if (cLimit == -1) {
+  if (cLimit <= 0) {
     return code;
   }
   if (cValue > cLimit) {
