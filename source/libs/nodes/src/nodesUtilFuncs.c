@@ -1214,6 +1214,10 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_REMOTE_VALUE_LIST: {
+      SRemoteValueListNode* pRemote = (SRemoteValueListNode*)pNode;
+      destroyExprNode((SExprNode*)pNode);
+      taosHashCleanup(pRemote->pHashFilter);
+      taosHashCleanup(pRemote->pHashFilterOthers);
       break;
     }
     case QUERY_NODE_OPERATOR: {

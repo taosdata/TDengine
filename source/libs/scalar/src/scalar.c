@@ -68,7 +68,7 @@ int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarPara
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int32_t *overflow) {
+int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int8_t *overflow) {
   SScalarParam in = {.numOfRows = 1};
   int32_t      code = sclCreateColumnInfoData(&pValueNode->node.resType, 1, &in);
   if (code != TSDB_CODE_SUCCESS) {
@@ -135,6 +135,94 @@ int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockL
 }
 
 // processType = 0 means all type. 1 means number, 2 means var, 3 means float, 4 means var&integer
+int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t type, STypeMod typeMod, int8_t processType, uint32_t rows) {
+  if ((IS_VAR_DATA_TYPE(pCol->info.type) && (processType == 1 || processType == 3)) ||
+      (IS_INTEGER_TYPE(pCol->info.type) && (processType == 2 || processType == 3)) ||
+      (IS_FLOAT_TYPE(pCol->info.type) && (processType == 2 || processType == 4))) {
+    return TSDB_CODE_SUCCESS;
+  }
+    
+  SHashObj *pObj = NULL;
+
+  if (NULL == *data) {
+    pObj = taosHashInit(rows, taosGetDefaultHashFunction(type), true, false);
+    if (NULL == pObj) {
+      sclError("taosHashInit failed, size:%d", 256);
+      SCL_ERR_RET(terrno);
+    }
+  } else {
+    TSWAP(*data, pObj);
+  }
+
+  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(type));
+
+  int32_t        code = 0;
+  int32_t len = 0;
+  void   *buf = NULL;
+  int8_t* overflow = NULL;
+  SScalarParam   out = {0};
+
+  if (pCol->info.type != type) {
+    SScalarParam   in = {.columnData = pCol, .numOfRows = rows};
+    out.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+    if (out.columnData == NULL) {
+      SCL_ERR_JRET(terrno);
+    }
+    
+    overflow = taosMemoryCalloc(rows, sizeof(int8_t));
+    if (overflow == NULL) {
+      SCL_ERR_JRET(terrno);
+    }
+    
+    out.columnData->info.type = type;
+    if (IS_VAR_DATA_TYPE(type)) {
+      if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+        out.columnData->info.bytes = pCol->info.type * TSDB_NCHAR_SIZE;
+      } else {
+        out.columnData->info.bytes = 64 * TSDB_NCHAR_SIZE;
+      }
+    } else {
+      out.columnData->info.bytes = tDataTypes[type].bytes;
+      extractTypeFromTypeMod(type, typeMod, &out.columnData->info.precision, &out.columnData->info.scale, NULL);
+    }
+
+    SCL_ERR_JRET(colInfoDataEnsureCapacity(out->columnData, rows, true));
+    SCL_ERR_JRET(vectorConvertSingleColImpl(&in, out, overflow, -1, -1));
+  }
+
+  for (uint32_t i = 0; i < rows; ++i) {
+    if (overflow && overflow[i]) {
+      continue;
+    }
+    
+    if (IS_VAR_DATA_TYPE(type)) {
+      buf = colDataGetVarData(out.columnData, i);
+      if (IS_STR_DATA_BLOB(type)) {
+        len = blobDataTLen(buf);
+      } else {
+        len = varDataTLen(buf);
+      }
+    } else {
+      len = tDataTypes[type].bytes;
+      buf = colDataGetNumData(out.columnData, i);
+    }
+
+    SCL_ERR_JRET(taosHashPut(pObj, buf, (size_t)len, NULL, 0);
+  }
+
+  *data = pObj;
+  pObj = NULL;
+
+_return:
+
+  colDataDestroy(out.columnData);
+  taosMemoryFreeClear(out.columnData);
+  taosMemoryFreeClear(overflow);
+  taosHashCleanup(pObj);
+  SCL_RET(code);
+}
+
+// processType = 0 means all type. 1 means number, 2 means var, 3 means float, 4 means var&integer
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, STypeMod typeMod, int8_t processType) {
   SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
   if (NULL == pObj) {
@@ -175,7 +263,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, SType
         extractTypeFromTypeMod(type, typeMod, &out.columnData->info.precision, &out.columnData->info.scale, NULL);
       }
 
-      int32_t overflow = 0;
+      int8_t overflow = 0;
       code = sclConvertValueToSclParam(valueNode, &out, &overflow);
       if (code != TSDB_CODE_SUCCESS) {
         //        sclError("convert data from %d to %d failed", in.type, out.type);
@@ -372,7 +460,8 @@ void sclDowngradeValueType(SValueNode *valueNode) {
   }
 }
 
-int32_t sclBuildRemoteListHash(SRemoteValueListNode* pRemote) {
+int32_t sclBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData* pCol, int64_t rows) {
+  int32_t  code = 0;
   int32_t  type = vectorGetConvertType(pRemote->targetType, pRemote->node.resType.type);
   STypeMod typeMod = 0;
 
@@ -381,19 +470,19 @@ int32_t sclBuildRemoteListHash(SRemoteValueListNode* pRemote) {
   }
   
   if (IS_VAR_DATA_TYPE(pRemote->targetType) && IS_NUMERIC_TYPE(type)) {
-    SCL_ERR_RET(scalarGenerateSetFromList((void **)&pRemote->pHashFilter, node, type, typeMod, 1));
-    SCL_ERR_RET(
-        scalarGenerateSetFromList((void **)&pRemote->pHashFilterOthers, node, pRemote->targetType, typeMod, 2));
+    SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 1, rows));
   } else if (IS_INTEGER_TYPE(pRemote->targetType) && IS_FLOAT_TYPE(type)) {
-    SCL_ERR_RET(scalarGenerateSetFromList((void **)&pRemote->pHashFilter, node, type, typeMod, 2));
+    SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 2, rows));
     SCL_ERR_RET(
-        scalarGenerateSetFromList((void **)&pRemote->pHashFilterOthers, node, pRemote->targetType, typeMod, 4));
+        scalarGenerateSetFromCol((void **)&pRemote->pHashFilterOthers, pCol, pRemote->targetType, typeMod, 4, rows));
   } else {
-    SCL_ERR_RET(scalarGenerateSetFromList((void **)&pRemote->pHashFilter, node, type, typeMod, 0));
+    SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 0, rows));
   }
 
   pRemote->filterValueTypeMod = typeMod;
   pRemote->filterValueType = type;
+
+  return code;
 }
 
 int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t *rowNum) {
@@ -423,6 +512,15 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       break;
     }
     case QUERY_NODE_NODE_LIST: {
+      SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, &node, POINTER_BYTES);
+      if (NULL == res) {
+        sclDebug("no result saved for nodeList now, type:%d, node:%p", nodeType(node), node);
+      } else {
+        *param = *res;
+        param->colAlloced = false;
+        break;
+      }
+      
       SNodeListNode *nodeList = (SNodeListNode *)node;
       if (LIST_LENGTH(nodeList->pNodeList) <= 0) {
         sclError("invalid length in nodeList, length:%d", LIST_LENGTH(nodeList->pNodeList));
@@ -467,6 +565,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       param->filterValueTypeMod = typeMod;
       param->filterValueType = type;
       param->colAlloced = true;
+     
       if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
         taosHashCleanup(param->pHashFilter);
         param->pHashFilter = NULL;
@@ -543,6 +642,38 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     }
     case QUERY_NODE_REMOTE_VALUE:
       SCL_ERR_RET(TSDB_CODE_QRY_SUBQ_EXEC_ERROR);
+    case QUERY_NODE_REMOTE_VALUE_LIST: {
+      SRemoteValueListNode* pRemote = (SRemoteValueListNode*)node;
+      if (!(pRemote->flag & VALUELIST_FLAG_VAL_UNSET)) {
+        sclDebug("remoteValueList already got res, node:%p, pHashFilter:%p,%d, pHashFilterOthers:%p,%d",
+          node, pRemote->pHashFilter, pRemote->pHashFilter ? taosHashGetSize(pRemote->pHashFilter) : 0,
+          pRemote->pHashFilterOthers, pRemote->pHashFilterOthers ? taosHashGetSize(pRemote->pHashFilterOthers) : 0);
+          
+        param->pHashFilter = pRemote->pHashFilter;
+        param->pHashFilterOthers = pRemote->pHashFilterOthers;
+        param->filterValueType = pRemote->filterValueType;
+        param->filterValueTypeMod = pRemote->filterValueTypeMod;
+        param->colAlloced = false;
+        break;
+      }
+
+      pRemote->targetType = ctx->type.selfType;
+      pRemote->targetTypeMod = ctx->type.selfTypeMod;
+      
+      if (NULL == ctx->pSubJobCtx) {
+        sclError("no subJob ctx for subQIdx %d", pRemote->subQIdx);
+        return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+      }
+      
+      SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
+
+      param->pHashFilter = pRemote->pHashFilter;
+      param->pHashFilterOthers = pRemote->pHashFilterOthers;
+      param->filterValueType = pRemote->filterValueType;
+      param->filterValueTypeMod = pRemote->filterValueTypeMod;
+      param->colAlloced = false;
+      break;
+    }  
     default:
       break;
   }

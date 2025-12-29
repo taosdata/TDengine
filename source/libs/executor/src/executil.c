@@ -4199,7 +4199,7 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
     return;
   }
   
-  ctx->code = createBlockFromRemoteValueNode(&pResBlock, pParam->pRes);
+  ctx->code = createExprSubQResBlock(&pResBlock, &((SRemoteValueNode*)pParam->pRes)->val.node.resType);
   if (TSDB_CODE_SUCCESS == ctx->code) {
     ctx->code = blockDataEnsureCapacity(pResBlock, 1);
   }
@@ -4226,16 +4226,9 @@ int32_t updateValueListFromResBlock(STaskSubJobCtx* ctx, SRemoteValueListNode* p
   }
 
   pRes->hasValue = true;
-  pRes->flag &= (~VALUELIST_FLAG_VAL_UNSET);
   
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 0);
-  for (uint32_t i = 0; i < pBlock->info.rows; ++i) {
-    if (colDataIsNull_s(pCol, i)) {
-      continue;
-    }
-    
-    TAOS_CHECK_EXIT(sclBuildRemoteListHash(pRes));
-  }
+  TAOS_CHECK_EXIT(sclBuildRemoteListHash(pRes, pCol, pBlock->info.rows));
 
 _exit:
 
@@ -4264,6 +4257,7 @@ void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SR
       ctx->code = updateValueListFromResBlock(ctx, (SRemoteValueListNode*)pParam->pRes, pResBlock);
     }
     if (TSDB_CODE_SUCCESS == ctx->code && pRsp->completed) {
+      ((SRemoteValueListNode*)pParam->pRes)->flag &= (~VALUELIST_FLAG_VAL_UNSET);
       taosArraySet(ctx->subResNodes, pParam->subQIdx, &pParam->pRes);
     }
 
@@ -4271,6 +4265,13 @@ void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SR
   }
 
   *fetchDone = (TSDB_CODE_SUCCESS != ctx->code || pRsp->completed) ? true : false;
+
+  if (!(*fetchDone)) {
+    ctx->code = sendFetchRemoteNodeReq(ctx, pParam->subQIdx, pParam->pRes);
+    if (ctx->code) {
+      *fetchDone = true;
+    }
+  }
 }
 
 
@@ -4353,7 +4354,7 @@ _exit:
 }
 
 
-int32_t fetchRemoteNodeImpl(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes) {
+int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SDownstreamSourceNode* pSource = (SDownstreamSourceNode*)taosArrayGetP(ctx->subEndPoints, subQIdx);
@@ -4429,6 +4430,22 @@ int32_t fetchRemoteNodeImpl(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes) {
   pMsgSendInfo->requestId = ctx->queryId;
 
   code = asyncSendMsgToServer(ctx->rpcHandle, &pSource->addr.epSet, &ctx->transporterId, pMsgSendInfo);
+  QUERY_CHECK_CODE(code, lino, _end);
+      
+_end:
+
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s %s failed at line %d since %s", ctx->idStr, __func__, lino, tstrerror(code));
+  }
+  
+  return code;
+}
+
+int32_t fetchRemoteNodeImpl(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+
+  code = sendFetchRemoteNodeReq(ctx, subQIdx, pRes);
   QUERY_CHECK_CODE(code, lino, _end);
 
   code = qSemWait(ctx->pTaskInfo, &ctx->ready);

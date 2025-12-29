@@ -239,7 +239,7 @@ int32_t getVectorBigintValueFn(int32_t srcType, _getBigintValue_fn_t *p) {
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE int32_t varToTimestamp(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+static FORCE_INLINE int32_t varToTimestamp(char *buf, SScalarParam *pOut, int32_t rowIndex, int8_t *overflow) {
   int64_t value = 0;
   int32_t code = TSDB_CODE_SUCCESS;
   if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision, pOut->tz) != TSDB_CODE_SUCCESS) {
@@ -251,7 +251,7 @@ static FORCE_INLINE int32_t varToTimestamp(char *buf, SScalarParam *pOut, int32_
   SCL_RET(code);
 }
 
-static FORCE_INLINE int32_t varToDecimal(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+static FORCE_INLINE int32_t varToDecimal(char *buf, SScalarParam *pOut, int32_t rowIndex, int8_t *overflow) {
   Decimal *pDec = (Decimal *)colDataGetData(pOut->columnData, rowIndex);
   int32_t code = decimalFromStr(buf, strlen(buf), pOut->columnData->info.precision, pOut->columnData->info.scale, pDec);
   if (TSDB_CODE_SUCCESS != code) {
@@ -261,7 +261,7 @@ static FORCE_INLINE int32_t varToDecimal(char *buf, SScalarParam *pOut, int32_t 
   SCL_RET(code);
 }
 
-static FORCE_INLINE int32_t varToSigned(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+static FORCE_INLINE int32_t varToSigned(char *buf, SScalarParam *pOut, int32_t rowIndex, int8_t *overflow) {
   if (overflow) {
     int64_t minValue = tDataTypes[pOut->columnData->info.type].minValue;
     int64_t maxValue = tDataTypes[pOut->columnData->info.type].maxValue;
@@ -303,7 +303,7 @@ static FORCE_INLINE int32_t varToSigned(char *buf, SScalarParam *pOut, int32_t r
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
-static FORCE_INLINE int32_t varToUnsigned(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+static FORCE_INLINE int32_t varToUnsigned(char *buf, SScalarParam *pOut, int32_t rowIndex, int8_t *overflow) {
   if (overflow) {
     uint64_t minValue = (uint64_t)tDataTypes[pOut->columnData->info.type].minValue;
     uint64_t maxValue = (uint64_t)tDataTypes[pOut->columnData->info.type].maxValue;
@@ -344,7 +344,7 @@ static FORCE_INLINE int32_t varToUnsigned(char *buf, SScalarParam *pOut, int32_t
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
-static FORCE_INLINE int32_t varToFloat(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+static FORCE_INLINE int32_t varToFloat(char *buf, SScalarParam *pOut, int32_t rowIndex, int8_t *overflow) {
   if (TSDB_DATA_TYPE_FLOAT == pOut->columnData->info.type) {
     float value = taosStr2Float(buf, NULL);
     colDataSetFloat(pOut->columnData, rowIndex, &value);
@@ -356,7 +356,7 @@ static FORCE_INLINE int32_t varToFloat(char *buf, SScalarParam *pOut, int32_t ro
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
-static FORCE_INLINE int32_t varToBool(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+static FORCE_INLINE int32_t varToBool(char *buf, SScalarParam *pOut, int32_t rowIndex, int8_t *overflow) {
   int64_t value = taosStr2Int64(buf, NULL, 10);
   bool    v = (value != 0) ? true : false;
   colDataSetInt8(pOut->columnData, rowIndex, (int8_t *)&v);
@@ -364,7 +364,7 @@ static FORCE_INLINE int32_t varToBool(char *buf, SScalarParam *pOut, int32_t row
 }
 
 // todo remove this malloc
-static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_t rowIndex, int8_t *overflow) {
   if (isHex(varDataVal(buf), varDataLen(buf))) {
     if (!isValidateHex(varDataVal(buf), varDataLen(buf))) {
       SCL_ERR_RET(TSDB_CODE_PAR_INVALID_VARBINARY);
@@ -403,7 +403,7 @@ static FORCE_INLINE int32_t varToVarbinary(char *buf, SScalarParam *pOut, int32_
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
-static FORCE_INLINE int32_t varToVarbinaryBlob(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+static FORCE_INLINE int32_t varToVarbinaryBlob(char *buf, SScalarParam *pOut, int32_t rowIndex, int8_t *overflow) {
   if (isHex(blobDataVal(buf), blobDataLen(buf))) {
     if (!isValidateHex(blobDataVal(buf), blobDataLen(buf))) {
       SCL_ERR_RET(TSDB_CODE_PAR_INVALID_VARBINARY);
@@ -442,7 +442,7 @@ static FORCE_INLINE int32_t varToVarbinaryBlob(char *buf, SScalarParam *pOut, in
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
-static FORCE_INLINE int32_t varToNchar(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+static FORCE_INLINE int32_t varToNchar(char *buf, SScalarParam *pOut, int32_t rowIndex, int8_t *overflow) {
   int32_t len = 0;
   int32_t inputLen = varDataLen(buf);
   int32_t outputMaxLen = (inputLen + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
@@ -467,7 +467,7 @@ _return:
   SCL_RET(code);
 }
 
-static FORCE_INLINE int32_t ncharToVar(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+static FORCE_INLINE int32_t ncharToVar(char *buf, SScalarParam *pOut, int32_t rowIndex, int8_t *overflow) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t inputLen = varDataLen(buf);
 
@@ -488,7 +488,7 @@ _return:
   SCL_RET(code);
 }
 
-static FORCE_INLINE int32_t varToGeometry(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+static FORCE_INLINE int32_t varToGeometry(char *buf, SScalarParam *pOut, int32_t rowIndex, int8_t *overflow) {
 #ifdef USE_GEOS
   //[ToDo] support to parse WKB as well as WKT
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -532,7 +532,7 @@ _return:
 }
 
 // TODO opt performance, tmp is not needed.
-int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
+int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int8_t *overflow) {
   int32_t code = TSDB_CODE_SUCCESS;
   bool    vton = false;
 
@@ -626,7 +626,7 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
       }
     }
 
-    SCL_ERR_JRET((*func)(tmp, pCtx->pOut, i, overflow));
+    SCL_ERR_JRET((*func)(tmp, pCtx->pOut, i, overflow ? overflow + i : NULL));
   }
 
 _return:
@@ -843,8 +843,52 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+void vectorConvertCheckOverflow(SColumnInfoData *pInputCol, int16_t inType, int16_t outType, int8_t *overflow) {
+  if (IS_SIGNED_NUMERIC_TYPE(outType)) {
+    int64_t minValue = tDataTypes[outType].minValue;
+    int64_t maxValue = tDataTypes[outType].maxValue;
+
+    double value = 0;
+    GET_TYPED_DATA(value, double, inType, colDataGetData(pInputCol, 0),
+                   typeGetTypeModFromColInfo(&pInputCol->info));
+
+    if (value > maxValue) {
+      *overflow = 1;
+      return TSDB_CODE_SUCCESS;
+    } else if (value < minValue) {
+      *overflow = -1;
+      return TSDB_CODE_SUCCESS;
+    } else {
+      *overflow = 0;
+    }
+
+    return;
+  } 
+
+  if (IS_UNSIGNED_NUMERIC_TYPE(outType)) {
+    uint64_t minValue = (uint64_t)tDataTypes[outType].minValue;
+    uint64_t maxValue = (uint64_t)tDataTypes[outType].maxValue;
+
+    double value = 0;
+    GET_TYPED_DATA(value, double, inType, colDataGetData(pInputCol, 0),
+                   typeGetTypeModFromColInfo(&pInputCol->info));
+
+    if (value > maxValue) {
+      *overflow = 1;
+      return TSDB_CODE_SUCCESS;
+    } else if (value < minValue) {
+      *overflow = -1;
+      return TSDB_CODE_SUCCESS;
+    } else {
+      *overflow = 0;
+    }
+
+    return;
+  }
+}
+
 // TODO opt performance
-int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int32_t *overflow, int32_t startIndex,
+int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int8_t *overflow, int32_t startIndex,
                                    int32_t numOfRows) {
   SColumnInfoData *pInputCol = pIn->columnData;
   SColumnInfoData *pOutputCol = pOut->columnData;
@@ -862,51 +906,6 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
     return vectorConvertFromVarData(&cCtx, overflow);
   }
 
-  if (overflow && TSDB_DATA_TYPE_NULL != cCtx.inType) {
-    if (1 != pIn->numOfRows) {
-      sclError("invalid numOfRows %d", pIn->numOfRows);
-      return TSDB_CODE_APP_ERROR;
-    }
-
-    pOut->numOfRows = 0;
-
-    if (IS_SIGNED_NUMERIC_TYPE(cCtx.outType)) {
-      int64_t minValue = tDataTypes[cCtx.outType].minValue;
-      int64_t maxValue = tDataTypes[cCtx.outType].maxValue;
-
-      double value = 0;
-      GET_TYPED_DATA(value, double, cCtx.inType, colDataGetData(pInputCol, 0),
-                     typeGetTypeModFromColInfo(&pInputCol->info));
-
-      if (value > maxValue) {
-        *overflow = 1;
-        return TSDB_CODE_SUCCESS;
-      } else if (value < minValue) {
-        *overflow = -1;
-        return TSDB_CODE_SUCCESS;
-      } else {
-        *overflow = 0;
-      }
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(cCtx.outType)) {
-      uint64_t minValue = (uint64_t)tDataTypes[cCtx.outType].minValue;
-      uint64_t maxValue = (uint64_t)tDataTypes[cCtx.outType].maxValue;
-
-      double value = 0;
-      GET_TYPED_DATA(value, double, cCtx.inType, colDataGetData(pInputCol, 0),
-                     typeGetTypeModFromColInfo(&pInputCol->info));
-
-      if (value > maxValue) {
-        *overflow = 1;
-        return TSDB_CODE_SUCCESS;
-      } else if (value < minValue) {
-        *overflow = -1;
-        return TSDB_CODE_SUCCESS;
-      } else {
-        *overflow = 0;
-      }
-    }
-  }
-
   pOut->numOfRows = pIn->numOfRows;
   switch (cCtx.outType) {
     case TSDB_DATA_TYPE_BOOL: {
@@ -914,6 +913,10 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
+        }
+
+        if (overflow) {
+          vectorConvertCheckOverflow(pInputCol, cCtx.inType, cCtx.outType, overflow + i);
         }
 
         bool value = 0;
@@ -930,6 +933,10 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
           continue;
         }
 
+        if (overflow) {
+          vectorConvertCheckOverflow(pInputCol, cCtx.inType, cCtx.outType, overflow + i);
+        }
+
         int8_t value = 0;
         GET_TYPED_DATA(value, int8_t, cCtx.inType, colDataGetData(pInputCol, i),
                        typeGetTypeModFromColInfo(&pInputCol->info));
@@ -944,6 +951,10 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
           continue;
         }
 
+        if (overflow) {
+          vectorConvertCheckOverflow(pInputCol, cCtx.inType, cCtx.outType, overflow + i);
+        }
+
         int16_t value = 0;
         GET_TYPED_DATA(value, int16_t, cCtx.inType, colDataGetData(pInputCol, i),
                        typeGetTypeModFromColInfo(&pInputCol->info));
@@ -956,6 +967,10 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
+        }
+
+        if (overflow) {
+          vectorConvertCheckOverflow(pInputCol, cCtx.inType, cCtx.outType, overflow + i);
         }
 
         int32_t value = 0;
@@ -973,6 +988,10 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
           continue;
         }
 
+        if (overflow) {
+          vectorConvertCheckOverflow(pInputCol, cCtx.inType, cCtx.outType, overflow + i);
+        }
+
         int64_t value = 0;
         GET_TYPED_DATA(value, int64_t, cCtx.inType, colDataGetData(pInputCol, i),
                        typeGetTypeModFromColInfo(&pInputCol->info));
@@ -985,6 +1004,10 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
+        }
+
+        if (overflow) {
+          vectorConvertCheckOverflow(pInputCol, cCtx.inType, cCtx.outType, overflow + i);
         }
 
         uint8_t value = 0;
@@ -1001,6 +1024,10 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
           continue;
         }
 
+        if (overflow) {
+          vectorConvertCheckOverflow(pInputCol, cCtx.inType, cCtx.outType, overflow + i);
+        }
+
         uint16_t value = 0;
         GET_TYPED_DATA(value, uint16_t, cCtx.inType, colDataGetData(pInputCol, i),
                        typeGetTypeModFromColInfo(&pInputCol->info));
@@ -1015,6 +1042,10 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
           continue;
         }
 
+        if (overflow) {
+          vectorConvertCheckOverflow(pInputCol, cCtx.inType, cCtx.outType, overflow + i);
+        }
+
         uint32_t value = 0;
         GET_TYPED_DATA(value, uint32_t, cCtx.inType, colDataGetData(pInputCol, i),
                        typeGetTypeModFromColInfo(&pInputCol->info));
@@ -1027,6 +1058,10 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         if (colDataIsNull_f(pInputCol, i)) {
           colDataSetNULL(pOutputCol, i);
           continue;
+        }
+
+        if (overflow) {
+          vectorConvertCheckOverflow(pInputCol, cCtx.inType, cCtx.outType, overflow + i);
         }
 
         uint64_t value = 0;

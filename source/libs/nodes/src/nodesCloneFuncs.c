@@ -517,6 +517,11 @@ static int32_t remoteValueCopy(const SRemoteValueNode* pSrc, SRemoteValueNode* p
 static int32_t remoteValueListCopy(const SRemoteValueListNode* pSrc, SRemoteValueListNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_SCALAR_FIELD(flag);
+  COPY_SCALAR_FIELD(targetType);
+  COPY_SCALAR_FIELD(targetTypeMod);
+  COPY_SCALAR_FIELD(hasValue);
+  COPY_SCALAR_FIELD(filterValueType);
+  COPY_SCALAR_FIELD(filterValueTypeMod);
   COPY_SCALAR_FIELD(subQIdx);
   return TSDB_CODE_SUCCESS;
 }

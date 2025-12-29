@@ -185,6 +185,7 @@ static bool remoteValueNodeEqual(const SRemoteValueNode* a, const SRemoteValueNo
 }
 
 static bool remoteValueNodeListEqual(const SRemoteValueListNode* a, const SRemoteValueListNode* b) {
+  COMPARE_OBJECT_FIELD(node.resType, dataTypeEqual);
   COMPARE_SCALAR_FIELD(subQIdx);
   return true;
 }

@@ -153,7 +153,7 @@ typedef struct SScalarCtx {
     }                                \
   } while (0)
 
-int32_t sclConvertValueToSclParam(SValueNode* pValueNode, SScalarParam* out, int32_t* overflow);
+int32_t sclConvertValueToSclParam(SValueNode* pValueNode, SScalarParam* out, int8_t* overflow);
 int32_t sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows, SScalarParam* pParam);
 int32_t sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode);
 

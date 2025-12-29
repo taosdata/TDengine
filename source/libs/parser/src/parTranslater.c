@@ -3939,9 +3939,9 @@ static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
         SRemoteValueListNode* pValueList = (SRemoteValueListNode*)*pNode;
         pValueList->flag |= VALUELIST_FLAG_VAL_UNSET;
         pValueList->subQIdx = pCxt->pSubQueries->length - 1;
-        tstrncpy(pValue->val.node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pValue->val.node.aliasName));
-        tstrncpy(pValue->val.node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pValue->val.node.userAlias));
-        getExprSubQueryResType(pSubQuery, &pValue->val.node.resType);
+        tstrncpy(pValueList->node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pValueList->node.aliasName));
+        tstrncpy(pValueList->node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pValueList->node.userAlias));
+        getExprSubQueryResType(pSubQuery, &pValueList->node.resType);
       }
       break;
     }

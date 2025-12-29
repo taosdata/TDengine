@@ -1324,7 +1324,7 @@ int32_t fltAddGroupUnitFromNode(void *pContext, SFilterInfo *info, SNode *tree, 
     FOREACH(nodeItem, listNode->pNodeList) {
       SValueNode *valueNode = (SValueNode *)nodeItem;
       if (valueNode->node.resType.type != type) {
-        int32_t overflow = 0;
+        int8_t overflow = 0;
         code = sclConvertValueToSclParam(valueNode, &out, &overflow);
         if (TSDB_CODE_SUCCESS != code) {
           //        fltError("convert from %d to %d failed", in.type, out.type);
