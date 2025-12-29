@@ -32,7 +32,7 @@ void executeSQL(TAOS *taos, const char *sql) {
   TAOS_RES *res = taos_query(taos, sql);
   int       code = taos_errno(res);
   if (code != 0) {
-    fprintf(stderr, "%s\n", taos_errstr(res));
+    printf("exec failed, error: %s\n", taos_errstr(res));
     taos_free_result(res);
     taos_close(taos);
     exit(EXIT_FAILURE);
@@ -49,7 +49,7 @@ void executeSQL(TAOS *taos, const char *sql) {
  */
 void checkErrorCode(TAOS_STMT *stmt, int code, const char *msg) {
   if (code != 0) {
-    fprintf(stderr, "%s. code: %d, error: %s\n", msg,code,taos_stmt_errstr(stmt));
+    printf("stmt failed:%s, code: %d, error: %s\n", msg, code, taos_stmt_errstr(stmt));
     taos_stmt_close(stmt);
     exit(EXIT_FAILURE);
   }
@@ -74,8 +74,8 @@ void insertData(TAOS *taos) {
   // init
   TAOS_STMT *stmt = taos_stmt_init(taos);
   if (stmt == NULL) {
-      fprintf(stderr, "Failed to init taos_stmt, error: %s\n", taos_stmt_errstr(NULL));
-      exit(EXIT_FAILURE);
+    printf("Failed to init taos_stmt, error: %s\n", taos_stmt_errstr(NULL));
+    exit(EXIT_FAILURE);
   }
   // prepare
   const char *sql = "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)";
@@ -99,7 +99,7 @@ void insertData(TAOS *taos) {
     // location
     tags[1].buffer_type = TSDB_DATA_TYPE_BINARY;
     tags[1].buffer_length = strlen(location);
-    tags[1].length =(int32_t *) &tags[1].buffer_length;
+    tags[1].length = (int32_t *)&tags[1].buffer_length;
     tags[1].buffer = location;
     tags[1].is_null = NULL;
     tags[1].num = 1;
@@ -164,13 +164,14 @@ void insertData(TAOS *taos) {
 }
 
 int main() {
-  const char *host      = "localhost";
-  const char *user      = "root";
-  const char *password  = "taosdata";
-  uint16_t    port      = 6030;
-  TAOS *taos = taos_connect(host, user, password, NULL, port);
+  const char *host = "localhost";
+  const char *user = "root";
+  const char *password = "taosdata";
+  uint16_t    port = 6030;
+  TAOS       *taos = taos_connect(host, user, password, NULL, port);
   if (taos == NULL) {
-    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
+           taos_errstr(NULL));
     taos_cleanup();
     exit(EXIT_FAILURE);
   }
