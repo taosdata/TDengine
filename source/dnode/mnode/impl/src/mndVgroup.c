@@ -1312,7 +1312,7 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    int32_t cacheUsage = (int32_t)pVgroup->cacheUsage;
+    int64_t cacheUsage = (int64_t)pVgroup->cacheUsage;
     COL_DATA_SET_VAL_GOTO((const char *)&cacheUsage, false, pVgroup, pShow->pIter, _OVER);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
