@@ -777,7 +777,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
   SMnode *       pMnode = pReq->info.node;
   SMDropTopicReq dropReq = {0};
-  SName          name = {0};
   int32_t        code = 0;
   int32_t        lino = 0;
   SMqTopicObj *  pTopic = NULL;
@@ -798,7 +797,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
   taosRLockLatch(&pTopic->lock);
 
-  MND_TMQ_RETURN_CHECK(tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-topic");
   MND_TMQ_NULL_CHECK(pTrans);
 
@@ -810,10 +808,9 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   // MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_DROP_TOPIC, pTopic));
   // MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), MND_OPER_READ_DB, pTopic->db));
-  MND_TMQ_RETURN_CHECK(
-      mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pTopic->db, NULL));
+  MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pTopic->db, NULL));
   MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TOPIC, pTopic->ownerId,
-                                                pTopic->db, name.tname));
+                                                pTopic->db, mndGetDbStr(pTopic->name)));
   MND_TMQ_RETURN_CHECK(mndCheckConsumerByTopic(pMnode, pTrans, dropReq.name, dropReq.force));
   MND_TMQ_RETURN_CHECK(mndDropSubByTopic(pMnode, pTrans, dropReq.name, dropReq.force));
   MND_TMQ_RETURN_CHECK(mndDropTopic(pMnode, pTrans, pReq, pTopic));
@@ -1043,7 +1040,7 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     if (!showAll) {
       if (mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TOPIC, pTopic->ownerId, pTopic->db,
-                                   objLevel == 0 ? NULL : pTopic->name)) {  // 1.db1.topic1
+                                   objLevel == 0 ? NULL : mndGetDbStr(pTopic->name)) != 0) {  // 1.topic1
         sdbRelease(pSdb, pTopic);
         continue;
       }
