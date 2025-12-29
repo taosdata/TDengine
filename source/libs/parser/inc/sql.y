@@ -484,6 +484,7 @@ priv_type(A) ::= TRIM.                                                          
 priv_type(A) ::= ROLLUP.                                                          { A = PRIV_SET_TYPE(PRIV_DB_ROLLUP); }
 priv_type(A) ::= SCAN.                                                            { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
 priv_type(A) ::= SSMIGRATE.                                                       { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
+priv_type(A) ::= DROP OWNED.                                                      { A = PRIV_SET_TYPE(PRIV_DB_DROP_OWNED); }
 
 priv_type(A) ::= SHOW VNODES.                                                     { A = PRIV_SET_TYPE(PRIV_SHOW_VNODES); }
 priv_type(A) ::= SHOW VGROUPS.                                                    { A = PRIV_SET_TYPE(PRIV_SHOW_VGROUPS); }
@@ -609,12 +610,15 @@ priv_type_tbl_dml(A) ::= DELETE TABLE.                                          
 priv_type_tbl_dml(A) ::= DELETE.                                                  { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
 
 %type priv_level_opt                                                              { SPrivLevelArgs }
-%destructor priv_level_opt                                                        {
+%destructor priv_level_opt                                                        { 
                                                                                     if ($$.cols != NULL) {
                                                                                       nodesDestroyList($$.cols);
                                                                                     }
                                                                                   }
-priv_level_opt(A) ::= .                                                           { A.first = nil_token; A.second = nil_token; A.objType = PRIV_OBJ_CLUSTER; A.cols = NULL; }
+priv_level_opt(A) ::= .                                                           { 
+                                                                                    A.first = nil_token; A.second = nil_token; 
+                                                                                    A.objType = PRIV_OBJ_CLUSTER; A.cols = NULL; 
+                                                                                  }
 priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; A.objType = PRIV_OBJ_TBL; }
 priv_level_opt(A) ::= ON DATABASE priv_level(B).                                  { A = B; A.objType = PRIV_OBJ_DB; }
 priv_level_opt(A) ::= ON TABLE priv_level(B).                                     { A = B; A.objType = PRIV_OBJ_TBL; }
@@ -626,16 +630,12 @@ priv_level_opt(A) ::= ON RSMA priv_level(B).                                    
 priv_level_opt(A) ::= ON TSMA priv_level(B).                                      { A = B; A.objType = PRIV_OBJ_TSMA; }
 
 %type priv_level                                                                  { SPrivLevelArgs }
-%destructor priv_level                                                            {
-                                                                                    if ($$.cols != NULL) {
-                                                                                      nodesDestroyList($$.cols);
-                                                                                    }
-                                                                                  }
+%destructor priv_level                                                            { }
 priv_level(A) ::= NK_STAR(B).                                                     { A.first = B; A.second = nil_token; A.cols = NULL; }
 priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; A.cols = NULL; }
-priv_level(A) ::= topic_name(B).                                                  { A.first = B; A.second = nil_token; }
+priv_level(A) ::= db_name(B).                                                     { A.first = B; A.second = nil_token; A.cols = NULL; }
 
 with_clause_opt(A) ::= .                                                          { A = NULL; }
 with_clause_opt(A) ::= WITH search_condition(B).                                  { A = B; }
