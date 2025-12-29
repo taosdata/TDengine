@@ -1043,6 +1043,7 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
     metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
   } else {
     metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64, TD_VID(pMeta->pVnode), pReq->tbName,
              pEntry->uid, version);
