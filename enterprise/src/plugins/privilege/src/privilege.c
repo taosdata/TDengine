@@ -489,6 +489,14 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->enable = pUser->enable;
   pRsp->sysInfo = pUser->sysInfo;
 
+  pRsp->sessCfg = (SUserSessCfg){
+      .sessPerUser = pUser->sessionPerUser,
+      .sessConnTime = pUser->connectTime,
+      .sessConnIdleTime = pUser->connectIdleTime,
+      .sessMaxConcurrency = pUser->callPerSession,
+      .sessMaxCallVnodeNum = pUser->vnodePerCall
+  };
+
   pRsp->createdDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == pRsp->createdDbs) {
     TAOS_RETURN(terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY);
