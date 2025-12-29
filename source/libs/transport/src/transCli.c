@@ -13,6 +13,7 @@
  */
 
 // clang-format off
+#include "osSocket.h"
 #include "taoserror.h"
 #include "transComm.h"
 #include "tutil.h"
@@ -535,10 +536,10 @@ int32_t cliBuildRespFromCont(SCliReq* pReq, STransMsg* pResp, STransMsgHead* pHe
   }
   pResp->info.traceId = pHead->traceId;
   pResp->info.hasEpSet = pHead->hasEpSet;
-  pResp->info.cliVer = htonl(pHead->compatibilityVer);
-  pResp->info.seqNum = taosHton64(pHead->seqNum);
+  pResp->info.cliVer = ntohl(pHead->compatibilityVer);
+  pResp->info.seqNum = taosNtoh64(pHead->seqNum);
 
-  int64_t qid = taosHton64(pHead->qid);
+  int64_t qid = taosNtoh64(pHead->qid);
   pResp->info.handle = (void*)qid;
   return 0;
 }
@@ -576,9 +577,9 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
   SCliThrd* pThrd = conn->hostThrd;
   int8_t    notifyUser = 0;
   if (pHead->msgType == TDMT_SCH_TASK_RELEASE || pHead->msgType == TDMT_SCH_TASK_RELEASE + 1) {
-    int64_t   qId = taosHton64(pHead->qid);
+    int64_t   qId = taosNtoh64(pHead->qid);
     STraceId* trace = &pHead->traceId;
-    int64_t   seqNum = taosHton64(pHead->seqNum);
+    int64_t   seqNum = taosNtoh64(pHead->seqNum);
     tGDebug("%s conn:%p, %s received from %s, local info:%s, len:%d, seqNum:%" PRId64 ", sid:%" PRId64,
             CONN_GET_INST_LABEL(conn), conn, TMSG_INFO(pHead->msgType), conn->dst, conn->src, pHead->msgLen, seqNum,
             qId);
@@ -627,7 +628,7 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
 }
 int32_t cliHandleState_mayCreateAhandle(SCliConn* conn, STransMsgHead* pHead, STransMsg* pResp) {
   int32_t code = 0;
-  int64_t qId = taosHton64(pHead->qid);
+  int64_t qId = taosNtoh64(pHead->qid);
   if (qId == 0) {
     return TSDB_CODE_RPC_NO_STATE;
   }
@@ -678,10 +679,12 @@ void cliHandleResp(SCliConn* conn) {
     // TODO: notify cb
     return;
   }
-  int64_t qId = taosHton64(pHead->qid);
-  pHead->code = htonl(pHead->code);
-  pHead->msgLen = htonl(pHead->msgLen);
-  int64_t   seq = taosHton64(pHead->seqNum);
+  int64_t qId = taosNtoh64(pHead->qid);
+
+  pHead->code = ntohl(pHead->code);
+  pHead->msgLen = ntohl(pHead->msgLen);
+
+  int64_t   seq = taosNtoh64(pHead->seqNum);
   STransMsg resp = {0};
 
   if (cliHandleState_mayHandleReleaseResp(conn, pHead)) {
@@ -1582,7 +1585,7 @@ bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msg
   }
 
   if (pHead->comp == 1) {
-    int32_t msgLen = htonl(pHead->msgLen);
+    int32_t msgLen = ntohl(pHead->msgLen);
     code = transDecompressMsgExt((char*)(pHead), msgLen, &oriMsg, &oriLen);
     if (code < 0) {
       tError("failed to decompress since %s", tstrerror(code));
@@ -1714,7 +1717,6 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
       pHead->msgType = pReq->msgType;
       pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
       pHead->traceId = pReq->info.traceId;
-      // pHead->magicNum = htonl(TRANS_MAGIC_NUM);
       pHead->version = TRANS_VER;
       pHead->compatibilityVer = htonl(pInst->compatibilityVer);
       if (pInst->isToken) {

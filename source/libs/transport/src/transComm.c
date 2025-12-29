@@ -189,7 +189,7 @@ int32_t transDecompressMsg(char** msg, int32_t* len) {
   char* pCont = transContFromHead(pHead);
 
   STransCompMsg* pComp = (STransCompMsg*)pCont;
-  int32_t        oriLen = htonl(pComp->contLen);
+  int32_t        oriLen = ntohl(pComp->contLen);
 
   int32_t tlen = *len;
   char*   buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
@@ -224,7 +224,7 @@ int32_t transDecompressMsgExt(char const* msg, int32_t len, char** out, int32_t*
   char*          pCont = transContFromHead(pHead);
 
   STransCompMsg* pComp = (STransCompMsg*)pCont;
-  int32_t        oriLen = htonl(pComp->contLen);
+  int32_t        oriLen = ntohl(pComp->contLen);
 
   int32_t tlen = len;
   char*   buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
@@ -418,7 +418,7 @@ bool transReadComplete(SConnBuffer* connBuf) {
     if (p->left == -1) {
       STransMsgHead head;
       memcpy((char*)&head, connBuf->buf, sizeof(head));
-      int32_t msgLen = (int32_t)htonl(head.msgLen);
+      int32_t msgLen = (int32_t)ntohl(head.msgLen);
       p->total = msgLen;
       p->invalid = head.version != TRANS_VER;
     }
