@@ -13251,14 +13251,18 @@ static int32_t translateRebalanceXnodeJobWhere(STranslateContext* pCxt, SRebalan
   char*                        pAst = NULL;
   int32_t astLen = 0;
 
-  TAOS_CHECK_GOTO(nodesNodeToString(pStmt->pWhere, true, &pAst, &astLen), NULL, _exit);
+  if (pStmt->pWhere != NULL) {
+    TAOS_CHECK_GOTO(nodesNodeToString(pStmt->pWhere, true, &pAst, &astLen), NULL, _exit);
 
-  if (!isXnodeSupportNodeType(pStmt->pWhere)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "WHERE condition is not valid");
+    if (!isXnodeSupportNodeType(pStmt->pWhere)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                     "WHERE condition is not valid");
+    }
+
+    if (pAst != NULL) {
+      rebalanceReq.ast = xCreateCowStr(strlen(pAst) + 1, pAst, false);
+    }
   }
-
-  rebalanceReq.ast = xCreateCowStr(strlen(pAst) + 1, pAst, false);
-
   code = buildCmdMsg(pCxt, TDMT_MND_REBALANCE_XNODE_JOBS_WHERE, (FSerializeFunc)tSerializeSMRebalanceXnodeJobsWhereReq,
                      &rebalanceReq);
   tFreeSMRebalanceXnodeJobsWhereReq(&rebalanceReq);

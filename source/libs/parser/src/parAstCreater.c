@@ -5300,11 +5300,6 @@ _err:
 SNode* rebalanceXnodeJobWhereDirectly(SAstCreateContext* pCxt, SNode* pWhere) {
   int32_t code = 0;
   SNode*  pStmt = NULL;
-  if (pWhere == NULL) {
-    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "Xnode jobs where clause should not be NULL");
-    goto _err;
-  }
 
   pCxt->errCode = nodesMakeNode(QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);

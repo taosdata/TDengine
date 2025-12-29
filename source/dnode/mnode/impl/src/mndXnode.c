@@ -843,7 +843,7 @@ static int32_t mndDrainXnode(SMnode *pMnode, SRpcMsg *pReq, SXnodeObj *pObj) {
   SXnodeObj xnodeObj = {0};
   xnodeObj.id = pObj->id;
   xnodeObj.status = "drain";
-  xnodeObj.statusLen = strlen(xnodeObj.status);
+  xnodeObj.statusLen = strlen(xnodeObj.status) + 1;
   xnodeObj.updateTime = taosGetTimestampMs();
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drain-xnode");
@@ -3224,18 +3224,15 @@ static int32_t mndProcessRebalanceXnodeJobsWhereReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSMRebalanceXnodeJobsWhereReq(pReq->pCont, pReq->contLen, &rebalanceReq), NULL, _OVER);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_REBALANCE_XNODE_JOB), NULL, _OVER);
 
-  if (rebalanceReq.ast.len <= 0 || rebalanceReq.ast.ptr == NULL) {
-    code = TSDB_CODE_MND_XNODE_INVALID_MSG;
-    goto _OVER;
-  }
-  TAOS_CHECK_GOTO(nodesStringToNode(rebalanceReq.ast.ptr, &pWhere), NULL, _OVER);
-
   TAOS_CHECK_GOTO(mndAcquireXnodeJobsAll(pMnode, &pArray), NULL, _OVER);
+  if (NULL != rebalanceReq.ast.ptr) {
+    TAOS_CHECK_GOTO(nodesStringToNode(rebalanceReq.ast.ptr, &pWhere), NULL, _OVER);
 
-  TAOS_CHECK_GOTO(filterJobsByWhereCond(pWhere, pArray, &pResult), NULL, _OVER);
-
-  // send request
-  httpRebalanceAuto(pResult);
+    TAOS_CHECK_GOTO(filterJobsByWhereCond(pWhere, pArray, &pResult), NULL, _OVER);
+    httpRebalanceAuto(pResult);
+  } else {
+    httpRebalanceAuto(pArray);
+  }
 
 _OVER:
   if (pWhere != NULL) {
