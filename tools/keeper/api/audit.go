@@ -205,16 +205,22 @@ func (a *Audit) handleFunc() gin.HandlerFunc {
 
 func (a *Audit) prepareConnectionAndTable(c *gin.Context) bool {
 	db := c.Query("db")
-	auditLogger.Debugf("preparing audit connection and table for db: %s", db)
+	auditLogger.Debugf("preparing audit connection and table, db: %s", db)
 	if db != "" {
 		token := c.Query("token")
-		// Test log
-		auditLogger.Debugf("preparing audit connection and table, token: %s", token)
+		auditLogger.Debugf("preparing audit connection and table, token len: %v", len(token))
 		if !a.inited || db != a.db || token != a.token {
 			a.mu.Lock()
 			defer a.mu.Unlock()
 			if !a.inited || db != a.db || token != a.token {
-				if !a.setupConnectionAndTable(db, token, c) {
+				a.db = db
+				a.token = token
+				if err := a.createConnect(); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create connect error: %s", err)})
+					return false
+				}
+				if err := a.createSTable(); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create stable error: %s", err)})
 					return false
 				}
 				a.inited = true
@@ -240,20 +246,6 @@ func (a *Audit) prepareConnectionAndTable(c *gin.Context) bool {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": onceErr.Error()})
 			return false
 		}
-	}
-	return true
-}
-
-func (a *Audit) setupConnectionAndTable(db, token string, c *gin.Context) bool {
-	a.db = db
-	a.token = token
-	if err := a.createConnect(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create connect error: %s", err)})
-		return false
-	}
-	if err := a.createSTable(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("create stable error: %s", err)})
-		return false
 	}
 	return true
 }
@@ -330,7 +322,7 @@ func getTableNameOld(audit AuditInfoOld) string {
 }
 
 func (a *Audit) createConnect() error {
-	conn, err := db.NewConnectorWithDbWithRetryForever(a.username, a.password, a.host, a.port, a.db, a.usessl)
+	conn, err := db.NewConnectorWithDbAndTokenWithRetryForever(a.username, a.password, a.token, a.host, a.port, a.db, a.usessl)
 	if err != nil {
 		auditLogger.Errorf("create connect error, msg:%s", err)
 		return err

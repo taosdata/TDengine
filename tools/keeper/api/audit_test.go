@@ -1100,3 +1100,269 @@ func TestAudit_createDBSql(t *testing.T) {
 		})
 	}
 }
+
+func TestAuditV2CustomDBWithToken(t *testing.T) {
+	t.Skip()
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	cfg := config.GetCfg()
+	cfg.TDengine.Host = "192.168.1.98"
+
+	audit := NewAudit(cfg)
+	audit.Init(router)
+
+	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+	defer conn.Close()
+
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1766991210", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "create database test_1766991210 precision 'ns'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1766991212", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "create database test_1766991212 precision 'ns'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	conn.Exec(context.Background(), "drop user audit_v2_user", util.GetQidOwn(cfg.InstanceID))
+	_, err = conn.Exec(context.Background(), "create user audit_v2_user pass 'token_pass_1'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766991210 to audit_v2_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766991212 to audit_v2_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	data, err := conn.Query(context.Background(), "create token test_audit_v2_token from user audit_v2_user", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	token := data.Data[0][0].(string)
+
+	records := []string{
+		`{"timestamp":"1699839716442000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+		`{"timestamp":"1699839716452000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+		`{"timestamp":"1699839716462000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+		`{"timestamp":"1699839716472000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost,
+			fmt.Sprintf("/audit_v2?db=test_1766991210&token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost,
+			fmt.Sprintf("/audit_v2?db=test_1766991212&token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost,
+			fmt.Sprintf("/audit_v2?db=test_1766991210&token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost,
+			fmt.Sprintf("/audit_v2?db=test_1766991212&token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	data, err = conn.Query(context.Background(), "select * from test_1766991210.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766991210", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	data, err = conn.Query(context.Background(), "select * from test_1766991212.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766991212", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(context.Background(), "drop user audit_v2_user", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+}
+
+func TestAuditCustomDBWithToken(t *testing.T) {
+	t.Skip()
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	cfg := config.GetCfg()
+	cfg.TDengine.Host = "192.168.1.98"
+
+	audit := NewAudit(cfg)
+	audit.Init(router)
+
+	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+	defer conn.Close()
+
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1766991791", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "create database test_1766991791 precision 'ns'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1766991792", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "create database test_1766991792 precision 'ns'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	conn.Exec(context.Background(), "drop user audit_user", util.GetQidOwn(cfg.InstanceID))
+	_, err = conn.Exec(context.Background(), "create user audit_user pass 'token_pass_1'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766991791 to audit_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766991792 to audit_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	data, err := conn.Query(context.Background(), "create token test_audit_token from user audit_user", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	token := data.Data[0][0].(string)
+
+	records := []string{
+		`{"timestamp":"1699839716442000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"}`,
+		`{"timestamp":"1699839716452000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"}`,
+		`{"timestamp":"1699839716462000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"}`,
+		`{"timestamp":"1699839716472000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"}`,
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost,
+			fmt.Sprintf("/audit?db=test_1766991791&token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost,
+			fmt.Sprintf("/audit?db=test_1766991792&token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost,
+			fmt.Sprintf("/audit?db=test_1766991791&token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	for _, body := range records {
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost,
+			fmt.Sprintf("/audit?db=test_1766991792&token=%s", token), strings.NewReader(body))
+		router.ServeHTTP(w, req)
+		assert.Equal(t, 200, w.Code)
+	}
+
+	data, err = conn.Query(context.Background(), "select * from test_1766991791.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766991791", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	data, err = conn.Query(context.Background(), "select * from test_1766991792.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766991792", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(context.Background(), "drop user audit_user", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+}
+
+func TestAuditBatchCustomDBWithToken(t *testing.T) {
+	t.Skip()
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	cfg := config.GetCfg()
+	cfg.TDengine.Host = "192.168.1.98"
+
+	audit := NewAudit(cfg)
+	audit.Init(router)
+
+	conn, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+	defer conn.Close()
+
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1766992132", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "create database test_1766992132 precision 'ns'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1766992133", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "create database test_1766992133 precision 'ns'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	conn.Exec(context.Background(), "drop user audit_batch_user", util.GetQidOwn(cfg.InstanceID))
+	_, err = conn.Exec(context.Background(), "create user audit_batch_user pass 'token_pass_1'", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766992132 to audit_batch_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766992133 to audit_batch_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	data, err := conn.Query(context.Background(), "create token test_audit_batch_token from user audit_batch_user", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	token := data.Data[0][0].(string)
+
+	records := `{"records":[{"timestamp":"1699839716450000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details"},{"timestamp":"1699839716451000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":12345,"duration":12.345},{"timestamp":"1699839716452000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":null,"duration":null},{"timestamp":"1699839716453000000","cluster_id":"cluster_id_batch","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":999999,"duration":1e+100}]}`
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("/audit-batch?db=test_1766992132&token=%s", token), strings.NewReader(records))
+	router.ServeHTTP(w, req)
+	assert.Equal(t, 200, w.Code)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost,
+		fmt.Sprintf("/audit-batch?db=test_1766992133&token=%s", token), strings.NewReader(records))
+	router.ServeHTTP(w, req)
+	assert.Equal(t, 200, w.Code)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost,
+		fmt.Sprintf("/audit-batch?db=test_1766992132&token=%s", token), strings.NewReader(records))
+	router.ServeHTTP(w, req)
+	assert.Equal(t, 200, w.Code)
+
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest(http.MethodPost,
+		fmt.Sprintf("/audit-batch?db=test_1766992133&token=%s", token), strings.NewReader(records))
+	router.ServeHTTP(w, req)
+	assert.Equal(t, 200, w.Code)
+
+	data, err = conn.Query(context.Background(), "select * from test_1766992132.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766992132", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	data, err = conn.Query(context.Background(), "select * from test_1766992133.operations", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(data.Data))
+	_, err = conn.Query(context.Background(), "drop database if exists test_1766992133", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(context.Background(), "drop user audit_batch_user", util.GetQidOwn(cfg.InstanceID))
+	assert.NoError(t, err)
+}

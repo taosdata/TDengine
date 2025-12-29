@@ -49,6 +49,10 @@ func NewConnector(username, password, host string, port int, usessl bool) (*Conn
 }
 
 func NewConnectorWithDb(username, password, host string, port int, dbname string, usessl bool) (*Connector, error) {
+	return NewConnectorWithDbAndToken(username, password, "", host, port, dbname, usessl)
+}
+
+func NewConnectorWithDbAndToken(username, password, token, host string, port int, dbname string, usessl bool) (*Connector, error) {
 	var protocol string
 	if usessl {
 		protocol = "https"
@@ -56,10 +60,15 @@ func NewConnectorWithDb(username, password, host string, port int, dbname string
 		protocol = "http"
 	}
 
+	var bearerToken string
+	if token != "" {
+		bearerToken = fmt.Sprintf("&bearerToken=%s", token)
+	}
+
 	dbLogger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn(config.Conf.InstanceID)})
 	dbLogger.Tracef("connect to adapter, host:%s, port:%d, usessl:%v", host, port, usessl)
 
-	db, err := sql.Open("taosRestful", fmt.Sprintf("%s:%s@%s(%s:%d)/%s?skipVerify=true", username, password, protocol, host, port, dbname))
+	db, err := sql.Open("taosRestful", fmt.Sprintf("%s:%s@%s(%s:%d)/%s?skipVerify=true%s", username, password, protocol, host, port, dbname, bearerToken))
 	if err != nil {
 		dbLogger.Errorf("connect to adapter failed, host:%s, port:%d, db:%s, usessl:%v, error:%s", host, port, dbname, usessl, err)
 		return nil, err
@@ -249,5 +258,14 @@ func NewConnectorWithDbWithRetryForever(username, password, host string, port in
 	config.Logger = logger
 	return executeWithRetry(config, func() (*Connector, error) {
 		return NewConnectorWithDb(username, password, host, port, dbname, usessl)
+	})
+}
+
+func NewConnectorWithDbAndTokenWithRetryForever(username, password, token, host string, port int, dbname string, usessl bool) (*Connector, error) {
+	logger := dbLogger.WithFields(logrus.Fields{config.ReqIDKey: util.GetQidOwn(config.Conf.InstanceID)})
+	config := defaultRetryConfig
+	config.Logger = logger
+	return executeWithRetry(config, func() (*Connector, error) {
+		return NewConnectorWithDbAndToken(username, password, token, host, port, dbname, usessl)
 	})
 }
