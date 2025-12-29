@@ -31,7 +31,7 @@ for service in "${services[@]}"; do
         else
             domain="gui/$(id -u)"
         fi
-        launchctl stop "${domain}/com.tdengine.${service}"
+        launchctl stop "com.tdengine.${service}"
         sleep 1
         if launchctl print "${domain}/com.tdengine.${service}" 2>/dev/null | grep 'state = running' > /dev/null; then
             echo "failed to stop $service"

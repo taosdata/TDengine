@@ -39,7 +39,7 @@ function start_service() {
         else
             domain="gui/$(id -u)"
         fi
-        launchctl start "${domain}/com.tdengine.$1"
+        launchctl start "com.tdengine.$1"
         while [ $MAX_RETRY -gt 0 ]; do
             sleep 0.5
             if launchctl print "${domain}/com.tdengine.$1" 2>/dev/null | grep 'state = running' > /dev/null; then
