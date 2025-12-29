@@ -3021,6 +3021,24 @@ static int32_t sortPrimaryKeyOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLo
   return sortPrimaryKeyOptimizeImpl(pCxt, pLogicSubplan, pSort);
 }
 
+static const char* getJoinCondPKTable(SNode* pNode) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    return ((SColumnNode*)pNode)->tableAlias;
+  } else if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (pFunc->funcType != FUNCTION_TYPE_TIMETRUNCATE || LIST_LENGTH(pFunc->pParameterList) == 0) {
+      return NULL;
+    }
+    SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+    if (QUERY_NODE_COLUMN != nodeType(pParam)) {
+      return NULL;
+    }
+    return ((SColumnNode*)pParam)->tableAlias;
+  } else {
+    return ((SValueNode*)pNode)->node.srcTable;
+  }
+}
+
 static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SJoinLogicNode* pJoin) {
   SLogicNode*     pLeft = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
   SLogicNode*     pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
@@ -3072,8 +3090,10 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
   bool           res = false;
   SOperatorNode* pOp = (SOperatorNode*)pJoin->pPrimKeyEqCond;
 
-  if ((QUERY_NODE_COLUMN != nodeType(pOp->pLeft) && QUERY_NODE_VALUE != nodeType(pOp->pLeft)) || 
-      (QUERY_NODE_COLUMN != nodeType(pOp->pRight) && QUERY_NODE_VALUE != nodeType(pOp->pRight))) {
+  if ((QUERY_NODE_COLUMN != nodeType(pOp->pLeft) && QUERY_NODE_VALUE != nodeType(pOp->pLeft) &&
+       QUERY_NODE_FUNCTION != nodeType(pOp->pLeft)) ||
+      (QUERY_NODE_COLUMN != nodeType(pOp->pRight) && QUERY_NODE_VALUE != nodeType(pOp->pRight) &&
+       QUERY_NODE_FUNCTION != nodeType(pOp->pRight))) {
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
@@ -3084,9 +3104,13 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
     return code;
   }
 
-  char* opLeftTable = (QUERY_NODE_COLUMN == nodeType(pOp->pLeft)) ? ((SColumnNode*)pOp->pLeft)->tableAlias : ((SValueNode*)pOp->pLeft)->node.srcTable;
-  char* opRightTable = (QUERY_NODE_COLUMN == nodeType(pOp->pRight)) ? ((SColumnNode*)pOp->pRight)->tableAlias : ((SValueNode*)pOp->pRight)->node.srcTable;
-  
+  const char* opLeftTable = getJoinCondPKTable(pOp->pLeft);
+  const char* opRightTable = getJoinCondPKTable(pOp->pRight);
+
+  if (!opLeftTable || !opRightTable) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
   if (NULL != tSimpleHashGet(pTables, opLeftTable, strlen(opLeftTable))) {
     pOrderByNode = pOp->pLeft;
   } else if (NULL != tSimpleHashGet(pTables, opRightTable, strlen(opRightTable))) {
