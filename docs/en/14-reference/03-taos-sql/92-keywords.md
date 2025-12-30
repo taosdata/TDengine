@@ -93,6 +93,7 @@ The list of keywords is as follows:
 | COMPACT_TIME_OFFSET  | 3.3.5.0+ |
 | COMPACT_TIME_RANGE   | 3.3.5.0+ |
 | COMPOSITE            | 3.3.6.3+ |
+| COMPRESS             | |
 | CONCAT               | |
 | CONFLICT             | |
 | CONNECTION           | |
@@ -145,6 +146,7 @@ The list of keywords is as follows:
 |----------------------|-|
 | EACH                 | |
 | ELSE                 | |
+| ENCODE               | |
 | ENABLE               | |
 | ENCRYPT_ALGORITHM    | |
 | ENCRYPT_KEY          | |
@@ -299,6 +301,7 @@ The list of keywords is as follows:
 
 |Keyword|Description|
 |----------------------|-|
+| NEAR                 | |
 | NCHAR                | |
 | NE                   | |
 | NEXT                 | |
@@ -378,10 +381,12 @@ The list of keywords is as follows:
 | RANGE                | |
 | RATIO                | |
 | READ                 | |
+| RECALCULATE          | |
 | RECURSIVE            | |
 | REGEXP               | 3.3.6.0+ |
 | REDISTRIBUTE         | |
 | REM                  | |
+| RENAME               | |
 | REPLACE              | |
 | REPLICA              | |
 | REPLICAS             | 3.3.7.0+ |
@@ -402,6 +407,7 @@ The list of keywords is as follows:
 
 |Keyword|Description|
 |----------------------|-|
+| S3MIGRATE            | |
 | SCHEMALESS           | |
 | SCORES               | |
 | SELECT               | |
@@ -509,8 +515,11 @@ The list of keywords is as follows:
 | VGROUPS              | |
 | VIEW                 | |
 | VIEWS                | |
+| VIRTUAL              | |
 | VNODE                | |
 | VNODES               | |
+| VTABLE               | |
+| VTABLES              | |
 
 ### W
 
