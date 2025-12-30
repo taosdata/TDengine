@@ -161,6 +161,7 @@ int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t ty
   void   *buf = NULL;
   int8_t* overflow = NULL;
   SScalarParam   out = {0};
+  SColumnInfoData* pRes = pCol;
 
   if (pCol->info.type != type) {
     SScalarParam   in = {.columnData = pCol, .numOfRows = rows};
@@ -188,7 +189,9 @@ int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t ty
 
     SCL_ERR_JRET(colInfoDataEnsureCapacity(out.columnData, rows, true));
     SCL_ERR_JRET(vectorConvertSingleColImpl(&in, &out, overflow, -1, -1));
-  }
+
+    pRes = out.columnData;
+  } 
 
   for (uint32_t i = 0; i < rows; ++i) {
     if (overflow && overflow[i]) {
@@ -196,7 +199,7 @@ int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t ty
     }
     
     if (IS_VAR_DATA_TYPE(type)) {
-      buf = colDataGetVarData(out.columnData, i);
+      buf = colDataGetVarData(pRes, i);
       if (IS_STR_DATA_BLOB(type)) {
         len = blobDataTLen(buf);
       } else {
@@ -204,7 +207,7 @@ int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t ty
       }
     } else {
       len = tDataTypes[type].bytes;
-      buf = colDataGetNumData(out.columnData, i);
+      buf = colDataGetNumData(pRes, i);
     }
 
     SCL_ERR_JRET(taosHashPut(pObj, buf, (size_t)len, NULL, 0));
@@ -2497,7 +2500,7 @@ static int32_t sclGetCompOperatorResType(SOperatorNode *pOp) {
     if (pOp->pRight == NULL) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
-    ((SExprNode *)(pOp->pRight))->resType = ldt;
+    //((SExprNode *)(pOp->pRight))->resType = ldt;
   } else if (nodesIsRegularOp(pOp)) {
     if (pOp->pRight == NULL) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
