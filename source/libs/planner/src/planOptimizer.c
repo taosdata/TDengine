@@ -22,6 +22,7 @@
 #include "parser.h"
 #include "planInt.h"
 #include "systable.h"
+#include "taoserror.h"
 #include "tarray.h"
 #include "tglobal.h"
 #include "ttime.h"
@@ -5032,6 +5033,8 @@ static bool splitCacheLastFuncOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
 static int32_t splitCacheLastFuncOptUpdateScanNode(SAggLogicNode* pAgg,
                                                    SNodeList* pFunc,
                                                    bool isNewAgg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SNode* pNode = nodesListGetNode(pAgg->node.pChildren, 0);
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode)) {
     return TSDB_CODE_SUCCESS;
@@ -5045,33 +5048,18 @@ static int32_t splitCacheLastFuncOptUpdateScanNode(SAggLogicNode* pAgg,
   nodesDestroyList(pScan->node.pTargets);
   pScan->node.pTargets = NULL;
   SNodeListNode* list = NULL;
-  int32_t        code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&list);
-  if (!list) {
-    if (isNewAgg) {
-      nodesDestroyNode((SNode*)pAgg);
-    }
-    return code;
-  }
+  code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&list);
+  QUERY_CHECK_CODE(code, lino, _return);
+
   list->pNodeList = pFunc;
   code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_COL,
                                      &pScan->pScanCols);
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesFree(list);
-    if (isNewAgg) {
-      nodesDestroyNode((SNode*)pAgg);
-    }
-    return code;
-  }
+  QUERY_CHECK_CODE(code, lino, _return);
+
   code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_TAG,
                                      &pScan->pScanPseudoCols);
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesFree(list);
-    if (isNewAgg) {
-      nodesDestroyNode((SNode*)pAgg);
-    }
-    return code;
-  }
-  nodesFree(list);
+  QUERY_CHECK_CODE(code, lino, _return);
+
   bool found = false;
   FOREACH(pNode, pScan->pScanCols) {
     if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
@@ -5090,32 +5078,29 @@ static int32_t splitCacheLastFuncOptUpdateScanNode(SAggLogicNode* pAgg,
         break;
       }
     }
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyList(pOldScanCols);
-      if (isNewAgg) {
-        nodesDestroyNode((SNode*)pAgg);
-      }
-      return code;
-    }
+    QUERY_CHECK_CODE(code, lino, _return);
   }
-  nodesDestroyList(pOldScanCols);
+
   code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
-  if (TSDB_CODE_SUCCESS != code) {
-    if (isNewAgg) {
-      nodesDestroyNode((SNode*)pAgg);
-    }
-    return code;
-  }
+  QUERY_CHECK_CODE(code, lino, _return);
+
   code = createColumnByRewriteExprs(pScan->pScanPseudoCols,
                                     &pScan->node.pTargets);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  OPTIMIZE_FLAG_CLEAR_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+
+_return:
+  nodesDestroyNode((SNode*)list);
+  nodesDestroyList(pOldScanCols);
   if (TSDB_CODE_SUCCESS != code) {
     if (isNewAgg) {
       nodesDestroyNode((SNode*)pAgg);
     }
-    return code;
+    planError("failed to execute %s at line %d, code:%d - %s",
+              __func__, lino, code, tstrerror(code));
   }
-  OPTIMIZE_FLAG_CLEAR_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg,
