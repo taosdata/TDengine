@@ -2059,7 +2059,6 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       code = collectMetaKeyFromSysPrivStmt(pCxt, PRIV_VG_BALANCE);
       break;
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
-      break;
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
       code = collectMetaKeyFromSysPrivStmt(pCxt, PRIV_VG_BALANCE_LEADER);
       break;
