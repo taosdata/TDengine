@@ -8,9 +8,14 @@ class TestVnodeReplica3Import:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_vnode_replica3_import(self):
-        """vnode replica3 import
+        """Write: replica-3 import data
 
-        1. -
+        1. Start a 4-node cluster.
+        2. Create a 3-replica, 1-vgroup database; create table, insert out-of-order data, and verify.
+        3. Restart dnode2 → insert out-of-order data → verify.
+        4. Restart dnode3 → insert out-of-order data → verify.
+        5. Restart dnode4 → insert out-of-order data → verify.
+        6. Restart dnode3 again → insert out-of-order data → verify.
 
         Catalog:
             - DataBase:Sync

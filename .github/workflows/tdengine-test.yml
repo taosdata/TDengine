@@ -3,8 +3,6 @@ name: TDengine Test
 on:
   pull_request:
     branches:
-      - 'main'
-      - '3.0'
       - '3.1'
       - '3.3.6'
     paths-ignore:
@@ -16,10 +14,12 @@ on:
       - 'source/dnode/mnode/impl/src/mndAnode.c'
       - 'include/common/tanalytics.h'
       - 'source/common/src/tanalytics.c'
-      - 'tests/parallel/tdgpt_cases.task'
-      - 'tests/script/tsim/analytics'
       - '**/*.md'
       - '.github/workflows/**'
+      - '!.github/workflows/tdengine-test.yml'
+      - 'test/ci/tdgpt_cases.task'
+      - 'test/cases/41-TDgpt/**'
+
       
   workflow_dispatch:
     inputs:
@@ -49,6 +49,7 @@ jobs:
   run-tests-on-linux:
     # NOTE: using tomchon-patch-3 branch for the moment
     uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
+    #uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@enh/remove-return-tests
     with:
       tdinternal: false
       specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}
@@ -64,6 +65,7 @@ jobs:
       specified_pr_number: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_pr_number }}
 
   run-tests-on-windows:
+    if: ${{ github.event.pull_request.base.ref == '3.3.6' }} 
     uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
           # NOTE: temporarily use tomchon-patch-3 branch
     with:

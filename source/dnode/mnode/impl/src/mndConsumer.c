@@ -86,10 +86,8 @@ int32_t mndSendConsumerMsg(SMnode *pMnode, int64_t consumerId, uint16_t msgType,
 
   mInfo("mndSendConsumerMsg type:%d consumer:0x%" PRIx64, msgType, consumerId);
   MND_TMQ_RETURN_CHECK(tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg));
-  return code;
 
 END:
-  taosMemoryFree(msg);
   return code;
 }
 
@@ -177,7 +175,7 @@ static int32_t checkPrivilege(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqHbRs
     char        *topic = taosArrayGetP(pConsumer->currentTopics, i);
     SMqTopicObj *pTopic = NULL;
     code = mndAcquireTopic(pMnode, topic, &pTopic);
-    if (code != TDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS) {
       continue;
     }
     STopicPrivilege *data = taosArrayReserve(rsp->topicPrivileges, 1);
@@ -314,7 +312,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
     // 2.1 fetch topic schema
     SMqTopicObj *pTopic = NULL;
     code = mndAcquireTopic(pMnode, topic, &pTopic);
-    if (code != TDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS) {
       taosRUnLockLatch(&pSub->lock);
       mndReleaseSubscribe(pMnode, pSub);
       continue;
@@ -339,6 +337,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
     // 2.2 iterate all vg assigned to the consumer of that topic
     SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &pConsumer->consumerId, sizeof(int64_t));
     if (pConsumerEp == NULL) {
+      taosMemoryFreeClear(topicEp.schema.pSchema);
       taosRUnLockLatch(&pConsumer->lock);
       taosRUnLockLatch(&pSub->lock);
       mndReleaseSubscribe(pMnode, pSub);
@@ -347,6 +346,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
     int32_t vgNum = taosArrayGetSize(pConsumerEp->vgs);
     topicEp.vgs = taosArrayInit(vgNum, sizeof(SMqSubVgEp));
     if (topicEp.vgs == NULL) {
+      taosMemoryFreeClear(topicEp.schema.pSchema);
       taosRUnLockLatch(&pConsumer->lock);
       taosRUnLockLatch(&pSub->lock);
       mndReleaseSubscribe(pMnode, pSub);
@@ -354,7 +354,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
     }
 
     for (int32_t j = 0; j < vgNum; j++) {
-      SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
+      SMqVgEp *pVgEp = taosArrayGet(pConsumerEp->vgs, j);
       if (pVgEp == NULL) {
         continue;
       }
@@ -367,6 +367,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
       }
       SMqSubVgEp vgEp = {.epSet = pVgEp->epSet, .vgId = pVgEp->vgId, .offset = -1};
       if (taosArrayPush(topicEp.vgs, &vgEp) == NULL) {
+        taosMemoryFreeClear(topicEp.schema.pSchema);
         taosArrayDestroy(topicEp.vgs);
         taosRUnLockLatch(&pConsumer->lock);
         taosRUnLockLatch(&pSub->lock);
@@ -375,6 +376,7 @@ static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t e
       }
     }
     if (taosArrayPush(rsp->topics, &topicEp) == NULL) {
+      taosMemoryFreeClear(topicEp.schema.pSchema);
       taosArrayDestroy(topicEp.vgs);
       taosRUnLockLatch(&pConsumer->lock);
       taosRUnLockLatch(&pSub->lock);
@@ -676,7 +678,9 @@ END:
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, NULL);
   code = (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;
-  PRINT_LOG_END(code);
+  if (code != TSDB_CODE_ACTION_IN_PROGRESS){
+    PRINT_LOG_END(code);
+  }
   return code;
 }
 

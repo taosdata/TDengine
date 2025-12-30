@@ -44,7 +44,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 
 **使用说明** ：
 
-1. 虚拟表（列）名命名规则参见 [名称命名规则](./19-limit.md#名称命名规则)。
+1. 虚拟表（列）名命名规则参见 [名称命名规则](./91-limit.md#名称命名规则)。
 2. 表名最大长度为 192。
 3. 表的第一个字段必须是 TIMESTAMP，并且系统自动将其设为主键。
 4. 表的每行长度不能超过 64KB（注意：每个 VARCHAR/NCHAR/GEOMETRY 类型的列还会额外占用 2 个字节的存储位置）。
@@ -119,7 +119,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
         <td align="center">4</td>
         <td align="center">0:00:04</td>
         <td align="center">40</td>
-        <td align="center">0:00:03</td>
+        <td align="center"></td>
         <td align="center"></td>
         <td align="center"></td>
     </tr>
@@ -256,7 +256,8 @@ alter_table_clause: {
 }
 ```
 
-**使用说明**
+###### 使用说明
+
 对虚拟普通表可以进行如下修改操作
 
 1. ADD COLUMN：添加列。

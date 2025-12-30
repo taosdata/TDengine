@@ -17,6 +17,7 @@
 #include "command.h"
 #include "query.h"
 #include "schInt.h"
+#include "tarray.h"
 #include "tglobal.h"
 #include "tmisce.h"
 #include "tmsg.h"
@@ -1197,7 +1198,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.msgMask = (pTask->plan->showRewrite) ? QUERY_MSG_MASK_SHOW_REWRITE() : 0;
       qMsg.msgMask |= (pTask->plan->isView) ? QUERY_MSG_MASK_VIEW() : 0;
       qMsg.msgMask |= (pTask->plan->isAudit) ? QUERY_MSG_MASK_AUDIT() : 0;
-      qMsg.taskType = TASK_TYPE_TEMP;
+      qMsg.taskType = (pJob->attr.type == JOB_TYPE_HQUERY)? TASK_TYPE_HQUERY:TASK_TYPE_QUERY;
       qMsg.explain = SCH_IS_EXPLAIN_JOB(pJob);
       qMsg.needFetch = SCH_TASK_NEED_FETCH(pTask);
       qMsg.sqlLen = strlen(pJob->sql);
@@ -1249,8 +1250,9 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       req.clientId = pTask->clientId;
       req.taskId = pTask->taskId;
       req.execId = pTask->execId;
+      req.reset = true;
 
-      msgSize = tSerializeSResFetchReq(NULL, 0, &req);
+      msgSize = tSerializeSResFetchReq(NULL, 0, &req, false);
       if (msgSize < 0) {
         SCH_TASK_ELOG("tSerializeSResFetchReq get size, msgSize:%d", msgSize);
         SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
@@ -1262,7 +1264,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
         SCH_ERR_RET(terrno);
       }
 
-      if (tSerializeSResFetchReq(msg, msgSize, &req) < 0) {
+      if (tSerializeSResFetchReq(msg, msgSize, &req, false) < 0) {
         SCH_TASK_ELOG("tSerializeSResFetchReq %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }

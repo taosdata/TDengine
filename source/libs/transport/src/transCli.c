@@ -19,6 +19,7 @@
 #include "tversion.h"
 #include "tmisce.h"
 #include "transLog.h"
+#include "transTLS.h"
 // clang-format on
 
 #ifndef TD_ASTRA_RPC
@@ -32,30 +33,6 @@ typedef struct SConnList {
   int32_t size;
   int32_t totalSize;
 } SConnList;
-
-typedef struct {
-  queue   wq;
-  int32_t len;
-
-  int connMax;
-  int connCnt;
-  int batchLenLimit;
-  int sending;
-
-  char*    dst;
-  char*    ip;
-  uint16_t port;
-
-} SCliBatchList;
-
-typedef struct {
-  queue          wq;
-  queue          listq;
-  int32_t        wLen;
-  int32_t        shareConnLimit;  //
-  int32_t        batch;
-  SCliBatchList* pList;
-} SCliBatch;
 
 typedef struct SCliConn {
   int32_t      ref;
@@ -77,8 +54,6 @@ typedef struct SCliConn {
   bool       broken;  // link broken or not
   ConnStatus status;  //
 
-  SCliBatch* pBatch;
-
   SDelayTask* task;
 
   HeapNode node;  // for heap
@@ -94,8 +69,9 @@ typedef struct SCliConn {
 
   int64_t seq;
 
-  int8_t    registered;
-  int8_t    connnected;
+  int8_t registered;
+  int8_t connnected;
+
   SHashObj* pQTable;
   int8_t    userInited;
   void*     pInitUserReq;
@@ -113,6 +89,10 @@ typedef struct SCliConn {
 
   queue  batchSendq;
   int8_t inThreadSendq;
+
+  STransTLS* pTls;
+  int8_t     enableSSL;  // enable SSL or not
+  int8_t     sslConnected;
 
 } SCliConn;
 
@@ -204,6 +184,7 @@ void           cliBatchSendImpl(SCliConn* pConn);
 static int32_t cliBatchSend(SCliConn* conn, int8_t direct);
 void           cliConnCheckTimoutMsg(SCliConn* conn);
 bool           cliConnRmReleaseReq(SCliConn* conn, STransMsgHead* pHead);
+static int32_t cliConnStartRead(SCliConn* conn);
 // register conn timer
 static void cliConnTimeout(uv_timer_t* handle);
 
@@ -236,7 +217,6 @@ static void cliDestroyConnMsgs(SCliConn* conn, bool destroy);
 
 static void doFreeTimeoutMsg(void* param);
 
-static void cliDestroyBatch(SCliBatch* pBatch);
 // cli util func
 static FORCE_INLINE bool    cliIsEpsetUpdated(int32_t code, SReqCtx* pCtx);
 static FORCE_INLINE int32_t cliMayCvtFqdnToIp(SReqEpSet* pEpSet, const SCvtAddr* pCvtAddr);
@@ -964,6 +944,7 @@ static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_
     tError("conn:%p, failed to alloc buffer, since %s", conn, tstrerror(code));
   }
 }
+
 static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   int32_t code = 0;
   STUB_RAND_NETWORK_ERR(nread);
@@ -1005,6 +986,67 @@ static void cliRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   if (nread < 0) {
     tDebug("%s conn:%p, read error:%s, ref:%d", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
            transGetRefCount(conn));
+    conn->broken = true;
+    TAOS_UNUSED(transUnrefCliHandle(conn));
+  }
+}
+static void cliAllocRecvBufferCbSSL(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
+  int32_t     code = 0;
+  int32_t     lino = 0;
+  SCliConn*   conn = handle->data;
+  SSslBuffer* pBuf = &conn->pTls->readBuf;
+  // SConnBuffer* pBuf = &conn->readBuf;
+
+  code = sslBufferRealloc(pBuf, 0, buf);
+  if (code < 0) {
+    tError("conn:%p, failed to alloc buffer, since %s", conn, tstrerror(code));
+  }
+}
+static void cliRecvCbSSL(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  STUB_RAND_NETWORK_ERR(nread);
+
+  if (handle->data == NULL) {
+    return;
+  }
+
+  SCliConn* conn = handle->data;
+  code = transSetReadOption((uv_handle_t*)handle);
+  if (code != 0) {
+    tWarn("%s conn:%p, failed to set recv opt since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
+  }
+  SConnBuffer* pBuf = &conn->readBuf;
+  if (nread > 0) {
+    code = sslRead(conn->pTls, pBuf, nread, 1);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+
+    while (transReadComplete(pBuf)) {
+      tTrace("%s conn:%p, read complete", CONN_GET_INST_LABEL(conn), conn);
+      if (pBuf->invalid) {
+        conn->broken = true;
+        TAOS_UNUSED(transUnrefCliHandle(conn));
+        return;
+        break;
+      } else {
+        cliHandleResp(conn);
+      }
+    }
+    return;
+  }
+
+  if (nread == 0) {
+    // ref http://docs.libuv.org/en/v1.x/stream.html?highlight=uv_read_start#c.uv_read_cb
+    // nread might be 0, which does not indicate an error or EOF. This is equivalent to EAGAIN or EWOULDBLOCK under
+    // read(2).
+    tTrace("%s conn:%p, read empty", CONN_GET_INST_LABEL(conn), conn);
+    return;
+  }
+
+_error:
+  if (nread < 0 || code != 0) {
+    tDebug("%s conn:%p, read error:%s, ref:%d since %s", CONN_GET_INST_LABEL(conn), conn, uv_err_name(nread),
+           transGetRefCount(conn), tstrerror(code));
     conn->broken = true;
     TAOS_UNUSED(transUnrefCliHandle(conn));
   }
@@ -1186,8 +1228,11 @@ static void cliDestroy(uv_handle_t* handle) {
     conn->pInitUserReq = NULL;
   }
 
+  if (conn->pTls) sslDestroy(conn->pTls);
+
   taosMemoryFree(conn->buf);
   destroyWQ(&conn->wq);
+
   transDestroyBuffer(&conn->readBuf);
 
   tTrace("%s conn:%p, destroy successfully", CONN_GET_INST_LABEL(conn), conn);
@@ -1324,6 +1369,67 @@ static void cliConnRmReqs(SCliConn* conn) {
   return;
 }
 
+static void cliSendCbSSL(uv_write_t* req, int status) {
+  int32_t   code = 0;
+  int32_t   lino = 0;
+  SCliConn* pConn = req->data;
+  SCliThrd* pThrd = pConn->hostThrd;
+  STrans*   pInst = pThrd->pInst;
+
+  if (status != 0) {
+    tDebug("%s conn:%p, failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
+    code = TSDB_CODE_THIRDPARTY_ERROR;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  tDebug("%s conn:%p, send ssl msg successfully", CONN_GET_INST_LABEL(pConn), pConn);
+  if (!sslIsInited(pConn->pTls)) {
+    tDebug("%s conn:%p, ssl not inited, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);
+    goto _error;
+  }
+  // if (!SSL_is_init_finished(pTls->ssl)) {
+  //   tDebug("%s conn:%p, ssl not init finished, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);
+  //   return;
+  // }
+
+  code = cliBatchSend(pConn, 1);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+_error:
+  if (code != 0) {
+    tDebug("%s conn:%p, failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+    TAOS_UNUSED(transUnrefCliHandle(pConn));
+  }
+  taosMemFree(req);
+
+  return;
+}
+static int32_t cliConnStartRead(SCliConn* conn) {
+  int32_t code = 0;
+  if (conn->readerStart == 1) {
+    return code;
+  }
+
+  void (*pRecvAllocCb)(uv_handle_t * handle, size_t suggested_size, uv_buf_t * buf) = NULL;
+  void (*pRecvCb)(uv_stream_t * handle, ssize_t nread, const uv_buf_t* buf) = NULL;
+
+  if (conn->enableSSL) {
+    pRecvAllocCb = cliAllocRecvBufferCbSSL;
+    pRecvCb = cliRecvCbSSL;
+  } else {
+    pRecvAllocCb = cliAllocRecvBufferCb;
+    pRecvCb = cliRecvCb;
+  }
+
+  code = uv_read_start((uv_stream_t*)conn->stream, pRecvAllocCb, pRecvCb);
+  if (code != 0) {
+    tDebug("%s conn:%p, failed to start read since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
+    return code;
+  }
+  conn->readerStart = 1;
+
+  return code;
+}
 static void cliBatchSendCb(uv_write_t* req, int status) {
   int32_t        code = 0;
   SWReqsWrapper* wrapper = (SWReqsWrapper*)req->data;
@@ -1332,6 +1438,9 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
   SCliThrd* pThrd = conn->hostThrd;
   STrans*   pInst = pThrd->pInst;
 
+  if (conn->enableSSL) {
+    sslBufferUnref(&conn->pTls->sendBuf);
+  }
   while (!QUEUE_IS_EMPTY(&wrapper->node)) {
     queue*   h = QUEUE_HEAD(&wrapper->node);
     SCliReq* pReq = QUEUE_DATA(h, SCliReq, sendQ);
@@ -1352,14 +1461,10 @@ static void cliBatchSendCb(uv_write_t* req, int status) {
   }
 
   cliConnMayUpdateTimer(conn, pInst->readTimeout * 1000);
-  if (conn->readerStart == 0) {
-    code = uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
-    if (code != 0) {
-      tDebug("%s conn:%p, failed to start read since%s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
-      TAOS_UNUSED(transUnrefCliHandle(conn));
-      return;
-    }
-    conn->readerStart = 1;
+  code = cliConnStartRead(conn);
+  if (code != 0) {
+    tDebug("%s conn:%p, failed to start read since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
+    TAOS_UNUSED(transUnrefCliHandle(conn));
   }
 
   if (!cliMayRecycleConn(conn)) {
@@ -1416,6 +1521,7 @@ bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msg
   }
   return true;
 }
+
 int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
   int32_t   code = 0;
   SCliThrd* pThrd = pConn->hostThrd;
@@ -1427,6 +1533,14 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
 
   if (pConn->connnected != 1) {
     return 0;
+  }
+
+  if (pConn->sslConnected == 0 && pConn->enableSSL) {
+    pConn->sslConnected = sslIsInited(pConn->pTls);
+    if (pConn->sslConnected == 0) {
+      tDebug("%s conn:%p, ssl not inited, skip send msg", CONN_GET_INST_LABEL(pConn), pConn);
+      return 0;
+    }
   }
 
   if (!direct) {
@@ -1543,7 +1657,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
       removeReqFromSendQ(pCliMsg);
     }
 
-    transRefCliHandle(pConn);
+    TAOS_UNUSED(transUnrefCliHandle(pConn));
     return terrno;
   }
 
@@ -1552,9 +1666,17 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
   QUEUE_MOVE(&reqToSend, &pWreq->node);
   tTrace("%s conn:%p, start to send msg, batch size:%d, len:%d", CONN_GET_INST_LABEL(pConn), pConn, j, totalLen);
 
-  int32_t ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
-  if (ret != 0) {
-    tError("%s conn:%p, failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
+  if (pConn->enableSSL == 0) {
+    int32_t ret = uv_write(req, (uv_stream_t*)pConn->stream, wb, j, cliBatchSendCb);
+    if (ret != 0) {
+      tError("%s conn:%p, failed to send msg since %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
+      code = TSDB_CODE_THIRDPARTY_ERROR;
+    }
+  } else {
+    code = sslWrite(pConn->pTls, pConn->stream, req, wb, j, cliBatchSendCb);
+  }
+
+  if (code != 0) {
     while (!QUEUE_IS_EMPTY(&pWreq->node)) {
       queue*   h = QUEUE_HEAD(&pWreq->node);
       SCliReq* pCliMsg = QUEUE_DATA(h, SCliReq, sendQ);
@@ -1562,7 +1684,6 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     }
 
     freeWReqToWQ(&pConn->wq, req->data);
-    code = TSDB_CODE_THIRDPARTY_ERROR;
     TAOS_UNUSED(transUnrefCliHandle(pConn));
   }
 
@@ -1573,33 +1694,6 @@ int32_t cliSendReq(SCliConn* pConn, SCliReq* pCliMsg) {
   transQueuePush(&pConn->reqsToSend, &pCliMsg->q);
 
   return cliBatchSend(pConn, pCliMsg->inRetry);
-}
-int32_t cliSendReqPrepare(SCliConn* pConn, SCliReq* pCliMsg) {
-  transQueuePush(&pConn->reqsToSend, &pCliMsg->q);
-
-  if (pConn->broken) {
-    return 0;
-  }
-
-  if (pConn->connnected != 1) {
-    return 0;
-  }
-  // return cliBatchSend(pConn);
-  return 0;
-}
-
-static void cliDestroyBatch(SCliBatch* pBatch) {
-  if (pBatch == NULL) return;
-  while (!QUEUE_IS_EMPTY(&pBatch->wq)) {
-    queue* h = QUEUE_HEAD(&pBatch->wq);
-    QUEUE_REMOVE(h);
-
-    SCliReq* p = QUEUE_DATA(h, SCliReq, q);
-    destroyReq(p);
-  }
-  SCliBatchList* p = pBatch->pList;
-  p->sending -= 1;
-  taosMemoryFree(pBatch);
 }
 
 int32_t cliBuildSockByIpType(SIpAddr* ipAddr, struct sockaddr* addr) {
@@ -1665,6 +1759,20 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
     conn->list->totalSize += 1;
   }
 
+  if (pThrd->pInst->enableSSL) {
+    code = sslInit(pThrd->pInst->pSSLContext, &conn->pTls);
+    TAOS_CHECK_GOTO(code, &lino, _exception1);
+
+    conn->pTls->writeCb = cliSendCbSSL;
+    conn->pTls->readCb = cliRecvCbSSL;
+    conn->pTls->pStream = conn->stream;
+    conn->pTls->pConn = conn;
+
+    TAOS_CHECK_GOTO(code, &lino, _exception1);
+
+    conn->enableSSL = 1;
+  }
+
   ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
   if (ret != 0) {
     tError("failed connect to %s since %s", conn->dstAddr, uv_err_name(ret));
@@ -1716,8 +1824,10 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
 };
 
 bool filteGetAll(void* q, void* arg) { return true; }
+
 void cliConnCb(uv_connect_t* req, int status) {
   int32_t   code = 0;
+  int32_t   lino = 0;
   SCliConn* pConn = req->data;
   SCliThrd* pThrd = pConn->hostThrd;
   bool      timeout = false;
@@ -1739,20 +1849,41 @@ void cliConnCb(uv_connect_t* req, int status) {
     tError("%s conn:%p, failed to connect to %s since %s", CONN_GET_INST_LABEL(pConn), pConn, pConn->dstAddr,
            uv_strerror(status));
     cliMayUpdateFqdnCache(pThrd->fqdn2ipCache, pConn->dstAddr);
-    TAOS_UNUSED(transUnrefCliHandle(pConn));
-    return;
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &lino, _error);
   }
+
   pConn->connnected = 1;
   code = cliConnSetSockInfo(pConn);
   if (code != 0) {
-    tDebug("%s conn:%p, failed to get sock info since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
-    TAOS_UNUSED(transUnrefCliHandle(pConn));
+    tDebug("%p:%p, failed to get sock info since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _error);
   }
+
   tTrace("%s conn:%p, connect to server successfully", CONN_GET_INST_LABEL(pConn), pConn);
+  if (pConn->enableSSL) {
+    code = cliConnStartRead(pConn);
+    if (code != 0) {
+      tDebug("%s conn:%p, failed to start read since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
+
+    code = sslConnect(pConn->pTls, NULL, NULL);
+    if (code != 0) {
+      tDebug("%s conn:%p, failed to do ssl_connect since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
+
+    return;
+  }
 
   code = cliBatchSend(pConn, 1);
   if (code != 0) {
     tDebug("%s conn:%p, failed to get sock info since %s", CONN_GET_INST_LABEL(pConn), pConn, tstrerror(code));
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+_error:
+  if (code != 0) {
     TAOS_UNUSED(transUnrefCliHandle(pConn));
   }
 }
@@ -2785,6 +2916,16 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
 
   if (cliRetryIsTimeout(pInst, pReq)) {
     return false;
+  }
+  // opt timeout msg retry
+  if (pCtx && pCtx->syncMsgRef != 0) {
+    STransSyncMsg* pSyncMsg = taosAcquireRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
+    if (pSyncMsg) {
+      TAOS_UNUSED(taosReleaseRef(transGetSyncMsgMgt(), pCtx->syncMsgRef));
+    } else {
+      tDebug("sync msg already release, not retry");
+      return false;
+    }
   }
 
   if (pCtx && pCtx->syncMsgRef != 0) {
@@ -4138,7 +4279,6 @@ int32_t transAllocHandle(int64_t* refId) {
   if (exh == NULL) {
     return terrno;
   }
-
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   if (exh->refId < 0) {
     taosMemoryFree(exh);

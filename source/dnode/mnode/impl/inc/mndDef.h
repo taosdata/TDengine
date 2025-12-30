@@ -26,9 +26,8 @@
 #include "tlog.h"
 #include "tmsg.h"
 #include "trpc.h"
-#include "tstream.h"
 #include "ttimer.h"
-
+#include "tconfig.h"
 #include "mnode.h"
 
 #ifdef __cplusplus
@@ -90,6 +89,7 @@ typedef enum {
   MND_OPER_DROP_RSMA,
   MND_OPER_ROLLUP_DB,
   MND_OPER_SHOW_STB,
+  MND_OPER_ALTER_RSMA,
 } EOperType;
 
 typedef enum {
@@ -294,12 +294,30 @@ typedef struct {
   SQnodeLoad load;
 } SQnodeObj;
 
+
 typedef struct {
   int32_t    id;
+  int32_t    leadersId[2];
+  int32_t    replicaId;
   int64_t    createdTime;
   int64_t    updateTime;
   SDnodeObj* pDnode;
 } SSnodeObj;
+
+typedef struct {
+  SSnodeObj* target;
+  int32_t    affNum;
+  SSnodeObj  affSnode[2];
+  SSnodeObj  affNewReplica[2];
+} SSnodeDropTraversaCtx;
+
+typedef struct {
+  int32_t    id;
+  int32_t    proto;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj* pDnode;
+} SBnodeObj;
 
 typedef struct {
   int32_t assignedDnodeId;
@@ -424,6 +442,7 @@ typedef struct {
   SHashObj* alterViews;
   SHashObj* useDbs;
   SRWLatch  lock;
+  int8_t    passEncryptAlgorithm;
 } SUserObj;
 
 typedef struct {
@@ -449,6 +468,13 @@ typedef struct {
   int8_t  hashMethod;  // default is 1
   int8_t  cacheLast;
   int8_t  schemaless;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isMount : 1;  // TS-5868
+      uint8_t padding : 7;
+    };
+  };
   int16_t hashPrefix;
   int16_t hashSuffix;
   int16_t sstTrigger;
@@ -459,9 +485,9 @@ typedef struct {
   int32_t walRollPeriod;
   int64_t walRetentionSize;
   int64_t walSegmentSize;
-  int32_t s3ChunkSize;
-  int32_t s3KeepLocal;
-  int8_t  s3Compact;
+  int32_t ssChunkSize;
+  int32_t ssKeepLocal;
+  int8_t  ssCompact;
   int8_t  withArbitrator;
   int8_t  encryptAlgorithm;
   int8_t  compactTimeOffset;  // hour
@@ -484,7 +510,37 @@ typedef struct {
   int64_t  stateTs;
   int64_t  compactStartTime;
   int32_t  tsmaVersion;
+  int64_t  scanStartTime;
 } SDbObj;
+
+typedef struct {
+  int64_t uid;
+  char    name[TSDB_DB_FNAME_LEN];
+} SMountDbObj;
+
+typedef struct {
+  char         name[TSDB_MOUNT_NAME_LEN];
+  char         acct[TSDB_USER_LEN];
+  char         createUser[TSDB_USER_LEN];
+  int64_t      createdTime;
+  int64_t      updateTime;
+  int64_t      uid;
+  int16_t      nMounts;
+  int16_t      nDbs;
+  int32_t*     dnodeIds;
+  char**       paths;
+  SMountDbObj* dbObj;
+  SRWLatch     lock;
+} SMountObj;
+
+typedef struct {
+  int32_t  id;
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int64_t  mountTimes;
+  int64_t  umountTimes;
+  SRWLatch lock;
+} SMountLogObj;
 
 typedef struct {
   int32_t    dnodeId;
@@ -526,10 +582,12 @@ typedef struct {
   void*     pTsma;
   int32_t   numOfCachedTables;
   int32_t   syncConfChangeVer;
-  int32_t   mountVgId;
+  int32_t   mountVgId;  // TS-5868
   int64_t   keepVersion;  // WAL keep version, -1 for disabled
   int64_t   keepVersionTime;  // WAL keep version time
 } SVgObj;
+
+
 
 typedef struct {
   char           name[TSDB_TABLE_FNAME_LEN];
@@ -561,6 +619,29 @@ typedef struct {
   SSchemaWrapper schemaTag;  // for dstVgroup
   char           baseSmaName[TSDB_TABLE_FNAME_LEN];
 } SSmaObj;
+
+typedef struct {
+  char    name[TSDB_TABLE_NAME_LEN];
+  char    tbName[TSDB_TABLE_NAME_LEN];
+  char    dbFName[TSDB_DB_FNAME_LEN];
+  char    createUser[TSDB_USER_LEN];
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t uid;
+  int64_t tbUid;
+  int64_t dbUid;
+  int64_t interval[2];
+  union {
+    uint64_t reserved;
+  };
+  int32_t    version;
+  int8_t     tbType;
+  int8_t     intervalUnit;
+  int16_t    nFuncs;
+  col_id_t*  funcColIds;
+  func_id_t* funcIds;
+  SRWLatch   lock;
+} SRsmaObj;
 
 typedef struct {
   char    name[TSDB_INDEX_FNAME_LEN];
@@ -717,23 +798,19 @@ void*   tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t
 
 typedef struct {
   int32_t vgId;
-  //  char*   qmsg;  // SubPlanToString
   SEpSet epSet;
 } SMqVgEp;
 
-SMqVgEp* tCloneSMqVgEp(const SMqVgEp* pVgEp);
-void     tDeleteSMqVgEp(SMqVgEp* pVgEp);
 int32_t  tEncodeSMqVgEp(void** buf, const SMqVgEp* pVgEp);
 void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp, int8_t sver);
 
 typedef struct {
   int64_t consumerId;  // -1 for unassigned
-  SArray* vgs;         // SArray<SMqVgEp*>
-  SArray* offsetRows;  // SArray<OffsetRows*>
+  SArray* vgs;         // SArray<SMqVgEp>
+  SArray* offsetRows;  // SArray<OffsetRows>
 } SMqConsumerEp;
 
-// SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
-// void           tDeleteSMqConsumerEp(void* pEp);
+void    freeSMqConsumerEp(void* data);
 int32_t tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
 void*   tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp, int8_t sver);
 
@@ -746,7 +823,7 @@ typedef struct {
   int8_t    withMeta;
   int64_t   stbUid;
   SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
-  SArray*   unassignedVgs;  // SArray<SMqVgEp*>
+  SArray*   unassignedVgs;  // SArray<SMqVgEp>
   SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
   char*     qmsg;  // SubPlanToString
@@ -758,26 +835,6 @@ void    tDeleteSubscribeObj(SMqSubscribeObj* pSub);
 int32_t tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
 void*   tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
 
-// typedef struct {
-//   int32_t epoch;
-//   SArray* consumers;  // SArray<SMqConsumerEp*>
-// } SMqSubActionLogEntry;
-
-// SMqSubActionLogEntry* tCloneSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
-// void                  tDeleteSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
-// int32_t               tEncodeSMqSubActionLogEntry(void** buf, const SMqSubActionLogEntry* pEntry);
-// void*                 tDecodeSMqSubActionLogEntry(const void* buf, SMqSubActionLogEntry* pEntry);
-//
-// typedef struct {
-//   char    key[TSDB_SUBSCRIBE_KEY_LEN];
-//   SArray* logs;  // SArray<SMqSubActionLogEntry*>
-// } SMqSubActionLogObj;
-//
-// SMqSubActionLogObj* tCloneSMqSubActionLogObj(SMqSubActionLogObj* pLog);
-// void                tDeleteSMqSubActionLogObj(SMqSubActionLogObj* pLog);
-// int32_t             tEncodeSMqSubActionLogObj(void** buf, const SMqSubActionLogObj* pLog);
-// void*               tDecodeSMqSubActionLogObj(const void* buf, SMqSubActionLogObj* pLog);
-
 typedef struct {
   int32_t           oldConsumerNum;
   const SMqRebInfo* pRebInfo;
@@ -786,7 +843,7 @@ typedef struct {
 typedef struct {
   int64_t  oldConsumerId;
   int64_t  newConsumerId;
-  SMqVgEp* pVgEp;
+  SMqVgEp  pVgEp;
 } SMqRebOutputVg;
 
 typedef struct {
@@ -795,9 +852,22 @@ typedef struct {
   SArray*          removedConsumers;  // SArray<int64_t>
   SArray*          modifyConsumers;   // SArray<int64_t>
   SMqSubscribeObj* pSub;
-  //  SMqSubActionLogEntry* pLogEntry;
 } SMqRebOutputObj;
 
+typedef struct {
+  char                name[TSDB_STREAM_FNAME_LEN];
+  SCMCreateStreamReq* pCreate;
+
+  SRWLatch lock;
+  
+  // dynamic info
+  int32_t mainSnodeId;
+  int8_t  userDropped;  // no need to serialize
+  int8_t  userStopped;
+  int64_t createTime;
+  int64_t updateTime;
+} SStreamObj;
+#if 0
 typedef struct SStreamConf {
   int8_t  igExpired;
   int8_t  trigger;
@@ -805,6 +875,31 @@ typedef struct SStreamConf {
   int64_t triggerParam;
   int64_t watermark;
 } SStreamConf;
+
+typedef struct {
+  int32_t   vgId;
+  int64_t   createdTime;
+  int64_t   updateTime;
+  int32_t   version;
+  uint32_t  hashBegin;
+  uint32_t  hashEnd;
+  char      dbName[TSDB_DB_FNAME_LEN];
+  int64_t   dbUid;
+  int64_t   cacheUsage;
+  int64_t   numOfTables;
+  int64_t   numOfTimeSeries;
+  int64_t   totalStorage;
+  int64_t   compStorage;
+  int64_t   pointsWritten;
+  int8_t    compact;
+  int8_t    isTsma;
+  int8_t    replica;
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  void*     pTsma;
+  int32_t   numOfCachedTables;
+  int32_t   syncConfChangeVer;
+} SVgObj;
+
 
 typedef struct {
   char     name[TSDB_STREAM_FNAME_LEN];
@@ -860,6 +955,7 @@ typedef struct {
   SSHashObj*  pVTableMap;  // do not serialize
   SQueryPlan* pPlan;       // do not serialize
 } SStreamObj;
+#endif
 
 typedef struct SStreamSeq {
   char     name[24];
@@ -898,8 +994,14 @@ int32_t tDecodeSViewObj(SDecoder* pDecoder, SViewObj* pObj, int32_t sver);
 void    tFreeSViewObj(SViewObj* pObj);
 
 typedef struct {
-  int32_t compactDetailId;
-  int32_t compactId;
+  union {
+    int32_t compactDetailId;
+    int32_t detailId;
+  };
+  union {
+    int32_t compactId;
+    int32_t id;
+  };
   int32_t vgId;
   int32_t dnodeId;
   int32_t numberFileset;
@@ -912,11 +1014,77 @@ typedef struct {
 } SCompactDetailObj;
 
 typedef struct {
-  int32_t compactId;
+  int32_t scanDetailId;
+  int32_t scanId;
+  int32_t vgId;
+  int32_t dnodeId;
+  int32_t numberFileset;
+  int32_t finished;
+  int64_t startTime;
+  int32_t newNumberFileset;
+  int32_t newFinished;
+  int32_t progress;
+  int64_t remainingTime;
+} SScanDetailObj;
+
+typedef struct {
+  union {
+    int32_t compactId;
+    int32_t id;
+  };
   char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t dbUid;
   int64_t startTime;
   SArray* compactDetail;
+  union {
+    uint32_t flags;
+    struct {
+      uint32_t optrType : 3;     // ETsdbOpType
+      uint32_t triggerType : 1;  // ETriggerType
+      uint32_t reserve : 28;
+    };
+  };
 } SCompactObj;
+
+typedef struct {
+  int32_t scanId;
+  char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t dbUid;
+  int64_t startTime;
+  SArray* scanDetail;
+} SScanObj;
+
+typedef SCompactObj       SRetentionObj;        // reuse compact obj for retention
+typedef SCompactDetailObj SRetentionDetailObj;  // reuse compact detail obj for retention
+typedef struct {
+  int32_t nodeId;    // dnode id of the leader vnode
+  int32_t vgId;
+  int32_t fid;       // file set id
+  int32_t state;
+  int64_t startTime; // migration start time of this file set in seconds
+} SSsMigrateFileSet;
+
+typedef enum {
+  SSMIGRATE_VGSTATE_INIT = 0,                  // initial state
+  SSMIGRATE_VGSTATE_WAITING_FSET_LIST = 1,     // waiting for file set list
+  SSMIGRATE_VGSTATE_FSET_LIST_RECEIVED = 2,    // file set list received
+  SSMIGRATE_VGSTATE_FSET_STARTING = 3,         // fset ssmigrate request was sent, waiting for response
+  SSMIGRATE_VGSTATE_FSET_STARTED = 4,          // fset ssmigrate response received
+} ESsMigrateVgroupState;
+
+typedef struct {
+  int32_t id;                 // migration id
+  int64_t dbUid;
+  char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t startTime;          // migration start time in seconds
+  int64_t stateUpdateTime;    // last state(vgState or currFest.state) update time in seconds
+  int32_t vgIdx;              // index of current vgroup
+  int32_t vgState;            // vgroup migration state
+  int32_t fsetIdx;            // index of current file set
+  SSsMigrateFileSet currFset; // current file set being processed
+  SArray* vgroups;            // SArray<int32_t>, vgroup ids of current migration
+  SArray* fileSets;           // SArray<int32_t>, file set ids of current vgroup
+} SSsMigrateObj;
 
 // SGrantLogObj
 typedef enum {

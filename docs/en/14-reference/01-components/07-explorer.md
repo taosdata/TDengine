@@ -120,6 +120,15 @@ cors = true
 # The number of days log files are retained
 #
 # keepDays = 30
+
+# Configuration for monitoring with taosKeeper service
+[monitor]
+# FQDN of taosKeeper service
+#fqdn = "localhost"
+# Port of taosKeeper service
+#port = 6043
+# Monitor interval in seconds, minimum is 1, maximum is 10
+#interval = 10
 ```
 
 Description:
@@ -143,6 +152,9 @@ Description:
 - `log.rotationSize`: The file size that triggers log file rolling (in bytes), a new file is generated when the log file exceeds this size, and new logs are written to the new file.
 - `log.reservedDiskSize`: The threshold of remaining disk space to stop writing logs (in bytes), logging stops when the disk space reaches this size.
 - `log.keepDays`: The number of days to keep log files, older log files exceeding this number of days are deleted.
+- `monitor.fqdn`: The address of taosKeeper service.
+- `monitor.port`: The port of taosKeeper service, default is `6043`.
+- `monitor.interval`: The time interval for reporting metrics, default is `10` seconds.
 
 ## Start and Stop
 
@@ -225,3 +237,15 @@ Once installed, open your browser and by default access `http://ip:6060` to visi
 When logging in, please use the database username and password. For first-time use, the default username is `root` and the password is `taosdata`. After a successful login, you will enter the `Data Browser` page, where you can use management functions such as viewing databases, creating databases, and creating supertables/subtables.
 
 Other feature pages, such as `Data Writing - Data Source` and others, are exclusive to the TSDB-Enterprise. You can click to view and have a simple experience, but they cannot be actually used.
+
+Since of network issues, if you cannot complete the registration process, you need to register in an environment with external network access, and then replace the registered `/etc/taos/explorer-register.cfg` file to the internal network environment.
+
+From version 3.3.7.1, you can use the environment variable `EXPLORER_SKIP_REGISTER=true` to skip the registration process and log in directly with your account.
+
+In Linux with systemd, you can add the environment variable in the environment file `/etc/default/taos-explorer` as follows:
+
+```shell
+EXPLORER_SKIP_REGISTER=true
+```
+
+In Windows, you can set the environment variable in the system environment variables.

@@ -18,10 +18,10 @@
 #define _GNU_SOURCE
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
+#include "../../inc/pub.h"
 #include "geosWrapper.h"
 #include "shellAuto.h"
 #include "shellInt.h"
-#include "../../inc/pub.h"
 
 SShellObj shell = {0};
 
@@ -59,7 +59,7 @@ static void    shellWriteHistory();
 static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
-static int32_t shellGetGrantInfo(char* buf);
+static int32_t shellGetGrantInfo(char *buf);
 
 static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
@@ -468,6 +468,19 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
     case TSDB_DATA_TYPE_DECIMAL64:
     case TSDB_DATA_TYPE_DECIMAL:
       taosFprintfFile(pFile, "%s", val);
+      break;
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB: {
+      void    *tmp = NULL;
+      uint32_t size = 0;
+      if (taosAscii2Hex(val, length, &tmp, &size) < 0) {
+        break;
+      }
+      taosFprintfFile(pFile, "%s%s%s", quotationStr, tmp, quotationStr);
+      taosMemoryFree(tmp);
+
+      break;
+    }
     default:
       break;
   }
@@ -707,6 +720,18 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       shellFormatTimestamp(buf, sizeof(buf), taosGetInt64Aligned((int64_t *)val), precision);
       printf("%s", buf);
       break;
+
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB: {
+      void    *data = NULL;
+      uint32_t size = 0;
+      if (taosAscii2Hex(val, length, &data, &size) < 0) {
+        break;
+      }
+      shellPrintNChar(data, size, width);
+      taosMemoryFree(data);
+      break;
+    }
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_DECIMAL64:
       printf("%*s", width, val);
@@ -897,6 +922,16 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
       } else {
         return TMAX(23, width);  // '2020-01-01 00:00:00.000'
       }
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB: {
+      int32_t bytes = TSDB_MAX_BLOB_LEN;
+      if (bytes > shell.args.displayWidth) {
+        return TMAX(shell.args.displayWidth, width);
+      } else {
+        return TMAX(bytes + 2, width);
+      }
+    } break;
+
     case TSDB_DATA_TYPE_DECIMAL64:
       return TMAX(width, 20);
     case TSDB_DATA_TYPE_DECIMAL:
@@ -1206,14 +1241,16 @@ int32_t shellGetGrantInfo(char *buf) {
     memcpy(expiretime, row[1], fields[1].bytes);
     memcpy(expired, row[2], fields[2].bytes);
 
+    trimStr(serverVersion, "trial");
+
     if (strcmp(serverVersion, "community") == 0) {
       verType = TSDB_VERSION_OSS;
     } else if (strcmp(expiretime, "unlimited") == 0) {
       verType = TSDB_VERSION_ENTERPRISE;
-      sprintf(buf, "Server is %s, %s and will never expire.\r\n", serverVersion, sinfo);
+      sprintf(buf, "Server is %s %s. License will never expire.\r\n", serverVersion, sinfo);
     } else {
       verType = TSDB_VERSION_ENTERPRISE;
-      sprintf(buf, "Server is %s, %s and will expire at %s.\r\n", serverVersion, sinfo, expiretime);
+      sprintf(buf, "Server is %s %s. License will expire at %s.\r\n", serverVersion, sinfo, expiretime);
     }
 
     taos_free_result(tres);
@@ -1222,7 +1259,7 @@ int32_t shellGetGrantInfo(char *buf) {
   fprintf(stdout, "\r\n");
 #else
   verType = TSDB_VERSION_ENTERPRISE;
-  sprintf(buf, "Server is %s, %s and will never expire.\r\n", TD_PRODUCT_NAME, sinfo);
+  sprintf(buf, "Server is %s %s. License will never expire.\r\n", TD_PRODUCT_NAME, sinfo);
 #endif
   return verType;
 }
@@ -1299,37 +1336,35 @@ void *shellThreadLoop(void *arg) {
 }
 #pragma GCC diagnostic pop
 
-TAOS* createConnect(SShellArgs *pArgs) {
+TAOS *createConnect(SShellArgs *pArgs) {
   char     show[256] = "\0";
-  char *   host = NULL;
+  char    *host = NULL;
   uint16_t port = 0;
-  char *   user = NULL;
-  char *   pwd  = NULL;
+  char    *user = NULL;
+  char    *pwd = NULL;
   TAOS    *taos = NULL;
 
   // set mode
   if (pArgs->connMode != CONN_MODE_NATIVE && pArgs->dsn) {
-      // websocket
-      memcpy(show, pArgs->dsn, 20);
-      memcpy(show + 20, "...", 3);
-      memcpy(show + 23, pArgs->dsn + strlen(pArgs->dsn) - 10, 10);
+    // websocket
+    memcpy(show, pArgs->dsn, 20);
+    memcpy(show + 20, "...", 3);
+    memcpy(show + 23, pArgs->dsn + strlen(pArgs->dsn) - 10, 10);
 
     // connect dsn
     taos = taos_connect_with_dsn(pArgs->dsn);
-
   } else {
+    host = (char *)pArgs->host;
+    user = (char *)pArgs->user;
+    pwd = pArgs->password;
 
-      host = (char *)pArgs->host;
-      user = (char *)pArgs->user;
-      pwd  = pArgs->password;
+    if (pArgs->port_inputted) {
+      port = pArgs->port;
+    } else {
+      port = defaultPort(pArgs->connMode, pArgs->dsn);
+    }
 
-      if (pArgs->port_inputted) {
-          port = pArgs->port;
-      } else {
-          port = defaultPort(pArgs->connMode, pArgs->dsn);
-      }
-
-      sprintf(show, "host:%s port:%d ", host, port);
+    sprintf(show, "host:%s port:%d ", host, port);
 
     // connect normal
     if (pArgs->auth) {
@@ -1345,8 +1380,8 @@ TAOS* createConnect(SShellArgs *pArgs) {
 int32_t shellExecute(int argc, char *argv[]) {
   int32_t code = 0;
   printf(shell.info.clientVersion, shell.info.cusName,
-             workingMode(shell.args.connMode, shell.args.dsn) == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET,
-             taos_get_client_info(), shell.info.cusName);
+         workingMode(shell.args.connMode, shell.args.dsn) == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET,
+         taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;

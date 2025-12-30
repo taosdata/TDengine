@@ -406,9 +406,12 @@ class TestVtableQueryAfterDropOriginTable:
         self.check_virtual_table_create(15, 0)
 
     def test_query_after_drop(self):
-        """test query after drop tables.
+        """Query: after drop
 
-        test query after drop tables.
+        test query after drop tables
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 

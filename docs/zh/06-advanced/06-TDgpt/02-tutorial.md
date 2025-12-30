@@ -4,7 +4,7 @@ sidebar_label: "安装部署"
 description: 使用 docker、云服务、安装包体验 TDgpt
 ---
 
-import PkgListV3 from "/components/PkgListV3";
+import PkgListV37 from "/components/PkgListV37";
 
 本节介绍如何通过 Docker，云服务或安装包来部署 TDgpt
 
@@ -12,8 +12,8 @@ import PkgListV3 from "/components/PkgListV3";
 
 | 镜像名称                          | 包含模型               |
 |-----------------------------------|-----------------------|
-| `tdengine/tdengine-tdgpt`         | 涛思时序数据基础模型（TDtsfm v1.0）       |
-| `tdengine/tdengine-tdgpt-full`    | 涛思时序数据基础模型（TDtsfm v1.0）+ Time-MoE 时序数据基础模型   |
+| `tdengine/tdgpt`         | 涛思时序数据基础模型（TDtsfm v1.0）       |
+| `tdengine/tdgpt-full`    | 涛思时序数据基础模型（TDtsfm v1.0）+ Time-MoE 时序数据基础模型   |
 
 ### 快速启动指南
 
@@ -24,42 +24,56 @@ import PkgListV3 from "/components/PkgListV3";
 拉取最新的 TDgpt 标准版容器镜像：
 
 ```shell
-docker pull tdengine/tdengine-tdgpt:latest
+docker pull tdengine/tdgpt:latest
 ```
 
 或者特定版本的容器镜像：
 
 ```shell
-docker pull tdengine/tdengine-tdgpt:3.3.6.0
+docker pull tdengine/tdgpt:3.3.8.8
 ```
 
 执行下面的命令启动容器：
 
 ```shell
-docker run -d -p 6090:6090 -p 5000:5000 tdengine/tdengine-tdgpt:3.3.6.0
+docker run -d \
+  -p 6035:6035 \
+  -p 6036:6036 \
+  tdengine/tdgpt:3.3.8.8
 ```
+
+:::note
+
+从 3.3.7.5 版本开始，TDgpt 的端口号由 6090 变更为 6035.
+
+:::
 
 #### 完整版镜像
 
 拉取最新的 TDgpt 容器镜像：
 
 ```shell
-docker pull tdengine/tdengine-tdgpt-full:latest
+docker pull tdengine/tdgpt-full:latest
 ```
 
 或者指定版本的容器镜像：
 
 ```shell
-docker pull tdengine/tdengine-tdgpt-full:3.3.6.0
+docker pull tdengine/tdgpt-full:3.3.8.8
 ```
 
 执行下面的命令启动容器：
 
 ```shell
-docker run -d --name tdgpt -p 6090:6090 -p 5000:5000 -p 5001:5001 tdengine/tdengine-tdgpt-full:3.3.6.0
+docker run -d \
+  --name tdgpt \
+  -p 6035:6035 \
+  -p 6036:6036 \
+  -p 6037:6037 \
+  tdengine/tdgpt-full:3.3.8.8
 ```
 
-**注意**：TDgpt 服务端使用 6090 TCP 端口。5000 和 5001 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；
+**注意**：TDgpt 服务端使用 6035 TCP 端口。6036 和 6037 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；
 
 确定该容器已经启动并且在正常运行。
 
@@ -74,7 +88,7 @@ docker ps
 docker exec -it <container name> bash
 ```
 
-然后就可以执行相关的 Linux 命令操作和访问 TDengine。
+然后就可以执行相关的 Linux 命令操作和访问 TDengine TSDB。
 
 ## 注册云服务使用 TDgpt
 
@@ -84,10 +98,10 @@ TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服�
 
 ### 环境准备
 
-使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 Taos AI node（anode）。anode 运行在 Linux 平台上，对部署 anode 的有一定的环境要求：
+使用 TDgpt 的高级时序数据分析功能需要在 TDengine TSDB 集群中安装部署 Taos AI node（anode）。anode 运行在 Linux 平台上，对部署 anode 的有一定的环境要求：
 
-- Python: 3.10 或以上版本。
-- TDengine：需使用 3.3.6.0 或以上版本。
+- Python: 3.10 或 3.11 版本。由于部分依赖库与 Python 3.12 及以上版本存在冲突，因此暂不支持。
+- TDengine TSDB：需使用 3.3.6.0 或以上版本。
 - C 编译器：因依赖 uWSGI，部署环境需包含 C 编译器。
 
 使用如下命令在 Ubuntu Linux 上安装 Python 3.10 环境。如果您的系统环境中已经有 Python 3.10，请跳过本节，直接查看 [获取安装包](#获取安装包) 部分。
@@ -130,25 +144,22 @@ sudo apt install build-essential
 
 1. 从列表中下载获得 tar.gz 安装包
 
-   <PkgListV3 type={9}/>
+   <PkgListV37 productName="TDengine TDgpt-OSS" version="3.3.8.8" platform="Linux-Generic" pkgType="Server"/>
 
    安装包中包含两个时序基础模型：涛思时序基础模型（TDtsfm v1.0）和 Time-MoE 时序基础模型。两个基础时序模型启动时候需要一定的内存空间，请确保安装机器至少有 16GiB 可用内存。
   
 2. 进入到安装包所在目录，使用 tar 解压安装包；
 
-> 请将 `<version>` 替换为下载的安装包版本
-
 ```bash
-tar -zxvf TDengine-TDgpt-<version>-Linux-x64.tar.gz
+tar -zxvf tdengine-tdgpt-oss-3.3.8.8-linux-x64.tar.gz
 ```
 
 ### 执行安装脚本
 
 解压安装包后，进入目录执行其中的 `install.sh` 脚本进行安装。
-请将 `<version>` 替换为下载的安装包版本
 
 ```bash
-cd TDengine-TDgpt-<version>
+cd tdengine-tdgpt-oss-3.3.8.8
 ./install.sh
 ```
 

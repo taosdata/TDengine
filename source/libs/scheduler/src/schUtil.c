@@ -386,8 +386,8 @@ int32_t schValidateSubplan(SSchJob *pJob, SSubplan *pSubplan, int32_t level, int
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  if (pSubplan->subplanType < SUBPLAN_TYPE_MERGE || pSubplan->subplanType > SUBPLAN_TYPE_COMPUTE) {
-    SCH_JOB_ELOG("invalid subplanType %d, level:%d, subplan idx:%d", pSubplan->subplanType, level, idx);
+  if (pSubplan->subplanType < SUBPLAN_TYPE_MERGE || pSubplan->subplanType > SUBPLAN_TYPE_HSYSSCAN) {
+    SCH_JOB_ELOG("invalid subplanType:%d, level:%d, subplan idx:%d", pSubplan->subplanType, level, idx);
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 

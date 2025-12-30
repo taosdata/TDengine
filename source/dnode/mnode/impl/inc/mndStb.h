@@ -27,6 +27,7 @@ void     mndCleanupStb(SMnode *pMnode);
 SStbObj *mndAcquireStb(SMnode *pMnode, char *stbName);
 void     mndReleaseStb(SMnode *pMnode, SStbObj *pStb);
 SSdbRaw *mndStbActionEncode(SStbObj *pStb);
+SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
 int32_t  mndValidateStbInfo(SMnode *pMnode, SSTableVersion *pStbs, int32_t numOfStbs, void **ppRsp, int32_t *pRspLen);
 int32_t  mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs);
 
@@ -34,6 +35,8 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate);
 SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName);
 int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreate, SDbObj *pDb);
 int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb);
+int32_t mndSetCreateStbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb);
+int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *stbname, char *tagname);
 void    mndFreeStb(SStbObj *pStb);
 int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char *dbFName, char *stbFName, void **pCont, int32_t *pLen);
 
@@ -45,7 +48,7 @@ void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t
 const char *mndGetStbStr(const char *src);
 
 int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew);
-int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId);
+int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId, bool isTag);
 void   *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen, void *alterOriData,
                               int32_t alterOriDataLen);
 int32_t mndSetForceDropCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, SStbObj *pStb);

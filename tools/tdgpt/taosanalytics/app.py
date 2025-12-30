@@ -7,13 +7,17 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
 from flask import Flask, request
 
+from taosanalytics.algo.imputation import (do_imputation, do_set_imputation_params, check_freq_param)
 from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.algo.forecast import do_forecast, do_add_fc_params
+from taosanalytics.algo.correlation import do_dtw, do_tlcc
+
 from taosanalytics.conf import conf
 from taosanalytics.model import get_avail_model
 from taosanalytics.servicemgmt import loader
-from taosanalytics.util import app_logger, validate_pay_load, get_data_index, get_ts_index, is_white_noise, \
-    parse_options, convert_results_to_windows, get_past_dynamic_data, get_dynamic_data
+from taosanalytics.util import (app_logger, parse_options, get_past_dynamic_data, get_dynamic_data,
+                                get_second_data_list,
+                                do_check_before_exec)
 
 app = Flask(__name__)
 
@@ -22,7 +26,7 @@ app_logger.set_handler(conf.get_log_path())
 app_logger.set_log_level(conf.get_log_level())
 loader.load_all_service()
 
-_ANODE_VER = 'TDgpt - TDengine© Time-Series Data Analytics Platform (ver 3.3.6.1)'
+_ANODE_VER = 'TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver 3.3.7.1)'
 
 @app.route("/")
 def start():
@@ -59,52 +63,28 @@ def handle_ad_request():
     app_logger.log_inst.info('recv ad request from %s', request.remote_addr)
 
     try:
-        req_json = request.json
+        req_json, payload, options, data_index, ts_index = do_check_before_exec(request, True)
     except Exception as e:
-        app_logger.log_inst.error('invalid json format, %s, %s', e, request.data)
-        raise ValueError(e)
-
-    app_logger.log_inst.debug('req payload: %s', req_json)
+        return {"msg": str(e), "rows": -1}
 
     algo = req_json["algo"].lower() if "algo" in req_json else "ksigma"
 
     # 1. validate the input data in json format
     try:
-        validate_pay_load(req_json)
         d = req_json["data"]
         if len(d) > 2:
             raise ValueError(f"invalid data format, too many columns for anomaly-detection, allowed:2, input:{len(d)}")
     except ValueError as e:
         return {"msg": str(e), "rows": -1}
 
-    payload = req_json["data"]
-
-    # 2. white noise data check
-    wn_check = req_json["wncheck"] if "wncheck" in req_json else 1
-
-    data_index = get_data_index(req_json["schema"])
-    ts_index = get_ts_index(req_json["schema"])
-
-    if wn_check:
-        try:
-            data = payload[data_index]
-            if is_white_noise(data):
-                app_logger.log_inst.debug("wn data, not process")
-                return {"msg": "white noise can not be check", "rows": -1}
-        except Exception as e:
-            return {"msg": str(e), "rows": -1}
-
-    # 3. parse the options for different ad services
-    # the default options is like following: "algo=ksigma,k=2,invalid_option=44"
-    options = req_json["option"] if "option" in req_json else None
     params = parse_options(options)
 
     # 4. do anomaly detection
     try:
-        res_list, ano_window = do_ad_check(payload[data_index], payload[ts_index], algo, params)
-        result = {"algo": algo, "option": options, "res": ano_window, "rows": len(ano_window)}
-        app_logger.log_inst.debug("anomaly-detection result: %s", str(result))
+        res_list, ano_window, mask_list = do_ad_check(payload[data_index], payload[ts_index], algo, params)
+        result = {"algo": algo, "option": options, "res": ano_window, "rows": len(ano_window), "mask":mask_list}
 
+        app_logger.log_inst.debug("anomaly-detection result: %s", str(result))
         return result
 
     except Exception as e:
@@ -118,42 +98,8 @@ def handle_ad_request():
 def handle_forecast_req():
     """handle the fc request """
     app_logger.log_inst.info('recv fc from %s', request.remote_addr)
+    req_json, payload, options, data_index, ts_index = do_check_before_exec(request)
 
-    try:
-        req_json = request.json
-    except Exception as e:
-        app_logger.log_inst.error('forecast recv invalid json format, %s, %s', e, request.data)
-        raise ValueError(e)
-
-    app_logger.log_inst.debug('req payload: %s', req_json)
-
-    # holt-winters by default
-    algo = req_json['algo'].lower() if 'algo' in req_json else 'holtwinters'
-
-    # 1. validate the input data in json format
-    try:
-        validate_pay_load(req_json)
-    except ValueError as e:
-        app_logger.log_inst.error('validate req json failed, %s', e)
-        raise ValueError(e)
-
-    payload = req_json["data"]
-
-    # 2. white noise data check
-    wn_check = req_json["wncheck"] if "wncheck" in req_json else 1
-    data_index = get_data_index(req_json["schema"])
-    ts_index = get_ts_index(req_json["schema"])
-
-    if wn_check:
-        try:
-            data = payload[data_index]
-            if is_white_noise(data):
-                app_logger.log_inst.debug("%s wn data, not process", data)
-                return {"msg": "white noise can not be check", "rows": -1}
-        except Exception as e:
-            return {"msg": str(e), "rows": -1}
-
-    options = req_json["option"] if "option" in req_json else None
     params = parse_options(options)
 
     try:
@@ -161,6 +107,9 @@ def handle_forecast_req():
     except ValueError as e:
         app_logger.log_inst.error("invalid fc params: %s", e)
         return {"msg": f"{e}", "rows": -1}
+
+    # holt-winters by default
+    algo = req_json['algo'].lower() if 'algo' in req_json else 'holtwinters'
 
     try:
         res1 = do_forecast(payload[data_index], payload[ts_index], algo, params,
@@ -171,12 +120,84 @@ def handle_forecast_req():
         res.update(res1)
 
         app_logger.log_inst.debug("forecast result: %s", res)
-
         return res
     except Exception as e:
         app_logger.log_inst.error('forecast failed, %s', str(e))
         return {"msg": str(e), "rows": -1}
 
 
+@app.route("/imputation", methods=['POST'])
+def handle_imputation_req():
+    """handle the imputation request """
+    app_logger.log_inst.info('recv imputation from %s', request.remote_addr)
+    try:
+        req_json, payload, options, data_index, ts_index = do_check_before_exec(request)
+    except Exception as e:
+        return {"msg": str(e), "rows": -1}
+
+    params = parse_options(options)
+
+    try:
+        do_set_imputation_params(params, req_json)
+    except ValueError as e:
+        app_logger.log_inst.error("invalid imputation params: %s", e)
+        return {"msg": f"{e}", "rows": -1}
+
+    algo = req_json['algo'].lower() if 'algo' in req_json else 'moment'
+
+    try:
+        freq = req_json["freq"] if 'freq' in req_json else '1ms'
+        prec = req_json['prec'] if 'prec' in req_json else 'ms'
+        check_freq_param(payload[ts_index], freq, prec)
+
+        imputat_res = do_imputation(payload[data_index], payload[ts_index], algo, params)
+
+        final_res = {"option": options, "rows": len(imputat_res["ts"])}
+        final_res.update(imputat_res)
+
+        app_logger.log_inst.debug("imputation result: %s", final_res)
+        return final_res
+    except Exception as e:
+        app_logger.log_inst.error('imputation failed, %s', str(e))
+        return {"msg": str(e), "rows": -1}
+
+
+@app.route("/correlation", methods=['POST'])
+def handle_correlation_req():
+    """handle the correlation request """
+    app_logger.log_inst.info('recv correlation from %s', request.remote_addr)
+    try:
+        # check for rows limitation to reduce the dtw process time
+        req_json, payload, options, data_index, ts_index = do_check_before_exec(request, False)
+    except Exception as e:
+        return {"msg": str(e), "rows": -1}
+
+    params = parse_options(options)
+
+    algo = req_json['algo'].lower()
+
+    try:
+        second_list = get_second_data_list(payload, req_json["schema"])
+
+        if algo == 'dtw':
+            dist, path = do_dtw(payload[data_index], second_list, params)
+
+            res = {"option": options, "rows": len(path), "distance": dist, "path": path}
+            app_logger.log_inst.debug("dtw result: %s", res)
+
+            return res
+        elif algo == 'tlcc':
+            lags, ccf_vals = do_tlcc(payload[data_index], second_list, params)
+
+            res = {"option": options, "rows": len(lags), "lags": lags, "ccf_vals": ccf_vals}
+            app_logger.log_inst.debug("tlcc result: %s", res)
+
+            return res
+        else:
+            raise ValueError(f"unsupported algo: {algo}")
+    except Exception as e:
+        app_logger.log_inst.error('correlation failed, %s', str(e))
+        return {"msg": str(e), "rows": -1}
+
 if __name__ == '__main__':
-    app.run(port=6090)
+    app.run(port=6035)

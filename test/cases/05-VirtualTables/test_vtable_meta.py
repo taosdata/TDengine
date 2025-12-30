@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
+import os
 
 
 class TestVtableMeta:
@@ -126,9 +127,12 @@ class TestVtableMeta:
                           "geo_32_col geometry(32) from vtb_org_child_18.geo_32_col)")
 
     def test_normal_query_new(self):
-        """test virtual table normal query.
+        """Query: meta
 
-        test virtual table normal query.
+        test virtual table normal query
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -144,8 +148,8 @@ class TestVtableMeta:
         # read sql from .sql file and execute
         tdLog.info("test normal query.")
         testCase = "test_vtable_meta"
-        self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
-        self.ansFile = etool.curFile(__file__, f"ans/{testCase}.ans")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", f"{testCase}.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", f"{testCase}.ans")
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 

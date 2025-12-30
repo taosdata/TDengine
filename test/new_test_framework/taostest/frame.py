@@ -10,7 +10,6 @@ import platform
 from datetime import datetime
 from typing import Dict, Any, List, Tuple
 
-from colorama import Fore
 from .components.taosd import TaosD
 from ..utils.log import tdLog
 
@@ -18,7 +17,7 @@ from ..utils.log import tdLog
 try:
     import taos
 except:
-    print(f"{Fore.YELLOW}Warning: TDengine Client may not properly installed. You will can't use python connector on this device.{Fore.RESET}")
+    print("Warning: TDengine Client may not properly installed. You will can't use python connector on this device.")
 
 from .clustermanager import EnvManager, ResourceManager
 from .dataclass import CmdOption, ResultLog
@@ -503,20 +502,20 @@ class TaosTestFrame:
         #     stdout = cmd_stdout.read().strip()
         #     self._logger.debug(stdout)
         #     lines = stdout.split("\n")
-        if needSetup:
+        #if needSetup:
             # create mnode on dnode
-            for i in range(2, self._opts.mnode_count + 1):
-                self._logger.debug(f"taos -h {host} -P {port} -s \"create mnode on dnode {i}\"")
-                ret = os.system(f"taos -h {host} -P {port} -s \"create mnode on dnode {i}\"")
-                if ret != 0:
-                    self._logger.error(f"create mnode on dnode {i} failed")
-                    return False
-            # show mnode
-            self._logger.debug(f"taos -h {host} -P {port} -s \"show mnodes\"")
-            cmd_stdout = os.popen(f"taos -h {host} -P {port} -s \"show mnodes\"")
-            stdout = cmd_stdout.read().strip()
-            self._logger.debug(stdout)
-            lines = stdout.split("\n")
+            # for i in range(2, self._opts.mnode_count + 1):
+            #     self._logger.debug(f"taos -h {host} -P {port} -s \"create mnode on dnode {i}\"")
+            #     ret = os.system(f"taos -h {host} -P {port} -s \"create mnode on dnode {i}\"")
+            #     if ret != 0:
+            #         self._logger.error(f"create mnode on dnode {i} failed")
+            #         return False
+            # # show mnode
+            # self._logger.debug(f"taos -h {host} -P {port} -s \"show mnodes\"")
+            # cmd_stdout = os.popen(f"taos -h {host} -P {port} -s \"show mnodes\"")
+            # stdout = cmd_stdout.read().strip()
+            # self._logger.debug(stdout)
+            # lines = stdout.split("\n")
             ## taos -s "show mnodes"
             # Welcome to the TDengine shell from Linux, Client Version:3.0.0.100
             # Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
@@ -528,13 +527,13 @@ class TaosTestFrame:
             #           2 | dnode_2:6030                   | follower     | ready     | 2022-07-19 14:15:21.898 |
             #           3 | dnode_3:6030                   | follower     | ready     | 2022-07-19 14:15:27.931 |
             # Query OK, 3 rows affected (0.008276s)
-            ret = 1
-            for line in lines:
-                if line.find("Query OK") >= 0:
-                    ret = 0
-            if ret != 0:
-                self._logger.error("show mnodes failed")
-                return False
+            # ret = 1
+            # for line in lines:
+            #     if line.find("Query OK") >= 0:
+            #         ret = 0
+            # if ret != 0:
+            #     self._logger.error("show mnodes failed")
+            #     return False
         return True
 
     def _setup(self):

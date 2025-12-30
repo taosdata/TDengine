@@ -1,0 +1,105 @@
+
+taos> select date(0)
+            date(0)             |
+=================================
+ 1970-01-01                     |
+
+taos> select date(00100)
+          date(00100)           |
+=================================
+ 1970-01-01                     |
+
+taos> select date(-1000)
+          date(-1000)           |
+=================================
+ 1970-01-01                     |
+
+taos> select date(1000.0)
+taos> select date(cast(timestamp"2025-08-11 23:03:39" as bigint))
+ date(cast(timestamp"2025-08-11 23:03:39" as bigint)) |
+=======================================================
+ 2025-08-11                                           |
+
+taos> select date(timestamp\"2025-08-11 23:03:39\")
+taos> select date("2025-08-11 12:00:02.000")
+ date("2025-08-11 12:00:02.000") |
+==================================
+ 2025-08-11                      |
+
+taos> select date("9999-12-31")
+       date("9999-12-31")       |
+=================================
+ 9999-12-31                     |
+
+taos> select cast(date(timestamp\"2025-08-11 23:03:39\") as bigint)
+taos> select to_timestamp(date("2025-08-21T12:00:00+0800"), "yyyy-mm-dd")
+ to_timestamp(date("2025-08-21T12:00:00+0800"), "yyyy-mm-dd") |
+===============================================================
+ 2025-08-21 00:00:00.000 |
+
+taos> select to_unixtimestamp(date("2025-08-21T12:00:00+0800"))
+ to_unixtimestamp(date("2025-08-21T12:00:00+0800")) |
+=====================================================
+                                      1755705600000 |
+
+taos> select date(ts) from msdb.mstb;
+            date(ts)            |
+=================================
+ 2025-12-24                     |
+
+taos> select date(ts) from (select timediff(ts, 1d) ts from msdb.mstb);
+            date(ts)            |
+=================================
+ 2025-12-23                     |
+
+taos> select date(ts) from usdb.ustb;
+            date(ts)            |
+=================================
+ 2025-12-25                     |
+
+taos> select to_unixtimestamp(ts) from (select date(ts) ts from usdb.ustb);
+ to_unixtimestamp(ts)  |
+========================
+      1766592000000000 |
+
+taos> select date(ts) from nsdb.nstb;
+            date(ts)            |
+=================================
+ 2025-12-26                     |
+
+taos> select date(NULL)
+           date(null)           |
+=================================
+ NULL                           |
+
+taos> select date(date("2025-08-08"))
+    date(date("2025-08-08"))    |
+=================================
+ 2025-08-08                     |
+
+taos> select date("01/01/2026")
+       date("01/01/2026")       |
+=================================
+ NULL                           |
+
+taos> select date("01-JAN-25")
+       date("01-JAN-25")        |
+=================================
+ NULL                           |
+
+taos> select date("abcd")
+          date("abcd")          |
+=================================
+ NULL                           |
+
+taos> select date("#$@!+-*/")
+        date("#$@!+-*/")        |
+=================================
+ NULL                           |
+
+taos> select groupid, date(last(ts)) from ts_4893.meters group by groupid
+ groupid |         date(last(ts))         |
+===========================================
+       1 | 2027-01-15                     |
+
+taos> select groupid, date(ts - 1d) from ts_4893.meters group by groupid

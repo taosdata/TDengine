@@ -3,7 +3,7 @@ sidebar_label: 分析调试
 title: 分析调试
 toc_max_heading_level: 4
 ---
-为了更好的分析调试 TDengine，推荐开发者在操作系统中安装以下分析调试工具：
+为了更好的分析调试 TDengine TSDB，推荐开发者在操作系统中安装以下分析调试工具：
 
 ## gdb
 

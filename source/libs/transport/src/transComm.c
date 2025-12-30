@@ -418,12 +418,32 @@ bool transReadComplete(SConnBuffer* connBuf) {
   return (p->left == 0 || p->invalid) ? true : false;
 }
 
+int32_t transConnBufferAppend(SConnBuffer* connBuf, char* buf, int32_t len) {
+  int32_t      code = 0;
+  SConnBuffer* p = connBuf;
+  if (p->len + len > p->cap) {
+    int32_t newCap = p->len + len;
+    char*   newBuf = taosMemoryRealloc(p->buf, newCap);
+    if (newBuf == NULL) {
+      return terrno;
+    }
+    p->buf = newBuf;
+    p->cap = newCap;
+  }
+
+  memcpy(p->buf + p->len, buf, len);
+  p->len += len;
+  return code;
+}
+
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive) {
+  int32_t ret = 0;
 #if defined(WINDOWS) || defined(DARWIN)
 #else
-  return uv_tcp_keepalive(stream, 1, keepalive);
+  ret = uv_tcp_keepalive(stream, 1, keepalive);
 #endif
-  return uv_tcp_nodelay(stream, 1);
+  ret = uv_tcp_nodelay(stream, 1);
+  return ret;
   // int ret = uv_tcp_keepalive(stream, 5, 60);
 }
 
@@ -1933,7 +1953,14 @@ bool transReqEpsetIsEqual(SReqEpSet* a, SReqEpSet* b) {
     return false;
   }
   for (int i = 0; i < a->numOfEps; i++) {
-    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
+    int32_t l1 = strlen(a->eps[i].fqdn);
+    int32_t l2 = strlen(b->eps[i].fqdn);
+    if (l1 >= TSDB_FQDN_LEN || l2 >= TSDB_FQDN_LEN) {
+      tWarn("get invalid epset, a:%s, b:%s", a->eps[i].fqdn, b->eps[i].fqdn);
+      return false;
+    }
+
+    if (l1 != l2 || strncmp(a->eps[i].fqdn, b->eps[i].fqdn, l1) != 0 || a->eps[i].port != b->eps[i].port) {
       return false;
     }
   }

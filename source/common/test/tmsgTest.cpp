@@ -164,7 +164,6 @@ ParseStatus readConfig(const string& filePath, vector<STestMsgTypeInfo>& msgType
   return ParseStatus::Success;
 }
 
-
 TEST(td_msg_test, msg_type_compatibility_test) {
   // cout << TMSG_INFO(TDMT_VND_DROP_TABLE) << endl;
   // cout << TMSG_INFO(TDMT_MND_DROP_SUPER_TABLE) << endl;
@@ -226,7 +225,6 @@ TEST(td_msg_test, msg_type_compatibility_test) {
       break;
   }
 }
-
 
 size_t maxLengthOfMsgType() {
   size_t maxLen = 0;

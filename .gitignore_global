@@ -48,7 +48,7 @@ psim/
 pysim/
 *.out
 *DS_Store
-tests/script/api/batchprepare
+test/new_test_framework/script/api/batchprepare
 taosadapter
 taosadapter-debug
 tools/taosws-rs/*

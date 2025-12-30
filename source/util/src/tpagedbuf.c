@@ -270,7 +270,6 @@ static SPageInfo* registerNewPageInfo(SDiskbasedBuf* pBuf, int32_t pageId) {
 
   SPageInfo* ppi = taosMemoryMalloc(sizeof(SPageInfo));
   if (ppi == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -431,9 +430,6 @@ static char* doExtractPage(SDiskbasedBuf* pBuf) {
   } else {
     availablePage =
         taosMemoryCalloc(1, getAllocPageSize(pBuf->pageSize));  // add extract bytes in case of zipped buffer increased.
-    if (availablePage == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-    }
   }
 
   return availablePage;

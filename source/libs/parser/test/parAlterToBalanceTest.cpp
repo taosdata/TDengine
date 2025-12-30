@@ -552,6 +552,7 @@ TEST_F(ParserInitialATest, alterSTableSemanticCheck) {
  *  | COMMENT 'string_value'
  * }
  */
+
 TEST_F(ParserInitialATest, alterTable) {
   useDb("root", "test");
 

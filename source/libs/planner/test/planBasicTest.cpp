@@ -30,6 +30,7 @@ TEST_F(PlanBasicTest, selectClause) {
   run("SELECT MAX(c1) c2, c2 FROM st1");
 }
 
+
 TEST_F(PlanBasicTest, whereClause) {
   useDb("root", "test");
 
@@ -170,6 +171,7 @@ TEST_F(PlanBasicTest, pseudoColumn) {
 
   run("SELECT _TAGS, * FROM st1s1");
 }
+
 
 TEST_F(PlanBasicTest, indefiniteRowsFunc) {
   useDb("root", "test");

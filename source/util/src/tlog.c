@@ -128,6 +128,7 @@ int32_t qDebugFlag = 131;
 int32_t stDebugFlag = 131;
 int32_t wDebugFlag = 131;
 int32_t azDebugFlag = 131;
+int32_t tssDebugFlag = 131;
 int32_t sDebugFlag = 131;
 int32_t tsdbDebugFlag = 131;
 int32_t tdbDebugFlag = 131;
@@ -138,7 +139,9 @@ int32_t udfDebugFlag = 131;
 int32_t smaDebugFlag = 131;
 int32_t idxDebugFlag = 131;
 int32_t sndDebugFlag = 131;
+int32_t bndDebugFlag = 131;
 int32_t simDebugFlag = 131;
+int32_t bseDebugFlag = 131;
 
 int32_t tqClientDebugFlag = 131;
 

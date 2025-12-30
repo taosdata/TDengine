@@ -250,6 +250,7 @@ typedef enum {
   L1_XOR,
   L1_RLE,
   L1_DELTAD,
+  L1_BSS,
   L1_DISABLED = 0xFF,
 } TCmprL1Type;
 
@@ -297,5 +298,20 @@ int8_t tUpdateCompress(uint32_t oldCmpr, uint32_t newCmpr, uint8_t l2Disabled, u
 #ifdef __cplusplus
 }
 #endif
+
+int32_t plainCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+int32_t plainDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+
+int32_t lz4CompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+int32_t lz4DecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+
+int32_t zlibCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+int32_t zlibDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+
+int32_t zstdCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+int32_t zstdDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+
+int32_t xzCompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
+int32_t xzDecompressImpl(void *src, int32_t srcSize, void *dst, int32_t *dstSize);
 
 #endif /*_TD_UTIL_COMPRESSION_H_*/

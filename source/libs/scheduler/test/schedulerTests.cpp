@@ -1586,11 +1586,12 @@ TEST(otherTest, branch) {
   SSchLevel level = {0};
   SSubplan subplan;
   memset(&subplan, 0, sizeof(subplan));
-  job.attr.queryJob = true;
+  job.attr.type = JOB_TYPE_QUERY;
   schMgmt.cfg.schPolicy = SCH_ALL;
   task.plan = &subplan;
   schInitTaskRetryInfo(&job, &task, &level);
   
+  job.attr.type = JOB_TYPE_INSERT;
   memset(&schMgmt.cfg, 0, sizeof(schMgmt.cfg));
   memset(&level, 0, sizeof(level));
 
@@ -1713,7 +1714,7 @@ TEST(otherTest, branch) {
 
   job.fetchTask = &task;
   job.attr.localExec = true;
-  job.attr.queryJob = true;
+  job.attr.type = JOB_TYPE_QUERY;
   subplan.subplanType = SUBPLAN_TYPE_MERGE;
   task.plan = &subplan;
   void* p = taosMemoryCalloc(1, 1024);

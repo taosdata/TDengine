@@ -8,9 +8,14 @@ class TestRedistributeVgroupReplica3V1Leader:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_redistribute_vgroup_replica3_v1_leader(self):
-        """redistribute vgroup replica3 v1 leader
+        """RDST: replica-3 leader
 
-        1. -
+        1. Start a 4-node cluster with dnode1 configured as supportVnodes=0
+        2. Create database d1 (1 vgroup, 3 replicas) and write data
+        3. Execute illegal REDISTRIBUTE VGROUP commands (expected to fail due to insufficient eligible dnodes)
+        4. Add dnode5 to the cluster
+        5. Identify the follower vnode and keep it unchanged
+        6. Move the leader vnode among the remaining three dnodes five times; after each move, check vnode distribution and data integrity
 
         Catalog:
             - Database:Sync

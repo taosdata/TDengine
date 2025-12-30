@@ -318,7 +318,7 @@ This article demonstrates, through an industrial monitoring scenario:
    - Real-time queries (tdengine-operator queries).
    - Event-driven architecture (tdengine-consumer subscriptions).
 
-1. Complete error handling mechanisms.
-1. Production-ready deployment reference architecture.
+2. Complete error handling mechanisms.
+3. Production-ready deployment reference architecture.
 
 This article focuses on an example-based introduction. For complete documentation, refer to the Node-RED node's online documentation.

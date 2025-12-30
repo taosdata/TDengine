@@ -64,9 +64,12 @@ class TestVtableCreate:
         tdSql.execute(f"CREATE TABLE `vtb_org_normal_pk` (ts timestamp, int_col int PRIMARY KEY, u_smallint_col int unsigned)")
 
     def test_create_virtual_super_table(self):
-        """test create virtual super tables.
+        """Create: virtual super table
 
-        test create virtual super tables.
+        test create virtual super tables
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -123,11 +126,14 @@ class TestVtableCreate:
         tdSql.checkRows(vntable_num)
 
     def test_create_virtual_child_table(self):
-        """test create virtual child tables.
+        """Create: virtual child table
 
         1.create virtual child table and don't use 'FROM' to specify the origin table
         2.create virtual child table and use 'FROM' to specify the origin table
 
+        Catalog:
+            - VirtualTable
+            
         Since: v3.3.6.0
 
         Labels: virtual, create
@@ -428,9 +434,12 @@ class TestVtableCreate:
         self.check_virtual_table_create(15, 0)
 
     def test_create_virtual_normal_table(self):
-        """test create virtual normal tables.
+        """Create: virtual normal table
 
-        3. create virtual normal table
+        test create virtual normal tables
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -601,7 +610,7 @@ class TestVtableCreate:
         self.check_virtual_table_create(15, 6)
 
     def test_error_cases(self):
-        """test create virtual table errors.
+        """Create: virtual table errors
 
         1. create virtual child table using non-virtual super table
         2. create child table using virtual super table
@@ -614,6 +623,9 @@ class TestVtableCreate:
         9. data source is tag
         10. create virtual child table using from to specify some columns and do not use from for other columns
         11. create virtual table using decimal
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 

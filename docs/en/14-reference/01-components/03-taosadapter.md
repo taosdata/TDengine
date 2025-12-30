@@ -36,10 +36,12 @@ The taosAdapter provides the following features:
   icinga2 is a software for collecting check results metrics and performance data. Visit [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer) for more information.
 - TCollector data writing:
   TCollector is a client process that collects data from local collectors and pushes it to OpenTSDB. Visit [http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html) for more information.
-- node_exporter data collection and writing:
-  node_exporter is an exporter of machine metrics. Visit [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) for more information.
+- OpenMetrics data collection and writing:
+  OpenMetrics is an emerging standard in the field of cloud-native monitoring. It extends and standardizes the Prometheus metric format and has become the de facto standard for modern monitoring tools. Visit [OpenMetrics Specification](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md) for more information.
 - Supports Prometheus remote_read and remote_write:
   remote_read and remote_write are Prometheus's data read-write separation cluster solutions. Visit [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) for more information.
+- node_exporter data collection and writing:
+  node_exporter is an exporter of machine metrics. Visit [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) for more information.
 - RESTful API:
   [RESTful API](../../client-libraries/rest-api/)
 
@@ -58,6 +60,7 @@ Supported InfluxDB parameters are as follows:
 - `u` TDengine username
 - `p` TDengine password
 - `ttl` the lifespan of automatically created subtables, determined by the TTL parameter of the first data entry in the subtable, which cannot be updated. For more information, please refer to the TTL parameter in the [table creation document](../../sql-manual/manage-tables/).
+- `table_name_key` the custom tag key for subtable names. If set, the subtable name will use the value of this tag key
 
 Note: Currently, InfluxDB's token authentication method is not supported, only Basic authentication and query parameter verification are supported.
 Example: `curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"`
@@ -87,17 +90,33 @@ You can use any client that supports the HTTP protocol to write data in OpenTSDB
 
 <TCollector />
 
+### OpenMetrics data collection and writing
+
+OpenMetrics is an open standard supported by CNCF (Cloud Native Computing Foundation) that focuses on standardizing the collection and transmission of metric data.
+It serves as one of the core specifications for monitoring and observability systems in the cloud-native ecosystem.
+
+Starting from version **3.3.7.0**, taosAdapter supports OpenMetrics v1.0.0 data collection and writing,
+while maintaining compatibility with Prometheus 0.0.4 protocol to ensure seamless integration with the Prometheus ecosystem.
+
+To enable OpenMetrics data collection and writing, follow these steps:
+
+1. Enable taosAdapter configuration by setting `open_metrics.enable`
+2. Configure OpenMetrics related settings
+3. Restart taosAdapter service
+
+### Supports Prometheus remote_read and remote_write
+
+<Prometheus />
+
 ### node_exporter data collection and writing
+
+Starting with version **3.3.7.0**, you can use the OpenMetrics plugin as a replacement for node_exporter to perform data collection and writing.
 
 An exporter used by Prometheus that exposes hardware and operating system metrics from \*NIX kernels
 
 - Enable configuration of taosAdapter node_exporter.enable
 - Set the relevant configuration for node_exporter
 - Restart taosAdapter
-
-### Supports Prometheus remote_read and remote_write
-
-<Prometheus />
 
 ### RESTful API
 
@@ -174,6 +193,7 @@ taosAdapter uses a connection pool to manage connections to TDengine, improving 
 - collectd data writing
 - StatsD data writing
 - node_exporter data collection writing
+- OpenMetrics data collection and writing
 - Prometheus remote_read and remote_write
 
 The configuration parameters for the connection pool are as follows:
@@ -258,6 +278,7 @@ The `smlAutoCreateDB` parameter only affects the following interfaces:
 - collectd data writing
 - StatsD data writing
 - node_exporter data writing
+- OpenMetrics data collection and writing
 
 #### Parameter Description
 
@@ -340,16 +361,7 @@ The log can be configured with the following parameters:
   **It is not recommended to continue using this parameter. We suggest using [Recording SQL to CSV Files](#recording-sql-to-csv-files) as the alternative solution.**
   SQL log rotation interval (Default: `24h`).
 
-1. You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
-2. Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
-
-The following is an example of setting the log level to debug through the curl command:
-
-```shell
-curl --location --request PUT 'http://127.0.0.1:6041/config' \
--u root:taosdata \
---data '{"log.level": "debug"}'
-```
+You can set the taosAdapter log output detail level by setting the --log.level parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values include: panic, fatal, error, warn, warning, info, debug, and trace.
 
 ### Third-party Data Source Configuration
 
@@ -388,68 +400,6 @@ curl --location --request PUT 'http://127.0.0.1:6041/config' \
 - **`influxdb.enable`**
 
   Enable/disable InfluxDB protocol support (Default: `true`)
-
-#### Node Exporter Configuration
-
-- **`node_exporter.enable`**
-
-  Enable node_exporter data collection (Default: `false`)
-
-- **`node_exporter.db`**
-
-  Target database name (Default: `"node_exporter"`)
-
-- **`node_exporter.urls`**
-
-  Service endpoints (Default: `["http://localhost:9100"]`)
-
-- **`node_exporter.gatherDuration`**
-
-  Collection interval (Default: `5s`)
-
-- **`node_exporter.responseTimeout`**
-
-  Request timeout (Default: `5s`)
-
-- **`node_exporter.user`**
-
-  Database username (Default: `"root"`)
-
-- **`node_exporter.password`**
-
-  Database password (Default: `"taosdata"`)
-
-- **`node_exporter.ttl`**
-
-  Data TTL (Default: `0`)
-
-- **`node_exporter.httpUsername`**
-
-  HTTP Basic Auth username (Optional)
-
-- **`node_exporter.httpPassword`**
-
-  HTTP Basic Auth password (Optional)
-
-- **`node_exporter.httpBearerTokenString`**
-
-  HTTP Bearer Token (Optional)
-
-- **`node_exporter.insecureSkipVerify`**
-
-  Skip SSL verification (Default: `true`)
-
-- **`node_exporter.certFile`**
-
-  Client certificate path (Optional)
-
-- **`node_exporter.keyFile`**
-
-  Client key path (Optional)
-
-- **`node_exporter.caCertFile`**
-
-  CA certificate path (Optional)
 
 #### OpenTSDB Configuration
 
@@ -569,6 +519,134 @@ curl --location --request PUT 'http://127.0.0.1:6041/config' \
 
   Enable Prometheus protocol (Default: `true`)
 
+#### OpenMetrics Configuration
+
+- **`open_metrics.enable`**
+
+  Enable/disable OpenMetrics data collection (Default: `false`).
+
+- **`open_metrics.user`**
+
+  Username for TDengine connection (Default: `"root"`).
+
+- **`open_metrics.password`**
+
+  Password for TDengine connection (Default: `"taosdata"`).
+
+- **`open_metrics.urls`**
+
+  List of OpenMetrics data collection endpoints (Default: `["http://localhost:9100"]`, automatically appends `/metrics` if no route specified).
+
+- **`open_metrics.dbs`**
+
+  Target databases for data writing (Default: `["open_metrics"]`, must match number of collection URLs).
+
+- **`open_metrics.responseTimeoutSeconds`**
+
+  Collection timeout in seconds (Default: `[5]`, must match number of collection URLs).
+
+- **`open_metrics.httpUsernames`**
+
+  Basic authentication usernames (If enabled, must match number of collection URLs, Default: empty).
+
+- **`open_metrics.httpPasswords`**
+
+  Basic authentication passwords (If enabled, must match number of collection URLs, Default: empty).
+
+- **`open_metrics.httpBearerTokenStrings`**
+
+  Bearer token authentication strings (If enabled, must match number of collection URLs, Default: empty).
+
+- **`open_metrics.caCertFiles`**
+
+  Root certificate file paths (If enabled, must match number of collection URLs, Default: empty).
+
+- **`open_metrics.certFiles`**
+
+  Client certificate file paths (If enabled, must match number of collection URLs, Default: empty).
+
+- **`open_metrics.keyFiles`**
+
+  Client certificate key file paths (If enabled, must match number of collection URLs, Default: empty).
+
+- **`open_metrics.insecureSkipVerify`**
+
+  Skip HTTPS certificate verification (Default: `true`).
+
+- **`open_metrics.gatherDurationSeconds`**
+
+  Collection interval in seconds (Default: `[5]`, must match number of collection URLs).
+
+- **`open_metrics.ttl`**
+
+  Table Time-To-Live in seconds (`0` means no expiration, if enabled must match number of collection URLs, Default: empty).
+
+- **`open_metrics.ignoreTimestamp`**
+
+  Ignore timestamps in collected data (uses collection time if ignored, Default: `false`).
+
+#### Node Exporter Configuration
+
+- **`node_exporter.enable`**
+
+  Enable node_exporter data collection (Default: `false`)
+
+- **`node_exporter.db`**
+
+  Target database name (Default: `"node_exporter"`)
+
+- **`node_exporter.urls`**
+
+  Service endpoints (Default: `["http://localhost:9100"]`)
+
+- **`node_exporter.gatherDuration`**
+
+  Collection interval (Default: `5s`)
+
+- **`node_exporter.responseTimeout`**
+
+  Request timeout (Default: `5s`)
+
+- **`node_exporter.user`**
+
+  Database username (Default: `"root"`)
+
+- **`node_exporter.password`**
+
+  Database password (Default: `"taosdata"`)
+
+- **`node_exporter.ttl`**
+
+  Data TTL (Default: `0`)
+
+- **`node_exporter.httpUsername`**
+
+  HTTP Basic Auth username (Optional)
+
+- **`node_exporter.httpPassword`**
+
+  HTTP Basic Auth password (Optional)
+
+- **`node_exporter.httpBearerTokenString`**
+
+  HTTP Bearer Token (Optional)
+
+- **`node_exporter.insecureSkipVerify`**
+
+  Skip SSL verification (Default: `true`)
+
+- **`node_exporter.certFile`**
+
+  Client certificate path (Optional)
+
+- **`node_exporter.keyFile`**
+
+  Client key path (Optional)
+
+- **`node_exporter.caCertFile`**
+
+  CA certificate path (Optional)
+
 ### Metrics Reporting Configuration
 
 taosAdapter reports metrics to taosKeeper with these parameters:
@@ -596,6 +674,110 @@ taosAdapter reports metrics to taosKeeper with these parameters:
 - **`uploadKeeper.retryInterval`**
 
   Retry interval (Default: `5s`)
+
+### Query Request Concurrency Limit Configuration
+
+Starting from version **3.3.6.29**/**3.3.8.3**, taosAdapter supports configuring concurrency limits for query requests to prevent excessive concurrent queries from exhausting system resources.
+When this feature is enabled, taosAdapter controls the number of concurrent query requests being processed simultaneously based on the configured concurrency limit. Requests exceeding the limit will enter a waiting state until processing resources become available.
+
+If the waiting time exceeds the configured timeout or the number of waiting requests exceeds the configured maximum waiting requests, taosAdapter will directly return an error response, indicating that there are too many requests.
+RESTful requests will return HTTP status code `503`, and WebSocket requests will return error code `0xFFFE`.
+
+This configuration affects the following interfaces:
+
+- **RESTful Interface**
+- **WebSocket SQL Execution Interface**
+
+#### Parameter Description
+
+- **`request.queryLimitEnable`**
+  - **When set to `true`**: Enables the query request concurrency limit feature.
+  - **When set to `false`**: Disables the query request concurrency limit feature (default value).
+- **`request.default.queryLimit`**
+  - Sets the default concurrency limit for query requests (default value: `0`, meaning no limit).
+- **`request.default.queryWaitTimeout`**
+  - Sets the maximum waiting time (in seconds) for requests that exceed the concurrency limit. Requests that time out while waiting will return an error directly. Default value: `900`.
+- **`request.default.queryMaxWait`**
+  - Sets the maximum number of waiting requests allowed when the concurrency limit is exceeded. Requests exceeding this number will return an error directly. Default value: `0`, meaning no limit.
+- **`request.excludeQueryLimitSql`**
+  - Configures a list of SQL statements that are not subject to concurrency limits. Must start with `select` (case-insensitive).
+- **`request.excludeQueryLimitSqlRegex`**
+  - Configures a list of regular expressions for SQL statements that are not subject to concurrency limits.
+
+##### Customizable per User
+
+Configurable only via the configuration file:
+
+- **`request.users.<username>.queryLimit`**
+  - Sets the query request concurrency limit for the specified user. Takes precedence over the default setting.
+- **`request.users.<username>.queryWaitTimeout`**
+  - Sets the maximum waiting time (in seconds) for requests that exceed the concurrency limit for the specified user. Takes precedence over the default setting.
+- **`request.users.<username>.queryMaxWait`**
+  - Sets the maximum number of waiting requests allowed when the concurrency limit is exceeded for the specified user. Takes precedence over the default setting.
+
+##### Example
+
+```toml
+[request]
+queryLimitEnable = true
+excludeQueryLimitSql = ["select 1","select server_version()"]
+excludeQueryLimitSqlRegex = ['(?i)^select\s+.*from\s+information_schema.*']
+
+[request.default]
+queryLimit = 200
+queryWaitTimeout = 900
+queryMaxWait = 0
+
+[request.users.root]
+queryLimit = 100
+queryWaitTimeout = 200
+queryMaxWait = 10
+```
+
+- `queryLimitEnable = true` enables the query request concurrency limit feature.
+- `excludeQueryLimitSql = ["select 1","select server_version()"]` excludes two commonly used SQL queries for ping.
+- `excludeQueryLimitSqlRegex = ['(?i)^select\s+.*from\s+information_schema.*']` excludes all SQL queries that query the information_schema database.
+- `request.default` configures the default query request concurrency limit to 200, wait timeout to 900 seconds, and maximum wait requests to 0 (unlimited).
+- `request.users.root` configures the query request concurrency limit for user root to 100, wait timeout to 200 seconds, and maximum wait requests to 10.
+
+When user root initiates a query request, taosAdapter will perform concurrency limit processing based on the above configuration.
+When the number of query requests exceeds 100, subsequent requests will enter a waiting state until resources are available.
+If the wait time exceeds 200 seconds or the number of waiting requests exceeds 10, taosAdapter will directly return an error response.
+
+When other users initiate query requests, the default concurrency limit configuration will be used for processing.
+Each user's configuration is independent and does not share the concurrency limit of `request.default`.
+For example, when user user1 initiates 200 concurrent query requests, user user2 can also initiate 200 concurrent query requests simultaneously without blocking.
+
+### Reject Query SQL Configuration
+
+Starting from **version 3.3.6.34 / 3.4.0.0**, taosAdapter supports rejecting specific query SQL statements through configuration, preventing the execution of unsafe or highly resource-consuming queries.  
+When this feature is enabled, taosAdapter checks each SQL statement that does **not** start with `insert` (case-insensitive). If the SQL matches any of the configured reject patterns, an error response is returned indicating that the query is forbidden.
+
+When a rejected SQL query is matched, the RESTful API returns HTTP status code `403`, and the WebSocket interface returns error code `0xFFFD`.  
+Meanwhile, taosAdapter prints a warning log containing details such as the SQL source, for example:
+
+```text
+reject sql, client_ip:192.168.1.98, port:59912, user:root, app:test_app, reject_regex:(?i)^drop\s+table\s+.*, sql:DROP taBle testdb.stb
+```
+
+This configuration affects the following interfaces:
+
+- **RESTful interface**
+- **WebSocket SQL execution interface**
+
+#### Parameter Description
+
+- **`rejectQuerySqlRegex`**
+  - A list of regex patterns for rejecting SQL queries. Supports [Google RE2 syntax](https://github.com/google/re2/wiki/Syntax).
+  - Default: an empty list, meaning no queries are rejected.
+
+##### Example
+
+```toml
+rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']
+```
+
+The configuration `rejectQuerySqlRegex = ['(?i)^drop\\s+database\\s+.*','(?i)^drop\\s+table\\s+.*','(?i)^alter\\s+table\\s+.*']` rejects all `drop database`, `drop table`, and `alter table` queries, ignoring case.
 
 ### Environment Variables
 
@@ -660,6 +842,22 @@ Configuration Parameters and their corresponding environment variables:
 | `node_exporter.ttl`                   | `TAOS_ADAPTER_NODE_EXPORTER_TTL`                      |
 | `node_exporter.urls`                  | `TAOS_ADAPTER_NODE_EXPORTER_URLS`                     |
 | `node_exporter.user`                  | `TAOS_ADAPTER_NODE_EXPORTER_USER`                     |
+| `open_metrics.enable`                 | `TAOS_ADAPTER_OPEN_METRICS_ENABLE`                    |
+| `open_metrics.user`                   | `TAOS_ADAPTER_OPEN_METRICS_USER`                      |
+| `open_metrics.password`               | `TAOS_ADAPTER_OPEN_METRICS_PASSWORD`                  |
+| `open_metrics.urls`                   | `TAOS_ADAPTER_OPEN_METRICS_URLS`                      |
+| `open_metrics.dbs`                    | `TAOS_ADAPTER_OPEN_METRICS_DBS`                       |
+| `open_metrics.responseTimeoutSeconds` | `TAOS_ADAPTER_OPEN_METRICS_RESPONSE_TIMEOUT_SECONDS`  |
+| `open_metrics.httpUsernames`          | `TAOS_ADAPTER_OPEN_METRICS_HTTP_USERNAMES`            |
+| `open_metrics.httpPasswords`          | `TAOS_ADAPTER_OPEN_METRICS_HTTP_PASSWORDS`            |
+| `open_metrics.httpBearerTokenStrings` | `TAOS_ADAPTER_OPEN_METRICS_HTTP_BEARER_TOKEN_STRINGS` |
+| `open_metrics.caCertFiles`            | `TAOS_ADAPTER_OPEN_METRICS_CA_CERT_FILES`             |
+| `open_metrics.certFiles`              | `TAOS_ADAPTER_OPEN_METRICS_CERT_FILES`                |
+| `open_metrics.keyFiles`               | `TAOS_ADAPTER_OPEN_METRICS_KEY_FILES`                 |
+| `open_metrics.insecureSkipVerify`     | `TAOS_ADAPTER_OPEN_METRICS_INSECURE_SKIP_VERIFY`      |
+| `open_metrics.gatherDurationSeconds`  | `TAOS_ADAPTER_OPEN_METRICS_GATHER_DURATION_SECONDS`   |
+| `open_metrics.ignoreTimestamp`        | `TAOS_ADAPTER_OPEN_METRICS_IGNORE_TIMESTAMP`          |
+| `open_metrics.ttl`                    | `TAOS_ADAPTER_OPEN_METRICS_TTL`                       |
 | `opentsdb.enable`                     | `TAOS_ADAPTER_OPENTSDB_ENABLE`                        |
 | `opentsdb_telnet.batchSize`           | `TAOS_ADAPTER_OPENTSDB_TELNET_BATCH_SIZE`             |
 | `opentsdb_telnet.dbs`                 | `TAOS_ADAPTER_OPENTSDB_TELNET_DBS`                    |
@@ -678,6 +876,12 @@ Configuration Parameters and their corresponding environment variables:
 | `pool.waitTimeout`                    | `TAOS_ADAPTER_POOL_WAIT_TIMEOUT`                      |
 | `P`, `port`                           | `TAOS_ADAPTER_PORT`                                   |
 | `prometheus.enable`                   | `TAOS_ADAPTER_PROMETHEUS_ENABLE`                      |
+| `request.default.queryLimit`          | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_LIMIT`            |
+| `request.default.queryMaxWait`        | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_MAX_WAIT`         |
+| `request.default.queryWaitTimeout`    | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_WAIT_TIMEOUT`     |
+| `request.excludeQueryLimitSql`        | `TAOS_ADAPTER_REQUEST_EXCLUDE_QUERY_LIMIT_SQL`        |
+| `request.excludeQueryLimitSqlRegex`   | `TAOS_ADAPTER_REQUEST_EXCLUDE_QUERY_LIMIT_SQL_REGEX`  |
+| `request.queryLimitEnable`            | `TAOS_ADAPTER_REQUEST_QUERY_LIMIT_ENABLE`             |
 | `restfulRowLimit`                     | `TAOS_ADAPTER_RESTFUL_ROW_LIMIT`                      |
 | `smlAutoCreateDB`                     | `TAOS_ADAPTER_SML_AUTO_CREATE_DB`                     |
 | `statsd.allowPendingMessages`         | `TAOS_ADAPTER_STATSD_ALLOW_PENDING_MESSAGES`          |
@@ -720,6 +924,27 @@ taosAdapter deployed separately from taosd must be upgraded by upgrading the TDe
 ### Removing taosAdapter
 
 Use the command rmtaos to remove the TDengine server software, including taosAdapter.
+
+## Dynamic Configuration
+
+### Dynamically Modify Log Level
+
+Starting from **3.3.5.0 version**, taosAdapter supports dynamic modification of log level through HTTP interface. Users can dynamically adjust the log level by sending HTTP PUT request to /config interface. The authentication method of this interface is the same as /rest/sql interface, and the configuration item key-value pair in JSON format must be passed in the request body.
+
+The following is an example of setting the log level to debug through the curl command:
+
+```shell
+curl --location --request PUT 'http://127.0.0.1:6041/config' \
+-u root:taosdata \
+--data '{"log.level": "debug"}'
+```
+
+### Monitor Configuration File Changes
+
+Starting from version **3.3.6.34**/**3.4.0.0**, taosAdapter supports monitoring configuration file changes and automatically updates the following configurations:
+
+- `log.level` log level parameter
+- `rejectQuerySqlRegex` rejected query SQL list configuration parameter
 
 ## IPv6 Support
 
@@ -860,10 +1085,10 @@ Records are stored in CSV format without headers. Each line includes the followi
 
    Original SQL:
 
-   ```sql
-   select * from t1
-   where c1 = "ab"
-   ```
+    ```sql
+      select * from t1
+      where c1 = "ab"
+    ```
 
    CSV record:
 
@@ -882,11 +1107,13 @@ Records are stored in CSV format without headers. Each line includes the followi
 1. `FetchDuration(us)`: Cumulative time consumed by multiple taos_fetch_raw_block_a executions until callback completion (microseconds).
 1. `GetConnDuration(us)`: Time consumed to obtain a connection from the HTTP connection pool (microseconds).
 1. `TotalDuration(us)`: Total SQL request completion time (microseconds). For completed SQL: FreeTime - ReceiveTime. For incomplete SQL when the task ends: CurrentTime - ReceiveTime.
+1. `SourcePort`: Client port. (Added in version 3.3.6.26 and above / 3.3.8.0 and above).
+1. `AppName`: Client application name. (Added in version 3.3.6.26 and above / 3.3.8.0 and above).
 
 Example:
 
 ```csv
-2025-07-23 17:10:08.724775,show databases,127.0.0.1,root,http,0x2000000000000008,2025-07-23 17:10:08.707741,2025-07-23 17:10:08.724775,14191,965,1706,17034
+2025-07-23 17:10:08.724775,show databases,127.0.0.1,root,http,0x2000000000000008,2025-07-23 17:10:08.707741,2025-07-23 17:10:08.724775,14191,965,1706,17034,53600,jdbc_test_app
 ```
 
 ## Monitoring Metrics
@@ -900,26 +1127,26 @@ The `adapter_requests` table records taosAdapter monitoring data:
 <details>
 <summary>Details</summary>
 
-| field            | type         | is_tag | comment                                   |
-|:-----------------|:-------------|:-------|:------------------------------------------|
-| ts               | TIMESTAMP    |        | data collection timestamp                 |
-| total            | INT UNSIGNED |        | total number of requests                  |
-| query            | INT UNSIGNED |        | number of query requests                  |
-| write            | INT UNSIGNED |        | number of write requests                  |
-| other            | INT UNSIGNED |        | number of other requests                  |
-| in_process       | INT UNSIGNED |        | number of requests in process             |
-| success          | INT UNSIGNED |        | number of successful requests             |
-| fail             | INT UNSIGNED |        | number of failed requests                 |
-| query_success    | INT UNSIGNED |        | number of successful query requests       |
-| query_fail       | INT UNSIGNED |        | number of failed query requests           |
-| write_success    | INT UNSIGNED |        | number of successful write requests       |
-| write_fail       | INT UNSIGNED |        | number of failed write requests           |
-| other_success    | INT UNSIGNED |        | number of successful other requests       |
-| other_fail       | INT UNSIGNED |        | number of failed other requests           |
-| query_in_process | INT UNSIGNED |        | number of query requests in process       |
-| write_in_process | INT UNSIGNED |        | number of write requests in process       |
-| endpoint         | VARCHAR      |        | request endpoint                          |
-| req_type         | NCHAR        | tag    | request type: 0 for REST, 1 for WebSocket |
+| field            | type             | is_tag | comment                                   |
+|:-----------------|:-----------------|:-------|:------------------------------------------|
+| ts               | TIMESTAMP        |        | data collection timestamp                 |
+| total            | INT UNSIGNED     |        | total number of requests                  |
+| query            | INT UNSIGNED     |        | number of query requests                  |
+| write            | INT UNSIGNED     |        | number of write requests                  |
+| other            | INT UNSIGNED     |        | number of other requests                  |
+| in_process       | INT UNSIGNED     |        | number of requests in process             |
+| success          | INT UNSIGNED     |        | number of successful requests             |
+| fail             | INT UNSIGNED     |        | number of failed requests                 |
+| query_success    | INT UNSIGNED     |        | number of successful query requests       |
+| query_fail       | INT UNSIGNED     |        | number of failed query requests           |
+| write_success    | INT UNSIGNED     |        | number of successful write requests       |
+| write_fail       | INT UNSIGNED     |        | number of failed write requests           |
+| other_success    | INT UNSIGNED     |        | number of successful other requests       |
+| other_fail       | INT UNSIGNED     |        | number of failed other requests           |
+| query_in_process | INT UNSIGNED     |        | number of query requests in process       |
+| write_in_process | INT UNSIGNED     |        | number of write requests in process       |
+| endpoint         | VARCHAR          | TAG    | request endpoint                          |
+| req_type         | TINYINT UNSIGNED | TAG    | request type: 0 for REST, 1 for WebSocket |
 
 </details>
 
@@ -928,39 +1155,40 @@ The `adapter_status` table records the status data of taosAdapter:
 <details>
 <summary>Details</summary>
 
-| field                       | type      | is\_tag | comment                                                                            |
-|:----------------------------|:----------|:--------|:-----------------------------------------------------------------------------------|
-| _ts                         | TIMESTAMP |         | data collection timestamp                                                          |
-| go_heap_sys                 | DOUBLE    |         | heap memory allocated by Go runtime (bytes)                                        |
-| go_heap_inuse               | DOUBLE    |         | heap memory in use by Go runtime (bytes)                                           |
-| go_stack_sys                | DOUBLE    |         | stack memory allocated by Go runtime (bytes)                                       |
-| go_stack_inuse              | DOUBLE    |         | stack memory in use by Go runtime (bytes)                                          |
-| rss                         | DOUBLE    |         | actual physical memory occupied by the process (bytes)                             |
-| ws_query_conn               | DOUBLE    |         | current WebSocket connections for `/rest/ws` endpoint                              |
-| ws_stmt_conn                | DOUBLE    |         | current WebSocket connections for `/rest/stmt` endpoint                            |
-| ws_sml_conn                 | DOUBLE    |         | current WebSocket connections for `/rest/schemaless` endpoint                      |
-| ws_ws_conn                  | DOUBLE    |         | current WebSocket connections for `/ws` endpoint                                   |
-| ws_tmq_conn                 | DOUBLE    |         | current WebSocket connections for `/rest/tmq` endpoint                             |
-| async_c_limit               | DOUBLE    |         | total concurrency limit for the C asynchronous interface                           |
-| async_c_inflight            | DOUBLE    |         | current concurrency for the C asynchronous interface                               |
-| sync_c_limit                | DOUBLE    |         | total concurrency limit for the C synchronous interface                            |
-| sync_c_inflight             | DOUBLE    |         | current concurrency for the C synchronous interface                                |
-| `ws_query_conn_inc`         | DOUBLE    |         | New connections on `/rest/ws` interface (Available since v3.3.6.10)                |
-| `ws_query_conn_dec`         | DOUBLE    |         | Closed connections on `/rest/ws` interface (Available since v3.3.6.10)             |
-| `ws_stmt_conn_inc`          | DOUBLE    |         | New connections on `/rest/stmt` interface (Available since v3.3.6.10)              |
-| `ws_stmt_conn_dec`          | DOUBLE    |         | Closed connections on `/rest/stmt` interface (Available since v3.3.6.10)           |
-| `ws_sml_conn_inc`           | DOUBLE    |         | New connections on `/rest/schemaless` interface (Available since v3.3.6.10)        |
-| `ws_sml_conn_dec`           | DOUBLE    |         | Closed connections on `/rest/schemaless` interface (Available since v3.3.6.10)     |
-| `ws_ws_conn_inc`            | DOUBLE    |         | New connections on `/ws` interface (Available since v3.3.6.10)                     |
-| `ws_ws_conn_dec`            | DOUBLE    |         | Closed connections on `/ws` interface (Available since v3.3.6.10)                  |
-| `ws_tmq_conn_inc`           | DOUBLE    |         | New connections on `/rest/tmq` interface (Available since v3.3.6.10)               |
-| `ws_tmq_conn_dec`           | DOUBLE    |         | Closed connections on `/rest/tmq` interface (Available since v3.3.6.10)            |
-| `ws_query_sql_result_count` | DOUBLE    |         | Current SQL query results held by `/rest/ws` interface (Available since v3.3.6.10) |
-| `ws_stmt_stmt_count`        | DOUBLE    |         | Current stmt objects held by `/rest/stmt` interface (Available since v3.3.6.10)    |
-| `ws_ws_sql_result_count`    | DOUBLE    |         | Current SQL query results held by `/ws` interface (Available since v3.3.6.10)      |
-| `ws_ws_stmt_count`          | DOUBLE    |         | Current stmt objects held by `/ws` interface (Available since v3.3.6.10)           |
-| `ws_ws_stmt2_count`         | DOUBLE    |         | Current stmt2 objects held by `/ws` interface (Available since v3.3.6.10)          |
-| endpoint                    | NCHAR     | TAG     | request endpoint                                                                   |
+| field                     | type      | is\_tag | comment                                                                            |
+|:--------------------------|:----------|:--------|:-----------------------------------------------------------------------------------|
+| _ts                       | TIMESTAMP |         | data collection timestamp                                                          |
+| go_heap_sys               | DOUBLE    |         | heap memory allocated by Go runtime (bytes)                                        |
+| go_heap_inuse             | DOUBLE    |         | heap memory in use by Go runtime (bytes)                                           |
+| go_stack_sys              | DOUBLE    |         | stack memory allocated by Go runtime (bytes)                                       |
+| go_stack_inuse            | DOUBLE    |         | stack memory in use by Go runtime (bytes)                                          |
+| rss                       | DOUBLE    |         | actual physical memory occupied by the process (bytes)                             |
+| ws_query_conn             | DOUBLE    |         | current WebSocket connections for `/rest/ws` endpoint                              |
+| ws_stmt_conn              | DOUBLE    |         | current WebSocket connections for `/rest/stmt` endpoint                            |
+| ws_sml_conn               | DOUBLE    |         | current WebSocket connections for `/rest/schemaless` endpoint                      |
+| ws_ws_conn                | DOUBLE    |         | current WebSocket connections for `/ws` endpoint                                   |
+| ws_tmq_conn               | DOUBLE    |         | current WebSocket connections for `/rest/tmq` endpoint                             |
+| async_c_limit             | DOUBLE    |         | total concurrency limit for the C asynchronous interface                           |
+| async_c_inflight          | DOUBLE    |         | current concurrency for the C asynchronous interface                               |
+| sync_c_limit              | DOUBLE    |         | total concurrency limit for the C synchronous interface                            |
+| sync_c_inflight           | DOUBLE    |         | current concurrency for the C synchronous interface                                |
+| ws_query_conn_inc         | DOUBLE    |         | New connections on `/rest/ws` interface (Available since v3.3.6.10)                |
+| ws_query_conn_dec         | DOUBLE    |         | Closed connections on `/rest/ws` interface (Available since v3.3.6.10)             |
+| ws_stmt_conn_inc          | DOUBLE    |         | New connections on `/rest/stmt` interface (Available since v3.3.6.10)              |
+| ws_stmt_conn_dec          | DOUBLE    |         | Closed connections on `/rest/stmt` interface (Available since v3.3.6.10)           |
+| ws_sml_conn_inc           | DOUBLE    |         | New connections on `/rest/schemaless` interface (Available since v3.3.6.10)        |
+| ws_sml_conn_dec           | DOUBLE    |         | Closed connections on `/rest/schemaless` interface (Available since v3.3.6.10)     |
+| ws_ws_conn_inc            | DOUBLE    |         | New connections on `/ws` interface (Available since v3.3.6.10)                     |
+| ws_ws_conn_dec            | DOUBLE    |         | Closed connections on `/ws` interface (Available since v3.3.6.10)                  |
+| ws_tmq_conn_inc           | DOUBLE    |         | New connections on `/rest/tmq` interface (Available since v3.3.6.10)               |
+| ws_tmq_conn_dec           | DOUBLE    |         | Closed connections on `/rest/tmq` interface (Available since v3.3.6.10)            |
+| ws_query_sql_result_count | DOUBLE    |         | Current SQL query results held by `/rest/ws` interface (Available since v3.3.6.10) |
+| ws_stmt_stmt_count        | DOUBLE    |         | Current stmt objects held by `/rest/stmt` interface (Available since v3.3.6.10)    |
+| ws_ws_sql_result_count    | DOUBLE    |         | Current SQL query results held by `/ws` interface (Available since v3.3.6.10)      |
+| ws_ws_stmt_count          | DOUBLE    |         | Current stmt objects held by `/ws` interface (Available since v3.3.6.10)           |
+| ws_ws_stmt2_count         | DOUBLE    |         | Current stmt2 objects held by `/ws` interface (Available since v3.3.6.10)          |
+| cpu_percent               | DOUBLE    |         | CPU usage percentage of taosAdapter (Available since v3.3.6.24/v3.3.7.7)           |
+| endpoint                  | NCHAR     | TAG     | request endpoint                                                                   |
 
 </details>
 
@@ -1244,6 +1472,25 @@ Starting from version **3.3.6.10**, the `adapter_c_interface` table has been add
 | tmq_commit_offset_sync_total                        | DOUBLE    |         | Count of TMQ sync offset commits                         |
 | tmq_commit_offset_sync_success                      | DOUBLE    |         | Count of successful TMQ sync offset commits              |
 | endpoint                                            | NCHAR     | TAG     | Request endpoint                                         |
+
+</details>
+
+Starting from version **3.3.6.29**/**3.3.8.3**, the `adapter_request_limit` table has been added to record taosAdapter query request throttling metrics:
+
+<details>
+<summary>Details</summary>
+
+| field                 | type      | is\_tag | comment                                                                                                                            |
+|:----------------------|:----------|:--------|:-----------------------------------------------------------------------------------------------------------------------------------|
+| _ts                   | TIMESTAMP |         | Data collection timestamp                                                                                                          |
+| query_limit           | DOUBLE    |         | Maximum concurrency of query requests allowed to execute simultaneously                                                            |
+| query_max_wait        | DOUBLE    |         | Maximum number of queries allowed to wait in the queue for execution                                                               |
+| query_inflight        | DOUBLE    |         | Current number of queries being executed that are subject to concurrency limits                                                    |
+| query_wait_count      | DOUBLE    |         | Current number of queries waiting in the queue for execution                                                                       |
+| query_count           | DOUBLE    |         | Total number of query requests subject to concurrency limits received in this collection cycle                                     |
+| query_wait_fail_count | DOUBLE    |         | Number of query requests that failed due to waiting timeout or exceeding the maximum waiting queue length in this collection cycle |
+| endpoint              | NCHAR     | TAG     | Request endpoint                                                                                                                   |
+| user                  | NCHAR     | TAG     | Authenticated username that initiated the query request                                                                            |
 
 </details>
 

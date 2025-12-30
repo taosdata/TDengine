@@ -36,7 +36,7 @@
 #include "ttypes.h"
 
 #define SET_REVERSE_SCAN_FLAG(runtime)    ((runtime)->scanFlag = REVERSE_SCAN)
-#define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
+#define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) != TSDB_ORDER_DESC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 
 #if 0
 static UNUSED_FUNC void *u_malloc (size_t __size) {
@@ -79,9 +79,6 @@ static void    doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* p
 
 static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
                                    bool createDummyCol);
-static void    doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
-                                  SGroupResInfo* pGroupResInfo, int32_t threshold, bool ignoreGroup,
-                                  int64_t minWindowSize);
 
 SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, int32_t interBufSize) {
   SFilePage* pData = NULL;
@@ -115,10 +112,6 @@ SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int32_t* currentPageId, i
       }
       pData->num = sizeof(SFilePage);
     }
-  }
-
-  if (pData == NULL) {
-    return NULL;
   }
 
   setBufPageDirty(pData, true);
@@ -238,7 +231,7 @@ int32_t initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWin
   pColData->info.type = TSDB_DATA_TYPE_TIMESTAMP;
   pColData->info.bytes = sizeof(int64_t);
 
-  int32_t code = colInfoDataEnsureCapacity(pColData, 5, false);
+  int32_t code = colInfoDataEnsureCapacity(pColData, 6, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -249,6 +242,9 @@ int32_t initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWin
   colDataSetInt64(pColData, 2, &interval);  // this value may be variable in case of 'n' and 'y'.
   colDataSetInt64(pColData, 3, &pQueryWindow->skey);
   colDataSetInt64(pColData, 4, &pQueryWindow->ekey);
+
+  interval = -1;
+  colDataSetInt64(pColData, 5,  &interval);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -537,6 +533,7 @@ int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t n
     }
 
     struct SResultRowEntryInfo* pResInfo = pCtx[i].resultInfo;
+    
     if (isRowEntryCompleted(pResInfo) && isRowEntryInitialized(pResInfo)) {
       continue;
     }
@@ -580,7 +577,7 @@ void clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   }
 }
 
-int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo) {
+int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo, SColumnInfoData** pRet) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pFilterInfo == NULL || pBlock->info.rows == 0) {
@@ -594,10 +591,11 @@ int32_t doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* p
   QUERY_CHECK_CODE(code, lino, _err);
 
   int32_t status = 0;
-  code = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
+  code =
+      filterExecute(pFilterInfo, pBlock, pRet != NULL ? pRet : &p, NULL, param1.numOfCols, &status);
   QUERY_CHECK_CODE(code, lino, _err);
 
-  code = extractQualifiedTupleByFilterResult(pBlock, p, status);
+  code = extractQualifiedTupleByFilterResult(pBlock, pRet != NULL ? *pRet : p, status);
   QUERY_CHECK_CODE(code, lino, _err);
 
   if (pColMatchInfo != NULL) {
@@ -685,9 +683,6 @@ int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResu
         }
       }
 
-      code = blockDataEnsureCapacity(pBlock, pBlock->info.rows + pCtx[j].resultInfo->numOfRes);
-      QUERY_CHECK_CODE(code, lino, _end);
-
       code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
       if (TSDB_CODE_SUCCESS != code) {
         qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
@@ -701,7 +696,7 @@ int32_t copyResultrowToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SResu
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
       char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
-      for (int32_t k = 0; k < pRow->numOfRows; ++k) {
+      for (int32_t k = 0; k < pRow->numOfRows; ++k) {        
         code = colDataSetValOrCover(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -1016,6 +1011,7 @@ void initResultSizeInfo(SResultInfo* pResultInfo, int32_t numOfRows) {
   if (pResultInfo->threshold == 0) {
     pResultInfo->threshold = numOfRows;
   }
+  pResultInfo->totalRows = 0;
 }
 
 void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock) {
@@ -1023,7 +1019,7 @@ void initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock) {
   initResultRowInfo(&pInfo->resultRowInfo);
 }
 
-static void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOfOutput) {
+void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOfOutput) {
   if (pCtx == NULL) {
     return;
   }
@@ -1033,6 +1029,7 @@ static void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_
       SExprInfo* pExprInfo = &pExpr[i];
       for (int32_t j = 0; j < pExprInfo->base.numOfParams; ++j) {
         if (pExprInfo->base.pParam[j].type == FUNC_PARAM_TYPE_VALUE) {
+          colDataDestroy(pCtx[i].input.pData[j]);
           taosMemoryFree(pCtx[i].input.pData[j]);
           taosMemoryFree(pCtx[i].input.pColumnDataAgg[j]);
         }
@@ -1069,6 +1066,15 @@ int32_t initExprSupp(SExprSupp* pSup, SExprInfo* pExprInfo, int32_t numOfExpr, S
   return TSDB_CODE_SUCCESS;
 }
 
+void checkIndefRowsFuncs(SExprSupp* pSup) {
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    if (fmIsIndefiniteRowsFunc(pSup->pCtx[i].functionId)) {
+      pSup->hasIndefRowsFunc = true;
+      break;
+    }
+  }
+}
+
 void cleanupExprSupp(SExprSupp* pSupp) {
   destroySqlFunctionCtx(pSupp->pCtx, pSupp->pExprInfo, pSupp->numOfExprs);
   if (pSupp->pExprInfo != NULL) {
@@ -1082,6 +1088,20 @@ void cleanupExprSupp(SExprSupp* pSupp) {
   }
 
   taosMemoryFree(pSupp->rowEntryInfoOffset);
+  memset(pSupp, 0, sizeof(SExprSupp));
+}
+
+void cleanupExprSuppWithoutFilter(SExprSupp* pSupp) {
+  destroySqlFunctionCtx(pSupp->pCtx, pSupp->pExprInfo, pSupp->numOfExprs);
+  if (pSupp->pExprInfo != NULL) {
+    destroyExprInfo(pSupp->pExprInfo, pSupp->numOfExprs);
+    taosMemoryFreeClear(pSupp->pExprInfo);
+  }
+
+  taosMemoryFreeClear(pSupp->rowEntryInfoOffset);
+  pSupp->numOfExprs = 0;
+  pSupp->hasWindowOrGroup = false;
+  pSupp->pCtx = NULL;
 }
 
 void cleanupBasicInfo(SOptrBasicInfo* pInfo) {
@@ -1090,8 +1110,8 @@ void cleanupBasicInfo(SOptrBasicInfo* pInfo) {
 }
 
 bool groupbyTbname(SNodeList* pGroupList) {
-  bool bytbname = false;
-  SNode*pNode = NULL;
+  bool   bytbname = false;
+  SNode* pNode = NULL;
   FOREACH(pNode, pGroupList) {
     if (pNode->type == QUERY_NODE_FUNCTION) {
       bytbname = (strcmp(((struct SFunctionNode*)pNode)->functionName, "tbname") == 0);
@@ -1153,7 +1173,7 @@ int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* 
           taosMemoryFree(pDeleterParam);
           return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         }
-        void*          tmp = taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
+        void* tmp = taosArrayPush(pDeleterParam->pUidList, &pTable->uid);
         if (!tmp) {
           taosArrayDestroy(pDeleterParam->pUidList);
           taosMemoryFree(pDeleterParam);
@@ -1231,6 +1251,8 @@ void freeMergeJoinGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamIm
 
 void freeMergeJoinNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeTagScanGetOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_GET_PARAM); }
+
 void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
   STableScanOperatorParam* pTableScanParam = (STableScanOperatorParam*)pParam->value;
   taosArrayDestroy(pTableScanParam->pUidList);
@@ -1243,6 +1265,8 @@ void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
 
 void freeTableScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeTagScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
 void freeOpParamItem(void* pItem) {
   SOperatorParam* pParam = *(SOperatorParam**)pItem;
   pParam->reUse = false;
@@ -1252,6 +1276,7 @@ void freeOpParamItem(void* pItem) {
 void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
   SVTableScanOperatorParam* pVTableScanParam = (SVTableScanOperatorParam*)pParam->value;
   taosArrayDestroyEx(pVTableScanParam->pOpParamArray, freeOpParamItem);
+  freeOpParamItem(&pVTableScanParam->pTagScanOp);
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
 
@@ -1277,6 +1302,9 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       type == OP_GET_PARAM ? freeVirtualTableScanGetOperatorParam(pParam) : freeVTableScanNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
+      type == OP_GET_PARAM ? freeTagScanGetOperatorParam(pParam) : freeTagScanNotifyOperatorParam(pParam);
       break;
     default:
       qError("unsupported op %d param, type %d", pParam->opType, type);
@@ -1347,10 +1375,18 @@ FORCE_INLINE int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOpera
 
 bool compareVal(const char* v, const SStateKeys* pKey) {
   if (IS_VAR_DATA_TYPE(pKey->type)) {
-    if (varDataLen(v) != varDataLen(pKey->pData)) {
-      return false;
+    if (IS_STR_DATA_BLOB(pKey->type)) {
+      if (blobDataLen(v) != blobDataLen(pKey->pData)) {
+        return false;
+      } else {
+        return memcmp(blobDataVal(v), blobDataVal(pKey->pData), blobDataLen(v)) == 0;
+      }
     } else {
-      return memcmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
+      if (varDataLen(v) != varDataLen(pKey->pData)) {
+        return false;
+      } else {
+        return memcmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
+      }
     }
   } else {
     return memcmp(pKey->pData, v, pKey->bytes) == 0;

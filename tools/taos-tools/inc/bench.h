@@ -116,6 +116,10 @@ typedef unsigned __int32 uint32_t;
 #define TSDB_DATA_TYPE_DECIMAL 17
 #endif
 
+#ifndef TSDB_DATA_TYPE_BLOB
+#define TSDB_DATA_TYPE_BLOB 18
+#endif
+
 #ifndef TSDB_DATA_TYPE_MEDIUMBLOB
 #define TSDB_DATA_TYPE_MEDIUMBLOB 19
 #endif
@@ -267,10 +271,10 @@ typedef unsigned __int32 uint32_t;
     "when keep trying be enabled."
 #define BENCH_NODROP "Do not drop database."
 
-
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
-   ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
+   ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY) || ((t) == TSDB_DATA_TYPE_BLOB) ||      \
+   ((t) == TSDB_DATA_TYPE_MEDIUMBLOB))
 
 enum TEST_MODE {
     INSERT_TEST,     // 0

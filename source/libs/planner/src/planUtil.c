@@ -179,7 +179,7 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
   if (requirement < DATA_ORDER_LEVEL_IN_BLOCK) {
     requirement = DATA_ORDER_LEVEL_IN_BLOCK;
   }
-  if (DATA_ORDER_LEVEL_IN_BLOCK == requirement) {
+  if (DATA_ORDER_LEVEL_IN_BLOCK == requirement || pScan->placeholderType == SP_PARTITION_TBNAME || pScan->placeholderType == SP_PARTITION_ROWS) {
     pScan->scanType = SCAN_TYPE_TABLE;
   } else if (TSDB_SUPER_TABLE == pScan->tableType) {
     pScan->scanType = SCAN_TYPE_TABLE_MERGE;
@@ -249,6 +249,16 @@ static int32_t adjustIntervalDataRequirement(SWindowLogicNode* pWindow, EDataOrd
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t adjustExternalDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
+  // The lowest sort level of interval output data is DATA_ORDER_LEVEL_IN_GROUP
+  if (requirement < DATA_ORDER_LEVEL_IN_GROUP) {
+    requirement = DATA_ORDER_LEVEL_IN_GROUP;
+  }
+  // The sort level of interval input data is always DATA_ORDER_LEVEL_IN_BLOCK
+  pWindow->node.resultDataOrder = requirement;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t adjustSessionDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
   if (requirement <= pWindow->node.resultDataOrder) {
     return TSDB_CODE_SUCCESS;
@@ -308,6 +318,8 @@ static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrder
       return adjustCountDataRequirement(pWindow, requirement);
     case WINDOW_TYPE_ANOMALY:
       return adjustAnomalyDataRequirement(pWindow, requirement);
+    case WINDOW_TYPE_EXTERNAL:
+      return adjustExternalDataRequirement(pWindow, requirement);
     default:
       break;
   }
@@ -405,6 +417,7 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
       code = adjustInterpDataRequirement((SInterpFuncLogicNode*)pNode, requirement);
       break;
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
       code = adjustForecastDataRequirement((SForecastFuncLogicNode*)pNode, requirement);
       break;
     default:
@@ -611,7 +624,7 @@ bool isPartTagAgg(SAggLogicNode* pAgg) {
 }
 
 bool isPartTableWinodw(SWindowLogicNode* pWindow) {
-  return pWindow->isPartTb || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
+  return (pWindow->partType & WINDOW_PART_TB) || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
 
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned) {

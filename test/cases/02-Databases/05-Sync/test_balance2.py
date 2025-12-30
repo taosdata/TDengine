@@ -8,9 +8,13 @@ class TestBalance2:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_balance_2(self):
-        """balance 2
+        """Scale-up: repica-3 db-1
 
-        1. -
+        1. Create a 3-dnode cluster
+        2. Create four 1-vgroup, 3-replica databases and insert data; verify vnode distribution and data integrity
+        3. Start dnode4 and dnode5, then add them to the cluster
+        4. Drop dnode2; verify vnode re-distribution and data integrity
+        5. Drop dnode3; verify vnode re-distribution and data integrity
 
         Catalog:
             - Database:Sync

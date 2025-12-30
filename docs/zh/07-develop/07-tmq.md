@@ -7,16 +7,16 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关 API 以及使用方法。数据订阅的基础知识请参考 [数据订阅](../../advanced/subscription/)  
+TDengine TSDB 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine TSDB 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关 API 以及使用方法。数据订阅的基础知识请参考 [数据订阅](../../advanced/subscription/topic/) 。
 
 ## 创建主题
 
-请用 TDengine CLI 或者参考 [执行 SQL](../sql/) 章节用程序执行创建主题的 SQL：`CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`  
+请用 TDengine TSDB CLI 或者参考 [执行 SQL](../sql/) 章节用程序执行创建主题的 SQL：`CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`  
 
 上述 SQL 将创建一个名为 topic_meters 的订阅。使用该订阅所获取的消息中的每条记录都由此查询语句 `SELECT ts, current, voltage, phase, groupid, location FROM meters` 所选择的列组成。
 
 **注意**
-在 TDengine 连接器实现中，对于订阅查询，有以下限制。
+在 TDengine TSDB 连接器实现中，对于订阅查询，有以下限制。
 
 - 只支持订阅数据，不支持 `with meta` 的订阅。
   - Java（WebSocket 连接）、Go 和 Rust 连接器支持订阅数据库，超级表，以及 select 查询语句。
@@ -26,7 +26,7 @@ TDengine 提供了类似于消息队列产品的数据订阅和消费接口。�
 
 ## 创建消费者
 
-TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接收数据流。消费者可以配置多种参数，如连接方式、服务器地址、自动提交 Offset 等以适应不同的数据处理需求。有的语言连接器的消费者还支持自动重连和数据传输压缩等高级功能，以确保数据的高效和稳定接收。
+TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接收数据流。消费者可以配置多种参数，如连接方式、服务器地址、自动提交 Offset 等以适应不同的数据处理需求。有的语言连接器的消费者还支持自动重连和数据传输压缩等高级功能，以确保数据的高效和稳定接收。
 
 ### 创建参数
 
@@ -147,6 +147,7 @@ Java 连接器创建消费者的参数为 Properties，可以设置的参数列�
 - `ws.autoReconnect`：WebSocket 是否自动重连，默认 false。
 - `ws.reconnectIntervalMs`：WebSocket 重连间隔时间毫秒，默认 2000。
 - `ws.reconnectRetryCount`：WebSocket 重连重试次数，默认 3。
+- `timezone`：订阅结果时间类型解析使用的时区，使用 IANA 时区格式，例如：`Asia/Shanghai`（v3.7.4 及以上版本支持）。
 
 其他参数见上表。
 
@@ -163,7 +164,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 创建消费者支持属性列表：
 
 - `useSSL`：是否使用 SSL 连接，默认为 false。
-- `token`：连接 TDengine cloud 的 token。
+- `token`：连接 TDengine TSDB cloud 的 token。
 - `ws.message.enableCompression`：是否启用 WebSocket 压缩，默认为 false。
 - `ws.autoReconnect`：是否自动重连，默认为 false。
 - `ws.reconnect.retry.count`：重连次数，默认为 3。
@@ -236,11 +237,11 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:create_consumer_1}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:create_consumer_1}}
 ```
 
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:create_consumer_2}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:create_consumer_2}}
 ```
 
 调用 `build_consumer` 函数尝试获取消费者实例 `tmq`。成功则打印成功日志，失败则打印失败日志。
@@ -377,26 +378,26 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:build_topic_list}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:build_topic_list}}
 ```
 
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:basic_consume_loop}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:basic_consume_loop}}
 ```
 
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:msg_process}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:msg_process}}
 ```
 
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:subscribe_3}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:subscribe_3}}
 ```
 
 订阅消费数据步骤：
 
-  1. 调用 `ws_build_topic_list` 函数创建一个主题列表 `topic_list`。
+  1. 调用 `build_topic_list` 函数创建一个主题列表 `topic_list`。
   2. 如果 `topic_list` 为 `NULL`，表示创建失败，函数返回 `-1`。
-  3. 使用 `ws_tmq_subscribe` 函数订阅 `tmq` 指定的主题列表。如果订阅失败，打印错误信息。
+  3. 使用 `tmq_subscribe` 函数订阅 `tmq` 指定的主题列表。如果订阅失败，打印错误信息。
   4. 销毁主题列表 `topic_list` 以释放资源。
   5. 调用 `basic_consume_loop` 函数开始基本的消费循环，处理订阅的消息。
 
@@ -552,12 +553,12 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:consume_repeatly}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:consume_repeatly}}
 ```
 
-1. 通过 `ws_tmq_get_topic_assignment` 函数获取特定主题的分配信息，包括分配的数量和具体分配详情。
+1. 通过 `tmq_get_topic_assignment` 函数获取特定主题的分配信息，包括分配的数量和具体分配详情。
 2. 如果获取分配信息失败，则打印错误信息并返回。
-3. 对于每个分配，使用 `ws_tmq_offset_seek` 函数将消费者的偏移量设置到最早的偏移量。
+3. 对于每个分配，使用 `tmq_offset_seek` 函数将消费者的偏移量设置到最早的偏移量。
 4. 如果设置偏移量失败，则打印错误信息。
 5. 释放分配信息数组以释放资源。
 6. 调用 `basic_consume_loop` 函数开始新的消费循环，处理消息。
@@ -694,10 +695,10 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:manual_commit}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:manual_commit}}
 ```
 
-可以通过 `ws_tmq_commit_sync` 函数来手工提交消费进度。
+可以通过 `tmq_commit_sync` 函数来手工提交消费进度。
 
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -764,7 +765,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 
 ## 取消订阅和关闭消费
 
-消费者可以取消对主题的订阅，停止接收消息。当消费者不再需要时，应该关闭消费者实例，以释放资源和断开与 TDengine 服务器的连接。  
+消费者可以取消对主题的订阅，停止接收消息。当消费者不再需要时，应该关闭消费者实例，以释放资源和断开与 TDengine TSDB 服务器的连接。  
 
 ### WebSocket 连接
 
@@ -814,7 +815,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 </TabItem>
 <TabItem label="C" value="c">
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c:unsubscribe_and_close}}
+{{#include docs/examples/c-ws-new/tmq_demo.c:unsubscribe_and_close}}
 ```
 </TabItem>
 <TabItem label="REST API" value="rest">
@@ -939,7 +940,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 <details>
 <summary>完整代码示例</summary>
 ```c
-{{#include docs/examples/c-ws/tmq_demo.c}}
+{{#include docs/examples/c-ws-new/tmq_demo.c}}
 ```
 </details>
 

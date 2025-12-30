@@ -31,9 +31,10 @@ static int32_t debugPrintNode(SNode* pNode) {
 
 static int32_t dumpQueryPlan(SQueryPlan* pPlan) {
   int32_t code = 0;
-  if (!tsQueryPlannerTrace) {
+  if (!(qDebugFlag & DEBUG_DEBUG)) {
     return code;
   }
+
   char* pStr = NULL;
   code = nodesNodeToString((SNode*)pPlan, false, &pStr, NULL);
   if (TSDB_CODE_SUCCESS == code) {
@@ -89,7 +90,6 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   if (TSDB_CODE_SUCCESS == code) {
     code = scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan);
   }
-  //dumpLogicPlan((SLogicSubplan*)pLogicPlan->pTopSubplans->pHead->pNode, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
   }

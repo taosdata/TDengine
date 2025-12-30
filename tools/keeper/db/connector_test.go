@@ -1,9 +1,13 @@
 package db
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"math"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -175,5 +179,103 @@ func TestExecuteWithRetry(t *testing.T) {
 				t.Errorf("execution time %v is shorter than expected minimum %v", elapsed, minExpectedTime)
 			}
 		})
+	}
+}
+
+func newTestLogger(buf *bytes.Buffer, level logrus.Level) *logrus.Entry {
+	lg := logrus.New()
+	lg.SetOutput(buf)
+	lg.SetLevel(level)
+	lg.SetFormatter(&logrus.TextFormatter{DisableTimestamp: true})
+	return logrus.NewEntry(lg)
+}
+
+func Test_logData_NilData_TracesNoData(t *testing.T) {
+	var buf bytes.Buffer
+	entry := newTestLogger(&buf, logrus.TraceLevel)
+
+	logData(nil, entry)
+
+	got := buf.String()
+	assert.Contains(t, got, "No data to display")
+}
+
+func Test_logData_MarshalError_LogsError(t *testing.T) {
+	var buf bytes.Buffer
+	entry := newTestLogger(&buf, logrus.TraceLevel)
+
+	bad := &Data{
+		Head: []string{"col"},
+		Data: [][]interface{}{{func() {}}},
+	}
+	logData(bad, entry)
+
+	got := buf.String()
+	if !strings.Contains(got, "Failed to marshal data to JSON") {
+		t.Fatalf("expected error log about marshal failure, got: %q", got)
+	}
+}
+
+func Test_logData_Success_LogsJSONTrace(t *testing.T) {
+	var buf bytes.Buffer
+	entry := newTestLogger(&buf, logrus.TraceLevel)
+
+	ok := &Data{
+		Head: []string{"h"},
+		Data: [][]interface{}{{1, "x"}},
+	}
+	logData(ok, entry)
+
+	got := buf.String()
+	if !strings.Contains(got, "query result data:") {
+		t.Fatalf("expected trace with 'query result data:', got: %q", got)
+	}
+}
+
+type errDriver struct{}
+
+func (d errDriver) Open(name string) (driver.Conn, error) { return &errConn{}, nil }
+
+type errConn struct{}
+
+func (c *errConn) Prepare(query string) (driver.Stmt, error) { return &noopStmt{}, nil }
+func (c *errConn) Close() error                              { return nil }
+func (c *errConn) Begin() (driver.Tx, error)                 { return nil, errors.New("no tx") }
+func (c *errConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	return nil, errors.New("boom: some query error")
+}
+
+type noopStmt struct{}
+
+func (s *noopStmt) Close() error  { return nil }
+func (s *noopStmt) NumInput() int { return -1 }
+func (s *noopStmt) Exec(args []driver.Value) (driver.Result, error) {
+	return nil, errors.New("not supported")
+}
+func (s *noopStmt) Query(args []driver.Value) (driver.Rows, error) {
+	return nil, errors.New("not supported")
+}
+
+func TestConnectorQuery_ErrorPath_NoAuthExit_ReturnsError(t *testing.T) {
+	const drv = "errdrv_query"
+	sql.Register(drv, errDriver{})
+	dbh, err := sql.Open(drv, "")
+	if err != nil {
+		t.Fatalf("sql.Open error: %v", err)
+	}
+	defer dbh.Close()
+	dbh.SetConnMaxLifetime(time.Second)
+
+	c := &Connector{db: dbh}
+
+	data, qerr := c.Query(context.Background(), "SELECT 1", 123)
+	if qerr == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if data != nil {
+		t.Fatalf("expected nil data on error, got %#v", data)
+	}
+	if qerr.Error() == "Authentication failure" {
+		t.Fatalf("unexpected auth failure branch triggered")
 	}
 }

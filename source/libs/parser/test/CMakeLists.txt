@@ -25,7 +25,7 @@ IF(NOT TD_DARWIN)
     )
 
     add_test(
-        NAME parserTest
-        COMMAND parserTest
+            NAME parserTest
+            COMMAND parserTest
     )
 ENDIF()

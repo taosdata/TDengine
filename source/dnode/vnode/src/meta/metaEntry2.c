@@ -9,6 +9,7 @@
  */
 
 #include "meta.h"
+#include "vnodeInt.h"
 
 extern SDmNotifyHandle dmNotifyHdl;
 
@@ -476,6 +477,13 @@ static int32_t metaUpdateSuperTableTagSchema(SMeta *pMeta, const SMetaHandlePara
         return code;
       }
 
+      // drop old tag from meta stable tag filter cache
+      code = metaStableTagFilterCacheDropTag(pMeta, pEntry->uid, pOldColumn->colId);
+      if (code) {
+        metaErr(TD_VID(pMeta->pVnode), code);
+        return code;
+      }
+
       iOld++;
     } else {
       code = metaAddOrDropTagIndexOfSuperTable(pMeta, pParam, NULL, pNewColumn);
@@ -491,6 +499,12 @@ static int32_t metaUpdateSuperTableTagSchema(SMeta *pMeta, const SMetaHandlePara
   for (; iOld < pOldTagSchema->nCols; iOld++) {
     SSchema *pOldColumn = pOldTagSchema->pSchema + iOld;
     code = metaAddOrDropTagIndexOfSuperTable(pMeta, pParam, pOldColumn, NULL);
+    if (code) {
+      metaErr(TD_VID(pMeta->pVnode), code);
+      return code;
+    }
+    // drop old tag from meta stable tag filter cache
+    code = metaStableTagFilterCacheDropTag(pMeta, pEntry->uid, pOldColumn->colId);
     if (code) {
       metaErr(TD_VID(pMeta->pVnode), code);
       return code;
@@ -696,6 +710,9 @@ static int32_t metaNameIdxUpsert(SMeta *pMeta, const SMetaHandleParam *pParam, E
                        pMeta->txn);
   } else {
     code = TSDB_CODE_INVALID_PARA;
+  }
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
   }
   return code;
 }
@@ -1339,6 +1356,12 @@ static int32_t metaHandleChildTableCreateImpl(SMeta *pMeta, const SMetaEntry *pE
       metaErr(TD_VID(pMeta->pVnode), ret);
     }
 
+    ret = metaStableTagFilterCacheUpdateUid(
+      pMeta, pEntry, pSuperEntry, STABLE_TAG_FILTER_CACHE_ADD_TABLE);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
+
     ret = metaTbGroupCacheClear(pMeta, pSuperEntry->uid);
     if (ret < 0) {
       metaErr(TD_VID(pMeta->pVnode), ret);
@@ -1468,6 +1491,12 @@ static int32_t metaHandleVirtualChildTableCreateImpl(SMeta *pMeta, const SMetaEn
   if (TSDB_CODE_SUCCESS == code) {
     metaUpdateStbStats(pMeta, pSuperEntry->uid, 1, 0, -1);
     int32_t ret = metaUidCacheClear(pMeta, pSuperEntry->uid);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
+
+    ret = metaStableTagFilterCacheUpdateUid(
+      pMeta, pEntry, pSuperEntry, STABLE_TAG_FILTER_CACHE_ADD_TABLE);
     if (ret < 0) {
       metaErr(TD_VID(pMeta->pVnode), ret);
     }
@@ -1622,6 +1651,12 @@ static int32_t metaHandleChildTableDropImpl(SMeta *pMeta, const SMetaHandleParam
   --pMeta->pVnode->config.vndStats.numOfCTables;
   metaUpdateStbStats(pMeta, pParam->pSuperEntry->uid, -1, 0, -1);
   int32_t ret = metaUidCacheClear(pMeta, pSuper->uid);
+  if (ret < 0) {
+    metaErr(TD_VID(pMeta->pVnode), ret);
+  }
+
+  ret = metaStableTagFilterCacheUpdateUid(
+    pMeta, pChild, pSuper, STABLE_TAG_FILTER_CACHE_DROP_TABLE);
   if (ret < 0) {
     metaErr(TD_VID(pMeta->pVnode), ret);
   }
@@ -1809,6 +1844,12 @@ static int32_t metaHandleVirtualChildTableDropImpl(SMeta *pMeta, const SMetaHand
   --pMeta->pVnode->config.vndStats.numOfVCTables;
   metaUpdateStbStats(pMeta, pParam->pSuperEntry->uid, -1, 0, -1);
   int32_t ret = metaUidCacheClear(pMeta, pSuper->uid);
+  if (ret < 0) {
+    metaErr(TD_VID(pMeta->pVnode), ret);
+  }
+
+  ret = metaStableTagFilterCacheUpdateUid(
+    pMeta, pChild, pSuper, STABLE_TAG_FILTER_CACHE_DROP_TABLE);
   if (ret < 0) {
     metaErr(TD_VID(pMeta->pVnode), ret);
   }
@@ -2033,6 +2074,18 @@ static int32_t metaHandleVirtualChildTableUpdateImpl(SMeta *pMeta, const SMetaHa
     metaErr(TD_VID(pMeta->pVnode), code);
   }
 
+  // update stable tag filter cache: drop old then add new
+  code = metaStableTagFilterCacheUpdateUid(
+    pMeta, pOldEntry, pSuperEntry, STABLE_TAG_FILTER_CACHE_DROP_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+  }
+  code = metaStableTagFilterCacheUpdateUid(
+    pMeta, pEntry, pSuperEntry, STABLE_TAG_FILTER_CACHE_ADD_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+  }
+
   if (metaTbGroupCacheClear(pMeta, pSuperEntry->uid) < 0) {
     metaErr(TD_VID(pMeta->pVnode), code);
   }
@@ -2068,6 +2121,18 @@ static int32_t metaHandleChildTableUpdateImpl(SMeta *pMeta, const SMetaHandlePar
   }
 
   if (metaUidCacheClear(pMeta, pSuperEntry->uid) < 0) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+  }
+
+  // update stable tag filter cache: drop old then add new
+  code = metaStableTagFilterCacheUpdateUid(
+    pMeta, pOldEntry, pSuperEntry, STABLE_TAG_FILTER_CACHE_DROP_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+  }
+  code = metaStableTagFilterCacheUpdateUid(
+    pMeta, pEntry, pSuperEntry, STABLE_TAG_FILTER_CACHE_ADD_TABLE);
+  if (TSDB_CODE_SUCCESS != code) {
     metaErr(TD_VID(pMeta->pVnode), code);
   }
 

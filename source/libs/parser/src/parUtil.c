@@ -15,10 +15,10 @@
 
 #include "parUtil.h"
 #include "cJSON.h"
+#include "decimal.h"
 #include "querynodes.h"
 #include "tarray.h"
 #include "tlog.h"
-#include "decimal.h"
 
 #define USER_AUTH_KEY_MAX_LEN TSDB_USER_LEN + TSDB_TABLE_FNAME_LEN + 2
 
@@ -86,6 +86,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Not support STATE_WINDOW on tag column";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE:
       return "STATE_WINDOW not support for super table query";
+    case TSDB_CODE_PAR_INVALID_STATE_WIN_EXTEND:
+      return "Invalid state window extend option";
     case TSDB_CODE_PAR_INTER_SESSION_GAP:
       return "SESSION gap should be fixed time window, and greater than 0";
     case TSDB_CODE_PAR_INTER_SESSION_COL:
@@ -171,7 +173,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC:
       return "%s function is not supported in fill query";
     case TSDB_CODE_PAR_INVALID_WINDOW_PC:
-      return "_WSTART, _WEND and _WDURATION can only be used in window query";
+      return "_WSTART, _WEND, _WDURATION, and _ANOMALYMASK can only be used in window query";
     case TSDB_CODE_PAR_INVALID_TAGS_PC:
       return "Tags can only applied to super table and child table";
     case TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC:
@@ -204,6 +206,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Not supported window join having expr";
     case TSDB_CODE_PAR_INVALID_WIN_OFFSET_UNIT:
       return "Invalid WINDOW_OFFSET unit \"%c\"";
+    case TSDB_CODE_PAR_INVALID_PERIOD_UNIT:
+      return "Invalid PERIOD unit \"%c\"";
     case TSDB_CODE_PAR_VALID_PRIM_TS_REQUIRED:
       return "Valid primary timestamp required";
     case TSDB_CODE_PAR_NOT_WIN_FUNC:
@@ -232,6 +236,12 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "True_for duration cannot be negative";
     case TSDB_CODE_PAR_TRUE_FOR_UNIT:
       return "Cannot use 'year' or 'month' as true_for duration";
+    case TSDB_CODE_PAR_INVALID_COLUMN_REF:
+      return "Invalid column reference";
+    case TSDB_CODE_PAR_INVALID_SLIDING_OFFSET:
+      return "Invalid sliding offset";
+    case TSDB_CODE_PAR_INVALID_INTERVAL_OFFSET:
+      return "Invalid interval offset";
     case TSDB_CODE_PAR_INVALID_REF_COLUMN:
       return "Invalid virtual table's ref column";
     case TSDB_CODE_PAR_INVALID_TABLE_TYPE:
@@ -240,6 +250,32 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid virtual table's ref column type";
     case TSDB_CODE_PAR_MISMATCH_STABLE_TYPE:
       return "Create child table using virtual super table";
+    case TSDB_CODE_STREAM_INVALID_TIME_UNIT:
+      return "Invalid time unit in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_SYNTAX:
+      return "Invalid syntax in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_NOTIFY:
+      return "Invalid notify clause in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_TRIGGER:
+      return "Invalid trigger clause in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_QUERY:
+      return "Invalid query clause in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_OUT_TABLE:
+      return "Invalid out table clause in create stream clause";
+    case TSDB_CODE_STREAM_NO_TRIGGER_TABLE:
+      return "trigger table not specified in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_PRE_FILTER:
+      return "Invalid pre-filter in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_PARTITION:
+      return "Invalid partition in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_SUBTABLE:
+      return "Invalid subtable in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_OUT_TAGS:
+      return "Invalid out tags in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_NOTIFY_COND:
+      return "Invalid notify condition in create stream clause";
+    case TSDB_CODE_STREAM_INVALID_PLACE_HOLDER:
+      return "Invalid placeholder in create stream clause";
     case TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR:
       return "Invalid expr in order by clause: %s";
     default:
@@ -571,7 +607,7 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   const char* valueStr = NULL;
   int32_t     valueLen = 0;
 
-  if (pVal->placeholderNo != 0) {
+  if ((0 == strcmp(pCol->colName, "db_name") || 0 == strcmp(pCol->colName, "table_name")) && pVal->placeholderNo != 0) {
     if (NULL == pVal->datum.p) {
       qError("getInsTagsTableTargetNameFromOp: placeholderNo=%d but datum.p is NULL, colName=%s, literal=%s",
              pVal->placeholderNo, pCol->colName, pVal->literal ? pVal->literal : "NULL");
@@ -599,7 +635,6 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
     } else {
       qError("getInsTagsTableTargetNameFromOp: unsupported data type %d for placeholder", pVal->node.resType.type);
       return TSDB_CODE_INVALID_PARA;
-      ;
     }
   } else {
     if (NULL == pVal->literal || 0 == strcmp(pVal->literal, "")) {
@@ -925,9 +960,9 @@ int32_t buildCatalogReq(SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
     code = buildTableReqFromDb(pMetaCache->pTableMeta, &pCatalogReq->pView);
   }
 #endif
-
-  TSWAP(pCatalogReq->pVSubTable, pMetaCache->pVSubTables);
-  TSWAP(pCatalogReq->pVStbRefDbs, pMetaCache->pVStbRefDbs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildTableReq(pMetaCache->pVStbRefDbs, &pCatalogReq->pVStbRefDbs);
+  }
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   pCatalogReq->forceFetchViewMeta = pMetaCache->forceFetchViewMeta;
   return code;
@@ -1089,12 +1124,9 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, SMetaData* pMetaData,
     code = putDbTableDataToCache(pCatalogReq->pView, pMetaData->pView, &pMetaCache->pViews);
   }
 #endif
-
-  pMetaCache->pVSubTables = pMetaData->pVSubTables;
-  pMetaData->pVSubTables = NULL;
-
-  pMetaCache->pVStbRefDbs = pMetaData->pVStbRefDbs;
-  pMetaData->pVStbRefDbs = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = putTableDataToCache(pCatalogReq->pVStbRefDbs, pMetaData->pVStbRefDbs, &pMetaCache->pVStbRefDbs);
+  }
 
   pMetaCache->pDnodes = pMetaData->pDnodeList;
   return code;
@@ -1434,42 +1466,8 @@ int32_t reserveTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTsm
   return reserveTableReqInDbCache(acctId, pDb, pTsmaName, &pMetaCache->pTSMAs);
 }
 
-int32_t reserveVSubTableInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
-  SName fullName = {0};
-  toName(acctId, pDb, pTable, &fullName);
-  
-  if (NULL == pMetaCache->pVSubTables) {
-    pMetaCache->pVSubTables = taosArrayInit(1, sizeof(fullName));
-    if (NULL == pMetaCache->pVSubTables) {
-      return terrno;
-    }
-  }
-  if (NULL == taosArrayPush(pMetaCache->pVSubTables, &fullName)) {
-    return terrno;
-  }
-  
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t reserveVStbRefDbsInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t line = 0;
-  SName   fullName = {0};
-  toName(acctId, pDb, pTable, &fullName);
-
-  if (NULL == pMetaCache->pVStbRefDbs) {
-    pMetaCache->pVStbRefDbs = taosArrayInit(1, sizeof(fullName));
-    QUERY_CHECK_NULL(pMetaCache->pVStbRefDbs, code, line, _return, terrno);
-  }
-
-  QUERY_CHECK_NULL(taosArrayPush(pMetaCache->pVStbRefDbs, &fullName), code, line, _return, terrno);
-  return code;
-
-_return:
-  if (code) {
-    qError("%s failed, code:%d", __func__, code);
-  }
-  return code;
+  return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pVStbRefDbs);
 }
 
 int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes) {
@@ -1603,6 +1601,34 @@ int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
   return code;
 }
 
+int32_t getVStbRefDbsFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pOutput) {
+  char    fullName[TSDB_TABLE_FNAME_LEN];
+  int32_t code = tNameExtractFullName(pName, fullName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (NULL == pMetaCache || NULL == pMetaCache->pVStbRefDbs) {
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
+  SArray* pRefs = NULL;
+  code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pVStbRefDbs, (void**)&pRefs);
+
+  // Special handling for stmt scenario where slot is reserved but data is not filled
+  // In this case, getMetaDataFromHash returns INTERNAL_ERROR because value is nullPointer
+  if (TSDB_CODE_PAR_INTERNAL_ERROR == code) {
+    // Data not filled in cache (stmt scenario without putMetaDataToCache)
+    // Return table not exist to indicate VStbRefDbs is not available
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pRefs) {
+    *pOutput = pRefs;
+  }
+  return code;
+}
+
 int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache) {
   pMetaCache->dnodeRequired = true;
   return TSDB_CODE_SUCCESS;
@@ -1652,8 +1678,7 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
   taosHashCleanup(pMetaCache->pTableIndex);
   taosHashCleanup(pMetaCache->pTableCfg);
   taosHashCleanup(pMetaCache->pTableTSMAs);
-  taosArrayDestroyEx(pMetaCache->pVSubTables, tDestroySVSubTablesRsp);
-  taosArrayDestroyEx(pMetaCache->pVStbRefDbs, tDestroySVStbRefDbsRsp);
+  taosHashCleanup(pMetaCache->pVStbRefDbs);
 }
 
 int64_t int64SafeSub(int64_t a, int64_t b) {

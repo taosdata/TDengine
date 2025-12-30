@@ -25,29 +25,35 @@ extern "C" {
 #endif
 
 typedef struct SSnodeMgmt {
-  SDnodeData   *pData;
-  SSnode       *pSnode;
-  SMsgCb        msgCb;
-  const char   *path;
-  const char   *name;
-  int8_t        writeWorkerInUse;
-  SArray       *writeWroker;  // SArray<SMultiWorker*>
-  SSingleWorker streamWorker;
+  SDnodeData         *pData;
+  SSnode             *pSnode;
+  SMsgCb              msgCb;
+  const char         *path;
+  const char         *name;
+  SSingleWorker       runnerWorker;
+  SDispatchWorkerPool triggerWorkerPool;
 } SSnodeMgmt;
+
+typedef struct SSnodeInfo {
+  SRWLatch               snodeLock;
+  int32_t                snodeId;
+  SNodeEpSet             snodeLeaders[2];
+  SNodeEpSet             snodeReplica;
+} SSnodeInfo;
 
 // smHandle.c
 SArray *smGetMsgHandles();
 int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
+int32_t smBuildCreateReqFromJson(SJson *pJson, SDCreateSnodeReq *pReq);
+void smUpdateSnodeInfo(SDCreateSnodeReq* pReq);
 
 // smWorker.c
 int32_t smStartWorker(SSnodeMgmt *pMgmt);
 void    smStopWorker(SSnodeMgmt *pMgmt);
 int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pMsg);
-int32_t smPutNodeMsgToMgmtQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t smPutNodeMsgToWriteQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t smPutNodeMsgToStreamQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
-int32_t smPutNodeMsgToChkptQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t smPutMsgToRunnerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t smPutMsgToTriggerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

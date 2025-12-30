@@ -8,15 +8,12 @@ on:
       - "3.3.6"
     paths:
       - "tools/keeper/**"
-      - ".github/workflows/taoskeeper-build.yml"
   push:
     branches:
       - "main"
       - "3.0"
-      - "3.3.6"
     paths:
       - "tools/keeper/**"
-      - ".github/workflows/taoskeeper-build.yml"
 
 jobs:
   build:

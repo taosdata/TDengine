@@ -594,7 +594,7 @@ int32_t tmq_list_append(tmq_list_t* list, const char* src) {
 void tmq_list_destroy(tmq_list_t* list) {
   if (list == NULL) return;
   SArray* container = &list->container;
-  taosArrayDestroyP(container, NULL);
+  taosArrayDestroyP(container, taosMemFree);
 }
 
 int32_t tmq_list_get_size(const tmq_list_t* list) {
@@ -675,7 +675,6 @@ static int32_t doSendCommitMsg(tmq_t* tmq, int32_t vgId, SEpSet* epSet, STqOffse
   SMqVgOffset pOffset = {0};
 
   pOffset.consumerId = tmq->consumerId;
-  // pOffset.markWal = tmq->enableWalMarker;
   pOffset.offset.val = *offset;
   (void)snprintf(pOffset.offset.subKey, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", tmq->groupId, TMQ_SEPARATOR, pTopicName);
   int32_t len = 0;
@@ -1082,8 +1081,8 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
       int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
       for (int32_t j = 0; j < topicNumCur; j++) {
         SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, j);
-        if (pTopicCur && strcmp(pTopicCur->topicName, privilege->topic) == 0) {
-          tqInfoC("consumer:0x%" PRIx64 ", update noPrivilege:%d, topic:%s", tmq->consumerId, privilege->noPrivilege, privilege->topic);
+        if (pTopicCur && strcmp(pTopicCur->topicName, privilege->topic) == 0 && pTopicCur->noPrivilege != privilege->noPrivilege) {
+          tqInfoC("consumer:0x%" PRIx64 ", update privilege:%s, topic:%s", tmq->consumerId, privilege->noPrivilege ? "false" : "true", privilege->topic);
           pTopicCur->noPrivilege = privilege->noPrivilege;
         }
       }

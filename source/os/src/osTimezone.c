@@ -787,7 +787,6 @@ int32_t taosSetGlobalTimezone(const char *tz) {
   }
 
   tzset();
-
   time_t tx1 = taosGetTimestampSec();
   return taosFormatTimezoneStr(tx1, tz, NULL, tsTimezoneStr);
 #endif

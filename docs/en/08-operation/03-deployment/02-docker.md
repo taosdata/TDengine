@@ -97,3 +97,57 @@ taos -h tdengine -P 6030
 ```
 
 If TAOS_FQDN is set to the same as the hostname of the host, the effect is the same as "starting TDengine in host network mode".
+
+## Launching the Cluster with Docker Compose
+
+Use the following Docker Compose configuration file to bring up a 3-node TDengine TSDB cluster.
+Contents of docker-compose.yaml:
+
+```yaml
+services:
+  td1:
+    image: tdengine/tdengine
+    environment:
+      - TAOS_FQDN=td1
+
+  td2:
+    image: tdengine/tdengine
+    environment:
+      - TAOS_FQDN=td2
+      - TAOS_FIRST_EP=td1:6030
+
+  td3:
+    image: tdengine/tdengine
+    environment:
+      - TAOS_FQDN=td3
+      - TAOS_FIRST_EP=td1:6030
+```
+
+The environment variable TAOS_FIRST_EP specifies the endpoint of the first dnode to connect to in the cluster, equivalent to the firstEp parameter in /etc/taos/taos.cfg.
+Start the cluster:
+
+```shell
+docker compose up
+```
+
+After the cluster is up, enter any node, for example, the td1 node:
+
+```shell
+docker compose exec td1 bash
+```
+
+And execute the following command to check the cluster status:
+
+```shell
+$ taos -s "show dnodes"
+Welcome to the TDengine Command Line Interface, Native Client Version:3.3.6.13
+Copyright (c) 2025 by TDengine, all rights reserved.
+
+taos> show dnodes
+     id      |            endpoint            | vnodes | support_vnodes |    status    |       create_time       |       reboot_time       |              note              |
+=============================================================================================================================================================================
+           1 | td1:6030                       |      0 |             85 | ready        | 2025-08-21 01:56:41.630 | 2025-08-21 01:56:41.462 |                                |
+           2 | td2:6030                       |      1 |             85 | ready        | 2025-08-21 01:56:43.203 | 2025-08-21 01:56:43.453 |                                |
+           3 | td3:6030                       |      0 |             85 | ready        | 2025-08-21 01:56:43.296 | 2025-08-21 01:56:43.491 |                                |
+Query OK, 3 row(s) in set (0.006355s)
+```

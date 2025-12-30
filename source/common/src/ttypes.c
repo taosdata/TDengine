@@ -18,28 +18,28 @@
 #include "tcompression.h"
 
 const int32_t TYPE_BYTES[TSDB_DATA_TYPE_MAX] = {
-    2,                      // TSDB_DATA_TYPE_NULL
-    CHAR_BYTES,              // TSDB_DATA_TYPE_BOOL
-    CHAR_BYTES,              // TSDB_DATA_TYPE_TINYINT
-    SHORT_BYTES,             // TSDB_DATA_TYPE_SMALLINT
-    INT_BYTES,               // TSDB_DATA_TYPE_INT
-    sizeof(int64_t),         // TSDB_DATA_TYPE_BIGINT
-    FLOAT_BYTES,             // TSDB_DATA_TYPE_FLOAT
-    DOUBLE_BYTES,            // TSDB_DATA_TYPE_DOUBLE
-    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_BINARY
-    sizeof(TSKEY),           // TSDB_DATA_TYPE_TIMESTAMP
-    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_NCHAR
-    CHAR_BYTES,              // TSDB_DATA_TYPE_UTINYINT
-    SHORT_BYTES,             // TSDB_DATA_TYPE_USMALLINT
-    INT_BYTES,               // TSDB_DATA_TYPE_UINT
-    sizeof(uint64_t),        // TSDB_DATA_TYPE_UBIGINT
-    TSDB_MAX_JSON_TAG_LEN,   // TSDB_DATA_TYPE_JSON
-    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_VARBINARY
-    DECIMAL128_BYTES,        // TSDB_DATA_TYPE_DECIMAL: placeholder, not implemented
-    TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_BLOB: placeholder, not implemented
-    TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_MEDIUMBLOB: placeholder, not implemented
-    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_GEOMETRY
-    DECIMAL64_BYTES,         // TSDB_DATA_TYPE_DECIMAL64
+    2,                        // TSDB_DATA_TYPE_NULL
+    CHAR_BYTES,               // TSDB_DATA_TYPE_BOOL
+    CHAR_BYTES,               // TSDB_DATA_TYPE_TINYINT
+    SHORT_BYTES,              // TSDB_DATA_TYPE_SMALLINT
+    INT_BYTES,                // TSDB_DATA_TYPE_INT
+    sizeof(int64_t),          // TSDB_DATA_TYPE_BIGINT
+    FLOAT_BYTES,              // TSDB_DATA_TYPE_FLOAT
+    DOUBLE_BYTES,             // TSDB_DATA_TYPE_DOUBLE
+    sizeof(VarDataOffsetT),   // TSDB_DATA_TYPE_BINARY
+    sizeof(TSKEY),            // TSDB_DATA_TYPE_TIMESTAMP
+    sizeof(VarDataOffsetT),   // TSDB_DATA_TYPE_NCHAR
+    CHAR_BYTES,               // TSDB_DATA_TYPE_UTINYINT
+    SHORT_BYTES,              // TSDB_DATA_TYPE_USMALLINT
+    INT_BYTES,                // TSDB_DATA_TYPE_UINT
+    sizeof(uint64_t),         // TSDB_DATA_TYPE_UBIGINT
+    TSDB_MAX_JSON_TAG_LEN,    // TSDB_DATA_TYPE_JSON
+    sizeof(VarDataOffsetT),   // TSDB_DATA_TYPE_VARBINARY
+    DECIMAL128_BYTES,         // TSDB_DATA_TYPE_DECIMAL: placeholder, not implemented
+    sizeof(BlobDataOffsetT),  // TSDB_DATA_TYPE_BLOB: placeholder, not implemented
+    sizeof(BlobDataOffsetT),  // TSDB_DATA_TYPE_MEDIUMBLOB: placeholder, not implemented
+    sizeof(VarDataOffsetT),   // TSDB_DATA_TYPE_GEOMETRY
+    DECIMAL64_BYTES,          // TSDB_DATA_TYPE_DECIMAL64
 };
 
 tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
@@ -63,10 +63,11 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_UBIGINT, 15, LONG_BYTES, "BIGINT UNSIGNED", 0, UINT64_MAX, tsCompressBigint, tsDecompressBigint},
     {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString},
     {TSDB_DATA_TYPE_VARBINARY, 9, 1, "VARBINARY", 0, 0, tsCompressString,
-     tsDecompressString},                                                        // placeholder, not implemented
-    {TSDB_DATA_TYPE_DECIMAL, 7, DECIMAL128_BYTES, "DECIMAL", 0, 0, NULL, NULL},  // placeholder, not implemented
-    {TSDB_DATA_TYPE_BLOB, 4, 1, "BLOB", 0, 0, NULL, NULL},                       // placeholder, not implemented
-    {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, NULL, NULL},          // placeholder, not implemented
+     tsDecompressString},                                                             // placeholder, not implemented
+    {TSDB_DATA_TYPE_DECIMAL, 7, DECIMAL128_BYTES, "DECIMAL", 0, 0, NULL, NULL},       // placeholder, not implemented
+    {TSDB_DATA_TYPE_BLOB, 4, 1, "BLOB", 0, 0, tsCompressString, tsDecompressString},  // placeholder, not implemented
+    {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, tsCompressString,
+     tsDecompressString},  // placeholder, not implemented
     {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString, tsDecompressString},
     {TSDB_DATA_TYPE_DECIMAL64, 7, DECIMAL64_BYTES, "DECIMAL", 0, 0, NULL, NULL},
 };
@@ -93,10 +94,11 @@ tDataTypeCompress tDataCompress[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_UBIGINT, 15, LONG_BYTES, "BIGINT UNSIGNED", 0, UINT64_MAX, tsCompressBigint2, tsDecompressBigint2},
     {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString2, tsDecompressString2},
     {TSDB_DATA_TYPE_VARBINARY, 9, 1, "VARBINARY", 0, 0, tsCompressString2,
-     tsDecompressString2},                                               // placeholder, not implemented
+     tsDecompressString2},  // placeholder, not implemented
     {TSDB_DATA_TYPE_DECIMAL, 7, DECIMAL128_BYTES, "DECIMAL", 0, 0, tsCompressDecimal128, tsDecompressDecimal128},
-    {TSDB_DATA_TYPE_BLOB, 4, 1, "BLOB", 0, 0, NULL, NULL},               // placeholder, not implemented
-    {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, NULL, NULL},  // placeholder, not implemented
+    {TSDB_DATA_TYPE_BLOB, 4, 1, "BLOB", 0, 0, tsCompressString2, tsDecompressString2},  // placeholder, not implemented
+    {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, tsCompressString2,
+     tsDecompressString2},  // placeholder, not implemented
     {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString2, tsDecompressString2},
     {TSDB_DATA_TYPE_DECIMAL64, 9, DECIMAL64_BYTES, "DECIMAL64", 0, 0, tsCompressDecimal64, tsDecompressDecimal64},
 
@@ -237,16 +239,14 @@ uint8_t decimalTypeFromPrecision(uint8_t precision) {
   return precision > TSDB_DECIMAL64_MAX_PRECISION ? TSDB_DATA_TYPE_DECIMAL : TSDB_DATA_TYPE_DECIMAL64;
 }
 
-STypeMod decimalCalcTypeMod(uint8_t prec, uint8_t scale) {
-  return ((STypeMod)prec << 8) + scale;
-}
+STypeMod decimalCalcTypeMod(uint8_t prec, uint8_t scale) { return ((STypeMod)prec << 8) + scale; }
 
-void decimalFromTypeMod(STypeMod typeMod, uint8_t* precision, uint8_t* scale) {
+void decimalFromTypeMod(STypeMod typeMod, uint8_t *precision, uint8_t *scale) {
   if (precision) *precision = (uint8_t)((typeMod >> 8) & 0xFF);
   if (scale) *scale = (uint8_t)(typeMod & 0xFF);
 }
 
-STypeMod typeGetTypeModFromDataType(const SDataType* pDataType) {
+STypeMod typeGetTypeModFromDataType(const SDataType *pDataType) {
   if (IS_DECIMAL_TYPE(pDataType->type)) return decimalCalcTypeMod(pDataType->precision, pDataType->scale);
   return 0;
 }
@@ -258,7 +258,7 @@ STypeMod typeGetTypeMod(uint8_t type, uint8_t prec, uint8_t scale, int32_t bytes
   return 0;
 }
 
-void fillTypeFromTypeMod(SDataType* pType, STypeMod mod) {
+void fillTypeFromTypeMod(SDataType *pType, STypeMod mod) {
   if (IS_DECIMAL_TYPE(pType->type)) {
     decimalFromTypeMod(mod, &pType->precision, &pType->scale);
   }
@@ -299,6 +299,8 @@ int32_t calcTypeBytesFromSchemaBytes(int32_t type, int32_t schemaBytes, bool isS
     return schemaBytes - VARSTR_HEADER_SIZE;
   } else if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_JSON) {
     return (schemaBytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+  } else if (IS_STR_DATA_BLOB(type)) {
+    return TSDB_MAX_BLOB_LEN;
   }
   return schemaBytes;
 }
@@ -309,6 +311,8 @@ int32_t calcSchemaBytesFromTypeBytes(int32_t type, int32_t varTypeBytes, bool is
     return varTypeBytes + VARSTR_HEADER_SIZE;
   } else if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_JSON) {
     return varTypeBytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+  } else if (IS_STR_DATA_BLOB(type)) {
+    return varTypeBytes + BLOBSTR_HEADER_SIZE;
   }
   return varTypeBytes;
 }

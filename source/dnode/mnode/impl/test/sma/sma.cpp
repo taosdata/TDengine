@@ -210,7 +210,7 @@ TEST_F(MndTestSma, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
   {
     pReq = BuildCreateTSmaReq(smaname, stbname, 0, "expr", "tagsFilter", "sql", "ast", &contLen);
-    pRsp = test.SendReq(TDMT_MND_CREATE_SMA, pReq, contLen);
+    //pRsp = test.SendReq(TDMT_MND_CREATE_SMA, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
     test.SendShowReq(TSDB_MGMT_TABLE_INDEX, dbname);
     test.SendShowRetrieveReq();

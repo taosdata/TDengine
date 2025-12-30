@@ -8,9 +8,16 @@ class TestSyncVnodeSnapshotRsma:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_sync_vnode_snapshot_rsma(self):
-        """sync vnode snapshot rsma
+        """Query: replica-3 rsma
 
-        1. -
+        1. Start a 4-node cluster with dnode1 supportVnodes=0
+        2. Create a 3-replica database with 1 vgroup
+        3. Create one RSMA-enabled super table and one child table
+        4. Stop dnode4
+        5. Insert data and flush database
+        6. Repeat steps 4-5 twice
+        7. Restart all dnodes
+        8. Query and verify results
 
         Catalog:
             - Database:Sync

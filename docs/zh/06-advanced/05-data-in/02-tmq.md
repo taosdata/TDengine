@@ -1,6 +1,6 @@
 ---
-title: "TDengine3"
-sidebar_label: "TDengine3"
+title: "TDengine 数据订阅"
+sidebar_label: "TDengine 数据订阅"
 ---
 
 本文讲述如何使用 Explorer 订阅另一个集群的数据到本集群。
@@ -23,7 +23,7 @@ sidebar_label: "TDengine3"
 
 对于 `数据库` 或 `超级表` 类型，如果需要同步表的增/删/改操作，则需要开启 `同步 Meta` 选项用于数据库/超级表的迁移，否则此主题只会进行数据同步。
 
-关于主题的创建，详情请参考 [数据订阅](../../14-reference/03-taos-sql/13-tmq.md) 章节。
+关于主题的创建，详情请参考 [数据订阅](../../../reference/taos-sql/tmq) 章节。
 
 ### 第三步：复制主题的 DSN
 
@@ -42,7 +42,7 @@ sidebar_label: "TDengine3"
 ### 第二步：输入数据源信息
 
 1. 输入任务名称
-2. 选择任务类型“TDengine3”
+2. 选择任务类型“TDengine 数据订阅”
 3. 选择目标数据库
 4. 粘贴准备步骤复制的 DSN 到 **Topic DSN** 一栏。例如：tmq+ws://root:taosdata@localhost:6041/topic
 5. 完成以上步骤点击“连通性检查”按钮，测试与源端的连通性

@@ -1,0 +1,2 @@
+CREATE STABLE `vst_气象传感器_237150` (`ts` TIMESTAMP , `环境温度` DOUBLE, `组件温度` DOUBLE, `辐照` DOUBLE ) TAGS (`_ignore_path` VARCHAR(20), `光伏资产模型` VARCHAR(128), `电站ID` VARCHAR(10), `气象传感器ID` VARCHAR(20), `path1` VARCHAR(512)) SMA(`ts`,`环境温度`) VIRTUAL 1;
+CREATE STABLE `vst_光伏逆变器_833471` (`ts` TIMESTAMP , `直流电量` DOUBLE, `交流电量` DOUBLE, `日发电量` DOUBLE, `累计发电量` DOUBLE) TAGS (`_ignore_path` VARCHAR(20), `光伏资产模型` VARCHAR(128), `电站ID` VARCHAR(10), `逆变器ID` VARCHAR(20), `path1` VARCHAR(512)) SMA(`ts`,`直流电量`) VIRTUAL 1;

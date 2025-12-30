@@ -1,6 +1,6 @@
 ---
 sidebar_label: 数据查询
-title: TDengine 数据查询
+title: TDengine TSDB 数据查询
 toc_max_heading_level: 4
 ---
 
@@ -8,19 +8,19 @@ import win from './pic/window.png';
 import swin from './pic/session_window.png';
 import ewin from './pic/event_window.png';
 
-相较于其他众多时序数据库和实时数据库，TDengine 的一个独特优势在于，自其首个版本发布之初便支持标准的 SQL 查询功能。这一特性极大地降低了用户在使用过程中的学习难度。本章将以智能电表的数据模型为例介绍如何在 TDengine 中运用 SQL 查询来处理时序数据。如果需要进一步了解 SQL 语法的细节和功能，建议参阅 TDengine 的官方文档。通过本章的学习，你将能够熟练掌握 TDengine 的 SQL 查询技巧，进而高效地对时序数据进行操作和分析。
+相较于其他众多时序数据库和实时数据库，TDengine TSDB 的一个独特优势在于，自其首个版本发布之初便支持标准的 SQL 查询功能。这一特性极大地降低了用户在使用过程中的学习难度。本章将以智能电表的数据模型为例介绍如何在 TDengine TSDB 中运用 SQL 查询来处理时序数据。如果需要进一步了解 SQL 语法的细节和功能，建议参阅 TDengine TSDB 的官方文档。通过本章的学习，你将能够熟练掌握 TDengine TSDB 的 SQL 查询技巧，进而高效地对时序数据进行操作和分析。
 
 ## 基本查询
 
-为了更好的介绍 TDengine 数据查询，使用如下 taosBenchmark 命令，生成本章内容需要的时序数据。
+为了更好的介绍 TDengine TSDB 数据查询，使用如下 taosBenchmark 命令，生成本章内容需要的时序数据。
 
 ```shell
 taosBenchmark --start-timestamp=1600000000000 --tables=100 --records=10000000 --time-step=10000
 ```
 
-上面的命令，taosBenchmark 工具在 TDengine 中生成了一个用于测试的数据库，产生共 10 亿条时序数据。时序数据的时间戳从 `1600000000000`（2020-09-13T20:26:40+08:00）开始，包含 `100` 个设备（子表），每个设备有 `10000000` 条数据，时序数据的采集频率是 10 秒/条。
+上面的命令，taosBenchmark 工具在 TDengine TSDB 中生成了一个用于测试的数据库，产生共 10 亿条时序数据。时序数据的时间戳从 `1600000000000`（2020-09-13T20:26:40+08:00）开始，包含 `100` 个设备（子表），每个设备有 `10000000` 条数据，时序数据的采集频率是 10 秒/条。
 
-在 TDengine 中，用户可以通过 WHERE 语句指定条件，查询时序数据。以智能电表的数据为例
+在 TDengine TSDB 中，用户可以通过 WHERE 语句指定条件，查询时序数据。以智能电表的数据为例
 
 ```sql
 SELECT * FROM meters 
@@ -44,7 +44,7 @@ Query OK, 5 row(s) in set (0.145403s)
 
 ## 聚合查询
 
-TDengine 支持通过 GROUP BY 子句，对数据进行聚合查询。SQL 语句包含 GROUP BY 子句时，SELECT 列表只能包含如下表达式：
+TDengine TSDB 支持通过 GROUP BY 子句，对数据进行聚合查询。SQL 语句包含 GROUP BY 子句时，SELECT 列表只能包含如下表达式：
 
 1. 常量
 2. 聚合函数
@@ -81,7 +81,7 @@ Query OK, 10 row(s) in set (0.042446s)
 
 **注意**：group by 子句在聚合数据时，并不保证结果集按照特定顺序排列。为了获得有序的结果集，可以使用 order by 子句对结果进行排序。这样，可以根据需要调整输出结果的顺序，以满足特定的业务需求或报告要求。
 
-TDengine 提供了多种内置的聚合函数。如下表所示：
+TDengine TSDB 提供了多种内置的聚合函数。如下表所示：
 
 | 聚合函数                | 功能说明                                                       |
 |:----------------------:|:--------------------------------------------------------------:|
@@ -99,7 +99,7 @@ TDengine 提供了多种内置的聚合函数。如下表所示：
 
 ## 数据切分查询
 
-TDengine 支持 PARTITION BY 子句。当需要按一定的维度对数据进行切分，然后在切分出的数据空间内再进行一系列的计算时，可以使用 PARTITION BY 子句进行查询，语法如下：
+TDengine TSDB 支持 PARTITION BY 子句。当需要按一定的维度对数据进行切分，然后在切分出的数据空间内再进行一系列的计算时，可以使用 PARTITION BY 子句进行查询，语法如下：
 
 ```sql
 PARTITION BY part_list
@@ -107,7 +107,7 @@ PARTITION BY part_list
 
 `part_list` 可以是任意的标量表达式，包括列、常量、标量函数和它们的组合。
 
-TDengine 按如下方式处理数据切分子句：
+TDengine TSDB 按如下方式处理数据切分子句：
 
 1. 数据切分子句位于 WHERE 子句之后；
 2. 数据切分子句将表数据按指定的维度进行切分，每个切分的分片进行指定的计算。计算由之后的子句定义（窗口子句、GROUP BY 子句或 SELECT 子句）；
@@ -141,14 +141,14 @@ Query OK, 10 row(s) in set (2.415961s)
 
 ## 窗口切分查询
 
-在 TDengine 中，你可以使用窗口子句来实现按时间窗口切分方式进行聚合结果查询，这种查询方式特别适用于需要对大量时间序列数据进行分析的场景，例如智能电表每 10s 采集一次数据，但需要查询每隔 1min 的温度平均值。
+在 TDengine TSDB 中，你可以使用窗口子句来实现按时间窗口切分方式进行聚合结果查询，这种查询方式特别适用于需要对大量时间序列数据进行分析的场景，例如智能电表每 10s 采集一次数据，但需要查询每隔 1min 的温度平均值。
 
 窗口子句允许你针对查询的数据集合按照窗口进行切分，并对每个窗口内的数据进行聚合。窗口划分逻辑如下图所示。
 
 <img src={win} width="500" alt="常用窗口划分逻辑" />
 
 - 时间窗口（time window）：根据时间间隔划分数据，支持滑动时间窗口和翻转时间窗口，适用于按固定时间周期进行数据聚合。
-- 状态窗口（status window）：基于设备状态值的变化划分窗口，相同状态值的数据归为一个窗口，状态值改变时窗口关闭。
+- 状态窗口（state window）：基于设备状态值的变化划分窗口，相同状态值的数据归为一个窗口，状态值改变时窗口关闭。
 - 会话窗口（session window）：根据记录的时间戳差异划分会话，时间戳间隔小于预设值的记录属于同一会话。
 - 事件窗口（event window）：基于事件的开始条件和结束条件动态划分窗口，满足开始条件时窗口开启，满足结束条件时窗口关闭。
 - 计数窗口（count window）：根据数据行数划分窗口，每达到指定行数即为一个窗口，并进行聚合计算。
@@ -158,7 +158,7 @@ Query OK, 10 row(s) in set (2.415961s)
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col)
+  | STATE_WINDOW(col [, extend]) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
   | COUNT_WINDOW(count_val[, sliding_val])
@@ -173,7 +173,7 @@ window_clause: {
 
 ### 时间戳伪列
 
-在窗口聚合查询结果中，如果 SQL 中没有指定输出查询结果中的时间戳列，那么最终结果中将不会自动包含窗口的时间列信息。然而，如果你需要在结果中输出聚合查询结果所对应的时间窗口信息，可以在 select 子句中使用与时间戳相关的伪列，如时间窗口起始时间（_wstart）、时间窗口结束时间（_wend）、时间窗口持续时间（_wduration），以及与查询整体窗口相关的伪列，如查询窗口起始时间（_qstart）和查询窗口结束时间（_qend）。需要注意的是，时间窗口起始时间和结束时间均是闭区间，时间窗口持续时间是数据当前时间分辨率下的数值。例如，如果当前数据库的时间精度是毫秒（ms），那么结果中的 500 表示当前时间窗口的持续时间是 500ms。
+在窗口聚合查询结果中，如果 SQL 中没有指定输出查询结果中的时间戳列，那么最终结果中将不会自动包含窗口的时间列信息。然而，如果你需要在结果中输出聚合查询结果所对应的时间窗口信息，可以在 select 子句中使用与时间戳相关的伪列，如时间窗口起始时间（_wstart）、时间窗口结束时间（_wend）、时间窗口持续时间（_wduration），以及与查询整体窗口相关的伪列，如查询窗口起始时间（_qstart）和查询窗口结束时间（_qend）。需要注意的是，除 INTERVAL 窗口的结束时间为开区间外，其他时间窗口起始时间和结束时间均是闭区间，时间窗口持续时间是数据当前时间分辨率下的数值。例如，如果当前数据库的时间精度是毫秒（ms），那么结果中的 500 表示当前时间窗口的持续时间是 500ms。
 
 ### 时间窗口
 
@@ -302,7 +302,7 @@ INTERVAL(1m) SLIDING(1m)
 SLIMIT 1;
 ```
 
-上面的 SQL，查询超级表 `meters` 中，时间戳大于等于 `2022-01-01T00:00:00+08:00`，且时间戳小于 `2022-01-01T00:05:00+08:00` 的数据，数据首先按照子表名 `tbname` 进行数据切分，再按照每 1 分钟的时间窗口进行切分，且时间窗口按照 1 分钟进行切分；最后，仅取前 1 个分片的数据作为结果。查询结果如下：
+上面的 SQL，查询超级表 `meters` 中，时间戳大于等于 `2022-01-01T00:00:00+08:00`，且时间戳小于 `2022-01-01T00:05:00+08:00` 的数据，数据首先按照子表名 `tbname` 进行数据切分，再按照每 1 分钟的时间窗口进行切分，且时间窗口按照 1 分钟进行滑动；最后，仅取前 1 个分片的数据作为结果。查询结果如下：
 
 ```text
  tbname |         _wstart         |          _wend          |     avg(voltage)      |
@@ -326,7 +326,7 @@ Query OK, 5 row(s) in set (0.016812s)
 
 以上填充模式中，除了 NONE 模式默认不填充值之外，其他模式在查询的整个时间范围内如果没有数据 FILL 子句将被忽略，即不产生填充数据，查询结果为空。这种行为在部分模式（PREV、NEXT、LINEAR）下具有合理性，因为在这些模式下没有数据意味着无法产生填充数值。
 
-对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，TDengine 还支持两种新的填充模式：
+对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，TDengine TSDB 还支持两种新的填充模式：
 
 1. NULL_F：强制填充 NULL 值
 2. VALUE_F：强制填充 VALUE 值
@@ -376,7 +376,7 @@ Query OK, 10 row(s) in set (0.022866s)
 
 ### 状态窗口
 
-使用整数（布尔值）或字符串来标识产生记录时候设备的状态量。产生的记录如果具有相同的状态量数值则归属于同一个状态窗口，数值改变后该窗口关闭。TDengine 还支持将 CASE 表达式用在状态量，可以表达某个状态的开始是由满足某个条件而触发，这个状态的结束是由另外一个条件满足而触发的语义。以智能电表为例，电压正常范围是 225V 到 235V，那么可以通过监控电压来判断电路是否正常。
+使用整数（布尔值）或字符串来标识产生记录时候设备的状态量。产生的记录如果具有相同的状态量数值则归属于同一个状态窗口，数值改变后该窗口关闭。TDengine TSDB 还支持将 CASE 表达式用在状态量，可以表达某个状态的开始是由满足某个条件而触发，这个状态的结束是由另外一个条件满足而触发的语义。以智能电表为例，电压正常范围是 225V 到 235V，那么可以通过监控电压来判断电路是否正常。
 
 ```sql
 SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status 
@@ -464,13 +464,13 @@ Query OK, 10 row(s) in set (0.043489s)
 
 ### 事件窗口
 
-事件窗口根据开始条件和结束条件来划定窗口，当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
+事件窗口根据开始条件和结束条件来划定窗口，当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine TSDB 支持的条件表达式，且可以包含不同的列。
 
 事件窗口可以仅包含一条数据。即当一条数据同时满足 start_trigger_condition 和 end_trigger_condition，且当前不在一个窗口内时，这条数据自己构成了一个窗口。
 
 事件窗口无法关闭时，不构成一个窗口，不会被输出。即有数据满足 start_trigger_condition，此时窗口打开，但后续数据都不能满足 end_trigger_condition，这个窗口无法被关闭，这部分数据不够成一个窗口，不会被输出。
 
-如果直接在超级表上进行事件窗口查询，TDengine 会将超级表的数据汇总成一条时间线，然后进行事件窗口的计算。如果需要对子查询的结果集进行事件窗口查询，那么子查询的结果集需要满足按时间线输出的要求，且可以输出有效的时间戳列。
+如果直接在超级表上进行事件窗口查询，TDengine TSDB 会将超级表的数据汇总成一条时间线，然后进行事件窗口的计算。如果需要对子查询的结果集进行事件窗口查询，那么子查询的结果集需要满足按时间线输出的要求，且可以输出有效的时间戳列。
 
 以下面的 SQL 语句为例，事件窗口切分如下图所示。
 
@@ -543,24 +543,59 @@ count_window(1000);
 Query OK, 10 row(s) in set (0.062794s)
 ```
 
+## 时间范围表达式
+
+在时序数据库的查询中，经常需要根据主键列的时间范围进行查询，TDengine 提供了一系列函数和表达式来方便用户进行时间范围的表达，这里列出了常见的时间范围表达式及其与 MySQL 和 PostgreSQL 的区别：
+
+| 时间范围          |   MySQL 表达式                                                    |  PostgreSQL 表达式   |   TDengine 表达式   |
+|:------------:|:--------------------------------------------------------------------:|:-----------------------------------:|:--------------------------------:|
+| 昨天​ | CURDATE() - INTERVAL 1 DAY,<br/> CURDATE() | CURRENT_DATE - INTERVAL '1 day',<br/> CURRENT_DATE | TODAY() - 1d,<br/> TODAY() |
+| 今天 |​ CURDATE(),<br/> CURDATE() + INTERVAL 1 DAY | CURRENT_DATE,<br/> CURRENT_DATE + INTERVAL '1 day' | TODAY(),<br/> TODAY() + 1d |
+| 上周​ | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) + 7 DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) | DATE_TRUNC('week', CURRENT_DATE - INTERVAL '1 week'),<br/> DATE_TRUNC('week', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1d) - (7 + WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD'))) &ast; 24 &ast; 3600000,<br/> TIMETRUNCATE(NOW(), 1d) - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD')) &ast; 24 &ast; 3600000 |
+| 本周 | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) + INTERVAL 7 DAY | DATE_TRUNC('week', CURRENT_DATE),<br/> DATE_TRUNC('week', CURRENT_DATE + INTERVAL '1 week') | TIMETRUNCATE(NOW(), 1d) - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD')) &ast; 24 &ast; 3600000,<br/> TIMETRUNCATE(NOW(), 1d) + (7 - WEEKDAY(TO_CHAR(NOW(), 'YYYY-MM-DD'))) &ast; 24 &ast; 3600000 |
+| 上月​ | DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE(), '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month'),<br/> DATE_TRUNC('month', CURRENT_DATE) |TO_TIMESTAMP(TO_CHAR(NOW() -1n, 'YYYY-MM'), 'YYYY-MM'),<br/> TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY-MM'), 'YYYY-MM') |
+| 本月​ | DATE_FORMAT(CURDATE(), '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE),<br/> DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') |TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY-MM'), 'YYYY-MM'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1n, 'YYYY-MM'), 'YYYY-MM') |
+| 上季度​ | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 2) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '3 months'),<br/> DATE_TRUNC('quarter', CURRENT_DATE) | TO_TIMESTAMP(CASE WHEN TO_CHAR(NOW(), 'MM') < 4 THEN CONCAT(CAST(TO_CHAR(NOW(), 'YYYY') - 1 AS VARCHAR(5)), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') + 8) / 3) &ast; 3 + 1 AS VARCHAR(3))) ELSE CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 4) / 3) &ast; 3 + 1 AS VARCHAR(3))) END, 'YYYY-MM'),<br/> TO_TIMESTAMP(CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 1) / 3) &ast; 3 + 1 AS VARCHAR)), 'YYYY-MM') |
+| 本季度 | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL QUARTER(CURDATE()) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE),<br/> DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '3 months') | TO_TIMESTAMP(CONCAT(TO_CHAR(NOW(), 'YYYY'), "-", CAST(FLOOR((TO_CHAR(NOW(), 'MM') - 1) / 3) &ast; 3 + 1 AS VARCHAR)), 'YYYY-MM'),<br/> TO_TIMESTAMP(CONCAT(CAST(TO_CHAR(NOW(), 'YYYY') + CASE WHEN TO_CHAR(NOW(), 'MM') > 9 THEN 1 ELSE 0 END AS VARCHAR), "-", CAST((FLOOR((TO_CHAR(NOW(), 'MM') + 2) / 3) &ast; 3 + 1) % 12 AS VARCHAR)), 'YYYY-MM') |
+| 去年 | MAKEDATE(YEAR(CURDATE()) - 1, 1),<br/> MAKEDATE(YEAR(CURDATE()), 1) | DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year'),<br/> DATE_TRUNC('year', CURRENT_DATE) | TO_TIMESTAMP(TO_CHAR(NOW() - 1y, 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY') |
+| 今年 | MAKEDATE(YEAR(CURDATE()), 1),<br/> MAKEDATE(YEAR(CURDATE()) + 1, 1) | DATE_TRUNC('year', CURRENT_DATE), <br/> DATE_TRUNC('year', CURRENT_DATE + INTERVAL '1 year') | TO_TIMESTAMP(TO_CHAR(NOW(), 'YYYY'), 'YYYY'),<br/> TO_TIMESTAMP(TO_CHAR(NOW() + 1y, 'YYYY'), 'YYYY') |
+
+### 说明
+
+1. 每个时间范围区间都是左闭右开。
+2. 写法不唯一，这里作为示例仅供参考使用。
+3. 这里以周一作为一周的开始，非周一开始的场景需调整。
+4. 这里 TDengine 示例的时间戳是以毫秒为时间单位。
+
 ## 时序数据特有函数
 
-时序数据特有函数是 TDengine 针对时序数据查询场景专门设计的一组函数。在通用数据库中，要实现类似的功能通常需要编写复杂的查询语句，而且效率较低。为了降低用户的使用成本和简化查询过程，TDengine 将这些功能以内置函数的形式提供，从而实现了高效且易于使用的时序数据处理能力。时序数据特有函数如下表所示。
+时序数据特有函数是 TDengine TSDB 针对时序数据查询场景专门设计的一组函数。在通用数据库中，要实现类似的功能通常需要编写复杂的查询语句，而且效率较低。为了降低用户的使用成本和简化查询过程，TDengine TSDB 将这些功能以内置函数的形式提供，从而实现了高效且易于使用的时序数据处理能力。时序数据特有函数如下表所示。
 
 | 函数          |   功能说明                                                            |
 |:------------:|:--------------------------------------------------------------------:|
 |CSUM          | 累加和（Cumulative sum），忽略 NULL 值。|
 |DERIVATIVE    | 统计表中某列数值的单位变化率。其中单位时间区间的长度可以通过 time_interval 参数指定，最小可以是 1 秒（1s）；ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。|
-|DIFF          | 统计表中某列的值与前一行对应值的差。ignore_negative 取值为 0\1，可以不填，默认值为 0。不忽略负值。ignore_negative 为 1 时表示忽略负数。|
+|DIFF          | 统计表中某列的值与前一行对应值的差。ignore_negative 取值为 0\|1，可以不填，默认值为 0。不忽略负值。ignore_negative 为 1 时表示忽略负数。|
 |IRATE         | 计算瞬时增长率。使用时间区间中最后两个样本数据来计算瞬时增长速率；如果这两个值呈递减关系，那么只取最后一个数用于计算，而不是使用二者差值。|
 |MAVG          | 计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。|
 |STATECOUNT    | 返回满足某个条件的连续记录的个数，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加 1，条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据。|
 |STATEDURATION | 返回满足某个条件的连续记录的时间长度，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加上两个记录之间的时间长度（第一个满足条件的记录时间长度记为 0），条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据 |
 |TWA           | 时间加权平均函数。统计表中某列在一段时间内的时间加权平均。|
 
+### 积分计算
+
+在 TDengine 支持上了上述时序数据特有函数之后，时序数据的积分计算变得非常简单，只需要使用时间加权平均值与时间段乘积即可，这里以智能电表场景计算每天消耗的电能为例进行说明，SQL 如下
+
+```sql
+SELECT twa(voltage * current) * _wduration
+FROM meters
+PARTITION BY tbname
+INTERVAL(1d);
+```
+
 ## 嵌套查询
 
-嵌套查询，也称为 subquery（子查询），是指在一个 SQL 中，内层查询的计算结果可以作为外层查询的计算对象来使用。TDengine 支持在 from 子句中使用非关联 subquery。非关联是指 subquery 不会用到父查询中的参数。在 select 查询的 from 子句之后，可以接一个独立的 select 语句，这个 select 语句被包含在英文圆括号内。通过使用嵌套查询，你可以在一个查询中引用另一个查询的结果，从而实现更复杂的数据处理和分析。以智能电表为例进行说明，SQL 如下
+嵌套查询，也称为 subquery（子查询），是指在一个 SQL 中，内层查询的计算结果可以作为外层查询的计算对象来使用。TDengine TSDB 支持在 from 子句中使用非关联 subquery。非关联是指 subquery 不会用到父查询中的参数。在 select 查询的 from 子句之后，可以接一个独立的 select 语句，这个 select 语句被包含在英文圆括号内。通过使用嵌套查询，你可以在一个查询中引用另一个查询的结果，从而实现更复杂的数据处理和分析。以智能电表为例进行说明，SQL 如下
 
 ```sql
 SELECT max(voltage), * 
@@ -574,7 +609,7 @@ GROUP BY groupid;
 
 上面的 SQL 在内层查询中查询超级表 meters，按照子表名进行分组，每个子表查询最新一条数据；外层查询将内层查询的结果作为输入，按照 groupid 进行聚合，查询每组中的最大电压。
 
-TDengine 的嵌套查询遵循以下规则：
+TDengine TSDB 的嵌套查询遵循以下规则：
 
 1. 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表建议起别名，以便于外层查询中方便引用。
 2. 外层查询支持直接通过列名或列名的形式引用内层查询的列或伪列。
@@ -630,9 +665,9 @@ Query OK, 6 row(s) in set (0.006438s)
 
 2. 连接条件
 
-在 TDengine 中，连接条件是指进行表关联所指定的条件。对于所有关联查询（除了 ASOF Join 和 Window Join 以外），都需要指定连接条件，通常出现在 on 之后。在 ASOF Join 中，出现在 where 之后的条件也可以视作连接条件，而 Window Join 是通过 window_offset 来指定连接条件。
+在 TDengine TSDB 中，连接条件是指进行表关联所指定的条件。对于所有关联查询（除了 ASOF Join 和 Window Join 以外），都需要指定连接条件，通常出现在 on 之后。在 ASOF Join 中，出现在 where 之后的条件也可以视作连接条件，而 Window Join 是通过 window_offset 来指定连接条件。
 
-除了 ASOF Join 以外，TDengine 支持的所有 Join 类型都必须显式指定连接条件。ASOF Join 因为默认定义了隐式的连接条件，所以在默认条件可以满足需求的情况下，可以不必显式指定连接条件。
+除了 ASOF Join 以外，TDengine TSDB 支持的所有 Join 类型都必须显式指定连接条件。ASOF Join 因为默认定义了隐式的连接条件，所以在默认条件可以满足需求的情况下，可以不必显式指定连接条件。
 
 对于除了 ASOF Join 和 Window Join 以外的其他类型的连接，连接条件中除了包含主连接条件以外，还可以包含任意多个其他连接条件。主连接条件与其他连接条件之间必须是 and 关系，而其他连接条件之间则没有这个限制。其他连接条件中可以包含主键列、标签列、普通列、常量及其标量函数或运算的任意逻辑运算组合。
 
@@ -647,9 +682,9 @@ select a.* from meters a left asof join meters b on timetruncate(a.ts, 1s) < tim
 
 3. 主连接条件
 
-作为一个时序数据库，TDengine 的所有关联查询都围绕主键列进行。因此，对于除了 ASOF Join 和 Window Join 以外的所有关联查询，都必须包含主键列的等值连接条件。在连接条件中首次出现的主键列等值连接条件将被视为主连接条件。ASOF Join 的主连接条件可以包含非等值的连接条件，而 Window Join 的主连接条件则是通过 window_offset 来指定的。
+作为一个时序数据库，TDengine TSDB 的所有关联查询都围绕主键列进行。因此，对于除了 ASOF Join 和 Window Join 以外的所有关联查询，都必须包含主键列的等值连接条件。在连接条件中首次出现的主键列等值连接条件将被视为主连接条件。ASOF Join 的主连接条件可以包含非等值的连接条件，而 Window Join 的主连接条件则是通过 window_offset 来指定的。
 
-除了 Window Join 以外，TDengine 支持在主连接条件中进行 timetruncate 函数操作，如 on timetruncate(a.ts, 1s) = timetruncate(b.ts, 1s)。除此以外，目前暂不支持其他函数及标量运算。
+除了 Window Join 以外，TDengine TSDB 支持在主连接条件中进行 timetruncate 函数操作，如 on timetruncate(a.ts, 1s) = timetruncate(b.ts, 1s)。除此以外，目前暂不支持其他函数及标量运算。
 
 4. 分组条件
 
@@ -657,7 +692,7 @@ select a.* from meters a left asof join meters b on timetruncate(a.ts, 1s) < tim
 
 5. 主键时间线
 
-作为时序数据库 ,TDengine 要求每张表（子表）中必须有主键时间戳列，它将作为该表的主键时间线进行很多跟时间相关的运算，而在 subquery 的结果或者 Join 运算的结果中也需要明确哪一列将被视作主键时间线参与后续的与时间相关的运算。在 subquery 中，查询结果中存在的有序的第 1 个出现的主键列（或其运算）或等同主键列的伪列（_wstart、_wend）将被视作该输出表的主键时间线。Join 输出结果中主键时间线的选择遵从以下规则。
+作为时序数据库 ,TDengine TSDB 要求每张表（子表）中必须有主键时间戳列，它将作为该表的主键时间线进行很多跟时间相关的运算，而在 subquery 的结果或者 Join 运算的结果中也需要明确哪一列将被视作主键时间线参与后续的与时间相关的运算。在 subquery 中，查询结果中存在的有序的第 1 个出现的主键列（或其运算）或等同主键列的伪列（_wstart、_wend）将被视作该输出表的主键时间线。Join 输出结果中主键时间线的选择遵从以下规则。
 
 - Left Join、Right Join 系列中驱动表（subquery）的主键列将被作为后续查询的主键时间线。此外，在 Window Join 窗口内，因为左右表同时有序，所以在窗口内可以把任意一张表的主键列作为主键时间线，优先选择本表的主键列为主键时间线。
 - Inner Join 可以把任意一张表的主键列作为主键时间线，当存在类似分组条件（标签列的等值条件且与主连接条件是 and 关系）时将无法产生主键时间线。
@@ -671,7 +706,7 @@ select a.* from meters a left asof join meters b on timetruncate(a.ts, 1s) < tim
 
 ### Join 功能
 
-下表列举了 TDengine 中所支持的 Join 类型和它们的定义。
+下表列举了 TDengine TSDB 中所支持的 Join 类型和它们的定义。
 
 | Join 类型                 | 定义                                                     |
 |:------------------------:|:--------------------------------------------------------:|
@@ -687,7 +722,7 @@ select a.* from meters a left asof join meters b on timetruncate(a.ts, 1s) < tim
 
 1. 输入时间线限制
 
-目前，TDengine 中所有的 Join 操作都要求输入数据包含有效的主键时间线。对于所有表查询，这个要求通常可以满足。然而，对于 subquery，则需要注意输出数据是否包
+目前，TDengine TSDB 中所有的 Join 操作都要求输入数据包含有效的主键时间线。对于所有表查询，这个要求通常可以满足。然而，对于 subquery，则需要注意输出数据是否包
 含有效的主键时间线。
 
 2. 连接条件限制

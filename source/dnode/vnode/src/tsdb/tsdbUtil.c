@@ -605,6 +605,7 @@ int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t nowSec) {
 
 // TSDBROW ======================================================
 void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
+  int32_t   code = 0;
   STColumn *pTColumn = &pTSchema->columns[iCol];
   SValue    value;
 
@@ -620,7 +621,6 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
       *pColVal = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, val);
     } else {
       SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
-
       if (pColData) {
         if (tColDataGetValue(pColData, pRow->iRow, pColVal) != 0) {
           tsdbError("failed to tColDataGetValue");
@@ -745,6 +745,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
   SColVal  *pColVal = &(SColVal){0};
   STColumn *pTColumn;
   int32_t   iCol, jCol = 1;
+  pRow->arg = pMerger->arg;
 
   if (NULL == pTSchema) {
     pTSchema = pMerger->pTSchema;
@@ -902,7 +903,8 @@ void tsdbRowMergerCleanup(SRowMerger *pMerger) {
 }
 
 int32_t tsdbRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow) {
-  return tRowBuild(pMerger->pArray, pMerger->pTSchema, ppRow);
+  SRowBuildScanInfo scanInfo = {.hasBlob = 0};
+  return tRowBuild(pMerger->pArray, pMerger->pTSchema, ppRow, &scanInfo);
 }
 
 // delete skyline ======================================================

@@ -18,6 +18,7 @@
 
 #include "function.h"
 #include "index.h"
+#include "osMemory.h"
 #include "taosdef.h"
 #include "tcommon.h"
 #include "tmsg.h"
@@ -189,18 +190,20 @@ struct SFileSetReader;
 typedef struct TsdReader {
   int32_t      (*tsdReaderOpen)(void* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
                            SSDataBlock* pResBlock, void** ppReader, const char* idstr, SHashObj** pIgnoreTables);
-  void         (*tsdReaderClose)();
-  int32_t      (*tsdSetReaderTaskId)(void *pReader, const char *pId);
-  int32_t      (*tsdSetQueryTableList)();
-  int32_t      (*tsdNextDataBlock)();
+  void         (*tsdReaderClose)(void* pReader);
+  int32_t      (*tsdSetReaderTaskId)(void* pReader, const char* pId);
+  int32_t      (*tsdSetQueryTableList)(void* p, const void* pTableList, int32_t num);
+  int32_t      (*tsdNextDataBlock)(void* pReader, bool* hasNext);
 
   int32_t      (*tsdReaderRetrieveBlockSMAInfo)();
-  int32_t      (*tsdReaderRetrieveDataBlock)();
+  int32_t      (*tsdReaderRetrieveDataBlock)(void* p, SSDataBlock** pBlock);
 
-  void         (*tsdReaderReleaseDataBlock)();
+  void         (*tsdReaderReleaseDataBlock)(void* pReader);
 
-  int32_t      (*tsdReaderResetStatus)();
+  int32_t      (*tsdReaderResetStatus)(void* p, SQueryTableDataCond* pCond);
   int32_t      (*tsdReaderGetDataBlockDistInfo)();
+  void         (*tsdReaderGetDatablock)();
+  void         (*tsdReaderSetDatablock)();
   int64_t      (*tsdReaderGetNumOfInMemRows)();
   void         (*tsdReaderNotifyClosing)();
 
@@ -213,8 +216,12 @@ typedef struct TsdReader {
   int32_t (*fileSetGetEntryField)(struct SFileSetReader *, const char *, void *);
   void (*fileSetReaderClose)(struct SFileSetReader **);
 
-  int32_t (*getProgress)(const void* pReader, void** pBuf, uint64_t* pLen);
-  int32_t (*setProgress)(void *pReader, const void *pBuf, uint64_t len);
+  // retrieve first/last ts for each table
+  int32_t  (*tsdCreateFirstLastTsIter)(void *pVnode, STimeWindow *pWindow, SVersionRange *pVerRange, uint64_t suid, void *pTableList,
+                                   int32_t numOfTables, int32_t order, void **pIter, const char *idstr);
+  int32_t  (*tsdNextFirstLastTsBlock)(void *pIter, SSDataBlock *pRes, bool* hasNext);
+  void     (*tsdDestroyFirstLastTsIter)(void *pIter);
+
 } TsdReader;
 
 typedef struct SStoreCacheReader {
@@ -236,12 +243,10 @@ typedef struct SStoreTqReader {
   void (*tqReaderClose)();
 
   int32_t (*tqReaderSeek)();
-  int32_t (*tqRetrieveBlock)();
   bool (*tqReaderNextBlockInWal)();
   bool (*tqNextBlockImpl)();  // todo remove it
   SSDataBlock* (*tqGetResultBlock)();
   int64_t (*tqGetResultBlockTime)();
-  int32_t (*tqGetStreamExecProgress)();
 
   int32_t (*tqReaderSetColIdList)();
   int32_t (*tqReaderSetQueryTableList)();
@@ -259,8 +264,6 @@ typedef struct SStoreTqReader {
 
   int32_t (*tqReaderSetSubmitMsg)();  // todo remove it
   //  bool (*tqReaderNextBlockFilterOut)();
-
-  int32_t (*tqReaderSetVtableInfo)();
 } SStoreTqReader;
 
 typedef struct SStoreSnapshotFn {
@@ -297,6 +300,12 @@ typedef struct SStoreMeta {
                                 bool* acquireRes);
   int32_t (*putCachedTableList)(void* pVnode, uint64_t suid, const void* pKey, int32_t keyLen, void* pPayload,
                                 int32_t payloadLen, double selectivityRatio);
+  int32_t (*getStableCachedTableList)(void* pVnode, tb_uid_t suid,
+    const uint8_t* pTagCondKey, int32_t tagCondKeyLen,
+    const uint8_t* pKey, int32_t keyLen, SArray* pList1, bool* acquireRes);
+  int32_t (*putStableCachedTableList)(void* pVnode, uint64_t suid,
+    const void* pTagCondKey, int32_t tagCondKeyLen,
+    const void* pKey, int32_t keyLen, SArray* pUidList, SArray** pTagColIds);
 
   int32_t (*metaGetCachedRefDbs)(void* pVnode, tb_uid_t suid, SArray* pList);
   int32_t (*metaPutRefDbsToCache)(void* pVnode, tb_uid_t suid, SArray* pList);
@@ -324,6 +333,7 @@ typedef struct SStoreMetaReader {
   void (*clearReader)(SMetaReader* pReader);
   void (*readerReleaseLock)(SMetaReader* pReader);
   int32_t (*getTableEntryByUid)(SMetaReader* pReader, tb_uid_t uid);
+  int     (*getTableEntryByVersionUid)(SMetaReader *pReader, int64_t version, tb_uid_t uid);
   int32_t (*getTableEntryByName)(SMetaReader* pReader, const char* name);
   int32_t (*getEntryGetUidCache)(SMetaReader* pReader, tb_uid_t uid);
 } SStoreMetaReader;

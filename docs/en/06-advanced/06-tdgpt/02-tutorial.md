@@ -13,8 +13,8 @@ This section describes how to use TDgpt in Docker
 
 | Image                          | Models               |
 |-----------------------------------|-----------------------|
-| `tdengine/tdengine-tdgpt`         | TDtsfm v1.0       |
-| `tdengine/tdengine-tdgpt-full`    | TDtsfm v1.0 and Time-MoE   |
+| `tdengine/tdgpt`         | TDtsfm v1.0       |
+| `tdengine/tdgpt-full`    | TDtsfm v1.0 and Time-MoE   |
 
 ### Quick Start Guide
 
@@ -25,42 +25,52 @@ Install Docker on your local machine. Then pull the image and startthe container
 Pull the latest TDgpt image:
 
 ```shell
-docker pull tdengine/tdengine-tdgpt:latest
+docker pull tdengine/tdgpt:latest
 ```
 
 You can specify a version if desired:
 
 ```shell
-docker pull tdengine/tdengine-tdgpt:3.3.6.0
+docker pull tdengine/tdgpt:3.3.7.0
 ```
 
 Start the container:
 
 ```shell
-docker run -d -p 6090:6090 -p 5000:5000 tdengine/tdengine-tdgpt:3.3.6.0
+docker run -d \
+  -p 6035:6035 \
+  -p 6036:6036 \
+  tdengine/tdgpt:3.3.7.0
 ```
+
+:::note
+
+From 3.3.7.5, the port number for TDgpt has changed from 6090 to 6035.
+
+:::
 
 #### Full Image
 
 Pull the latest TDgpt image:
 
 ```shell
-docker pull tdengine/tdengine-tdgpt-full:latest
+docker pull tdengine/tdgpt-full:latest
 ```
 
 You can specify a version if desired:
 
 ```shell
-docker pull tdengine/tdengine-tdgpt-full:3.3.6.0
+docker pull tdengine/tdgpt-full:3.3.7.0
 ```
 
 Start the container:
 
 ```shell
-docker run -d -p 6090:6090 -p 5000:5000 -p 5001:5001 tdengine/tdengine-tdgpt-full:3.3.6.0
+docker run -d -p 6035:6035 -p 6036:6036 -p 6037:6037 tdengine/tdgpt-full:3.3.7.0
 ```
 
-Note: TDgpt runs on TCP port 6090. The standard image also uses port 5000, and the full image uses port 5001.
+Note: TDgpt runs on TCP port 6035. The standard image also uses port 6036, and the full image uses port 6037.
+
 TDgpt is a stateless analytics agent and does not persist data. It only saves log files to local disk.
 
 Confirm that your Docker container is running:
@@ -87,7 +97,7 @@ You can try TDgpt with a free TDengine Cloud account. In TDengine Cloud, open **
 
 To use the analytics capabilities offered by TDgpt, you deploy an AI node (anode) in your TDengine cluster. You must deploy the anode on a Linux machine. The environment must meet the following requirements:
 
-- Python: 3.10 or later.
+- Python: 3.10 or 3.11. 3.12 is not supported for now due to library conflict.
 - TDengine: 3.3.6.0 or later
 - C compiler: Because uWSGI is compiled during the TDgpt installation process, your environment must contain a C compiler.
 

@@ -22,19 +22,19 @@ systemctl status taosanoded
 
 ```bash
 # 启动涛思时序数据基础模型
-start-tdtsfm
+start-model tdtsfm
 # 启动 Time-MoE 基础模型
-start-timer-moe
+start-model timemoe
 ```
 
 ```bash
 # 停止涛思时序数据基础模型
-stop-tdtsfm
+stop-model tdtsfm
 # 停止 Time-MoE 基础模型
-stop-timer-moe
+stop-model timemoe
 ```
 
-> 上述命令只在安装版本中可用，使用 Docker 镜像和云服务，该命令不可用。
+> 上述命令只在安装版本中可用，使用 Docker 镜像和云服务，该命令不可用。更多信息请参考[时序模型服务启动和停止脚本](../dev/tsfm/#时序模型服务启动和停止脚本)。
 
 ### 目录及配置文件说明
 
@@ -59,7 +59,7 @@ stop-timer-moe
 [uwsgi]
 
 # Anode RESTful service ip:port
-http = 127.0.0.1:6090
+http = 127.0.0.1:6035
 
 # base directory for Anode python files， do NOT modified this
 chdir = /usr/local/taos/taosanode/lib
@@ -102,11 +102,11 @@ Anode 运行配置主要是以下：
 
 - app-log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
 - model-dir: 采用算法针对已经存在的数据集的运行完成生成的模型存储位置
-- log-level: app-log 文件的日志级别
+- log-level: app-log 文件的日志级别。可选的配置选项：DEBUG，INFO，CRITICAL，ERROR，WARN
 
 ### Anode 基本操作
 
-用户可通过 TDengine 的命令行工具 taos 进行 Anode 的管理。执行下述命令都需要确保命令行工具 taos 工作正常。
+用户可通过 TDengine TSDB 的命令行工具 taos 进行 Anode 的管理。执行下述命令都需要确保命令行工具 taos 工作正常。
 
 #### 创建 Anode
 
@@ -114,7 +114,7 @@ Anode 运行配置主要是以下：
 CREATE ANODE {node_url}
 ```
 
-node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串，例如：`create anode '127.0.0.1:6090'`。Anode 启动后需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
+node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串，例如：`create anode '127.0.0.1:6035'`。Anode 启动后需要注册到 TDengine TSDB 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
 
 #### 查看 Anode
 
@@ -126,7 +126,7 @@ SHOW ANODES;
 taos> show anodes;
      id      |              url               |    status    |       create_time       |       update_time       |
 ==================================================================================================================
-           1 | 192.168.0.1:6090               | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
+           1 | 192.168.0.1:6035               | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
 Query OK, 1 row(s) in set (0.037205s)
 ```
 
@@ -181,4 +181,4 @@ UPDATE ALL ANODES
 DROP ANODE {anode_id}
 ```
 
-删除 Anode 只是将 Anode 从 TDengine 集群中移除，管理 Anode 的启停仍然需要使用 `systemctl` 来操作。卸载 Anode 需要使用 `rmtaosanode` 命令。
+删除 Anode 只是将 Anode 从 TDengine TSDB 集群中移除，管理 Anode 的启停仍然需要使用 `systemctl` 来操作。卸载 Anode 需要使用 `rmtaosanode` 命令。

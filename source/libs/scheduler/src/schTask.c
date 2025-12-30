@@ -1108,7 +1108,7 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
   SArray *explainRes = NULL;
   int32_t code = 0;
   SQWMsg  qwMsg = {0};
-  qwMsg.msgInfo.taskType = TASK_TYPE_TEMP;
+  qwMsg.msgInfo.taskType = (pJob->attr.type == JOB_TYPE_HQUERY)? TASK_TYPE_HQUERY:TASK_TYPE_QUERY;
   qwMsg.msgInfo.explain = SCH_IS_EXPLAIN_JOB(pJob);
   qwMsg.msgInfo.needFetch = SCH_TASK_NEED_FETCH(pTask);
   qwMsg.msg = pTask->plan;

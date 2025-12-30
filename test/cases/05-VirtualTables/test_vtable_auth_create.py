@@ -25,9 +25,12 @@ class TestVtableAuthCreate:
 
 
     def test_create_virtual_normal_table(self):
-        """test auth user create virtual normal tables.
+        """Auth: create virtual normal table
 
         test "write", "read", "none", "all" each auth user create opration
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -101,10 +104,13 @@ class TestVtableAuthCreate:
         tdSql.execute("drop database test_vtable_auth_create;")
 
     def test_create_virtual_child_table(self):
-        """test auth user create virtual child tables.
+        """Auth: create virtual child table
 
         test "write", "read", "none", "all" each auth user create opration
 
+        Catalog:
+            - VirtualTable
+            
         Since: v3.3.6.0
 
         Labels: virtual, create, auth

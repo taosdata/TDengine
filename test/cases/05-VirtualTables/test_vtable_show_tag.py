@@ -6,15 +6,15 @@ class TestVtableShowTag:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_vtable_show_tag(self):
-        """Vtable Show Tag Test
+        """Query: show tag (bugfix)
 
-        1.Create db
-        2.Create supper table and sub table
-        3.Create virtual supper table and sub table
-        4.Show tag of virtual table and check the result
+        1. Create db
+        2. Create supper table and sub table
+        3. Create virtual supper table and sub table
+        4. Show tag of virtual table and check the result
 
         Catalog:
-            - Query
+            - VirtualTable
 
         Since: v3.0.0.0
 

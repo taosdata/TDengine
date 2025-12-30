@@ -1,5 +1,5 @@
 #!/bin/bash
-#
+# shellcheck disable=SC1091
 # This file is used to install analysis platform on linux systems. The operating system
 # is required to use systemd to manage services at boot
 
@@ -11,6 +11,43 @@ serverFqdn=""
 script_dir=$(dirname $(readlink -f "$0"))
 echo -e "${script_dir}"
 
+custom_dir_set=0
+all_venv=0
+
+show_help() {
+  echo "Usage: $(basename $0) -d [install dir] -a"
+  echo
+  echo "Help:"
+  echo "  -d [install dir]   Specify installation directory"
+  echo "  -a                 Install all model virtual environments"
+  echo
+  echo "Environment variables for pip mirror (optional):"
+  echo "  PIP_INDEX_URL  Set pip index mirror, e.g. https://pypi.tuna.tsinghua.edu.cn/simple"
+  echo
+  echo "Example:"
+  echo "  PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple bash $0"
+}
+
+while getopts "hd:a" arg; do
+  case $arg in
+    d)
+      customDir="$OPTARG"
+      custom_dir_set=1
+      ;;
+    a)
+      all_venv=1
+      ;;
+    h)
+      show_help
+      exit 0
+      ;;
+    ?)
+      echo "Usage: $0 [-d install_dir] [-a]"
+      exit 1
+      ;;
+  esac
+done
+
 # Dynamic directory
 PREFIX="taos"
 PRODUCTPREFIX="taosanode"
@@ -19,20 +56,52 @@ configFile="taosanode.ini"
 productName="TDengine Anode"
 emailName="taosdata.com"
 tarName="package.tar.gz"
-logDir="/var/log/${PREFIX}/${PRODUCTPREFIX}"
-moduleDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/model"
-resourceDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/resource"
-venvDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}/venv"
 global_conf_dir="/etc/${PREFIX}"
-installDir="/usr/local/${PREFIX}/${PRODUCTPREFIX}"
 tar_td_model_name="tdtsfm.tar.gz"
-tar_xhs_model_name="timer-moe.tar.gz"
+tar_xhs_model_name="timemoe.tar.gz"
 
 python_minor_ver=0  #check the python version
 bin_link_dir="/usr/bin"
+# if install python venv
+install_venv="${INSTALL_VENV:-True}"
+
+# default env:transformers 4.40.0
+if [ $custom_dir_set -eq 1 ]; then
+  installDir="${customDir}/${PREFIX}/${PRODUCTPREFIX}"
+  logDir="${installDir}/log"
+  dataDir="${installDir}/data"
+  moduleDir="${dataDir}/model"
+  resourceDir="${dataDir}/resource"
+  venvDir="${dataDir}/venv"
+else
+  installDir="/usr/local/${PREFIX}/${PRODUCTPREFIX}"
+  logDir="/var/log/${PREFIX}/${PRODUCTPREFIX}"
+  dataDir="/var/lib/${PREFIX}/${PRODUCTPREFIX}"
+  moduleDir="${dataDir}/model"
+  resourceDir="${dataDir}/resource"
+  venvDir="${dataDir}/venv"
+fi
+
+# get pip mirror and index url from env
+PIP_INDEX_URL="${PIP_INDEX_URL:-}"
+
+# build pip extra args
+pip_extra_args=()
+if [ -n "$PIP_INDEX_URL" ]; then
+  pip_extra_args+=(-i "$PIP_INDEX_URL")
+fi
 
 #install main path
 install_main_dir=${installDir}
+# timesfm venv:transformers==4.40.0
+timesfm_venv_dir="${dataDir}/timesfm_venv"
+# moirai venv:transformers==4.40.0
+moirai_venv_dir="${dataDir}/moirai_venv"
+# chronos-forecasting venv:transformers==4.55.0
+chronos_venv_dir="${dataDir}/chronos_venv"
+# momentfm venv:transformers==4.33.0
+momentfm_venv_dir="${dataDir}/momentfm_venv"
+
 
 service_config_dir="/etc/systemd/system"
 
@@ -111,36 +180,9 @@ else
 fi
 
 # =============================  get input parameters =================================================
-
-# install.sh -v [server | client]  -e [yes | no] -i [systemd | service | ...]
-
 # set parameters by default value
-interactiveFqdn=yes # [yes | no]
 verType=server      # [server | client]
 initType=systemd    # [systemd | service | ...]
-
-while getopts "hv:e:" arg; do
-  case $arg in
-  e)
-    #echo "interactiveFqdn=$OPTARG"
-    interactiveFqdn=$(echo $OPTARG)
-    ;;
-  v)
-    #echo "verType=$OPTARG"
-    verType=$(echo $OPTARG)
-    ;;
-  h)
-    echo "Usage: $(basename $0) -v [server | client]  -e [yes | no]"
-    exit 0
-    ;;
-  ?) #unknow option
-    echo "unknown argument"
-    exit 1
-    ;;
-  esac
-done
-
-#echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
 services=(${serverName})
 
@@ -158,16 +200,18 @@ function kill_process() {
 }
 
 function kill_model_service() {
-  for script in stop-tdtsfm.sh stop-timer-moe.sh; do
+  for script in stop-tdtsfm.sh stop-time-moe.sh; do
     script_path="${installDir}/bin/${script}"
     [ -f "${script_path}" ] && ${csudo}bash "${script_path}" || :
   done
 }
 
 function install_main_path() {
-  #create install main dir and all sub dir
-  if [ ! -z "${install_main_dir}" ]; then
-    ${csudo}rm -rf ${install_main_dir} || :
+  # only delete non-data/log/cfg files
+  if [ -d "${install_main_dir}" ]; then
+    find "${install_main_dir}" -mindepth 1 -maxdepth 1 \
+      ! -name 'data' ! -name 'log' ! -name 'cfg' \
+      -exec ${csudo}rm -rf {} +
   fi
 
   ${csudo}mkdir -p ${install_main_dir}
@@ -182,6 +226,12 @@ function install_bin_and_lib() {
   ${csudo}cp -r ${script_dir}/lib/* ${install_main_dir}/lib/
 
   # Handle rmtaosanode separately
+  sed -i.bak \
+  -e "s|/usr/local/taos/taosanode|${install_main_dir}|g" \
+  -e "s|/var/lib/taos/taosanode|${dataDir}|g" \
+  -e "s|/var/log/taos/taosanode|${logDir}|g" \
+  "${install_main_dir}/bin/uninstall.sh"
+  rm -f "${install_main_dir}/bin/uninstall.sh.bak"
   [ -L "${bin_link_dir}/rmtaosanode" ] && ${csudo}rm -rf "${bin_link_dir}/rmtaosanode" || :
   ${csudo}ln -s "${install_main_dir}/bin/uninstall.sh" "${bin_link_dir}/rmtaosanode"
 
@@ -189,8 +239,11 @@ function install_bin_and_lib() {
   declare -A links=(
     ["start-tdtsfm"]="${install_main_dir}/bin/start-tdtsfm.sh"
     ["stop-tdtsfm"]="${install_main_dir}/bin/stop-tdtsfm.sh"
-    ["start-timer-moe"]="${install_main_dir}/bin/start-timer-moe.sh"
-    ["stop-timer-moe"]="${install_main_dir}/bin/stop-timer-moe.sh"
+    ["start-time-moe"]="${install_main_dir}/bin/start-time-moe.sh"
+    ["stop-time-moe"]="${install_main_dir}/bin/stop-time-moe.sh"
+    ["start-model"]="${install_main_dir}/bin/start-model.sh"
+    ["stop-model"]="${install_main_dir}/bin/stop-model.sh"
+    ["start-model-from-remote"]="${install_main_dir}/bin/start_model_from_remote.sh"
   )
 
   # Iterate over the array and create/remove links as needed
@@ -206,7 +259,13 @@ function install_anode_config() {
   echo -e $fileName
 
   if [ -f ${fileName} ]; then
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" "${fileName}"
+
+    sed -i.bak \
+      -e "s|/usr/local/taos/taosanode|${install_main_dir}|g" \
+      -e "s|/var/lib/taos/taosanode|${dataDir}|g" \
+      -e "s|/var/log/taos/taosanode|${logDir}|g" \
+      "${fileName}"
 
     if [ -f "${global_conf_dir}/${configFile}" ]; then
       ${csudo}cp ${fileName} ${global_conf_dir}/${configFile}.new
@@ -215,7 +274,7 @@ function install_anode_config() {
     fi
   fi
 
-  ${csudo}ln -sf ${global_conf_dir}/${configFile} ${install_main_dir}/cfg
+  ${csudo}ln -sf ${global_conf_dir}/${configFile} "${install_main_dir}/cfg"
 }
 
 function install_config() {
@@ -258,53 +317,110 @@ function install_config() {
 
 function install_log() {
   ${csudo}mkdir -p ${logDir} && ${csudo}chmod 777 ${logDir}
-  ${csudo}ln -sf ${logDir} ${install_main_dir}/log
+  if [ ${custom_dir_set} -eq 0 ];then 
+    ${csudo}ln -sf ${logDir} ${install_main_dir}/log
+  fi
 }
 
 function install_module() {
   ${csudo}mkdir -p ${moduleDir} && ${csudo}chmod 777 ${moduleDir}
-  ${csudo}ln -sf ${moduleDir} ${install_main_dir}/model
-  [ -f "${script_dir}/model/${tar_td_model_name}" ] && cp -r ${script_dir}/model/* ${moduleDir}/ || : 
+  if [ ${custom_dir_set} -eq 0 ];then 
+    ${csudo}ln -sf ${moduleDir} "${install_main_dir}/model"
+  fi
+
+  # Default models: extract them into moduleDir
+  [ -f "${script_dir}/model/${tar_td_model_name}" ] && tar -zxf "${script_dir}/model/${tar_td_model_name}" -C "${moduleDir}" || :
+  [ -f "${script_dir}/model/${tar_xhs_model_name}" ] && tar -zxf "${script_dir}/model/${tar_xhs_model_name}" -C "${moduleDir}" || :
+
+   # In all_venv mode, directly extract specified model packages into moduleDir
+  if [ ${all_venv} -eq 1 ]; then
+    for extra_model in chronos moment-large moirai timesfm; do
+      model_tar="${script_dir}/model/${extra_model}.tar.gz"
+      [ -f "$model_tar" ] && tar -zxf "$model_tar" -C "${moduleDir}" || :
+    done
+  fi
 }
 
 function install_resource() {
   ${csudo}mkdir -p ${resourceDir} && ${csudo}chmod 777 ${resourceDir}
-  ${csudo}ln -sf ${resourceDir} ${install_main_dir}/resource
-
-  ${csudo}cp ${script_dir}/resource/*.sql ${install_main_dir}/resource/
+  if [ ${custom_dir_set} -eq 0 ];then 
+    ${csudo}ln -sf ${resourceDir} ${install_main_dir}/resource
+  fi
+  ${csudo}cp ${script_dir}/resource/*.sql ${resourceDir}/
 }
 
 function install_anode_venv() {
   ${csudo}mkdir -p ${venvDir} && ${csudo}chmod 777 ${venvDir}
-  ${csudo}ln -sf ${venvDir} ${install_main_dir}/venv
+  if [ ${custom_dir_set} -eq 0 ];then 
+    ${csudo}ln -sf ${venvDir} ${install_main_dir}/venv
+  fi
+  if [ ${install_venv} == "True" ]; then
+    # build venv
+    "python3.${python_minor_ver}" -m venv ${venvDir}
 
-  # build venv
-  ${csudo}python3.${python_minor_ver} -m venv ${venvDir}
+    echo -e "active Python3 virtual env: ${venvDir}"
+    source ${venvDir}/bin/activate
+    # Install default virtualenv dependencies; requirements_ess.txt pins transformers==4.40.0
+    echo -e "install the required packages by pip3, this may take a while depending on the network condition"
+   ${csudo}${venvDir}/bin/pip3 install -r "${script_dir}/requirements_ess.txt" "${pip_extra_args[@]}"
 
-  echo -e "active Python3 virtual env: ${venvDir}"
-  source ${venvDir}/bin/activate
+    echo -e "Install python library for venv completed!"
+  else
+    echo -e "Install python library for venv skipped!"
+  fi
+}
 
-  echo -e "install the required packages by pip3, this may take a while depending on the network condition"
-  ${csudo}${venvDir}/bin/pip3 install numpy==1.26.4
-  ${csudo}${venvDir}/bin/pip3 install pandas==1.5.0
+function install_extra_venvs() {
+  echo -e "${GREEN}Creating timesfm venv at ${timesfm_venv_dir}${NC}"
+  if [ -d "${timesfm_venv_dir}" ]; then
+    echo "Removing existing timesfm venv..."
+    rm -rf "${timesfm_venv_dir}"
+  fi
+  "python3.${python_minor_ver}" -m venv "${timesfm_venv_dir}"
+  echo "Activating timesfm venv and installing dependencies..."
+  source "${timesfm_venv_dir}/bin/activate"
+  "${timesfm_venv_dir}/bin/pip3" install torch==2.3.1+cpu jax timesfm flask==3.0.3 \
+      -f https://download.pytorch.org/whl/torch_stable.html "${pip_extra_args[@]}"
+  deactivate
 
-  ${csudo}${venvDir}/bin/pip3 install scikit-learn
-  ${csudo}${venvDir}/bin/pip3 install outlier_utils
-  ${csudo}${venvDir}/bin/pip3 install statsmodels
-  ${csudo}${venvDir}/bin/pip3 install pyculiarity
-  ${csudo}${venvDir}/bin/pip3 install pmdarima
-  ${csudo}${venvDir}/bin/pip3 install flask
-  ${csudo}${venvDir}/bin/pip3 install matplotlib
-  ${csudo}${venvDir}/bin/pip3 install uwsgi
-  ${csudo}${venvDir}/bin/pip3 install torch --index-url https://download.pytorch.org/whl/cpu
-  ${csudo}${venvDir}/bin/pip3 install --upgrade keras
-  ${csudo}${venvDir}/bin/pip3 install requests
-  ${csudo}${venvDir}/bin/pip3 install taospy
-  ${csudo}${venvDir}/bin/pip3 install transformers==4.40.0
-  ${csudo}${venvDir}/bin/pip3 install accelerate
-  ${csudo}${venvDir}/bin/pip3 install tensorflow
+  echo -e "${GREEN}Creating moirai venv at ${moirai_venv_dir}${NC}"
+  if [ -d "${moirai_venv_dir}" ]; then
+    echo "Removing existing moirai venv..."
+    rm -rf "${moirai_venv_dir}"
+  fi
+  "python3.${python_minor_ver}" -m venv "${moirai_venv_dir}"
+  echo "Activating moirai venv and installing dependencies..."
+  source "${moirai_venv_dir}/bin/activate"
+  "${moirai_venv_dir}/bin/pip3" install torch==2.3.1+cpu uni2ts flask \
+   -f https://download.pytorch.org/whl/torch_stable.html "${pip_extra_args[@]}"
+  deactivate
 
-  echo -e "Install python library for venv completed!"
+  echo -e "${GREEN}Creating chronos venv at ${chronos_venv_dir}${NC}"
+  if [ -d "${chronos_venv_dir}" ]; then
+    echo "Removing existing chronos venv..."
+    rm -rf "${chronos_venv_dir}"
+  fi
+  "python3.${python_minor_ver}" -m venv "${chronos_venv_dir}"
+  echo "Activating chronos venv and installing dependencies..."
+  source "${chronos_venv_dir}/bin/activate"
+  "${chronos_venv_dir}/bin/pip3" install --upgrade torch==2.3.1+cpu chronos-forecasting flask \
+    -f https://download.pytorch.org/whl/torch_stable.html  "${pip_extra_args[@]}"
+  deactivate
+
+  echo -e "${GREEN}Creating momentfm venv at ${momentfm_venv_dir}${NC}"
+  if [ -d "${momentfm_venv_dir}" ]; then
+    echo "Removing existing momentfm venv..."
+    rm -rf "${momentfm_venv_dir}"
+  fi
+  "python3.${python_minor_ver}" -m venv "${momentfm_venv_dir}"
+  echo "Activating momentfm venv and installing dependencies..."
+  source "${momentfm_venv_dir}/bin/activate"
+  "${momentfm_venv_dir}/bin/pip3" install --upgrade torch==2.3.1+cpu transformers==4.33.3 numpy==1.25.2 \
+    matplotlib pandas==1.5 scikit-learn flask==3.0.3 momentfm \
+    -f https://download.pytorch.org/whl/torch_stable.html "${pip_extra_args[@]}"
+  deactivate
+
+  echo -e "${GREEN}All extra venvs created and dependencies installed.${NC}"
 }
 
 function clean_service_on_sysvinit() {
@@ -373,12 +489,14 @@ function install_service_on_systemd() {
   clean_service_on_systemd $1
 
   cfg_source_dir=${script_dir}/cfg
-  if [[ "$1" == "${xname}" || "$1" == "${explorerName}" ]]; then
-      cfg_source_dir=${script_dir}/cfg
-  fi
-
-  if [ -f ${cfg_source_dir}/$1.service ]; then
-    ${csudo}cp ${cfg_source_dir}/$1.service ${service_config_dir}/ || :
+  
+  if [ -f "${cfg_source_dir}/$1.service" ]; then
+    sed -i.bak \
+        -e "s|/usr/local/taos/taosanode|${install_main_dir}|g" \
+        -e "s|/var/lib/taos/taosanode|${dataDir}|g" \
+        "${cfg_source_dir}/$1.service"
+    rm -rf "${cfg_source_dir}/$1.service.bak" || :
+    ${csudo}cp "${cfg_source_dir}/$1.service" "${service_config_dir}/" || :
   fi
 
   ${csudo}systemctl enable $1
@@ -403,159 +521,6 @@ function install_service() {
   fi
 }
 
-vercomp() {
-  if [[ $1 == $2 ]]; then
-    return 0
-  fi
-  local IFS=.
-  local i ver1=($1) ver2=($2)
-  # fill empty fields in ver1 with zeros
-  for ((i = ${#ver1[@]}; i < ${#ver2[@]}; i++)); do
-    ver1[i]=0
-  done
-
-  for ((i = 0; i < ${#ver1[@]}; i++)); do
-    if [[ -z ${ver2[i]} ]]; then
-      # fill empty fields in ver2 with zeros
-      ver2[i]=0
-    fi
-    if ((10#${ver1[i]} > 10#${ver2[i]})); then
-      return 1
-    fi
-    if ((10#${ver1[i]} < 10#${ver2[i]})); then
-      return 2
-    fi
-  done
-  return 0
-}
-
-function is_version_compatible() {
-
-  curr_version=$(ls ${script_dir}/driver/libtaos.so* | awk -F 'libtaos.so.' '{print $2}')
-
-  if [ -f ${script_dir}/driver/vercomp.txt ]; then
-    min_compatible_version=$(cat ${script_dir}/driver/vercomp.txt)
-  else
-    min_compatible_version=$(${script_dir}/bin/${serverName} -V | grep version | head -1 | cut -d ' ' -f 5)
-  fi
-
-  exist_version=$(${installDir}/bin/${serverName} -V | grep version | head -1 | cut -d ' ' -f 3)
-  vercomp $exist_version "3.0.0.0"
-  case $? in
-  2)
-    prompt_force=1
-    ;;
-  esac
-
-  vercomp $curr_version $min_compatible_version
-  echo "" # avoid $? value not update
-
-  case $? in
-  0) return 0 ;;
-  1) return 0 ;;
-  2) return 1 ;;
-  esac
-}
-
-deb_erase() {
-  confirm=""
-  while [ "" == "${confirm}" ]; do
-    echo -e -n "${RED}Existing TDengine deb is detected, do you want to remove it? [yes|no] ${NC}:"
-    read confirm
-    if [ "yes" == "$confirm" ]; then
-      ${csudo}dpkg --remove tdengine || :
-      break
-    elif [ "no" == "$confirm" ]; then
-      break
-    fi
-  done
-}
-
-rpm_erase() {
-  confirm=""
-  while [ "" == "${confirm}" ]; do
-    echo -e -n "${RED}Existing TDengine rpm is detected, do you want to remove it? [yes|no] ${NC}:"
-    read confirm
-    if [ "yes" == "$confirm" ]; then
-      ${csudo}rpm -e tdengine || :
-      break
-    elif [ "no" == "$confirm" ]; then
-      break
-    fi
-  done
-}
-
-function updateProduct() {
-  # Check if version compatible
-  if ! is_version_compatible; then
-    echo -e "${RED}Version incompatible${NC}"
-    return 1
-  fi
-
-  # Start to update
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
-  fi
-
-  if echo $osinfo | grep -qwi "centos"; then
-    rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
-  elif echo $osinfo | grep -qwi "ubuntu"; then
-    dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
-  fi
-
-  tar -zxf ${tarName}
-
-  echo "Start to update ${productName}..."
-  # Stop the service if running
-  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
-    if ((${service_mod} == 0)); then
-      ${csudo}systemctl stop ${serverName} || :
-    elif ((${service_mod} == 1)); then
-      ${csudo}service ${serverName} stop || :
-    else
-      kill_process ${serverName}
-    fi
-    sleep 1
-  fi
-
-  install_main_path
-  install_log
-  install_module
-  install_resource
-  install_config
-
-  if [ -z $1 ]; then
-    install_bin
-    if ! is_container; then
-      install_services
-    fi
-
-    echo
-    echo -e "${GREEN_DARK}To configure ${productName} ${NC}\t\t: edit ${global_conf_dir}/${configFile}"
-    [ -f ${global_conf_dir}/${adapterName}.toml ] && [ -f ${installDir}/bin/${adapterName} ] &&
-      echo -e "${GREEN_DARK}To configure ${adapterName} ${NC}\t: edit ${global_conf_dir}/${adapterName}.toml"
-    echo -e "${GREEN_DARK}To configure ${explorerName} ${NC}\t: edit ${global_conf_dir}/explorer.toml"
-    if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}systemctl start ${serverName}${NC}"
-    elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}service ${serverName} start${NC}"
-    else
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ./${serverName}${NC}"
-    fi
-
-    echo
-    echo "${productName} is updated successfully!"
-    echo
-
-  else
-    install_bin
-  fi
-
-  cd $script_dir
-  rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
-}
-
 function installProduct() {
   # Start to install
   if [ ! -e ${tarName} ]; then
@@ -565,9 +530,6 @@ function installProduct() {
 
   tar -zxf ${tarName}
  
-  [ -f "${script_dir}/model/${tar_td_model_name}" ]  && tar -zxf ${script_dir}/model/${tar_td_model_name} -C ${script_dir}/model || :
-  [ -f "${script_dir}/model/${tar_xhs_model_name}" ] && tar -zxf ${script_dir}/model/${tar_xhs_model_name} -C ${script_dir}/model || :
-
   echo "Start to install ${productName}..."
 
   install_main_path
@@ -575,7 +537,6 @@ function installProduct() {
   install_anode_config
   install_module
   install_resource
-  
   
   install_bin_and_lib
   kill_model_service
@@ -590,9 +551,14 @@ function installProduct() {
   echo
   echo -e "\033[44;32;1mStart to create virtual python env in ${venvDir}${NC}"
   install_anode_venv
+
+  if [ ${all_venv} -eq 1 ]; then
+    echo -e "\033[44;32;1mStart to create extra venvs for chronos-forecasting and momentfm${NC}"
+    install_extra_venvs
+  fi
 }
 
-# check for python version, only the 3.10/3.11 is supported
+# check for python version, only the 3.10/3.11/3.12 is supported
 check_python3_env() {
   if ! command -v python3 &> /dev/null
   then
@@ -604,12 +570,12 @@ check_python3_env() {
 
   python3_version_ok=false
   python_minor_ver=$(echo "$python3_version" | cut -d"." -f2)
-  if [[ $(echo "$python3_version" | cut -d"." -f1) -eq 3 && $(echo "$python3_version" | cut -d"." -f2) -ge 10 ]]; then
+  if [[ $(echo "$python3_version" | cut -d"." -f1) -eq 3 && $python_minor_ver =~ ^(10|11|12)$ ]]; then
     python3_version_ok=true
   fi
 
   if $python3_version_ok; then
-    echo -e "\033[32mPython3 ${python3_version} has been found.\033[0m"
+    echo -e "\033[32mPython ${python3_version} has been found.\033[0m"
   else
     if command -v python3.10 &> /dev/null
     then
@@ -619,18 +585,28 @@ check_python3_env() {
     then
       python_minor_ver=11
       echo -e "\033[32mPython3.11 has been found.\033[0m"
+    elif command -v python3.12 &> /dev/nul
+    then
+      python_minor_ver=12
+      echo -e "\033[32mPython3.12 has been found.\033[0m"
+
     else
-      echo -e "\033[31mWarning: Python3.10/3.11 is required, only found python${python3_version}.\033[0m"
+      echo -e "\033[31mWarning: Python3.10/3.11/3.12 allowed, only found python${python3_version}.\033[0m"
       exit 1
     fi
   fi
 
+  if [[ $python_minor_ver -eq 12 ]]; then
+    echo "Python 3.12: Update Pandas from 1.5.3 to 2.2.0 in Requirements_ess.txt"
+    sed -i '1s/pandas==1.5.3/pandas==2.2.0/' ${script_dir}/requirements_ess.txt
+  fi
+
 #  echo -e "Python3 minor version is:${python_minor_ver}"
 
-  # check the existence pip3.10/pip3.11
+  # check the existence pip3.10/pip3.11/pip3.12
   if ! command -v pip3 &> /dev/null
   then
-    echo -e "\033[31mWarning: Pip3 command not found. Version 3.10/3.11 is required.\033[0m"
+    echo -e "\033[31mWarning: Pip3 command not found. Version 3.10/3.11 allowed.\033[0m"
     exit 1
   fi
 
@@ -650,7 +626,7 @@ check_python3_env() {
     then
       echo -e "\033[32mpip3.${python_minor_ver} has been found.\033[0m"
     else
-      echo -e "\033[31mWarning: pip3.10/3.11 is required, only found pip${pip3_version}.\033[0m"
+      echo -e "\033[31mWarning: pip3.10/3.11/3.12 allowed, only found pip${pip3_version}.\033[0m"
      exit 1
     fi
   fi

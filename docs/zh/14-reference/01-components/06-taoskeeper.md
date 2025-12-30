@@ -7,13 +7,13 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-taosKeeper 是 TDengine 3.0 版本监控指标的导出工具，通过简单的几项配置即可获取 TDengine 的运行状态。taosKeeper 使用 TDengine RESTful 接口，所以不需要安装 TDengine 客户端即可使用。
+taosKeeper 是 TDengine TSDB 3.0 版本监控指标的导出工具，通过简单的几项配置即可获取 TDengine TSDB 的运行状态。taosKeeper 使用 TDengine TSDB RESTful 接口，所以不需要安装 TDengine TSDB 客户端即可使用。
 
 ## 安装
 
 taosKeeper 有两种安装方式：
 
-- 安装 TDengine 官方安装包的同时会自动安装 taosKeeper，详情请参考 [TDengine 安装](../../../get-started/)。
+- 安装 TDengine TSDB 官方安装包的同时会自动安装 taosKeeper，详情请参考 [TDengine TSDB 安装](../../../get-started/)。
 
 - 单独编译 taosKeeper 并安装，详情请参考 [taosKeeper](https://github.com/taosdata/taoskeeper) 仓库。
 
@@ -53,11 +53,11 @@ Usage of taoskeeper:
       --metrics.prefix string                        prefix in metrics names. Env "TAOS_KEEPER_METRICS_PREFIX"
       --metrics.tables stringArray                   export some tables that are not super table, multiple values split with white space. Env "TAOS_KEEPER_METRICS_TABLES"
   -P, --port int                                     http port. Env "TAOS_KEEPER_PORT" (default 6043)
-      --tdengine.host string                         TDengine server's ip. Env "TAOS_KEEPER_TDENGINE_HOST" (default "127.0.0.1")
-      --tdengine.password string                     TDengine server's password. Env "TAOS_KEEPER_TDENGINE_PASSWORD" (default "taosdata")
-      --tdengine.port int                            TDengine REST server(taosAdapter)'s port. Env "TAOS_KEEPER_TDENGINE_PORT" (default 6041)
-      --tdengine.username string                     TDengine server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
-      --tdengine.usessl                              TDengine server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
+      --tdengine.host string                         TDengine TSDB server's ip. Env "TAOS_KEEPER_TDENGINE_HOST" (default "127.0.0.1")
+      --tdengine.password string                     TDengine TSDB server's password. Env "TAOS_KEEPER_TDENGINE_PASSWORD" (default "taosdata")
+      --tdengine.port int                            TDengine TSDB REST server(taosAdapter)'s port. Env "TAOS_KEEPER_TDENGINE_PORT" (default 6041)
+      --tdengine.username string                     TDengine TSDB server's username. Env "TAOS_KEEPER_TDENGINE_USERNAME" (default "root")
+      --tdengine.usessl                              TDengine TSDB server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"
       --transfer string                              run taoskeeper in command mode, only support old_taosd_metric. transfer old metrics data to new tables and exit
   -V, --version                                      Print the version and exit                                   Print the version and exit
 ```
@@ -132,14 +132,14 @@ reservedDiskSize = "1GB"
 
 ## 启动
 
-**在运行 taosKeeper 之前要确保 TDengine 集群与 taosAdapter 已经在正确运行。** 并且 TDengine 已经开启监控服务，TDengine 配置文件 `taos.cfg` 中至少需要配置 `monitor` 和 `monitorFqdn`。
+**在运行 taosKeeper 之前要确保 TDengine TSDB 集群与 taosAdapter 已经在正确运行。** 并且 TDengine TSDB 已经开启监控服务，TDengine TSDB 配置文件 `taos.cfg` 中至少需要配置 `monitor` 和 `monitorFqdn`。
 
 ```shell
 monitor 1
 monitorFqdn localhost # taoskeeper 服务的 FQDN
 ```
 
-TDengine 监控配置相关，具体请参考：[TDengine 监控配置](../../../operation/monitor)。
+TDengine TSDB 监控配置相关，具体请参考：[TDengine TSDB 监控配置](../../../operation/monitor)。
 
 <Tabs>
 <TabItem label="Linux" value="linux">
@@ -231,13 +231,13 @@ Content-Length: 21
 
 ## 数据收集与监控
 
-taosKeeper 作为 TDengine 监控指标的导出工具，可以将 TDengine 产生的监控数据记录在指定数据库中（默认的监控数据是 `log`），这些监控数据可以用来配置 TDengine 监控。
+taosKeeper 作为 TDengine TSDB 监控指标的导出工具，可以将 TDengine TSDB 产生的监控数据记录在指定数据库中（默认的监控数据是 `log`），这些监控数据可以用来配置 TDengine TSDB 监控。
 
 ### 查看监控数据
 
 可以查看 `log` 库下的超级表，每个超级表都对应一组监控指标，具体指标不再赘述。
 
-```shell
+```sql
 taos> use log;
 Database changed.
 
@@ -264,7 +264,7 @@ Query OK, 14 row(s) in set (0.006542s)
 
 可以查看一个超级表的最近一条上报记录，如：
 
-```shell
+```sql
 taos> select last_row(*) from taosd_dnodes_info;
       last_row(_ts)      |   last_row(disk_engine)   |  last_row(system_net_in)  |   last_row(vnodes_num)    | last_row(system_net_out)  |     last_row(uptime)      |    last_row(has_mnode)    |  last_row(io_read_disk)   | last_row(error_log_count) |     last_row(io_read)     |    last_row(cpu_cores)    |    last_row(has_qnode)    |    last_row(has_snode)    |   last_row(disk_total)    |   last_row(mem_engine)    | last_row(info_log_count)  |   last_row(cpu_engine)    |  last_row(io_write_disk)  | last_row(debug_log_count) |    last_row(disk_used)    |    last_row(mem_total)    |    last_row(io_write)     |     last_row(masters)     |   last_row(cpu_system)    | last_row(trace_log_count) |    last_row(mem_free)     |
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
@@ -274,23 +274,23 @@ Query OK, 1 row(s) in set (0.003168s)
 
 ### 使用 TDInsight 配置监控
 
-收集到监控数据以后，就可以使用 TDInsight 来配置 TDengine 的监控，具体请参考 [TDinsight 参考手册](../tdinsight/)。
+收集到监控数据以后，就可以使用 TDInsight 来配置 TDengine TSDB 的监控，具体请参考 [TDinsight 参考手册](../tdinsight/)。
 
 ## 集成 Prometheus
 
-taoskeeper 提供了 `/metrics` 接口，返回了 Prometheus 格式的监控数据，Prometheus 可以从 taoskeeper 抽取监控数据，实现通过 Prometheus 监控 TDengine 的目的。
+taoskeeper 提供了 `/metrics` 接口，返回了 Prometheus 格式的监控数据，Prometheus 可以从 taoskeeper 抽取监控数据，实现通过 Prometheus 监控 TDengine TSDB 的目的。
 
 ### 导出监控指标
 
 下面通过 `curl` 命令展示 `/metrics` 接口返回的数据格式：
 
-```shell
+```bash
 curl http://127.0.0.1:6043/metrics
 ```
 
 部分结果集：
 
-```shell
+```bash
 # HELP taos_cluster_info_connections_total
 # TYPE taos_cluster_info_connections_total counter
 taos_cluster_info_connections_total{cluster_id="554014120921134497"} 8
@@ -368,7 +368,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 | taos_dnodes_info_has_qnode     | counter | 是否有 qnode                                                                          |
 | taos_dnodes_info_has_snode     | counter | 是否有 snode                                                                          |
 | taos_dnodes_info_io_read       | gauge   | 该 dnode 所在节点的 io 读取速率（单位 Byte/s）                                        |
-| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s）                                    |
+| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 读取速率（单位 Byte/s）                                    |
 | taos_dnodes_info_io_write      | gauge   | 该 dnode 所在节点的 io 写入速率（单位 Byte/s）                                        |
 | taos_dnodes_info_io_write_disk | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s）                                    |
 | taos_dnodes_info_masters       | counter | 主节点数量                                                                            |
@@ -540,7 +540,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 
 Prometheus 提供了 `scrape_configs` 配置如何从 endpoint 抽取监控数据，通常只需要修改 `static_configs` 中的 targets 配置为 taoskeeper 的 endpoint 地址，更多配置信息请参考 [Prometheus 配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config)。
 
-```conf
+```yaml
 # A scrape configuration containing exactly one endpoint to scrape:
 # Here it's Prometheus itself.
 scrape_configs:

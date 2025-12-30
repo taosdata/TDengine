@@ -15,6 +15,7 @@
 
 #include "meta.h"
 #include "vnd.h"
+#include "tdbUtil.h"
 
 static FORCE_INLINE void *metaMalloc(void *pPool, size_t size) {
   SVBufPool *pool = (SVBufPool *)pPool;

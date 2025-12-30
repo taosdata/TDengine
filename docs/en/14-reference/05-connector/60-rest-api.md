@@ -274,16 +274,19 @@ Column types use the following strings:
 - "JSON"
 - "VARBINARY"
 - "GEOMETRY"
+- "DECIMAL(precision, scale)"
+- "BLOB"
 
-`VARBINARY` and `GEOMETRY` types return data as Hex strings, example:
+For the `DECIMAL` data type, `precision` refers to the maximum number of significant digits supported, and `scale` refers to the maximum number of decimal places. For example, `DECIMAL(8, 4)` represents a range of `[-9999.9999, 9999.9999]`.
+
+`VARBINARY`, `GEOMETRY` and `BLOB` types return data as Hex strings, example:
 
 Prepare data
 
 ```shell
-create database demo
-use demo
-create table t(ts timestamp,c1 varbinary(20),c2 geometry(100))
-insert into t values(now,'\x7f8290','point(100 100)')
+create database demo;
+create table demo.t(ts timestamp,c1 varbinary(20),c2 geometry(100),c3 blob);
+insert into demo.t values(now,'\x7f8290','point(100 100)','\x010203ddff');
 ```
 
 Execute query
@@ -315,13 +318,19 @@ Return result
             "c2",
             "GEOMETRY",
             100
+        ],
+        [
+            "c3",
+            "BLOB",
+            4194304
         ]
     ],
     "data": [
         [
-            "2023-11-01T06:28:15.210Z",
+            "2025-07-22T05:58:41.798Z",
             "7f8290",
-            "010100000000000000000059400000000000005940"
+            "010100000000000000000059400000000000005940",
+            "010203ddff"
         ]
     ],
     "rows": 1

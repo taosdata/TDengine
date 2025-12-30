@@ -120,6 +120,18 @@ class srvCtl:
 
         return tdDnodes.stopAll()
 
+    def dnodeRestartAll(self) :
+        """
+        Restarts all dnodes.
+
+        Returns:
+            bool: True if all dnodes were restarted successfully, False otherwise.
+        """
+
+        self.dnodeStopAll()
+        self.dnodeStartAll()
+
+
     #
     #  about path
     #
@@ -185,6 +197,40 @@ class srvCtl:
         if clusterDnodes.getModel() == "cluster":
             return clusterDnodes.getDnodeCfgPath(idx)
         return tdDnodes.getDnodeCfgPath(idx)
+
+    #
+    # get dnodes log path
+    # 
+    def dnodeLogPath(self, idx):
+        """
+        Gets the log path for a specific dnode.
+
+        Args:
+            idx (int): The index of the dnode.
+
+        Returns:
+            str: The log path for the dnode.
+        """
+        if clusterDnodes.getModel() == "cluster":
+            return clusterDnodes.getDnodeLogPath(idx)
+        return tdDnodes.getDnodeLogPath(idx)
+
+    #
+    # add sim cfg option
+    # 
+    def addSimExtraCfg(self, option, value):
+        """
+        add new option to taos.cfg
+        Args:
+            option (string): option key
+            value  (string): option value
+        Returns:
+            bool: True if add ok, False if failed
+        """
+        if clusterDnodes.getModel() == "cluster":
+            return clusterDnodes.addSimExtraCfg(option, value)
+
+        return tdDnodes.addSimExtraCfg(option, value)
 
 
 sc = srvCtl()

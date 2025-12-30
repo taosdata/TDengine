@@ -24,6 +24,7 @@ extern "C" {
 #include "tcommon.h"
 #include "tsimplehash.h"
 #include "tvariant.h"
+#include "nodes.h"
 
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
@@ -36,6 +37,21 @@ typedef struct SStreamState SStreamState;
 typedef struct SFuncExecEnv {
   int32_t calcMemSize;
 } SFuncExecEnv;
+
+
+
+typedef struct SExprBasicInfo {
+  SResSchema   resSchema;
+  int16_t      numOfParams;  // argument value of each function
+  SFunctParam* pParam;
+  SNodeList*   pParamList;   // no need to free
+} SExprBasicInfo;
+
+typedef struct SExprInfo {
+  struct SExprBasicInfo base;
+  struct tExprNode*     pExpr;
+} SExprInfo;
+
 
 typedef bool (*FExecGetEnv)(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
 typedef void (*FExecCleanUp)(struct SqlFunctionCtx *pCtx);
@@ -269,6 +285,7 @@ typedef struct SqlFunctionCtx {
   SFuncInputRowIter    rowIter;
   bool                 bInputFinished;
   bool                 hasWindowOrGroup;  // denote that the function is used with time window or group
+  bool                 hasWindow;         // denote that the function is used with time window
   bool                 needCleanup;       // denote that the function need to be cleaned up
   int32_t              inputType; // save the fuction input type funcs like finalize
 } SqlFunctionCtx;

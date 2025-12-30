@@ -28,7 +28,7 @@ CREATE USER user1 PASS 'Ab1!@#$%^&*()-_+=[]{}';
 <Tabs defaultValue="shell" groupId="component">
 <TabItem label="CLI" value="shell">
 
-In the [TDengine Command Line Interface (CLI)](../../tdengine-reference/tools/tdengine-cli/), note the following:
+In the [TDengine TSDB Command Line Interface (CLI)](../../tdengine-reference/tools/tdengine-cli/), note the following:
 
 - If the `-p` parameter is used without a password, you will be prompted to enter a password, and any acceptable characters can be entered.
 - If the `-p` parameter is used with a password, and the password contains special characters, single quotes must be used.

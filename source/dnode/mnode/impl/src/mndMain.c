@@ -17,6 +17,7 @@
 #include "mndAcct.h"
 #include "mndAnode.h"
 #include "mndArbGroup.h"
+#include "mndBnode.h"
 #include "mndCluster.h"
 #include "mndCompact.h"
 #include "mndCompactDetail.h"
@@ -29,14 +30,21 @@
 #include "mndIndex.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
+#include "mndMount.h"
 #include "mndPerfSchema.h"
 #include "mndPrivilege.h"
 #include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndQuery.h"
+#include "mndRetention.h"
+#include "mndRetentionDetail.h"
+#include "mndRsma.h"
+#include "mndScan.h"
+#include "mndScanDetail.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndSnode.h"
+#include "mndSsMigrate.h"
 #include "mndStb.h"
 #include "mndStream.h"
 #include "mndSubscribe.h"
@@ -120,6 +128,19 @@ static void mndPullupCompacts(SMnode *pMnode) {
   }
 }
 
+static void mndPullupScans(SMnode *pMnode) {
+  mTrace("pullup scan timer msg");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_SCAN_TIMER, .pCont = pReq, .contLen = contLen};
+    // TODO check return value
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
+  }
+}
+
 static void mndPullupTtl(SMnode *pMnode) {
   mTrace("pullup ttl");
   int32_t contLen = 0;
@@ -132,7 +153,7 @@ static void mndPullupTtl(SMnode *pMnode) {
 }
 
 static void mndPullupTrimDb(SMnode *pMnode) {
-  mTrace("pullup s3migrate");
+  mTrace("pullup trim");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
@@ -142,12 +163,35 @@ static void mndPullupTrimDb(SMnode *pMnode) {
   }
 }
 
-static void mndPullupS3MigrateDb(SMnode *pMnode) {
-  mTrace("pullup trim");
+static void mndPullupQueryTrimDb(SMnode *pMnode) {
+  mTrace("pullup trim query");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  // TODO check return value
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_S3MIGRATE_DB_TIMER, .pCont = pReq, .contLen = contLen};
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_QUERY_TRIM_TIMER, .pCont = pReq, .contLen = contLen};
+  if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+    mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+  }
+}
+
+static void mndPullupSsMigrateDb(SMnode *pMnode) {
+  if (grantCheck(TSDB_GRANT_SHARED_STORAGE) != TSDB_CODE_SUCCESS) {
+    return;
+  }
+
+  mTrace("pullup ssmigrate db");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_SSMIGRATE_DB_TIMER, .pCont = pReq, .contLen = contLen};
+  if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+    mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+  }
+}
+
+static void mndPullupUpdateSsMigrateProgress(SMnode *pMnode) {
+  mTrace("pullup update ssmigrate progress");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER, .pCont = pReq, .contLen = contLen};
   if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
     mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
   }
@@ -174,54 +218,6 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TMQ_TIMER, .pCont = pReq, .contLen = contLen};
-    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
-      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
-    }
-  }
-}
-
-static void mndStreamCheckpointTimer(SMnode *pMnode) {
-  SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
-  if (pMsg != NULL) {
-    int32_t size = sizeof(SMStreamDoCheckpointMsg);
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT, .pCont = pMsg, .contLen = size};
-    // TODO check return value
-    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
-      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
-    }
-  }
-}
-
-static void mndStreamCheckNode(SMnode *pMnode) {
-  int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
-  if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_NODECHECK_TIMER, .pCont = pReq, .contLen = contLen};
-    // TODO check return value
-    if (tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg) < 0) {
-      mError("failed to put into read-queue since %s, line:%d", terrstr(), __LINE__);
-    }
-  }
-}
-
-static void mndStreamCheckStatus(SMnode *pMnode) {
-  int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
-  if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_CHECK_STREAM_TIMER, .pCont = pReq, .contLen = contLen};
-    // TODO check return value
-    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
-      mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
-    }
-  }
-}
-
-static void mndStreamConsensusChkpt(SMnode *pMnode) {
-  int32_t contLen = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
-  if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_CONSEN_TIMER, .pCont = pReq, .contLen = contLen};
-    // TODO check return value
     if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
       mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
     }
@@ -383,12 +379,10 @@ static int32_t minCronTime() {
   int32_t min = INT32_MAX;
   min = TMIN(min, tsTtlPushIntervalSec);
   min = TMIN(min, tsTrimVDbIntervalSec);
-  min = TMIN(min, tsS3MigrateIntervalSec);
+  min = TMIN(min, tsSsAutoMigrateIntervalSec);
   min = TMIN(min, tsTransPullupInterval);
   min = TMIN(min, tsCompactPullupInterval);
   min = TMIN(min, tsMqRebalanceInterval);
-  min = TMIN(min, tsStreamCheckpointInterval);
-  min = TMIN(min, tsStreamNodeCheckInterval);
 
   int64_t telemInt = TMIN(60, (tsTelemInterval - 1));
   min = TMIN(min, telemInt);
@@ -410,10 +404,19 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsTrimVDbIntervalSec == 0) {
     mndPullupTrimDb(pMnode);
   }
+
+  if (sec % tsQueryTrimIntervalSec == 0) {
+    mndPullupQueryTrimDb(pMnode);
+  }
 #endif
-#ifdef USE_S3
-  if (tsS3MigrateEnabled && sec % tsS3MigrateIntervalSec == 0) {
-    mndPullupS3MigrateDb(pMnode);
+#ifdef USE_SHARED_STORAGE
+  if (tsSsEnabled) {
+    if (sec % 10 == 0) { // TODO: make 10 to be configurable
+      mndPullupUpdateSsMigrateProgress(pMnode);
+    }
+    if (tsSsEnabled == 2 && sec % tsSsAutoMigrateIntervalSec == 0) {
+      mndPullupSsMigrateDb(pMnode);
+    }
   }
 #endif
 #ifdef TD_ENTERPRISE
@@ -430,32 +433,18 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsCompactPullupInterval == 0) {
     mndPullupCompacts(pMnode);
   }
+
+  if (sec % tsScanPullupInterval == 0) {
+    mndPullupScans(pMnode);
+  }
 #ifdef USE_TOPIC
   if (sec % tsMqRebalanceInterval == 0) {
     mndCalMqRebalance(pMnode);
   }
 #endif
-#ifdef USE_STREAM
-  if (sec % 30 == 0) {  // send the checkpoint info every 30 sec
-    mndStreamCheckpointTimer(pMnode);
-  }
-
-  if (sec % tsStreamNodeCheckInterval == 0) {
-    mndStreamCheckNode(pMnode);
-  }
-
-  if (sec % (tsStreamFailedTimeout / 1000) == 0) {
-    mndStreamCheckStatus(pMnode);
-  }
-
-  if (sec % 30 == 0) {
-    mndStreamConsensusChkpt(pMnode);
-  }
-
   if (tsTelemInterval > 0 && sec % tsTelemInterval == 0) {
     mndPullupTelem(pMnode);
   }
-#endif
   if (sec % tsUptimeInterval == 0) {
     mndIncreaseUpTime(pMnode);
   }
@@ -487,6 +476,9 @@ void mndDoTimerCheckStatus(SMnode *pMnode, int64_t ms) {
 void mndDoTimerCheckSync(SMnode *pMnode, int64_t sec) {
   if (sec % (MNODE_TIMEOUT_SEC / 2) == 0) {
     mndSyncCheckTimeout(pMnode);
+  }
+  if (!tsDisableStream && (sec % MND_STREAM_HEALTH_CHECK_PERIOD_SEC == 0)) {
+    msmHealthCheck(pMnode);
   }
 }
 
@@ -702,6 +694,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-qnode", mndInitQnode, mndCleanupQnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-snode", mndInitSnode, mndCleanupSnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-anode", mndInitAnode, mndCleanupAnode));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-bnode", mndInitBnode, mndCleanupBnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-arbgroup", mndInitArbGroup, mndCleanupArbGroup));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-config", mndInitConfig, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode));
@@ -720,10 +713,20 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-infos", mndInitInfos, mndCleanupInfos));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-perfs", mndInitPerfs, mndCleanupPerfs));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb));
+#ifdef USE_MOUNT
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-mount", mndInitMount, mndCleanupMount));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-mount-log", mndInitMountLog, mndCleanupMountLog));
+#endif
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-rsma", mndInitRsma, mndCleanupRsma));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-view", mndInitView, mndCleanupView));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact", mndInitCompact, mndCleanupCompact));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan", mndInitScan, mndCleanupScan));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-retention", mndInitRetention, mndCleanupRetention));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact-detail", mndInitCompactDetail, mndCleanupCompactDetail));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan-detail", mndInitScanDetail, mndCleanupScanDetail));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-retention-detail", mndInitRetentionDetail, mndCleanupRetentionDetail));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-ssmigrate", mndInitSsMigrate, mndCleanupSsMigrate));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndOpenSdb, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow));
@@ -989,13 +992,14 @@ _OVER:
       pMsg->msgType == TDMT_MND_TRIM_DB_TIMER || pMsg->msgType == TDMT_MND_UPTIME_TIMER ||
       pMsg->msgType == TDMT_MND_COMPACT_TIMER || pMsg->msgType == TDMT_MND_NODECHECK_TIMER ||
       pMsg->msgType == TDMT_MND_GRANT_HB_TIMER || pMsg->msgType == TDMT_MND_STREAM_REQ_CHKPT ||
-      pMsg->msgType == TDMT_MND_S3MIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
+      pMsg->msgType == TDMT_MND_SSMIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
       pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || pMsg->msgType == TDMT_MND_CHECK_STREAM_TIMER ||
-      pMsg->msgType == TDMT_MND_AUTH_HB_TIMER) {
-      mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
-             pMnode->stopped, state.restored, syncStr(state.state));
-      TAOS_RETURN(code);
-    }
+      pMsg->msgType == TDMT_MND_UPDATE_SSMIGRATE_PROGRESS_TIMER || pMsg->msgType == TDMT_MND_SCAN_TIMER ||
+      pMsg->msgType == TDMT_MND_QUERY_TRIM_TIMER || pMsg->msgType == TDMT_MND_AUTH_HB_TIMER) {
+    mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
+           pMnode->stopped, state.restored, syncStr(state.state));
+    TAOS_RETURN(code);
+  }
 
   const STraceId *trace = &pMsg->info.traceId;
   SEpSet          epSet = {0};
@@ -1181,6 +1185,11 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     pClusterInfo->vgroups_total++;
     pClusterInfo->tbs_total += pVgroup->numOfTables;

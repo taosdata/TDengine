@@ -23,8 +23,8 @@
 #include "tmsg.h"
 #include "types.h"
 
-const char* result1 = "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"s5466\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c2\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[{\"name\":\"t\",\"type\":8,\"length\":32},{\"name\":\"t2\",\"type\":10,\"length\":4}]}";
-const char* result2 = "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t1\",\"using\":\"s5466\",\"tagNum\":2,\"tags\":[{\"name\":\"t\",\"type\":8,\"value\":\"\\\"\\\"\"},{\"name\":\"t2\",\"type\":10,\"value\":\"\\\"\\\"\"}],\"createList\":[]}";
+char* result1 = "{\"type\":\"create\",\"tableType\":\"super\",\"tableName\":\"s5466\",\"columns\":[{\"name\":\"ts\",\"type\":9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c1\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"},{\"name\":\"c2\",\"type\":4,\"isPrimarykey\":false,\"encode\":\"simple8b\",\"compress\":\"lz4\",\"level\":\"medium\"}],\"tags\":[{\"name\":\"t\",\"type\":8,\"length\":32},{\"name\":\"t2\",\"type\":10,\"length\":4}]}";
+char* result2 = "{\"type\":\"create\",\"tableType\":\"child\",\"tableName\":\"t1\",\"using\":\"s5466\",\"tagNum\":2,\"tags\":[{\"name\":\"t\",\"type\":8,\"value\":\"\\\"\\\"\"},{\"name\":\"t2\",\"type\":10,\"value\":\"\\\"\\\"\"}],\"createList\":[]}";
 
 static TAOS* use_db() {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -91,9 +91,11 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     printf("subscribe err\n");
     return;
   }
+  int32_t cnt = 0;
   while (1) {
     TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 5000);
     if (tmqmessage) {
+      cnt++;
       msg_process(tmqmessage);
       taos_free_result(tmqmessage);
     } else {

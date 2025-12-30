@@ -135,12 +135,6 @@ int vnodeBegin(SVnode *pVnode) {
   code = tsdbBegin(pVnode->pTsdb);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  // begin sma
-  if (VND_IS_RSMA(pVnode)) {
-    code = smaBegin(pVnode->pSma);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
 _exit:
   if (code) {
     terrno = code;
@@ -262,9 +256,8 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   pInfo->config.walCfg.committed = pInfo->state.committed;
 _exit:
   if (code) {
-    if (pFile) {
-      vError("vgId:%d %s failed at %s:%d since %s", pInfo->config.vgId, __func__, __FILE__, lino, tstrerror(code));
-    }
+    vError("vgId:%d %s failed at %s:%d since %s, file:%s", pInfo->config.vgId, __func__, __FILE__, lino,
+           tstrerror(code), fname);
   }
   taosMemoryFree(pData);
   if (taosCloseFile(&pFile) != 0) {
@@ -295,7 +288,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
   // save info
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_FILENAME_LEN);
 
   vDebug("vgId:%d, save config while prepare commit", TD_VID(pVnode));
   code = vnodeSaveInfo(dir, &pInfo->info);
@@ -305,9 +298,6 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   code = metaPrepareAsyncCommit(pVnode->pMeta);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = smaPrepareAsyncCommit(pVnode->pSma);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   (void)taosThreadMutexLock(&pVnode->mutex);
@@ -359,12 +349,16 @@ static int32_t vnodeCommit(void *arg) {
   SVnode      *pVnode = pInfo->pVnode;
 
   // commit
-  if ((code = vnodeCommitImpl(pInfo))) {
-    vFatal("vgId:%d, failed to commit vnode since %s", TD_VID(pVnode), terrstr());
-    taosMsleep(100);
-    exit(EXIT_FAILURE);
-    goto _exit;
-  }
+  METRICS_TIMING_BLOCK(pVnode->writeMetrics.commit_time, METRIC_LEVEL_HIGH, {
+    if ((code = vnodeCommitImpl(pInfo))) {
+      vFatal("vgId:%d, failed to commit vnode since %s", TD_VID(pVnode), terrstr());
+      taosMsleep(100);
+      exit(EXIT_FAILURE);
+      goto _exit;
+    }
+  });
+
+  METRICS_UPDATE(pVnode->writeMetrics.commit_count, METRIC_LEVEL_HIGH, 1);
 
   vnodeReturnBufPool(pVnode);
 
@@ -439,7 +433,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     return code;
   }
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_FILENAME_LEN);
 
   code = syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -448,15 +442,14 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (!TSDB_CACHE_NO(pVnode->config)) {
-    code = tsdbCacheCommit(pVnode->pTsdb);
+    METRICS_TIMING_BLOCK(pVnode->writeMetrics.last_cache_commit_time, METRIC_LEVEL_HIGH,
+                         { code = tsdbCacheCommit(pVnode->pTsdb); });
+    METRICS_UPDATE(pVnode->writeMetrics.last_cache_commit_count, METRIC_LEVEL_HIGH, 1);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (VND_IS_RSMA(pVnode)) {
-    code = smaCommit(pVnode->pSma, pInfo);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
+  // blob storage engine commit
+  code = bseCommit(pVnode->pBse);
   // commit info
   code = vnodeCommitInfo(dir);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -464,20 +457,10 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   code = tsdbCommitCommit(pVnode->pTsdb);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  if (VND_IS_RSMA(pVnode)) {
-    code = smaFinishCommit(pVnode->pSma);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
   code = metaFinishCommit(pVnode->pMeta, pInfo->txn);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   pVnode->state.committed = pInfo->info.state.committed;
-
-  if (smaPostCommit(pVnode->pSma) < 0) {
-    vError("vgId:%d, failed to post-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
-  }
 
   code = syncEndSnapshot(pVnode->sync, pInfo->forceTrim);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -498,7 +481,7 @@ bool vnodeShouldRollback(SVnode *pVnode) {
   char    tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, tFName, TSDB_FILENAME_LEN);
   offset = strlen(tFName);
   snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
@@ -509,7 +492,7 @@ void vnodeRollback(SVnode *pVnode) {
   char    tFName[TSDB_FILENAME_LEN] = {0};
   int32_t offset = 0;
 
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, tFName, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, tFName, TSDB_FILENAME_LEN);
   offset = strlen(tFName);
   snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 

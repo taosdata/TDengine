@@ -35,25 +35,44 @@ class AutoGen:
         self.batch_size = batch_size
 
     #  _columns_sql
-    def gen_columns_sql(self, pre, cnt, binary_len, nchar_len):
-        types = [ 
-            'timestamp',  # 0
-            'tinyint',    
-            'tinyint unsigned', # 3
-            'smallint',
-            'smallint unsigned',
-            'int', # 5
-            'int unsigned',
-            'bigint',    # 7
-            'bigint unsigned',
-            'float',     # 9
-            'double',    # 10
-            'bool',
-            f'binary({binary_len})',  # 12
-            f'varbinary({binary_len})',
-            f'nchar({nchar_len})',
-            f'varchar({nchar_len})'
-        ]
+    def gen_columns_sql(self, pre, cnt, binary_len, nchar_len, type_set_name='default'):
+        type_sets = {
+            'default': [ 
+                'timestamp',  # 0
+                'tinyint',    
+                'tinyint unsigned', # 3
+                'smallint',
+                'smallint unsigned',
+                'int', # 5
+                'int unsigned',
+                'bigint',    # 7
+                'bigint unsigned',
+                'float',     # 9
+                'double',    # 10
+                'bool',
+                f'binary({binary_len})',  # 12
+                f'varbinary({binary_len})',
+                f'nchar({nchar_len})',
+                f'varchar({nchar_len})'
+            ], 
+            'varchar_preferred': [ 
+                'timestamp',
+                'tinyint',
+                'smallint',
+                'tinyint unsigned',
+                'smallint unsigned',
+                'int',
+                'bigint',
+                'int unsigned',
+                'bigint unsigned',
+                'float',
+                'double',
+                'bool',
+                f'varchar({binary_len})',
+                f'nchar({nchar_len})'
+            ]
+        }
+        types = type_sets.get(type_set_name, type_sets['default'])
 
         sqls = ""
         metas = []
@@ -69,6 +88,33 @@ class AutoGen:
         
         return metas, sqls;    
 
+    # gen tags data
+    # migrate from system-test
+    def gen_data_old(self, i, marr):
+        datas = ""   
+        for c in marr:
+            data = ""
+            if c == 0 : # timestamp
+                data = "%d" % (self.ts + i)
+            elif c <= 4 : # small
+                data = "%d"%(i%128)
+            elif c <= 8 : # int
+                data = f"{i}"
+            elif c <= 10 : # float
+                data = "%f"%(i+i/1000)
+            elif c <= 11 : # bool
+                data = "%d"%(i%2)
+            elif c == 12 : # binary
+                data = '"' + self.random_string(self.bin_len) + '"'
+            elif c == 13 : # binary
+                data = '"' + self.random_string(self.nch_len) + '"'
+
+            if datas != "":
+                datas += ","
+            datas += data
+        
+        return datas
+    
     # gen tags data
     def gen_data(self, i, marr):
         datas = ""   
@@ -197,24 +243,28 @@ class AutoGen:
     def create_db(self, dbname, vgroups = 2, replica = 1, others=""):
         self.dbname  = dbname
         tdSql.execute(f'create database {dbname} vgroups {vgroups} replica {replica} {others}')
+        tdSql.execute(f"use {dbname}")
         
     # create table or stable
-    def create_stable(self, stbname, tag_cnt, column_cnt, binary_len, nchar_len):
+    def create_stable(self, stbname, tag_cnt, column_cnt, binary_len, nchar_len, type_set='default'):
         self.bin_len = binary_len
         self.nch_len = nchar_len
         self.stbname = stbname
-        self.mtags, tags = self.gen_columns_sql("t", tag_cnt, binary_len, nchar_len)
-        self.mcols, cols = self.gen_columns_sql("c", column_cnt - 1, binary_len, nchar_len)
+        self.mtags, tags = self.gen_columns_sql("t", tag_cnt, binary_len, nchar_len, type_set)
+        self.mcols, cols = self.gen_columns_sql("c", column_cnt - 1, binary_len, nchar_len, type_set)
 
         sql = f"create table {self.dbname}.{stbname} (ts timestamp, {cols}) tags({tags})"
         tdSql.execute(sql)
 
     # create child table 
-    def create_child(self, stbname, prename, cnt):
+    def create_child(self, stbname, prename, cnt, tag_data_mode='new'):
         self.child_cnt = cnt
         self.child_name = prename
         for i in range(cnt):
-            tags_data = self.gen_data(i, self.mtags)
+            if tag_data_mode == 'new':
+                tags_data = self.gen_data(i, self.mtags)
+            else:
+                tags_data = self.gen_data_old(i, self.mtags)
             sql = f"create table {self.dbname}.{prename}{i} using {self.dbname}.{stbname} tags({tags_data})"
             tdSql.execute(sql)
 

@@ -6,7 +6,6 @@ import time
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from matplotlib.lines import lineStyles
 
 from taosanalytics.conf import app_logger, conf
 from taosanalytics.servicemgmt import loader
@@ -58,6 +57,9 @@ def do_add_fc_params(params, json_obj):
 
     if "return_conf" in json_obj:
         params["return_conf"] = int(json_obj["return_conf"])
+
+    if "prec" in json_obj:
+        params["precision"] = json_obj["prec"]
 
 
 def insert_ts_list(res, start_ts, time_step, fc_rows):

@@ -21,7 +21,7 @@ class TDFindPath:
     """This class is for finding path within TDengine
     """
     def __init__(self):
-        self.file = ""
+        self.file = os.path.realpath(__file__)
 
 
     def init(self, file):
@@ -46,6 +46,8 @@ class TDFindPath:
             projPath = selfPath[:selfPath.find("tests")]
 
         for root, dirs, files in os.walk(projPath):
+            if ".git" in root:
+                continue
             if ("taosd" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
@@ -63,14 +65,16 @@ class TDFindPath:
         Returns:
             str: the root path of TDengine
         """
-        selfPath = os.path.dirname(os.path.realpath(self.file))
-
+        selfPath = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(self.file)))))
+        return selfPath
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
         else:
             projPath = selfPath[:selfPath.find("test")]
         print(projPath)
         for root, dirs, files in os.walk(projPath):
+            if ".git" in root:
+                continue
             if ("sim" in dirs):
                 print(root)
                 rootRealPath = os.path.realpath(root)

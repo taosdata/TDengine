@@ -229,7 +229,7 @@ static void sendAllCounter() {
     }
     SAppInstInfo* pInst = getAppInstByClusterId(pMonitor->clusterId);
     if (pInst == NULL) {
-      taosHashCancelIterate(monitorCounterHash, ppMonitor);
+      taosHashCancelIterate(monitorSlowLogHash, ppMonitor);
       break;
     }
     SEpSet ep = getEpSet_s(&pInst->mgmtEp);

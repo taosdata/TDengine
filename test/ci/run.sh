@@ -115,7 +115,13 @@ while true; do
 done
 
 function prepare_cases() {
-    cat "$t_file" >>"$task_file"
+    {
+        # 1. 有数字的行按数字逆序排序
+        grep "^[0-9]" "$t_file" | sort -nr
+        # 2. 无数字且非注释且非空的行保持原顺序
+        grep -v "^[0-9]" "$t_file" | grep -v "^#" | grep -v "^$"
+    } > "$task_file"
+    echo "" >>"$task_file"
     local i=0
     while [ $i -lt "$1" ]; do
         echo "%%FINISHED%%" >>"$task_file"
@@ -256,7 +262,7 @@ function run_thread() {
         local case_redo_time
         case_redo_time=$(echo "$line" | cut -d, -f2)
         if [ -z "$case_redo_time" ]; then
-            case_redo_time=${DEFAULT_RETRY_TIME:-2}
+            case_redo_time=2 # ${DEFAULT_RETRY_TIME:-1}
         fi
         local case_build_san
         case_build_san=$(echo "$line" | cut -d, -f3)
@@ -288,7 +294,7 @@ function run_thread() {
         # get python cases from cases.task file without asan or sim cases
         if echo "$case_cmd" | grep -q "^pytest"; then
             # get python cases from cases.task file without asan
-            if [[ $case_cmd == *"\.py"* ]]; then
+            if [[ $case_cmd == *".py"* ]]; then
                 case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
             fi
             # get sim cases from cases.task file
@@ -423,24 +429,28 @@ function run_thread() {
             else
                 flock -x "$lock_file" -c "echo -e \"${hosts[index]} ret:${ret} ${line}\n  log file: ${case_log_file}\" >>${failed_case_file}"
             fi
-            mkdir -p "${log_dir}"/"${case_file}".coredump
             local remote_coredump_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/coredump"
-            if ! is_local_host "${hosts[index]}"; then
-                cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
-            else
-                cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+            if [ "$(ls -A ${remote_coredump_dir} 2>/dev/null)" ]; then
+                mkdir -p "${log_dir}"/"${case_file}".coredump
+                if ! is_local_host "${hosts[index]}"; then
+                    cmd="$scpcmd:${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+                else
+                    cmd="cp -rf ${remote_coredump_dir}/* $log_dir/${case_file}.coredump/"
+                fi
+                bash -c "$cmd" >/dev/null
             fi
-            bash -c "$cmd" >/dev/null
-            local corefile
-            corefile=$(ls "$log_dir/${case_file}.coredump/")
+
             echo -e "$case_index \e[34m DONE  <<<<< \e[0m ${case_info} \e[34m[${total_time}s]\e[0m \e[31m failed\e[0m"
             echo "=========================log============================"
             cat "$case_log_file"
             echo "====================================================="
             echo -e "\e[34m log file: $case_log_file \e[0m"
+            
             if [ -n "${web_server}" ]; then
                 echo "${web_server}/$test_log_dir/${case_file}.txt"
             fi
+            local corefile
+            corefile=$(ls "$log_dir/${case_file}.coredump/")
             if [ -n "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
             fi
@@ -453,16 +463,20 @@ function run_thread() {
                     cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
                     echo "$cmd"
                     bash -c "$cmd" >/dev/null
-                    cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
+                    if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
+                        cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
+                        echo "$cmd"
+                        bash -c "$cmd" >/dev/null
+                    fi
                 else
                     cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
                     echo "$cmd"
                     bash -c "$cmd" >/dev/null
-                    cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
+                    if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
+                        cmd="cp -rf ${remote_unit_test_log_dir}/* ${build_dir}/"
+                        echo "$cmd"
+                        bash -c "$cmd" >/dev/null
+                    fi
                 fi
             fi
             local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
@@ -471,19 +485,26 @@ function run_thread() {
             else
                 cmd="cd $remote_sim_dir; tar -czf sim.tar.gz sim"
             fi
+            echo "tar sim.tar.gz cmd: $cmd"
             bash -c "$cmd"
             local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
             local remote_case_sql_file="${workdirs[index]}/tmp/thread_volume/$thread_no/${case_sql_file}"
             if ! is_local_host "${hosts[index]}"; then
                 cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                echo "scp sim.tar.gz cmd: $cmd"
                 bash -c "$cmd"
-                cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
-                bash -c "$cmd"
+                if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
+                    cmd="$scpcmd:${remote_case_sql_file} $log_dir/${case_file}.sql"
+                    bash -c "$cmd"
+                fi
             else
                 cmd="cp -f ${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+                echo "cp sim.tar.gz cmd: $cmd"
                 bash -c "$cmd"
-                cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
-                bash -c "$cmd"
+                if [ "$(ls -A "$remote_case_sql_file" 2>/dev/null)" ];then
+                    cmd="cp -f ${remote_case_sql_file} $log_dir/${case_file}.sql"
+                    bash -c "$cmd"
+                fi
             fi
             # # backup source code (disabled)
             # source_tar_dir=$log_dir/TDengine_${hosts[index]}
@@ -629,7 +650,7 @@ cp_status=$?
 echo "Copying allure results to $results_dir, status: $cp_status"
 
 # generate the test report for pr
-/opt/allure/bin/allure generate "$results_dir" -o "$report_dir" --clean
+/opt/allure-2.22.1/bin/allure generate "$results_dir" -o "$report_dir" --clean
 generate_status=$?
 echo "Generating allure report, status: $generate_status"
 

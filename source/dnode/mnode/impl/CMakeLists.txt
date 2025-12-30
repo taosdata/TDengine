@@ -10,6 +10,7 @@ if(TD_ENTERPRISE)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/mnode/src/mndVgroup.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/mnode/src/mndDnode.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/view/src/mndView.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/src/plugins/mnode/src/mndMount.c)
 
   if(${BUILD_WITH_S3})
     add_definitions(-DUSE_S3)
@@ -29,7 +30,7 @@ target_include_directories(
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
-  mnode scheduler sdb wal transport sync monitor executor qworker stream parser audit monitorfw
+  mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw
 )
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)

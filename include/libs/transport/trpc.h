@@ -134,6 +134,13 @@ typedef struct SRpcInit {
   int8_t  startReadTimer;
   int64_t readTimeout;  // s
   int8_t  ipv6;
+  int8_t  enableSSL;
+
+  char caPath[PATH_MAX];
+  char certPath[PATH_MAX];
+  char keyPath[PATH_MAX];
+  char cliCertPath[PATH_MAX];
+  char cliKeyPath[PATH_MAX];
 
   void *parent;
 } SRpcInit;

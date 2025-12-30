@@ -136,6 +136,9 @@ int32_t TEST_decimal128FromDecimal64(const Decimal64* pInput, uint8_t inputPrec,
 int32_t TEST_decimal128FromDecimal128(const Decimal128* pDec, uint8_t prec, uint8_t scale, Decimal128* pOutput,
                                       uint8_t outputPrec, uint8_t outputScale);
 
+int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
+int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
+
 #ifdef __cplusplus
 }
 #endif

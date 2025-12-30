@@ -4,9 +4,11 @@ sidebar_label: taosc
 slug: /tdengine-reference/components/taosc
 ---
 
-The TDengine client driver provides all the APIs needed for application programming and plays an important role in the distributed computing across the entire cluster. In addition to the API and its specific parameters, the behavior of the client driver can also be globally controlled through a configuration file. This section lists the configuration parameters that can be used by the TDengine client.
+The TDengine client driver provides all the APIs needed for application programming and plays an important role in the distributed computing across the entire cluster. In addition to the API and its specific parameters, the behavior of the client driver can also be globally controlled through a configuration file. This section lists the configuration parameters that can be used by the TDengine client. Some parameters take effect for Native connections, while others apply to WebSocket connections. Please note the distinction when using them.
 
-## Configuration Parameters
+## Native Connection Configuration Parameters
+
+The following configuration parameters only take effect for Native connections.  
 
 ### Connection Related
 
@@ -23,6 +25,7 @@ The TDengine client driver provides all the APIs needed for application programm
 |useAdapter            |          |Supported, effective immediately  |Internal parameter, whether to use taosadapter, affects CSV file import|
 |shareConnLimit        |Added in 3.3.4.0|Not supported                     |Internal parameter, the number of queries a link can share, range 1-256, default value 10|
 |readTimeout           |Added in 3.3.4.0|Not supported                     |Internal parameter, minimum timeout, range 64-604800, in seconds, default value 900|
+| maxRetryWaitTime     | v3.3.4.0                        | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
 
 ### Query Related
 
@@ -45,6 +48,7 @@ The TDengine client driver provides all the APIs needed for application programm
 |minSlidingTime                   |         |Supported, effective immediately  |Internal parameter, minimum allowable value for sliding|
 |minIntervalTime                  |         |Supported, effective immediately  |Internal parameter, minimum allowable value for interval|
 |compareAsStrInGreatest           | v3.3.6.0 |Supported, effective immediately  |When the greatest and least functions have both numeric and string types as parameters, the comparison type conversion rules are as follows: Integer; 1: uniformly converted to string comparison, 0: uniformly converted to numeric type comparison.|
+|showFullCreateTableColumn        | Added in 3.3.7.1 | Supported                          | Whether show column compress info while execute `show create table tablname`, range 0/1, default: 0.|
 
 ### Writing Related
 
@@ -56,7 +60,7 @@ The TDengine client driver provides all the APIs needed for application programm
 | smlTsDefaultName                |                   |Supported, effective immediately  | Configuration for setting the time column name in schemaless auto table creation, default value "_ts" |
 | smlDot2Underline                |                   |Supported, effective immediately  | Converts dots in supertable names to underscores in schemaless |
 | maxInsertBatchRows              |                   |Supported, effective immediately  | Internal parameter, maximum number of rows per batch insert |
-| maxSQLLength                    | v3.3.6.34         |Supported, effective immediately  | Maximum length of a single SQL statement; default value: 1,048,576; minimum value: 1,048,576; maximum value: 67,108,864|
+| maxSQLLength                    | v3.3.6.34         |Supported, effective immediately  | Maximum length of a single SQL statement; default value: 1,048,576; minimum value: 1,048,576; maximum value: 67,108,864 |
 
 ### Region Related
 
@@ -114,6 +118,25 @@ The TDengine client driver provides all the APIs needed for application programm
 |Parameter Name|Supported Version|Dynamic Modification|Description|
 |----------------------|----------|--------------------|-------------|
 |enableScience    |          |Not supported                     |Whether to enable scientific notation for displaying floating numbers; 0: do not enable, 1: enable; default value: 1|
+
+## WebSocket Connection Configuration Parameters
+
+The following configuration parameters only take effect for WebSocket connections.
+
+|Parameter Name|Supported Version|Dynamic Modification|Description|
+|----------------------|----------|--------------------|-------------|
+| serverPort | `≥ v3.3.6.0` | Not supported | The port that taosAdapter listens on, default value: 6041 |
+| timezone | `≥ v3.3.6.0` | Not supported | Time zone; defaults to dynamically obtaining the current system time zone setting |
+| logDir | `≥ v3.3.6.0` | Not supported | Log file directory, operational logs will be written to this directory, default value: /var/log/taos |
+| debugFlag | `≥ v3.3.6.0` | Not supported | Log switch for running logs, 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs); default value: 131 |
+| compression | `≥ v3.3.6.0` | Not supported | Enable WebSocket message compression. 0: disabled (default), 1: enabled |
+| adapterList | `≥ v3.3.6.15` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | List of taosAdapter addresses for load balancing and failover. Multiple addresses are comma-separated, format: `host1:port1,host2:port2,...` |
+| logKeepDays | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Maximum retention period for log files in days. When set to 0, no log files are deleted. When greater than 0, log files exceeding the size limit are renamed to taoslog.ts.gz (where ts is the last modification timestamp) and new log files are created. Log files older than the specified days are deleted; default value: 30 |
+| rotationSize | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Maximum size of a single log file (supports KB/MB/GB units), default value: 1GB |
+| connRetries | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Maximum number of retries upon connection failure, default value: 5 |
+| retryBackoffMs | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Initial wait time in milliseconds after connection failure. This value increases exponentially with consecutive failures until reaching the maximum wait time, default value: 200 |
+| retryBackoffMaxMs | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Maximum wait time in milliseconds when connection fails, default value: 2000 |
+| wsTlsMode | `≥ v3.3.6.32` and `< v3.3.7.0` | Not supported | WebSocket TLS encryption mode. 0: TLS disabled by default; client auto-upgrades if server requires TLS (default); 1: TLS enabled |
 
 ## API
 

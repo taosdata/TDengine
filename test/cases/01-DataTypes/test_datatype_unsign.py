@@ -8,16 +8,12 @@ class TestDatatypeUnsigned:
         tdSql.prepare(dbname="db", drop=True)
 
     def test_datatype_unsigned(self):
-        """unsigned datatypes()
+        """DataTypes: unsigned numeric
 
-        1. create table
-        2. alter tag value
-        3. insert data
-        4. query data
-
-        Catalog:
-            - DataTypes
-            - Tables:SubTables:Create
+        1. Create table
+        2. Insert data
+        3. Alter tag value
+        4. Handle illegal input
 
         Since: v3.0.0.0
 

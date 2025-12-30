@@ -401,6 +401,7 @@ int32_t taosHashGetDup_m(SHashObj *pHashObj, const void *key, size_t keyLen, voi
 
 void *taosHashGetImpl(SHashObj *pHashObj, const void *key, size_t keyLen, void **d, int32_t *size, bool addRef) {
   if (pHashObj == NULL || keyLen == 0 || key == NULL) {
+    terrno = TSDB_CODE_INVALID_PTR;
     return NULL;
   }
 

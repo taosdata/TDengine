@@ -28,13 +28,11 @@ while getopts "w:d:c:t:o:s:eh" opt; do
     esac
 done
 
-# 检查必需的变量
 if [ -z "$WORKDIR" ] || [ -z "$exec_dir" ] || [ -z "$cmd" ] || [ -z "$thread_no" ]; then
     usage
     exit 1
 fi
 
-# 设置编译环境
 if [ "${buildSan}" == "y" ]; then
     DEBUGPATH="debugSan"
 elif [[ "${buildSan}" == "n" ]] || [[ -z "${buildSan}" ]]; then
@@ -44,7 +42,6 @@ else
     exit 1
 fi
 
-# 设置目录和挂载参数
 if [ $ent -ne 0 ]; then
     echo "TSDB-Enterprise edition selected"
     extra_param="$extra_param -e"
@@ -67,13 +64,10 @@ else
     REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDengine/debug/build/lib:ro"
 fi
 
-# 设置临时目录
-
 ulimit -c unlimited
 TMP_DIR="$WORKDIR/tmp"
 SOURCEDIR="$WORKDIR/src"
 MOUNT_DIR=""
-# packageName="TDengine-server-3.0.1.0-Linux-x64.tar.gz"
 rm -rf "${TMP_DIR}/thread_volume/$thread_no/sim"
 mkdir -p "$SOURCEDIR"
 mkdir -p "${TMP_DIR}/thread_volume/$thread_no/sim/var_taoslog"
@@ -96,7 +90,6 @@ fi
 SIM_VOL="$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}"
 CORE_VOL="$TMP_DIR/thread_volume/$thread_no/coredump:/home/coredump"
 
-# 打印 docker run 命令
 docker_cmd="docker run --privileged=true \
     -v \"${REP_MOUNT_PARAM}\" \
     -v \"${REP_MOUNT_DEBUG}\" \

@@ -419,7 +419,7 @@ TEST_F(WalCleanDeleteEnv, roll) {
 TEST_F(WalKeepEnv, readHandleRead) {
   walResetEnv();
   int         code;
-  SWalReader* pRead = walOpenReader(pWal, NULL, 0);
+  SWalReader* pRead = walOpenReader(pWal, 0);
   ASSERT(pRead != NULL);
 
   int i;
@@ -457,7 +457,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
 TEST_F(WalKeepEnv, walLogExist) {
   walResetEnv();
   int         code;
-  SWalReader* pRead = walOpenReader(pWal, NULL, 0);
+  SWalReader* pRead = walOpenReader(pWal, 0);
   ASSERT(pRead != NULL);
 
   int i;
@@ -719,7 +719,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
 
   ASSERT_EQ(pWal->vers.lastVer, 99);
 
-  SWalReader* pRead = walOpenReader(pWal, NULL, 0);
+  SWalReader* pRead = walOpenReader(pWal, 0);
   ASSERT(pRead != NULL);
 
   for (int i = 0; i < 1000; i++) {

@@ -158,3 +158,6 @@ select mavg(int_tag, 100) from test_vtable_select.vtb_virtual_ctb_full limit 5;
 select statecount(int_tag, "GT", 20) from test_vtable_select.vtb_virtual_ctb_full limit 5;
 select stateduration(int_tag, "GT", 20, 1a) from test_vtable_select.vtb_virtual_ctb_full limit 5;
 select twa(int_tag) from test_vtable_select.vtb_virtual_ctb_full limit 5;
+
+select count(tbname) from test_vtable_select.vtb_virtual_ctb_full;
+select count(1) from test_vtable_select.vtb_virtual_ctb_full;

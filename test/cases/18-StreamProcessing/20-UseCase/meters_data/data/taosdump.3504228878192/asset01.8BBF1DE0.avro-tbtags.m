@@ -1,0 +1,1 @@
+{"version":1,"name":"electricity_meters","cols": [{"name":"ts", "type":9},{"name":"current", "type":6},{"name":"voltage", "type":4},{"name":"power", "type":6},{"name":"phase", "type":6}],"tags": [{"name":"location", "type":8},{"name":"unit", "type":2},{"name":"floor", "type":2},{"name":"device_id", "type":10}]}

@@ -15,6 +15,7 @@
 
 #include "catalog.h"
 #include "command.h"
+#include "plannodes.h"
 #include "query.h"
 #include "schInt.h"
 #include "tmsg.h"
@@ -407,8 +408,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
 
       SCH_ERR_JRET(schValidateSubplan(pJob, plan, pLevel->level, n, taskNum));
-      
-      SCH_SET_JOB_TYPE(pJob, plan->subplanType);
+      schSetJobType(pJob, plan->subplanType);
 
       SSchTask  task = {0};
       SSchTask *pTask = taosArrayPush(pLevel->subTasks, &task);
@@ -1275,4 +1275,16 @@ _return:
   }
 
   SCH_RET(code);
+}
+
+void schSetJobType(SSchJob *pJob, ESubplanType type) {
+  if (type == SUBPLAN_TYPE_MODIFY) {
+    pJob->attr.type |= JOB_TYPE_INSERT;
+  } else {
+    if (type == SUBPLAN_TYPE_HSYSSCAN) {
+      pJob->attr.type |= JOB_TYPE_HQUERY;
+    } else {
+      pJob->attr.type |= JOB_TYPE_QUERY;
+    }
+  }
 }

@@ -10,8 +10,8 @@ import StatsD from "./_statsd.mdx"
 import Icinga2 from "./_icinga2.mdx"
 import TCollector from "./_tcollector.mdx"
 
-taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程序之间的桥梁和适配器。它提供了一种易于使用和高效的方式来直接从数据收集代理软件（如 Telegraf、StatsD、collectd 等）摄取数据。它还提供了 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine。
-TDengine 的各语言连接器通过 WebSocket 接口与 TDengine 进行通信，因此必须安装 taosAdapter。
+taosAdapter 是一个 TDengine TSDB 的配套工具，是 TDengine TSDB 集群和应用程序之间的桥梁和适配器。它提供了一种易于使用和高效的方式来直接从数据收集代理软件（如 Telegraf、StatsD、collectd 等）摄取数据。它还提供了 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine TSDB。
+TDengine TSDB 的各语言连接器通过 WebSocket 接口与 TDengine TSDB 进行通信，因此必须安装 taosAdapter。
 
 架构图如下：
 
@@ -36,10 +36,12 @@ taosAdapter 提供了以下功能：
   icinga2 是一个收集检查结果指标和性能数据的软件。请访问 [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer) 了解更多信息。
 - TCollector 数据写入：
   TCollector 是一个客户端进程，从本地收集器收集数据，并将数据推送到 OpenTSDB。请访问 [http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html) 了解更多信息。
-- node_exporter 采集写入：
-  node_export 是一个机器指标的导出器。请访问 [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) 了解更多信息。
+- OpenMetrics 采集写入：
+  OpenMetrics 是云原生监控领域的新兴标准，扩展并规范了 Prometheus 的指标格式，已成为现代监控工具的事实标准。请访问 [https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md) 了解更多信息。
 - Prometheus remote_read 和 remote_write：
   remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。请访问 [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) 了解更多信息。
+- node_exporter 采集写入：
+  node_export 是一个机器指标的导出器。请访问 [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) 了解更多信息。
 - RESTful 接口：
   [RESTful API](../../connector/rest-api)
 
@@ -49,15 +51,16 @@ taosAdapter 提供了以下功能：
 
 ### InfluxDB v1 数据写入
 
-您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine。
+您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine TSDB。
 
 支持 InfluxDB 参数如下：
 
-- `db` 指定 TDengine 使用的数据库名
-- `precision` TDengine 使用的时间精度
-- `u` TDengine 用户名
-- `p` TDengine 密码
+- `db` 指定 TDengine TSDB 使用的数据库名
+- `precision` TDengine TSDB 使用的时间精度
+- `u` TDengine TSDB 用户名
+- `p` TDengine TSDB 密码
 - `ttl` 自动创建的子表生命周期，以子表的第一条数据的 TTL 参数为准，不可更新。更多信息请参考 [创建表文档](../../taos-sql/table/#创建表)的 TTL 参数。
+- `table_name_key` 自定义子表名使用的标签名，如果设置了该参数，则子表名将使用该标签对应的值。
 
 注意：目前不支持 InfluxDB 的 token 验证方式，仅支持 Basic 验证和查询参数验证。
 示例：
@@ -68,7 +71,7 @@ curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root
 
 ### OpenTSDB JSON 和 telnet 格式写入
 
-您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine。EndPoint 如下：
+您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine TSDB。EndPoint 如下：
 
 ```text
 /opentsdb/v1/put/json/<db>
@@ -91,25 +94,39 @@ curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root
 
 <TCollector />
 
-### node_exporter 采集写入
+### OpenMetrics 采集写入
 
-Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输出器
+OpenMetrics 是一种由 CNCF（云原生计算基金会）支持的开放标准，专注于规范指标数据的采集和传输，是云原生生态中监控和可观测性系统的核心规范之一。
 
-- 启用 taosAdapter 的配置 node_exporter.enable
-- 设置 node_exporter 的相关配置
+从 **3.3.7.0** 版本开始，taosAdapter 支持 OpenMetrics v1.0.0 数据采集与写入，同时兼容 Prometheus 0.0.4 协议，确保与 Prometheus 生态的无缝集成。
+
+启用 OpenMetrics 数据采集写入需要以下步骤：
+
+- 启用 taosAdapter 的配置 `open_metrics.enable`
+- 设置 OpenMetrics 的相关配置
 - 重新启动 taosAdapter
 
 ### Prometheus remote_read 和 remote_write
 
 <Prometheus />
 
+### node_exporter 采集写入
+
+从 **3.3.7.0** 版本开始，可以使用 OpenMetrics 插件替代 node_exporter 进行数据采集和写入。
+
+Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输出器。
+
+- 启用 taosAdapter 的配置 node_exporter.enable
+- 设置 node_exporter 的相关配置
+- 重新启动 taosAdapter
+
 ### RESTful 接口
 
-您可以使用任何支持 HTTP 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考 [REST API 文档](../../connector/rest-api/)。
+您可以使用任何支持 HTTP 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine TSDB 或从 TDengine TSDB 中查询数据。细节请参考 [REST API 文档](../../connector/rest-api/)。
 
 ## 安装
 
-taosAdapter 是 TDengine 服务端软件 的一部分，如果您使用 TDengine server 您不需要任何额外的步骤来安装 taosAdapter。您可以从 [涛思数据官方网站](https://docs.taosdata.com/releases/tdengine/) 下载 TDengine server 安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考 [构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md) 文档。
+taosAdapter 是 TDengine TSDB 服务端软件 的一部分，如果您使用 TDengine TSDB server 您不需要任何额外的步骤来安装 taosAdapter。您可以从 [涛思数据官方网站](https://docs.taosdata.com/releases/tdengine/) 下载 TDengine TSDB server 安装包。如果需要将 taosAdapter 分离部署在 TDengine TSDB server 之外的服务器上，则应该在该服务器上安装完整的 TDengine TSDB 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考 [构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md) 文档。
 
 安装完成后使用命令 `systemctl start taosadapter` 可以启动 taosAdapter 服务。
 
@@ -130,7 +147,7 @@ taosAdapter 的基础配置参数如下：
   - **设置为 `false` 时**：关闭调试模式，不允许访问调试信息。
 - **`instanceId`**：taosAdapter 实例 id，用于区分不同 taosAdapter 的日志，默认值：32。
 - **`port`**：taosAdapter 对外提供 HTTP/WebSocket 服务的端口，默认值：6041。
-- **`taosConfigDir`**：TDengine 的配置文件目录，默认值：`/etc/taos`。该目录下的 `taos.cfg` 文件将被加载。
+- **`taosConfigDir`**：TDengine TSDB 的配置文件目录，默认值：`/etc/taos`。该目录下的 `taos.cfg` 文件将被加载。
 
 从 **3.3.4.0 版本** 开始，taosAdapter 支持设置调用 C 方法并发调用数：
 
@@ -166,7 +183,7 @@ taosAdapter 的基础配置参数如下：
 
 ### 连接池配置
 
-taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能和资源利用率。连接池配置对以下接口生效，且以下接口共享一个连接池：
+taosAdapter 使用连接池管理与 TDengine TSDB 的连接，以提高并发性能和资源利用率。连接池配置对以下接口生效，且以下接口共享一个连接池：
 
 - RESTful 接口请求
 - InfluxDB v1 写接口
@@ -174,7 +191,8 @@ taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能�
 - Telegraf 数据写入
 - collectd 数据写入
 - StatsD 数据写入
-- 采集 node_exporter 数据写入
+- node_exporter 数据写入
+- OpenMetrics 数据写入
 - Prometheus remote_read 和 remote_write
 
 连接池的配置参数如下：
@@ -258,6 +276,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 - collectd 数据写入
 - StatsD 数据写入
 - node_exporter 数据写入
+- OpenMetrics 数据写入
 
 **参数说明** ：
 
@@ -344,16 +363,7 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 
   SQL 日志轮转时间（默认值：`24h`）。
 
-1. 可以通过设置 --log.level 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来设置 taosAdapter 日志输出详细程度。有效值包括：panic、fatal、error、warn、warning、info、debug 以及 trace。
-2. 从 **3.3.5.0 版本** 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
-
-以下是通过 curl 命令将日志级别设置为 debug 的示例：
-
-```shell
-curl --location --request PUT 'http://127.0.0.1:6041/config' \
--u root:taosdata \
---data '{"log.level": "debug"}'
-```
+可以通过设置 --log.level 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来设置 taosAdapter 日志输出详细程度。有效值包括：panic、fatal、error、warn、warning、info、debug 以及 trace。
 
 ### 第三方数据源配置
 
@@ -392,68 +402,6 @@ curl --location --request PUT 'http://127.0.0.1:6041/config' \
 - **`influxdb.enable`**
 
   启用或禁用 InfluxDB 协议支持（布尔值，默认值：`true`）。
-
-#### node_exporter 配置参数
-
-- **`node_exporter.enable`**
-
-  是否启用 node_exporter 数据采集（默认值：`false`）。
-
-- **`node_exporter.db`**
-
-  指定 node_exporter 数据写入的数据库名称（默认值：`"node_exporter"`）。
-
-- **`node_exporter.urls`**
-
-  配置 node_exporter 服务地址（默认值：`["http://localhost:9100"]`）。
-
-- **`node_exporter.gatherDuration`**
-
-  设置数据采集间隔时间（默认值：`5s`）。
-
-- **`node_exporter.responseTimeout`**
-
-  配置请求超时时间（默认值：`5s`）。
-
-- **`node_exporter.user`**
-
-  设置数据库连接用户名（默认值：`"root"`）。
-
-- **`node_exporter.password`**
-
-  设置数据库连接密码（默认值：`"taosdata"`）。
-
-- **`node_exporter.ttl`**
-
-  配置采集数据的生存时间（默认值：`0`，表示无超时）。
-
-- **`node_exporter.httpUsername`**
-
-  配置 HTTP 基本认证用户名（可选）。
-
-- **`node_exporter.httpPassword`**
-
-  配置 HTTP 基本认证密码（可选）。
-
-- **`node_exporter.httpBearerTokenString`**
-
-  配置 HTTP Bearer Token 认证（可选）。
-
-- **`node_exporter.insecureSkipVerify`**
-
-  是否跳过 SSL 证书验证（默认值：`true`）。
-
-- **`node_exporter.certFile`**
-
-  指定客户端证书文件路径（可选）。
-
-- **`node_exporter.keyFile`**
-
-  指定客户端证书密钥文件路径（可选）。
-
-- **`node_exporter.caCertFile`**
-
-  指定 CA 证书文件路径（可选）。
 
 #### OpenTSDB 配置参数
 
@@ -573,6 +521,134 @@ curl --location --request PUT 'http://127.0.0.1:6041/config' \
 
   是否启用 Prometheus 协议支持（默认值：`true`）。
 
+#### OpenMetrics 配置参数
+
+- **`open_metrics.enable`**
+
+  启用或禁用 OpenMetrics 数据采集功能（默认值：`false`）。
+
+- **`open_metrics.user`**
+
+  配置连接 TDengine TSDB 的用户名（默认值：`"root"`）。
+
+- **`open_metrics.password`**
+
+  设置连接 TDengine TSDB 的密码（默认值：`"taosdata"`）。
+
+- **`open_metrics.urls`**
+
+  指定 OpenMetrics 数据采集地址列表（默认值：`["http://localhost:9100"]`，未指定路由时会自动追加 `/metrics`）。
+
+- **`open_metrics.dbs`**
+
+  设置数据写入的目标数据库列表（默认值：`["open_metrics"]`，需与采集地址数量相同）。
+
+- **`open_metrics.responseTimeoutSeconds`**
+
+  配置采集超时时间（秒）（默认值：`[5]`，需与采集地址数量相同）。
+
+- **`open_metrics.httpUsernames`**
+
+  设置 Basic 认证用户名列表（若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.httpPasswords`**
+
+  设置 Basic 认证密码列表（若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.httpBearerTokenStrings`**
+
+  配置 Bearer Token 认证列表（若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.caCertFiles`**
+
+  指定根证书文件路径列表（若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.certFiles`**
+
+  设置客户端证书文件路径列表（若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.keyFiles`**
+
+  配置客户端证书密钥文件路径列表（若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.insecureSkipVerify`**
+
+  是否跳过 HTTPS 证书验证（默认值：`true`）。
+
+- **`open_metrics.gatherDurationSeconds`**
+
+  设置采集间隔时间（秒）（默认值：`[5]`，需与采集地址数量相同）。
+
+- **`open_metrics.ttl`**
+
+  定义数据表的生存时间（秒）（`0` 表示无超时，若启用需与采集地址数量相同，默认值：空）。
+
+- **`open_metrics.ignoreTimestamp`**
+
+  是否忽略采集数据中的时间戳（若忽略则使用采集时刻时间戳，默认值：`false`）。
+
+#### node_exporter 配置参数
+
+- **`node_exporter.enable`**
+
+  是否启用 node_exporter 数据采集（默认值：`false`）。
+
+- **`node_exporter.db`**
+
+  指定 node_exporter 数据写入的数据库名称（默认值：`"node_exporter"`）。
+
+- **`node_exporter.urls`**
+
+  配置 node_exporter 服务地址（默认值：`["http://localhost:9100"]`）。
+
+- **`node_exporter.gatherDuration`**
+
+  设置数据采集间隔时间（默认值：`5s`）。
+
+- **`node_exporter.responseTimeout`**
+
+  配置请求超时时间（默认值：`5s`）。
+
+- **`node_exporter.user`**
+
+  设置数据库连接用户名（默认值：`"root"`）。
+
+- **`node_exporter.password`**
+
+  设置数据库连接密码（默认值：`"taosdata"`）。
+
+- **`node_exporter.ttl`**
+
+  配置采集数据的生存时间（默认值：`0`，表示无超时）。
+
+- **`node_exporter.httpUsername`**
+
+  配置 HTTP 基本认证用户名（可选）。
+
+- **`node_exporter.httpPassword`**
+
+  配置 HTTP 基本认证密码（可选）。
+
+- **`node_exporter.httpBearerTokenString`**
+
+  配置 HTTP Bearer Token 认证（可选）。
+
+- **`node_exporter.insecureSkipVerify`**
+
+  是否跳过 SSL 证书验证（默认值：`true`）。
+
+- **`node_exporter.certFile`**
+
+  指定客户端证书文件路径（可选）。
+
+- **`node_exporter.keyFile`**
+
+  指定客户端证书密钥文件路径（可选）。
+
+- **`node_exporter.caCertFile`**
+
+  指定 CA 证书文件路径（可选）。
+
 ### 上报指标配置
 
 taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
@@ -600,6 +676,105 @@ taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
 - **`uploadKeeper.retryInterval`**
 
   配置重试间隔时间（默认值：`5s`）。
+
+### 查询请求并发限制配置
+
+从 **3.3.6.29**/**3.3.8.3** 版本开始，taosAdapter 支持配置查询请求的并发限制，防止因过多的并发查询请求导致系统资源耗尽。
+当启用该功能后，taosAdapter 会根据配置的并发限制数来控制同时处理的查询请求数量，超过限制的请求将进入等待，直到有可用的处理资源为止。
+
+当等待时间超过配置的超时时间或等待数超过配置的最大等待请求数时，taosAdapter 将直接返回错误响应，提示用户请求过多。
+RESTful 请求将返回 HTTP 状态码 `503`，WebSocket 请求将返回错误码 `0xFFFE`。
+
+该配置会影响以下接口：
+
+- **RESTful 接口**
+- **WebSocket SQL 执行接口**
+
+###### 参数说明
+
+- **`request.queryLimitEnable`**
+  - **设置为 `true` 时**：启用查询请求并发限制功能。
+  - **设置为 `false` 时**：禁用查询请求并发限制功能（默认值）。
+- **`request.default.queryLimit`**
+  - 设置默认的查询请求并发限制数（默认值：`0`，表示无限制）。
+- **`request.default.queryWaitTimeout`**
+  - 限制并发请求超过限制后的等待时间（单位：秒），请求等待执行超时后将直接返回错误，默认值：`900`。
+- **`request.default.queryMaxWait`**
+  - 限制并发请求超过限制后的最大等待请求数，超过该数量的请求将直接返回错误，默认值：`0`，表示不限制。
+- **`request.excludeQueryLimitSql`**
+  - 配置不受并发限制影响的 SQL 列表，必须以 `select` 开头，SQL 忽略大小写。
+- **`request.excludeQueryLimitSqlRegex`**
+  - 配置不受并发限制影响的 SQL 正则表达式列表。
+
+###### 针对每个用户可单独设置
+
+仅支持配置文件进行设置：
+
+- **`request.users.<username>.queryLimit`**
+  - 设置指定用户的查询请求并发限制数，优先级高于默认设置。
+- **`request.users.<username>.queryWaitTimeout`**
+  - 限制并发请求超过限制后的等待时间（单位：秒），请求等待执行超时后将直接返回错误，优先级高于默认设置。
+- **`request.users.<username>.queryMaxWait`**
+  - 限制并发请求超过限制后的最大等待请求数，超过该数量的请求将直接返回错误，优先级高于默认设置。
+
+###### 示例说明
+
+```toml
+[request]
+queryLimitEnable = true
+excludeQueryLimitSql = ["select 1","select server_version()"]
+excludeQueryLimitSqlRegex = ['(?i)^select\s+.*from\s+information_schema.*']
+
+[request.default]
+queryLimit = 200
+queryWaitTimeout = 900
+queryMaxWait = 0
+
+[request.users.root]
+queryLimit = 100
+queryWaitTimeout = 200
+queryMaxWait = 10
+```
+
+- `queryLimitEnable = true` 启用了查询请求并发限制功能。
+- `excludeQueryLimitSql = ["select 1","select server_version()"]` 排除了两个常用做 ping 的查询 SQL。
+- `excludeQueryLimitSqlRegex = ['(?i)^select\s+.*from\s+information_schema.*']` 排除了所有查询 information_schema 这个数据库的 SQL。
+- `request.default` 配置了默认的查询请求并发限制数为 200，等待超时为 900 秒，最大等待请求数为 0（无限制）。
+- `request.users.root` 配置了用户 root 的查询请求并发限制数为 100，等待超时为 200 秒，最大等待请求数为 10。
+
+当用户 root 发起查询请求时，taosAdapter 会根据上述配置进行并发限制处理。当查询请求超过 100 个时，后续请求将进入等待，直到有可用的资源为止。如果等待时间超过 200 秒或等待请求数超过 10 个，taosAdapter 将直接返回错误响应。
+
+当其他用户发起查询请求时，将使用默认的并发限制配置进行处理。每个用户配置独立，不共享 `request.default` 的并发限制。比如用户 user1 发起 200 个并发查询请求时，用户 user2 也可以同时发起 200 个并发查询请求而不会阻塞。
+
+### 禁用查询 SQL 配置
+
+从 **3.3.6.34**/**3.4.0.0** 版本开始，taosAdapter 支持通过配置禁用特定的查询 SQL，防止执行某些不安全或资源消耗过大的查询操作。
+当启用该功能后，taosAdapter 会检查每个非 insert（忽略大小写）开头的 SQL，如果匹配到配置的禁用正则表达式，则直接返回错误响应，提示用户该查询被禁用。
+当被禁用的查询 SQL 被匹配到时，RESTful 接口将返回 HTTP 状态码 `403`，WebSocket 接口将返回错误码 `0xFFFD`，
+taosAdapter 将打印警告日志，包含此 SQL 的来源等内容，例如：
+
+```text
+reject sql, client_ip:192.168.1.98, port:59912, user:root, app:test_app, reject_regex:(?i)^drop\s+table\s+.*, sql:DROP taBle testdb.stb
+```
+
+该配置会影响以下接口：
+
+- **RESTful 接口**
+- **WebSocket SQL 执行接口**
+
+###### 参数说明
+
+- **`rejectQuerySqlRegex`**
+  - 配置禁用查询 SQL 的正则表达式列表。支持 [Goole RE2 语法](https://github.com/google/re2/wiki/Syntax)。
+  - 默认值：空列表，表示不禁用任何查询 SQL。
+
+###### 示例说明
+
+```toml
+rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']
+```
+
+`rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i)^alter\s+table\s+.*']` 禁用了所有 drop database、drop table 和 alter table 的查询操作，忽略大小写。
 
 ### 环境变量
 
@@ -664,6 +839,22 @@ taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
 | `node_exporter.ttl`                   | `TAOS_ADAPTER_NODE_EXPORTER_TTL`                      |
 | `node_exporter.urls`                  | `TAOS_ADAPTER_NODE_EXPORTER_URLS`                     |
 | `node_exporter.user`                  | `TAOS_ADAPTER_NODE_EXPORTER_USER`                     |
+| `open_metrics.enable`                 | `TAOS_ADAPTER_OPEN_METRICS_ENABLE`                    |
+| `open_metrics.user`                   | `TAOS_ADAPTER_OPEN_METRICS_USER`                      |
+| `open_metrics.password`               | `TAOS_ADAPTER_OPEN_METRICS_PASSWORD`                  |
+| `open_metrics.urls`                   | `TAOS_ADAPTER_OPEN_METRICS_URLS`                      |
+| `open_metrics.dbs`                    | `TAOS_ADAPTER_OPEN_METRICS_DBS`                       |
+| `open_metrics.responseTimeoutSeconds` | `TAOS_ADAPTER_OPEN_METRICS_RESPONSE_TIMEOUT_SECONDS`  |
+| `open_metrics.httpUsernames`          | `TAOS_ADAPTER_OPEN_METRICS_HTTP_USERNAMES`            |
+| `open_metrics.httpPasswords`          | `TAOS_ADAPTER_OPEN_METRICS_HTTP_PASSWORDS`            |
+| `open_metrics.httpBearerTokenStrings` | `TAOS_ADAPTER_OPEN_METRICS_HTTP_BEARER_TOKEN_STRINGS` |
+| `open_metrics.caCertFiles`            | `TAOS_ADAPTER_OPEN_METRICS_CA_CERT_FILES`             |
+| `open_metrics.certFiles`              | `TAOS_ADAPTER_OPEN_METRICS_CERT_FILES`                |
+| `open_metrics.keyFiles`               | `TAOS_ADAPTER_OPEN_METRICS_KEY_FILES`                 |
+| `open_metrics.insecureSkipVerify`     | `TAOS_ADAPTER_OPEN_METRICS_INSECURE_SKIP_VERIFY`      |
+| `open_metrics.gatherDurationSeconds`  | `TAOS_ADAPTER_OPEN_METRICS_GATHER_DURATION_SECONDS`   |
+| `open_metrics.ignoreTimestamp`        | `TAOS_ADAPTER_OPEN_METRICS_IGNORE_TIMESTAMP`          |
+| `open_metrics.ttl`                    | `TAOS_ADAPTER_OPEN_METRICS_TTL`                       |
 | `opentsdb.enable`                     | `TAOS_ADAPTER_OPENTSDB_ENABLE`                        |
 | `opentsdb_telnet.batchSize`           | `TAOS_ADAPTER_OPENTSDB_TELNET_BATCH_SIZE`             |
 | `opentsdb_telnet.dbs`                 | `TAOS_ADAPTER_OPENTSDB_TELNET_DBS`                    |
@@ -682,6 +873,12 @@ taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
 | `pool.waitTimeout`                    | `TAOS_ADAPTER_POOL_WAIT_TIMEOUT`                      |
 | `P`, `port`                           | `TAOS_ADAPTER_PORT`                                   |
 | `prometheus.enable`                   | `TAOS_ADAPTER_PROMETHEUS_ENABLE`                      |
+| `request.default.queryLimit`          | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_LIMIT`            |
+| `request.default.queryMaxWait`        | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_MAX_WAIT`         |
+| `request.default.queryWaitTimeout`    | `TAOS_ADAPTER_REQUEST_DEFAULT_QUERY_WAIT_TIMEOUT`     |
+| `request.excludeQueryLimitSql`        | `TAOS_ADAPTER_REQUEST_EXCLUDE_QUERY_LIMIT_SQL`        |
+| `request.excludeQueryLimitSqlRegex`   | `TAOS_ADAPTER_REQUEST_EXCLUDE_QUERY_LIMIT_SQL_REGEX`  |
+| `request.queryLimitEnable`            | `TAOS_ADAPTER_REQUEST_QUERY_LIMIT_ENABLE`             |
 | `restfulRowLimit`                     | `TAOS_ADAPTER_RESTFUL_ROW_LIMIT`                      |
 | `smlAutoCreateDB`                     | `TAOS_ADAPTER_SML_AUTO_CREATE_DB`                     |
 | `statsd.allowPendingMessages`         | `TAOS_ADAPTER_STATSD_ALLOW_PENDING_MESSAGES`          |
@@ -718,12 +915,33 @@ taosAdapter 将指标上报到 taosKeeper 进行统一管理，参数如下：
 
 ### 升级 taosAdapter
 
-taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDengine server 来升级 taosAdapter。
-与 taosd 分离部署的 taosAdapter 必须通过升级其所在服务器的 TDengine server 才能得到升级。
+taosAdapter 和 TDengine TSDB server 需要使用相同版本。请通过升级 TDengine TSDB server 来升级 taosAdapter。
+与 taosd 分离部署的 taosAdapter 必须通过升级其所在服务器的 TDengine TSDB server 才能得到升级。
 
 ### 移除 taosAdapter
 
-使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
+使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine TSDB server 软件。
+
+## 动态配置
+
+### 动态修改日志级别
+
+从 **3.3.5.0 版本** 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
+
+以下是通过 curl 命令将日志级别设置为 debug 的示例：
+
+```shell
+curl --location --request PUT 'http://127.0.0.1:6041/config' \
+-u root:taosdata \
+--data '{"log.level": "debug"}'
+```
+
+### 监听配置文件变更
+
+从 **3.3.6.34**/**3.4.0.0** 版本开始，taosAdapter 支持监听配置文件的变更，支持以下配置自动更新
+
+- `log.level` 日志级别参数
+- `rejectQuerySqlRegex` 拒绝查询 SQL 列表配置参数
 
 ## IPv6 支持
 
@@ -881,11 +1099,13 @@ curl --location 'http://127.0.0.1:6041/record_sql' \
 10. FetchDuration(us)：多次执行 `taos_fetch_raw_block_a` 到回调完成的时间消耗累加值，单位微秒。
 11. GetConnDuration(us)：HTTP 请求从连接池获取连接的时间消耗，单位微秒。
 12. TotalDuration(us)：SQL 请求完成总时间，单位微秒，当 SQL 正常完成时为（SQL 释放的时间 - 接收到 SQL 的时间），当任务结束未完成时为（当前时间 - 接收到 SQL 的时间）。
+13. SourcePort：客户端端口。（3.3.6.26 及以上 / 3.3.8.0 及以上版本添加）
+14. AppName：客户应用 AppName。（3.3.6.26 及以上 / 3.3.8.0 及以上版本添加）
 
 样例如下：
 
 ```csv
-2025-07-23 17:10:08.724775,show databases,127.0.0.1,root,http,0x2000000000000008,2025-07-23 17:10:08.707741,2025-07-23 17:10:08.724775,14191,965,1706,17034
+2025-07-23 17:10:08.724775,show databases,127.0.0.1,root,http,0x2000000000000008,2025-07-23 17:10:08.707741,2025-07-23 17:10:08.724775,14191,965,1706,17034,53600,jdbc_test_app
 ```
 
 ## taosAdapter 监控指标
@@ -899,26 +1119,26 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 <details>
 <summary>详细信息</summary>
 
-| field              | type         | is\_tag | comment                     |
-|:-------------------|:-------------|:--------|:----------------------------|
-| ts                 | TIMESTAMP    |         | 数据采集时间戳                     |
-| total              | INT UNSIGNED |         | 总请求数                        |
-| query              | INT UNSIGNED |         | 查询请求数                       |
-| write              | INT UNSIGNED |         | 写入请求数                       |
-| other              | INT UNSIGNED |         | 其他请求数                       |
-| in\_process        | INT UNSIGNED |         | 正在处理请求数                     |
-| success            | INT UNSIGNED |         | 成功请求数                       |
-| fail               | INT UNSIGNED |         | 失败请求数                       |
-| query\_success     | INT UNSIGNED |         | 查询成功请求数                     |
-| query\_fail        | INT UNSIGNED |         | 查询失败请求数                     |
-| write\_success     | INT UNSIGNED |         | 写入成功请求数                     |
-| write\_fail        | INT UNSIGNED |         | 写入失败请求数                     |
-| other\_success     | INT UNSIGNED |         | 其他成功请求数                     |
-| other\_fail        | INT UNSIGNED |         | 其他失败请求数                     |
-| query\_in\_process | INT UNSIGNED |         | 正在处理查询请求数                   |
-| write\_in\_process | INT UNSIGNED |         | 正在处理写入请求数                   |
-| endpoint           | VARCHAR      |         | 请求端点                        |
-| req\_type          | NCHAR        | TAG     | 请求类型：0 为 REST，1 为 WebSocket |
+| field              | type             | is\_tag | comment                     |
+|:-------------------|:-----------------|:--------|:----------------------------|
+| ts                 | TIMESTAMP        |         | 数据采集时间戳                     |
+| total              | INT UNSIGNED     |         | 总请求数                        |
+| query              | INT UNSIGNED     |         | 查询请求数                       |
+| write              | INT UNSIGNED     |         | 写入请求数                       |
+| other              | INT UNSIGNED     |         | 其他请求数                       |
+| in\_process        | INT UNSIGNED     |         | 正在处理请求数                     |
+| success            | INT UNSIGNED     |         | 成功请求数                       |
+| fail               | INT UNSIGNED     |         | 失败请求数                       |
+| query\_success     | INT UNSIGNED     |         | 查询成功请求数                     |
+| query\_fail        | INT UNSIGNED     |         | 查询失败请求数                     |
+| write\_success     | INT UNSIGNED     |         | 写入成功请求数                     |
+| write\_fail        | INT UNSIGNED     |         | 写入失败请求数                     |
+| other\_success     | INT UNSIGNED     |         | 其他成功请求数                     |
+| other\_fail        | INT UNSIGNED     |         | 其他失败请求数                     |
+| query\_in\_process | INT UNSIGNED     |         | 正在处理查询请求数                   |
+| write\_in\_process | INT UNSIGNED     |         | 正在处理写入请求数                   |
+| endpoint           | VARCHAR          | TAG     | 请求端点                        |
+| req\_type          | TINYINT UNSIGNED | TAG     | 请求类型：0 为 REST，1 为 WebSocket |
 
 </details>
 
@@ -927,39 +1147,40 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 <details>
 <summary>详细信息</summary>
 
-| field                     | type      | is\_tag | comment                                  |
-|:--------------------------|:----------|:--------|:-----------------------------------------|
-| _ts                       | TIMESTAMP |         | 数据采集时间戳                                  |
-| go_heap_sys               | DOUBLE    |         | Go 运行时系统分配的堆内存大小（字节）                     |
-| go_heap_inuse             | DOUBLE    |         | Go 运行时正在使用的堆内存大小（字节）                     |
-| go_stack_sys              | DOUBLE    |         | Go 运行时系统分配的栈内存大小（字节）                     |
-| go_stack_inuse            | DOUBLE    |         | Go 运行时正在使用的栈内存大小（字节）                     |
-| rss                       | DOUBLE    |         | 进程实际占用的物理内存大小（字节）                        |
-| ws_query_conn             | DOUBLE    |         | `/rest/ws` 接口当前 WebSocket 连接数            |
-| ws_stmt_conn              | DOUBLE    |         | `/rest/stmt` 接口当前 WebSocket 连接数          |
-| ws_sml_conn               | DOUBLE    |         | `/rest/schemaless` 接口当前 WebSocket 连接数    |
-| ws_ws_conn                | DOUBLE    |         | `/ws` 接口当前 WebSocket 连接数                 |
-| ws_tmq_conn               | DOUBLE    |         | `/rest/tmq` 接口当前 WebSocket 连接数           |
-| async_c_limit             | DOUBLE    |         | C 同步接口并发限制总数                             |
-| async_c_inflight          | DOUBLE    |         | C 同步接口当前并发数                              |
-| sync_c_limit              | DOUBLE    |         | C 异步接口并发限制总数                             |
-| sync_c_inflight           | DOUBLE    |         | C 异步接口当前并发数                              |
-| ws_query_conn_inc         | DOUBLE    |         | /rest/ws 接口新增连接（3.3.6.10 及以上）            |
-| ws_query_conn_dec         | DOUBLE    |         | /rest/ws 接口减少连接（3.3.6.10 及以上）            |
-| ws_stmt_conn_inc          | DOUBLE    |         | /rest/stmt 接口新增连接（3.3.6.10 及以上）          |
-| ws_stmt_conn_dec          | DOUBLE    |         | /rest/stmt 接口减少连接（3.3.6.10 及以上）          |
-| ws_sml_conn_inc           | DOUBLE    |         | /rest/schemaless 接口新增连接（3.3.6.10 及以上）    |
-| ws_sml_conn_dec           | DOUBLE    |         | /rest/schemaless 接口减少连接（3.3.6.10 及以上）    |
-| ws_ws_conn_inc            | DOUBLE    |         | /ws 接口新增连接（3.3.6.10 及以上）                 |
-| ws_ws_conn_dec            | DOUBLE    |         | /ws 接口减少连接（3.3.6.10 及以上）                 |
-| ws_tmq_conn_inc           | DOUBLE    |         | /rest/tmq 接口新增连接（3.3.6.10 及以上）           |
-| ws_tmq_conn_dec           | DOUBLE    |         | /rest/tmq 接口减少连接（3.3.6.10 及以上）           |
-| ws_query_sql_result_count | DOUBLE    |         | /rest/ws 接口当前持有 SQL 查询结果数量（3.3.6.10 及以上） |
-| ws_stmt_stmt_count        | DOUBLE    |         | /rest/stmt 接口当前持有 stmt 数量（3.3.6.10 及以上）  |
-| ws_ws_sql_result_count    | DOUBLE    |         | /ws 接口当前持有 SQL 查询结果数量（3.3.6.10 及以上）      |
-| ws_ws_stmt_count          | DOUBLE    |         | /ws 接口当前持有 stmt 数量（3.3.6.10 及以上）         |
-| ws_ws_stmt2_count         | DOUBLE    |         | /ws 接口当前持有 stmt2 数量（3.3.6.10 及以上）        |
-| endpoint                  | NCHAR     | TAG     | 请求端点                                     |
+| field                     | type      | is\_tag | comment                                             |
+|:--------------------------|:----------|:--------|:----------------------------------------------------|
+| _ts                       | TIMESTAMP |         | 数据采集时间戳                                             |
+| go_heap_sys               | DOUBLE    |         | Go 运行时系统分配的堆内存大小（字节）                                |
+| go_heap_inuse             | DOUBLE    |         | Go 运行时正在使用的堆内存大小（字节）                                |
+| go_stack_sys              | DOUBLE    |         | Go 运行时系统分配的栈内存大小（字节）                                |
+| go_stack_inuse            | DOUBLE    |         | Go 运行时正在使用的栈内存大小（字节）                                |
+| rss                       | DOUBLE    |         | 进程实际占用的物理内存大小（字节）                                   |
+| ws_query_conn             | DOUBLE    |         | `/rest/ws` 接口当前 WebSocket 连接数                       |
+| ws_stmt_conn              | DOUBLE    |         | `/rest/stmt` 接口当前 WebSocket 连接数                     |
+| ws_sml_conn               | DOUBLE    |         | `/rest/schemaless` 接口当前 WebSocket 连接数               |
+| ws_ws_conn                | DOUBLE    |         | `/ws` 接口当前 WebSocket 连接数                            |
+| ws_tmq_conn               | DOUBLE    |         | `/rest/tmq` 接口当前 WebSocket 连接数                      |
+| async_c_limit             | DOUBLE    |         | C 同步接口并发限制总数                                        |
+| async_c_inflight          | DOUBLE    |         | C 同步接口当前并发数                                         |
+| sync_c_limit              | DOUBLE    |         | C 异步接口并发限制总数                                        |
+| sync_c_inflight           | DOUBLE    |         | C 异步接口当前并发数                                         |
+| ws_query_conn_inc         | DOUBLE    |         | /rest/ws 接口新增连接（3.3.6.10 及以上）                       |
+| ws_query_conn_dec         | DOUBLE    |         | /rest/ws 接口减少连接（3.3.6.10 及以上）                       |
+| ws_stmt_conn_inc          | DOUBLE    |         | /rest/stmt 接口新增连接（3.3.6.10 及以上）                     |
+| ws_stmt_conn_dec          | DOUBLE    |         | /rest/stmt 接口减少连接（3.3.6.10 及以上）                     |
+| ws_sml_conn_inc           | DOUBLE    |         | /rest/schemaless 接口新增连接（3.3.6.10 及以上）               |
+| ws_sml_conn_dec           | DOUBLE    |         | /rest/schemaless 接口减少连接（3.3.6.10 及以上）               |
+| ws_ws_conn_inc            | DOUBLE    |         | /ws 接口新增连接（3.3.6.10 及以上）                            |
+| ws_ws_conn_dec            | DOUBLE    |         | /ws 接口减少连接（3.3.6.10 及以上）                            |
+| ws_tmq_conn_inc           | DOUBLE    |         | /rest/tmq 接口新增连接（3.3.6.10 及以上）                      |
+| ws_tmq_conn_dec           | DOUBLE    |         | /rest/tmq 接口减少连接（3.3.6.10 及以上）                      |
+| ws_query_sql_result_count | DOUBLE    |         | /rest/ws 接口当前持有 SQL 查询结果数量（3.3.6.10 及以上）            |
+| ws_stmt_stmt_count        | DOUBLE    |         | /rest/stmt 接口当前持有 stmt 数量（3.3.6.10 及以上）             |
+| ws_ws_sql_result_count    | DOUBLE    |         | /ws 接口当前持有 SQL 查询结果数量（3.3.6.10 及以上）                 |
+| ws_ws_stmt_count          | DOUBLE    |         | /ws 接口当前持有 stmt 数量（3.3.6.10 及以上）                    |
+| ws_ws_stmt2_count         | DOUBLE    |         | /ws 接口当前持有 stmt2 数量（3.3.6.10 及以上）                   |
+| cpu_percent               | DOUBLE    |         | taosAdapter 的 CPU 占用百分比（v3.3.6.24 及以上 /v3.3.7.7 及以上） |
+| endpoint                  | NCHAR     | TAG     | 请求端点                                                |
 
 </details>
 
@@ -1246,9 +1467,28 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 
 </details>
 
+从 **3.3.6.29**/**3.3.8.3** 版本开始新增 `adapter_request_limit` 表记录 taosAdapter 查询请求限流数据：
+
+<details>
+<summary>详细信息</summary>
+
+| field                 | type      | is\_tag | comment                          |
+|:----------------------|:----------|:--------|:---------------------------------|
+| _ts                   | TIMESTAMP |         | 数据采集时间戳                          |
+| query_limit           | DOUBLE    |         | 允许同时执行的查询请求的最大并发数                |
+| query_max_wait        | DOUBLE    |         | 查询队列中允许等待执行的最大查询数量               |
+| query_inflight        | DOUBLE    |         | 当前正在执行的、受并发限制的查询数量               |
+| query_wait_count      | DOUBLE    |         | 当前在队列中等待执行的查询数量                  |
+| query_count           | DOUBLE    |         | 本采集周期内收到的、受并发限制的查询请求总数           |
+| query_wait_fail_count | DOUBLE    |         | 本采集周期内因等待超时或超过最大等待队列长度而失败的查询请求数量 |
+| endpoint              | NCHAR     | TAG     | 请求端点                             |
+| user                  | NCHAR     | TAG     | 发起查询请求的认证用户名                     |
+
+</details>
+
 ## httpd 升级为 taosAdapter 的变化
 
-在 TDengine server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务（httpd）。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
+在 TDengine TSDB server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务（httpd）。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
 
 | **#** | **embedded httpd**  | **taosAdapter**               | **comment**                                                                                    |
 |-------|---------------------|-------------------------------|------------------------------------------------------------------------------------------------|

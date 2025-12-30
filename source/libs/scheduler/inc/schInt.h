@@ -258,10 +258,15 @@ typedef struct SSchTask {
   SSchTimerParam  delayLaunchPar; 
 } SSchTask;
 
+typedef enum {
+  JOB_TYPE_INSERT = 0x01,
+  JOB_TYPE_QUERY  = 0x02,
+  JOB_TYPE_HQUERY = 0x04,  // high-priority query is also a query.
+} EJobType;
+
 typedef struct SSchJobAttr {
   EExplainMode explainMode;
-  bool         queryJob;
-  bool         insertJob;
+  EJobType     type;  // job type 
   bool         needFetch;
   bool         needFlowCtrl;
   bool         localExec;
@@ -383,16 +388,10 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_TASK_NEED_FETCH(_task)     ((_task)->plan->subplanType != SUBPLAN_TYPE_MODIFY)
 #define SCH_MULTI_LEVEL_LAUNCHED(_job) ((_job)->levelIdx != ((_job)->levelNum - 1))
 
-#define SCH_SET_JOB_TYPE(_job, type)     \
-  do {                                   \
-    if ((type) != SUBPLAN_TYPE_MODIFY) { \
-      (_job)->attr.queryJob = true;      \
-    } else {                             \
-      (_job)->attr.insertJob = true;     \
-    }                                    \
-  } while (0)
-#define SCH_IS_QUERY_JOB(_job)   ((_job)->attr.queryJob)
-#define SCH_IS_INSERT_JOB(_job)  ((_job)->attr.insertJob)
+void schSetJobType(SSchJob* pJob, ESubplanType type);
+
+#define SCH_IS_QUERY_JOB(_job)   (((_job)->attr.type & JOB_TYPE_QUERY) != 0 || (((_job)->attr.type & JOB_TYPE_HQUERY) != 0))
+#define SCH_IS_INSERT_JOB(_job)  (((_job)->attr.type & JOB_TYPE_INSERT) != 0)
 #define SCH_JOB_NEED_FETCH(_job) ((_job)->attr.needFetch)
 #define SCH_JOB_NEED_WAIT(_job)  (!SCH_IS_QUERY_JOB(_job))
 #define SCH_JOB_NEED_DROP(_job)  (SCH_IS_QUERY_JOB(_job))

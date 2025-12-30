@@ -9,18 +9,38 @@ on:
     paths-ignore:
       - 'packaging/**'
       - 'docs/**'
+      - '!docs/examples/**'
       - 'tools/tdgpt/**'
       - 'source/libs/executor/src/forecastoperator.c'
       - 'source/libs/executor/src/anomalywindowoperator.c'
       - 'source/dnode/mnode/impl/src/mndAnode.c'
       - 'include/common/tanalytics.h'
       - 'source/common/src/tanalytics.c'
-      - 'tests/parallel/tdgpt_cases.task'
-      - 'tests/script/tsim/analytics/**'
       - '**/*.md'
+      - '.github/workflows/**'
+      - '!.github/workflows/new-framework-test.yml'
+      - 'test/ci/tdgpt_cases.task'
+      - 'test/cases/41-TDgpt/**'
+
+  workflow_dispatch:
+    inputs:
+      specified_source_branch:
+        description: 'Enter the source branch name of TDengine'
+        required: true
+        type: string
+      specified_target_branch:
+        description: 'Enter the target branch name of TDengine'
+        required: true
+        type: string
+      specified_pr_number:
+        description: 'Enter the PR number of TDengine'
+        required: true
+        type: string
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-TDengineNewFramework
+  group: ${{ github.workflow }}-${{ github.event_name }}-
+    ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || inputs.specified_target_branch }}-
+    ${{ github.event_name == 'pull_request' && github.event.pull_request.number || inputs.specified_pr_number }}-TDengineNewFramework
   cancel-in-progress: true
 
 jobs:
@@ -28,3 +48,6 @@ jobs:
     uses: taosdata/.github/.github/workflows/new-framework-test.yml@main
     with:
       tdinternal: false
+      specified_source_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_source_branch }}
+      specified_target_branch: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_target_branch }}
+      specified_pr_number: ${{ github.event_name == 'pull_request' && 'unavailable' || inputs.specified_pr_number }}

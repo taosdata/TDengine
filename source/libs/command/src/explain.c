@@ -1235,7 +1235,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE: {
-      SStateWinodwPhysiNode *pStateNode = (SStateWinodwPhysiNode *)pNode;
+      SStateWindowPhysiNode *pStateNode = (SStateWindowPhysiNode *)pNode;
 
       EXPLAIN_ROW_NEW(level, EXPLAIN_STATE_WINDOW_FORMAT,
                       nodesGetNameFromColumnNode(pStateNode->pStateKey));
@@ -1914,6 +1914,8 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         case DYN_QTYPE_VTB_SCAN: {
           EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT, pDyn->vtbScan.pScanCols->length);
           EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+          EXPLAIN_ROW_APPEND(EXPLAIN_ORIGIN_VGROUP_NUM_FORMAT, pDyn->vtbScan.pOrgVgIds->length);
+          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
           EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pDyn->node.pOutputDataBlockDesc->totalRowSize);
           EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
           EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_ORDER_FORMAT, EXPLAIN_ORDER_STRING(pDyn->node.inputTsOrder));
@@ -1950,7 +1952,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT: {
-      SCountWinodwPhysiNode *pCountNode = (SCountWinodwPhysiNode *)pNode;
+      SCountWindowPhysiNode *pCountNode = (SCountWindowPhysiNode *)pNode;
       EXPLAIN_ROW_NEW(level, EXPLAIN_COUNT_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {

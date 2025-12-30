@@ -24,9 +24,12 @@ class TestVtableAuthSelect:
         tdSql.execute("create database test_vctable_auth_select;")
 
     def test_select_virtual_normal_table(self):
-        """test auth user select virtual normal tables.
+        """Auth: select virtual normal table
 
         test "write", "read", "none", "all" each auth user select opration
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 
@@ -98,9 +101,12 @@ class TestVtableAuthSelect:
         tdSql.execute("drop database test_vtable_auth_select;")
 
     def test_select_virtual_child_table(self):
-        """test auth user select virtual child tables.
+        """Auth: select virtual child table
 
         test "write", "read", "none", "all" each auth user select opration
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.6.0
 

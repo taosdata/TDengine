@@ -14,7 +14,6 @@
  */
 
 #include "meta.h"
-#include "osMemory.h"
 #include "tencode.h"
 
 void _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta *pAPI) {
@@ -59,6 +58,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   }
 
   // decode the entry
+  tDecoderClear(&pReader->coder);
   tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 
   code = metaDecodeEntry(&pReader->coder, &pReader->me);
@@ -95,6 +95,13 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
 
   version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
   return metaGetTableEntryByVersion(pReader, version1, uid);
+}
+
+int metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, tb_uid_t uid) {
+  if (version < 0) {
+    return metaReaderGetTableEntryByUid(pReader, uid);
+  }
+  return metaGetTableEntryByVersion(pReader, version, uid);
 }
 
 int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
@@ -378,7 +385,12 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
   return 0;
 }
 
-SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema **extSchema) {
+/**
+ * @param type 0x01 fetchRsmaSchema if table is rsma
+ */
+SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema **extSchema,
+                                   int8_t type) {
+  int32_t         code = 0;
   void           *pData = NULL;
   int             nData = 0;
   int64_t         version;
@@ -389,19 +401,20 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int
     metaRLock(pMeta);
   }
 _query:
-  if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
+  if ((code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData)) < 0) {
     goto _err;
   }
 
   version = ((SUidIdxVal *)pData)[0].version;
 
-  if (tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData) != 0) {
+  if ((code = tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData)) !=
+      0) {
     goto _err;
   }
 
   SMetaEntry me = {0};
   tDecoderInit(&dc, pData, nData);
-  int32_t code = metaDecodeEntry(&dc, &me);
+  code = metaDecodeEntry(&dc, &me);
   if (code) {
     tDecoderClear(&dc);
     goto _err;
@@ -410,6 +423,12 @@ _query:
     if (sver == -1 || sver == me.stbEntry.schemaRow.version) {
       pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
       if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
+      if (TABLE_IS_ROLLUP(me.flags)) {
+        if ((type == 0x01) && (code = metaGetRsmaSchema(&me, &pSchema->pRsma)) != 0) {
+          tDecoderClear(&dc);
+          goto _err;
+        }
+      }
       tDecoderClear(&dc);
       goto _exit;
     }
@@ -429,15 +448,19 @@ _query:
   tDecoderClear(&dc);
 
   // query from skm db
-  if (tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData) < 0) {
+  if ((code = tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData)) < 0) {
     goto _err;
   }
 
   tDecoderInit(&dc, pData, nData);
-  if (tDecodeSSchemaWrapperEx(&dc, &schema) != 0) {
+  if ((code = tDecodeSSchemaWrapperEx(&dc, &schema)) != 0) {
     goto _err;
   }
   pSchema = tCloneSSchemaWrapper(&schema);
+  if (pSchema == NULL) {
+    code = terrno;
+    goto _err;
+  }
   tDecoderClear(&dc);
 
 _exit:
@@ -452,6 +475,11 @@ _err:
     metaULock(pMeta);
   }
   tdbFree(pData);
+  tDeleteSchemaWrapper(pSchema);
+  if (extSchema != NULL) {
+    taosMemoryFreeClear(*extSchema);
+  }
+  terrno = code;
   return NULL;
 }
 
@@ -484,6 +512,8 @@ int64_t metaGetTableCreateTime(SMeta *pMeta, tb_uid_t uid, int lock) {
   }
   if (me.type == TSDB_CHILD_TABLE) {
     createTime = me.ctbEntry.btime;
+  } else if (me.type == TSDB_NORMAL_TABLE) {
+    createTime = me.ntbEntry.btime;
   }
   tDecoderClear(&dc);
 
@@ -667,14 +697,44 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
   STSchema       *pTSchema = NULL;
   SSchemaWrapper *pSW = NULL;
 
-  pSW = metaGetTableSchema(pMeta, uid, sver, lock, NULL);
+  pSW = metaGetTableSchema(pMeta, uid, sver, lock, NULL, 0);
   if (!pSW) return NULL;
 
   pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version);
 
-  taosMemoryFree(pSW->pSchema);
-  taosMemoryFree(pSW);
+  tDeleteSchemaWrapper(pSW);
   return pTSchema;
+}
+
+/**
+ * Fetch rsma schema if table is rsma
+ */
+SRSchema *metaGetTbTSchemaR(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
+  SRSchema       *pRSchema = NULL;
+  SSchemaWrapper *pSW = NULL;
+
+  if (!(pRSchema = (SRSchema *)taosMemoryCalloc(1, sizeof(SRSchema)))) goto _err;
+  if (!(pSW = metaGetTableSchema(pMeta, uid, sver, lock, (SExtSchema **)&pRSchema->extSchema, 0x01))) goto _err;
+  if (!(pRSchema->tSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version))) goto _err;
+
+  if (pSW->pRsma) {
+    if (!(pRSchema->funcIds = taosMemoryCalloc(pSW->nCols, sizeof(func_id_t)))) goto _err;
+    memcpy(pRSchema->funcIds, pSW->pRsma->funcIds, pSW->nCols * sizeof(func_id_t));
+
+    pRSchema->tbType = pSW->pRsma->tbType;
+    pRSchema->tbUid = uid;
+    tstrncpy(pRSchema->tbName, pSW->pRsma->tbName, TSDB_TABLE_NAME_LEN);
+    pRSchema->interval[0] = pSW->pRsma->interval[0];
+    pRSchema->interval[1] = pSW->pRsma->interval[1];
+  }
+
+_exit:
+  tDeleteSchemaWrapper(pSW);
+  return pRSchema;
+_err:
+  tDeleteSchemaWrapper(pSW);
+  tFreeSRSchema(&pRSchema);
+  return NULL;
 }
 
 int32_t metaGetTbTSchemaNotNull(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema **ppTSchema) {
@@ -738,7 +798,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
       int32_t     nKey = 0;
       int32_t     ret = tdbTbcGet(pSkmDbC, &pKey, &nKey, NULL, NULL);
 
-      if (((SSkmDbKey *)pKey)->uid != skmDbKey.uid) {
+      if (ret != 0 || ((SSkmDbKey *)pKey)->uid != skmDbKey.uid) {
         metaULock(pMeta);
         tdbTbcClose(pSkmDbC);
         code = TSDB_CODE_NOT_FOUND;
@@ -1541,73 +1601,26 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  // If len > 0 means there already have uids, and we only want the
-  // tags of the specified tables, of which uid in the uid list. Otherwise, all table tags are retrieved and kept
-  // in the hash map, that may require a lot of memory
-  SHashObj *pSepecifiedUidMap = NULL;
-  size_t    numOfElems = taosArrayGetSize(pUidTagInfo);
-  if (numOfElems > 0) {
-    pSepecifiedUidMap =
-        taosHashInit(numOfElems / 0.7, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-    for (int i = 0; i < numOfElems; i++) {
-      STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, i);
-      int32_t       code = taosHashPut(pSepecifiedUidMap, &pTagInfo->uid, sizeof(uint64_t), &i, sizeof(int32_t));
-      if (code) {
-        metaCloseCtbCursor(pCur);
-        taosHashCleanup(pSepecifiedUidMap);
-        return code;
-      }
+  while (1) {
+    tb_uid_t uid = metaCtbCursorNext(pCur);
+    if (uid == 0) {
+      metaDebug("got uid 0 and uidTagSize:%d", (int32_t)taosArrayGetSize(pUidTagInfo));
+      break;
+    }
+
+    STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
+    info.pTagVal = taosMemoryMalloc(pCur->vLen);
+    if (!info.pTagVal) {
+      metaCloseCtbCursor(pCur);
+      return terrno;
+    }
+    memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
+    if (taosArrayPush(pUidTagInfo, &info) == NULL) {
+      taosMemoryFreeClear(info.pTagVal);
+      metaCloseCtbCursor(pCur);
+      return terrno;
     }
   }
-
-  if (numOfElems == 0) {  // all data needs to be added into the pUidTagInfo list
-    while (1) {
-      tb_uid_t uid = metaCtbCursorNext(pCur);
-      if (uid == 0) {
-        break;
-      }
-
-      STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
-      info.pTagVal = taosMemoryMalloc(pCur->vLen);
-      if (!info.pTagVal) {
-        metaCloseCtbCursor(pCur);
-        taosHashCleanup(pSepecifiedUidMap);
-        return terrno;
-      }
-      memcpy(info.pTagVal, pCur->pVal, pCur->vLen);
-      if (taosArrayPush(pUidTagInfo, &info) == NULL) {
-        taosMemoryFreeClear(info.pTagVal);
-        metaCloseCtbCursor(pCur);
-        taosHashCleanup(pSepecifiedUidMap);
-        return terrno;
-      }
-    }
-  } else {  // only the specified tables need to be added
-    while (1) {
-      tb_uid_t uid = metaCtbCursorNext(pCur);
-      if (uid == 0) {
-        break;
-      }
-
-      int32_t *index = taosHashGet(pSepecifiedUidMap, &uid, sizeof(uint64_t));
-      if (index == NULL) {
-        continue;
-      }
-
-      STUidTagInfo *pTagInfo = taosArrayGet(pUidTagInfo, *index);
-      if (pTagInfo->pTagVal == NULL) {
-        pTagInfo->pTagVal = taosMemoryMalloc(pCur->vLen);
-        if (!pTagInfo->pTagVal) {
-          metaCloseCtbCursor(pCur);
-          taosHashCleanup(pSepecifiedUidMap);
-          return terrno;
-        }
-        memcpy(pTagInfo->pTagVal, pCur->pVal, pCur->vLen);
-      }
-    }
-  }
-
-  taosHashCleanup(pSepecifiedUidMap);
   metaCloseCtbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }

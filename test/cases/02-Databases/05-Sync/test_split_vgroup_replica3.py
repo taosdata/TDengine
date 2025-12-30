@@ -8,9 +8,11 @@ class TestSplitVgroupReplica3:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_split_vgroup_replica3(self):
-        """split vgroup replica3
+        """Split: replica-3
 
-        1. -
+        1. Start a 4-node cluster with dnode1 configured as supportVnodes=0
+        2. Create database d1 (1 vgroup, 3 replicas) and insert data
+        3. Execute SPLIT VGROUP to split the vnode
 
         Catalog:
             - Database:Sync

@@ -3,12 +3,13 @@
 # Generate install package for Linux Platform
 
 set -e
-
-while getopts "e:v:m:" opt; do
+all_models=0
+while getopts "e:v:m:a" opt; do
     case "$opt" in
         e) edition="$OPTARG" ;;  # -e enterprise/community
-        v) version="$OPTARG" ;;  # -v version
-        m) model_dir="$OPTARG" ;;  # -m model_dir
+        v) version="$OPTARG" ;;  # -v tdgpt version
+        m) model_dir="$OPTARG" ;;  # -m model files dir
+        a) all_models=1 ;;         # -a pack all models
         *) echo "Usage: $0 -e edition -v version"; exit 1 ;;
     esac
 done
@@ -28,7 +29,6 @@ fi
 echo start to build release package, edition: ${edition}, version: ${version}
 
 curr_dir=$(pwd)
-compile_dir=$1
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/..)"
@@ -40,7 +40,6 @@ configFile="taosanode.ini"
 tarName="package.tar.gz"
 
 # create compressed install file.
-build_dir="${compile_dir}/build"
 release_dir="${top_dir}/release"
 
 #package_name='linux'
@@ -72,11 +71,11 @@ TARGET_PATTERN="__pycache__"
 find "${top_dir}/taosanalytics/" -type d -name "$TARGET_PATTERN" -exec rm -rf {} +
 
 # script to control start/stop/uninstall process
-
-
 cp -r ${top_dir}/taosanalytics/ ${lib_install_dir}/ && chmod a+x ${lib_install_dir}/ || :
+cp -r ${top_dir}/script/ini_utils.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 cp -r ${top_dir}/script/st*.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 cp -r ${top_dir}/script/uninstall.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
+cp -r ${top_dir}/requirements_ess.txt ${install_dir}/ || :
 
 # copy model files
 model_dir=${model_dir:-""}
@@ -88,10 +87,18 @@ if [ -d "${model_dir}" ]; then
   echo "copy ${td_model_name} model files"
   cp -r ${model_dir}/${td_model_name}.tar.gz ${model_install_dir} || :
   echo "copy ${td_model_name} model files done"
-  xhs_model_name="timer-moe"
+  xhs_model_name="timemoe"
   echo "copy ${xhs_model_name} model files "
   cp -r ${model_dir}/${xhs_model_name}.tar.gz ${model_install_dir}|| :
   echo "copy ${xhs_model_name} model files done"
+
+  if [ "$all_models" == "1" ]; then
+    for extra_model in chronos moment-large moirai timesfm; do
+      echo "copy ${extra_model} model files"
+      cp -r ${model_dir}/${extra_model}.tar.gz ${model_install_dir} || :
+      echo "copy ${extra_model} model files done"
+    done
+  fi
 fi
 
 # tar lib and model files
@@ -117,7 +124,7 @@ chmod a+x ${install_dir}/install.sh
 # exit 1
 cd ${release_dir}
 
-platform=`uname | tr '[:upper:]' '[:lower:]'`
+platform=$(uname | tr '[:upper:]' '[:lower:]')
 if uname -m | grep -q "x86_64"; then
     arch=x64
 elif uname -m | grep -q "arm64\|aarch64"; then

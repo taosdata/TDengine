@@ -393,7 +393,7 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t clientId, SRpcHandleI
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGrant) {
+int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGrant, int32_t* qType) {
   if (NULL == qWorkerMgmt || NULL == pMsg) {
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -432,6 +432,8 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
   uint64_t tId = msg.taskId;
   int64_t  rId = msg.refId;
   int32_t  eId = msg.execId;
+
+  *qType = msg.taskType;  // task type: TASK_TYPE_HQUERY or TASK_TYPE_QUERY
 
   SQWMsg qwMsg = {
       .msgType = pMsg->msgType, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info};

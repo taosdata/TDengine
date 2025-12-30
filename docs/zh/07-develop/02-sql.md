@@ -7,13 +7,11 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL 语法进行数据的查询、插入和删除操作。TDengine 的 SQL 还支持对数据库和数据表的管理操作，如创建、修改和删除数据库及数据表。TDengine 扩展了标准 SQL，引入了时序数据处理特有的功能，如时间序列数据的聚合查询、降采样、插值查询等，以适应时序数据的特点。这些扩展使得用户可以更高效地处理时间序列数据，进行复杂的数据分析和处理。具体支持的 SQL 语法请参考 [TDengine SQL](../../reference/taos-sql/)  
+TDengine TSDB 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL 语法进行数据的查询、插入和删除操作。TDengine TSDB 的 SQL 还支持对数据库和数据表的管理操作，如创建、修改和删除数据库及数据表。TDengine TSDB 扩展了标准 SQL，引入了时序数据处理特有的功能，如时间序列数据的聚合查询、降采样、插值查询等，以适应时序数据的特点。这些扩展使得用户可以更高效地处理时间序列数据，进行复杂的数据分析和处理。具体支持的 SQL 语法请参考 [TDengine TSDB SQL](../../reference/taos-sql/)  
 
 下面介绍使用各语言连接器通过执行 SQL 完成建库、建表、写入数据和查询数据。
 
 :::note
-
-REST 连接：各编程语言的连接器封装使用 `HTTP` 请求的连接，支持数据写入和查询操作，开发者依然使用连接器提供的接口访问 `TDengine`。  
 REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据写入和查询操作。代码示例使用 `curl` 命令来演示。
 
 :::
@@ -39,10 +37,6 @@ REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据�
 
 ```python title="原生连接"
 {{#include docs/examples/python/create_db_native.py}}
-```
-
-```python title="Rest 连接"
-{{#include docs/examples/python/create_db_rest.py}}
 ```
 
 </TabItem>
@@ -71,7 +65,7 @@ REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据�
 <TabItem label="C" value="c">
 
 ```c  title="WebSocket 连接"
-{{#include docs/examples/c-ws/create_db_demo.c:create_db_and_table}}
+{{#include docs/examples/c-ws-new/create_db_demo.c:create_db_and_table}}
 ```
 
 ```c  title="原生连接"
@@ -101,7 +95,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql/power' \
 
 ## 插入数据
 
-下面以智能电表为例，展示如何使用连接器执行 SQL 来插入数据到 `power` 数据库的 `meters` 超级表。样例使用 TDengine 自动建表 SQL 语法，写入 d1001 子表中 3 条数据，写入 d1002 子表中 1 条数据，然后打印出实际插入数据条数。
+下面以智能电表为例，展示如何使用连接器执行 SQL 来插入数据到 `power` 数据库的 `meters` 超级表。样例使用 TDengine TSDB 自动建表 SQL 语法，写入 d1001 子表中 3 条数据，写入 d1002 子表中 1 条数据，然后打印出实际插入数据条数。
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
@@ -121,10 +115,6 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。NOW 
 
 ```python title="原生连接"
 {{#include docs/examples/python/insert_native.py}}
-```
-
-```python title="Rest 连接"
-{{#include docs/examples/python/insert_rest.py}}
 ```
 
 </TabItem>
@@ -153,7 +143,7 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。NOW 
 <TabItem label="C" value="c">
 
 ```c title="WebSocket 连接"
-{{#include docs/examples/c-ws/insert_data_demo.c:insert_data}}
+{{#include docs/examples/c-ws-new/insert_data_demo.c:insert_data}}
 ```
 
 ```c title="原生连接"
@@ -199,10 +189,6 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 {{#include docs/examples/python/query_native.py}}
 ```
 
-```python title="Rest 连接"
-{{#include docs/examples/python/query_rest.py}}
-```
-
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
@@ -235,7 +221,7 @@ rust 连接器还支持使用 **serde** 进行反序列化行为结构体的结�
 <TabItem label="C" value="c">
 
 ```c  title="WebSocket 连接"
-{{#include docs/examples/c-ws/query_data_demo.c:query_data}}
+{{#include docs/examples/c-ws-new/query_data_demo.c:query_data}}
 ```
 
 ```c  title="原生连接"
@@ -287,10 +273,6 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 {{#include docs/examples/python/reqid_native.py}}
 ```
 
-```python title="Rest 连接"
-{{#include docs/examples/python/reqid_rest.py}}
-```
-
 </TabItem>
 <TabItem label="Go" value="go">
 ```go
@@ -316,11 +298,11 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 </TabItem>
 <TabItem label="C" value="c">
 
-```c "WebSocket 连接"
-{{#include docs/examples/c-ws/with_reqid_demo.c:with_reqid}}
+```c title="WebSocket 连接"
+{{#include docs/examples/c-ws-new/with_reqid_demo.c:with_reqid}}
 ```
 
-```c "原生连接"
+```c title="原生连接"
 {{#include docs/examples/c/with_reqid_demo.c:with_reqid}}
 ```
 

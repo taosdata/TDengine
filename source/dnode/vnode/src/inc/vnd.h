@@ -66,6 +66,7 @@ typedef enum {
 #define MERGE_TASK_ASYNC     2
 #define COMPACT_TASK_ASYNC   3
 #define RETENTION_TASK_ASYNC 4
+#define SCAN_TASK_ASYNC      5
 
 int32_t vnodeAsyncOpen();
 void    vnodeAsyncClose();
@@ -104,7 +105,6 @@ struct SVBufPool {
   SVnode*           pVnode;
   int32_t           id;
   volatile int32_t  nRef;
-  TdThreadSpinlock* lock;
   int64_t           size;
   uint8_t*          ptr;
   SVBufPoolNode*    pTail;
@@ -119,6 +119,7 @@ int32_t vnodeBufPoolRecycle(SVBufPool* pPool);
 
 // vnodeOpen.c
 void vnodeGetPrimaryDir(const char* relPath, int32_t diskPrimary, STfs* pTfs, char* buf, size_t bufLen);
+void vnodeGetPrimaryPath(SVnode* pVnode, bool mount, char* buf, size_t bufLen);
 
 // vnodeQuery.c
 int32_t vnodeQueryOpen(SVnode* pVnode);
@@ -129,7 +130,6 @@ int     vnodeGetTableCfg(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 int32_t vnodeGetBatchMeta(SVnode* pVnode, SRpcMsg* pMsg);
 int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg);
-int32_t vnodeGetStreamProgress(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 
 // vnodeCommit.c
 int32_t vnodeBegin(SVnode* pVnode);
@@ -154,6 +154,7 @@ void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg, int32_t code);
 bool    vnodeIsLeader(SVnode* pVnode);
 bool    vnodeIsRoleLeader(SVnode* pVnode);
+int32_t    vnodeSetElectBaseline(SVnode* pVnode, int32_t ms);
 
 #ifdef __cplusplus
 }

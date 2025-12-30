@@ -14,6 +14,7 @@
  */
 
 #include "transComm.h"
+#include "transTLS.h"
 
 #ifndef TD_ASTRA_RPC
 void* (*taosInitHandle[])(SIpAddr* addr, char* label, int32_t numOfThreads, void* fp, void* pInit) = {transInitServer,
@@ -44,12 +45,12 @@ void* rpcOpen(const SRpcInit* pInit) {
     TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
-  pRpc->startReadTimer = pInit->startReadTimer;
   if (pInit->label) {
     int len = strlen(pInit->label) > sizeof(pRpc->label) ? sizeof(pRpc->label) : strlen(pInit->label);
     memcpy(pRpc->label, pInit->label, len);
   }
 
+  pRpc->startReadTimer = pInit->startReadTimer;
   pRpc->compressSize = pInit->compressSize;
   if (pRpc->compressSize < 0) {
     pRpc->compressSize = -1;
@@ -117,6 +118,21 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->notWaitAvaliableConn = pInit->notWaitAvaliableConn;
   pRpc->ipv6 = pInit->ipv6;
 
+  if (pInit->enableSSL == 1) {
+    code = transTlsCtxCreate(pInit, (SSslCtx**)&pRpc->pSSLContext);
+    TAOS_CHECK_GOTO(code, NULL, _end);
+
+    if (pRpc->pSSLContext == NULL) {
+      tError("Failed to create SSL context for %s", pRpc->label);
+      TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
+    }
+    tInfo("TLS is enabled for %s", pRpc->label);
+    pRpc->enableSSL = 1;
+  } else {
+    tInfo("TLS is not enabled for %s", pRpc->label);
+    pRpc->enableSSL = 0;
+  }
+
   pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(&addr, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
 
   if (pRpc->tcphandle == NULL) {
@@ -135,6 +151,9 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   return (void*)refId;
 _end:
+  if (pRpc->pSSLContext) {
+    transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
+  }
   taosMemoryFree(pRpc);
   terrno = code;
 
@@ -157,6 +176,7 @@ void rpcCloseImpl(void* arg) {
   if (pRpc->tcphandle != NULL) {
     (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
   }
+  transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
   taosMemoryFree(pRpc);
 }
 

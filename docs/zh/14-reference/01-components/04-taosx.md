@@ -1,9 +1,10 @@
 ---
 title: taosX 参考手册
 sidebar_label: taosX
+toc_max_heading_level: 4
 ---
 
-taosX 是 TDengine Enterprise 中的一个核心组件，提供零代码数据接入的能力，taosX 支持两种运行模式：服务模式和命令行模式。本节讲述如何以这两种方式使用 taosX。要想使用 taosX 需要先安装 TDengine Enterprise 安装包。
+taosX 是 TDengine TSDB Enterprise 中的一个核心组件，提供零代码数据接入的能力，taosX 支持两种运行模式：服务模式和命令行模式。本节讲述如何以这两种方式使用 taosX。要想使用 taosX 需要先安装 TDengine TSDB Enterprise 安装包。
 
 ## 命令行模式
 
@@ -41,8 +42,8 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 
 1. 不同的驱动 (driver) 拥有不同的参数。driver 包含如下选项：
 
-- taos：使用查询接口从 TDengine 获取数据
-- tmq：启用数据订阅从 TDengine 获取数据
+- taos：使用查询接口从 TDengine TSDB 获取数据
+- tmq：启用数据订阅从 TDengine TSDB 获取数据
 - local：数据备份或恢复
 - pi：启用 pi-connector 从 pi 数据库中获取数据
 - opc：启用 opc-connector 从 opc-server 中获取数据
@@ -58,7 +59,7 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 - +da：当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-da
 
 3. host:port 表示数据源的地址和端口。
-4. object 表示具体的数据源，可以是 TDengine 的数据库、超级表、表，也可以是本地备份文件的路径，也可以是对应数据源服务器中的数据库。
+4. object 表示具体的数据源，可以是 TDengine TSDB 的数据库、超级表、表，也可以是本地备份文件的路径，也可以是对应数据源服务器中的数据库。
 5. username 和 password 表示该数据源的用户名和密码。
 6. params 代表了 dsn 的参数。
 
@@ -150,7 +151,7 @@ taosx run -f 'taos:///db1?mode=all' -t 'taos:///db2' -v
 ```
 
 5. 通过 --transform 或 -T 配置数据同步（仅支持 2.6 到 3.0 以及 3.0 之间同步）过程中对于表名及表字段的一些操作。暂无法通过 Explorer 进行设置。配置说明如下：
-  
+
   ```shell
   1.AddTag，为表添加 TAG。设置示例：-T add-tag:<tag1>=<value1>。
   2.表重命名：
@@ -177,7 +178,7 @@ taosx run -f 'taos:///db1?mode=all' -t 'taos:///db2' -v
       3. 使用 CSV 映射文件进行表重命名：以下示例使用 map.csv 文件进行表重命名
 
       `-T rename-child-table:map:@./map.csv`
-      
+
       CSV 文件 `./map.csv` 格式如下：
 
       name1,newname1
@@ -232,6 +233,68 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 
 它将从 `./meters/meters.csv.gz`（一个 gzip 压缩的 CSV 文件）导入数据到超级表 `meters`，每一行都插入到指定的表名 - `${tbname}` 使用 CSV 内容中的 `tbname` 列作为表名（即在 JSON 解析器中的 `.model.name`）。
 
+#### 导入 ORC 文件数据
+
+ORC 文件（Optimized Row Columnar）专为 Hadoop 和 Hive 设计，支持高压缩率和快速查询，适合存储大量结构化数据。taosX 支持读取 ORC 文件数据并导入 TDengine，用法如下：
+
+```bash
+taosx --from 'orc:/root/test.orc?batch_size=1000&projection=col1,col3,col4' \
+    --parser '@parser.json' \
+    --to 'taos+http://localhost:6041/test'
+```
+
+- `--from`/`-f` 参数指定读取的 ORC 文件地址。
+- `batch_size` 表示一次读取的数据量，默认 1000 条。
+- `projection` 指定要读取的列，本例中表示读取 `col1`, `col3`, `col4` 这三列，也可以按照索引指定读取的列，如 `projection=1,3,4` 表示读取第 1，3，4 列，不指定此参数默认读取所有列。
+- `--parser` 用于设置数据处理配置和入库参数映射配置，同上面的 CSV 数据源。
+- `--to`/`-t` 参数指定写入的目标数据库，本例中表示写入 `test` 数据库。
+
+#### TMQ 订阅数据发布到 MQTT
+
+基本用法
+
+```bash
+taosx run -f "tmq+ws://username:password@ip:port/topic?param=value..." -t "mqtt://ip:port?param=value..."
+```
+
+其中 `-f` 指定 TMQ 订阅的 DSN，`-t` 指定 MQTT broker 的 DSN。
+
+TMQ DSN 参数：
+
+- `username`: 数据库用户名。
+- `password`: 数据库密码。
+- `ip` 和 `port`: 数据库连接使用的 IP 和端口。
+- `topic`: TMQ 订阅的 topic 名称。
+- `with.meta`: 是否同步元数据，如创建表，删除表，修改表，删除数据等操作，默认值为 `false` 表示不同步元数据。
+- `with.meta.delete`: 是否同步元数据中的删除数据事件，此参数仅当 `with.meta` 参数启用时有效。
+- `with.meta.drop`: 是否同步元数据中的删除表事件，此参数仅当 `with.meta` 参数启用时有效。
+- `group.id`: TMQ 订阅参数，必填项，订阅的组 ID。
+- `client.id`: TMQ 订阅参数，选填项，订阅的客户端 ID。
+- `auto.offset.reset`: TMQ 订阅参数，订阅的起始位置。
+- `experimental.snapshot.enable`: TMQ 订阅参数，如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。
+
+更多 TMQ 订阅时的所有参数，详见 [数据订阅](../..//07-develop/07-tmq.md)
+
+MQTT DSN 参数：
+
+- `ip`: MQTT  broker 的 IP 地址。
+- `port`: MQTT broker 的 端口。
+- `version`: MQTT 协议版本，必填项，可选值 3.1/3.1.1/5.0。
+- `qos`: MQTT QoS 服务质量，默认值 0。
+- `client_id`: MQTT 客户端 ID，必填项，不同客户端的客户端 ID 必须不同。
+- `topic`: 数据发布的 MQTT 目标 Topic，必填项。
+- `meta_topic`: 元数据发布的目标 Topic，如果不指定，默认使用数据发布的 Topic。
+
+在 MQTT 的 `topic` 和 `meta_topic` 中支持使用如下变量：
+
+- `database`: 消息来源的数据库名，元数据和数据均包含。
+- `tmq_topic`: 消息来源的 TMQ 主题名，元数据和数据均包含。
+- `vgroup_id`: 消息来源 vgroup ID，元数据和数据均包含。
+- `stable`: 消息来源的超级表名称，仅创建超级表，创建子表，删除超级表的元数据消息包含。
+- `table`: 消息来源的表名/子表名，仅创建子表/普通表，修改表，删除子表/普通表以及数据类型的消息包含。
+
+**注意**: 如果 topic 中包含了消息中不存在的变量，则当前消息不会被处理，即不会被发布到 MQTT broker。
+
 ## 服务模式
 
 本节讲述如何以服务模式部署 `taosX`。以服务模式运行的 taosX，其各项功能需要通过 taosExplorer 上的图形界面来使用。
@@ -246,7 +309,7 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 - `logs_home`：日志文件存放目录，`taosX` 日志文件的前缀为 `taosx.log`，外部数据源有自己的日志文件名前缀。已弃用，请使用 `log.path` 代替。
 - `log_level`：日志等级，可选级别包括 `error`、`warn`、`info`、`debug`、`trace`，默认值为 `info`。已弃用，请使用 `log.level` 代替。
 - `log_keep_days`：日志的最大存储天数，`taosX` 日志将按天划分为不同的文件。已弃用，请使用 `log.keepDays` 代替。
-- `jobs`：每个运行时的最大线程数。在服务模式下，线程总数为 `jobs*2`，默认线程数为`当前服务器内核*2`。
+- `jobs`：程序默认运行时的线程数。默认线程数为`当前服务器内核*2`。
 - `serve.listen`：是 `taosX` REST API 监听地址，默认值为 `0.0.0.0:6050`。支持 IPv6 协议的地址，同时支持多地址，多地址需保证端口一致，且使用英文逗号，作为分割。
 - `serve.ssl_cert`：是 SSL/TLS 证书。
 - `serve.ssl_key`：是 SSL/TLS 秘钥。
@@ -254,6 +317,9 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 - `serve.database_url`：`taosX` 数据库的地址，格式为 `sqlite:<path>`。
 - `serve.request_timeout`：全局接口 API 超时时间。
 - `serve.grpc`：是 `taosX` gRPC 服务监听地址，默认值为 `0.0.0.0:6055`。支持 IPv6 协议的地址，同时支持多地址，多地址需保证端口一致，且使用英文逗号，作为分割。
+- `rest_api_threads`：rest api 服务的运行时线程数。默认线程数为`当前服务器内核*2`。
+- `grpc_threads`：grpc 服务的运行时线程数。默认线程数为`当前服务器内核*2`。
+- `scheduler_threads`：scheduler 任务服务的运行时线程数。默认线程数为`当前服务器内核*2`。
 - `monitor.fqdn`：`taosKeeper` 服务的 FQDN，没有默认值，置空则关闭监控功能。
 - `monitor.port`：`taosKeeper` 服务的端口，默认`6043`。
 - `monitor.interval`：向 `taosKeeper` 发送指标的频率，默认为每 10 秒一次，只有 1 到 10 之间的值才有效。
@@ -307,12 +373,21 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 # When use this in explorer, please set explorer grpc configuration to **Public** IP or
 # FQDN with correct port, which might be changed exposing to Public network.
 #
-# - Example 1: "http://192.168.111.111:6055" 
-# - Example 2: "http://node1.company.domain:6055" 
+# - Example 1: "http://192.168.111.111:6055"
+# - Example 2: "http://node1.company.domain:6055"
 #
 # Please also make sure the above address is not blocked if firewall is enabled.
 #
 #grpc = "0.0.0.0:6055"
+
+# number of threads used for rest api service, default to 0 (means cores * 2)
+#rest_api_threads = 0
+
+# number of threads used for grpc service, default to 0 (means cores * 2)
+#grpc_threads = 0
+
+# number of threads used for scheduler service, default to 0 (means cores * 2)
+#scheduler_threads = 0
 
 [monitor]
 # FQDN of taosKeeper service, no default value
@@ -423,7 +498,7 @@ mv /var/lib/taos/taosx/taosx.db* /path/to/data/
 
 ## taosX 监控指标
 
-taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。  
+taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。
 
 ### taosX 服务
 
@@ -475,18 +550,18 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | 字段                 | 描述                                                            |
 | -------------------- | --------------------------------------------------------------- |
 | total_execute_time   | 任务累计运行时间，单位毫秒                                      |
-| total_written_rowsls | 成功写入 TDengine 的总行数（包括重复记录）                      |
+| total_written_rowsls | 成功写入 TDengine TSDB 的总行数（包括重复记录）                      |
 | total_written_points | 累计写入成功点数 (等于数据块包含的行数乘以数据块包含的列数)     |
 | start_time           | 任务启动时间 (每次重启任务会被重置)                             |
-| written_rows         | 本次运行此任务成功写入 TDengine 的总行数（包括重复记录）        |
+| written_rows         | 本次运行此任务成功写入 TDengine TSDB 的总行数（包括重复记录）        |
 | written_points       | 本次运行写入成功点数 (等于数据块包含的行数乘以数据块包含的列数) |
 | execute_time         | 任务本次运行时间，单位秒                                        |
 
-### taosX TDengine V2 任务
+### taosX TDengine TSDB V2 任务
 
 | 字段                  | 描述                                                                 |
 | --------------------- | -------------------------------------------------------------------- |
-| read_concurrency      | 并发读取数据源的数据 worker 数，也等于并发写入 TDengine 的 worker 数 |
+| read_concurrency      | 并发读取数据源的数据 worker 数，也等于并发写入 TDengine TSDB 的 worker 数 |
 | total_stables         | 需要迁移的超级表数据数量                                             |
 | total_updated_tags    | 累计更新 tag 数                                                      |
 | total_created_tables  | 累计创建子表数                                                       |
@@ -498,7 +573,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | created_tables        | 本次运行创建子表数                                                   |
 | updated_tags          | 本次运行更新 tag 数                                                  |
 
-### taosX TDengine V3 任务
+### taosX TDengine TSDB V3 任务
 
 | 字段                   | 描述                                                    |
 | ---------------------- | ------------------------------------------------------- |
@@ -517,7 +592,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 
 ### taosX 其他数据源 任务
 
-这些数据源包括：InfluxDB，OpenTSDB，OPC UA，OPC DA，PI，CSV，MQTT，AVEVA Historian 和 Kafka。  
+这些数据源包括：InfluxDB，OpenTSDB，OPC UA，OPC DA，PI，CSV，MQTT，AVEVA Historian 和 Kafka。
 
 | 字段                    | 描述                                                        |
 | ----------------------- | ----------------------------------------------------------- |
@@ -623,7 +698,7 @@ const char* parser_mutate(
   void* parser,
   const uint8_t* in_ptr, uint32_t in_len,
   const void* uint8_t* out_ptr, uint32_t* out_len
-); 
+);
 ```
 
 `void* parser`：parser_new 生成的对象指针;

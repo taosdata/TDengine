@@ -38,30 +38,46 @@ typedef struct {
 static SAlgoMgmt tsAlgos = {0};
 static int32_t   taosAnalyBufGetCont(SAnalyticBuf *pBuf, char **ppCont, int64_t *pContLen);
 
-const char *taosAnalysisAlgoType(EAnalAlgoType type) {
+const char *taosAnalysisAlgoType(EAnalyAlgoType type) {
   switch (type) {
     case ANALY_ALGO_TYPE_ANOMALY_DETECT:
       return "anomaly-detection";
     case ANALY_ALGO_TYPE_FORECAST:
       return "forecast";
+    case ANALY_ALGO_TYPE_IMPUTATION:
+      return "imputation";
+    case ANALY_ALGO_TYPE_CORREL:
+      return "correlation";
+    case ANALY_ALGO_TYPE_CLASSIFI:
+      return "classification";
+    case ANALY_ALGO_TYPE_MOTIF:
+      return "moti-discovery";
     default:
       return "unknown";
   }
 }
 
-const char *taosAnalyAlgoUrlStr(EAnalAlgoType type) {
+const char *taosAnalyAlgoUrlStr(EAnalyAlgoType type) {
   switch (type) {
     case ANALY_ALGO_TYPE_ANOMALY_DETECT:
       return "anomaly-detect";
     case ANALY_ALGO_TYPE_FORECAST:
       return "forecast";
+    case ANALY_ALGO_TYPE_IMPUTATION:
+      return "imputation";
+    case ANALY_ALGO_TYPE_CORREL:
+      return "correlation";
+    case ANALY_ALGO_TYPE_CLASSIFI:
+      return "classification";
+    case ANALY_ALGO_TYPE_MOTIF:
+      return "moti-discovery";
     default:
       return "unknown";
   }
 }
 
-EAnalAlgoType taosAnalyAlgoInt(const char *name) {
-  for (EAnalAlgoType i = 0; i < ANALY_ALGO_TYPE_END; ++i) {
+EAnalyAlgoType taosAnalyAlgoInt(const char *name) {
+  for (EAnalyAlgoType i = 0; i < ANALY_ALGO_TYPE_END; ++i) {
     if (strcasecmp(name, taosAnalysisAlgoType(i)) == 0) {
       return i;
     }
@@ -213,7 +229,7 @@ bool taosAnalyGetOptStr(const char *option, const char *optName, char *optValue,
   return true;
 }
 
-int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen) {
+int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalyAlgoType type, char *url, int32_t urlLen) {
   int32_t code = 0;
   char    name[TSDB_ANALYTIC_ALGO_KEY_LEN] = {0};
   int32_t nameLen = 1 + tsnprintf(name, sizeof(name) - 1, "%d:%s", type, algoName);
@@ -863,8 +879,8 @@ int8_t taosAnalysisParseWncheck(SHashObj* pHashMap, const char* id) {
     uDebug("%s analysis wncheck:%d", id, v);
     return v;
   } else {
-    uDebug("%s analysis wncheck not found, use default:%d", id, ANALY_FORECAST_DEFAULT_WNCHECK);
-    return ANALY_FORECAST_DEFAULT_WNCHECK;
+    uDebug("%s analysis wncheck not found, use default:%d", id, ANALY_DEFAULT_WNCHECK);
+    return ANALY_DEFAULT_WNCHECK;
   }
 }
 
@@ -876,7 +892,7 @@ SJson  *taosAnalySendReqRetJson(const char *url, EAnalyHttpType type, SAnalyticB
   return NULL;
 }
 
-int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen) { return 0; }
+int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalyAlgoType type, char *url, int32_t urlLen) { return 0; }
 bool    taosAnalyGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen) { return true; }
 int64_t taosAnalyGetVersion() { return 0; }
 void    taosAnalyUpdate(int64_t newVer, SHashObj *pHash) {}
@@ -896,9 +912,9 @@ int32_t taosAnalyBufWriteDataEnd(SAnalyticBuf *pBuf) { return 0; }
 int32_t taosAnalyBufClose(SAnalyticBuf *pBuf) { return 0; }
 void    taosAnalyBufDestroy(SAnalyticBuf *pBuf) {}
 
-const char   *taosAnalysisAlgoType(EAnalAlgoType algoType) { return 0; }
-EAnalAlgoType taosAnalAlgoInt(const char *algoName) { return 0; }
-const char   *taosAnalAlgoUrlStr(EAnalAlgoType algoType) { return 0; }
+const char   *taosAnalysisAlgoType(EAnalyAlgoType algoType) { return 0; }
+EAnalyAlgoType taosAnalAlgoInt(const char *algoName) { return 0; }
+const char   *taosAnalAlgoUrlStr(EAnalyAlgoType algoType) { return 0; }
 
 int64_t taosAnalysisParseTimout(SHashObj *pHashMap, const char *id) { return 0; }
 

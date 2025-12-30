@@ -1,9 +1,9 @@
 ---
-title: "TDengine2"
-sidebar_label: "TDengine2"
+title: "TDengine 查询"
+sidebar_label: "TDengine 查询"
 ---
 
-本节讲述如何通过 Explorer 界面创建数据迁移任务，从旧版 TDengine2 迁移数据到当前集群。
+本节讲述如何通过 Explorer 界面创建数据迁移任务，从旧版本 TDengine(2.4+, 3.0+) 迁移到当前集群。
 
 ## 功能概述
 

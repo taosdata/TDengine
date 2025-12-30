@@ -52,21 +52,20 @@
 
 #define TMQ_META_VERSION "1.0"
 
-static bool  tmqAddJsonObjectItem(cJSON *object, const char *string, cJSON *item){
+static bool tmqAddJsonObjectItem(cJSON* object, const char* string, cJSON* item) {
   bool ret = cJSON_AddItemToObject(object, string, item);
-  if (!ret){
+  if (!ret) {
     cJSON_Delete(item);
   }
   return ret;
 }
-static bool  tmqAddJsonArrayItem(cJSON *array, cJSON *item){
+static bool tmqAddJsonArrayItem(cJSON* array, cJSON* item) {
   bool ret = cJSON_AddItemToArray(array, item);
-  if (!ret){
+  if (!ret) {
     cJSON_Delete(item);
   }
   return ret;
 }
-
 
 static int32_t  tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, uint32_t metaLen);
 static tb_uid_t processSuid(tb_uid_t suid, char* db) {
@@ -123,6 +122,11 @@ static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sche
       RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "length", cbytes));
     } else if (s->type == TSDB_DATA_TYPE_NCHAR) {
       int32_t length = (s->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+      cJSON*  cbytes = cJSON_CreateNumber(length);
+      RAW_NULL_CHECK(cbytes);
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "length", cbytes));
+    } else if (IS_STR_DATA_BLOB(s->type)) {
+      int32_t length = s->bytes - BLOBSTR_HEADER_SIZE;
       cJSON*  cbytes = cJSON_CreateNumber(length);
       RAW_NULL_CHECK(cbytes);
       RAW_FALSE_CHECK(tmqAddJsonObjectItem(column, "length", cbytes));
@@ -192,6 +196,11 @@ static void buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sche
       cJSON*  cbytes = cJSON_CreateNumber(length);
       RAW_NULL_CHECK(cbytes);
       RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "length", cbytes));
+    } else if (IS_STR_DATA_BLOB(s->type)) {
+      int32_t length = s->bytes - BLOBSTR_HEADER_SIZE;
+      cJSON*  cbytes = cJSON_CreateNumber(length);
+      RAW_NULL_CHECK(cbytes);
+      RAW_FALSE_CHECK(tmqAddJsonObjectItem(tag, "length", cbytes));
     }
   }
 
@@ -237,7 +246,7 @@ end:
 }
 static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** pJson) {
   if (alterData == NULL || pJson == NULL) {
-    uError("invalid parameter in %s", __func__);
+    uError("invalid parameter in %s alterData:%p", __func__, alterData);
     return;
   }
   SMAlterStbReq req = {0};
@@ -269,6 +278,12 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
   switch (req.alterType) {
     case TSDB_ALTER_TABLE_ADD_TAG:
     case TSDB_ALTER_TABLE_ADD_COLUMN: {
+      if (taosArrayGetSize(req.pFields) != 1) {
+        uError("invalid field num %" PRIzu " for alter type %d", taosArrayGetSize(req.pFields), req.alterType);
+        cJSON_Delete(json);
+        json = NULL;
+        goto end;
+      }
       TAOS_FIELD* field = taosArrayGet(req.pFields, 0);
       RAW_NULL_CHECK(field);
       cJSON* colName = cJSON_CreateString(field->name);
@@ -286,6 +301,11 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
         RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       } else if (field->type == TSDB_DATA_TYPE_NCHAR) {
         int32_t length = (field->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+        cJSON*  cbytes = cJSON_CreateNumber(length);
+        RAW_NULL_CHECK(cbytes);
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
+      } else if (IS_STR_DATA_BLOB(field->type)) {
+        int32_t length = field->bytes - BLOBSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
         RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
@@ -313,7 +333,13 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
         cJSON*  cbytes = cJSON_CreateNumber(length);
         RAW_NULL_CHECK(cbytes);
         RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
+      } else if (IS_STR_DATA_BLOB(field->type)) {
+        int32_t length = field->bytes - BLOBSTR_HEADER_SIZE;
+        cJSON*  cbytes = cJSON_CreateNumber(length);
+        RAW_NULL_CHECK(cbytes);
+        RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "colLength", cbytes));
       }
+
       RAW_RETURN_CHECK(setCompressOption(json, field->compress));
       break;
     }
@@ -328,6 +354,12 @@ static void buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON** 
     }
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES: {
+      if (taosArrayGetSize(req.pFields) != 1) {
+        uError("invalid field num %" PRIzu " for alter type %d", taosArrayGetSize(req.pFields), req.alterType);
+        cJSON_Delete(json);
+        json = NULL;
+        goto end;
+      }
       TAOS_FIELD* field = taosArrayGet(req.pFields, 0);
       RAW_NULL_CHECK(field);
       cJSON* colName = cJSON_CreateString(field->name);
@@ -445,7 +477,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   SArray* pTagVals = NULL;
   char*   pJson = NULL;
 
-  cJSON*  tableName = cJSON_CreateString(name);
+  cJSON* tableName = cJSON_CreateString(name);
   RAW_NULL_CHECK(tableName);
   RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableName", tableName));
   cJSON* using = cJSON_CreateString(sname);
@@ -503,6 +535,9 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
 
     cJSON* tvalue = NULL;
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+      if (IS_STR_DATA_BLOB(pTagVal->type)) {
+        goto end;
+      }
       int64_t bufSize = 0;
       if (pTagVal->type == TSDB_DATA_TYPE_VARBINARY) {
         bufSize = pTagVal->nData * 2 + 2 + 3;
@@ -521,7 +556,8 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       RAW_NULL_CHECK(tvalue);
     } else {
       double val = 0;
-      GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64, 0); // currently tag type can't be decimal, so pass 0 as typeMod
+      GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64,
+                     0);  // currently tag type can't be decimal, so pass 0 as typeMod
       tvalue = cJSON_CreateNumber(val);
       RAW_NULL_CHECK(tvalue);
     }
@@ -632,13 +668,19 @@ static void processAutoCreateTable(SMqDataRsp* rsp, char** string) {
       goto end;
     }
 
-    if (pCreateReq[iReq].type != TSDB_CHILD_TABLE) {
+    if (pCreateReq[iReq].type != TSDB_CHILD_TABLE && pCreateReq[iReq].type != TSDB_NORMAL_TABLE) {
       uError("processAutoCreateTable pCreateReq[iReq].type != TSDB_CHILD_TABLE");
       goto end;
     }
   }
   cJSON* pJson = NULL;
-  buildCreateCTableJson(pCreateReq, rsp->createTableNum, &pJson);
+  if (pCreateReq->type == TSDB_NORMAL_TABLE) {
+    buildCreateTableJson(&pCreateReq->ntb.schemaRow, NULL, pCreateReq->pExtSchemas, pCreateReq->name, pCreateReq->uid, TSDB_NORMAL_TABLE,
+                         &pCreateReq->colCmpr, &pJson);
+  } else if (pCreateReq->type == TSDB_CHILD_TABLE) {
+    buildCreateCTableJson(pCreateReq, rsp->createTableNum, &pJson);
+  }
+
   *string = cJSON_PrintUnformatted(pJson);
   cJSON_Delete(pJson);
 
@@ -1955,7 +1997,7 @@ static int32_t initRawCacheHash() {
 }
 
 static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrapper* pSW) {
-  if (rawData == NULL || pSW == NULL){
+  if (rawData == NULL || pSW == NULL) {
     return false;
   }
   if (pTableMeta == NULL) {
@@ -1980,12 +2022,12 @@ static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrappe
   for (int i = 0; i < pSW->nCols; i++) {
     int j = 0;
     for (; j < pTableMeta->tableInfo.numOfColumns; j++) {
-      SSchema* pColSchema = &pTableMeta->schema[j];
+      SSchema*    pColSchema = &pTableMeta->schema[j];
       SSchemaExt* pColExtSchema = &pTableMeta->schemaExt[j];
-      char*    fieldName = pSW->pSchema[i].name;
+      char*       fieldName = pSW->pSchema[i].name;
 
       if (strcmp(pColSchema->name, fieldName) == 0) {
-        if (checkSchema(pColSchema, pColExtSchema, fields, NULL, 0) != 0){
+        if (checkSchema(pColSchema, pColExtSchema, fields, NULL, 0) != 0) {
           return true;
         }
         break;
@@ -2108,6 +2150,8 @@ static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj
       taosMemoryFree(pTableMeta);
       goto end;
     }
+    uDebug("put table meta to hash1, suid:%" PRId64 ", metaHashSIze:%d, nameHashSize:%d, vgHashSize:%d", info.suid, taosHashGetSize(pMetaHash),
+           taosHashGetSize(pNameHash), taosHashGetSize(pVgHash));
     if (pCreateReqDst) {
       pTableMeta->vgId = info.vgInfo.vgId;
       pTableMeta->uid = pCreateReqDst->uid;
@@ -2129,7 +2173,8 @@ static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj
         taosMemoryFree(pTableMeta);
         goto end;
       }
-
+      uDebug("put table meta to hash2, suid:%" PRId64 ", metaHashSIze:%d, nameHashSize:%d, vgHashSize:%d", tmpInfo->suid, taosHashGetSize(pMetaHash),
+      taosHashGetSize(pNameHash), taosHashGetSize(pVgHash));
     } else {
       pTableMeta = *pTableMetaTmp;
       pTableMeta->uid = tmpInfo->uid;
@@ -2358,9 +2403,9 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
       tstrncpy(pName.tname, tbName, TSDB_TABLE_NAME_LEN);
 
       // find schema data info
-      STableMeta*    pTableMeta = NULL;
-      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName,
-                                        &pTableMeta, NULL, NULL, retry));
+      STableMeta* pTableMeta = NULL;
+      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName, &pTableMeta, NULL,
+                                        NULL, retry));
       char err[ERR_MSG_LEN] = {0};
       code = rawBlockBindRawData(pVgroupHash, pStmt->pVgDataBlocks, pTableMeta, rawData);
       if (code != TSDB_CODE_SUCCESS) {
@@ -2385,7 +2430,7 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
     break;
   }
 
-  end:
+end:
   uDebug(LOG_ID_TAG " write raw rawdata return, msg:%s", LOG_ID_VALUE, tstrerror(code));
   tDeleteMqDataRsp(&rspObj.dataRsp);
   tDecoderClear(&decoder);
@@ -2453,7 +2498,7 @@ static void processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
     cJSON* pItem = NULL;
     processSimpleMeta(&metaRsp, &pItem);
     tDeleteMqMetaRsp(&metaRsp);
-    RAW_FALSE_CHECK(tmqAddJsonArrayItem(pMetaArr, pItem));
+    if (pItem != NULL) RAW_FALSE_CHECK(tmqAddJsonArrayItem(pMetaArr, pItem));
   }
 
   tDeleteMqBatchMetaRsp(&rsp);
@@ -2610,11 +2655,10 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
 
 void tmq_free_raw(tmq_raw_data raw) {
   uDebug("tmq free raw data type:%d", raw.raw_type);
-  if (raw.raw_type == RES_TYPE__TMQ ||
-      raw.raw_type == RES_TYPE__TMQ_METADATA) {
+  if (raw.raw_type == RES_TYPE__TMQ || raw.raw_type == RES_TYPE__TMQ_METADATA) {
     taosMemoryFree(raw.raw);
-  } else if(raw.raw_type == RES_TYPE__TMQ_RAWDATA && raw.raw != NULL){
-    taosMemoryFree(POINTER_SHIFT(raw.raw, - sizeof(SMqRspHead)));
+  } else if (raw.raw_type == RES_TYPE__TMQ_RAWDATA && raw.raw != NULL) {
+    taosMemoryFree(POINTER_SHIFT(raw.raw, -sizeof(SMqRspHead)));
   }
   (void)memset(terrMsg, 0, ERR_MSG_LEN);
 }
@@ -2679,7 +2723,7 @@ int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
     SET_ERROR_MSG("taos:%p or data:%p is NULL or raw_len <= 0", taos, raw.raw);
     return TSDB_CODE_INVALID_PARA;
   }
-  taosClearErrMsg(); // clear global error message
+  taosClearErrMsg();  // clear global error message
 
   return writeRawImpl(taos, raw.raw, raw.raw_len, raw.raw_type);
 }

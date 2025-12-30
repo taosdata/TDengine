@@ -5,7 +5,7 @@ add_executable(arbgroupTest ${MNODE_ARBGROUP_TEST_SRC})
 DEP_ext_gtest(arbgroupTest)
 target_link_libraries(
         arbgroupTest
-        PRIVATE dnode nodes planner qcom tcs
+        PRIVATE dnode nodes planner qcom tss
 )
 
 add_test(

@@ -4,18 +4,18 @@ sidebar_label: taosBenchmark
 toc_max_heading_level: 4
 ---
 
-taosBenchmark 是 TDengine 产品性能基准测试工具，提供对 TDengine 产品写入、查询及订阅性能测试，输出性能指标。
+taosBenchmark 是 TDengine TSDB 产品性能基准测试工具，提供对 TDengine TSDB 产品写入、查询及订阅性能测试，输出性能指标。
 
 ## 工具获取
 
-taosBenchmark 是 TDengine 服务器及客户端安装包中默认安装组件，安装后即可使用，参考 [TDengine 安装](../../../get-started/)
+taosBenchmark 是 TDengine TSDB 服务器及客户端安装包中默认安装组件，安装后即可使用，参考 [TDengine TSDB 安装](../../../get-started/)
 
 ## 运行
 
 taosBenchmark 支持无参数、命令行、配置文件三种运行模式，`命令行` 为 `配置文件` 功能子集，两者同时使用时，以命令行方式优先。
 
 :::tip
-在运行 taosBenchmark 之前要确保 TDengine 集群已经在正确运行。
+在运行 taosBenchmark 之前要确保 TDengine TSDB 集群已经在正确运行。
 :::
 
 ### 无参数模式
@@ -24,7 +24,7 @@ taosBenchmark 支持无参数、命令行、配置文件三种运行模式，`�
 taosBenchmark
 ```
 
-在无参数运行时，taosBenchmark 默认连接 `/etc/taos/taos.cfg` 中指定的 TDengine 集群。
+在无参数运行时，taosBenchmark 默认连接 `/etc/taos/taos.cfg` 中指定的 TDengine TSDB 集群。
 连接成功后，会默认创建智能电表示例数据库 test，创建超级表 meters，创建子表 1 万，每子写入数据 1 万条，若 test 库已存在，默认会先删再建。
 
 ### 命令行模式
@@ -51,20 +51,21 @@ taosBenchmark -f <json file>
 | 命令行参数                     | 功能说明                                         |
 | ---------------------------- | ----------------------------------------------- |
 | -f/--file \<json file>       | 要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值 |
-| -c/--config-dir \<dir>       | TDengine 集群配置文件所在的目录，默认路径是 /etc/taos |
-| -h/--host \<host>            | 指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost  |
-| -P/--port \<port>            | 要连接的 TDengine 服务器的端口号，默认值为 6030 |
+| -c/--config-dir \<dir>       | TDengine TSDB 集群配置文件所在的目录，默认路径是 /etc/taos |
+| -h/--host \<host>            | 指定要连接的 TDengine TSDB 服务端的 FQDN，默认值为 localhost  |
+| -P/--port \<port>            | 要连接的 TDengine TSDB 服务器的端口号，默认值为 6030 |
 | -I/--interface \<insertMode> | 插入模式，可选项有 taosc、rest、stmt、sml、sml-rest，分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc |
-| -u/--user \<user>            | 用于连接 TDengine 服务端的用户名，默认为 root  |
+| -u/--user \<user>            | 用于连接 TDengine TSDB 服务端的用户名，默认为 root  |
 | -U/--supplement-insert       | 写入数据而不提前建数据库和表，默认关闭 |
-| -p/--password \<passwd>      | 用于连接 TDengine 服务端的密码，默认值为 taosdata |
+| -p/--password \<passwd>      | 用于连接 TDengine TSDB 服务端的密码，默认值为 taosdata |
 | -o/--output \<file>          | 结果输出文件的路径，默认值为 ./output.txt |
+| -j/--output-json-file \<file>| 结果输出的 JSON 文件的路径 |
 | -T/--thread \<threadNum>     | 插入数据的线程数量，默认为 8  |
 | -B/--interlace-rows \<rowNum>        |启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0，即向一张子表完成数据插入后才会向下一张子表进行数据插入 |
 | -i/--insert-interval \<timeInterval> | 指定交错插入模式的插入间隔，单位为 ms，默认值为 0。只有当 `-B/--interlace-rows` 大于 0 时才起作用，意味着数据插入线程在为每个子表插入隔行扫描记录后，会等待该值指定的时间间隔后再进行下一轮写入 |
-| -r/--rec-per-req \<rowNum>           | 每次向 TDengine 请求写入的数据行数，默认值为 30000  |
+| -r/--rec-per-req \<rowNum>           | 每次向 TDengine TSDB 请求写入的数据行数，默认值为 30000  |
 | -t/--tables \<tableNum>              | 指定子表的数量，默认为 10000  |
-| -s/ --start-timestamp \<NUMBER>      | 每个子表数据开始时间，默认值为 1500000000000 |
+| -s/--start-timestamp \<NUMBER>      | 每个子表数据开始时间，默认值为 1500000000000 |
 | -S/--timestampstep \<stepLength>     | 每个子表中插入数据的时间戳步长，单位是 ms，默认值是 1 |
 | -n/--records \<recordNum>            | 每个子表插入的记录数，默认值为 10000  |
 | -d/--database \<dbName>              | 所使用的数据库的名称，默认值为 test  |
@@ -79,17 +80,17 @@ taosBenchmark -f <json file>
 | -N/--normal-table                | 开关参数，指定只创建普通表，不创建超级表。默认值为 false。仅当插入模式为 taosc、stmt、rest 模式下可以使用 |
 | -M/--random                      | 开关参数，插入数据为生成的随机值。默认值为 false。若配置此参数，则随机生成要插入的数据。对于数值类型的 标签列/数据列，其值为该类型取值范围内的随机值。对于 NCHAR 和 BINARY 类型的 标签列/数据列，其值为指定长度范围内的随机字符串 |
 | -x/--aggr-func                   | 开关参数，指示插入后查询聚合函数。默认值为 false |
-| -y/--answer-yes                  | 开关参数，要求用户在提示后确认才能继续。默认值为 false。|
+| -y/--answer-yes                  | 开关参数，要求用户在提示后确认才能继续，默认值为 false |
 | -O/--disorder \<Percentage>      | 指定乱序数据的百分比概率，其值域为 [0,50]。默认为 0，即没有乱序数据 |
 | -R/--disorder-range \<timeRange> | 指定乱序数据的时间戳回退范围。所生成的乱序时间戳为非乱序情况下应该使用的时间戳减去这个范围内的一个随机值。仅在 `-O/--disorder` 指定的乱序数据百分比大于 0 时有效|
 | -F/--prepare_rand \<Num>         | 生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 |
 | -a/--replica \<replicaNum>       | 创建数据库时指定其副本数，默认值为 1 |
-|  -k/--keep-trying \<NUMBER>      | 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本|
-|  -z/--trying-interval \<NUMBER>  | 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本 |
-| -v/--vgroups \<NUMBER>           | 创建数据库时指定 vgroups 数，仅对 TDengine v3.0+ 有效|
+| -k/--keep-trying \<NUMBER>      | 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本|
+| -z/--trying-interval \<NUMBER>  | 失败重试间隔时间，单位为毫秒，仅在 -k 指定重试后有效。需使用 v3.0.9 以上版本 |
+| -v/--vgroups \<NUMBER>           | 创建数据库时指定 vgroups 数，仅对 TDengine TSDB v3.0+ 有效|
 | -V/--version                     | 显示版本信息并退出。不能与其它参数混用|
 | -?/--help                        | 显示帮助信息并退出。不能与其它参数混用|
-| -Z/--connect-mode \<NUMBER>      | 指定连接方式，0 表示采用原生连接方式，1 表示采用 WebSocket 连接方式，默认采用原生连接方式。|
+| -Z/--connect-mode \<NUMBER>      | 指定连接方式，0 表示采用原生连接方式，1 表示采用 WebSocket 连接方式，默认采用原生连接方式|
 
 ## 配置文件参数
 
@@ -99,17 +100,19 @@ taosBenchmark -f <json file>
 
 - **filetype**：功能分类，可选值为 `insert`、`query`、`subscribe` 和 `csvfile`。分别对应插入、查询、订阅和生成 csv 文件功能。每个配置文件中只能指定其中之一。
 
-- **cfgdir**：TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos。
+- **cfgdir**：TDengine TSDB 客户端配置文件所在的目录，默认路径是 /etc/taos。
 
 - **output_dir**：指定输出文件的目录，当功能分类是 `csvfile` 时，指生成的 csv 文件的保存目录，默认值为 ./output/ 。
 
-- **host**：指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost。
+- **host**：指定要连接的 TDengine TSDB 服务端的 FQDN，默认值为 localhost。
 
-- **port**：要连接的 TDengine 服务器的端口号，默认值为 6030。
+- **port**：要连接的 TDengine TSDB 服务器的端口号，默认值为 6030。
 
-- **user**：用于连接 TDengine 服务端的用户名，默认值为 root。
+- **user**：用于连接 TDengine TSDB 服务端的用户名，默认值为 root。
 
-- **password**：用于连接 TDengine 服务端的密码，默认值为 taosdata。
+- **password**：用于连接 TDengine TSDB 服务端的密码，默认值为 taosdata。
+
+- **result_json_file**：指定结果输出的 JSON 文件路径，若未配置则不输出该文件。
 
 ### 写入配置参数
 
@@ -118,7 +121,10 @@ taosBenchmark -f <json file>
 - **keep_trying**：失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
 
 - **trying_interval**：失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
-- **childtable_from 和 childtable_to**：指定写入子表范围，开闭区间为 [childtable_from, childtable_to) 。
+
+- **childtable_from 和 childtable_to**：指定写入子表范围，开闭区间为 [childtable_from, childtable_to] 。
+
+- **escape_character**：超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no" 。
 
 - **continue_if_fail**：允许用户定义失败后行为。
 
@@ -128,7 +134,7 @@ taosBenchmark -f <json file>
 
 #### 数据库相关
 
-创建数据库时的相关参数在 json 配置文件中的 `dbinfo` 中配置，个别具体参数如下。其余参数均与 TDengine 中 `create database` 时所指定的数据库参数相对应，详见 [../../taos-sql/database]
+创建数据库时的相关参数在 json 配置文件中的 `dbinfo` 中配置，个别具体参数如下。其余参数均与 TDengine TSDB 中 `create database` 时所指定的数据库参数相对应，详见 [../../taos-sql/database]
 
 - **name**：数据库名。
 
@@ -146,17 +152,15 @@ taosBenchmark -f <json file>
 
 - **childtable_prefix**：子表名称的前缀，必选配置项，没有默认值。
 
-- **escape_character**：超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no" 。
-
 - **auto_create_table**：仅当 insert_mode 为 taosc、rest、stmt 并且 child_table_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
 
 - **batch_create_tbl_num**：创建子表时每批次的建表数量，默认为 10。注：实际的批数不一定与该值相同，当执行的 SQL 语句大于支持的最大长度时，会自动截断再执行，继续创建。
 
 - **data_source**：数据的来源，默认为 taosBenchmark 随机产生，可以配置为 "rand" 和 "sample"。为 "sample" 时使用 sample_file 参数指定的文件内的数据。
 
-- **insert_mode**：插入模式，可选项有 taosc、rest、stmt、sml、sml-rest，分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc。
+- **insert_mode**：插入模式，可选项有 taosc、rest、stmt、stmt2、sml、sml-rest，分别对应普通写入、restful 接口写入、参数绑定接口写入、schemaless 接口写入、restful schemaless 接口写入 (由 taosAdapter 提供)。默认值为 taosc。
 
-- **non_stop_mode**：指定是否持续写入，若为 "yes" 则 insert_rows 失效，直到 Ctrl + C 停止程序，写入才会停止。默认值为 "no"，即写入指定数量的记录后停止。注：即使在持续写入模式下 insert_rows 失效，但其也必须被配置为一个非零正整数。
+- **non_stop_mode**：指定是否持续写入 (此参数仅支持 `interlace_rows > 0`)，若为 "yes" 则 insert_rows 失效，直到 Ctrl + C 停止程序，写入才会停止。默认值为 "no"，即写入指定数量的记录后停止。注：即使在持续写入模式下 insert_rows 失效，但其也必须被配置为一个非零正整数。
 
 - **line_protocol**：使用行协议插入数据，仅当 insert_mode 为 sml 或 sml-rest 时生效，可选项为 line、telnet、json。
 
@@ -190,7 +194,11 @@ taosBenchmark -f <json file>
 
 - **tags_file**：仅当 insert_mode 为 taosc，rest 的模式下生效。最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
 
+- **use_tag_table_name**：当设置为 yes 时，csv 文件内的 tag 数据中的第一列为需要创建的子表名称，反之有系统自动生成子表名称进行创建。
+
 - **primary_key**：指定超级表是否有复合主键，取值 1 和 0，复合主键列只能是超级表的第二列，指定生成复合主键后要确保第二列符合复合主键的数据类型，否则会报错。
+
+- **primary_key_name**：指定超级表主键的名称，如果不指定默认为 `ts`。
 
 - **repeat_ts_min**：数值类型，复合主键开启情况下指定生成相同时间戳记录的最小个数，生成相同时间戳记录的个数是在范围[repeat_ts_min, repeat_ts_max] 内的随机值，最小值等于最大值时为固定个数。
 
@@ -224,7 +232,7 @@ taosBenchmark -f <json file>
 
 指定超级表标签列与数据列的配置参数分别在 `super_tables` 中的 `columns` 和 `tag` 中。
 
-- **type**：指定列类型，可选值请参考 TDengine 支持的数据类型。
+- **type**：指定列类型，可选值请参考 TDengine TSDB 支持的数据类型。
   注：JSON 数据类型比较特殊，只能用于标签，当使用 JSON 类型作为 tag 时有且只能有这一个标签，此时 count 和 len 代表的意义分别是 JSON tag 内的 key-value pair 的个数和每个 KV pair 的 value 的值的长度，value 默认为 string。
 
 - **len**：指定该数据类型的长度，对 NCHAR，BINARY 和 JSON 数据类型有效。如果对其他数据类型配置了该参数，若为 0，则代表该列始终都是以 null 值写入；如果不为 0 则被忽略。
@@ -271,8 +279,6 @@ taosBenchmark -f <json file>
 
 - **result_file**：结果输出文件的路径，默认值为 ./output.txt。
 
-- **result_json_file**：结果输出的 JSON 文件路径，若未配置则不输出该文件。
-
 - **confirm_parameter_prompt**：开关参数，要求用户在提示后确认才能继续，可取值 "yes" or "no"。默认值为 "no" 。
 
 - **interlace_rows**：启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0，即向一张子表完成数据插入后才会向下一张子表进行数据插入。
@@ -283,7 +289,7 @@ taosBenchmark -f <json file>
   在 `super_tables` 中也可以配置该参数，若配置则以 `super_tables` 中的配置为高优先级，覆盖全局设置。
 
 - **num_of_records_per_req**：
-  每次向 TDengine 请求写入的数据行数，默认值为 30000。当其设置过大时，TDengine 客户端驱动会返回相应的错误信息，此时需要调低这个参数的设置以满足写入要求。
+  每次向 TDengine TSDB 请求写入的数据行数，默认值为 30000。当其设置过大时，TDengine TSDB 客户端驱动会返回相应的错误信息，此时需要调低这个参数的设置以满足写入要求。
 
 - **prepare_rand**：生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000。
 
@@ -342,7 +348,7 @@ taosBenchmark -f <json file>
 #### 查询超级表
 
 查询超级表的配置参数在 `super_table_query` 中设置。  
-超级表查询的线程模式与上面介绍的指定查询语句查询的 `正常查询` 模式相同，不同之处是本 `sqls` 使用所有子表填充。
+超级表查询的线程模式与上面介绍的指定查询语句查询的 `普通查询` 模式相同，不同之处是本 `sqls` 使用所有子表填充。
 
 - **stblname**：指定要查询的超级表的名称，必填。
 
@@ -382,10 +388,10 @@ taosBenchmark -f <json file>
 
 ### 数据类型对照表
 
-| #   |   **TDengine**     | **taosBenchmark** |
+| #   |   **TDengine TSDB**     | **taosBenchmark** |
 | --- | :----------------: | :---------------: |
 | 1   |  TIMESTAMP         |    timestamp |
-| 2   |  INT               |    int  |
+| 2   |  INT               |    int |
 | 3   |  INT UNSIGNED      |    uint |
 | 4   |  BIGINT            |    bigint |
 | 5   |  BIGINT UNSIGNED   |    ubigint |

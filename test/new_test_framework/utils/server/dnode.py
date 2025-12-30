@@ -22,6 +22,7 @@ import base64
 import json
 import copy
 import shutil
+import psutil
 from fabric2 import Connection
 from shutil import which
 
@@ -151,7 +152,8 @@ class TDDnode:
         primary = 1
         if self.level == 1 and self.disk == 1:
             eDir = os.path.join(simPath, "data")
-            self.dataDir.append(eDir)
+            if eDir not in self.dataDir:
+                self.dataDir.append(eDir)
         else:
             for i in range(self.level):
                 for j in range(self.disk):
@@ -166,6 +168,7 @@ class TDDnode:
 
         for eDir in self.dataDir:
             cmd = "rm -rf " + eDir
+            tdLog.info(cmd)
             if os.system(cmd) != 0:
                 tdLog.exit(cmd)
 
@@ -279,7 +282,7 @@ class TDDnode:
 
         if self.valgrind == 0:
             if platform.system().lower() == "windows":
-                cmd = "mintty -h never %s -c %s" % (self.binPath, self.cfgDir)
+                cmd = f"mintty -h never {self.binPath} -c {self.cfgDir}"
             else:
                 if self.asan:
                     asanDir = "%s/asan/dnode%d.asan" % (self.path, self.index)
@@ -441,7 +444,8 @@ class TDDnode:
             )
             self.running = 1
         else:
-            os.system("rm -rf %s/taosdlog.0" % self.logDir)
+            if os.path.exists(os.path.join(self.logDir, 'taosdlog.0')):
+                os.remove(os.path.join(self.logDir, 'taosdlog.0'))
             if os.system(cmd) != 0:
                 tdLog.exit(cmd)
             self.running = 1
@@ -450,7 +454,7 @@ class TDDnode:
                 time.sleep(0.1)
                 key = "from offline to online"
                 bkey = bytes(key, encoding="utf8")
-                logFile = self.logDir + "/taosdlog.0"
+                logFile = os.path.join(self.logDir, "taosdlog.0")
                 i = 0
                 while not os.path.exists(logFile):
                     sleep(0.1)
@@ -469,6 +473,7 @@ class TDDnode:
             else:
                 tdLog.debug("wait 10 seconds for the dnode:%d to start." % (self.index))
                 time.sleep(10)
+                
 
     def startWithoutSleep(self):
         # binPath = self.getPath()
@@ -559,37 +564,57 @@ class TDDnode:
             toBeKilled = "valgrind.bin"
 
         if self.running != 0:
-            psCmd = (
-                "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs"
-                % toBeKilled
-            )
-            processID = (
-                subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-            )
-
-            onlyKillOnceWindows = 0
-            while processID:
-                if not platform.system().lower() == "windows" or (
-                    onlyKillOnceWindows == 0 and platform.system().lower() == "windows"
-                ):
-                    killCmd = "kill -INT %s > /dev/null 2>&1" % processID
-                    if platform.system().lower() == "windows":
-                        killCmd = "kill -INT %s > nul 2>&1" % processID
-                    os.system(killCmd)
-                    onlyKillOnceWindows = 1
-                time.sleep(1)
+            if platform.system().lower() == "windows":
+                pid = None
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    if 'mintty' in  proc.info['name']:
+                        tdLog.info(proc.info['cmdline'])
+                    if ('mintty' in  proc.info['name']
+                        and proc.info['cmdline']  # 确保 cmdline 非空
+                        and 'taosd' in proc.info['cmdline'][3] and f'dnode{self.index}' in proc.info['cmdline'][5]
+                    ):
+                        tdLog.info(proc.info)
+                        tdLog.info("Found taosd.exe process with PID: %s", proc.info['pid'])
+                        pid = proc.info['pid']
+                        killCmd = f"taskkill /PID {pid} /T /F"
+                        #killCmd = "for /f %%a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
+                        os.system(killCmd)
+                        tdLog.info("dnode:%d is stopped by kill -INT" % (self.index))
+                        break
+                if pid is None:
+                    tdLog.error("No taosd.exe process found for dnode:%d" % (self.index))
+            else:
+                psCmd = (
+                    "ps -efww |grep -w %s| grep -v grep | awk '{print $2}' | xargs"
+                    % toBeKilled
+                )
                 processID = (
                     subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
                 )
-            if not platform.system().lower() == "windows":
-                for port in range(6030, 6041):
-                    fuserCmd = "fuser -k -n tcp %d > /dev/null" % port
-                    os.system(fuserCmd)
-            if self.valgrind:
-                time.sleep(2)
 
-            self.running = 0
-            tdLog.info("dnode:%d is stopped by kill -INT" % (self.index))
+                onlyKillOnceWindows = 0
+                while processID:
+                    if not platform.system().lower() == "windows" or (
+                        onlyKillOnceWindows == 0 and platform.system().lower() == "windows"
+                    ):
+                        killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                        if platform.system().lower() == "windows":
+                            killCmd = "kill -INT %s > nul 2>&1" % processID
+                        os.system(killCmd)
+                        onlyKillOnceWindows = 1
+                    time.sleep(1)
+                    processID = (
+                        subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+                    )
+                if not platform.system().lower() == "windows":
+                    for port in range(6030, 6041):
+                        fuserCmd = "fuser -k -n tcp %d > /dev/null" % port
+                        os.system(fuserCmd)
+                if self.valgrind:
+                    time.sleep(2)
+
+                self.running = 0
+                tdLog.info("dnode:%d is stopped by kill -INT" % (self.index))
 
     def stoptaosd(self):
         tdLog.info(f"start to stop taosd on dnode:{self.index}")
@@ -615,35 +640,49 @@ class TDDnode:
 
         if self.running != 0:
             if platform.system().lower() == "windows":
-                psCmd = (
-                    "for /f %%a in ('wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
-                    % (self.index)
-                )
+                pid = None
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    if 'mintty' in  proc.info['name']:
+                        tdLog.info(proc.info['cmdline'])
+                    if ('mintty' in  proc.info['name']
+                        and proc.info['cmdline']  # 确保 cmdline 非空
+                        and 'taosd' in proc.info['cmdline'][3] and f'dnode{self.index}' in proc.info['cmdline'][5]
+                    ):
+                        tdLog.info(proc.info)
+                        tdLog.info("Found taosd.exe process with PID: %s", proc.info['pid'])
+                        pid = proc.info['pid']
+                        killCmd = f"taskkill /PID {pid} /T /F"
+                        #killCmd = "for /f %%a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
+                        os.system(killCmd)
+                        tdLog.info("dnode:%d is stopped by kill -INT" % (self.index))
+                        break
+                if pid is None:
+                    tdLog.error("No taosd.exe process found for dnode:%d" % (self.index))
             else:
                 psCmd = (
                     "ps -efww | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
                     % (toBeKilled, self.index)
                 )
-            processID = (
-                subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-            )
-            tdLog.info(f"psCmd:{psCmd}, processId:[{processID}]")
-            onlyKillOnceWindows = 0
-            while processID:
-                if not platform.system().lower() == "windows" or (
-                    onlyKillOnceWindows == 0 and platform.system().lower() == "windows"
-                ):
-                    killCmd = "kill -INT %s > /dev/null 2>&1" % processID
-                    if platform.system().lower() == "windows":
-                        killCmd = "kill -INT %s > nul 2>&1" % processID
-                    os.system(killCmd)
-                    onlyKillOnceWindows = 1
-                    # tdLog.info(f"kill cmd:{killCmd}")
-                time.sleep(1)
                 processID = (
                     subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
                 )
-                tdLog.info(f"killed processID:{processID}")
+                tdLog.info(f"psCmd:{psCmd}, processId:[{processID}]")
+                onlyKillOnceWindows = 0
+                while processID:
+                    if not platform.system().lower() == "windows" or (
+                        onlyKillOnceWindows == 0 and platform.system().lower() == "windows"
+                    ):
+                        killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                        if platform.system().lower() == "windows":
+                            killCmd = "kill -INT %s > nul 2>&1" % processID
+                        os.system(killCmd)
+                        onlyKillOnceWindows = 1
+                        # tdLog.info(f"kill cmd:{killCmd}")
+                    time.sleep(1)
+                    processID = (
+                        subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+                    )
+                    tdLog.info(f"killed processID:{processID}")
             if self.valgrind:
                 time.sleep(2)
 
@@ -680,7 +719,7 @@ class TDDnode:
                 )
             else:
                 psCmd = (
-                    "ps -ef | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
+                    "ps -efww | grep -w %s | grep dnode%d | grep -v grep | awk '{print $2}' | xargs"
                     % (toBeKilled, self.index)
                 )
             processID = (

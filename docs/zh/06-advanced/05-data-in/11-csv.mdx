@@ -2,11 +2,12 @@
 title: "CSV"
 sidebar_label: "CSV"
 ---
-本节讲述如何通过 Explorer 界面创建数据迁移任务，从 CSV 迁移数据到当前 TDengine 集群。
+
+本节讲述如何通过 Explorer 界面创建数据迁移任务，从 CSV 迁移数据到当前 TDengine TSDB 集群。
 
 ## 功能概述
 
-导入一个或多个 CSV 文件数据到 TDengine。
+导入一个或多个 CSV 文件数据到 TDengine TSDB。
 
 ## 创建任务
 
@@ -104,7 +105,7 @@ sidebar_label: "CSV"
 
 #### 4.4 映射
 
-在 **目标超级表** 的下拉列表中选择一个目标超级表，也可以先点击右侧的 **创建超级表** 按钮
+在 **目标超级表** 的下拉列表中选择一个目标超级表，也可以先点击右侧的 **创建超级表** 按钮。由于普通表并非典型应用场景，暂时不支持导入到普通表。
 
 在映射规则中，填写目标超级表中的子表名称，例如：`csv_meter_${id}`，同时配置映射到超级表的列。
 
@@ -114,19 +115,19 @@ sidebar_label: "CSV"
 
 ### 5. 配置高级选项
 
-import AdvancedOptions from './_02-advanced_options.mdx'
+import AdvancedOptions from "./_02-advanced_options.mdx";
 
-<AdvancedOptions/>
+<AdvancedOptions />
 
 ### 6. 异常处理策略
 
-import Contributing from './_03-exception-handling-strategy.mdx'
+import Contributing from "./_03-exception-handling-strategy.mdx";
 
 <Contributing />
 
 ### 7. 创建完成
 
-点击 **提交** 按钮，完成创建 CSV 到 TDengine 的数据同步任务，回到数据写入任务列表页面，可查看任务执行情况，也可以进行任务的“启动/停止”操作与“查看/编辑/删除/复制”操作。
+点击 **提交** 按钮，完成创建 CSV 到 TDengine TSDB 的数据同步任务，回到数据写入任务列表页面，可查看任务执行情况，也可以进行任务的“启动/停止”操作与“查看/编辑/删除/复制”操作。
 
 ![csv-10.png](./csv-10.png)
 

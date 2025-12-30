@@ -195,9 +195,10 @@ int main() {
   // create database and table
   executeSQL(taos, "CREATE DATABASE IF NOT EXISTS power");
   executeSQL(taos, "USE power");
-  executeSQL(taos,
-             "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
-             "(groupId INT, location BINARY(24))");
+  executeSQL(
+      taos,
+      "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
+      "(groupId INT, location BINARY(24))");
   insertData(taos);
   taos_close(taos);
   taos_cleanup();

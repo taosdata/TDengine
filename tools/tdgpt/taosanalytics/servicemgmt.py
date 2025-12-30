@@ -4,9 +4,10 @@ import copy
 import importlib
 import inspect
 import os
+import sys
 from collections import defaultdict
 from taosanalytics.conf import app_logger
-from taosanalytics.service import AbstractAnomalyDetectionService, AbstractForecastService
+from taosanalytics.service import AbstractAnomalyDetectionService, AbstractForecastService, AbstractImputationService
 
 os.environ['KERAS_BACKEND'] = 'torch'
 
@@ -42,7 +43,9 @@ class AnalyticsServiceLoader:
             "version": 0.1,
             "details": [
                 self.get_forecast_algo_list(),
-                self.get_anomaly_detection_algo_list()
+                self.get_anomaly_detection_algo_list(),
+                self.get_imputation_algo_list(),
+                self.get_corr_algo_list()
             ]
         }
 
@@ -55,11 +58,24 @@ class AnalyticsServiceLoader:
             "algo": self.get_typed_services("anomaly-detection")
         }
 
+    def get_imputation_algo_list(self):
+        """ get all available service list """
+        return {
+            "type": "imputation",
+            "algo": self.get_typed_services("imputation")
+        }
+
     def get_forecast_algo_list(self):
         """ get all available service list """
         return {
             "type": "forecast",
             "algo": self.get_typed_services("forecast")
+        }
+
+    def get_corr_algo_list(self):
+        return {
+            "type": "correlation",
+            "algo": self.get_typed_services("correlation")
         }
 
     def load_all_service(self) -> None:
@@ -100,13 +116,23 @@ class AnalyticsServiceLoader:
 
                     if class_name in (
                             AbstractAnomalyDetectionService.__name__,
-                            AbstractForecastService.__name__
+                            AbstractForecastService.__name__,
+                            AbstractImputationService.__name__
                     ) or (not class_name.startswith('_')):
                         continue
 
                     algo_cls = getattr(module, class_name)
 
                     if algo_cls is not None:
+                        version = sys.version_info
+
+                        # ignore the shesd for python 3.12 version due to pandas compatibility
+                        if (version.major, version.minor) == (3, 12) and class_name == '_SHESDService':
+                            app_logger.log_inst.info(
+                                "%s not loaded due to Pandas compatibility problem on Python 3.12",
+                                class_name)
+                            continue
+
                         obj = algo_cls()
                         register_service(self.services, algo_cls.name, obj)
 
@@ -115,6 +141,8 @@ class AnalyticsServiceLoader:
 
         do_load_service(current_directory, 'taosanalytics.algo.ad.', '/algo/ad/')
         do_load_service(current_directory, 'taosanalytics.algo.fc.', '/algo/fc/')
+        do_load_service(current_directory, 'taosanalytics.algo.imputat.', '/algo/imputat/')
+        do_load_service(current_directory, 'taosanalytics.algo.correl.', '/algo/correl/')
 
 
 loader: AnalyticsServiceLoader = AnalyticsServiceLoader()

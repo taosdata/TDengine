@@ -137,6 +137,13 @@ add_test(
     COMMAND decompressTest
 )
 
+add_executable(objpoolTest "objpoolTest.cpp")
+DEP_ext_gtest(objpoolTest)
+target_link_libraries(objpoolTest PRIVATE os util common)
+add_test(
+    NAME objpoolTest
+    COMMAND objpoolTest
+)
 
 if(${TD_LINUX})
     add_executable(utilTests utilTests.cpp stringTest.cpp)

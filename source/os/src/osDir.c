@@ -542,8 +542,11 @@ bool taosDirEntryIsDir(TdDirEntryPtr pDirEntry) {
     return false;
   }
 #ifdef WINDOWS
+  if (pDirEntry->findFileData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+    return false;
+  }
   return (pDirEntry->findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+#elif defined(TD_ASTRA)  // TD_ASTRA_TODO
   return ((dirent *)pDirEntry)->d_mode == 1;  // DIRECTORY_ENTRY;
 #else
   return (((dirent *)pDirEntry)->d_type & DT_DIR) != 0;

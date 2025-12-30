@@ -14,7 +14,9 @@ This section introduces the multi-tier storage feature unique to TDengine Enterp
 - Easy maintenance -- After configuring the storage mount points for each level, system data migration and other tasks do not require manual intervention; storage expansion is more flexible and convenient
 - Transparent to SQL -- Regardless of whether the queried data spans multiple levels, a single SQL query can return all data, simple and efficient
 
-The storage media involved in multi-tier storage are all local storage devices. In addition to local storage devices, TDengine Enterprise also supports using object storage (S3) to save the coldest batch of data on the cheapest media to further reduce storage costs, and still allows querying when necessary, and where the data is stored is also transparent to SQL. Support for object storage was first released in version 3.3.0.0, and it is recommended to use the latest version.
+The storage media involved in multi-tier storage are all local storage devices. In addition to local storage devices, TDengine also supports using object storage as storage device. However, since most object storage systems already have multiple replicas, enabling TDengine's multi-replica feature on top would lead to wasted storage space and increased costs. To address this, TDengine has further improved object storage into shared storage—where the storage device logically maintains only one copy of data that is shared across all nodes in the TDengine cluster. This approach significantly reduces both storage space requirements and costs, and still allows querying when necessary, and where the data is stored is also transparent to SQL.
+
+Shared storage was first released in version 3.3.7.0, it is an enhancement of the object storage (S3) support released in version 3.3.0.0. However, version 3.3.7.0 is not compatible with previous versions, if you have object storage (S3) feature enabled before, upgrading to version 3.3.7.0 and above will require manual operations.
 
 ## Multi-Tier Storage
 
@@ -22,7 +24,7 @@ The storage media involved in multi-tier storage are all local storage devices. 
 
 Multi-tier storage supports 3 levels, with up to 128 mount points per level.
 
-**Tips** Typical configuration schemes include: Level 0 configured with multiple mount points, each corresponding to a single SAS hard drive; Level 1 configured with multiple mount points, each corresponding to a single or multiple SATA hard drives; Level 2 can be configured with S3 storage or other inexpensive network storage.
+**Tips** Typical configuration schemes include: Level 0 configured with multiple mount points, each corresponding to a single SAS hard drive; Level 1 configured with multiple mount points, each corresponding to a single or multiple SATA hard drives.
 
 The configuration method for TDengine multi-tier storage is as follows (in the configuration file /etc/taos/taos.cfg):
 
@@ -63,75 +65,121 @@ To address this issue, starting from 3.1.1.0, a new configuration minDiskFreeSiz
 
 Starting from version 3.3.2.0, a new configuration `disable_create_new_file` has been introduced to control the prohibition of generating new files on a certain mount point. The default value is `false`, which means new files can be generated on each mount point by default.
 
-## Object Storage
+## Shared Storage
 
-This section describes how to use S3 object storage in TDengine Enterprise. This feature is based on the generic S3 SDK and has been adapted for compatibility with various S3 platforms, allowing access to object storage services such as MinIO, Tencent Cloud COS, Amazon S3, etc. By configuring the appropriate parameters, most of the colder time-series data can be stored in S3 services.
+This section describes how to use shared storage in TDengine Enterprise. TDengine supports using various S3 compatible object storage services such as MinIO, Tencent Cloud COS, Amazon S3, or locally mounted NAS, SAN, etc as shared storage device,
 
-**Note** When used in conjunction with multi-tier storage, data saved on each storage medium may be backed up to remote object storage and local data files deleted according to rules.
+**Note** When used in conjunction with multi-tier storage, data saved on each storage medium may be migrated to shared storage and local data files deleted according to rules.
 
-### Configuration Method
+The configuration items related to shared storage are stored in `/etc/taos/taos.cfg`, as shown in the following table:
 
-In the configuration file `/etc/taos/taos.cfg`, add parameters for S3 access:
+| Parameter Name           | Description                                                  |
+| :----------------------- | :----------------------------------------------------------- |
+| ssEnabled                | Whether to enable shared storage or not, allowed values are `0`, `1` and `2`. `0` is the default, which means shared storage is disabled; `1` means only enable manual migration, and `2` means also enable auto migation. |
+| ssAccessString           | A string which contains various options for accessing the shared storage, the format is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`, available options differ from storage device types, please refer the next section for details. |
+| ssUploadDelaySec         | How long a data file remains unchanged before being uploaded to shared storage, in seconds. Minimum: 1; Maximum: 2592000 (30 days), default value 60 seconds |
+| ssPageCacheSize          | Number of shared storage page cache pages, in pages. Minimum: 4; Maximum: 1024 *1024* 1024, default value 4096 |
+| ssAutoMigrateIntervalSec | The trigger cycle for automatic upload of local data files to shared storage, in seconds. Minimum: 600; Maximum: 100000. Default value 3600 |
 
-| Parameter Name        |   Description                                      |
-|:-------------|:-----------------------------------------------|
-| s3EndPoint | The COS service domain name in the user's region, supports http and https, the bucket's region must match the endpoint's, otherwise access is not possible. |
-| s3AccessKey | Colon-separated user SecretId:SecretKey. For example: AKIDsQmwsfKxTo2A6nGVXZN0UlofKn6JRRSJ:lIdoy99ygEacU7iHfogaN2Xq0yumSm1E |
-| s3BucketName | Bucket name, the hyphen is followed by the AppId registered for the COS service. AppId is unique to COS, AWS and Alibaba Cloud do not have it, it needs to be part of the bucket name, separated by a hyphen. Parameter values are all string types, but do not need quotes. For example: test0711-1309024725 |
-| s3UploadDelaySec | How long a data file remains unchanged before being uploaded to S3, in seconds. Minimum: 1; Maximum: 2592000 (30 days), default value 60 seconds |
-| s3PageCacheSize | Number of s3 page cache pages, in pages. Minimum: 4; Maximum: 1024*1024*1024, default value 4096 |
-| s3MigrateIntervalSec | The trigger cycle for automatic upload of local data files to S3, in seconds. Minimum: 600; Maximum: 100000. Default value 3600 |
-| s3MigrateEnabled | Whether to automatically perform S3 migration, default value is 0, which means auto S3 migration is off, can be set to 1. |
+### Access String of Storage Devices
+
+The available options for the configuration parameter ssAccessString depend on the specific type of storage device.
+
+#### S3 Compatible Object Storages
+
+When using S3 compatible object storage services as shared storage device, the `device-type` in `ssAccessString` must be `s3`, and the following table lists all available options.
+
+| Name            | Description                                                  |
+| --------------- | ------------------------------------------------------------ |
+| endpoint        | host name / ip address, and optional port number of the object storage server. |
+| bucket          | bucket name.                                                 |
+| protocol        | `https` or `http`, `https` is the default.                   |
+| uriStyle        | `virtualHost` or `path`, `virtualHost` is the default, but please note that some object storage providers only support one of them. |
+| region          | object storage service region, optional.                     |
+| accessKeyId     | your access key id.                                          |
+| secretAccessKey | your secret access key.                                      |
+| chunkSize       | chunk size in MB, files larger than this size will use multipart upload, default is 64. |
+| maxChunks       | max number of allowed chunks in a multipart upload, default is 10000. |
+| maxRetry        | max retry times when encounter retryable errors, default is 3, negative value means unlimited retry. |
+| verifyPeer      | whether to verify the peer(server) certificate, only valid when `protocol` is `https`, default is false. |
+
+For example:
+
+```text
+ssAccessString s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKMYACCESSKEY;secretAccessKey=MYSECRETACCESSKEY;region=us-east-2;chunkSize=64;maxChunks=10000;maxRetry=3;verifyPeer=false
+```
+
+#### Locally Mounted Storage Devices
+
+For TDengine, a network storage device mounted locally is treated the same as a local disk. When using such a device as shared storage, the device-type in `ssAccessString` must be `fs`. The available options are as follows:
+
+| Name    | Description                                                  |
+| ------- | ------------------------------------------------------------ |
+| baseDir | path of a directory, TDengine will use this directory as shared storage. |
+
+For example:
+
+```text
+ssAccessString fs:baseDir=/var/taos/ss
+```
 
 ### Check Configuration Parameter Availability
 
-After configuring s3 in `taos.cfg`, the availability of the configured S3 service can be checked using the `taosd` command with the `checks3` parameter:
+After configuring shared storage in `taos.cfg`, the availability of the configured shared storage service can be checked using the `taosd` command with the `checkss` parameter:
 
 ```shell
-taosd --checks3
+taosd --checkss
 ```
 
-If the configured S3 service is inaccessible, this command will output the corresponding error information during execution.
+If the configured shared storage service is inaccessible, this command will output the corresponding error information during execution.
 
-### Create a DB Using S3
+### Create a DB Using Shared Storage
 
-After configuration, you can start the TDengine cluster and create a database using S3, for example:
+After configuration, you can start the TDengine cluster and create a database using shared storage, for example:
 
 ```sql
-create database demo_db duration 1d s3_keeplocal 3d;
+create database demo_db duration 1d ss_keeplocal 3d;
 ```
 
-After writing time-series data into the database `demo_db`, time-series data older than 3 days will automatically be segmented and stored in S3 storage.
+After writing time-series data into the database `demo_db`, time-series data older than 3 days will automatically be segmented and migrated into shared storage.
 
-By default, mnode issues S3 data migration check commands every hour. If there is time-series data that needs to be uploaded, it will automatically be segmented and stored in S3 storage. You can also manually trigger this operation using SQL commands, initiated by the user, with the following syntax:
+If the value of `ssEnabled` is `2`, mnode issues shared storage data migration check commands every hour. If there is time-series data that needs to be uploaded, it will automatically be segmented and migrated into shared storage. This process can also be manually trigger using SQL commands, with the following syntax:
 
 ```sql
-s3migrate database <db_name>;
+ssmigrate database <db_name>;
 ```
+
+Note that if the value of `ssEnabled` is `1`, mnode will never trigger the migration process automatically and user must trigger it manually if a migration is desired.
 
 Detailed DB parameters are shown in the table below:
 
-| #    | Parameter         | Default | Min | Max  | Description                                                         |
-| :--- | :----------- | :----- | :----- | :------ | :----------------------------------------------------------- |
-| 1    | s3_keeplocal | 365    | 1      | 365000  | The number of days data is kept locally, i.e., how long data files are retained on local disks before they can be uploaded to S3. Default unit: days, supports m (minutes), h (hours), and d (days) |
-| 2    | s3_chunkpages | 131072 | 131072 | 1048576 | The size threshold for uploading objects, same as the tsdb_pagesize parameter, unmodifiable, in TSDB pages |
-| 3    | s3_compact   | 1      | 0      | 1       | Whether to automatically perform compact operation when TSDB files are first uploaded to S3.       |
+| #    | Parameter     | Default | Min    | Max     | Description                                                  |
+| :--- | :------------ | :------ | :----- | :------ | :----------------------------------------------------------- |
+| 1    | ss_keeplocal  | 365     | 1      | 365000  | The number of days data is kept locally, i.e., how long data files are retained on local disks before they can be migrated to shared storage. Default unit: days, supports m (minutes), h (hours), and d (days) |
+| 2    | ss_chunkpages | 131072  | 131072 | 1048576 | The size threshold for migrating objects, same as the tsdb_pagesize parameter, unmodifiable, in TSDB pages |
+| 3    | ss_compact    | 1       | 0      | 1       | Whether to automatically perform compact operation when before the first migration of TSDB files |
 
 ### Estimation of Read and Write Operations for Object Storage
 
 The cost of using object storage services is related to the amount of data stored and the number of requests. Below, we discuss the processes of data upload and download separately.
 
-#### Data Upload
+#### Data Migration
 
-When the TSDB time-series data exceeds the time specified by the `s3_keeplocal` parameter, the related data files will be split into multiple file blocks, each with a default size of 512 MB (`s3_chunkpages * tsdb_pagesize`). Except for the last file block, which is retained on the local file system, the rest of the file blocks are uploaded to the object storage service.
+When the TSDB time-series data exceeds the time specified by the `ss_keeplocal` parameter, the leader vnode will split the related data files into multiple file blocks, each with a default size of 512 MB (`ss_chunkpages * tsdb_pagesize`), except the last file block. All of the file blocks are uploaded to the shared storage, and all of the file blocks except the last one are removed from local disk.
+
+When creating a database, you can adjust the size of each file block through the `ss_chunkpages` parameter, thereby controlling the number of uploads for each data file.
+
+Other types of files such as head, stt, sma, etc., are also uploaded to the shared storage, but retained on the local file system to speed up pre-computed related queries.
+
+The leader vnode also creats/updates a manifests file in the shared storage to save the migration information after the migration process finishes successfully.
+
+The follower vnodes will then download the last block of the data file and all other files to local from the shared storage to complete the overall migration process, they rely on the manifests file to decide which specific files should be downloaded.
+
+That's, the read/write count during data migration is about:
 
 ```text
-Upload Count = Data File Size / (s3_chunkpages * tsdb_pagesize) - 1
+Read/Write Count = Number of Data Blocks + (Number of Other Files + 2) x Number of vnodes
 ```
-
-When creating a database, you can adjust the size of each file block through the `s3_chunkpages` parameter, thereby controlling the number of uploads for each data file.
-
-Other types of files such as head, stt, sma, etc., are retained on the local file system to speed up pre-computed related queries.
 
 #### Data Download
 
@@ -143,9 +191,13 @@ Adjacent multiple data pages are downloaded as a single data block from object s
 Download Count = Number of Data Blocks Needed for Query - Number of Cached Data Blocks
 ```
 
-The page cache is a memory cache, and data needs to be re-downloaded after a node restart. The cache uses an LRU (Least Recently Used) strategy, and when there is not enough cache space, the least recently used data will be evicted. The size of the cache can be adjusted through the `s3PageCacheSize` parameter; generally, the larger the cache, the fewer the downloads.
+The page cache is a memory cache, and data needs to be re-downloaded after a node restart. The cache uses an LRU (Least Recently Used) strategy, and when there is not enough cache space, the least recently used data will be evicted. The size of the cache can be adjusted through the `ssPageCacheSize` parameter; generally, the larger the cache, the fewer the downloads.
 
 ## Azure Blob Storage
+
+Support for Azure Blob object storage is temporarily disabled, if you are using this service before the release of TDengine version 3.3.7.0, please wait for the new version.
+
+<!--
 
 This section describes how to use Microsoft Azure Blob object storage in TDengine Enterprise. This feature is an extension of the 'Object Storage' feature discussed in the previous section and depends additionally on the Flexify service's S3 gateway. With proper parameter configuration, most of the colder time-series data can be stored in the Azure Blob service.
 
@@ -175,10 +227,12 @@ s3BucketName td-test
 
 The user interface is the same as S3, but the configuration of the following three parameters is different:
 
-| #    | Parameter     | Example Value                              | Description                                                  |
-| :--- | :------------ | :----------------------------------------- | :----------------------------------------------------------- |
-| 1    | s3EndPoint    | `https://fd2d01c73.blob.core.windows.net`    | Blob URL                                                     |
-| 2    | s3AccessKey   | fd2d01c73:veUy/iRBeWaI2YAerl+AStw6PPqg==  | Colon-separated user accountId:accountKey                    |
-| 3    | s3BucketName  | test-container                             | Container name                                               |
+| #    | Parameter    | Example Value                             | Description                               |
+| :--- | :----------- | :---------------------------------------- | :---------------------------------------- |
+| 1    | s3EndPoint   | `https://fd2d01c73.blob.core.windows.net` | Blob URL                                  |
+| 2    | s3AccessKey  | fd2d01c73:veUy/iRBeWaI2YAerl+AStw6PPqg==  | Colon-separated user accountId:accountKey |
+| 3    | s3BucketName | test-container                            | Container name                            |
 
 The `fd2d01c73` is the account ID; Microsoft Blob storage service only supports the Https protocol, not Http.
+
+-->

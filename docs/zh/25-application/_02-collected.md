@@ -54,7 +54,11 @@ LoadPlugin network
 <Plugin network>
   Server "<TDengine cluster/server host>" "<port for collectd>"
 </Plugin>
+```
 
+### 启动 collectd 服务
+
+```bash
 sudo systemctl start collectd
 ```
 

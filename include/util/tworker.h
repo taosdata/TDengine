@@ -96,6 +96,7 @@ typedef struct {
   FItem            fp;
   void            *param;
   SQWorkerPoolType poolType;
+  bool             stopNoWaitQueue;
 } SSingleWorkerCfg;
 
 typedef struct {
@@ -103,6 +104,7 @@ typedef struct {
   STaosQueue      *queue;
   SQWorkerPoolType poolType;  // default to QWORKER_POOL
   void            *pool;
+  bool             stopNoWaitQueue;
 } SSingleWorker;
 
 typedef struct {
@@ -162,7 +164,8 @@ typedef struct SQueryAutoQWorkerPool {
   SList                          *exitedWorkers;
   STaosQset                      *qset;
   struct SQueryAutoQWorkerPoolCB *pCb;
-  bool                            exit;
+  bool                            stopNoWaitQueue;
+  volatile bool                   exit;
 } SQueryAutoQWorkerPool;
 
 int32_t     tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pPool);
@@ -175,6 +178,36 @@ typedef struct SQueryAutoQWorkerPoolCB {
   int32_t (*beforeBlocking)(void *pPool);
   int32_t (*afterRecoverFromBlocking)(void *pPool);
 } SQueryAutoQWorkerPoolCB;
+
+typedef struct SDispatchWorker {
+  int32_t     id;
+  int32_t     pid;
+  TdThread    thread;
+  void       *pool;
+  STaosQueue *queue;
+  STaosQset  *qset;
+} SDispatchWorker;
+
+struct SDispatchWorkerPool;
+
+typedef int32_t (*DispatchFp)(struct SDispatchWorkerPool* pPool, void* pParam, int32_t *pWorkerIdx);
+
+typedef struct SDispatchWorkerPool {
+  const char      *name;
+  int32_t          num;
+  int32_t          max;
+  FItems           fp;
+  void            *param;
+  SDispatchWorker *pWorkers;
+  DispatchFp       dispatchFp;
+  TdThreadMutex    poolLock;
+  bool             exit;
+} SDispatchWorkerPool;
+
+int32_t tDispatchWorkerInit(SDispatchWorkerPool *pPool);
+void    tDispatchWorkerCleanup(SDispatchWorkerPool *pPool);
+int32_t tDispatchWorkerAllocQueue(SDispatchWorkerPool *pPool, void *ahandle, FItem fp, DispatchFp dispatchFp);
+int32_t tAddTaskIntoDispatchWorkerPool(SDispatchWorkerPool* pPool, void* pTask);
 
 #ifdef __cplusplus
 }

@@ -46,11 +46,11 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -P, --port=PORT            Port to connect.
   -u, --user=USER            User name used to connect to server. Default is
                              root.
-  -c, --config-dir=CONFIG_DIR   Configure directory. Default is /etc/taos
+  -c, --config-dir=CONFIG_DIR   Configure directory. Default is /etc/taos.
   -i, --inpath=INPATH        Input file path.
   -o, --outpath=OUTPATH      Output file path.
-  -r, --resultFile=RESULTFILE DumpOut/In Result file path and name.
-  -a, --allow-sys            Allow to dump system database.
+  -r, --resultFile=RESULTFILE   DumpOut/In Result file path and name.
+  -a, --allow-sys            Allow to dump system database (2.0 only).
   -A, --all-databases        Dump all databases.
   -D, --databases=DATABASES  Dump listed databases. Use comma to separate
                              databases names.
@@ -58,7 +58,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -N, --without-property     Dump database without its properties.
   -s, --schemaonly           Only dump table schemas.
   -d, --avro-codec=snappy    Choose an avro codec among null, deflate, snappy,
-                             and lzma.
+                             and lzma(Windows is not currently supported).
   -S, --start-time=START_TIME   Start time to dump. Either epoch or
                              ISO8601/RFC3339 format is acceptable. ISO8601
                              format example: 2017-10-01T00:00:00.000+0800 or
@@ -81,29 +81,31 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
                              use letter and number only. Default is NOT.
   -n, --no-escape            No escape char '`'. Default is using it.
   -Q, --dot-replace          Replace dot character with underline character in
-                             the table name.(Version 2.5.3)
-  -T, --thread-num=THREAD_NUM Number of thread for dump in file. Default is 8.
-  -W, --rename=RENAME-LIST   Rename database name with new name during.
-                             importing data. RENAME-LIST: 
+                             the table name.
+  -T, --thread-num=THREAD_NUM   Number of threads for dump in/out data. Default
+                             is 8.
+  -W, --rename=RENAME-LIST   Rename database name with new name during
+                             importing data.         RENAME-LIST:
                              "db1=newDB1|db2=newDB2" means rename db1 to newDB1
-                             and rename db2 to newDB2 (Version 2.5.4).
+                             and rename db2 to newDB2.
+  -C, --cloud=CLOUD_DSN      Alias for the -X/--dsn option.
   -k, --retry-count=VALUE    Set the number of retry attempts for connection or
                              query failures.
-  -z, --retry-sleep-ms=VALUE retry interval sleep time, unit ms.
-  -C, --cloud=CLOUD_DSN      specify a DSN to access TDengine cloud service.
-  -R, --restful              Use RESTful interface to connect TDengine.
+  -R, --restful              Use RESTful interface to connect server.
   -t, --timeout=SECONDS      The timeout seconds for websocket to interact.
+  -X, --dsn=DSN              The dsn to connect the cloud service.
+  -z, --retry-sleep-ms=VALUE Sleep interval between retries, in milliseconds.
+  -Z, --driver=DRIVER        Connect driver , value can be "Native" or
+                             "WebSocket", default is Native.
   -g, --debug                Print debug info.
-  -?, --help                 Give this help list.
-      --usage                Give a short usage message.
+  -?, --help                 Give this help list
+      --usage                Give a short usage message
   -V, --version              Print program version.
-  -Z, --connect-mode         The connection method, with 0 indicating the use of 
-                             native connection method, 1 indicating the use of 
-                             WebSocket connection method, and default to native 
-                             connection method. 
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.
+
+Report bugs to <support@taosdata.com>.
 ```
 
 ## Common Use Cases

@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 
 class TestNullColumn:
@@ -7,14 +7,11 @@ class TestNullColumn:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_null_column(self):
-        """NULL Column
+        """NULL: column
 
-        1. create table
-        2. insert data with NULL
-        3. query data
-
-        Catalog:
-            - DataTypes
+        1. Create table
+        2. Insert data with NULL
+        3. Query data
 
         Since: v3.0.0.0
 
@@ -24,9 +21,16 @@ class TestNullColumn:
 
         History:
             - 2025-4-28 Simon Guan Migrated from tsim/compute/null.sim
+            - 2025-8-22 Simon Guan Migrated from tsim/query/nullColSma.sim
 
         """
 
+        self.ComputeNull()
+        tdStream.dropAllStreamsAndDbs()
+        self.NullColSma()
+        tdStream.dropAllStreamsAndDbs()
+
+    def ComputeNull(self):
         dbPrefix = "db"
         tbPrefix = "tb"
         mtPrefix = "mt"
@@ -106,10 +110,6 @@ class TestNullColumn:
         tdLog.info(f"=============== step5")
         tdSql.execute(f"create table tt using {mt} tags( NULL )")
 
-        # sql alter table $tb set tgcol=NULL -x step52
-        #  return -1
-        # step52:
-
         tdSql.query(f"select * from {mt}  where tgcol is NULL")
         tdSql.checkRows(0)
 
@@ -143,15 +143,6 @@ class TestNullColumn:
         tdSql.execute(f"insert into t5 values(now, NULL)")
         tdSql.execute(f"insert into t6 values(now, NULL)")
         tdSql.execute(f"insert into t7 values(now, NULL)")
-        # sql insert into t8 values(now, NULL)
-
-        # sql select * from t1
-        # if $rows != 1 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,1) != NULL then
-        #  return -1
-        # endi
 
         tdSql.query(f"select * from t2")
         tdSql.checkRows(1)
@@ -177,15 +168,108 @@ class TestNullColumn:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, None)
 
-        # sql select * from t8
-        # if $rows != 1 then
-        #  return -1
-        # endi
-        # if $tdSql.getData(0,1) != NULL then
-        #  return -1
-        # endi
-
         tdLog.info(f"=============== clear")
         tdSql.execute(f"drop database {db}")
         tdSql.query(f"select * from information_schema.ins_databases")
         tdSql.checkRows(2)
+
+    def NullColSma(self):
+        dbPrefix = "m_in_db"
+        tbPrefix = "m_in_tb"
+        mtPrefix = "m_in_mt"
+        tbNum = 1
+        rowNum = 200
+        totalNum = 400
+
+        tdLog.info(f"print =============== step1")
+        i = 0
+        db = dbPrefix + str(i)
+        mt = mtPrefix + str(i)
+
+        tdSql.execute(f"drop database if exists f{db}")
+        tdSql.execute(f"create database {db} vgroups 1 maxrows 200 minrows 10")
+        tdSql.execute(f"use {db}")
+        tdSql.execute(
+            f"create table {mt} (ts timestamp, f1 int, f2 float) TAGS(tgcol int)"
+        )
+
+        tdLog.info(f"print ====== start create child tables and insert data")
+        i = 0
+        while i < tbNum:
+            tb = tbPrefix + str(i)
+            tdSql.execute(f"create table {tb} using {mt} tags( {i})")
+            x = 0
+            while x < rowNum:
+                cc = x * 1
+                ms = 1601481600000 + cc
+
+                tdSql.execute(f"insert into {tb} values ({ms} , NULL ,{x} )")
+                x = x + 1
+            i = i + 1
+
+        i = 1
+        tb = tbPrefix + str(i)
+        tdSql.execute(f"create table {tb} using {mt} tags( {i})")
+
+        x = 0
+        while x < rowNum:
+            cc = x * 1
+            ms = 1601481600000 + cc
+            tdSql.execute(f"insert into {tb} values ({ms} ,{x} , NULL )")
+            x = x + 1
+
+        tdSql.execute(f"flush database {db}")
+
+        tdLog.info(f"print =============== step2")
+        i = 0
+        tb = tbPrefix + str(i)
+        tdLog.info(f"select max(f1) from {db}.{tb}")
+        tdSql.query(f"select max(f1) from {db}.{tb}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        i = 1
+        tb = tbPrefix + str(i)
+        tdSql.query(f"select max(f2) from {tb}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        rowNum = 10
+
+        tdLog.info(f"print ====== insert more data")
+        i = 0
+        while i < tbNum:
+            tb = tbPrefix + str(i)
+
+            x = 0
+            while x < rowNum:
+                cc = x * 1
+                ms = 1601481700000 + cc
+                tdSql.execute(f"insert into {tb} values ({ms} ,{x} ,{x} )")
+                x = x + 1
+            i = i + 1
+
+        i = 1
+        tb = tbPrefix + str(i)
+        x = 0
+        while x < rowNum:
+            cc = x * 1
+            ms = 1601481700000 + cc
+            tdSql.execute(f"insert into {tb} values ({ms} ,{x} ,{x} )")
+            x = x + 1
+
+        tdSql.execute(f"flush database {db}")
+
+        tdLog.info(f"print =============== step3")
+
+        i = 0
+        tb = tbPrefix + str(i)
+        tdSql.query(f"select max(f1) from {tb}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 9)
+
+        i = 1
+        tb = tbPrefix + str(i)
+        tdSql.query(f"select max(f2) from {tb}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 9.00000)

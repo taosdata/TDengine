@@ -1,0 +1,90 @@
+---
+sidebar_label: 用安装包快速体验
+title: 使用安装包快速体验 TDengine TSDB
+description: 使用安装包快速体验 TDengine TSDB
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import PkgListV37 from "/components/PkgListV37";
+
+为了能够快速体验 TDengine TSDB 的完整功能，推荐您使用 TDengine TSDB-Enterprise. 本节首先介绍如何通过安装包快速安装 TDengine TSDB-Enterprise, 然后介绍如何在 Linux 环境下体验 TDengine TSDB 的写入、查询、可视化管理、与 Grafana 集成和零代码数据写入等功能。如果您希望为 TDengine TSDB 贡献代码或对内部技术实现感兴趣，请参考 [TDengine TSDB GitHub 主页](https://github.com/taosdata/TDengine).
+
+## 安装
+
+<Tabs>
+
+<TabItem label="Linux 系统" value="tarinst">
+1. 从列表中下载获得 tar.gz 安装包：
+    <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.8" platform="Linux-Generic" pkgType="Server"/>
+2. 进入到安装包所在目录，使用 `tar` 解压安装包，以 x64 架构为例：
+    ```bash
+    tar -zxvf tdengine-tsdb-enterprise-3.3.8.8-linux-x64.tar.gz
+    ```
+3. 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
+    ```bash
+    sudo ./install.sh
+    ```
+</TabItem>
+
+<TabItem label="Windows 系统" value="windows">
+1. 从列表中下载获得最新 Windows 安装程序：
+    <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.3.8.8" platform="Windows" pkgType="Server" />
+2. 运行安装程序，根据提示完成 TDengine 的安装。
+</TabItem>
+
+</Tabs>
+
+更多类型和版本的安装包，请前往 [TDengine 产品下载中心](https://www.taosdata.com/download-center?product=TDengine+TSDB-Enterprise) 下载。
+
+## 启动
+
+<Tabs>
+
+<TabItem label="Linux 系统" value="linux">
+
+完成安装后，请在终端执行以下脚本，启动所有服务：
+
+```bash
+start-all.sh 
+```
+
+TDengine TSDB 的所有组件均使用 systemd 来进行服务管理，可以使用以下命令查看服务的状态：
+
+```bash
+sudo systemctl status taosd
+sudo systemctl status taosadapter
+sudo systemctl status taoskeeper
+sudo systemctl status taos-explorer
+```
+
+如果查看到服务的状态为 "Active: active (running) since ...", 则说明服务已经启动成功。
+
+</TabItem>
+
+<TabItem label="Windows 系统" value="windows">
+
+安装完成后，请以管理员身份打开一个 cmd 窗口，执行以下脚本，启动所有服务：
+
+```cmd
+C:\TDengine\start-all.bat
+```
+
+可以使用以下命令查看服务的状态：
+
+```cmd
+sc query taosd
+sc query taosadapter
+sc query taoskeeper
+sc query taos-explorer
+```
+
+如果查看到服务的状态为 "RUNNING", 则说明服务已经启动成功。
+
+</TabItem>
+
+</Tabs>
+
+import Getstarted from './_get_started.mdx'
+
+<Getstarted />
