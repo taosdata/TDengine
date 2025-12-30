@@ -79,7 +79,7 @@ cp -r ${top_dir}/requirements_ess.txt ${install_dir}/ || :
 
 # check if the __init__ file exists
 if [ ! -f "${lib_install_dir}/taosanalytics/$initFile" ]; then
-  echo "Error: $initFile not found, not set the version"
+  echo "Error: $initFile not found, failed set the version. Please check the existance of __init__.py" >&2; exit 1
 else
   # replace the version number
   sed -i "s/^__version__ = .*/__version__ = '${version}'/" "${lib_install_dir}/taosanalytics/$initFile"
