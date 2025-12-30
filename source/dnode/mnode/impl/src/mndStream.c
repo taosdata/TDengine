@@ -872,8 +872,10 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
     int64_t streamId = pStream->pCreate->streamId;
 
-    code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB, NULL);
-    if (code != 0) {
+    if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
+                                              NULL)) ||
+        (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_STREAM, pStream->ownerId,
+                                         pStream->pCreate->streamDB, pStream->pCreate->name))) {
       mstsError("user %s failed to drop stream %s since %s", pReq->info.conn.user, streamName, tstrerror(code));
       sdbRelease(pMnode->pSdb, pStream);
       pStream = NULL;
