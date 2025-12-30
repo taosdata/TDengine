@@ -61,6 +61,10 @@ jobs:
       - name: Start taosadapter
         run: nohup sudo taosadapter &
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 300
+
       - name: Run tests with coverage
         working-directory: tools/keeper
         run: |
