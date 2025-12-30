@@ -1092,7 +1092,8 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
   if (pSliceInfo->scalarSup.pExprInfo != NULL) {
     SExprSupp* pExprSup = &pSliceInfo->scalarSup;
-    code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
+    code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock,
+                                 pExprSup->pCtx, pExprSup->numOfExprs, NULL,
                                  GET_STM_RTINFO(pOperator->pTaskInfo));
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -1120,8 +1121,10 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     (*ppRes) = NULL;
     return code;
   } else if (pOperator->status == OP_NOT_OPENED && pSliceInfo->pWin) {
-    code = streamCalcCurrWinTimeRange((STimeRangeNode*)pSliceInfo->pWin, &pTaskInfo->pStreamRuntimeInfo->funcInfo, &pSliceInfo->win, NULL, 3);
-    TSDB_CHECK_CODE(code, lino, _finished);
+    code = streamCalcCurrWinTimeRange((STimeRangeNode*)pSliceInfo->pWin,
+                                       &pTaskInfo->pStreamRuntimeInfo->funcInfo,
+                                       &pSliceInfo->win, NULL, 3);
+    QUERY_CHECK_CODE(code, lino, _finished);
     OPTR_SET_OPENED(pOperator);    
     pSliceInfo->current = pSliceInfo->win.skey;
   }
@@ -1133,7 +1136,8 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   while (1) {
     if (pSliceInfo->pNextGroupRes != NULL) {
       doHandleTimeslice(pOperator, pSliceInfo->pNextGroupRes);
-      if (checkWindowBoundReached(pSliceInfo) || checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
+      if (checkWindowBoundReached(pSliceInfo) ||
+          checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
         code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
         QUERY_CHECK_CODE(code, lino, _finished);
         if (pSliceInfo->pRemainRes == NULL) {
@@ -1151,7 +1155,8 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
 
     while (1) {
-      SSDataBlock* pBlock = pSliceInfo->pRemainRes ? pSliceInfo->pRemainRes : getNextBlockFromDownstream(pOperator, 0);
+      SSDataBlock* pBlock = pSliceInfo->pRemainRes ? pSliceInfo->pRemainRes :
+        getNextBlockFromDownstream(pOperator, 0);
       if (pBlock == NULL) {
         setOperatorCompleted(pOperator);
         break;
@@ -1172,7 +1177,8 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       }
 
       doHandleTimeslice(pOperator, pBlock);
-      if (checkWindowBoundReached(pSliceInfo) || checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
+      if (checkWindowBoundReached(pSliceInfo) ||
+          checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
         code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL);
         QUERY_CHECK_CODE(code, lino, _finished);
         if (pResBlock->info.rows != 0) {
@@ -1215,14 +1221,17 @@ _finished:
   return code;
 }
 
-static int32_t extractPkColumnFromFuncs(SNodeList* pFuncs, bool* pHasPk, SColumn* pPkColumn) {
+static int32_t extractPkColumnFromFuncs(SNodeList* pFuncs, bool* pHasPk,
+                                        SColumn* pPkColumn) {
   SNode* pNode;
   FOREACH(pNode, pFuncs) {
-    if ((nodeType(pNode) == QUERY_NODE_TARGET) && (nodeType(((STargetNode*)pNode)->pExpr) == QUERY_NODE_FUNCTION)) {
+    if ((nodeType(pNode) == QUERY_NODE_TARGET) &&
+        (nodeType(((STargetNode*)pNode)->pExpr) == QUERY_NODE_FUNCTION)) {
       SFunctionNode* pFunc = (SFunctionNode*)((STargetNode*)pNode)->pExpr;
       if (fmIsInterpFunc(pFunc->funcId) && pFunc->hasPk) {
         SNode* pNode2 = (pFunc->pParameterList->pTail->pNode);
-        if ((nodeType(pNode2) == QUERY_NODE_COLUMN) && ((SColumnNode*)pNode2)->isPk) {
+        if ((nodeType(pNode2) == QUERY_NODE_COLUMN) &&
+            ((SColumnNode*)pNode2)->isPk) {
           *pHasPk = true;
           *pPkColumn = extractColumnFromColumnNode((SColumnNode*)pNode2);
           break;
@@ -1241,8 +1250,8 @@ static int32_t resetTimeSliceOperState(SOperatorInfo* pOper) {
 
   setTaskStatus(pOper->pTaskInfo, TASK_NOT_COMPLETED);
 
-  int32_t  code = resetExprSupp(&pOper->exprSupp, pTaskInfo, pPhynode->pFuncs, NULL,
-                         &pTaskInfo->storageAPI.functionStore);
+  int32_t code = resetExprSupp(&pOper->exprSupp, pTaskInfo, pPhynode->pFuncs,
+                               NULL, &pTaskInfo->storageAPI.functionStore);
   if (code == 0) {
     code = resetExprSupp(&pInfo->scalarSup, pTaskInfo, pPhynode->pExprs, NULL,
                          &pTaskInfo->storageAPI.functionStore);
@@ -1296,13 +1305,17 @@ static int32_t resetTimeSliceOperState(SOperatorInfo* pOper) {
   return code;
 }
 
-int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream,
+                                    SPhysiNode* pPhyNode,
+                                    SExecTaskInfo* pTaskInfo,
+                                    SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                 code = 0;
   int32_t                 lino = 0;
-  STimeSliceOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(STimeSliceOperatorInfo));
-  SOperatorInfo*          pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  STimeSliceOperatorInfo* pInfo =
+    taosMemoryCalloc(1, sizeof(STimeSliceOperatorInfo));
+  SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
   if (pOperator == NULL || pInfo == NULL) {
     code = terrno;
@@ -1318,7 +1331,8 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   code = createExprInfo(pInterpPhyNode->pFuncs, NULL, &pExprInfo, &numOfExprs);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  code = initExprSupp(pSup, pExprInfo, numOfExprs, &pTaskInfo->storageAPI.functionStore);
+  code = initExprSupp(pSup, pExprInfo, numOfExprs,
+                      &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
   if (pInterpPhyNode->pExprs != NULL) {
@@ -1327,23 +1341,28 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
     code = createExprInfo(pInterpPhyNode->pExprs, NULL, &pScalarExprInfo, &num);
     QUERY_CHECK_CODE(code, lino, _error);
 
-    code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, num, &pTaskInfo->storageAPI.functionStore);
+    code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, num,
+                        &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  code = filterInitFromNode((SNode*)pInterpPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
+  code = filterInitFromNode((SNode*)pInterpPhyNode->node.pConditions,
+                            &pOperator->exprSupp.pFilterInfo, 0,
                             pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  pInfo->tsCol = extractColumnFromColumnNode((SColumnNode*)pInterpPhyNode->pTimeSeries);
-  code = extractPkColumnFromFuncs(pInterpPhyNode->pFuncs, &pInfo->hasPk, &pInfo->pkCol);
+  pInfo->tsCol =
+    extractColumnFromColumnNode((SColumnNode*)pInterpPhyNode->pTimeSeries);
+  code = extractPkColumnFromFuncs(pInterpPhyNode->pFuncs, &pInfo->hasPk,
+                                  &pInfo->pkCol);
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->fillType = convertFillType(pInterpPhyNode->fillMode);
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
   pInfo->pFillColInfo =
-      createFillColInfo(pExprInfo, numOfExprs, NULL, 0, NULL, 0, (SNodeListNode*)pInterpPhyNode->pFillValues);
+    createFillColInfo(pExprInfo, numOfExprs, NULL, 0, NULL, 0,
+                      (SNodeListNode*)pInterpPhyNode->pFillValues);
   QUERY_CHECK_NULL(pInfo->pFillColInfo, code, lino, _error, terrno);
 
   pInfo->pLinearInfo = NULL;
@@ -1374,10 +1393,13 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
     }
   }
 
-  setOperatorInfo(pOperator, "TimeSliceOperator", QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED, pInfo,
-                  pTaskInfo);
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimesliceNext, NULL, destroyTimeSliceOperatorInfo,
-                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorInfo(pOperator, "TimeSliceOperator",
+                  QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED,
+                  pInfo, pTaskInfo);
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTimesliceNext,
+                                         NULL, destroyTimeSliceOperatorInfo,
+                                         optrDefaultBufFn, NULL,
+                                         optrDefaultGetNextExtFn, NULL);
 
   code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
