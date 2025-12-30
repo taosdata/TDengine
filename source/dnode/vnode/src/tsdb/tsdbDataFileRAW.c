@@ -73,11 +73,9 @@ int32_t tsdbDataFileRAWReadBlockData(SDataFileRAWReader *reader, STsdbDataRAWBlo
   pBlock->file.maxVer = reader->config->file.maxVer;
   pBlock->file.stt->level = reader->config->file.stt->level;
 
-  int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-  TAOS_CHECK_GOTO(
-      tsdbReadFile(reader->fd, pBlock->offset, pBlock->data, pBlock->dataLength, 0, encryptAlgorithm, encryptKey),
-      &lino, _exit);
+  SEncryptData *pEncryptData = &(reader->config->tsdb->pVnode->config.tsdbCfg.encryptData);
+  TAOS_CHECK_GOTO(tsdbReadFile(reader->fd, pBlock->offset, pBlock->data, pBlock->dataLength, 0, pEncryptData), &lino,
+                  _exit);
 
 _exit:
   if (code) {
@@ -130,11 +128,10 @@ static int32_t tsdbDataFileRAWWriterCloseCommit(SDataFileRAWWriter *writer, TFil
   };
   TAOS_CHECK_GOTO(TARRAY2_APPEND(opArr, op), &lino, _exit);
 
-  int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(writer->config->tsdb->pVnode->config.tsdbCfg.encryptData);
 
   if (writer->fd) {
-    TAOS_CHECK_GOTO(tsdbFsyncFile(writer->fd, encryptAlgorithm, encryptKey), &lino, _exit);
+    TAOS_CHECK_GOTO(tsdbFsyncFile(writer->fd, pEncryptData), &lino, _exit);
     tsdbCloseFile(&writer->fd);
   }
 
@@ -214,12 +211,12 @@ _exit:
 }
 
 int32_t tsdbDataFileRAWWriteBlockData(SDataFileRAWWriter *writer, const STsdbDataRAWBlockHeader *pDataBlock,
-                                      int32_t encryptAlgorithm, char *encryptKey) {
+                                      SEncryptData *encryptData) {
   int32_t code = 0;
   int32_t lino = 0;
 
   TAOS_CHECK_GOTO(tsdbWriteFile(writer->fd, writer->ctx->offset, (const uint8_t *)pDataBlock->data,
-                                pDataBlock->dataLength, encryptAlgorithm, encryptKey),
+                                pDataBlock->dataLength, encryptData),
                   &lino, _exit);
 
   writer->ctx->offset += pDataBlock->dataLength;

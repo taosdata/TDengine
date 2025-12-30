@@ -32,6 +32,7 @@
     A = addJLimitClause(pCxt, A, H);                                           \
   }
 
+int32_t taosParseShortWeekday(const char* str);
 }
 
 %syntax_error {
@@ -95,75 +96,545 @@ alter_account_option ::= USERS literal.                                         
 alter_account_option ::= CONNS literal.                                           { }
 alter_account_option ::= STATE literal.                                           { }
 
-%type ip_range_list                                                               { SNodeList* }
-%destructor ip_range_list                                                         { nodesDestroyList($$); }
-ip_range_list(A) ::= NK_STRING(B).                                                { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B)); }
-ip_range_list(A) ::= ip_range_list(B) NK_COMMA NK_STRING(C).                      { A = addNodeToList(pCxt, B, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &C)); }
 
-%type white_list                                                                  { SNodeList* }
-%destructor white_list                                                            { nodesDestroyList($$); }
-white_list(A) ::= HOST ip_range_list(B).                                          { A = B; }
-
-%type white_list_opt                                                              { SNodeList* }
-%destructor white_list_opt                                                        { nodesDestroyList($$); }
-white_list_opt(A) ::= .                                                           { A = NULL; }
-white_list_opt(A) ::= white_list(B).                                              { A = B; }
-
-%type is_import_opt                                                                 { int8_t }
-%destructor is_import_opt                                                           { }
-is_import_opt(A) ::= .                                                              { A = 0; }
-is_import_opt(A) ::= IS_IMPORT NK_INTEGER(B).                                       { A = taosStr2Int8(B.z, NULL, 10); }
-
-%type is_createdb_opt                                                                 { int8_t }
-%destructor is_createdb_opt                                                           { }
-is_createdb_opt(A) ::= .                                                              { A = 0; }
-is_createdb_opt(A) ::= CREATEDB NK_INTEGER(B).                                        { A = taosStr2Int8(B.z, NULL, 10); }
 /************************************************ create/alter/drop user **********************************************/
-cmd ::= CREATE USER user_name(A) PASS NK_STRING(B) sysinfo_opt(C) is_createdb_opt(E) is_import_opt(F)
-                      white_list_opt(D).                                          {
-                                                                                    pCxt->pRootNode = createCreateUserStmt(pCxt, &A, &B, C, E, F);
-                                                                                    pCxt->pRootNode = addCreateUserStmtWhiteList(pCxt, pCxt->pRootNode, D);
+%type option_value                                                                { SToken }
+%destructor option_value                                                          { }
+option_value(A) ::= DEFAULT(B).                                                   { A = B; }
+option_value(A) ::= UNLIMITED(B).                                                 { A = B; }
+option_value(A) ::= NK_INTEGER(B).                                                { A = B; }
+
+%type user_enabled                                                                { int8_t }
+%destructor user_enabled                                                          { }
+user_enabled(A) ::= ACCOUNT LOCK.                                                 { A = 0; }
+user_enabled(A) ::= ACCOUNT UNLOCK.                                               { A = 1; }
+user_enabled(A) ::= ENABLE NK_INTEGER(B).                                         { A = taosStr2Int8(B.z, NULL, 10); }
+
+%type user_option                                                                 { SUserOptions* }
+user_option(A) ::= TOTPSEED NK_STRING(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsTotpseed(pCxt, A, &B); }
+user_option(A) ::= TOTPSEED NULL.                                                 { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsTotpseed(pCxt, A, NULL); }
+user_option(A) ::= user_enabled(B).                                               { A = mergeUserOptions(pCxt, NULL, NULL); A->enable = B; A->hasEnable = true; }
+user_option(A) ::= SYSINFO NK_INTEGER(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); A->sysinfo = taosStr2Int8(B.z, NULL, 10); A->hasSysinfo = true; }
+user_option(A) ::= IS_IMPORT NK_INTEGER(B).                                       { A = mergeUserOptions(pCxt, NULL, NULL); A->isImport = taosStr2Int8(B.z, NULL, 10); A->hasIsImport = true; }
+user_option(A) ::= CREATEDB NK_INTEGER(B).                                        { A = mergeUserOptions(pCxt, NULL, NULL); A->createdb = taosStr2Int8(B.z, NULL, 10); A->hasCreatedb = true; }
+user_option(A) ::= CHANGEPASS NK_INTEGER(B).                                      { A = mergeUserOptions(pCxt, NULL, NULL); A->changepass = taosStr2Int8(B.z, NULL, 10); A->hasChangepass = true; }
+user_option(A) ::= SESSION_PER_USER option_value(B).                              {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
+      A->sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
+    } else if (B.type == TK_UNLIMITED) {
+      A->sessionPerUser = -1;
+    } else {
+      A->sessionPerUser = taosStr2Int32(B.z, NULL, 10);
+    }
+    A->hasSessionPerUser = true;
+  }
+user_option(A) ::= CONNECT_TIME option_value(B).                                 {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
+      A->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
+    } else if (B.type == TK_UNLIMITED) {
+      A->connectTime = -1;
+    } else {
+      A->connectTime = taosStr2Int32(B.z, NULL, 10) * 60; // default unit is minute
+    }
+    A->hasConnectTime = true;
+  }
+user_option(A) ::= CONNECT_IDLE_TIME option_value(B).                            {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
+      A->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
+    } else if (B.type == TK_UNLIMITED) {
+      A->connectIdleTime = -1;
+    } else {
+      A->connectIdleTime = taosStr2Int32(B.z, NULL, 10) * 60; // default unit is minute
+    }
+    A->hasConnectIdleTime = true;
+  }
+user_option(A) ::= CALL_PER_SESSION option_value(B).                             {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
+      A->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
+    } else if (B.type == TK_UNLIMITED) {
+      A->callPerSession = -1;
+    } else {
+      A->callPerSession = taosStr2Int32(B.z, NULL, 10);
+    }
+    A->hasCallPerSession = true;
+  }
+user_option(A) ::= VNODE_PER_CALL option_value(B).                               {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
+      A->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
+    } else if (B.type == TK_UNLIMITED) {
+      A->vnodePerCall = -1;
+    } else {
+      A->vnodePerCall = taosStr2Int32(B.z, NULL, 10);
+    }
+    A->hasVnodePerCall = true;
+  }
+
+user_option(A) ::= FAILED_LOGIN_ATTEMPTS option_value(B).                        {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
+      A->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
+    } else if (B.type == TK_UNLIMITED) {
+      A->failedLoginAttempts = -1;
+    } else {
+      A->failedLoginAttempts = taosStr2Int32(B.z, NULL, 10);
+    }
+    A->hasFailedLoginAttempts = true;
+  }
+user_option(A) ::= PASSWORD_LIFE_TIME option_value(B).                           {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
+      A->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
+    } else if (B.type == TK_UNLIMITED) {
+      A->passwordLifeTime = -1;
+    } else {
+      A->passwordLifeTime = taosStr2Int32(B.z, NULL, 10) * 1440 * 60; // default unit is day
+    }
+    A->hasPasswordLifeTime = true;
+  }
+user_option(A) ::= PASSWORD_REUSE_TIME option_value(B).                          {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
+      A->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
+    } else if (B.type == TK_UNLIMITED) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_REUSE_TIME");
+    } else {
+      A->passwordReuseTime = taosStr2Int32(B.z, NULL, 10) * 1440 * 60; // default unit is day
+    }
+    A->hasPasswordReuseTime = true;
+  }
+user_option(A) ::= PASSWORD_REUSE_MAX option_value(B).                           {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
+      A->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
+    } else if (B.type == TK_UNLIMITED) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_REUSE_MAX");
+    } else {
+      A->passwordReuseMax = taosStr2Int32(B.z, NULL, 10);
+    }
+    A->hasPasswordReuseMax = true;
+  }
+user_option(A) ::= PASSWORD_LOCK_TIME option_value(B).                           {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
+      A->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
+    } else if (B.type == TK_UNLIMITED) {
+      A->passwordLockTime = -1;
+    } else {
+      A->passwordLockTime = taosStr2Int32(B.z, NULL, 10) * 60; // default unit is minute
+    }
+    A->hasPasswordLockTime = true;
+  }
+user_option(A) ::= PASSWORD_GRACE_TIME option_value(B).                          {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
+      A->passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
+    } else if (B.type == TK_UNLIMITED) {
+      A->passwordGraceTime = -1;
+    } else {
+      A->passwordGraceTime = taosStr2Int32(B.z, NULL, 10) * 1440 * 60; // default unit is day
+    }
+    A->hasPasswordGraceTime = true;
+  }
+user_option(A) ::= INACTIVE_ACCOUNT_TIME option_value(B).                        {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
+      A->inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
+    } else if (B.type == TK_UNLIMITED) {
+      A->inactiveAccountTime = -1;
+    } else {
+      A->inactiveAccountTime = taosStr2Int32(B.z, NULL, 10) * 1440 * 60; // default unit is day
+    }
+    A->hasInactiveAccountTime = true;
+  }
+user_option(A) ::= ALLOW_TOKEN_NUM option_value(B).                              {
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    if (B.type == TK_DEFAULT) {
+      A->allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+    } else if (B.type == TK_UNLIMITED) {
+      A->allowTokenNum = -1;
+    } else {
+      A->allowTokenNum = taosStr2Int32(B.z, NULL, 10);
+    }
+    A->hasAllowTokenNum = true;
+  }
+
+
+%type ip_range_list                                                              { SNodeList* }
+%destructor ip_range_list                                                        { nodesDestroyList($$); }
+ip_range_list(A) ::= NK_STRING(B).                                               { A = createNodeList(pCxt, (SNode*)parseIpRange(pCxt, &B)); }
+ip_range_list(A) ::= ip_range_list(B) NK_COMMA NK_STRING(C).                     { A = addNodeToList(pCxt, B, (SNode*)parseIpRange(pCxt, &C)); }
+
+
+%type datetime_range_list                                                        { SNodeList* }
+%destructor datetime_range_list                                                  { nodesDestroyList($$); }
+datetime_range_list(A) ::= NK_STRING(B).                                         { A = createNodeList(pCxt, (SNode*)parseDateTimeRange(pCxt, &B)); }
+datetime_range_list(A) ::= datetime_range_list(B) NK_COMMA NK_STRING(C).         { A = addNodeToList(pCxt, B, (SNode*)parseDateTimeRange(pCxt, &C)); }
+
+
+%type create_user_option                                                         { SUserOptions* }
+create_user_option(A) ::= HOST ip_range_list(B).                                 { A = mergeUserOptions(pCxt, NULL, NULL); A->pIpRanges = B; }
+create_user_option(A) ::= NOT_ALLOW_HOST ip_range_list(B).                       {
+    SNode* pNode = NULL;
+    FOREACH(pNode, B) {
+      ((SIpRangeNode*)pNode)->range.neg = true;
+    }
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    A->pIpRanges = B;
+  }
+create_user_option(A) ::= ALLOW_DATETIME datetime_range_list(B).                 { A = mergeUserOptions(pCxt, NULL, NULL); A->pTimeRanges = B; }
+create_user_option(A) ::= NOT_ALLOW_DATETIME datetime_range_list(B).             {
+    SNode* pNode = NULL;
+    FOREACH(pNode, B) {
+      ((SDateTimeRangeNode*)pNode)->range.neg = true;
+    }
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    A->pTimeRanges = B;
+  }
+
+%type create_user_options                                                        { SUserOptions* }
+create_user_options(A) ::= user_option(B).                                       { A = B; }
+create_user_options(A) ::= create_user_option(B).                                { A = B; }
+create_user_options(A) ::= create_user_options(B) user_option(C).                { A = mergeUserOptions(pCxt, B, C); }
+create_user_options(A) ::= create_user_options(B) create_user_option(C).         { A = mergeUserOptions(pCxt, B, C); }
+
+%type create_user_options_opt                                                    { SUserOptions* }
+create_user_options_opt(A) ::= .                                                 { A = NULL; }
+create_user_options_opt(A) ::= create_user_options(B).                           { A = B; }
+
+
+%type alter_user_option                                                          { SUserOptions* }
+alter_user_option(A) ::= PASS NK_STRING(B).                                      { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsPassword(pCxt, A, &B); }
+alter_user_option(A) ::= ADD HOST ip_range_list(B).                              { A = mergeUserOptions(pCxt, NULL, NULL); A->pIpRanges = B; }
+alter_user_option(A) ::= ADD NOT_ALLOW_HOST ip_range_list(B).                    {
+    SNode* pNode = NULL;
+    FOREACH(pNode, B) {
+      ((SIpRangeNode*)pNode)->range.neg = true;
+    }
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    A->pIpRanges = B;
+  }
+alter_user_option(A) ::= DROP HOST ip_range_list(B).                             { A = mergeUserOptions(pCxt, NULL, NULL); A->pDropIpRanges = B; }
+alter_user_option(A) ::= DROP NOT_ALLOW_HOST ip_range_list(B).                   {
+    SNode* pNode = NULL;
+    FOREACH(pNode, B) {
+      ((SIpRangeNode*)pNode)->range.neg = true;
+    }
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    A->pDropIpRanges = B;
+  }
+alter_user_option(A) ::= ADD ALLOW_DATETIME datetime_range_list(B).              { A = mergeUserOptions(pCxt, NULL, NULL); A->pTimeRanges = B; }
+alter_user_option(A) ::= ADD NOT_ALLOW_DATETIME datetime_range_list(B).          {
+    SNode* pNode = NULL;
+    FOREACH(pNode, B) {
+      ((SDateTimeRangeNode*)pNode)->range.neg = true;
+    }
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    A->pTimeRanges = B;
+  }
+alter_user_option(A) ::= DROP ALLOW_DATETIME datetime_range_list(B).             { A = mergeUserOptions(pCxt, NULL, NULL); A->pDropTimeRanges = B; }
+alter_user_option(A) ::= DROP NOT_ALLOW_DATETIME datetime_range_list(B).         {
+    SNode* pNode = NULL;
+    FOREACH(pNode, B) {
+      ((SDateTimeRangeNode*)pNode)->range.neg = true;
+    }
+    A = mergeUserOptions(pCxt, NULL, NULL);
+    A->pDropTimeRanges = B;
+  }
+
+%type alter_user_options                                                         { SUserOptions* }
+alter_user_options(A) ::= user_option(B).                                        { A = B; }
+alter_user_options(A) ::= alter_user_option(B).                                  { A = B; }
+alter_user_options(A) ::= alter_user_options(B) user_option(C).                  { A = mergeUserOptions(pCxt, B, C); }
+alter_user_options(A) ::= alter_user_options(B) alter_user_option(C).            { A = mergeUserOptions(pCxt, B, C); }
+
+
+cmd ::= CREATE USER not_exists_opt(A) user_name(B) PASS NK_STRING(C) create_user_options_opt(D).  {
+    D = mergeUserOptions(pCxt, D, NULL);
+    setUserOptionsPassword(pCxt, D, &C);
+    pCxt->pRootNode = createCreateUserStmt(pCxt, &B, D, A);
+  }
+cmd ::= ALTER USER user_name(A) alter_user_options(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, B); }
+cmd ::= DROP USER exists_opt(A) user_name(B).                                    { pCxt->pRootNode = createDropUserStmt(pCxt, &B, A); }
+cmd ::= ALTER DNODES RELOAD general_name(A).                                     { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
+
+
+/************************************************ create/alter/drop token **********************************************/
+
+%type token_option                                                               { STokenOptions* }
+token_option(A) ::= PROVIDER NK_STRING(B).                                       { A = mergeTokenOptions(pCxt, NULL, NULL); setTokenOptionsProvider(pCxt, A, &B); }
+token_option(A) ::= ENABLE NK_INTEGER(B).                                        { A = mergeTokenOptions(pCxt, NULL, NULL);  A->enable = taosStr2Int8(B.z, NULL, 10); A->hasEnable = true; }
+token_option(A) ::= TTL NK_INTEGER(B).                                           { A = mergeTokenOptions(pCxt, NULL, NULL);  A->ttl = taosStr2Int32(B.z, NULL, 10) * 86400; A->hasTtl = true; }
+token_option(A) ::= EXTRA_INFO NK_STRING(B).                                     { A = mergeTokenOptions(pCxt, NULL, NULL); setTokenOptionsExtraInfo(pCxt, A, &B); }
+
+%type token_options                                                              { STokenOptions* }
+token_options(A) ::= token_option(B).                                            { A = B; }
+token_options(A) ::= token_options(B) token_option(C).                           { A = mergeTokenOptions(pCxt, B, C); }
+
+%type token_options_opt                                                          { STokenOptions* }
+token_options_opt(A) ::= .                                                       { A = NULL; }
+token_options_opt(A) ::= token_options(B).                                       { A = B; }
+
+
+cmd ::= CREATE TOKEN not_exists_opt(A) NK_ID(B) FROM USER user_name(C) token_options_opt(D).       {
+    pCxt->pRootNode = createCreateTokenStmt(pCxt, &B, &C, D, A);
+  }
+cmd ::= ALTER TOKEN NK_ID(A) token_options(B). {
+    pCxt->pRootNode = createAlterTokenStmt(pCxt, &A, B);
+  }
+cmd ::= DROP TOKEN exists_opt(A) NK_ID(B). {
+    pCxt->pRootNode = createDropTokenStmt(pCxt, &B, A);
+  }
+
+
+
+/************************************************ create/drop role **********************************************/
+cmd ::= CREATE ROLE not_exists_opt(A) role_name(B).                               { pCxt->pRootNode = createCreateRoleStmt(pCxt, A, &B); }
+cmd ::= DROP ROLE exists_opt(A) role_name(B).                                     { pCxt->pRootNode = createDropRoleStmt(pCxt, A, &B); }
+cmd ::= LOCK ROLE role_name(A).                                                   { 
+                                                                                    SToken t = {.n = 1, .z = "1", .type = TK_STRING };
+                                                                                    pCxt->pRootNode = createAlterRoleStmt(pCxt, &A, TSDB_ALTER_ROLE_LOCK, &t); 
                                                                                   }
-cmd ::= ALTER USER user_name(A) PASS NK_STRING(B).                                { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_PASSWD, &B); }
-cmd ::= ALTER USER user_name(A) ENABLE NK_INTEGER(B).                             { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_ENABLE, &B); }
-cmd ::= ALTER USER user_name(A) SYSINFO NK_INTEGER(B).                            { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_SYSINFO, &B); }
-cmd ::= ALTER USER user_name(A) CREATEDB NK_INTEGER(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_CREATEDB, &B); }
-cmd ::= ALTER USER user_name(A) ADD white_list(B).                                { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_ADD_WHITE_LIST, B); }
-cmd ::= ALTER USER user_name(A) DROP white_list(B).                               { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_DROP_WHITE_LIST, B); }
-cmd ::= DROP USER user_name(A).                                                   { pCxt->pRootNode = createDropUserStmt(pCxt, &A); }
-
-%type sysinfo_opt                                                                 { int8_t }
-%destructor sysinfo_opt                                                           { }
-sysinfo_opt(A) ::= .                                                              { A = 1; }
-sysinfo_opt(A) ::= SYSINFO NK_INTEGER(B).                                         { A = taosStr2Int8(B.z, NULL, 10); }
-
+cmd ::= UNLOCK ROLE role_name(A).                                                 { 
+                                                                                    SToken t = {.n = 1, .z = "0", .type = TK_STRING };
+                                                                                    pCxt->pRootNode = createAlterRoleStmt(pCxt, &A,TSDB_ALTER_ROLE_LOCK, &t); 
+                                                                                  }
+cmd ::= GRANT ROLE role_name(A) TO role_name(C).                                  { pCxt->pRootNode = createGrantStmt(pCxt, &A, NULL, &C, NULL, TSDB_ALTER_ROLE_ROLE); }
+cmd ::= REVOKE ROLE role_name(A) FROM role_name(C).                               { pCxt->pRootNode = createRevokeStmt(pCxt, &A, NULL, &C, NULL, TSDB_ALTER_ROLE_ROLE); }
 /************************************************ grant/revoke ********************************************************/
-cmd ::= GRANT privileges(A) ON priv_level(B) with_clause_opt(D) TO user_name(C).    { pCxt->pRootNode = createGrantStmt(pCxt, A, &B, &C, D); }
-cmd ::= REVOKE privileges(A) ON priv_level(B) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, A, &B, &C, D); }
+cmd ::= GRANT privileges(A) priv_level_opt(B) with_clause_opt(D) TO user_name(C). { pCxt->pRootNode = createGrantStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES); }
+cmd ::= REVOKE privileges(A) priv_level_opt(B) with_clause_opt(D) FROM user_name(C). { pCxt->pRootNode = createRevokeStmt(pCxt, &A, &B, &C, D, TSDB_ALTER_ROLE_PRIVILEGES); }
 
-%type privileges                                                                  { int64_t }
-%destructor privileges                                                            { }
-privileges(A) ::= ALL.                                                            { A = PRIVILEGE_TYPE_ALL; }
+%type privileges                                                                  { SPrivSetArgs }
+%destructor privileges                                                            {
+                                                                                    if ($$.selectCols != NULL) {
+                                                                                      nodesDestroyList($$.selectCols);
+                                                                                    }
+                                                                                    if ($$.insertCols != NULL) {
+                                                                                      nodesDestroyList($$.insertCols);
+                                                                                    }
+                                                                                    if ($$.updateCols != NULL) {
+                                                                                      nodesDestroyList($$.updateCols);
+                                                                                    }
+
+                                                                                  }
 privileges(A) ::= priv_type_list(B).                                              { A = B; }
-privileges(A) ::= SUBSCRIBE.                                                      { A = PRIVILEGE_TYPE_SUBSCRIBE; }
 
-%type priv_type_list                                                              { int64_t }
-%destructor priv_type_list                                                        { }
+%type priv_type_list                                                              { SPrivSetArgs }
+%destructor priv_type_list                                                        {
+                                                                                    if ($$.selectCols != NULL) {
+                                                                                      nodesDestroyList($$.selectCols);
+                                                                                    }
+                                                                                    if ($$.insertCols != NULL) {
+                                                                                      nodesDestroyList($$.insertCols);
+                                                                                    }
+                                                                                    if ($$.updateCols != NULL) {
+                                                                                      nodesDestroyList($$.updateCols);
+                                                                                    }
+
+                                                                                  }
 priv_type_list(A) ::= priv_type(B).                                               { A = B; }
-priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                    { A = B | C; }
+priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                    { A = privArgsAdd(pCxt, B, C); }
 
-%type priv_type                                                                   { int64_t }
-%destructor priv_type                                                             { }
-priv_type(A) ::= READ.                                                            { A = PRIVILEGE_TYPE_READ; }
-priv_type(A) ::= WRITE.                                                           { A = PRIVILEGE_TYPE_WRITE; }
-priv_type(A) ::= ALTER.                                                           { A = PRIVILEGE_TYPE_ALTER; }
+%type priv_type                                                                   { SPrivSetArgs }
+%destructor priv_type                                                             {
+                                                                                    if ($$.selectCols != NULL) {
+                                                                                      nodesDestroyList($$.selectCols);
+                                                                                    }
+                                                                                    if ($$.insertCols != NULL) {
+                                                                                      nodesDestroyList($$.insertCols);
+                                                                                    }
+                                                                                    if ($$.updateCols != NULL) {
+                                                                                      nodesDestroyList($$.updateCols);
+                                                                                    }
 
-%type priv_level                                                                  { STokenPair }
+                                                                                  }
+priv_type(A) ::= ALL.                                                             { A = PRIV_SET_TYPE(PRIV_CM_ALL); }
+priv_type(A) ::= ALL PRIVILEGES.                                                  { A = PRIV_SET_TYPE(PRIV_CM_ALL); }
+priv_type(A) ::= ALTER.                                                           { A = PRIV_SET_TYPE(PRIV_CM_ALTER); }
+priv_type(A) ::= DROP.                                                            { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW.                                                            { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
+priv_type(A) ::= SHOW CREATE.                                                     { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= START.                                                           { A = PRIV_SET_TYPE(PRIV_CM_START); }
+priv_type(A) ::= STOP.                                                            { A = PRIV_SET_TYPE(PRIV_CM_STOP); }
+priv_type(A) ::= KILL.                                                            { A = PRIV_SET_TYPE(PRIV_CM_KILL); }
+priv_type(A) ::= RECALCULATE.                                                     { A = PRIV_SET_TYPE(PRIV_CM_RECALC); }
+priv_type(A) ::= SUBSCRIBE.                                                       { A = PRIV_SET_TYPE(PRIV_CM_SUBSCRIBE); }
+priv_type(A) ::= READ.                                                            { A = PRIV_SET_TYPE(PRIV_TYPE_UNKNOWN); }
+priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_TYPE_UNKNOWN); }
+
+priv_type(A) ::= CREATE DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_CREATE); }
+priv_type(A) ::= DROP OWNED DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_DB_DROP_OWNED); }
+priv_type(A) ::= USE DATABASE.                                                    { A = PRIV_SET_TYPE(PRIV_DB_USE); }
+priv_type(A) ::= FLUSH DATABASE.                                                  { A = PRIV_SET_TYPE(PRIV_DB_FLUSH); }
+priv_type(A) ::= COMPACT DATABASE.                                                { A = PRIV_SET_TYPE(PRIV_DB_COMPACT); }
+priv_type(A) ::= TRIM DATABASE.                                                   { A = PRIV_SET_TYPE(PRIV_DB_TRIM); }
+priv_type(A) ::= ROLLUP DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_ROLLUP); }
+priv_type(A) ::= SCAN DATABASE.                                                   { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
+priv_type(A) ::= SSMIGRATE DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
+priv_type(A) ::= USE.                                                             { A = PRIV_SET_TYPE(PRIV_DB_USE); }
+priv_type(A) ::= FLUSH.                                                           { A = PRIV_SET_TYPE(PRIV_DB_FLUSH); }
+priv_type(A) ::= COMPACT.                                                         { A = PRIV_SET_TYPE(PRIV_DB_COMPACT); }
+priv_type(A) ::= TRIM.                                                            { A = PRIV_SET_TYPE(PRIV_DB_TRIM); }
+priv_type(A) ::= ROLLUP.                                                          { A = PRIV_SET_TYPE(PRIV_DB_ROLLUP); }
+priv_type(A) ::= SCAN.                                                            { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
+priv_type(A) ::= SSMIGRATE.                                                       { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
+priv_type(A) ::= DROP OWNED.                                                      { A = PRIV_SET_TYPE(PRIV_DB_DROP_OWNED); }
+
+priv_type(A) ::= SHOW VNODES.                                                     { A = PRIV_SET_TYPE(PRIV_SHOW_VNODES); }
+priv_type(A) ::= SHOW VGROUPS.                                                    { A = PRIV_SET_TYPE(PRIV_SHOW_VGROUPS); }
+priv_type(A) ::= SHOW COMPACTS.                                                   { A = PRIV_SET_TYPE(PRIV_SHOW_COMPACTS); }
+priv_type(A) ::= SHOW RETENTIONS.                                                 { A = PRIV_SET_TYPE(PRIV_SHOW_RETENTIONS); }
+priv_type(A) ::= SHOW SCANS.                                                      { A = PRIV_SET_TYPE(PRIV_SHOW_SCANS); }
+priv_type(A) ::= SHOW SSMIGRATES.                                                 { A = PRIV_SET_TYPE(PRIV_SHOW_SSMIGRATES); }
+
+priv_type(A) ::= CREATE TABLE.                                                    { A = PRIV_SET_TYPE(PRIV_TBL_CREATE); }
+
+priv_type(A) ::= priv_type_tbl_dml(B).                                            { A = B; }
+
+priv_type(A) ::= CREATE FUNCTION.                                                 { A = PRIV_SET_TYPE(PRIV_FUNC_CREATE); }
+priv_type(A) ::= DROP FUNCTION.                                                   { A = PRIV_SET_TYPE(PRIV_FUNC_DROP); }
+priv_type(A) ::= SHOW FUNCTIONS.                                                  { A = PRIV_SET_TYPE(PRIV_FUNC_SHOW); }
+
+priv_type(A) ::= CREATE INDEX.                                                    { A = PRIV_SET_TYPE(PRIV_IDX_CREATE); }
+priv_type(A) ::= DROP INDEX.                                                      { A = PRIV_SET_TYPE(PRIV_IDX_DROP); }
+priv_type(A) ::= SHOW INDEXES.                                                    { A = PRIV_SET_TYPE(PRIV_IDX_SHOW); }
+
+priv_type(A) ::= CREATE VIEW.                                                     { A = PRIV_SET_TYPE(PRIV_VIEW_CREATE); }
+priv_type(A) ::= SELECT VIEW.                                                     { A = PRIV_SET_TYPE(PRIV_VIEW_SELECT); }
+
+priv_type(A) ::= CREATE RSMA.                                                     { A = PRIV_SET_TYPE(PRIV_RSMA_CREATE); }
+priv_type(A) ::= CREATE TSMA.                                                     { A = PRIV_SET_TYPE(PRIV_TSMA_CREATE); }
+
+priv_type(A) ::= CREATE MOUNT.                                                    { A = PRIV_SET_TYPE(PRIV_MOUNT_CREATE); }
+priv_type(A) ::= DROP MOUNT.                                                      { A = PRIV_SET_TYPE(PRIV_MOUNT_DROP); }
+priv_type(A) ::= SHOW MOUNTS.                                                     { A = PRIV_SET_TYPE(PRIV_MOUNT_SHOW); }
+
+priv_type(A) ::= ALTER PASS.                                                      { A = PRIV_SET_TYPE(PRIV_PASS_ALTER); }
+priv_type(A) ::= ALTER SELF PASS.                                                 { A = PRIV_SET_TYPE(PRIV_PASS_ALTER_SELF); }
+
+priv_type(A) ::= CREATE ROLE.                                                     { A = PRIV_SET_TYPE(PRIV_ROLE_CREATE); }
+priv_type(A) ::= DROP ROLE.                                                       { A = PRIV_SET_TYPE(PRIV_ROLE_DROP); }
+priv_type(A) ::= SHOW ROLES.                                                      { A = PRIV_SET_TYPE(PRIV_ROLE_SHOW); }
+
+priv_type(A) ::= CREATE USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_CREATE); }
+priv_type(A) ::= DROP USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_DROP); }
+priv_type(A) ::= SET USER SECURITY INFO.                                          { A = PRIV_SET_TYPE(PRIV_USER_SET_SECURITY); }
+priv_type(A) ::= SET USER AUDIT INFO.                                             { A = PRIV_SET_TYPE(PRIV_USER_SET_AUDIT); }
+priv_type(A) ::= SET USER BASIC INFO.                                             { A = PRIV_SET_TYPE(PRIV_USER_SET_BASIC); }
+priv_type(A) ::= UNLOCK USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_UNLOCK); }
+priv_type(A) ::= LOCK USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_LOCK); }
+priv_type(A) ::= SHOW USERS.                                                      { A = PRIV_SET_TYPE(PRIV_USER_SHOW); }
+
+priv_type(A) ::= CREATE AUDIT DATABASE.                                           { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_CREATE); }
+priv_type(A) ::= DROP AUDIT DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_DROP); }
+priv_type(A) ::= ALTER AUDIT DATABASE.                                            { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_ALTER); }
+priv_type(A) ::= USE AUDIT DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_USE); }
+
+priv_type(A) ::= CREATE TOKEN.                                                    { A = PRIV_SET_TYPE(PRIV_TOKEN_CREATE); }
+priv_type(A) ::= DROP TOKEN.                                                      { A = PRIV_SET_TYPE(PRIV_TOKEN_DROP); }
+priv_type(A) ::= ALTER TOKEN.                                                     { A = PRIV_SET_TYPE(PRIV_TOKEN_ALTER); }
+priv_type(A) ::= SHOW TOKENS.                                                     { A = PRIV_SET_TYPE(PRIV_TOKEN_SHOW); }
+
+priv_type(A) ::= UPDATE KEY.                                                      { A = PRIV_SET_TYPE(PRIV_KEY_UPDATE); }
+priv_type(A) ::= CREATE TOTP.                                                     { A = PRIV_SET_TYPE(PRIV_TOTP_CREATE); }
+priv_type(A) ::= DROP TOTP.                                                       { A = PRIV_SET_TYPE(PRIV_TOTP_DROP); }
+priv_type(A) ::= UPDATE TOTP.                                                     { A = PRIV_SET_TYPE(PRIV_TOTP_UPDATE); }
+
+priv_type(A) ::= GRANT PRIVILEGE.                                                 { A = PRIV_SET_TYPE(PRIV_GRANT_PRIVILEGE); }
+priv_type(A) ::= REVOKE PRIVILEGE.                                                { A = PRIV_SET_TYPE(PRIV_REVOKE_PRIVILEGE); }
+priv_type(A) ::= SHOW PRIVILEGES.                                                 { A = PRIV_SET_TYPE(PRIV_SHOW_PRIVILEGES); }
+
+priv_type(A) ::= CREATE NODE.                                                     { A = PRIV_SET_TYPE(PRIV_NODE_CREATE); }
+priv_type(A) ::= DROP NODE.                                                       { A = PRIV_SET_TYPE(PRIV_NODE_DROP); }
+priv_type(A) ::= SHOW NODES.                                                      { A = PRIV_SET_TYPE(PRIV_NODES_SHOW); }
+
+priv_type(A) ::= ALTER SECURITY VARIABLE.                                         { A = PRIV_SET_TYPE(PRIV_VAR_SECURITY_ALTER); }
+priv_type(A) ::= ALTER AUDIT VARIABLE.                                            { A = PRIV_SET_TYPE(PRIV_VAR_AUDIT_ALTER); }
+priv_type(A) ::= ALTER SYSTEM VARIABLE.                                           { A = PRIV_SET_TYPE(PRIV_VAR_SYSTEM_ALTER); }
+priv_type(A) ::= ALTER DEBUG VARIABLE.                                            { A = PRIV_SET_TYPE(PRIV_VAR_DEBUG_ALTER); }
+priv_type(A) ::= SHOW SECURITY VARIABLES.                                         { A = PRIV_SET_TYPE(PRIV_VAR_SECURITY_SHOW); }
+priv_type(A) ::= SHOW AUDIT VARIABLES.                                            { A = PRIV_SET_TYPE(PRIV_VAR_AUDIT_SHOW); }
+priv_type(A) ::= SHOW SYSTEM VARIABLES.                                           { A = PRIV_SET_TYPE(PRIV_VAR_SYSTEM_SHOW); }
+priv_type(A) ::= SHOW DEBUG VARIABLES.                                            { A = PRIV_SET_TYPE(PRIV_VAR_DEBUG_SHOW); }
+
+priv_type(A) ::= CREATE TOPIC.                                                    { A = PRIV_SET_TYPE(PRIV_TOPIC_CREATE); }
+priv_type(A) ::= SHOW CONSUMERS.                                                  { A = PRIV_SET_TYPE(PRIV_CONSUMER_SHOW); }
+priv_type(A) ::= SHOW SUBSCRIPTIONS.                                              { A = PRIV_SET_TYPE(PRIV_SUBSCRIPTION_SHOW); }
+
+priv_type(A) ::= CREATE STREAM.                                                   { A = PRIV_SET_TYPE(PRIV_STREAM_CREATE); }
+
+priv_type(A) ::= SHOW TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_SHOW); }
+priv_type(A) ::= KILL TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_KILL); }
+priv_type(A) ::= SHOW CONNECTIONS.                                                { A = PRIV_SET_TYPE(PRIV_CONNECTION_SHOW); }
+priv_type(A) ::= KILL CONNECTION.                                                 { A = PRIV_SET_TYPE(PRIV_CONNECTION_KILL); }
+priv_type(A) ::= SHOW QUERIES.                                                    { A = PRIV_SET_TYPE(PRIV_QUERY_SHOW); }
+priv_type(A) ::= KILL QUERY.                                                      { A = PRIV_SET_TYPE(PRIV_QUERY_KILL); }
+
+priv_type(A) ::= USE INFORMATION_SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_USE); }
+priv_type(A) ::= USE PERFORMANCE_SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_USE); }
+priv_type(A) ::= READ INFORMATION_SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_LIMIT); }
+priv_type(A) ::= READ INFORMATION_SCHEMA SECURITY.                                { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_SEC); }
+priv_type(A) ::= READ INFORMATION_SCHEMA AUDIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_AUDIT); }
+priv_type(A) ::= READ INFORMATION_SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC); }
+priv_type(A) ::= READ PERFORMANCE_SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_LIMIT); }
+priv_type(A) ::= READ PERFORMANCE_SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_BASIC); }
+priv_type(A) ::= SHOW GRANTS.                                                     { A = PRIV_SET_TYPE(PRIV_GRANTS_SHOW); }
+priv_type(A) ::= SHOW CLUSTER.                                                    { A = PRIV_SET_TYPE(PRIV_CLUSTER_SHOW); }
+priv_type(A) ::= SHOW APPS.                                                       { A = PRIV_SET_TYPE(PRIV_APPS_SHOW); }
+
+%type priv_type_tbl_dml                                                           { SPrivSetArgs }
+%destructor priv_type_tbl_dml                                                     {
+                                                                                    if ($$.selectCols != NULL) {
+                                                                                      nodesDestroyList($$.selectCols);
+                                                                                    }
+                                                                                    if ($$.insertCols != NULL) {
+                                                                                      nodesDestroyList($$.insertCols);
+                                                                                    }
+                                                                                    if ($$.updateCols != NULL) {
+                                                                                      nodesDestroyList($$.updateCols);
+                                                                                    }
+                                                                                  }
+priv_type_tbl_dml(A) ::= SELECT TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_SELECT); }
+priv_type_tbl_dml(A) ::= SELECT specific_cols_with_mask_opt(B).                   { A = PRIV_SET_COLS(PRIV_TBL_SELECT, B, NULL, NULL); }
+priv_type_tbl_dml(A) ::= INSERT TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_INSERT); }
+priv_type_tbl_dml(A) ::= INSERT specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_INSERT, NULL, B, NULL); }
+/*priv_type_tbl_dml(A) ::= UPDATE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_UPDATE); }
+priv_type_tbl_dml(A) ::= UPDATE specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_UPDATE, NULL, NULL, B); }*/
+priv_type_tbl_dml(A) ::= DELETE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
+priv_type_tbl_dml(A) ::= DELETE.                                                  { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
+
+%type priv_level_opt                                                              { SPrivLevelArgs }
+%destructor priv_level_opt                                                        { 
+                                                                                    if ($$.cols != NULL) {
+                                                                                      nodesDestroyList($$.cols);
+                                                                                    }
+                                                                                  }
+priv_level_opt(A) ::= .                                                           { 
+                                                                                    A.first = nil_token; A.second = nil_token; 
+                                                                                    A.objType = PRIV_OBJ_CLUSTER; A.cols = NULL; 
+                                                                                  }
+priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; A.objType = PRIV_OBJ_TBL; }
+priv_level_opt(A) ::= ON DATABASE priv_level(B).                                  { A = B; A.objType = PRIV_OBJ_DB; }
+priv_level_opt(A) ::= ON TABLE priv_level(B).                                     { A = B; A.objType = PRIV_OBJ_TBL; }
+priv_level_opt(A) ::= ON VIEW priv_level(B).                                      { A = B; A.objType = PRIV_OBJ_VIEW; }
+priv_level_opt(A) ::= ON INDEX priv_level(B).                                     { A = B; A.objType = PRIV_OBJ_IDX; }
+priv_level_opt(A) ::= ON TOPIC priv_level(B).                                     { A = B; A.objType = PRIV_OBJ_TOPIC; }
+priv_level_opt(A) ::= ON STREAM priv_level(B).                                    { A = B; A.objType = PRIV_OBJ_STREAM; }
+priv_level_opt(A) ::= ON RSMA priv_level(B).                                      { A = B; A.objType = PRIV_OBJ_RSMA; }
+priv_level_opt(A) ::= ON TSMA priv_level(B).                                      { A = B; A.objType = PRIV_OBJ_TSMA; }
+
+%type priv_level                                                                  { SPrivLevelArgs }
 %destructor priv_level                                                            { }
-priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; }
-priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; }
-priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; }
-priv_level(A) ::= topic_name(B).                                                  { A.first = B; A.second = nil_token; }
+priv_level(A) ::= NK_STAR(B).                                                     { A.first = B; A.second = nil_token; A.cols = NULL; }
+priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; A.cols = NULL; }
+priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; A.cols = NULL; }
+priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; A.cols = NULL; }
+priv_level(A) ::= db_name(B).                                                     { A.first = B; A.second = nil_token; A.cols = NULL; }
 
 with_clause_opt(A) ::= .                                                          { A = NULL; }
 with_clause_opt(A) ::= WITH search_condition(B).                                  { A = B; }
@@ -171,6 +642,13 @@ with_clause_opt(A) ::= WITH search_condition(B).                                
 /************************************************ create encrypt_key *********************************************/
 cmd ::= CREATE ENCRYPT_KEY NK_STRING(A).                                          { pCxt->pRootNode = createEncryptKeyStmt(pCxt, &A); }
 
+cmd ::= CREATE ENCRYPT_ALGR NK_STRING(A) ALGR_NAME NK_STRING(B) DESC NK_STRING(C) ALGR_TYPE NK_STRING(D) OSSL_ALGR_NAME NK_STRING(E).                                          { pCxt->pRootNode = createCreateAlgrStmt(pCxt, &A, &B, &C, &D, &E); }
+
+cmd ::= DROP ENCRYPT_ALGR NK_STRING(A).                                           { pCxt->pRootNode = createDropEncryptAlgrStmt(pCxt, &A); }
+
+/************************************************ alter encrypt key *********************************************/
+cmd ::= ALTER SYSTEM SET SVR_KEY NK_STRING(A).                                    { pCxt->pRootNode = createAlterEncryptKeyStmt(pCxt, 0, &A); }
+cmd ::= ALTER SYSTEM SET DB_KEY NK_STRING(A).                                     { pCxt->pRootNode = createAlterEncryptKeyStmt(pCxt, 1, &A); }
 /************************************************ create drop update anode ***************************************/
 cmd ::= CREATE ANODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateAnodeStmt(pCxt, &A); }
 cmd ::= UPDATE ANODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, &A, false); }
@@ -248,11 +726,10 @@ cmd ::= USE db_name(A).                                                         
 cmd ::= ALTER DATABASE db_name(A) alter_db_options(B).                            { pCxt->pRootNode = createAlterDatabaseStmt(pCxt, &A, B); }
 cmd ::= FLUSH DATABASE db_name(A).                                                { pCxt->pRootNode = createFlushDatabaseStmt(pCxt, &A); }
 cmd ::= TRIM DATABASE db_name(A) speed_opt(B).                                    { pCxt->pRootNode = createTrimDatabaseStmt(pCxt, &A, B); }
-cmd ::= SSMIGRATE DATABASE db_name(A).                                            { pCxt->pRootNode = createSsMigrateDatabaseStmt(pCxt, &A); }
 cmd ::= TRIM DATABASE db_name(A) WAL.                                             { pCxt->pRootNode = createTrimDbWalStmt(pCxt, &A); }
-cmd ::= S3MIGRATE DATABASE db_name(A).                                            { pCxt->pRootNode = createS3MigrateDatabaseStmt(pCxt, &A); }
-cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C) meta_only(D).                      { pCxt->pRootNode = createCompactStmt(pCxt, &A, B, C, D); }
-cmd ::= COMPACT db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D) meta_only(E).   { pCxt->pRootNode = createCompactVgroupsStmt(pCxt, A, B, C, D, E); }
+cmd ::= SSMIGRATE DATABASE db_name(A).                                            { pCxt->pRootNode = createSsMigrateDatabaseStmt(pCxt, &A); }
+cmd ::= COMPACT DATABASE db_name(A) start_opt(B) end_opt(C) meta_only(D) force_opt(E).                      { pCxt->pRootNode = createCompactStmt(pCxt, &A, B, C, D, E); }
+cmd ::= COMPACT db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D) meta_only(E) force_opt(F).   { pCxt->pRootNode = createCompactVgroupsStmt(pCxt, A, B, C, D, E, F); }
 cmd ::= SCAN DATABASE db_name(A) start_opt(B) end_opt(C).                                          { pCxt->pRootNode = createScanStmt(pCxt, &A, B, C); }
 cmd ::= SCAN db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start_opt(C) end_opt(D).   { pCxt->pRootNode = createScanVgroupsStmt(pCxt, A, B, C, D); }
 
@@ -325,6 +802,7 @@ db_options(A) ::= db_options(B) COMPACT_INTERVAL NK_VARIABLE(C).                
 db_options(A) ::= db_options(B) COMPACT_TIME_RANGE signed_duration_list(C).       { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_RANGE, C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_INTEGER(C).                { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_VARIABLE(C).               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
+db_options(A) ::= db_options(B) IS_AUDIT NK_INTEGER(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_IS_AUDIT, &C); }
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
 alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                   { A = setAlterDatabaseOption(pCxt, B, &C); }
@@ -494,6 +972,11 @@ with_opt(A) ::= WITH.                                                           
 specific_cols_opt(A) ::= .                                                        { A = NULL; }
 specific_cols_opt(A) ::= NK_LP col_name_list(B) NK_RP.                            { A = B; }
 
+%type specific_cols_with_mask_opt                                                 { SNodeList* }
+%destructor specific_cols_with_mask_opt                                           { nodesDestroyList($$); }
+specific_cols_with_mask_opt(A) ::= .                                              { A = NULL; }
+specific_cols_with_mask_opt(A) ::= NK_LP col_name_ex_list(B) NK_RP.               { A = B; }
+
 full_table_name(A) ::= table_name(B).                                             { A = createRealTableNode(pCxt, NULL, &B, NULL); }
 full_table_name(A) ::= db_name(B) NK_DOT table_name(C).                           { A = createRealTableNode(pCxt, &B, &C, NULL); }
 
@@ -608,8 +1091,16 @@ rollup_func_name(A) ::= LAST(B).                                                
 col_name_list(A) ::= col_name(B).                                                 { A = createNodeList(pCxt, B); }
 col_name_list(A) ::= col_name_list(B) NK_COMMA col_name(C).                       { A = addNodeToList(pCxt, B, C); }
 
+%type col_name_ex_list                                                            { SNodeList* }
+%destructor col_name_ex_list                                                      { nodesDestroyList($$); }
+col_name_ex_list(A) ::= col_name(B).                                              { A = createNodeList(pCxt, B); }
+col_name_ex_list(A) ::= col_name_with_mask(B).                                    { A = createNodeList(pCxt, B); }
+col_name_ex_list(A) ::= col_name_ex_list(B) NK_COMMA col_name(C).                 { A = addNodeToList(pCxt, B, C); }
+col_name_ex_list(A) ::= col_name_ex_list(B) NK_COMMA col_name_with_mask(C).       { A = addNodeToList(pCxt, B, C); }
+
 col_name(A) ::= column_name(B).                                                   { A = createColumnNode(pCxt, NULL, &B); }
 col_name(A) ::= TBNAME(B).                                                        { A = createColumnNode(pCxt, NULL, &B); }
+col_name_with_mask(A) ::= MASK NK_LP column_name(B) NK_RP.                        { A = createColumnNodeExt(pCxt, NULL, &B, 1); }
 
 /************************************************ create/drop mount ********************************************/
 cmd ::= CREATE MOUNT not_exists_opt(A) mount_name(B) ON DNODE NK_INTEGER(C) FROM NK_STRING(D). { pCxt->pRootNode = createCreateMountStmt(pCxt, A, &B, &C, &D); }
@@ -620,6 +1111,9 @@ cmd ::= SHOW DNODES.                                                            
 cmd ::= SHOW USERS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USERS_STMT); }
 cmd ::= SHOW USERS FULL.                                                          { pCxt->pRootNode = createShowStmtWithFull(pCxt, QUERY_NODE_SHOW_USERS_FULL_STMT); }
 cmd ::= SHOW USER PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USER_PRIVILEGES_STMT); }
+cmd ::= SHOW ROLES.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ROLES_STMT); }
+cmd ::= SHOW ROLE PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT); }
+cmd ::= SHOW ROLE COLUMN PRIVILEGES.                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT); }
 cmd ::= SHOW db_kind_opt(A) DATABASES.                                            {
                                                                                     pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT);
                                                                                     (void)setShowKind(pCxt, pCxt->pRootNode, A);
@@ -651,6 +1145,7 @@ cmd ::= SHOW LICENCES.                                                          
 cmd ::= SHOW GRANTS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_LICENCES_STMT); }
 cmd ::= SHOW GRANTS FULL.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_FULL_STMT); }
 cmd ::= SHOW GRANTS LOGS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_GRANTS_LOGS_STMT); }
+cmd ::= SHOW INSTANCES like_pattern_opt(B).                                       { pCxt->pRootNode = createShowStmtWithLike(pCxt, QUERY_NODE_SHOW_INSTANCES_STMT, B); }
 cmd ::= SHOW CLUSTER MACHINES.                                                    { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT); }
 cmd ::= SHOW MOUNTS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MOUNTS_STMT); }
 cmd ::= SHOW CREATE DATABASE db_name(A).                                          { pCxt->pRootNode = createShowCreateDatabaseStmt(pCxt, &A); }
@@ -659,6 +1154,8 @@ cmd ::= SHOW CREATE VTABLE full_table_name(A).                                  
 cmd ::= SHOW CREATE STABLE full_table_name(A).                                    { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_STABLE_STMT,
 A); }
 cmd ::= SHOW ENCRYPTIONS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPTIONS_STMT); }
+cmd ::= SHOW ENCRYPT_ALGORITHMS.                                                  { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT); }
+cmd ::= SHOW ENCRYPT_STATUS.                                                      { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT); }
 cmd ::= SHOW QUERIES.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_QUERIES_STMT); }
 cmd ::= SHOW SCORES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SCORES_STMT); }
 cmd ::= SHOW TOPICS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TOPICS_STMT); }
@@ -692,6 +1189,7 @@ cmd ::= SHOW db_name_cond_opt(A) DISK_INFO.                                     
 cmd ::= SHOW SCANS.                                                               { pCxt->pRootNode = createShowScansStmt(pCxt, QUERY_NODE_SHOW_SCANS_STMT); }
 cmd ::= SHOW SCAN NK_INTEGER(A).                                                  { pCxt->pRootNode = createShowScanDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
 cmd ::= SHOW SSMIGRATES.                                                          { pCxt->pRootNode = createShowSsMigratesStmt(pCxt, QUERY_NODE_SHOW_SSMIGRATES_STMT); }
+cmd ::= SHOW TOKENS.                                                              { pCxt->pRootNode = createShowTokensStmt(pCxt, QUERY_NODE_SHOW_TOKENS_STMT); }
 
 %type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
 %destructor table_kind_db_name_cond_opt                                           { }
@@ -812,12 +1310,13 @@ with_meta(A) ::= AS.                                                            
 with_meta(A) ::= WITH META AS.                                                    { A = 1; }
 with_meta(A) ::= ONLY META AS.                                                    { A = 2; }
 
-cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS query_or_subquery(C).     { pCxt->pRootNode = createCreateTopicStmtUseQuery(pCxt, A, &B, C); }
+cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS query_or_subquery(C).     { pCxt->pRootNode = createCreateTopicStmtUseQuery(pCxt, A, &B, C, false); }
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) with_meta(D)
   DATABASE db_name(C).                                                            { pCxt->pRootNode = createCreateTopicStmtUseDb(pCxt, A, &B, &C, D); }
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) with_meta(E)
   STABLE full_table_name(C) where_clause_opt(D).                                  { pCxt->pRootNode = createCreateTopicStmtUseTable(pCxt, A, &B, C, E, D); }
 
+cmd ::= RELOAD TOPIC exists_opt(A) topic_name(B) AS query_or_subquery(C).         { pCxt->pRootNode = createCreateTopicStmtUseQuery(pCxt, A, &B, C, true); }
 cmd ::= DROP TOPIC exists_opt(A) force_opt(C) topic_name(B).                             { pCxt->pRootNode = createDropTopicStmt(pCxt, A, &B, C); }
 cmd ::= DROP CONSUMER GROUP exists_opt(A) force_opt(D) cgroup_name(B) ON topic_name(C).  { pCxt->pRootNode = createDropCGroupStmt(pCxt, A, &B, &C, D); }
 
@@ -901,7 +1400,7 @@ stream_trigger(A) ::= trigger_type(B) trigger_table_opt(C) stream_partition_by_o
 /***** trigger type *****/
 
 trigger_type(A) ::= SESSION NK_LP column_reference(B) NK_COMMA interval_sliding_duration_literal(C) NK_RP.                  { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
-trigger_type(A) ::= STATE_WINDOW NK_LP expr_or_subquery(B) extend(C) NK_RP true_for_opt(D).                                 { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C, D); }
+trigger_type(A) ::= STATE_WINDOW NK_LP expr_or_subquery(B) state_window_opt(C) NK_RP true_for_opt(D).                       { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C, D); }
 trigger_type(A) ::= interval_opt(B) SLIDING NK_LP sliding_expr(C) NK_RP.                                                    { A = createIntervalWindowNodeExt(pCxt, B, C); }
 trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH search_condition(B) END WITH search_condition(C) NK_RP true_for_opt(D).   { A = createEventWindowNode(pCxt, B, C, D); }
 trigger_type(A) ::= COUNT_WINDOW NK_LP count_window_args(B) NK_RP.                                                          { A = createCountWindowNodeFromArgs(pCxt, B); }
@@ -1409,6 +1908,14 @@ column_alias(A) ::= NK_ALIAS(B).                                                
 %destructor user_name                                                             { }
 user_name(A) ::= NK_ID(B).                                                        { A = B; }
 
+%type role_name                                                                   { SToken }
+%destructor role_name                                                             { }
+role_name(A) ::= NK_ID(B).                                                        { A = B; }
+
+%type general_name                                                                { SToken }
+%destructor general_name                                                          { }
+general_name(A) ::= NK_ID(B).                                                     { A = B;}
+
 %type topic_name                                                                  { SToken }
 %destructor topic_name                                                            { }
 topic_name(A) ::= NK_ID(B).                                                       { A = B; }
@@ -1435,7 +1942,7 @@ rsma_name(A) ::= NK_ID(B).                                                      
 
 /************************************************ expression **********************************************************/
 expr_or_subquery(A) ::= expression(B).                                            { A = B; }
-//expr_or_subquery(A) ::= subquery(B).                                              { A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
+expr_or_subquery(A) ::= subquery(B).                                              { A = B; }
 
 expression(A) ::= literal(B).                                                     { A = B; }
 expression(A) ::= pseudo_column(B).                                               { A = B; (void)setRawExprNodeIsPseudoColumn(pCxt, A, true); }
@@ -1532,8 +2039,8 @@ pseudo_column(A) ::= TGRPID(B).                                                 
 pseudo_column(A) ::= NK_PH NK_INTEGER(B).                                         { A = createRawExprNode(pCxt, &B, createPlaceHolderColumnNode(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B))); }
 pseudo_column(A) ::= NK_PH TBNAME(B).                                             { A = createRawExprNode(pCxt, &B, createPHTbnameFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= IMPROWTS(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::= IMPMASK(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
-pseudo_column(A) ::= ANOMALYMASK(B).                                              { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= IMPMARK(B).                                                  { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= ANOMALYMARK(B).                                              { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 
 function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
@@ -1924,7 +2431,7 @@ twindow_clause_opt(A) ::= .                                                     
 twindow_clause_opt(A) ::= SESSION NK_LP column_reference(B) NK_COMMA
   interval_sliding_duration_literal(C) NK_RP.                                     { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 twindow_clause_opt(A) ::=
-  STATE_WINDOW NK_LP expr_or_subquery(B) extend(C) NK_RP true_for_opt(D).         { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C, D); }
+  STATE_WINDOW NK_LP expr_or_subquery(B) state_window_opt(C) NK_RP true_for_opt(D).     { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C, D); }
 twindow_clause_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(B)
   NK_RP sliding_opt(C) fill_opt(D).                                               { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL, C, D); }
 twindow_clause_opt(A) ::=
@@ -1942,8 +2449,17 @@ twindow_clause_opt(A) ::=
 twindow_clause_opt(A) ::=
   ANOMALY_WINDOW NK_LP expr_or_subquery(B) NK_COMMA NK_STRING(C) NK_RP.           { A = createAnomalyWindowNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 
-extend(A) ::= .                                                                   { A = NULL; }
-extend(A) ::= NK_COMMA NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_INT, &B); }
+extend_literal(A) ::= NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_INT, &B); }
+
+zeroth_literal(A) ::= signed_integer(B).                                          { A = B; }
+zeroth_literal(A) ::= NK_STRING(B).                                               { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
+zeroth_literal(A) ::= NK_BOOL(B).                                                 { A = createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B); }
+
+%type state_window_opt                                                            { SNodeList* }
+%destructor state_window_opt                                                      { nodesDestroyList($$); }
+state_window_opt(A) ::= .                                                         { A = NULL; }
+state_window_opt(A) ::= NK_COMMA extend_literal(B).                               { A = createNodeList(pCxt, B); }
+state_window_opt(A) ::= NK_COMMA extend_literal(B) NK_COMMA zeroth_literal(C).    { A = addNodeToList(pCxt, createNodeList(pCxt, B), C); }
 
 sliding_opt(A) ::= .                                                              { A = NULL; }
 sliding_opt(A) ::= SLIDING NK_LP interval_sliding_duration_literal(B) NK_RP.      { A = releaseRawExprNode(pCxt, B); }

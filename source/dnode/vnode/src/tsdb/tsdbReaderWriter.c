@@ -146,7 +146,7 @@ void tsdbCloseFile(STsdbFD **ppFD) {
   }
 }
 
-static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *encryptKey) {
+static int32_t tsdbWriteFilePage(STsdbFD *pFD, SEncryptData *encryptData) {
   int32_t code = 0;
   int32_t lino;
 
@@ -173,10 +173,10 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
     code = taosCalcChecksumAppend(0, pFD->pBuf, pFD->szPage);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (encryptAlgorithm == DND_CA_SM4) {
+    if (encryptData != NULL && encryptData->encryptAlgrName[0] != '\0') {
       // if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_TSDB) == DND_CS_TSDB){
       unsigned char PacketData[128];
-      int           NewLen;
+      int           newLen = 0;
       int32_t       count = 0;
       while (count < pFD->szPage) {
         SCryptOpts opts = {0};
@@ -184,14 +184,16 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
         opts.source = pFD->pBuf + count;
         opts.result = PacketData;
         opts.unitLen = 128;
-        tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
+        opts.pOsslAlgrName = encryptData->encryptAlgrName;
+        tstrncpy(opts.key, encryptData->encryptKey, ENCRYPT_KEY_LEN + 1);
 
-        NewLen = CBC_Encrypt(&opts);
+        newLen = CBC_Encrypt(&opts);
+        if (newLen != opts.len) TSDB_CHECK_CODE(code = terrno, lino, _exit);
 
-        memcpy(pFD->pBuf + count, PacketData, NewLen);
-        count += NewLen;
+        memcpy(pFD->pBuf + count, PacketData, newLen);
+        count += newLen;
       }
-      // tsdbDebug("CBC_Encrypt count:%d %s", count, __FUNCTION__);
+      // tsdbDebug("CBC Encrypt count:%d %s", count, __FUNCTION__);
     }
 
     n = taosWriteFile(pFD->pFD, pFD->pBuf, pFD->szPage);
@@ -212,7 +214,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgorithm, char *encryptKey) {
+static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, SEncryptData *encryptData) {
   int32_t code = 0;
   int32_t lino;
 
@@ -249,10 +251,10 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
   }
   //}
 
-  if (encryptAlgorithm == DND_CA_SM4) {
+  if (encryptData != NULL && encryptData->encryptAlgrName[0] != '\0') {
     // if(tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_TSDB) == DND_CS_TSDB){
     unsigned char PacketData[128];
-    int           NewLen;
+    int           newLen = 0;
 
     int32_t count = 0;
     while (count < pFD->szPage) {
@@ -261,14 +263,16 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
       opts.source = pFD->pBuf + count;
       opts.result = PacketData;
       opts.unitLen = 128;
-      tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
+      opts.pOsslAlgrName = encryptData->encryptAlgrName;
+      tstrncpy(opts.key, encryptData->encryptKey, ENCRYPT_KEY_LEN + 1);
 
-      NewLen = CBC_Decrypt(&opts);
+      newLen = CBC_Decrypt(&opts);
+      if (newLen != opts.len) TSDB_CHECK_CODE(code = terrno, lino, _exit);
 
-      memcpy(pFD->pBuf + count, PacketData, NewLen);
-      count += NewLen;
+      memcpy(pFD->pBuf + count, PacketData, newLen);
+      count += newLen;
     }
-    // tsdbDebug("CBC_Decrypt count:%d %s", count, __FUNCTION__);
+    // tsdbDebug("CBC Decrypt count:%d %s", count, __FUNCTION__);
   }
 
   // check
@@ -287,8 +291,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size, int32_t encryptAlgorithm,
-                      char *encryptKey) {
+int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size, SEncryptData *encryptData) {
   int32_t code = 0;
   int32_t lino;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
@@ -298,11 +301,11 @@ int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t
 
   do {
     if (pFD->pgno != pgno) {
-      code = tsdbWriteFilePage(pFD, encryptAlgorithm, encryptKey);
+      code = tsdbWriteFilePage(pFD, encryptData);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       if (pgno <= pFD->szFile) {
-        code = tsdbReadFilePage(pFD, pgno, encryptAlgorithm, encryptKey);
+        code = tsdbReadFilePage(pFD, pgno, encryptData);
         TSDB_CHECK_CODE(code, lino, _exit);
       } else {
         pFD->pgno = pgno;
@@ -324,8 +327,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbReadFileImp(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int32_t encryptAlgorithm,
-                               char *encryptKey) {
+static int32_t tsdbReadFileImp(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, SEncryptData *encryptData) {
   int32_t code = 0;
   int32_t lino;
   int64_t n = 0;
@@ -340,7 +342,7 @@ static int32_t tsdbReadFileImp(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int6
 
   while (n < size) {
     if (pFD->pgno != pgno) {
-      code = tsdbReadFilePage(pFD, pgno, encryptAlgorithm, encryptKey);
+      code = tsdbReadFilePage(pFD, pgno, encryptData);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -358,7 +360,6 @@ _exit:
   }
   return code;
 }
-
 
 #ifdef USE_SHARED_STORAGE
 static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, uint8_t **ppBlock) {
@@ -527,7 +528,7 @@ _exit:
 }
 
 int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint,
-                     int32_t encryptAlgorithm, char *encryptKey) {
+                     SEncryptData *encryptData) {
   int32_t code = 0;
   int32_t lino;
 
@@ -540,7 +541,7 @@ int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, 
     code = tsdbReadFileSs(pFD, offset, pBuf, size, szHint);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    code = tsdbReadFileImp(pFD, offset, pBuf, size, encryptAlgorithm, encryptKey);
+    code = tsdbReadFileImp(pFD, offset, pBuf, size, encryptData);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -552,14 +553,14 @@ _exit:
 }
 
 int32_t tsdbReadFileToBuffer(STsdbFD *pFD, int64_t offset, int64_t size, SBuffer *buffer, int64_t szHint,
-                             int32_t encryptAlgorithm, char *encryptKey) {
+                             SEncryptData *encryptData) {
   int32_t code;
   int32_t lino;
 
   code = tBufferEnsureCapacity(buffer, buffer->size + size);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbReadFile(pFD, offset, (uint8_t *)tBufferGetDataEnd(buffer), size, szHint, encryptAlgorithm, encryptKey);
+  code = tsdbReadFile(pFD, offset, (uint8_t *)tBufferGetDataEnd(buffer), size, szHint, encryptData);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   buffer->size += size;
@@ -571,11 +572,11 @@ _exit:
   return code;
 }
 
-int32_t tsdbFsyncFile(STsdbFD *pFD, int32_t encryptAlgorithm, char *encryptKey) {
+int32_t tsdbFsyncFile(STsdbFD *pFD, SEncryptData *encryptData) {
   int32_t code = 0;
   int32_t lino;
 
-  code = tsdbWriteFilePage(pFD, encryptAlgorithm, encryptKey);
+  code = tsdbWriteFilePage(pFD, encryptData);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (taosFsyncFile(pFD->pFD) < 0) {
@@ -688,9 +689,8 @@ int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
-  int32_t encryptAlgorithm = pReader->pTsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = pReader->pTsdb->pVnode->config.tsdbCfg.encryptKey;
-  code = tsdbReadFile(pReader->pHeadFD, offset, pReader->aBuf[0], size, 0, encryptAlgorithm, encryptKey);
+  SEncryptData *pEncryptData = &(pReader->pTsdb->pVnode->config.tsdbCfg.encryptData);
+  code = tsdbReadFile(pReader->pHeadFD, offset, pReader->aBuf[0], size, 0, pEncryptData);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode
@@ -731,9 +731,8 @@ int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
-  int32_t encryptAlgorithm = pReader->pTsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = pReader->pTsdb->pVnode->config.tsdbCfg.encryptKey;
-  code = tsdbReadFile(pReader->aSttFD[iStt], offset, pReader->aBuf[0], size, 0, encryptAlgorithm, encryptKey);
+  SEncryptData *pEncryptData = &(pReader->pTsdb->pVnode->config.tsdbCfg.encryptData);
+  code = tsdbReadFile(pReader->aSttFD[iStt], offset, pReader->aBuf[0], size, 0, pEncryptData);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode
@@ -768,9 +767,9 @@ int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *m
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
-  int32_t encryptAlgorithm = pReader->pTsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = pReader->pTsdb->pVnode->config.tsdbCfg.encryptKey;
-  code = tsdbReadFile(pReader->pHeadFD, offset, pReader->aBuf[0], size, 0, encryptAlgorithm, encryptKey);
+  SEncryptData *pEncryptData = &(pReader->pTsdb->pVnode->config.tsdbCfg.encryptData);
+
+  code = tsdbReadFile(pReader->pHeadFD, offset, pReader->aBuf[0], size, 0, pEncryptData);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode
@@ -860,9 +859,9 @@ int32_t tsdbReadDelDatav1(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelDa
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
-  int32_t encryptAlgorithm = pReader->pTsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = pReader->pTsdb->pVnode->config.tsdbCfg.encryptKey;
-  code = tsdbReadFile(pReader->pReadH, offset, pReader->aBuf[0], size, 0, encryptAlgorithm, encryptKey);
+  SEncryptData *pEncryptData = &(pReader->pTsdb->pVnode->config.tsdbCfg.encryptData);
+
+  code = tsdbReadFile(pReader->pReadH, offset, pReader->aBuf[0], size, 0, pEncryptData);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // // decode
@@ -904,9 +903,9 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
-  int32_t encryptAlgorithm = pReader->pTsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char   *encryptKey = pReader->pTsdb->pVnode->config.tsdbCfg.encryptKey;
-  code = tsdbReadFile(pReader->pReadH, offset, pReader->aBuf[0], size, 0, encryptAlgorithm, encryptKey);
+  SEncryptData *pEncryptData = &(pReader->pTsdb->pVnode->config.tsdbCfg.encryptData);
+
+  code = tsdbReadFile(pReader->pReadH, offset, pReader->aBuf[0], size, 0, pEncryptData);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode

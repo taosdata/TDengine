@@ -376,12 +376,10 @@ class RestfulTest(TestCase):
     def test_dtw_service(self):
         response = self.client.post('/correlation', json={
             "schema": [
-                ["ts", "TIMESTAMP", 8],
                 ["val", "INT", 4],
                 ["val1", "INT", 4]
             ],
             "data": [
-                [1577808000000, 1577808001000, 1577808002000, 1577808003000, 1577808004000],
                 [1, 1.1, 1.0, 1.2, 1.1],
                 [1, 1.5, 1.3, 1.8, 1.6]
             ],
@@ -399,7 +397,6 @@ class RestfulTest(TestCase):
     def test_tlcc_service(self):
         req = {
             "schema": [
-                ["ts", "TIMESTAMP", 8],
                 ["val", "INT", 4],
                 ["val1", "INT", 4]
             ],
@@ -420,9 +417,7 @@ class RestfulTest(TestCase):
         # y_t: delay 3 steps
         y = np.roll(x, 3) + np.random.normal(0, 0.2, n)
 
-        ts = [i for i in range(0, 100)]
 
-        req["data"].append(ts)
         req["data"].append(x.tolist())
         req["data"].append(y.tolist())
 

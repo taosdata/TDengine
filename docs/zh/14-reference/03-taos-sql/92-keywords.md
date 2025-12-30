@@ -41,6 +41,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | ATTACH               | |
 | AUTO                 | 3.3.5.0+ |
 | ASSIGN               | 3.3.6.0+ |
+| ALGR_NAME            | 3.4.0.0+ |
+| ALGR_TYPE            | 3.4.0.0+ |
 
 ### B
 
@@ -163,6 +165,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | EXPIRED              | 3.0.0.0 - 3.3.7.0 |
 | EXPIRED_TIME         | 3.3.7.0+ |
 | EXPLAIN              | |
+| ENCRYPT_ALGORITHMS   | 3.4.0.0+ |
+| ENCRYPT_ALGR         | 3.4.0.0+ |
 
 ### F
 
@@ -240,6 +244,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | IS_IMPORT            | |
 | ISFILLED             | |
 | ISNULL               | |
+| IS_AUDIT             | 3.3.9.0+ |
 
 ### J
 
@@ -340,6 +345,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | OUTER                | |
 | OUTPUT_SUBTABLE      | 3.3.7.0+ |
 | OUTPUTTYPE           | |
+| OSSL_ALGR_NAME       | 3.4.0.0+ |
 
 ### P
 

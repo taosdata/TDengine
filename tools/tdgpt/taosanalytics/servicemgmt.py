@@ -7,7 +7,8 @@ import os
 import sys
 from collections import defaultdict
 from taosanalytics.conf import app_logger
-from taosanalytics.service import AbstractAnomalyDetectionService, AbstractForecastService, AbstractImputationService
+from taosanalytics.service import (AbstractAnomalyDetectionService, AbstractForecastService, AbstractImputationService, \
+                                   AbstractCorrelationService)
 
 os.environ['KERAS_BACKEND'] = 'torch'
 
@@ -29,10 +30,10 @@ class AnalyticsServiceLoader:
         for key, val in self.services.items():
             if val[0].type == type_str:
                 try:
-                    one = {"name": key, "desc": val[0].get_desc(), "params": val[0].get_params()}
+                    one = {"name": key, "desc": val[0].get_desc(), "params": val[0].get_params(), "status": val[0].get_status()}
                     all_items.append(one)
                 except AttributeError as e:
-                    app_logger.log_inst.error("failed to get service: %s info, reason: %s", key, e);
+                    app_logger.log_inst.error("failed to get service: %s info, reason: %s", key, e)
 
         return all_items
 
@@ -117,7 +118,8 @@ class AnalyticsServiceLoader:
                     if class_name in (
                             AbstractAnomalyDetectionService.__name__,
                             AbstractForecastService.__name__,
-                            AbstractImputationService.__name__
+                            AbstractImputationService.__name__,
+                            AbstractCorrelationService.__name__
                     ) or (not class_name.startswith('_')):
                         continue
 

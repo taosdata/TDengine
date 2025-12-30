@@ -32,30 +32,30 @@
 
 SMqttdContext global;
 
-struct SUdfdUvConn;
-struct SUvUdfWork;
+struct SMqttdUvConn;
+struct SUvMqttWork;
 
-typedef struct SUdfdUvConn {
+typedef struct SMqttdUvConn {
   uv_stream_t *client;
   char        *inputBuf;
   int32_t      inputLen;
   int32_t      inputCap;
   int32_t      inputTotal;
 
-  struct SUvUdfWork *pWorkList;  // head of work list
-} SUdfdUvConn;
+  struct SUvMqttWork *pWorkList;  // head of work list
+} SMqttdUvConn;
 
-typedef struct SUvUdfWork {
-  SUdfdUvConn *conn;
-  uv_buf_t     input;
-  uv_buf_t     output;
+typedef struct SUvMqttWork {
+  SMqttdUvConn *conn;
+  uv_buf_t      input;
+  uv_buf_t      output;
 
-  struct SUvUdfWork *pWorkNext;
-} SUvUdfWork;
+  struct SUvMqttWork *pWorkNext;
+} SUvMqttWork;
 
-typedef enum { UDF_STATE_INIT = 0, UDF_STATE_LOADING, UDF_STATE_READY } EUdfState;
+typedef enum { MQTT_STATE_INIT = 0, MQTT_STATE_LOADING, MQTT_STATE_READY } EMqttState;
 
-typedef struct SUdf {
+typedef struct SMqtt {
   char    name[TSDB_FUNC_NAME_LEN + 1];
   int32_t version;
   int64_t createdTime;
@@ -69,59 +69,59 @@ typedef struct SUdf {
   char path[PATH_MAX];
 
   int32_t    refCount;
-  EUdfState  state;
+  EMqttState state;
   uv_mutex_t lock;
   uv_cond_t  condReady;
   bool       resident;
 
-  // SUdfScriptPlugin *scriptPlugin;
-  void *scriptUdfCtx;
+  // SMqttScriptPlugin *scriptPlugin;
+  void *scriptMqttCtx;
 
   int64_t lastFetchTime;  // last fetch time in milliseconds
   bool    expired;
-} SUdf;
+} SMqtt;
 
-typedef struct SUdfcFuncHandle {
-  SUdf *udf;
-} SUdfcFuncHandle;
+typedef struct SMqttcFuncHandle {
+  SMqtt *mqtt;
+} SMqttcFuncHandle;
 
-typedef enum EUdfdRpcReqRspType {
-  UDFD_RPC_MNODE_CONNECT = 0,
-  UDFD_RPC_RETRIVE_FUNC,
-} EUdfdRpcReqRspType;
+typedef enum EMqttdRpcReqRspType {
+  MQTTD_RPC_MNODE_CONNECT = 0,
+  MQTTD_RPC_RETRIVE_FUNC,
+} EMqttdRpcReqRspType;
 
-typedef struct SUdfdRpcSendRecvInfo {
-  EUdfdRpcReqRspType rpcType;
-  int32_t            code;
-  void              *param;
-  uv_sem_t           resultSem;
-} SUdfdRpcSendRecvInfo;
+typedef struct SMqttdRpcSendRecvInfo {
+  EMqttdRpcReqRspType rpcType;
+  int32_t             code;
+  void               *param;
+  uv_sem_t            resultSem;
+} SMqttdRpcSendRecvInfo;
 
-static void    udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
-static int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf);
-static int32_t udfdConnectToMnode();
-static bool    udfdRpcRfp(int32_t code, tmsg_t msgType);
+static void    mqttdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static int32_t mqttdFillMqttInfoFromMNode(void *clientRpc, char *mqttName, SMqtt *mqtt);
+static int32_t mqttdConnectToMnode();
+static bool    mqttdRpcRfp(int32_t code, tmsg_t msgType);
 static int     initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
-static int32_t udfdOpenClientRpc();
-static void    udfdCloseClientRpc();
+static int32_t mqttdOpenClientRpc();
+static void    mqttdCloseClientRpc();
 
-static void udfdIntrSignalHandler(uv_signal_t *handle, int signum);
+static void mqttdIntrSignalHandler(uv_signal_t *handle, int signum);
 static void removeListeningPipe();
 
-static void    udfdPrintVersion();
-static int32_t udfdParseArgs(int32_t argc, char *argv[]);
-static int32_t udfdInitLog();
+static void    mqttdPrintVersion();
+static int32_t mqttdParseArgs(int32_t argc, char *argv[]);
+static int32_t mqttdInitLog();
 
-static void    udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf);
-static void    udfdCtrlReadCb(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf);
-static int32_t udfdUvInit();
-static void    udfdCloseWalkCb(uv_handle_t *handle, void *arg);
-static void    udfdRun();
-static void    udfdConnectMnodeThreadFunc(void *args);
+static void    mqttdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf);
+static void    mqttdCtrlReadCb(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf);
+static int32_t mqttdUvInit();
+static void    mqttdCloseWalkCb(uv_handle_t *handle, void *arg);
+static void    mqttdRun();
+static void    mqttdConnectMnodeThreadFunc(void *args);
 
-void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
+void mqttdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(parent, pMsg);
-  SUdfdRpcSendRecvInfo *msgInfo = (SUdfdRpcSendRecvInfo *)pMsg->info.ahandle;
+  SMqttdRpcSendRecvInfo *msgInfo = (SMqttdRpcSendRecvInfo *)pMsg->info.ahandle;
 
   if (pEpSet) {
     if (!isEpsetEqual(&global.mgmtEp.epSet, pEpSet)) {
@@ -130,15 +130,15 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 
   if (pMsg->code != TSDB_CODE_SUCCESS) {
-    bndError("udfd rpc error. code: %s", tstrerror(pMsg->code));
+    bndError("mqttd rpc error. code: %s", tstrerror(pMsg->code));
     msgInfo->code = pMsg->code;
     goto _return;
   }
 
-  if (msgInfo->rpcType == UDFD_RPC_MNODE_CONNECT) {
+  if (msgInfo->rpcType == MQTTD_RPC_MNODE_CONNECT) {
     SConnectRsp connectRsp = {0};
     if (tDeserializeSConnectRsp(pMsg->pCont, pMsg->contLen, &connectRsp) < 0) {
-      bndError("udfd deserialize connect response failed");
+      bndError("mqttd deserialize connect response failed");
       goto _return;
     }
 
@@ -158,27 +158,27 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
       updateEpSet_s(&global.mgmtEp, &connectRsp.epSet);
     }
     msgInfo->code = 0;
-  } else if (msgInfo->rpcType == UDFD_RPC_RETRIVE_FUNC) {
+  } else if (msgInfo->rpcType == MQTTD_RPC_RETRIVE_FUNC) {
     SRetrieveFuncRsp retrieveRsp = {0};
     if (tDeserializeSRetrieveFuncRsp(pMsg->pCont, pMsg->contLen, &retrieveRsp) < 0) {
-      bndError("udfd deserialize retrieve func response failed");
+      bndError("mqttd deserialize retrieve func response failed");
       goto _return;
     }
 
     SFuncInfo *pFuncInfo = (SFuncInfo *)taosArrayGet(retrieveRsp.pFuncInfos, 0);
-    SUdf      *udf = msgInfo->param;
-    udf->funcType = pFuncInfo->funcType;
-    udf->scriptType = pFuncInfo->scriptType;
-    udf->outputType = pFuncInfo->outputType;
-    udf->outputLen = pFuncInfo->outputLen;
-    udf->bufSize = pFuncInfo->bufSize;
+    SMqtt     *mqtt = msgInfo->param;
+    mqtt->funcType = pFuncInfo->funcType;
+    mqtt->scriptType = pFuncInfo->scriptType;
+    mqtt->outputType = pFuncInfo->outputType;
+    mqtt->outputLen = pFuncInfo->outputLen;
+    mqtt->bufSize = pFuncInfo->bufSize;
 
     SFuncExtraInfo *pFuncExtraInfo = (SFuncExtraInfo *)taosArrayGet(retrieveRsp.pFuncExtraInfos, 0);
-    udf->version = pFuncExtraInfo->funcVersion;
-    udf->createdTime = pFuncExtraInfo->funcCreatedTime;
-    // msgInfo->code = udfdSaveFuncBodyToFile(pFuncInfo, udf);
+    mqtt->version = pFuncExtraInfo->funcVersion;
+    mqtt->createdTime = pFuncExtraInfo->funcCreatedTime;
+    // msgInfo->code = mqttdSaveFuncBodyToFile(pFuncInfo, mqtt);
     if (msgInfo->code != 0) {
-      udf->lastFetchTime = 0;
+      mqtt->lastFetchTime = 0;
     }
     tFreeSFuncInfo(pFuncInfo);
     taosArrayDestroy(retrieveRsp.pFuncInfos);
@@ -191,12 +191,12 @@ _return:
   return;
 }
 
-int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
-  TAOS_MQTT_MGMT_CHECK_PTR_RCODE(clientRpc, udfName, udf);
+int32_t mqttdFillMqttInfoFromMNode(void *clientRpc, char *mqttName, SMqtt *mqtt) {
+  TAOS_MQTT_MGMT_CHECK_PTR_RCODE(clientRpc, mqttName, mqtt);
   SRetrieveFuncReq retrieveReq = {0};
   retrieveReq.numOfFuncs = 1;
   retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
-  if (taosArrayPush(retrieveReq.pFuncNames, udfName) == NULL) {
+  if (taosArrayPush(retrieveReq.pFuncNames, mqttName) == NULL) {
     taosArrayDestroy(retrieveReq.pFuncNames);
     return terrno;
   }
@@ -214,12 +214,12 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
   }
   taosArrayDestroy(retrieveReq.pFuncNames);
 
-  SUdfdRpcSendRecvInfo *msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
+  SMqttdRpcSendRecvInfo *msgInfo = taosMemoryCalloc(1, sizeof(SMqttdRpcSendRecvInfo));
   if (NULL == msgInfo) {
     return terrno;
   }
-  msgInfo->rpcType = UDFD_RPC_RETRIVE_FUNC;
-  msgInfo->param = udf;
+  msgInfo->rpcType = MQTTD_RPC_RETRIVE_FUNC;
+  msgInfo->param = mqtt;
   if (uv_sem_init(&msgInfo->resultSem, 0) != 0) {
     taosMemoryFree(msgInfo);
     return TSDB_CODE_BNODE_UV_EXEC_FAILURE;
@@ -240,7 +240,7 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
   return code;
 }
 
-static bool udfdRpcRfp(int32_t code, tmsg_t msgType) {
+static bool mqttdRpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_SYN_NOT_LEADER ||
       code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED || code == TSDB_CODE_SYN_RESTORING ||
       code == TSDB_CODE_MNODE_NOT_FOUND || code == TSDB_CODE_APP_IS_STARTING || code == TSDB_CODE_APP_IS_STOPPING) {
@@ -299,17 +299,17 @@ int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSe
   return 0;
 }
 
-int32_t udfdOpenClientRpc() {
+int32_t mqttdOpenClientRpc() {
   SRpcInit rpcInit = {0};
-  rpcInit.label = "UDFD";
+  rpcInit.label = "MQTTD";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp = (RpcCfp)udfdProcessRpcRsp;
+  rpcInit.cfp = (RpcCfp)mqttdProcessRpcRsp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = TSDB_DEFAULT_USER;
   rpcInit.parent = &global;
-  rpcInit.rfp = udfdRpcRfp;
+  rpcInit.rfp = mqttdRpcRfp;
   rpcInit.compressSize = tsCompressMsgSize;
 
   int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
@@ -333,21 +333,21 @@ int32_t udfdOpenClientRpc() {
   return 0;
 }
 
-void udfdCloseClientRpc() {
-  bndInfo("udfd begin closing rpc");
+void mqttdCloseClientRpc() {
+  bndInfo("mqttd begin closing rpc");
   rpcClose(global.clientRpc);
-  bndInfo("udfd finish closing rpc");
+  bndInfo("mqttd finish closing rpc");
 }
 
-void udfdOnWrite(uv_write_t *req, int status) {
+void mqttdOnWrite(uv_write_t *req, int status) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(req);
-  SUvUdfWork *work = (SUvUdfWork *)req->data;
+  SUvMqttWork *work = (SUvMqttWork *)req->data;
   if (status < 0) {
-    bndError("udfd send response error, length: %zu code: %s", work->output.len, uv_err_name(status));
+    bndError("mqttd send response error, length: %zu code: %s", work->output.len, uv_err_name(status));
   }
   // remove work from the connection work list
   if (work->conn != NULL) {
-    SUvUdfWork **ppWork;
+    SUvMqttWork **ppWork;
     for (ppWork = &work->conn->pWorkList; *ppWork && (*ppWork != work); ppWork = &((*ppWork)->pWorkNext)) {
     }
     if (*ppWork == work) {
@@ -361,31 +361,31 @@ void udfdOnWrite(uv_write_t *req, int status) {
   taosMemoryFree(req);
 }
 
-void udfdSendResponse(uv_work_t *work, int status) {
+void mqttdSendResponse(uv_work_t *work, int status) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(work);
-  SUvUdfWork *udfWork = (SUvUdfWork *)(work->data);
+  SUvMqttWork *mqttWork = (SUvMqttWork *)(work->data);
 
-  if (udfWork->conn != NULL) {
+  if (mqttWork->conn != NULL) {
     uv_write_t *write_req = taosMemoryMalloc(sizeof(uv_write_t));
     if (write_req == NULL) {
-      bndError("udfd send response error, malloc failed");
+      bndError("mqttd send response error, malloc failed");
       taosMemoryFree(work);
       return;
     }
-    write_req->data = udfWork;
-    int32_t code = uv_write(write_req, udfWork->conn->client, &udfWork->output, 1, udfdOnWrite);
+    write_req->data = mqttWork;
+    int32_t code = uv_write(write_req, mqttWork->conn->client, &mqttWork->output, 1, mqttdOnWrite);
     if (code != 0) {
-      bndError("udfd send response error %s", uv_strerror(code));
+      bndError("mqttd send response error %s", uv_strerror(code));
       taosMemoryFree(write_req);
     }
   }
   taosMemoryFree(work);
 }
 
-void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
+void mqttdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(handle, buf);
-  SUdfdUvConn *ctx = handle->data;
-  int32_t      msgHeadSize = sizeof(int32_t) + sizeof(int64_t);
+  SMqttdUvConn *ctx = handle->data;
+  int32_t       msgHeadSize = sizeof(int32_t) + sizeof(int64_t);
   if (ctx->inputCap == 0) {
     ctx->inputBuf = taosMemoryMalloc(msgHeadSize);
     if (ctx->inputBuf) {
@@ -396,7 +396,7 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->base = ctx->inputBuf;
       buf->len = ctx->inputCap;
     } else {
-      bndError("udfd can not allocate enough memory");
+      bndError("mqttd can not allocate enough memory");
       buf->base = NULL;
       buf->len = 0;
     }
@@ -411,16 +411,16 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->base = ctx->inputBuf + ctx->inputLen;
       buf->len = ctx->inputCap - ctx->inputLen;
     } else {
-      bndError("udfd can not allocate enough memory");
+      bndError("mqttd can not allocate enough memory");
       buf->base = NULL;
       buf->len = 0;
     }
   }
 }
 
-bool isUdfdUvMsgComplete(SUdfdUvConn *pipe) {
+bool isMqttdUvMsgComplete(SMqttdUvConn *pipe) {
   if (pipe == NULL) {
-    bndError("udfd pipe is NULL, LINE:%d", __LINE__);
+    bndError("mqttd pipe is NULL, LINE:%d", __LINE__);
     return false;
   }
   if (pipe->inputTotal == -1 && pipe->inputLen >= sizeof(int32_t)) {
@@ -432,43 +432,10 @@ bool isUdfdUvMsgComplete(SUdfdUvConn *pipe) {
   }
   return false;
 }
-/*
-void udfdHandleRequest(SUdfdUvConn *conn) {
-  TAOS_MQTT_MGMT_CHECK_PTR_RVOID(conn);
-  char   *inputBuf = conn->inputBuf;
-  int32_t inputLen = conn->inputLen;
-
-  uv_work_t *work = taosMemoryMalloc(sizeof(uv_work_t));
-  if (work == NULL) {
-    bndError("udfd malloc work failed");
-    return;
-  }
-  SUvUdfWork *udfWork = taosMemoryMalloc(sizeof(SUvUdfWork));
-  if (udfWork == NULL) {
-    bndError("udfd malloc udf work failed");
-    taosMemoryFree(work);
-    return;
-  }
-  udfWork->conn = conn;
-  udfWork->pWorkNext = conn->pWorkList;
-  conn->pWorkList = udfWork;
-  udfWork->input = uv_buf_init(inputBuf, inputLen);
-  conn->inputBuf = NULL;
-  conn->inputLen = 0;
-  conn->inputCap = 0;
-  conn->inputTotal = -1;
-  work->data = udfWork;
-  if (uv_queue_work(global.loop, work, udfdProcessRequest, udfdSendResponse) != 0) {
-    bndError("udfd queue work failed");
-    taosMemoryFree(work);
-    taosMemoryFree(udfWork);
-  }
-}
-*/
-void udfdPipeCloseCb(uv_handle_t *pipe) {
+void mqttdPipeCloseCb(uv_handle_t *pipe) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(pipe);
-  SUdfdUvConn *conn = pipe->data;
-  SUvUdfWork  *pWork = conn->pWorkList;
+  SMqttdUvConn *conn = pipe->data;
+  SUvMqttWork  *pWork = conn->pWorkList;
   while (pWork != NULL) {
     pWork->conn = NULL;
     pWork = pWork->pWorkNext;
@@ -479,17 +446,17 @@ void udfdPipeCloseCb(uv_handle_t *pipe) {
   taosMemoryFree(conn);
 }
 
-void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
+void mqttdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(client, buf);
-  bndDebug("udfd read %zd bytes from client", nread);
+  bndDebug("mqttd read %zd bytes from client", nread);
   if (nread == 0) return;
 
-  SUdfdUvConn *conn = client->data;
+  SMqttdUvConn *conn = client->data;
 
   if (nread > 0) {
     conn->inputLen += nread;
-    if (isUdfdUvMsgComplete(conn)) {
-      // udfdHandleRequest(conn);
+    if (isMqttdUvMsgComplete(conn)) {
+      // mqttdHandleRequest(conn);
     } else {
       // log error or continue;
     }
@@ -498,37 +465,36 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 
   if (nread < 0) {
     if (nread == UV_EOF) {
-      bndInfo("udfd pipe read EOF");
+      bndInfo("mqttd pipe read EOF");
     } else {
       bndError("Receive error %s", uv_err_name(nread));
     }
-    // udfdUvHandleError(conn);
   }
 }
 
-void udfdOnNewConnection(uv_stream_t *server, int status) {
+void mqttdOnNewConnection(uv_stream_t *server, int status) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(server);
   if (status < 0) {
-    bndError("udfd new connection error. code: %s", uv_strerror(status));
+    bndError("mqttd new connection error. code: %s", uv_strerror(status));
     return;
   }
   int32_t code = 0;
 
   uv_pipe_t *client = (uv_pipe_t *)taosMemoryMalloc(sizeof(uv_pipe_t));
   if (client == NULL) {
-    bndError("udfd pipe malloc failed");
+    bndError("mqttd pipe malloc failed");
     return;
   }
   code = uv_pipe_init(global.loop, client, 0);
   if (code) {
-    bndError("udfd pipe init error %s", uv_strerror(code));
+    bndError("mqttd pipe init error %s", uv_strerror(code));
     taosMemoryFree(client);
     return;
   }
   if (uv_accept(server, (uv_stream_t *)client) == 0) {
-    SUdfdUvConn *ctx = taosMemoryMalloc(sizeof(SUdfdUvConn));
+    SMqttdUvConn *ctx = taosMemoryMalloc(sizeof(SMqttdUvConn));
     if (ctx == NULL) {
-      bndError("udfd conn malloc failed");
+      bndError("mqttd conn malloc failed");
       goto _exit;
     }
     ctx->pWorkList = NULL;
@@ -538,10 +504,9 @@ void udfdOnNewConnection(uv_stream_t *server, int status) {
     ctx->inputCap = 0;
     client->data = ctx;
     ctx->client = (uv_stream_t *)client;
-    code = uv_read_start((uv_stream_t *)client, udfdAllocBuffer, udfdPipeRead);
+    code = uv_read_start((uv_stream_t *)client, mqttdAllocBuffer, mqttdPipeRead);
     if (code) {
-      bndError("udfd read start error %s", uv_strerror(code));
-      // udfdUvHandleError(ctx);
+      bndError("mqttd read start error %s", uv_strerror(code));
       taosMemoryFree(ctx);
       taosMemoryFree(client);
     }
@@ -552,9 +517,9 @@ _exit:
   taosMemoryFree(client);
 }
 
-void udfdIntrSignalHandler(uv_signal_t *handle, int signum) {
+void mqttdIntrSignalHandler(uv_signal_t *handle, int signum) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(handle);
-  bndInfo("udfd signal received: %d\n", signum);
+  bndInfo("mqttd signal received: %d\n", signum);
   uv_fs_t req;
   int32_t code = uv_fs_unlink(global.loop, &req, global.listenPipeName, NULL);
   if (code) {
@@ -611,26 +576,26 @@ static int32_t mqttdInitLog() {
   return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, NULL, 0);
 }
 
-void udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+void mqttdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(buf);
   buf->base = taosMemoryMalloc(suggested_size);
   if (buf->base == NULL) {
-    bndError("udfd ctrl pipe alloc buffer failed");
+    bndError("mqttd ctrl pipe alloc buffer failed");
     return;
   }
   buf->len = suggested_size;
 }
 
-void udfdCtrlReadCb(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf) {
+void mqttdCtrlReadCb(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf) {
   TAOS_MQTT_MGMT_CHECK_PTR_RVOID(q, buf);
   if (nread < 0) {
-    bndError("udfd ctrl pipe read error. %s", uv_err_name(nread));
+    bndError("mqttd ctrl pipe read error. %s", uv_err_name(nread));
     taosMemoryFree(buf->base);
     uv_close((uv_handle_t *)q, NULL);
     uv_stop(global.loop);
     return;
   }
-  bndError("udfd ctrl pipe read %zu bytes", nread);
+  bndError("mqttd ctrl pipe read %zu bytes", nread);
   taosMemoryFree(buf->base);
 }
 
@@ -643,22 +608,13 @@ static void removeListeningPipe() {
   }
 }
 
-static int32_t udfdUvInit() {
+static int32_t mqttdUvInit() {
   TAOS_CHECK_RETURN(uv_loop_init(global.loop));
-
-  if (tsStartUdfd) {  // udfd is started by taosd, which shall exit when taosd exit
-    TAOS_CHECK_RETURN(uv_pipe_init(global.loop, &global.ctrlPipe, 1));
-    TAOS_CHECK_RETURN(uv_pipe_open(&global.ctrlPipe, 0));
-    TAOS_CHECK_RETURN(uv_read_start((uv_stream_t *)&global.ctrlPipe, udfdCtrlAllocBufCb, udfdCtrlReadCb));
-  }
-  // getUdfdPipeName(global.listenPipeName, sizeof(global.listenPipeName));
-
-  // removeListeningPipe();
 
   TAOS_CHECK_RETURN(uv_pipe_init(global.loop, &global.listeningPipe, 0));
 
   TAOS_CHECK_RETURN(uv_signal_init(global.loop, &global.intrSignal));
-  TAOS_CHECK_RETURN(uv_signal_start(&global.intrSignal, udfdIntrSignalHandler, SIGINT));
+  TAOS_CHECK_RETURN(uv_signal_start(&global.intrSignal, mqttdIntrSignalHandler, SIGINT));
 
   int r;
   bndInfo("bind to pipe %s", global.listenPipeName);
@@ -667,7 +623,7 @@ static int32_t udfdUvInit() {
     removeListeningPipe();
     return -2;
   }
-  if ((r = uv_listen((uv_stream_t *)&global.listeningPipe, 128, udfdOnNewConnection))) {
+  if ((r = uv_listen((uv_stream_t *)&global.listeningPipe, 128, mqttdOnNewConnection))) {
     bndError("Listen error %s", uv_err_name(r));
     removeListeningPipe();
     return -3;
@@ -675,78 +631,72 @@ static int32_t udfdUvInit() {
   return 0;
 }
 
-static void udfdCloseWalkCb(uv_handle_t *handle, void *arg) {
+static void mqttdCloseWalkCb(uv_handle_t *handle, void *arg) {
   if (!uv_is_closing(handle)) {
     uv_close(handle, NULL);
   }
 }
 
-static int32_t udfdGlobalDataInit() {
+static int32_t mqttdGlobalDataInit() {
   uv_loop_t *loop = taosMemoryMalloc(sizeof(uv_loop_t));
   if (loop == NULL) {
-    bndError("udfd init uv loop failed, mem overflow");
+    bndError("mqttd init uv loop failed, mem overflow");
     return terrno;
   }
   global.loop = loop;
-  /*
-  if (uv_mutex_init(&global.scriptPluginsMutex) != 0) {
-    bndError("udfd init script plugins mutex failed");
-    return TSDB_CODE_MQTT_MGMT_UV_EXEC_FAILURE;
-  }
-  */
-  global.udfsHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  if (global.udfsHash == NULL) {
+
+  global.mqttsHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (global.mqttsHash == NULL) {
     return terrno;
   }
-  // taosHashSetFreeFp(global.udfsHash, udfdFreeUdf);
 
-  if (uv_mutex_init(&global.udfsMutex) != 0) {
-    bndError("udfd init udfs mutex failed");
+  if (uv_mutex_init(&global.mqttsMutex) != 0) {
+    bndError("mqttd init mqtts mutex failed");
     return TSDB_CODE_BNODE_UV_EXEC_FAILURE;
   }
 
   return 0;
 }
 
-static void udfdGlobalDataDeinit() {
-  uv_mutex_destroy(&global.udfsMutex);
+static void mqttdGlobalDataDeinit() {
+  uv_mutex_destroy(&global.mqttsMutex);
   // uv_mutex_destroy(&global.scriptPluginsMutex);
   taosMemoryFreeClear(global.loop);
-  bndInfo("udfd global data deinit");
+  bndInfo("mqttd global data deinit");
 }
 
-static void udfdRun() {
-  bndInfo("start udfd event loop");
+static void mqttdRun() {
+  bndInfo("start mqttd event loop");
   int32_t code = uv_run(global.loop, UV_RUN_DEFAULT);
   if (code != 0) {
-    bndError("udfd event loop still has active handles or requests.");
+    bndError("mqttd event loop still has active handles or requests.");
   }
-  bndInfo("udfd event loop stopped.");
+  bndInfo("mqttd event loop stopped.");
 
   (void)uv_loop_close(global.loop);
 
-  uv_walk(global.loop, udfdCloseWalkCb, NULL);
+  uv_walk(global.loop, mqttdCloseWalkCb, NULL);
   code = uv_run(global.loop, UV_RUN_DEFAULT);
   if (code != 0) {
-    bndError("udfd event loop still has active handles or requests.");
+    bndError("mqttd event loop still has active handles or requests.");
   }
   (void)uv_loop_close(global.loop);
 }
 
-int32_t udfdCreateUdfSourceDir() {
+int32_t mqttdCreateMqttSourceDir() {
   snprintf(global.mqttDataDir, PATH_MAX, "%s/.mqttd", tsDataDir);
   int32_t code = taosMkDir(global.mqttDataDir);
   if (code != TSDB_CODE_SUCCESS) {
     snprintf(global.mqttDataDir, PATH_MAX, "%s/.mqttd", tsTempDir);
     code = taosMkDir(global.mqttDataDir);
   }
-  bndInfo("udfd create udf source directory %s. result: %s", global.mqttDataDir, tstrerror(code));
+  bndInfo("mqttd create mqtt source directory %s. result: %s", global.mqttDataDir, tstrerror(code));
 
   return code;
 }
 
-void udfdDestroyUdfSourceDir() {
-  bndInfo("destory udf source directory %s", global.mqttDataDir);
+void mqttdDestroyMqttSourceDir() {
+  bndInfo("destory mqtt source directory %s", global.mqttDataDir);
   taosRemoveDir(global.mqttDataDir);
 }
 
@@ -756,10 +706,6 @@ int main(int argc, char *argv[]) {
   int  code = 0;
   bool logInitialized = false;
   bool cfgInitialized = false;
-  // bool openClientRpcFinished = false;
-  // bool residentFuncsInited = false;
-  // bool udfSourceDirInited = false;
-  // bool globalDataInited = false;
 
   if (!taosCheckSystemIsLittleEnd()) {
     bndError("failed to start since on non-little-end machines\n");
@@ -778,7 +724,6 @@ int main(int argc, char *argv[]) {
 
   if (mqttdInitLog() != 0) {
     // ignore create log failed, because this error doesnot matter
-    //(void)printf("failed to init mqttd log.");
     bndError("failed to init mqttd log.");
   } else {
     logInitialized = true;
@@ -802,54 +747,8 @@ int main(int argc, char *argv[]) {
   code = ttq_main(argc, argv);
 
   bndInfo("mqttd exit normally: %d", code);
-  /*
-  if (udfdOpenClientRpc() != 0) {
-    bndError("open rpc connection to mnode failed");
-    code = -4;
-    goto _exit;
-  }
-  bndInfo("udfd rpc client is opened");
-  openClientRpcFinished = true;  // rpc is opened
 
-  if (udfdCreateUdfSourceDir() != 0) {
-    bndError("create udf source directory failed");
-    code = -5;
-    goto _exit;
-  }
-  udfSourceDirInited = true;  // udf source dir is created
-  bndInfo("udfd udf source directory is created");
-
-  if (udfdGlobalDataInit() != 0) {
-    bndError("init global data failed");
-    code = -6;
-    goto _exit;
-  }
-  globalDataInited = true;  // global data is inited
-  bndInfo("udfd global data is inited");
-
-  if (udfdUvInit() != 0) {
-    bndError("uv init failure");
-    code = -7;
-    goto _exit;
-  }
-  bndInfo("udfd uv is inited");
-
-  udfdRun();
-
-  removeListeningPipe();
-  */
 _exit:
-  /*
-  if (globalDataInited) {
-    udfdGlobalDataDeinit();
-  }
-  if (udfSourceDirInited) {
-    udfdDestroyUdfSourceDir();
-  }
-  if (openClientRpcFinished) {
-    udfdCloseClientRpc();
-  }
-  */
   if (cfgInitialized) {
     taosCleanupCfg();
   }

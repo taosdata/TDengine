@@ -657,8 +657,11 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
   int32_t      code = 0;
   SCtgDBCache *dbCache = NULL;
   SCtgTbCache *tbCache = NULL;
-  // taosMemoryFreeClear(*pTableMeta);
-  *pTableMeta = NULL;
+  if(*pTableMeta)  {
+    ctgError("Expected pTableMeta to be NULL, uid:0x%" PRIx64 ", suid:0x%" PRIx64, (*pTableMeta)->uid,
+             (*pTableMeta)->suid);
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
   if (CTG_FLAG_IS_SYS_DB(ctx->flag)) {
@@ -2062,7 +2065,7 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
     CTG_DB_NUM_INC(CTG_CI_VIEW);
 
     ctgDebug("new view meta updated to cache, view:%s, id:%" PRIu64 ", ver:%d, effectiveUser:%s, querySQL:%s", 
-      viewName, pMeta->viewId, pMeta->version, pMeta->user, pMeta->querySql);
+      viewName, pMeta->viewId, pMeta->version, pMeta->createUser, pMeta->querySql);
 
     CTG_ERR_RET(ctgUpdateRentViewVersion(pCtg, dbFName, viewName, dbCache->dbId, pMeta->viewId, &cache));
 
@@ -2083,7 +2086,7 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
   (void)atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pMeta));
 
   ctgDebug("view meta updated to cache, view:%s, id:%" PRIu64 ", ver:%d, effectiveUser:%s, querySQL:%s", 
-    viewName, pMeta->viewId, pMeta->version, pMeta->user, pMeta->querySql);
+    viewName, pMeta->viewId, pMeta->version, pMeta->createUser, pMeta->querySql);
 
   CTG_ERR_RET(ctgUpdateRentViewVersion(pCtg, dbFName, viewName, dbCache->dbId, pMeta->viewId, pCache));
 
@@ -2707,46 +2710,23 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
 
   CTG_LOCK(CTG_WRITE, &pUser->lock);
 
-  taosHashCleanup(pUser->userAuth.createdDbs);
-  taosHashCleanup(pUser->userAuth.readDbs);
-  taosHashCleanup(pUser->userAuth.writeDbs);
-  taosHashCleanup(pUser->userAuth.readTbs);
-  taosHashCleanup(pUser->userAuth.writeTbs);
-  taosHashCleanup(pUser->userAuth.alterTbs);
-  taosHashCleanup(pUser->userAuth.readViews);
-  taosHashCleanup(pUser->userAuth.writeViews);
-  taosHashCleanup(pUser->userAuth.alterViews);
-  taosHashCleanup(pUser->userAuth.useDbs);
-
+  // clean up old auth info
+  tFreeSGetUserAuthRsp(&pUser->userAuth);
+  // copy new auth info
   TAOS_MEMCPY(&pUser->userAuth, &msg->userAuth, sizeof(msg->userAuth));
-
-  msg->userAuth.createdDbs = NULL;
-  msg->userAuth.readDbs = NULL;
-  msg->userAuth.writeDbs = NULL;
-  msg->userAuth.readTbs = NULL;
-  msg->userAuth.writeTbs = NULL;
-  msg->userAuth.alterTbs = NULL;
-  msg->userAuth.readViews = NULL;
-  msg->userAuth.writeViews = NULL;
-  msg->userAuth.alterViews = NULL;
-  msg->userAuth.useDbs = NULL;
+  // reset pointers to avoid double free
+  msg->userAuth.objPrivs = NULL;
+  msg->userAuth.selectTbs = NULL;
+  msg->userAuth.insertTbs = NULL;
+  msg->userAuth.deleteTbs = NULL;
 
   CTG_UNLOCK(CTG_WRITE, &pUser->lock);
-  
+
   (void)atomic_store_64(&pUser->userCacheSize, ctgGetUserCacheSize(&pUser->userAuth));
 
 _return:
 
-  taosHashCleanup(msg->userAuth.createdDbs);
-  taosHashCleanup(msg->userAuth.readDbs);
-  taosHashCleanup(msg->userAuth.writeDbs);
-  taosHashCleanup(msg->userAuth.readTbs);
-  taosHashCleanup(msg->userAuth.writeTbs);
-  taosHashCleanup(msg->userAuth.alterTbs);
-  taosHashCleanup(msg->userAuth.readViews);
-  taosHashCleanup(msg->userAuth.writeViews);
-  taosHashCleanup(msg->userAuth.alterViews);
-  taosHashCleanup(msg->userAuth.useDbs);
+  tFreeSGetUserAuthRsp(&msg->userAuth);
 
   taosMemoryFreeClear(msg);
 
@@ -3260,16 +3240,7 @@ void ctgFreeCacheOperationData(SCtgCacheOperation *op) {
     }
     case CTG_OP_UPDATE_USER: {
       SCtgUpdateUserMsg *msg = op->data;
-      taosHashCleanup(msg->userAuth.createdDbs);
-      taosHashCleanup(msg->userAuth.readDbs);
-      taosHashCleanup(msg->userAuth.writeDbs);
-      taosHashCleanup(msg->userAuth.readTbs);
-      taosHashCleanup(msg->userAuth.writeTbs);
-      taosHashCleanup(msg->userAuth.alterTbs);
-      taosHashCleanup(msg->userAuth.readViews);
-      taosHashCleanup(msg->userAuth.writeViews);
-      taosHashCleanup(msg->userAuth.alterViews);
-      taosHashCleanup(msg->userAuth.useDbs);
+      tFreeSGetUserAuthRsp(&msg->userAuth);
       taosMemoryFreeClear(op->data);
       break;
     }
@@ -3991,12 +3962,12 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
 
     TAOS_MEMCPY(pViewMeta, pCache->pMeta, sizeof(*pViewMeta));
     pViewMeta->querySql = tstrdup(pCache->pMeta->querySql);
-    pViewMeta->user = tstrdup(pCache->pMeta->user);
-    if (NULL == pViewMeta->querySql || NULL == pViewMeta->user) {
+    pViewMeta->createUser = tstrdup(pCache->pMeta->createUser);
+    if (NULL == pViewMeta->querySql || NULL == pViewMeta->createUser) {
       ctgReleaseViewMetaToCache(pCtg, dbCache, pCache);
       pViewMeta->pSchema = NULL;
       taosMemoryFree(pViewMeta->querySql);
-      taosMemoryFree(pViewMeta->user);
+      taosMemoryFree(pViewMeta->createUser);
       taosMemoryFree(pViewMeta);
       CTG_ERR_RET(terrno);
     }

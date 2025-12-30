@@ -15,12 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "mndArbGroup.h"
+#include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndShow.h"
+#include "mndSync.h"
 #include "mndTrans.h"
 #include "mndVgroup.h"
-#include "mndSync.h"
 
 #define ARBGROUP_VER_NUMBER   1
 #define ARBGROUP_RESERVE_SIZE 51
@@ -672,6 +673,7 @@ static int32_t mndProcessAssignLeaderMsg(SRpcMsg *pReq) {
   void      *pIter = NULL;
   SSdb      *pSdb = pMnode->pSdb;
   SArbGroup *pArbGroup = NULL;
+  int64_t    tss = taosGetTimestampMs();
 
   SAssignLeaderReq req = {0};
   if (tDeserializeSAssignLeaderReq(pReq->pCont, pReq->contLen, &req) != 0) {
@@ -720,9 +722,12 @@ static int32_t mndProcessAssignLeaderMsg(SRpcMsg *pReq) {
   }
 
   code = 0;
-
-  // auditRecord(pReq, pMnode->clusterId, "assignLeader", "", "", req.sql, req.sqlLen);
-
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "assignLeader", "", "", req.sql, req.sqlLen, duration, 0);
+  }
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("arbgroup:0, failed to assign leader since %s", tstrerror(code));

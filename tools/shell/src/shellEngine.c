@@ -803,6 +803,10 @@ void init_dump_info(tsDumpInfo *dump_info, TAOS_RES *tres, const char *sql, bool
     for (int32_t col = 0; col < dump_info->numFields; col++) {
       dump_info->width[col] = shellCalcColWidth(dump_info->fields + col, dump_info->precision);
     }
+    // check create token and set width
+    if (shellRegexMatch(sql, "^[\t ]*create[ \t]+token[ \t]+.*", REG_EXTENDED | REG_ICASE)) {
+      dump_info->width[0] = TMAX(dump_info->width[0], SHELL_SHOW_TOKEN_DISPLAY_WIDTH);
+    }
   }
 }
 
@@ -1127,9 +1131,17 @@ void shellCleanupHistory() {
 }
 
 void shellPrintError(TAOS_RES *tres, int64_t st) {
+  int code = taos_errno(tres);
   int64_t et = taosGetTimestampUs();
-  fprintf(stderr, "\r\nDB error: %s [0x%08X] (%.6fs)\r\n", taos_errstr(tres), taos_errno(tres), (et - st) / 1E6);
+  printf("\r\nDB error: %s [0x%08X] (%.6fs)\r\n", taos_errstr(tres), code, (et - st) / 1E6);
   taos_free_result(tres);
+
+  // tip
+  if (code == TSDB_CODE_MND_USER_PASSWORD_EXPIRED) {
+    fprintf(stdout, "******************** TIPS ********************\n");
+    fprintf(stdout, "Please reset your password using the `ALTER USER <user_name> PASS 'new_password'` command.\n");
+    fprintf(stdout, "**********************************************\n");
+  }
 }
 
 bool shellIsCommentLine(char *line) {
@@ -1334,6 +1346,21 @@ void *shellThreadLoop(void *arg) {
   taosThreadCleanupPop(1);
   return NULL;
 }
+
+bool inputTotpCode(char *totpCode) {
+  bool ret = true;
+  printf("Please enter your TOTP code:");
+  if (scanf("%255s", totpCode) != 1) {
+    fprintf(stderr, "TOTP code reading error\n");
+    ret = false;
+  }
+  if (EOF == getchar()) {
+    // tip
+    fprintf(stdout, "getchar() return EOF\r\n");    
+  }
+  return ret;
+}
+
 #pragma GCC diagnostic pop
 
 TAOS *createConnect(SShellArgs *pArgs) {
@@ -1370,7 +1397,41 @@ TAOS *createConnect(SShellArgs *pArgs) {
     if (pArgs->auth) {
       taos = taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
     } else {
+#ifdef TD_ENTERPRISE 
+      if (strlen(pArgs->token) > 0) {
+        // token
+        printf("Connect with token ...");
+        taos = taos_connect_token(host, pArgs->token, pArgs->database, port);
+        if (taos != NULL) {
+          printf("... [ OK ]\n");
+          return taos;
+        }
+        printf("... [ FAILED ]\n");
+        return NULL;
+      }
+#endif      
       taos = taos_connect(host, user, pwd, pArgs->database, port);
+    }
+
+    if (taos == NULL) {
+      // failed
+      int code = taos_errno(NULL);
+      if (code == TSDB_CODE_MND_WRONG_TOTP_CODE) {
+         // totp
+        char totpCode[TSDB_USER_PASSWORD_LONGLEN];
+        memset(totpCode, 0, sizeof(totpCode));  
+        if (inputTotpCode(totpCode)) {
+          printf("Connect with TOTP code:%s ...", totpCode);
+          taos = taos_connect_totp(host, user, pwd, totpCode, pArgs->database, port);
+          if (taos != NULL) {
+            printf("... [ OK ]\n");
+            return taos;
+          }
+          printf("... [ FAILED ]\n");
+          return NULL;
+        }
+      }
+      // token
     }
   }
 

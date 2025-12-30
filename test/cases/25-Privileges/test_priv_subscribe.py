@@ -21,7 +21,7 @@ class TestSubscribeStreamPrivilege:
     updatecfgDict = {'debugFlag': 143, 'clientCfg':clientCfgDict}
 
     def setup_class(cls):
-        tdLog.debug("start to execute %s" % __file__)
+        tdLog.info("start to execute %s" % __file__)
         cls.setsql = TDSetSql()
         cls.stbname = 'stb'
         cls.user_name = 'test'
@@ -67,6 +67,7 @@ class TestSubscribeStreamPrivilege:
 
     def checkUserPrivileges(self, rowCnt):
         tdSql.query("show user privileges")
+        print(tdSql.queryResult)
         tdSql.checkRows(rowCnt)
 
     def consumeTest(self):
@@ -78,7 +79,7 @@ class TestSubscribeStreamPrivilege:
         }
         consumer = Consumer(consumer_dict)
 
-        tdLog.debug("test subscribe topic created by other user")
+        tdLog.info("test subscribe topic created by other user")
         exceptOccured = False
         try:
             consumer.subscribe([self.topic_name])
@@ -88,9 +89,10 @@ class TestSubscribeStreamPrivilege:
         if not exceptOccured:
             tdLog.exit(f"has no privilege, should except")
 
-        self.checkUserPrivileges(1)
-        tdLog.debug("test subscribe topic privilege granted by other user")
-        tdSql.execute(f'grant subscribe on {self.topic_name} to {self.user_name}')
+        self.checkUserPrivileges(0)
+        tdLog.info("test subscribe topic privilege granted by other user")
+        tdSql.execute(f'grant subscribe on topic {self.dbnames[0]}.{self.topic_name} to {self.user_name}')
+        tdSql.execute(f'grant use on database {self.dbnames[0]} to {self.user_name}')
         self.checkUserPrivileges(2)
 
         exceptOccured = False
@@ -116,9 +118,10 @@ class TestSubscribeStreamPrivilege:
                     else:
                         break
 
-                tdLog.debug("test subscribe topic privilege revoked by other user")
-                tdSql.execute(f'revoke subscribe on {self.topic_name} from {self.user_name}')
-                self.checkUserPrivileges(1)
+                tdLog.info("test subscribe topic privilege revoked by other user")
+                tdSql.execute(f'revoke subscribe on topic {self.dbnames[0]}.{self.topic_name} from {self.user_name}')
+                tdSql.execute(f'revoke use on database {self.dbnames[0]} from {self.user_name}')
+                self.checkUserPrivileges(0)
                 time.sleep(5)
 
         finally:

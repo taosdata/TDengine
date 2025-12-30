@@ -69,8 +69,8 @@ typedef struct {
   void     *clientRpc;
   SCorEpSet mgmtEp;
 
-  uv_mutex_t udfsMutex;
-  SHashObj  *udfsHash;
+  uv_mutex_t mqttsMutex;
+  SHashObj  *mqttsHash;
 
   char    mqttDataDir[PATH_MAX];
   bool    printVersion;
