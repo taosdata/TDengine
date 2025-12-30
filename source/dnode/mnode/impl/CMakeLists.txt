@@ -43,7 +43,7 @@ if(TD_ENTERPRISE)
   )
 endif()
 target_link_libraries(
-  mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp
+  mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode
 )
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
