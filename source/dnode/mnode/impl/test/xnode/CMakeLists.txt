@@ -1,4 +1,9 @@
 add_executable(xnodeEncodeDecodeTest "xnodeEncodeDecodeTest.cpp")
+target_include_directories(
+  xnodeEncodeDecodeTest
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/common"
+)
 target_link_libraries(
     xnodeEncodeDecodeTest
     PUBLIC sut
@@ -13,6 +18,12 @@ add_test(
 
 # Simplified standalone test
 add_executable(xnodeSimpleTest "xnodeSimpleTest.cpp")
+target_include_directories(
+  xnodeSimpleTest
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/common"
+)
+
 target_link_libraries(
     xnodeSimpleTest
     PUBLIC gtest
@@ -94,6 +105,7 @@ add_executable(xnodeProductionTest "xnodeProductionTest.cpp")
 target_include_directories(
   xnodeProductionTest
   PUBLIC
+  "${TD_SOURCE_DIR}/include/common"
   "${TD_SOURCE_DIR}/include/dnode/mnode"
   "${TD_SOURCE_DIR}/include/dnode/mgmt"
   "${TD_SOURCE_DIR}/include/dnode/xnode"
