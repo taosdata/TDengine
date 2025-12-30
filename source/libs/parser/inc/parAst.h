@@ -466,7 +466,7 @@ SNode* createStreamOutTableNode(SAstCreateContext* pCxt, SNode* pIntoTable, SNod
                                 SNodeList* pTagList);
 SNode* createStreamTriggerNode(SAstCreateContext* pCxt, SNode* pTriggerWindow, SNode* pTriggerTable,
                                SNodeList* pPartitionList, SNode* pOptions, SNode* pNotification);
-SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pStream);
+SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNodeList* pStreamList);
 SNode* createPauseStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pStream);
 SNode* createResumeStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, bool ignoreUntreated, SNode* pStream);
 SNode* createRecalcStreamStmt(SAstCreateContext* pCxt, SNode* pStream, SNode* pRange);

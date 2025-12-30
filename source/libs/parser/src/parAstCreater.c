@@ -6890,22 +6890,23 @@ _err:
   return NULL;
 }
 
-SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pStream) {
+SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNodeList* pStreamList) {
   CHECK_PARSER_STATUS(pCxt);
   SDropStreamStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_STREAM_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  if (pStream) {
-    tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
-    tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
+
+  if (pStreamList) {
+    pStmt->pStreamList = pStreamList;
   } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "stream name cannot be empty");
     goto _err;
   }
-  nodesDestroyNode(pStream);
+
   pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 _err:
+  nodesDestroyList(pStreamList);
   return NULL;
 }
 
