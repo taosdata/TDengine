@@ -82,12 +82,12 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
     }
     char xnodedPipeSocket[PATH_MAX] = {0};
     getXnodedPipeName(xnodedPipeSocket, PATH_MAX);
-    unlink(xnodedPipeSocket);
+    (void)unlink(xnodedPipeSocket);
 
     char *pidPath = xnodedPipeSocket;
     memset(pidPath, 0, PATH_MAX);
     getXnodedPidPath(pidPath, PATH_MAX);
-    taosRemoveFile(pidPath);
+    (void)taosRemoveFile(pidPath);
   } else {
     xndInfo("xnoded process restart, exit status %ld, signal %d", exitStatus, termSignal);
     uv_sleep(2000);
@@ -112,7 +112,7 @@ void killPreXnoded() {
     if (readSize < 0) {
       xndError("xnode failed to read len from file:%p since %s", pFile, terrstr());
     }
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
     return;
   }
   int32_t pid = taosStr2Int32(buf, NULL, 10);
@@ -130,8 +130,8 @@ void saveXnodedPid(int32_t pid) {
   getXnodedPidPath(buf, sizeof(buf));
   TdFilePtr testFilePtr = taosCreateFile(buf, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
   snprintf(buf, PATH_MAX, "%d", pid);
-  taosWriteFile(testFilePtr, buf, strlen(buf));
-  taosCloseFile(&testFilePtr);
+  (void)taosWriteFile(testFilePtr, buf, strlen(buf));
+  (void)taosCloseFile(&testFilePtr);
 }
 
 static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
@@ -173,7 +173,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
 
   char xnodedPipeSocket[PATH_MAX] = {0};
   getXnodedPipeName(xnodedPipeSocket, PATH_MAX);
-  unlink(xnodedPipeSocket);
+  (void)unlink(xnodedPipeSocket);
 
   TAOS_UV_LIB_ERROR_RET(uv_pipe_init(&pData->loop, &pData->ctrlPipe, 1));
 
@@ -381,7 +381,7 @@ void xnodeMgmtStopXnoded(void) {
   }
   atomic_store_32(&pData->isStopped, 1);
   pData->needCleanUp = false;
-  uv_process_kill(&pData->process, SIGTERM);
+  (void)uv_process_kill(&pData->process, SIGTERM);
   uv_barrier_destroy(&pData->barrier);
 
   if (uv_thread_join(&pData->thread) != 0) {

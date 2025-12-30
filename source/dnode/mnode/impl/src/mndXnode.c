@@ -17,7 +17,6 @@
 #include <stdio.h>
 #include "mndDef.h"
 #include "tdatablock.h"
-#include "tdef.h"
 #include "types.h"
 
 #include <curl/curl.h>
@@ -2814,7 +2813,11 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
   id.nd.node.type = QUERY_NODE_VALUE;
   id.nd.node.resType.type = TSDB_DATA_TYPE_UBIGINT;
   id.nd.datum.u = pJob->id;
-  taosHashPut(pMap, "id", strlen("id") + 1, &id, sizeof(SXndRefValueNode));
+  int32_t code = taosHashPut(pMap, "id", strlen("id") + 1, &id, sizeof(SXndRefValueNode));
+  if (code != 0) {
+    taosHashCleanup(pMap);
+    return NULL;
+  }
   // task id
   SXndRefValueNode taskId = {0};
   taskId.nd.node.type = QUERY_NODE_VALUE;
@@ -2823,7 +2826,11 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
   if (pJob->taskId == 0) {
     taskId.nd.isNull = true;
   }
-  taosHashPut(pMap, "task_id", strlen("task_id") + 1, &taskId, sizeof(SXndRefValueNode));
+  code = taosHashPut(pMap, "task_id", strlen("task_id") + 1, &taskId, sizeof(SXndRefValueNode));
+  if (code != 0) {
+    taosHashCleanup(pMap);
+    return NULL;
+  }
   // via
   SXndRefValueNode via = {0};
   via.nd.node.type = QUERY_NODE_VALUE;
@@ -2832,7 +2839,11 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
   if (pJob->via == 0) {
     via.nd.isNull = true;
   }
-  taosHashPut(pMap, "via", strlen("via") + 1, &via, sizeof(SXndRefValueNode));
+  code = taosHashPut(pMap, "via", strlen("via") + 1, &via, sizeof(SXndRefValueNode));
+  if (code != 0) {
+    taosHashCleanup(pMap);
+    return NULL;
+  }
   // xnode id
   SXndRefValueNode xnodeId = {0};
   xnodeId.nd.node.type = QUERY_NODE_VALUE;
@@ -2841,7 +2852,11 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
   if (pJob->xnodeId == 0) {
     xnodeId.nd.isNull = true;
   }
-  taosHashPut(pMap, "xnode_id", strlen("xnode_id") + 1, &xnodeId, sizeof(SXndRefValueNode));
+  code = taosHashPut(pMap, "xnode_id", strlen("xnode_id") + 1, &xnodeId, sizeof(SXndRefValueNode));
+  if (code != 0) {
+    taosHashCleanup(pMap);
+    return NULL;
+  }
   // config
   SXndRefValueNode config = {0};
   config.nd.node.type = QUERY_NODE_VALUE;
@@ -2849,12 +2864,16 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
     config.nd.node.resType.type = TSDB_DATA_TYPE_BINARY;
     config.nd.datum.p = taosStrndupi(pJob->config, strlen(pJob->config) + 1);
     config.shouldFree = true;
-    taosHashPut(pMap, "config", strlen("config") + 1, &config, sizeof(SXndRefValueNode));
+    code = taosHashPut(pMap, "config", strlen("config") + 1, &config, sizeof(SXndRefValueNode));
   } else {
     config.nd.node.resType.type = TSDB_DATA_TYPE_BINARY;
     config.nd.datum.p = NULL;
     config.nd.isNull = true;
-    taosHashPut(pMap, "config", strlen("config") + 1, &config, sizeof(SXndRefValueNode));
+    code = taosHashPut(pMap, "config", strlen("config") + 1, &config, sizeof(SXndRefValueNode));
+  }
+  if (code != 0) {
+    taosHashCleanup(pMap);
+    return NULL;
   }
   // status
   SXndRefValueNode status = {0};
@@ -2863,12 +2882,16 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
     status.nd.node.resType.type = TSDB_DATA_TYPE_BINARY;
     status.nd.datum.p = taosStrndupi(pJob->status, strlen(pJob->status) + 1);
     status.shouldFree = true;
-    taosHashPut(pMap, "status", strlen("status") + 1, &status, sizeof(SXndRefValueNode));
+    code = taosHashPut(pMap, "status", strlen("status") + 1, &status, sizeof(SXndRefValueNode));
   } else {
     status.nd.node.resType.type = TSDB_DATA_TYPE_BINARY;
     status.nd.datum.p = NULL;
     status.nd.isNull = true;
-    taosHashPut(pMap, "status", strlen("status") + 1, &status, sizeof(SXndRefValueNode));
+    code = taosHashPut(pMap, "status", strlen("status") + 1, &status, sizeof(SXndRefValueNode));
+  }
+  if (code != 0) {
+    taosHashCleanup(pMap);
+    return NULL;
   }
   // reason
   SXndRefValueNode reason = {0};
@@ -2877,12 +2900,16 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
     reason.nd.node.resType.type = TSDB_DATA_TYPE_BINARY;
     reason.nd.datum.p = taosStrndupi(pJob->reason, strlen(pJob->reason) + 1);
     reason.shouldFree = true;
-    taosHashPut(pMap, "reason", strlen("reason") + 1, &reason, sizeof(SXndRefValueNode));
+    code = taosHashPut(pMap, "reason", strlen("reason") + 1, &reason, sizeof(SXndRefValueNode));
   } else {
     reason.nd.node.resType.type = TSDB_DATA_TYPE_BINARY;
     reason.nd.datum.p = NULL;
     reason.nd.isNull = true;
-    taosHashPut(pMap, "reason", strlen("reason") + 1, &reason, sizeof(SXndRefValueNode));
+    code = taosHashPut(pMap, "reason", strlen("reason") + 1, &reason, sizeof(SXndRefValueNode));
+  }
+  if (code != 0) {
+    taosHashCleanup(pMap);
+    return NULL;
   }
   // create time
   SXndRefValueNode createTime = {0};
@@ -2891,7 +2918,11 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
   createTime.nd.datum.p = taosMemoryCalloc(1, TD_TIME_STR_LEN);
   createTime.nd.datum.p = formatTimestampLocal(createTime.nd.datum.p, pJob->createTime, TSDB_TIME_PRECISION_MILLI);
   createTime.shouldFree = true;
-  taosHashPut(pMap, "create_time", strlen("create_time") + 1, &createTime, sizeof(SXndRefValueNode));
+  code = taosHashPut(pMap, "create_time", strlen("create_time") + 1, &createTime, sizeof(SXndRefValueNode));
+  if (code != 0) {
+    taosHashCleanup(pMap);
+    return NULL;
+  }
   // update time
   SXndRefValueNode updateTime = {0};
   updateTime.nd.node.type = QUERY_NODE_VALUE;
@@ -2899,8 +2930,7 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
   updateTime.nd.datum.p = taosMemoryCalloc(1, TD_TIME_STR_LEN);
   updateTime.nd.datum.p = formatTimestampLocal(updateTime.nd.datum.p, pJob->updateTime, TSDB_TIME_PRECISION_MILLI);
   updateTime.shouldFree = true;
-  taosHashPut(pMap, "update_time", strlen("update_time") + 1, &updateTime, sizeof(SXndRefValueNode));
-
+  code = taosHashPut(pMap, "update_time", strlen("update_time") + 1, &updateTime, sizeof(SXndRefValueNode));
   return pMap;
 }
 

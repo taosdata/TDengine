@@ -50,9 +50,7 @@ target_include_directories(
 target_link_libraries(
   xnodeMemoryTest
   PUBLIC
-  mnode
-  xnode
-  mgmt_xnode
+  mnode xnode mgmt_xnode os util
 )
 
 add_test(
@@ -88,7 +86,7 @@ target_include_directories(
 
 target_link_libraries(xnodeSdbTest
   PUBLIC
-  mnode
+  mnode xnode txnode os util
 )
 
 add_test(

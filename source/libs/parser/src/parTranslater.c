@@ -35,7 +35,6 @@
 #include "systable.h"
 #include "tanalytics.h"
 #include "tcol.h"
-#include "tdef.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "ttime.h"
@@ -13278,9 +13277,13 @@ static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTas
   if (xnodeId != NULL && strlen(xnodeId) > 0) {
     createReq.xnodeId = atoi(xnodeId);
   }
-  covertXNodeTaskOptions(pStmt->options, &createReq.options);
+  int32_t code = covertXNodeTaskOptions(pStmt->options, &createReq.options);
+  if (code != 0) {
+    tFreeSMCreateXnodeTaskReq(&createReq);
+    return code;
+  }
 
-  int32_t code =
+  code =
       buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE_TASK, (FSerializeFunc)tSerializeSMCreateXnodeTaskReq, &createReq);
   tFreeSMCreateXnodeTaskReq(&createReq);
   return code;

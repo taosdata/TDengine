@@ -33,6 +33,7 @@ target_include_directories(
   "${TD_SOURCE_DIR}/include/dnode/xnode"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
   PUBLIC "${TD_SOURCE_DIR}/source/libs/totp/inc"
+  "${TD_SOURCE_DIR}/include/libs/txnode/inc"
   PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/privilege/inc"
 )
 
