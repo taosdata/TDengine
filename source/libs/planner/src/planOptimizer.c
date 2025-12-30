@@ -5091,7 +5091,7 @@ static int32_t splitCacheLastFuncOptUpdateScanNode(SAggLogicNode* pAgg,
   OPTIMIZE_FLAG_CLEAR_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
 
 _return:
-  nodesDestroyNode((SNode*)list);
+  nodesFree((void*)list);
   nodesDestroyList(pOldScanCols);
   if (TSDB_CODE_SUCCESS != code) {
     if (isNewAgg) {
