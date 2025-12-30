@@ -1152,7 +1152,7 @@ static int32_t mndAlterTableConstraintPrivileges(void *pObj, SAlterRoleReq *pAlt
     tblPolicy->condLen = pReqArgs->condLen;
     if (pReqArgs->condLen > 0) {
       // the condLen is strlen(condLen) + 1
-      tblPolicy->cond = strdup(pReqArgs->cond);
+      tblPolicy->cond = taosStrdup(pReqArgs->cond);
       if (!tblPolicy->cond) {
         privTblPoliciesFree(&newPolicies);
         TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
