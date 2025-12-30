@@ -2421,7 +2421,6 @@ charset 的有效值是 UTF-8。
 - 动态修改：支持通过 SQL 修改，重启生效。
 - 支持版本：从 v3.1.0.0 版本引入，v3.3.0.0 以后废弃。
 
-
 #### compareAsStrInGreatest
 
 - 说明：在 GREATEST 函数中是否将值作为字符串比较
