@@ -497,7 +497,8 @@ static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeReq *p
 
   xnodeObj.createTime = taosGetTimestampMs();
   xnodeObj.updateTime = xnodeObj.createTime;
-  mInfo("create xnode, xnode.id:%d, xnode.url: %s, xnode.time:%ld", xnodeObj.id, xnodeObj.url, xnodeObj.createTime);
+  mInfo("create xnode, xnode.id:%d, xnode.url: %s, xnode.time:%" PRId64, xnodeObj.id, xnodeObj.url,
+        xnodeObj.createTime);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-xnode");
   if (pTrans == NULL) {
@@ -2497,7 +2498,7 @@ static int32_t mndCreateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeJob
   jobObj.createTime = taosGetTimestampMs();
   jobObj.updateTime = jobObj.createTime;
 
-  mDebug("create xnode job, id:%d, tid:%d, config:%s, time:%ld", jobObj.id, jobObj.taskId, jobObj.config,
+  mDebug("create xnode job, id:%d, tid:%d, config:%s, time:%" PRId64, jobObj.id, jobObj.taskId, jobObj.config,
          jobObj.createTime);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-xnode-job");
@@ -2945,8 +2946,8 @@ static int32_t call_op_cmp(SXndWhereContext *pctx, FOpCmp opFn) {
     mError("xnode type not same, v1 type: %d, v2 type: %d", pval1->node.type, pval2->node.type);
     goto _OVER;
   } else {
-    mDebug("xnode type v1:%d, is null: %d, UB: %lu, v2 type: %d, is null: %d, UB: %lu", pval1->node.type, pval1->isNull,
-           pval1->datum.u, pval2->node.type, pval2->isNull, pval2->datum.u);
+    mDebug("xnode type v1:%d, is null: %d, UB: %" PRIu64 ", v2 type: %d, is null: %d, UB: %" PRIu64, pval1->node.type,
+           pval1->isNull, pval1->datum.u, pval2->node.type, pval2->isNull, pval2->datum.u);
 
     ret = (*opFn)(pval1, pval2);
   }
