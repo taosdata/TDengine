@@ -6,14 +6,14 @@ target_include_directories(
   "${TD_SOURCE_DIR}/include/common"
 )
 target_link_libraries(
-    xnodeEncodeDecodeTest
-    PUBLIC sut
-    sdb
+  xnodeEncodeDecodeTest
+  PUBLIC sut
+  sdb
 )
 
 add_test(
-    NAME xnodeEncodeDecodeTest
-    COMMAND xnodeEncodeDecodeTest
+  NAME xnodeEncodeDecodeTest
+  COMMAND xnodeEncodeDecodeTest
 )
 
 # Simplified standalone test
@@ -26,13 +26,13 @@ target_include_directories(
 )
 
 target_link_libraries(
-    xnodeSimpleTest
-    PUBLIC pthread
+  xnodeSimpleTest
+  PUBLIC
 )
 
 add_test(
-    NAME xnodeSimpleTest
-    COMMAND xnodeSimpleTest
+  NAME xnodeSimpleTest
+  COMMAND xnodeSimpleTest
 )
 
 # Memory management tests
@@ -48,28 +48,28 @@ target_include_directories(
   "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
 )
 target_link_libraries(
-    xnodeMemoryTest
-    PUBLIC pthread
-    mnode
-    xnode
-    mgmt_xnode
+  xnodeMemoryTest
+  PUBLIC
+  mnode
+  xnode
+  mgmt_xnode
 )
 
 add_test(
-    NAME xnodeMemoryTest
-    COMMAND xnodeMemoryTest
+  NAME xnodeMemoryTest
+  COMMAND xnodeMemoryTest
 )
 
 # Test real XNode utility functions (completely independent, no TDengine headers)
 add_executable(xnodeRealFunctionsTest "xnodeRealFunctionsTest.cpp")
 DEP_ext_gtest(xnodeRealFunctionsTest)
 target_link_libraries(xnodeRealFunctionsTest
-    PUBLIC pthread
+  PUBLIC
 )
 
 add_test(
-    NAME xnodeRealFunctionsTest
-    COMMAND xnodeRealFunctionsTest
+  NAME xnodeRealFunctionsTest
+  COMMAND xnodeRealFunctionsTest
 )
 
 # SDB operations tests (encode/decode, insert/update/delete)
@@ -87,13 +87,13 @@ target_include_directories(
 )
 
 target_link_libraries(xnodeSdbTest
-    PUBLIC pthread
-    mnode
+  PUBLIC
+  mnode
 )
 
 add_test(
-    NAME xnodeSdbTest
-    COMMAND xnodeSdbTest
+  NAME xnodeSdbTest
+  COMMAND xnodeSdbTest
 )
 
 # Production code tests - uses REAL encode/decode functions from mndXnode.c
@@ -111,13 +111,13 @@ target_include_directories(
 )
 
 target_link_libraries(xnodeProductionTest
-    PUBLIC pthread
-    mnode
-    xnode
-    mgmt_xnode
+  PUBLIC
+  mnode
+  xnode
+  mgmt_xnode
 )
 
 add_test(
-    NAME xnodeProductionTest
-    COMMAND xnodeProductionTest
+  NAME xnodeProductionTest
+  COMMAND xnodeProductionTest
 )
