@@ -8,8 +8,7 @@ target_include_directories(
 target_link_libraries(
     xnodeEncodeDecodeTest
     PUBLIC sut
-    PUBLIC sdb
-    PUBLIC gtest_main
+    sdb
 )
 
 add_test(
@@ -28,8 +27,6 @@ target_include_directories(
 
 target_link_libraries(
     xnodeSimpleTest
-    PUBLIC gtest
-    PUBLIC gtest_main
     PUBLIC pthread
 )
 
@@ -52,12 +49,10 @@ target_include_directories(
 )
 target_link_libraries(
     xnodeMemoryTest
-    PUBLIC gtest
-    PUBLIC gtest_main
     PUBLIC pthread
     mnode
     xnode
-    mgmt_xnode 
+    mgmt_xnode
 )
 
 add_test(
@@ -69,8 +64,6 @@ add_test(
 add_executable(xnodeRealFunctionsTest "xnodeRealFunctionsTest.cpp")
 DEP_ext_gtest(xnodeRealFunctionsTest)
 target_link_libraries(xnodeRealFunctionsTest
-    PUBLIC gtest
-    PUBLIC gtest_main
     PUBLIC pthread
 )
 
@@ -94,8 +87,6 @@ target_include_directories(
 )
 
 target_link_libraries(xnodeSdbTest
-    PUBLIC gtest
-    PUBLIC gtest_main
     PUBLIC pthread
     mnode
 )
@@ -120,12 +111,10 @@ target_include_directories(
 )
 
 target_link_libraries(xnodeProductionTest
-    PUBLIC gtest
-    PUBLIC gtest_main
     PUBLIC pthread
     mnode
     xnode
-    mgmt_xnode 
+    mgmt_xnode
 )
 
 add_test(
