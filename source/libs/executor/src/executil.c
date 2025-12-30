@@ -4343,6 +4343,8 @@ int32_t fetchRemoteValueImpl(STaskSubJobCtx* ctx, int32_t subQIdx, SRemoteValueN
   if (ctx->code) {
     qError("task has been killed, error:%s", tstrerror(ctx->code));
     taosMemoryFree(param);
+    taosMemoryFreeClear(msg);
+    taosMemoryFreeClear(pMsgSendInfo);
     code = ctx->code;
     taosWUnLockLatch(&ctx->lock);
     goto _end;
