@@ -568,7 +568,7 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   }
   copyValueTrimEscape(val->literal, pLiteral->n + 1, pLiteral,
                       pCxt->pQueryCxt->hasDupQuoteChar && (TK_NK_ID == pLiteral->type));
-  if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type &&
+  if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type && TK_NK_INTEGER != pLiteral->type && 
       (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
     (void)trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
   }
