@@ -1180,11 +1180,29 @@ int32_t tEncodeSStreamRunnerDeployMsg(SEncoder* pEncoder, const SStreamRunnerDep
 
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pMsg->lowLatencyCalc));
 
+  // colCids and tagCids - always encode size (0 if NULL) for compatibility
+  int32_t colCidsSize = (int32_t)taosArrayGetSize(pMsg->colCids);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, colCidsSize));
+  if (colCidsSize > 0) {
+    for (int32_t i = 0; i < colCidsSize; ++i) {
+      int16_t* pCid = (int16_t*)taosArrayGet(pMsg->colCids, i);
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, *pCid));
+    }
+  }
+
+  int32_t tagCidsSize = (int32_t)taosArrayGetSize(pMsg->tagCids);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, tagCidsSize));
+  if (tagCidsSize > 0) {
+    for (int32_t i = 0; i < tagCidsSize; ++i) {
+      int16_t* pCid = (int16_t*)taosArrayGet(pMsg->tagCids, i);
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, *pCid));
+    }
+  }
+
 _exit:
 
   return code;
 }
-
 
 int32_t tEncodeSStmTaskDeploy(SEncoder* pEncoder, const SStmTaskDeploy* pTask) {
   int32_t code = 0;
@@ -1755,6 +1773,40 @@ int32_t tDecodeSStreamRunnerDeployMsg(SDecoder* pDecoder, SStreamRunnerDeployMsg
 
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pMsg->lowLatencyCalc));
+  }
+
+  // colCids and tagCids - always decode size, create array only if size > 0
+  // For backward compatibility, check if there's more data before decoding
+  if (!tDecodeIsEnd(pDecoder)) {
+    int32_t colCidsSize = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &colCidsSize));
+    if (colCidsSize > 0 && colCidsSize <= TSDB_MAX_COLUMNS) {  // Sanity check
+      pMsg->colCids = taosArrayInit(colCidsSize, sizeof(int16_t));
+      TSDB_CHECK_NULL(pMsg->colCids, code, lino, _exit, terrno);
+      for (int32_t i = 0; i < colCidsSize; ++i) {
+        int16_t cid = 0;
+        TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &cid));
+        if (taosArrayPush(pMsg->colCids, &cid) == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
+    }
+  }
+  // Try to decode tagCids if there's more data
+  if (!tDecodeIsEnd(pDecoder)) {
+    int32_t tagCidsSize = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &tagCidsSize));
+    if (tagCidsSize > 0 && tagCidsSize <= TSDB_MAX_TAGS) {  // Sanity check
+      pMsg->tagCids = taosArrayInit(tagCidsSize, sizeof(int16_t));
+      TSDB_CHECK_NULL(pMsg->tagCids, code, lino, _exit, terrno);
+      for (int32_t i = 0; i < tagCidsSize; ++i) {
+        int16_t cid = 0;
+        TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &cid));
+        if (taosArrayPush(pMsg->tagCids, &cid) == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
+    }
   }
 
 _exit:
@@ -2786,6 +2838,10 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->tagValueExpr);
   taosArrayDestroyEx(pReq->forceOutCols, tFreeStreamOutCol);
   pReq->forceOutCols = NULL;
+  taosArrayDestroy(pReq->colCids);
+  pReq->colCids = NULL;
+  taosArrayDestroy(pReq->tagCids);
+  pReq->tagCids = NULL;
 }
 
 int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStreamReq** ppDst) {
@@ -2944,6 +3000,16 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
       
       TSDB_CHECK_NULL(taosArrayPush(pDst->forceOutCols, &dcol), code, lino, _exit, terrno);
     }
+  }
+
+  if (pSrc->colCids) {
+    pDst->colCids = taosArrayDup(pSrc->colCids, NULL);
+    TSDB_CHECK_NULL(pDst->colCids, code, lino, _exit, terrno);
+  }
+
+  if (pSrc->tagCids) {
+    pDst->tagCids = taosArrayDup(pSrc->tagCids, NULL);
+    TSDB_CHECK_NULL(pDst->tagCids, code, lino, _exit, terrno);
   }
 
   pDst->triggerTblUid = pSrc->triggerTblUid;

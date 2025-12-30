@@ -93,6 +93,7 @@ The list of keywords is as follows:
 | COMPACT_TIME_OFFSET  | 3.3.5.0+ |
 | COMPACT_TIME_RANGE   | 3.3.5.0+ |
 | COMPOSITE            | 3.3.6.3+ |
+| COMPRESS             | |
 | CONCAT               | |
 | CONFLICT             | |
 | CONNECTION           | |
@@ -118,6 +119,7 @@ The list of keywords is as follows:
 | DATABASE             | |
 | DATABASES            | |
 | DBS                  | |
+| DB_KEY               | |
 | DECIMAL              | 3.3.6.0+ |
 | DEFERRED             | |
 | DELETE               | |
@@ -145,9 +147,11 @@ The list of keywords is as follows:
 |----------------------|-|
 | EACH                 | |
 | ELSE                 | |
+| ENCODE               | |
 | ENABLE               | |
 | ENCRYPT_ALGORITHM    | |
 | ENCRYPT_KEY          | |
+| ENCRYPT_STATUS       | |
 | ENCRYPTIONS          | |
 | END                  | |
 | EQ                   | |
@@ -222,6 +226,7 @@ The list of keywords is as follows:
 | INITIALLY            | |
 | INNER                | |
 | INSERT               | |
+| INSTANCES            | |
 | INSTEAD              | |
 | INT                  | |
 | INTEGER              | |
@@ -269,6 +274,7 @@ The list of keywords is as follows:
 | LIKE                 | |
 | LIMIT                | |
 | LINEAR               | |
+| LOCK                 | |
 | LOCAL                | |
 | LOGS                 | |
 | LOW_LATENCY_CALC     | 3.3.7.0+ |
@@ -294,11 +300,14 @@ The list of keywords is as follows:
 | MNODES               | |
 | MODIFY               | |
 | MODULES              | |
+| MOUNT                | |
+| MOUNTS               | |
 
 ### N
 
 |Keyword|Description|
 |----------------------|-|
+| NEAR                 | |
 | NCHAR                | |
 | NE                   | |
 | NEXT                 | |
@@ -378,10 +387,13 @@ The list of keywords is as follows:
 | RANGE                | |
 | RATIO                | |
 | READ                 | |
+| RECALCULATE          | |
 | RECURSIVE            | |
 | REGEXP               | 3.3.6.0+ |
 | REDISTRIBUTE         | |
+| RELOAD               | |
 | REM                  | |
+| RENAME               | |
 | REPLACE              | |
 | REPLICA              | |
 | REPLICAS             | 3.3.7.0+ |
@@ -389,6 +401,7 @@ The list of keywords is as follows:
 | RESTORE              | |
 | RESTRICT             | |
 | RESUME               | |
+| RETENTION            | |
 | RETENTIONS           | |
 | REVOKE               | |
 | RIGHT                | |
@@ -397,11 +410,16 @@ The list of keywords is as follows:
 | ROWTS                | |
 | RP                   | |
 | RSHIFT               | |
+| ROLE                 | |
+| ROLES                | |
+| RSMA                 | |
+| RSMAS                | |
 
 ### S
 
 |Keyword|Description|
 |----------------------|-|
+| S3MIGRATE            | |
 | SCHEMALESS           | |
 | SCORES               | |
 | SELECT               | |
@@ -426,6 +444,7 @@ The list of keywords is as follows:
 | SS_COMPACT           | |
 | SS_KEEPLOCAL         | |
 | SSMIGRATE            | |
+| SSMIGRATES           | |
 | STABLE               | |
 | STABLES              | |
 | STAR                 | |
@@ -433,6 +452,7 @@ The list of keywords is as follows:
 | STATE                | |
 | STATE_WINDOW         | |
 | STATEMENT            | |
+| STOP                 | |
 | STORAGE              | |
 | STREAM               | |
 | STREAMS              | |
@@ -444,6 +464,7 @@ The list of keywords is as follows:
 | SUBSTR               | |
 | SUBSTRING            | |
 | SUBTABLE             | 3.0.0.0 - 3.3.7.0 |
+| SVR_KEY              | |
 | SYSINFO              | |
 | SYSTEM               | |
 
@@ -465,6 +486,8 @@ The list of keywords is as follows:
 | TINYINT              | |
 | TO                   | |
 | TODAY                | |
+| TOKEN                | |
+| TOKENS               | |
 | TOPIC                | |
 | TOPICS               | |
 | TRAILING             | |
@@ -485,6 +508,7 @@ The list of keywords is as follows:
 |----------------------|-|
 | UNION                | |
 | UNSAFE               | |
+| UNLOCK               | |
 | UNSIGNED             | |
 | UNTREATED            | |
 | UPDATE               | |
@@ -503,14 +527,19 @@ The list of keywords is as follows:
 | VARBINARY            | |
 | VARCHAR              | |
 | VARIABLE             | |
+| VTABLE               | |
+| VTABLES              | |
 | VARIABLES            | |
 | VERBOSE              | |
 | VGROUP               | |
 | VGROUPS              | |
 | VIEW                 | |
 | VIEWS                | |
+| VIRTUAL              | |
 | VNODE                | |
 | VNODES               | |
+| VTABLE               | |
+| VTABLES              | |
 
 ### W
 
