@@ -2040,7 +2040,9 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
   extWinRecycleBlkNode(pExtW, &pExtW->pLastBlkNode);
 
-  TAOS_CHECK_EXIT(pOperator->fpSet._openFn(pOperator));
+  if (pOperator->status == OP_NOT_OPENED) {
+    TAOS_CHECK_EXIT(pOperator->fpSet._openFn(pOperator));
+  }
 
   if (pExtW->mode == EEXT_MODE_SCALAR || pExtW->mode == EEXT_MODE_INDEFR_FUNC) {
     TAOS_CHECK_EXIT(extWinNonAggOutputRes(pOperator, ppRes));
@@ -2059,8 +2061,10 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pExtW->binfo.pRes->info.rows > 0) break;
 #else
     TAOS_CHECK_EXIT(extWinAggOutputRes(pOperator, ppRes));
-    setOperatorCompleted(pOperator);
-    extWinFreeResultRow(pExtW);
+    if (NULL == *ppRes) {
+      setOperatorCompleted(pOperator);
+      extWinFreeResultRow(pExtW);
+    }
 #endif      
   }
 
