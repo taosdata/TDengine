@@ -19,4 +19,4 @@ cd "$SCRIPT_DIR/server"
 export RUST_LOG=info,taos_explorer::oauth=debug,taos_explorer::oauth::custom_client=debug
 
 # Run with test configuration
-cargo run -- -C ../custom-oauth-test.toml
+cargo run -- --config ../custom-oauth-test.toml

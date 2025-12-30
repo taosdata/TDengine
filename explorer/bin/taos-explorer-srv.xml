@@ -5,5 +5,5 @@
     <logpath>C:\TDengine\log</logpath>
     <logmode>roll</logmode>
     <executable>C:\TDengine\taos-explorer.exe</executable>
-	<arguments>-C "C:\TDengine\cfg\explorer.toml"</arguments>
+	<arguments>--config "C:\TDengine\cfg\explorer.toml"</arguments>
 </service>
