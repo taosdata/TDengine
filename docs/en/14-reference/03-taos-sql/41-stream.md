@@ -598,7 +598,7 @@ These fields apply only when eventType is WINDOW_INVALIDATION.
 This operation deletes only the stream processing task. Data written by the stream processing task will not be deleted.
 
 ```sql
-DROP STREAM [IF EXISTS] [db_name.]stream_name;
+DROP STREAM [IF EXISTS] [db_name.]stream_name [, [db_name.]stream_name] ...
 ```
 
 ## View Streams

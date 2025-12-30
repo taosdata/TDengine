@@ -1840,7 +1840,9 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pTrigger);
       break;
     }
-    case QUERY_NODE_DROP_STREAM_STMT:                     // no pointer field
+    case QUERY_NODE_DROP_STREAM_STMT:
+      nodesDestroyList(((SDropStreamStmt*)pNode)->pStreamList);
+      break;
     case QUERY_NODE_PAUSE_STREAM_STMT:                    // no pointer field
     case QUERY_NODE_RESUME_STREAM_STMT:                   // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_STMT:                  // no pointer field

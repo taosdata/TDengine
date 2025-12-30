@@ -2739,8 +2739,11 @@ int32_t tSerializeSMDropStreamReq(void *buf, int32_t bufLen, const SMDropStreamR
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  int32_t nameLen = pReq->name == NULL ? 0 : (int32_t)strlen(pReq->name) + 1;
-  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->name, nameLen));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->count));
+  for (int32_t i = 0; i < pReq->count; i++) {
+    int32_t nameLen = pReq->name[i] == NULL ? 0 : (int32_t)strlen(pReq->name[i]) + 1;
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->name[i], nameLen));
+  }
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igNotExists));
 
   tEndEncode(&encoder);
@@ -2762,7 +2765,17 @@ int32_t tDeserializeSMDropStreamReq(void *buf, int32_t bufLen, SMDropStreamReq *
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->name, NULL));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->count));
+  if (pReq->count > 0) {
+    pReq->name = taosMemoryCalloc(pReq->count, sizeof(char*));
+    if (pReq->name == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    for (int32_t i = 0; i < pReq->count; i++) {
+      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->name[i], NULL));
+    }
+  }
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igNotExists));
 
   tEndDecode(&decoder);
@@ -2773,7 +2786,15 @@ _exit:
 }
 
 void tFreeMDropStreamReq(SMDropStreamReq *pReq) {
-  taosMemoryFreeClear(pReq->name);
+  if (NULL == pReq) {
+    return;
+  }
+  if (pReq->name) {
+    for (int32_t i = 0; i < pReq->count; i++) {
+      taosMemoryFreeClear(pReq->name[i]);
+    }
+    taosMemoryFreeClear(pReq->name);
+  }
 }
 
 static FORCE_INLINE void tFreeStreamCalcScan(void* pScan) {
