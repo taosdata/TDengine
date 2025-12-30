@@ -22,6 +22,7 @@
 #include "parser.h"
 #include "planInt.h"
 #include "systable.h"
+#include "taoserror.h"
 #include "tarray.h"
 #include "tglobal.h"
 #include "ttime.h"
@@ -5079,7 +5080,86 @@ static bool splitCacheLastFuncOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   return true;
 }
 
-static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, SAggLogicNode* pAgg, SNodeList* pFunc,
+/*
+  This function is used to update the scan node(scan columns, targets) after
+  the cache last/last_row function is split.
+*/
+static int32_t splitCacheLastFuncOptUpdateScanNode(SAggLogicNode* pAgg,
+                                                   SNodeList* pFunc,
+                                                   bool isNewAgg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SNode* pNode = nodesListGetNode(pAgg->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+  SNodeList*      pOldScanCols = NULL;
+  TSWAP(pScan->pScanCols, pOldScanCols);
+  nodesDestroyList(pScan->pScanPseudoCols);
+  pScan->pScanPseudoCols = NULL;
+  nodesDestroyList(pScan->node.pTargets);
+  pScan->node.pTargets = NULL;
+  SNodeListNode* list = NULL;
+  code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&list);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  list->pNodeList = pFunc;
+  code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_COL,
+                                     &pScan->pScanCols);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_TAG,
+                                     &pScan->pScanPseudoCols);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  bool found = false;
+  FOREACH(pNode, pScan->pScanCols) {
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    FOREACH(pNode, pOldScanCols) {
+      if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
+        SNode* pTmp = NULL;
+        code = nodesCloneNode(pNode, &pTmp);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = nodesListMakeStrictAppend(&pScan->pScanCols, pTmp);
+        }
+        break;
+      }
+    }
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  code = createColumnByRewriteExprs(pScan->pScanPseudoCols,
+                                    &pScan->node.pTargets);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  OPTIMIZE_FLAG_CLEAR_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+
+_return:
+  nodesFree((void*)list);
+  nodesDestroyList(pOldScanCols);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (isNewAgg) {
+      nodesDestroyNode((SNode*)pAgg);
+    }
+    planError("failed to execute %s at line %d, code:%d - %s",
+              __func__, lino, code, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg,
+                                                       SAggLogicNode* pAgg,
+                                                       SNodeList* pFunc,
                                                        SNodeList* pTargets) {
   SAggLogicNode* pNew = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG, (SNode**)&pNew);
@@ -5128,68 +5208,9 @@ static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, 
     return code;
   }
 
-  SNode* pNode = nodesListGetNode(pNew->node.pChildren, 0);
-  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
-    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-    SNodeList*      pOldScanCols = NULL;
-    TSWAP(pScan->pScanCols, pOldScanCols);
-    nodesDestroyList(pScan->pScanPseudoCols);
-    pScan->pScanPseudoCols = NULL;
-    nodesDestroyList(pScan->node.pTargets);
-    pScan->node.pTargets = NULL;
-    SNodeListNode* list = NULL;
-    code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&list);
-    if (!list) {
-      nodesDestroyNode((SNode*)pNew);
-      return code;
-    }
-    list->pNodeList = pFunc;
-    code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_COL, &pScan->pScanCols);
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pNew);
-      return code;
-    }
-    code = nodesCollectColumnsFromNode((SNode*)list, NULL, COLLECT_COL_TYPE_TAG, &pScan->pScanPseudoCols);
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pNew);
-      return code;
-    }
-    nodesFree(list);
-    bool found = false;
-    FOREACH(pNode, pScan->pScanCols) {
-      if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      FOREACH(pNode, pOldScanCols) {
-        if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
-          SNode* pTmp = NULL;
-          code = nodesCloneNode(pNode, &pTmp);
-          if (TSDB_CODE_SUCCESS == code) {
-            code = nodesListMakeStrictAppend(&pScan->pScanCols, pTmp);
-          }
-          break;
-        }
-      }
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pNew);
-        return code;
-      }
-    }
-    nodesDestroyList(pOldScanCols);
-    code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pNew);
-      return code;
-    }
-    code = createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets);
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pNew);
-      return code;
-    }
-    OPTIMIZE_FLAG_CLEAR_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+  code = splitCacheLastFuncOptUpdateScanNode(pNew, pFunc, true);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
   }
 
   *pNewAgg = pNew;
@@ -5370,6 +5391,9 @@ static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan*
   code = splitCacheLastFuncOptCreateAggLogicNode(&pNewAgg, pAgg, pSplitAggFuncList, pTargets);
   if (TSDB_CODE_SUCCESS == code) {
     code = splitCacheLastFuncOptModifyAggLogicNode(pAgg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = splitCacheLastFuncOptUpdateScanNode(pAgg, pAgg->pAggFuncs, false);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = splitCacheLastFuncOptCreateMergeLogicNode(&pMerge, pNewAgg, pAgg);
