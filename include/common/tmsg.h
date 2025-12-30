@@ -4871,7 +4871,8 @@ typedef struct {
 } SMqVDeleteRsp;
 
 typedef struct {
-  char*  name;
+  char**  name;
+  int32_t count;
   int8_t igNotExists;
 } SMDropStreamReq;
 

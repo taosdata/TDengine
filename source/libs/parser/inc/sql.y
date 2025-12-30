@@ -1377,7 +1377,7 @@ full_view_name(A) ::= db_name(B) NK_DOT view_name(C).                           
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(A) full_stream_name(B) stream_trigger(C)
         stream_outtable_opt(D) as_subquery_opt(E).                                { pCxt->pRootNode = createCreateStreamStmt(pCxt, A, B, C, D, E); }
-cmd ::= DROP STREAM exists_opt(A) full_stream_name(B).                            { pCxt->pRootNode = createDropStreamStmt(pCxt, A, B); }
+cmd ::= DROP STREAM exists_opt(A) stream_name_list(B).                            { pCxt->pRootNode = createDropStreamStmt(pCxt, A, B); }
 cmd ::= STOP STREAM exists_opt(A) full_stream_name(B).                            { pCxt->pRootNode = createPauseStreamStmt(pCxt, A, B); }
 cmd ::= START STREAM exists_opt(A) ignore_opt(C) full_stream_name(B).             { pCxt->pRootNode = createResumeStreamStmt(pCxt, A, C, B); }
 cmd ::= RECALCULATE STREAM full_stream_name(A) recalculate_range(B).              { pCxt->pRootNode = createRecalcStreamStmt(pCxt, A, B); }
@@ -1388,6 +1388,11 @@ recalculate_range(A) ::= FROM time_point(B) TO time_point(C).                   
 
 full_stream_name(A) ::= stream_name(B).                                           { A = createStreamNode(pCxt, NULL, &B); }
 full_stream_name(A) ::= db_name(B) NK_DOT stream_name(C).                         { A = createStreamNode(pCxt, &B, &C); }
+
+%type stream_name_list                                                            { SNodeList* }
+%destructor stream_name_list                                                      { nodesDestroyList($$); }
+stream_name_list(A) ::= full_stream_name(B).                                      { A = createNodeList(pCxt, B); }
+stream_name_list(A) ::= stream_name_list(B) NK_COMMA full_stream_name(C).         { A = addNodeToList(pCxt, B, C); }
 
 /********** stream_outtable **********/
 stream_outtable_opt(A) ::= .                                                                                                { A = NULL; }

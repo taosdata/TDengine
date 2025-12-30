@@ -813,8 +813,8 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
   SUserObj   *pOperUser = NULL;
-  STrans     *pTrans = NULL;
-  int32_t     code = 0, lino = 0;
+  int32_t     code = 0;
+  int32_t     notExistNum = 0;
 
   SMDropStreamReq dropReq = {0};
   int64_t         tss = taosGetTimestampMs();
@@ -824,101 +824,162 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  mDebug("recv drop stream:%s msg", dropReq.name);
+  mDebug("recv drop stream msg, count:%d", dropReq.count);
 
-  code = mndAcquireStream(pMnode, dropReq.name, &pStream);
-  if (pStream == NULL || code != 0) {
-    if (dropReq.igNotExists) {
-      mInfo("stream:%s not exist, ignore not exist is set, drop stream exec done with success", dropReq.name);
+  // Acquire user object for privilege check
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
+  if (code != 0) {
+    tFreeMDropStreamReq(&dropReq);
+    TAOS_RETURN(code);
+  }
+
+  // check if all streams exist
+  if (!dropReq.igNotExists) {
+    for (int32_t i = 0; i < dropReq.count; i++) {
+      if (!sdbCheckExists(pMnode->pSdb, SDB_STREAM, dropReq.name[i])) {
+        mError("stream:%s not exist failed to drop it", dropReq.name[i]);
+        mndReleaseUser(pMnode, pOperUser);
+        tFreeMDropStreamReq(&dropReq);
+        TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
+      }
+    }
+  }
+
+  // Create a single transaction for all stream drops
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, MND_STREAM_DROP_NAME);
+  if (pTrans == NULL) {
+    mError("failed to create drop stream transaction since %s", tstrerror(terrno));
+    code = terrno;
+    mndReleaseUser(pMnode, pOperUser);
+    tFreeMDropStreamReq(&dropReq);
+    TAOS_RETURN(code);
+  }
+  pTrans->ableToBeKilled = true;
+
+  // Process all streams and add them to the transaction
+  for (int32_t i = 0; i < dropReq.count; i++) {
+    char *streamName = dropReq.name[i];
+    mDebug("drop stream[%d/%d]: %s", i + 1, dropReq.count, streamName);
+
+    code = mndAcquireStream(pMnode, streamName, &pStream);
+    if (pStream == NULL || code != 0) {
+      mWarn("stream:%s not exist, ignore not exist is set, drop stream exec done with success", streamName);
       sdbRelease(pMnode->pSdb, pStream);
-      tFreeMDropStreamReq(&dropReq);
-      return 0;
-    } else {
-      mError("stream:%s not exist failed to drop it", dropReq.name);
-      tFreeMDropStreamReq(&dropReq);
-      TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
+      pStream = NULL;
+      notExistNum++;
+      continue;
     }
-  }
 
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
+    int64_t streamId = pStream->pCreate->streamId;
 
-  int64_t streamId = pStream->pCreate->streamId;
+    if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
+                                              NULL)) ||
+        (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_STREAM, pStream->ownerId,
+                                         pStream->pCreate->streamDB, pStream->pCreate->name))) {
+      mstsError("user %s failed to drop stream %s since %s", pReq->info.conn.user, streamName, tstrerror(code));
+      sdbRelease(pMnode->pSdb, pStream);
+      pStream = NULL;
+      mndTransDrop(pTrans);
+      pTrans = NULL;
+      goto _OVER;
+    }
 
-  // code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
-  TAOS_CHECK_EXIT(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
-                                                NULL));
-  TAOS_CHECK_EXIT(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_STREAM, pStream->ownerId,
-                                           pStream->pCreate->streamDB, pStream->pCreate->name));
+    if (pStream->pCreate->tsmaId != 0) {
+      mstsDebug("try to drop tsma related stream, tsmaId:%" PRIx64, pStream->pCreate->tsmaId);
 
-  if (pStream->pCreate->tsmaId != 0) {
-    mstsDebug("try to drop tsma related stream, tsmaId:%" PRIx64, pStream->pCreate->tsmaId);
-
-    void    *pIter = NULL;
-    SSmaObj *pSma = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
-    while (pIter) {
-      if (pSma && pSma->uid == pStream->pCreate->tsmaId) {
-        sdbRelease(pMnode->pSdb, pSma);
-        sdbCancelFetch(pMnode->pSdb, pIter);
-        code = TSDB_CODE_TSMA_MUST_BE_DROPPED;
-
-        mstsError("refused to drop tsma-related stream %s since tsma still exists", dropReq.name);
-        TAOS_CHECK_EXIT(code);
-      }
-
-      if (pSma) {
-        sdbRelease(pMnode->pSdb, pSma);
-      }
-
+      void    *pIter = NULL;
+      SSmaObj *pSma = NULL;
       pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
+      while (pIter) {
+        if (pSma && pSma->uid == pStream->pCreate->tsmaId) {
+          sdbRelease(pMnode->pSdb, pSma);
+          sdbRelease(pMnode->pSdb, pStream);
+          pStream = NULL;
+
+          sdbCancelFetch(pMnode->pSdb, pIter);
+          code = TSDB_CODE_TSMA_MUST_BE_DROPPED;
+
+          mstsError("refused to drop tsma-related stream %s since tsma still exists", streamName);
+          mndTransDrop(pTrans);
+          pTrans = NULL;
+          goto _OVER;
+        }
+
+        if (pSma) {
+          sdbRelease(pMnode->pSdb, pSma);
+        }
+
+        pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
+      }
     }
+
+    mstsInfo("start to drop stream %s", pStream->pCreate->name);
+
+    pStream->updateTime = taosGetTimestampMs();
+
+    atomic_store_8(&pStream->userDropped, 1);
+
+    MND_STREAM_SET_LAST_TS(STM_EVENT_DROP_STREAM, pStream->updateTime);
+
+    msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
+
+    // Append drop stream operation to the transaction
+    code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_DROPPED);
+    if (code) {
+      mstsError("trans:%d, failed to append drop stream %s trans since %s", pTrans->id, streamName, tstrerror(code));
+      sdbRelease(pMnode->pSdb, pStream);
+      pStream = NULL;
+      // mndStreamTransAppend already called mndTransDrop on failure, set pTrans to NULL to avoid double free
+      pTrans = NULL;
+      goto _OVER;
+    }
+
+    sdbRelease(pMnode->pSdb, pStream);
+    pStream = NULL;
+
+    mstsDebug("drop stream %s added to transaction", streamName);
   }
 
-  mstsInfo("start to drop stream %s", pStream->pCreate->name);
-
-  pStream->updateTime = taosGetTimestampMs();
-
-  atomic_store_8(&pStream->userDropped, 1);
-
-  MND_STREAM_SET_LAST_TS(STM_EVENT_DROP_STREAM, pStream->updateTime);
-
-  msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
-
-  code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, &pTrans);
-  if (pTrans == NULL || code) {
-    mstsError("failed to drop stream %s since %s", dropReq.name, tstrerror(code));
-    TAOS_CHECK_EXIT(code);
+  // Prepare and execute the transaction for all streams
+  if (notExistNum < dropReq.count) {
+    code = mndTransPrepare(pMnode, pTrans);
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+      mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, tstrerror(code));
+      mndTransDrop(pTrans);
+      goto _OVER;
+    }
+    mInfo("trans:%d, drop stream transaction prepared for %d streams", pTrans->id, dropReq.count - notExistNum);
+  } else {
+    // All streams don't exist, no need to prepare transaction
+    mndTransDrop(pTrans);
+    pTrans = NULL;
   }
 
-  // drop stream
-  code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_DROPPED);
-  if (code) {
-    mstsError("trans:%d, failed to append drop stream trans since %s", pTrans->id, tstrerror(code));
-    TAOS_CHECK_EXIT(code);
-  }
-
-  code = mndTransPrepare(pMnode, pTrans);
-  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mstsError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, tstrerror(code));
-    TAOS_CHECK_EXIT(code);
-  }
-
-  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE && notExistNum < dropReq.count) {
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;
-    auditRecord(pReq, pMnode->clusterId, "dropStream", "", pStream->pCreate->streamDB, NULL, 0, duration, 0);
+    // Use first stream's database for audit (assuming all streams are from same db in batch)
+    if (dropReq.count > 0) {
+      SStreamObj *pFirstStream = NULL;
+      if (mndAcquireStream(pMnode, dropReq.name[0], &pFirstStream) == 0 && pFirstStream != NULL) {
+        auditRecord(pReq, pMnode->clusterId, "dropStream", "", pFirstStream->pCreate->streamDB, NULL, 0, duration, 0);
+        sdbRelease(pMnode->pSdb, pFirstStream);
+      }
+    }
   }
 
-  mstsDebug("drop stream %s half completed", dropReq.name);
-  code = TSDB_CODE_ACTION_IN_PROGRESS;
+  // If any stream was successfully added to transaction, return ACTION_IN_PROGRESS
+  // Otherwise, all streams don't exist (and igNotExists is set), return SUCCESS
+  code = (notExistNum < dropReq.count) ? TSDB_CODE_ACTION_IN_PROGRESS : TSDB_CODE_SUCCESS;
 
-_exit:
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mstsError("failed to drop stream %s at line %d since %s", dropReq.name, lino, tstrerror(code));
+_OVER:
+  if (pStream) {
+    sdbRelease(pMnode->pSdb, pStream);
   }
-  sdbRelease(pMnode->pSdb, pStream);
-  mndTransDrop(pTrans);
+  if (pTrans) {
+    mndTransDrop(pTrans);
+  }
   mndReleaseUser(pMnode, pOperUser);
   tFreeMDropStreamReq(&dropReq);
   TAOS_RETURN(code);

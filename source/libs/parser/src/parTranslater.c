@@ -16137,17 +16137,38 @@ _return:
 }
 
 static int32_t translateDropStream(STranslateContext* pCxt, SDropStreamStmt* pStmt) {
-  SMDropStreamReq req = {0};
-  SName           name;
-  int32_t         code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pStream = NULL;
 
-  req.name = taosMemoryCalloc(1, TSDB_STREAM_FNAME_LEN);
-  if (NULL == req.name) {
-    PAR_ERR_JRET(terrno);
+  if (NULL == pStmt->pStreamList || LIST_LENGTH(pStmt->pStreamList) == 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "stream name cannot be empty");
   }
 
-  toName(pCxt->pParseCxt->acctId, pStmt->streamDbName, pStmt->streamName, &name);
-  PAR_ERR_JRET(tNameExtractFullName(&name, req.name));
+  SMDropStreamReq req = {0};
+  req.name = taosMemoryCalloc(LIST_LENGTH(pStmt->pStreamList), sizeof(char*));
+  if (NULL == req.name) {
+    code = terrno;
+    parserError("translateDropStream failed to allocate memory, code:%d", code);
+    return code;
+  }
+
+  int32_t i = 0;
+  FOREACH(pStream, pStmt->pStreamList) {
+    SName           name;
+    SStreamNode*    pStreamNode = (SStreamNode*)pStream;
+
+    toName(pCxt->pParseCxt->acctId, pStreamNode->dbName, pStreamNode->streamName, &name);
+    req.name[i] = taosMemoryCalloc(1, TSDB_STREAM_FNAME_LEN);
+    if (NULL == req.name[i]) {
+      code = terrno;
+      parserError("translateDropStream failed to allocate memory, code:%d", code);
+      goto _return;
+    }
+    PAR_ERR_JRET(tNameExtractFullName(&name, req.name[i]));
+    i++;
+  }
+
+  req.count = i;
   req.igNotExists = (int8_t)pStmt->ignoreNotExists;
   PAR_ERR_JRET(buildCmdMsg(pCxt, TDMT_MND_DROP_STREAM, (FSerializeFunc)tSerializeSMDropStreamReq, &req));
 
@@ -17565,7 +17586,12 @@ static int32_t buildCreateTSMAReqBuildCreateDropStreamReq(STranslateContext* pCx
     PAR_ERR_JRET(TSDB_CODE_INVALID_MSG);
   }
 
-  dropreq.name = taosStrdup(createreq.name);
+  dropreq.count = 1;
+  dropreq.name = taosMemoryCalloc(1, sizeof(char*));
+  if (!dropreq.name) {
+    PAR_ERR_JRET(terrno);
+  }
+  dropreq.name[0] = taosStrdup(createreq.name);
   dropreq.igNotExists = false;
 
   pReq->dropStreamReqLen = tSerializeSMDropStreamReq(NULL, 0, &dropreq);
@@ -17910,11 +17936,16 @@ static int32_t translateDropTSMA(STranslateContext* pCxt, SDropTSMAStmt* pStmt) 
   PAR_ERR_JRET(tNameExtractFullName(&name, dropReq.name));
   dropReq.igNotExists = pStmt->ignoreNotExists;
 
-  dropStreamReq.name = taosMemoryCalloc(1, TSDB_STREAM_FNAME_LEN);
+  dropStreamReq.count = 1;
+  dropStreamReq.name = taosMemoryCalloc(1, sizeof(char*));
   if (NULL == dropStreamReq.name) {
     PAR_ERR_JRET(terrno);
   }
-  PAR_ERR_JRET(tNameExtractFullName(&name, dropStreamReq.name));
+  dropStreamReq.name[0] = taosMemoryCalloc(1, TSDB_STREAM_FNAME_LEN);
+  if (NULL == dropStreamReq.name[0]) {
+    PAR_ERR_JRET(terrno);
+  }
+  PAR_ERR_JRET(tNameExtractFullName(&name, dropStreamReq.name[0]));
 
   PAR_ERR_JRET(getTsma(pCxt, &name, &pTsma));
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pTsma->tb, &name);
