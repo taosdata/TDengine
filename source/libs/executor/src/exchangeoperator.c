@@ -1156,9 +1156,12 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
   if (pSource->localExec) {
     SDataBuf pBuf = {0};
-    int32_t  code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId, pTaskInfo->id.queryId,
-                                               pSource->clientId, pSource->taskId, 0, pSource->execId, &pBuf.pData,
-                                               pTaskInfo->localFetch.explainRes);
+    int32_t  code =
+      (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId,
+                                  pTaskInfo->id.queryId, pSource->clientId,
+                                  pSource->taskId, 0, pSource->execId,
+                                  &pBuf.pData,
+                                  pTaskInfo->localFetch.explainRes);
     code = loadRemoteDataCallback(pWrapper, &pBuf, code);
     taosMemoryFree(pWrapper);
     QUERY_CHECK_CODE(code, lino, _end);
