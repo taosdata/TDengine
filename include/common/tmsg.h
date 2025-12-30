@@ -1545,7 +1545,6 @@ bool isValidDateTimeRange(SDateTimeRange* pRange);
 int32_t tEncodeSDateTimeRange(SEncoder* pEncoder, const SDateTimeRange* pRange);
 int32_t tDecodeSDateTimeRange(SDecoder* pDecoder, SDateTimeRange* pRange);
 
-
 // SDateTimeWhiteListItem is used by server internally to represent datetime ranges.
 typedef struct {
   bool absolute;    // true: absolute datetime range; false: weekly recurring datetime range

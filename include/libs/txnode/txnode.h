@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TMQTT_H_
-#define _TD_TMQTT_H_
+#ifndef _TD_TXNODE_H_
+#define _TD_TXNODE_H_
 
 #undef malloc
 #define malloc malloc
@@ -100,4 +100,4 @@ void xnodeMgmtStopXnoded(void);
 
 void getXnodedPipeName(char *pipeName, int32_t size);
 
-#endif  // _TD_TMQTT_H_
+#endif  // _TD_TXNODE_H_

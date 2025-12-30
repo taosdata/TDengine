@@ -1,32 +1,32 @@
 ---
-sidebar_label: 数据接入
-title: 数据接入
-description: "Xnode 分布式节点管理和任务管理说明"
+sidebar_label: Data Ingestion
+title: Data Ingestion
+description: "Xnode distributed node and task management instructions"
 ---
 
-# 数据同步 SQL 手册
+# Data Synchronization SQL Manual
 
-本文档介绍用于管理 TDengine 数据同步功能的 SQL 命令，包括 Xnode 节点、同步 Task 任务以及 Job 分片的管理。
+This document introduces SQL commands for managing TDengine data synchronization functionality, including Xnode nodes, synchronization Task jobs, and Job shards.
 
-## XNODE 节点管理
+## XNODE Node Management
 
-XNODE 节点是数据同步服务的基本执行单元，负责具体的数据传输工作。
+XNODE nodes are the basic execution units of the data synchronization service, responsible for specific data transmission tasks.
 
-### 创建节点
+### Create Node
 
-**语法**
+**Syntax**
 
 ```sql
 CREATE XNODE 'url'
 CREATE XNODE 'url' USER name PASS 'password';
 ```
 
-**参数说明**
+**Parameter Description**
 
-- **url**: Xnode 节点的地址，格式为 `host:port`
-- 首次创建需要指定用户名和密码，用于 xnoded 连接 taosd
+- **url**: The address of the Xnode node, in the format `host:port`
+- Username and password need to be specified when creating for the first time, used for xnoded to connect to taosd
 
-**示例**
+**Example**
 
 ```
 taos> CREATE XNODE "h1:6050";
@@ -36,21 +36,21 @@ taos> CREATE XNODE 'x1:6050' USER root PASS 'taosdata';
 Create OK, 0 row(s) affected (0.050798s)
 ```
 
-### 查看节点
+### View Nodes
 
-**语法**
+**Syntax**
 
 ```sql
 SHOW XNODES
 ```
 
-**示例**
+**Example**
 
 ```sql
 taos> SHOW XNODES;
 ```
 
-输出结果：
+Output result:
 
 ```
 id | url     | status | create_time                 | update_time             |
@@ -59,42 +59,42 @@ id | url     | status | create_time                 | update_time             |
 Query OK, 1 row(s) in set (0.005518s)
 ```
 
-### 清理节点
+### Drain Node
 
-将一个节点已有任务重新分配到其他节点中执行。
+Reassign existing tasks of a node to other nodes for execution.
 
-**语法**
+**Syntax**
 
 ```sql
 DRAIN XNODE id
 ```
 
-**参数说明**
+**Parameter Description**
 
-- **id**: Xnode 节点的 ID
+- **id**: The ID of the Xnode node
 
-**示例**
+**Example**
 
 ```sql
 taos> DRAIN XNODE 4;
 Query OK, 0 row(s) affected (0.014246s)
 ```
 
-### 删除节点
+### Delete Node
 
-**语法**
+**Syntax**
 
 ```sql
 DROP XNODE [FORCE] id | 'url'
 ```
 
-**参数说明**
+**Parameter Description**
 
-- **id**: Xnode 节点的 ID
-- **url**: Xnode 节点的地址
-- **FORCE**: 强制删除节点
+- **id**: The ID of the Xnode node
+- **url**: The address of the Xnode node
+- **FORCE**: Force delete node
 
-**示例**
+**Example**
 
 ```sql
 taos> DROP XNODE 1;
@@ -105,13 +105,13 @@ Drop OK, 0 row(s) affected (0.038593s)
 ```
 
 
-## TASK 任务管理
+## TASK Job Management
 
-TASK 任务定义了数据同步的源端、目标端以及数据解析规则。
+TASK jobs define the source, destination, and data parsing rules for data synchronization.
 
-### 创建任务
+### Create Task
 
-**语法**
+**Syntax**
 
 ```sql
 CREATE XNODE TASK 'name'
@@ -127,45 +127,45 @@ task_options:
   [ REASON 'reason' ]
 ```
 
-语法说明：task_options 各选项可同时使用，空格分隔，顺序无关
+Syntax note: All task_options can be used simultaneously, separated by spaces, order independent
 
-**参数说明**
+**Parameter Description**
 
-| 参数         | 说明                                |
-| :----------- | :---------------------------------- |
-| **name**     | 任务名称                            |
-| **from_dns** | 源端连接字符串（如 `mqtt://...`）   |
-| **dbname**   | 数据库名称                          |
-| **topic**    | Topic 名称                          |
-| **to_dns**   | 目标端连接字符串（如 `taos://...`） |
-| **parser**   | 数据解析配置（JSON 格式）           |
-| **status**   | 任务状态                            |
-| **xnodeId**  | 任务所在的 xnode 节点 ID            |
-| **viaId**    | 任务所在的 agent 的 ID              |
-| **reason**   | 任务最近执行失败原因                |
+| Parameter    | Description                              |
+| :----------- | :--------------------------------------- |
+| **name**     | Task name                                |
+| **from_dns** | Source connection string (e.g., `mqtt://...`) |
+| **dbname**   | Database name                            |
+| **topic**    | Topic name                               |
+| **to_dns**   | Destination connection string (e.g., `taos://...`) |
+| **parser**   | Data parsing configuration (JSON format) |
+| **status**   | Task status                              |
+| **xnodeId**  | The xnode node ID where the task resides |
+| **viaId**    | The agent ID where the task resides      |
+| **reason**   | Reason for recent task execution failure |
 
-**示例**
+**Example**
 
 ```sql
 taos> CREATE XNODE TASK "t4" FROM 'kafka://localhost:9092?topics=abc&group=abcgroup' TO 'taos+ws://localhost:6041/test' WITH parser '{"model":{"name":"cc_abc","using":"cc","tags":["g"],"columns":["ts","b"]},"mutate":[{"map":{"ts":{"cast":"ts","as":"TIMESTAMP(ms)"},"b":{"cast":"a","as":"VARCHAR"},"g":{"value":"1","as":"INT"}}}]}';
 Create OK, 0 row(s) affected (0.038959s)
 ```
 
-### 查看任务
+### View Tasks
 
-**语法**
+**Syntax**
 
 ```sql
 SHOW XNODE TASKS;
 ```
 
-**示例**
+**Example**
 
 ```sql
 taos> SHOW XNODE TASKS;
 ```
 
-输出结果：
+Output result:
 
 ```
 taos> SHOW XNODE TASKS \G;
@@ -184,46 +184,46 @@ update_time: 2025-12-29 13:48:21.058
 Query OK, 1 row(s) in set (0.005281s)
 ```
 
-### 启动任务
+### Start Task
 
-**语法**
+**Syntax**
 
 ```sql
 START XNODE TASK id | 'name';
 ```
 
-**示例**
+**Example**
 
 ```sql
 taos> START XNODE TASK 1;
 DB error: Xnode url response http code not 200 error [0x8000800C] (0.002160s)
 ```
 
-### 停止任务
+### Stop Task
 
-**语法**
+**Syntax**
 
 ```sql
 STOP XNODE TASK id | 'name';
 ```
 
-**示例**
+**Example**
 
 ```sql
 taos> STOP XNODE TASK 1;
 DB error: Xnode url response http code not 200 error [0x8000800C] (0.002047s)
 ```
 
-### 修改任务
+### Modify Task
 
-**语法**
+**Syntax**
 
 ```sql
 ALTER XNODE TASK { id | 'name' }
   [ FROM { 'from_dns' | DATABASE 'dbname' | TOPIC 'topic' } ]
   [ TO { 'to_dns' | DATABASE 'dbname' } ]
   [ WITH alter_options ]
-  
+
 alter_options:
   [ PARSER 'parser' ]
   [ NAME 'name' ]
@@ -233,24 +233,24 @@ alter_options:
   [ REASON 'reason' ]
 ```
 
-语法说明：task_options 各选项含义与创建任务相同
+Syntax note: The meaning of task_options is the same as when creating a task
 
-**示例**
+**Example**
 
 ```sql
 taos> ALTER XNODE TASK 3 FROM 'pulsar://zgc...' TO 'testdb' WITH xnode_id 33 via 333 reason 'zgc_test';
 Query OK, 0 row(s) affected (0.036077s)
 ```
 
-### 删除任务
+### Delete Task
 
-**语法**
+**Syntax**
 
 ```sql
 DROP XNODE TASK id | 'name';
 ```
 
-**示例**
+**Example**
 
 ```sql
 taos> DROP XNODE TASK 3;
@@ -259,19 +259,19 @@ Drop OK, 0 row(s) affected (0.038191s)
 
 
 
-## JOB 任务分片管理
+## JOB Shard Management
 
-JOB 是 TASK 任务的执行分片，支持手动和自动负载均衡。
+JOB is the execution shard of a TASK job, supporting both manual and automatic load balancing.
 
-### 查看 JOB 分片
+### View JOB Shards
 
-**语法**
+**Syntax**
 
 ```sql
 SHOW XNODE JOBS;
 ```
 
-**示例**
+**Example**
 
 ```sql
 taos> SHOW XNODE JOBS\G;
@@ -290,34 +290,34 @@ Query OK, 1 row(s) in set (0.004714s)
 
 
 
-### 手动负载均衡
+### Manual Rebalance
 
-**语法**
+**Syntax**
 
 ```sql
 REBALANCE XNODE JOB jid WITH XNODE_ID xnodeId;
 ```
 
-语法说明：手动负载均衡当前只支持 xnode_id 参数，必须附带 xnode id 信息。
+Syntax note: Manual rebalance currently only supports the xnode_id parameter, which must include xnode id information.
 
-**示例**
+**Example**
 
 ```sql
 taos> REBALANCE XNODE JOB 1 WITH xnode_id 1;
 Query OK, 0 row(s) affected (0.011808s)
 ```
 
-### 自动负载均衡
+### Automatic Rebalance
 
-**语法**
+**Syntax**
 
 ```sql
 REBALANCE XNODE JOBS [ WHERE job_conditions ]
 ```
 
-语法说明：WHERE job_conditions 可选，是用来过滤符合条件的 job 数据。不支持函数，支持 SHOW XNODE JOBS 命令中出现的所有字段。没有 WHERE 条件语句时表示所有 job 均进行自动负载均衡。
+Syntax note: WHERE job_conditions is optional, used to filter job data that meets the conditions. Functions are not supported, all fields that appear in the SHOW XNODE JOBS command are supported. Without a WHERE condition statement, it means all jobs will undergo automatic load balancing.
 
-**示例**
+**Example**
 
 ```sql
 taos> REBALANCE XNODE JOBS WHERE id>1;

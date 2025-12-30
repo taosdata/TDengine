@@ -97,4 +97,4 @@ void mndCloseXnd();
 
 void getXnodedPipeName(char *pipeName, int32_t size);
 
-#endif /*_TD_BNODE_H_*/
+#endif /*_TD_XNODE_H_*/
