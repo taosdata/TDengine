@@ -53,6 +53,36 @@ export default {
           type: 'input'
         },
         {
+          label: 'PI Server Username',
+          description: 'PI Server username.',
+          field: 'PIServerUser',
+          required: false,
+          placeholder: 'pidemo',
+          pattern: null,
+          defaultValue: '',
+          type: 'input'
+        },
+        {
+          label: 'PI Server Password',
+          description: 'PI Server password.',
+          field: 'PIServerPassword',
+          required: false,
+          placeholder: '********',
+          pattern: null,
+          defaultValue: '',
+          type: 'password'
+        },
+        {
+          label: 'PI Server Domain',
+          description: 'PI Server domain.',
+          field: 'PIServerDomain',
+          required: false,
+          placeholder: '',
+          pattern: null,
+          defaultValue: '',
+          type: 'input'
+        },
+        {
           label: 'AF Database Name',
           description: 'AF database name',
           field: 'subject',
