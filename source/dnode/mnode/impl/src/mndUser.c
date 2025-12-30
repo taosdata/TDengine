@@ -3620,7 +3620,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   } else {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
-  code = mndAlterUser(pMnode, &newUser, pReq);
+  code = mndAlterUser(pMnode, &newUser, pReq, NULL);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _exit:
