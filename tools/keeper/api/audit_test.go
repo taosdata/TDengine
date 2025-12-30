@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -1131,15 +1132,22 @@ func TestAudit_createDBSql(t *testing.T) {
 	}
 }
 
+func IsEnterpriseTest() bool {
+	if _, ok := os.LookupEnv("TEST_ENTERPRISE"); ok {
+		return true
+	}
+	return false
+}
+
 func TestAuditV2CustomDBWithToken(t *testing.T) {
-	t.Skip()
+	if !IsEnterpriseTest() {
+		t.Skip("only for TDengine Enterprise")
+	}
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
 	cfg := config.GetCfg()
-	cfg.TDengine.Host = "192.168.1.98"
-
 	audit := NewAudit(cfg)
 	audit.Init(router)
 
@@ -1225,14 +1233,14 @@ func TestAuditV2CustomDBWithToken(t *testing.T) {
 }
 
 func TestAuditCustomDBWithToken(t *testing.T) {
-	t.Skip()
+	if !IsEnterpriseTest() {
+		t.Skip("only for TDengine Enterprise")
+	}
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
 	cfg := config.GetCfg()
-	cfg.TDengine.Host = "192.168.1.98"
-
 	audit := NewAudit(cfg)
 	audit.Init(router)
 
@@ -1318,14 +1326,14 @@ func TestAuditCustomDBWithToken(t *testing.T) {
 }
 
 func TestAuditBatchCustomDBWithToken(t *testing.T) {
-	t.Skip()
+	if !IsEnterpriseTest() {
+		t.Skip("only for TDengine Enterprise")
+	}
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
 	cfg := config.GetCfg()
-	cfg.TDengine.Host = "192.168.1.98"
-
 	audit := NewAudit(cfg)
 	audit.Init(router)
 
@@ -1398,13 +1406,14 @@ func TestAuditBatchCustomDBWithToken(t *testing.T) {
 }
 
 func TestAuditV2SwitchDBAndToken(t *testing.T) {
-	t.Skip()
+	if !IsEnterpriseTest() {
+		t.Skip("only for TDengine Enterprise")
+	}
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
 	cfg := config.GetCfg()
-	cfg.TDengine.Host = "192.168.1.98"
 	cfg.Audit.Database.Name = "test_1767001978"
 
 	dbname := config.Conf.Audit.Database.Name

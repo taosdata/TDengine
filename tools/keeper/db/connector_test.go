@@ -7,6 +7,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"math"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -280,12 +281,21 @@ func TestConnectorQuery_ErrorPath_NoAuthExit_ReturnsError(t *testing.T) {
 	}
 }
 
+func IsEnterpriseTest() bool {
+	if _, ok := os.LookupEnv("TEST_ENTERPRISE"); ok {
+		return true
+	}
+	return false
+}
+
 func TestNewConnectorWithDbAndToken(t *testing.T) {
-	t.Skip()
+	if !IsEnterpriseTest() {
+		t.Skip("only for TDengine Enterprise")
+	}
 
 	config.InitConfig()
 
-	conn, err := NewConnector("root", "taosdata", "192.168.1.98", 6041, false)
+	conn, err := NewConnector("root", "taosdata", "localhost", 6041, false)
 	assert.NoError(t, err)
 	defer conn.Close()
 
@@ -304,11 +314,11 @@ func TestNewConnectorWithDbAndToken(t *testing.T) {
 	assert.NoError(t, err)
 	token := data.Data[0][0].(string)
 
-	conn1, err := NewConnectorWithDbAndToken("", "", token, "192.168.1.98", 6041, "test_1766988529", false)
+	conn1, err := NewConnectorWithDbAndToken("", "", token, "localhost", 6041, "test_1766988529", false)
 	assert.NoError(t, err)
 	defer conn1.Close()
 
-	connt, err := NewConnectorWithDbAndToken("root", "taosdata", token, "192.168.1.98", 6041, "test_1766988529", false)
+	connt, err := NewConnectorWithDbAndToken("root", "taosdata", token, "localhost", 6041, "test_1766988529", false)
 	assert.NoError(t, err)
 	defer connt.Close()
 

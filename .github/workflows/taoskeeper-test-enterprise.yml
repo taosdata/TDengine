@@ -67,6 +67,8 @@ jobs:
 
       - name: Run tests with coverage
         working-directory: tools/keeper
+        env:
+          TEST_ENTERPRISE: "true"
         run: |
           go mod tidy
           sudo go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'" -coverpkg=./... -coverprofile=coverage.out ./...
