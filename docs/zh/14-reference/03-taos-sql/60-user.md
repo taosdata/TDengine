@@ -150,7 +150,7 @@ Query OK, 0 of 0 rows affected (0.001160s)
 ### 创建令牌
 
 ```sql
-CREATE TOKEN token_name FROM USER user_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value]
+CREATE TOKEN [IF_NOT_EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value]
 ```
 
 令牌名称最长 31 个字节。
@@ -210,7 +210,7 @@ ALTER TOKEN token_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO v
 ### 删除令牌
 
 ```sql
-DROP TOKEN token_name;
+DROP TOKEN [IF_EXISTS] token_name;
 ```
 
 另外，删除用户时，其令牌会被同时级联删除。
