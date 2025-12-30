@@ -9327,7 +9327,7 @@ static int32_t jsonToGrantStmt(const SJson* pJson, void* pObj) {
         char* cleaned_token = token;
         while (*cleaned_token == ' ') cleaned_token++;
 
-        char*    endptr;
+        char*    endptr = NULL;
         uint64_t value = 0;
         TAOS_CHECK_RETURN(taosStr2Uint64(cleaned_token, &value));
 
