@@ -94,6 +94,7 @@ typedef struct SScanLogicNode {
   STimeWindow*       pExtScanRange;
   SNode*             pTimeRange;  // for create stream
   SNode*             pExtTimeRange;  // for create stream
+  SNode*             pPrimaryCond;   // for remote node, splited from filter conditions
   SName              tableName;
   bool               showRewrite;
   double             ratio;
@@ -549,6 +550,7 @@ typedef struct STableScanPhysiNode {
   STimeWindow*   pExtScanRange; 
   SNode*         pTimeRange;  // for create stream
   SNode*         pExtTimeRange;  // for create stream
+  SNode*         pPrimaryCond;   // for remote node, splited from filter conditions
   double         ratio;
   int32_t        dataRequired;
   SNodeList*     pDynamicScanFuncs;

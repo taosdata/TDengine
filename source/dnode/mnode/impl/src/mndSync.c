@@ -19,6 +19,7 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndToken.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
@@ -326,6 +327,12 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
     mndSetRestored(pMnode, false);
   }
 
+  code = mndTokenCacheRebuild(pMnode);
+  if (code != 0) {
+    mError("vgId:1, failed to rebuild token cache since %s", tstrerror(code));
+    mndSetRestored(pMnode, false);
+  }
+
   SyncIndex fsmIndex = mndSyncAppliedIndex(pFsm);
   if (commitIdx != fsmIndex) {
     mError("vgId:1, failed to sync restore, commitIdx:%" PRId64 " is not equal to appliedIdx:%" PRId64, commitIdx,
@@ -507,8 +514,8 @@ int32_t mndInitSync(SMnode *pMnode) {
   syncInfo.pFsm = mndSyncMakeFsm(pMnode);
 
   SSyncCfg *pCfg = &syncInfo.syncCfg;
-  mInfo("vgId:1, start to open mnode sync, replica:%d selfIndex:%d, electMs:%d, heartbeatMs:%d", pMgmt->numOfReplicas, 
-    pMgmt->selfIndex, syncInfo.electMs, syncInfo.heartbeatMs);
+  mInfo("vgId:1, start to open mnode sync, in syncMgmt, numOfTotalReplicas:%d selfIndex:%d, electMs:%d, heartbeatMs:%d",
+        pMgmt->numOfTotalReplicas, pMgmt->selfIndex, syncInfo.electMs, syncInfo.heartbeatMs);
   pCfg->totalReplicaNum = pMgmt->numOfTotalReplicas;
   pCfg->replicaNum = pMgmt->numOfReplicas;
   pCfg->myIndex = pMgmt->selfIndex;

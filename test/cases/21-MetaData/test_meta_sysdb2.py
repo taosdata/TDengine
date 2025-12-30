@@ -14,7 +14,7 @@
 
 from new_test_framework.utils import tdLog, tdSql
 
-NUM_INFO_DB_TABLES = 48  # number of system tables in information_schema
+NUM_INFO_DB_TABLES = 52  # number of system tables in information_schema
 NUM_PERF_DB_TABLES = 6  # number of system tables in performance_schema
 NUM_USER_DB_TABLES = 1  # number of user tables in test_meta_sysdb
 class TestMetaSysDb2:

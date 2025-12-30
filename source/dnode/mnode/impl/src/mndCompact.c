@@ -20,6 +20,7 @@
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 #include "mndVgroup.h"
 #include "tmisce.h"
 #include "tmsgcb.h"
@@ -304,6 +305,11 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
   SDbObj      *pDb = NULL;
   int32_t      code = 0;
   int32_t      lino = 0;
+  SUserObj    *pUser = NULL;
+  SDbObj      *pIterDb = NULL;
+  char         objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool         showAll = false, showIter = false;
+  int64_t      dbUid = 0;
 
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
@@ -316,9 +322,13 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
     }
   }
 
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), PRIV_SHOW_COMPACTS, PRIV_OBJ_DB, 0, _OVER);
+
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_COMPACT, pShow->pIter, (void **)&pCompact);
     if (pShow->pIter == NULL) break;
+
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pCompact->dbname, pCompact, RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_COMPACTS, _OVER);
 
     SColumnInfoData *pColInfo;
     SName            n;
@@ -350,9 +360,13 @@ int32_t mndRetrieveCompact(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, 
   }
 
 _OVER:
-  if (code != 0) mError("failed to retrieve at line:%d, since %s", lino, tstrerror(code));
-  pShow->numOfRows += numOfRows;
+  if (pUser) mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);
+  if (code != 0) {
+    mError("failed to retrieve compact at line %d since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  pShow->numOfRows += numOfRows;
   return numOfRows;
 }
 
@@ -532,7 +546,7 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_COMPACT_DB), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_COMPACT_DB), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndKillCompact(pMnode, pReq, pCompact), &lino, _OVER);
 

@@ -1224,6 +1224,7 @@ void freeExchangeGetBasicOperatorParam(void* pParam) {
   SExchangeOperatorBasicParam* pBasic = (SExchangeOperatorBasicParam*)pParam;
   if (pBasic->uidList) {
     taosArrayDestroy(pBasic->uidList);
+    pBasic->uidList = NULL;
   }
   if (pBasic->orgTbInfo) {
     taosArrayDestroy(pBasic->orgTbInfo->colMap);

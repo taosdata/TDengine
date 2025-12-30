@@ -37,11 +37,8 @@ SClientHbMgr clientHbMgr = {0};
 
 static int32_t hbCreateThread();
 static void    hbStopThread();
+static int32_t hbUpdateUserSessMertric(const char *user, SUserSessCfg *pCfg);
 static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *batchRsp);
-
-static int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) { return 0; }
-
-static int32_t hbMqHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) { return 0; }
 
 static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog,
                                         SAppHbMgr *pAppHbMgr) {
@@ -62,6 +59,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
     tscDebug("hb to update user auth, user:%s, version:%d", rsp->user, rsp->version);
 
     TSC_ERR_JRET(catalogUpdateUserAuthInfo(pCatalog, rsp));
+
   }
 
   if (numOfBatchs > 0) {
@@ -75,7 +73,7 @@ _return:
   return code;
 }
 
-static int32_t updateUserSessMetric(const char *user, SUserSessCfg *pCfg) {
+static int32_t hbUpdateUserSessMertric(const char *user, SUserSessCfg *pCfg) {
   int32_t code = 0;
   int32_t lino = 0;
   if (user == NULL || pCfg == NULL) {
@@ -161,16 +159,12 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
             }
           }
         }
-        code = sessMgtRemoveUser(pTscObj->user);
-        if (code != 0) {
-          tscError("failed to remove user session metric, user:%s, code:%d", pTscObj->user, code);  
-        }
         releaseTscObj(pReq->connKey.tscRid);
         continue;
       }
 
       pTscObj->authVer = pRsp->version;
-      if (updateUserSessMetric(pTscObj->user, &pRsp->sessCfg) != 0) {
+      if (hbUpdateUserSessMertric(pTscObj->user, &pRsp->sessCfg) != 0) {
         tscError("failed to update user session metric, user:%s", pTscObj->user);
       }
 
@@ -1247,10 +1241,10 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
 static FORCE_INLINE void hbMgrInitHandle() {
   // init all handle
   clientHbMgr.reqHandle[CONN_TYPE__QUERY] = hbQueryHbReqHandle;
-  clientHbMgr.reqHandle[CONN_TYPE__TMQ] = hbMqHbReqHandle;
+  clientHbMgr.reqHandle[CONN_TYPE__TMQ] = hbQueryHbReqHandle;
 
   clientHbMgr.rspHandle[CONN_TYPE__QUERY] = hbQueryHbRspHandle;
-  clientHbMgr.rspHandle[CONN_TYPE__TMQ] = hbMqHbRspHandle;
+  clientHbMgr.rspHandle[CONN_TYPE__TMQ] = hbQueryHbRspHandle;
 }
 
 int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
@@ -1291,7 +1285,8 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
     }
 
     switch (connKey->connType) {
-      case CONN_TYPE__QUERY: {
+      case CONN_TYPE__QUERY:
+      case CONN_TYPE__TMQ: {
         if (param.clusterId == 0) {
           // init
           param.clusterId = pOneReq->clusterId;
@@ -1690,7 +1685,7 @@ void hbMgrCleanUp() {
   }
 }
 
-int32_t hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, int64_t clusterId) {
+int32_t hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, const char* user, const char* tokenName, int64_t clusterId) {
   // init hash in activeinfo
   void *data = taosHashGet(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   if (data != NULL) {
@@ -1699,6 +1694,8 @@ int32_t hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, int64_t c
   SClientHbReq hbReq = {0};
   hbReq.connKey = connKey;
   hbReq.clusterId = clusterId;
+  tstrncpy(hbReq.user, user, sizeof(hbReq.user));
+  tstrncpy(hbReq.tokenName, tokenName, sizeof(hbReq.tokenName));
   // hbReq.info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
 
   TSC_ERR_RET(taosHashPut(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey), &hbReq, sizeof(SClientHbReq)));
@@ -1707,18 +1704,16 @@ int32_t hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, int64_t c
   return 0;
 }
 
-int32_t hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType) {
+int32_t hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, const char* user, const char* tokenName, int64_t clusterId, int8_t connType) {
   SClientHbKey connKey = {
       .tscRid = tscRefId,
       .connType = connType,
   };
 
   switch (connType) {
-    case CONN_TYPE__QUERY: {
-      return hbRegisterConnImpl(pAppHbMgr, connKey, clusterId);
-    }
+    case CONN_TYPE__QUERY:
     case CONN_TYPE__TMQ: {
-      return 0;
+      return hbRegisterConnImpl(pAppHbMgr, connKey, user, tokenName, clusterId);
     }
     default:
       return 0;

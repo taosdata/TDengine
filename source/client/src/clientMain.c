@@ -322,7 +322,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
   }
 
   STscObj *pObj = NULL;
-  int32_t  code = taos_connect_internal(ip, user, pass, NULL, NULL, db, port, CONN_TYPE__QUERY, &pObj);
+  int32_t  code = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY, &pObj);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
@@ -943,13 +943,15 @@ void taos_close_internal(void *taos) {
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("conn:0x%" PRIx64 ", try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
 
-  SSessParam para = {.type = SESSION_PER_USER, .value = -1};
-  code = sessMgtUpdateUserMetric((char *)pTscObj->user, &para);
+  SSessParam para = {.type = SESSION_PER_USER, .value = -1, .noCheck = 1};
+
+  code = tscUpdateSessMetric(pTscObj, &para);
   if (code != TSDB_CODE_SUCCESS) {
     tscWarn("conn:0x%" PRIx64 ", failed to update user:%s metric when close connection, code:%d", pTscObj->id,
             pTscObj->user, code);
-  } 
+  }
 
+  code = tscUnrefSessMetric(pTscObj);
   if (TSDB_CODE_SUCCESS != taosRemoveRef(clientConnRefPool, pTscObj->id)) {
     tscError("conn:0x%" PRIx64 ", failed to remove ref from conn pool", pTscObj->id);
   }
@@ -1648,6 +1650,59 @@ _return:
   return code;
 }
 
+// buffer is allocated by caller, len is in/out parameter, input is buffer length, output is actual length.
+// because this is a general purpose api, buffer is not null-terminated string even for string info, and
+// the return length is the actual length of the info, not including null-terminator.
+int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer, int* len) {
+  if (len == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  STscObj *pTscObj = acquireTscObj(*(int64_t *)taos);
+  if (pTscObj == NULL) {
+    return TSDB_CODE_TSC_DISCONNECTED;
+  }
+
+  int code = TSDB_CODE_SUCCESS;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+
+  switch (info) {
+    case TSDB_CONNECTION_INFO_USER: {
+      int userLen = strlen(pTscObj->user);
+      if (buffer == NULL || *len < userLen) {
+        *len = userLen;
+        TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);
+      } else {
+        *len = userLen;
+        (void)memcpy(buffer, pTscObj->user, userLen);
+      }
+      break;
+    }
+
+    case TSDB_CONNECTION_INFO_TOKEN: {
+      int tokenLen = strlen(pTscObj->tokenName);
+      if (tokenLen == 0) {
+        *len = 0;
+      } else if (buffer == NULL || *len < tokenLen) {
+        *len = tokenLen;
+        TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);
+      } else {
+        *len = tokenLen;
+        (void)memcpy(buffer, pTscObj->tokenName, tokenLen);
+      }
+      break;
+    }
+
+    default:
+        TSC_ERR_JRET(TSDB_CODE_INVALID_PARA);
+  }
+
+_return:
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  releaseTscObj(*(int64_t *)taos);
+  return code;
+}
+
 void destorySqlCallbackWrapper(SSqlCallbackWrapper *pWrapper) {
   if (NULL == pWrapper) {
     return;
@@ -1919,6 +1974,7 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .pTransporter = pTscObj->pAppInfo->pTransporter,
                            .pStmtCb = NULL,
                            .pUser = pTscObj->user,
+                           .userId = pTscObj->userId,
                            .pEffectiveUser = pRequest->effectiveUser,
                            .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
                            .enableSysInfo = pTscObj->sysInfo,
@@ -2913,7 +2969,7 @@ int32_t taos_connect_is_alive(TAOS *taos) {
     return terrno;
   }
 
-  code = sessMgtCheckConnStatus(pObj->user, &pObj->sessInfo);
+  code = tscCheckConnSessionMetric(pObj);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
 _error:

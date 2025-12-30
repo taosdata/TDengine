@@ -533,11 +533,13 @@ static int32_t pushDownCondOptCalcTimeRange(SOptimizeContext* pCxt, SScanLogicNo
   if (pCxt->pPlanCxt->topicQuery) {
     code = nodesMergeNode(pOtherCond, pPrimaryKeyCond);
   } else {
-    bool isStrict = false;
-    code = filterGetTimeRange(*pPrimaryKeyCond, &pScan->scanRange, &isStrict);
+    bool isStrict = false, hasRemoteNode = false;
+    code = filterGetTimeRange(*pPrimaryKeyCond, &pScan->scanRange, &isStrict, &hasRemoteNode);
     if (TSDB_CODE_SUCCESS == code) {
       if (isStrict) {
         nodesDestroyNode(*pPrimaryKeyCond);
+      } else if (hasRemoteNode) {
+        pScan->pPrimaryCond = *pPrimaryKeyCond;
       } else {
         code = nodesMergeNode(pOtherCond, pPrimaryKeyCond);
       }
@@ -9211,7 +9213,6 @@ static int32_t createPartAggNode(SAggLogicNode* pMergeAgg, SLogicNode** pOutput)
 
   *pOutput = (SLogicNode*)pPartAgg;
 
-  return code;
 _return:
   if (code) {
     planError("%s failed at line %d, code: %d", __func__, lino, code);

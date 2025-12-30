@@ -60,6 +60,7 @@ typedef struct {
   int8_t   connType;
   char     label[TSDB_LABEL_LEN];
   char     user[TSDB_UNI_LEN];  // meter ID
+  char     identifier[128];     // token or user
   int32_t  compatibilityVer;
   int32_t  compressSize;  // -1: no compress, 0 : all data compressed, size: compress data if larger than size
   int8_t   encryption;    // encrypt or not
@@ -105,6 +106,7 @@ typedef struct {
   
   // int32_t loadTlsCount;   
   // int8_t tlsLoading;
+  int8_t isToken;
   void *pTlsMgt;
 } SRpcInfo;
 #else
