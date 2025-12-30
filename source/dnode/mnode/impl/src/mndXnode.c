@@ -3407,30 +3407,7 @@ static int32_t mndRetrieveXnodeAgents(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
     pShow->pIter = sdbFetch(pSdb, SDB_XNODE_AGENT, pShow->pIter, (void **)&pObj);
     if (pShow->pIter == NULL) break;
 
-    // for (int32_t t = 0; t < pObj->numOfAlgos; ++t) {
-    // SArray *algos = pObj->algos[t];
-
-    // for (int32_t a = 0; a < taosArrayGetSize(algos); ++a) {
-    //   SXnodeAlgo *algo = taosArrayGet(algos, a);
-
-    //   cols = 0;
-    //   SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    //   code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
-    //   if (code != 0) goto _end;
-
-    //   STR_TO_VARSTR(buf, taosAnalysisAlgoType(t));
-    //   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    //   code = colDataSetVal(pColInfo, numOfRows, buf, false);
-    //   if (code != 0) goto _end;
-
-    //   STR_TO_VARSTR(buf, algo->name);
-    //   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    //   code = colDataSetVal(pColInfo, numOfRows, buf, false);
-    //   if (code != 0) goto _end;
-
-    //   numOfRows++;
-    // }
-    // }
+    // todo: add agent
 
     sdbRelease(pSdb, pObj);
   }
@@ -3445,12 +3422,6 @@ _end:
 static void mndCancelGetNextXnodeAgent(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetchByType(pSdb, pIter, SDB_XNODE_AGENT);
-}
-
-SJson *taosGetTasks(const char *url) {
-  // This function should send an HTTP request to the given URL and return the JSON response.
-  // The implementation is not provided here as it is not part of the original code.
-  return NULL;  // Placeholder
 }
 
 static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void *userdata) {

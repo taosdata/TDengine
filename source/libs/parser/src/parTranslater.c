@@ -13243,15 +13243,15 @@ static int32_t covertXNodeTaskOptions(SXnodeTaskOptions* pOptions, xTaskOptions*
   }
 
   pOpts->via = pOptions->via;
-  pOpts->trigger = xCreateCowStr(strlen(pOptions->trigger), pOptions->trigger, true);
-  pOpts->health = xCreateCowStr(strlen(pOptions->health), pOptions->health, true);
-  pOpts->parser = xCreateCowStr(strlen(pOptions->parser), pOptions->parser, true);
+  pOpts->trigger = xCreateCowStr(strlen(pOptions->trigger) + 1, pOptions->trigger, true);
+  pOpts->health = xCreateCowStr(strlen(pOptions->health) + 1, pOptions->health, true);
+  pOpts->parser = xCreateCowStr(strlen(pOptions->parser) + 1, pOptions->parser, true);
 
   pOpts->optionsNum = pOptions->optionsNum;
   for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
     const char* option = pOptions->options[i];
     if (option != NULL) {
-      xSetCowStr(pOpts->options + i, strlen(option), option, true);
+      xSetCowStr(pOpts->options + i, strlen(option) + 1, option, true);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -13259,7 +13259,7 @@ static int32_t covertXNodeTaskOptions(SXnodeTaskOptions* pOptions, xTaskOptions*
 static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTaskStmt* pStmt) {
   SMCreateXnodeTaskReq createReq = {0};
 
-  createReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
+  createReq.name = xCreateCowStr(strlen(pStmt->name) + 1, pStmt->name, false);
   createReq.source = xCloneTaskSourceRef(&pStmt->source->source);
   createReq.sink = xCloneTaskSinkRef(&pStmt->sink->sink);
 

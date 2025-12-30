@@ -192,7 +192,6 @@ _OVER:
   return code;
 }
 
-// xxxzgc: 反序列化 xnode 的 msg 到 SDCreateBnodeReq, 并创建 xnode 文件,
 int32_t xmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   int32_t          code = 0;
   SDCreateXnodeReq createReq = {0};
@@ -201,18 +200,9 @@ int32_t xmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     return code;
   }
 
-  // xxxzgc: 检查 dnodeId 是否匹配，为甚么要检查？为了防止恶意用户创建其他 dnode 的 xnode 文件 ?
-  // if (pInput->pData->dnodeId != 0 && createReq.dnodeId != pInput->pData->dnodeId) {
-  //   code = TSDB_CODE_INVALID_OPTION;
-  //   dError("failed to create bnode since %s", tstrerror(code));
-
-  //   tFreeSMCreateXnodeReq(&createReq);
-  //   return code;
-  // }
-
   bool deployed = true;
-  if ((code = xmWriteFile(pInput->path, pInput->name, deployed, 1)) != 0) { //xxxzgc 先写死1，可能不用
-    dError("failed to write bnode file since %s", tstrerror(code));
+  if ((code = xmWriteFile(pInput->path, pInput->name, deployed, 1)) != 0) {
+    dError("failed to write xnode file since %s", tstrerror(code));
 
     tFreeSMCreateXnodeReq(&createReq);
     return code;
