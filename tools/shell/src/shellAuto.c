@@ -333,7 +333,6 @@ char* functions[] = {
     "date(",           "corr(",
     "cols(",           "find_in_set(",
     "like_in_set(",    "regexp_in_set(",
-    "generate_totp_secret(",
     "case ",           "when "
 };
 
@@ -423,7 +422,7 @@ char* field_options[] = {
 // create user options
 char * create_uopt[] = {
     "pass ",
-    "totpseed ",
+    "totp_secret ",
     "account ",
     "sysinfo ",
     "createdb ",
@@ -450,7 +449,8 @@ char * create_uopt[] = {
 // alter user options
 char * alter_uopt[] = {
     "pass ",
-    "totpseed ",
+    "update totp_secret ",
+    "drop totp_secret ",
     "account ",
     "sysinfo ",
     "createdb ",
