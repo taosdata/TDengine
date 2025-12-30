@@ -77,12 +77,19 @@ The FILL statement specifies the filling mode when data is missing in a window i
 
 1. No filling: NONE (default filling mode).
 1. VALUE filling: Fixed value filling, where the fill value must be specified. For example: FILL(VALUE, 1.23). Note that the final fill value is determined by the type of the corresponding column, such as FILL(VALUE, 1.23), if the corresponding column is of INT type, then the fill value is 1. If multiple columns in the query list need FILL, then each FILL column must specify a VALUE, such as `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`. Note, only ordinary columns in the SELECT expression need to specify FILL VALUE, such as `_wstart`, `_wstart+1a`, `now`, `1+1` and the partition key (like tbname) used with partition by do not need to specify VALUE, like `timediff(last(ts), _wstart)` needs to specify VALUE.
-1. PREV filling: Fill data using the previous value. For example: FILL(PREV).
+1. PREV filling: Fill data with the previous valid value. For example: FILL(PREV).
 1. NULL filling: Fill data with NULL. For example: FILL(NULL).
 1. LINEAR filling: Perform linear interpolation filling based on the nearest values before and after. For example: FILL(LINEAR).
-1. NEXT filling: Fill data using the next value. For example: FILL(NEXT).
+1. NEXT filling: Fill data with the next valid value. For example: FILL(NEXT).
 
-Among these filling modes, except for the NONE mode which does not fill by default, other modes will be ignored if there is no data in the entire query time range, resulting in no fill data and an empty query result. This behavior is reasonable under some modes (PREV, NEXT, LINEAR) because no data means no fill value can be generated. For other modes (NULL, VALUE), theoretically, fill values can be generated, and whether to output fill values depends on the application's needs. To meet the needs of applications that require forced filling of data or NULL, without breaking the compatibility of existing filling modes, two new filling modes have been added starting from version 3.0.3.0:
+Among these filling modes, except for the NONE mode which does not fill by default, other modes will be ignored if there is no data in the entire query time range, resulting in no fill data and an empty query result. This behavior is reasonable under some modes (PREV, NEXT, LINEAR) because no data means no fill value can be generated.
+
+The definition of valid values differs between the INTERVAL clause and the INTERP clause:
+
+1. In the INTERVAL clause, all scanned data are valid values. For example, FILL(PREV) uses the previous data entry for filling.
+1. In the INTERP clause, starting from version v3.4.0.0, whether a NULL value is valid depends on the ignore_null_values parameter of the INTERP function. For example, if FILL(PREV) is specified and NULL values are invalid, the system skips NULL values and continues to search for non-NULL data.
+
+For other modes (NULL, VALUE), theoretically, fill values can be generated, and whether to output fill values depends on the application's needs. To meet the needs of applications that require forced filling of data or NULL, without breaking the compatibility of existing filling modes, two new filling modes have been added starting from version 3.0.3.0:
 
 1. NULL_F: Force fill with NULL values
 1. VALUE_F: Force fill with VALUE values
