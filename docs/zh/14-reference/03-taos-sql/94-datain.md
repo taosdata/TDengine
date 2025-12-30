@@ -59,7 +59,7 @@ id | url     | status | create_time                 | update_time             |
 Query OK, 1 row(s) in set (0.005518s)
 ```
 
-### 清理节点
+### 排空节点
 
 将一个节点已有任务重新分配到其他节点中执行。
 
