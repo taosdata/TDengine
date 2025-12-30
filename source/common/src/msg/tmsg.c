@@ -10142,7 +10142,7 @@ int32_t tVerifyConnectReqSignature(const SConnectReq *pReq) {
   char expectedSig[sizeof(pReq->signature)] = {0};
   tCalculateConnectReqSignature(pReq, expectedSig);
   if (memcmp(expectedSig, pReq->signature, sizeof(pReq->signature)) != 0) {
-    return TSDB_CODE_INVALID_MSG;
+    return TSDB_CODE_INVALID_SIGNATURE;
   }
   return 0;
 }

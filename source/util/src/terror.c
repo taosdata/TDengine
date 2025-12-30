@@ -124,6 +124,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DISK_ID,              "Internal error invali
 TAOS_DEFINE_ERROR(TSDB_CODE_DECIMAL_OVERFLOW,             "Decimal value overflow")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_EDITION_NOT_COMPATIBLE,       "Edition not compatible")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_SIGNATURE,            "Invalid signature")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
