@@ -10691,8 +10691,6 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
               code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
               QUERY_CHECK_CODE(code, lino, _end);
             }
-            code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
-            QUERY_CHECK_CODE(code, lino, _end);
           }
         }
         if (!IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
