@@ -8370,7 +8370,7 @@ static int32_t mergeAggFuncToAggNode(SAggLogicNode* pAgg, SFunctionNode* pFunc) 
   pAgg->hasLast |= fmIsLastFunc(((SFunctionNode *)ppFuncNode)->funcId);
   pAgg->hasLastRow |= fmIsLastRowFunc(((SFunctionNode *)ppFuncNode)->funcId);
   pAgg->hasTimeLineFunc |= fmIsTimelineFunc(((SFunctionNode *)ppFuncNode)->funcId);
-  pAgg->onlyHasKeepOrderFunc &= fmIsKeepOrderFunc(((SFunctionNode *)ppFuncNode)->funcId);
+  pAgg->onlyHasKeepOrderFunc &= fmIsKeepOrderFunc((SFunctionNode *)ppFuncNode);
   pAgg->hasGroupKeyOptimized = false;
   pAgg->hasGroup = false;
   pAgg->isGroupTb = false;

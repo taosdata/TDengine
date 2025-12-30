@@ -3789,7 +3789,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "mode",
     .type = FUNCTION_TYPE_MODE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,

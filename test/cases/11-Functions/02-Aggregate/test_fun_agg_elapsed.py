@@ -1824,9 +1824,11 @@ class TestFunElapsed:
 
         tdSql.query("select elapsed(ts,1s) from (select ts ,q_int,tbname  from sub_table1_1 order by ts  ) interval(10s);")
 
-        tdSql.query("select elapsed(ts,1s) from (select ts ,tbname,top(q_int,3)  from sub_table1_1   ) interval(10s);")
+        tdSql.error("select elapsed(ts,1s) from (select ts ,tbname,top(q_int,3)  from sub_table1_1   ) interval(10s);")
+        tdSql.query("select elapsed(ts,1s) from (select ts ,tbname,top(q_int,1)  from sub_table1_1   ) interval(10s);")
 
-        tdSql.query("select elapsed(ts,1s) from (select ts ,tbname,bottom(q_int,3)  from sub_table1_1   ) interval(10s);")
+        tdSql.query("select elapsed(ts,1s) from (select ts ,tbname,bottom(q_int,1)  from sub_table1_1   ) interval(10s);")
+        tdSql.error("select elapsed(ts,1s) from (select ts ,tbname,bottom(q_int,3)  from sub_table1_1   ) interval(10s);")
 
         tdSql.query("select elapsed(ts,1s) from (select ts ,tbname from sub_table1_1   ) interval(10s);")
 
