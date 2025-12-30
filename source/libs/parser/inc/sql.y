@@ -162,7 +162,6 @@ user_option(A) ::= CALL_PER_SESSION option_value(B).                            
     }
     A->hasCallPerSession = true;
   }
-/****** VNODE_PER_CALL is not supported for now
 user_option(A) ::= VNODE_PER_CALL option_value(B).                               {
     A = mergeUserOptions(pCxt, NULL, NULL);
     if (B.type == TK_DEFAULT) {
@@ -174,7 +173,7 @@ user_option(A) ::= VNODE_PER_CALL option_value(B).                              
     }
     A->hasVnodePerCall = true;
   }
-**********/
+
 user_option(A) ::= FAILED_LOGIN_ATTEMPTS option_value(B).                        {
     A = mergeUserOptions(pCxt, NULL, NULL);
     if (B.type == TK_DEFAULT) {
