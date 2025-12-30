@@ -396,10 +396,12 @@ function install_services() {
 }
 
 function kill_process() {
-  pid=$(pgrep -x  "$1")
-  if [ -n "$pid" ]; then
-    kill -9 "$pid" || :
-  fi
+    # use pkill if available, otherwise fallback to pgrep + xargs
+    if command -v pkill >/dev/null 2>&1; then
+        pkill -x -9 "$1" 2>/dev/null || true
+    else
+        pgrep -x "$1" | xargs -r kill -9 2>/dev/null || true
+    fi
 }
 
 function install_main_path() {
