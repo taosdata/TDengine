@@ -332,11 +332,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock, SLim
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (!pInfo->isInit) {
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
-      if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
-        T_LONG_JMP(pTaskInfo->env, terrno);
-      }
       pInfo->isInit = true;
-      if(!addNewGroupForSLimit(pLimitInfo)) continue;
+      if (!addNewGroupForSLimit(pLimitInfo)) continue;
       num++;
       continue;
     }
@@ -351,30 +348,24 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock, SLim
       break;  // limit reached, stop processing further rows
     }
 
-    // The first row of a new block does not belongs to the previous existed group
-    if (j == 0) {
+    if (!addNewGroupForSLimit(pLimitInfo)) {
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
-      if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
-        T_LONG_JMP(pTaskInfo->env, terrno);
-      }
-      if(!addNewGroupForSLimit(pLimitInfo)) continue;
-      num++;
+      continue;
+    }
+
+    // j == 0: The first row of a new block does not belongs to the previous existed group
+    // isFirstGroupForSLimit(pLimitInfo):  The new group is found, set the result output buffer for the previous group
+    // if this new group is the first group, it means the previous group need be skipped by soffset
+    // but the num is still needed to be updated for new group
+    if (j == 0 || isFirstGroupForSLimit(pLimitInfo)) {
+      recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
+      num = 1;
       continue;
     }
 
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
 
-    if(!addNewGroupForSLimit(pLimitInfo)) continue;
-
     recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
-
-    // the new group is found, set the result output buffer for the previous group
-    // if this new group is the first group, it means the previous group need be skipped by soffset
-    // but the num is still needed to be updated for new group
-    if (isFirstGroupForSLimit(pLimitInfo)) {
-      num = 1;
-      continue;
-    }
 
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
                                           len, pBlock->info.id.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
