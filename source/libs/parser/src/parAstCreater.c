@@ -4922,7 +4922,7 @@ _err:
 
 
 
-SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName) {
+SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, bool ignoreNotExists) {
   SDropTokenStmt* pStmt = NULL;
 
   CHECK_PARSER_STATUS(pCxt);
@@ -4932,6 +4932,7 @@ SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName) {
   CHECK_MAKE_NODE(pStmt);
 
   COPY_STRING_FORM_ID_TOKEN(pStmt->name, pTokenName);
+  pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 
 _err:

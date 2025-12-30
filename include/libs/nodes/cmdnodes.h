@@ -594,6 +594,7 @@ typedef struct SDropTokenStmt {
   ENodeType type;
 
   char      name[TSDB_TOKEN_NAME_LEN];
+  bool      ignoreNotExists;
 } SDropTokenStmt;
 
 

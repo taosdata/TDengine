@@ -11201,6 +11201,7 @@ static int32_t translateAlterToken(STranslateContext* pCxt, SAlterTokenStmt* pSt
 static int32_t translateDropToken(STranslateContext* pCxt, SDropTokenStmt* pStmt) {
   SDropTokenReq req = {0};
   tstrncpy(req.name, pStmt->name, sizeof(req.name));
+  req.ignoreNotExists = pStmt->ignoreNotExists;
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_TOKEN, (FSerializeFunc)tSerializeSDropTokenReq, &req);
   tFreeSDropTokenReq(&req);
   return code;
