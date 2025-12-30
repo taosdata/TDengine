@@ -100,7 +100,7 @@ class TestInsertSelect:
 
         tdSql.checkData(1, 2, 11)
 
-    def test_insert_stb_select(self):
+    def Test2(self):
         """insert super table (select)
 
         1. create table

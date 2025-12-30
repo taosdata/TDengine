@@ -171,6 +171,18 @@ void freeUseDbOutput_tmp(void* pOutput) {
   taosMemFree(pOut);
 }
 
+int inserterVgInfoComp(const void* lp, const void* rp) {
+  SVgroupInfo* pLeft = (SVgroupInfo*)lp;
+  SVgroupInfo* pRight = (SVgroupInfo*)rp;
+  if (pLeft->hashBegin < pRight->hashBegin) {
+    return -1;
+  } else if (pLeft->hashBegin > pRight->hashBegin) {
+    return 1;
+  }
+
+  return 0;
+}
+
 static int32_t processUseDbRspForInserter(void* param, SDataBuf* pMsg, int32_t code) {
   int32_t              lino = 0;
   SDataInserterHandle* pInserter = (SDataInserterHandle*)param;
@@ -246,8 +258,31 @@ static int32_t buildDbVgInfoMapForInserter(SDataInserterHandle* pInserter, SRead
   code = queryBuildUseDbOutput(output, pInserter->pRsp);
   QUERY_CHECK_CODE(code, lino, _return);
 
+  output->dbVgroup->vgArray = taosArrayInit(pInserter->pRsp->vgNum, sizeof(SVgroupInfo));
+  if (NULL == output->dbVgroup->vgArray) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  void* pIter = taosHashIterate(output->dbVgroup->vgHash, NULL);
+  while (pIter) {
+    if (NULL == taosArrayPush(output->dbVgroup->vgArray, pIter)) {
+      taosHashCancelIterate(output->dbVgroup->vgHash, pIter);
+      return terrno;
+    }
+
+    pIter = taosHashIterate(output->dbVgroup->vgHash, pIter);
+  }
+
+  taosArraySort(output->dbVgroup->vgArray, inserterVgInfoComp);
+
 _return:
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    taosMemoryFree(buf1);
+  }
   taosMemoryFree(pReq);
+  TAOS_UNUSED(tsem_destroy(&pInserter->ready));
   if (pInserter->pRsp) {
     tFreeSUsedbRsp(pInserter->pRsp);
     taosMemoryFreeClear(pInserter->pRsp);
@@ -312,18 +347,6 @@ int32_t inserterGetVgInfo(SDBVgInfo* dbInfo, char* tbName, SVgroupInfo* pVgInfo)
          pVgInfo->epSet.eps[0].port);
 
   return TSDB_CODE_SUCCESS;
-}
-
-int inserterVgInfoComp(const void* lp, const void* rp) {
-  SVgroupInfo* pLeft = (SVgroupInfo*)lp;
-  SVgroupInfo* pRight = (SVgroupInfo*)rp;
-  if (pLeft->hashBegin < pRight->hashBegin) {
-    return -1;
-  } else if (pLeft->hashBegin > pRight->hashBegin) {
-    return 1;
-  }
-
-  return 0;
 }
 
 int32_t inserterGetVgId(SDBVgInfo* dbInfo, char* tbName, int32_t* vgId) {
