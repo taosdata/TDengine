@@ -104,7 +104,7 @@ void transCacheReleaseByRefId(int64_t refId) {
     STransEntry* p = taosArrayGet(transInstCache.pArray, i);
     if (p->refId == refId) {
       (void)atomic_sub_fetch_32(&p->ref, 1);
-      tDebug("trans %p acquire by refId:%" PRId64 ", ref count:%d", p->pTrans, refId, atomic_load_32(&p->ref));
+      tDebug("trans %p release by refId:%" PRId64 ", ref count:%d", p->pTrans, refId, atomic_load_32(&p->ref));
       code = 0;
       break;
     }
