@@ -1,4 +1,5 @@
 add_executable(xnodeEncodeDecodeTest "xnodeEncodeDecodeTest.cpp")
+DEP_ext_gtest(xnodeEncodeDecodeTest)
 target_include_directories(
   xnodeEncodeDecodeTest
   PUBLIC
@@ -18,6 +19,7 @@ add_test(
 
 # Simplified standalone test
 add_executable(xnodeSimpleTest "xnodeSimpleTest.cpp")
+DEP_ext_gtest(xnodeSimpleTest)
 target_include_directories(
   xnodeSimpleTest
   PUBLIC
@@ -38,6 +40,7 @@ add_test(
 
 # Memory management tests
 add_executable(xnodeMemoryTest "xnodeMemoryTest.cpp")
+DEP_ext_gtest(xnodeMemoryTest)
 target_include_directories(
   xnodeMemoryTest
   PUBLIC
@@ -64,6 +67,7 @@ add_test(
 
 # Test real XNode utility functions (completely independent, no TDengine headers)
 add_executable(xnodeRealFunctionsTest "xnodeRealFunctionsTest.cpp")
+DEP_ext_gtest(xnodeRealFunctionsTest)
 target_link_libraries(xnodeRealFunctionsTest
     PUBLIC gtest
     PUBLIC gtest_main
@@ -78,6 +82,7 @@ add_test(
 # SDB operations tests (encode/decode, insert/update/delete)
 # Uses mock implementations that mirror production code logic
 add_executable(xnodeSdbTest "xnodeSdbTest.cpp")
+DEP_ext_gtest(xnodeSdbTest)
 target_include_directories(
   xnodeSdbTest
   PUBLIC
@@ -102,6 +107,7 @@ add_test(
 
 # Production code tests - uses REAL encode/decode functions from mndXnode.c
 add_executable(xnodeProductionTest "xnodeProductionTest.cpp")
+DEP_ext_gtest(xnodeProductionTest)
 target_include_directories(
   xnodeProductionTest
   PUBLIC
