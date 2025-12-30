@@ -23,7 +23,20 @@ class TestXnodeSystemTables:
         )
 
     def test_show_xnodes_table(self):
-        """测试 SHOW XNODES 系统表查询"""
+        """测试 SHOW XNODES 系统表查询
+
+        1. Query show xnodes 
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         sql = "SHOW XNODES"
         tdLog.info(f"Querying: {sql}")
         try:
@@ -50,7 +63,20 @@ class TestXnodeSystemTables:
             tdLog.notice(f"Runtime error tolerated: {e}")
 
     def test_show_xnode_tasks_table(self):
-        """测试 SHOW XNODE TASKS 系统表查询"""
+        """测试 SHOW XNODE TASKS 系统表查询
+
+        1. Query show xnode tasks 
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         sql = "SHOW XNODE TASKS"
         tdLog.info(f"Querying: {sql}")
         try:
@@ -72,7 +98,19 @@ class TestXnodeSystemTables:
             tdLog.notice(f"Runtime error tolerated: {e}")
 
     def test_show_xnode_jobs_table(self):
-        """测试 SHOW XNODE JOBS 系统表查询"""
+        """测试 SHOW XNODE JOBS 系统表查询
+        1. Query show xnode jobs 
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         sql = "SHOW XNODE JOBS"
         tdLog.info(f"Querying: {sql}")
         try:
@@ -94,7 +132,20 @@ class TestXnodeSystemTables:
             tdLog.notice(f"Runtime error tolerated: {e}")
 
     def test_show_xnode_agents_table(self):
-        """测试 SHOW XNODE AGENTS 系统表查询"""
+        """测试 SHOW XNODE AGENTS 系统表查询
+
+        1. Query show xnode agents 
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         sql = "SHOW XNODE AGENTS"
         tdLog.info(f"Querying: {sql}")
         try:
@@ -111,7 +162,20 @@ class TestXnodeSystemTables:
             tdLog.notice(f"Runtime error tolerated: {e}")
 
     def test_query_information_schema_xnodes(self):
-        """测试通过 information_schema 查询 XNode 表"""
+        """测试通过 information_schema 查询 XNode 表
+
+        1. Query show xnode from inx_xnodes
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         sql = "SELECT * FROM information_schema.ins_xnodes"
         tdLog.info(f"Querying: {sql}")
         try:
@@ -129,7 +193,20 @@ class TestXnodeSystemTables:
                 raise
 
     def test_query_information_schema_xnode_tasks(self):
-        """测试通过 information_schema 查询 XNode Tasks 表"""
+        """测试通过 information_schema 查询 XNode Tasks 表
+
+        1. Query show xnode tasks from inx_xnode_tasks
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+        
         sql = "SELECT * FROM information_schema.ins_xnode_tasks"
         tdLog.info(f"Querying: {sql}")
         try:
@@ -146,7 +223,20 @@ class TestXnodeSystemTables:
                 raise
 
     def test_filter_xnodes_by_status(self):
-        """测试按状态过滤 XNode"""
+        """测试按状态过滤 XNode
+
+        1. Query show xnode from inx_xnodes where status = 'online'
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         sql = "SELECT * FROM information_schema.ins_xnodes WHERE status = 'online'"
         tdLog.info(f"Querying with filter: {sql}")
         try:
@@ -163,7 +253,20 @@ class TestXnodeSystemTables:
                 raise
 
     def test_filter_tasks_by_status(self):
-        """测试按状态过滤 XNode Tasks"""
+        """测试按状态过滤 XNode Tasks
+
+        1. Query show xnode tasks from inx_xnode_tasks where status = 'running'
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         sql = "SELECT * FROM information_schema.ins_xnode_tasks WHERE status = 'running'"
         tdLog.info(f"Querying tasks with filter: {sql}")
         try:
@@ -180,7 +283,20 @@ class TestXnodeSystemTables:
                 raise
 
     def test_join_xnodes_and_tasks(self):
-        """测试联合查询 XNodes 和 Tasks"""
+        """测试联合查询 XNodes 和 Tasks
+
+        1. Left join inx_xnodes and inx_xnode_tasks on xnode_id
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         sql = """
             SELECT x.id, x.endpoint, t.name, t.status 
             FROM information_schema.ins_xnodes x 
@@ -202,7 +318,20 @@ class TestXnodeSystemTables:
                 raise
 
     def test_count_xnodes(self):
-        """测试统计 XNode 数量"""
+        """测试统计 XNode 数量
+
+        1. Query count(*) from inx_xnodes
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         sql = "SELECT COUNT(*) FROM information_schema.ins_xnodes"
         tdLog.info(f"Counting xnodes: {sql}")
         try:
@@ -220,7 +349,20 @@ class TestXnodeSystemTables:
                 raise
 
     def test_count_tasks_by_status(self):
-        """测试按状态统计任务数量"""
+        """测试按状态统计任务数量
+
+        1. Query count(*) from inx_xnode_tasks group by status
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         sql = "SELECT status, COUNT(*) FROM information_schema.ins_xnode_tasks GROUP BY status"
         tdLog.info(f"Counting tasks by status: {sql}")
         try:
@@ -239,7 +381,20 @@ class TestXnodeSystemTables:
                 raise
 
     def test_order_tasks_by_create_time(self):
-        """测试按创建时间排序任务"""
+        """测试按创建时间排序任务
+
+        1. Query tasks from inx_xnode_tasks order by create_time desc limit 10
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         sql = "SELECT * FROM information_schema.ins_xnode_tasks ORDER BY create_time DESC LIMIT 10"
         tdLog.info(f"Querying recent tasks: {sql}")
         try:
@@ -260,7 +415,21 @@ class TestXnodeSystemTables:
                 raise
 
     def test_systable_field_consistency(self):
-        """测试系统表字段一致性"""
+        """测试系统表字段一致性
+
+        1. Query desc from inx_xnodes, inx_xnode_tasks, inx_xnode_jobs
+        2. Check table fields consistency
+        
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         tables_to_check = [
             ("information_schema.ins_xnodes", ["id", "endpoint"]),
             ("information_schema.ins_xnode_tasks", ["id", "name"]),
@@ -293,7 +462,20 @@ class TestXnodeSystemTables:
 
     @classmethod
     def teardown_class(cls):
-        """清理测试环境"""
+        """清理测试环境
+
+        1. Clean up test database
+        
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         tdLog.info(f"Cleaning up test environment")
         try:
             tdSql.execute(f"DROP DATABASE IF EXISTS xnode_systables_db_{cls.suffix}")

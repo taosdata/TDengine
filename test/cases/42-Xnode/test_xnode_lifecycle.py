@@ -25,7 +25,20 @@ class TestXnodeLifecycle:
         )
 
     def test_create_xnode_with_user_password(self):
-        """测试创建第一个 XNode 时需要用户密码"""
+        """测试创建第一个 XNode 时需要用户密码
+
+        1. Create xnode with user password
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+        
         ep1 = f"xn-life-{self.suffix}-1:6050"
         user = f"__xnode_test_{self.suffix}__"
         password = f"Xn0de!{self.suffix}"
@@ -53,7 +66,20 @@ class TestXnodeLifecycle:
             tdLog.notice(f"Runtime error tolerated: {e}")
 
     def test_create_xnode_without_password(self):
-        """测试创建第二个 XNode 时不需要密码"""
+        """测试创建第二个 XNode 时不需要密码
+
+        1. Create xnode without user password
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         ep2 = f"xn-life-{self.suffix}-2:6051"
 
         # 第二次创建 XNode 不需要用户密码
@@ -68,7 +94,20 @@ class TestXnodeLifecycle:
             tdLog.notice(f"Runtime error tolerated: {e}")
 
     def test_create_duplicate_xnode(self):
-        """测试创建重复的 XNode 应该失败"""
+        """测试创建重复的 XNode 应该失败
+
+        1. Create duplicate xnode
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         ep = f"xn-life-{self.suffix}-dup:6052"
 
         # 第一次创建
@@ -93,7 +132,20 @@ class TestXnodeLifecycle:
             tdLog.success(f"Duplicate xnode correctly rejected: {e}")
 
     def test_drop_xnode_by_endpoint(self):
-        """测试通过 endpoint 删除 XNode"""
+        """测试通过 endpoint 删除 XNode
+
+        1. Drop xnode by endpoint
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         ep = f"xn-life-{self.suffix}-drop1:6053"
 
         # 先创建
@@ -114,7 +166,20 @@ class TestXnodeLifecycle:
             tdLog.notice(f"Runtime error tolerated: {e}")
 
     def test_drop_xnode_by_id(self):
-        """测试通过 ID 删除 XNode"""
+        """测试通过 ID 删除 XNode
+
+        1. Drop xnode by ID
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         xnode_id = random.randint(1000, 9999)
 
         sql = f"DROP XNODE {xnode_id}"
@@ -128,7 +193,20 @@ class TestXnodeLifecycle:
             tdLog.notice(f"Runtime error tolerated: {e}")
 
     def test_drop_xnode_force(self):
-        """测试强制删除 XNode"""
+        """测试强制删除 XNode
+
+        1. Drop xnode force
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         ep = f"xn-life-{self.suffix}-force:6054"
 
         # 先创建
@@ -149,7 +227,20 @@ class TestXnodeLifecycle:
             tdLog.notice(f"Runtime error tolerated: {e}")
 
     def test_drain_xnode(self):
-        """测试 DRAIN XNode 模式"""
+        """测试 DRAIN XNode 模式
+
+        1. Drain xnode
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         xnode_id = random.randint(1000, 9999)
 
         sql = f"DRAIN XNODE {xnode_id}"
@@ -163,7 +254,20 @@ class TestXnodeLifecycle:
             tdLog.notice(f"Runtime error tolerated: {e}")
 
     def test_drop_nonexistent_xnode(self):
-        """测试删除不存在的 XNode"""
+        """测试删除不存在的 XNode
+
+        1. Drop non-exist xnode
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         ep = f"xn-nonexist-{uuid.uuid4().hex[:8]}:9999"
 
         sql = f"DROP XNODE '{ep}'"
@@ -179,7 +283,20 @@ class TestXnodeLifecycle:
             tdLog.success(f"Correctly got runtime error: {e}")
 
     def test_show_xnodes_query(self):
-        """测试 SHOW XNODES 查询"""
+        """测试 SHOW XNODES 查询
+
+        1. Query show xnodes
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         sql = "SHOW XNODES"
         tdLog.info(f"Querying: {sql}")
         try:
@@ -197,7 +314,20 @@ class TestXnodeLifecycle:
             tdLog.notice(f"Runtime error tolerated: {e}")
 
     def test_xnode_with_special_characters(self):
-        """测试包含特殊字符的 XNode 地址"""
+        """测试包含特殊字符的 XNode 地址
+
+        1. Create xnode with special characters
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         # 测试 IPv6 地址格式
         ep_ipv6 = f"[::1]:6055"
         sql = f"CREATE XNODE '{ep_ipv6}'"
@@ -217,7 +347,20 @@ class TestXnodeLifecycle:
             pass
 
     def test_xnode_password_validation(self):
-        """测试密码格式验证"""
+        """测试密码格式验证
+
+        1. Create xnode with weak password
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         ep = f"xn-pwd-{self.suffix}:6056"
         
         # 测试弱密码（如果启用强密码策略）
@@ -248,7 +391,23 @@ class TestXnodeLifecycle:
             tdLog.notice(f"Runtime error tolerated: {e}")
 
     def test_xnode_lifecycle_sequence(self):
-        """测试完整的 XNode 生命周期序列"""
+        """测试完整的 XNode 生命周期序列
+
+        1. Create xnode
+        2. Query xnode status
+        3. Drain xnode
+        4. Drop xnode
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         ep = f"xn-seq-{self.suffix}:6057"
         xnode_id = None
 
@@ -298,7 +457,20 @@ class TestXnodeLifecycle:
 
     @classmethod
     def teardown_class(cls):
-        """清理测试环境"""
+        """清理测试环境
+
+        1. Drop xnode
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2025-12-30 GuiChuan Zhang Created
+        """
+
         tdLog.info(f"Cleaning up test environment")
         try:
             tdSql.execute(f"DROP DATABASE IF EXISTS xnode_lifecycle_db_{cls.suffix}")
