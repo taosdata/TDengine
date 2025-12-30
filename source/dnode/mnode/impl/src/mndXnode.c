@@ -104,7 +104,6 @@ static int32_t mndRetrieveXnodeAgents(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
 static void    mndCancelGetNextXnodeAgent(SMnode *pMnode, void *pIter);
 
 static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char *status, int32_t statusLen);
-static int32_t mndGetXnodeTaskStatus(SXnodeTaskObj *pObj, char *status, int32_t statusLen);
 
 /** @section xnoded mgmt */
 void mndStartXnoded(SMnode *pMnode, int32_t userLen, char *user, int32_t passLen, char *pass);
@@ -209,7 +208,7 @@ int32_t mndInitXnode(SMnode *pMnode) {
 
 /** tools section **/
 
-int32_t checkPasswordFmt(const char *pwd) {
+int32_t xnodeCheckPasswordFmt(const char *pwd) {
   if (strcmp(pwd, "taosdata") == 0) {
     return 0;
   }
@@ -239,7 +238,7 @@ int32_t checkPasswordFmt(const char *pwd) {
   return TSDB_CODE_MND_INVALID_PASS_FORMAT;
 }
 
-void swapFields(int32_t *newLen, char **ppNewStr, int32_t *oldLen, char **ppOldStr) {
+static void swapFields(int32_t *newLen, char **ppNewStr, int32_t *oldLen, char **ppOldStr) {
   if (*newLen > 0) {
     int32_t tempLen = *newLen;
     *newLen = *oldLen;
@@ -366,11 +365,9 @@ static void mndFreeXnode(SXnodeObj *pObj) {
   if (pObj == NULL) return;
   if (pObj->url != NULL) {
     taosMemoryFreeClear(pObj->url);
-    pObj->urlLen = 0;
   }
   if (pObj->status != NULL) {
     taosMemoryFreeClear(pObj->status);
-    pObj->statusLen = 0;
   }
 }
 
@@ -649,7 +646,7 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMCreateXnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
-  mInfo("xnode:%s, start to create", createReq.url);
+  mDebug("xnode:%s, start to create", createReq.url);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_CREATE_XNODE), NULL, _OVER);
 
   pObj = mndAcquireXnodeByURL(pMnode, createReq.url);
@@ -664,7 +661,7 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
       code = TSDB_CODE_MND_XNODE_NEED_USER_PASS;
       goto _OVER;
     }
-    TAOS_CHECK_GOTO(checkPasswordFmt(createReq.pass), NULL, _OVER);
+    TAOS_CHECK_GOTO(xnodeCheckPasswordFmt(createReq.pass), NULL, _OVER);
     // store user pass
     code = mndStoreXnodeUserPass(pMnode, pReq, &createReq);
     if (code != 0) goto _OVER;
@@ -746,7 +743,7 @@ static int32_t mndUpdateAllXnodes(SMnode *pMnode, SRpcMsg *pReq) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessUpdateXnodeReq(SRpcMsg *pReq) {
@@ -787,13 +784,12 @@ static int32_t mndSetDropXnodeRedoLogs(STrans *pTrans, SXnodeObj *pObj) {
   SSdbRaw *pRedoRaw = mndXnodeActionEncode(pObj);
   if (pRedoRaw == NULL) {
     code = terrno;
-    return code;
+    TAOS_RETURN(code);
   }
 
   TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
-
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetDropXnodeCommitLogs(STrans *pTrans, SXnodeObj *pObj) {
@@ -801,7 +797,7 @@ static int32_t mndSetDropXnodeCommitLogs(STrans *pTrans, SXnodeObj *pObj) {
   SSdbRaw *pCommitRaw = mndXnodeActionEncode(pObj);
   if (pCommitRaw == NULL) {
     code = terrno;
-    return code;
+    TAOS_RETURN(code);
   }
 
   TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pCommitRaw));
@@ -824,7 +820,7 @@ static int32_t mndDropXnode(SMnode *pMnode, SRpcMsg *pReq, SXnodeObj *pObj) {
   TSDB_CHECK_NULL(pTrans, code, lino, _OVER, terrno);
 
   mndTransSetSerial(pTrans);
-  mInfo("trans:%d, to drop xnode:%d", pTrans->id, pObj->id);
+  mDebug("trans:%d, to drop xnode:%d", pTrans->id, pObj->id);
 
   code = mndSetDropXnodeInfoToTrans(pMnode, pTrans, pObj, false);
   TSDB_CHECK_CODE(code, lino, _OVER);
@@ -833,7 +829,7 @@ static int32_t mndDropXnode(SMnode *pMnode, SRpcMsg *pReq, SXnodeObj *pObj) {
 
 _OVER:
   mndTransDrop(pTrans);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndDrainXnode(SMnode *pMnode, SRpcMsg *pReq, SXnodeObj *pObj) {
@@ -850,14 +846,14 @@ static int32_t mndDrainXnode(SMnode *pMnode, SRpcMsg *pReq, SXnodeObj *pObj) {
   TSDB_CHECK_NULL(pTrans, code, lino, _OVER, terrno);
 
   mndTransSetSerial(pTrans);
-  mInfo("trans:%d, to drain xnode:%d", pTrans->id, xnodeObj.id);
+  mDebug("trans:%d, to drain xnode:%d", pTrans->id, xnodeObj.id);
 
   TAOS_CHECK_GOTO(mndSetCreateXnodeCommitLogs(pTrans, &xnodeObj), NULL, _OVER);
   code = mndTransPrepare(pMnode, pTrans);
 
 _OVER:
   mndTransDrop(pTrans);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq) {
@@ -869,7 +865,7 @@ static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
-  mInfo("xnode:%d, start to drop", dropReq.xnodeId);
+  mDebug("xnode:%d, start to drop", dropReq.xnodeId);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_DROP_XNODE), NULL, _OVER);
 
   if (dropReq.xnodeId <= 0 && (dropReq.url == NULL || strlen(dropReq.url) <= 0)) {
@@ -927,7 +923,7 @@ static int32_t mndProcessDrainXnodeReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMDrainXnodeReq(pReq->pCont, pReq->contLen, &drainReq), NULL, _OVER);
 
-  mInfo("xnode:%d, start to drain", drainReq.xnodeId);
+  mDebug("xnode:%d, start to drain", drainReq.xnodeId);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_DRAIN_XNODE), NULL, _OVER);
 
   if (drainReq.xnodeId <= 0) {
@@ -1042,42 +1038,6 @@ static void mndCancelGetNextXnode(SMnode *pMnode, void *pIter) {
 }
 
 /** xnode task section **/
-
-static int32_t mndGetXnodeTaskStatus(SXnodeTaskObj *pObj, char *status, int32_t statusLen) {
-  int32_t code = 0;
-  int32_t protocol = 0;
-  double  tmp = 0;
-  char    xnodeUrl[TSDB_XNODE_TASK_NAME_LEN + 1] = {0};
-  snprintf(xnodeUrl, TSDB_XNODE_TASK_NAME_LEN, "%s/%s", pObj->name, "status");
-
-  SJson *pJson = NULL;  // taosAnalySendReqRetJson(xnodeUrl, ANALYTICS_HTTP_TYPE_GET, NULL, 0);
-  if (pJson == NULL) return terrno;
-
-  code = tjsonGetDoubleValue(pJson, "protocol", &tmp);
-  if (code < 0) {
-    code = TSDB_CODE_INVALID_JSON_FORMAT;
-    goto _OVER;
-  }
-  protocol = (int32_t)(tmp * 1000);
-  if (protocol != 100 && protocol != 1000) {
-    code = TSDB_CODE_MND_XNODE_INVALID_PROTOCOL;
-    goto _OVER;
-  }
-
-  code = tjsonGetStringValue2(pJson, "status", status, statusLen);
-  if (code < 0) {
-    code = TSDB_CODE_INVALID_JSON_FORMAT;
-    goto _OVER;
-  }
-  if (strlen(status) == 0) {
-    code = TSDB_CODE_MND_XNODE_INVALID_PROTOCOL;
-    goto _OVER;
-  }
-
-_OVER:
-  if (pJson != NULL) tjsonDelete(pJson);
-  TAOS_RETURN(code);
-}
 
 static SXnodeTaskObj *mndAcquireXnodeTaskById(SMnode *pMnode, int32_t tid) {
   SSdb *pSdb = pMnode->pSdb;
@@ -1408,7 +1368,7 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
     if (terrno != 0) {
       code = terrno;
     }
-    mInfo("failed to create transaction for xnode-task:%s, code:0x%x:%s", pCreate->name.ptr, code, tstrerror(code));
+    mError("failed to create transaction for xnode-task:%s, code:0x%x:%s", pCreate->name.ptr, code, tstrerror(code));
     goto _OVER;
   }
   mndTransSetSerial(pTrans);
@@ -1441,7 +1401,6 @@ static int32_t mndValidateXnodeTaskPermissions(SMnode *pMnode, SRpcMsg *pReq) {
 
 // Helper function to parse and validate the request
 static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq *pCreateReq) {
-  mDebug("xnode task:%s, start validate create request", pCreateReq->name.ptr);
   int32_t code = 0;
   SJson  *pJson = NULL;
   SJson  *postContent = NULL;
@@ -1505,7 +1464,7 @@ _OVER:
   if (postContent != NULL) tjsonDelete(postContent);
   if (pJson != NULL) tjsonDelete(pJson);
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 // Helper function to check if xnode task already exists
@@ -1527,7 +1486,7 @@ static int32_t mndHandleCreateXnodeTaskResult(int32_t createCode) {
 }
 
 static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
-  mInfo("xnode create task request received, contLen:%d\n", pReq->contLen);
+  mDebug("xnode create task request received, contLen:%d\n", pReq->contLen);
   SMnode              *pMnode = pReq->info.node;
   int32_t              code = -1;
   SXnodeTaskObj       *pObj = NULL;
@@ -1542,7 +1501,7 @@ static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
   code = tDeserializeSMCreateXnodeTaskReq(pReq->pCont, pReq->contLen, &createReq);
   if (code != 0) {
     mError("failed to deserialize create xnode task request, code:%s", tstrerror(code));
-    return code;
+    TAOS_RETURN(code);
   }
 
   // Step 2: Check if task already exists
@@ -1626,7 +1585,7 @@ _OVER:
   if (req.srcDsn != NULL) taosMemoryFreeClear(req.srcDsn);
   if (req.sinkDsn != NULL) taosMemoryFreeClear(req.sinkDsn);
   if (req.parser != NULL) taosMemoryFreeClear(req.parser);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
@@ -1638,7 +1597,7 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMStartXnodeTaskReq(pReq->pCont, pReq->contLen, &startReq), NULL, _OVER);
 
-  mInfo("xnode start xnode task with tid:%d", startReq.tid);
+  mDebug("xnode start xnode task with tid:%d", startReq.tid);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_START_XNODE_TASK), NULL, _OVER);
 
   if (startReq.tid <= 0 && (startReq.name.len <= 0 || startReq.name.ptr == NULL)) {
@@ -1673,7 +1632,6 @@ _OVER:
 }
 
 static int32_t mndProcessStopXnodeTaskReq(SRpcMsg *pReq) {
-  mInfo("stop xnode task request received, contLen:%d\n", pReq->contLen);
   SMnode            *pMnode = pReq->info.node;
   int32_t            code = -1;
   SXnodeTaskObj     *pObj = NULL;
@@ -1739,14 +1697,20 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
   if (pUpdate->status.len > 0) {
     taskObj.statusLen = pUpdate->status.len;
     taskObj.status = taosMemoryCalloc(1, taskObj.statusLen);
-    if (taskObj.status == NULL) goto _OVER;
+    if (taskObj.status == NULL) {
+      code = terrno;
+      goto _OVER;
+    }
     (void)memcpy(taskObj.status, pUpdate->status.ptr, taskObj.statusLen);
     isChange.status = true;
   }
   if (pUpdate->updateName.len > 0) {
     taskObj.nameLen = pUpdate->updateName.len;
     taskObj.name = taosMemoryCalloc(1, pUpdate->updateName.len);
-    if (taskObj.name == NULL) goto _OVER;
+    if (taskObj.name == NULL) {
+      code = terrno;
+      goto _OVER;
+    }
     (void)memcpy(taskObj.name, pUpdate->updateName.ptr, pUpdate->updateName.len);
     isChange.name = true;
   }
@@ -1754,7 +1718,10 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
     taskObj.sourceType = pUpdate->source.type;
     taskObj.sourceDsnLen = pUpdate->source.cstr.len;
     taskObj.sourceDsn = taosMemoryCalloc(1, pUpdate->source.cstr.len);
-    if (taskObj.sourceDsn == NULL) goto _OVER;
+    if (taskObj.sourceDsn == NULL) {
+      code = terrno;
+      goto _OVER;
+    }
     (void)memcpy(taskObj.sourceDsn, pUpdate->source.cstr.ptr, pUpdate->source.cstr.len);
     isChange.source = true;
   }
@@ -1762,21 +1729,30 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
     taskObj.sinkType = pUpdate->sink.type;
     taskObj.sinkDsnLen = pUpdate->sink.cstr.len;
     taskObj.sinkDsn = taosMemoryCalloc(1, pUpdate->sink.cstr.len);
-    if (taskObj.sinkDsn == NULL) goto _OVER;
+    if (taskObj.sinkDsn == NULL) {
+      code = terrno;
+      goto _OVER;
+    }
     (void)memcpy(taskObj.sinkDsn, pUpdate->sink.cstr.ptr, pUpdate->sink.cstr.len);
     isChange.sink = true;
   }
   if (pUpdate->parser.len > 0) {
     taskObj.parserLen = pUpdate->parser.len;
     taskObj.parser = taosMemoryCalloc(1, pUpdate->parser.len);
-    if (taskObj.parser == NULL) goto _OVER;
+    if (taskObj.parser == NULL) {
+      code = terrno;
+      goto _OVER;
+    }
     (void)memcpy(taskObj.parser, pUpdate->parser.ptr, pUpdate->parser.len);
     isChange.parser = true;
   }
   if (pUpdate->reason.len > 0) {
     taskObj.reasonLen = pUpdate->reason.len;
     taskObj.reason = taosMemoryCalloc(1, pUpdate->reason.len);
-    if (taskObj.reason == NULL) goto _OVER;
+    if (taskObj.reason == NULL) {
+      code = terrno;
+      goto _OVER;
+    }
     (void)memcpy(taskObj.reason, pUpdate->reason.ptr, pUpdate->reason.len);
     isChange.reason = true;
   }
@@ -1818,7 +1794,6 @@ _OVER:
 }
 
 static int32_t mndProcessUpdateXnodeTaskReq(SRpcMsg *pReq) {
-  mInfo("xnode update task request received, contLen:%d\n", pReq->contLen);
   SMnode             *pMnode = pReq->info.node;
   int32_t             code = -1;
   SXnodeTaskObj       *pObj = NULL;
@@ -1874,7 +1849,7 @@ static int32_t mndSetDropXnodeTaskRedoLogs(STrans *pTrans, SXnodeTaskObj *pObj) 
   TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
 
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndSetDropXnodeTaskCommitLogs(STrans *pTrans, SXnodeTaskObj *pObj) {
@@ -1907,7 +1882,7 @@ static int32_t mndDropXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *pT
   TSDB_CHECK_NULL(pTrans, code, lino, _OVER, terrno);
 
   mndTransSetSerial(pTrans);
-  mInfo("trans:%d, to drop xnode:%d", pTrans->id, pTask->id);
+  mDebug("trans:%d, to drop xnode:%d", pTrans->id, pTask->id);
 
   // delete relative jobs
   // TAOS_CHECK_GOTO(mndAcquireXnodeJobsByTaskId(pMnode, pTask->id, &pArray), NULL, _OVER);
@@ -1934,7 +1909,7 @@ _OVER:
     }
   }
   mndTransDrop(pTrans);
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndProcessDropXnodeTaskReq(SRpcMsg *pReq) {
@@ -1946,7 +1921,7 @@ static int32_t mndProcessDropXnodeTaskReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeTaskReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
-  mInfo("DropXnodeTask with tid:%d, start to drop", dropReq.tid);
+  mDebug("DropXnodeTask with tid:%d, start to drop", dropReq.tid);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_DROP_XNODE_TASK), NULL, _OVER);
 
   if (dropReq.tid <= 0 && (dropReq.nameLen <= 0 || dropReq.name == NULL)) {
@@ -2142,7 +2117,7 @@ static int32_t mndAcquireXnodeJobsByTaskId(SMnode *pMnode, int32_t tid, SArray *
   sdbCancelFetch(pSdb, pIter);
 
 _exit:
-  return code;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndAcquireXnodeJobsAll(SMnode *pMnode, SArray **ppArray) {
@@ -2169,7 +2144,7 @@ static int32_t mndAcquireXnodeJobsAll(SMnode *pMnode, SArray **ppArray) {
   sdbCancelFetch(pSdb, pIter);
 
 _exit:
-  return code;
+  TAOS_RETURN(code);
 }
 
 static void mndFreeXnodeJob(SXnodeJobObj *pObj) {
@@ -2689,7 +2664,7 @@ _OVER:
   return code;
 }
 static int32_t mndProcessCreateXnodeJobReq(SRpcMsg *pReq) {
-  mInfo("create xnode job req, content len:%d", pReq->contLen);
+  mDebug("create xnode job req, content len:%d", pReq->contLen);
   SMnode             *pMnode = pReq->info.node;
   int32_t             code = -1;
   SMCreateXnodeJobReq createReq = {0};
@@ -2759,7 +2734,7 @@ static int32_t mndProcessRebalanceXnodeJobReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMRebalanceXnodeJobReq(pReq->pCont, pReq->contLen, &rebalanceReq), NULL, _OVER);
 
-  mInfo("RebalanceXnodeJob with jid:%d, xnode_id:%d, start to rebalance", rebalanceReq.jid, rebalanceReq.xnodeId);
+  mDebug("RebalanceXnodeJob with jid:%d, xnode_id:%d, start to rebalance", rebalanceReq.jid, rebalanceReq.xnodeId);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_REBALANCE_XNODE_JOB), NULL, _OVER);
 
   if (rebalanceReq.jid <= 0) {
@@ -3129,21 +3104,28 @@ _exit:
   return DEAL_RES_END;
 }
 
-static bool evaluateWhereCond(SNode *pWhere, SHashObj *pDataMap) {
+static bool evaluateWhereCond(SNode *pWhere, SHashObj *pDataMap, int32_t *code) {
   bool             ret = false;
   SXndWhereContext ctx = {0};
 
   ctx.stack = taosArrayInit(64, sizeof(SXndRefValueNode));
   if (ctx.stack == NULL) {
     mError("xnode evaluateWhereCond error: %s", tstrerror(terrno));
+    *code = terrno;
     goto _exit;
   }
   ctx.pMap = pDataMap;
 
   // walkexpr pnode
   nodesWalkExprPostOrder(pWhere, evaluateWaker, &ctx);
+  if (ctx.code != TSDB_CODE_SUCCESS) {
+    *code = ctx.code;
+    mError("xnode walkExpr error: %s", tstrerror(ctx.code));
+    goto _exit;
+  }
   SValueNode *pval = taosArrayGetLast(ctx.stack);
   if (pval == NULL) {
+    *code = terrno;
     mError("xnode evaluateWhereCond error: %s", tstrerror(terrno));
     goto _exit;
   }
@@ -3171,8 +3153,11 @@ static int32_t filterJobsByWhereCond(SNode *pWhere, SArray *pArray, SArray **ppR
       mError("xnode evaluate convertJow2Map error: %s", tstrerror(terrno));
       goto _exit;
     }
-    if (evaluateWhereCond(pWhere, pDataMap)) {
+    if (evaluateWhereCond(pWhere, pDataMap, &code)) {
       taosArrayPush(*ppResult, pJob);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
     }
   }
 
@@ -3217,7 +3202,7 @@ _OVER:
 }
 
 static int32_t mndProcessRebalanceXnodeJobsWhereReq(SRpcMsg *pReq) {
-  mInfo("xnode reblance xnode jobs where req, content len:%d", pReq->contLen);
+  mDebug("xnode reblance xnode jobs where req, content len:%d", pReq->contLen);
   int32_t                      code = 0;
   SMnode                      *pMnode = pReq->info.node;
   SMRebalanceXnodeJobsWhereReq rebalanceReq = {0};
@@ -3253,7 +3238,7 @@ _OVER:
 }
 
 static int32_t mndProcessDropXnodeJobReq(SRpcMsg *pReq) {
-  mInfo("drop xnode job req, content len:%d", pReq->contLen);
+  mDebug("drop xnode job req, content len:%d", pReq->contLen);
   SMnode           *pMnode = pReq->info.node;
   int32_t           code = -1;
   SXnodeJobObj     *pObj = NULL;
@@ -3261,7 +3246,7 @@ static int32_t mndProcessDropXnodeJobReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeJobReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
-  mInfo("DropXnodeJob with jid:%d, tid:%d, start to drop", dropReq.jid, dropReq.tid);
+  mDebug("DropXnodeJob with jid:%d, tid:%d, start to drop", dropReq.jid, dropReq.tid);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_DROP_XNODE_JOB), NULL, _OVER);
 
   if (dropReq.jid <= 0) {
