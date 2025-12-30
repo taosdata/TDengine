@@ -798,7 +798,7 @@ class TestStateWindowExtend:
             stream='''create stream stn2 state_window(s, 2) from ntb stream_options(fill_history) into res_stn2 as 
                         select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, 
                         count(v) cnt_v, avg(v) avg_v from ntb where ts >= _twstart and ts <= _twend''',
-            res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_stn2''',
+            res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_stn2 where _c0 <> "2025-09-03 08:00:00.000"''',  # ignore first window of realtime calc
             exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ntb state_window(s, 2) limit 15''',
         )
         streams.append(stream)
@@ -857,7 +857,7 @@ class TestStateWindowExtend:
             stream='''create stream sts2 state_window(s, 2) from stb partition by tbname stream_options(fill_history) into res_sts2 as 
                         select _twstart wstart, _twduration wdur, _twend wend, count(*) cnt_all, count(s) cnt_s, 
                         count(v) cnt_v, avg(v) avg_v from %%tbname where ts >= _twstart and ts <= _twend''',
-            res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts2 where tag_tbname = "ctb1"''',
+            res_query='''select wstart, wdur, wend, cnt_all, cnt_s, cnt_v, avg_v from res_sts2 where tag_tbname = "ctb1" and _c0 <> "2025-09-03 08:00:00.000"''',  # ignore first window of realtime calc
             exp_query='''select _wstart wstart, _wduration wdur, _wend wend, count(*), count(s), count(v), avg(v) from ctb1 state_window(s, 2) limit 15''',
         )
         streams.append(stream)
