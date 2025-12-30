@@ -107,5 +107,25 @@ if(${BUILD_CLOUD})
   set(GRANT_CFG_INCLUDE_DIR "${TD_ENTERPRISE_DIR}/src/plugins/grant/inc" CACHE PATH "cfg grants path" FORCE)
 endif(${BUILD_CLOUD})
 
+# Check for OpenSSL availability early (required by grant module)
+# This needs to be done before add_subdirectory(community) so OpenSSL_FOUND
+# is available in community CMakeLists.txt files
+find_package(OpenSSL)
+if(OpenSSL_FOUND)
+  message(STATUS "OpenSSL found: ${OPENSSL_VERSION}")
+  set(TD_HAS_OPENSSL TRUE CACHE BOOL "OpenSSL is available" FORCE)
+else()
+  message(WARNING "OpenSSL not found, some encryption features will be disabled")
+  set(TD_HAS_OPENSSL FALSE CACHE BOOL "OpenSSL is available" FORCE)
+endif()
+
+# taosk is only supported on Linux platform (requires getopt.h and uses community CBC encryption)
+if(${TD_LINUX})
+  message(STATUS "taosk encryption key management enabled for Linux platform")
+  add_definitions(-DTD_HAS_TAOSK)
+else()
+  message(STATUS "taosk is not supported on this platform (only Linux supported)")
+endif()
+
 add_definitions(-DTD_ENTERPRISE)
 add_definitions(-DUSE_MOUNT)

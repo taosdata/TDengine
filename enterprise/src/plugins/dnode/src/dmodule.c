@@ -17,6 +17,7 @@
 
 #include "dmMgmt.h"
 #include "tchecksum.h"
+#include "tencrypt.h"
 
 #if defined(GRANTS_CFG) || defined(_TD_DARWIN_64)
 #define _TD_DM_SKIP_CHECK
@@ -285,7 +286,7 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
       buffer = tmpBuf;
     }
 
-    nRead = (int)taosReadFile(pFile, buffer, dHeader.len);
+    nRead = taosReadFile(pFile, buffer, dHeader.len);
     if (nRead < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       TAOS_CHECK_GOTO(code, &lino, _exit);
@@ -380,10 +381,11 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
   }
 
   fHeader.version = DM_ENG_FVER_MAX;
-  fHeader.len = dmEncodeVars(NULL, 0, pInfo) + sizeof(TSCKSUM);
-  if (fHeader.len < 0) {
-    TAOS_CHECK_GOTO(fHeader.len, &lino, _exit);
+  int32_t dataLen = dmEncodeVars(NULL, 0, pInfo);
+  if (dataLen < 0) {
+    TAOS_CHECK_GOTO(dataLen, &lino, _exit);
   }
+  fHeader.len = dataLen + sizeof(TSCKSUM);
 
   ptr = hbuf;
   TAOS_UNUSED(dmEncodeDFHeader(&ptr, &fHeader));

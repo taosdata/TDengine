@@ -1,6 +1,6 @@
 module taosainternal
 
-go 1.24.0
+go 1.24.10
 
 replace github.com/taosdata/taosadapter/v3 => ../../../../.internals/build/ext_taosadapter/src/ext_taosadapter
 
