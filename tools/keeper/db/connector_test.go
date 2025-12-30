@@ -19,9 +19,12 @@ import (
 	"github.com/taosdata/taoskeeper/util"
 )
 
-func TestIPv6(t *testing.T) {
+func TestMain(m *testing.M) {
 	config.InitConfig()
+	os.Exit(m.Run())
+}
 
+func TestIPv6(t *testing.T) {
 	conn, err := NewConnector("root", "taosdata", "[::1]", 6041, false)
 	assert.NoError(t, err)
 
@@ -292,8 +295,6 @@ func TestNewConnectorWithDbAndToken(t *testing.T) {
 	if !IsEnterpriseTest() {
 		t.Skip("only for TDengine Enterprise")
 	}
-
-	config.InitConfig()
 
 	conn, err := NewConnector("root", "taosdata", "localhost", 6041, false)
 	assert.NoError(t, err)

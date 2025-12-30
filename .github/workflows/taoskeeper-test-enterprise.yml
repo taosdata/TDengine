@@ -67,11 +67,9 @@ jobs:
 
       - name: Run tests with coverage
         working-directory: tools/keeper
-        env:
-          TEST_ENTERPRISE: "true"
         run: |
           go mod tidy
-          sudo go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'" -coverpkg=./... -coverprofile=coverage.out ./...
+          sudo TEST_ENTERPRISE=true go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'" -coverpkg=./... -coverprofile=coverage.out ./...
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
