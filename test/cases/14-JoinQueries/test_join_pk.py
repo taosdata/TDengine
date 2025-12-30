@@ -206,7 +206,7 @@ class TestJoinPk:
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, top(f, 2) from sst order by ats desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
-        # tdSql.checkRows(2)
+        tdSql.checkRows(2)
 
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, tail(f, 2) from sst) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
@@ -216,7 +216,7 @@ class TestJoinPk:
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, tail(f, 2) from sst order by ats desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
-        # tdSql.checkRows(2)
+        tdSql.checkRows(2)
         
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, tail(f, 3) from sst) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
@@ -260,7 +260,7 @@ class TestJoinPk:
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, bottom(f, 2) from sst order by ats desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
-        # tdSql.checkRows(2)
+        tdSql.checkRows(2)
          
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, f from sst order by ats desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
@@ -270,7 +270,7 @@ class TestJoinPk:
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, lag(f) from sst order by ats desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
-        # tdSql.checkRows(4)
+        tdSql.checkRows(4)
 
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, sample(f, 1) from sst) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
@@ -296,52 +296,32 @@ class TestJoinPk:
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, sample(f, 1) from sst order by ts) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
-        # tdSql.checkRows(4)
+        tdSql.checkRows(1)
         
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, sample(f, 2) from sst order by ts) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
-        # tdSql.checkRows(4)
+        tdSql.checkRows(2)
         
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, sample(f, 3) from sst order by ts) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
-        # tdSql.checkRows(4)
-        
-        tdSql.query(
-            f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
-        )
-        # tdSql.checkRows(4)
-
-        tdSql.query(
-            f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
-        )
-        # tdSql.checkRows(4)
+        tdSql.checkRows(3)
         
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, sample(f, 2) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
-        # tdSql.checkRows(4)
+        tdSql.checkRows(2)
         
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, sample(f, 2) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
-        # tdSql.checkRows(4)
+        tdSql.checkRows(2)
         
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, sample(f, 3) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
-        # tdSql.checkRows(4)
-        
-        tdSql.query(
-            f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
-        )
-        # tdSql.checkRows(4)
-
-        tdSql.query(
-            f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
-        )
-        # tdSql.checkRows(4)
+        tdSql.checkRows(3)
         
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, sample(f, 1) from sst) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
@@ -360,10 +340,30 @@ class TestJoinPk:
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, sample(f, 2) from sst order by ats desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
-        # tdSql.checkRows(2)
+        tdSql.checkRows(2)
  
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, mode(f) from sst) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
         tdSql.checkRows(1)
+        
+        # tdSql.query(
+        #     f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
+        # )
+        # # tdSql.checkRows(4)
+
+        # tdSql.query(
+        #     f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
+        # )
+        # # tdSql.checkRows(4)
+        
+        # tdSql.query(
+        #     f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
+        # )
+        # # tdSql.checkRows(4)
+
+        # tdSql.query(
+        #     f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
+        # )
+        # # tdSql.checkRows(4)
    

@@ -63,18 +63,10 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_WSTART:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->colType = COLUMN_TYPE_WINDOW_START;
-      if (!isPartitionBy || (pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
-                             isPrimaryKeyImpl(pOrderByFirstExpr))) {
-        pCol->isPrimTs = true;
-      }
       break;
     case FUNCTION_TYPE_WEND:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->colType = COLUMN_TYPE_WINDOW_END;
-      if (!isPartitionBy || (pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
-                             isPrimaryKeyImpl(pOrderByFirstExpr))) {
-        pCol->isPrimTs = true;
-      }
       break;
     case FUNCTION_TYPE_WDURATION:
       pCol->colType = COLUMN_TYPE_WINDOW_DURATION;
@@ -86,12 +78,13 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
       pCol->colType = COLUMN_TYPE_IS_WINDOW_FILLED;
       break;
     default:
-      // if ((pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
-      //      isPrimaryKeyImpl(pOrderByFirstExpr))) {
-      //   pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-      //   pCol->isPrimTs = true;
-      // }
       break;
+  }
+  if (isPrimaryKeyImpl((SNode*)pFunc)) {
+    if (!isPartitionBy || (pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
+                           isPrimaryKeyImpl(pOrderByFirstExpr))) {
+      pCol->isPrimTs = true;
+    }
   }
 }
 
@@ -2582,6 +2575,11 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
       SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
 
       if (isPrimaryKeyImpl(firstSortKey->pExpr)) pSort->node.outputTsOrder = firstSortKey->order;
+      // if (isPrimaryKeyImpl(firstSortKey->pExpr)) {
+      //   pSort->node.outputTsOrder = firstSortKey->order;
+      // } else if (!pSelect->pWindow) {
+      //   setPrimaryKey();
+      // }
       if (firstSortKey->pExpr->type == QUERY_NODE_COLUMN) {
         SColumnNode* pCol = (SColumnNode*)firstSortKey->pExpr;
         int16_t      projIdx = 1;
