@@ -329,9 +329,12 @@ static int32_t verifyPassword(SUserObj* pUser, const char* inputPass) {
 
 
 
-static bool verifyTotp(SUserObj *pUser, int32_t totpCode) {
+static bool verifyTotp(SUserObj *pUser, int32_t totpCode, int32_t lastTotpCode) {
   if (!mndIsTotpEnabledUser(pUser)) {
     return true;
+  }
+  if (totpCode == lastTotpCode) {
+    return false;
   }
   return taosVerifyTotpCode(pUser->totpsecret, sizeof(pUser->totpsecret), totpCode, 6, 1) != 0;
 }
@@ -372,12 +375,13 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     if (connReq.connType != CONN_TYPE__AUTH_TEST) {
       mndSetUserLoginInfo(user, &li);
     }
-  } else if (!verifyTotp(pUser, connReq.totpCode)) {
+  } else if (!verifyTotp(pUser, connReq.totpCode, li.lastTotpCode)) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_WRONG_TOTP_CODE, &lino, _OVER);
   } else if ((code = verifyPassword(pUser, connReq.passwd)) == TSDB_CODE_SUCCESS) {
-    li.failedLoginCount = 0;
-    li.lastLoginTime= now;
     if (connReq.connType != CONN_TYPE__AUTH_TEST) {
+      li.failedLoginCount = 0;
+      li.lastLoginTime= now;
+      li.lastTotpCode = connReq.totpCode;
       mndSetUserLoginInfo(user, &li);
     }
   } else if (code == TSDB_CODE_MND_AUTH_FAILURE) {

@@ -444,6 +444,7 @@ typedef struct {
   int32_t lastLoginTime;        // in seconds
   int32_t lastFailedLoginTime;  // in seconds
   int32_t failedLoginCount;
+  int32_t lastTotpCode;
 } SLoginInfo;
 
 

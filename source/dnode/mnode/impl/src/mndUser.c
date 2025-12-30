@@ -231,6 +231,7 @@ static void userCacheResetLoginInfo(const char *user) {
     (*ppInfo)->loginInfo.lastLoginTime = taosGetTimestampSec();
     (*ppInfo)->loginInfo.failedLoginCount = 0;
     (*ppInfo)->loginInfo.lastFailedLoginTime = 0;
+    (*ppInfo)->loginInfo.lastTotpCode = -1;
   }
 
   (void)taosThreadRwlockUnlock(&userCache.rw);
@@ -250,6 +251,7 @@ static SCachedUserInfo* getCachedUserInfo(const char* user) {
     return NULL;
   }
 
+  pInfo->loginInfo.lastTotpCode = -1;
   if (taosHashPut(userCache.users, user, userLen, &pInfo, sizeof(pInfo)) != 0) {
     taosMemoryFree(pInfo);
     return NULL;
@@ -270,16 +272,19 @@ void mndGetUserLoginInfo(const char *user, SLoginInfo *pLoginInfo) {
     pLoginInfo->lastLoginTime = (*ppInfo)->loginInfo.lastLoginTime;
     pLoginInfo->failedLoginCount = (*ppInfo)->loginInfo.failedLoginCount;
     pLoginInfo->lastFailedLoginTime = (*ppInfo)->loginInfo.lastFailedLoginTime;
+    pLoginInfo->lastTotpCode = (*ppInfo)->loginInfo.lastTotpCode;
   } else {
     pLoginInfo->lastLoginTime = taosGetTimestampSec();
     pLoginInfo->failedLoginCount = 0;
     pLoginInfo->lastFailedLoginTime = 0;
+    pLoginInfo->lastTotpCode = -1;
   }
 
   (void)taosThreadRwlockUnlock(&userCache.rw);
 
   if (pLoginInfo->lastLoginTime == 0) {
     pLoginInfo->lastLoginTime = taosGetTimestampSec();
+    pLoginInfo->lastTotpCode = -1;
   }
 }
 
@@ -295,6 +300,7 @@ void mndSetUserLoginInfo(const char *user, const SLoginInfo *pLoginInfo) {
     pInfo->loginInfo.lastLoginTime = pLoginInfo->lastLoginTime;
     pInfo->loginInfo.failedLoginCount = pLoginInfo->failedLoginCount;
     pInfo->loginInfo.lastFailedLoginTime = pLoginInfo->lastFailedLoginTime;
+    pInfo->loginInfo.lastTotpCode = pLoginInfo->lastTotpCode;
   }
 
   (void)taosThreadRwlockUnlock(&userCache.rw);
