@@ -181,3 +181,6 @@ class TestInsertSelect:
         tdSql.checkData(0, 1, "2025-12-01 13:00:00.000")
         tdSql.checkData(1, 0, "t_oh2")
         tdSql.checkData(1, 1, "2025-12-01 13:00:00.000")
+
+        tdSql.execute(f"INSERT INTO ohlcv_1d(tbname,ts) SELECT '1.34' as tb,  '2025-12-01T00:00:00.000-05:00' FROM ohlcv_1m WHERE symbol = 'AAPL' AND ts >= '2025-12-01T00:00:00.000' AND ts < '2025-12-02T00:00:00.000' PARTITION BY tbname, symbol;")
+        tdSql.error(f"INSERT INTO ohlcv_1d(tbname,ts) SELECT 1.34 as tb,  '2025-12-01T00:00:00.000-05:00' FROM ohlcv_1m WHERE symbol = 'AAPL' AND ts >= '2025-12-01T00:00:00.000' AND ts < '2025-12-02T00:00:00.000' PARTITION BY tbname, symbol;")
