@@ -73,6 +73,10 @@ jobs:
           go mod tidy
           sudo go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'" -coverpkg=./... -coverprofile=coverage.out ./...
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        timeout-minutes: 300
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
