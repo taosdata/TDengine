@@ -59,8 +59,7 @@ Additional Notes:
 | forceReadConfig        |                         | Not supported                                                | Force read configuration file; default value false |
 | mqttPort               |                         | Not supported                                                | MQTT service listening port, range 1-65056, default value 6083 |
 | enableTLS              |                         | Supported, effective immediately                             | Whether to enable TLS connection; 0: disable, 1: enable; default value 0 |
-| enableSasl             |                         | Supported, effective immediately                             | Whether to enable SASL authentication; 0: disable, 1: enable; default value 0 |
-| timeToGetAvailableConn |                         | Supported, effective after restart                           | Maximum waiting time to get an available connection, range 20-1000000, in milliseconds, default value 500000 |
+| enableSasl             | After 3.4.0.0           | Supported, effective immediately                             | Whether to enable SASL authentication; 0: disable, 1: enable; default value 0 |
 | rpcRecvLogThreshold    |                         | Supported, effective immediately                             | RPC receive log threshold, RPC requests exceeding this time will be logged, range 1-1048576, in seconds, default value 3 |
 
 ### Monitoring Related
@@ -80,10 +79,9 @@ Additional Notes:
 | telemetryPort      |                   | Not supported                      | Telemetry server port number                                 |
 | telemetryInterval  |                   | Supported, effective immediately   | Telemetry upload interval, in seconds, default 86400         |
 | crashReporting     |                   | Supported, effective immediately   | Whether to upload crash information; 0: do not upload, 1: upload; default value 1 |
-| slowLogThreshold   |                   | Supported, effective immediately   | Slow query log threshold, queries taking longer than this threshold will be logged, range 1-INT32_MAX, in seconds, default value 10 |
-| slowLogMaxLen      |                   | Supported, effective immediately   | Maximum length of SQL statement in slow query log, range 1-16384, default value 4096 |
-| slowLogScope       |                   | Supported, effective immediately   | Scope of slow query log recording, optional values: all (all), query (query), insert (insert), others (others), none (not record), default value query |
-| slowLogExceptDb    |                   | Supported, effective immediately   | Database excluded from slow query logging, slow queries of this database will not be logged, default value empty |
+| enableMetrics      | After 3.7.0.0     | Supported, effective immediately   | Whether to enable write diagnostic tool to collect and upload write metrics; 0: disable, 1: enable; default value 0 |
+| metricsInterval    | After 3.7.0.0     | Supported, effective immediately   | Interval for write diagnostic tool to upload write metrics, in seconds, range 1-3600, default value 30 |
+| metricsLevel       | After 3.7.0.0     | Supported, effective immediately   | Level of write metrics collected by diagnostic tool; 0: collect only important metrics, 1: collect all metrics; default value 0 |
 
 ### Query Related
 
@@ -101,13 +99,19 @@ Additional Notes:
 | queryRsmaTolerance       |                   | Not supported                      | Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds |
 | pqSortMemThreshold       |                   | Not supported                      | Internal parameter, memory threshold for sorting             |
 | updateCacheBatch         |                   | Not supported                      | Whether to batch update cache; default value true |
-| sessionControl           |                   | Supported, effective after restart | Whether to enable session control function; default value true |
-| sessionPerUser           |                   | Supported, effective immediately   | Maximum number of sessions allowed per user, -1 means no limit, range -1-INT32_MAX, default value -1 |
-| sessionConnTime          |                   | Supported, effective immediately   | Session connection time limit, -1 means no limit, range -1-INT32_MAX, in seconds, default value -1 |
-| sessionConnIdleTime      |                   | Supported, effective immediately   | Session idle time limit, -1 means no limit, range -1-INT32_MAX, in seconds, default value -1 |
-| sessionMaxConcurrency    |                   | Supported, effective immediately   | Maximum concurrency per session, -1 means no limit, range -1-INT32_MAX, default value -1 |
-| sessionMaxCallVnodeNum   |                   | Supported, effective immediately   | Maximum number of vnode calls per session, -1 means no limit, range -1-INT32_MAX, default value -1 |
-| timestampDeltaLimit      |                   | Not supported                      | Timestamp deviation limit, in seconds, default 900 seconds (15 minutes) |
+| sessionControl           | After 3.4.0.0     | Supported, effective after restart | Whether to enable session control function; default value true |
+| sessionPerUser           | After 3.4.0.0     | Supported, effective immediately   | Maximum number of sessions allowed per user, -1 means no limit, range -1-INT32_MAX, default value -1 |
+| sessionConnTime          | After 3.4.0.0     | Supported, effective immediately   | Session connection time limit, -1 means no limit, range -1-INT32_MAX, in seconds, default value -1 |
+| sessionConnIdleTime      | After 3.4.0.0     | Supported, effective immediately   | Session idle time limit, -1 means no limit, range -1-INT32_MAX, in seconds, default value -1 |
+| sessionMaxConcurrency    | After 3.4.0.0     | Supported, effective immediately   | Maximum concurrency per session, -1 means no limit, range -1-INT32_MAX, default value -1 |
+| sessionMaxCallVnodeNum   | After 3.4.0.0     | Supported, effective immediately   | Maximum number of vnode calls per session, -1 means no limit, range -1-INT32_MAX, default value -1 |
+| timestampDeltaLimit      | After 3.4.0.0     | Not supported                      | Timestamp deviation limit, in seconds, default 900 seconds (15 minutes) |
+| enableQueryHb            | After 3.1.0.0     | Supported, effective immediately   | Whether to send query heartbeat messages; Internal parameter; 0: disable, 1: enable; default value 1 |
+| queryUseNodeAllocator    | After 3.1.0.0     | Supported, effective immediately   | Query plan allocation method; Internal parameter; 0: disable, 1: enable; default value 1 |
+| queryMaxConcurrentTables | After 3.1.0.0     | Not supported                      | Query plan allocation method; Internal parameter; default value 200, range INT64_MIN-INT64_MAX |
+| queryNodeChunkSize       | After 3.1.0.0     | Supported, effective immediately   | Query plan chunk size; Internal parameter; in bytes, default value 32*1024, range 1024-128*1024 |
+| queryNoFetchTimeoutSec   | After 3.1.0.0     | Supported, effective immediately   | Timeout for queries when application does not fetch data for a long time, counted from last response; Internal parameter; 0: disable, 1: enable; default value 18000, range 60-1000000000; Enterprise parameter |
+| queryPlannerTrace        | After 3.1.0.0     | Supported, effective immediately   | Whether query planner outputs detailed logs; Internal parameter; 0: disable, 1: enable; default value 0 |
 
 ### Region Related
 
@@ -207,6 +211,7 @@ The effective value of charset is UTF-8.
 | ssAccessString           | After 3.3.7.0     | Supported, effective after restart | A string which contains various options for accessing the shared storage, the format is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`, the possible options vary from shared storage providers, please refer related document for details |
 | ssPageCacheSize          | After 3.3.7.0     | Supported, effective after restart | Number of shared storage page cache pages, range 4-1048576, unit is pages, default value 4096; Enterprise parameter |
 | ssUploadDelaySec         | After 3.3.7.0     | Supported, effective immediately   | How long a data file remains unchanged before being uploaded to S3, range 1-2592000 (30 days), in seconds, default value 60; Enterprise parameter |
+| diskIDCheckEnabled       | After 3.3.5.0     | Not supported                      | Check if the disk ID where dataDir is located has changed when restarting dnode; 0: perform check, 1: do not perform check; default value 1 |
 | cacheLazyLoadThreshold   |                   | Supported, effective immediately   | Internal parameter, cache loading strategy                   |
 
 ### Cluster Related
@@ -227,23 +232,25 @@ The effective value of charset is UTF-8.
 | ttlBatchDropNum            |                   | Supported, effective immediately   | Number of subtables deleted in a batch for ttl, minimum value 0, default value 10000                                                                                                                                                                                           |
 | retentionSpeedLimitMB      |                   | Supported, effective immediately   | Speed limit for data migration across different levels of disks, range 0-1024, in MB, default value 0, which means no limit                                                                                                                                                    |
 | maxTsmaNum                 |                   | Supported, effective immediately   | Maximum number of TSMAs that can be created in the cluster; range 0-10; default value 10                                                                                                                                                                                       |
+| maxTsmaCalcDelay           | After 3.4.0.0     | Supported, effective immediately   | Maximum TSMA calculation delay, in seconds, range 600-86400, default value 600                                                                                                                                                                                                 |
+| tsmaDataDeleteMark         | After 3.4.0.0     | Supported, effective immediately   | TSMA data deletion mark time, in milliseconds, range 3600000-INT64_MAX, default value 86400000 (1 day)                                                                                                                                                                         |
 | tmqMaxTopicNum             |                   | Supported, effective immediately   | Maximum number of topics that can be established for subscription; range 1-10000; default value 20                                                                                                                                                                             |
 | tmqRowSize                 |                   | Supported, effective immediately   | Maximum number of records in a subscription data block, range 1-1000000, default value 4096                                                                                                                                                                                    |
 | audit                      |                   | Supported, effective immediately   | Audit feature switch; Enterprise parameter                                                                                                                                                                                                                                     |
 | auditInterval              |                   | Supported, effective immediately   | Time interval for reporting audit data; Enterprise parameter                                                                                                                                                                                                                   |
-| auditLevel                 |                   | Supported, effective immediately   | Audit level for reporting audit data; Enterprise parameter; range 1 - 5, default value 3, 1 means system level, 2 means cluster level, 3 means database level, 4 means child table level, 5 means data level.                                                                                                         |
-| auditHttps                 |                   | Supported, effective immediately   | Whether to use https to report audit data; Enterprise parameter; range 0 - 1, default value 0 (1: use https, 0: do not use).                                                                                                         |
-| auditUseToken              |                   | Supported, effective immediately   | Whether to use token to report audit data; Enterprise parameter; range 0 - 1, default value 1 (1: use token, 0: do not use).                                                                                                         |
+| auditLevel                 | After 3.4.0.0     | Supported, effective immediately   | Audit level for reporting audit data; Enterprise parameter; range 1 - 5, default value 3, 1 means system level, 2 means cluster level, 3 means database level, 4 means child table level, 5 means data level.                                                                                                         |
+| auditHttps                 | After 3.4.0.0     | Supported, effective immediately   | Whether to use https to report audit data; Enterprise parameter; range 0 - 1, default value 0 (1: use https, 0: do not use).                                                                                                         |
+| auditUseToken              | After 3.4.0.0     | Supported, effective immediately   | Whether to use token to report audit data; Enterprise parameter; range 0 - 1, default value 1 (1: use token, 0: do not use).                                                                                                         |
 | auditCreateTable           |                   | Supported, effective immediately   | Whether to enable audit feature for creating subtables; Enterprise parameter                                                                                                                                                                                                   |
 | encryptAlgorithm           |                   | Not supported                      | Data encryption algorithm; Enterprise parameter                                                                                                                                                                                                                                |
 | encryptScope               |                   | Not supported                      | Encryption scope; Enterprise parameter                                                                                                                                                                                                                                         |
 | encryptExtDir              | v3.4.0.0           | Not supported                      | User-defined encryption algorithms extensions path; Enterprise parameter                                                                                                                                                                                                                                         |
 | encryptPassAlgorithm       |v3.3.7.0           |Supported, effective immediately    | Switch for saving user password as encrypted string                                                                                                                                                                                                                            |
 | enableWhiteList            |                   | Supported, effective immediately   | Switch for whitelist feature; Enterprise parameter                                                                                                                                                                                                                             |
-| authServer                 |                   | Supported, effective immediately   | Whether to enable authentication server; Enterprise parameter; default value false |
-| authReq                    |                   | Supported, effective immediately   | Whether to enable authentication request; Enterprise parameter; default value false |
-| authReqInterval            |                   | Supported, effective immediately   | Authentication request interval; Enterprise parameter; range 1-2592000, in seconds, default value 2592000 (30 days) |
-| authReqUrl                 |                   | Supported, effective immediately   | Authentication request URL; Enterprise parameter; default value empty |
+| authServer                 | After 3.4.0.0     | Supported, effective immediately   | Whether to enable authentication server; Enterprise parameter; default value false |
+| authReq                    | After 3.4.0.0     | Supported, effective immediately   | Whether to enable authentication request; Enterprise parameter; default value false |
+| authReqInterval            | After 3.4.0.0     | Supported, effective immediately   | Authentication request interval; Enterprise parameter; range 1-2592000, in seconds, default value 2592000 (30 days) |
+| authReqUrl                 | After 3.4.0.0     | Supported, effective immediately   | Authentication request URL; Enterprise parameter; default value empty |
 | syncLogBufferMemoryAllowed |                   | Supported, effective immediately   | Maximum memory allowed for sync log cache messages for a dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory, effective from versions 3.1.3.2/3.3.2.13                                                                                          |
 | syncApplyQueueSize         |                   | supported, effective immediately   | Size of apply queue for sync log, range 32-2048, default is 512                                                                                                                                                                                                                |
 | statusIntervalMs           |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
@@ -274,16 +281,13 @@ The effective value of charset is UTF-8.
 | walForceRepair             |                   | Not supported                      | Internal parameter, repair WAL file forcibly, range 0-1; default value 0, 0 means not repair, 1 means repair                           |
 | walDeleteOnCorruption      |                   | Not supported                      | backup and delete corrupted WAL directory when node starts; range 0-1; default value 0, 0 means do not delete, 1 means backup and delete. Note: this will cause some data loss |
 | transPullupInterval        |                   | Supported, effective immediately   | Internal parameter, retry interval for mnode to execute transactions                                                                    |
+| forceKillTrans             | After 3.3.7.0     | Supported, effective immediately   | Internal parameter, for debugging mnode transaction module                                                                              |
 | mqRebalanceInterval        |                   | Supported, effective immediately   | Internal parameter, interval for consumer rebalancing                                                                                                                                                                                                                          |
 | uptimeInterval             |                   | Supported, effective immediately   | Internal parameter, for recording system uptime                                                                                                                                                                                                                                |
 | timeseriesThreshold        |                   | Supported, effective immediately   | Internal parameter, for usage statistics                                                                                                                                                                                                                                       |
 | udf                        |                   | Supported, effective after restart | Whether to start UDF service; 0: do not start, 1: start; default value 1(The default value on Windows is 0.) |
 | udfdResFuncs               |                   | Supported, effective after restart | UDF resident function list, these functions are only unloaded when udfd exits; Internal parameter; default value empty |
 | udfdLdLibPath              |                   | Supported, effective after restart | UDF dynamic library search path; Internal parameter; default value empty |
-| disableStream              |                   | Not supported                      | Whether to disable stream computing function; default value false |
-| streamBufferSize           |                   | Supported, effective immediately   | Stream computing buffer size, range 128-INT32_MAX, in MB, default value is 30% of system memory |
-| streamNotifyMessageSize    |                   | Not supported                      | Stream computing notification message size, range 8-1048576, in KB, default value 8 |
-| streamNotifyFrameSize      |                   | Not supported                      | Stream computing notification frame size, range 8-1048576, in KB, default value 256 |
 | streamBatchRequestWaitMs   |                   | Not supported                      | Stream computing batch request wait time, range 0-1800000, in milliseconds, default value 5000 |
 | numOfMnodeStreamMgmtThreads|                   | Not supported                      | Mnode stream management thread count, range 2-5, default value is one quarter of CPU cores (not less than 2, not exceeding 5) |
 | numOfStreamMgmtThreads     |                   | Not supported                      | Vnode stream management thread count, range 2-5, default value is one eighth of CPU cores (not less than 2, not exceeding 5) |
@@ -351,7 +355,6 @@ The effective value of charset is UTF-8.
 | -------------------- | ----------------- | -------------------------------- | ------------------------------------------------------------ |
 | enableCoreFile       |                   | Supported, effective immediately | Whether to generate a core file when crashing, 0: do not generate, 1: generate; default value is 1 |
 | configDir            |                   | Not supported                    | Directory where the configuration files are located          |
-| forceReadConfig      |                   | Not supported                    |                                                              |
 | scriptDir            |                   | Not supported                    | Directory for internal test tool scripts                     |
 | assert               |                   | Not supported                    | Assertion control switch, default value is 0                 |
 | randErrorChance      |                   | Supported, effective immediately | Internal parameter, used for random failure testing          |
@@ -381,14 +384,9 @@ The effective value of charset is UTF-8.
 | maxRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | curRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compressor     |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
-| experimental   |                   | Supported, effective after restart | Whether to enable experimental features; default value true |
 | compareAsStrInGreatest |             | Supported, effective immediately   | Whether to compare values as strings in GREATEST function; default value true |
 | showFullCreateTableColumn |              | Supported, effective immediately   | Whether SHOW CREATE TABLE displays full column information; 0: only table name and database name, 1: full create statement; default value 0 |
 | multiResultFunctionStarReturnTags |     | Supported, effective immediately   | Whether multi-result functions return tag columns when using *; default value false |
-| enableStrongPassword |                  | Supported, effective immediately   | Whether to enable strong password policy; default value true |
-| rsyncPort      |                   | Not supported                      | Rsync service port, range 1-65535, default value 873 |
-| snodeAddress   |                   | Supported, effective after restart | Snapshot backup node address; default value empty |
-| checkpointBackupDir |                | Supported, effective after restart | Checkpoint backup directory; default value /var/lib/taos/backup/checkpoint/ (Linux), C:\TDengine\data\backup\checkpoint\ (Windows) |
 
 ## taosd Monitoring Metrics
 
