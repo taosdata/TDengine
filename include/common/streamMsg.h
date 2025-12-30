@@ -316,6 +316,8 @@ typedef struct {
   void*   subTblNameExpr;
   void*   tagValueExpr;
   SArray* forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
+  SArray* colCids;       // array of SStreamCidCol, only available when colCids is not empty
+  SArray* tagCids;       // array of SStreamCidTag, only available when tagCids is not empty
 } SCMCreateStreamReq;
 
 typedef enum SStreamMsgType {
@@ -621,6 +623,9 @@ typedef struct SStreamRunnerDeployMsg {
   void*   subTblNameExpr;
   void*   tagValueExpr;
   SArray* forceOutCols;  // array of SStreamOutCol, only available when forceOutput is true
+
+  SArray* colCids;  // array of SStreamCidCol, only available when colCids is not empty
+  SArray* tagCids;  // array of SStreamCidTag, only available when tagCids is not empty
 } SStreamRunnerDeployMsg;
 
 typedef union {

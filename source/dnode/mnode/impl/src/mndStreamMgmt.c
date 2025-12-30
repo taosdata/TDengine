@@ -941,6 +941,8 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   pMsg->tagValueExpr = pInfo->pCreate->tagValueExpr;
   pMsg->forceOutCols = pInfo->pCreate->forceOutCols;
 
+  pMsg->colCids = pInfo->pCreate->colCids;
+  pMsg->tagCids = pInfo->pCreate->tagCids;
 _exit:
 
   if (code) {
