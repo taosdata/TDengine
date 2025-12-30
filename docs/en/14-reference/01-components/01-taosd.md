@@ -56,6 +56,12 @@ Additional Notes:
 | maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
 | shareConnLimit         | Added in 3.3.4.0        | Supported, effective after restart                           | Number of requests a connection can share, range 1-512, default value 10 |
 | readTimeout            | Added in 3.3.4.0        | Supported, effective after restart                           | Minimum timeout for a single request, range 64-604800, in seconds, default value 900 |
+| forceReadConfig        |                         | Not supported                                                | Force read configuration file; default value false |
+| mqttPort               |                         | Not supported                                                | MQTT service listening port, range 1-65056, default value 6083 |
+| enableTLS              |                         | Supported, effective immediately                             | Whether to enable TLS connection; 0: disable, 1: enable; default value 0 |
+| enableSasl             |                         | Supported, effective immediately                             | Whether to enable SASL authentication; 0: disable, 1: enable; default value 0 |
+| timeToGetAvailableConn |                         | Supported, effective after restart                           | Maximum waiting time to get an available connection, range 20-1000000, in milliseconds, default value 500000 |
+| rpcRecvLogThreshold    |                         | Supported, effective immediately                             | RPC receive log threshold, RPC requests exceeding this time will be logged, range 1-1048576, in seconds, default value 3 |
 
 ### Monitoring Related
 
@@ -74,6 +80,10 @@ Additional Notes:
 | telemetryPort      |                   | Not supported                      | Telemetry server port number                                 |
 | telemetryInterval  |                   | Supported, effective immediately   | Telemetry upload interval, in seconds, default 86400         |
 | crashReporting     |                   | Supported, effective immediately   | Whether to upload crash information; 0: do not upload, 1: upload; default value 1 |
+| slowLogThreshold   |                   | Supported, effective immediately   | Slow query log threshold, queries taking longer than this threshold will be logged, range 1-INT32_MAX, in seconds, default value 10 |
+| slowLogMaxLen      |                   | Supported, effective immediately   | Maximum length of SQL statement in slow query log, range 1-16384, default value 4096 |
+| slowLogScope       |                   | Supported, effective immediately   | Scope of slow query log recording, optional values: all (all), query (query), insert (insert), others (others), none (not record), default value query |
+| slowLogExceptDb    |                   | Supported, effective immediately   | Database excluded from slow query logging, slow queries of this database will not be logged, default value empty |
 
 ### Query Related
 
@@ -90,6 +100,14 @@ Additional Notes:
 | filterScalarMode         |                   | Not supported                      | Force scalar filter mode, 0: off; 1: on, default value 0     |
 | queryRsmaTolerance       |                   | Not supported                      | Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds |
 | pqSortMemThreshold       |                   | Not supported                      | Internal parameter, memory threshold for sorting             |
+| updateCacheBatch         |                   | Not supported                      | Whether to batch update cache; default value true |
+| sessionControl           |                   | Supported, effective after restart | Whether to enable session control function; default value true |
+| sessionPerUser           |                   | Supported, effective immediately   | Maximum number of sessions allowed per user, -1 means no limit, range -1-INT32_MAX, default value -1 |
+| sessionConnTime          |                   | Supported, effective immediately   | Session connection time limit, -1 means no limit, range -1-INT32_MAX, in seconds, default value -1 |
+| sessionConnIdleTime      |                   | Supported, effective immediately   | Session idle time limit, -1 means no limit, range -1-INT32_MAX, in seconds, default value -1 |
+| sessionMaxConcurrency    |                   | Supported, effective immediately   | Maximum concurrency per session, -1 means no limit, range -1-INT32_MAX, default value -1 |
+| sessionMaxCallVnodeNum   |                   | Supported, effective immediately   | Maximum number of vnode calls per session, -1 means no limit, range -1-INT32_MAX, default value -1 |
+| timestampDeltaLimit      |                   | Not supported                      | Timestamp deviation limit, in seconds, default 900 seconds (15 minutes) |
 
 ### Region Related
 
@@ -222,6 +240,10 @@ The effective value of charset is UTF-8.
 | encryptExtDir              | v3.4.0.0           | Not supported                      | User-defined encryption algorithms extensions path; Enterprise parameter                                                                                                                                                                                                                                         |
 | encryptPassAlgorithm       |v3.3.7.0           |Supported, effective immediately    | Switch for saving user password as encrypted string                                                                                                                                                                                                                            |
 | enableWhiteList            |                   | Supported, effective immediately   | Switch for whitelist feature; Enterprise parameter                                                                                                                                                                                                                             |
+| authServer                 |                   | Supported, effective immediately   | Whether to enable authentication server; Enterprise parameter; default value false |
+| authReq                    |                   | Supported, effective immediately   | Whether to enable authentication request; Enterprise parameter; default value false |
+| authReqInterval            |                   | Supported, effective immediately   | Authentication request interval; Enterprise parameter; range 1-2592000, in seconds, default value 2592000 (30 days) |
+| authReqUrl                 |                   | Supported, effective immediately   | Authentication request URL; Enterprise parameter; default value empty |
 | syncLogBufferMemoryAllowed |                   | Supported, effective immediately   | Maximum memory allowed for sync log cache messages for a dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory, effective from versions 3.1.3.2/3.3.2.13                                                                                          |
 | syncApplyQueueSize         |                   | supported, effective immediately   | Size of apply queue for sync log, range 32-2048, default is 512                                                                                                                                                                                                                |
 | statusIntervalMs           |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
@@ -255,9 +277,19 @@ The effective value of charset is UTF-8.
 | mqRebalanceInterval        |                   | Supported, effective immediately   | Internal parameter, interval for consumer rebalancing                                                                                                                                                                                                                          |
 | uptimeInterval             |                   | Supported, effective immediately   | Internal parameter, for recording system uptime                                                                                                                                                                                                                                |
 | timeseriesThreshold        |                   | Supported, effective immediately   | Internal parameter, for usage statistics                                                                                                                                                                                                                                       |
-| udf                        |                   | Supported, effective after restart | Whether to start UDF service; 0: do not start, 1: start; default value 1(The default value on Windows is 0.)0                                                                                                                                                                                                       |
-| udfdResFuncs               |                   | Supported, effective after restart | Internal parameter, for setting UDF result sets                                                                                                                                                                                                                                |
-| udfdLdLibPath              |                   | Supported, effective after restart | Internal parameter, indicates the library path for loading UDF                                                                                                                                                                                                                 |
+| udf                        |                   | Supported, effective after restart | Whether to start UDF service; 0: do not start, 1: start; default value 1(The default value on Windows is 0.) |
+| udfdResFuncs               |                   | Supported, effective after restart | UDF resident function list, these functions are only unloaded when udfd exits; Internal parameter; default value empty |
+| udfdLdLibPath              |                   | Supported, effective after restart | UDF dynamic library search path; Internal parameter; default value empty |
+| disableStream              |                   | Not supported                      | Whether to disable stream computing function; default value false |
+| streamBufferSize           |                   | Supported, effective immediately   | Stream computing buffer size, range 128-INT32_MAX, in MB, default value is 30% of system memory |
+| streamNotifyMessageSize    |                   | Not supported                      | Stream computing notification message size, range 8-1048576, in KB, default value 8 |
+| streamNotifyFrameSize      |                   | Not supported                      | Stream computing notification frame size, range 8-1048576, in KB, default value 256 |
+| streamBatchRequestWaitMs   |                   | Not supported                      | Stream computing batch request wait time, range 0-1800000, in milliseconds, default value 5000 |
+| numOfMnodeStreamMgmtThreads|                   | Not supported                      | Mnode stream management thread count, range 2-5, default value is one quarter of CPU cores (not less than 2, not exceeding 5) |
+| numOfStreamMgmtThreads     |                   | Not supported                      | Vnode stream management thread count, range 2-5, default value is one eighth of CPU cores (not less than 2, not exceeding 5) |
+| numOfVnodeStreamReaderThreads|                 | Not supported                      | Vnode stream reader thread count, range 2-INT32_MAX, default value is half of CPU cores (not less than 2) |
+| numOfStreamTriggerThreads  |                   | Not supported                      | Stream trigger thread count, range 4-INT32_MAX, default value is CPU cores (not less than 4) |
+| numOfStreamRunnerThreads   |                   | Not supported                      | Stream executor thread count, range 4-INT32_MAX, default value is CPU cores (not less than 4) |
 | enableStrongPassword       | After 3.3.6.0     | Supported, effective after restart | The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
 |enableIpv6                  | 3.3.7.0           |not Supported                       | force nodes to communicate directly via IPv6 only, default value is 0, notes: 1. `firstep`, `sencodep`, and `FQDN` must all resolve to IPv6 addresses. 2. Mixed IPv4/IPv6 deployment is not supported                                                                          |
 |statusInterval              | 3.3.0.0           | Supported, effective immediately   | Controls the interval time for dnode to send status reports to mnode                                                                                                                                                                                                           |
@@ -349,6 +381,14 @@ The effective value of charset is UTF-8.
 | maxRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | curRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compressor     |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
+| experimental   |                   | Supported, effective after restart | Whether to enable experimental features; default value true |
+| compareAsStrInGreatest |             | Supported, effective immediately   | Whether to compare values as strings in GREATEST function; default value true |
+| showFullCreateTableColumn |              | Supported, effective immediately   | Whether SHOW CREATE TABLE displays full column information; 0: only table name and database name, 1: full create statement; default value 0 |
+| multiResultFunctionStarReturnTags |     | Supported, effective immediately   | Whether multi-result functions return tag columns when using *; default value false |
+| enableStrongPassword |                  | Supported, effective immediately   | Whether to enable strong password policy; default value true |
+| rsyncPort      |                   | Not supported                      | Rsync service port, range 1-65535, default value 873 |
+| snodeAddress   |                   | Supported, effective after restart | Snapshot backup node address; default value empty |
+| checkpointBackupDir |                | Supported, effective after restart | Checkpoint backup directory; default value /var/lib/taos/backup/checkpoint/ (Linux), C:\TDengine\data\backup\checkpoint\ (Windows) |
 
 ## taosd Monitoring Metrics
 
