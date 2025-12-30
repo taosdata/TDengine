@@ -12977,6 +12977,7 @@ if (alterReq.numIpRanges > 0) {
 static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) {
   SDropUserReq dropReq = {0};
   tstrncpy(dropReq.user, pStmt->userName, TSDB_USER_LEN);
+  dropReq.ignoreNotExists = pStmt->ignoreNotExists;
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_USER, (FSerializeFunc)tSerializeSDropUserReq, &dropReq);
   tFreeSDropUserReq(&dropReq);

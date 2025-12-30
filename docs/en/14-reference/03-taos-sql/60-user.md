@@ -98,7 +98,7 @@ Query OK, 2 row(s) in set (0.007383s)
 ## Delete User
 
 ```sql
-DROP USER user_name;
+DROP USER [IF EXISTS] user_name;
 ```
 
 ## Modify User Configuration

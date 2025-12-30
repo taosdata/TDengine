@@ -4635,13 +4635,14 @@ _err:
 
 
 
-SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName) {
+SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName, bool ignoreNotExists) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkUserName(pCxt, pUserName));
   SDropUserStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
+  pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 _err:
   return NULL;

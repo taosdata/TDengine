@@ -356,7 +356,7 @@ void setUserOptionsTotpseed(SAstCreateContext* pCxt, SUserOptions* pUserOptions,
 void setUserOptionsPassword(SAstCreateContext* pCxt, SUserOptions* pUserOptions, const SToken* pPassword);
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOptions* pUserOptions, bool ignoreExists);
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOptions* pUserOptions);
-SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);
+SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName, bool ignoreNotExists);
 SNode* createCreateRoleStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pName);
 SNode* createDropRoleStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pName);
 SNode* createAlterRoleStmt(SAstCreateContext* pCxt, SToken* pName, int8_t alterType, void* alterInfo);

@@ -1360,6 +1360,7 @@ typedef struct {
 
 typedef struct {
   char    user[TSDB_USER_LEN];
+  int8_t  ignoreNotExists;
   int32_t sqlLen;
   char*   sql;
 } SDropUserReq, SDropAcctReq;

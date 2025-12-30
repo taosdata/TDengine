@@ -99,7 +99,7 @@ Query OK, 2 row(s) in set (0.007383s)
 ## 删除用户
 
 ```sql
-DROP USER user_name;
+DROP USER [IF EXISTS] user_name;
 ```
 
 ## 修改用户配置
