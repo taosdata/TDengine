@@ -125,6 +125,7 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
 
   VTS_ERR_JRET(pOperator->fpSet.getNextExtFn(pOperator, pOperatorGetParam, &pRes));
 
+  pParam->basic.isNewParam = false;
   VTS_ERR_JRET(blockDataCheck(pRes));
   if ((pRes)) {
     qDebug("%s load from downstream, blockId:%d", __func__, pCtx->blockId);
@@ -244,7 +245,7 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
     pCtx->blockId = i;
     pCtx->pOperator = pOperator->pDownstream[scanOpIndex];
     pCtx->pOperatorGetParam = pOpParam;
-    pCtx->window = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN};
+    pCtx->window = pParam->window;
     pCtx->pIntermediateBlock = NULL;
     pCtx->tsSlotId = (col_id_t)pVirtualScanInfo->tsSlotId;
 
@@ -623,7 +624,7 @@ static int32_t doSetTagColumnData(SVirtualTableScanInfo* pInfo, SSDataBlock* pTa
   return code;
 }
 
-int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
+int32_t   virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   int32_t                        code = TSDB_CODE_SUCCESS;
   int32_t                        lino = 0;
   SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;

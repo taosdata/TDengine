@@ -232,9 +232,7 @@ class TestCase:
 
         sqlString = "alter table %s.%s modify column i nchar(16)" %(paraDict['dbName'], ntbName)
         tdLog.info("alter table sql: %s"%sqlString)
-        tdSql.error(sqlString)
-        expectRows = 0
-        resultList = tmqCom.selectConsumeResult(expectRows)
+        tdSql.execute(sqlString)
         time.sleep(5)
         for i in range(len(topicNameList)):
             tdSql.query("drop topic %s"%topicNameList[i])

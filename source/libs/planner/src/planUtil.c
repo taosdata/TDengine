@@ -68,7 +68,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION:
-    case QUERY_NODE_CASE_WHEN: {
+    case QUERY_NODE_CASE_WHEN: 
+    case QUERY_NODE_REMOTE_VALUE: {
       SExprNode*   pExpr = (SExprNode*)pNode;
       SColumnNode* pCol = NULL;
       pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
@@ -417,7 +418,7 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
       code = adjustInterpDataRequirement((SInterpFuncLogicNode*)pNode, requirement);
       break;
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
-    case QUERY_NODE_LOGIC_PLAN_IMPUTATION_FUNC:
+    case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       code = adjustForecastDataRequirement((SForecastFuncLogicNode*)pNode, requirement);
       break;
     default:
@@ -721,7 +722,7 @@ int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, b
   int32_t code = scalarCalculateConstants(*pPrimaryKeyCond, &pNew);
   if (TSDB_CODE_SUCCESS == code) {
     *pPrimaryKeyCond = pNew;
-    code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
+    code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict, NULL);
   }
   return code;
 }
@@ -753,7 +754,7 @@ static bool tagScanNodeHasTbname(SNode* pKeys) {
 int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
   pScan->onlyMetaCtbIdx = false;
 
-  if (pScan->tableType == TSDB_CHILD_TABLE) {
+  if (pScan->tableType != TSDB_SUPER_TABLE) {
     pScan->onlyMetaCtbIdx = false;
     return TSDB_CODE_SUCCESS;
   }

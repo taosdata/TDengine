@@ -30,6 +30,7 @@ class TestTS_7622:
         """
 
         tdStream.createSnode()
+        tdSql.execute(f"alter all dnodes 'debugflag 135';")
 
         streams = []
         streams.append(self.ts_7622())

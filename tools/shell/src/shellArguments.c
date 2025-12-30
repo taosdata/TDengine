@@ -23,6 +23,7 @@ char   configDirShell[PATH_MAX] = {0};
 #define SHELL_PORT     "The TCP/IP port number to use for the connection."
 #define SHELL_USER     "The user name to use when connecting to the server."
 #define SHELL_PASSWORD "The password to use when connecting to the server."
+#define SHELL_TOKEN    "The token to use when connecting to the server."
 #define SHELL_AUTH     "The auth string to use when connecting to the server."
 #define SHELL_GEN_AUTH "Generate auth string from password."
 #define SHELL_CFG_DIR  "Configuration directory."
@@ -74,6 +75,9 @@ void shellPrintHelp() {
   printf("%s%s%s%s\r\n", indent, "-o,", indent, SHELL_LOG_OUTPUT);
 #endif
   printf("%s%s%s%s\r\n", indent, "-p,", indent, SHELL_PASSWORD);
+#ifdef TD_ENTERPRISE
+  printf("%s%s%s%s\r\n", indent, "-q,", indent, SHELL_TOKEN);
+#endif
   printf("%s%s%s%s\r\n", indent, "-P,", indent, SHELL_PORT);
   printf("%s%s%s%s\r\n", indent, "-r,", indent, SHELL_RAW_TIME);
   printf("%s%s%s%s\r\n", indent, "-s,", indent, SHELL_CMD);
@@ -113,6 +117,9 @@ static struct argp_option shellOptions[] = {
     {"port", 'P', "PORT", 0, SHELL_PORT},
     {"user", 'u', "USER", 0, SHELL_USER},
     {0, 'p', 0, 0, SHELL_PASSWORD},
+#ifdef TD_ENTERPRISE
+    {0, 'q', 0, 0, SHELL_TOKEN},
+#endif
     {"auth", 'a', "AUTH", 0, SHELL_AUTH},
     {"generate-auth", 'A', 0, 0, SHELL_GEN_AUTH},
     {"config-dir", 'c', "DIR", 0, SHELL_CFG_DIR},
@@ -171,6 +178,8 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       pArgs->user = arg;
       break;
     case 'p':
+      break;
+    case 'q':
       break;
     case 'a':
       pArgs->auth = arg;
@@ -289,10 +298,17 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
         ret = shellParseSingleOpt(key[1], argv[i + 1]);
         i++;
       }
+    } else if (key[1] == 'p' || key[1] == 'q') {
+      // -p and -q can be used with or without argument (read from stdin or command line)
+      if (keyLen > 2) {
+        ret = shellParseSingleOpt(key[1], key + 2);
+      } else {
+        ret = shellParseSingleOpt(key[1], NULL);
+      }
     } else if (keyLen != 2) {
       fprintf(stderr, "invalid option %s\r\n", key);
       return -1;
-    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || key[1] == 't' ||
+    } else if (key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || key[1] == 't' ||
                key[1] == 'V' || key[1] == '?' || key[1] == 1 || key[1] == 'R'|| key[1] == 'B') {
       ret = shellParseSingleOpt(key[1], NULL);
     } else {
@@ -312,11 +328,12 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
 static void shellInitArgs(int argc, char *argv[]) {
   for (int i = 1; i < argc; i++) {
     if (strncmp(argv[i], "-p", 2) == 0) {
-      // printf(shell.info.clientVersion, taos_get_client_info());
+      // password
+      memset(shell.args.password, 0, sizeof(shell.args.password));
       if (strlen(argv[i]) == 2) {
         printf("Enter password: ");
         taosSetConsoleEcho(false);
-        if (scanf("%255s", shell.args.password) > 1) {
+        if (scanf("%255s", shell.args.password) != 1) {
           fprintf(stderr, "password reading error\n");
         }
         taosSetConsoleEcho(true);
@@ -324,12 +341,37 @@ static void shellInitArgs(int argc, char *argv[]) {
           fprintf(stderr, "getchar() return EOF\r\n");
         }
       } else {
-        tstrncpy(shell.args.password, (char *)(argv[i] + 2), sizeof(shell.args.password));
+        tstrncpy(shell.args.password, (char *)(argv[i] + 2), sizeof(shell.args.password) - 1);
         strcpy(argv[i], "-p");
       }
       printf("\r\n");
+      break;
     }
+#ifdef TD_ENTERPRISE      
+    else if (strncmp(argv[i], "-q", 2) == 0) {
+      // token
+      memset(shell.args.token, 0, sizeof(shell.args.token));
+      if (strlen(argv[i]) == 2) {
+        printf("Enter token: ");
+        taosSetConsoleEcho(false);
+        if (scanf("%255s", shell.args.token) != 1) {
+          fprintf(stderr, "token reading error\n");
+        }
+        taosSetConsoleEcho(true);
+        if (EOF == getchar()) {
+          fprintf(stderr, "getchar() return EOF\r\n");
+        }
+      } else {
+        tstrncpy(shell.args.token, (char *)(argv[i] + 2), sizeof(shell.args.token) - 1);  
+        strcpy(argv[i], "-q");
+      }
+      printf("\r\n");
+      break;
+    }
+#endif
   }
+
+  // default password
   if (strlen(shell.args.password) == 0) {
     tstrncpy(shell.args.password, TSDB_DEFAULT_PASS, sizeof(shell.args.password));
   }

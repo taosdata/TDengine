@@ -66,8 +66,8 @@ class TestTS_3821:
     #
     def prepareData2(self):
         # db
-        tdSql.execute("create database db2")
-        tdSql.execute("use db2")
+        tdSql.execute("create database if not exists db")
+        tdSql.execute("use db")
 
         # super table
         tdSql.execute("create stable st(ts timestamp, c_ts_empty timestamp, c_int int, c_int_empty int, c_unsigned_int int unsigned, \
@@ -107,6 +107,7 @@ class TestTS_3821:
                     sql += f"({start_ts + (round * 10 + j + 1) * 1000}, {data})"
                 sql += ";"
                 tdSql.execute(sql)
+        tdLog.debug("Prepare data successfully")
 
     def check_query_with_filter(self):
         # total row number
@@ -241,8 +242,7 @@ class TestTS_3821:
         tdSql.checkData(0, 1, 100)
 
         # event window
-        tdSql.query("select _wstart, _wend, count(*) from (select * from st order by ts, tbname) event_window start with t_bool=true end with t_bool=false;")
-        tdSql.checkRows(200)
+        tdSql.error("select _wstart, _wend, count(*) from (select * from st order by ts, tbname) event_window start with t_bool=true end with t_bool=false;")
 
     def check_query_with_union(self):
         tdSql.query("select count(ts) from (select * from ct1 union select * from ct2 union select * from ct3);")
@@ -294,7 +294,6 @@ class TestTS_3821:
         tdSql.query("select top(c_int, 3) from (select c_int, tbname from st where t_int in (2, 3)) group by tbname slimit 3;")
         tdSql.checkRows(6)
         tdSql.checkData(0, 0, 1)
-
     def FIX_TD_28163(self):
         self.prepareData2()
         self.check_query_with_filter()
@@ -835,8 +834,8 @@ class TestTS_3821:
 
         History:
             - 2025-10-31 Alex Duan Migrated from uncatalog/system-test/99-TDcase/test_ts_3821.py
-            - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_test_td_28163.py
-            - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_test_ts_4382.py
+            - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_test_td28163.py
+            - 2025-12-15 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_test_ts4382.py
 
         """
         self.FIX_TS_3821()

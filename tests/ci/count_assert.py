@@ -120,4 +120,3 @@ def check_list_result(result_list,detaild_list):
 if __name__ == "__main__":
     summary_list, detaild_list = traverse_and_grep(source_dirs, exclude_dirs, exclude_source_files)
     check_list_result(summary_list,detaild_list)
-

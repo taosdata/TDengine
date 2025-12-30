@@ -35,7 +35,7 @@ class TestUserWhiteList:
         )
 
         tdSql.execute(f"alter user u_read add host '3.3.3.4/24'")
-        tdSql.error(f"alter user u_write drop host '4.4.4.5/25'")
+        tdSql.execute(f"alter user u_write drop host '4.4.4.5/25'")
 
         tdSql.query(f"show users")
         tdSql.checkRows(3)

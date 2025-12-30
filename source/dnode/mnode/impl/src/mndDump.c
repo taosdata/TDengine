@@ -357,10 +357,6 @@ void dumpTopic(SSdb *pSdb, SJson *json) {
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "stbUid", i642str(pObj->stbUid)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "stbName", mndGetStableStr(pObj->stbName)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "sqlLen", i642str(pObj->sqlLen)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "astLen", i642str(pObj->astLen)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "sqlLen", i642str(pObj->sqlLen)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "ntbUid", i642str(pObj->ntbUid)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "ctbStbUid", i642str(pObj->ctbStbUid)), pObj, &lino, _OVER);
     sdbRelease(pSdb, pObj);
   }
 _OVER:
@@ -498,10 +494,8 @@ void dumpUser(SSdb *pSdb, SJson *json) {
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "superUser", i642str(pObj->superUser)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "authVersion", i642str(pObj->authVersion)), pObj, &lino, _OVER);
     RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "passVersion", i642str(pObj->passVersion)), pObj, &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "numOfReadDbs", i642str(taosHashGetSize(pObj->readDbs))), pObj,
-                        &lino, _OVER);
-    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "numOfWriteDbs", i642str(taosHashGetSize(pObj->writeDbs))), pObj,
-                        &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "numOfReadDbs", "0"), pObj, &lino, _OVER);
+    RETRIEVE_CHECK_GOTO(tjsonAddStringToObject(item, "numOfWriteDbs", "0"), pObj, &lino, _OVER);
     sdbRelease(pSdb, pObj);
   }
 _OVER:

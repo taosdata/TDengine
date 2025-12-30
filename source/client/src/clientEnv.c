@@ -38,6 +38,7 @@
 #include "ttime.h"
 #include "tversion.h"
 
+#include "clientSession.h"
 #include "cus_name.h"
 
 #define TSC_VAR_NOT_RELEASE 1
@@ -70,8 +71,6 @@ int32_t   clientReqRefPool = -1;
 int32_t   clientConnRefPool = -1;
 int32_t   clientStop = -1;
 SHashObj *pTimezoneMap = NULL;
-
-int32_t timestampDeltaLimit = 900;  // s
 
 static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t    tscInitRes = 0;
@@ -364,7 +363,7 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   rpcInit.rfp = clientRpcRfp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.user = (char *)user;
+  rpcInit.user = (char *)(user ? user : auth);
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.dfp = destroyAhandle;
@@ -384,6 +383,8 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   rpcInit.readTimeout = tsReadTimeout;
   rpcInit.ipv6 = tsEnableIpv6;
   rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
+  rpcInit.isToken = user == NULL ? 1 : 0;
 
   memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
   memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
@@ -470,6 +471,10 @@ void destroyAppInst(void *info) {
   taosMemoryFree(pAppInfo);
 }
 
+//  tscObj 1--->conn1
+/// tscObj 2-->conn1
+//  tscObj 3-->conn1
+
 void destroyTscObj(void *pObj) {
   if (NULL == pObj) {
     return;
@@ -514,8 +519,15 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
   (*pObj)->connType = connType;
   (*pObj)->pAppInfo = pAppInfo;
   (*pObj)->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
-  tstrncpy((*pObj)->user, user, sizeof((*pObj)->user));
-  (void)memcpy((*pObj)->pass, auth, TSDB_PASSWORD_LEN);
+  if (user == NULL) {
+    (*pObj)->user[0] = 0;
+    (*pObj)->pass[0] = 0;
+    tstrncpy((*pObj)->token, auth, sizeof((*pObj)->token));
+  } else {
+    tstrncpy((*pObj)->user, user, sizeof((*pObj)->user));
+    (void)memcpy((*pObj)->pass, auth, TSDB_PASSWORD_LEN);
+  }
+  (*pObj)->tokenName[0] = 0;
 
   if (db != NULL) {
     tstrncpy((*pObj)->db, db, tListLen((*pObj)->db));
@@ -535,6 +547,7 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
 
   (void)atomic_add_fetch_64(&(*pObj)->pAppInfo->numOfConns, 1);
 
+  updateConnAccessInfo(&(*pObj)->sessInfo);
   tscInfo("conn:0x%" PRIx64 ", created, p:%p", (*pObj)->id, *pObj);
   return code;
 }
@@ -718,6 +731,12 @@ void doDestroyRequest(void *p) {
   doFreeReqResultInfo(&pRequest->body.resInfo);
   if (TSDB_CODE_SUCCESS != tsem_destroy(&pRequest->body.rspSem)) {
     tscError("failed to destroy semaphore");
+  }
+
+  SSessParam para = {.type = SESSION_MAX_CONCURRENCY, .value = -1, .noCheck = 1};
+  code = tscUpdateSessMetric(pRequest->pTscObj, &para);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to update session metric, code:%s", tstrerror(code));
   }
 
   taosArrayDestroy(pRequest->tableList);
@@ -1084,6 +1103,7 @@ void taos_init_imp(void) {
   ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
   if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
     (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(ERRNO), configDir);
+    SET_ERROR_MSG("Create %s failed:%s. configDir=%s", logName, strerror(ERRNO), configDir);
     tscInitRes = terrno;
     return;
   }
@@ -1137,6 +1157,11 @@ void taos_init_imp(void) {
 #ifdef TAOSD_INTEGRATED
   ENV_ERR_RET(shellStartDaemon(0, NULL), "failed to start taosd daemon");
 #endif
+
+  if (tsSessionControl) {
+    ENV_ERR_RET(sessMgtInit(), "failed to init session management");
+  }
+
   tscInfo("TAOS driver is initialized successfully");
 }
 

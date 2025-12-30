@@ -30,7 +30,7 @@ trigger_type: {
   | SLIDING(sliding_val[, offset_time]) 
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col[, extend]) [TRUE_FOR(duration_time)] 
+  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
   | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(duration_time)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
@@ -145,13 +145,14 @@ Applicable Scenarios: Suitable for use cases where computations and/or notificat
 ##### State Window Trigger
 
 ```sql
-STATE_WINDOW(col[, extend]) [TRUE_FOR(duration_time)] 
+STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
 ```
 
 A state window trigger divides the written data of the trigger table into windows based on the values in a state column. A trigger occurs when a window is opened and/or closed. Parameter definitions are as follows:
 
 - col: The name of the state column.
 - extend (optional): Specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively.
+- zeroth_state (optional): Specifies the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. When setting the value of zeroth_extend, the extend value is a mandatory input and must not be left blank or omitted.
 - duration_time (optional): Specifies the minimum duration of a window. If the duration of a window is shorter than this value, the window will be discarded and no trigger will be generated.
 
 Usage Notes:
@@ -822,7 +823,7 @@ Temporary Restrictions:
 
 - Grouping by regular data columns is not yet supported.
 - The Geometry data type is not yet supported.
-- The functions Interp, Percentile, Forecast, and UDFs are not yet supported.
+- User-defined functions (UDFs) are not yet supported.
 - The DELETE_OUTPUT_TABLE option is not yet supported.
 - The ON_FAILURE_PAUSE option in NOTIFY_OPTIONS is not yet supported.
 - The Cast function is not yet supported in state window triggers.

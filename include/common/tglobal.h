@@ -61,6 +61,8 @@ extern int32_t       tsVersion;
 extern int32_t       tsForceReadConfig;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
+extern int32_t        tsEncryptKeysStatus;
+extern int32_t       tsLocalKeyVersion;
 extern int32_t       tsStatusInterval;
 extern int32_t       tsStatusIntervalMs;
 extern int32_t       tsStatusSRTimeoutMs;
@@ -83,6 +85,7 @@ extern char tsTLSSvrKeyPath[];
 extern char tsTLSCliCertPath[];
 extern char tsTLSCliKeyPath[];
 extern int8_t tsEnableTLS;
+extern int8_t tsEnableSasl;
 
 // common
 extern int32_t tsMaxShellConns;
@@ -189,6 +192,32 @@ extern uint32_t tsEncryptionKeyChksum;
 extern int8_t   tsEncryptionKeyStat;
 extern uint32_t tsGrant;
 
+// taosk encryption keys (multi-layer encryption)
+
+enum {
+  TSDB_ENCRYPT_KEY_STAT_UNLOADED = 0,
+  TSDB_ENCRYPT_KEY_STAT_LOADED,
+  TSDB_ENCRYPT_KEY_STAT_NOT_EXIST,
+  TSDB_ENCRYPT_KEY_STAT_DISABLED,
+  TSDB_ENCRYPT_KEY_STAT_MAX
+};
+
+extern bool     tsUseTaoskEncryption;      // Flag: using taosk encrypt.bin format
+extern bool     tsSkipKeyCheckMode;        // Flag: skip key check mode
+extern char     tsSvrKey[129];             // SVR_KEY (server master key)
+extern char     tsDbKey[129];              // DB_KEY (database master key)
+extern char     tsCfgKey[129];             // CFG_KEY (config encryption key)
+extern char     tsMetaKey[129];            // META_KEY (metadata encryption key)
+extern char     tsDataKey[129];            // DATA_KEY (data encryption key)
+extern int32_t  tsEncryptAlgorithmType;    // Algorithm type for master keys (SVR_KEY, DB_KEY)
+extern int32_t  tsCfgAlgorithm;            // Algorithm type for CFG_KEY
+extern int32_t  tsMetaAlgorithm;           // Algorithm type for META_KEY
+extern int32_t  tsEncryptFileVersion;      // File format version for compatibility
+extern int32_t  tsEncryptKeyVersion;       // Key update version (starts from 1, increments on update)
+extern int64_t  tsEncryptKeyCreateTime;    // Key creation timestamp
+extern int64_t  tsSvrKeyUpdateTime;        // SVR_KEY last update timestamp
+extern int64_t  tsDbKeyUpdateTime;         // DB_KEY last update timestamp
+
 // monitor
 extern bool     tsEnableMonitor;
 extern int32_t  tsMonitorInterval;
@@ -206,7 +235,12 @@ extern bool     tsMonitorForceV2;
 extern bool    tsEnableAudit;
 extern bool    tsEnableAuditCreateTable;
 extern bool    tsEnableAuditDelete;
+extern bool    tsEnableAuditSelect;
+extern bool    tsEnableAuditInsert;
+extern int32_t tsAuditLevel;
 extern int32_t tsAuditInterval;
+extern bool    tsAuditHttps;
+extern bool    tsAuditUseToken;
 
 // telem
 extern bool     tsEnableTelem;
@@ -268,6 +302,7 @@ extern char td_version[];
 extern char td_compatible_version[];
 extern char td_gitinfo[];
 extern char td_buildinfo[];
+extern char td_edition_signature_salt[];
 
 // lossy
 extern char     tsLossyColumns[];
@@ -313,6 +348,7 @@ extern bool    tsDiskIDCheckEnabled;
 extern int32_t tsTransPullupInterval;
 extern int32_t tsCompactPullupInterval;
 extern int32_t tsScanPullupInterval;
+extern int32_t tsInstancePullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
@@ -344,10 +380,17 @@ extern int32_t tsSsBlockSize;
 extern int32_t tsSsBlockCacheSize;
 extern int32_t tsSsPageCacheSize;
 
+extern int32_t sessionPerUser; 
+extern int32_t sessionConnTime; 
+extern int32_t sessionConnIdleTime;
+extern int32_t sessionMaxConcurrency;  
+extern int32_t sessionMaxCallVnodeNum;
 // insert performance
 extern bool tsInsertPerfEnabled;
 
 extern bool tsExperimental;
+
+extern int64_t tsTimestampDeltaLimit;  // s
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 // auth
@@ -356,6 +399,7 @@ extern bool    tsAuthReq;
 extern int32_t tsAuthReqInterval;
 extern int32_t tsAuthReqHBInterval;
 extern char    tsAuthReqUrl[];
+extern bool    tsSessionControl;
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
