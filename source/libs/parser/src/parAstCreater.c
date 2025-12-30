@@ -6067,7 +6067,7 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
     if (pOptions->optionsNum < TSDB_XNODE_TASK_OPTIONS_MAX_NUM) {
       char* pKeyVal = NULL;
       if (pVal != NULL) {
-        // printf("key value length expected: %d, actual: %d\n", pKey->n + pVal->n + 2, pKey->n + pVal->n);
+        parserDebug("key value length expected: %d, actual: %d\n", pKey->n + pVal->n + 2, pKey->n + pVal->n);
         pKeyVal = taosMemoryMalloc(pKey->n + pVal->n + 2);
         memset(pKeyVal, 0, pKey->n + pVal->n + 2);
 
@@ -6080,7 +6080,7 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
         if (pVal->type == TK_NK_STRING) {
           (void)trimString(pVal->z, pVal->n, pKeyVal + pos, pVal->n + 1);
         } else {
-          strncpy(pKeyVal + pos, pVal->z, TMIN(pVal->n, sizeof(pKeyVal) - pos - 1));
+          strncpy(pKeyVal + pos, pVal->z, TMIN(pVal->n, pKey->n + pVal->n + 2 - pos - 1));
           pKeyVal[pos + pVal->n] = '\0';
         }
       } else {

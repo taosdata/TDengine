@@ -99,6 +99,7 @@ class TestXnodeSystemTables:
 
     def test_show_xnode_jobs_table(self):
         """测试 SHOW XNODE JOBS 系统表查询
+
         1. Query show xnode jobs 
 
         Since: v3.3.8.8
@@ -206,7 +207,7 @@ class TestXnodeSystemTables:
         History:
             - 2025-12-30 GuiChuan Zhang Created
         """
-        
+
         sql = "SELECT * FROM information_schema.ins_xnode_tasks"
         tdLog.info(f"Querying: {sql}")
         try:
