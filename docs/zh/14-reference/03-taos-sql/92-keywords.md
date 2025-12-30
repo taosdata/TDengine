@@ -119,6 +119,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | DATABASE             | |
 | DATABASES            | |
 | DBS                  | |
+| DB_KEY               | |
 | DECIMAL              | 3.3.6.0+ |
 | DEFERRED             | |
 | DELETE               | |
@@ -150,6 +151,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | ENABLE               | |
 | ENCRYPT_ALGORITHM    | |
 | ENCRYPT_KEY          | |
+| ENCRYPT_STATUS       | |
 | ENCRYPTIONS          | |
 | END                  | |
 | EQ                   | |
@@ -224,6 +226,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | INITIALLY            | |
 | INNER                | |
 | INSERT               | |
+| INSTANCES            | |
 | INSTEAD              | |
 | INT                  | |
 | INTEGER              | |
@@ -271,6 +274,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | LIKE                 | |
 | LIMIT                | |
 | LINEAR               | |
+| LOCK                 | |
 | LOCAL                | |
 | LOGS                 | |
 | LOW_LATENCY_CALC     | 3.3.7.0+ |
@@ -296,6 +300,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | MNODES               | |
 | MODIFY               | |
 | MODULES              | |
+| MOUNT                | |
+| MOUNTS               | |
 
 ### N
 
@@ -386,6 +392,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | REGEXP               | 3.3.6.0+ |
 | REDISTRIBUTE         | |
 | REM                  | |
+| RELOAD               | |
 | RENAME               | |
 | REPLACE              | |
 | REPLICA              | |
@@ -393,8 +400,19 @@ description: TDengine TSDB 保留关键字的详细列表
 | RESTORE              | |
 | RESTRICT             | |
 | RESUME               | |
+| RETENTION            | |
 | RETENTIONS           | |
 | REVOKE               | |
+| RIGHT                | |
+| ROLE                 | |
+| ROLES                | |
+| ROLLUP               | |
+| ROW                  | |
+| ROWTS                | |
+| RP                   | |
+| RSHIFT               | |
+| RSMA                 | |
+| RSMAS                | |
 | RIGHT                | |
 | ROLLUP               | |
 | ROW                  | |
@@ -431,6 +449,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | SS_COMPACT           | |
 | SS_KEEPLOCAL         | |
 | SSMIGRATE            | |
+| SSMIGRATES           | |
 | STABLE               | |
 | STABLES              | |
 | STAR                 | |
@@ -438,6 +457,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | STATE                | |
 | STATE_WINDOW         | |
 | STATEMENT            | |
+| STOP                 | |
 | STORAGE              | |
 | STREAM               | |
 | STREAMS              | |
@@ -449,6 +469,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | SUBSTR               | |
 | SUBSTRING            | |
 | SUBTABLE             | 3.0.0.0 - 3.3.7.0 |
+| SVR_KEY              | |
 | SYSINFO              | |
 | SYSTEM               | |
 
@@ -470,6 +491,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | TINYINT              | |
 | TO                   | |
 | TODAY                | |
+| TOKEN                | |
+| TOKENS               | |
 | TOPIC                | |
 | TOPICS               | |
 | TRAILING             | |
@@ -490,6 +513,7 @@ description: TDengine TSDB 保留关键字的详细列表
 |----------------------|-|
 | UNION                | |
 | UNSAFE               | |
+| UNLOCK               | |
 | UNSIGNED             | |
 | UNTREATED            | |
 | UPDATE               | |
@@ -508,6 +532,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | VARBINARY            | |
 | VARCHAR              | |
 | VARIABLE             | |
+| VTABLE               | |
+| VTABLES              | |
 | VARIABLES            | |
 | VERBOSE              | |
 | VGROUP               | |
