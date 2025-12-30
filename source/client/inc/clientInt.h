@@ -34,8 +34,8 @@ extern "C" {
 #include "tmsgtype.h"
 #include "trpc.h"
 
-#include "tconfig.h"
 // #include "clientSession.h"
+#include "tconfig.h"
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
@@ -190,6 +190,7 @@ typedef struct STscObj {
   int32_t        acctId;
   uint32_t       connId;
   int32_t        appHbMgrIdx;
+  int64_t        userId;
   int64_t        id;         // ref ID returned by taosAddRef
   TdThreadMutex  mutex;      // used to protect the operation on db
   int32_t        numOfReqs;  // number of sqlObj bound to this connection
@@ -201,7 +202,9 @@ typedef struct STscObj {
   SWhiteListInfo dateTimeWhiteListInfo;  // date time white list info
   STscNotifyInfo userDroppedInfo;
   SOptionInfo    optionInfo;
+
   SConnAccessInfo sessInfo;
+  void*           pSessMetric;
 } STscObj;
 
 typedef struct STscDbg {

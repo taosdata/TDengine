@@ -104,7 +104,7 @@ void transCacheReleaseByRefId(int64_t refId) {
     STransEntry* p = taosArrayGet(transInstCache.pArray, i);
     if (p->refId == refId) {
       (void)atomic_sub_fetch_32(&p->ref, 1);
-      tDebug("trans %p acquire by refId:%" PRId64 ", ref count:%d", p->pTrans, refId, atomic_load_32(&p->ref));
+      tDebug("trans %p release by refId:%" PRId64 ", ref count:%d", p->pTrans, refId, atomic_load_32(&p->ref));
       code = 0;
       break;
     }
@@ -420,7 +420,10 @@ bool transReadComplete(SConnBuffer* connBuf) {
       memcpy((char*)&head, connBuf->buf, sizeof(head));
       int32_t msgLen = (int32_t)ntohl(head.msgLen);
       p->total = msgLen;
-      p->invalid = head.version != TRANS_VER;
+      p->invalid = (head.version != TRANS_VER || msgLen >= TRANS_MSG_LIMIT);
+      if (p->invalid) {
+        tError("recv invalid msg, version:%d, expect:%d, msg len %d", head.version, TRANS_VER, msgLen);
+      }
     }
     if (p->total >= p->len) {
       p->left = p->total - p->len;

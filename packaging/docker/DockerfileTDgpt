@@ -1,4 +1,5 @@
-FROM tdgpt_env:1.1 AS tdgpt
+ARG ARCH=amd64
+FROM tdengine/tdgpt-env-${ARCH}:1.1 AS tdgpt
 
 ARG pkgFile
 ARG modelDlUrl
@@ -27,3 +28,5 @@ COPY ${modelDlUrl}/timemoe/* \
     /var/lib/taos/taosanode/model/timemoe/
 COPY --link ${modelDlUrl}/moment/* \
     /var/lib/taos/taosanode/model/moment/
+COPY --link ${modelDlUrl}/moirai-small/* \
+    /var/lib/taos/taosanode/model/moirai/

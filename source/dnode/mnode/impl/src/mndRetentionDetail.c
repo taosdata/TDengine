@@ -20,8 +20,12 @@
 
 #define MND_RETENTION_DETAIL_VER_NUMBER 1
 
+static int32_t mndRetrieveRetentionDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void    mndCancelRetrieveRetentionDetail(SMnode *pMnode, void *pIter);
+
 int32_t mndInitRetentionDetail(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_RETENTION_DETAIL, mndRetrieveRetentionDetail);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_RETENTION_DETAIL, mndCancelRetrieveRetentionDetail);
 
   SSdbTable table = {
       .sdbType = SDB_RETENTION_DETAIL,
@@ -82,6 +86,11 @@ int32_t mndRetrieveRetentionDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 _exit:
   pShow->numOfRows += numOfRows;
   return numOfRows;
+}
+
+static void mndCancelRetrieveRetentionDetail(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetchByType(pSdb, pIter, SDB_RETENTION_DETAIL);
 }
 
 void tFreeRetentionDetailObj(SRetentionDetailObj *pObj) {}

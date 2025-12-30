@@ -521,22 +521,29 @@ void uvDataTimeWhiteListDestroy(SDataTimeWhiteListTab* pWhite) {
 
 static int32_t uvDataTimeWhiteListToStr(SUserDateTimeWhiteList* plist, char* user, char** ppBuf) {
   int32_t code = 0;
-  if (plist == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
   int32_t len = 0;
+  if (plist == NULL) {
+    tError("failed to convert data time white list to str, invalid para");
+    return len;
+  }
   int32_t limit = plist->numWhiteLists * sizeof(SDateTimeWhiteListItem) + 128;
   char*   pBuf = taosMemoryCalloc(1, limit);
+  if (pBuf == NULL) {
+    tError("failed to alloc memory for data time white list string");
+    return len;
+  }
+
   for (int32_t i = 0; i < plist->numWhiteLists; i++) {
     SDateTimeWhiteListItem* pItem = &plist->pWhiteLists[i];
     if (i == 0) {
-      len = snprintf(pBuf + strlen(pBuf), limit - strlen(pBuf), "user:%s duration:%" PRId64 ", start:%" PRId64 "; ",
-                     user, (int64_t)(pItem->duration), pItem->start);
+      len = snprintf(pBuf, limit, "user:%s duration:%" PRId64 ", start:%" PRId64 "; ", user, (int64_t)(pItem->duration),
+                     pItem->start);
     } else {
-      len = sprintf(pBuf + strlen(pBuf), "duration:%" PRId64 ", start:%" PRId64 "; ", (int64_t)(pItem->duration),
-                    pItem->start);
+      len += snprintf(pBuf + strlen(pBuf), limit - strlen(pBuf), "duration:%" PRId64 ", start:%" PRId64 "; ",
+                      (int64_t)(pItem->duration), pItem->start);
     }
   }
+  *ppBuf = pBuf;
   return len;
 }
 void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
@@ -561,8 +568,8 @@ void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
     len = uvDataTimeWhiteListToStr(pUserList, user, &pBuf);
     if (len > 0) {
       tDebug("dataTime white list %s", pBuf);
-      taosMemoryFree(pBuf);
     }
+    taosMemoryFree(pBuf);
 
     pIter = taosHashIterate(pWhiteList, pIter);
   }

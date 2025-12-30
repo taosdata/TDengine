@@ -302,6 +302,7 @@ extern char td_version[];
 extern char td_compatible_version[];
 extern char td_gitinfo[];
 extern char td_buildinfo[];
+extern char td_edition_signature_salt[];
 
 // lossy
 extern char     tsLossyColumns[];

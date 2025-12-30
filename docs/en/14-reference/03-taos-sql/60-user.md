@@ -98,7 +98,7 @@ Query OK, 2 row(s) in set (0.007383s)
 ## Delete User
 
 ```sql
-DROP USER user_name;
+DROP USER [IF EXISTS] user_name;
 ```
 
 ## Modify User Configuration
@@ -149,7 +149,7 @@ Token management is a feature of TDengine TSDB Enterprise Edition, support in ve
 ### Create Token
 
 ```sql
-CREATE TOKEN token_name FROM USER user_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value]
+CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value]
 ```
 
 The token_name can be up to 31 bytes long.
@@ -209,7 +209,7 @@ When modify the validity period (TTL), new validity period starts from the time 
 ### Drop Token
 
 ```sql
-DROP TOKEN token_name;
+DROP TOKEN [IF EXISTS] token_name;
 ```
 
 Note that when drop a user, tokens of the user will be cascade deleted simultaneously.

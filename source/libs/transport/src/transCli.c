@@ -555,7 +555,7 @@ int8_t cliMayNotifyUserOnRecvReleaseExcept(SCliConn* conn, STransMsgHead* pHead,
 
   SCliThrd* pThrd = conn->hostThrd;
   STransMsg resp = {.code = pHead->code};
-  int64_t   qId = taosHton64(pHead->qid);
+  int64_t   qId = taosNtoh64(pHead->qid);
   STraceId* trace = &pHead->traceId;
   code = cliBuildExceptResp(pThrd, pReq, &resp);
   if (code != 0) {

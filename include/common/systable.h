@@ -77,6 +77,9 @@ extern "C" {
 #define TSDB_INS_TABLE_RETENTION_DETAILS   "ins_retention_details"
 #define TSDB_INS_TABLE_ENCRYPT_ALGORITHMS  "ins_encrypt_algorithms"
 #define TSDB_INS_TABLE_ENCRYPT_STATUS      "ins_encrypt_status"
+#define TSDB_INS_TABLE_ROLES               "ins_roles"
+#define TSDB_INS_TABLE_ROLE_PRIVILEGES     "ins_role_privileges"
+#define TSDB_INS_TABLE_ROLE_COL_PRIVILEGES "ins_role_column_privileges"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "perf_smas"
