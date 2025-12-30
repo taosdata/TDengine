@@ -119,6 +119,7 @@ The list of keywords is as follows:
 | DATABASE             | |
 | DATABASES            | |
 | DBS                  | |
+| DB_KEY               | |
 | DECIMAL              | 3.3.6.0+ |
 | DEFERRED             | |
 | DELETE               | |
@@ -150,6 +151,7 @@ The list of keywords is as follows:
 | ENABLE               | |
 | ENCRYPT_ALGORITHM    | |
 | ENCRYPT_KEY          | |
+| ENCRYPT_STATUS       | |
 | ENCRYPTIONS          | |
 | END                  | |
 | EQ                   | |
@@ -224,6 +226,7 @@ The list of keywords is as follows:
 | INITIALLY            | |
 | INNER                | |
 | INSERT               | |
+| INSTANCES            | |
 | INSTEAD              | |
 | INT                  | |
 | INTEGER              | |
@@ -271,6 +274,7 @@ The list of keywords is as follows:
 | LIKE                 | |
 | LIMIT                | |
 | LINEAR               | |
+| LOCK                 | |
 | LOCAL                | |
 | LOGS                 | |
 | LOW_LATENCY_CALC     | 3.3.7.0+ |
@@ -296,6 +300,8 @@ The list of keywords is as follows:
 | MNODES               | |
 | MODIFY               | |
 | MODULES              | |
+| MOUNT                | |
+| MOUNTS               | |
 
 ### N
 
@@ -385,6 +391,7 @@ The list of keywords is as follows:
 | RECURSIVE            | |
 | REGEXP               | 3.3.6.0+ |
 | REDISTRIBUTE         | |
+| RELOAD               | |
 | REM                  | |
 | RENAME               | |
 | REPLACE              | |
@@ -394,6 +401,7 @@ The list of keywords is as follows:
 | RESTORE              | |
 | RESTRICT             | |
 | RESUME               | |
+| RETENTION            | |
 | RETENTIONS           | |
 | REVOKE               | |
 | RIGHT                | |
@@ -402,6 +410,10 @@ The list of keywords is as follows:
 | ROWTS                | |
 | RP                   | |
 | RSHIFT               | |
+| ROLE                 | |
+| ROLES                | |
+| RSMA                 | |
+| RSMAS                | |
 
 ### S
 
@@ -432,6 +444,7 @@ The list of keywords is as follows:
 | SS_COMPACT           | |
 | SS_KEEPLOCAL         | |
 | SSMIGRATE            | |
+| SSMIGRATES           | |
 | STABLE               | |
 | STABLES              | |
 | STAR                 | |
@@ -439,6 +452,7 @@ The list of keywords is as follows:
 | STATE                | |
 | STATE_WINDOW         | |
 | STATEMENT            | |
+| STOP                 | |
 | STORAGE              | |
 | STREAM               | |
 | STREAMS              | |
@@ -450,6 +464,7 @@ The list of keywords is as follows:
 | SUBSTR               | |
 | SUBSTRING            | |
 | SUBTABLE             | 3.0.0.0 - 3.3.7.0 |
+| SVR_KEY              | |
 | SYSINFO              | |
 | SYSTEM               | |
 
@@ -471,6 +486,8 @@ The list of keywords is as follows:
 | TINYINT              | |
 | TO                   | |
 | TODAY                | |
+| TOKEN                | |
+| TOKENS               | |
 | TOPIC                | |
 | TOPICS               | |
 | TRAILING             | |
@@ -491,6 +508,7 @@ The list of keywords is as follows:
 |----------------------|-|
 | UNION                | |
 | UNSAFE               | |
+| UNLOCK               | |
 | UNSIGNED             | |
 | UNTREATED            | |
 | UPDATE               | |
@@ -509,6 +527,8 @@ The list of keywords is as follows:
 | VARBINARY            | |
 | VARCHAR              | |
 | VARIABLE             | |
+| VTABLE               | |
+| VTABLES              | |
 | VARIABLES            | |
 | VERBOSE              | |
 | VGROUP               | |
