@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/agiledragon/gomonkey/v2"
 	"github.com/gin-gonic/gin"
@@ -1168,10 +1169,17 @@ func TestAuditV2CustomDBWithToken(t *testing.T) {
 	conn.Exec(context.Background(), "drop user audit_v2_user", util.GetQidOwn(cfg.InstanceID))
 	_, err = conn.Exec(context.Background(), "create user audit_v2_user pass 'token_pass_1'", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
-	_, err = conn.Exec(context.Background(), "grant all on test_1766991210 to audit_v2_user", util.GetQidOwn(config.Conf.InstanceID))
+
+	_, err = conn.Exec(context.Background(), "grant use,create table on database test_1766991210 to audit_v2_user", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
-	_, err = conn.Exec(context.Background(), "grant all on test_1766991212 to audit_v2_user", util.GetQidOwn(config.Conf.InstanceID))
+	_, err = conn.Exec(context.Background(), "grant use,create table on database test_1766991212 to audit_v2_user", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766991210.* to audit_v2_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766991212.* to audit_v2_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	time.Sleep(10 * time.Second)
 
 	data, err := conn.Query(context.Background(), "create token test_audit_v2_token from user audit_v2_user", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
@@ -1261,10 +1269,17 @@ func TestAuditCustomDBWithToken(t *testing.T) {
 	conn.Exec(context.Background(), "drop user audit_user", util.GetQidOwn(cfg.InstanceID))
 	_, err = conn.Exec(context.Background(), "create user audit_user pass 'token_pass_1'", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
-	_, err = conn.Exec(context.Background(), "grant all on test_1766991791 to audit_user", util.GetQidOwn(config.Conf.InstanceID))
+
+	_, err = conn.Exec(context.Background(), "grant use,create table on database test_1766991791 to audit_user", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
-	_, err = conn.Exec(context.Background(), "grant all on test_1766991792 to audit_user", util.GetQidOwn(config.Conf.InstanceID))
+	_, err = conn.Exec(context.Background(), "grant use,create table on database test_1766991792 to audit_user", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766991791.* to audit_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766991792.* to audit_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	time.Sleep(10 * time.Second)
 
 	data, err := conn.Query(context.Background(), "create token test_audit_token from user audit_user", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
@@ -1354,10 +1369,17 @@ func TestAuditBatchCustomDBWithToken(t *testing.T) {
 	conn.Exec(context.Background(), "drop user audit_batch_user", util.GetQidOwn(cfg.InstanceID))
 	_, err = conn.Exec(context.Background(), "create user audit_batch_user pass 'token_pass_1'", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
-	_, err = conn.Exec(context.Background(), "grant all on test_1766992132 to audit_batch_user", util.GetQidOwn(config.Conf.InstanceID))
+
+	_, err = conn.Exec(context.Background(), "grant use,create table on database test_1766992132 to audit_batch_user", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
-	_, err = conn.Exec(context.Background(), "grant all on test_1766992133 to audit_batch_user", util.GetQidOwn(config.Conf.InstanceID))
+	_, err = conn.Exec(context.Background(), "grant use,create table on database test_1766992133 to audit_batch_user", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766992132.* to audit_batch_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766992133.* to audit_batch_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	time.Sleep(10 * time.Second)
 
 	data, err := conn.Query(context.Background(), "create token test_audit_batch_token from user audit_batch_user", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
@@ -1437,8 +1459,12 @@ func TestAuditV2SwitchDBAndToken(t *testing.T) {
 	conn.Exec(context.Background(), "drop user sw_token_user", util.GetQidOwn(cfg.InstanceID))
 	_, err = conn.Exec(context.Background(), "create user sw_token_user pass 'token_pass_1'", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
-	_, err = conn.Exec(context.Background(), "grant all on test_1767007899 to sw_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	_, err = conn.Exec(context.Background(), "grant use,create table on database test_1767007899 to sw_token_user", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1767007899.* to sw_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	time.Sleep(10 * time.Second)
 
 	records := []string{
 		`{"timestamp":"1699839716442000000","cluster_id":"cluster_id","user":"user","operation":"operation","db":"db","resource":"resource","client_add":"127.0.0.1:3000","details":"details","affected_rows":1,"duration":1.23}`,
@@ -1454,8 +1480,12 @@ func TestAuditV2SwitchDBAndToken(t *testing.T) {
 		assert.Equal(t, 200, w.Code)
 	}
 
-	_, err = conn.Exec(context.Background(), "grant all on test_1767001978 to sw_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	_, err = conn.Exec(context.Background(), "grant use,create table on database test_1767001978 to sw_token_user", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1767001978.* to sw_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	time.Sleep(10 * time.Second)
 
 	data, err := conn.Query(context.Background(), "create token test_sw_token from user sw_token_user", util.GetQidOwn(cfg.InstanceID))
 	assert.NoError(t, err)
