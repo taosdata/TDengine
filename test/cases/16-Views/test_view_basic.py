@@ -28,7 +28,7 @@ class TestViewBasic:
     def prepare_data(self, conn=None):
         """Create the db and data for test
         """
-        tdLog.debug("Start to prepare the data")
+        tdLog.debug(f"Start to prepare the data for db: ")
         if not conn:
             conn = tdSql
         # create datebase
@@ -359,6 +359,8 @@ class TestViewBasic:
         self.create_user(username, password)
         # grant all db permission to user
         tdSql.execute("grant all on view_db.* to view_test;")
+        tdSql.execute("grant use on database view_db to view_test;")
+        tdSql.execute("grant create view on database view_db to view_test;")
         
         conn = taos.connect(user=username, password=password)
         conn.execute(f"use {self.dbname};")
@@ -386,7 +388,7 @@ class TestViewBasic:
         time.sleep(2)
         conn.execute("drop view v1;")
         tdSql.execute("revoke all on view_db.* from view_test;")
-        tdSql.execute("revoke all on view_db.v1 from view_test;")
+        tdSql.execute("revoke all on view view_db.v1 from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
         tdLog.debug("Finish test case 'test_view_permission_db_all_view_all'")
@@ -411,7 +413,7 @@ class TestViewBasic:
         conn = taos.connect(user=username, password=password)
         self.prepare_data(conn)
         conn.execute("create view v1 as select * from stb;")
-        tdSql.execute("revoke read on view_db.* from view_test;")
+        tdSql.execute("revoke select on view_db.* from view_test;")
         self.check_permissions("view_test", "view_db", {"db": ["write"], "view": ["read", "write", "alter"]}, "v1")
         self.check_result_rows(tdSql, "select * from information_schema.ins_user_privileges where user_name='view_test' and privilege='read' and db_name='view_db' and table_name =''", 0)
         # create view permission error
@@ -429,7 +431,7 @@ class TestViewBasic:
         assert(len(res.fetch_all()) == 1)
         time.sleep(2)
         conn.execute("drop view v1;")
-        tdSql.execute("revoke write on view_db.* from view_test;")
+        tdSql.execute("revoke insert on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
         tdLog.debug("Finish test case 'test_view_permission_db_write_view_all'")
@@ -444,8 +446,9 @@ class TestViewBasic:
         self.prepare_data()
         
         tdSql.execute("create view v1 as select * from stb;")
-        tdSql.execute("grant write on view_db.* to view_test;")
-        tdSql.execute("grant read on view_db.v1 to view_test;")
+        tdSql.execute("grant use on database view_db to view_test;")
+        tdSql.execute("grant insert on view_db.* to view_test;")
+        tdSql.execute("grant select on view_db.v1 to view_test;")
         
         conn.execute(f"use {self.dbname};")
         time.sleep(2)
@@ -464,8 +467,8 @@ class TestViewBasic:
             conn.execute("drop view v1;")
         except Exception as ex:
             assert("[0x2644]: Permission denied or target object not exist" in str(ex))
-        tdSql.execute("revoke read on view_db.v1 from view_test;")
-        tdSql.execute("revoke write on view_db.* from view_test;")
+        tdSql.execute("revoke select on view view_db.v1 from view_test;")
+        tdSql.execute("revoke insert on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
         tdLog.debug("Finish test case 'test_view_permission_db_write_view_read'")
@@ -480,8 +483,9 @@ class TestViewBasic:
         self.prepare_data()
         
         tdSql.execute("create view v1 as select * from stb;")
-        tdSql.execute("grant write on view_db.* to view_test;")
-        tdSql.execute("grant alter on view_db.v1 to view_test;")
+        tdSql.execute("grant use on database view_db to view_test;")
+        tdSql.execute("grant insert on view_db.* to view_test;")
+        tdSql.execute("grant alter on view view_db.v1 to view_test;")
         try:
             conn.execute(f"use {self.dbname};")
             conn.execute("select * from v1;")
@@ -489,7 +493,7 @@ class TestViewBasic:
             assert("[0x2644]: Permission denied or target object not exist" in str(ex))
         time.sleep(2)
         conn.execute("drop view v1;")
-        tdSql.execute("revoke write on view_db.* from view_test;")
+        tdSql.execute("revoke insert on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
         tdLog.debug("Finish test case 'test_view_permission_db_write_view_alter'")
@@ -504,8 +508,9 @@ class TestViewBasic:
         self.prepare_data()
         
         tdSql.execute("create view v1 as select * from stb;")
-        tdSql.execute("grant read on view_db.* to view_test;")
-        tdSql.execute("grant all on view_db.v1 to view_test;")
+        tdSql.execute("grant use on database view_db to view_test;")
+        tdSql.execute("grant select on view_db.* to view_test;")
+        tdSql.execute("grant all on view view_db.v1 to view_test;")
         try:
             conn.execute(f"use {self.dbname};")
             conn.execute("create view v2 as select * from v1;")
@@ -515,7 +520,7 @@ class TestViewBasic:
         res = conn.query("select * from v1;")
         assert(len(res.fetch_all()) == 20)
         conn.execute("drop view v1;")
-        tdSql.execute("revoke read on view_db.* from view_test;")
+        tdSql.execute("revoke s on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
         tdLog.debug("Finish test case 'test_view_permission_db_read_view_all'")
@@ -530,8 +535,9 @@ class TestViewBasic:
         self.prepare_data()
         
         tdSql.execute("create view v1 as select * from stb;")
-        tdSql.execute("grant read on view_db.* to view_test;")
-        tdSql.execute("grant alter on view_db.v1 to view_test;")
+        tdSql.execute("grant use on database view_db to view_test;")
+        tdSql.execute("grant select on view_db.* to view_test;")
+        tdSql.execute("grant alter on view view_db.v1 to view_test;")
         try:
             conn.execute(f"use {self.dbname};")
             conn.execute("select * from v1;")
@@ -540,7 +546,7 @@ class TestViewBasic:
             
         time.sleep(2)
         conn.execute("drop view v1;")
-        tdSql.execute("revoke read on view_db.* from view_test;")
+        tdSql.execute("revoke select on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
         tdLog.debug("Finish test case 'test_view_permission_db_read_view_alter'")
@@ -555,8 +561,9 @@ class TestViewBasic:
         self.prepare_data()
         
         tdSql.execute("create view v1 as select * from stb;")
-        tdSql.execute("grant read on view_db.* to view_test;")
-        tdSql.execute("grant read on view_db.v1 to view_test;")
+        tdSql.execute("grant use on database view_db to view_test;")
+        tdSql.execute("grant select on view_db.* to view_test;")
+        tdSql.execute("grant select on view view_db.v1 to view_test;")
         conn.execute(f"use {self.dbname};")
         time.sleep(2)
         res = conn.query("select * from v1;")
@@ -565,8 +572,8 @@ class TestViewBasic:
             conn.execute("drop view v1;")
         except Exception as ex:
             assert("[0x2644]: Permission denied or target object not exist" in str(ex))
-        tdSql.execute("revoke read on view_db.* from view_test;")
-        tdSql.execute("revoke read on view_db.v1 from view_test;")
+        tdSql.execute("revoke select on view_db.* from view_test;")
+        tdSql.execute("revoke select on view view_db.v1 from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
         tdLog.debug("Finish test case 'test_view_permission_db_read_view_read'")

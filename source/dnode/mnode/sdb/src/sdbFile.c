@@ -18,6 +18,7 @@
 #include "sdb.h"
 #include "sync.h"
 #include "tchecksum.h"
+#include "tencrypt.h"
 #include "tglobal.h"
 #include "wal.h"
 
@@ -366,7 +367,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     }
 
     readLen = pRaw->dataLen + sizeof(int32_t);
-    if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
+    if (tsMetaKey[0] != '\0') {
       readLen = ENCRYPTED_LEN(pRaw->dataLen) + sizeof(int32_t);
     }
     if (readLen >= bufLen) {
@@ -396,7 +397,12 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       goto _OVER;
     }
 
-    if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
+    if (taosWaitCfgKeyLoaded() != 0) {
+      code = terrno;
+      goto _OVER;
+    }
+
+    if (tsMetaKey[0] != '\0') {
       int32_t count = 0;
 
       char *plantContent = taosMemoryMalloc(ENCRYPTED_LEN(pRaw->dataLen));
@@ -410,9 +416,10 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       opts.source = pRaw->pData;
       opts.result = plantContent;
       opts.unitLen = 16;
-      tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      opts.pOsslAlgrName = taosGetEncryptAlgoName(tsEncryptAlgorithmType);
+      tstrncpy(opts.key, tsMetaKey, ENCRYPT_KEY_LEN + 1);
 
-      count = Builtin_CBC_Decrypt(&opts);
+      count = CBC_Decrypt(&opts);
       if (count <= 0) {
         code = terrno;
         goto _OVER;
@@ -544,7 +551,15 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
 
         int32_t newDataLen = pRaw->dataLen;
         char   *newData = pRaw->pData;
-        if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
+
+        if (taosWaitCfgKeyLoaded() != 0) {
+          code = terrno;
+          taosHashCancelIterate(hash, ppRow);
+          sdbFreeRaw(pRaw);
+          break;
+        }
+
+        if (tsMetaKey[0] != '\0') {
           newDataLen = ENCRYPTED_LEN(pRaw->dataLen);
           newData = taosMemoryMalloc(newDataLen);
           if (newData == NULL) {
@@ -559,9 +574,10 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           opts.source = pRaw->pData;
           opts.result = newData;
           opts.unitLen = 16;
-          tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+          opts.pOsslAlgrName = taosGetEncryptAlgoName(tsEncryptAlgorithmType);
+          tstrncpy(opts.key, tsMetaKey, ENCRYPT_KEY_LEN + 1);
 
-          int32_t count = Builtin_CBC_Encrypt(&opts);
+          int32_t count = CBC_Encrypt(&opts);
           if (count <= 0) {
             code = terrno;
             taosHashCancelIterate(hash, ppRow);

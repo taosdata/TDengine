@@ -42,6 +42,9 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
   strcpy(connectReq.user, "root");
   memcpy(connectReq.passwd, secretEncrypt, sizeof(connectReq.passwd));
   strcpy(connectReq.sVer, td_version);
+  connectReq.connectTime = taosGetTimestampMs();
+  tSignConnectReq(&connectReq);
+
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = rpcMallocCont(contLen);
@@ -79,6 +82,8 @@ TEST_F(MndTestProfile, 02_ConnectMsg_NotExistDB) {
   strcpy(connectReq.user, "root");
   memcpy(connectReq.passwd, secretEncrypt, sizeof(connectReq.passwd));
   strcpy(connectReq.sVer, td_version);
+  connectReq.connectTime = taosGetTimestampMs();
+  tSignConnectReq(&connectReq);
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = rpcMallocCont(contLen);
@@ -120,7 +125,7 @@ TEST_F(MndTestProfile, 04_HeartBeatMsg) {
   SClientHbBatchRsp rsp = {0};
   tDeserializeSClientHbBatchRsp(pMsg->pCont, pMsg->contLen, &rsp);
   int sz = taosArrayGetSize(rsp.rsps);
-  ASSERT_EQ(sz, 0);
+  ASSERT_EQ(sz, 1);
 
   // SClientHbRsp* pRsp = (SClientHbRsp*) taosArrayGet(rsp.rsps, 0);
   // EXPECT_EQ(pRsp->connKey.connId, 123);

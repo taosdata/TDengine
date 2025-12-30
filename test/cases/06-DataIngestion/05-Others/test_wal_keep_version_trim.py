@@ -12,7 +12,7 @@ class TestWalKeepVersionTrim:
 
 
     def test_wal_keep_version_and_trim(self):
-        """Test WAL keep version and trim functionality
+        """WAL keep log dropped
         
         This test verifies:
         1. prepare data
@@ -20,9 +20,6 @@ class TestWalKeepVersionTrim:
         3. check wal keep version
         4. trim database wal
         5. check wal log dropped after trim
-
-        Catalog:
-            - Database:WAL
 
         Since: v3.3.6.31
 

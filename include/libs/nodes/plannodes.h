@@ -94,6 +94,7 @@ typedef struct SScanLogicNode {
   STimeWindow*       pExtScanRange;
   SNode*             pTimeRange;  // for create stream
   SNode*             pExtTimeRange;  // for create stream
+  SNode*             pPrimaryCond;   // for remote node, splited from filter conditions
   SName              tableName;
   bool               showRewrite;
   double             ratio;
@@ -256,6 +257,8 @@ typedef struct SDynQueryCtrlStbJoin {
 } SDynQueryCtrlStbJoin;
 
 typedef struct SDynQueryCtrlVtbScan {
+  bool          batchProcessChild;
+  bool          hasPartition;
   bool          scanAllCols;
   bool          isSuperTable;
   bool          useTagScan;
@@ -266,7 +269,9 @@ typedef struct SDynQueryCtrlVtbScan {
   int32_t       rversion;
   SNodeList*    pOrgVgIds;
   SVgroupsInfo* pVgroupList;
+  SNodeList*    pScanCols;
 } SDynQueryCtrlVtbScan;
+
 
 typedef struct SDynQueryCtrlVtbWindow {
   int32_t               wstartSlotId;
@@ -545,6 +550,7 @@ typedef struct STableScanPhysiNode {
   STimeWindow*   pExtScanRange; 
   SNode*         pTimeRange;  // for create stream
   SNode*         pExtTimeRange;  // for create stream
+  SNode*         pPrimaryCond;   // for remote node, splited from filter conditions
   double         ratio;
   int32_t        dataRequired;
   SNodeList*     pDynamicScanFuncs;
@@ -674,6 +680,8 @@ typedef struct SStbJoinDynCtrlBasic {
 } SStbJoinDynCtrlBasic;
 
 typedef struct SVtbScanDynCtrlBasic {
+  bool       batchProcessChild;
+  bool       hasPartition;
   bool       scanAllCols;
   bool       isSuperTable;
   char       dbName[TSDB_DB_NAME_LEN];
@@ -718,16 +726,6 @@ typedef struct SAggPhysiNode {
   bool       hasCountLikeFunc;
 } SAggPhysiNode;
 
-typedef struct SDownstreamSourceNode {
-  ENodeType      type;
-  SQueryNodeAddr addr;
-  uint64_t       clientId;
-  uint64_t       taskId;
-  uint64_t       sId;
-  int32_t        execId;
-  int32_t        fetchMsgType;
-  bool           localExec;
-} SDownstreamSourceNode;
 
 typedef struct SExchangePhysiNode {
   SPhysiNode node;
@@ -939,9 +937,12 @@ typedef struct SExplainInfo {
 
 typedef struct SQueryPlan {
   ENodeType    type;
+  bool         isScalarQ;
   uint64_t     queryId;
   int32_t      numOfSubplans;
   SNodeList*   pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
+  SNodeList*   pChildren;  // Element is SQueryPlan*
+  char*        subSql;
   SExplainInfo explainInfo;
   void*        pPostPlan;
 } SQueryPlan;

@@ -69,70 +69,102 @@ static char* tableNameGetPosition(SToken* pToken, char target) {
 }
 
 int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const char* dbName, SMsgBuf* pMsgBuf) {
-  const char* msg1 = "name too long";
+  const char* msg1 = "table name is too long";
   const char* msg2 = "invalid database name";
   const char* msg3 = "db is not specified";
   const char* msg4 = "invalid table name";
+  const char* msg5 = "database name is too long";
 
   int32_t code = TSDB_CODE_SUCCESS;
   char*   p = tableNameGetPosition(pTableName, TS_PATH_DELIMITER[0]);
 
   if (p != NULL) {  // db has been specified in sql string so we ignore current db path
+    // before dbname dequote
     int32_t dbLen = p - pTableName->z;
     if (dbLen <= 0) {
-      return buildInvalidOperationMsg(pMsgBuf, msg2);
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg2);
     }
-    char name[TSDB_DB_FNAME_LEN] = {0};
+    if (dbLen >= TSDB_DB_FNAME_LEN + TSDB_NAME_QUOTE) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg5);
+    }
+
+    char name[TSDB_DB_FNAME_LEN + TSDB_NAME_QUOTE] = {0};
     strncpy(name, pTableName->z, dbLen);
     int32_t actualDbLen = strdequote(name);
 
+    // after dbname dequote
+    if (actualDbLen <= 0) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg2);
+    }
+    if (actualDbLen >= TSDB_DB_NAME_LEN) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg5);
+    }
+
     code = tNameSetDbName(pName, acctId, name, actualDbLen);
     if (code != TSDB_CODE_SUCCESS) {
-      return buildInvalidOperationMsg(pMsgBuf, msg1);
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg2);
     }
 
+    // before tbname dequote
     int32_t tbLen = pTableName->n - dbLen - 1;
     if (tbLen <= 0) {
-      return buildInvalidOperationMsg(pMsgBuf, msg4);
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg4);
+    }
+    if (tbLen >= TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg1);
     }
 
-    char tbname[TSDB_TABLE_FNAME_LEN] = {0};
+    char tbname[TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE] = {0};
     strncpy(tbname, p + 1, tbLen);
-    /*tbLen = */ (void)strdequote(tbname);
+    int32_t actualTbLen = strdequote(tbname);
+
+    // after tbname dequote
+    if (actualTbLen <= 0) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg4);
+    }
+    if (actualTbLen >= TSDB_TABLE_NAME_LEN) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg1);
+    }
 
     code = tNameFromString(pName, tbname, T_NAME_TABLE);
     if (code != 0) {
-      return buildInvalidOperationMsg(pMsgBuf, msg1);
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg1);
     }
   } else {  // get current DB name first, and then set it into path
-    char tbname[TSDB_TABLE_FNAME_LEN] = {0};
-    strncpy(tbname, pTableName->z, pTableName->n);
-    int32_t tbLen = strdequote(tbname);
-    if (tbLen >= TSDB_TABLE_NAME_LEN) {
-      return buildInvalidOperationMsg(pMsgBuf, msg1);
-    }
-    if (tbLen == 0) {
-      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, "invalid table name");
+    // before tbname dequote
+    int32_t tbLen = pTableName->n;
+    if (tbLen <= 0) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg4);
     }
 
-    char name[TSDB_TABLE_FNAME_LEN] = {0};
-    strncpy(name, pTableName->z, pTableName->n);
-    (void)strdequote(name);
-
-    if (dbName == NULL) {
-      return buildInvalidOperationMsg(pMsgBuf, msg3);
+    if (tbLen >= TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg1);
     }
-    if (name[0] == '\0') return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg4);
+
+    char tbname[TSDB_TABLE_NAME_LEN + TSDB_NAME_QUOTE] = {0};
+    strncpy(tbname, pTableName->z, tbLen);
+    int32_t actualTbLen = strdequote(tbname);
+    // after tbname dequote
+    if (actualTbLen <= 0) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg4);
+    }
+    if (actualTbLen >= TSDB_TABLE_NAME_LEN) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg1);
+    }
+
+    if (dbName == NULL || strlen(dbName) == 0) {
+      return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_DB_NOT_SPECIFIED, msg3);
+    }
 
     code = tNameSetDbName(pName, acctId, dbName, strlen(dbName));
     if (code != TSDB_CODE_SUCCESS) {
-      code = buildInvalidOperationMsg(pMsgBuf, msg2);
+      code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg2);
       return code;
     }
 
-    code = tNameFromString(pName, name, T_NAME_TABLE);
+    code = tNameFromString(pName, tbname, T_NAME_TABLE);
     if (code != 0) {
-      code = buildInvalidOperationMsg(pMsgBuf, msg1);
+      code = generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, msg1);
     }
   }
 
@@ -1343,7 +1375,7 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
   p += sizeof(int32_t);
   p += sizeof(uint64_t);
 
-  int8_t* fields = p;
+  int8_t* fields = (int8_t*)p;
   if (*fields >= TSDB_DATA_TYPE_MAX || *fields < 0) {
     uError("fields type error:%d", *fields);
     ret = TSDB_CODE_INVALID_PARA;

@@ -114,6 +114,7 @@ Below are the business error codes for each module.
 | 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
 | 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
 | 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
+| 0x80000140 | Edition not compatible            | Edition incompatibility between nodes                        | Check editions(enterprise or community) of all nodes (including server and client), ensure node editions are consistent or compatible |
 
 #### tsc
 
@@ -144,6 +145,7 @@ Below are the business error codes for each module.
 | 0x8000023B |   reached the maximum connection idle timeout limit| reached the maximum connection idle timeout limit |  Check user parameter |
 | 0x8000023C |   reached the maximum concurrency limit        |  reached the maximum concurrency limit           |  Check user parameter |
 | 0x8000023D | reached the maximum call vnode limit           | reached the maximum call vnode limit    | Check user parameter |
+| 0x8000023E | Invalid token                     | Invalid token format                            | Check and enter the correct token                                                 |
 | 0x800002FF | Tsc internal error                | TSC internal error                              | Preserve the scene and logs, report issue on GitHub                               |
 
 #### mnode
@@ -177,6 +179,13 @@ Below are the business error codes for each module.
 | 0x80000340 | Account already exists                                       | (Enterprise only) Internal error                             | Report issue                                                 |
 | 0x80000342 | Invalid account options                                      | (Enterprise only) Operation not supported                    | Confirm if the operation is correct                          |
 | 0x80000344 | Invalid account                                              | Account does not exist                                       | Confirm if the account is correct                            |
+| 0x80000348 | Token not available                                          | Internal error                                               | Report issue                                                 |
+| 0x80000349 | Token not exist                                              | Token not exist                                              | Confirm if the token name is correct                         |
+| 0x8000034A | Token already exist                                          | Token already exist                                          | Use a new token name                                        |
+| 0x8000034B | Too many tokens                                              | User has created too many tokens                             | Increase limitation or remove unused tokens                  |
+| 0x8000034C | Invalid token name                                           | Token name is invalid                                        | Use a correct token name                                     |
+| 0x8000034D | Token expired                                                | Token is expired                                             | Set a new expire time                                        |
+| 0x8000034E | Token disabled                                               | Token is disabled                                            | Enable the token                                             |
 | 0x80000350 | User already exists                                          | Create user, duplicate creation                              | Confirm if the operation is correct                          |
 | 0x80000351 | Invalid user                                                 | User does not exist                                          | Confirm if the operation is correct                          |
 | 0x80000352 | Invalid user format                                          | Incorrect format                                             | Confirm if the operation is correct                          |
@@ -560,6 +569,7 @@ Below are the business error codes for each module.
 | 0x800026A1 | Option value too short                                                                                 | Option value too short                                                     | Check and correct the SQL statement                          |
 | 0x800026A2 | Option value too big                                                                                   | Option value too big                                                       | Check and correct the SQL statement                          |
 | 0x800026A3 | Option value too small                                                                                 | Option value too small                                                     | Check and correct the SQL statement                          |
+| 0x800026AA | Aggregate functions cannot be used for sorting in non-aggregate queries                                | Invalid ORDER BY clause clause                                             | Check and correct the SQL statement                          |
 | 0x800026FF | Parser internal error                                                                                  | Internal error in parser                                                   | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                                                                 | Internal error in planner                                                  | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN condition validation failed                                           | Preserve the scene and logs, report issue on GitHub          |

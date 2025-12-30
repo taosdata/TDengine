@@ -159,19 +159,19 @@ typedef struct {
   SEp    eps[];
 } SReqEpSet;
 
-#define TRANS_VER 2
+#define TRANS_VER 3
 typedef struct {
   char version : 4;       // RPC version
   char comp : 2;          // compression algorithm, 0:no compression 1:lz4
   char noResp : 2;        // noResp bits, 0: resp, 1: resp
   char withUserInfo : 2;  // 0: sent user info or not
-  char secured : 2;
+  char isToken : 2;
   char spi : 2;
   char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset
 
   uint64_t timestamp;
   int32_t  compatibilityVer;
-  uint32_t magicNum;
+  uint32_t magicNum;  // crc value
   STraceId traceId;
   int64_t  qid;
   uint32_t code;  // del later
@@ -332,9 +332,12 @@ int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool    transReadComplete(SConnBuffer* connBuf);
 int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
 int32_t transConnBufferAppend(SConnBuffer* connBuf, char* buf, int32_t len);
-int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
+int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf, int32_t* len);
 
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive);
+
+int32_t transDoCrc(char* buf, int32_t len);
+int32_t transDoCrcCheck(char* buf, int32_t len);
 #endif
 
 #ifdef TD_ASTRA_RPC

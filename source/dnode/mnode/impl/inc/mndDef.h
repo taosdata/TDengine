@@ -92,6 +92,21 @@ typedef enum {
   MND_OPER_SHOW_STB,
   MND_OPER_ALTER_RSMA,
   MND_OPER_ALTER_DNODE_RELOAD_TLS,
+  MND_OPER_CREATE_TOKEN,
+  MND_OPER_ALTER_TOKEN,
+  MND_OPER_DROP_TOKEN,
+  MND_OPER_CREATE_TABLE,
+  MND_OPER_CREATE_ROLE,
+  MND_OPER_DROP_ROLE,
+  MND_OPER_ALTER_ROLE,
+  MND_OPER_SSMIGRATE_DB,
+  MND_OPER_SHOW_DATABASES,
+  MND_OPER_SHOW_VGROUPS,
+  MND_OPER_SHOW_VNODES,
+  MND_OPER_SHOW_COMPACTS,
+  MND_OPER_SHOW_RETENTIONS,
+  MND_OPER_SHOW_SCANS,
+  MND_OPER_SHOW_SSMIGRATES,
   MND_OPER_CREATE_XNODE,
   MND_OPER_UPDATE_XNODE,
   MND_OPER_DROP_XNODE,
@@ -105,6 +120,7 @@ typedef enum {
   MND_OPER_UPDATE_XNODE_JOB,
   MND_OPER_REBALANCE_XNODE_JOB,
   MND_OPER_DROP_XNODE_JOB,
+  MND_OPER_MAX // the max operation type
 } EOperType;
 
 typedef enum {
@@ -134,6 +150,7 @@ typedef enum {
   //  TRN_CONFLICT_TOPIC_INSIDE = 5,
   TRN_CONFLICT_ARBGROUP = 6,
   TRN_CONFLICT_TSMA = 7,
+  TRN_CONFLICT_ROLE = 8,
 } ETrnConflct;
 
 typedef enum {
@@ -238,6 +255,13 @@ typedef struct {
   ETrnKillMode  killMode;
   SHashObj*     redoGroupActions;
   SHashObj*     groupActionPos;
+
+  // user data is for upper layer to store some additional infomation in the transaction,
+  // it is set and interpreted by upper layer, the transaction layer does not care about it.
+  // if user data is a complex structure, the upper layer should serialize/deserialize it.
+  // user data should always alloced from heap and can be freed by taosMemoryFree.
+  void*         userData;
+  int32_t       userDataLen;
 } STrans;
 
 typedef struct {
@@ -408,6 +432,18 @@ typedef struct {
 } SBnodeObj;
 
 typedef struct {
+  char       name[TSDB_TOKEN_NAME_LEN];
+  char       token[TSDB_TOKEN_LEN];
+  char       provider[TSDB_TOKEN_PROVIDER_LEN];
+  char       user[TSDB_USER_LEN];
+  char       extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+  int8_t     enabled;
+  int32_t    expireTime;  // in seconds
+  int32_t    createdTime; // in seconds
+  SRWLatch   lock;
+} STokenObj;
+
+typedef struct {
   int32_t assignedDnodeId;
   char    token[TSDB_ARB_TOKEN_SIZE];
   int8_t  assignAcked;
@@ -511,7 +547,10 @@ typedef struct {
 } SUserPassword;
 
 typedef struct {
-  char    user[TSDB_USER_LEN];
+  union {
+    char name[TSDB_USER_LEN];
+    char user[TSDB_USER_LEN];
+  };
 
   // passwords history, from newest to oldest,
   // the latest one is the current password
@@ -521,8 +560,9 @@ typedef struct {
 
   char    acct[TSDB_USER_LEN];
   char    totpsecret[TSDB_TOTP_SECRET_LEN];
-  int64_t createdTime;          // in milliseconds
-  int64_t updateTime;           // in milliseconds
+  int64_t createdTime;  // in milliseconds
+  int64_t updateTime;   // in milliseconds
+  int64_t uid;
   int8_t  superUser;
   int8_t  sysInfo;
   int8_t  enable;
@@ -548,29 +588,85 @@ typedef struct {
   int32_t passwordGraceTime;    // unit is second
   int32_t inactiveAccountTime;  // unit is second
   int32_t allowTokenNum;
+  int32_t tokenNum;
 
-  int32_t       acctId;
-  int32_t       authVersion;
-  int32_t       passVersion;
-  int64_t       ipWhiteListVer;
+  int32_t           acctId;
+  int32_t           authVersion;
+  int32_t           passVersion;
+  int64_t           ipWhiteListVer;
   SIpWhiteListDual* pIpWhiteListDual;
 
   int64_t             timeWhiteListVer;
   SDateTimeWhiteList* pTimeWhiteList;
 
-  SHashObj* readDbs;
-  SHashObj* writeDbs;
-  SHashObj* topics;
-  SHashObj* readTbs;
-  SHashObj* writeTbs;
-  SHashObj* alterTbs;
-  SHashObj* readViews;
-  SHashObj* writeViews;
-  SHashObj* alterViews;
-  SHashObj* useDbs;
+  int64_t lastRoleRetrieve;  // Last retrieve time of role, unit is ms, default value is 0. Memory only and no need to
+                             // persist.
+  SHashObj* roles;
+
+  SPrivSet sysPrivs;
+  /**
+   * N.B. The privileges of "select/insert/update/delete tables without row/col/tag conditions" are also
+   * stored in objPrivs.
+   */
+  SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies.
+
+  // SHashObj* readDbs;  // obsolete:  migrate to selectTbs and insertTbs when update from 3.3.x.y
+  // SHashObj* writeDbs;
+  // SHashObj* topics;
+
+  // table level privileges
+  SHashObj* selectTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* insertTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* updateTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* deleteTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  // SHashObj* alterTbs;   // obsolete: migrate to objPrivs
+
+  // 1.*.*           
+  // 1.db.*
+  // 1.db.tbName     with tag condition, specific columns
+
+  // SHashObj* readViews;
+  // SHashObj* writeViews;
+  // SHashObj* alterViews;
+  // SHashObj* useDbs;
   SRWLatch  lock;
   int8_t    passEncryptAlgorithm;
 } SUserObj;
+
+typedef struct {
+  char    name[TSDB_ROLE_LEN];
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t uid;
+  int64_t version;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t enable : 1;
+      uint8_t sys : 1;  // system role
+      uint8_t reserve : 6;
+    };
+  };
+
+  SPrivSet sysPrivs;
+  /**
+   * N.B. The privileges of "select/insert/update/delete tables without row/col/tag conditions" are also
+   * stored in objPrivs.
+   */
+  SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies.
+  
+  // table level privileges combined with row/col/tag conditions
+  SHashObj* selectTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* insertTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* updateTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* deleteTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  // SHashObj* alterTbs;   // k:tbFName, v: empty
+  // SHashObj* useDbs;
+
+  SHashObj* parentRoles;  // not supported yet
+  SHashObj* subRoles;     // not supported yet
+  SRWLatch  lock;
+} SRoleObj;
 
 typedef struct {
   int32_t numOfVgroups;
@@ -631,6 +727,7 @@ typedef struct {
   int64_t  createdTime;
   int64_t  updateTime;
   int64_t  uid;
+  int64_t  ownerId;
   int32_t  cfgVersion;
   int32_t  vgVersion;
   SDbCfg   cfg;
@@ -720,11 +817,13 @@ typedef struct {
   char           stb[TSDB_TABLE_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   char           dstTbName[TSDB_TABLE_FNAME_LEN];
+  char           createUser[TSDB_USER_LEN];
   int64_t        createdTime;
   int64_t        uid;
   int64_t        stbUid;
   int64_t        dbUid;
   int64_t        dstTbUid;
+  int64_t        ownerId;
   int8_t         intervalUnit;
   int8_t         slidingUnit;
   int8_t         timezone;  // int8_t is not enough, timezone is unit of second
@@ -756,6 +855,7 @@ typedef struct {
   int64_t uid;
   int64_t tbUid;
   int64_t dbUid;
+  int64_t ownerId;
   int64_t interval[2];
   union {
     uint64_t reserved;
@@ -775,10 +875,12 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   char    dstTbName[TSDB_TABLE_FNAME_LEN];
   char    colName[TSDB_COL_NAME_LEN];
+  char    createUser[TSDB_USER_LEN];
   int64_t createdTime;
   int64_t uid;
   int64_t stbUid;
   int64_t dbUid;
+  int64_t ownerId;
 } SIdxObj;
 
 typedef struct {
@@ -789,10 +891,12 @@ typedef struct {
 typedef struct {
   char        name[TSDB_TABLE_FNAME_LEN];
   char        db[TSDB_DB_FNAME_LEN];
+  char        createUser[TSDB_USER_LEN];
   int64_t     createdTime;
   int64_t     updateTime;
   int64_t     uid;
   int64_t     dbUid;
+  int64_t     ownerId;
   int32_t     tagVer;
   int32_t     colVer;
   int32_t     smaVer;
@@ -822,6 +926,7 @@ typedef struct {
 
 typedef struct {
   char     name[TSDB_FUNC_NAME_LEN];
+  char     createUser[TSDB_USER_LEN];
   int64_t  createdTime;
   int8_t   funcType;
   int8_t   scriptType;
@@ -871,6 +976,7 @@ typedef struct {
   int64_t        updateTime;
   int64_t        uid;
   int64_t        dbUid;
+  int64_t        ownerId;
   int32_t        version;
   int8_t         subType;   // column, db or stable
   int8_t         withMeta;  // TODO
@@ -985,16 +1091,17 @@ typedef struct {
 
 typedef struct {
   char                name[TSDB_STREAM_FNAME_LEN];
+  char                createUser[TSDB_USER_LEN];
   SCMCreateStreamReq* pCreate;
 
   SRWLatch lock;
-
   // dynamic info
   int32_t mainSnodeId;
   int8_t  userDropped;  // no need to serialize
   int8_t  userStopped;
   int64_t createTime;
   int64_t updateTime;
+  int64_t ownerId;
 } SStreamObj;
 #if 0
 typedef struct SStreamConf {
@@ -1102,13 +1209,14 @@ typedef struct {
   char     fullname[TSDB_VIEW_FNAME_LEN];
   char     name[TSDB_VIEW_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
-  char     user[TSDB_USER_LEN];
+  char     createUser[TSDB_USER_LEN];
   char*    querySql;
   char*    parameters;
   void**   defaultValues;
   char*    targetTable;
   uint64_t viewId;
   uint64_t dbId;
+  int64_t  ownerId;
   int64_t  createdTime;
   int32_t  version;
   int8_t   precision;

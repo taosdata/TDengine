@@ -267,7 +267,8 @@ struct SFilterInfo {
   int8_t           *blkUnitRes;
   void             *pTable;
   SArray           *blkList;
-  bool             isStrict;
+  bool              isStrict;
+  bool              hasRemoteNode;
 
   SFilterPCtx pctx;
   const void*      pStreamRtInfo;

@@ -150,6 +150,7 @@ def main():
             print("model file exists, start directly")
 
         """load the model from local folder"""
+        checkpoint_path = os.path.join(model_folder, 'torch_model.ckpt')
         pretrained_model = timesfm.TimesFm(
             hparams=timesfm.TimesFmHparams(
                 backend="cpu",
@@ -160,7 +161,7 @@ def main():
                 context_len=2048,
             ),
             checkpoint=timesfm.TimesFmCheckpoint(
-                huggingface_repo_id=model_folder),
+                path=checkpoint_path),
         )
     else:
         print("invalid parameters")

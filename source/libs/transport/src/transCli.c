@@ -273,7 +273,6 @@ static int32_t   addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn);
 static int32_t   delConnFromHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn);
 static int8_t    balanceConnHeapCache(SHashObj* pConnHeapCache, SCliConn* pConn, SCliConn** pNewConn);
 
-
 // thread obj
 static int32_t createThrdObj(void* trans, SCliThrd** pThrd);
 static void    destroyThrdObj(SCliThrd* pThrd);
@@ -661,10 +660,11 @@ void cliHandleResp(SCliConn* conn) {
   SCliReq* pReq = NULL;
 
   STransMsgHead* pHead = NULL;
-  int32_t        msgLen = transDumpFromBuffer(&conn->readBuf, (char**)&pHead, 0);
-  if (msgLen < 0) {
+  int32_t        msgLen = 0;
+  code = transDumpFromBuffer(&conn->readBuf, (char**)&pHead, 0, &msgLen);
+  if (code != 0) {
     taosMemoryFree(pHead);
-    tWarn("%s conn:%p, recv invalid packet", CONN_GET_INST_LABEL(conn), conn);
+    tWarn("%s conn:%p, recv invalid packet since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
     // TODO: notify cb
     code = pThrd->notifyExceptCb(pThrd, NULL, NULL);
     if (code != 0) {
@@ -1015,8 +1015,7 @@ static void cliAllocRecvBufferCbSSL(uv_handle_t* handle, size_t suggested_size, 
 static void cliConnSendAuthWithTLSCb(uv_write_t* req, int32_t status) {
   SCliConn* conn = req->data;
   if (status != 0) {
-    tDebug("%s conn:%p, failed to send sasl auth msg since %s", CONN_GET_INST_LABEL(conn), conn,
-           uv_strerror(status));
+    tDebug("%s conn:%p, failed to send sasl auth msg since %s", CONN_GET_INST_LABEL(conn), conn, uv_strerror(status));
     conn->broken = true;
     (void)transUnrefCliHandle(conn);
   } else {
@@ -1025,24 +1024,23 @@ static void cliConnSendAuthWithTLSCb(uv_write_t* req, int32_t status) {
   saslBufferClear(&conn->saslConn->out);
 
   taosMemFree(req);
-
 }
-static int32_t cliConnSendAuthWithTLS(SCliConn* conn, const char *data, int32_t len) {
+static int32_t cliConnSendAuthWithTLS(SCliConn* conn, const char* data, int32_t len) {
   int32_t code = 0;
 
-  uv_write_t *req = taosMemCalloc(1,sizeof(uv_write_t)); 
+  uv_write_t* req = taosMemCalloc(1, sizeof(uv_write_t));
   if (req == NULL) {
     return terrno;
-  } 
+  }
 
   req->data = conn;
-  uv_buf_t buf = uv_buf_init((char *)data, len);   
+  uv_buf_t buf = uv_buf_init((char*)data, len);
 
-  code = sslWrite(conn->pTls, conn->stream,req, &buf, 1, cliConnSendAuthWithTLSCb);   
+  code = sslWrite(conn->pTls, conn->stream, req, &buf, 1, cliConnSendAuthWithTLSCb);
   if (code != 0) {
     taosMemFree(req);
   }
-  
+
   return code;
 }
 static void cliRecvCbSSL(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
@@ -1080,9 +1078,9 @@ static void cliRecvCbSSL(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
         pBuf->len = 0;
         if (conn->saslConn->out.len == 0) {
           return;
-        } 
+        }
 
-        code = cliConnSendAuthWithTLS(conn, (const char *)conn->saslConn->out.buf, conn->saslConn->out.len);
+        code = cliConnSendAuthWithTLS(conn, (const char*)conn->saslConn->out.buf, conn->saslConn->out.len);
         if (code != 0) {
           tDebug("%s conn:%p, failed to send sasl auth since %s", CONN_GET_INST_LABEL(conn), conn, tstrerror(code));
           conn->broken = true;
@@ -1093,9 +1091,9 @@ static void cliRecvCbSSL(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
         if (saslAuthIsInited(conn->saslConn)) {
           tInfo("%s conn:%p, sasl auth completed", CONN_GET_INST_LABEL(conn), conn);
         }
-      }   
+      }
       return;
-    } 
+    }
 
     if (!sslIsInited(conn->pTls) || !saslAuthIsInited(conn->saslConn)) {
       return;
@@ -1576,6 +1574,13 @@ bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msg
   char*          oriMsg = NULL;
   int32_t        oriLen = 0;
 
+  int32_t offset = sizeof(pInst->user);
+  char*   pUser = pInst->user;
+  if (pHead->isToken) {
+    offset = sizeof(pInst->identifier);
+    pUser = pInst->identifier;
+  }
+
   if (pHead->comp == 1) {
     int32_t msgLen = htonl(pHead->msgLen);
     code = transDecompressMsgExt((char*)(pHead), msgLen, &oriMsg, &oriLen);
@@ -1589,19 +1594,20 @@ bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msg
     pHead = (STransMsgHead*)oriMsg;
     len = oriLen;
   }
-  STransMsgHead* tHead = taosMemoryCalloc(1, len + sizeof(pInst->user));
+
+  STransMsgHead* tHead = taosMemoryCalloc(1, len + offset);
   if (tHead == NULL) {
     return false;
   }
-  memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
-  memcpy((char*)tHead + TRANS_MSG_OVERHEAD, pInst->user, sizeof(pInst->user));
 
-  memcpy((char*)tHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user), (char*)pHead + TRANS_MSG_OVERHEAD,
-         len - TRANS_MSG_OVERHEAD);
+  memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
+  memcpy((char*)tHead + TRANS_MSG_OVERHEAD, pUser, offset);
+
+  memcpy((char*)tHead + TRANS_MSG_OVERHEAD + offset, (char*)pHead + TRANS_MSG_OVERHEAD, len - TRANS_MSG_OVERHEAD);
 
   tHead->withUserInfo = 1;
   *ppHead = tHead;
-  *msgLen = len + sizeof(pInst->user);
+  *msgLen = len + offset;
 
   pConn->pInitUserReq = tHead;
   pConn->userInited = 1;
@@ -1690,6 +1696,9 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     STransMsgHead* pHead = transHeadFromCont(pReq->pCont);
     int32_t        msgLen = transMsgLenFromCont(pReq->contLen);
 
+    if (pInst->isToken) {
+      pHead->isToken = 1;
+    }
     char*   content = pReq->pCont;
     int32_t contLen = pReq->contLen;
     if (cliConnMayAddUserInfo(pConn, &pHead, &msgLen)) {
@@ -1705,10 +1714,14 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
       pHead->msgType = pReq->msgType;
       pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
       pHead->traceId = pReq->info.traceId;
-      pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+      // pHead->magicNum = htonl(TRANS_MAGIC_NUM);
       pHead->version = TRANS_VER;
       pHead->compatibilityVer = htonl(pInst->compatibilityVer);
+      if (pInst->isToken) {
+        pHead->isToken = 1;
+      }
     }
+
     pHead->timestamp = taosHton64(pCliMsg->st);
     pHead->seqNum = taosHton64(pConn->seq);
     pHead->qid = taosHton64(pReq->info.qId);
@@ -1722,6 +1735,8 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
       msgLen = (int32_t)ntohl((uint32_t)(pHead->msgLen));
     }
     wb[j++] = uv_buf_init((char*)pHead, msgLen);
+
+    TAOS_UNUSED(transDoCrc((char*)pHead, msgLen));
     totalLen += msgLen;
 
     pCliMsg->seq = pConn->seq;
@@ -1858,7 +1873,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
     code = transTlsCxtMgtGet(pInst->pTlsMgt, &pTlsCtx);
     TAOS_CHECK_GOTO(code, &lino, _exception1);
 
-    //transTlsCxtRef(pTlsCtx);
+    // transTlsCxtRef(pTlsCtx);
 
     code = sslInit(pTlsCtx, &conn->pTls);
     TAOS_CHECK_GOTO(code, &lino, _exception1);
@@ -2044,12 +2059,12 @@ static void cliHandleUpdate(SCliThrd* pThrd, SCliReq* pReq) {
   return;
 }
 static void cliHandleFreeById(SCliThrd* pThrd, SCliReq* pReq) {
-  // placeholder function 
+  // placeholder function
   return;
 }
 static void cliHandleReloadTlsConfig(SCliThrd* pThrd, SCliReq* pReq) {
-  STrans *pInst = pThrd->pInst;
-  
+  STrans* pInst = pThrd->pInst;
+
   int8_t result = transDoReloadTlsConfig(pInst->pTlsMgt, pInst->numOfThreads);
   if (result == 0) {
     tInfo("%s successfully reloaded TLS config", transLabel(pInst));
@@ -3801,7 +3816,6 @@ int32_t transSetDefaultAddr(void* pInstRef, const char* ip, const char* fqdn) {
 int32_t transReloadClientTlsConfig(void* handle) {
   int32_t code = 0;
   int32_t lino = 0;
-   
 
   STrans* pInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)handle);
   if (pInst == NULL) {
@@ -3810,7 +3824,7 @@ int32_t transReloadClientTlsConfig(void* handle) {
 
   code = transTlsCxtMgtCreateNewCxt(pInst->pTlsMgt, TAOS_CONN_CLIENT);
   TAOS_CHECK_GOTO(code, &lino, _error);
-  
+
   for (int8_t i = 0; i < pInst->numOfThreads; i++) {
     SCliReq* pReq = taosMemoryCalloc(1, sizeof(SCliReq));
     if (pReq == NULL) {
@@ -3834,7 +3848,7 @@ int32_t transReloadClientTlsConfig(void* handle) {
 _error:
   if (code != 0) {
     tError("%s failed to reload tls config at line:%d since %s", pInst->label, lino, tstrerror(code));
-  } 
+  }
 
   transReleaseExHandle(transGetInstMgt(), (int64_t)handle);
   return code;
@@ -4373,7 +4387,7 @@ int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, S
   taosHashPut(pTransInst->seqTable, &pReq->info.seq, sizeof(pReq->info.seq), &pReq->msgType, sizeof(pReq->msgType));
   taosThreadMutexUnlock(&pTransInst->seqMutex);
 
-  sprintf(pReq->info.conn.user, "root");
+  sprintf(RPC_MSG_USER(pReq), "root");
 
   code = transSendReq(pTransInst, pReq, NULL);
   TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)shandle));

@@ -829,7 +829,9 @@ int32_t doGenerateSourceData(SOperatorInfo* pOperator) {
         SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
         SScalarParam dest = {.columnData = &idata};
-        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, GET_STM_RTINFO(pOperator->pTaskInfo), NULL);
+        gTaskScalarExtra.pStreamInfo = GET_STM_RTINFO(pOperator->pTaskInfo);
+        gTaskScalarExtra.pStreamRange = NULL;
+        code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest, &gTaskScalarExtra);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
           return code;
@@ -976,7 +978,9 @@ int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock
 
   SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
   SScalarParam dest = {.columnData = &idata};
-  TAOS_CHECK_EXIT(scalarCalculate(pExpr->pExpr->_optrRoot.pRootNode, pBlockList, &dest, pExtraParams, NULL));
+  gTaskScalarExtra.pStreamInfo = (void*)pExtraParams;
+  gTaskScalarExtra.pStreamRange = NULL;
+  TAOS_CHECK_EXIT(scalarCalculate(pExpr->pExpr->_optrRoot.pRootNode, pBlockList, &dest, &gTaskScalarExtra));
 
   if (pResult->info.rows > 0 && !createNewColModel) {
     code = colDataMergeCol(pResColData, pResult->info.rows, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
@@ -1025,7 +1029,9 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
 
     SColumnInfoData idata = {.info = pResColData->info, .hasNull = true};
     SScalarParam dest = {.columnData = &idata};
-    TAOS_CHECK_EXIT(scalarCalculate((SNode*)pExpr->pExpr->_function.pFunctNode, pBlockList, &dest, pExtraParams, NULL));
+    gTaskScalarExtra.pStreamInfo = (void*)pExtraParams;
+    gTaskScalarExtra.pStreamRange = NULL;
+    TAOS_CHECK_EXIT(scalarCalculate((SNode*)pExpr->pExpr->_function.pFunctNode, pBlockList, &dest, &gTaskScalarExtra));
 
     if (pResult->info.rows > 0 && !createNewColModel) {
       code = colDataMergeCol(pResColData, pResult->info.rows, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);

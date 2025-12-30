@@ -35,7 +35,7 @@ extern "C" {
 #include "trpc.h"
 
 #include "tconfig.h"
-#include "clientSession.h"
+// #include "clientSession.h"
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
@@ -170,9 +170,16 @@ typedef struct {
   SIpRange      userDualIp;  // user ip range
 }SOptionInfo;
 
+typedef struct {
+  int64_t startTime;
+  int64_t lastAccessTime;
+} SConnAccessInfo;
+
 typedef struct STscObj {
   char           user[TSDB_USER_LEN];
+  char           tokenName[TSDB_TOKEN_NAME_LEN];
   char           pass[TSDB_PASSWORD_LEN];
+  char           token[TSDB_TOKEN_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   char           sVer[TSDB_VERSION_LEN];
   char           sDetailVer[128];
@@ -183,6 +190,7 @@ typedef struct STscObj {
   int32_t        acctId;
   uint32_t       connId;
   int32_t        appHbMgrIdx;
+  int64_t        userId;
   int64_t        id;         // ref ID returned by taosAddRef
   TdThreadMutex  mutex;      // used to protect the operation on db
   int32_t        numOfReqs;  // number of sqlObj bound to this connection
@@ -194,6 +202,7 @@ typedef struct STscObj {
   SWhiteListInfo dateTimeWhiteListInfo;  // date time white list info
   STscNotifyInfo userDroppedInfo;
   SOptionInfo    optionInfo;
+  SConnAccessInfo sessInfo;
 } STscObj;
 
 typedef struct STscDbg {
@@ -397,7 +406,7 @@ typedef struct AsyncArg {
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType);
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 
-int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* totp, const char* db,
+int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* totp, const char* db,
                               uint16_t port, int connType, STscObj** pObj);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
@@ -424,7 +433,7 @@ void    stopAllRequests(SHashObj* pRequests);
 // SAppInstInfo* getAppInstInfo(const char* clusterKey);
 
 // conn level
-int32_t hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
+int32_t hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, const char* user, const char* tokenName, int64_t clusterId, int8_t connType);
 void    hbDeregisterConn(STscObj* pTscObj, SClientHbKey connKey);
 
 typedef struct SSqlCallbackWrapper {
@@ -456,8 +465,7 @@ void    stopAllQueries(SRequestObj* pRequest);
 void    doRequestCallback(SRequestObj* pRequest, int32_t code);
 void    freeQueryParam(SSyncQueryParam* param);
 
-int32_t tscUpdateSessMgtMetric(STscObj* pTscObj, SSessParam* pParam);
-
+void    updateConnAccessInfo(SConnAccessInfo* pInfo);
 int32_t tzInit();
 void    tzCleanup();
 

@@ -2710,7 +2710,7 @@ static int32_t stRealtimeContextCalcExpr(SSTriggerRealtimeContext *pContext, SSD
 
   int32_t      nrows = blockDataGetNumOfRows(pDataBlock);
   SScalarParam output = {.columnData = pResCol};
-  code = scalarCalculate(pExpr, pList, &output, NULL, NULL);
+  code = scalarCalculate(pExpr, pList, &output, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -2793,8 +2793,8 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   QUERY_CHECK_NULL(pContext->pMetaBlock, code, lino, _end, terrno);
   pContext->pDeleteBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   QUERY_CHECK_NULL(pContext->pDeleteBlock, code, lino, _end, terrno);
-  pContext->pDropBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  QUERY_CHECK_NULL(pContext->pDropBlock, code, lino, _end, terrno);
+  pContext->pTableBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  QUERY_CHECK_NULL(pContext->pTableBlock, code, lino, _end, terrno);
   pContext->pTempSlices = taosArrayInit(0, sizeof(int64_t) * 3);
   QUERY_CHECK_NULL(pContext->pTempSlices, code, lino, _end, terrno);
   pContext->pRanges = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
@@ -2949,9 +2949,9 @@ static void stRealtimeContextDestroy(void *ptr) {
     blockDataDestroy(pContext->pDeleteBlock);
     pContext->pDeleteBlock = NULL;
   }
-  if (pContext->pDropBlock != NULL) {
-    blockDataDestroy(pContext->pDropBlock);
-    pContext->pDropBlock = NULL;
+  if (pContext->pTableBlock != NULL) {
+    blockDataDestroy(pContext->pTableBlock);
+    pContext->pTableBlock = NULL;
   }
   if (pContext->pTempSlices != NULL) {
     taosArrayDestroy(pContext->pTempSlices);
@@ -3276,6 +3276,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
           QUERY_CHECK_NULL(px, code, lino, _end, terrno);
         }
       }
+      pReq->fetchAllTable = true;
       break;
     }
 
@@ -4364,8 +4365,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   }
 
   bool forwardDoneVer = false;
-  // todo(kjq): update doneVer even for virtual table
-  if (!pTask->isVirtualTable && pContext->calcParamPool.size == 0) {
+  if (pContext->calcParamPool.size == 0) {
     int64_t nRunningReq = 0;
     code = stTriggerTaskGetRunningReq(pTask, pContext->sessionId, &nRunningReq);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -4383,6 +4383,7 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     }
     pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
   }
+
 #define STRIGGER_CHECKPOINT_INTERVAL_NS 10 * NANOSECOND_PER_MINUTE  // 10min
   if (pContext->lastCheckpointTime + STRIGGER_CHECKPOINT_INTERVAL_NS <= now) {
     // do checkpoint
@@ -4397,19 +4398,6 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
   if (pContext->lastReportTime + STREAM_TRIGGER_REPORT_INTERVAL_NS <= now) {
     stRealtimeContextReport(pContext);
     pContext->lastReportTime = now;
-  }
-
-#define STRIGGER_VIRTUAL_TABLE_INFO_INTERVAL_NS 10 * NANOSECOND_PER_SEC  // 10s
-  if (pTask->isVirtualTable && pContext->lastVirtTableInfoTime + STRIGGER_VIRTUAL_TABLE_INFO_INTERVAL_NS <= now) {
-    // check virtual table info
-    pContext->status = STRIGGER_CONTEXT_FETCH_META;
-    for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->virtReaderList);
-         pContext->curReaderIdx++) {
-      code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_VTABLE_INFO);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-    pContext->lastVirtTableInfoTime = now;
-    goto _end;
   }
 
   code = stRealtimeContextAddUserRecalc(pContext);
@@ -4644,13 +4632,28 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
   }
 
   // process new dropped tables
-  nrows = blockDataGetNumOfRows(pContext->pDropBlock);
+  nrows = blockDataGetNumOfRows(pContext->pTableBlock);
   if (nrows > 0) {
-    SColumnInfoData *pGidCol = taosArrayGet(pContext->pDropBlock->pDataBlock, 0);
-    QUERY_CHECK_NULL(pGidCol, code, lino, _end, terrno);
-    int64_t *pGids = (int64_t *)pGidCol->pData;
+    int32_t          iCol = 0;
+    SColumnInfoData *pUidCol = taosArrayGet(pContext->pTableBlock->pDataBlock, iCol++);
+    QUERY_CHECK_NULL(pUidCol, code, lino, _end, terrno);
+    SColumnInfoData *pVerCol = taosArrayGet(pContext->pTableBlock->pDataBlock, iCol++);
+    QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
+    SColumnInfoData *pTypeCol = taosArrayGet(pContext->pTableBlock->pDataBlock, iCol++);
+    QUERY_CHECK_NULL(pTypeCol, code, lino, _end, terrno);
+    int64_t *pUids = (int64_t *)pUidCol->pData;
+    uint8_t *pTypes = (uint8_t *)pTypeCol->pData;
     for (int32_t i = 0; i < nrows; i++) {
-      int64_t gid = pGids[i];
+      int64_t gid = pUids[i];
+      if (pTypes[i] == TABLE_BLOCK_ADD) {
+        ST_TASK_DLOG("found new added/altered virtual table, uid:%" PRId64, gid);
+        code = TSDB_CODE_INTERNAL_ERROR;
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else if (pTypes[i] == TABLE_BLOCK_RETIRE) {
+        ST_TASK_DLOG("found dropped virtual table, uid:%" PRId64, gid);
+        code = TSDB_CODE_INTERNAL_ERROR;
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
       void   *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
       if (pGroup == NULL) {
         pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
@@ -4664,7 +4667,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CODE(code, lino, _end);
       }
 
-      void *px = taosArrayPush(pContext->groupsToDelete, &pGids[i]);
+      void *px = taosArrayPush(pContext->groupsToDelete, &pUids[i]);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     }
   }
@@ -4799,13 +4802,13 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
         blockDataEmpty(pContext->pMetaBlock);
         blockDataEmpty(pContext->pDeleteBlock);
-        blockDataEmpty(pContext->pDropBlock);
+        blockDataEmpty(pContext->pTableBlock);
         pContext->pMetaBlock->info.version = *(int64_t *)pRsp->pCont;
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
         SSTriggerWalNewRsp rsp = {.metaBlock = pContext->pMetaBlock,
                                   .deleteBlock = pContext->pDeleteBlock,
-                                  .dropBlock = pContext->pDropBlock};
+                                  .tableBlock = pContext->pTableBlock};
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, NULL);
         QUERY_CHECK_CODE(code, lino, _end);
         pContext->pMetaBlock->info.version = rsp.ver;
@@ -4950,7 +4953,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
           blockDataEmpty(pContext->pMetaBlock);
           blockDataEmpty(pContext->pDeleteBlock);
-          blockDataEmpty(pContext->pDropBlock);
+          blockDataEmpty(pContext->pTableBlock);
           pContext->pMetaBlock->info.version = *(int64_t *)pRsp->pCont;
         }
         taosArrayClear(pContext->pTempSlices);
@@ -4960,7 +4963,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
           rsp.metaBlock = pContext->pMetaBlock;
           rsp.deleteBlock = pContext->pDeleteBlock;
-          rsp.dropBlock = pContext->pDropBlock;
+          rsp.tableBlock = pContext->pTableBlock;
         }
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, pContext->pTempSlices);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -5287,51 +5290,6 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_CODE(code, lino, _end);
       int32_t nVirTables = taosArrayGetSize(vtableInfo.infos);
 
-      if (pTask->virTableInfoReady) {
-        // check virtual table info
-        for (int32_t i = 0; i < nVirTables; i++) {
-          VTableInfo             *pInfo = TARRAY_GET_ELEM(vtableInfo.infos, i);
-          SSTriggerVirtTableInfo *pTable = tSimpleHashGet(pTask->pVirtTableInfos, &pInfo->uid, sizeof(int64_t));
-          if (pTable == NULL) {
-            ST_TASK_DLOG("found new added virtual table, gid:%" PRId64 ", uid:%" PRId64 ", ver:%d", pInfo->gId,
-                         pInfo->uid, pInfo->cols.version);
-            code = TSDB_CODE_INTERNAL_ERROR;
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-          if (pTable->tbVer != pInfo->cols.version) {
-            ST_TASK_DLOG("virtual table version changed, gid:%" PRId64 ", uid:%" PRId64 ", ver:%" PRId64 " -> %d",
-                         pInfo->gId, pInfo->uid, pTable->tbVer, pInfo->cols.version);
-            code = TSDB_CODE_INTERNAL_ERROR;
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-        }
-
-        if (--pContext->curReaderIdx > 0) {
-          // wait for responses from other readers
-          goto _end;
-        }
-
-        bool forwardDoneVer = false;
-        if (pContext->calcParamPool.size == 0) {
-          int64_t nRunningReq = 0;
-          code = stTriggerTaskGetRunningReq(pTask, pContext->sessionId, &nRunningReq);
-          QUERY_CHECK_CODE(code, lino, _end);
-          forwardDoneVer = (nRunningReq == 0);
-        }
-        if (forwardDoneVer) {
-          int32_t               iter = 0;
-          SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
-          while (pProgress != NULL) {
-            pProgress->doneVer = pProgress->lastScanVer;
-            pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
-          }
-        }
-
-        code = stRealtimeContextCheck(pContext);
-        QUERY_CHECK_CODE(code, lino, _end);
-        break;
-      }
-
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_GATHER_VTABLE_INFO, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
       for (int32_t i = 0; i < nVirTables; i++) {
@@ -5415,7 +5373,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       if (nOrigTables > 0) {
         SStreamMgmtReq *pReq = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
         QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
-        pReq->reqId = atomic_fetch_add_64(&pTask->mgmtReqId, 1);
+        pReq->reqId = atomic_add_fetch_64(&pTask->mgmtReqId, 1);
         pReq->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
         pReq->cont.pReqs = pOrigTableNames;
         pOrigTableNames = NULL;
@@ -10114,7 +10072,7 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
       QUERY_CHECK_CODE(code, lino, _end);
       output.numOfRows = numOfRows;
 
-      code = scalarCalculate(pTask->pStateExpr, pList, &output, NULL, NULL);
+      code = scalarCalculate(pTask->pStateExpr, pList, &output, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
       pStateCol = output.columnData;
       QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);

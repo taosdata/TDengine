@@ -780,7 +780,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));
   int8_t updateWhiteList = 0;
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CONFIG_DNODE)) != 0) {
     goto _err_out;
   }
 
@@ -1310,7 +1310,7 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_SHOW_VARIABLES)) != 0) {
+  if ((code = mndCheckOperPrivilege(pReq->info.node, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_VARIABLES)) != 0) {
     goto _OVER;
   }
 

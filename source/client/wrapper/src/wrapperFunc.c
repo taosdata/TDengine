@@ -16,6 +16,7 @@
 #include "version.h"
 #include "wrapper.h"
 
+static TdThreadOnce tsDriverEnvOnce = PTHREAD_ONCE_INIT;
 static TdThreadOnce tsDriverOnce = PTHREAD_ONCE_INIT;
 volatile int32_t    tsDriverOnceRet = 0;
 
@@ -92,12 +93,17 @@ setConfRet taos_set_config(const char *config) {
   return (*fp_taos_set_config)(config);
 }
 
+static void taos_init_driver_env(void) {
+  taosDriverEnvInit();
+}
+
 static void taos_init_driver(void) {
   tsDriverOnceRet = taosDriverInit(tsDriverType);
   if (tsDriverOnceRet != 0) return;
 
   tsDriverOnceRet = 0;
 }
+
 static void taos_init_wrapper(void) {
   if (fp_taos_init == NULL) {
     terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
@@ -108,6 +114,7 @@ static void taos_init_wrapper(void) {
 }
 
 int taos_init(void) {
+  (void)taosThreadOnce(&tsDriverEnvOnce, taos_init_driver_env);
   (void)taosThreadOnce(&tsDriverOnce, taos_init_driver);
   (void)taosThreadOnce(&tsInitOnce, taos_init_wrapper);
   return tsInitOnceRet;
@@ -119,13 +126,14 @@ void taos_cleanup(void) {
 }
 
 int taos_options(TSDB_OPTION option, const void *arg, ...) {
+  (void)taosThreadOnce(&tsDriverEnvOnce, taos_init_driver_env);
   if (option == TSDB_OPTION_DRIVER) {
     if (tsDriver == NULL) {
-      if (strcasecmp((const char *)arg, "native") == 0) {
+      if (strcasecmp((const char *)arg, STR_NATIVE) == 0) {
         tsDriverType = DRIVER_NATIVE;
         return 0;
       }
-      if (strcasecmp((const char *)arg, "websocket") == 0) {
+      if (strcasecmp((const char *)arg, STR_WEBSOCKET) == 0) {
         tsDriverType = DRIVER_WEBSOCKET;
         return 0;
       }
@@ -195,6 +203,24 @@ TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, cons
 
   CHECK_PTR(fp_taos_connect_auth);
   return (*fp_taos_connect_auth)(ip, user, auth, db, port);
+}
+
+void taos_set_option(OPTIONS *options, const char *key, const char *value) {
+  if (taos_init() != 0) {
+    return;
+  }
+
+  CHECK_VOID(fp_taos_set_option);
+  (*fp_taos_set_option)(options, key, value);
+}
+
+TAOS *taos_connect_with(const OPTIONS *options) {
+  if (taos_init() != 0) {
+    return NULL;
+  }
+
+  CHECK_PTR(fp_taos_connect_with);
+  return (*fp_taos_connect_with)(options);
 }
 
 TAOS *taos_connect_with_dsn(const char *dsn) {
@@ -544,6 +570,11 @@ const char *taos_get_client_info() {
 int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
   CHECK_INT(fp_taos_get_current_db);
   return (*fp_taos_get_current_db)(taos, database, len, required);
+}
+
+int taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char *buffer, int* len) {
+  CHECK_INT(fp_taos_get_connection_info);
+  return (*fp_taos_get_connection_info)(taos, info, buffer, len);
 }
 
 const char *taos_errstr(TAOS_RES *res) {
@@ -937,8 +968,7 @@ char *getBuildInfo() {
   return (*fp_getBuildInfo)();
 }
 
-// int32_t taos_connect_is_alive(TAOS *taos) {
-//   CHECK_INT(fp_taos_connect_is_alive);
-//   return (*fp_taos_connect_is_alive)(taos);
-// }
-
+int32_t taos_connect_is_alive(TAOS *taos) {
+  CHECK_INT(fp_taos_connect_is_alive);
+  return (*fp_taos_connect_is_alive)(taos);
+}

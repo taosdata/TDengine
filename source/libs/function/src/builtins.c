@@ -458,6 +458,12 @@ static bool paramSupportColumnNode(uint64_t typeFlag) {
          FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_NOT_VALUE_NODE);
 }
 
+static bool paramSupportRemoteValueNode(uint64_t typeFlag) {
+  return FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_REMOTE_VALUE_NODE) ||
+         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_EXPR_NODE) ||
+         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_NOT_VALUE_NODE);
+}
+
 static bool paramSupportNodeType(SNode* pNode, uint64_t typeFlag) {
   switch (pNode->type) {
     case QUERY_NODE_VALUE:
@@ -472,6 +478,8 @@ static bool paramSupportNodeType(SNode* pNode, uint64_t typeFlag) {
       return paramSupportCaseWhenNode(typeFlag);
     case QUERY_NODE_COLUMN:
       return paramSupportColumnNode(typeFlag);
+    case QUERY_NODE_REMOTE_VALUE:
+      return paramSupportRemoteValueNode(typeFlag);
     default:
       return false;
   }
@@ -1536,6 +1544,8 @@ static EFuncReturnRows diffEstReturnRows(SFunctionNode* pFunc) {
   return 1 < ((SValueNode*)nodesListGetNode(pFunc->pParameterList, 1))->datum.i ? FUNC_RETURN_ROWS_INDEFINITE
                                                                                 : FUNC_RETURN_ROWS_N_MINUS_1;
 }
+
+static EFuncReturnRows lagEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
 static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, int32_t minParaNum,
                                    int32_t maxParaNum, bool hasSep) {
@@ -7205,6 +7215,31 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc = NULL,
     .sprocessFunc = sm4DeFunction,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "lag",
+    .type = FUNCTION_TYPE_LAG,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_STRING_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE | FUNC_PARAM_SUPPORT_FLOAT_TYPE | FUNC_PARAM_SUPPORT_DOUBLE_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
+    .translateFunc = translateSelectValue,
+    .getEnvFunc   = getLagFuncEnv,
+    .initFunc     = lagFunctionSetup,
+    .processFunc  = lagFunction,
+    .sprocessFunc = lagScalarFunction,
+    .finalizeFunc = functionFinalize,
+    .estimateReturnRowsFunc = lagEstReturnRows,
+    .processFuncByRow  = lagFunctionByRow,
   },
 };
 // clang-format on

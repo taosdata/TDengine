@@ -15,8 +15,17 @@
  */
 
 #include "clientSession.h"
+#include "clientInt.h"
+#include "clientLog.h"
 
 static SSessionMgt sessMgt = {0};
+
+#define HANDLE_SESSION_CONTROL() \
+  do {                           \
+    if (sessMgt.inited == 0) {   \
+      return TSDB_CODE_SUCCESS;  \
+    }                            \
+  } while (0)
 
 static int32_t sessPerUserCheckFn(int64_t value, int64_t limit) {
   int32_t code = 0;
@@ -43,7 +52,7 @@ static int32_t sessConnTimeCheckFn(int64_t value, int64_t limit) {
     return code;
   }
   int64_t currentTime = taosGetTimestampMs();
-  if ((value + limit) < currentTime) {
+  if ((value + limit * 1000) < currentTime) {
     code = TSDB_CODE_TSC_SESS_CONN_TIMEOUT;
   }
 
@@ -57,12 +66,12 @@ static int32_t sessConnTimeUpdateFn(int64_t *value, int64_t limit) {
 }
 
 static int32_t sessConnIdleTimeCheckFn(int64_t value, int64_t limit) {
+  int32_t code = 0;
   if (limit == -1) {
     return 0;
   }
-  int32_t code = 0;
   int64_t currentTime = taosGetTimestampMs();
-  if ((value + limit) < currentTime) {
+  if ((value + limit * 1000) < currentTime) {
     code = TSDB_CODE_TSC_SESS_CONN_IDLE_TIMEOUT;
   }
   return code;
@@ -116,7 +125,7 @@ static int32_t sessSetValueLimitFn(int64_t *pLimit, int64_t src) {
 static SSessionError sessFnSet[] = {
     {SESSION_PER_USER, sessPerUserCheckFn, sessPerUserUpdateFn, sessSetValueLimitFn},
     {SESSION_CONN_TIME, sessConnTimeCheckFn, sessConnTimeUpdateFn, sessSetValueLimitFn},
-    {SESSION_CONN_IDLE_TIME, sessConnIdleTimeCheckFn, sessMaxConnCurrencyUpdateFn, sessSetValueLimitFn},
+    {SESSION_CONN_IDLE_TIME, sessConnIdleTimeCheckFn, sessConnIdleTimeUpdateFn, sessSetValueLimitFn},
     {SESSION_MAX_CONCURRENCY, sessMaxConnCurrencyCheckFn, sessMaxConnCurrencyUpdateFn, sessSetValueLimitFn},
     {SESSION_MAX_CALL_VNODE_NUM, sessVnodeCallCheckFn, sessVnodeCallNumUpdateFn, sessSetValueLimitFn},
 };
@@ -214,7 +223,17 @@ int32_t sessMetricUpdate(SSessMetric *pMetric, SSessParam *p) {
   code = sessFnSet[p->type].updateFn(&pMetric->value[p->type], p->value);
 _error:
 
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMetric->lock));
+  return code;
+}
+
+int32_t sessMetricCheckValue(SSessMetric *pMetric, ESessionType type, int64_t value) {
+  int32_t code = 0;
+
+  (void)taosThreadRwlockRdlock(&pMetric->lock);
+  code = sessFnSet[type].checkFn(value, pMetric->limit[type]);
   (void)taosThreadRwlockUnlock(&pMetric->lock);
+
   return code;
 }
 void sessMetricDestroy(SSessMetric *pMetric) {
@@ -231,19 +250,25 @@ int32_t sessMgtInit() {
     code = terrno;
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
+  sessMgt.inited = 1;
 
 _error:
-
+  if (code != 0) {
+    tscError("failed to init session mgt, line:%d, code:%d", lino, code);
+  }
   return code;
 }
 
 int32_t sessMgtUpdataLimit(char *user, ESessionType type, int32_t value) {
+  HANDLE_SESSION_CONTROL();
   int32_t      code = 0;
   int32_t      lino = 0;
   SSessionMgt *pMgt = &sessMgt;
+
   if (type >= SESSION_MAX_TYPE || type < SESSION_PER_USER) {
     return TSDB_CODE_INVALID_PARA;
   }
+
 
   SSessMetric *pMetric = NULL;
   (void)taosThreadRwlockWrlock(&pMgt->lock);
@@ -268,13 +293,14 @@ _error:
     uError("failed to update session mgt type:%d, line:%d, code:%d", type, lino, code);
   }
 
-  code = taosThreadRwlockUnlock(&pMgt->lock);
-  TAOS_CHECK_GOTO(code, &lino, _error);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgt->lock));
 
   return code;
 }
 
 int32_t sessMgtUpdateUserMetric(char *user, SSessParam *pPara) {
+  HANDLE_SESSION_CONTROL();
+
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -302,7 +328,7 @@ _error:
     uError("failed to update user session metric, line:%d, code:%d", lino, code);
   }
 
-  (void)taosThreadRwlockUnlock(&pMgt->lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgt->lock));
   return code;
 }
 
@@ -310,6 +336,7 @@ int32_t sessMgtGet(char *user, ESessionType type, int32_t *pValue) {
   int32_t      code = 0;
   int32_t      lino = 0;
   SSessionMgt *pMgt = &sessMgt;
+  HANDLE_SESSION_CONTROL();
 
   if (type >= SESSION_MAX_TYPE) {
     return TSDB_CODE_INVALID_PARA;
@@ -328,7 +355,7 @@ int32_t sessMgtGet(char *user, ESessionType type, int32_t *pValue) {
   TAOS_CHECK_GOTO(code, &lino, _error);
 
 _error:
-  code = taosThreadRwlockUnlock(&pMgt->lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgt->lock));
 
   if (code != 0) {
     uError("failed to get session mgt type:%d, line:%d, code:%d", type, lino, code);
@@ -336,9 +363,12 @@ _error:
   return code;
 }
 int32_t sessMgtCheckUser(char *user, ESessionType type) {
+  HANDLE_SESSION_CONTROL();
+
   int32_t      code = 0;
   int32_t      lino = 0;
   SSessionMgt *pMgt = &sessMgt;
+
   code = taosThreadRwlockRdlock(&pMgt->lock);
   TAOS_CHECK_GOTO(code, &lino, _error);
 
@@ -351,7 +381,29 @@ int32_t sessMgtCheckUser(char *user, ESessionType type) {
   code = sessMetricCheckByType(*ppMetric, type);
 
 _error:
-  code = taosThreadRwlockUnlock(&pMgt->lock);
+  if (code != 0) {
+    uError("failed to check user session, line:%d, code:%d", lino, code);
+  }
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgt->lock));
+  return code;
+}
+int32_t sessMgtCheckValue(char *user, ESessionType type, int64_t value) {
+  int32_t      code = 0;
+  int32_t      lino = 0;
+  SSessionMgt *pMgt = &sessMgt;
+  code = taosThreadRwlockRdlock(&pMgt->lock);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  SSessMetric **ppMetric = taosHashGet(pMgt->pSessMetricMap, user, strlen(user));
+  if (ppMetric == NULL || *ppMetric == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    TAOS_CHECK_GOTO(code, &lino, _error);
+  }
+
+  code = sessMetricCheckValue(*ppMetric, type, value);
+
+_error:
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgt->lock));
   if (code != 0) {
     uError("failed to check user session, line:%d, code:%d", lino, code);
   }
@@ -359,9 +411,12 @@ _error:
 }
 
 int32_t sessMgtRemoveUser(char *user) {
+  HANDLE_SESSION_CONTROL();
+
   int32_t      code = 0;
   int32_t      lino = 0;
   SSessionMgt *pMgt = &sessMgt;
+
 
   code = taosThreadRwlockWrlock(&pMgt->lock);
   TAOS_CHECK_GOTO(code, &lino, _error);
@@ -373,7 +428,7 @@ int32_t sessMgtRemoveUser(char *user) {
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 _error:
-  code = taosThreadRwlockUnlock(&pMgt->lock);
+  TAOS_UNUSED(taosThreadRwlockUnlock(&pMgt->lock));
   return code;
 }
 
@@ -399,4 +454,65 @@ void sessMgtDestroy() {
   taosHashCleanup(pMgt->pSessMetricMap);
 
   pMgt->pSessMetricMap = NULL;
+}
+int32_t sessMgtCheckConnStatus(char *user, SConnAccessInfo *pInfo) {
+  HANDLE_SESSION_CONTROL();
+
+  int32_t code = 0;
+  int32_t lino = 0;
+
+
+  code = sessMgtCheckValue(user, SESSION_CONN_TIME, pInfo->startTime);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  code = sessMgtCheckValue(user, SESSION_CONN_IDLE_TIME, pInfo->lastAccessTime);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+_error:
+  if (code != 0) {
+    uError("failed to check connection status for user:%s, line:%d, code:%d", user, lino, code);
+  }
+  return code;
+}
+
+int32_t connCheckAndUpateMetric(int64_t connId) {
+  HANDLE_SESSION_CONTROL();
+
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  STscObj *pTscObj = acquireTscObj(connId);
+  if (pTscObj == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    return code;
+  }
+
+  code = sessMgtCheckConnStatus(pTscObj->user, &pTscObj->sessInfo);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  updateConnAccessInfo(&pTscObj->sessInfo);
+
+  code = sessMgtUpdateUserMetric(pTscObj->user, &(SSessParam){.type = SESSION_MAX_CONCURRENCY, .value = 1});
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+_error:
+  if (code != 0) {
+    tscError("conn:0x%" PRIx64 ", check and update metric failed at line:%d, code:%s", connId, lino, tstrerror(code));
+  }
+
+  releaseTscObj(connId);
+  return code;
+}
+
+int32_t tscUpdateSessMgtMetric(STscObj *pTscObj, SSessParam *pParam) {
+  HANDLE_SESSION_CONTROL();
+
+  int32_t code = 0;
+
+  if (pTscObj == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    return code;
+  }
+  code = sessMgtUpdateUserMetric(pTscObj->user, pParam);
+  return code;
 }

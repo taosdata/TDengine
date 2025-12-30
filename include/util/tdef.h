@@ -245,9 +245,12 @@ typedef enum ELogicConditionType {
 #define TSDB_INT32_ID_LEN 11
 
 #define TSDB_NAME_DELIMITER_LEN 1
+#define TSDB_NAME_QUOTE         2
 
 #define TSDB_UNI_LEN  24
 #define TSDB_USER_LEN TSDB_UNI_LEN
+#define TSDB_ROLE_LEN 64
+
 
 #define TSDB_POINTER_PRINT_BYTES 18  // 0x1122334455667788
 // ACCOUNT is a 32 bit positive integer
@@ -263,6 +266,11 @@ typedef enum ELogicConditionType {
 #define TSDB_NODE_NAME_LEN            64
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
+#define TSDB_TOKEN_NAME_LEN           32                                 // it is a null-terminated string
+#define TSDB_TOKEN_LEN                64                                 // it is a null-terminated string
+#define TSDB_TOKEN_EXPIRY_LEEWAY      30                                 // in seconds
+#define TSDB_TOKEN_PROVIDER_LEN       64                                 // it is a null-terminated string
+#define TSDB_TOKEN_EXTRA_INFO_LEN     1024                               // it is a null-terminated string
 #define TSDB_CGROUP_LEN               193                                // it is a null-terminated string
 #define TSDB_CLIENT_ID_LEN            256                                // it is a null-terminated string
 #define TSDB_CONSUMER_ID_LEN          32                                 // it is a null-terminated string
@@ -271,12 +279,15 @@ typedef enum ELogicConditionType {
 #define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
 #define TSDB_STREAM_NOTIFY_URL_LEN    128                                // it includes the terminating '\0'
 #define TSDB_STREAM_NOTIFY_STAT_LEN   350                                // it includes the terminating '\0'
+#define TSDB_OBJ_NAME_LEN             193                                // it is a null-terminated string
+#define TSDB_OBJ_FNAME_LEN            (TSDB_ACCT_ID_LEN + TSDB_OBJ_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_DB_NAME_LEN              65
 #define TSDB_DB_FNAME_LEN             (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+#define TSDB_PRIV_MAX_KEY_LEN         (TSDB_OBJ_FNAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_NAME_DELIMITER_LEN + 10)
+#define TSDB_PRIV_MAX_INPUT_ARGS      256
+#define TSDB_PRIVILEGE_COLS_LEN       12 * 1024
 #define TSDB_PRIVILEDGE_CONDITION_LEN 48 * 1024
 #define TSDB_PRIVILEDGE_HOST_LEN      48 * 1024
-//todo dmchen
-#define AUDIT_TOKEN_LEN 1000
 
 #define TSDB_FUNC_NAME_LEN       65
 #define TSDB_FUNC_COMMENT_LEN    1024 * 1024
@@ -360,6 +371,7 @@ typedef enum ELogicConditionType {
 #define TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT (90 * 1440 * 60)  // 90 days
 #define TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT       3
 
+#define TSDB_PRODUCT_LEN           32
 #define TSDB_VERSION_LEN           32
 #define TSDB_LABEL_LEN             16
 #define TSDB_JOB_STATUS_LEN        32
@@ -629,13 +641,18 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MAX_BLOB_LEN (4 << 20)
 
+#define TSDB_MAX_SUBROLE 32
+#define TSDB_MAX_PRIVS   512
+#define TSDB_MAX_USERS   2000
+#define TSDB_MAX_ROLES   200
+
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 
 #ifdef WINDOWS
 #define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
 #else
-#define TSDB_MAX_RPC_THREADS 100 
+#define TSDB_MAX_RPC_THREADS 100
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE 0x00u  // none type
@@ -687,7 +704,7 @@ typedef enum ELogicConditionType {
 
 enum { TRANS_STAT_INIT = 0, TRANS_STAT_EXECUTING, TRANS_STAT_EXECUTED, TRANS_STAT_ROLLBACKING, TRANS_STAT_ROLLBACKED };
 enum { TRANS_OPER_INIT = 0, TRANS_OPER_EXECUTE, TRANS_OPER_ROLLBACK };
-enum { ENCRYPT_KEY_STAT_UNKNOWN = 0, ENCRYPT_KEY_STAT_UNSET, ENCRYPT_KEY_STAT_SET, ENCRYPT_KEY_STAT_LOADED };
+enum { ENCRYPT_KEY_STAT_UNKNOWN = 0, ENCRYPT_KEY_STAT_UNSET, ENCRYPT_KEY_STAT_SET, ENCRYPT_KEY_STAT_LOADED, ENCRYPT_KEY_STAT_NOT_EXIST };
 
 typedef struct {
   char    dir[TSDB_FILENAME_LEN];

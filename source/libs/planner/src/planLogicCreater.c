@@ -1196,6 +1196,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->node.pChildren, (SNode*)pVtableScan));
   PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->node.pChildren, (SNode*)pInsColumnsScan));
   PLAN_ERR_JRET(nodesCloneList(pVtableScan->node.pTargets, &pDynCtrl->node.pTargets));
+
   TSWAP(pVtableScan->pVgroupList, pDynCtrl->vtbScan.pVgroupList);
   pVtableScan->node.pParent = (SLogicNode*)pDynCtrl;
   ((SScanLogicNode*)pInsColumnsScan)->node.pParent = (SLogicNode*)pDynCtrl;
@@ -1390,6 +1391,7 @@ static SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) 
   if (NULL != pStmtName) {
     snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
   }
+  snprintf(pCol->node.userAlias, sizeof(pCol->node.userAlias), "%s", pExpr->userAlias);
   pCol->node.relatedTo = pExpr->relatedTo;
   return pCol;
 }

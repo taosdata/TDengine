@@ -19,6 +19,7 @@
 #include <uv.h>
 #endif
 #include "crypt.h"
+#include "mndRole.h"
 #include "mndUser.h"
 #include "audit.h"
 #include "mndDb.h"
@@ -27,6 +28,7 @@
 #include "mndStb.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
+#include "mndToken.h"
 #include "tbase64.h"
 #include "totp.h"
 
@@ -36,29 +38,30 @@
 #define USER_VER_SUPPORT_WHITELIT_DUAL_STACK 7
 #define USER_VER_SUPPORT_ADVANCED_SECURITY   8
 #define USER_VER_NUMBER                      USER_VER_SUPPORT_ADVANCED_SECURITY 
+
 #define USER_RESERVE_SIZE                    63
 
 #define BIT_FLAG_MASK(n)              (1 << n)
 #define BIT_FLAG_SET_MASK(val, mask)  ((val) |= (mask))
 #define BIT_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
+#if 0
 #define PRIVILEGE_TYPE_ALL       BIT_FLAG_MASK(0)
 #define PRIVILEGE_TYPE_READ      BIT_FLAG_MASK(1)
 #define PRIVILEGE_TYPE_WRITE     BIT_FLAG_MASK(2)
 #define PRIVILEGE_TYPE_SUBSCRIBE BIT_FLAG_MASK(3)
 #define PRIVILEGE_TYPE_ALTER     BIT_FLAG_MASK(4)
+#endif
 
 #define ALTER_USER_ADD_PRIVS(_type) ((_type) == TSDB_ALTER_USER_ADD_PRIVILEGES)
 #define ALTER_USER_DEL_PRIVS(_type) ((_type) == TSDB_ALTER_USER_DEL_PRIVILEGES)
 
-#define ALTER_USER_ALL_PRIV(_priv) (BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALL))
-#define ALTER_USER_READ_PRIV(_priv) \
-  (BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_READ) || BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALL))
-#define ALTER_USER_WRITE_PRIV(_priv) \
-  (BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_WRITE) || BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALL))
-#define ALTER_USER_ALTER_PRIV(_priv) \
-  (BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALTER) || BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_ALL))
-#define ALTER_USER_SUBSCRIBE_PRIV(_priv) (BIT_FLAG_TEST_MASK((_priv), PRIVILEGE_TYPE_SUBSCRIBE))
+#if 0
+#define ALTER_USER_ALL_PRIV(_priv)       (PRIV_HAS((_priv), PRIV_CM_ALL))
+#define ALTER_USER_READ_PRIV(_priv)      (PRIV_HAS((_priv), PRIV_CM_READ) || PRIV_HAS((_priv), PRIV_CM_ALL))
+#define ALTER_USER_WRITE_PRIV(_priv)     (PRIV_HAS((_priv), PRIV_CM_WRITE) || PRIV_HAS((_priv), PRIV_CM_ALL))
+#define ALTER_USER_ALTER_PRIV(_priv)     (PRIV_HAS((_priv), PRIV_CM_ALTER) || PRIV_HAS((_priv), PRIV_CM_ALL))
+#define ALTER_USER_SUBSCRIBE_PRIV(_priv) (PRIV_HAS((_priv), PRIV_TOPIC_SUBSCRIBE))
 
 #define ALTER_USER_TARGET_DB(_tbname) (0 == (_tbname)[0])
 #define ALTER_USER_TARGET_TB(_tbname) (0 != (_tbname)[0])
@@ -101,7 +104,7 @@
   (ALTER_USER_ADD_PRIVS(_type) && ALTER_USER_SUBSCRIBE_PRIV(_priv))
 #define ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(_type, _priv) \
   (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_SUBSCRIBE_PRIV(_priv))
-
+#endif
 static void generateSalt(char *salt, size_t len);
 
 static int32_t createDefaultIpWhiteList(SIpWhiteListDual **ppWhiteList);
@@ -545,6 +548,7 @@ int32_t mndInitUser(SMnode *pMnode) {
       .sdbType = SDB_USER,
       .keyType = SDB_KEY_BINARY,
       .deployFp = (SdbDeployFp)mndCreateDefaultUsers,
+      // .redeployFp = (SdbDeployFp)mndCreateDefaultUsers, // TODO: upgrade user table(uid should be created)
       .encodeFp = (SdbEncodeFp)mndUserActionEncode,
       .decodeFp = (SdbDecodeFp)mndUserActionDecode,
       .insertFp = (SdbInsertFp)mndUserActionInsert,
@@ -992,7 +996,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   }
   taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.passwords[0].pass);
   userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
-  if (tsiEncryptPassAlgorithm == DND_CA_SM4 && strlen(tsEncryptKey) > 0) {
+  if (tsiEncryptPassAlgorithm == DND_CA_SM4 && strlen(tsDbKey) > 0) {
     generateSalt(userObj.salt, sizeof(userObj.salt));
     TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino, _ERROR);
   }
@@ -1004,6 +1008,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
+  userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
   userObj.sysInfo = 1;
   userObj.enable = 1;
   userObj.changePass = 2;
@@ -1022,6 +1027,8 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.passwordGraceTime = -1;
   userObj.inactiveAccountTime = -1;
   userObj.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+  userObj.tokenNum = 0;
+
   userObj.pTimeWhiteList = taosMemoryCalloc(1, sizeof(SDateTimeWhiteList));
   if (userObj.pTimeWhiteList == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _ERROR);
@@ -1036,9 +1043,21 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     userObj.vnodePerCall = -1;
     userObj.failedLoginAttempts = -1;
     userObj.passwordLifeTime = -1;
-    userObj.passwordLockTime = -1;
+    userObj.passwordLockTime = 1;
     userObj.inactiveAccountTime = -1;
     userObj.allowTokenNum = -1;
+    userObj.tokenNum = 0;
+  }
+
+  userObj.roles = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (userObj.roles == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _ERROR);
+  }
+
+  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_SYSDBA, strlen(TSDB_ROLE_SYSDBA) + 1, NULL, 0)) ||
+      (code = taosHashPut(userObj.roles, TSDB_ROLE_SYSSEC, strlen(TSDB_ROLE_SYSSEC) + 1, NULL, 0)) ||
+      (code = taosHashPut(userObj.roles, TSDB_ROLE_SYSAUDIT, strlen(TSDB_ROLE_SYSAUDIT) + 1, NULL, 0))) {
+    TAOS_CHECK_GOTO(code, &lino, _ERROR);
   }
 
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
@@ -1047,7 +1066,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
 
   mInfo("user:%s, will be created when deploying, raw:%p", userObj.user, pRaw);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-user");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_ROLE, NULL, "create-user");
   if (pTrans == NULL) {
     sdbFreeRaw(pRaw);
     mError("user:%s, failed to create since %s", userObj.user, terrstr());
@@ -1069,20 +1088,99 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   }
 
   mndTransDrop(pTrans);
-  taosMemoryFree(userObj.passwords);
-  taosMemoryFree(userObj.pIpWhiteListDual);
-  taosMemoryFree(userObj.pTimeWhiteList);
+  mndUserFreeObj(&userObj);
   return 0;
 
 _ERROR:
-  taosMemoryFree(userObj.passwords);
-  taosMemoryFree(userObj.pIpWhiteListDual);
-  taosMemoryFree(userObj.pTimeWhiteList);
-  TAOS_RETURN(terrno ? terrno : TSDB_CODE_APP_ERROR);
+  mndUserFreeObj(&userObj);
+  if (code == 0) {
+    code = terrno ? terrno : TSDB_CODE_APP_ERROR;
+  }
+  mError("user:%s, failed to create default user since %s", user, tstrerror(code));
+  TAOS_RETURN(code);
 }
 
 static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
   return mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS);
+}
+
+static int32_t tSerializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj) {
+  int32_t  code = 0, lino = 0;
+  int32_t  tlen = 0;
+  void    *pIter = NULL;
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pObj->uid));
+
+  TAOS_CHECK_EXIT(tSerializePrivSysObjPolicies(&encoder, &pObj->sysPrivs, pObj->objPrivs));
+
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->selectTbs));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->insertTbs));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->updateTbs));
+  TAOS_CHECK_EXIT(tSerializePrivTblPolicies(&encoder, pObj->deleteTbs));
+
+  int32_t nRoles = taosHashGetSize(pObj->roles);
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nRoles));
+
+  while ((pIter = taosHashIterate(pObj->roles, pIter))) {
+    size_t keyLen = 0;
+    char  *key = taosHashGetKey(pIter, &keyLen);  // key: role name
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, key));
+
+    uint8_t flag = *(int8_t *)pIter;
+    TAOS_CHECK_EXIT(tEncodeU8(&encoder, flag));  // value: 0 reset, 1 set(default)
+  }
+
+  tEndEncode(&encoder);
+  tlen = encoder.pos;
+_exit:
+  tEncoderClear(&encoder);
+  if (code < 0) {
+    mError("user:%s, %s failed at line %d since %s", pObj->user, __func__, lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  return tlen;
+}
+
+static int32_t tDeserializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj) {
+  int32_t  code = 0, lino = 0;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pObj->uid));
+  TAOS_CHECK_EXIT(tDeserializePrivSysObjPolicies(&decoder, &pObj->sysPrivs, &pObj->objPrivs));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->selectTbs));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->insertTbs));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->updateTbs));
+  TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(&decoder, &pObj->deleteTbs));
+  int32_t nRoles = 0;
+  TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nRoles));
+  if (nRoles > 0) {
+    if (!pObj->roles &&
+        !(pObj->roles = taosHashInit(nRoles, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), 1, HASH_ENTRY_LOCK))) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < nRoles; i++) {
+      int32_t keyLen = 0;
+      char   *key = NULL;
+      TAOS_CHECK_EXIT(tDecodeCStrAndLen(&decoder, &key, &keyLen));
+      uint8_t flag = 0;
+      TAOS_CHECK_EXIT(tDecodeU8(&decoder, &flag));
+      TAOS_CHECK_EXIT(taosHashPut(pObj->roles, key, keyLen + 1, &flag, sizeof(flag)));
+    }
+  }
+
+_exit:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  if (code < 0) {
+    mError("user, %s failed at line %d since %s, row:%p", __func__, lino, tstrerror(code), pObj);
+  }
+  TAOS_RETURN(code);
 }
 
 SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
@@ -1091,22 +1189,25 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   int32_t passReserve = (sizeof(SUserPassword) + 8) * pUser->numOfPasswords + 4;
   int32_t ipWhiteReserve = pUser->pIpWhiteListDual ? (sizeof(SIpRange) * pUser->pIpWhiteListDual->num + sizeof(SIpWhiteListDual) + 4) : 16;
   int32_t timeWhiteReserve = pUser->pTimeWhiteList ? (sizeof(SDateTimeWhiteListItem) * pUser->pTimeWhiteList->num + sizeof(SDateTimeWhiteList) + 4) : 16;
-  int32_t numOfReadDbs = taosHashGetSize(pUser->readDbs);
-  int32_t numOfWriteDbs = taosHashGetSize(pUser->writeDbs);
-  int32_t numOfReadTbs = taosHashGetSize(pUser->readTbs);
-  int32_t numOfWriteTbs = taosHashGetSize(pUser->writeTbs);
-  int32_t numOfAlterTbs = taosHashGetSize(pUser->alterTbs);
-  int32_t numOfReadViews = taosHashGetSize(pUser->readViews);
-  int32_t numOfWriteViews = taosHashGetSize(pUser->writeViews);
-  int32_t numOfAlterViews = taosHashGetSize(pUser->alterViews);
-  int32_t numOfTopics = taosHashGetSize(pUser->topics);
-  int32_t numOfUseDbs = taosHashGetSize(pUser->useDbs);
+  int32_t numOfReadDbs = 0; //taosHashGetSize(pUser->readDbs);
+  int32_t numOfWriteDbs = 0; //taosHashGetSize(pUser->writeDbs);
+  int32_t numOfReadTbs = 0; //taosHashGetSize(pUser->readTbs);
+  int32_t numOfWriteTbs = 0; //taosHashGetSize(pUser->writeTbs);
+  int32_t numOfAlterTbs = 0; //taosHashGetSize(pUser->alterTbs);
+  int32_t numOfReadViews = 0; //taosHashGetSize(pUser->readViews);
+  int32_t numOfWriteViews = 0; //taosHashGetSize(pUser->writeViews);
+  int32_t numOfAlterViews = 0; //taosHashGetSize(pUser->alterViews);
+  int32_t numOfTopics = 0; // taosHashGetSize(pUser->topics);
+  int32_t numOfUseDbs = 0; // taosHashGetSize(pUser->useDbs);
+  int32_t numOfRoles = taosHashGetSize(pUser->roles);
   int32_t size = sizeof(SUserObj) + USER_RESERVE_SIZE + (numOfReadDbs + numOfWriteDbs) * TSDB_DB_FNAME_LEN +
                  numOfTopics * TSDB_TOPIC_FNAME_LEN + ipWhiteReserve + timeWhiteReserve + passReserve;
   char    *buf = NULL;
   SSdbRaw *pRaw = NULL;
 
-  char *stb = taosHashIterate(pUser->readTbs, NULL);
+  char *stb = NULL;
+#if 0
+  stb = taosHashIterate(pUser->readTbs, NULL);
   while (stb != NULL) {
     size_t keyLen = 0;
     void  *key = taosHashGetKey(stb, &keyLen);
@@ -1133,7 +1234,6 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     size += valueLen;
     stb = taosHashIterate(pUser->writeTbs, stb);
   }
-
   stb = taosHashIterate(pUser->alterTbs, NULL);
   while (stb != NULL) {
     size_t keyLen = 0;
@@ -1199,6 +1299,12 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     size += sizeof(int32_t);
     useDb = taosHashIterate(pUser->useDbs, useDb);
   }
+#endif
+  int32_t sizeExt = tSerializeUserObjExt(NULL, 0, pUser);
+  if (sizeExt < 0) {
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  }
+  size += sizeExt;
 
   pRaw = sdbAllocRaw(SDB_USER, USER_VER_NUMBER, size);
   if (pRaw == NULL) {
@@ -1228,7 +1334,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT32(pRaw, dataPos, numOfReadDbs, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfWriteDbs, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfTopics, _OVER)
-
+#if 0
   char *db = taosHashIterate(pUser->readDbs, NULL);
   while (db != NULL) {
     SDB_SET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER);
@@ -1240,13 +1346,12 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     SDB_SET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER);
     db = taosHashIterate(pUser->writeDbs, db);
   }
-
   char *topic = taosHashIterate(pUser->topics, NULL);
   while (topic != NULL) {
     SDB_SET_BINARY(pRaw, dataPos, topic, TSDB_TOPIC_FNAME_LEN, _OVER);
     topic = taosHashIterate(pUser->topics, topic);
   }
-
+#endif
   SDB_SET_INT32(pRaw, dataPos, numOfReadTbs, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfWriteTbs, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfAlterTbs, _OVER)
@@ -1255,6 +1360,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT32(pRaw, dataPos, numOfAlterViews, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfUseDbs, _OVER)
 
+#if 0
   stb = taosHashIterate(pUser->readTbs, NULL);
   while (stb != NULL) {
     size_t keyLen = 0;
@@ -1282,7 +1388,6 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     SDB_SET_BINARY(pRaw, dataPos, stb, valueLen, _OVER);
     stb = taosHashIterate(pUser->writeTbs, stb);
   }
-
   stb = taosHashIterate(pUser->alterTbs, NULL);
   while (stb != NULL) {
     size_t keyLen = 0;
@@ -1349,11 +1454,12 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     SDB_SET_INT32(pRaw, dataPos, *useDb, _OVER)
     useDb = taosHashIterate(pUser->useDbs, useDb);
   }
-
+#endif
   // save white list
   int32_t num = pUser->pIpWhiteListDual->num;
   int32_t tlen = sizeof(SIpWhiteListDual) + num * sizeof(SIpRange) + 4;
-  if ((buf = taosMemoryCalloc(1, tlen)) == NULL) {
+  int32_t maxBufLen = TMAX(tlen, sizeExt);
+  if ((buf = taosMemoryCalloc(1, maxBufLen)) == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _OVER);
   }
   int32_t len = 0;
@@ -1380,6 +1486,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT32(pRaw, dataPos, pUser->passwordGraceTime, _OVER);
   SDB_SET_INT32(pRaw, dataPos, pUser->inactiveAccountTime, _OVER);
   SDB_SET_INT32(pRaw, dataPos, pUser->allowTokenNum, _OVER);
+  SDB_SET_INT32(pRaw, dataPos, pUser->tokenNum, _OVER);
 
   SDB_SET_INT32(pRaw, dataPos, pUser->pTimeWhiteList->num, _OVER);
   for (int32_t i = 0; i < pUser->pTimeWhiteList->num; i++) {
@@ -1390,7 +1497,15 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
     SDB_SET_INT32(pRaw, dataPos, range->duration, _OVER);
   }
 
+  sizeExt = tSerializeUserObjExt(buf, sizeExt, pUser);
+  if (sizeExt < 0) {
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  }
+  SDB_SET_INT32(pRaw, dataPos, sizeExt, _OVER);
+  SDB_SET_BINARY(pRaw, dataPos, buf, sizeExt, _OVER);
+
   SDB_SET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
+
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
 _OVER:
@@ -1414,6 +1529,17 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SUserObj *pUser = NULL;
   char     *key = NULL;
   char     *value = NULL;
+
+  SHashObj *pReadDbs = NULL;
+  SHashObj *pWriteDbs = NULL;
+  SHashObj *pReadTbs = NULL;
+  SHashObj *pWriteTbs = NULL;
+  SHashObj *pTopics = NULL;
+  SHashObj *pAlterTbs = NULL;
+  SHashObj *pReadViews = NULL;
+  SHashObj *pWriteViews = NULL;
+  SHashObj *pAlterViews = NULL;
+  SHashObj *pUseDbs = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
@@ -1484,27 +1610,36 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &numOfTopics, _OVER)
   }
 
-  pUser->readDbs = taosHashInit(numOfReadDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  pUser->writeDbs =
-      taosHashInit(numOfWriteDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  pUser->topics = taosHashInit(numOfTopics, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (pUser->readDbs == NULL || pUser->writeDbs == NULL || pUser->topics == NULL) {
-    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-    goto _OVER;
+  if (numOfReadDbs > 0) {
+    pReadDbs = taosHashInit(numOfReadDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (pReadDbs == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+    }
   }
-
+  if (numOfWriteDbs > 0) {
+    pWriteDbs = taosHashInit(numOfWriteDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (pWriteDbs == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+    }
+  }
+  if (numOfTopics > 0) {
+    pTopics = taosHashInit(numOfTopics, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (pTopics == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+    }
+  }
   for (int32_t i = 0; i < numOfReadDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER)
     int32_t len = strlen(db) + 1;
-    TAOS_CHECK_GOTO(taosHashPut(pUser->readDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
+    TAOS_CHECK_GOTO(taosHashPut(pReadDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
   }
 
   for (int32_t i = 0; i < numOfWriteDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER)
     int32_t len = strlen(db) + 1;
-    TAOS_CHECK_GOTO(taosHashPut(pUser->writeDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
+    TAOS_CHECK_GOTO(taosHashPut(pWriteDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
   }
 
   if (sver >= 2) {
@@ -1512,7 +1647,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       char topic[TSDB_TOPIC_FNAME_LEN] = {0};
       SDB_GET_BINARY(pRaw, dataPos, topic, TSDB_TOPIC_FNAME_LEN, _OVER)
       int32_t len = strlen(topic) + 1;
-      TAOS_CHECK_GOTO(taosHashPut(pUser->topics, topic, len, topic, TSDB_TOPIC_FNAME_LEN), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(pTopics, topic, len, topic, TSDB_TOPIC_FNAME_LEN), &lino, _OVER);
     }
   }
 
@@ -1534,24 +1669,27 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     }
     SDB_GET_INT32(pRaw, dataPos, &numOfUseDbs, _OVER)
 
-    pUser->readTbs =
-        taosHashInit(numOfReadTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    pUser->writeTbs =
-        taosHashInit(numOfWriteTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    pUser->alterTbs =
-        taosHashInit(numOfAlterTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-
-    pUser->readViews =
-        taosHashInit(numOfReadViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    pUser->writeViews =
+    if (numOfReadTbs > 0) {
+      pReadTbs = taosHashInit(numOfReadTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+      if (pReadTbs == NULL) {
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      }
+    }
+    if (numOfWriteTbs > 0) {
+      pWriteTbs = taosHashInit(numOfWriteTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+      if (pWriteTbs == NULL) {
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      }
+    }
+    pAlterTbs = taosHashInit(numOfAlterTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    pReadViews = taosHashInit(numOfReadViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    pWriteViews =
         taosHashInit(numOfWriteViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    pUser->alterViews =
+    pAlterViews =
         taosHashInit(numOfAlterViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    pUseDbs = taosHashInit(numOfUseDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
 
-    pUser->useDbs = taosHashInit(numOfUseDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-
-    if (pUser->readTbs == NULL || pUser->writeTbs == NULL || pUser->alterTbs == NULL || pUser->readViews == NULL ||
-        pUser->writeViews == NULL || pUser->alterViews == NULL || pUser->useDbs == NULL) {
+    if (pAlterTbs == NULL || pReadViews == NULL || pWriteViews == NULL || pAlterViews == NULL || pUseDbs == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       goto _OVER;
     }
@@ -1576,7 +1714,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       (void)memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-      TAOS_CHECK_GOTO(taosHashPut(pUser->readTbs, key, keyLen, value, valuelen), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(pReadTbs, key, keyLen, value, valuelen), &lino, _OVER);
     }
 
     for (int32_t i = 0; i < numOfWriteTbs; ++i) {
@@ -1599,7 +1737,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       (void)memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-      TAOS_CHECK_GOTO(taosHashPut(pUser->writeTbs, key, keyLen, value, valuelen), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(pWriteTbs, key, keyLen, value, valuelen), &lino, _OVER);
     }
 
     if (sver >= 6) {
@@ -1623,7 +1761,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        TAOS_CHECK_GOTO(taosHashPut(pUser->alterTbs, key, keyLen, value, valuelen), &lino, _OVER);
+        TAOS_CHECK_GOTO(taosHashPut(pAlterTbs, key, keyLen, value, valuelen), &lino, _OVER);
       }
 
       for (int32_t i = 0; i < numOfReadViews; ++i) {
@@ -1646,7 +1784,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        TAOS_CHECK_GOTO(taosHashPut(pUser->readViews, key, keyLen, value, valuelen), &lino, _OVER);
+        TAOS_CHECK_GOTO(taosHashPut(pReadViews, key, keyLen, value, valuelen), &lino, _OVER);
       }
 
       for (int32_t i = 0; i < numOfWriteViews; ++i) {
@@ -1669,7 +1807,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        TAOS_CHECK_GOTO(taosHashPut(pUser->writeViews, key, keyLen, value, valuelen), &lino, _OVER);
+        TAOS_CHECK_GOTO(taosHashPut(pWriteViews, key, keyLen, value, valuelen), &lino, _OVER);
       }
 
       for (int32_t i = 0; i < numOfAlterViews; ++i) {
@@ -1692,7 +1830,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        TAOS_CHECK_GOTO(taosHashPut(pUser->alterViews, key, keyLen, value, valuelen), &lino, _OVER);
+        TAOS_CHECK_GOTO(taosHashPut(pAlterViews, key, keyLen, value, valuelen), &lino, _OVER);
       }
     }
 
@@ -1710,7 +1848,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       int32_t ref = 0;
       SDB_GET_INT32(pRaw, dataPos, &ref, _OVER);
 
-      TAOS_CHECK_GOTO(taosHashPut(pUser->useDbs, key, keyLen, &ref, sizeof(ref)), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(pUseDbs, key, keyLen, &ref, sizeof(ref)), &lino, _OVER);
     }
   }
   // decoder white list
@@ -1775,6 +1913,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     pUser->passwordGraceTime = pUser->superUser ? -1 : TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
     pUser->inactiveAccountTime = pUser->superUser ? -1 : TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
     pUser->allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+    pUser->tokenNum = 0;
     pUser->pTimeWhiteList = taosMemCalloc(1, sizeof(SDateTimeWhiteList));
     if (pUser->pTimeWhiteList == NULL) {
     }
@@ -1794,6 +1933,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &pUser->passwordGraceTime, _OVER);
     SDB_GET_INT32(pRaw, dataPos, &pUser->inactiveAccountTime, _OVER);
     SDB_GET_INT32(pRaw, dataPos, &pUser->allowTokenNum, _OVER);
+    SDB_GET_INT32(pRaw, dataPos, &pUser->tokenNum, _OVER);
 
     int32_t num = 0;
     SDB_GET_INT32(pRaw, dataPos, &num, _OVER);
@@ -1810,32 +1950,41 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT64(pRaw, dataPos, &range->start, _OVER);
       SDB_GET_INT32(pRaw, dataPos, &range->duration, _OVER);
     }
+
+    int32_t extLen = 0;
+    SDB_GET_INT32(pRaw, dataPos, &extLen, _OVER);
+    TAOS_MEMORY_REALLOC(key, extLen);
+    if (key == NULL) {
+      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+    }
+    SDB_GET_BINARY(pRaw, dataPos, key, extLen, _OVER);
+    TAOS_CHECK_GOTO(tDeserializeUserObjExt(key, extLen, pUser), &lino, _OVER);
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
+
   taosInitRWLatch(&pUser->lock);
   dropOldPasswords(pUser);
-
+  // TODO: migrate legacy privileges to new hash tables
 _OVER:
   taosMemoryFree(key);
   taosMemoryFree(value);
+  taosHashCleanup(pReadDbs);
+  taosHashCleanup(pWriteDbs);
+  taosHashCleanup(pTopics);
+  taosHashCleanup(pReadTbs);
+  taosHashCleanup(pWriteTbs);
+  taosHashCleanup(pAlterTbs);
+  taosHashCleanup(pReadViews);
+  taosHashCleanup(pWriteViews);
+  taosHashCleanup(pAlterViews);
+  taosHashCleanup(pUseDbs);
   if (code < 0) {
     terrno = code;
     mError("user:%s, failed to decode at line %d from raw:%p since %s", pUser == NULL ? "null" : pUser->user, lino,
            pRaw, tstrerror(code));
     if (pUser != NULL) {
-      taosHashCleanup(pUser->readDbs);
-      taosHashCleanup(pUser->writeDbs);
-      taosHashCleanup(pUser->topics);
-      taosHashCleanup(pUser->readTbs);
-      taosHashCleanup(pUser->writeTbs);
-      taosHashCleanup(pUser->alterTbs);
-      taosHashCleanup(pUser->readViews);
-      taosHashCleanup(pUser->writeViews);
-      taosHashCleanup(pUser->alterViews);
-      taosHashCleanup(pUser->useDbs);
-      taosMemoryFreeClear(pUser->pIpWhiteListDual);
-      taosMemoryFreeClear(pUser->pTimeWhiteList);
+      mndUserFreeObj(pUser);
     }
     taosMemoryFreeClear(pRow);
     return NULL;
@@ -1909,25 +2058,178 @@ int32_t mndDupUseDbHash(SHashObj *pOld, SHashObj **ppNew) {
   TAOS_RETURN(code);
 }
 
+int32_t mndDupRoleHash(SHashObj *pOld, SHashObj **ppNew) {
+  if (!(*ppNew = taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+                              HASH_ENTRY_LOCK))) {
+    TAOS_RETURN(terrno);
+  }
+
+  int32_t  code = 0;
+  uint8_t *flag = NULL;
+  while ((flag = taosHashIterate(pOld, flag))) {
+    size_t keyLen = 0;
+    char  *key = taosHashGetKey(flag, &keyLen);
+
+    if ((code = taosHashPut(*ppNew, key, keyLen, flag, sizeof(*flag))) != 0) {
+      taosHashCancelIterate(pOld, flag);
+      taosHashCleanup(*ppNew);
+      TAOS_RETURN(code);
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
+int32_t mndMergePrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
+  if (!(*ppNew)) return mndDupPrivObjHash(pOld, ppNew);
+
+  int32_t           code = 0, lino = 0;
+  SHashObj         *pNew = *ppNew;
+  SPrivObjPolicies *policies = NULL;
+  while ((policies = taosHashIterate(pOld, policies))) {
+    size_t klen = 0;
+    char  *key = taosHashGetKey(policies, &klen);
+    size_t vlen = taosHashGetValueSize(policies);
+
+    SPrivObjPolicies *pNewPolicies = taosHashGet(pNew, key, klen);
+    if (pNewPolicies) {
+      size_t newVlen = taosHashGetValueSize(pNewPolicies);
+      if (newVlen > 0 && vlen > 0) {
+        privAddSet(&pNewPolicies->policy, &policies->policy);
+      }
+      continue;
+    }
+
+    if ((code = taosHashPut(pNew, key, klen, vlen ? policies : NULL, vlen)) != 0) {
+      taosHashCancelIterate(pOld, policies);
+      taosHashCleanup(pNew);
+      *ppNew = NULL;
+      TAOS_RETURN(code);
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
+/**
+ * 1. Prefer to use SPrivTblPolicies from user object(the updateUs of policy in user object is INT64_MAX)
+ * 2. If two or more roles have SPrivTblPolicies, the policy with latest update time take effect.
+ */
+int32_t mndMergePrivTblHash(SHashObj *pOld, SHashObj **ppNew, bool updateWithLatest) {
+  if (!(*ppNew)) return mndDupPrivTblHash(pOld, ppNew, false);
+
+  int32_t           code = 0, lino = 0;
+  SHashObj         *pNew = *ppNew;
+  SPrivTblPolicies *policies = NULL;
+  while ((policies = taosHashIterate(pOld, policies))) {
+    size_t klen = 0;
+    char  *key = taosHashGetKey(policies, &klen);
+    size_t vlen = taosHashGetValueSize(policies);
+
+    SPrivTblPolicies *pNewPolicies = taosHashGet(pNew, key, klen);
+    if (pNewPolicies) {
+      size_t newVlen = taosHashGetValueSize(pNewPolicies);
+      if (newVlen > 0 && vlen > 0) {
+        TAOS_CHECK_EXIT(privTblPoliciesMerge(pNewPolicies, policies, updateWithLatest));
+      }
+      continue;
+    }
+
+    SPrivTblPolicies tmpPolicies = {0};
+    if (vlen > 0) {
+      if ((code = privTblPoliciesMerge(&tmpPolicies, policies, updateWithLatest))) {
+        privTblPoliciesFree(&tmpPolicies);
+        goto _exit;
+      }
+    }
+    if ((code = taosHashPut(pNew, key, klen, vlen ? &tmpPolicies : NULL, vlen)) != 0) {
+      privTblPoliciesFree(&tmpPolicies);
+      taosHashCancelIterate(pOld, policies);
+      taosHashCleanup(pNew);
+      *ppNew = NULL;
+      TAOS_RETURN(code);
+    }
+  }
+
+_exit:
+  TAOS_RETURN(code);
+}
+
+int32_t mndDupPrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
+  if (!(*ppNew = taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+                             HASH_ENTRY_LOCK))) {
+    TAOS_RETURN(terrno);
+  }
+  int32_t           code = 0;
+  SPrivObjPolicies *policies = NULL;
+  while ((policies = taosHashIterate(pOld, policies))) {
+    size_t klen = 0;
+    char  *key = taosHashGetKey(policies, &klen);
+    size_t vlen = taosHashGetValueSize(policies);
+
+    if ((code = taosHashPut(*ppNew, key, klen, vlen > 0 ? policies : NULL, vlen)) != 0) {
+      taosHashCancelIterate(pOld, policies);
+      taosHashCleanup(*ppNew);
+      TAOS_RETURN(code);
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
+int32_t mndDupPrivTblHash(SHashObj *pOld, SHashObj **ppNew, bool setUpdateTimeMax) {
+  if (!(*ppNew = taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+                              HASH_ENTRY_LOCK))) {
+    TAOS_RETURN(terrno);
+  }
+  taosHashSetFreeFp(*ppNew, privTblPoliciesFree);
+
+  int32_t           code = 0, lino = 0;
+  SPrivTblPolicies *policies = NULL, *pTmpPolicies = NULL;
+  SPrivTblPolicies  tmpPolicies = {0};
+  while ((policies = taosHashIterate(pOld, policies))) {
+    size_t klen = 0;
+    char  *key = taosHashGetKey(policies, &klen);
+    size_t vlen = taosHashGetValueSize(policies);
+    memset(&tmpPolicies, 0, sizeof(tmpPolicies));
+    pTmpPolicies = &tmpPolicies;
+    if (vlen > 0) {
+      TAOS_CHECK_EXIT(privTblPoliciesAdd(&tmpPolicies, policies, true, setUpdateTimeMax));
+    }
+    TAOS_CHECK_EXIT(taosHashPut(*ppNew, key, klen, vlen > 0 ? &tmpPolicies : NULL, vlen));
+    pTmpPolicies = NULL;
+  }
+
+_exit:
+  if (code != 0) {
+    if (!pTmpPolicies) {
+      privTblPoliciesFree(pTmpPolicies);
+      pTmpPolicies = NULL;
+    }
+    if (policies) taosHashCancelIterate(pOld, policies);
+    taosHashCleanup(*ppNew);
+    *ppNew = NULL;
+  }
+  TAOS_RETURN(code);
+}
+
 int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   int32_t code = 0;
   (void)memcpy(pNew, pUser, sizeof(SUserObj));
   pNew->authVersion++;
   pNew->updateTime = taosGetTimestampMs();
+  taosInitRWLatch(&pNew->lock);
 
   pNew->passwords = NULL;
-  pNew->readDbs = NULL;
-  pNew->writeDbs = NULL;
-  pNew->readTbs = NULL;
-  pNew->writeTbs = NULL;
-  pNew->alterTbs = NULL;
-  pNew->readViews = NULL;
-  pNew->writeViews = NULL;
-  pNew->alterViews = NULL;
-  pNew->topics = NULL;
-  pNew->useDbs = NULL;
   pNew->pIpWhiteListDual = NULL;
+  pNew->passwords = NULL;
+  pNew->objPrivs = NULL;
+  pNew->selectTbs = NULL;
+  pNew->insertTbs = NULL;
+  pNew->updateTbs = NULL;
+  pNew->deleteTbs = NULL;
   pNew->pTimeWhiteList = NULL;
+  pNew->roles = NULL;
 
   taosRLockLatch(&pUser->lock);
   pNew->passwords = taosMemoryCalloc(pUser->numOfPasswords, sizeof(SUserPassword));
@@ -1936,17 +2238,12 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
     goto _OVER;
   }
   (void)memcpy(pNew->passwords, pUser->passwords, pUser->numOfPasswords * sizeof(SUserPassword));
-
-  TAOS_CHECK_GOTO(mndDupDbHash(pUser->readDbs, &pNew->readDbs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupDbHash(pUser->writeDbs, &pNew->writeDbs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupTableHash(pUser->readTbs, &pNew->readTbs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupTableHash(pUser->writeTbs, &pNew->writeTbs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupTableHash(pUser->alterTbs, &pNew->alterTbs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupTableHash(pUser->readViews, &pNew->readViews), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupTableHash(pUser->writeViews, &pNew->writeViews), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupTableHash(pUser->alterViews, &pNew->alterViews), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupTopicHash(pUser->topics, &pNew->topics), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndDupUseDbHash(pUser->useDbs, &pNew->useDbs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivObjHash(pUser->objPrivs, &pNew->objPrivs), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->selectTbs, &pNew->selectTbs, false), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->insertTbs, &pNew->insertTbs, false), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->updateTbs, &pNew->updateTbs, false), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->deleteTbs, &pNew->deleteTbs, false), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndDupRoleHash(pUser->roles, &pNew->roles), NULL, _OVER);
   pNew->pIpWhiteListDual = cloneIpWhiteList(pUser->pIpWhiteListDual);
   if (pNew->pIpWhiteListDual == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1965,29 +2262,21 @@ _OVER:
 }
 
 void mndUserFreeObj(SUserObj *pUser) {
-  taosHashCleanup(pUser->readDbs);
-  taosHashCleanup(pUser->writeDbs);
-  taosHashCleanup(pUser->topics);
-  taosHashCleanup(pUser->readTbs);
-  taosHashCleanup(pUser->writeTbs);
-  taosHashCleanup(pUser->alterTbs);
-  taosHashCleanup(pUser->readViews);
-  taosHashCleanup(pUser->writeViews);
-  taosHashCleanup(pUser->alterViews);
-  taosHashCleanup(pUser->useDbs);
+  taosHashCleanup(pUser->objPrivs);
+  taosHashCleanup(pUser->selectTbs);
+  taosHashCleanup(pUser->insertTbs);
+  taosHashCleanup(pUser->updateTbs);
+  taosHashCleanup(pUser->deleteTbs);
+  taosHashCleanup(pUser->roles);
   taosMemoryFreeClear(pUser->passwords);
   taosMemoryFreeClear(pUser->pIpWhiteListDual);
   taosMemoryFreeClear(pUser->pTimeWhiteList);
-  pUser->readDbs = NULL;
-  pUser->writeDbs = NULL;
-  pUser->topics = NULL;
-  pUser->readTbs = NULL;
-  pUser->writeTbs = NULL;
-  pUser->alterTbs = NULL;
-  pUser->readViews = NULL;
-  pUser->writeViews = NULL;
-  pUser->alterViews = NULL;
-  pUser->useDbs = NULL;
+  pUser->objPrivs = NULL;
+  pUser->selectTbs = NULL;
+  pUser->insertTbs = NULL;
+  pUser->updateTbs = NULL;
+  pUser->deleteTbs = NULL;
+  pUser->roles = NULL;
 }
 
 static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
@@ -2006,6 +2295,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   pOld->enable = pNew->enable;
   pOld->flag = pNew->flag;
   pOld->changePass = pNew->changePass;
+  pOld->uid = pNew->uid;
 
   pOld->sessionPerUser = pNew->sessionPerUser;
   pOld->connectTime = pNew->connectTime;
@@ -2020,21 +2310,19 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   pOld->passwordGraceTime = pNew->passwordGraceTime;
   pOld->inactiveAccountTime = pNew->inactiveAccountTime;
   pOld->allowTokenNum = pNew->allowTokenNum;
+  pOld->tokenNum = pNew->tokenNum;
 
   pOld->numOfPasswords = pNew->numOfPasswords;
   TSWAP(pOld->passwords, pNew->passwords);
   (void)memcpy(pOld->salt, pNew->salt, sizeof(pOld->salt));
   (void)memcpy(pOld->totpsecret, pNew->totpsecret, sizeof(pOld->totpsecret));
-  TSWAP(pOld->readDbs, pNew->readDbs);
-  TSWAP(pOld->writeDbs, pNew->writeDbs);
-  TSWAP(pOld->topics, pNew->topics);
-  TSWAP(pOld->readTbs, pNew->readTbs);
-  TSWAP(pOld->writeTbs, pNew->writeTbs);
-  TSWAP(pOld->alterTbs, pNew->alterTbs);
-  TSWAP(pOld->readViews, pNew->readViews);
-  TSWAP(pOld->writeViews, pNew->writeViews);
-  TSWAP(pOld->alterViews, pNew->alterViews);
-  TSWAP(pOld->useDbs, pNew->useDbs);
+  pOld->sysPrivs = pNew->sysPrivs;
+  TSWAP(pOld->objPrivs, pNew->objPrivs);
+  TSWAP(pOld->selectTbs, pNew->selectTbs);
+  TSWAP(pOld->insertTbs, pNew->insertTbs);
+  TSWAP(pOld->updateTbs, pNew->updateTbs);
+  TSWAP(pOld->deleteTbs, pNew->deleteTbs);
+  TSWAP(pOld->roles, pNew->roles);
 
   TSWAP(pOld->pIpWhiteListDual, pNew->pIpWhiteListDual);
   pOld->ipWhiteListVer = pNew->ipWhiteListVer;
@@ -2067,16 +2355,50 @@ void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
   sdbRelease(pSdb, pUser);
 }
 
+int32_t mndAcquireUserById(SMnode *pMnode, int64_t userId, SUserObj **ppUser) {
+  void     *pIter = NULL;
+  SUserObj *pObj;
+  SSdb     *pSdb = pMnode->pSdb;
+  while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pObj))) {
+    if (pObj->uid == userId) {
+      return mndAcquireUser(pMnode, pObj->user, ppUser);
+    }
+  }
+  return 0;
+}
 
+int32_t mndBuildUidNamesHash(SMnode *pMnode, SSHashObj **ppHash) {
+  int32_t    code = 0;
+  void      *pIter = NULL;
+  SUserObj  *pObj;
+  SSHashObj *pHash = NULL;
+
+  int32_t nUser = sdbGetSize(pMnode->pSdb, SDB_USER);
+
+  pHash = tSimpleHashInit(nUser, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pHash == NULL) {
+    TAOS_RETURN(terrno);
+  }
+
+  while ((pIter = sdbFetch(pMnode->pSdb, SDB_USER, pIter, (void **)&pObj))) {
+    code = tSimpleHashPut(pHash, &pObj->uid, sizeof(pObj->uid), pObj->name, strlen(pObj->name) + 1);
+    if (code != 0) {
+      sdbRelease(pMnode->pSdb, pObj);
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      tSimpleHashCleanup(pHash);
+      TAOS_RETURN(code);
+    }
+    sdbRelease(pMnode->pSdb, pObj);
+  }
+
+  *ppHash = pHash;
+  TAOS_RETURN(code);
+}
 
 int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo) {
   int32_t code = 0;
-  if (tsiEncryptPassAlgorithm != DND_CA_SM4) {
+  if (tsMetaKey[0] == '\0') {
     return 0;
-  }
-
-  if (strlen(tsEncryptKey) == 0) {
-    return TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
   }
 
   if (salt[0] != 0) {
@@ -2092,7 +2414,7 @@ int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo) {
   opts.source = pass;
   opts.result = packetData;
   opts.unitLen = TSDB_PASSWORD_LEN;
-  tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+  tstrncpy(opts.key, tsDbKey, ENCRYPT_KEY_LEN + 1);
   int newLen = Builtin_CBC_Encrypt(&opts);
   if (newLen <= 0) return terrno;
 
@@ -2180,6 +2502,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.sysInfo = pCreate->sysInfo;
   userObj.enable = pCreate->enable;
   userObj.createdb = pCreate->createDb;
+  userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
 
   userObj.changePass = pCreate->changepass;
   userObj.sessionPerUser = pCreate->sessionPerUser;
@@ -2195,6 +2518,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.passwordGraceTime = pCreate->passwordGraceTime;
   userObj.inactiveAccountTime = pCreate->inactiveAccountTime;
   userObj.allowTokenNum = pCreate->allowTokenNum;
+  userObj.tokenNum = 0;
 
   if (pCreate->numIpRanges == 0) {
     TAOS_CHECK_GOTO(createDefaultIpWhiteList(&userObj.pIpWhiteListDual), &lino, _OVER);
@@ -2303,7 +2627,16 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.ipWhiteListVer = taosGetTimestampMs();
   userObj.timeWhiteListVer = userObj.ipWhiteListVer;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-user");
+  userObj.roles = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (userObj.roles == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  }
+
+  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_SYSINFO_1, strlen(TSDB_ROLE_SYSINFO_1) + 1, NULL, 0)) != 0) {
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "create-user");
   if (pTrans == NULL) {
     mError("user:%s, failed to create since %s", pCreate->user, terrstr());
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
@@ -2332,9 +2665,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   mndTransDrop(pTrans);
 
 _OVER:
-  taosMemoryFree(userObj.passwords);
-  taosMemoryFree(userObj.pIpWhiteListDual);
-  taosMemoryFree(userObj.pTimeWhiteList);
+  mndUserFreeObj(&userObj);
   TAOS_RETURN(code);
 }
 
@@ -2401,11 +2732,7 @@ static int32_t mndProcessGetUserDateTimeWhiteListReq(SRpcMsg *pReq) {
   }
   mTrace("user: %s, start to get date time whitelist", wlReq.user);
 
-  code = mndAcquireUser(pMnode, wlReq.user, &pUser);
-  if (pUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_NOT_EXIST, &lino, _OVER);
-  }
-
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, wlReq.user, &pUser), &lino, _OVER);
   TAOS_CHECK_GOTO(mndSetUserDateTimeWhiteListRsp(pMnode, pUser, &wlRsp), &lino, _OVER);
 
   contLen = tSerializeSUserDateTimeWhiteList(NULL, 0, &wlRsp);
@@ -2442,7 +2769,7 @@ _OVER:
 
 
 static int32_t buildRetrieveDateTimeWhiteListRsp(SRetrieveDateTimeWhiteListRsp *pRsp) {
-  (void)taosThreadRwlockWrlock(&userCache.rw);
+  (void)taosThreadRwlockRdlock(&userCache.rw);
   
   int32_t count = taosHashGetSize(userCache.users);
   pRsp->pUsers = taosMemoryCalloc(count, sizeof(SUserDateTimeWhiteList));
@@ -2538,6 +2865,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = 0;
   int32_t        lino = 0;
+  SRoleObj      *pRole = NULL;
   SUserObj      *pUser = NULL;
   SUserObj      *pOperUser = NULL;
   SCreateUserReq createReq = {0};
@@ -2554,11 +2882,16 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_OPS_NOT_SUPPORT, &lino, _OVER);  // enterprise feature
   }
 #endif
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
+  if (pOperUser == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
+  }
 
   if (createReq.isImport != 1) {
-    TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_USER), &lino, _OVER);
-  } else if (strcmp(pReq->info.conn.user, "root") != 0) {
-    mError("The operation is not permitted, user:%s", pReq->info.conn.user);
+    // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_CREATE_USER), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_CREATE, 0, 0, NULL, NULL), &lino, _OVER);
+  } else if (strcmp(RPC_MSG_USER(pReq), "root") != 0) {
+    mError("The operation is not permitted to create user:%s", RPC_MSG_USER(pReq));
     TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
   }
 
@@ -2581,9 +2914,9 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_ALREADY_EXIST, &lino, _OVER);
   }
 
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
-  if (pOperUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
+  code = mndAcquireRole(pMnode, createReq.user, &pRole);
+  if (pRole != NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_ROLE_ALREADY_EXIST, &lino, _OVER);
   }
 
   TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_USER), &lino, _OVER);
@@ -2607,13 +2940,15 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     duration = duration / 1000;
     auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail), duration, 0);
   }
+
 _OVER:
-  if (code == TSDB_CODE_MND_USER_ALREADY_EXIST && createReq.ignoreExisting) {
+  if (code == TSDB_CODE_MND_USER_ALREADY_EXIST && createReq.ignoreExists) {
     code = 0;
   } else if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to create at line %d since %s", createReq.user, lino, tstrerror(code));
   }
 
+  mndReleaseRole(pMnode, pRole);
   mndReleaseUser(pMnode, pUser);
   mndReleaseUser(pMnode, pOperUser);
   tFreeSCreateUserReq(&createReq);
@@ -2648,12 +2983,9 @@ static int32_t mndProcessGetUserIpWhiteListReq(SRpcMsg *pReq) {
   }
   mTrace("user: %s, start to get ip whitelist", wlReq.user);
 
-  code = mndAcquireUser(pMnode, wlReq.user, &pUser);
-  if (pUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_NOT_EXIST, &lino, _OVER);
-  }
-
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, wlReq.user, &pUser), &lino, _OVER);
   TAOS_CHECK_GOTO(setRspFn(pMnode, pUser, &wlRsp), &lino, _OVER);
+
   contLen = serialFn(NULL, 0, &wlRsp);
   if (contLen < 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
@@ -2687,7 +3019,7 @@ _OVER:
 
 
 static int32_t buildRetrieveIpWhiteListRsp(SUpdateIpWhite *pUpdate) {
-  (void)taosThreadRwlockWrlock(&userCache.rw);
+  (void)taosThreadRwlockRdlock(&userCache.rw);
 
   int32_t count = taosHashGetSize(userCache.users);
   pUpdate->pUserIpWhite = taosMemoryCalloc(count, sizeof(SUpdateUserIpWhite));
@@ -2784,48 +3116,14 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-
-
-void mndUpdateUser(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq) {
-  int32_t code = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-user");
+static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq) {
+  int32_t code = 0, lino = 0;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "alter-user");
   if (pTrans == NULL) {
-    mError("user:%s, failed to update since %s", pUser->user, terrstr());
-    return;
-  }
-  mInfo("trans:%d, used to update user:%s", pTrans->id, pUser->user);
-
-  SSdbRaw *pCommitRaw = mndUserActionEncode(pUser);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return;
-  }
-  code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-  if (code < 0) {
-    mndTransDrop(pTrans);
-    return;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return;
-  }
-
-  mndTransDrop(pTrans);
-}
-
-
-
-static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpcMsg *pReq) {
-  int32_t code = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "alter-user");
-  if (pTrans == NULL) {
-    mError("user:%s, failed to alter since %s", pOld->user, terrstr());
+    mError("user:%s, failed to alter since %s", pNew->user, terrstr());
     TAOS_RETURN(terrno);
   }
-  mInfo("trans:%d, used to alter user:%s", pTrans->id, pOld->user);
+  mInfo("trans:%d, used to alter user:%s", pTrans->id, pNew->user);
 
   SSdbRaw *pCommitRaw = mndUserActionEncode(pNew);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
@@ -2833,11 +3131,7 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
     mndTransDrop(pTrans);
     TAOS_RETURN(terrno);
   }
-  code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-  if (code < 0) {
-    mndTransDrop(pTrans);
-    TAOS_RETURN(code);
-  }
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -2848,8 +3142,12 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
     mndTransDrop(pTrans);
     TAOS_RETURN(code);
   }
+_exit:
+  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("user:%s, failed to alter at line %d since %s", pNew->user, lino, tstrerror(code));
+  }
   mndTransDrop(pTrans);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndDupObjHash(SHashObj *pOld, int32_t dataLen, SHashObj **ppNew) {
@@ -2891,7 +3189,7 @@ static int32_t mndTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj *useD
   if (alterReq->tagCond != NULL && alterReq->tagCondLen != 0) {
     char *value = taosHashGet(hash, tbFName, len);
     if (value != NULL) {
-      TAOS_RETURN(TSDB_CODE_MND_PRIVILEDGE_EXIST);
+      TAOS_RETURN(TSDB_CODE_MND_PRIVILEGE_EXIST);
     }
 
     int32_t condLen = alterReq->tagCondLen;
@@ -2940,35 +3238,23 @@ static int32_t mndRemoveTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj
   return 0;
 }
 
-static char *mndUserAuditTypeStr(int32_t type) {
-  #if 0
-  if (type == TSDB_ALTER_USER_PASSWD) {
-    return "changePassword";
-  }
-  if (type == TSDB_ALTER_USER_SUPERUSER) {
-    return "changeSuperUser";
-  }
-  if (type == TSDB_ALTER_USER_ENABLE) {
-    return "enableUser";
-  }
-  if (type == TSDB_ALTER_USER_SYSINFO) {
-    return "userSysInfo";
-  }
-  if (type == TSDB_ALTER_USER_CREATEDB) {
-    return "userCreateDB";
-  }
-    #endif
-  return "error";
-}
 
-static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode *pMnode, SUserObj *pNewUser) {
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
-  int32_t code = 0;
-  int32_t lino = 0;
+#if 0
+static int32_t mndProcessAlterUserPrivilegesReq(SRpcMsg* pReq, SAlterUserReq *pAlterReq) {
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   code = 0, lino = 0;
+  SUserObj *pUser = NULL;
+  SUserObj  newUser = {0};
+  int64_t   tss = taosGetTimestampMs();
 
-  if (ALTER_USER_ADD_READ_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
-      ALTER_USER_ADD_ALL_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pAlterReq->user, &pUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckAlterUserPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pUser, pAlterReq), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
+
+#if 0
+  if (ALTER_USER_ADD_READ_DB_PRIV(pAlterReq->alterType, &pAlterReq->privileges, pAlterReq->tabName) ||
+      ALTER_USER_ADD_ALL_DB_PRIV(pAlterReq->alterType, &pAlterReq->privileges, pAlterReq->tabName)) {
     if (strcmp(pAlterReq->objname, "1.*") != 0) {
       int32_t len = strlen(pAlterReq->objname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, pAlterReq->objname);
@@ -2976,19 +3262,20 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
         mndReleaseDb(pMnode, pDb);
         TAOS_CHECK_GOTO(terrno, &lino, _OVER);  // TODO: refactor the terrno to code
       }
-      if ((code = taosHashPut(pNewUser->readDbs, pAlterReq->objname, len, pAlterReq->objname, TSDB_DB_FNAME_LEN)) !=
+      if ((code = taosHashPut(newUser.readDbs, pAlterReq->objname, len, pAlterReq->objname, TSDB_DB_FNAME_LEN)) !=
           0) {
         mndReleaseDb(pMnode, pDb);
         TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
       mndReleaseDb(pMnode, pDb);
     } else {
+      void   *pIter = NULL;
       while (1) {
         SDbObj *pDb = NULL;
         pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
         if (pIter == NULL) break;
         int32_t len = strlen(pDb->name) + 1;
-        if ((code = taosHashPut(pNewUser->readDbs, pDb->name, len, pDb->name, TSDB_DB_FNAME_LEN)) != 0) {
+        if ((code = taosHashPut(newUser.readDbs, pDb->name, len, pDb->name, TSDB_DB_FNAME_LEN)) != 0) {
           sdbRelease(pSdb, pDb);
           sdbCancelFetch(pSdb, pIter);
           TAOS_CHECK_GOTO(code, &lino, _OVER);
@@ -2998,8 +3285,8 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
     }
   }
 
-  if (ALTER_USER_ADD_WRITE_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
-      ALTER_USER_ADD_ALL_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
+  if (ALTER_USER_ADD_WRITE_DB_PRIV(pAlterReq->alterType, &pAlterReq->privileges, pAlterReq->tabName) ||
+      ALTER_USER_ADD_ALL_DB_PRIV(pAlterReq->alterType, &pAlterReq->privileges, pAlterReq->tabName)) {
     if (strcmp(pAlterReq->objname, "1.*") != 0) {
       int32_t len = strlen(pAlterReq->objname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, pAlterReq->objname);
@@ -3007,19 +3294,20 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
         mndReleaseDb(pMnode, pDb);
         TAOS_CHECK_GOTO(terrno, &lino, _OVER);  // TODO: refactor the terrno to code
       }
-      if ((code = taosHashPut(pNewUser->writeDbs, pAlterReq->objname, len, pAlterReq->objname, TSDB_DB_FNAME_LEN)) !=
+      if ((code = taosHashPut(newUser.writeDbs, pAlterReq->objname, len, pAlterReq->objname, TSDB_DB_FNAME_LEN)) !=
           0) {
         mndReleaseDb(pMnode, pDb);
         TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
       mndReleaseDb(pMnode, pDb);
     } else {
+      void   *pIter = NULL;
       while (1) {
         SDbObj *pDb = NULL;
         pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
         if (pIter == NULL) break;
         int32_t len = strlen(pDb->name) + 1;
-        if ((code = taosHashPut(pNewUser->writeDbs, pDb->name, len, pDb->name, TSDB_DB_FNAME_LEN)) != 0) {
+        if ((code = taosHashPut(newUser.writeDbs, pDb->name, len, pDb->name, TSDB_DB_FNAME_LEN)) != 0) {
           sdbRelease(pSdb, pDb);
           sdbCancelFetch(pSdb, pIter);
           TAOS_CHECK_GOTO(code, &lino, _OVER);
@@ -3029,8 +3317,8 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
     }
   }
 
-  if (ALTER_USER_DEL_READ_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
-      ALTER_USER_DEL_ALL_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
+  if (ALTER_USER_DEL_READ_DB_PRIV(pAlterReq->alterType, &pAlterReq->privileges, pAlterReq->tabName) ||
+      ALTER_USER_DEL_ALL_DB_PRIV(pAlterReq->alterType, &pAlterReq->privileges, pAlterReq->tabName)) {
     if (strcmp(pAlterReq->objname, "1.*") != 0) {
       int32_t len = strlen(pAlterReq->objname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, pAlterReq->objname);
@@ -3038,18 +3326,18 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
         mndReleaseDb(pMnode, pDb);
         TAOS_CHECK_GOTO(terrno, &lino, _OVER);  // TODO: refactor the terrno to code
       }
-      code = taosHashRemove(pNewUser->readDbs, pAlterReq->objname, len);
+      code = taosHashRemove(newUser.readDbs, pAlterReq->objname, len);
       if (code < 0) {
-        mError("read db:%s, failed to remove db:%s since %s", pNewUser->user, pAlterReq->objname, terrstr());
+        mError("read db:%s, failed to remove db:%s since %s", newUser.user, pAlterReq->objname, terrstr());
       }
       mndReleaseDb(pMnode, pDb);
     } else {
-      taosHashClear(pNewUser->readDbs);
+      taosHashClear(newUser.readDbs);
     }
   }
 
-  if (ALTER_USER_DEL_WRITE_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
-      ALTER_USER_DEL_ALL_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
+  if (ALTER_USER_DEL_WRITE_DB_PRIV(pAlterReq->alterType, &pAlterReq->privileges, pAlterReq->tabName) ||
+      ALTER_USER_DEL_ALL_DB_PRIV(pAlterReq->alterType, &pAlterReq->privileges, pAlterReq->tabName)) {
     if (strcmp(pAlterReq->objname, "1.*") != 0) {
       int32_t len = strlen(pAlterReq->objname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, pAlterReq->objname);
@@ -3057,130 +3345,209 @@ static int32_t mndProcessAlterUserPrivilegesReq(SAlterUserReq *pAlterReq, SMnode
         mndReleaseDb(pMnode, pDb);
         TAOS_CHECK_GOTO(terrno, &lino, _OVER);  // TODO: refactor the terrno to code
       }
-      code = taosHashRemove(pNewUser->writeDbs, pAlterReq->objname, len);
+      code = taosHashRemove(newUser.writeDbs, pAlterReq->objname, len);
       if (code < 0) {
-        mError("user:%s, failed to remove db:%s since %s", pNewUser->user, pAlterReq->objname, terrstr());
+        mError("user:%s, failed to remove db:%s since %s", newUser.user, pAlterReq->objname, terrstr());
       }
       mndReleaseDb(pMnode, pDb);
     } else {
-      taosHashClear(pNewUser->writeDbs);
+      taosHashClear(newUser.writeDbs);
     }
   }
 
-  SHashObj *pReadTbs = pNewUser->readTbs;
-  SHashObj *pWriteTbs = pNewUser->writeTbs;
-  SHashObj *pAlterTbs = pNewUser->alterTbs;
+  SHashObj *pReadTbs = newUser.readTbs;
+  SHashObj *pWriteTbs = newUser.writeTbs;
+  SHashObj *pAlterTbs = newUser.alterTbs;
 
 #ifdef TD_ENTERPRISE
   if (pAlterReq->isView) {
-    pReadTbs = pNewUser->readViews;
-    pWriteTbs = pNewUser->writeViews;
-    pAlterTbs = pNewUser->alterViews;
+    pReadTbs = newUser.readViews;
+    pWriteTbs = newUser.writeViews;
+    pAlterTbs = newUser.alterViews;
   }
 #endif
 
   if (ALTER_USER_ADD_READ_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
       ALTER_USER_ADD_ALL_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
-    TAOS_CHECK_GOTO(mndTablePriviledge(pMnode, pReadTbs, pNewUser->useDbs, pAlterReq, pSdb), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndTablePriviledge(pMnode, pReadTbs, newUser.useDbs, pAlterReq, pSdb), &lino, _OVER);
   }
 
   if (ALTER_USER_ADD_WRITE_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
       ALTER_USER_ADD_ALL_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
-    TAOS_CHECK_GOTO(mndTablePriviledge(pMnode, pWriteTbs, pNewUser->useDbs, pAlterReq, pSdb), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndTablePriviledge(pMnode, pWriteTbs, newUser.useDbs, pAlterReq, pSdb), &lino, _OVER);
   }
 
   if (ALTER_USER_ADD_ALTER_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
       ALTER_USER_ADD_ALL_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
-    TAOS_CHECK_GOTO(mndTablePriviledge(pMnode, pAlterTbs, pNewUser->useDbs, pAlterReq, pSdb), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndTablePriviledge(pMnode, pAlterTbs, newUser.useDbs, pAlterReq, pSdb), &lino, _OVER);
   }
 
   if (ALTER_USER_DEL_READ_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
       ALTER_USER_DEL_ALL_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
-    TAOS_CHECK_GOTO(mndRemoveTablePriviledge(pMnode, pReadTbs, pNewUser->useDbs, pAlterReq, pSdb), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndRemoveTablePriviledge(pMnode, pReadTbs, newUser.useDbs, pAlterReq, pSdb), &lino, _OVER);
   }
 
   if (ALTER_USER_DEL_WRITE_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
       ALTER_USER_DEL_ALL_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
-    TAOS_CHECK_GOTO(mndRemoveTablePriviledge(pMnode, pWriteTbs, pNewUser->useDbs, pAlterReq, pSdb), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndRemoveTablePriviledge(pMnode, pWriteTbs, newUser.useDbs, pAlterReq, pSdb), &lino, _OVER);
   }
 
   if (ALTER_USER_DEL_ALTER_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
       ALTER_USER_DEL_ALL_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
-    TAOS_CHECK_GOTO(mndRemoveTablePriviledge(pMnode, pAlterTbs, pNewUser->useDbs, pAlterReq, pSdb), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndRemoveTablePriviledge(pMnode, pAlterTbs, newUser.useDbs, pAlterReq, pSdb), &lino, _OVER);
   }
+#endif
 
-#ifdef USE_TOPIC
-  if (ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, pAlterReq->privileges)) {
+#if 0
+// #ifdef USE_TOPIC
+  if (ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, &pAlterReq->privileges)) {
     int32_t      len = strlen(pAlterReq->objname) + 1;
     SMqTopicObj *pTopic = NULL;
     if ((code = mndAcquireTopic(pMnode, pAlterReq->objname, &pTopic)) != 0) {
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
     taosRLockLatch(&pTopic->lock);
-    code = taosHashPut(pNewUser->topics, pTopic->name, len, pTopic->name, TSDB_TOPIC_FNAME_LEN);
+    code = taosHashPut(newUser.topics, pTopic->name, len, pTopic->name, TSDB_TOPIC_FNAME_LEN);
     taosRUnLockLatch(&pTopic->lock);
     mndReleaseTopic(pMnode, pTopic);
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
-  if (ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, pAlterReq->privileges)) {
+  if (ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, &pAlterReq->privileges)) {
     int32_t      len = strlen(pAlterReq->objname) + 1;
     SMqTopicObj *pTopic = NULL;
     if ((code = mndAcquireTopic(pMnode, pAlterReq->objname, &pTopic)) != 0) {
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
     taosRLockLatch(&pTopic->lock);
-    code = taosHashRemove(pNewUser->topics, pAlterReq->objname, len);
+    code = taosHashRemove(newUser.topics, pAlterReq->objname, len);
     if (code < 0) {
-      mError("user:%s, failed to remove topic:%s since %s", pNewUser->user, pAlterReq->objname, tstrerror(code));
+      mError("user:%s, failed to remove topic:%s since %s", newUser.user, pAlterReq->objname, tstrerror(code));
     }
     taosRUnLockLatch(&pTopic->lock);
     mndReleaseTopic(pMnode, pTopic);
   }
 #endif
+
+  TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq), &lino, _OVER);
+  code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    if (ALTER_USER_ADD_READ_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
+              ALTER_USER_ADD_WRITE_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
+              ALTER_USER_ADD_ALL_DB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
+              ALTER_USER_ADD_READ_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
+              ALTER_USER_ADD_WRITE_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName) ||
+              ALTER_USER_ADD_ALL_TB_PRIV(pAlterReq->alterType, pAlterReq->privileges, pAlterReq->tabName)) {
+      if (strcmp(pAlterReq->objname, "1.*") != 0) {
+        SName name = {0};
+        TAOS_CHECK_GOTO(tNameFromString(&name, pAlterReq->objname, T_NAME_ACCT | T_NAME_DB), &lino, _OVER);
+        auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", name.dbname, pAlterReq->user, pAlterReq->sql, pAlterReq->sqlLen, duration, 0);
+      } else {
+        auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", "", pAlterReq->user, pAlterReq->sql, pAlterReq->sqlLen, duration, 0);
+      }
+    } else if (ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, pAlterReq->privileges)) {
+      auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", pAlterReq->objname, pAlterReq->user, pAlterReq->sql, pAlterReq->sqlLen, duration, 0);
+    } else if (ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(pAlterReq->alterType, pAlterReq->privileges)) {
+      auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", pAlterReq->objname, pAlterReq->user, pAlterReq->sql, pAlterReq->sqlLen, duration, 0);
+    } else {
+      if (strcmp(pAlterReq->objname, "1.*") != 0) {
+        SName name = {0};
+        TAOS_CHECK_GOTO(tNameFromString(&name, pAlterReq->objname, T_NAME_ACCT | T_NAME_DB), &lino, _OVER);
+        auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", name.dbname, pAlterReq->user, pAlterReq->sql, pAlterReq->sqlLen, duration, 0);
+      } else {
+        auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", "", pAlterReq->user, pAlterReq->sql, pAlterReq->sqlLen, duration, 0);
+      }
+    }
+  }
+  
 _OVER:
-  if (code < 0) {
+  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to alter user privileges at line %d since %s", pAlterReq->user, lino, tstrerror(code));
   }
+  mndReleaseUser(pMnode, pUser);
+  mndUserFreeObj(&newUser);
+  TAOS_RETURN(code);
+}
+#endif
+
+#ifdef TD_ENTERPRISE
+extern int32_t mndAlterUserPrivInfo(SMnode *pMnode, SUserObj *pOperUser, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
+extern int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pOperUser, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
+#endif
+
+int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *pAlterReq) {
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  void     *pIter = NULL;
+  int32_t   code = 0, lino = 0;
+  SUserObj *pUser = NULL;
+  SUserObj  newUser = {0};
+
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pAlterReq->principal, &pUser));
+
+  if (pUser->enable == 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_DISABLED);
+  }
+
+  if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
+#ifdef TD_ENTERPRISE
+    TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
+    if ((code = mndAlterUserPrivInfo(pMnode, pOperUser, pUser, &newUser, pAlterReq)) == TSDB_CODE_QRY_DUPLICATED_OPERATION) {
+      code = 0;
+      goto _exit;
+    } else {
+      TAOS_CHECK_EXIT(code);
+    }
+  } else if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) {
+    if ((code = mndAlterUserRoleInfo(pMnode, pOperUser, pUser, &newUser, pAlterReq)) == TSDB_CODE_QRY_DUPLICATED_OPERATION) {
+      code = 0;
+      goto _exit;
+    } else {
+      TAOS_CHECK_EXIT(code);
+    }
+#endif
+  } else {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  code = mndAlterUser(pMnode, &newUser, pReq);
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+_exit:
+  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("user:%s, failed to alter user at line %d since %s", pAlterReq->principal, lino, tstrerror(code));
+  }
+  mndReleaseUser(pMnode, pUser);
+  mndUserFreeObj(&newUser);
   TAOS_RETURN(code);
 }
 
-static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
+
+static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAlterReq) {
   SMnode       *pMnode = pReq->info.node;
-  SSdb         *pSdb = pMnode->pSdb;
-  void         *pIter = NULL;
-  int32_t       code = 0;
-  int32_t       lino = 0;
+  int32_t       code = 0, lino = 0;
   SUserObj     *pUser = NULL;
-  SUserObj     *pOperUser = NULL;
   SUserObj      newUser = {0};
-  SAlterUserReq alterReq = {0};
+  char          auditLog[1000] = {0};
+  int32_t       auditLen = 0;
   int64_t       tss = taosGetTimestampMs();
-  TAOS_CHECK_GOTO(tDeserializeSAlterUserReq(pReq->pCont, pReq->contLen, &alterReq), &lino, _OVER);
 
-  mInfo("user:%s, start to alter", alterReq.user);
-
-  if (alterReq.user[0] == 0) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
-  }
-
-  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, alterReq.user, &pUser), &lino, _OVER);
-
-  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
-  if (pOperUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
-  }
-
-  TAOS_CHECK_GOTO(mndCheckAlterUserPrivilege(pOperUser, pUser, &alterReq), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pAlterReq->user, &pUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckAlterUserPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pUser, pAlterReq), &lino, _OVER);
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
 
-  if (alterReq.hasPassword) {
-    TAOS_CHECK_GOTO(mndCheckPasswordFmt(alterReq.pass), &lino, _OVER);
+  if (pAlterReq->hasPassword) {
+    auditLen += tsnprintf(auditLog, sizeof(auditLog), "password,");
+
+    TAOS_CHECK_GOTO(mndCheckPasswordFmt(pAlterReq->pass), &lino, _OVER);
     if (newUser.salt[0] == 0) {
       generateSalt(newUser.salt, sizeof(newUser.salt));
     }
     char pass[TSDB_PASSWORD_LEN] = {0};
-    taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), pass);
+    taosEncryptPass_c((uint8_t *)pAlterReq->pass, strlen(pAlterReq->pass), pass);
     pass[sizeof(pass) - 1] = 0;
     TAOS_CHECK_GOTO(mndEncryptPass(pass, newUser.salt, &newUser.passEncryptAlgorithm), &lino, _OVER);
 
@@ -3201,56 +3568,116 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       newUser.passwords = passwords;
       ++newUser.numOfPasswords;
       ++newUser.passVersion;
-      if (strcmp(newUser.user, pOperUser->user) == 0) {
-        // if user change own password, set changePass to 2 so that user won't be
-        // forced to change password at next login
-        newUser.changePass = 2;
-      }
+      newUser.changePass = 2;
     } else if (0 != strncmp(newUser.passwords[0].pass, pass, TSDB_PASSWORD_LEN)) {
       memcpy(newUser.passwords[0].pass, pass, TSDB_PASSWORD_LEN);
       newUser.passwords[0].setTime = taosGetTimestampSec();
       ++newUser.passVersion;
-      if (strcmp(newUser.user, pOperUser->user) == 0) {
-        newUser.changePass = 2;
-      }
+      newUser.changePass = 2;
     }
   }
 
-  if (alterReq.hasTotpseed) {
-    if (alterReq.totpseed[0] == 0) { // clear totp secret
+  if (pAlterReq->hasTotpseed) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "totpseed,");
+
+    if (pAlterReq->totpseed[0] == 0) { // clear totp secret
       memset(newUser.totpsecret, 0, sizeof(newUser.totpsecret));
-    } else if (taosGenerateTotpSecret(alterReq.totpseed, 0, newUser.totpsecret, sizeof(newUser.totpsecret)) < 0) {
+    } else if (taosGenerateTotpSecret(pAlterReq->totpseed, 0, newUser.totpsecret, sizeof(newUser.totpsecret)) < 0) {
       TAOS_CHECK_GOTO(TSDB_CODE_PAR_INVALID_OPTION_VALUE, &lino, _OVER);
     }
   }
 
-  if (alterReq.hasEnable) {
-    newUser.enable = alterReq.enable; // lock or unlock user manually
+  if (pAlterReq->hasEnable) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "enable:%d,", pAlterReq->enable);
+
+    newUser.enable = pAlterReq->enable; // lock or unlock user manually
     if (newUser.enable) {
       // reset login info to allow login immediately
       userCacheResetLoginInfo(newUser.user);
     }
   }
 
-  if (alterReq.hasSysinfo) newUser.sysInfo = alterReq.sysinfo;
-  if (alterReq.hasCreatedb) newUser.createdb = alterReq.createdb;
-  if (alterReq.hasChangepass) newUser.changePass = alterReq.changepass;
-  if (alterReq.hasSessionPerUser) newUser.sessionPerUser = alterReq.sessionPerUser;
-  if (alterReq.hasConnectTime) newUser.connectTime = alterReq.connectTime;
-  if (alterReq.hasConnectIdleTime) newUser.connectIdleTime = alterReq.connectIdleTime;
-  if (alterReq.hasCallPerSession) newUser.callPerSession = alterReq.callPerSession;
-  if (alterReq.hasVnodePerCall) newUser.vnodePerCall = alterReq.vnodePerCall;
-  if (alterReq.hasFailedLoginAttempts) newUser.failedLoginAttempts = alterReq.failedLoginAttempts;
-  if (alterReq.hasPasswordLifeTime) newUser.passwordLifeTime = alterReq.passwordLifeTime;
-  if (alterReq.hasPasswordReuseTime) newUser.passwordReuseTime = alterReq.passwordReuseTime;
-  if (alterReq.hasPasswordReuseMax) newUser.passwordReuseMax = alterReq.passwordReuseMax;
-  if (alterReq.hasPasswordLockTime) newUser.passwordLockTime = alterReq.passwordLockTime;
-  if (alterReq.hasPasswordGraceTime) newUser.passwordGraceTime = alterReq.passwordGraceTime;
-  if (alterReq.hasInactiveAccountTime) newUser.inactiveAccountTime = alterReq.inactiveAccountTime;
-  if (alterReq.hasAllowTokenNum) newUser.allowTokenNum = alterReq.allowTokenNum;
+  if (pAlterReq->hasSysinfo) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "sysinfo:%d,", pAlterReq->sysinfo);
+    newUser.sysInfo = pAlterReq->sysinfo;
+  }
 
+  if (pAlterReq->hasCreatedb) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "createdb:%d,", pAlterReq->createdb);
+    newUser.createdb = pAlterReq->createdb;
+  }
 
-  if (alterReq.numDropIpRanges > 0 || alterReq.numIpRanges > 0) {
+  if (pAlterReq->hasChangepass) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "changepass:%d,", pAlterReq->changepass);
+    newUser.changePass = pAlterReq->changepass;
+  }
+
+  if (pAlterReq->hasSessionPerUser) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "sessionPerUser:%d,", pAlterReq->sessionPerUser);
+    newUser.sessionPerUser = pAlterReq->sessionPerUser;
+  }
+
+  if (pAlterReq->hasConnectTime) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "connectTime:%d,", pAlterReq->connectTime);
+    newUser.connectTime = pAlterReq->connectTime;
+  }
+  
+  if (pAlterReq->hasConnectIdleTime) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "connectIdleTime:%d,", pAlterReq->connectIdleTime);
+    newUser.connectIdleTime = pAlterReq->connectIdleTime;
+  }
+
+  if (pAlterReq->hasCallPerSession) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "callPerSession:%d,", pAlterReq->callPerSession);
+    newUser.callPerSession = pAlterReq->callPerSession;
+  }
+
+  if (pAlterReq->hasVnodePerCall) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "vnodePerCall:%d,", pAlterReq->vnodePerCall);
+    newUser.vnodePerCall = pAlterReq->vnodePerCall;
+  }
+
+  if (pAlterReq->hasFailedLoginAttempts) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "failedLoginAttempts:%d,", pAlterReq->failedLoginAttempts);
+    newUser.failedLoginAttempts = pAlterReq->failedLoginAttempts;
+  }
+
+  if (pAlterReq->hasPasswordLifeTime) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordLifeTime:%d,", pAlterReq->passwordLifeTime);
+    newUser.passwordLifeTime = pAlterReq->passwordLifeTime;
+  }
+
+  if (pAlterReq->hasPasswordReuseTime) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordReuseTime:%d,", pAlterReq->passwordReuseTime);
+    newUser.passwordReuseTime = pAlterReq->passwordReuseTime;
+  }
+
+  if (pAlterReq->hasPasswordReuseMax) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordReuseMax:%d,", pAlterReq->passwordReuseMax);
+    newUser.passwordReuseMax = pAlterReq->passwordReuseMax;
+  }
+
+  if (pAlterReq->hasPasswordLockTime) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordLockTime:%d,", pAlterReq->passwordLockTime);
+    newUser.passwordLockTime = pAlterReq->passwordLockTime;
+  }
+
+  if (pAlterReq->hasPasswordGraceTime) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordGraceTime:%d,", pAlterReq->passwordGraceTime);
+    newUser.passwordGraceTime = pAlterReq->passwordGraceTime;
+  }
+
+  if (pAlterReq->hasInactiveAccountTime) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "inactiveAccountTime:%d,", pAlterReq->inactiveAccountTime);
+    newUser.inactiveAccountTime = pAlterReq->inactiveAccountTime;
+  }
+
+  if (pAlterReq->hasAllowTokenNum) {
+    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "allowTokenNum:%d,", pAlterReq->allowTokenNum);
+    newUser.allowTokenNum = pAlterReq->allowTokenNum;
+  }
+
+  if (pAlterReq->numDropIpRanges > 0 || pAlterReq->numIpRanges > 0) {
     int32_t dummy = 0;
 
     // put previous ip whitelist into hash table
@@ -3269,14 +3696,16 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       }
     }
 
-    if (alterReq.numDropIpRanges > 0) {
-      for (int32_t i = 0; i < alterReq.numDropIpRanges; i++) {
+    if (pAlterReq->numDropIpRanges > 0) {
+      auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "dropIpRanges:%d,", pAlterReq->numDropIpRanges);
+
+      for (int32_t i = 0; i < pAlterReq->numDropIpRanges; i++) {
         if (taosHashGetSize(m) == 0) {
           break;
         }
 
         SIpRange range;
-        copyIpRange(&range, alterReq.pDropIpRanges + i);
+        copyIpRange(&range, pAlterReq->pDropIpRanges + i);
 
         // for white list, drop default ip ranges is allowed, otherwise, we can never
         // convert white list to black list.
@@ -3293,10 +3722,11 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       }
     }
 
-    if (alterReq.numIpRanges > 0) {
-      for (int32_t i = 0; i < alterReq.numIpRanges; i++) {
+    if (pAlterReq->numIpRanges > 0) {
+      auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "addIpRanges:%d,", pAlterReq->numIpRanges);
+      for (int32_t i = 0; i < pAlterReq->numIpRanges; i++) {
         SIpRange range;
-        copyIpRange(&range, alterReq.pIpRanges + i);
+        copyIpRange(&range, pAlterReq->pIpRanges + i);
         code = taosHashPut(m, &range, sizeof(range), &dummy, sizeof(dummy));
         if (code != 0) {
           taosHashCleanup(m);
@@ -3337,7 +3767,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   }
 
 
-  if (alterReq.numTimeRanges > 0 || alterReq.numDropTimeRanges) {
+  if (pAlterReq->numTimeRanges > 0 || pAlterReq->numDropTimeRanges) {
     int32_t dummy = 0;
 
     // put previous ip whitelist into hash table
@@ -3358,13 +3788,14 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       }
     }
 
-    if (alterReq.numDropTimeRanges > 0) {
-      for (int32_t i = 0; i < alterReq.numDropTimeRanges; i++) {
+    if (pAlterReq->numDropTimeRanges > 0) {
+      auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "dropTimeRanges:%d,", pAlterReq->numDropTimeRanges);
+      for (int32_t i = 0; i < pAlterReq->numDropTimeRanges; i++) {
         if (taosHashGetSize(m) == 0) {
           break;
         }
         SDateTimeWhiteListItem range = { 0 };
-        DateTimeRangeToWhiteListItem(&range, alterReq.pDropTimeRanges + i);
+        DateTimeRangeToWhiteListItem(&range, pAlterReq->pDropTimeRanges + i);
 
         code = taosHashRemove(m, &range, sizeof(range));
         if (code == TSDB_CODE_NOT_FOUND) {
@@ -3378,10 +3809,11 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       }
     }
 
-    if (alterReq.numTimeRanges > 0) {
-      for (int32_t i = 0; i < alterReq.numTimeRanges; i++) {
+    if (pAlterReq->numTimeRanges > 0) {
+      auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "addTimeRanges:%d,", pAlterReq->numTimeRanges);
+      for (int32_t i = 0; i < pAlterReq->numTimeRanges; i++) {
         SDateTimeWhiteListItem range = { 0 };
-        DateTimeRangeToWhiteListItem(&range, alterReq.pTimeRanges + i);
+        DateTimeRangeToWhiteListItem(&range, pAlterReq->pTimeRanges + i);
         if (isDateTimeWhiteListItemExpired(&range)) {
           continue;
         }
@@ -3423,242 +3855,64 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     newUser.timeWhiteListVer++;
   }
 
+  TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq), &lino, _OVER);
+  code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  if (ALTER_USER_ADD_PRIVS(alterReq.alterType) || ALTER_USER_DEL_PRIVS(alterReq.alterType)) {
-    TAOS_CHECK_GOTO(mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser), &lino, _OVER);
+  if (auditLen > 0) {
+    auditLog[--auditLen] = 0; // remove last ','
   }
-
-  code = mndAlterUser(pMnode, pUser, &newUser, pReq);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
-#if 0
-  if (alterReq.passIsMd5 == 0) {
-    if (TSDB_ALTER_USER_PASSWD == alterReq.alterType) {
-      code = mndCheckPasswordFmt(alterReq.pass, len);
-      TAOS_CHECK_GOTO(code, &lino, _OVER);
-    }
-  }
-
-  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, alterReq.user, &pUser), &lino, _OVER);
-
-  (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
-  if (pOperUser == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
-  }
-
-  TAOS_CHECK_GOTO(mndCheckAlterUserPrivilege(pOperUser, pUser, &alterReq), &lino, _OVER);
-
-  TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
-
-  if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
-    if (alterReq.passIsMd5 == 1) {
-      (void)memcpy(newUser.pass, alterReq.pass, TSDB_PASSWORD_LEN);
-    } else {
-      taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), newUser.pass);
-    }
-
-    TAOS_CHECK_GOTO(mndEncryptPass(newUser.pass, &newUser.passEncryptAlgorithm), &lino, _OVER);
-
-    if (0 != strncmp(pUser->pass, newUser.pass, TSDB_PASSWORD_LEN)) {
-      ++newUser.passVersion;
-    }
-  }
-
-  if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER) {
-    newUser.superUser = alterReq.superUser;
-  }
-
-  if (alterReq.alterType == TSDB_ALTER_USER_ENABLE) {
-    newUser.enable = alterReq.enable;
-  }
-
-  if (alterReq.alterType == TSDB_ALTER_USER_SYSINFO) {
-    newUser.sysInfo = alterReq.sysInfo;
-  }
-
-  if (alterReq.alterType == TSDB_ALTER_USER_CREATEDB) {
-    newUser.createdb = alterReq.createdb;
-  }
-
-   
-
-  if (ALTER_USER_ADD_PRIVS(alterReq.alterType) || ALTER_USER_DEL_PRIVS(alterReq.alterType)) {
-    TAOS_CHECK_GOTO(mndProcessAlterUserPrivilegesReq(&alterReq, pMnode, &newUser), &lino, _OVER);
-  }
-
-  if (alterReq.alterType == TSDB_ALTER_USER_ADD_ALLOWED_HOST) {
-    taosMemoryFreeClear(newUser.pIpWhiteListDual);
-
-    int32_t           num = pUser->pIpWhiteListDual->num + alterReq.numIpRanges;
-    int32_t           idx = pUser->pIpWhiteListDual->num;
-    SIpWhiteListDual *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteListDual) + sizeof(SIpRange) * num);
-
-    if (pNew == NULL) {
-      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-    }
-
-    bool exist = false;
-    (void)memcpy(pNew->pIpRanges, pUser->pIpWhiteListDual->pIpRanges, sizeof(SIpRange) * idx);
-    for (int i = 0; i < alterReq.numIpRanges; i++) {
-      SIpRange range = {0};
-      if (alterReq.pIpDualRanges == NULL) {
-        range.type = 0;
-        memcpy(&range.ipV4, &alterReq.pIpRanges[i], sizeof(SIpV4Range));
-      } else {
-        memcpy(&range, &alterReq.pIpDualRanges[i], sizeof(SIpRange));
-        range = alterReq.pIpDualRanges[i];
-      }
-      if (!isRangeInIpWhiteList(pUser->pIpWhiteListDual, &range)) {
-        // already exist, just ignore;
-        (void)memcpy(&pNew->pIpRanges[idx], &range, sizeof(SIpRange));
-        idx++;
-        continue;
-      } else {
-        exist = true;
-      }
-    }
-    if (exist) {
-      taosMemoryFree(pNew);
-      TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_HOST_EXIST, &lino, _OVER);
-    }
-    pNew->num = idx;
-    newUser.pIpWhiteListDual = pNew;
-    newUser.ipWhiteListVer = pUser->ipWhiteListVer + 1;
-
-    if (pNew->num > MND_MAX_USER_IP_RANGE) {
-      TAOS_CHECK_GOTO(TSDB_CODE_MND_TOO_MANY_USER_IP_RANGE, &lino, _OVER);
-    }
-  }
-  if (alterReq.alterType == TSDB_ALTER_USER_DROP_ALLOWED_HOST) {
-    taosMemoryFreeClear(newUser.pIpWhiteListDual);
-
-    int32_t           num = pUser->pIpWhiteListDual->num;
-    bool              noexist = true;
-    bool              localHost = false;
-    SIpWhiteListDual *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteListDual) + sizeof(SIpRange) * num);
-
-    if (pNew == NULL) {
-      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-    }
-
-    if (pUser->pIpWhiteListDual->num > 0) {
-      int idx = 0;
-      for (int i = 0; i < pUser->pIpWhiteListDual->num; i++) {
-        SIpRange *oldRange = &pUser->pIpWhiteListDual->pIpRanges[i];
-
-        bool found = false;
-        for (int j = 0; j < alterReq.numIpRanges; j++) {
-          SIpRange range = {0};
-          if (alterReq.pIpDualRanges == NULL) {
-            SIpV4Range *trange = &alterReq.pIpRanges[j];
-            memcpy(&range.ipV4, trange, sizeof(SIpV4Range));
-          } else {
-            memcpy(&range, &alterReq.pIpDualRanges[j], sizeof(SIpRange));
-          }
-
-          if (isDefaultRange(&range)) {
-            localHost = true;
-            break;
-          }
-          if (isIpRangeEqual(oldRange, &range)) {
-            found = true;
-            break;
-          }
-        }
-        if (localHost) break;
-
-        if (found == false) {
-          (void)memcpy(&pNew->pIpRanges[idx], oldRange, sizeof(SIpRange));
-          idx++;
-        } else {
-          noexist = false;
-        }
-      }
-      pNew->num = idx;
-      newUser.pIpWhiteListDual = pNew;
-      newUser.ipWhiteListVer = pUser->ipWhiteListVer + 1;
-
-    } else {
-      pNew->num = 0;
-      newUser.pIpWhiteListDual = pNew;
-      newUser.ipWhiteListVer = pUser->ipWhiteListVer + 1;
-    }
-
-    if (localHost) {
-      TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_LOCAL_HOST_NOT_DROP, &lino, _OVER);
-    }
-    if (noexist) {
-      TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_HOST_NOT_EXIST, &lino, _OVER);
-    }
-  }
-
-  code = mndAlterUser(pMnode, pUser, &newUser, pReq);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-
   if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;
-    if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
-      char detail[1000] = {0};
-      (void)tsnprintf(detail, sizeof(detail),
-                      "alterType:%s, enable:%d, superUser:%d, sysInfo:%d, createdb:%d, tabName:%s, password:xxx",
-                      mndUserAuditTypeStr(alterReq.alterType), alterReq.enable, alterReq.superUser, alterReq.sysInfo,
-                      alterReq.createdb ? 1 : 0, alterReq.tabName);
-      auditRecord(pReq, pMnode->clusterId, "alterUser", "", alterReq.user, detail, strlen(detail), duration, 0);
-    } else if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER || alterReq.alterType == TSDB_ALTER_USER_ENABLE ||
-               alterReq.alterType == TSDB_ALTER_USER_SYSINFO || alterReq.alterType == TSDB_ALTER_USER_CREATEDB) {
-      auditRecord(pReq, pMnode->clusterId, "alterUser", "", alterReq.user, alterReq.sql, alterReq.sqlLen, duration, 0);
-    } else if (ALTER_USER_ADD_READ_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName) ||
-               ALTER_USER_ADD_WRITE_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName) ||
-               ALTER_USER_ADD_ALL_DB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName) ||
-               ALTER_USER_ADD_READ_TB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName) ||
-               ALTER_USER_ADD_WRITE_TB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName) ||
-               ALTER_USER_ADD_ALL_TB_PRIV(alterReq.alterType, alterReq.privileges, alterReq.tabName)) {
-      if (strcmp(alterReq.objname, "1.*") != 0) {
-        SName name = {0};
-        TAOS_CHECK_GOTO(tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB), &lino, _OVER);
-        auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", name.dbname, alterReq.user, alterReq.sql,
-                    alterReq.sqlLen, duration, 0);
-      } else {
-        auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", "", alterReq.user, alterReq.sql, alterReq.sqlLen,
-                    duration, 0);
-      }
-    } else if (ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(alterReq.alterType, alterReq.privileges)) {
-      auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.objname, alterReq.user, alterReq.sql,
-                  alterReq.sqlLen, duration, 0);
-    } else if (ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(alterReq.alterType, alterReq.privileges)) {
-      auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.objname, alterReq.user, alterReq.sql,
-                  alterReq.sqlLen, duration, 0);
-    } else {
-      if (strcmp(alterReq.objname, "1.*") != 0) {
-        SName name = {0};
-        TAOS_CHECK_GOTO(tNameFromString(&name, alterReq.objname, T_NAME_ACCT | T_NAME_DB), &lino, _OVER);
-        auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", name.dbname, alterReq.user, alterReq.sql,
-                    alterReq.sqlLen, duration, 0);
-      } else {
-        auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", "", alterReq.user, alterReq.sql, alterReq.sqlLen,
-                    duration, 0);
-      }
-    }
+    auditRecord(pReq, pMnode->clusterId, "alterUser", "", pAlterReq->user, auditLog, auditLen, duration, 0);
   }
-
-#endif
 
 _OVER:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("user:%s, failed to alter at line %d since %s", alterReq.user, lino, tstrerror(code));
+    mError("user:%s, failed to alter at line %d since %s", pAlterReq->user, lino, tstrerror(code));
+  }
+
+  mndReleaseUser(pMnode, pUser);
+  mndUserFreeObj(&newUser);
+  return code;
+}
+
+
+
+static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
+  SAlterUserReq alterReq = {0};
+
+  int32_t code = tDeserializeSAlterUserReq(pReq->pCont, pReq->contLen, &alterReq);
+  if (code != 0) {
+    mError("failed to deserialize alter user request at line %d since %s", __LINE__, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  if (alterReq.user[0] == 0) {
+    tFreeSAlterUserReq(&alterReq);
+    mError("failed to alter user at line %d since invalid user format", __LINE__);
+    TAOS_RETURN(TSDB_CODE_MND_INVALID_USER_FORMAT);
+  }
+
+  mInfo("user:%s, start to alter", alterReq.user);
+  if (alterReq.alterType == TSDB_ALTER_USER_BASIC_INFO) {
+    code = mndProcessAlterUserBasicInfoReq(pReq, &alterReq);
+  } else {
+    // code = mndProcessAlterUserPrivilegesReq(pReq, &alterReq); // obsolete
   }
 
   tFreeSAlterUserReq(&alterReq);
-  mndReleaseUser(pMnode, pOperUser);
-  mndReleaseUser(pMnode, pUser);
-  mndUserFreeObj(&newUser);
   TAOS_RETURN(code);
 }
 
+int32_t mndGetAuditUser(SMnode *pMnode, char* user){
+  (void)tsnprintf(user, TSDB_USER_LEN, "audit");
+  return 0;
+}
+
 static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "drop-user");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "drop-user");
   if (pTrans == NULL) {
     mError("user:%s, failed to drop since %s", pUser->user, terrstr());
     TAOS_RETURN(terrno);
@@ -3676,6 +3930,11 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
     TAOS_RETURN(terrno);
   }
 
+  if (mndDropTokensByUser(pMnode, pTrans, pUser->user) != 0) {
+    mndTransDrop(pTrans);
+    TAOS_RETURN(terrno);
+  }
+
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
@@ -3683,6 +3942,7 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
   }
 
   userCacheRemoveUser(pUser->user);
+  mndDropCachedTokensByUser(pUser->user);
 
   mndTransDrop(pTrans);
   TAOS_RETURN(0);
@@ -3692,6 +3952,7 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = 0;
   int32_t      lino = 0;
+  SUserObj    *pOperUser = NULL;
   SUserObj    *pUser = NULL;
   SDropUserReq dropReq = {0};
   int64_t      tss = taosGetTimestampMs();
@@ -3699,13 +3960,24 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSDropUserReq(pReq->pCont, pReq->contLen, &dropReq), &lino, _OVER);
 
   mInfo("user:%s, start to drop", dropReq.user);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_USER), &lino, _OVER);
 
   if (dropReq.user[0] == 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
 
+  if (0 == strcmp(dropReq.user, TSDB_DEFAULT_USER)) {
+    return TSDB_CODE_MND_NO_RIGHTS;
+  }
+
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, dropReq.user, &pUser), &lino, _OVER);
+
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
+  if (pOperUser == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_USER_FROM_CONN, &lino, _OVER);
+  }
+
+  // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_DROP_USER), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_DROP, 0, 0, NULL, NULL), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndDropUser(pMnode, pReq, pUser), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -3716,12 +3988,14 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
     duration = duration / 1000;
     auditRecord(pReq, pMnode->clusterId, "dropUser", "", dropReq.user, dropReq.sql, dropReq.sqlLen, duration, 0);
   }
+
 _OVER:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to drop at line %d since %s", dropReq.user, lino, tstrerror(code));
   }
 
   mndReleaseUser(pMnode, pUser);
+  mndReleaseUser(pMnode, pOperUser);
   tFreeSDropUserReq(&dropReq);
   TAOS_RETURN(code);
 }
@@ -3796,6 +4070,8 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   char     *pWrite = NULL;
   char     *buf = NULL;
   char     *varstr = NULL;
+  int32_t   bufSize = TSDB_MAX_SUBROLE * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE;
+  char      tBuf[TSDB_MAX_SUBROLE * TSDB_ROLE_LEN + VARSTR_HEADER_SIZE] = {0};
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_USER, pShow->pIter, (void **)&pUser);
@@ -3874,6 +4150,23 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     } else {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
       COL_DATA_SET_VAL_GOTO((const char *)NULL, true, pUser, pShow->pIter, _exit);
+    }
+
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+      void  *pIter = NULL;
+      size_t klen = 0, tlen = 0;
+      char  *pBuf = POINTER_SHIFT(tBuf, VARSTR_HEADER_SIZE);
+      while ((pIter = taosHashIterate(pUser->roles, pIter))) {
+        char *roleName = taosHashGetKey(pIter, &klen);
+        tlen += snprintf(pBuf + tlen, bufSize - tlen, "%s,", roleName);
+      }
+      if (tlen > 0) {
+        pBuf[tlen - 1] = 0;  // remove last ','
+      } else {
+        pBuf[0] = 0;
+      }
+      varDataSetLen(tBuf, tlen);
+      COL_DATA_SET_VAL_GOTO((const char *)tBuf, false, pUser, pShow->pIter, _exit);
     }
 
     numOfRows++;
@@ -4171,6 +4464,7 @@ _exit:
   TAOS_RETURN(code);
 }
 
+#if 0
 static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   int32_t   code = 0;
   int32_t   lino = 0;
@@ -4199,11 +4493,11 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
-    int32_t numOfReadDbs = taosHashGetSize(pUser->readDbs);
-    int32_t numOfWriteDbs = taosHashGetSize(pUser->writeDbs);
+    int32_t numOfReadDbs = 0; //taosHashGetSize(pUser->readDbs);
+    int32_t numOfWriteDbs = 0; //taosHashGetSize(pUser->writeDbs);
     int32_t numOfTopics = taosHashGetSize(pUser->topics);
-    int32_t numOfReadTbs = taosHashGetSize(pUser->readTbs);
-    int32_t numOfWriteTbs = taosHashGetSize(pUser->writeTbs);
+    int32_t numOfReadTbs = taosHashGetSize(pUser->selectTbs);
+    int32_t numOfWriteTbs = taosHashGetSize(pUser->insertTbs);
     int32_t numOfAlterTbs = taosHashGetSize(pUser->alterTbs);
     int32_t numOfReadViews = taosHashGetSize(pUser->readViews);
     int32_t numOfWriteViews = taosHashGetSize(pUser->writeViews);
@@ -4213,7 +4507,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         rows) {
       mInfo(
           "will restore. current num of rows: %d, read dbs %d, write dbs %d, topics %d, read tables %d, write tables "
-          "%d, alter tables %d, read views %d, write views %d, alter views %d",
+          "%d, alter tables %d, select views %d, write views %d, alter views %d",
           numOfRows, numOfReadDbs, numOfWriteDbs, numOfTopics, numOfReadTbs, numOfWriteTbs, numOfAlterTbs,
           numOfReadViews, numOfWriteViews, numOfAlterViews);
       pShow->restore = true;
@@ -4259,7 +4553,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
       numOfRows++;
     }
-
+#if 0
     char *db = taosHashIterate(pUser->readDbs, NULL);
     while (db != NULL) {
       cols = 0;
@@ -4359,10 +4653,10 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       numOfRows++;
       db = taosHashIterate(pUser->writeDbs, db);
     }
+#endif
+    TAOS_CHECK_EXIT(mndLoopHash(pUser->selectTbs, "select", pBlock, &numOfRows, pSdb, pUser, pShow, &condition, &sql));
 
-    TAOS_CHECK_EXIT(mndLoopHash(pUser->readTbs, "read", pBlock, &numOfRows, pSdb, pUser, pShow, &condition, &sql));
-
-    TAOS_CHECK_EXIT(mndLoopHash(pUser->writeTbs, "write", pBlock, &numOfRows, pSdb, pUser, pShow, &condition, &sql));
+    TAOS_CHECK_EXIT(mndLoopHash(pUser->insertTbs, "insert", pBlock, &numOfRows, pSdb, pUser, pShow, &condition, &sql));
 
     TAOS_CHECK_EXIT(mndLoopHash(pUser->alterTbs, "alter", pBlock, &numOfRows, pSdb, pUser, pShow, &condition, &sql));
 
@@ -4427,6 +4721,313 @@ _exit:
   }
   return numOfRows;
 }
+#endif
+
+static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows, SUserObj *pObj,
+                                      SHashObj *privTbs, EPrivType privType, char *pBuf, int32_t bufSize, int32_t *pNumOfRows) {
+  int32_t     code = 0, lino = 0;
+  SMnode     *pMnode = pReq->info.node;
+  SSdb       *pSdb = pMnode->pSdb;
+  int32_t     cols = 0, qBufSize = bufSize - VARSTR_HEADER_SIZE;
+  int32_t     numOfRows = *pNumOfRows;
+  char       *qBuf = NULL;
+  char       *sql = NULL;
+  char        roleName[TSDB_ROLE_LEN + VARSTR_HEADER_SIZE] = {0};
+  const char *privName = privInfoGetName(privType);
+
+  STR_WITH_MAXSIZE_TO_VARSTR(roleName, pObj->name, pShow->pMeta->pSchemas[cols].bytes);
+
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate(privTbs, pIter))) {
+    SPrivTblPolicies *pPolices = (SPrivTblPolicies *)pIter;
+    SArray           *tblPolicies = pPolices->policy;
+
+    char   *key = taosHashGetKey(pPolices, NULL);
+    int32_t objType = PRIV_OBJ_UNKNOWN;
+    char    dbName[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char    tblName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName), false))) {
+      sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pShow->pIter);
+      TAOS_CHECK_EXIT(code);
+    }
+
+    int32_t nTbPolicies = taosArrayGetSize(tblPolicies);
+    for (int32_t i = 0; i < nTbPolicies; ++i) {
+      SPrivTblPolicy *tbPolicy = (SPrivTblPolicy *)TARRAY_GET_ELEM(tblPolicies, i);
+      cols = 0;
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+      COL_DATA_SET_VAL_GOTO((const char *)roleName, false, pObj, pShow->pIter, _exit);
+
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privName, pShow->pMeta->pSchemas[cols].bytes);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjGetName(objType), pShow->pMeta->pSchemas[cols].bytes);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, dbName, pShow->pMeta->pSchemas[cols].bytes);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, tblName, pShow->pMeta->pSchemas[cols].bytes);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+      // condition
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        SNode  *pAst = NULL;
+        int32_t sqlLen = 0;
+        qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+        if (tbPolicy->condLen > 0) {
+          if (nodesStringToNode(tbPolicy->cond, &pAst) == 0) {
+            if (nodesNodeToSQLFormat(pAst, qBuf, qBufSize, &sqlLen, true) != 0) {
+              sqlLen = tsnprintf(qBuf, qBufSize, "error");
+            }
+            nodesDestroyNode(pAst);
+          }
+          if (sqlLen == 0) {
+            sqlLen = tsnprintf(qBuf, qBufSize, "error");
+          }
+        } else {
+          sqlLen = tsnprintf(qBuf, qBufSize, "");
+        }
+        varDataSetLen(pBuf, sqlLen);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+      // notes
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR((pBuf), "", 2);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+      // columns
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        SArray *pCols = tbPolicy->cols;
+        int32_t nCols = taosArrayGetSize(pCols);
+        int32_t totalLen = 0;
+        qBuf = POINTER_SHIFT(pBuf, VARSTR_HEADER_SIZE);
+        for (int32_t j = 0; j < nCols; ++j) {
+          SColNameFlag *pCol = (SColNameFlag *)TARRAY_GET_ELEM(pCols, j);
+          char          tmpBuf[TSDB_COL_NAME_LEN + 16] = {0};
+          int32_t       tmpLen = 0;
+          if (IS_MASK_ON(pCol)) {
+            tmpLen = snprintf(tmpBuf, sizeof(tmpBuf), "mask(%s)%s", pCol->colName, j == nCols - 1 ? "" : ",");
+          } else {
+            tmpLen = snprintf(tmpBuf, sizeof(tmpBuf), "%s%s", pCol->colName, j == nCols - 1 ? "" : ",");
+          }
+          if(totalLen + tmpLen > qBufSize) {
+            break;
+          }
+          (void)memcpy(POINTER_SHIFT(qBuf, totalLen), tmpBuf, tmpLen);
+          totalLen += tmpLen;
+        }
+        varDataSetLen(pBuf, totalLen);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+      // update_time
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        char updateTime[40] = {0};
+        (void)formatTimestampLocal(updateTime, tbPolicy->updateUs, TSDB_TIME_PRECISION_MICRO);
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, updateTime, pShow->pMeta->pSchemas[cols].bytes);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+      ++numOfRows;
+    }
+  }
+  *pNumOfRows = numOfRows;
+_exit:
+  TAOS_RETURN(code);
+}
+
+static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  int32_t   code = 0, lino = 0;
+  SMnode   *pMnode = pReq->info.node;
+  SSdb     *pSdb = pMnode->pSdb;
+  int32_t   numOfRows = 0;
+  int32_t   cols = 0;
+  SUserObj *pObj = NULL;
+  char     *pBuf = NULL, *qBuf = NULL;
+  char     *sql = NULL;
+  char      roleName[TSDB_ROLE_LEN + VARSTR_HEADER_SIZE] = {0};
+  int32_t   bufSize = TSDB_PRIVILEDGE_CONDITION_LEN + VARSTR_HEADER_SIZE;
+
+  bool fetchNextInstance = pShow->restore ? false : true;
+  pShow->restore = false;
+
+  while (numOfRows < rows) {
+    if (fetchNextInstance) {
+      pShow->pIter = sdbFetch(pSdb, SDB_USER, pShow->pIter, (void **)&pObj);
+      if (pShow->pIter == NULL) break;
+    } else {
+      fetchNextInstance = true;
+      void *pKey = taosHashGetKey(pShow->pIter, NULL);
+      if (!(pObj = sdbAcquire(pSdb, SDB_USER, pKey))) {
+        continue;
+      }
+    }
+
+    int32_t nSysPrivileges = 0, nObjPrivileges = 0;
+    if (nSysPrivileges + nObjPrivileges >= rows) {
+      pShow->restore = true;
+      sdbRelease(pSdb, pObj);
+      break;
+    }
+
+    if (!pBuf && !(pBuf = taosMemoryMalloc(bufSize))) {
+      sdbCancelFetch(pSdb, pShow->pIter);
+      sdbRelease(pSdb, pObj);
+      TAOS_CHECK_EXIT(terrno);
+    }
+
+    cols = 0;
+    STR_WITH_MAXSIZE_TO_VARSTR(roleName, pObj->name, pShow->pMeta->pSchemas[cols].bytes);
+
+    // system privileges
+    SPrivIter privIter = {0};
+    privIterInit(&privIter, &pObj->sysPrivs);
+    SPrivInfo *pPrivInfo = NULL;
+    while (privIterNext(&privIter, &pPrivInfo)) {
+      cols = 0;
+      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+      COL_DATA_SET_VAL_GOTO((const char *)roleName, false, pObj, pShow->pIter, _exit);
+
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, pPrivInfo->name, pShow->pMeta->pSchemas[cols].bytes);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+      if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+        STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjGetName(PRIV_OBJ_CLUSTER), pShow->pMeta->pSchemas[cols].bytes);
+        COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+      }
+      // skip db, table, condition, notes, columns, update_time
+      COL_DATA_SET_EMPTY_VARCHAR(pBuf, 6);
+      numOfRows++;
+    }
+
+    // object privileges
+    void *pIter = NULL;
+    while ((pIter = taosHashIterate(pObj->objPrivs, pIter))) {
+      SPrivObjPolicies *pPolices = (SPrivObjPolicies *)pIter;
+
+      char   *key = taosHashGetKey(pPolices, NULL);
+      int32_t objType = PRIV_OBJ_UNKNOWN;
+      char    dbName[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      char    tblName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName), false))) {
+        sdbRelease(pSdb, pObj);
+        sdbCancelFetch(pSdb, pShow->pIter);
+        TAOS_CHECK_EXIT(code);
+      }
+
+      SPrivIter privIter = {0};
+      privIterInit(&privIter, &pPolices->policy);
+      SPrivInfo *pPrivInfo = NULL;
+      while (privIterNext(&privIter, &pPrivInfo)) {
+        cols = 0;
+        SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+        COL_DATA_SET_VAL_GOTO((const char *)roleName, false, pObj, pShow->pIter, _exit);
+
+        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, pPrivInfo->name, pShow->pMeta->pSchemas[cols].bytes);
+          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+        }
+
+        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjGetName(objType), pShow->pMeta->pSchemas[cols].bytes);
+          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+        }
+
+        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, dbName, pShow->pMeta->pSchemas[cols].bytes);
+          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+        }
+
+        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, tblName, pShow->pMeta->pSchemas[cols].bytes);
+          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+        }
+
+        // skip condition, notes, columns, update_time
+        COL_DATA_SET_EMPTY_VARCHAR(pBuf, 4);
+
+        numOfRows++;
+      }
+    }
+
+    // table level privileges
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->selectTbs,
+                                           PRIV_TBL_SELECT, pBuf, bufSize, &numOfRows));
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->insertTbs,
+                                           PRIV_TBL_INSERT, pBuf, bufSize, &numOfRows));
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->updateTbs,
+                                           PRIV_TBL_UPDATE, pBuf, bufSize, &numOfRows));
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->deleteTbs,
+                                           PRIV_TBL_DELETE, pBuf, bufSize, &numOfRows));
+#if 0
+    while ((pIter = taosHashIterate(pObj->selectTbs, pIter))) {
+      SPrivTblPolicies *pPolices = (SPrivTblPolicies *)pIter;
+      SArray           *tblPolicies = pPolices->policy;
+
+      char   *key = taosHashGetKey(pPolices, NULL);
+      int32_t objType = PRIV_OBJ_UNKNOWN;
+      char    dbName[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      char    tblName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName), false))) {
+        sdbRelease(pSdb, pObj);
+        sdbCancelFetch(pSdb, pShow->pIter);
+        TAOS_CHECK_EXIT(code);
+      }
+
+      int32_t nTbPolicies = taosArrayGetSize(tblPolicies);
+      for (int32_t i = 0; i < nTbPolicies; ++i) {
+        SPrivTblPolicy *tbPolicy = (SPrivTblPolicy *)TARRAY_GET_ELEM(tblPolicies, i);
+        cols = 0;
+        SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
+        COL_DATA_SET_VAL_GOTO((const char *)roleName, false, pObj, pShow->pIter, _exit);
+
+        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privInfoGetName(PRIV_TBL_SELECT), pShow->pMeta->pSchemas[cols].bytes);
+          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+        }
+
+        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, dbName, pShow->pMeta->pSchemas[cols].bytes);
+          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+        }
+
+        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, tblName, pShow->pMeta->pSchemas[cols].bytes);
+          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+        }
+
+        // skip condition, notes, columns, update_time
+        COL_DATA_SET_EMPTY_VARCHAR(pBuf, 4);
+
+        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
+          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjGetName(objType), pShow->pMeta->pSchemas[cols].bytes);
+          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
+        }
+        numOfRows++;
+      }
+    }
+#endif
+    sdbRelease(pSdb, pObj);
+  }
+
+  pShow->numOfRows += numOfRows;
+_exit:
+  taosMemoryFreeClear(pBuf);
+  taosMemoryFreeClear(sql);
+  if (code < 0) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  return numOfRows;
+}
 
 static void mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
@@ -4445,7 +5046,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
   if (batchRsp.pArray == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
-
+  int64_t now = taosGetTimestampMs();
   for (int32_t i = 0; i < numOfUses; ++i) {
     SUserObj *pUser = NULL;
     code = mndAcquireUser(pMnode, pUsers[i].user, &pUser);
@@ -4461,7 +5062,8 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
     }
 
     pUsers[i].version = ntohl(pUsers[i].version);
-    if (pUser->authVersion <= pUsers[i].version && ipWhiteListVer == pMnode->ipWhiteVer) {
+    if ((pUser->authVersion <= pUsers[i].version) && (ipWhiteListVer == pMnode->ipWhiteVer) &&
+        !mndNeedRetrieveRole(pUser)) {
       mndReleaseUser(pMnode, pUser);
       continue;
     }
@@ -4480,6 +5082,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
       tFreeSGetUserAuthRsp(&rsp);
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
+    pUser->lastRoleRetrieve = now;  // update user's last retrieve time
     mndReleaseUser(pMnode, pUser);
   }
 
@@ -4506,6 +5109,14 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
 _OVER:
   tFreeSUserAuthBatchRsp(&batchRsp);
   if (code < 0) {
+    for (int32_t i = 0; i < numOfUses; ++i) {
+      SUserObj *pUser = NULL;
+      if (mndAcquireUser(pMnode, pUsers[i].user, &pUser) != 0) {
+        continue;
+      }
+      pUser->lastRoleRetrieve = 0;  // reset last retrieve time on error
+      mndReleaseUser(pMnode, pUser);
+    }
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     taosMemoryFreeClear(pRsp);
     rspLen = 0;
@@ -4530,6 +5141,55 @@ static int32_t mndRemoveDbPrivileges(SHashObj *pHash, const char *dbFName, int32
   TAOS_RETURN(0);
 }
 
+int32_t mndUserDropRole(SMnode *pMnode, STrans *pTrans, SRoleObj *pObj) {
+  int32_t   code = 0, lino = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  SUserObj *pUser = NULL;
+  void     *pIter = NULL;
+
+  while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
+    SHashObj *pRole = taosHashGet(pUser->roles, pObj->name, strlen(pObj->name) + 1);
+    if (!pRole) {
+      sdbRelease(pSdb, pUser);
+      pUser = NULL;
+      continue;
+    }
+
+    SUserObj newUser = {0};
+    TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
+    code = taosHashRemove(newUser.roles, pObj->name, strlen(pObj->name) + 1);
+    if (code == TSDB_CODE_NOT_FOUND) {
+      sdbRelease(pSdb, pUser);
+      pUser = NULL;
+      mndUserFreeObj(&newUser);
+      continue;
+    }
+    if (code != 0) {
+      mndUserFreeObj(&newUser);
+      TAOS_CHECK_EXIT(code);
+    }
+    SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
+    if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+      mndUserFreeObj(&newUser);
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    if ((code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY))) {
+      mndUserFreeObj(&newUser);
+      TAOS_CHECK_EXIT(code);
+    }
+    sdbRelease(pSdb, pUser);
+    pUser = NULL;
+    mndUserFreeObj(&newUser);
+  }
+_exit:
+  if (pIter) sdbCancelFetch(pSdb, pIter);
+  if (pUser) sdbRelease(pSdb, pUser);
+  if (code < 0) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
 int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj **ppUsers) {
   int32_t    code = 0, lino = 0;
   SSdb      *pSdb = pMnode->pSdb;
@@ -4539,17 +5199,17 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj *
   SUserObj   newUser = {0};
   SSHashObj *pUsers = ppUsers ? *ppUsers : NULL;
   bool       output = (ppUsers != NULL);
-
+#ifdef PRIV_TODO
   while (1) {
     pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
     if (pIter == NULL) break;
 
     bool update = false;
-    bool inReadDb = (taosHashGet(pUser->readDbs, pDb->name, dbLen + 1) != NULL);
-    bool inWriteDb = (taosHashGet(pUser->writeDbs, pDb->name, dbLen + 1) != NULL);
+    bool inReadDb = false; //(taosHashGet(pUser->readDbs, pDb->name, dbLen + 1) != NULL);
+    bool inWriteDb = false; //(taosHashGet(pUser->writeDbs, pDb->name, dbLen + 1) != NULL);
     bool inUseDb = (taosHashGet(pUser->useDbs, pDb->name, dbLen + 1) != NULL);
-    bool inReadTbs = taosHashGetSize(pUser->readTbs) > 0;
-    bool inWriteTbs = taosHashGetSize(pUser->writeTbs) > 0;
+    bool inReadTbs = taosHashGetSize(pUser->selectTbs) > 0;
+    bool inWriteTbs = taosHashGetSize(pUser->insertTbs) > 0;
     bool inAlterTbs = taosHashGetSize(pUser->alterTbs) > 0;
     bool inReadViews = taosHashGetSize(pUser->readViews) > 0;
     bool inWriteViews = taosHashGetSize(pUser->writeViews) > 0;
@@ -4582,10 +5242,10 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj *
       TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
     }
     if (inReadDb) {
-      TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->readDbs, pDb->name, dbLen + 1));
+      // TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->readDbs, pDb->name, dbLen + 1));
     }
     if (inWriteDb) {
-      TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->writeDbs, pDb->name, dbLen + 1));
+      // TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->writeDbs, pDb->name, dbLen + 1));
     }
     if (inUseDb) {
       TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->useDbs, pDb->name, dbLen + 1));
@@ -4596,8 +5256,8 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj *
     int32_t nRemovedWriteTbs = 0;
     int32_t nRemovedAlterTbs = 0;
     if (inReadTbs || inWriteTbs || inAlterTbs) {
-      TAOS_CHECK_EXIT(mndRemoveDbPrivileges(pTargetUser->readTbs, pDb->name, dbLen, &nRemovedReadTbs));
-      TAOS_CHECK_EXIT(mndRemoveDbPrivileges(pTargetUser->writeTbs, pDb->name, dbLen, &nRemovedWriteTbs));
+      TAOS_CHECK_EXIT(mndRemoveDbPrivileges(pTargetUser->selectTbs, pDb->name, dbLen, &nRemovedReadTbs));
+      TAOS_CHECK_EXIT(mndRemoveDbPrivileges(pTargetUser->insertTbs, pDb->name, dbLen, &nRemovedWriteTbs));
       TAOS_CHECK_EXIT(mndRemoveDbPrivileges(pTargetUser->alterTbs, pDb->name, dbLen, &nRemovedAlterTbs));
       if (!update) update = nRemovedReadTbs > 0 || nRemovedWriteTbs > 0 || nRemovedAlterTbs > 0;
     }
@@ -4625,7 +5285,7 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj *
     }
     sdbRelease(pSdb, pUser);
   }
-
+#endif
 _exit:
   if (code < 0) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -4644,7 +5304,7 @@ int32_t mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb) {
   void     *pIter = NULL;
   SUserObj *pUser = NULL;
   SUserObj  newUser = {0};
-
+#ifdef PRIV_TODO
   while (1) {
     pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
     if (pIter == NULL) break;
@@ -4653,17 +5313,17 @@ int32_t mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb) {
       break;
     }
 
-    bool inRead = (taosHashGet(newUser.readTbs, stb, len) != NULL);
-    bool inWrite = (taosHashGet(newUser.writeTbs, stb, len) != NULL);
+    bool inRead = (taosHashGet(newUser.selectTbs, stb, len) != NULL);
+    bool inWrite = (taosHashGet(newUser.insertTbs, stb, len) != NULL);
     bool inAlter = (taosHashGet(newUser.alterTbs, stb, len) != NULL);
     if (inRead || inWrite || inAlter) {
-      code = taosHashRemove(newUser.readTbs, stb, len);
+      code = taosHashRemove(newUser.selectTbs, stb, len);
       if (code < 0) {
-        mError("failed to remove readTbs:%s from user:%s", stb, pUser->user);
+        mError("failed to remove selectTbs:%s from user:%s", stb, pUser->user);
       }
-      code = taosHashRemove(newUser.writeTbs, stb, len);
+      code = taosHashRemove(newUser.insertTbs, stb, len);
       if (code < 0) {
-        mError("failed to remove writeTbs:%s from user:%s", stb, pUser->user);
+        mError("failed to remove insertTbs:%s from user:%s", stb, pUser->user);
       }
       code = taosHashRemove(newUser.alterTbs, stb, len);
       if (code < 0) {
@@ -4686,7 +5346,7 @@ int32_t mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb) {
     mndUserFreeObj(&newUser);
     sdbRelease(pSdb, pUser);
   }
-
+#endif
   if (pUser != NULL) sdbRelease(pSdb, pUser);
   if (pIter != NULL) sdbCancelFetch(pSdb, pIter);
   mndUserFreeObj(&newUser);
@@ -4700,7 +5360,7 @@ int32_t mndUserRemoveView(SMnode *pMnode, STrans *pTrans, char *view) {
   void     *pIter = NULL;
   SUserObj *pUser = NULL;
   SUserObj  newUser = {0};
-
+#ifdef PRIV_TODO
   while (1) {
     pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
     if (pIter == NULL) break;
@@ -4742,7 +5402,7 @@ int32_t mndUserRemoveView(SMnode *pMnode, STrans *pTrans, char *view) {
     mndUserFreeObj(&newUser);
     sdbRelease(pSdb, pUser);
   }
-
+#endif
   if (pUser != NULL) sdbRelease(pSdb, pUser);
   if (pIter != NULL) sdbCancelFetch(pSdb, pIter);
   mndUserFreeObj(&newUser);
@@ -4756,7 +5416,7 @@ int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
   void     *pIter = NULL;
   SUserObj *pUser = NULL;
   SUserObj  newUser = {0};
-
+#ifdef PRIV_TODO
   while (1) {
     pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
     if (pIter == NULL) {
@@ -4789,7 +5449,7 @@ int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
     mndUserFreeObj(&newUser);
     sdbRelease(pSdb, pUser);
   }
-
+#endif
   if (pUser != NULL) sdbRelease(pSdb, pUser);
   if (pIter != NULL) sdbCancelFetch(pSdb, pIter);
   mndUserFreeObj(&newUser);

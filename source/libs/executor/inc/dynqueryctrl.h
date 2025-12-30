@@ -84,9 +84,12 @@ typedef struct {
 } SColRefInfo;
 
 typedef struct SVtbScanDynCtrlInfo {
+  bool             batchProcessChild;
   bool             scanAllCols;
   bool             isSuperTable;
   bool             needRedeploy;
+  bool             hasPartition;
+  bool             genNewParam;
   char*            dbName;
   char*            tbName;
   tsem_t           ready;
@@ -106,10 +109,16 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        newAddedVgInfo;
   SHashObj*        childTableMap;
   SHashObj*        dbVgInfoMap;
-  SHashObj*        orgTbVgColMap; // key: orgTbFName, value: SOrgTbInfo
   SHashObj*        existOrgTbVg; // key: vgId, value: NULL
   SHashObj*        curOrgTbVg; // key: vgId, value: NULL
   SMsgCb*          pMsgCb;
+  SHashObj*        otbNameToOtbInfoMap; // key: orgTbFName, value: SOrgTbInfo
+  SHashObj*        otbVgIdToOtbInfoArrayMap; // key: vgId, value: SArray<SOrgTbInfo>
+  SHashObj*        vtbUidToVgIdMapMap; // key: vtbUid, value: SHashObj <key: vgId, value: SArray<SOrgTbInfo>>
+  SHashObj*        vtbGroupIdToVgIdMapMap; // key: vtbGroupId, value: SHashObj <key: vgId, value: SArray<SOrgTbInfo>>
+  SHashObj*        vtbUidTagListMap; // key: vtbUid, value: SArray<STagValue>
+  SHashObj*        vtbGroupIdTagListMap; // key: vtbGroupId, value: SHashObj <key: vtbUid, value: SArray<STagValue>>
+  SHashObj*        vtbUidToGroupIdMap; // key: vtbUid, value: vtbGroupId
   SOperatorParam*  vtbScanParam;
 } SVtbScanDynCtrlInfo;
 
@@ -129,6 +138,7 @@ typedef struct SVtbWindowDynCtrlInfo {
   SSDataBlock*             pRes;
   EStateWinExtendOption    extendOption;
 } SVtbWindowDynCtrlInfo;
+
 
 typedef struct SDynQueryCtrlOperatorInfo {
   EDynQueryType         qType;

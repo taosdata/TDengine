@@ -66,6 +66,9 @@ typedef struct SSvrConn {
   char    secret[TSDB_PASSWORD_LEN];
   char    ckey[TSDB_PASSWORD_LEN];  // ciphering key
 
+  char   identifier[128];  // token or user
+  int8_t isToken;
+
   int64_t whiteListVer;
   int64_t dataTimeWhiteListVer;
 
@@ -565,7 +568,7 @@ void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
   }
 }
 int32_t uvDataTimeWhiteListAdd(SDataTimeWhiteListTab* pWhite, char* user, SUserDateTimeWhiteList* plist, int64_t ver) {
-  int32_t   code = 0;
+  int32_t code = 0;
   if (pWhite == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -753,23 +756,34 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
   STrans*        pInst = pConn->pInst;
   STransMsgHead* pHead = *ppHead;
   int32_t        len = *msgLen;
+
+  int32_t offset = sizeof(pConn->user);
+  char*   pUser = pConn->user;
+  if (pHead->isToken) {
+    offset = sizeof(pConn->identifier);
+    pUser = pConn->identifier;
+    pConn->isToken = 1;
+  } else {
+    pConn->isToken = 0;
+  }
+
   if (pHead->withUserInfo) {
-    STransMsgHead* tHead = taosMemoryCalloc(1, len - sizeof(pInst->user));
+    STransMsgHead* tHead = taosMemoryCalloc(1, len - offset);
     if (tHead == NULL) {
       tError("conn:%p, failed to get user info since %s", pConn, tstrerror(terrno));
       return false;
     }
     memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
-    memcpy((char*)tHead + TRANS_MSG_OVERHEAD, (char*)pHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user),
-           len - sizeof(STransMsgHead) - sizeof(pInst->user));
-    tHead->msgLen = htonl(htonl(pHead->msgLen) - sizeof(pInst->user));
+    memcpy((char*)tHead + TRANS_MSG_OVERHEAD, (char*)pHead + TRANS_MSG_OVERHEAD + offset,
+           len - sizeof(STransMsgHead) - offset);
+    tHead->msgLen = htonl(htonl(pHead->msgLen) - offset);
 
-    memcpy(pConn->user, (char*)pHead + TRANS_MSG_OVERHEAD, sizeof(pConn->user));
+    memcpy(pUser, (char*)pHead + TRANS_MSG_OVERHEAD, offset);
     pConn->userInited = 1;
 
     taosMemoryFree(pHead);
     *ppHead = tHead;
-    *msgLen = len - sizeof(pInst->user);
+    *msgLen = len - offset;
     return true;
   }
   return false;
@@ -781,6 +795,9 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
   int8_t     forbiddenIp = 0;
   int8_t     timeForbiddenIp = 0;
 
+  if (pConn->isToken) {
+    return status;
+  }
   if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
     forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
     if (forbiddenIp == 0) {
@@ -804,18 +821,27 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
 
   return status;
 }
+static void uvSetConnInfo(SSvrConn* pConn, SRpcConnInfo* pInfo) {
+  pInfo->cliAddr = pConn->clientIp;
 
+  if (pConn->isToken) {
+    tstrncpy(pInfo->identifier, pConn->identifier, sizeof(pInfo->identifier));
+    pInfo->isToken = 1;
+  } else {
+    tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
+    pInfo->isToken = 0;
+  }
+}
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
-
-  int8_t         acquire = 0;
+   
   STransMsgHead* pHead = NULL;
-
   int8_t resetBuf = 0;
-  int    msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0);
-  if (msgLen <= 0) {
-    tError("%s conn:%p, read invalid packet", transLabel(pInst), pConn);
+  int32_t msgLen = 0;
+  int32_t code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
+  if (code != 0) {
+    tError("%s conn:%p, read invalid packet since %s", transLabel(pInst), pConn, tstrerror(code));
     return false;
   }
   if (transDecompressMsg((char**)&pHead, &msgLen) < 0) {
@@ -845,16 +871,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
   pConn->inType = pHead->msgType;
 
   int8_t forbiddenIp = uvCheckConn(pConn);
-  // int8_t forbiddenIp = 0;
-  // int8_t timeForbiddenIp = 0;
-  // if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
-  //   forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
-  //   if (forbiddenIp == 0) {
-  //     uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
-  //   }
-  // }
-
-  // timeForbiddenIp = uvDataTimeWhiteListCheckConn(pThrd->pDataTimeWhiteList, pConn);
 
   if (uvMayHandleReleaseReq(pConn, pHead)) {
     return true;
@@ -891,10 +907,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   uvPerfLog_receive(pConn, pHead, &transMsg);
 
   // set up conn info
-  SRpcConnInfo* pConnInfo = &(transMsg.info.conn);
-  pConnInfo->cliAddr = pConn->clientIp;
-  // pConnInfo->clientPort = pConn->port;
-  tstrncpy(pConnInfo->user, pConn->user, sizeof(pConnInfo->user));
+  uvSetConnInfo(pConn, &(transMsg.info.conn));
 
   transReleaseExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
 
@@ -1037,6 +1050,7 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   } else {
     tError("%s conn:%p, read error since %s, received from %s, local info:%s", transLabel(pInst), conn,
            uv_err_name(nread), conn->dst, conn->src);
+    conn->broken = true;
     transUnrefSrvHandle(conn);
     return;
   }
@@ -1160,7 +1174,7 @@ static int32_t uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
-  pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+  // pHead->magicNum = htonl(TRANS_MAGIC_NUM);
   pHead->compatibilityVer = htonl(((STrans*)pConn->pInst)->compatibilityVer);
   pHead->version = TRANS_VER;
   pHead->seqNum = taosHton64(pMsg->info.seqNum);
@@ -1195,6 +1209,8 @@ static int32_t uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
 
   wb->base = (char*)pHead;
   wb->len = len;
+
+  TAOS_UNUSED(transDoCrc((char*)pHead, len));
   return 0;
 }
 

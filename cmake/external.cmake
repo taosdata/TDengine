@@ -678,10 +678,10 @@ endif(${BUILD_WITH_UV})     # }
 if(NOT ${TD_WINDOWS})       # {
     if(${TD_LINUX})
         set(ext_tz_static libtz.a)
-        set(_c_flags_list -fPIC)
+        set(_c_flags_list -fPIC -DTHREAD_SAFE=1)
     elseif(${TD_DARWIN})
         set(ext_tz_static libtz.a)
-        set(_c_flags_list -fPIC -DHAVE_GETTEXT=0) # TODO: brew install gettext?
+        set(_c_flags_list -fPIC -DHAVE_GETTEXT=0 -DTHREAD_SAFE=1) # TODO: brew install gettext?
     endif()
     INIT_EXT(ext_tz
         INC_DIR          include

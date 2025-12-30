@@ -77,6 +77,12 @@ typedef enum {
 } TSDB_OPTION_CONNECTION;
 
 typedef enum {
+  TSDB_CONNECTION_INFO_USER = 0,         // name of current user
+  TSDB_CONNECTION_INFO_TOKEN,            // token name of current connection, if authenticated by token
+  TSDB_MAX_CONNECTION_INFO
+} TSDB_CONNECTION_INFO;
+
+typedef enum {
   TSDB_SML_UNKNOWN_PROTOCOL = 0,
   TSDB_SML_LINE_PROTOCOL = 1,
   TSDB_SML_TELNET_PROTOCOL = 2,
@@ -188,12 +194,20 @@ typedef struct TAOS_STMT_OPTIONS {
   bool    singleTableBindOnce;
 } TAOS_STMT_OPTIONS;
 
+typedef struct OPTIONS {
+  const char* keys[256];
+  const char* values[256];
+  uint16_t count;
+} OPTIONS;
+
 DLL_EXPORT int   taos_init(void);
 DLL_EXPORT void  taos_cleanup(void);
 DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
 DLL_EXPORT int   taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...);
+DLL_EXPORT void  taos_set_option(OPTIONS *options, const char *key, const char *value);
 DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
 DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+DLL_EXPORT TAOS *taos_connect_with(const OPTIONS *options);
 /**
  * taos_connect_with_dsn
  * Note: This API is currently not supported in this client library.
@@ -312,6 +326,7 @@ DLL_EXPORT TAOS_ROW *taos_result_block(TAOS_RES *res);
 DLL_EXPORT const char *taos_get_server_info(TAOS *taos);
 DLL_EXPORT const char *taos_get_client_info();
 DLL_EXPORT int         taos_get_current_db(TAOS *taos, char *database, int len, int *required);
+DLL_EXPORT int         taos_get_connection_info(TAOS *taos, TSDB_CONNECTION_INFO info, char* buffer, int* len);
 
 DLL_EXPORT const char *taos_errstr(TAOS_RES *res);
 DLL_EXPORT int         taos_errno(TAOS_RES *res);

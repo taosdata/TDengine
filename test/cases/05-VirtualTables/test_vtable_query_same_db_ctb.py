@@ -63,7 +63,7 @@ class TestVTableQuerySameDBCtb:
         self.run_normal_query("test_vctable_select_test_projection")
         self.run_normal_query("test_vctable_select_test_projection_filter")
         self.run_normal_query("test_vctable_select_test_projection_timerange_filter")
-        #self.run_normal_query("test_vctable_select_test_function")
+        self.run_normal_query("test_vctable_select_test_function")
 
         self.run_normal_query("test_vctable_select_test_interval")
         self.run_normal_query("test_vctable_select_test_state_mode_0")

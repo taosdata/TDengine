@@ -129,6 +129,8 @@ extern "C" {
 #define EXPLAIN_GRP_JOIN_FORMAT "group_join=%d"
 #define EXPLAIN_JOIN_ALGO "algo=%s"
 #define EXPLAIN_ORIGIN_VGROUP_NUM_FORMAT "origin_vgroup_num=%d"
+#define EXPLAIN_HAS_PARTITION_FORMAT "has_partition=%d"
+#define EXPLAIN_BATCH_PROCESS_CHILD_FORMAT "batch_process_child=%d"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"
@@ -161,13 +163,19 @@ typedef struct SQueryExplainRowInfo {
   char   *buf;
 } SQueryExplainRowInfo;
 
+typedef struct SExplainPlanCtx {
+  int32_t      rootGroupId;
+  int32_t      groupNum;
+  int32_t      groupDoneNum;
+  SHashObj    *groupHash;     // Hash<SExplainGroup>
+} SExplainPlanCtx;
+
 typedef struct SExplainCtx {
   EExplainMode mode;
   double       ratio;
   bool         verbose;
 
   SRWLatch     lock;
-  int32_t      rootGroupId;
   int32_t      dataSize;
   bool         execDone;
   int64_t      reqStartTs;
@@ -175,13 +183,19 @@ typedef struct SExplainCtx {
   int64_t      jobDoneTs;
   char        *tbuf;
   SArray      *rows;
+  int32_t      groupNum;
   int32_t      groupDoneNum;
-  SHashObj    *groupHash;     // Hash<SExplainGroup>
+  int32_t      currPlanId;
+  SExplainPlanCtx *pCurrPlanCtx;
+  SExplainPlanCtx  planCtx;
+  SArray*          subPlanCtxs;
 } SExplainCtx;
 
 #define EXPLAIN_ORDER_STRING(_order) ((ORDER_ASC == _order) ? "asc" : ORDER_DESC == _order ? "desc" : "unknown")
 #define EXPLAIN_JOIN_STRING(_type) ((JOIN_TYPE_INNER == _type) ? "Inner join" : "Join")
 #define EXPLAIN_MERGE_MODE_STRING(_mode) ((_mode) == MERGE_TYPE_SORT ? "sort" : ((_mode) == MERGE_TYPE_NON_SORT ? "merge" : "column"))
+
+#define EXPLAIN_GET_CUR_PLAN_CTX(_ctx) ((_ctx)->currPlanId < 0 ? &(_ctx)->planCtx : (SExplainPlanCtx*)taosArrayGet((_ctx)->subPlanCtxs, (_ctx)->currPlanId))
 
 #define INVERAL_TIME_FROM_PRECISION_TO_UNIT(_t, _u, _p, _r)         \
 do {                                                                \
@@ -191,6 +205,12 @@ do {                                                                \
     code = convertTimeFromPrecisionToUnit(_t, _p, _u, &_r);         \
   }                                                                 \
 } while(0)
+
+#define EXPLAIN_SUB_PLAN_LINE(_idx) \
+  do {                                                                                                                    \
+    tlen = tsnprintf(tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE, "   InitPlan %d", (_idx));  \
+    varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE;                                                                \
+  } while (0)
 
 #define EXPLAIN_ROW_NEW(level, ...)                                                                               \
   do {                                                                                                            \

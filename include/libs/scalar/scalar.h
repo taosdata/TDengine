@@ -23,7 +23,16 @@ extern "C" {
 #include "nodes.h"
 #include "querynodes.h"
 
+typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SRemoteValueNode*);
+
 typedef struct SFilterInfo SFilterInfo;
+
+typedef struct SScalarExtraInfo {
+  void*   pStreamInfo;
+  void*   pStreamRange;
+  void*   pSubJobCtx;
+  sclFetchFromRemote fp;
+} SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);
 
@@ -33,18 +42,17 @@ pNode will be freed in API;
 */
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
 int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes);
+int32_t scalarCalculateRemoteConstants(SNode *pNode, SNode **pRes);
+
 int32_t scalarConvertOpValueNodeTs(SOperatorNode *node);
 
 /*
 pDst need to freed in caller
 */
-int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, const void *pExtraParam,
-                        void *streamTsRange);
-int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx,
-                               int32_t rowEndIdx, const void *pExtraParam, void *streamTsRange);
-void    sclFreeParam(SScalarParam *param);
-int32_t scalarAssignPlaceHolderRes(SColumnInfoData *pResColData, int64_t offset, int64_t rows, int16_t funcId,
-                                   const void *pExtraParams);
+int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, SScalarExtraInfo* pExtra);
+int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx, int32_t rowEndIdx, SScalarExtraInfo* pExtra);
+void    sclFreeParam(SScalarParam* param);
+int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows, int16_t funcId, const void* pExtraParams);
 int32_t scalarGetOperatorParamNum(EOperatorType type);
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, STypeMod typeMod, int8_t processType);
 
@@ -111,14 +119,14 @@ int32_t trimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
-int32_t base64Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t base64Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t base64FunctionFrom(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
-int32_t crc32Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
-int32_t findInSetFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
-int32_t likeInSetFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
-int32_t regexpInSetFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
-int32_t generateTotpSecretFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
-int32_t generateTotpCodeFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t crc32Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t findInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t generateTotpCodeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 /* Conversion functions */
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -172,6 +180,7 @@ int32_t mavgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam 
 int32_t hllScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t csumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t diffScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t lagScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t forecastScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t stateCountScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t stateDurationScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -189,6 +198,9 @@ int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScal
 int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange,
                                    bool *winRangeValid, int32_t type);
 int32_t scalarCalculateExtWinsTimeRange(STimeRangeNode *pNode, const void *pExtraParam, SExtWinTimeWindow *pWins);
+
+extern threadlocal SScalarExtraInfo gTaskScalarExtra;
+
 
 #ifdef __cplusplus
 }

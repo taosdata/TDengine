@@ -346,42 +346,38 @@ TEST(clientCase, connect_totp_Test) {
   if (pConn == NULL) {
     (void)printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));
   }
+  ASSERT_NE(pConn, nullptr);
 
   uint8_t secret[64] = {0};
   size_t secretLen = taosGenerateTotpSecret("AAbb1122", 8, secret, sizeof(secret));
 
   TAOS_RES* pRes = taos_query(pConn, "create user totp_u pass 'taosdata' totpseed 'AAbb1122'");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("error in create user, reason:%s\n", taos_errstr(pRes));
+  if (pRes == NULL) {
+    (void)printf("failed to create user, reason:%s\n", taos_errstr(NULL));
   }
+  ASSERT_NE(pRes, nullptr);
+  ASSERT_EQ(taos_errno(pRes), 0);
   taos_free_result(pRes);
   taos_close(pConn);
 
-
   int totpCode = taosGenerateTotpCode(secret, secretLen, 6);
   pConn = taos_connect_totp("localhost", "totp_u", "taosdata", "123456", NULL, 0);
-  if (pConn != NULL) {
-    (void)printf("connect to server with wrong totp");
-    taos_close(pConn);
-  }
+  ASSERT_EQ(pConn, nullptr);
 
   int code = taos_connect_test("localhost", "totp_u", "taosdata", "123456", NULL, 0);
-  if (code != TSDB_CODE_MND_WRONG_TOTP_CODE) {
-    (void)printf("test connect to server with wrong totp return wrong code:%d\n", code);
-    taos_close(pConn);
-  }
+  ASSERT_EQ(code, TSDB_CODE_MND_WRONG_TOTP_CODE);
 
   char totp[16] = {0};
   (void)taosFormatTotp(totpCode, 6, totp, sizeof(totp));
   pConn = taos_connect_totp("localhost", "totp_u", "taosdata", totp, NULL, 0);
   if (pConn == NULL) {
-    (void)printf("failed to connect to server with totp, reason:%s\n", taos_errstr(NULL));
+    (void)printf("failed to connect to server via totp, reason:%s\n", taos_errstr(NULL));
   }
+  ASSERT_NE(pConn, nullptr);
 
   pRes = taos_query(pConn, "show users");
-  if (taos_errno(pRes) != 0) {
-    (void)printf("error in create user, reason:%s\n", taos_errstr(pRes));
-  }
+  ASSERT_NE(pRes, nullptr);
+  ASSERT_EQ(taos_errno(pRes), 0);
   taos_free_result(pRes);
 
   taos_close(pConn);
@@ -389,11 +385,168 @@ TEST(clientCase, connect_totp_Test) {
   totpCode = taosGenerateTotpCode(secret, secretLen, 6);
   (void)taosFormatTotp(totpCode, 6, totp, sizeof(totp));
   code = taos_connect_test("localhost", "totp_u", "taosdata", totp, NULL, 0);
-  if (code != 0) {
-    (void)printf("test connect to server with correct totp return wrong code:%d\n", code);
-  }
+  ASSERT_EQ(code, 0);
 }
 
+
+TEST(clientCase, connect_token_Test) {
+  char token[TSDB_TOKEN_LEN] = {0};
+
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  if (pConn == NULL) {
+    (void)printf("failed to connect to server via password, reason:%s\n", taos_errstr(NULL));
+  }
+  ASSERT_NE(pConn, nullptr);
+
+  TAOS_RES* pRes = taos_query(pConn, "create token root1 from user root");
+  if (pRes == NULL) {
+    (void)printf("failed to create token, reason:%s\n", taos_errstr(NULL));
+  }
+  ASSERT_NE(pRes, nullptr);
+  ASSERT_EQ(taos_errno(pRes), 0);
+
+  TAOS_ROW row = taos_fetch_row(pRes);
+  ASSERT_NE(row, nullptr);
+  tstrncpy(token, (char*)row[0], TSDB_TOKEN_LEN);
+  (void)printf("token is: %s\n", token);
+  taos_free_result(pRes);
+  taos_close(pConn);
+
+  pConn = taos_connect_token("localhost", token, NULL, 0);
+  if (pConn == NULL) {
+    (void)printf("failed to connect to server via token, reason:%s\n", taos_errstr(NULL));
+  }
+  ASSERT_NE(pConn, nullptr);
+
+  pRes = taos_query(pConn, "show users");
+  if (taos_errno(pRes) != 0) {
+    (void)printf("failed to show users, reason:%s\n", taos_errstr(pRes));
+  }
+  ASSERT_NE(pRes, nullptr);
+  ASSERT_EQ(taos_errno(pRes), 0);
+  taos_free_result(pRes);
+
+  char user[TSDB_USER_LEN] = {0};
+  int len = sizeof(user);
+  ASSERT_EQ(taos_get_connection_info(pConn, TSDB_CONNECTION_INFO_USER, user, &len), 0);
+  user[sizeof(user) - 1] = 0;
+  if (len != 4 || memcmp(user, "root", 4) != 0) {
+    (void)printf("wrong user: %s, len: %d\n", user, len);
+  }
+  ASSERT_EQ(len, 4);
+  ASSERT_EQ(memcmp(user, "root", 4), 0);
+
+  len = sizeof(token);
+  ASSERT_EQ(taos_get_connection_info(pConn, TSDB_CONNECTION_INFO_TOKEN, token, &len), 0);
+  token[sizeof(token) - 1] = 0;
+  if (len != 5 || memcmp(token, "root1", 5) != 0) {
+    (void)printf("wrong token name: %s, len: %d\n", token, len);
+  }
+  ASSERT_EQ(len, 5);
+  ASSERT_EQ(memcmp(token, "root1", 5), 0);
+
+  taos_close(pConn);
+}
+
+TEST(clientCase, set_option_Test) {
+  taos_set_option(NULL, "ip", "127.0.0.1");
+  ASSERT_EQ(taos_errno(NULL), TSDB_CODE_INVALID_PARA);
+
+  OPTIONS opt1 = {};
+  taos_set_option(&opt1, NULL, "127.0.0.1");
+  ASSERT_EQ(taos_errno(NULL), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(opt1.count, 0);
+
+  OPTIONS opt2 = {};
+  taos_set_option(&opt2, "ip", NULL);
+  ASSERT_EQ(taos_errno(NULL), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(opt2.count, 0);
+
+  OPTIONS opt3 = {};
+  size_t cap3 = sizeof(opt3.keys) / sizeof(opt3.keys[0]);
+  opt3.count = (uint16_t)(cap3);
+  taos_set_option(&opt3, "ip", "127.0.0.1");
+  ASSERT_EQ(taos_errno(NULL), TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(opt3.count, cap3);
+
+  OPTIONS opt4 = {};
+  taos_set_option(&opt4, "ip", "127.0.0.1");
+  ASSERT_EQ(opt4.count, 1);
+  ASSERT_EQ(opt4.keys[0], "ip");
+  ASSERT_EQ(opt4.values[0], "127.0.0.1");
+
+  OPTIONS opt5 = {};
+  size_t cap5 = sizeof(opt5.keys) / sizeof(opt5.keys[0]);
+  opt5.count = (uint16_t)(cap5 - 1);
+  taos_set_option(&opt5, "ip", "127.0.0.1");
+  ASSERT_EQ(opt5.count, cap5);
+  ASSERT_EQ(opt5.keys[cap5 - 1], "ip");
+  ASSERT_EQ(opt5.values[cap5 - 1], "127.0.0.1");
+}
+
+TEST(clientCase, connect_with_Test) {
+  TAOS* pConn1 = taos_connect_with(NULL);
+  ASSERT_NE(pConn1, nullptr);
+
+  TAOS_RES* pRes1 = taos_query(pConn1, "create database if not exists test_taos_connect_with");
+  ASSERT_EQ(taos_errno(pRes1), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes1);
+
+  OPTIONS opt2 = {};
+  taos_set_option(&opt2, "ip", "127.0.0.1");
+  taos_set_option(&opt2, "user", "root");
+  taos_set_option(&opt2, "pass", "taosdata");
+  taos_set_option(&opt2, "db", "test_taos_connect_with");
+  taos_set_option(&opt2, "port", "6030");
+  taos_set_option(&opt2, "charset", "UTF-8");
+  taos_set_option(&opt2, "timezone", "UTC");
+  taos_set_option(&opt2, "userIp", "127.0.0.1");
+  taos_set_option(&opt2, "userApp", "unittest");
+  taos_set_option(&opt2, "connectorInfo", "gtest");
+  taos_set_option(&opt2, "unknownKey", "value");
+  TAOS* pConn2 = taos_connect_with(&opt2);
+  ASSERT_NE(pConn2, nullptr);
+  taos_close(pConn2);
+
+  TAOS_RES* pRes2 = taos_query(pConn1, "drop database if exists test_taos_connect_with");
+  ASSERT_EQ(taos_errno(pRes2), TSDB_CODE_SUCCESS);
+  taos_free_result(pRes2);
+
+  taos_close(pConn1);
+
+  OPTIONS opt3 = {};
+  taos_set_option(&opt3, "ip", "invalid_ip");
+  taos_set_option(&opt3, "ip", "127.0.0.1");
+  taos_set_option(&opt3, "port", "abc");
+  TAOS* pConn3 = taos_connect_with(&opt3);
+  ASSERT_NE(pConn3, nullptr);
+  taos_close(pConn3);
+
+  OPTIONS opt4 = {};
+  taos_set_option(&opt4, "ip", "192.168.1.1");
+  taos_set_option(&opt4, "port", "6789");
+  TAOS *pConn4 = taos_connect_with(&opt4);
+  ASSERT_EQ(pConn4, nullptr);
+
+  OPTIONS opt5 = {};
+  taos_set_option(&opt5, "charset", "abc");
+  TAOS *pConn5 = taos_connect_with(&opt5);
+  ASSERT_EQ(pConn5, nullptr);
+  ASSERT_NE(taos_errno(NULL), TSDB_CODE_SUCCESS);
+
+  OPTIONS opt6 = {};
+  opt6.count = 3;
+  opt6.keys[0] = NULL;
+  opt6.values[0] = "127.0.0.1";
+  opt6.keys[1] = "ip";
+  opt6.values[1] = NULL;
+  opt6.keys[2] = NULL;
+  opt6.values[2] = NULL;
+  TAOS* pConn6 = taos_connect_with(&opt6);
+  ASSERT_NE(pConn6, nullptr);
+  taos_close(pConn6);
+}
 
 TEST(clientCase, connect_with_dsn_Test) {
   TAOS* pConn = taos_connect_with_dsn(NULL);

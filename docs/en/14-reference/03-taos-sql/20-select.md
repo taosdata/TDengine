@@ -91,7 +91,10 @@ order_expr:
 - table_expr: Specify the query data source, which can be table name, view name, or subquery.
 - join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision can be selected from 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), and 1w (weeks), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0,1024]. For detailed information, please refer to the join query chapter [TDengine Join Queries](../join-queries/).
 - interp_clause: Interp clause, specifying the recorded value or interpolation of the time section, can specify the time range of interpolation, output time interval, and interpolation type.
-  - RANGE: Specify a single or start end time value, the end time must be greater than the start time. ts_val is a standard timestamp type, and surrounding_timenval is optional. Specify a time range of positive values, with precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999'，1h)```.
+  - RANGE: Specify a single or start end time value, the end time must be greater than the start time. ts_val is a standard timestamp type, and surrounding_timenval is optional. Specify a time range of positive values, with precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as:
+    - `RANGE('2023-10-01T00:00:00.000')`
+    - `RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')`
+    - `RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999', 1h)`
   - EVERY: Time interval range, with every_val being a positive value and precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as EVERY (1s).
   - FILL: Types can be selected as NONE (unfilled), VALUE (filled with specified value), PREV (previous non NULL value), NEXT (next non NULL value), NEAR (nearest non NULL value before and after).
 - window_cause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](../time-series-extensions/).
@@ -102,8 +105,8 @@ order_expr:
   - EVENT_WINDOW: The event window uses start_trigger_dedition and end_trigger_dedition to specify start and end conditions, supports any expression, and can specify different columns. Such as ```start with voltage>220 end with voltage<=220```.
   - COUNT_WINDOW: Count window, specifying the division of the window by the number of rows, count_val window contains the maximum number of rows, with a range of [2,2147483647]. The sliding quantity of the window is [1, count_val].The col_name parameter starts to be supported after version 3.3.7.0. col_name specifies one or more columns. When counting in the count_window, for each row of data in the window, at least one of the specified columns must be non-null; otherwise, that row of data is not included in the counting window. If col_name is not specified, it means there is no non-null restriction.
 
-- group_by_expr: Specify data grouping and aggregation rules. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as ```select ts, current from meters order by ts desc, 2```, where 2 corresponds to the current column.
-- partition_by_expr: Specify the data slicing conditions, and calculate the data independently within the slice. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as ```select current from meters partition by 1```, where 1 corresponds to the current column.
+- group_by_expr: Specify data grouping and aggregation rules. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select ts, current from meters order by ts desc, 2`, where 2 corresponds to the current column.
+- partition_by_expr: Specify the data slicing conditions, and calculate the data independently within the slice. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select current from meters partition by 1`, where 1 corresponds to the current column.
 - order_expr: Specify the sorting rule for the output data, which is not sorted by default. Supports expressions, functions, positions, columns, and aliases. Different sorting rules can be used for each column in a single or multiple columns, and null values can be specified to be sorted first or last.
 - SLIMIT: Specify the number of output shards, limit_val specifies the number of outputs, offset_val specifies the start position of the offset, offset_val is optional, limit_val and offset_val are both positive values, used in the PARTITION BY and GROUP BY clauses. Only output one shard when using the ORDER BY clause.
 - LIMIT: Specify the number of output data, limit_val specifies the number of outputs, offset_val specifies the start position of the offset, offset_val is optional, both limit_val and offset_val are positive values. When using the PARTITION BY clause, the number of shards per shard is controlled.
@@ -527,11 +530,24 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 
 :::
 
-:::
+## Non-Correlated Scalar Subqueries
+
+A non-correlated scalar subquery is a type of independent executable subquery in SQL, with its core characteristic being that it returns only a single value (one row, one column), and the execution process is completely independent of any fields from the outer query. Any query statement that conforms to this characteristic can be used as a non-correlated scalar subquery. Non-correlated scalar subqueries can be used in any clause, function, or expression within a query statement, as long as it is syntactically defined as an expression. Non-correlated scalar subqueries can also be nested.
+
+Non-correlated scalar subqueries can independently compute the result first, and then substitute that result into the outer query as a filter condition or reference value. They are commonly used in scenarios involving filtering based on aggregate values (such as average, maximum) or combining results from multiple table queries. Non-correlated scalar subqueries have higher execution efficiency than correlated subqueries.
+
+Since version 3.4.0.0, TDengine TSDB has begun to support non-correlated scalar subqueries in query statements. Other statements (such as stream computations, subscriptions, DDL, DML, etc.) are not yet supported.
+
+Examples of non-correlated scalar subqueries appearing in SELECT and WHERE clauses are as follows:
+
+```sql
+SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
+SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
+```
 
 ## UNION Clause
 
-```text title=Syntax
+```text title="Syntax"
 SELECT ...
 UNION [ALL] SELECT ...
 [UNION [ALL] SELECT ...]
