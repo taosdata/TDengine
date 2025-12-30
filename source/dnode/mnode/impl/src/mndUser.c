@@ -3990,7 +3990,9 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
   }
 
 _OVER:
-  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+  if (dropReq.ignoreNotExists && code == TSDB_CODE_MND_USER_NOT_EXIST) {
+    code = 0;
+  } else if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("user:%s, failed to drop at line %d since %s", dropReq.user, lino, tstrerror(code));
   }
 

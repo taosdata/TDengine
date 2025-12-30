@@ -530,6 +530,7 @@ typedef struct SAlterUserStmt {
 typedef struct SDropUserStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
+  bool      ignoreNotExists;
 } SDropUserStmt;
 
 typedef struct SCreateRoleStmt {
@@ -594,6 +595,7 @@ typedef struct SDropTokenStmt {
   ENodeType type;
 
   char      name[TSDB_TOKEN_NAME_LEN];
+  bool      ignoreNotExists;
 } SDropTokenStmt;
 
 

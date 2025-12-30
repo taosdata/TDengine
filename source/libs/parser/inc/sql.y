@@ -359,8 +359,8 @@ cmd ::= CREATE USER not_exists_opt(A) user_name(B) PASS NK_STRING(C) create_user
     pCxt->pRootNode = createCreateUserStmt(pCxt, &B, D, A);
   }
 cmd ::= ALTER USER user_name(A) alter_user_options(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, B); }
-cmd ::= DROP USER user_name(A).                                                  { pCxt->pRootNode = createDropUserStmt(pCxt, &A); }
-cmd ::= ALTER DNODES RELOAD general_name(A).                                                 { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
+cmd ::= DROP USER exists_opt(A) user_name(B).                                    { pCxt->pRootNode = createDropUserStmt(pCxt, &B, A); }
+cmd ::= ALTER DNODES RELOAD general_name(A).                                     { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
 
 
 /************************************************ create/alter/drop token **********************************************/
@@ -386,8 +386,8 @@ cmd ::= CREATE TOKEN not_exists_opt(A) NK_ID(B) FROM USER user_name(C) token_opt
 cmd ::= ALTER TOKEN NK_ID(A) token_options(B). {
     pCxt->pRootNode = createAlterTokenStmt(pCxt, &A, B);
   }
-cmd ::= DROP TOKEN NK_ID(A). {
-    pCxt->pRootNode = createDropTokenStmt(pCxt, &A);
+cmd ::= DROP TOKEN exists_opt(A) NK_ID(B). {
+    pCxt->pRootNode = createDropTokenStmt(pCxt, &B, A);
   }
 
 

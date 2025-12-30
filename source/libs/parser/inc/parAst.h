@@ -356,7 +356,7 @@ void setUserOptionsTotpseed(SAstCreateContext* pCxt, SUserOptions* pUserOptions,
 void setUserOptionsPassword(SAstCreateContext* pCxt, SUserOptions* pUserOptions, const SToken* pPassword);
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOptions* pUserOptions, bool ignoreExists);
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOptions* pUserOptions);
-SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);
+SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName, bool ignoreNotExists);
 SNode* createCreateRoleStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pName);
 SNode* createDropRoleStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pName);
 SNode* createAlterRoleStmt(SAstCreateContext* pCxt, SToken* pName, int8_t alterType, void* alterInfo);
@@ -365,7 +365,7 @@ void setTokenOptionsProvider(SAstCreateContext* pCxt, STokenOptions* pTokenOptio
 void setTokenOptionsExtraInfo(SAstCreateContext* pCxt, STokenOptions* pTokenOptions, const SToken* pExtraInfo);
 SNode* createCreateTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, SToken* pUserName, STokenOptions* pTokenOptions, bool ignoreExists);
 SNode* createAlterTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, STokenOptions* pTokenOptions);
-SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName);
+SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, bool ignoreNotExists);
 
 SNode* createDropEncryptAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId);
 SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const SToken* pPort);

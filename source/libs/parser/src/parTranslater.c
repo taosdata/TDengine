@@ -11201,6 +11201,7 @@ static int32_t translateAlterToken(STranslateContext* pCxt, SAlterTokenStmt* pSt
 static int32_t translateDropToken(STranslateContext* pCxt, SDropTokenStmt* pStmt) {
   SDropTokenReq req = {0};
   tstrncpy(req.name, pStmt->name, sizeof(req.name));
+  req.ignoreNotExists = pStmt->ignoreNotExists;
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_TOKEN, (FSerializeFunc)tSerializeSDropTokenReq, &req);
   tFreeSDropTokenReq(&req);
   return code;
@@ -12976,6 +12977,7 @@ if (alterReq.numIpRanges > 0) {
 static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) {
   SDropUserReq dropReq = {0};
   tstrncpy(dropReq.user, pStmt->userName, TSDB_USER_LEN);
+  dropReq.ignoreNotExists = pStmt->ignoreNotExists;
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_USER, (FSerializeFunc)tSerializeSDropUserReq, &dropReq);
   tFreeSDropUserReq(&dropReq);
