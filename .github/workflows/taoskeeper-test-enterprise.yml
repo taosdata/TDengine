@@ -1,0 +1,81 @@
+name: taosKeeper Test Enterprise
+
+on:
+  pull_request:
+    branches:
+      - "main"
+      - "3.0"
+      - "3.3.6"
+    paths:
+      - "tools/keeper/**"
+      - ".github/workflows/taoskeeper*.yml"
+  push:
+    branches:
+      - "main"
+      - "3.0"
+      - "3.3.6"
+    paths:
+      - "tools/keeper/**"
+      - ".github/workflows/taoskeeper*.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build and test enterprise on ubuntu-latest
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.23
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y build-essential cmake libgeos-dev
+
+      - name: Get TDengine
+        run: wget "${{ secrets.NIGHTLY_TDENGINE_ENTERPRISE_BASE_URL }}/tsdb-nightly-3.0.tar.gz?v=$(date +%s)" -O tsdb-nightly-3.0.tar.gz
+
+      - name: Install TDengine
+        run: |
+          tar -zxf tsdb-nightly-3.0.tar.gz
+          rm -rf tsdb-nightly-3.0.tar.gz
+          cd tsdb-nightly-3.0
+          sudo ./install.sh
+
+      - name: Create taos.cfg
+        run: |
+          sudo mkdir -p /etc/taos
+          sudo tee /etc/taos/taos.cfg > /dev/null <<EOF
+          fqdn            localhost
+          firstEp         localhost:6030
+          supportVnodes   256
+          dataDir         /tmp/taos/v3/data
+          logDir          /tmp/taos/v3/log
+          debugFlag       135
+          EOF
+
+      - name: Start TDengine
+        run: |
+          sudo mkdir -p /var/log/taos
+          taosd &
+          taosadapter &
+
+      - name: Run tests with coverage
+        working-directory: tools/keeper
+        run: |
+          go mod tidy
+          sudo go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'" -coverpkg=./... -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.KEEPER_CODECOV_TOKEN }}
+          files: coverage.out
+          fail_ci_if_error: true
+          verbose: true
+          slug: taosdata/taoskeeper
