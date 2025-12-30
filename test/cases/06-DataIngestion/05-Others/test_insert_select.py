@@ -30,11 +30,8 @@ class TestInsertSelect:
 
         clusterComCheck.checkDnodes(2)
         self.Test1()
-        tdStream.dropAllStreamsAndDbs()
         self.Test2()
-        tdStream.dropAllStreamsAndDbs()
         self.Test3()
-        tdStream.dropAllStreamsAndDbs()
         
     def Test1(self):
         tdLog.info(f"======== step1")

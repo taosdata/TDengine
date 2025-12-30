@@ -288,6 +288,32 @@ int32_t inserterHashValueComp(void const* lp, void const* rp) {
   return 0;
 }
 
+int32_t inserterGetVgInfo(SDBVgInfo* dbInfo, char* tbName, SVgroupInfo* pVgInfo) {
+  if (NULL == dbInfo) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  if (NULL == dbInfo->vgArray) {
+    qError("empty db vgArray, hashSize:%d", taosHashGetSize(dbInfo->vgHash));
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  uint32_t hashValue =
+      taosGetTbHashVal(tbName, (int32_t)strlen(tbName), dbInfo->hashMethod, dbInfo->hashPrefix, dbInfo->hashSuffix);
+  SVgroupInfo* vgInfo = taosArraySearch(dbInfo->vgArray, &hashValue, inserterHashValueComp, TD_EQ);
+  if (NULL == vgInfo) {
+    qError("no hash range found for hash value [%u], table:%s, numOfVgId:%d", hashValue, tbName,
+           (int32_t)taosArrayGetSize(dbInfo->vgArray));
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  *pVgInfo = *vgInfo;
+  qDebug("insert get vgInfo, tbName:%s vgId:%d epset(%s:%d)", tbName, pVgInfo->vgId, pVgInfo->epSet.eps[0].fqdn,
+         pVgInfo->epSet.eps[0].port);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int inserterVgInfoComp(const void* lp, const void* rp) {
   SVgroupInfo* pLeft = (SVgroupInfo*)lp;
   SVgroupInfo* pRight = (SVgroupInfo*)rp;
@@ -1083,7 +1109,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
       taosArrayClear(pInserter->pDataBlocks);
       for (int32_t i = 0; i < taosArrayGetSize(pMsgs); ++i) {
         SSubmitTbDataSendInfo* pSendInfo = taosArrayGetP(pMsgs, i);
-        code = sendSubmitRequest(pInserter, NULL, pSendInfo->msg.pData, pSendInfo->msg.len,
+        code = sendSubmitRequest(pInserter, pSendInfo->msg.pData, pSendInfo->msg.len,
                                  pInserter->pParam->readHandle->pMsgCb->clientRpc, &pSendInfo->epSet);
         taosMemoryFree(pSendInfo);
         if (code) {
