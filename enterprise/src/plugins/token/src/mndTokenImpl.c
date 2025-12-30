@@ -678,9 +678,6 @@ _OVER:
 
 
 static int32_t mndProcessDropTokenReq(SRpcMsg *pReq) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#else
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = 0, lino = 0;
   STokenObj     *pToken = NULL;
@@ -704,7 +701,9 @@ static int32_t mndProcessDropTokenReq(SRpcMsg *pReq) {
   }
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+  if (code == TSDB_CODE_MND_TOKEN_NOT_EXIST && dropReq.ignoreNotExists) {
+    code = 0;
+  } else if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("token:%s, failed to drop at line %d since %s", dropReq.name, lino, tstrerror(code));
   }
 
@@ -712,16 +711,12 @@ _OVER:
   mndReleaseUser(pMnode, pTokenUser);
   tFreeSDropTokenReq(&dropReq);
   TAOS_RETURN(code);
-#endif
 }
 
 
 
 // this function is called when drop user, so no need to update user tokenNum
 int32_t mndDropTokensByUser(SMnode *pMnode, STrans *pTrans, const char *user) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_SUCCESS;
-#else
   void     *pIter = NULL;
 
   while (1) {
@@ -751,7 +746,6 @@ int32_t mndDropTokensByUser(SMnode *pMnode, STrans *pTrans, const char *user) {
   }
 
   return 0;
-#endif
 }
 
 
@@ -847,7 +841,6 @@ int32_t mndInitToken(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndTokenActionDelete,
   };
 
-#ifdef TD_ENTERPRISE
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_TOKEN, mndProcessCreateTokenReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_TOKEN, mndProcessAlterTokenReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TOKEN, mndProcessDropTokenReq);
@@ -855,9 +848,6 @@ int32_t mndInitToken(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TOKEN, mndRetrieveTokens);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOKEN, mndCancelGetNextToken);
   return sdbSetTable(pMnode->pSdb, table);
-#else
-  return TSDB_CODE_SUCCESS;
-#endif
 }
 
 
