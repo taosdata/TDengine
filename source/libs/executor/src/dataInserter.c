@@ -1797,7 +1797,7 @@ _end:
 }
 
 static int32_t getTagValsFromStreamInserterInfo(SStreamDataInserterInfo* pInserterInfo, int32_t preCols,
-                                                SArray** ppTagVals) {
+                                                SArray** ppTagVals, SArray* pTagCids) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t nTags = pInserterInfo->pTagVals->size;
   *ppTagVals = taosArrayInit(nTags, sizeof(STagVal));
@@ -1807,7 +1807,7 @@ static int32_t getTagValsFromStreamInserterInfo(SStreamDataInserterInfo* pInsert
   for (int32_t i = 0; i < pInserterInfo->pTagVals->size; ++i) {
     SStreamTagInfo* pTagInfo = taosArrayGet(pInserterInfo->pTagVals, i);
     STagVal         tagVal = {
-                .cid = preCols + i + 1,
+                .cid = pTagCids ? *(col_id_t*)taosArrayGet(pTagCids, i) : preCols + i + 1,
                 .type = pTagInfo->val.data.type,
     };
     if (!pTagInfo->val.isNull) {
@@ -1885,7 +1885,7 @@ static int32_t buildStreamSubTableCreateReq(SStreamRunnerTask* pTask, SDataInser
   tbData->pCreateTbReq->type = TSDB_CHILD_TABLE;
   tbData->pCreateTbReq->flags |= (TD_CREATE_SUB_TB_IN_STREAM | TD_CREATE_IF_NOT_EXISTS);
 
-  code = getTagValsFromStreamInserterInfo(pInserterInfo, pInsertParam->pFields->size, &pTagVals);
+  code = getTagValsFromStreamInserterInfo(pInserterInfo, pInsertParam->pFields->size, &pTagVals, pInsertParam->tagCids);
   if (code != TSDB_CODE_SUCCESS) {
     goto _end;
   }

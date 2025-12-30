@@ -1391,6 +1391,7 @@ typedef struct {
 
 typedef struct {
   char    user[TSDB_USER_LEN];
+  int8_t  ignoreNotExists;
   int32_t sqlLen;
   char*   sql;
 } SDropUserReq, SDropAcctReq;
@@ -1759,6 +1760,7 @@ void    tFreeSAlterTokenReq(SAlterTokenReq* pReq);
 
 typedef struct {
   char    name[TSDB_TOKEN_NAME_LEN];
+  int8_t  ignoreNotExists;
   int32_t sqlLen;
   char*   sql;
 } SDropTokenReq;

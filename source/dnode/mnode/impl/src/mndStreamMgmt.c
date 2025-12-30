@@ -929,7 +929,9 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   pMsg->topPlan = topPlan;
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
   pMsg->addOptions = pStream->pCreate->addOptions;
-  if(pStream->pCreate->trigger.sliding.overlap) {
+  if ((WINDOW_TYPE_INTERVAL == pStream->pCreate->triggerType && pStream->pCreate->trigger.sliding.overlap) ||
+      (WINDOW_TYPE_COUNT == pStream->pCreate->triggerType &&
+       pStream->pCreate->trigger.count.sliding < pStream->pCreate->trigger.count.countVal)) {
     pMsg->addOptions |= CALC_SLIDING_OVERLAP;
   }
   pMsg->outCols = pInfo->pCreate->outCols;
@@ -941,6 +943,8 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
   pMsg->tagValueExpr = pInfo->pCreate->tagValueExpr;
   pMsg->forceOutCols = pInfo->pCreate->forceOutCols;
 
+  pMsg->colCids = pInfo->pCreate->colCids;
+  pMsg->tagCids = pInfo->pCreate->tagCids;
 _exit:
 
   if (code) {

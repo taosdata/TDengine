@@ -459,6 +459,7 @@ static SKeyword keywordTable[] = {
     {"EXTRA_INFO",           TK_EXTRA_INFO},
     {"TOKENS",               TK_TOKENS},
     {"IS_AUDIT",             TK_IS_AUDIT},
+    {"VNODE_PER_CALL",       TK_VNODE_PER_CALL},
     {"XNODE",                TK_XNODE},
     {"XNODES",               TK_XNODES},
     {"DRAIN",                TK_DRAIN},

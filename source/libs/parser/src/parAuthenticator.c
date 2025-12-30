@@ -33,7 +33,6 @@ typedef struct SAuthRewriteCxt {
 } SAuthRewriteCxt;
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt);
-static int32_t authSelect(SAuthCxt* pCxt, SSelectStmt* pSelect);
 
 static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const char* pTabName, EPrivType privType,
                                EPrivObjType objType, bool isView, bool effective, SUserAuthInfo* pAuth) {
@@ -432,7 +431,7 @@ static int32_t authCreateStream(SAuthCxt* pCxt, SCreateStreamStmt* pStmt) {
   PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->targetDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB));
   PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateStreamStmt*)pStmt)->targetDbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
   if (pStmt->pQuery) {
-    PAR_ERR_RET(authSelect(pCxt, (SSelectStmt*)pStmt->pQuery));
+    PAR_ERR_RET(authQuery(pCxt, pStmt->pQuery));
   }
   return code;
 }
@@ -444,7 +443,7 @@ static int32_t authCreateTopic(SAuthCxt* pCxt, SCreateTopicStmt* pStmt) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
   if (NULL != pStmt->pQuery) {
-    PAR_ERR_RET(authSelect(pCxt, (SSelectStmt*)pStmt->pQuery));
+    PAR_ERR_RET(authQuery(pCxt, pStmt->pQuery));
   }
   if (NULL != pStmt->pWhere) {
     PAR_ERR_RET(authObjPrivileges(pCxt, ((SCreateTopicStmt*)pStmt)->subDbName, ((SCreateTopicStmt*)pStmt)->subSTbName,
@@ -557,7 +556,7 @@ static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
     code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_VIEW_CREATE, PRIV_OBJ_DB, NULL);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = authSelect(pCxt, (SSelectStmt*)pStmt->pQuery);
+    code = authQuery(pCxt, pStmt->pQuery);
   }
   return code;
 #endif

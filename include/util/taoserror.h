@@ -172,6 +172,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_DIVISION_BY_ZERO              TAOS_DEF_ERROR_CODE(0, 0x013E)
 
 #define TSDB_CODE_EDITION_NOT_COMPATIBLE        TAOS_DEF_ERROR_CODE(0, 0x0140) // internal
+#define TSDB_CODE_INVALID_SIGNATURE             TAOS_DEF_ERROR_CODE(0, 0x0141) // internal
 
 //client
 #define TSDB_CODE_TSC_INVALID_OPERATION         TAOS_DEF_ERROR_CODE(0, 0x0200)
