@@ -90,6 +90,7 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
+|0.6.5 | Support TOTP authentication and token authentication | - |
 |0.6.4 | Support reporting connector version information | - |
 |0.6.3 | Support configuring the response timeout for WebSocket connections (excluding data subscription) | - |
 |0.6.2 | Fixes memory leaks | - |
@@ -231,6 +232,8 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
       - `retry_backoff_ms`: Initial wait time (milliseconds) when a connection fails, defaults to 200. This value increases exponentially with consecutive failures until the maximum wait time is reached.
       - `retry_backoff_max_ms`: Maximum wait time (milliseconds) when a connection fails, defaults to 2000.
       - `read_timeout`: WebSocket connection response timeout (seconds), excluding data subscription, defaults to 300 (5 minutes).
+      - `totp_code`: Used for Time-Based One-Time Password (TOTP) authentication
+      - `bearer_token`: Used for token authentication
   - **Return Value**: Connection object.
   - **Exception**: Throws `ConnectionError` exception on operation failure.
 - `fn cursor(&self) -> PyResult<Cursor>`

@@ -314,7 +314,7 @@ static const SSysDbTableSchema userUsersFullSchema[] = {
     {.name = "connect_time", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "connect_idle_timeout", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "call_per_session", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
-    //{.name = "vnode_per_call", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "vnode_per_call", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "failed_login_attempts", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "password_life_time", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "password_reuse_time", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
