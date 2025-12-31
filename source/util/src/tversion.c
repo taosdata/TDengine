@@ -98,8 +98,8 @@ int32_t taosCheckVersionCompatible(int32_t clientVer, int32_t serverVer, int32_t
 }
 
 int32_t taosCheckEditionCompatible(const char *pClientVersion, const char *pServerVersion) {
-  const char *pClientEdition = strrchr(pClientVersion, '-');
-  const char *pServerEdition = strrchr(pServerVersion, '-');
+  const char *pClientEdition = strrchr(pClientVersion, '.');
+  const char *pServerEdition = strrchr(pServerVersion, '.');
 
   // according to current version number design, the last segment is edition info.
   // the following checks are based on this assumption, if the design changes, the
