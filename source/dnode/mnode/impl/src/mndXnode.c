@@ -18,8 +18,9 @@
 #include "mndDef.h"
 #include "tdatablock.h"
 #include "types.h"
-
+#ifndef WINDOWS
 #include <curl/curl.h>
+#endif
 #include "audit.h"
 #include "mndDnode.h"
 #include "mndPrivilege.h"
@@ -3526,6 +3527,7 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
   }
 }
 
+#ifndef WINDOWS
 static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) {
   CURL   *curl = NULL;
   int32_t code = 0;
@@ -3666,7 +3668,14 @@ _OVER:
   XND_LOG_END(code, lino);
   return code;
 }
-
+#else
+static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) { return 0; }
+static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen, int32_t timeout,
+                                   const char *socketPath) {
+  return 0;
+}
+static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) { return 0; }
+#endif
 SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const char *buf, int64_t bufLen) {
   SJson    *pJson = NULL;
   SCurlResp curlRsp = {0};
