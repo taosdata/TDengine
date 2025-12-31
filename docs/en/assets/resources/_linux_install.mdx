@@ -22,7 +22,8 @@ import PkgListV37 from "/components/PkgListV37";
 
 :::tip
 
-1. If the TDengine service is not deployed on this machine and only the application driver is installed, then only `firstEP` needs to be configured in `taos.cfg`, there is no need to configure `FQDN` on this machine.
-2. To prevent the "Unable to resolve FQDN" error when connecting to the server, it is recommended to ensure that the `/etc/hosts` file on your machine is configured with the correct FQDN value of the server, or that the DNS service is properly configured.
+1. Starting from version 3.4.0.0, the Enterprise Edition is not fully compatible with the Community Edition. To avoid compatibility issues when the two are interconnected, please ensure that you install the client driver corresponding to the server. Using a Community Edition driver to connect to an Enterprise Edition server will fail with error "Edition not compatible", and vice versa.
+2. If the TDengine service is not deployed on this machine and only the application driver is installed, then only `firstEP` needs to be configured in `taos.cfg`, there is no need to configure `FQDN` on this machine.
+3. To prevent the "Unable to resolve FQDN" error when connecting to the server, it is recommended to ensure that the `/etc/hosts` file on your machine is configured with the correct FQDN value of the server, or that the DNS service is properly configured.
 
 :::
