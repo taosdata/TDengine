@@ -58,7 +58,7 @@ pub async fn sparkplugb_to_taos(
             .await
             .context("init task metrics error")?;
     }
-    let metrics = get_metrics_arc_from_i64(task_job_id).await;
+    let metrics = get_metrics_arc_from_i64(task_job_id);
     if let Some(parser) = parser.as_mut() {
         parser.set_metrics(metrics.clone());
     }

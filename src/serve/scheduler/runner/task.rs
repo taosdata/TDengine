@@ -142,7 +142,7 @@ async fn run_task(
     let health_opts = state.task.trigger.as_ref().map(|v| v.health);
     let (health_tx, health_rx) = health_opts.is_some().then(|| flume::bounded(64)).unzip();
     if let (Some(health_opts), Some(health_rx)) = (health_opts, health_rx) {
-        let metrics = get_metrics_arc_from_i64(Some((task_id, job_id))).await;
+        let metrics = get_metrics_arc_from_i64(Some((task_id, job_id)));
         let (_handle, mut rx) = health_checker(health_opts, health_rx, metrics);
         let global_sender = global.clone();
 
@@ -178,7 +178,11 @@ async fn run_task(
             }
         }
     });
-    global.send_task_activity(Activity::running(task_id, job_id, "Start to run task"));
+    global.send_task_activity(Activity::running(
+        task_id,
+        job_id,
+        format!("Start to run task ({task_id},{job_id})"),
+    ));
     let instant = std::time::Instant::now();
     let res = opts.run(&global.port_pool).in_current_span().await;
     tracing::info!(task.elapsed = ?instant.elapsed(), "task finished");
@@ -235,7 +239,7 @@ async fn task_opts_init(
         };
         let (_, minimum_timestamp, maximum_timestamp) =
             get_timestamp_range(&pool, &mut None, 3, &cancel).await?;
-        let metrics = get_metrics_arc_from_i64(Some((task_id, job_id))).await;
+        let metrics = get_metrics_arc_from_i64(Some((task_id, job_id)));
         let parser = match parser {
             plugins::Parser::Inner(parser) => {
                 let mut parser = parser;

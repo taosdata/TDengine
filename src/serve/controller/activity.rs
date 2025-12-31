@@ -64,14 +64,14 @@ impl Activity {
         }
     }
 
-    pub fn queued(task_id: i64, job_id: i64, jid: Uuid) -> Self {
+    pub fn queued(task_id: i64, job_id: i64, schedule_id: Uuid) -> Self {
         Self {
             agent_id: -1,
             task_id,
             job_id,
             at: Utc::now(),
             level: LevelFilter::Info,
-            activity: format!("Enqueue task ({task_id},{job_id}) by job id: {jid}"),
+            activity: format!("Enqueue task ({task_id},{job_id}) by schedule id: {schedule_id}"),
             status: Some(TaskStatus::Queued.to_string()),
             context: None,
         }

@@ -112,6 +112,97 @@ impl Default for TmqMetrics {
     }
 }
 
+use std::ops::AddAssign;
+use std::sync::atomic::Ordering;
+
+impl AddAssign for TmqMetrics {
+    fn add_assign(&mut self, rhs: Self) {
+        self.com += rhs.com;
+
+        self.topics
+            .fetch_add(rhs.topics.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.consumers
+            .fetch_add(rhs.consumers.load(Ordering::Relaxed), Ordering::Relaxed);
+
+        self.total_messages.fetch_add(
+            rhs.total_messages.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_messages_bytes.fetch_add(
+            rhs.total_messages_bytes.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_messages_of_meta.fetch_add(
+            rhs.total_messages_of_meta.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_messages_of_data.fetch_add(
+            rhs.total_messages_of_data.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_write_raw_fails.fetch_add(
+            rhs.total_write_raw_fails.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_success_blocks.fetch_add(
+            rhs.total_success_blocks.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_success_messages.fetch_add(
+            rhs.total_success_messages.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.messages
+            .fetch_add(rhs.messages.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.messages_bytes.fetch_add(
+            rhs.messages_bytes.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.messages_of_meta.fetch_add(
+            rhs.messages_of_meta.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.messages_of_data.fetch_add(
+            rhs.messages_of_data.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.success_messages.fetch_add(
+            rhs.success_messages.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.write_raw_fails.fetch_add(
+            rhs.write_raw_fails.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.success_blocks.fetch_add(
+            rhs.success_blocks.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.out_of_range_rows.fetch_add(
+            rhs.out_of_range_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_out_of_range_rows.fetch_add(
+            rhs.total_out_of_range_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_consume_cost_ms.fetch_add(
+            rhs.total_consume_cost_ms.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_write_raw_cost_ms.fetch_add(
+            rhs.total_write_raw_cost_ms.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_write_cost_ms.fetch_add(
+            rhs.total_write_cost_ms.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.commits
+            .fetch_add(rhs.commits.load(Ordering::Relaxed), Ordering::Relaxed);
+    }
+}
+
 impl TmqMetrics {
     pub fn new(stable: String, task_id: i64, job_id: i64) -> Self {
         Self {

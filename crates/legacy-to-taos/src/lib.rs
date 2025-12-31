@@ -3359,13 +3359,11 @@ pub async fn legacy_to_taos(
 
     let metrics_arc = {
         let (task_id, job_id) = task_job_id.unwrap_or((-1, -1));
-        if let Some(arc) = get_metrics(task_id, job_id).await {
+        if let Some(arc) = get_metrics(task_id, job_id) {
             arc
         } else {
             let _ = taosx_core::core_metrics::init_task_metrics(&from, &to, task_id, job_id).await;
-            get_metrics(task_id, job_id)
-                .await
-                .ok_or_else(|| anyhow::format_err!("Cannot get metrics"))?
+            get_metrics(task_id, job_id).ok_or_else(|| anyhow::format_err!("Cannot get metrics"))?
         }
     };
     let metrics = metrics_arc.as_ref().legacy();

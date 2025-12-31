@@ -132,15 +132,14 @@ pub(super) async fn get_tmq_task_vgroup_progress(
 }
 
 /// Get tmq task progress by given task ID in respect of latest data in specific table.
-#[get("/tasks/{id}/{job_id}/table_progress")]
+#[get("/tasks/{id}/table_progress")]
 pub(super) async fn get_tmq_task_table_progress(
     task_store: Data<TaskControllerRef>,
     id: Path<i64>,
-    job_id: Path<i64>,
     query: Query<HashMap<String, String>>,
 ) -> impl Responder {
     let task_id = id.into_inner();
-    let job_id = job_id.into_inner();
+    let job_id = -1;
     let table = query.get("table");
     if table.is_none() {
         return Err(Failed::from_error("table name is required"));

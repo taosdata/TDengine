@@ -16,6 +16,7 @@ use rustls::{
 };
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
+use taosx_core::global::XNODE_HTTP_PORTS;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing_actix_web::TracingLogger;
@@ -437,6 +438,9 @@ impl Cli {
         let handle = monitor.init();
         let recorder = Data::new(handle);
         let addrs = self.get_listen_address()?;
+        XNODE_HTTP_PORTS
+            .set(addrs.iter().map(|addr| addr.port()).collect())
+            .ok();
         let tls = self.load_certs()?;
 
         let server = HttpServer::new(move || {

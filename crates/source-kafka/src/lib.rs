@@ -112,7 +112,7 @@ pub async fn kafka_to_taos(
         let _ =
             taosx_core::core_metrics::init_task_metrics(&from, &to, via.task_id, via.job_id).await;
     }
-    let metrics_arc = get_metrics_arc_from_i64(task_job_id).await;
+    let metrics_arc = get_metrics_arc_from_i64(task_job_id);
     if let Some(parser) = parser.as_mut() {
         parser.set_metrics(metrics_arc.clone());
     }

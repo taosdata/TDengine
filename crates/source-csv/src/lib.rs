@@ -162,12 +162,11 @@ async fn csv_to_taos_with_channel(
             -1,
             -1,
         )))
-    })
-    .await;
+    });
     if let Some(parser) = parser.as_mut() {
         parser.set_metrics(metrics_arc.clone());
     }
-    insert_metrics(-1, -1, metrics_arc.clone()).await;
+    insert_metrics(-1, -1, metrics_arc.clone());
 
     tracing::info!("CSV to Taos, from: {from}, to: {to}");
     let builder = taos::TaosBuilder::from_dsn(to)?;

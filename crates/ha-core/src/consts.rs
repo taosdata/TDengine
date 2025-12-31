@@ -35,7 +35,13 @@ pub const GET_SAMPLES_REQ: &str = "xnode_get_samples";
 pub const GET_SAMPLES_RESP: &str = "xnode_get_samples_resp";
 
 pub const TASK_METRICS: &str = "xnode_metrics";
-pub const TASK_ACTIVITIES: &str = "xnode_activities";
+pub const XNODE_ACTIVITIES: &str = "xnode_activities";
 pub const TASK_JOB_FINISH: &str = "xnode_task_job_finish";
 
+pub const GET_X_HTTP_PORT_REQ: &str = "xnode_get_http_port";
+pub const GET_X_HTTP_PORT_RESP: &str = "xnode_get_http_port_resp";
+
 pub const DROP_CONNECTION: &str = "xnode_drop_connection";
+
+pub const TASK_ACTIVITIES_STABLE: &str = "xnode_task_activities";
+pub const TASK_METRICS_STABLE: &str = "xnode_task_metrics";

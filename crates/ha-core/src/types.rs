@@ -6,6 +6,43 @@ use taos::{Dsn, DsnError};
 
 use crate::batch::build_batch;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RpcClientType {
+    Xnoded,
+    Guest,
+    Agent,
+}
+
+impl RpcClientType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            RpcClientType::Xnoded => "xnoded",
+            RpcClientType::Guest => "guest",
+            RpcClientType::Agent => "agent",
+        }
+    }
+}
+
+impl From<&str> for RpcClientType {
+    fn from(value: &str) -> Self {
+        match value {
+            "xnoded" => RpcClientType::Xnoded,
+            "agent" => RpcClientType::Agent,
+            _ => RpcClientType::Guest,
+        }
+    }
+}
+
+impl std::fmt::Display for RpcClientType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RpcClientType::Xnoded => write!(f, "xnoded"),
+            RpcClientType::Guest => write!(f, "guest"),
+            RpcClientType::Agent => write!(f, "agent"),
+        }
+    }
+}
+
 pub struct RpcRecord<'a> {
     pub ts: DateTime<Tz>,
     pub action: &'a str,
@@ -182,6 +219,7 @@ pub struct ListTaskJobStatesParam {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatus {
+    Created,
     Queued,
     Running,
     Stopping,
@@ -206,6 +244,7 @@ impl TaskStatus {
 impl std::fmt::Display for TaskStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
+            TaskStatus::Created => "created",
             TaskStatus::Queued => "queued",
             TaskStatus::Running => "running",
             TaskStatus::Stopping => "stopping",
@@ -223,7 +262,7 @@ impl std::convert::From<&TaskStatus> for TaskStatus {
     }
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentStatus {
     Connected,
@@ -244,10 +283,10 @@ impl std::fmt::Display for AgentStatus {
     }
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HealthStatus {
-    Initial = 0,
+    Initial,
     Ready,
     Idle,
     Active,
@@ -259,7 +298,24 @@ pub enum HealthStatus {
     Fatal,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+impl std::fmt::Display for HealthStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HealthStatus::Initial => write!(f, "initial"),
+            HealthStatus::Ready => write!(f, "ready"),
+            HealthStatus::Idle => write!(f, "idle"),
+            HealthStatus::Active => write!(f, "active"),
+            HealthStatus::Pending => write!(f, "pending"),
+            HealthStatus::Busy => write!(f, "busy"),
+            HealthStatus::Bounce => write!(f, "bounce"),
+            HealthStatus::SourceError => write!(f, "source_error"),
+            HealthStatus::SinkError => write!(f, "sink_error"),
+            HealthStatus::Fatal => write!(f, "fatal"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 #[serde(untagged)]
 pub enum ActivityStatus {
     Task(TaskStatus),
@@ -267,15 +323,36 @@ pub enum ActivityStatus {
     Health(HealthStatus),
 }
 
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
-#[repr(u8)]
+impl std::fmt::Display for ActivityStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ActivityStatus::Task(status) => write!(f, "{}", status),
+            ActivityStatus::Agent(status) => write!(f, "{}", status),
+            ActivityStatus::Health(status) => write!(f, "{}", status),
+        }
+    }
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum LevelFilter {
+pub enum ActivityLevel {
     Error,
     Warn,
     Info,
     Debug,
     Trace,
+}
+
+impl std::fmt::Display for ActivityLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ActivityLevel::Error => write!(f, "error"),
+            ActivityLevel::Warn => write!(f, "warn"),
+            ActivityLevel::Info => write!(f, "info"),
+            ActivityLevel::Debug => write!(f, "debug"),
+            ActivityLevel::Trace => write!(f, "trace"),
+        }
+    }
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -284,10 +361,18 @@ pub struct Activity {
     pub task_id: i64,
     pub job_id: i64,
     pub at: chrono::DateTime<Utc>,
-    pub level: LevelFilter,
+    pub level: ActivityLevel,
     pub activity: String,
     pub status: Option<ActivityStatus>,
     pub context: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct TaskMetrics {
+    pub ts: chrono::DateTime<Utc>,
+    pub task_id: i64,
+    pub job_id: i64,
+    pub metrics: serde_json::Value,
 }
 
 pub type GetSamplesFrom = String;

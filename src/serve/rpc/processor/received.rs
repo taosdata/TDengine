@@ -1,12 +1,10 @@
-use std::sync::atomic::AtomicU64;
-
 use anyhow::Context;
 use arrow::array::RecordBatch;
 use arrow_flight::{decode::DecodedFlightData, error::FlightError};
 use ha_core::{
-    batch::BatchIter,
+    batch::{BatchIter, build_batch},
     consts::*,
-    types::{RpcRecord, XnodedId},
+    types::{RpcClientType, RpcRecord, XnodedId},
 };
 
 use crate::serve::rpc::{
@@ -29,8 +27,8 @@ pub async fn process(
     dsv_senders: &DsvSenders,
     string_senders: &StringSenders,
     notify_sender: &AgentNotifySender,
-    xnoded_tx: &flume::Sender<Result<RecordBatch, FlightError>>,
-    last_heart_ms: &AtomicU64,
+    tx: &flume::Sender<Result<RecordBatch, FlightError>>,
+    client_type: RpcClientType,
 ) -> Result<(), FlightError> {
     let arrow_flight::decode::DecodedPayload::RecordBatch(batch) = data.payload else {
         return Ok(());
@@ -49,146 +47,140 @@ pub async fn process(
     } in batch_iter
     {
         macro_rules! process {
-            ($result: expr, $action: expr, $tx: expr) => {{
+            ($result: expr, $action: expr) => {{
                 let batch = match $result {
                     Ok(res) => build_rpc_ok_batch($action, res, req_id)?,
                     Err(e) => build_rpc_failed_batch($action, e, req_id)?,
                 };
-                $tx.send_async(Ok(batch))
+                tx.send_async(Ok(batch))
                     .await
                     .map_err(|_| send_resp_error($action))?;
             }};
         }
-        match (action, agent_id, xnoded_tx) {
-            ("list", Some(agent_id), _) => {
+        match (action, agent_id, client_type) {
+            ("list", Some(agent_id), RpcClientType::Agent) => {
                 agent::response::list_response(agent_id, context, datasets_senders.clone());
             }
-            ("check", Some(agent_id), _) => {
+            ("check", Some(agent_id), RpcClientType::Agent) => {
                 agent::response::check_response(agent_id, context, dsv_senders.clone());
             }
-            ("sample", Some(agent_id), _) => {
+            ("sample", Some(agent_id), RpcClientType::Agent) => {
                 agent::response::sample_response(agent_id, context, string_senders.clone());
             }
-            ("put-file", Some(agent_id), _) => {
+            ("put-file", Some(agent_id), RpcClientType::Agent) => {
                 agent::response::put_file_response(agent_id, context, string_senders.clone());
             }
-            ("query-data-source", Some(agent_id), _) => {
+            ("query-data-source", Some(agent_id), RpcClientType::Agent) => {
                 agent::response::query_datasource_response(
                     agent_id,
                     context,
                     string_senders.clone(),
                 );
             }
-            ("agent-activity", Some(agent_id), _) => {
+            ("agent-activity", Some(agent_id), RpcClientType::Agent) => {
                 agent::response::agent_activity(agent_id, context, notify_sender.clone());
             }
-            ("task-activity", Some(agent_id), _) => {
+            ("task-activity", Some(agent_id), RpcClientType::Agent) => {
                 agent::response::task_activity(agent_id, context, notify_sender.clone());
             }
-            ("heartbeat-ok", Some(agent_id), _) => {
+            ("heartbeat-ok", Some(agent_id), RpcClientType::Agent) => {
                 agent::response::heartbeat_ok(agent_id, context);
             }
-            ("heartbeat", _, tx) => {
-                let item = agent::response::heartbeat(ts, req_id, last_heart_ms);
+            ("heartbeat", _, RpcClientType::Agent) => {
+                let item = agent::response::heartbeat(ts, req_id);
                 tx.send_async(item).await.map_err(|_| {
                     FlightError::ProtocolError(
                         "Failed to send heartbeat response, stream dropped".to_string(),
                     )
                 })?;
             }
-            ("task-metrics", _, _) => {
+            ("task-metrics", _, RpcClientType::Agent) => {
                 agent::response::task_metrics(context);
             }
-            ("metrics-events", _, _) => {
+            ("metrics-events", _, RpcClientType::Agent) => {
                 agent::response::metrics_events(context);
             }
-            (HEARTBEAT_REQ, _, tx) => {
+            (HEARTBEAT_REQ, _, RpcClientType::Xnoded) => {
                 let Some(xnoded_id) = xnoded_id else {
                     return Err(FlightError::ProtocolError(
                         "Received heartbeat before handshake".to_string(),
                     ));
                 };
-                process!(
-                    xnode::api::heartbeat(xnoded_id, context),
-                    HEARTBEAT_RESP,
-                    tx
-                );
+                process!(xnode::api::heartbeat(xnoded_id, context), HEARTBEAT_RESP);
             }
-            (PLAN_TASK_REQ, _, tx) => {
+            (HEARTBEAT_REQ, _, RpcClientType::Guest) => {
+                let batch = build_batch(HEARTBEAT_RESP, "", req_id).map_err(FlightError::Arrow);
+                tx.send_async(batch)
+                    .await
+                    .map_err(|_| send_resp_error(HEARTBEAT_RESP))?;
+            }
+            (PLAN_TASK_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
                 tracing::info!("Received plan task request");
-                process!(xnode::api::plan_task(context).await, PLAN_TASK_RESP, tx);
+                process!(xnode::api::plan_task(context).await, PLAN_TASK_RESP);
             }
-            (START_TASK_JOB_REQ, _, tx) => {
+            (START_TASK_JOB_REQ, _, RpcClientType::Xnoded) => {
                 tracing::info!("Received start task job request");
                 process!(
-                    xnode::api::start_task_job(controller, context, xnoded_tx.clone()).await,
-                    START_TASK_JOB_RESP,
-                    tx
+                    xnode::api::start_task_job(controller, context, tx.clone()).await,
+                    START_TASK_JOB_RESP
                 );
             }
-            (STOP_TASK_JOB_REQ, _, tx) => {
+            (STOP_TASK_JOB_REQ, _, RpcClientType::Xnoded) => {
                 tracing::info!("Received stop task job request");
                 process!(
                     xnode::api::stop_task_job(controller, context).await,
-                    STOP_TASK_JOB_RESP,
-                    tx
+                    STOP_TASK_JOB_RESP
                 );
             }
-            (LIST_TASK_JOB_STATES_REQ, _, tx) => {
+            (LIST_TASK_JOB_STATES_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
                 tracing::info!("Received list task job states request");
                 process!(
                     xnode::api::list_task_states(controller).await,
-                    LIST_TASK_JOB_STATES_RESP,
-                    tx
+                    LIST_TASK_JOB_STATES_RESP
                 );
             }
-            (ADD_AGENTS_REQ, _, tx) => {
+            (ADD_AGENTS_REQ, _, RpcClientType::Xnoded) => {
                 tracing::info!("Received add agents request");
                 process!(
                     xnode::api::add_agents(controller, context).await,
-                    ADD_AGENTS_RESP,
-                    tx
+                    ADD_AGENTS_RESP
                 );
             }
-            (DEL_AGENTS_REQ, _, tx) => {
+            (DEL_AGENTS_REQ, _, RpcClientType::Xnoded) => {
                 tracing::info!("Received delete agents request");
                 process!(
                     xnode::api::del_agents(controller, context).await,
-                    DEL_AGENTS_RESP,
-                    tx
+                    DEL_AGENTS_RESP
                 );
             }
-            (LIST_AGENTS_REQ, _, tx) => {
+            (LIST_AGENTS_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
                 tracing::info!("Received list agents request");
-                process!(
-                    xnode::api::list_agents(controller).await,
-                    LIST_AGENTS_RESP,
-                    tx
-                );
+                process!(xnode::api::list_agents(controller).await, LIST_AGENTS_RESP);
             }
-            (CHECK_VALID_REQ, _, tx) => {
+            (CHECK_VALID_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
                 tracing::info!("Received check valid request");
-                process!(xnode::api::check_valid(context).await, CHECK_VALID_RESP, tx);
+                process!(xnode::api::check_valid(context).await, CHECK_VALID_RESP);
             }
-            (GET_SAMPLES_REQ, _, tx) => {
+            (GET_SAMPLES_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
                 tracing::info!("Received get samples request");
-                process!(xnode::api::get_samples(context).await, GET_SAMPLES_RESP, tx);
+                process!(xnode::api::get_samples(context).await, GET_SAMPLES_RESP);
             }
-            (TASK_PREVIEW_REQ, _, tx) => {
+            (GET_X_HTTP_PORT_REQ, _, RpcClientType::Guest) => {
+                tracing::info!("Received get x http port request");
+                process!(xnode::api::get_x_http_port(), GET_X_HTTP_PORT_RESP);
+            }
+            (TASK_PREVIEW_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
                 tracing::info!("Received task preview request");
-                process!(
-                    xnode::api::task_preview(context).await,
-                    TASK_PREVIEW_RESP,
-                    tx
-                )
+                process!(xnode::api::task_preview(context).await, TASK_PREVIEW_RESP);
             }
-            (TASK_JOB_DRAIN_REQ, _, tx) => {
+            (TASK_JOB_DRAIN_REQ, _, RpcClientType::Xnoded) => {
                 tracing::info!("Received task job drain request");
-                process!(xnode::api::drain(controller).await, TASK_JOB_DRAIN_RESP, tx);
+                process!(xnode::api::drain(controller).await, TASK_JOB_DRAIN_RESP);
             }
-            (action, agent, _) => {
+            (action, agent, client_type) => {
                 tracing::warn!(
-                    "Invalid RPC request: action={action}, agent={agent:?}, xnoded_id={xnoded_id:?}"
+                    action,agent,?xnoded_id,%client_type,
+                    "Invalid RPC request "
                 );
             }
         }

@@ -25,6 +25,8 @@ metrics.workspace = true
 arrow-compute-ext = { workspace = true }
 bigdecimal.workspace = true
 
+ha-core.workspace = true
+
 [dev-dependencies]
 tokio = { workspace = true, features = [
   "rt",

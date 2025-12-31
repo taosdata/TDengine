@@ -3,7 +3,8 @@ use std::{sync::Arc, time::Duration};
 use parking_lot::RwLock;
 use snafu::ResultExt;
 use taos::{
-    AsyncFetchable, AsyncQueryable, AsyncTBuilder, ResultSet, Taos, TaosBuilder, TryStreamExt,
+    AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, ResultSet, Taos, TaosBuilder,
+    TryStreamExt,
 };
 
 use crate::utils;
@@ -14,8 +15,8 @@ pub enum Error {
     Taos { sql: String, source: taos::RawError },
     #[snafu(display("Failed to deserialize query result"))]
     TaosDeserialize { source: taos::RawError },
-    #[snafu(display("Invalid dsn {dsn}"))]
-    InvalidDsn { dsn: String, source: taos::RawError },
+    #[snafu(display("Invalid dsn"))]
+    InvalidDsn { source: taos::RawError },
     #[snafu(display("Failed to build db connection"))]
     BuildTaos { source: taos::RawError },
     #[snafu(display("Task job not exists"))]
@@ -31,8 +32,8 @@ pub struct TaosConn {
 }
 
 impl TaosConn {
-    pub async fn create(dsn: &str, max_tries: usize) -> Result<Self> {
-        let builder = taos::TaosBuilder::from_dsn(dsn).context(InvalidDsnSnafu { dsn })?;
+    pub async fn create(dsn: impl IntoDsn, max_tries: usize) -> Result<Self> {
+        let builder = taos::TaosBuilder::from_dsn(dsn).context(InvalidDsnSnafu)?;
         let conn = builder.build().await.context(BuildTaosSnafu)?;
         Ok(Self {
             builder,

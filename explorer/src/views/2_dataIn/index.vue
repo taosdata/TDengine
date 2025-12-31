@@ -42,7 +42,8 @@ import {
 import { getAgentsData, addNewAgent, deleteAgent, editAgent } from '@/api/agent';
 import { executeStart, executeStop, executeDel } from '@/api/common';
 import { getDBListReq, createDB } from '@/api/database';
-import { getLocalTimezone } from '@/utils';
+import { getLocalTimezone, getPassword, getUser } from '@/utils';
+import { base64Utils } from 'taos-ui/utils';
 const taoxAddress = localStorage.getItem('local_endpoint') ?? '';
 
 const { $IS_COMMUNITY, $IS_OEM, $INDUSTRY } = inject('globalCustomProperties') as GlobalCustomProperties;
@@ -65,6 +66,9 @@ function getUrl(path: string) {
   wsUri = `${proto}://${host}${path}`;
   return wsUri;
 }
+const user = getUser();
+const pass = getPassword();
+const token = base64Utils.encode(user + ':' + pass);
 type Props = InstanceType<typeof DataIn>['$props'];
 const props: Props = {
   isCommunity: $IS_COMMUNITY,
@@ -76,7 +80,7 @@ const props: Props = {
   uploadFileUrl: pathDetector.getXApiBasePath() + `/upload`,
   hover: false,
   task: {
-    webSocketUrl: getUrl(`/activities/tasks/${clusterId}`),
+    webSocketUrl: getUrl(`/activities/tasks/${clusterId}/${token}`),
     api: {
       getTask,
       refreshTask,
@@ -101,7 +105,7 @@ const props: Props = {
     }
   },
   agent: {
-    webSocketUrl: getUrl(`/activities/agents/${clusterId}`),
+    webSocketUrl: getUrl(`/activities/agents/${clusterId}/${token}`),
     api: {
       getAgentsData,
       addNewAgent,

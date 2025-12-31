@@ -2560,7 +2560,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                     ),
                     None => (Cache::default(), Archive::default()),
                 };
-                let metrics = get_metrics_arc_from_i64(task_job_id).await;
+                let metrics = get_metrics_arc_from_i64(task_job_id);
                 let mut fut =
                     ArchiveConsumer::new(task_id, job_id, cache, archive, |num_rows: u64| {
                         let metrics = metrics.ipc();
@@ -2638,7 +2638,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     let ipc_error_strategy = IpcErrorStrategy::from_connector(connector.unwrap_or("taos"));
     let metadata = ipc_reader.metadata();
     let stream_type = *metadata.stream_type();
-    let metrics_arc = get_metrics_arc_from_i64(task_job_id).await;
+    let metrics_arc = get_metrics_arc_from_i64(task_job_id);
     let metrics = metrics_arc.ipc();
     // handle lush message init
     if lush_model_config.is_none()
@@ -3569,7 +3569,7 @@ pub async fn channel_based_transformer(
                 None => (Cache::default(), Archive::default()),
             };
             let (task_id, job_id) = task_job_id.unwrap_or((-1, -1));
-            let metrics = get_metrics_arc_from_i64(task_job_id).await;
+            let metrics = get_metrics_arc_from_i64(task_job_id);
 
             let mut fut = ArchiveConsumer::new(task_id, job_id, cache, archive, |num_rows: u64| {
                 let metrics = metrics.ipc();
@@ -3636,8 +3636,7 @@ pub async fn channel_based_transformer(
     };
     let metrics = get_metrics_arc_or(task_job_id, || {
         Arc::new(CoreMetrics::IPC(IpcMetrics::default()))
-    })
-    .await;
+    });
     let abort_handle_process_archive = process_archive.as_ref().map(|f| f.abort_handle());
     tokio::spawn(
         async move {
@@ -3685,7 +3684,7 @@ pub async fn read_cache_and_rewrite(
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     let cache_path = parser.global().process_on_abnormal.cache.location.clone();
-    let metrics_arc = get_metrics_arc_from_i64(Some(task_job_id)).await;
+    let metrics_arc = get_metrics_arc_from_i64(Some(task_job_id));
     let metrics = metrics_arc.ipc();
     loop {
         tokio::select! {

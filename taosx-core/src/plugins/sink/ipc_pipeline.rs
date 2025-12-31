@@ -102,7 +102,7 @@ impl IpcSinkPipeline {
 
         info!("Reading batches");
 
-        let metrics = get_metrics(task_id, job_id).await;
+        let metrics = get_metrics(task_id, job_id);
 
         let (tables_cache_tx, tables_cache_rx) =
             ring_channel(crate::global::agent_in_memory_cache_capacity());

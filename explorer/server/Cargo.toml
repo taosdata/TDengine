@@ -7,6 +7,7 @@ description = "TDengine Explorer UI"
 [dependencies]
 actix-cors.workspace = true
 actix-files.workspace = true
+actix-multipart.workspace = true
 actix-web.workspace = true
 actix-ws.workspace = true
 awc.workspace = true
@@ -81,6 +82,22 @@ aes = "0.8.4"
 hkdf = "0.12.4"
 hmac = "0.12.1"
 mime_guess = "2.0.5"
+tonic.workspace = true
+flume.workspace = true
+arrow.workspace = true
+arrow-flight.workspace = true
+itertools.workspace = true
+source-csv.workspace = true
+tempfile.workspace = true
+csv.workspace = true
+csv-async.workspace = true
+
+ha-core.workspace = true
+ha-rpc-client.workspace = true
+taosx-core.workspace = true
+taosx-utils.workspace = true
+futures-ext.workspace = true
+
 
 [dependencies.taos]
 workspace = true

@@ -119,6 +119,7 @@ dateparser = "0.2.1"
 persist-queue = { path = "../crates/persist-queue" }
 archive.workspace = true
 taosx-utils.workspace = true
+ha-core.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }

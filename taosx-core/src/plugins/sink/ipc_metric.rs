@@ -1,8 +1,12 @@
 use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics, update_metrics};
 use faststr::FastStr;
 use metrics::atomics::AtomicU64;
+use scc::ebr::Guard;
 use serde::{Deserialize, Serialize};
-use std::sync::{OnceLock, atomic::Ordering::SeqCst};
+use std::sync::{
+    OnceLock,
+    atomic::Ordering::{self, SeqCst},
+};
 use taosx_ipc::types::{TaskMetricItem, TaskMetricsVariant};
 
 /// Metrics sender for agent.
@@ -91,6 +95,153 @@ pub struct IpcMetrics {
 
     #[serde(flatten)]
     pub extras: scc::HashIndex<FastStr, u64>,
+}
+
+impl std::ops::AddAssign for IpcMetrics {
+    fn add_assign(&mut self, rhs: Self) {
+        self.com += rhs.com;
+
+        self.total_received_batches.fetch_add(
+            rhs.total_received_batches.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_processed_batches.fetch_add(
+            rhs.total_processed_batches.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_failed_batches.fetch_add(
+            rhs.total_failed_batches.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_parsed_rows.fetch_add(
+            rhs.total_parsed_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_filter_skipped_rows.fetch_add(
+            rhs.total_filter_skipped_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_check_skipped_rows.fetch_add(
+            rhs.total_check_skipped_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_write_ready_rows.fetch_add(
+            rhs.total_write_ready_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_processed_rows.fetch_add(
+            rhs.total_processed_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_failed_rows.fetch_add(
+            rhs.total_failed_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_drained_rows.fetch_add(
+            rhs.total_drained_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_archived_rows.fetch_add(
+            rhs.total_archived_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_failed_points.fetch_add(
+            rhs.total_failed_points.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_inserted_sqls.fetch_add(
+            rhs.total_inserted_sqls.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_failed_sqls.fetch_add(
+            rhs.total_failed_sqls.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_created_stables.fetch_add(
+            rhs.total_created_stables.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_created_tables.fetch_add(
+            rhs.total_created_tables.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_written_raw_blocks.fetch_add(
+            rhs.total_written_raw_blocks.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_failed_raw_blocks.fetch_add(
+            rhs.total_failed_raw_blocks.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+
+        self.received_batches.fetch_add(
+            rhs.received_batches.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.processed_batches.fetch_add(
+            rhs.processed_batches.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.failed_batches.fetch_add(
+            rhs.failed_batches.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.parsed_rows
+            .fetch_add(rhs.parsed_rows.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.filter_skipped_rows.fetch_add(
+            rhs.filter_skipped_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.check_skipped_rows.fetch_add(
+            rhs.check_skipped_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.write_ready_rows.fetch_add(
+            rhs.write_ready_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.processed_rows.fetch_add(
+            rhs.processed_rows.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.failed_rows
+            .fetch_add(rhs.failed_rows.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.drained_rows
+            .fetch_add(rhs.drained_rows.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.archived_rows
+            .fetch_add(rhs.archived_rows.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.inserted_sqls
+            .fetch_add(rhs.inserted_sqls.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.failed_sqls
+            .fetch_add(rhs.failed_sqls.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.created_stables.fetch_add(
+            rhs.created_stables.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.created_tables.fetch_add(
+            rhs.created_tables.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.failed_points
+            .fetch_add(rhs.failed_points.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.written_raw_blocks.fetch_add(
+            rhs.written_raw_blocks.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.failed_raw_blocks.fetch_add(
+            rhs.failed_raw_blocks.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+
+        for (key, value) in rhs.extras.iter(&Guard::new()) {
+            if let Some(entry) = self.extras.get(key) {
+                let new_value = entry.get() + value;
+                entry.update(new_value);
+            } else {
+                self.extras.entry(key.clone()).or_insert_with(|| *value);
+            }
+        }
+    }
 }
 
 impl IpcMetrics {

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use ha_core::types::{HaTask, XnodedId};
 use snafu::ResultExt;
+use taos::Dsn;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Endpoint;
@@ -22,13 +23,12 @@ pub async fn reconnect_loop(
     endpoint: Endpoint,
     xnodes: XNodes,
     tasks: Tasks,
-    taos_dsn: String,
+    taos_dsn: Dsn,
     reconnect_rx: flume::Receiver<oneshot::Sender<bool>>,
     cancel: CancellationToken,
 ) -> Result<()> {
     let _cleanup = crate::utils::defer::defer(|| {
         xnodes.set_offline(id);
-        xnodes.remove(id);
     });
     let _guard = cancel.drop_guard_ref();
 
@@ -79,15 +79,15 @@ async fn reconnect(
         }
     };
     let (new_event_tx, new_event_rx) = flume::bounded(1000);
-    let client =
-        match ha_rpc_client::create_client(channel, xnoded_id, new_event_tx, cancel, 100).await {
-            Ok(client) => client,
-            Err(e) => {
-                tracing::error!(addr, "create rpc client error: {:#}", anyhow::Error::new(e));
-                tx.send(false).ok();
-                return;
-            }
-        };
+    let client = match ha_rpc_client::create_client(channel, xnoded_id, new_event_tx, cancel).await
+    {
+        Ok(client) => client,
+        Err(e) => {
+            tracing::error!(addr, "create rpc client error: {:#}", anyhow::Error::new(e));
+            tx.send(false).ok();
+            return;
+        }
+    };
     xnodes.set_online(xnode_id, client.clone(), new_event_rx);
     tracing::info!("xnode {xnode_id} connected");
     tx.send(true).ok();

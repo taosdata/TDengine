@@ -32,7 +32,6 @@ use std::{
 use taos::{taos_query::common::RowView, *};
 use taos_query::Manager;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 use tracing_actix_web::TracingLogger;
 
@@ -47,7 +46,7 @@ use actix_web::{
     web::{self, Query},
 };
 use anyhow::bail;
-use awc::{Client as AwcClient, cookie::Cookie};
+use awc::cookie::Cookie;
 use clap::Parser;
 use qid::{DEFAULT_INSTANCE_ID, INSTANCE_ID, Qid};
 use rust_embed::{EmbeddedFile, RustEmbed};
@@ -68,7 +67,8 @@ use tracing_subscriber::{
 
 use sql::need_limit;
 
-use crate::{oauth::SessionManager, security::SecurityConfig};
+use crate::{oauth::SessionManager, security::SecurityConfig, x_api::proxy::x_proxy};
+use x_api::{agent::*, datasource::*, tasks::*, transform::*, ws::*};
 
 mod favorites;
 mod monitor;
@@ -78,6 +78,7 @@ mod security;
 mod sql;
 mod utils;
 mod verification;
+mod x_api;
 
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
@@ -426,7 +427,49 @@ async fn main() -> anyhow::Result<()> {
             .app_data(web::Data::new(session_manager.clone()))
             // .route("/", web::get().to(index))
             .route("/api/-/rest/{path:.*}", web::to(rest_proxy))
-            .route("/api/x/{api:.*}", web::to(x_api))
+            // ===== x apis start =====
+            .route("/api/x/tasks", web::get().to(get_tasks))
+            .route("/api/x/tasks", web::post().to(create_task))
+            .route("/api/x/tasks/{id}", web::patch().to(update_task))
+            .route("/api/x/tasks/{id}", web::delete().to(delete_task))
+            .route("/api/x/tasks/{id}", web::get().to(get_task))
+            .route("/api/x/tasks/{id}/start", web::post().to(start_task))
+            .route("/api/x/tasks/{id}/stop", web::post().to(stop_task))
+            .route("/api/x/tasks/start", web::post().to(batch_start_tasks))
+            .route("/api/x/tasks/stop", web::post().to(batch_stop_tasks))
+            .route("/api/x/tasks/delete", web::delete().to(batch_delete_tasks))
+            .route("/api/x/tasks/export", web::get().to(export_task))
+            .route("/api/x/tasks/import", web::post().to(import_task))
+            .route(
+                "/api/x/tasks/{task_id}/metrics",
+                web::get().to(get_task_metrics),
+            )
+            .route("/api/x/ds/in/validate", web::post().to(validate))
+            .route("/api/x/ds/in/sample", web::post().to(get_sample))
+            // websockets
+            .route(
+                "/api/x/activities/tasks/{cluster_id}/{token}",
+                web::get().to(get_ws_tasks_activities),
+            )
+            .route(
+                "/api/x/activities/agents/{cluster_id}/{token}",
+                web::get().to(get_ws_agents_activities),
+            )
+            .route(
+                "/api/x/metrics/task/{task_id}/{token}",
+                web::get().to(get_ws_metrics),
+            )
+            // Transform APIs
+            .route("/api/x/transform/sample/flat", web::post().to(sample_flat))
+            .route(
+                "/api/x/transform/sample/flat/s_model/preview",
+                web::post().to(stable_preview),
+            )
+            // agents
+            .route("/api/x/agents", web::get().to(get_agents))
+            // others
+            .route("/api/x/{api:.*}", web::to(x_proxy))
+            // ====== x apis end =====
             .route("/grafana/{grafana_path:.*}", web::to(grafana_api))
             .route("/api/-/login", web::to(login))
             .configure(|cfg| {
@@ -1073,178 +1116,37 @@ fn real_ip_forward(req: &HttpRequest, mut builder: RequestBuilder) -> RequestBui
 
 async fn proxy(
     req: HttpRequest,
-    payload: web::Payload,
-    client: web::Data<reqwest::Client>,
+    mut payload: web::Payload,
+    client: &reqwest::Client,
     url: &str,
     append_headers: Option<HeaderMap>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    if req.headers().contains_key("upgrade") {
-        // Proper websocket proxy: backend (awc) <-> client (actix_ws)
-        use awc::ws::{Frame as AwcFrame, Message as AwcMessage};
-        use futures_util::{SinkExt, StreamExt};
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
-        let backend_url = url.to_string();
-        // 1. Connect to backend first so we can fail early if it does not upgrade.
-        let awc_client = AwcClient::new();
-        let mut ws_req = awc_client.ws(&backend_url);
-        for (k, v) in req.headers().iter() {
-            let name = k.as_str().to_ascii_lowercase();
-            if name.starts_with("sec-websocket")
-                || matches!(
-                    name.as_str(),
-                    "authorization" | "cookie" | "origin" | "sec-websocket-protocol"
-                )
-            {
-                ws_req = ws_req.set_header(k.clone(), v.clone());
+    tokio::task::spawn_local(async move {
+        while let Some(chunk) = payload.next().await {
+            if let Err(err) = tx.send(chunk) {
+                tracing::warn!("Error sending payload chunk: {err}");
             }
         }
-        if let Some(extra) = append_headers.as_ref() {
-            for (k, v) in extra.iter() {
-                ws_req = ws_req.set_header(k, v.clone());
-            }
-        }
-        let (backend_res, backend_framed) = ws_req
-            .connect()
-            .await
-            .map_err(error::ErrorInternalServerError)?;
-        if backend_res.status() != actix_web::http::StatusCode::SWITCHING_PROTOCOLS {
-            return Err(actix_web::error::ErrorBadRequest(format!(
-                "Unexpected status code from target: {}",
-                backend_res.status()
-            )));
-        }
+    });
 
-        // 2. Perform actix_ws handshake with client.
-        let (mut client_resp, session, mut client_stream) = actix_ws::handle(&req, payload)?;
-        // Propagate chosen subprotocol from backend if present.
-        if let Some(sp) = backend_res.headers().get("sec-websocket-protocol").cloned() {
-            use actix_web::http::header::HeaderName;
-            client_resp
-                .headers_mut()
-                .insert(HeaderName::from_static("sec-websocket-protocol"), sp);
-        }
-
-        // 3. Split backend framed.
-        let (mut backend_sink, mut backend_stream) = backend_framed.split();
-        let cancel = CancellationToken::new();
-
-        // Task A: client -> backend
-        actix_web::rt::spawn({
-            let cancel = cancel.clone();
-            async move {
-                while let Some(msg) = client_stream.next().await {
-                    match msg {
-                        Ok(actix_ws::Message::Text(t)) => {
-                            if backend_sink.send(AwcMessage::Text(t)).await.is_err() {
-                                break;
-                            }
-                        }
-                        Ok(actix_ws::Message::Binary(b)) => {
-                            if backend_sink.send(AwcMessage::Binary(b)).await.is_err() {
-                                break;
-                            }
-                        }
-                        Ok(actix_ws::Message::Ping(b)) => {
-                            let _ = backend_sink.send(AwcMessage::Ping(b)).await;
-                        }
-                        Ok(actix_ws::Message::Pong(_)) => { /* ignore */ }
-                        Ok(actix_ws::Message::Close(reason)) => {
-                            let _ = backend_sink.send(AwcMessage::Close(reason)).await;
-                            break;
-                        }
-                        Ok(actix_ws::Message::Continuation(_)) => { /* ignore */ }
-                        Ok(actix_ws::Message::Nop) => { /* ignore */ }
-                        Err(e) => {
-                            tracing::error!("client ws error: {e}");
-                            break;
-                        }
-                    }
-                }
-                if let Err(e) = backend_sink.send(AwcMessage::Close(None)).await {
-                    tracing::error!("send close frame to backend failed: {e}");
-                }
-                if let Err(e) = backend_sink.close().await {
-                    tracing::error!("close backend sink failed: {e}");
-                }
-                cancel.cancel();
-            }
-        });
-
-        // Task B: backend -> client
-        actix_web::rt::spawn({
-            let cancel = cancel.clone();
-            let mut session = session.clone();
-            async move {
-                while let Some(frame) = backend_stream.next().await {
-                    match frame {
-                        Ok(AwcFrame::Text(t)) => {
-                            if session
-                                .text(std::str::from_utf8(&t).unwrap_or_default())
-                                .await
-                                .is_err()
-                            {
-                                break;
-                            }
-                        }
-                        Ok(AwcFrame::Binary(b)) => {
-                            if session.binary(b).await.is_err() {
-                                break;
-                            }
-                        }
-                        Ok(AwcFrame::Ping(b)) => {
-                            let _ = session.pong(&b).await;
-                        }
-                        Ok(AwcFrame::Pong(_)) => { /* ignore */ }
-                        Ok(AwcFrame::Close(reason)) => {
-                            let _ = session.close(reason).await;
-                            break;
-                        }
-                        Ok(_) => { /* ignore */ }
-                        Err(e) => {
-                            tracing::error!("backend ws error: {e}");
-                            break;
-                        }
-                    }
-                }
-                cancel.cancel();
-            }
-        });
-
-        // Optional cleanup watcher
-        actix_web::rt::spawn(async move {
-            cancel.cancelled().await;
-            tracing::debug!("ws proxy closed {backend_url}");
-        });
-
-        Ok(client_resp)
-    } else {
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        tokio::task::spawn_local(async move {
-            let mut payload = payload;
-            while let Some(chunk) = payload.next().await {
-                if let Err(err) = tx.send(chunk) {
-                    tracing::warn!("Error sending payload chunk: {err}");
-                }
-            }
-        });
-
-        debug!(url, "proxy to taosx");
-        let mut builder = client
-            .request(req.method().clone(), url)
-            .timeout(Duration::from_secs(u64::MAX))
-            .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
-        if let Some(headers) = append_headers {
-            builder = builder.headers(headers);
-        }
-        builder = real_ip_forward(&req, builder);
-        builder
-            .send()
-            .await
-            .map_err(error::ErrorInternalServerError)
-            .map(reqwest_into_http_response)
-            .inspect(|_| debug!("Got taosx proxy result"))
+    debug!(url, "proxy to taosx");
+    let mut builder = client
+        .request(req.method().clone(), url)
+        .timeout(Duration::from_secs(u64::MAX))
+        .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
+    if let Some(headers) = append_headers {
+        builder = builder.headers(headers);
     }
+    builder = real_ip_forward(&req, builder);
+
+    builder
+        .send()
+        .await
+        .map_err(error::ErrorInternalServerError)
+        .map(reqwest_into_http_response)
+        .inspect(|_| debug!("Got taosx proxy result"))
 }
 
 #[instrument(skip_all)]
@@ -1453,40 +1355,6 @@ fn reqwest_into_http_response(res: reqwest::Response) -> HttpResponse {
     client_resp.streaming(res.bytes_stream())
 }
 
-#[cfg(feature = "disable-x-api")]
-#[instrument(skip_all)]
-async fn x_api(_req: HttpRequest) -> impl Responder {
-    Ok::<_, std::convert::Infallible>(HttpResponse::NotFound().body("taosX API is required"))
-}
-
-#[cfg(not(feature = "disable-x-api"))]
-#[instrument(skip_all)]
-async fn x_api(
-    args: web::Data<Args>,
-    client: web::Data<reqwest::Client>,
-    api: web::Path<String>,
-    req: HttpRequest,
-    payload: web::Payload,
-) -> impl Responder {
-    if args.profile.x_api.is_none() {
-        return Ok(HttpResponse::NotFound().body("taosX API is required"));
-    }
-    let x = args.profile.x_api.as_deref().unwrap();
-    let url = format!("{x}/{api}?{}", req.query_string());
-
-    let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
-    qid.add_sequence_id();
-    proxy(
-        req,
-        payload,
-        client,
-        &url,
-        Some(qid::headers_with_qid(&qid)),
-    )
-    .await
-    .map_err(RestErrResponse::new)
-}
-
 static GRAFANA_API: OnceLock<String> = OnceLock::new();
 
 #[instrument(skip_all)]
@@ -1526,7 +1394,7 @@ async fn grafana_api(
     let token = format!("Bearer {}", grafana.unwrap().token.as_ref().unwrap());
     headers.insert("Authorization", HeaderValue::from_str(&token).unwrap());
 
-    proxy(req, payload, client, &url, Some(headers))
+    proxy(req, payload, &client, &url, Some(headers))
         .await
         .map_err(RestErrResponse::new)
 }

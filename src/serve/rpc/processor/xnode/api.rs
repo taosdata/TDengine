@@ -5,7 +5,10 @@ use arrow_flight::error::FlightError;
 use ha_core::types::*;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 use taos::Dsn;
-use taosx_core::plugins::transform::{modeler::ModeledJsonOutput, sample::DsSamples};
+use taosx_core::{
+    global::XNODE_HTTP_PORTS,
+    plugins::transform::{modeler::ModeledJsonOutput, sample::DsSamples},
+};
 
 use crate::serve::{
     controller::{TaskControllerRef, agent::AgentToken},
@@ -110,6 +113,10 @@ pub async fn get_samples(context: &str) -> ApiResult<serde_json::Value> {
             .context("samples not valid json value")
             .map_err(internal_err),
     }
+}
+
+pub fn get_x_http_port() -> ApiResult<Option<Vec<u16>>> {
+    Ok(XNODE_HTTP_PORTS.get().cloned())
 }
 
 pub async fn task_preview(context: &str) -> ApiResult<Vec<ModeledJsonOutput>> {

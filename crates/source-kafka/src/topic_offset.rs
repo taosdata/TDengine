@@ -25,9 +25,8 @@ pub async fn get_topics_offset(
     // kafka task config
     let config = KafkaTaskConfig::from_dsn(from)?;
 
-    let metrics_arc = find_metrics_arc(task_job_id)
-        .await
-        .unwrap_or(Arc::new(CoreMetrics::IPC(IpcMetrics::default())));
+    let metrics_arc =
+        find_metrics_arc(task_job_id).unwrap_or(Arc::new(CoreMetrics::IPC(IpcMetrics::default())));
 
     let topics = config
         .topics

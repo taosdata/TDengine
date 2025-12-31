@@ -22,11 +22,13 @@ use async_backtrace::framed;
 use chrono::Utc;
 use futures::{Stream, TryStreamExt, stream::FuturesUnordered};
 use ha_core::{
-    batch::build_ok_batch, consts::DROP_CONNECTION, jwt::XnodedToken, types::XnodedId,
+    batch::build_ok_batch,
+    consts::DROP_CONNECTION,
+    jwt::XnodedToken,
+    types::{RpcClientType, XnodedId},
     utils::next_req_id,
 };
 use linked_hash_map::LinkedHashMap;
-use metrics::atomics::AtomicU64;
 use parking_lot::RwLock;
 use semver::VersionReq;
 use serde::Deserialize;
@@ -224,15 +226,17 @@ impl FlightService for FlightServiceImpl {
         req: Request<Streaming<HandshakeRequest>>,
     ) -> Result<Response<Self::HandshakeStream>, Status> {
         let addr = req.remote_addr();
-        tracing::info!("handshake with client {:?}", addr);
 
         let (meta, _extensions, mut req) = req.into_parts();
 
-        let client_type = meta
+        let client_type: RpcClientType = meta
             .get("x-client-type")
             .map(|s| s.to_str())
             .transpose()
-            .map_err(|e| Status::aborted(format!("Invalid client type: {e}")))?;
+            .map_err(|e| Status::aborted(format!("Invalid client type: {e}")))?
+            .map(|s| s.into())
+            .unwrap_or(RpcClientType::Agent);
+        tracing::info!(?addr, %client_type, "receive handshake");
 
         let Some(req) = req.message().await? else {
             return Err(Status::aborted("handshake message not found"));
@@ -243,7 +247,13 @@ impl FlightService for FlightServiceImpl {
             payload: req.payload.clone(),
         };
 
-        if let Some("xnoded") = client_type {
+        if matches!(client_type, RpcClientType::Guest) {
+            return Ok(Response::new(Box::pin(futures::stream::once(async {
+                Ok(res)
+            }))));
+        }
+
+        if matches!(client_type, RpcClientType::Xnoded) {
             let token = String::from_utf8(req.payload.to_vec())
                 .map_err(|_| Status::aborted("Token not Invalid utf8 string"))?
                 .to_string();
@@ -404,7 +414,6 @@ impl FlightService for FlightServiceImpl {
         let cancel = self.cancel_token.child_token();
         let remote = req.remote_addr();
         let (mut meta, extension, req) = req.into_parts();
-        tracing::info!("Receive do_exchange stream from {:?}", remote);
 
         let token = meta
             .get("x-token")
@@ -413,17 +422,23 @@ impl FlightService for FlightServiceImpl {
             .map_err(|err| Status::aborted(format!("Invalid token: {err}")))?
             .ok_or(Status::aborted("token is required"))?;
 
-        let client_type = meta
+        let client_type: RpcClientType = meta
             .get("x-client-type")
             .map(|s| s.to_str())
             .transpose()
-            .map_err(|e| Status::aborted(format!("Invalid client type: {e}")))?;
+            .map_err(|e| Status::aborted(format!("Invalid client type: {e}")))?
+            .map(|v| v.into())
+            .unwrap_or(RpcClientType::Agent);
+
+        tracing::info!(?remote, "Receive do_exchange stream from {:?}", remote);
 
         let (tx, rx) = flume::bounded(1000);
 
         let mut tasks = JoinSet::new();
 
-        let is_xnoded = matches!(client_type, Some("xnoded"));
+        let is_xnoded = matches!(client_type, RpcClientType::Xnoded);
+        let is_agent = matches!(client_type, RpcClientType::Agent);
+
         let xnoded_id = self.xnoded_id();
 
         if is_xnoded {
@@ -456,7 +471,7 @@ impl FlightService for FlightServiceImpl {
         }
 
         let controller = self.controller.clone();
-        let agent_id = if !is_xnoded {
+        let agent_id = if is_agent {
             Some(
                 controller
                     .agent_connect_with_token(
@@ -495,12 +510,18 @@ impl FlightService for FlightServiceImpl {
             }
         }
 
-        if is_xnoded {
+        let task_message_tx = match client_type {
+            RpcClientType::Xnoded => Some(self.xnoded_tx.clone()),
+            RpcClientType::Guest => Some(tx.clone()),
+            RpcClientType::Agent => None,
+        };
+
+        if let Some(tx) = task_message_tx {
             processor::xnode::tasks::spawn_task(
                 &mut tasks,
                 cancel.clone(),
                 self.controller.clone(),
-                self.xnoded_tx.clone(),
+                tx,
             );
         }
 
@@ -517,8 +538,11 @@ impl FlightService for FlightServiceImpl {
             let agent_connections = self.agent_connections.clone();
             let cancel = cancel.clone();
             async move {
+                let tx = match client_type {
+                    RpcClientType::Xnoded => xnoded_tx,
+                    _ => flight_tx
+                };
                 let mut decoder = FlightDataDecoder::new(req.map_err(FlightError::from));
-                let last_heart_ms = AtomicU64::new(0);
                 let parallel = 20;
                 let mut futs = FuturesUnordered::new();
                 let result: Result<(), FlightError> = loop {
@@ -552,8 +576,8 @@ impl FlightService for FlightServiceImpl {
                                 &dsv_senders,
                                 &string_senders,
                                 &notify_sender,
-                                &xnoded_tx,
-                                &last_heart_ms
+                                &tx,
+                                client_type
                             );
                             futs.push(fut);
                         }
@@ -585,7 +609,7 @@ impl FlightService for FlightServiceImpl {
                             tracing::error!(agent = agent_id, "Agent disconnected: {err:#}");
                         }
                         let batch = build_activity_batch(activity).context("build agent activity batch error")?;
-                        flight_tx.send_async(Ok(batch)).await.ok();
+                        tx.send_async(Ok(batch)).await.ok();
                         tracing::info!(agent = agent_id, "Agent RPC stopped");
                     } else {
                         tracing::warn!(

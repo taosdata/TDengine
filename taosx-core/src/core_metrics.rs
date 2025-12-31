@@ -5,22 +5,26 @@
 //! Concepts:
 //! 1. Run Metrics：metrics that will be reset before each run.
 //! 2. Total Metrics：metrics that will be accumulated during the whole life cycle of a task.
+//!
+//! use std::collections::HashMap;
+
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::sync::atomic::AtomicI64;
+use std::sync::atomic::Ordering::{self, SeqCst};
+use std::sync::{Arc, LazyLock};
+use std::time::{Duration, Instant};
 
 use crate::legacy::legacy_metric::LegacyToTaosMetrics;
 use crate::plugins::sink::ipc_metric::IpcMetrics;
 use crate::tmq::tmq_metric::TmqMetrics;
 use crate::utils::metrics_db::MetricsStore;
 
+use anyhow::Context;
 use futures::FutureExt as _;
+use ha_core::types::TaskStatus;
 use metrics::atomics::AtomicU64;
 use parking_lot::RwLock;
-use scc::HashMap;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashSet};
-use std::sync::atomic::AtomicI64;
-use std::sync::atomic::Ordering::{self, SeqCst};
-use std::sync::{Arc, LazyLock};
-use std::time::{Duration, Instant};
 use taos::Dsn;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
@@ -83,6 +87,23 @@ impl std::ops::Deref for CoreMetrics {
     }
 }
 
+impl std::ops::AddAssign for CoreMetrics {
+    fn add_assign(&mut self, rhs: Self) {
+        match (self, rhs) {
+            (CoreMetrics::Legacy(lhs), CoreMetrics::Legacy(rhs)) => {
+                lhs.add_assign(rhs);
+            }
+            (CoreMetrics::TMQ(lhs), CoreMetrics::TMQ(rhs)) => {
+                lhs.add_assign(rhs);
+            }
+            (CoreMetrics::IPC(lhs), CoreMetrics::IPC(rhs)) => {
+                lhs.add_assign(rhs);
+            }
+            _ => {}
+        }
+    }
+}
+
 /// CommonMetrics is a data structure to store metrics that are common to all task types.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommonMetrics {
@@ -121,6 +142,23 @@ impl Default for CommonMetrics {
             received_messages: AtomicU64::new(0),
             processed_messages: AtomicU64::new(0),
         }
+    }
+}
+
+impl std::ops::AddAssign for CommonMetrics {
+    fn add_assign(&mut self, rhs: Self) {
+        self.total_written_rows
+            .fetch_add(rhs.total_written_rows.load(SeqCst), SeqCst);
+        self.total_written_points
+            .fetch_add(rhs.total_written_points.load(SeqCst), SeqCst);
+        self.written_rows
+            .fetch_add(rhs.written_rows.load(SeqCst), SeqCst);
+        self.written_points
+            .fetch_add(rhs.written_points.load(SeqCst), SeqCst);
+        self.received_messages
+            .fetch_add(rhs.received_messages.load(SeqCst), SeqCst);
+        self.processed_messages
+            .fetch_add(rhs.processed_messages.load(SeqCst), SeqCst);
     }
 }
 
@@ -266,32 +304,28 @@ pub enum MetricsEvent {
 #[derive(Debug)]
 pub struct MetricsState {
     watch_tx: watch::Sender<Option<MetricsEvent>>,
-    task_watchers: HashMap<(i64, i64), watch::Sender<MetricsEvent>>,
+    task_watchers: RwLock<HashMap<(i64, i64), watch::Sender<MetricsEvent>>>,
 }
 
 impl MetricsState {
     pub fn new() -> Self {
         Self {
             watch_tx: watch::Sender::new(None),
-            task_watchers: HashMap::new(),
+            task_watchers: RwLock::new(HashMap::new()),
         }
     }
 
-    pub async fn insert(&self, task_id: i64, job_id: i64, metrics: Arc<CoreMetrics>) {
+    pub fn insert(&self, task_id: i64, job_id: i64, metrics: Arc<CoreMetrics>) {
         let sender = watch::Sender::new(MetricsEvent::Update(task_id, job_id, metrics.clone()));
         let event = MetricsEvent::Insert(task_id, job_id, metrics);
         self.watch_tx.send(Some(event)).ok();
-        self.task_watchers
-            .insert_async((task_id, job_id), sender)
-            .await
-            .ok();
+        self.task_watchers.write().insert((task_id, job_id), sender);
     }
 
     pub fn update(&self, task_id: i64, job_id: i64) {
-        let metrics = GLOBAL_METRICS
-            .get(&(task_id, job_id))
-            .map(|v| v.get().clone());
-        if let (Some(metrics), Some(sender)) = (metrics, self.task_watchers.get(&(task_id, job_id)))
+        let metrics = GLOBAL_METRICS.read().get(&(task_id, job_id)).cloned();
+        if let (Some(metrics), Some(sender)) =
+            (metrics, self.task_watchers.read().get(&(task_id, job_id)))
         {
             sender
                 .send(MetricsEvent::Update(task_id, job_id, metrics))
@@ -299,11 +333,11 @@ impl MetricsState {
         }
     }
 
-    pub async fn remove(&self, task_id: i64, job_id: i64) {
+    pub fn remove(&self, task_id: i64, job_id: i64) {
         self.watch_tx
             .send(Some(MetricsEvent::Delete(task_id, job_id)))
             .ok();
-        self.task_watchers.remove(&(task_id, job_id));
+        self.task_watchers.write().remove(&(task_id, job_id));
     }
 }
 
@@ -321,16 +355,17 @@ pub fn subscribe_task_metrics_watcher(
 ) -> Option<watch::Receiver<MetricsEvent>> {
     GLOBAL_METRICS_NOTIFIER
         .task_watchers
+        .read()
         .get(&(task_id, job_id))
-        .map(|sender| sender.get().subscribe())
+        .map(|sender| sender.subscribe())
 }
 
 pub fn subscribe_all_task_metrics_watcher() -> Vec<watch::Receiver<MetricsEvent>> {
-    let watchers = &GLOBAL_METRICS_NOTIFIER.task_watchers;
+    let watchers = &GLOBAL_METRICS_NOTIFIER.task_watchers.read();
     let mut res = Vec::with_capacity(watchers.len());
-    watchers.scan(|(_, _), sender| {
+    for (_, sender) in watchers.iter() {
         res.push(sender.subscribe());
-    });
+    }
     res
 }
 
@@ -338,34 +373,26 @@ pub fn subscribe_metrics_watcher() -> watch::Receiver<Option<MetricsEvent>> {
     GLOBAL_METRICS_NOTIFIER.watch_tx.subscribe()
 }
 
-pub static GLOBAL_METRICS: LazyLock<HashMap<(i64, i64), Arc<CoreMetrics>>> =
-    LazyLock::new(HashMap::new);
+type GlobalMetrics = RwLock<HashMap<(i64, i64), Arc<CoreMetrics>>>;
+pub static GLOBAL_METRICS: LazyLock<GlobalMetrics> = LazyLock::new(|| RwLock::new(HashMap::new()));
 
-pub async fn insert_metrics(task_id: i64, job_id: i64, metrics: Arc<CoreMetrics>) {
+pub fn insert_metrics(task_id: i64, job_id: i64, metrics: Arc<CoreMetrics>) {
     GLOBAL_METRICS
-        .insert_async((task_id, job_id), metrics.clone())
-        .await
-        .ok();
-    GLOBAL_METRICS_NOTIFIER
-        .insert(task_id, job_id, metrics)
-        .await;
+        .write()
+        .insert((task_id, job_id), metrics.clone());
+    GLOBAL_METRICS_NOTIFIER.insert(task_id, job_id, metrics);
 }
 
 /// Try to get metrics from global metrics map.
-pub async fn get_metrics(task_id: i64, job_id: i64) -> Option<Arc<CoreMetrics>> {
-    GLOBAL_METRICS
-        .get_async(&(task_id, job_id))
-        .await
-        .map(|v| v.get().clone())
+pub fn get_metrics(task_id: i64, job_id: i64) -> Option<Arc<CoreMetrics>> {
+    GLOBAL_METRICS.read().get(&(task_id, job_id)).cloned()
 }
 
 pub async fn clear_metrics(task_id: i64, job_id: i64) {
-    if GLOBAL_METRICS
-        .remove_async(&(task_id, job_id))
-        .await
-        .is_some()
     {
-        GLOBAL_METRICS_NOTIFIER.remove(task_id, job_id).await;
+        if GLOBAL_METRICS.write().remove(&(task_id, job_id)).is_some() {
+            GLOBAL_METRICS_NOTIFIER.remove(task_id, job_id);
+        }
     }
     let store = MetricsStore::new(task_id, job_id).await;
     match store.clear().await {
@@ -385,43 +412,39 @@ pub fn update_metrics(task_id: i64, job_id: i64) {
 /// Get metrics of a task after it's metrics has been initialized,
 /// so that it's metrics must exist in the global map.
 #[inline]
-pub async fn get_metrics_arc(task_job_id: Option<(i64, i64)>) -> Arc<CoreMetrics> {
+pub fn get_metrics_arc(task_job_id: Option<(i64, i64)>) -> Arc<CoreMetrics> {
     let (task_id, job_id) = match task_job_id {
         Some((task_id, job_id)) => (task_id, job_id),
         _ => (-1, -1),
     };
-    get_metrics(task_id, job_id)
-        .await
-        .expect("metrics not found")
+    get_metrics(task_id, job_id).expect("metrics not found")
 }
 
-pub async fn get_metrics_arc_or<F: Fn() -> Arc<CoreMetrics>>(
+pub fn get_metrics_arc_or<F: Fn() -> Arc<CoreMetrics>>(
     task_job_id: Option<(i64, i64)>,
     f: F,
 ) -> Arc<CoreMetrics> {
     if let Some(id) = task_job_id {
         let (task_id, job_id) = id;
-        if let Some(metrics) = get_metrics(task_id, job_id).await {
+        if let Some(metrics) = get_metrics(task_id, job_id) {
             return metrics;
         }
         let metrics = f();
-        insert_metrics(task_id, job_id, metrics.clone()).await;
+        insert_metrics(task_id, job_id, metrics.clone());
         metrics
     } else {
         f()
     }
 }
 
-pub async fn get_metrics_arc_from_i64(task_job_id: Option<(i64, i64)>) -> Arc<CoreMetrics> {
+pub fn get_metrics_arc_from_i64(task_job_id: Option<(i64, i64)>) -> Arc<CoreMetrics> {
     let (task_id, job_id) = task_job_id.unwrap_or((-1, -1));
-    get_metrics(task_id, job_id)
-        .await
-        .expect("metrics not found")
+    get_metrics(task_id, job_id).expect("metrics not found")
 }
 
-pub async fn find_metrics_arc(task_job_id: Option<(i64, i64)>) -> Option<Arc<CoreMetrics>> {
+pub fn find_metrics_arc(task_job_id: Option<(i64, i64)>) -> Option<Arc<CoreMetrics>> {
     let (task_id, job_id) = task_job_id?;
-    get_metrics(task_id, job_id).await
+    get_metrics(task_id, job_id)
 }
 
 /// Try to load metrics from persistence.
@@ -439,9 +462,7 @@ pub async fn load_metrics<T: TaskMetrics>(task_id: i64, job_id: i64) -> Option<T
     }
 }
 
-pub fn split_to_total_and_current(
-    map: &serde_json::Map<String, serde_json::Value>,
-) -> serde_json::Value {
+pub fn split_to_total_and_current(map: &HashMap<String, serde_json::Value>) -> serde_json::Value {
     let mut total_map = BTreeMap::new();
     let mut current_map = BTreeMap::new();
     for (k, v) in map {
@@ -460,7 +481,7 @@ pub fn split_to_total_and_current(
 #[inline]
 pub fn compute_total_avg_speed(
     common_metrics: &CommonMetrics,
-    map: &mut serde_json::Map<String, serde_json::Value>,
+    map: &mut HashMap<String, serde_json::Value>,
 ) {
     let total_execute_time = common_metrics.total_execute_time.load(SeqCst);
     let total_written_rows = common_metrics.total_written_rows.load(SeqCst);
@@ -480,7 +501,7 @@ pub fn compute_total_avg_speed(
 #[inline]
 pub fn compute_avg_speed(
     common_metrics: &CommonMetrics,
-    map: &mut serde_json::Map<String, serde_json::Value>,
+    map: &mut HashMap<String, serde_json::Value>,
     running: bool,
 ) {
     let written_rows = common_metrics.written_rows.load(SeqCst);
@@ -510,7 +531,7 @@ pub async fn try_get_metrics<T: TaskMetrics>(
     job_id: i64,
     from: &Dsn,
 ) -> Option<Arc<CoreMetrics>> {
-    if let Some(metrics) = get_metrics(task_id, job_id).await {
+    if let Some(metrics) = get_metrics(task_id, job_id) {
         // 根据 dsn 过滤 TmqMetrics::progress 中的 topic
         if let CoreMetrics::TMQ(tmq_metrics) = metrics.as_ref() {
             filter_metrics_by_dsn(from, tmq_metrics);
@@ -524,7 +545,7 @@ pub async fn try_get_metrics<T: TaskMetrics>(
             if let CoreMetrics::TMQ(tmq_metrics) = metrics.as_ref() {
                 filter_metrics_by_dsn(from, tmq_metrics);
             }
-            insert_metrics(task_id, job_id, metrics.clone()).await;
+            insert_metrics(task_id, job_id, metrics.clone());
             Some(metrics)
         } else {
             tracing::debug!("no metrics found for task {}", task_id);
@@ -560,7 +581,7 @@ pub async fn init_task_metrics(
                 let metrics = Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(
                     stable, task_id, job_id,
                 )));
-                insert_metrics(task_id, job_id, metrics.clone()).await;
+                insert_metrics(task_id, job_id, metrics.clone());
                 Some(metrics)
             }
         }
@@ -574,7 +595,7 @@ pub async fn init_task_metrics(
                 tracing::info!("create new metrics for task ({task_id},{job_id})");
                 let stable = String::from("taosx_task_tdengine3");
                 let metrics = Arc::new(CoreMetrics::TMQ(TmqMetrics::new(stable, task_id, job_id)));
-                insert_metrics(task_id, job_id, metrics.clone()).await;
+                insert_metrics(task_id, job_id, metrics.clone());
                 Some(metrics)
             }
         }
@@ -594,7 +615,7 @@ pub async fn init_task_metrics(
                 tracing::info!("create new metrics for task {}", task_id);
                 let stable = String::from("taosx_task_") + driver;
                 let metrics = Arc::new(CoreMetrics::IPC(IpcMetrics::new(stable, task_id, job_id)));
-                insert_metrics(task_id, job_id, metrics.clone()).await;
+                insert_metrics(task_id, job_id, metrics.clone());
                 Some(metrics)
             }
         }
@@ -692,6 +713,42 @@ async fn save_metrics(metrics: Arc<CoreMetrics>) -> anyhow::Result<()> {
     }
 }
 
+pub fn get_task_metrics_string(
+    status: TaskStatus,
+    metrics: Arc<CoreMetrics>,
+) -> anyhow::Result<String> {
+    let running = status.is_running();
+    let mut is_tmq = false;
+    let (common_metrics, json) = match metrics.as_ref() {
+        CoreMetrics::Legacy(legacy_metrics) => (legacy_metrics.com(), legacy_metrics.to_json()),
+        CoreMetrics::TMQ(tmq_metrics) => {
+            is_tmq = true;
+            (tmq_metrics.com(), tmq_metrics.to_json())
+        }
+        CoreMetrics::IPC(ipc_metrics) => (ipc_metrics.com(), ipc_metrics.to_json()),
+    };
+    let mut map = serde_json::from_str::<HashMap<String, serde_json::Value>>(&json)
+        .context("deserialize metrics to map")?;
+    map.remove("task_id");
+    map.remove("stable");
+    //map.remove("task_name");
+    if is_tmq {
+        map.remove("written_rows");
+        map.remove("total_written_rows");
+        map.remove("written_points");
+        map.remove("total_written_points");
+        map.remove("success_blocks");
+        map.remove("total_success_blocks");
+        map.remove("write_raw_fails");
+        map.remove("total_write_raw_fails");
+    } else {
+        compute_total_avg_speed(common_metrics, &mut map);
+        compute_avg_speed(common_metrics, &mut map, running);
+    }
+    let result = split_to_total_and_current(&map);
+    serde_json::to_string(&result).context("serialize metrics to string")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -705,11 +762,11 @@ mod tests {
         legacy_to_taos_metrics
             .read_concurrency
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
-        insert_metrics(1, 1, Arc::new(CoreMetrics::Legacy(legacy_to_taos_metrics))).await;
+        insert_metrics(1, 1, Arc::new(CoreMetrics::Legacy(legacy_to_taos_metrics)));
 
         let t1 = tokio::spawn(async move {
             println!("thread 1");
-            let metrics = get_metrics(1, 1).await.unwrap();
+            let metrics = get_metrics(1, 1).unwrap();
             let legacy_to_taos_metrics = metrics.legacy();
             // let legacy_to_taos_metrics = metrics.as_ref().legacy();
             println!("thread 1 get metrics");
@@ -721,7 +778,7 @@ mod tests {
 
         let t2 = tokio::spawn(async move {
             println!("thread 2");
-            let metrics = get_metrics(1, 1).await.unwrap();
+            let metrics = get_metrics(1, 1).unwrap();
             println!("thread 2 get metrics");
             let legacy_to_taos_metrics = metrics.legacy();
             println!(
@@ -738,7 +795,7 @@ mod tests {
 
         t2.await.unwrap();
         t1.await.unwrap();
-        let metrics = get_metrics(1, 1).await.unwrap();
+        let metrics = get_metrics(1, 1).unwrap();
         let legacy_to_taos_metrics = metrics.legacy();
         println!(
             "workers: {}",
@@ -765,11 +822,11 @@ mod tests {
             .read_concurrency
             .fetch_add(10, std::sync::atomic::Ordering::SeqCst);
         let metrics = Arc::new(CoreMetrics::Legacy(legacy_to_taos_metrics));
-        insert_metrics(1024, -1, metrics.clone()).await;
+        insert_metrics(1024, -1, metrics.clone());
         metrics.as_ref().legacy().save().await.unwrap();
         assert!(db.path.exists());
         clear_metrics(1024, -1).await;
-        let metrics = get_metrics(1024, -1).await;
+        let metrics = get_metrics(1024, -1);
         assert!(metrics.is_none());
         assert!(!db.path.exists());
     }

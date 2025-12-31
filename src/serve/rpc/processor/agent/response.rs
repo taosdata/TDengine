@@ -1,5 +1,3 @@
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use anyhow::Context;
 use arrow::array::timezone::Tz;
 use arrow_flight::error::FlightError;
@@ -224,14 +222,9 @@ pub fn heartbeat_ok(agent_id: i64, context: &str) {
     }
 }
 
-pub fn heartbeat(
-    ts: DateTime<Tz>,
-    req_id: u64,
-    last_heart_ms: &AtomicU64,
-) -> Result<arrow::array::RecordBatch, FlightError> {
+pub fn heartbeat(ts: DateTime<Tz>, req_id: u64) -> Result<arrow::array::RecordBatch, FlightError> {
     tracing::trace!("Received heartbeat");
     let req = ts.naive_utc().and_utc();
-    last_heart_ms.store(req.timestamp_millis() as u64, Ordering::Relaxed);
     let resp = HeartbeatResponse {
         req,
         res: Utc::now(),
@@ -267,7 +260,7 @@ async fn replay_task_metrics_from_agent(events: Vec<TaskMetricItem>) {
         value,
     } in events
     {
-        if let Some(metrics) = get_metrics(task_id, job_id).await {
+        if let Some(metrics) = get_metrics(task_id, job_id) {
             use taosx_ipc::types::TaskMetricsVariant;
             match var {
                 TaskMetricsVariant::Set => {

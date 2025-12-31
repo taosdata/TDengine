@@ -1,10 +1,10 @@
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context;
 use clap::Parser;
 use futures::StreamExt;
-use ha_core::{batch::BatchIter, consts::*, types::XnodedId};
-use tokio::{task::JoinSet, time::Instant};
+use ha_core::{batch::BatchIter, consts::*};
+use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 
@@ -14,10 +14,6 @@ struct Args {
     addr: String,
     #[arg(short = 'f', long)]
     payload_file: PathBuf,
-    #[arg(short, long)]
-    cluster_id: String,
-    #[arg(short, long)]
-    leader_ep: String,
 }
 
 #[tokio::main]
@@ -30,9 +26,6 @@ async fn main() -> anyhow::Result<()> {
     let payloads = serde_json::from_str::<Vec<HashMap<String, serde_json::Value>>>(&payloads)
         .context("payload invalid json")?;
 
-    let cluster_id = args.cluster_id;
-    let leader_ep = args.leader_ep;
-
     let uri = args.addr.parse().context("invalid address")?;
     let channel = Channel::builder(uri)
         .connect()
@@ -40,24 +33,11 @@ async fn main() -> anyhow::Result<()> {
         .context("connect grpc server error")?;
 
     let cancel = CancellationToken::new();
-    let parallel = std::thread::available_parallelism()
-        .context("get available parallelism error")?
-        .get();
 
     let (event_tx, event_rx) = flume::bounded(1000);
-    let xnoded_id = XnodedId {
-        cluster_id,
-        leader_ep,
-    };
-    let client = ha_rpc_client::create_client(
-        channel,
-        &xnoded_id,
-        event_tx,
-        cancel.child_token(),
-        parallel,
-    )
-    .await
-    .context("build ha rpc client error")?;
+    let client = ha_rpc_client::create_guest(channel, event_tx, cancel.child_token())
+        .await
+        .context("build ha rpc client error")?;
 
     let mut tasks = JoinSet::new();
 
@@ -111,20 +91,8 @@ async fn main() -> anyhow::Result<()> {
                         PLAN_TASK_REQ => {
                             send_recv!(PLAN_TASK_REQ, plan_task);
                         }
-                        START_TASK_JOB_REQ => {
-                            send_recv!(START_TASK_JOB_REQ, start_task_job);
-                        }
-                        STOP_TASK_JOB_REQ => {
-                            send_recv!(STOP_TASK_JOB_REQ, stop_task_job);
-                        }
                         LIST_TASK_JOB_STATES_REQ => {
                             send_recv!(no_param, LIST_TASK_JOB_STATES_REQ, list_task_job_states);
-                        }
-                        ADD_AGENTS_REQ => {
-                            send_recv!(ADD_AGENTS_REQ, add_agents);
-                        }
-                        DEL_AGENTS_REQ => {
-                            send_recv!(DEL_AGENTS_REQ, del_agents);
                         }
                         LIST_AGENTS_REQ => {
                             send_recv!(no_param, LIST_AGENTS_REQ, list_agents);
@@ -138,30 +106,9 @@ async fn main() -> anyhow::Result<()> {
                         TASK_PREVIEW_REQ => {
                             send_recv!(TASK_PREVIEW_REQ, task_preview);
                         }
-                        TASK_JOB_DRAIN_REQ => {
-                            send_recv!(no_param, TASK_JOB_DRAIN_REQ, drain_task_job);
-                        }
                         s => {
                             println!("Unknown action: {s}");
                         }
-                    }
-                }
-            }
-            let interval = Duration::from_secs(1);
-            let mut ticker = tokio::time::interval_at(Instant::now() + interval, interval);
-            while cancel.run_until_cancelled(ticker.tick()).await.is_some() {
-                match client
-                    .heartbeat(&xnoded_id)
-                    .await
-                    .context("heartbeat error")
-                {
-                    Ok(hb_metrics) => {
-                        let hb_metrics = serde_json::to_string(&hb_metrics)
-                            .context("serialize hb metrics error")?;
-                        println!("heartbeat metrics: {}", hb_metrics);
-                    }
-                    Err(e) => {
-                        println!("{e:#}");
                     }
                 }
             }

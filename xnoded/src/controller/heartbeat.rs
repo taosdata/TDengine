@@ -22,7 +22,6 @@ pub async fn heartbeat_loop(
 ) -> Result<()> {
     let _cleanup = utils::defer::defer(|| {
         xnodes.set_offline(id);
-        xnodes.remove(id);
     });
     let _guard = cancel.drop_guard_ref();
     let mut backoff = RetryBackoff::new(Duration::from_millis(500), Duration::from_secs(5));

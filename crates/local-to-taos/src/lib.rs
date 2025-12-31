@@ -71,9 +71,7 @@ pub async fn local_to_taos(
 
     // load metrics
     let (task_id, job_id) = task_job_id.unwrap_or((-1, -1));
-    let metrics = get_metrics(task_id, job_id)
-        .await
-        .map(LocalToTaosMetrics::new);
+    let metrics = get_metrics(task_id, job_id).map(LocalToTaosMetrics::new);
 
     let (tx, rx) = flume::unbounded();
     let taos_pool = config.connect_taos_pool().await?;

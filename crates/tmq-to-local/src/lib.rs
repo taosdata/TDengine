@@ -103,7 +103,7 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
     };
     // load metrics
     let (task_id, job_id) = config.task_job_id.unwrap_or((-1, -1));
-    let metrics = get_metrics(task_id, job_id).await;
+    let metrics = get_metrics(task_id, job_id);
 
     // 创建并启动 BackupWorker
     let man = Arc::new(man);

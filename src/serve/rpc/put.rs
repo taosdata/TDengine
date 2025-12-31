@@ -129,13 +129,11 @@ async fn ipc_stream_writer(
         .map(Arc::new);
     let metadata = worker.parser.metadata();
     let metrics_arc = {
-        if let Some(arc) = get_metrics(task_id, job_id).await {
+        if let Some(arc) = get_metrics(task_id, job_id) {
             arc
         } else {
             let _ = init_task_metrics(&from, &to, task_id, job_id).await;
-            get_metrics(task_id, job_id)
-                .await
-                .ok_or_else(|| anyhow::format_err!("metrics not found"))?
+            get_metrics(task_id, job_id).ok_or_else(|| anyhow::format_err!("metrics not found"))?
         }
     };
 
@@ -628,7 +626,7 @@ impl PutStream {
                     ),
                     None => (Cache::default(), Archive::default()),
                 };
-                let metrics = get_metrics_arc_from_i64(Some((task_id, job_id))).await;
+                let metrics = get_metrics_arc_from_i64(Some((task_id, job_id)));
 
                 match ArchiveConsumer::new(task_id, job_id, cache, archive, |num_rows: u64| {
                     let metrics = metrics.ipc();
@@ -721,7 +719,7 @@ impl PutStream {
 
         // 任务的 metrics 在启动任务的时候已经放入全局 Map 中，所以这里一定存在
         let metrics_arc = {
-            if let Some(arc) = get_metrics(self.task_id, self.job_id).await {
+            if let Some(arc) = get_metrics(self.task_id, self.job_id) {
                 arc
             } else {
                 let task = self
@@ -734,7 +732,6 @@ impl PutStream {
                 let to: Dsn = task.to.parse()?;
                 let _ = init_task_metrics(&from, &to, self.task_id, self.job_id).await;
                 get_metrics(self.task_id, self.job_id)
-                    .await
                     .ok_or_else(|| anyhow::format_err!("metrics not found"))?
             }
         };

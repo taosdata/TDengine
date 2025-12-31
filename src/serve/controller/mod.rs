@@ -12,7 +12,8 @@ use arrow_flight::error::FlightError;
 use flume::Sender;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taosx_core::runners::opc::OpcType;
 use tracing::instrument;
 use utoipa::*;
 use uuid::Uuid;
@@ -21,12 +22,12 @@ use self::agent::AgentToken;
 use self::trigger::Strategy;
 use super::scheduler::TaskScheduler;
 use crate::serve::controller::activity::Activity;
+use crate::serve::data_sources::{da_template_row, ua_template_row};
 use crate::serve::rpc::utils::build_activity_batch;
 use crate::serve::scheduler;
 use crate::serve::scheduler::agent::AgentState;
 use crate::serve::scheduler::runner::InnerState;
 use crate::serve::utils::csv::encode_csv_config_file;
-use taosx_core::QueryDataSourceReq;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::sink::point::csv::CsvParser;
 use taosx_core::plugins::transform::sample::DsSamples;
@@ -34,6 +35,7 @@ use taosx_core::runners::opc::config::OPCConfig;
 use taosx_core::utils::breakpoints::{breakpoints_get_all, export_breakpoints_to_compressed_csv};
 use taosx_core::utils::get_string_content_from_param_value;
 use taosx_core::{DataSet, DataSetsReq, PutFileReq, Response, get_data_dir};
+use taosx_core::{QueryDataSourceReq, list_datasets_from};
 
 pub mod activity;
 pub(crate) mod agent;
@@ -393,6 +395,75 @@ impl TaskController {
         }
     }
 
+    pub async fn get_all_points(
+        &self,
+        from: String,
+        via: Option<i64>,
+        categories: String,
+    ) -> anyhow::Result<(String, usize)> {
+        let mut from = from.into_dsn()?;
+
+        let pattern = match from.driver.as_str() {
+            "pi" | "pibackfill" => None,
+            _ => Some(String::from(".*")),
+        };
+        let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
+
+        let datasets = if let Some(agent) = via {
+            self.list_datasets_via_agent_v1(agent, &mut from, categories, via)
+                .await
+        } else {
+            let data = DataSetsReq {
+                from: Some(from.to_string()),
+                from_json: None,
+                categories: vec![categories],
+                via,
+                offset: 0,
+                pattern,
+                limit,
+                lang: None,
+            };
+            list_datasets_from(&data).await
+        }
+        .context("failed to list datasets")?;
+
+        let point_count = datasets.len();
+        let data = match from.driver.as_str() {
+            "opcda" => {
+                // header
+                let mut result = source_opc::get_template(OpcType::OPCDA, false);
+                // rows
+                datasets.iter().enumerate().for_each(|(i, item)| {
+                    let row = da_template_row(i + 1, item);
+                    result.push_str(row.as_str());
+                });
+                result
+            }
+            "opcua" => {
+                // header
+                let mut result = source_opc::get_template(OpcType::OPCUA, false);
+                // rows
+                datasets.iter().enumerate().for_each(|(i, item)| {
+                    let row = ua_template_row(i + 1, item);
+                    result.push_str(row.as_str());
+                });
+                result
+            }
+            "kinghist" => source_kinghistorian::to_csv_context(datasets)
+                .await
+                .inspect_err(|err| {
+                    tracing::error!(
+                        "failed to generate kinghistorian csv content, err: {:?}",
+                        err
+                    )
+                })
+                .context("failed to generate kinghistorian csv content")?,
+            _ => unimplemented!(),
+        };
+
+        Ok((data, point_count))
+    }
+
     pub async fn query_data_source_via_agent(
         &self,
         request: QueryDataSourceReq,
@@ -518,6 +589,8 @@ impl TaskController {
         }
         scheduler.get_sample_via_agent(agent, dsn).await
     }
+
+    // pub async fn list_datasets_via_agent()
 
     pub async fn send_opc_csv_to_agnet(&self, agent_id: i64, dsn: &Dsn) -> anyhow::Result<()> {
         if !self.agent_alive(agent_id).await {

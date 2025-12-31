@@ -171,10 +171,13 @@ impl XNodes {
     }
 
     pub fn get_client(&self, id: i32) -> Option<HaRpcClient> {
-        self.0
-            .read()
-            .get(&id)
-            .and_then(|xnode| xnode.read().xnode.client.clone())
+        self.0.read().get(&id).and_then(|xnode| {
+            let xnode = xnode.read();
+            if !matches!(xnode.xnode.status, XNodeStatus::Online) {
+                return None;
+            }
+            xnode.xnode.client.clone()
+        })
     }
 
     pub fn get_event_rx(&self, id: i32) -> Option<flume::Receiver<FlightResult>> {
@@ -188,6 +191,9 @@ impl XNodes {
         let xnodes = self.0.read();
         for (id, xnode) in xnodes.iter() {
             let xnode = xnode.read();
+            if !matches!(xnode.xnode.status, XNodeStatus::Online) {
+                continue;
+            }
             if let Some(client) = &xnode.xnode.client {
                 return Some((*id, client.clone()));
             }

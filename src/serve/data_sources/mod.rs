@@ -877,9 +877,6 @@ pub(super) async fn download_point_template_file(
 )]
 #[post("/ds/in/point/file/is_valid")]
 pub async fn is_csv_valid(req: Json<DsnAgentQuery>) -> impl Responder {
-    // set current dir to DATA_DIR
-    let _ = std::env::set_current_dir(get_data_dir());
-
     let query = req.into_inner();
     let timeout_sec = query.timeout.unwrap_or(Timeout::get(TimeoutType::Default));
 
@@ -909,7 +906,10 @@ pub async fn is_csv_valid(req: Json<DsnAgentQuery>) -> impl Responder {
     }
 }
 
-async fn is_csv_valid_impl(req: DsnAgentQuery) -> anyhow::Result<()> {
+pub async fn is_csv_valid_impl(req: DsnAgentQuery) -> anyhow::Result<()> {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     let from = json_to_dsn(&req.dsn)?;
 
     let driver = from.driver.to_lowercase();

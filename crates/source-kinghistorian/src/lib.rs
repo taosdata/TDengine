@@ -86,10 +86,9 @@ pub async fn kinghist_to_taos(
             task_id,
             job_id,
         )))
-    })
-    .await;
+    });
     if task_job_id.is_none() {
-        insert_metrics(-1, -1, metrics.clone()).await;
+        insert_metrics(-1, -1, metrics.clone());
     }
     context.metrics = Some(metrics.clone());
     tracing::info!("kinghist_to_taos metrics initialized");

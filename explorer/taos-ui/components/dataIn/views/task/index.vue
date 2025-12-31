@@ -299,11 +299,7 @@
                     {{ t('common.export') }}
                   </el-dropdown-item>
                   <el-dropdown-item
-                    :disabled="
-                      scope.row.disableEdit ||
-                      (dataInProps.isCommunity ? dataInProps.isCommunity : scope.row.from === undefined) ||
-                      !getEditStatus(scope.row.labels)
-                    "
+                    :disabled="scope.row.disableEdit || dataInProps.isCommunity"
                     @click="edit(scope.row, scope.row.status.toLowerCase())"
                   >
                     <el-icon><Edit /></el-icon>
@@ -499,7 +495,7 @@ async function getList() {
         statusFilterSet[item.status] = true;
       }
 
-      (item['taskid'] = item.id), (item['localname'] = item.name);
+      ((item['taskid'] = item.id), (item['localname'] = item.name));
       item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
       item['target'] = item.to_expand?.subject || '';
       item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
@@ -602,7 +598,7 @@ async function refreshCurrentTask(data: Recordable) {
       index,
       1,
       [].concat(result).map((item: any) => {
-        (item['taskid'] = item.id), (item['localname'] = item.name);
+        ((item['taskid'] = item.id), (item['localname'] = item.name));
         item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
         // item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
         item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
@@ -712,18 +708,18 @@ async function handleBatchTask(type: string) {
 
 function handlePageChange() {}
 //非root用户不能修改root下创建的数据源
-function getEditStatus(data: string[]) {
-  const currentUser = localStorage.getItem('username');
-  if (data) {
-    const result = data
-      .filter(item => item.includes('user'))
-      .toString()
-      .split('::');
-    return currentUser == 'root' || result[1] == currentUser;
-  } else {
-    return false;
-  }
-}
+// function getEditStatus(data: string[]) {
+//   const currentUser = localStorage.getItem('username');
+//   if (data) {
+//     const result = data
+//       .filter(item => item.includes('user'))
+//       .toString()
+//       .split('::');
+//     return currentUser == 'root' || result[1] == currentUser;
+//   } else {
+//     return false;
+//   }
+// }
 
 async function viewMetrics(data: Recordable, status: string) {
   try {

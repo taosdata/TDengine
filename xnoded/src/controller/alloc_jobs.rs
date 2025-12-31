@@ -1,5 +1,8 @@
+use std::str::FromStr;
+
 use ha_core::types::{HaTask, SplitJobResult};
 use snafu::{OptionExt, ResultExt};
+use taos::Dsn;
 use taosx_utils::dsn::json_to_dsn;
 
 use crate::controller::xnodes::XNodes;
@@ -24,6 +27,12 @@ pub enum Error {
     NoXnodeAvailable,
     #[snafu(display("Kafka topic not found"))]
     KafkaTopicNotFound,
+    #[snafu(display("From dsn invalid type"))]
+    FromDsnInvalidType,
+    #[snafu(display("Invalid dsn"))]
+    InvalidDsn { dsn: String, source: taos::DsnError },
+    #[snafu(display("Invalid json dsn"))]
+    InvalidJsonDsn { source: anyhow::Error },
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -35,23 +44,24 @@ pub enum AllocatedJobs {
 }
 
 /// Split a task into multiple jobs based on the number of xnodes.
-pub fn alloc_jobs(task: SplitJobResult, xnodes: &XNodes) -> Result<AllocatedJobs> {
-    let mut from = task.from;
-    let Some(from_map) = from.as_object_mut() else {
-        return FromDsnNotObjectSnafu.fail();
+pub fn alloc_jobs(mut task: SplitJobResult, xnodes: &XNodes) -> Result<AllocatedJobs> {
+    let from = match &task.from {
+        serde_json::Value::String(dsn) => Dsn::from_str(dsn).context(InvalidDsnSnafu { dsn })?,
+        o @ serde_json::Value::Object(_) => json_to_dsn(o).context(InvalidJsonDsnSnafu)?,
+        _ => return FromDsnInvalidTypeSnafu.fail(),
     };
-    let driver = from_map.get("type").context(DsnDriverNotFoundSnafu)?;
-    let Some(datasource) = driver.as_str() else {
-        return DsnDriverNotStrSnafu.fail();
-    };
+
     let mut jobs = Vec::with_capacity(xnodes.len());
-    let res = match datasource {
+    let res = match from.driver.as_str() {
         "kafka" => {
             #[derive(Debug, serde::Deserialize)]
             struct TopicPartition {
                 name: String,
                 partitions: usize,
             }
+            let Some(from_map) = task.from.as_object_mut() else {
+                return FromDsnNotObjectSnafu.fail();
+            };
             let Some(topics) = from_map.remove("topics") else {
                 return KafkaSplitTopicsNotFoundSnafu.fail();
             };
@@ -70,7 +80,7 @@ pub fn alloc_jobs(task: SplitJobResult, xnodes: &XNodes) -> Result<AllocatedJobs
             tracing::info!(total_concurrency);
             let xnode_concurrency = xnodes.alloc_concurrency(total_concurrency);
             tracing::info!(?xnode_concurrency);
-            let mut from = json_to_dsn(&from).context(JsonToDsnSnafu)?;
+            let mut from = json_to_dsn(&task.from).context(JsonToDsnSnafu)?;
             let mut current_tp = topics.pop();
             for (id, mut concurrency) in xnode_concurrency {
                 loop {
@@ -115,7 +125,7 @@ pub fn alloc_jobs(task: SplitJobResult, xnodes: &XNodes) -> Result<AllocatedJobs
         _ => {
             let xnode = xnodes.best_xnode().context(NoXnodeAvailableSnafu)?;
             let job = HaTask {
-                from: json_to_dsn(&from).context(JsonToDsnSnafu)?.to_string(),
+                from: task.from.to_string(),
                 to: task.to,
                 parser: task.parser,
             };

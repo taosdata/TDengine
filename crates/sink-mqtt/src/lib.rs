@@ -40,7 +40,7 @@ pub async fn tmq_to_mqtt(
     let mut tmq_config = config::TmqConfig::try_from(from)?;
     let mqtt_config = config::MqttConfig::try_from(to)?;
 
-    let metrics = Arc::new(Metrics::new(get_metrics_arc_from_i64(task_job_id).await));
+    let metrics = Arc::new(Metrics::new(get_metrics_arc_from_i64(task_job_id)));
     metrics.reset();
 
     let mut tasks = JoinSet::new();

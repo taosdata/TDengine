@@ -11,6 +11,7 @@ pub async fn start_rebalancer(
     rebalance_rx: flume::Receiver<i32>,
     cancel: CancellationToken,
 ) -> anyhow::Result<()> {
+    tracing::info!("start rebalancer");
     let _guard = cancel.drop_guard_ref();
     let (tasks, xnodes) = (controller.tasks(), controller.xnodes());
     while let Some(Ok(xid)) = cancel.run_until_cancelled(rebalance_rx.recv_async()).await {

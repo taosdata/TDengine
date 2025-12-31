@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 use std::sync::atomic::Ordering::SeqCst;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -32,6 +33,52 @@ pub struct LegacyToTaosMetrics {
     pub updated_tags: AtomicU32,
     #[serde(default)]
     pub created_tables: AtomicU32,
+}
+
+impl std::ops::AddAssign for LegacyToTaosMetrics {
+    fn add_assign(&mut self, rhs: Self) {
+        self.com += rhs.com;
+
+        self.read_concurrency.fetch_add(
+            rhs.read_concurrency.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_stables
+            .fetch_add(rhs.total_stables.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.total_tables
+            .fetch_add(rhs.total_tables.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.total_finished_tables.fetch_add(
+            rhs.total_finished_tables.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_updated_tags.fetch_add(
+            rhs.total_updated_tags.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.total_created_tables.fetch_add(
+            rhs.total_created_tables.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.finished_tables.fetch_add(
+            rhs.finished_tables.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.updated_tags
+            .fetch_add(rhs.updated_tags.load(Ordering::Relaxed), Ordering::Relaxed);
+        self.created_tables.fetch_add(
+            rhs.created_tables.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+
+        self.total_success_blocks.fetch_add(
+            rhs.total_success_blocks.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+        self.success_blocks.fetch_add(
+            rhs.success_blocks.load(Ordering::Relaxed),
+            Ordering::Relaxed,
+        );
+    }
 }
 
 impl LegacyToTaosMetrics {

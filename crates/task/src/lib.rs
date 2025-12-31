@@ -1,4 +1,5 @@
 mod failover;
+pub mod point_options;
 pub mod sample;
 pub mod validate;
 

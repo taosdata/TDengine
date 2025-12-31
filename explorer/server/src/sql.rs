@@ -1,6 +1,12 @@
 use std::sync::LazyLock;
 
+use anyhow::Context;
+use futures::TryStreamExt;
 use regex::Regex;
+use taos::{AsyncFetchable, AsyncQueryable, Dsn};
+use tracing::instrument;
+
+use crate::get_connection;
 
 pub(crate) fn need_limit(sql: &str) -> bool {
     let sql = sql.trim().to_uppercase();
@@ -12,6 +18,27 @@ pub(crate) fn need_limit(sql: &str) -> bool {
     });
 
     !RE.is_match(&sql)
+}
+
+#[instrument(skip_all)]
+pub async fn query<T: serde::de::DeserializeOwned>(dsn: &Dsn, sql: &str) -> anyhow::Result<Vec<T>> {
+    let conn = get_connection(dsn).await?;
+
+    conn.query(sql)
+        .await
+        .with_context(|| format!("query sql `{sql}`"))?
+        .deserialize::<T>()
+        .try_collect::<Vec<_>>()
+        .await
+        .with_context(|| format!("deserialize fetch `{sql}` data error"))
+}
+
+pub async fn exec(dsn: &Dsn, sql: &str) -> anyhow::Result<()> {
+    let conn = get_connection(dsn).await?;
+    conn.exec(sql)
+        .await
+        .with_context(|| format!("exec sql {sql}"))?;
+    Ok(())
 }
 
 #[cfg(test)]

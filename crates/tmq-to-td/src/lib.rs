@@ -1411,8 +1411,7 @@ pub async fn tmq_to_td(
     from.params = from_params;
     let metrics_arc = get_metrics_arc_or(task_job_id, || {
         Arc::new(CoreMetrics::TMQ(TmqMetrics::default()))
-    })
-    .await;
+    });
     let metrics = metrics_arc.tmq();
     metrics.topics.fetch_add(topics.len() as _, SeqCst);
 

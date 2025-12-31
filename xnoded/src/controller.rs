@@ -6,10 +6,14 @@ mod sql_types;
 mod tasks;
 pub mod xnodes;
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
 use axum::http::{self, StatusCode};
 use snafu::{OptionExt, ResultExt};
+use taos::Dsn;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::{Channel, Endpoint};
@@ -134,8 +138,6 @@ pub enum Error {
     },
     #[snafu(display("Failed to build batch iterator"))]
     BuildBatchIter { source: anyhow::Error },
-    #[snafu(display("Failed to deserialize activity"))]
-    DeserializeActivity { source: serde_json::Error },
     #[snafu(display("Invalid task {task_id} job {job_id} dsn"))]
     InvalidTaskDsn {
         task_id: i64,
@@ -146,6 +148,14 @@ pub enum Error {
     XnodeAlreadyExists { id: i32 },
     #[snafu(display("Invalid task parser"))]
     InvalidTaskParser { source: serde_json::Error },
+    #[snafu(display("Invalid dsn {dsn}"))]
+    InvalidDsn { dsn: String, source: taos::DsnError },
+    #[snafu(display("Failed to create activity stable"))]
+    CreateActivityTable { source: taos_conn::Error },
+    #[snafu(display("Failed to create metrics stable"))]
+    CreateMetricsTable { source: taos_conn::Error },
+    #[snafu(display("Failed to create database `log`"))]
+    CreateLogDatabase { source: taos_conn::Error },
 }
 
 impl Error {
@@ -163,7 +173,7 @@ type Result<T> = std::result::Result<T, Error>;
 pub struct Controller {
     cluster_id: String,
     leader_ep: String,
-    taos_dsn: String,
+    taos_dsn: Dsn,
     taos_conn: TaosConn,
     cancel: CancellationToken,
 
@@ -181,10 +191,11 @@ impl Controller {
         rebalance_tx: flume::Sender<i32>,
         cancel: CancellationToken,
     ) -> Result<Self> {
+        let dsn = Dsn::from_str(dsn).context(InvalidDsnSnafu { dsn })?;
         let this = Self {
             cluster_id: args.cluster_id.clone(),
             leader_ep: args.leader_ep.clone(),
-            taos_dsn: dsn.to_string(),
+            taos_dsn: dsn.clone(),
             taos_conn: TaosConn::create(dsn, 5).await.context(BuildTaosConnSnafu)?,
             cancel: cancel.clone(),
             xnodes: XNodes::new(),
@@ -374,7 +385,7 @@ impl Controller {
             return XnodeAlreadyExistsSnafu { id }.fail();
         }
         if self.xnodes.is_cancelled(id) {
-            self.wait_xnode_complete(id).await;
+            wait_xnode_complete(self.xnodes(), id).await;
         }
         let xnoded_id = XnodedId {
             cluster_id: self.cluster_id.clone(),
@@ -386,19 +397,12 @@ impl Controller {
             format!("http://{url}")
         };
         let endpoint: Endpoint =
-            Channel::from_shared(addr.to_string()).context(InvalidUriSnafu { url })?;
+            Channel::from_shared(addr.clone()).context(InvalidUriSnafu { url })?;
         match endpoint.connect().await {
             Ok(channel) => {
                 let (event_tx, event_rx) = flume::bounded(1000);
-                match ha_rpc_client::create_client(
-                    channel,
-                    &xnoded_id,
-                    event_tx,
-                    self.cancel.clone(),
-                    100,
-                )
-                .await
-                {
+                let cancel = self.cancel.child_token();
+                match ha_rpc_client::create_client(channel, &xnoded_id, event_tx, cancel).await {
                     Ok(client) => {
                         self.xnodes.add_online(id, client, event_rx);
                     }
@@ -467,28 +471,9 @@ impl Controller {
             }
         }
 
-        self.wait_xnode_complete(id).await;
+        wait_xnode_complete(self.xnodes(), id).await;
 
         Ok(())
-    }
-
-    #[instrument(skip_all)]
-    async fn wait_xnode_complete(&self, id: i32) {
-        let Some((mut handle, cancel)) = self.xnodes.remove(id) else {
-            return;
-        };
-        cancel.cancel();
-        while let Some(result) = handle.join_next().await {
-            match result {
-                Ok(Ok(_)) => {}
-                Ok(Err(e)) => {
-                    tracing::error!("xnode task error: {}", anyhow::Error::new(e));
-                }
-                Err(e) => {
-                    tracing::error!("xnode task panic: {}", anyhow::Error::new(e));
-                }
-            }
-        }
     }
 
     #[instrument(skip_all)]
@@ -545,6 +530,10 @@ impl Controller {
 
     #[instrument(skip_all)]
     pub fn xnode_status(&self, xnode_id: i32) -> Result<XNodeStatus> {
+        if self.xnodes.is_cancelled(xnode_id) {
+            let xnodes = self.xnodes();
+            tokio::spawn(wait_xnode_complete(xnodes, xnode_id));
+        }
         self.xnodes
             .status(xnode_id)
             .context(XnodeNotAvailableSnafu { xnode_id })
@@ -625,12 +614,19 @@ impl Controller {
 
     #[instrument(skip_all)]
     pub async fn plan_start_task(&self, task_id: i64, task: &TaskConfigParam) -> Result<()> {
-        let parser = task
+        let mut parser = task
             .parser
             .as_ref()
             .map(|v| serde_json::from_str::<serde_json::Value>(v))
             .transpose()
             .context(InvalidTaskParserSnafu)?;
+        if let Some(inner_parser) = parser
+            .as_ref()
+            .and_then(|v| v.as_object())
+            .and_then(|v| v.get("parser"))
+        {
+            parser = Some(inner_parser.clone());
+        }
         let config = HaTask {
             from: task.from.clone(),
             to: task.to.clone(),
@@ -1096,4 +1092,23 @@ pub async fn start_job(
     })?;
     tracing::info!(task_id, job_id, xnode_id, "job started");
     Ok(())
+}
+
+#[instrument(skip_all)]
+async fn wait_xnode_complete(xnodes: XNodes, id: i32) {
+    let Some((mut handle, cancel)) = xnodes.remove(id) else {
+        return;
+    };
+    cancel.cancel();
+    while let Some(result) = handle.join_next().await {
+        match result {
+            Ok(Ok(_)) => {}
+            Ok(Err(e)) => {
+                tracing::error!("xnode task error: {:#}", anyhow::Error::new(e));
+            }
+            Err(e) => {
+                tracing::error!("xnode task panic: {:#}", anyhow::Error::new(e));
+            }
+        }
+    }
 }

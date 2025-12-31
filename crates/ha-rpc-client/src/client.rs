@@ -16,7 +16,7 @@ pub struct HaRpcClient {
 }
 
 impl HaRpcClient {
-    pub fn new(
+    pub(crate) fn new(
         message_tx: flume::Sender<(u64, RecordBatch, oneshot::Sender<Result<RecordBatch>>)>,
     ) -> Self {
         Self { message_tx }
@@ -24,6 +24,10 @@ impl HaRpcClient {
 
     pub async fn heartbeat(&self, xnoded_id: &XnodedId) -> Result<HeartbeatMetrics> {
         self.send_recv(HEARTBEAT_REQ, xnoded_id).await
+    }
+
+    pub async fn guest_heartbeat(&self) -> Result<()> {
+        self.send_recv(HEARTBEAT_REQ, &()).await
     }
 
     pub async fn plan_task(&self, task: &HaTask) -> Result<SplitJobResult> {
@@ -68,6 +72,10 @@ impl HaRpcClient {
 
     pub async fn drain_task_job(&self) -> Result<()> {
         self.send_recv(TASK_JOB_DRAIN_REQ, ()).await
+    }
+
+    pub async fn get_x_http_port(&self) -> Result<Option<Vec<u16>>> {
+        self.send_recv(GET_X_HTTP_PORT_REQ, ()).await
     }
 
     async fn send_recv<Q, R>(&self, action: &str, param: Q) -> Result<R>

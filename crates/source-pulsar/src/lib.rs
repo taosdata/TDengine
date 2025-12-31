@@ -110,7 +110,7 @@ pub async fn pulsar_to_taos(
     {
         let _ = taosx_core::core_metrics::init_task_metrics(&from, &to, *task_id, *job_id).await;
     }
-    let metrics_arc = get_metrics_arc_from_i64(task_job_id).await;
+    let metrics_arc = get_metrics_arc_from_i64(task_job_id);
 
     let parallel = parser
         .as_ref()

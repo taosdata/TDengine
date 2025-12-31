@@ -7,19 +7,23 @@ use std::{
 use arrow_flight::error::FlightError;
 use ha_core::{
     batch::BatchIter,
-    consts::DROP_CONNECTION,
-    types::{Activity, ActivityStatus, TaskStatus},
+    consts::{
+        DROP_CONNECTION, TASK_ACTIVITIES_STABLE, TASK_METRICS, TASK_METRICS_STABLE,
+        XNODE_ACTIVITIES,
+    },
+    types::{Activity, ActivityLevel, ActivityStatus, TaskMetrics, TaskStatus},
 };
 use parking_lot::{Mutex, RwLock};
 use snafu::ResultExt;
+use taos::Dsn;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 
 use crate::{
     controller::{
-        BuildBatchIterSnafu, BuildTaosConnSnafu, DeserializeActivitySnafu, Result, start_task_job,
-        tasks::Tasks, xnodes::XNodes,
+        BuildBatchIterSnafu, BuildTaosConnSnafu, CreateActivityTableSnafu, CreateLogDatabaseSnafu,
+        CreateMetricsTableSnafu, Result, start_task_job, tasks::Tasks, xnodes::XNodes,
     },
     utils::{
         backoff::{BackoffDuration, RetryBackoff},
@@ -78,7 +82,7 @@ fn del_task_status(task_id: i64) {
 #[instrument(skip_all, fields(xnode_id=id))]
 pub async fn event_loop(
     id: i32,
-    taos_dsn: String,
+    mut taos_dsn: Dsn,
     xnodes: XNodes,
     tasks: Tasks,
     reconnect_tx: flume::Sender<oneshot::Sender<bool>>,
@@ -87,7 +91,6 @@ pub async fn event_loop(
 ) -> Result<()> {
     let _cleanup = crate::utils::defer::defer(|| {
         xnodes.set_offline(id);
-        xnodes.remove(id);
     });
     let _guard = cancel.drop_guard_ref();
     let taos_conn = Arc::new(
@@ -95,6 +98,30 @@ pub async fn event_loop(
             .await
             .context(BuildTaosConnSnafu)?,
     );
+    let sql = r"CREATE DATABASE IF NOT EXISTS log";
+    taos_conn.exec(sql).await.context(CreateLogDatabaseSnafu)?;
+
+    taos_dsn.subject = Some("log".to_string());
+    let log_conn = TaosConn::create(taos_dsn, 3)
+        .await
+        .context(BuildTaosConnSnafu)?;
+
+    let sql = format!(
+        "CREATE STABLE IF NOT EXISTS `{TASK_ACTIVITIES_STABLE}` \
+        (ts TIMESTAMP, level VARCHAR(5), status VARCHAR(20), activity VARCHAR(2048)) \
+        TAGS (xnode_id INT, task_id INT, job_id INT)"
+    );
+    log_conn
+        .exec(&sql)
+        .await
+        .context(CreateActivityTableSnafu)?;
+
+    let sql = format!(
+        "CREATE STABLE IF NOT EXISTS `{TASK_METRICS_STABLE}` \
+        (ts TIMESTAMP, metrics VARCHAR(2048)) \
+        TAGS (xnode_id INT, task_id INT, job_id INT)"
+    );
+    log_conn.exec(&sql).await.context(CreateMetricsTableSnafu)?;
     let mut backoff = RetryBackoff::new(Duration::from_secs(1), Duration::from_secs(10));
 
     loop {
@@ -138,46 +165,80 @@ pub async fn event_loop(
                     xnodes.set_offline(id);
                     return Ok(());
                 }
-                if record.action != ha_core::consts::TASK_ACTIVITIES {
-                    continue;
-                }
-                let Activity {
-                    task_id,
-                    job_id,
-                    status,
-                    activity,
-                    ..
-                } = serde_json::from_str(record.context).context(DeserializeActivitySnafu)?;
 
-                let Some(ActivityStatus::Task(task_status)) = status else {
-                    continue;
-                };
+                match record.action {
+                    XNODE_ACTIVITIES => {
+                        let Activity {
+                            task_id,
+                            job_id,
+                            status,
+                            activity,
+                            at,
+                            level,
+                            ..
+                        } = match serde_json::from_str(record.context) {
+                            Ok(activity) => activity,
+                            Err(e) => {
+                                tracing::error!(
+                                    xnode_id = id,
+                                    "Failed to deserialize activity: {e}",
+                                );
+                                continue;
+                            }
+                        };
 
-                // 更新原子任务的 status
-                let fut =
-                    update_task_job(&tasks, &taos_conn, task_id, job_id, task_status, &activity);
-                if cancel.run_until_cancelled(fut).await.is_none() {
-                    return Ok(());
-                }
+                        let Some(ActivityStatus::Task(task_status)) = status else {
+                            continue;
+                        };
 
-                // 更新总任务状态
-                let fut = update_task(&tasks, &taos_conn, task_id, job_id);
-                if cancel.run_until_cancelled(fut).await.is_none() {
-                    return Ok(());
-                }
+                        let ts = at.timestamp_millis();
+                        insert_activity(
+                            &log_conn,
+                            id,
+                            task_id,
+                            job_id,
+                            ts,
+                            level,
+                            task_status,
+                            &activity,
+                        )
+                        .await;
 
-                // 调度失败的任务
-                let fut = schedule_job(
-                    &tasks,
-                    &xnodes,
-                    &taos_conn,
-                    task_id,
-                    job_id,
-                    task_status,
-                    cancel.child_token(),
-                );
-                if cancel.run_until_cancelled(fut).await.is_none() {
-                    return Ok(());
+                        // 更新原子任务的 status
+                        let fut = update_task_job(
+                            &tasks,
+                            &taos_conn,
+                            task_id,
+                            job_id,
+                            task_status,
+                            &activity,
+                        );
+                        if cancel.run_until_cancelled(fut).await.is_none() {
+                            return Ok(());
+                        }
+
+                        // 更新总任务状态
+                        let fut = update_task(&tasks, &taos_conn, task_id, job_id);
+                        if cancel.run_until_cancelled(fut).await.is_none() {
+                            return Ok(());
+                        }
+
+                        // 调度失败的任务
+                        let fut = schedule_job(
+                            &tasks,
+                            &xnodes,
+                            &taos_conn,
+                            task_id,
+                            job_id,
+                            task_status,
+                            cancel.child_token(),
+                        );
+                        if cancel.run_until_cancelled(fut).await.is_none() {
+                            return Ok(());
+                        }
+                    }
+                    TASK_METRICS => insert_metrics(&log_conn, id, record.context).await,
+                    _ => {}
                 }
             }
             Ok(Err(flight_error)) => match &flight_error {
@@ -381,4 +442,60 @@ async fn schedule_job(
             }
         }
     });
+}
+
+async fn insert_metrics(conn: &TaosConn, id: i32, context: &str) {
+    let TaskMetrics {
+        ts,
+        task_id,
+        job_id,
+        metrics,
+    } = match serde_json::from_str(context) {
+        Ok(metrics) => metrics,
+        Err(e) => {
+            tracing::error!(xnode_id = id, "Failed to deserialize task metrics: {e}",);
+            return;
+        }
+    };
+    let metrics = match serde_json::to_string(&metrics) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!(xnode_id = id, "Failed to serialize task metrics: {e}",);
+            return;
+        }
+    };
+    let sql = format!(
+        "INSERT INTO `{TASK_METRICS_STABLE}_xnode_{0}_task_{1}_job_{2}` \
+        USING `{TASK_METRICS_STABLE}` TAGS ({0}, {1}, {2}) \
+        VALUES ({3}, '{4}')",
+        id,
+        task_id,
+        job_id,
+        ts.timestamp_millis(),
+        metrics
+    );
+    if let Err(e) = conn.exec(&sql).await {
+        tracing::error!("Failed to insert metrics: {:#}", anyhow::Error::new(e));
+    }
+}
+
+async fn insert_activity(
+    conn: &TaosConn,
+    id: i32,
+    task_id: i64,
+    job_id: i64,
+    ts: i64,
+    level: ActivityLevel,
+    status: TaskStatus,
+    activity: &str,
+) {
+    let sql = format!(
+        "INSERT INTO `{TASK_ACTIVITIES_STABLE}_xnode_{0}_task_{1}_job_{2}` \
+        USING `{TASK_ACTIVITIES_STABLE}` TAGS ({0}, {1}, {2}) \
+        VALUES ({ts}, '{level}', '{status}', '{activity}')",
+        id, task_id, job_id
+    );
+    if let Err(e) = conn.exec(&sql).await {
+        tracing::error!("Failed to insert activity: {:#}", anyhow::Error::new(e));
+    }
 }

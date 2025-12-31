@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use arrow_flight::error::FlightError;
+use chrono::Utc;
 use ha_core::{
     batch::build_batch,
-    consts::{TASK_ACTIVITIES, TASK_JOB_FINISH, TASK_METRICS},
+    consts::{TASK_JOB_FINISH, TASK_METRICS, XNODE_ACTIVITIES},
+    types::TaskMetrics,
     utils::next_req_id,
 };
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
@@ -35,11 +37,14 @@ pub fn decode_err(e: anyhow::Error) -> FlightError {
 
 pub fn build_metrics_batch(metrics: Arc<CoreMetrics>) -> FlightResult {
     let (task_id, job_id) = metrics.task_job_id();
-    let metrics_json = serde_json::json!({
-        "task_id": task_id,
-        "job_id": job_id,
-        "metrics": serde_json::to_value(metrics).context("Rpc serialize metrics value error").map_err(internal_err)?
-    });
+    let metrics_json = TaskMetrics {
+        ts: Utc::now(),
+        task_id,
+        job_id,
+        metrics: serde_json::to_value(metrics)
+            .context("Rpc serialize metrics value error")
+            .map_err(internal_err)?,
+    };
 
     let context = serde_json::to_string(&metrics_json)
         .context("Rpc serialize metrics payload error")
@@ -53,7 +58,7 @@ pub fn build_activity_batch(activity: Activity) -> FlightResult {
     let context = serde_json::to_string(&activity)
         .context("Rpc serialize activities value error")
         .map_err(internal_err)?;
-    build_batch(TASK_ACTIVITIES, &context, next_req_id())
+    build_batch(XNODE_ACTIVITIES, &context, next_req_id())
         .context("build activity batch")
         .map_err(internal_err)
 }
