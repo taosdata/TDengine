@@ -3369,12 +3369,6 @@ _end:
   return code;
 }
 
-static SSDataBlock* doTagScanFromMetaEntry(SOperatorInfo* pOperator) {
-  SSDataBlock* pRes = NULL;
-  int32_t      code = doTagScanFromMetaEntryNext(pOperator, &pRes);
-  return pRes;
-}
-
 static void destroyTagScanOperatorInfo(void* param) {
   STagScanInfo* pInfo = (STagScanInfo*)param;
   if (pInfo->pCtbCursor != NULL && pInfo->pStorageAPI != NULL) {
@@ -3394,6 +3388,24 @@ static void destroyTagScanOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+static int32_t resetTagScanOperatorState(SOperatorInfo* pOper) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  STagScanInfo*   pInfo = pOper->info;
+
+  pOper->status = OP_NOT_OPENED;
+  STagScanPhysiNode * pTagScanNode = (STagScanPhysiNode*)pOper->pPhyNode;
+ if (pTagScanNode->onlyMetaCtbIdx) {
+    SExecTaskInfo* pTaskInfo = pOper->pTaskInfo;
+    SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
+    pAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor);
+    pInfo->pCtbCursor = NULL;
+ } else {
+    pInfo->curPos = 0;
+ }
+
+  return code;
+}
+
 int32_t createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* pTagScanNode,
                                   STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
                                   SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
@@ -3408,7 +3420,7 @@ int32_t createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* p
     code = terrno;
     goto _error;
   }
-
+  pOperator->pPhyNode = pTagScanNode;
   SDataBlockDescNode* pDescNode = pPhyNode->node.pOutputDataBlockDesc;
 
   int32_t    numOfExprs = 0;
@@ -3464,6 +3476,8 @@ int32_t createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* p
   __optr_fn_t tagScanNextFn = (pTagScanNode->onlyMetaCtbIdx) ? doTagScanFromCtbIdxNext : doTagScanFromMetaEntryNext;
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, tagScanNextFn, NULL, destroyTagScanOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorResetStateFn(pOperator, resetTagScanOperatorState);     
+  
   *pOptrInfo = pOperator;
   return code;
 
