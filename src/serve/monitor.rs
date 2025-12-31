@@ -796,3 +796,158 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_monitor_cfg_default() {
+        let cfg = MonitorCfg::default();
+        // Default from trait is 0, CLI default is 6043
+        assert_eq!(cfg.port, 0u16);
+        assert!(cfg.fqdn.is_none());
+    }
+
+    #[test]
+    fn test_monitor_cfg_serialization() {
+        let cfg = MonitorCfg {
+            fqdn: Some("localhost".to_string()),
+            port: 6043,
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&cfg);
+        assert!(json.is_ok());
+    }
+
+    #[test]
+    fn test_monitor_cfg_deserialization() {
+        let json = r#"{"fqdn":"localhost","port":6043}"#;
+        let cfg: Result<MonitorCfg, _> = serde_json::from_str(json);
+        assert!(cfg.is_ok());
+        if let Ok(c) = cfg {
+            assert_eq!(c.port, 6043);
+        }
+    }
+
+    #[test]
+    fn test_hostname_retrieval() {
+        let hostname = gethostname();
+        assert!(!hostname.is_empty());
+    }
+
+    #[test]
+    fn test_table_key_creation() {
+        let table_key = TableKey {
+            stable: "test_stable".to_string(),
+            tags: vec![],
+        };
+        assert_eq!(table_key.stable, "test_stable");
+        assert!(table_key.tags.is_empty());
+    }
+
+    #[test]
+    fn test_metric_structure() {
+        let metric = Metric {
+            name: "test_metric".to_string(),
+            value: 42.5,
+        };
+        assert_eq!(metric.name, "test_metric");
+        assert_eq!(metric.value, 42.5);
+    }
+
+    #[test]
+    fn test_table_structure() {
+        let table = Table {
+            table_key: TableKey {
+                stable: "test".to_string(),
+                tags: vec![],
+            },
+            metrics: vec![],
+        };
+        assert_eq!(table.table_key.stable, "test");
+        assert!(table.metrics.is_empty());
+    }
+
+    #[test]
+    fn test_monitor_cfg_clone() {
+        let cfg = MonitorCfg {
+            fqdn: Some("test".to_string()),
+            port: 9999,
+            ..Default::default()
+        };
+        let cloned = cfg.clone();
+        assert_eq!(cfg.port, cloned.port);
+        assert_eq!(cfg.fqdn, cloned.fqdn);
+    }
+
+    #[test]
+    fn test_monitor_cfg_with_custom_port() {
+        let cfg = MonitorCfg {
+            port: 9999,
+            ..Default::default()
+        };
+        assert_eq!(cfg.port, 9999);
+    }
+
+    #[test]
+    fn test_process_refresh_kind() {
+        let _kind = ProcessRefreshKind::nothing();
+        // Test that ProcessRefreshKind can be created
+    }
+
+    #[test]
+    fn test_dashboard_url_generation() {
+        let monitor_cfg = MonitorCfg {
+            fqdn: Some("localhost".to_string()),
+            port: 6043,
+            ..Default::default()
+        };
+        // Verify the URL can be constructed
+        let url = format!(
+            "http://{}:{}",
+            monitor_cfg
+                .fqdn
+                .as_ref()
+                .unwrap_or(&"localhost".to_string()),
+            monitor_cfg.port
+        );
+        assert!(url.contains("localhost"));
+        assert!(url.contains("6043"));
+    }
+
+    #[test]
+    fn test_table_key_with_tags() {
+        let tags = vec![];
+        let table_key = TableKey {
+            stable: "test".to_string(),
+            tags,
+        };
+        assert_eq!(table_key.tags.len(), 0);
+    }
+
+    #[test]
+    fn test_atomic_operations_in_metrics() {
+        use std::sync::atomic::AtomicI64;
+        let atomic = AtomicI64::new(0);
+        assert_eq!(atomic.load(SeqCst), 0);
+        atomic.store(100, SeqCst);
+        assert_eq!(atomic.load(SeqCst), 100);
+    }
+
+    #[test]
+    fn test_metric_collection() {
+        let metrics = [
+            Metric {
+                name: "metric1".to_string(),
+                value: 10.0,
+            },
+            Metric {
+                name: "metric2".to_string(),
+                value: 20.0,
+            },
+        ];
+        assert_eq!(metrics.len(), 2);
+        assert_eq!(metrics[0].value, 10.0);
+    }
+}

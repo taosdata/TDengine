@@ -653,6 +653,7 @@ mod tests {
     use std::str::FromStr;
     use std::sync::Arc;
     use std::time::Duration as StdDuration;
+    use tokio::io::AsyncWriteExt;
 
     /// 两次备份任务的间隔时间必须大于 1 分钟，否则会导致文件名相同
     #[test]
@@ -916,6 +917,218 @@ mod tests {
 
         // case3: move file across different filesystems
         // Note: manually test by set move_to to a different filesystem path
+        Ok(())
+    }
+
+    #[test]
+    fn test_zfilename_display_and_from_path() {
+        // given
+        let ts = Utc.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
+        let name = ZFile::file_name(("tp", Some(ts), 2, 7));
+        let path = std::path::PathBuf::from(format!("/tmp/{}", name));
+        // when
+        let z = ZFileName::from_path(&path).unwrap();
+        // then
+        assert_eq!(z.to_string(), name);
+        assert_eq!(z.raw_path.as_deref().unwrap(), path.as_path());
+        assert_eq!(z.topic, "tp");
+        assert_eq!(z.vg_id, 2);
+        assert_eq!(z.index, 7);
+    }
+
+    #[test]
+    fn test_zfilename_from_path_rejects_invalid() {
+        assert!(ZFileName::from_path("/tmp/not-a-zfile.txt").is_none());
+        assert!(ZFileName::from_path("/tmp/abc-1630065600000-1.z").is_none()); // missing index
+        assert!(ZFileName::from_path("/tmp/abc-1630065600000-x-1.z").is_none()); // non-numeric vg
+        assert!(ZFileName::from_path("/tmp/abc-1630065600000-1-x.z").is_none());
+        // non-numeric index
+    }
+
+    #[test]
+    fn test_zfilename_compare_ordering() {
+        // topic 优先，其次 timestamp，再次 vg_id，最后 index
+        let base_ts = Utc.with_ymd_and_hms(2024, 6, 1, 0, 0, 0).unwrap();
+        let a1 = ZFileName::from_str(&ZFile::file_name(("a", Some(base_ts), 1, 1))).unwrap();
+        let a2 = ZFileName::from_str(&ZFile::file_name((
+            "a",
+            Some(base_ts + chrono::Duration::seconds(1)),
+            1,
+            0,
+        )))
+        .unwrap();
+        let _a3 = ZFileName::from_str(&ZFile::file_name((
+            "a",
+            Some(base_ts + chrono::Duration::seconds(1)),
+            2,
+            0,
+        )))
+        .unwrap();
+        let b1 = ZFileName::from_str(&ZFile::file_name(("b", Some(base_ts), 0, 0))).unwrap();
+
+        // topic: a < b
+        assert_eq!(ZFileName::compare(&a1, &b1), std::cmp::Ordering::Less);
+        assert_eq!(ZFileName::compare(&b1, &a1), std::cmp::Ordering::Greater);
+
+        // timestamp: earlier first
+        assert_eq!(ZFileName::compare(&a1, &a2), std::cmp::Ordering::Less);
+        assert_eq!(ZFileName::compare(&a2, &a1), std::cmp::Ordering::Greater);
+
+        // vg_id: smaller first when ts equal
+        let t = base_ts + chrono::Duration::seconds(1);
+        let x1 = ZFileName::from_str(&ZFile::file_name(("a", Some(t), 1, 0))).unwrap();
+        let x2 = ZFileName::from_str(&ZFile::file_name(("a", Some(t), 2, 0))).unwrap();
+        assert_eq!(ZFileName::compare(&x1, &x2), std::cmp::Ordering::Less);
+
+        // index: smaller first when vg equal
+        let y1 = ZFileName::from_str(&ZFile::file_name(("a", Some(t), 1, 0))).unwrap();
+        let y2 = ZFileName::from_str(&ZFile::file_name(("a", Some(t), 1, 1))).unwrap();
+        assert_eq!(ZFileName::compare(&y1, &y2), std::cmp::Ordering::Less);
+    }
+
+    #[tokio::test]
+    async fn test_read_message_async_invalid_type() {
+        // 使用 duplex 构造一个字节流，写入无效的类型位以触发错误
+        let (mut w, r) = tokio::io::duplex(8);
+        w.write_all(&[0b00001000]).await.unwrap(); // 非 IS_DATA/IS_META/IS_RAW
+        let mut z = ZCodec::new(r);
+        let res = z.read_message_async().await;
+        assert!(res.is_err());
+        let err = res.err().unwrap();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid RawType: 99")]
+    fn test_raw_type_from_invalid_panics() {
+        let _ = RawType::from(99);
+    }
+
+    #[tokio::test]
+    async fn test_zcodec_start_and_finish_writes() {
+        // given a duplex stream to observe writes
+        let (w, mut r) = tokio::io::duplex(16);
+        let mut z = ZCodec::new(w);
+
+        // when
+        let n1 = z.start_data_async().await.unwrap();
+        let n2 = z.finish_data_async().await.unwrap();
+
+        // then: start writes 1 byte for IS_DATA, finish writes 4 sentinel bytes
+        assert_eq!(n1, std::mem::size_of::<DataType>());
+        assert_eq!(n2, 4);
+
+        let mut buf = [0u8; 5];
+        r.read_exact(&mut buf).await.unwrap();
+        assert_eq!(buf[0], DataType::IS_DATA.bits());
+        assert_eq!(&buf[1..], &[0xFF, 0xFF, 0xFF, 0xFF]);
+    }
+
+    #[tokio::test]
+    async fn test_write_head_async_writes_prefix() {
+        // given
+        let (w, mut r) = tokio::io::duplex(128);
+        let mut z = ZCodec::new(w);
+        let header = Header::new("1.6.0", "3.3.0.0", "db".to_string());
+
+        // when
+        let len = z.write_head_async(&header).await.unwrap();
+
+        // then
+        assert!(len > 0);
+        let mut prefix = [0u8; 4];
+        r.read_exact(&mut prefix).await.unwrap();
+        assert_eq!(&prefix, b"TAOZ");
+    }
+
+    #[tokio::test]
+    async fn test_read_message_async_data_empty() {
+        // Construct bytes representing a DATA message with immediate terminator
+        let (mut w, r) = tokio::io::duplex(8);
+        w.write_all(&[DataType::IS_DATA.bits()]).await.unwrap();
+        w.write_all(&[0xFF, 0xFF, 0xFF, 0xFF]).await.unwrap();
+        let mut z = ZCodec::new(r);
+        match z.read_message_async().await.unwrap() {
+            ZMessage::Data(v) => assert!(v.is_empty()),
+            _ => panic!("expected Data message"),
+        }
+    }
+
+    #[test]
+    fn test_parse_file_name_invalid() {
+        // invalid patterns should return Err
+        assert!(ZFile::parse_file_name("abc-xyz-1-1.z").is_err());
+        assert!(ZFile::parse_file_name("abc-1630065600000-1.z").is_err());
+        assert!(ZFile::parse_file_name("abc-1630065600000-1-1.txt").is_err());
+        assert!(ZFile::parse_file_name("abc--1-1.z").is_err());
+    }
+
+    #[tokio::test]
+    async fn test_read_message_async_raw_invalid() {
+        // Construct bytes representing a RAW message with insufficient payload
+        let (mut w, r) = tokio::io::duplex(2);
+        w.write_all(&[DataType::IS_RAW.bits()]).await.unwrap();
+        w.write_all(&[RawType::Meta as u8]).await.unwrap();
+        // Close writer to signal EOF for the reader
+        drop(w);
+        let mut z = ZCodec::new(r);
+        let res = z.read_message_async().await;
+        assert!(res.is_err());
+        let err = res.err().unwrap();
+        assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof);
+    }
+
+    #[tokio::test]
+    async fn test_list_in_dir_ignore_non_z() {
+        let tmp = tempfile::tempdir().unwrap();
+        // non-z file
+        tokio::fs::write(tmp.path().join("readme.txt"), b"hello")
+            .await
+            .unwrap();
+        // valid z files
+        for i in 0..3 {
+            let ts = Utc::now().timestamp_millis() + i as i64;
+            let name = format!("tp-{}-1-{} .z", ts, i); // include an intentional space then fix
+            let fixed = name.replace(" ", "");
+            tokio::fs::write(tmp.path().join(&fixed), b"z")
+                .await
+                .unwrap();
+        }
+        let files = ZFile::list_in_dir(tmp.path()).await.unwrap();
+        assert_eq!(files.len(), 3);
+        assert!(files
+            .iter()
+            .all(|f| f.raw_path.as_ref().unwrap().extension().unwrap() == "z"));
+    }
+
+    #[tokio::test]
+    async fn test_check_or_next_rotates_and_renames() -> anyhow::Result<()> {
+        // given
+        let src_dir = tempfile::tempdir()?;
+        let mut z = ZFile::new(
+            "1.0.0",
+            "3.0.0.0",
+            src_dir.path(),
+            ("tp", None, 1, 1), // None ts triggers rename-on-rotate
+            async_compression::Level::Default,
+            0, // max_file_size=0 makes rotation condition true when current_size>0
+            None,
+            StdDuration::from_millis(1),
+        )
+        .await?;
+
+        // simulate writes so rotation triggers
+        z.current_size = 1;
+
+        let old_path = z.current_file.clone();
+        // when
+        z.check_or_next().await?;
+
+        // then: old path should have been renamed away, new current file exists
+        assert!(!old_path.exists());
+        assert!(z.current_file.exists());
+        // index increased
+        assert_eq!(z.name.3, 2);
         Ok(())
     }
 }

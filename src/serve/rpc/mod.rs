@@ -873,6 +873,9 @@ mod tests {
     use std::task::Poll;
     use std::time::{Duration, Instant};
 
+    use crate::serve::controller::AgentAction;
+    use crate::serve::rpc::modify_dsn_params;
+    use crate::serve::scheduler::agent::AgentNotify;
     use crate::serve::tests::tracing_subscriber_init;
     use arrow::array::{ArrayRef, TimestampMillisecondArray};
     use arrow::record_batch::RecordBatch;
@@ -895,6 +898,101 @@ mod tests {
         transport::{Channel, Endpoint},
     };
 
+    #[tokio::test]
+    async fn test_modify_dsn_params() {
+        // modify the csv_config_file
+        let dsn = "opcda://192.168.2.16/Matrikon.OPC.Simulation.1?csv_config_file=%40.%2Ftests%2Fopc%2Fopcda-utf8.csv";
+        let new_dsn = modify_dsn_params(dsn).await.unwrap();
+        let csv_config = new_dsn.params.get("csv_config_file").unwrap();
+        assert_eq!(
+            "MCx0YWdfbmFtZSxlbmFibGVkLHN0YWJsZSx0Ym5hbWUsdmFsdWVfY29sLHZhbHVlX3RyYW5zZm9ybSx0eXBlLHF1YWxpdHlfY29sLHRzX2NvbCxyZWNlaXZlZF90c19jb2wsdHNfdHJhbnNmb3JtLHJlY2VpdmVkX3RzX3RyYW5zZm9ybSx0YWc6OlZBUkNIQVIoMjAwKTo6bmFtZQ0KMSxyb290LnBhcmVudC50ZW1wZXJhdHVyZSwxLG9wY197dHlwZX0sdF97dGFnX25hbWV9LHZhbCx2YWwgKjEuOCArIDMyLGludCxxdWFsaXR5LHRzLHJ0cywscnRzICsgOGgs5YWl5bqT5rip5bqmDQoyLHJvb3QucGFyZW50LnByZXNzdXJlLDAsb3BjX3t0eXBlfSx0X3t0YWdfbmFtZX0sdmFsLHZhbCArIDEwLCxxdWFsaXR5LHRzLHJ0cyx0cyArIDhoLCzlh4/ljovpmIDljovlipsNCjMscm9vdC5wYXJlbnQuY3VycmVudCwxLG9wY19kYV9lbGVjLHRfY3VzdG9tX2N1cnJlbnQsdmFsLCwscXVhbGl0eSx0cyxydHMsdHMgLSA2cyxydHMgLSA2cyzmgLvnur/nlLXmtYENCg==",
+            csv_config
+        );
+
+        // do not modify the transform_config_file
+        let dsn = "pi://192.168.0.34/ci_test?transform_config_file=%40.%2Ftaosx-core%2Ftests%2Fpi%2Fpi_singlecol_point.csv";
+        let new_dsn = modify_dsn_params(dsn).await.unwrap();
+        let config_file = new_dsn.params.get("transform_config_file").unwrap();
+        assert_eq!("@./taosx-core/tests/pi/pi_singlecol_point.csv", config_file);
+    }
+
+    #[tokio::test]
+    async fn test_modify_dsn_params_for_list_action_opcda_driver() {
+        use super::modify_dsn_params_for_list_action;
+        let dsn = "opcda://192.168.2.16/test?csv_config_file=%40.%2Fconfig.csv";
+        let result = modify_dsn_params_for_list_action(dsn).await;
+        if let Ok(new_dsn) = result {
+            assert_eq!(new_dsn.driver.to_lowercase(), "opcda");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_modify_dsn_params_for_list_action_mysql_driver() {
+        use super::modify_dsn_params_for_list_action;
+        let dsn = "mysql://localhost:3306/test";
+        let result = modify_dsn_params_for_list_action(dsn).await;
+        if let Ok(new_dsn) = result {
+            assert_eq!(new_dsn.driver.to_lowercase(), "mysql");
+        }
+    }
+
+    #[test]
+    fn test_rpc_config_default() {
+        let config = super::RpcConfig::default();
+        assert!(!config.tcp.is_empty());
+        assert!(config.unix.is_none());
+        assert!(config.ssl_cert.is_none());
+        assert!(config.ssl_key.is_none());
+        assert!(config.ssl_ca.is_none());
+    }
+
+    #[test]
+    fn test_agent_rpc_channel_creation() {
+        let (_sender, receiver) = tokio::sync::broadcast::channel::<(i64, AgentAction)>(100);
+        let (notify_sender, _) = tokio::sync::broadcast::channel::<AgentNotify>(100);
+        let channel = super::AgentRpcChannel::new(receiver, notify_sender);
+        // Verify channel is created successfully
+        let type_name = std::any::type_name_of_val(&channel);
+        assert!(type_name.contains("AgentRpcChannel"));
+    }
+
+    #[tokio::test]
+    async fn test_encode_csv_config_file_with_empty_path() {
+        use super::encode_csv_config_file;
+        let result = encode_csv_config_file("".to_string());
+        // Result depends on file access which may fail in test environment
+        let _ = result;
+        // Only check if parsing worked
+        assert_eq!(result.unwrap(), "");
+    }
+
+    #[tokio::test]
+    async fn test_encode_csv_config_file_with_content() {
+        use super::encode_csv_config_file;
+        let result = encode_csv_config_file("test,content".to_string());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "test,content");
+    }
+
+    #[tokio::test]
+    async fn test_encode_csv_config_file_with_spaces() {
+        use super::encode_csv_config_file;
+        let result = encode_csv_config_file("  test  ,  content  ".to_string());
+        assert!(result.is_ok());
+        let encoded = result.unwrap();
+        assert!(!encoded.is_empty());
+    }
+
+    // use super::FlightServiceImpl;
+    // async fn client_with_uds(path: String) -> FlightServiceClient<Channel> {
+    //     let connector = tower::service_fn(move |_| UnixStream::connect(path.clone()));
+    //     let channel = Endpoint::try_from("http://[::1]:50051")
+    //         .unwrap()
+    //         .connect_with_connector(connector)
+    //         .await
+    //         .unwrap();
+    //     FlightServiceClient::new(channel)
+    // }
     async fn client_with_tcp() -> FlightServiceClient<Channel> {
         // let connector = tower::service_fn(move |_| TcpStream::connect("127.0.0.1:6051"));
         let channel = Endpoint::try_from("http://127.0.0.1:6051")

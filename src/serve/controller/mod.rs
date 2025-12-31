@@ -767,14 +767,132 @@ pub(crate) struct NewTask {
 }
 
 #[cfg(test)]
-mod tests {
+mod tests;
 
-    use super::*;
+#[cfg(test)]
+mod label_helper_tests {
+    use super::{Labels, Status, Task, TaskFilter};
+    use chrono::Utc;
+
+    fn make_task(id: i64, labels: Vec<&str>) -> Task {
+        Task {
+            id,
+            stream_type: None,
+            from: "tmq:///from".into(),
+            from_cluster: None,
+            oneshot_topic: None,
+            to: "local:///to".into(),
+            parser: None,
+            to_cluster: None,
+            jobs: 0,
+            via: None,
+            compression_level: None,
+            created_at: Utc::now(),
+            finished_at: None,
+            last_modified_at: None,
+            status: Status::Created,
+            reason: None,
+            completed: false,
+            cancelled: false,
+            deleted: false,
+            after_delete: None,
+            name: None,
+            trigger: None,
+            labels: Labels(Some(labels.into_iter().map(String::from).collect())),
+            breakpoints: None,
+        }
+    }
 
     #[test]
-    fn test_parse_csv() {
-        let dsn = Dsn::from_str("csv:./ab.csv,./cd.csv?param=1").unwrap();
-        dbg!(&dsn);
-        assert_eq!(dsn.path.unwrap(), "./ab.csv,./cd.csv");
+    fn labels_to_hash_map_and_find_work() {
+        let labels = Labels(Some(vec![
+            "from_cluster::c1".into(),
+            "region::us".into(),
+            "key_only".into(),
+        ]));
+        let map = labels.to_hash_map();
+        assert_eq!(map.get("from_cluster"), Some(&"c1"));
+        assert_eq!(labels.find("region"), Some("us"));
+        assert!(labels.find("missing").is_none());
+    }
+
+    #[test]
+    fn task_label_predicates_cover_all_paths() {
+        let task = make_task(1, vec!["env::prod", "region::us", "key_only"]);
+        assert!(task.contains_label("env::prod"));
+        assert!(!task.contains_label("env::dev"));
+        assert!(task.contains_labels(&["env::prod", "region::us"]));
+        assert!(task.contains_any_labels(&["env::dev", "key_only"]));
+        assert!(!task.contains_any_labels(&["missing", "another"]));
+    }
+
+    #[test]
+    fn task_filter_label_logic_filters_as_expected() {
+        let tasks = vec![
+            make_task(1, vec!["env::prod", "region::us"]),
+            make_task(2, vec!["env::dev", "region::eu"]),
+        ];
+
+        let filter = TaskFilter {
+            labels: Some("env::prod".into()),
+            any_labels: None,
+            without_labels: None,
+            ..Default::default()
+        };
+        let mut filtered = tasks.clone();
+        filter.filter_task_labels(&mut filtered);
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].id, 1);
+
+        let filter_any = TaskFilter {
+            labels: None,
+            any_labels: Some("region::eu".into()),
+            without_labels: None,
+            ..Default::default()
+        };
+        let mut filtered_any = tasks.clone();
+        filter_any.filter_task_labels(&mut filtered_any);
+        assert_eq!(filtered_any.len(), 1);
+        assert_eq!(filtered_any[0].id, 2);
+
+        let filter_without = TaskFilter {
+            without_labels: Some("region::us".into()),
+            ..Default::default()
+        };
+        filter_without.has_labels_filter();
+        filter_any.has_labels_filter();
+        let mut filtered_without = tasks;
+        filter_without.filter_task_labels(&mut filtered_without);
+        assert_eq!(filtered_without.len(), 1);
+        assert_eq!(filtered_without[0].id, 2);
+    }
+
+    #[test]
+    fn task_filter_has_labels_filter_detects_any_fields() {
+        let filter = TaskFilter {
+            labels: None,
+            any_labels: None,
+            without_labels: None,
+            ..Default::default()
+        };
+        assert!(!filter.has_labels_filter());
+
+        let filter_with_label = TaskFilter {
+            labels: Some("a".into()),
+            ..Default::default()
+        };
+        assert!(filter_with_label.has_labels_filter());
+
+        let filter_with_any = TaskFilter {
+            any_labels: Some("a".into()),
+            ..Default::default()
+        };
+        assert!(filter_with_any.has_labels_filter());
+
+        let filter_with_without = TaskFilter {
+            without_labels: Some("a".into()),
+            ..Default::default()
+        };
+        assert!(filter_with_without.has_labels_filter());
     }
 }
