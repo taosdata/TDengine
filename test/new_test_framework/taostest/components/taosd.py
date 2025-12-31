@@ -105,7 +105,9 @@ class TaosD:
         cfgPath = os.path.join(tmp_dir, "taos.cfg")
         self._remote.put(cfg["fqdn"], cfgPath, dnode["config_dir"])
         createDnode = "show dnodes"
-    
+        
+        # Generate encryption keys before starting taosd if needed
+        self._generate_encrypt_keys_if_needed(dnode, cfg)
         
         # valgrind_cmdline = f"valgrind --log-file=/var/log/valgrind/valgrind_{self.run_time}/valgrind.log --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
         valgrind_cmdline = f"valgrind --log-file={self._run_log_dir}/valgrind_taosd.log --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
@@ -163,6 +165,72 @@ class TaosD:
             self.logger.debug(
                 "wait 10 seconds for the dnode:%d to start." %(index))
             time.sleep(10)
+
+    def _generate_encrypt_keys_if_needed(self, dnode, cfg):
+        """
+        Generate encryption keys before starting taosd if needed
+        
+        Checks if encryption is required and generates keys using taosk tool.
+        Keys must be generated before taosd starts.
+        """
+        try:
+            # Check if encryption is needed
+            need_encrypt = False
+            svr_key = None
+            db_key = None
+            
+            # Check dnode config for encryption settings
+            if "encrypt" in dnode.get("config", {}):
+                need_encrypt = True
+                encrypt_cfg = dnode["config"]["encrypt"]
+                if isinstance(encrypt_cfg, dict):
+                    svr_key = encrypt_cfg.get("svrKey")
+                    db_key = encrypt_cfg.get("dbKey")
+            
+            # Alternative: check for individual key settings
+            if "svrKey" in dnode.get("config", {}):
+                need_encrypt = True
+                svr_key = dnode["config"]["svrKey"]
+                db_key = dnode["config"].get("dbKey")
+            
+            if not need_encrypt:
+                return
+            
+            # Import encrypt utility - use try/except for robustness
+            try:
+                import sys
+                import os
+                utils_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'utils')
+                utils_path = os.path.abspath(utils_path)
+                if utils_path not in sys.path:
+                    sys.path.insert(0, utils_path)
+                
+                from encryptUtil import generate_encrypt_keys
+            except ImportError:
+                # Fallback: try direct import
+                from new_test_framework.utils.encryptUtil import generate_encrypt_keys
+            
+            config_dir = dnode["config_dir"]
+            
+            # Generate keys (all keys are optional, auto-generated if not specified)
+            self.logger.info(f"Generating encryption keys for {cfg['fqdn']}:{cfg['serverPort']}")
+            
+            success, msg = generate_encrypt_keys(
+                cfg_path=config_dir,
+                svr_key=svr_key,  # None = auto-generate
+                db_key=db_key,    # None = auto-generate
+                force=False
+            )
+            
+            if not success:
+                self.logger.error(f"Failed to generate encryption keys: {msg}")
+            else:
+                self.logger.info(f"Encryption keys ready: {msg}")
+                
+        except ImportError as e:
+            self.logger.warning(f"Cannot import encryptUtil: {e}")
+        except Exception as e:
+            self.logger.warning(f"Error checking/generating encryption keys: {e}")
 
     def configure_and_start(self, tmp_dir, nodeDict):
         threads = []

@@ -1,23 +1,39 @@
-from new_test_framework.utils import tdLog, tdSql, epath, sc, etool, AutoGen, tdDnodes
+from new_test_framework.utils import (
+    tdLog, tdSql, epath, sc, etool, AutoGen, tdDnodes,
+    generate_encrypt_keys
+)
 import os
 import time
 
-# from frame.server.dnodes import *
-# from frame.server.cluster import *
-
 
 class TestBasic:
-    updatecfgDict = {'dDebugFlag':131}
+    # Configure taosd settings
+    updatecfgDict = {'dDebugFlag': 131}
+    
+    # Configure encryption - keys will be generated BEFORE taosd starts
+    # All keys are optional: if not specified, taosk will auto-generate them
+    # For this test, we specify keys because we need them for SQL operations
+    encryptionConfig = {
+        'svrKey': '1234567890',      # Specify for testing (optional in general)
+        'dbKey': '1234567890_db',    # Specify for testing (optional in general)
+        # 'dataKey': 'custom_data',  # Optional: specify custom data key
+        # 'generateConfig': True,    # Default: True
+        # 'generateMeta': True,      # Default: True
+        # 'generateData': True,      # Default: True
+    }
+    
+    @classmethod
     def setup_class(cls):
         cls.init(cls, replicaVar=1, checkColName="c1")
         cls.valgrind = 0
         cls.db = "test"
         cls.stb = "meters"
         cls.childtable_count = 10
+        cls.encrypt_key = '1234567890'
+
     
     def create_encrypt_db(self):        
         
-        tdSql.execute("create encrypt_key '1234567890'")
         autoGen = AutoGen()
         autoGen.create_db(self.db, 2, 1, "ENCRYPT_ALGORITHM 'SM4-CBC'")
         tdSql.execute(f"use {self.db}")
@@ -40,29 +56,38 @@ class TestBasic:
 
     def recreate_dndoe_encrypt_key(self):
         """
-        Description: From the jira TS-5507, the encrypt key can be recreated.
-        create: 
-            2024-09-23 created by Charles
-        update:
-            None
+        Test recreating encryption keys for dnode
+        
+        From jira TS-5507: the encrypt key can be recreated.
+        Created: 2024-09-23 by Charles
+        Updated: 2025-12-29 to use taosk instead of taosd -y
         """
-        # taosd path
-        taosd_path = epath.binPath()
-        tdLog.info(f"taosd_path: {taosd_path}")
-        # dnode2 path
         dndoe2_path = tdDnodes.getDnodeDir(2)
         dnode2_data_path = os.sep.join([dndoe2_path, "data"])
         dnode2_cfg_path = os.sep.join([dndoe2_path, "cfg"])
-        tdLog.info(f"dnode2_path: {dnode2_data_path}")
-        # stop dnode2
+        tdLog.info(f"dnode2 data path: {dnode2_data_path}")
+        
+        # Stop dnode2
         tdDnodes.stoptaosd(2)
-        tdLog.info("stop dndoe2")
-        # delete dndoe2 data
+        tdLog.info("Stopped dnode2")
+        
+        # Delete dnode2 data directory
         cmd = f"rm -rf {dnode2_data_path}"
         os.system(cmd)
-        # recreate the encrypt key for dnode2
-        os.system(f"{os.sep.join([taosd_path, 'taosd'])} -y '1234567890' -c {dnode2_cfg_path}")
-        tdLog.info("test case: recreate the encrypt key for dnode2 passed")
+        tdLog.info(f"Deleted dnode2 data directory")
+        
+        # Recreate encryption keys using taosk tool
+        success, msg = generate_encrypt_keys(
+            cfg_path=dnode2_cfg_path,
+            svr_key=self.encrypt_key,
+            db_key=f'{self.encrypt_key}_db',
+            force=True
+        )
+        
+        if not success:
+            tdLog.exit(f"Failed to recreate encryption keys for dnode2: {msg}")
+        
+        tdLog.info("Successfully recreated encryption keys for dnode2")
 
     def test_db_create_encrypt(self):
         """ Option: encrypt_algorithm

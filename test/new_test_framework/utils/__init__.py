@@ -21,4 +21,5 @@ from .pathFinding import *
 from .tserror import *
 from .stmt2 import tdStmt2
 from .tmqUtil import *
+from .encryptUtil import generate_encrypt_keys, check_encrypt_keys_exist, EncryptKeyManager
 import random

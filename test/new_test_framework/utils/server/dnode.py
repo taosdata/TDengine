@@ -139,11 +139,45 @@ class TDDnode:
                 "\\", "/"
             )
         ):
+            tdLog.info(f"Executing command: python3 ./test.py {valgrindStr} -d {remoteCfgDictStr} -e {execCmdStr}")
             self.remote_conn.run(
                 "python3 ./test.py %s -d %s -e %s"
                 % (valgrindStr, remoteCfgDictStr, execCmdStr)
             )
 
+    def _generate_encrypt_keys_if_needed(self):
+        """
+        Generate encryption keys if encryptionConfig is set in test class
+        This is called after config directory is created but before taosd starts
+        """
+        try:
+            # Try to import encryption utility and check if keys are needed
+            from ..encryptUtil import generate_encrypt_keys
+            
+            # Check if encryption config exists (will be set by conftest.py)
+            if hasattr(self, '_encryptionConfig') and self._encryptionConfig:
+                encrypt_cfg = self._encryptionConfig
+                
+                tdLog.info(f"Generating encryption keys for dnode{self.index}: {self.cfgDir}")
+                success, msg = generate_encrypt_keys(
+                    cfg_path=self.cfgDir,
+                    svr_key=encrypt_cfg.get('svrKey'),
+                    db_key=encrypt_cfg.get('dbKey'),
+                    generate_config=encrypt_cfg.get('generateConfig', True),
+                    generate_meta=encrypt_cfg.get('generateMeta', True),
+                    generate_data=encrypt_cfg.get('generateData', True),
+                    data_key=encrypt_cfg.get('dataKey')
+                )
+                
+                if not success:
+                    tdLog.exit(f"Failed to generate encryption keys for dnode{self.index}: {msg}")
+                tdLog.success(f"Encryption keys generated for dnode{self.index}: {msg}")
+        except ImportError:
+            # encryptUtil not available, skip
+            pass
+        except Exception as e:
+            tdLog.warning(f"Error checking encryption keys: {e}")
+    
     def deploy(self, *updatecfgDict):
         # logDir
         self.logDir = os.path.join(self.path, "dnode%d" % self.index, "log")
@@ -243,6 +277,9 @@ class TDDnode:
             self.remoteExec(
                 self.cfgDict, "tdDnodes.deploy(%d,updateCfgDict)" % self.index
             )
+        
+        # Generate encryption keys after config file is initialized, before starting taosd
+        self._generate_encrypt_keys_if_needed()
 
         self.deployed = 1
         tdLog.debug(

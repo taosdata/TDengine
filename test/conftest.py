@@ -247,8 +247,16 @@ def before_test_class(request):
     if hasattr(request.cls, "updatecfgDict"):
         tdLog.info(f"update cfg: {request.cls.updatecfgDict}")
         request.session.before_test.update_cfg(request.cls.updatecfgDict)
+    
+    # Store encryptionConfig in session for later use in TaosD component
+    if hasattr(request.cls, "encryptionConfig"):
+        request.session.encryptionConfig = request.cls.encryptionConfig
+        tdLog.info(f"Encryption enabled: {request.cls.encryptionConfig}")
+    else:
+        request.session.encryptionConfig = None
 
     # 部署taosd，包括启动dnode，mnode，adapter
+    # Encryption keys will be generated after config dirs are created, before taosd starts
     if not request.session.skip_deploy:
         request.session.before_test.deploy_taos(
             request.cls.yaml_file, request.session.mnodes_num, request.session.clean
@@ -262,6 +270,14 @@ def before_test_class(request):
         level=request.session.level,
         disk=request.session.disk,
     )
+    
+    # Pass encryption config to dnodes after init
+    if hasattr(request.session, 'encryptionConfig') and request.session.encryptionConfig is not None:
+        from new_test_framework.utils import tdDnodes
+        # Store encryption config in each dnode for later use during deploy
+        for dnode in tdDnodes.dnodes:
+            dnode._encryptionConfig = request.session.encryptionConfig
+        tdLog.info(f"Encryption config passed to {len(tdDnodes.dnodes)} dnodes")
 
     # 建立连接
     request.cls.conn = request.session.before_test.get_taos_conn(request)
