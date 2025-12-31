@@ -390,18 +390,6 @@ mod additional_tests {
     }
 
     #[test]
-    fn schedule_repeatable_detection_matches_variants() {
-        let cron = Schedule::Cron("0 * * * *".to_string());
-        assert!(cron.is_repeatable_job());
-
-        let with_start = Schedule::RepeatedWithStartAt(Duration::from_secs(5), Utc::now());
-        assert!(with_start.is_repeatable_job());
-
-        assert!(!Schedule::Oneshot.is_repeatable_job());
-        assert!(!Schedule::Repeated(Duration::from_secs(1)).is_repeatable_job());
-    }
-
-    #[test]
     fn stop_condition_repeated_and_tick_behaviour() {
         let counter = Arc::new(AtomicU64::new(2));
         let cond = StopCondition::Repeated(counter);

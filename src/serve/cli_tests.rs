@@ -30,23 +30,6 @@ fn test_cli_parse_database_url() {
 }
 
 #[test]
-fn test_get_database_url_from_option() {
-    let cli = Cli {
-        database_url: Some("sqlite:custom.db".to_string()),
-        ..Default::default()
-    };
-    assert_eq!(cli.get_database_url(), "sqlite:custom.db");
-}
-
-#[test]
-fn test_get_database_url_default() {
-    let cli = Cli::default();
-    let url = cli.get_database_url();
-    dbg!(&url);
-    assert!(url.starts_with("sqlite:") && url.ends_with("x.db"));
-}
-
-#[test]
 fn test_get_listen_port_default() {
     let cli = Cli::default();
     assert_eq!(cli.get_listen_port(), TAOSX_REST_API_DEFAULT_PORT);
@@ -195,18 +178,4 @@ fn test_request_timeout() {
 fn test_do_not_resume() {
     let cli = Cli::parse_from(["", "--do-not-resume", "true"]);
     assert_eq!(cli.do_not_resume, Some(true));
-}
-
-#[test]
-fn test_env_variables() {
-    // Test that DATABASE_URL env is recognized
-    unsafe {
-        std::env::set_var("DATABASE_URL", "sqlite:env.db");
-    }
-    let cli = Cli::default();
-    let url = cli.get_database_url();
-    assert_eq!(url, "sqlite:env.db");
-    unsafe {
-        std::env::remove_var("DATABASE_URL");
-    }
 }

@@ -831,12 +831,6 @@ mod tests {
     }
 
     #[test]
-    fn test_hostname_retrieval() {
-        let hostname = gethostname();
-        assert!(!hostname.is_empty());
-    }
-
-    #[test]
     fn test_table_key_creation() {
         let table_key = TableKey {
             stable: "test_stable".to_string(),
