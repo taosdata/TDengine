@@ -244,6 +244,13 @@ It will import data from `./meters/meters.csv.gz` (a gzip-compressed CSV file) i
 
 This section discusses how to deploy `taosX` in service mode. When running taosX in service mode, its functions need to be used through the graphical interface on taosExplorer.
 
+:::tip
+
+1. Starting from version 3.4.0.0, taosX uses TSDB as the metadata storage medium and no longer uses SQLite to store metadata. It is not compatible with earlier versions.
+2. Starting from version 3.4.0.0, taosX requires creating an XNODE before creating tasks. Refer to [Creating XNODE nodes](../03-taos-sql/94-datain.md#create-nodes).
+
+:::
+
 ### Configuration
 
 `taosX` supports configuration through a configuration file. On Linux, the default configuration file path is `/etc/taos/taosx.toml`, and on Windows, it is `C:\\TDengine\\cfg\\taosx.toml`, which includes the following configuration items:
@@ -259,7 +266,6 @@ This section discusses how to deploy `taosX` in service mode. When running taosX
 - `serve.ssl_cert`: SSL/TLS certificate file.
 - `serve.ssl_key`: SSL/TLS server's private key.
 - `serve.ssl_ca`: SSL/TLS certificate authority (CA) certificates.
-- `serve.database_url`: Address of the `taosX` database, format is `sqlite:<path>`.
 - `serve.request_timeout`: Global interface API timeout.
 - `serve.grpc`:`taosX` gRPC listening address, default value is `0.0.0.0:6055`. Supports IPv6 and multiple comma-separated addresses with the same port.
 - `rest_api_threads`: Runtime worker threads for rest api service, default value is `current server cores*2`.
@@ -306,9 +312,6 @@ As shown below:
 #ssl_key = "/path/to/tls/server.key"
 # TLS/SSL CA certificate
 #ssl_ca = "/path/to/tls/ca.pem"
-
-# database url
-#database_url = "sqlite:taosx.db"
 
 # default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
 #request_timeout = 30
