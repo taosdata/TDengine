@@ -3097,7 +3097,11 @@ static EDealRes evaluateWaker(SNode *pNode, void *pWhereCtx) {
         SValueNode *pval1 = (SValueNode *)taosArrayPop(pctx->stack);
 
         pval.nd.datum.b = pval1->datum.b && pval2->datum.b;
-        taosArrayPush(pctx->stack, &pval);
+        if (NULL == taosArrayPush(pctx->stack, &pval)) {
+          mError("xnode walker AND array push err: %s", tstrerror(terrno));
+          pctx->code = TSDB_CODE_FAILED;
+          return DEAL_RES_END;
+        }
 
         freeSXndRefValueNode((SXndRefValueNode *)pval1);
         freeSXndRefValueNode((SXndRefValueNode *)pval2);
@@ -3108,7 +3112,11 @@ static EDealRes evaluateWaker(SNode *pNode, void *pWhereCtx) {
         SValueNode *pval1 = (SValueNode *)taosArrayPop(pctx->stack);
 
         pval.nd.datum.b = pval1->datum.b || pval2->datum.b;
-        taosArrayPush(pctx->stack, &pval);
+        if (NULL == taosArrayPush(pctx->stack, &pval)) {
+          mError("xnode walker OR array push err: %s", tstrerror(terrno));
+          pctx->code = TSDB_CODE_FAILED;
+          return DEAL_RES_END;
+        }
 
         freeSXndRefValueNode((SXndRefValueNode *)pval1);
         freeSXndRefValueNode((SXndRefValueNode *)pval2);
@@ -3118,7 +3126,11 @@ static EDealRes evaluateWaker(SNode *pNode, void *pWhereCtx) {
         SValueNode *pval1 = (SValueNode *)taosArrayPop(pctx->stack);
 
         pval.nd.datum.b = !pval1->datum.b;
-        taosArrayPush(pctx->stack, &pval);
+        if (NULL == taosArrayPush(pctx->stack, &pval)) {
+          mError("xnode walker NOT array push err: %s", tstrerror(terrno));
+          pctx->code = TSDB_CODE_FAILED;
+          return DEAL_RES_END;
+        }
 
         freeSXndRefValueNode((SXndRefValueNode *)pval1);
         break;
@@ -3185,7 +3197,11 @@ static int32_t filterJobsByWhereCond(SNode *pWhere, SArray *pArray, SArray **ppR
       goto _exit;
     }
     if (evaluateWhereCond(pWhere, pDataMap, &code)) {
-      taosArrayPush(*ppResult, pJob);
+      if (NULL == taosArrayPush(*ppResult, pJob)) {
+        mError("xnode filterJobsByWhereCond array push err: %s", tstrerror(terrno));
+        code = TSDB_CODE_FAILED;
+        goto _exit;
+      }
     }
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
@@ -3196,30 +3212,41 @@ _exit:
   TAOS_RETURN(code);
 }
 
+#define XND_LOG_END(code, lino)                                                                 \
+  do {                                                                                          \
+    if (code != TSDB_CODE_SUCCESS) {                                                            \
+      mError("%s failed at line %d code: %d, since %s", __func__, lino, code, tstrerror(code)); \
+    }                                                                                           \
+  } while (0)
+
 void httpRebalanceAuto(SArray *pResult) {
+  int32_t code = 0;
+  int32_t lino = 0;
   SJson *pJsonArr = NULL;
   char  *pContStr = NULL;
   // convert pResult to [(tid, jid)*]
   pJsonArr = tjsonCreateArray();
   if (pJsonArr == NULL) {
-    mError("xnode httpRebalanceAuto json array error: %s", tstrerror(terrno));
+    code = terrno;
+    mError("xnode json array error: %s", tstrerror(code));
     goto _OVER;
   }
   for (int32_t i = 0; i < pResult->size; i++) {
     SXnodeJobObj *pJob = taosArrayGet(pResult, i);
     SJson        *pJsonObj = tjsonCreateObject();
     if (pJsonObj == NULL) {
-      mError("xnode httpRebalanceAuto json object error: %s", tstrerror(terrno));
+      code = terrno;
+      mError("xnode json object error: %s", tstrerror(code));
       goto _OVER;
     }
-    tjsonAddDoubleToObject(pJsonObj, "tid", pJob->taskId);
-    tjsonAddDoubleToObject(pJsonObj, "jid", pJob->id);
-    tjsonAddItemToArray(pJsonArr, pJsonObj);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJsonObj, "tid", pJob->taskId), &lino, _OVER);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(pJsonObj, "jid", pJob->id), &lino, _OVER);
+    TAOS_CHECK_GOTO(tjsonAddItemToArray(pJsonArr, pJsonObj), &lino, _OVER);
   }
 
   pContStr = tjsonToUnformattedString(pJsonArr);
   if (pContStr == NULL) {
-    mError("xnode httpRebalanceAuto to json string error: %s", tstrerror(terrno));
+    mError("xnode to json string error: %s", tstrerror(terrno));
     goto _OVER;
   }
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
@@ -3229,6 +3256,7 @@ void httpRebalanceAuto(SArray *pResult) {
 _OVER:
   if (pJsonArr != NULL) tjsonDelete(pJsonArr);
   if (pContStr != NULL) taosMemoryFree(pContStr);
+  XND_LOG_END(code, lino);
   return;
 }
 
@@ -3500,7 +3528,8 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
 
 static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) {
   CURL   *curl = NULL;
-  int32_t retCode = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
 
   curl = curl_easy_init();
   if (curl == NULL) {
@@ -3508,41 +3537,43 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t time
     return -1;
   }
 
-  if (curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socketPath)) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeout) != 0) goto _OVER;
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socketPath), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_URL, url), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeout), &lino, _OVER);
 
   uDebug("curl get request will sent, url:%s", url);
   CURLcode curlCode = curl_easy_perform(curl);
   if (curlCode != CURLE_OK) {
     if (curlCode == CURLE_OPERATION_TIMEDOUT) {
       mError("xnode failed to perform curl action, code:%d", curlCode);
-      retCode = TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT;
+      code = TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT;
       goto _OVER;
     }
     uError("failed to perform curl action, code:%d", curlCode);
-    retCode = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
+    code = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
     goto _OVER;
   }
 
   long http_code = 0;
-  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+  TAOS_CHECK_GOTO(curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code), &lino, _OVER);
   if (http_code != 200) {
-    retCode = TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
+    code = TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
   }
 
 _OVER:
   if (curl != NULL) curl_easy_cleanup(curl);
-  return retCode;
+  XND_LOG_END(code, lino);
+  return code;
 }
 
 static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen, int32_t timeout,
                                    const char *socketPath) {
   struct curl_slist *headers = NULL;
   CURL              *curl = NULL;
-  int32_t            retCode = 0;
+  int32_t            code = 0;
+  int32_t            lino = 0;
 
   curl = curl_easy_init();
   if (curl == NULL) {
@@ -3551,17 +3582,17 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   }
 
   headers = curl_slist_append(headers, "Content-Type:application/json;charset=UTF-8");
-  if (curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socketPath)) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeout) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_POST, 1) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L) != 0) goto _OVER;
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socketPath), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_URL, url), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, timeout), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_POST, 1), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L), &lino, _OVER);
+  TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L), &lino, _OVER);
 
   mDebug("xnode curl post request will sent, url:%s len:%d content:%s", url, bufLen, buf);
   CURLcode curlCode = curl_easy_perform(curl);
@@ -3569,19 +3600,19 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   if (curlCode != CURLE_OK) {
     if (curlCode == CURLE_OPERATION_TIMEDOUT) {
       mError("xnode failed to perform curl action, code:%d", curlCode);
-      retCode = TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT;
+      code = TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT;
       goto _OVER;
     }
-    mError("xnode failed to perform curl action, code:%d", curlCode);
-    retCode = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
+    uError("xnode failed to perform curl action, code:%d", curlCode);
+    code = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
     goto _OVER;
   }
 
   long http_code = 0;
-  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+  TAOS_CHECK_GOTO(curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code), &lino, _OVER);
   if (http_code != 200) {
     mError("xnode failed to perform curl action, http code:%ld", http_code);
-    retCode = TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
+    code = TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
   }
 
 _OVER:
@@ -3589,12 +3620,14 @@ _OVER:
     curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
   }
-  return retCode;
+  XND_LOG_END(code, lino);
+  return code;
 }
 
 static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) {
   CURL   *curl = NULL;
-  int32_t retCode = 0;
+  int32_t code = 0;
+  int32_t lino = 0;
 
   curl = curl_easy_init();
   if (curl == NULL) {
@@ -3614,23 +3647,24 @@ static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t t
   if (curlCode != CURLE_OK) {
     uError("xnode failed to perform curl action, curl code:%d", curlCode);
     if (curlCode == CURLE_OPERATION_TIMEDOUT) {
-      retCode = TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT;
+      code = TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT;
       goto _OVER;
     }
-    retCode = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
+    code = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
     goto _OVER;
   }
 
   long http_code = 0;
-  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+  TAOS_CHECK_GOTO(curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code), &lino, _OVER);
   if (http_code != 200 && http_code != 204) {
     uError("xnode curl request response http code:%ld", http_code);
-    retCode = TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
+    code = TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
   }
 
 _OVER:
   if (curl != NULL) curl_easy_cleanup(curl);
-  return retCode;
+  XND_LOG_END(code, lino);
+  return code;
 }
 
 SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const char *buf, int64_t bufLen) {
