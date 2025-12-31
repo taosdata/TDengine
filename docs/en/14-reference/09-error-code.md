@@ -731,7 +731,7 @@ Below are the business error codes for each module.
 | 0x80008012 | Xnode task job syntax error                           | Xnode task job syntax error                                 | Correct the task job configuration and retry |
 | 0x80008013 | Xnode task job config too long                        | Xnode task job config too long                              | Correct the task job configuration and retry |
 | 0x80008014 | Xnode job not exist                                   | Xnode task job not exist                                    | Check task job id                            |
-| 0x80008015 | Xnode task/job reason too long                        | Xnode task/job reason too long                              | Report the issure to developers on GitHub    |
+| 0x80008015 | Xnode task/job reason too long                        | Xnode task/job reason too long                              | Report the issue to developers on GitHub    |
 | 0x80008016 | Xnode xnoded response timeout                         | xnoded response timeout                                     | Retry                                        |
 | 0x80008017 | Xnode where clause column not exist                   | Xnode where clause column not exist                         | Check the where condition                    |
 | 0x80008018 | Xnode where clause column type diff                   | Xnode where clause column type is not expected              | Check the where condition                    |
