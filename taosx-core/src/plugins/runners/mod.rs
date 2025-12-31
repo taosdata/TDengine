@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::ffi::OsStr;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -30,9 +31,9 @@ const ENV_PLUGINS_HOME_DEFAULT: &str = {
     }
 };
 
-pub fn set_env_plugins_home_dir(config: String) {
+pub fn set_env_plugins_home_dir<T: AsRef<OsStr>>(config: T) {
     // 使用配置、环境变量、默认值
-    if !config.trim().is_empty() {
+    if !config.as_ref().is_empty() {
         std::env::set_var(ENV_PLUGINS_HOME, config);
         return;
     }
@@ -135,7 +136,7 @@ pub fn set_tcp_keepalive(stream: &std::net::TcpStream) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn set_env_data_dir(config: String) {
+pub fn set_env_data_dir<P: AsRef<OsStr>>(config: P) {
     std::env::set_var(ENV_TAOSX_DATA_DIR, config);
 }
 

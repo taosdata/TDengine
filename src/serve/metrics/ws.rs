@@ -213,3 +213,22 @@ pub(crate) async fn send_task_metrics(
     rt::spawn(echo_heartbeat_ws(session, msg_stream, cancel));
     Ok(res)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::{FromRequest, test::TestRequest, web::Payload};
+
+    // Ensure handler rejects non-numeric task ids before attempting websocket handshake or spawns.
+    #[actix_web::test]
+    async fn send_task_metrics_rejects_invalid_task_id() {
+        let (req, mut pl) = TestRequest::with_uri("/ws/tasks/abc")
+            .param("task_id", "abc")
+            .to_http_parts();
+        let payload = Payload::from_request(&req, &mut pl).await.unwrap();
+
+        let result = send_task_metrics(req, payload).await;
+
+        assert!(result.is_err());
+    }
+}
