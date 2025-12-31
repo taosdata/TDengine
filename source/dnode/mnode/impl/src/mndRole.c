@@ -1035,9 +1035,8 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         numOfRows++;
       }
     }
-    // row level privileges
-
-    // table level privileges
+    // table level privileges PRIV_TODO
+    // ...
     sdbRelease(pSdb, pObj);
   }
 

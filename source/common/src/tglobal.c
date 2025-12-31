@@ -31,6 +31,11 @@
 #define CONFIG_PATH_LEN (TSDB_FILENAME_LEN + 12)
 #define CONFIG_FILE_LEN (CONFIG_PATH_LEN + 32)
 
+void *tbHashResHook = 0;
+void *tbMetaResHook = 0;
+void *tbViewResHook = 0;
+void *tbUserAuthResHook = 0;
+
 // GRANT_CFG_DECLARE;
 
 SConfig *tsCfg = NULL;

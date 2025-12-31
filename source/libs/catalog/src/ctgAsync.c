@@ -20,6 +20,11 @@
 #include "tref.h"
 #include "trpc.h"
 
+extern void *tbHashResHook;
+extern void *tbMetaResHook;
+extern void *tbViewResHook;
+extern void *tbUserAuthResHook;
+
 typedef struct SCtgViewTaskParam {
   bool    forceFetch;
   SArray* pTableReqs;
@@ -98,6 +103,7 @@ int32_t ctgInitGetTbMetasTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
   SCtgTbMetasCtx* ctx = task.taskCtx;
   ctx->pNames = param;
   ctx->pResList = taosArrayInit(pJob->tbMetaNum, sizeof(SMetaRes));
+  printf("%s:%d Initialized SCtgTbMetasCtx with pResList at %p\n", __func__, __LINE__, ctx->pResList);
   if (NULL == ctx->pResList) {
     qError("QID:0x%" PRIx64 ", taosArrayInit %d SMetaRes %d failed", pJob->queryId, pJob->tbMetaNum,
            (int32_t)sizeof(SMetaRes));
@@ -255,6 +261,8 @@ int32_t ctgInitGetTbHashsTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
     ctgFreeTask(&task, true);
     CTG_ERR_RET(terrno);
   }
+  printf("%s:%d Initialized SCtgTbHashsCtx with pResList at %p\n", __func__, __LINE__, ctx->pResList);
+  tbHashResHook = ctx->pResList;
 
   if (NULL == taosArrayPush(pJob->pTasks, &task)) {
     ctgFreeTask(&task, true);
@@ -522,12 +530,15 @@ int32_t ctgInitGetViewsTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
   ctx->pNames = p->pTableReqs;
   ctx->forceFetch = p->forceFetch;
   ctx->pResList = taosArrayInit(pJob->viewNum, sizeof(SMetaRes));
+
   if (NULL == ctx->pResList) {
     qError("QID:0x%" PRIx64 ", taosArrayInit %d SMetaRes %d failed", pJob->queryId, pJob->viewNum,
            (int32_t)sizeof(SMetaRes));
     ctgFreeTask(&task, true);
     CTG_ERR_RET(terrno);
   }
+  tbViewResHook = ctx->pResList;
+  printf("%s:%d Initialized SCtgViewsCtx with pResList at %p\n", __func__, __LINE__, ctx->pResList);
 
   if (NULL == taosArrayPush(pJob->pTasks, &task)) {
     ctgFreeTask(&task, true);
@@ -3864,6 +3875,8 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
   if (NULL == rsp.pRawRes) {
     CTG_ERR_RET(terrno);
   }
+  tbUserAuthResHook = rsp.pRawRes;
+  printf("%s:%d hooked tbUserAuthResHook: %p\n", __func__, __LINE__, tbUserAuthResHook);
 
   if (TSDB_CODE_SUCCESS != pCtx->subTaskCode) {
     if (CTG_TABLE_NOT_EXIST(pCtx->subTaskCode)) {
@@ -3874,7 +3887,12 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
     }
   }
 
-  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, &pCtx->user, tbNotExists, &inCache, &rsp));
+  code = ctgChkAuthFromCache(pCtg, &pCtx->user, tbNotExists, &inCache, &rsp);
+  if (TSDB_CODE_SUCCESS != code) {
+    assert(0);
+    taosMemoryFreeClear(rsp.pRawRes);
+    CTG_ERR_RET(code);
+  }
   if (inCache) {
     pTask->res = rsp.pRawRes;
 

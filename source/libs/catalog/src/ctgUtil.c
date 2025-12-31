@@ -953,6 +953,7 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
     }
     case CTG_TASK_GET_TB_META_BATCH: {
       SCtgTbMetasCtx* taskCtx = (SCtgTbMetasCtx*)pTask->taskCtx;
+      printf("%s:%d free CTG_TASK_GET_TB_META_BATCH at %p\n", __func__, __LINE__, taskCtx->pResList);
       taosArrayDestroyEx(taskCtx->pResList, ctgFreeBatchMeta);
       taosArrayDestroy(taskCtx->pFetchs);
       // NO NEED TO FREE pNames
@@ -974,6 +975,7 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
     }
     case CTG_TASK_GET_TB_HASH_BATCH: {
       SCtgTbHashsCtx* taskCtx = (SCtgTbHashsCtx*)pTask->taskCtx;
+      printf("%s:%d free CTG_TASK_GET_TB_HASH_BATCH at %p\n", __func__, __LINE__, taskCtx->pResList);
       taosArrayDestroyEx(taskCtx->pResList, ctgFreeBatchHash);
       taosArrayDestroy(taskCtx->pFetchs);
       // NO NEED TO FREE pNames
@@ -1010,6 +1012,7 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
     case CTG_TASK_GET_UDF:
     case CTG_TASK_GET_QNODE:
     case CTG_TASK_GET_USER: {
+      printf("%s:%d free CTG_TASK_GET_QNODE or CTG_TASK_GET_USER at %p\n", __func__, __LINE__, pTask->taskCtx);
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }

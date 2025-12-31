@@ -287,6 +287,11 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
 static int32_t authSelect(SAuthCxt* pCxt, SSelectStmt* pSelect) {
   SSelectAuthCxt cxt = {.pAuthCxt = pCxt, .pSelect = pSelect};
   nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, authSelectImpl, &cxt);
+  // if(pCxt->pParseCxt->isSuperUser) {
+  //   pCxt->errCode = TSDB_CODE_SUCCESS;
+  // } else {
+  //   pCxt->errCode = TSDB_CODE_PAR_PERMISSION_DENIED;
+  // }
   return pCxt->errCode;
 }
 
