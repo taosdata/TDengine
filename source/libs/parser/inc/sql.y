@@ -162,7 +162,6 @@ user_option(A) ::= CALL_PER_SESSION option_value(B).                            
     }
     A->hasCallPerSession = true;
   }
-/****** VNODE_PER_CALL is not supported for now
 user_option(A) ::= VNODE_PER_CALL option_value(B).                               {
     A = mergeUserOptions(pCxt, NULL, NULL);
     if (B.type == TK_DEFAULT) {
@@ -174,7 +173,7 @@ user_option(A) ::= VNODE_PER_CALL option_value(B).                              
     }
     A->hasVnodePerCall = true;
   }
-**********/
+
 user_option(A) ::= FAILED_LOGIN_ATTEMPTS option_value(B).                        {
     A = mergeUserOptions(pCxt, NULL, NULL);
     if (B.type == TK_DEFAULT) {
@@ -360,8 +359,8 @@ cmd ::= CREATE USER not_exists_opt(A) user_name(B) PASS NK_STRING(C) create_user
     pCxt->pRootNode = createCreateUserStmt(pCxt, &B, D, A);
   }
 cmd ::= ALTER USER user_name(A) alter_user_options(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, B); }
-cmd ::= DROP USER user_name(A).                                                  { pCxt->pRootNode = createDropUserStmt(pCxt, &A); }
-cmd ::= ALTER DNODES RELOAD general_name(A).                                                 { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
+cmd ::= DROP USER exists_opt(A) user_name(B).                                    { pCxt->pRootNode = createDropUserStmt(pCxt, &B, A); }
+cmd ::= ALTER DNODES RELOAD general_name(A).                                     { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
 
 
 /************************************************ create/alter/drop token **********************************************/
@@ -387,8 +386,8 @@ cmd ::= CREATE TOKEN not_exists_opt(A) NK_ID(B) FROM USER user_name(C) token_opt
 cmd ::= ALTER TOKEN NK_ID(A) token_options(B). {
     pCxt->pRootNode = createAlterTokenStmt(pCxt, &A, B);
   }
-cmd ::= DROP TOKEN NK_ID(A). {
-    pCxt->pRootNode = createDropTokenStmt(pCxt, &A);
+cmd ::= DROP TOKEN exists_opt(A) NK_ID(B). {
+    pCxt->pRootNode = createDropTokenStmt(pCxt, &B, A);
   }
 
 
@@ -484,6 +483,7 @@ priv_type(A) ::= TRIM.                                                          
 priv_type(A) ::= ROLLUP.                                                          { A = PRIV_SET_TYPE(PRIV_DB_ROLLUP); }
 priv_type(A) ::= SCAN.                                                            { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
 priv_type(A) ::= SSMIGRATE.                                                       { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
+priv_type(A) ::= DROP OWNED.                                                      { A = PRIV_SET_TYPE(PRIV_DB_DROP_OWNED); }
 
 priv_type(A) ::= SHOW VNODES.                                                     { A = PRIV_SET_TYPE(PRIV_SHOW_VNODES); }
 priv_type(A) ::= SHOW VGROUPS.                                                    { A = PRIV_SET_TYPE(PRIV_SHOW_VGROUPS); }
@@ -609,12 +609,15 @@ priv_type_tbl_dml(A) ::= DELETE TABLE.                                          
 priv_type_tbl_dml(A) ::= DELETE.                                                  { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
 
 %type priv_level_opt                                                              { SPrivLevelArgs }
-%destructor priv_level_opt                                                        {
+%destructor priv_level_opt                                                        { 
                                                                                     if ($$.cols != NULL) {
                                                                                       nodesDestroyList($$.cols);
                                                                                     }
                                                                                   }
-priv_level_opt(A) ::= .                                                           { A.first = nil_token; A.second = nil_token; A.objType = PRIV_OBJ_CLUSTER; A.cols = NULL; }
+priv_level_opt(A) ::= .                                                           { 
+                                                                                    A.first = nil_token; A.second = nil_token; 
+                                                                                    A.objType = PRIV_OBJ_CLUSTER; A.cols = NULL; 
+                                                                                  }
 priv_level_opt(A) ::= ON priv_level(B).                                           { A = B; A.objType = PRIV_OBJ_TBL; }
 priv_level_opt(A) ::= ON DATABASE priv_level(B).                                  { A = B; A.objType = PRIV_OBJ_DB; }
 priv_level_opt(A) ::= ON TABLE priv_level(B).                                     { A = B; A.objType = PRIV_OBJ_TBL; }
@@ -626,16 +629,12 @@ priv_level_opt(A) ::= ON RSMA priv_level(B).                                    
 priv_level_opt(A) ::= ON TSMA priv_level(B).                                      { A = B; A.objType = PRIV_OBJ_TSMA; }
 
 %type priv_level                                                                  { SPrivLevelArgs }
-%destructor priv_level                                                            {
-                                                                                    if ($$.cols != NULL) {
-                                                                                      nodesDestroyList($$.cols);
-                                                                                    }
-                                                                                  }
+%destructor priv_level                                                            { }
 priv_level(A) ::= NK_STAR(B).                                                     { A.first = B; A.second = nil_token; A.cols = NULL; }
 priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= db_name(B) NK_DOT NK_STAR(C).                                   { A.first = B; A.second = C; A.cols = NULL; }
 priv_level(A) ::= db_name(B) NK_DOT table_name(C).                                { A.first = B; A.second = C; A.cols = NULL; }
-priv_level(A) ::= topic_name(B).                                                  { A.first = B; A.second = nil_token; }
+priv_level(A) ::= db_name(B).                                                     { A.first = B; A.second = nil_token; A.cols = NULL; }
 
 with_clause_opt(A) ::= .                                                          { A = NULL; }
 with_clause_opt(A) ::= WITH search_condition(B).                                  { A = B; }
@@ -1378,7 +1377,7 @@ full_view_name(A) ::= db_name(B) NK_DOT view_name(C).                           
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(A) full_stream_name(B) stream_trigger(C)
         stream_outtable_opt(D) as_subquery_opt(E).                                { pCxt->pRootNode = createCreateStreamStmt(pCxt, A, B, C, D, E); }
-cmd ::= DROP STREAM exists_opt(A) full_stream_name(B).                            { pCxt->pRootNode = createDropStreamStmt(pCxt, A, B); }
+cmd ::= DROP STREAM exists_opt(A) stream_name_list(B).                            { pCxt->pRootNode = createDropStreamStmt(pCxt, A, B); }
 cmd ::= STOP STREAM exists_opt(A) full_stream_name(B).                            { pCxt->pRootNode = createPauseStreamStmt(pCxt, A, B); }
 cmd ::= START STREAM exists_opt(A) ignore_opt(C) full_stream_name(B).             { pCxt->pRootNode = createResumeStreamStmt(pCxt, A, C, B); }
 cmd ::= RECALCULATE STREAM full_stream_name(A) recalculate_range(B).              { pCxt->pRootNode = createRecalcStreamStmt(pCxt, A, B); }
@@ -1389,6 +1388,11 @@ recalculate_range(A) ::= FROM time_point(B) TO time_point(C).                   
 
 full_stream_name(A) ::= stream_name(B).                                           { A = createStreamNode(pCxt, NULL, &B); }
 full_stream_name(A) ::= db_name(B) NK_DOT stream_name(C).                         { A = createStreamNode(pCxt, &B, &C); }
+
+%type stream_name_list                                                            { SNodeList* }
+%destructor stream_name_list                                                      { nodesDestroyList($$); }
+stream_name_list(A) ::= full_stream_name(B).                                      { A = createNodeList(pCxt, B); }
+stream_name_list(A) ::= stream_name_list(B) NK_COMMA full_stream_name(C).         { A = addNodeToList(pCxt, B, C); }
 
 /********** stream_outtable **********/
 stream_outtable_opt(A) ::= .                                                                                                { A = NULL; }
@@ -1406,6 +1410,14 @@ trigger_type(A) ::= interval_opt(B) SLIDING NK_LP sliding_expr(C) NK_RP.        
 trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH search_condition(B) END WITH search_condition(C) NK_RP true_for_opt(D).   { A = createEventWindowNode(pCxt, B, C, D); }
 trigger_type(A) ::= COUNT_WINDOW NK_LP count_window_args(B) NK_RP.                                                          { A = createCountWindowNodeFromArgs(pCxt, B); }
 trigger_type(A) ::= PERIOD NK_LP interval_sliding_duration_literal(B) offset_opt(C) NK_RP.                                  { A = createPeriodWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
+trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH NK_LP search_condition_list(B) NK_RP
+                    END WITH search_condition(C) NK_RP true_for_opt(D).                                                     { A = createEventWindowNode(pCxt, createNodeListNode(pCxt, B), C, D); }
+trigger_type(A) ::= EVENT_WINDOW NK_LP START WITH NK_LP search_condition_list(B) NK_RP NK_RP true_for_opt(D).               { A = createEventWindowNode(pCxt, createNodeListNode(pCxt, B), NULL, D); }
+
+%type search_condition_list                                                                                                 { SNodeList* }
+%destructor search_condition_list                                                                                           { nodesDestroyList($$); }
+search_condition_list(A) ::= search_condition(B) NK_COMMA search_condition(C).                                              { A = addNodeToList(pCxt, createNodeList(pCxt, B), C); }
+search_condition_list(A) ::= search_condition_list(B) NK_COMMA search_condition(C).                                         { A = addNodeToList(pCxt, B, C); }
 
 interval_opt(A) ::= .                                                                                                       { A = NULL; }
 interval_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(C) NK_RP.                                              { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, C), NULL, NULL, NULL); }

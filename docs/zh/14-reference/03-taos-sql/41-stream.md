@@ -26,10 +26,12 @@ options: {
     
 trigger_type: {
     PERIOD(period_time[, offset_time])
-  | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
+  | SLIDING(sliding_val[, offset_time]) 
+  | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
   | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
+  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(duration_time)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
 
@@ -103,7 +105,7 @@ SLIDING(sliding_val[, offset_time])
 ##### 滑动窗口触发
 
 ```sql
-[INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val) 
+INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val) 
 ```
 
 滑动窗口触发是指对触发表的写入数据按照事件时间和固定窗口大小滑动而形成的触发，必须指定 INTERVAL 窗口，属于窗口触发，必须指定触发表。
@@ -179,6 +181,34 @@ EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(durati
 - 支持对写入数据进行处理过滤后（有条件）的窗口触发。
 
 适用场景：需要通过事件窗口驱动计算和（或）通知的场景。
+
+##### 事件窗口触发 (支持子事件窗口)
+
+```sql
+EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(duration_time)]
+```
+
+事件窗口触发是指对触发表的写入数据按照事件窗口的方式进行窗口划分，它现在支持指定多个开始条件，并能根据有效触发条件的变化，在原有的事件窗口内进一步划分和管理子事件窗口，同时引入父事件窗口的概念来聚合相关的子事件窗口。各参数含义如下：
+
+- start_condition_1, start_condition_2 [,...]：定义多个事件开始条件。当任何一个条件满足时，事件窗口开启。系统会从前往后依次评估这些条件，第一个满足的条件即为“有效触发条件”。当所有 start_condition 都不满足时，父窗口和最后一个子窗口关闭。
+- end_condition：事件结束条件的定义。当该条件满足时，当前父窗口和最后一个子窗口均关闭。该参数现在是可选的。
+- duration_time：可选，指定窗口的最小持续时长，如果某个窗口（包括父窗口和子窗口）的时长低于该设定值，则会自动舍弃，不产生触发。
+
+使用说明：
+
+- 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
+- 搭配超级表时，必须与 `partition by tbname` 一起使用。
+- 支持对写入数据进行处理过滤后（有条件）的窗口触发。
+- 父子窗口行为：
+  - 没有父/子窗口：在事件窗口开启期间，如果有效触发条件没有变化，则只产生一个窗口，系统将其视为常规事件窗口，不产生父/子窗口的概念。
+  - 子窗口：当某一个具体的 start_condition 成为有效触发条件时，会开启一个子窗口。如果有效触发条件发生变化，或者 end_condition 满足时，当前子窗口关闭。子窗口之间不重叠。
+  - 父窗口：仅当第二个子窗口开启时，才会开启父窗口。父窗口的起始时间为第一个子窗口的起始时间，结束时间为最后一个子窗口的结束时间，当所有 start_condition 都不满足，或者 end_condition 满足时关闭。
+- 通知消息扩展：在窗口开启（WINDOW_OPEN）的通知消息中，新增两个字段：
+  - conditionIndex：触发当前窗口开启的开始条件的序号，从 0 开始计数。对于父窗口，其值与第一个子窗口的值相同。
+  - windowIndex：子事件窗口在父窗口中的序号，从 0 开始计数。如果不是子窗口（即常规事件窗口或父窗口），该字段值为 -1。
+- TRUE_FOR 选项对子窗口和父窗口均生效，即小于该时长限制的窗口（无论是子窗口还是父窗口）将直接被忽略。当父窗口下有部分子窗口不满足 TRUE_FOR 条件时，有效的子窗口可能不是连续的。如果父窗口下仅有 1 个子窗口满足 TRUE_FOR 条件，父/子窗口仍保留并触发通知和计算。
+
+适用场景：需要通过事件窗口驱动计算和（或）通知的场景，尤其适用于需要根据多个动态变化的条件来精细化监控和分析事件的物联网、工业数据管理等领域。例如，设备故障告警，可以定义多个告警级别条件（如“负载高于 90”、“负载高于 60”），并在告警级别变化时，清晰地追踪告警状态的升级或降级。
 
 ##### 计数窗口触发
 
@@ -567,7 +597,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 仅删除流式计算任务，由流式计算写入的数据不会被删除。
 
 ```sql
-DROP STREAM [IF EXISTS] [db_name.]stream_name;
+DROP STREAM [IF EXISTS] [db_name.]stream_name [, [db_name.]stream_name] ...
 ```
 
 ## 查看流式计算

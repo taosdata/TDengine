@@ -530,6 +530,7 @@ typedef struct SAlterUserStmt {
 typedef struct SDropUserStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
+  bool      ignoreNotExists;
 } SDropUserStmt;
 
 typedef struct SCreateRoleStmt {
@@ -594,6 +595,7 @@ typedef struct SDropTokenStmt {
   ENodeType type;
 
   char      name[TSDB_TOKEN_NAME_LEN];
+  bool      ignoreNotExists;
 } SDropTokenStmt;
 
 
@@ -907,10 +909,9 @@ typedef struct SCreateStreamStmt {
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {
-  ENodeType type;
-  char      streamDbName[TSDB_DB_NAME_LEN];
-  char      streamName[TSDB_TABLE_NAME_LEN];
-  bool      ignoreNotExists;
+  ENodeType  type;
+  bool       ignoreNotExists;
+  SNodeList* pStreamList;  // list of SStreamNode for batch drop
 } SDropStreamStmt;
 
 typedef struct SPauseStreamStmt {

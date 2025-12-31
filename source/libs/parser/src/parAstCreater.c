@@ -4635,13 +4635,14 @@ _err:
 
 
 
-SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName) {
+SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName, bool ignoreNotExists) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkUserName(pCxt, pUserName));
   SDropUserStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
+  pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 _err:
   return NULL;
@@ -4922,7 +4923,7 @@ _err:
 
 
 
-SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName) {
+SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, bool ignoreNotExists) {
   SDropTokenStmt* pStmt = NULL;
 
   CHECK_PARSER_STATUS(pCxt);
@@ -4932,6 +4933,7 @@ SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName) {
   CHECK_MAKE_NODE(pStmt);
 
   COPY_STRING_FORM_ID_TOKEN(pStmt->name, pTokenName);
+  pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 
 _err:
@@ -5903,22 +5905,23 @@ _err:
   return NULL;
 }
 
-SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pStream) {
+SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNodeList* pStreamList) {
   CHECK_PARSER_STATUS(pCxt);
   SDropStreamStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_STREAM_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  if (pStream) {
-    tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
-    tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
+
+  if (pStreamList) {
+    pStmt->pStreamList = pStreamList;
   } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "stream name cannot be empty");
     goto _err;
   }
-  nodesDestroyNode(pStream);
+
   pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 _err:
+  nodesDestroyList(pStreamList);
   return NULL;
 }
 
