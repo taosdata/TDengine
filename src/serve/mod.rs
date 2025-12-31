@@ -66,6 +66,8 @@ mod scheduler;
 pub(crate) mod task;
 
 #[cfg(test)]
+mod cli_tests;
+#[cfg(test)]
 pub mod tests;
 pub mod utils;
 
@@ -74,14 +76,14 @@ const TAOSX_GRPC_DEFAULT_PORT: u16 = 6055;
 
 #[derive(Deserialize, Clone, Debug, Hash, PartialEq, Eq, ToSchema)]
 pub struct DataSetsReq {
-    from: Option<String>,
-    from_json: Option<serde_json::Value>,
+    pub from: Option<String>,
+    pub from_json: Option<serde_json::Value>,
     pub via: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pattern: Option<String>,
-    categories: Vec<String>,
-    offset: usize,
-    limit: usize,
+    pub pattern: Option<String>,
+    pub categories: Vec<String>,
+    pub offset: usize,
+    pub limit: usize,
 }
 
 // #[derive(Parser, Debug, Clone, Default)]

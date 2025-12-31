@@ -5755,6 +5755,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.30.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74523f3a35e05aba87a1d978330aef40f67b0304ac79c1c00b294c9830543db6"
+dependencies = [
+ "bitflags 2.9.1",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
+]
+
+[[package]]
 name = "nkeys"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7735,6 +7747,7 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "native-tls",
  "percent-encoding",
  "pin-project-lite",
@@ -10164,6 +10177,7 @@ dependencies = [
  "dashmap 6.1.0",
  "deadpool",
  "dotenv",
+ "fastrand 2.3.0",
  "flume",
  "fundu",
  "futures",
@@ -10211,6 +10225,7 @@ dependencies = [
  "taos",
  "taoslog",
  "taosx-core",
+ "taosx-integration-tests",
  "taosx-ipc",
  "taosx-metrics",
  "taosx-task",
@@ -10399,14 +10414,22 @@ name = "taosx-integration-tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_cmd",
  "chrono",
+ "fastrand 2.3.0",
+ "nix",
+ "reqwest 0.12.22",
+ "serde",
+ "serde_json",
  "taos",
  "taosx-core",
  "taosx-task",
+ "tempfile",
  "tokio",
  "tokio-util",
  "tracing",
  "tracing-subscriber",
+ "url",
  "uuid",
 ]
 
