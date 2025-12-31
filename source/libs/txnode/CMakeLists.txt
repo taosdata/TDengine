@@ -1,5 +1,3 @@
-if(TD_LINUX)
-
 aux_source_directory(src TXNODE_SRC)
 add_library(txnode STATIC ${TXNODE_SRC})
 
@@ -18,13 +16,9 @@ target_link_libraries(
     PRIVATE os util common nodes transport
 )
 
-
-
 find_path(HAVE_SYS_EPOLL_H sys/epoll.h)
 if (HAVE_SYS_EPOLL_H)
 	add_definitions("-DWITH_EPOLL")
-endif()
-
 endif()
 
 # test

@@ -49,7 +49,6 @@ int32_t xndOpen(const SXnodeOpt *pOption, SXnode **pXnode) {
 void xndClose(SXnode *pXnode) {
   xndInfo("xnode: dnode is closing xnoded");
   xnodeMgmtStopXnoded();
-  // taosMemoryFree(pXnode);
 }
 
 int32_t mndOpenXnd(const SXnodeOpt *pOption) {
