@@ -310,19 +310,25 @@ typedef struct tExprNode {
   int32_t relatedTo;
 } tExprNode;
 
-struct SScalarParam {
-  bool             colAlloced;
-  SColumnInfoData *columnData;
+typedef struct SHashParam {
+  bool             hasHashParam;
+  bool             hasValue;
   SHashObj        *pHashFilter;
   SHashObj        *pHashFilterOthers;
   int32_t          filterValueType;
+  STypeMod         filterValueTypeMod;
+} SHashParam;
+
+struct SScalarParam {
+  bool             colAlloced;
+  SColumnInfoData *columnData;
+  SHashParam       hashParam;
   void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
   int32_t          numOfQualified;  // number of qualified elements in the final results
   timezone_t       tz;
   void            *charsetCxt;
   SArray          *pFilterArr; // for types that can't filter with hash
-  STypeMod         filterValueTypeMod;
 };
 
 static inline void setTzCharset(SScalarParam *param, timezone_t tz, void *charsetCxt) {

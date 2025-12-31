@@ -348,14 +348,14 @@ void sclFreeParam(SScalarParam *param) {
     param->columnData = NULL;
   }
 
-  if (param->pHashFilter != NULL) {
-    taosHashCleanup(param->pHashFilter);
-    param->pHashFilter = NULL;
+  if (param->hashParam.pHashFilter != NULL) {
+    taosHashCleanup(param->hashParam.pHashFilter);
+    param->hashParam.pHashFilter = NULL;
   }
 
-  if (param->pHashFilterOthers != NULL) {
-    taosHashCleanup(param->pHashFilterOthers);
-    param->pHashFilterOthers = NULL;
+  if (param->hashParam.pHashFilterOthers != NULL) {
+    taosHashCleanup(param->hashParam.pHashFilterOthers);
+    param->hashParam.pHashFilterOthers = NULL;
   }
 }
 
@@ -517,6 +517,8 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       break;
     }
     case QUERY_NODE_NODE_LIST: {
+      param->hashParam.hasHashParam = true;
+
       SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, &node, POINTER_BYTES);
       if (NULL == res) {
         sclDebug("no result saved for nodeList now, type:%d, node:%p", nodeType(node), node);
@@ -531,6 +533,8 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         sclError("invalid length in nodeList, length:%d", LIST_LENGTH(nodeList->pNodeList));
         SCL_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
+
+      param->hashParam.hasValue = true;
 
       int32_t  type = ctx->type.selfType;
       STypeMod typeMod = 0;
@@ -556,26 +560,26 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       
       type = ctx->type.peerType;
       if (IS_VAR_DATA_TYPE(ctx->type.selfType) && IS_NUMERIC_TYPE(type)) {
-        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, typeMod, 1));
+        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->hashParam.pHashFilter, node, type, typeMod, 1));
         SCL_ERR_RET(
-            scalarGenerateSetFromList((void **)&param->pHashFilterOthers, node, ctx->type.selfType, typeMod, 2));
+            scalarGenerateSetFromList((void **)&param->hashParam.pHashFilterOthers, node, ctx->type.selfType, typeMod, 2));
       } else if (IS_INTEGER_TYPE(ctx->type.selfType) && IS_FLOAT_TYPE(type)) {
-        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, typeMod, 2));
+        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->hashParam.pHashFilter, node, type, typeMod, 2));
         SCL_ERR_RET(
-            scalarGenerateSetFromList((void **)&param->pHashFilterOthers, node, ctx->type.selfType, typeMod, 4));
+            scalarGenerateSetFromList((void **)&param->hashParam.pHashFilterOthers, node, ctx->type.selfType, typeMod, 4));
       } else {
-        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, typeMod, 0));
+        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->hashParam.pHashFilter, node, type, typeMod, 0));
       }
 
-      param->filterValueTypeMod = typeMod;
-      param->filterValueType = type;
+      param->hashParam.filterValueTypeMod = typeMod;
+      param->hashParam.filterValueType = type;
       param->colAlloced = true;
      
       if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
-        taosHashCleanup(param->pHashFilter);
-        param->pHashFilter = NULL;
-        taosHashCleanup(param->pHashFilterOthers);
-        param->pHashFilterOthers = NULL;
+        taosHashCleanup(param->hashParam.pHashFilter);
+        param->hashParam.pHashFilter = NULL;
+        taosHashCleanup(param->hashParam.pHashFilterOthers);
+        param->hashParam.pHashFilterOthers = NULL;
         sclError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
         return terrno;
       }
@@ -653,11 +657,12 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         sclDebug("remoteValueList already got res, node:%p, pHashFilter:%p,%d, pHashFilterOthers:%p,%d",
           node, pRemote->pHashFilter, pRemote->pHashFilter ? taosHashGetSize(pRemote->pHashFilter) : 0,
           pRemote->pHashFilterOthers, pRemote->pHashFilterOthers ? taosHashGetSize(pRemote->pHashFilterOthers) : 0);
-          
-        param->pHashFilter = pRemote->pHashFilter;
-        param->pHashFilterOthers = pRemote->pHashFilterOthers;
-        param->filterValueType = pRemote->filterValueType;
-        param->filterValueTypeMod = pRemote->filterValueTypeMod;
+
+        param->hashParam.hasHashParam = true;
+        param->hashParam.pHashFilter = pRemote->pHashFilter;
+        param->hashParam.pHashFilterOthers = pRemote->pHashFilterOthers;
+        param->hashParam.filterValueType = pRemote->filterValueType;
+        param->hashParam.filterValueTypeMod = pRemote->filterValueTypeMod;
         param->colAlloced = false;
         break;
       }
@@ -672,10 +677,10 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       
       SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
 
-      param->pHashFilter = pRemote->pHashFilter;
-      param->pHashFilterOthers = pRemote->pHashFilterOthers;
-      param->filterValueType = pRemote->filterValueType;
-      param->filterValueTypeMod = pRemote->filterValueTypeMod;
+      param->hashParam.pHashFilter = pRemote->pHashFilter;
+      param->hashParam.pHashFilterOthers = pRemote->pHashFilterOthers;
+      param->hashParam.filterValueType = pRemote->filterValueType;
+      param->hashParam.filterValueTypeMod = pRemote->filterValueTypeMod;
       param->colAlloced = false;
       break;
     }  

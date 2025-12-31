@@ -890,7 +890,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
   SColumnInfoData *pOutputCol = pOut->columnData;
 
   if (NULL == pInputCol) {
-    sclError("input column is NULL, hashFilter %p", pIn->pHashFilter);
+    sclError("input column is NULL, hasHashParam: %d", pIn->hashParam.hasHashParam);
     return TSDB_CODE_APP_ERROR;
   }
 
@@ -1206,7 +1206,7 @@ STypeMod getConvertTypeMod(int32_t type, const SColumnInfo *pCol1, const SColumn
 
 int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, STypeMod typeMod,
                                int32_t startIndex, int32_t numOfRows) {
-  if (input->columnData == NULL && (input->pHashFilter != NULL || input->pHashFilterOthers != NULL)) {
+  if (input->columnData == NULL && input->hashParam.hasHashParam) {
     return TSDB_CODE_SUCCESS;
   }
   output->numOfRows = input->numOfRows;
@@ -1952,10 +1952,51 @@ _return:
   SCL_RET(code);
 }
 
-int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
+int32_t doVectorCompareWithHashParam(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
+                            int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
+  int32_t code = TSDB_CODE_SUCCESS, i = startIndex;
+  SHashParam* pHParam = &pRight->hashParam;
+  if (pHParam->pHashFilter)
+  
+  __compar_fn_t fpVar = NULL;
+  if (pLeftVar != NULL) {
+    SCL_ERR_RET(filterGetCompFunc(&fpVar, GET_PARAM_TYPE(pLeftVar), optr));
+  }
+
+  for (; i >= 0 && i < pLeft->numOfRows; i += step) {
+    if (IS_HELPER_NULL(pLeft->columnData, i)) {
+      bool res = false;
+      colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
+      continue;
+    }
+
+    bool res = pRight->hashParam.pHashFilter ? compareForTypeWithColAndHash(fp, optr, pLeft->columnData, i, pRight->hashParam.pHashFilter,
+                                            pRight->hashParam.filterValueType, pRight->hashParam.filterValueTypeMod) : false;
+    if (!((optr == OP_TYPE_IN && res) || (optr == OP_TYPE_NOT_IN && !res))) {
+      if (pLeftVar != NULL && taosHashGetSize(pRight->hashParam.pHashFilterOthers) > 0) {
+        res = compareForTypeWithColAndHash(fpVar, optr, pLeftVar->columnData, i, pRight->hashParam.pHashFilterOthers,
+                                           pRight->hashParam.filterValueType, pRight->hashParam.filterValueTypeMod);
+      }
+    }
+    
+    colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
+    if (res) {
+      ++(*num);
+    }
+  }
+
+  return code;
+}
+
+int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
                             int32_t numOfRows, int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
   bool   *pRes = (bool *)pOut->columnData->pData;
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS, i = startIndex;
+
+  if (pRight->hashParam.hasHashParam) {
+    return doVectorCompareWithHashParam(pLeft, pLeftVar, pRight, pOut, startIndex, step, fp, optr, num);
+  }
+
   if (IS_MATHABLE_TYPE(GET_PARAM_TYPE(pLeft)) && IS_MATHABLE_TYPE(GET_PARAM_TYPE(pRight))) {
     if (!(pLeft->columnData->hasNull || pRight->columnData->hasNull)) {
       for (int32_t i = startIndex; i < numOfRows && i >= 0; i += step) {
@@ -2047,7 +2088,6 @@ int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarPara
   int32_t       lType = GET_PARAM_TYPE(pLeft);
   int32_t       rType = GET_PARAM_TYPE(pRight);
   __compar_fn_t fp = NULL;
-  __compar_fn_t fpVar = NULL;
   int32_t       compRows = 0;
   if (lType == rType) {
     SCL_ERR_RET(filterGetCompFunc(&fp, lType, optr));
@@ -2055,9 +2095,6 @@ int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarPara
     fp = filterGetCompFuncEx(lType, rType, optr);
   }
 
-  if (pLeftVar != NULL) {
-    SCL_ERR_RET(filterGetCompFunc(&fpVar, GET_PARAM_TYPE(pLeftVar), optr));
-  }
   if (startIndex < 0) {
     i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
     pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
@@ -2067,36 +2104,8 @@ int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarPara
     i = startIndex;
   }
 
-  if (pRight->pHashFilter != NULL) {
-    for (; i >= 0 && i < pLeft->numOfRows; i += step) {
-      if (IS_HELPER_NULL(pLeft->columnData, i)) {
-        bool res = false;
-        colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
-        continue;
-      }
+  SCL_ERR_RET(doVectorCompareImpl(pLeft, pLeftVar, pRight, pOut, i, compRows, step, fp, optr, &(pOut->numOfQualified)));
 
-      bool res = compareForTypeWithColAndHash(fp, optr, pLeft->columnData, i, pRight->pHashFilter,
-                                              pRight->filterValueType, pRight->filterValueTypeMod);
-      if (pLeftVar != NULL && taosHashGetSize(pRight->pHashFilterOthers) > 0) {
-        do {
-          if (optr == OP_TYPE_IN && res) {
-            break;
-          }
-          if (optr == OP_TYPE_NOT_IN && !res) {
-            break;
-          }
-          res = compareForTypeWithColAndHash(fpVar, optr, pLeftVar->columnData, i, pRight->pHashFilterOthers,
-                                             pRight->filterValueType, pRight->filterValueTypeMod);
-        } while (0);
-      }
-      colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
-      if (res) {
-        pOut->numOfQualified++;
-      }
-    }
-  } else {  // normal compare
-    SCL_ERR_RET(doVectorCompareImpl(pLeft, pRight, pOut, i, compRows, step, fp, optr, &(pOut->numOfQualified)));
-  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2117,7 +2126,7 @@ int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
     SCL_ERR_JRET(vectorConvertCols(pLeft, pRight, &pLeftOut, &pRightOut, startIndex, numOfRows));
     param1 = (pLeftOut.columnData != NULL) ? &pLeftOut : pLeft;
     param2 = (pRightOut.columnData != NULL) ? &pRightOut : pRight;
-    if (pRight->pHashFilterOthers != NULL) {
+    if (pRight->hashParam.pHashFilterOthers != NULL) {
       param3 = pLeft;
     }
   }
