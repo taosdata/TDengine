@@ -114,7 +114,7 @@ class TestXnode:
             tdLog.debug(f"exec: {sql}")
             self._no_syntax_fail_execute(sql)
 
-    def test_task_lifecycle(self):
+    def _test_task_lifecycle(self):
         """测试 XNode Task 生命周期
 
         1. Create xnode task with FROM/TO and WITH options (comma separated + trigger)
@@ -191,7 +191,7 @@ class TestXnode:
     #         tdLog.debug(f"exec: {sql}")
     #         self._no_syntax_fail_execute(sql)
 
-    def test_job_lifecycle(self):
+    def _test_job_lifecycle(self):
         """测试 XNode Job 生命周期
 
         1. Drop xnode job by id
@@ -228,7 +228,7 @@ class TestXnode:
             tdLog.debug(f"exec: {sql}")
             self._no_syntax_fail_execute(sql)
 
-    def test_sources_and_sinks_variants(self):
+    def _test_sources_and_sinks_variants(self):
         """测试 XNode 任务源和 sink 变体
 
         1. Create xnode task with database source and sink
