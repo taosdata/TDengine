@@ -2284,8 +2284,8 @@ int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t 
   int32_t     err = callUdf(handle, callType, &inputBlock, NULL, NULL, &resultBlock, NULL);
   if (err == 0) {
     err = convertDataBlockToScalarParm(&resultBlock, output);
-    taosArrayDestroy(resultBlock.pDataBlock);
   }
+  taosArrayDestroy(resultBlock.pDataBlock);
 
   blockDataFreeRes(&inputBlock);
   return err;
