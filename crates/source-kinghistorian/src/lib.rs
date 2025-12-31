@@ -267,7 +267,6 @@ async fn kinghist_collect(
 
         let schema = build_point_schema(value_dtype);
         let (tx, rx) = flume::bounded::<RecordBatch>(0);
-        //
         let semaphore = Arc::new(tokio::sync::Semaphore::new(100));
 
         // 启动 writer（创建即发送 schema header，避免对端读不到头部）

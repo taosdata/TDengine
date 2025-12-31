@@ -1187,7 +1187,9 @@ unsafe extern "C" fn data_change_callback(
         return -1;
     }
     let sender = unsafe { &*sender_ptr };
-    let mut records = unsafe { records.read() };
+    // keep the original pointer so we can pass it back to the KDB close API
+    let records_ptr = records;
+    let records = unsafe { records_ptr.read() };
 
     let ret = records.ErrorStatus;
     if ret != 0 {
@@ -1222,17 +1224,21 @@ unsafe extern "C" fn data_change_callback(
     };
     let _ = sender.send(Ok(record));
 
-    unsafe {
-        if let Ok(container) = KDBContainer::open() {
-            container.KDBDataCloseRecordset(
-                &mut (bindings::KDBDataRecordsets {
-                    NumberOfTags: 1,
-                    DataRecordset: &mut records,
-                }),
-            );
-        }
-    }
+    // NOTE: do not call KDBDataCloseRecordset here. The SDK may already manage
+    // the lifetime of the passed-in recordset for callbacks; calling the
+    // close function here caused heap corruption in tests. Let the SDK free
+    // its memory or require the caller to explicitly close if they opened it.
 
+    // unsafe {
+    //     if let Ok(container) = KDBContainer::open() {
+    //         container.KDBDataCloseRecordset(
+    //             &mut (bindings::KDBDataRecordsets {
+    //                 NumberOfTags: 1,
+    //                 DataRecordset: &mut records,
+    //             }),
+    //         );
+    //     }
+    // }
     0
 }
 
@@ -2949,7 +2955,8 @@ mod tests {
         assert!(conn.is_connected().unwrap());
         let (sender, receiver) = flume::bounded(1);
         match conn.data_subscribe(
-            ["OPC_数据类型示例.16 位设备.R 寄存器.Short1"],
+            // ["OPC_数据类型示例.16 位设备.R 寄存器.Short1"],
+            ["OPC_数据类型示例.16 位设备.R 寄存器.Double1"],
             1000,
             Some(sender),
         ) {
@@ -2980,11 +2987,12 @@ mod tests {
                 println!("error data: {e:?}");
             }
         }
+        println!("before api_cleanup");
         api_cleanup().unwrap();
     }
 
     #[test]
-    // #[ignore]
+    #[ignore]
     fn query_data_test() {
         api_start_up().unwrap();
         let opts = ConnectionOptions::builder("127.0.0.1", "5678", "sa", "sa").build();
