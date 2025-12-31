@@ -164,8 +164,14 @@ mod tests {
     async fn test_raw_data_logger_without_keep() {
         // When keep_raw_data is false, start() should spawn a drain task that simply consumes messages.
         let (tx, rx) = flume::bounded::<String>(16);
-        let logger =
-            RawDataLogger::new(42, false, std::env::temp_dir().display().to_string(), 0, rx);
+        let logger = RawDataLogger::new(
+            42,
+            42,
+            false,
+            std::env::temp_dir().display().to_string(),
+            0,
+            rx,
+        );
         logger.start();
 
         // Send a few messages, then drop sender so the background task can exit.
@@ -194,7 +200,7 @@ mod tests {
         let _ = std::fs::create_dir_all(&tmp);
 
         let (tx, rx) = flume::bounded::<String>(16);
-        let logger = RawDataLogger::new(100, true, tmp.display().to_string(), 1, rx);
+        let logger = RawDataLogger::new(100, 100, true, tmp.display().to_string(), 1, rx);
         logger.start();
 
         // Send a handful of messages to exercise write path

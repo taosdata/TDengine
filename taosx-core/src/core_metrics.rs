@@ -994,7 +994,7 @@ mod tests {
         metrics.total_written_rows.store(4000, SeqCst);
         metrics.total_written_points.store(1000, SeqCst);
 
-        let mut map = serde_json::Map::new();
+        let mut map = HashMap::new();
         compute_total_avg_speed(&metrics, &mut map);
 
         let rows_per_second = map.get("total_rows_per_second").unwrap().as_f64().unwrap();
@@ -1014,7 +1014,7 @@ mod tests {
         metrics.written_rows.store(1250, SeqCst);
         metrics.written_points.store(250, SeqCst);
 
-        let mut map = serde_json::Map::new();
+        let mut map = HashMap::new();
         compute_avg_speed(&metrics, &mut map, false);
 
         let execute_time = map.get("execute_time").unwrap().as_u64().unwrap();
@@ -1036,7 +1036,7 @@ mod tests {
 
         std::thread::sleep(std::time::Duration::from_millis(50));
 
-        let mut map = serde_json::Map::new();
+        let mut map = HashMap::new();
         compute_avg_speed(&metrics, &mut map, true);
 
         let execute_time = map.get("execute_time").unwrap().as_u64().unwrap();
@@ -1053,7 +1053,7 @@ mod tests {
 
     #[test]
     fn test_split_to_total_and_current() {
-        let mut map = serde_json::Map::new();
+        let mut map = HashMap::new();
         map.insert("total_execute_time".to_string(), serde_json::json!(3000));
         map.insert("total_written_rows".to_string(), serde_json::json!(6000));
         map.insert("written_rows".to_string(), serde_json::json!(100));
@@ -1081,11 +1081,11 @@ mod tests {
         metrics.total_written_rows.store(100, SeqCst);
         metrics.total_written_points.store(50, SeqCst);
 
-        let mut map = serde_json::Map::new();
+        let mut map = HashMap::new();
         compute_total_avg_speed(&metrics, &mut map);
 
-        assert!(map.get("total_rows_per_second").is_none());
-        assert!(map.get("total_points_per_second").is_none());
+        assert!(!map.contains_key("total_rows_per_second"));
+        assert!(!map.contains_key("total_points_per_second"));
     }
 
     #[tokio::test]
@@ -1095,27 +1095,26 @@ mod tests {
             Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(
                 "stb_none".to_string(),
                 -99,
-                None,
+                1,
             )))
-        })
-        .await;
+        });
         // None path returns provided metrics without insertion; verify attributes
         assert_eq!(arc_none.task_id, -99);
         assert_eq!(arc_none.stable, "stb_none");
 
         // Some(id) path: not existing -> insert and return
         let id = 7777_i64;
-        let arc_new = get_metrics_arc_or(Some(id), || {
+        let arc_new = get_metrics_arc_or(Some((id, id)), || {
             Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(
                 "stb_insert".to_string(),
                 id,
-                Some("task7777".to_string()),
+                id,
             )))
-        })
-        .await;
+        });
+
         assert_eq!(arc_new.task_id, id);
         // Verify it can be fetched again from global map
-        let arc_fetch = get_metrics(id).await.unwrap();
+        let arc_fetch = get_metrics(id, id).unwrap();
         assert_eq!(arc_fetch.task_id, id);
         assert_eq!(arc_fetch.stable, "stb_insert");
     }

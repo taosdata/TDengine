@@ -3518,11 +3518,13 @@ mod tests {
         )]));
         let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(bin)]).unwrap();
         let views = record_batch_to_column_view(&batch, Precision::Millisecond);
-        assert!(views[0]
-            .get(0)
-            .unwrap()
-            .to_sql_value()
-            .contains("binary_data"));
+        assert!(
+            views[0]
+                .get(0)
+                .unwrap()
+                .to_sql_value()
+                .contains("binary_data")
+        );
         assert!(views[0].get(1).unwrap().is_null());
         assert_eq!(views[0].get(2).unwrap().to_sql_value(), "\"\"");
     }
