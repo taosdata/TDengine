@@ -121,16 +121,6 @@ args = [
 ]
 
 [tasks.taosx]
-condition.files_modified = { input = [
-  "${CARGO_MAKE_WORKING_DIRECTORY}/**/Cargo.*",
-  "src/**/*.rs",
-  "crates/**/*.rs",
-  "taosx-core/src/**/*.rs",
-  "taosx-ipc/src/**/*.rs",
-  "taosx-metrics/src/**/*.rs",
-], output = [
-  "target/${BUILD_PROFILE}/taosx",
-] }
 dependencies = ["install-protoc"]
 command = "cargo"
 args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}"]
