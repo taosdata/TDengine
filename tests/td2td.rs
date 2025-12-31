@@ -983,7 +983,7 @@ async fn test_sync_realtime_with_taos() -> anyhow::Result<()> {
 /// ```shell
 /// cargo nextest run test_sync_all_with_taos --nocapture --retries 0
 /// ```
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_sync_all_with_taos() -> anyhow::Result<()> {
     let host = std::env::var("HOST").unwrap_or("127.0.0.1".to_string());
     let ws_enable = std::env::var("WS_ENABLE")
@@ -1022,7 +1022,7 @@ async fn test_sync_all_with_taos() -> anyhow::Result<()> {
     for i in 0..N {
         let sql = format!(
             "insert into `{DB_SRC}`.`Tb{i}` using `{DB_SRC}`.`Stb` tags({i}) values ({}, {i}.{i});",
-            (now - chrono::Duration::minutes(4)).timestamp_millis()
+            (now - chrono::Duration::minutes(2)).timestamp_millis()
         );
         taos.exec(sql).await?;
     }

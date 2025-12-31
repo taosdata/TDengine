@@ -243,3 +243,88 @@ pub enum RespAction {
     Metrics(MetricsEvents),
     QueryDataSourceOk(QueryDataSourceResp),
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn dataset_new_and_eq_by_id() {
+        let a = DataSet::new("id-1");
+        let mut b = DataSet::new("id-1");
+        b.name = Some("Name".to_string());
+        b.category = Some("Cat".to_string());
+        assert_eq!(a, b);
+
+        let c = DataSet::new("id-2");
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn fail_new_and_display_with_optional_context() {
+        // Without context
+        let mut f: Fail<String> = Fail::new("oops");
+        assert_eq!(f.code, 0xFFFF);
+        assert_eq!(f.message, "oops");
+        assert!(f.context.is_none());
+        let s = format!("{}", f);
+        assert!(s.contains("Error: [65535] oops"));
+
+        // With context
+        f.context = Some("ctx".to_string());
+        let s = format!("{}", f);
+        assert!(s.contains("With context:"));
+        assert!(s.contains("\"ctx\""));
+    }
+
+    #[test]
+    fn heartbeat_duration_is_positive_and_correct() {
+        let req = DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let res = DateTime::parse_from_rfc3339("2024-01-01T00:00:01Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let hb = HeartbeatResponse { req, res };
+        let dur = hb.duration();
+        assert_eq!(dur.num_seconds(), 1);
+    }
+
+    #[test]
+    fn activity_new_parses_json_context_or_keeps_string() {
+        let at = Utc::now();
+
+        // JSON string becomes JSON Value
+        let act_json = Activity::new::<String>(
+            1,
+            at,
+            LevelFilter::Info,
+            "do",
+            "ok",
+            Some(String::from("{\"a\":1}")),
+        );
+        let ctx1 = act_json.context.unwrap();
+        assert_eq!(ctx1["a"], json!(1));
+
+        // Non-JSON stays as string
+        let act_str = Activity::new::<String>(
+            2,
+            at,
+            LevelFilter::Warn,
+            "do",
+            "ok",
+            Some(String::from("abc")),
+        );
+        let ctx2 = act_str.context.unwrap();
+        assert_eq!(ctx2, serde_json::Value::String("abc".to_string()));
+    }
+
+    #[test]
+    fn level_filter_serde_snake_case() {
+        let s = serde_json::to_string(&LevelFilter::Warn).unwrap();
+        assert_eq!(s, "\"warn\"");
+        let lvl: LevelFilter = serde_json::from_str("\"debug\"").unwrap();
+        assert!(matches!(lvl, LevelFilter::Debug));
+    }
+}

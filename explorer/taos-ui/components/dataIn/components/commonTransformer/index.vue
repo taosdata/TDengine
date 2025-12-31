@@ -1516,7 +1516,7 @@ function echoExtractData(mutate: Recordable[]) {
       const obj: Recordable = {
         columnname: item[0],
         expression: item[1].convert ? convertData : Object.values(item[1]).flat(1).join(';'),
-        type: item[1].convert ? 'convert' : item[1].json ? 'json' : Object.keys(item[1]).toString(),
+        type: item[1].convert ? 'convert' : 'json' in item[1] ? 'json' : Object.keys(item[1]).toString(),
         columns: columnsArr.value,
         key: Math.random()
       };

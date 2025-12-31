@@ -10,6 +10,7 @@ members = [
   "crates/taoslog",
   "crates/tokio-cron-scheduler",
   "explorer/server",
+  "tests/integration",
   "tests/tools",
   "crates/spawners/x-replication",
   "crates/persist-queue",
@@ -428,6 +429,9 @@ shlex = "1"
 opendal = { workspace = true, features = ["services-s3"] }
 urlencoding = { workspace = true }
 deadpool = { workspace = true }
+
+taosx-integration-tests = { path = "./tests/integration" }
+fastrand = "2"
 
 [features]
 default = ["rustls", "mimalloc"]

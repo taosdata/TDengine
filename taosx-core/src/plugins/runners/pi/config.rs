@@ -14,6 +14,12 @@ pub struct PiConfig {
     server_name: String,
     #[serde(rename = "PISystemName", skip_serializing_if = "Option::is_none")]
     system_name: Option<String>,
+    #[serde(rename = "PIServerUser", skip_serializing_if = "Option::is_none")]
+    username: Option<String>,
+    #[serde(rename = "PIServerPassword", skip_serializing_if = "Option::is_none")]
+    password: Option<String>,
+    #[serde(rename = "PIServerDomain", skip_serializing_if = "Option::is_none")]
+    domain: Option<String>,
     #[serde(rename = "AFDatabaseName", skip_serializing_if = "Option::is_none")]
     database: Option<String>,
     #[serde(rename = "PIDataPipesInstances")]
@@ -103,6 +109,11 @@ impl PiConfig {
         sql: u16,
     ) -> anyhow::Result<PiConfig> {
         let server_name = Self::parse_server_name(dsn)?;
+
+        let username = utils::parse_key_in_dsn::<String>(dsn, "PIServerUser")?;
+        let password = utils::parse_key_in_dsn::<String>(dsn, "PIServerPassword")?;
+        let domain = utils::parse_key_in_dsn::<String>(dsn, "PIServerDomain")?;
+
         let pi_config = Self {
             server_name: server_name.clone(),
             system_name: Self::parse_system_name(dsn),
@@ -132,6 +143,9 @@ impl PiConfig {
             sync_update_attribute: None,
             sync_update_data: None,
             sync_delete_data: None,
+            username,
+            password,
+            domain,
         };
 
         Ok(pi_config)
@@ -145,6 +159,11 @@ impl PiConfig {
     ) -> anyhow::Result<PiConfig> {
         let server_name = Self::parse_server_name(&from)?;
         let system_name = Self::parse_system_name(&from);
+
+        let username = utils::parse_key_in_dsn::<String>(&from, "PIServerUser")?;
+        let password = utils::parse_key_in_dsn::<String>(&from, "PIServerPassword")?;
+        let domain = utils::parse_key_in_dsn::<String>(&from, "PIServerDomain")?;
+
         let database = Self::parse_database(&from);
         let pi_data_pipes_instances = Self::parse_pi_data_pipes_instances(&from)?;
         let af_data_pipes_instances = Self::parse_af_data_pipes_instances(&from)?;
@@ -275,6 +294,9 @@ impl PiConfig {
             sync_update_attribute,
             sync_update_data,
             sync_delete_data,
+            username,
+            password,
+            domain,
         })
     }
 
@@ -512,6 +534,8 @@ impl PiConfig {
 
 #[cfg(test)]
 mod tests {
+    use taos::IntoDsn;
+
     use super::*;
 
     #[test]
@@ -808,5 +832,25 @@ mod tests {
             .await
             .unwrap();
         dbg!(&config2);
+    }
+
+    #[tokio::test]
+    async fn test_parse_connection() {
+        let dsn = "pibackfill://20.168.58.199?PIServerUser=abc&PIServerPassword=123&PIServerDomain=piserver&system_configuration=PI Data Archive Only"
+            .into_dsn()
+            .unwrap();
+
+        let config = PiConfig::parse_connection(&dsn, String::new(), 0, 0).unwrap();
+        // dbg!(&config);
+        assert_eq!(&config.server_name, "20.168.58.199");
+        assert_eq!(&config.ipc_stream, "127.0.0.1:0");
+        assert_eq!(&config.sql_api, "http://127.0.0.1:0");
+        assert!(!&config.for_backfill);
+        assert_eq!(config.username.as_deref(), Some("abc"));
+        assert_eq!(config.password.as_deref(), Some("123"));
+        assert_eq!(config.domain.as_deref(), Some("piserver"));
+
+        let toml = toml::to_string_pretty(&config).unwrap();
+        println!("{}", toml);
     }
 }

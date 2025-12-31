@@ -32,6 +32,8 @@ env:
   ARM_BUILDER_IMAGE: 192.168.1.62:5000/taosx/ci-builder:latest
   GRANT_SSH: root@192.168.1.55
   CARGO_OPTS: --locked
+  COVERAGE_THRESHOLD: 48.0 # Default threshold, may be overridden by target branch coverage
+  COVERAGE_ALLOW_DECREASE: 0.2 # Allowable decrease in coverage compared to target branch
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -50,7 +52,7 @@ jobs:
     name: Check
     runs-on: [self-hosted, linux, x64, app2]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           clean: false
       - uses: rustsec/audit-check@v2.0.0
@@ -74,14 +76,30 @@ jobs:
     name: Unit Test
     runs-on: [self-hosted, linux, x64, app2]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           clean: false
+      - name: Cache Explorer UI
+        id: cache-explorer-ui
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-explorer-ui
+        with:
+          # npm cache files are stored in `~/.npm`
+          path: explorer/dist
+          key: build-${{ env.cache-name }}-${{ hashFiles('explorer/pnpm-lock.yaml', 'explorer/src/**/*.*', 'explorer/taos-ui/**/*.*') }}
+          restore-keys: |
+            build-${{ env.cache-name }}-
+
+      - if: ${{ steps.cache-explorer-ui.outputs.cache-hit != 'true' }}
+        name: Build Explorer UI
+        continue-on-error: true
+        run: cargo make explorer-ui-prod
       - name: Unit Test
         run: |
           cargo make test
 
-      - name: Artifact Upload
+      - name: Upload LCOV
         uses: actions/upload-artifact@v4
         with:
           name: taosx-ci-coverage-report
@@ -98,8 +116,12 @@ jobs:
     name: Upload Coverage Report
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          name: taosx-ci-coverage-report
       - name: Check Coverage Threshold
+        id: check_coverage
         run: |
           # Install tools if needed
           if ! command -v lcov &> /dev/null; then
@@ -113,20 +135,47 @@ jobs:
           COVERAGE=$(grep -oP 'lines......: \K[0-9.]+' coverage_summary.txt | head -1)
 
           echo "Current coverage: ${COVERAGE}%"
+
+          TARGET_BRANCH="${{ github.base_ref }}"
+          TARGET_COVERAGE=$(curl --request GET \
+            --url "https://api.codecov.io/api/v2/github/taosdata/repos/taosx/totals/?branch=$BRANCH" \
+            --header 'accept: application/json' \
+            --header "authorization: Bearer ${{ secrets.CODECOV_API_TOKEN }}" | jq '.totals.coverage')
+
+          if [ -z "$TARGET_COVERAGE" ] || [ "$TARGET_COVERAGE" == "null" ]; then
+            echo "Could not retrieve target branch coverage. Using default threshold of ${COVERAGE_THRESHOLD}%."
+            TARGET_COVERAGE=$COVERAGE_THRESHOLD
+          else
+            echo "Target branch ($TARGET_BRANCH) coverage: ${TARGET_COVERAGE}%"
+            echo "::set-output name=target_coverage::$TARGET_COVERAGE"
+            # allow some decrease in coverage
+            COVERAGE_THRESHOLD=$(echo "$TARGET_COVERAGE - $COVERAGE_ALLOW_DECREASE" | bc)
+          fi
           echo "Required threshold: ${COVERAGE_THRESHOLD}%"
+          echo "::set-output name=coverage_threshold::$COVERAGE_THRESHOLD"
 
           # Compare coverage to threshold
           if (( $(echo "$COVERAGE < $COVERAGE_THRESHOLD" | bc -l) )); then
             echo "❌ Coverage ${COVERAGE}% is below threshold ${COVERAGE_THRESHOLD}%"
             echo "Please add tests to maintain or improve coverage."
-            exit 1
+
+            echo "::set-output name=coverage_status::failed"
+            echo "::set-output name=coverage_difference::-$(echo "$COVERAGE_THRESHOLD - $COVERAGE" | bc -l)"
+            echo "::set-output name=coverage_report::❌ Coverage ${COVERAGE}% is below threshold ${COVERAGE_THRESHOLD}%"
+          elif (( $(echo "$COVERAGE < $TARGET_COVERAGE" | bc -l) )); then
+            echo "⚠️ Coverage ${COVERAGE}% has decreased compared to target branch coverage ${TARGET_COVERAGE}%"
+            echo "Consider adding tests to improve coverage."
+
+            echo "::set-output name=coverage_status::warning"
+            echo "::set-output name=coverage_difference::+$(echo "$TARGET_COVERAGE - $COVERAGE" | bc -l)"
+            echo "::set-output name=coverage_report::⚠️ Coverage ${COVERAGE}% has decreased compared to target branch coverage ${TARGET_COVERAGE}%"
           else
             echo "✅ Coverage ${COVERAGE}% meets or exceeds threshold ${COVERAGE_THRESHOLD}%"
+            echo "::set-output name=coverage_status::passed"
+            echo "::set-output name=coverage_difference::+$(echo "$COVERAGE - $TARGET_COVERAGE" | bc -l)"
+            echo "::set-output name=coverage_report::✅ Coverage ${COVERAGE}% meets or exceeds target branch coverage ${TARGET_COVERAGE}%"
           fi
         continue-on-error: false
-      - uses: actions/download-artifact@v4
-        with:
-          name: taosx-ci-coverage-report
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -158,9 +207,12 @@ jobs:
           PR Title: ${{ github.event.pull_request.title }}\n
           PR Owner: @${{ github.actor }}\n
           PR Page: ${{ github.event.pull_request.html_url }}\n
+          PR Status: ${{ steps.check_coverage.outputs.coverage_status }}\n
           Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
-          Code Coverage Summary:\n
-          $coverage\n"
+          Coverage Summary: $coverage\n
+          Coverage Threshold: ${{ steps.check_coverage.outputs.coverage_threshold }}%\n
+          Coverage Difference: ${{ steps.check_coverage.outputs.coverage_difference }}%\n
+          ${{ steps.check_coverage.outputs.coverage_report }}"
           post_to_feishu "$PR_INFO"
 
   # need install qemu support for host: apt-get install qemu binfmt-support qemu-user-static
@@ -169,7 +221,7 @@ jobs:
     if: github.event.pull_request.base.ref == 'main'
     runs-on: [self-hosted, linux, x64, app2]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           clean: false
       - name: check
@@ -182,7 +234,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           clean: false
       - name: Build taosx
@@ -206,7 +258,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           clean: false
 
@@ -224,7 +276,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           clean: false
 
@@ -242,7 +294,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           clean: false
       - name: Print Env
@@ -278,7 +330,7 @@ jobs:
     runs-on: [self-hosted, linux, x64, qa, test]
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           clean: false
       - name: Print Env

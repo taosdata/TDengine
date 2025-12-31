@@ -10,7 +10,7 @@ pub fn tracing_subscriber_init() -> anyhow::Result<()> {
         .with_file(true)
         .pretty()
         .try_init();
-    set_env_data_dir("".to_string());
+    set_env_data_dir("");
     Ok(())
 }
 

@@ -149,16 +149,20 @@ def build_and_install_taosx_on_linux(release_info, mode='release'):
 
     dst_dir = os.path.join(release_dir,"bin")
     binary_file = os.path.join(top_dir,"target","deploy",f"{release_info.CustomPrompt}x")
+    xnoded_binary_file = os.path.join(top_dir,"target","deploy","xnoded")
     check_directory(dst_dir)
     os.chdir(top_dir)
 
     if mode.lower() == 'release':
         os.system(f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=release cargo make deploy-taosx")
+        os.system(f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=release cargo make deploy-xnoded")
     else:
         os.system(f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=dev cargo make deploy-taosx")
+        os.system(f"VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME='{release_info.CustomName}' CUS_EMAIL={release_info.CustomEmail} BUILD_PROFILE=dev cargo make deploy-xnoded")
     logging.info("taosx built successfully")
 
     shutil.copy(binary_file,dst_dir)
+    shutil.copy(xnoded_binary_file,dst_dir)
     logging.info("taosx copied to {release_dir}".format(release_dir=dst_dir))
 
     shutil.copy(os.path.join(top_dir,"target","deploy", f"{release_info.CustomPrompt}x.service"), systemd_path)

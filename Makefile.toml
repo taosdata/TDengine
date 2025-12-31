@@ -121,16 +121,6 @@ args = [
 ]
 
 [tasks.taosx]
-condition.files_modified = { input = [
-  "${CARGO_MAKE_WORKING_DIRECTORY}/**/Cargo.*",
-  "src/**/*.rs",
-  "crates/**/*.rs",
-  "taosx-core/src/**/*.rs",
-  "taosx-ipc/src/**/*.rs",
-  "taosx-metrics/src/**/*.rs",
-], output = [
-  "target/${BUILD_PROFILE}/taosx",
-] }
 dependencies = ["install-protoc"]
 command = "cargo"
 args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}"]
@@ -755,6 +745,48 @@ else
 end
 """
 
+[tasks.clean-xnoded]
+script_runner = "@duckscript"
+script.pre = """
+echo "Clean xnoded with profile ${BUILD_PROFILE}"
+if eq ${BUILD_PROFILE} "dev"
+  rm target/debug/xnoded
+else
+  rm target/${BUILD_PROFILE}/xnoded
+end
+"""
+
+[tasks.xnoded]
+command = "cargo"
+args = ["build", "-p", "xnoded", "--profile", "${BUILD_PROFILE}"]
+
+[tasks.deploy-xnoded]
+dependencies = ["clean-xnoded", "xnoded"]
+script_runner = "@duckscript"
+script.main = """
+!include_files .github/helpers.duck
+
+if eq ${BUILD_PROFILE} "dev"
+  cp target/${BUILD_PROFILE}/xnoded target/deploy/xnoded
+else
+  upx_run target/${BUILD_PROFILE}/xnoded target/deploy/xnoded
+end
+"""
+
+[tasks.deploy-xnoded.windows]
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+
+cus_prompt = get_env CUS_PROMPT
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/xnoded.exe target/deploy/xnoded.exe
+else
+  upx_run target/${profile}/xnoded.exe target/deploy/xnoded.exe
+end
+"""
+
 [tasks.deploy-taosx]
 dependencies = ["clean-taosx", "taosx"]
 script_runner = "@duckscript"
@@ -1205,10 +1237,11 @@ sed -i 's#SF:.*taosx/#SF:#' target/llvm-cov-merged.lcov
 
 # 1. remove third-party crates: tokio-cron-scheduler, rust-sasl
 # 2. remove windows only data sources including PI and KingHistorian
-#lcov --remove target/llvm-cov-merged.lcov -o target/llvm-cov-filter.lcov 'crates/tokio-cron-scheduler/*' 'crates/rust-sasl/*' 'crates/source-pi/*' 'crates/source-kinghistorian/*'
+# 3. remove compatibility layer
+lcov --remove target/llvm-cov-merged.lcov -o target/llvm-cov-filter.lcov 'crates/tokio-cron-scheduler/*' 'crates/rust-sasl/*' 'src/privileges/*' 'crates/sink*' 'crates/source-king*' 'taosx-core/src/plugins/sink/*' 'crates/source-pulsar/*' 'crates/source-mssql/*' 'crates/source-postgres/*' 'taosx-agent/*'
 
 # make output clean
-#mv target/llvm-cov-filter.lcov target/llvm-cov-merged.lcov
+mv target/llvm-cov-filter.lcov target/llvm-cov-merged.lcov
 """
 
 [tasks.install-locally]
@@ -1238,4 +1271,212 @@ lcov --version || choco install -y lcov
 [tasks.install-lcov.mac]
 script = """
 lcov --version || brew install lcov
+"""
+# ============================================================================
+# Integration Test Tasks (Phase 1: Test Architecture Refactoring)
+# ============================================================================
+
+[tasks.test-integration-check]
+description = "Check if integration tests compile"
+command = "cargo"
+args = ["check", "-p", "taosx-integration-tests", "--tests"]
+
+[tasks.test-integration-lib]
+description = "Run integration test framework initialization"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--lib", "--lcov", "--output-path", "target/integration-lib-lcov.info"]
+
+# ============================================================================
+# Data Source Specific Tests (Feature-gated)
+# ============================================================================
+
+[tasks.test-datasource-kafka]
+description = "Run Kafka data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = [ "TEST_KAFKA_DSN" ] }
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-kafka", "--lcov", "--output-path", "target/integration-kafka-lcov.info"]
+
+[tasks.test-datasource-mysql]
+description = "Run MySQL data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = [ "TEST_MYSQL_DSN" ] }
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-mysql", "--lcov", "--output-path", "target/integration-mysql-lcov.info"]
+
+[tasks.test-datasource-oracle]
+description = "Run Oracle data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = [ "TEST_ORACLE_DSN" ] }
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-oracle", "--lcov", "--output-path", "target/integration-oracle-lcov.info"]
+
+[tasks.test-datasource-postgres]
+description = "Run PostgreSQL data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = [ "TEST_POSTGRES_DSN" ] }
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-postgres", "--lcov", "--output-path", "target/integration-postgres-lcov.info"]
+
+[tasks.test-datasource-mongodb]
+description = "Run MongoDB data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = [ "TEST_MONGODB_DSN" ] }
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-mongodb", "--lcov", "--output-path", "target/integration-mongodb-lcov.info"]
+
+[tasks.test-datasource-mssql]
+description = "Run MSSQL data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = [ "TEST_MSSQL_DSN" ] }
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-mssql", "--lcov", "--output-path", "target/integration-mssql-lcov.info"]
+
+[tasks.test-datasource-mqtt]
+description = "Run MQTT data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = [ "TEST_MQTT_BROKER" ] }
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-mqtt", "--lcov", "--output-path", "target/integration-mqtt-lcov.info"]
+
+[tasks.test-datasource-opcua]
+description = "Run OPC-UA data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+condition = { env_set = [ "TEST_OPCUA_DSN" ] }
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-opcua", "--lcov", "--output-path", "target/integration-opcua-lcov.info"]
+
+[tasks.test-datasource-opcda]
+description = "Run OPC-DA data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-opcda", "--lcov", "--output-path", "target/integration-opcda-lcov.info"]
+
+[tasks.test-datasource-pi]
+description = "Run PI System data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-pi", "--lcov", "--output-path", "target/integration-pi-lcov.info"]
+
+[tasks.test-datasource-historian]
+description = "Run Historian data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-historian", "--lcov", "--output-path", "target/integration-historian-lcov.info"]
+
+# ============================================================================
+# Grouped Data Source Tests (by category)
+# ============================================================================
+
+[tasks.test-relational-db]
+description = "Run all relational database data source tests (MySQL, Oracle, PostgreSQL, MSSQL)"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-relational-db", "--lcov", "--output-path", "target/integration-relational-db-lcov.info"]
+
+[tasks.test-nosql-db]
+description = "Run all NoSQL database data source tests (MongoDB)"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-nosql-db", "--lcov", "--output-path", "target/integration-nosql-db-lcov.info"]
+
+[tasks.test-message-queue]
+description = "Run all message queue data source tests (Kafka, MQTT)"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-message-queue", "--lcov", "--output-path", "target/integration-message-queue-lcov.info"]
+
+[tasks.test-industrial-protocol]
+description = "Run all industrial protocol data source tests (OPC-UA, OPC-DA, PI, Historian)"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-industrial-protocol", "--lcov", "--output-path", "target/integration-industrial-protocol-lcov.info"]
+
+[tasks.test-all-datasources]
+description = "Run all data source integration tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--features", "test-all-datasources", "--lcov", "--output-path", "target/integration-all-datasources-lcov.info"]
+
+# ============================================================================
+# Core and E2E Tests
+# ============================================================================
+
+[tasks.test-core]
+description = "Run core functionality tests (TMQ, backup, replication)"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--run-ignored", "ignored-only", "--lcov", "--output-path", "target/integration-core-lcov.info"]
+
+[tasks.test-e2e]
+description = "Run end-to-end scenario tests"
+dependencies = ["install-llvm-cov", "install-nextest"]
+command = "cargo"
+args = ["llvm-cov", "nextest", "-p", "taosx-integration-tests", "--run-ignored", "ignored-only", "--lcov", "--output-path", "target/integration-e2e-lcov.info"]
+
+# ============================================================================
+# Convenience Commands
+# ============================================================================
+
+[tasks.test-integration-help]
+description = "Display help for integration test commands"
+script = """
+echo ""
+echo "╔══════════════════════════════════════════════════════════════════════╗"
+echo "║                 taosX Integration Test Commands                      ║"
+echo "╚══════════════════════════════════════════════════════════════════════╝"
+echo ""
+echo "Framework Commands:"
+echo "  cargo make test-integration-check       - Check integration tests compile"
+echo "  cargo make test-integration-lib         - Initialize test framework"
+echo ""
+echo "Data Source Specific Tests:"
+echo "  cargo make test-datasource-kafka       - Kafka connector tests"
+echo "  cargo make test-datasource-mysql       - MySQL connector tests"
+echo "  cargo make test-datasource-oracle      - Oracle connector tests"
+echo "  cargo make test-datasource-postgres    - PostgreSQL connector tests"
+echo "  cargo make test-datasource-mongodb     - MongoDB connector tests"
+echo "  cargo make test-datasource-mssql       - MSSQL connector tests"
+echo "  cargo make test-datasource-mqtt        - MQTT connector tests"
+echo "  cargo make test-datasource-opcua       - OPC-UA connector tests"
+echo "  cargo make test-datasource-opcda       - OPC-DA connector tests"
+echo "  cargo make test-datasource-pi          - PI System connector tests"
+echo "  cargo make test-datasource-historian   - Historian connector tests"
+echo ""
+echo "Grouped Tests (by category):"
+echo "  cargo make test-relational-db          - All relational databases"
+echo "  cargo make test-nosql-db                - All NoSQL databases"
+echo "  cargo make test-message-queue           - All message queues"
+echo "  cargo make test-industrial-protocol     - All industrial protocols"
+echo "  cargo make test-all-datasources         - All data sources"
+echo ""
+echo "Other Tests:"
+echo "  cargo make test-core                    - Core functionality tests"
+echo "  cargo make test-e2e                     - End-to-end scenario tests"
+echo ""
+echo "Coverage Report:"
+echo "  cargo make test-coverage-html           - Generate HTML coverage report"
+echo "  Note: Run any test-* task first to generate lcov data"
+echo "  HTML report location: target/llvm-cov/html/index.html"
+echo ""
+"""
+
+# ============================================================================
+# Coverage Report Generation Task
+# ============================================================================
+
+[tasks.test-coverage-html]
+description = "Generate HTML coverage report from existing lcov files"
+dependencies = ["install-llvm-cov"]
+script = """
+set -e
+echo "Generating HTML coverage report..."
+if [ ! -f "target/integration-lib-lcov.info" ]; then
+  echo "No coverage data found. Run a test task first (e.g., cargo make test-integration-lib)"
+  exit 1
+fi
+cargo llvm-cov report --html --output-dir target/llvm-cov/html
+echo "HTML coverage report generated at: target/llvm-cov/html/index.html"
+echo "Open it in browser: file://$(pwd)/target/llvm-cov/html/index.html"
 """

@@ -107,6 +107,34 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn test_raw_data_log_builder_with_opts() {
+        // Prepare log options once
+        let _ = GLOBAL_LOG_OPTS.set(crate::global::LogOpts {
+            instance_id: 1,
+            compress: Some(false),
+            rotation_count: Some(5),
+            keep_days: Some(0),
+            rotation_size: Some("10MB".to_string()),
+            reserved_disk_size: Some("100MB".to_string()),
+        });
+
+        // Use a temporary directory within system temp dir
+        let tmp = std::env::temp_dir().join("taosx_raw_data_test");
+        let _ = std::fs::create_dir_all(&tmp);
+
+        // Build appender with explicit keep_files override
+        let appender = raw_data_log(&tmp, 3).expect("should build raw_data appender");
+
+        // Write a small line to ensure writer works
+        let mut w = appender.make_writer();
+        writeln!(w, "hello").expect("write should succeed");
+        w.flush().expect("flush should succeed");
+
+        // Clean up directory best-effort
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
     #[tokio::test]
     #[ignore]
     async fn test_raw_data_logger() {
@@ -130,5 +158,60 @@ mod tests {
         for t in senders {
             t.await.unwrap();
         }
+    }
+
+    #[tokio::test]
+    async fn test_raw_data_logger_without_keep() {
+        // When keep_raw_data is false, start() should spawn a drain task that simply consumes messages.
+        let (tx, rx) = flume::bounded::<String>(16);
+        let logger = RawDataLogger::new(
+            42,
+            42,
+            false,
+            std::env::temp_dir().display().to_string(),
+            0,
+            rx,
+        );
+        logger.start();
+
+        // Send a few messages, then drop sender so the background task can exit.
+        for i in 0..10 {
+            tx.send_async(format!("msg-{}", i)).await.unwrap();
+        }
+        drop(tx);
+
+        // Give the spawned task a moment to drain; this test primarily ensures no panic on start/drain path.
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+
+    #[tokio::test]
+    async fn test_raw_data_logger_with_keep_minimal() {
+        // Prepare log opts once
+        let _ = GLOBAL_LOG_OPTS.set(crate::global::LogOpts {
+            instance_id: 1,
+            compress: Some(false),
+            rotation_count: Some(2),
+            keep_days: Some(0),
+            rotation_size: Some("1MB".to_string()),
+            reserved_disk_size: Some("10MB".to_string()),
+        });
+
+        let tmp = std::env::temp_dir().join("taosx_raw_data_keep_test");
+        let _ = std::fs::create_dir_all(&tmp);
+
+        let (tx, rx) = flume::bounded::<String>(16);
+        let logger = RawDataLogger::new(100, 100, true, tmp.display().to_string(), 1, rx);
+        logger.start();
+
+        // Send a handful of messages to exercise write path
+        for i in 0..5 {
+            tx.send_async(format!("raw-{}", i)).await.unwrap();
+        }
+        drop(tx);
+        // Allow background task to process messages
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // Best-effort cleanup
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

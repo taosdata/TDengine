@@ -27,7 +27,7 @@
       />
 
       <section v-if="isEdit" class="file-list">
-        <div v-for="file in oldFiles" :key="file.name" class="file-item" @click="downloadByUrl(file.path, file.name)">
+        <div v-for="file in oldFiles" :key="file.name" class="file-item" @click="handleDownloadOldFile(file)">
           <el-tooltip effect="light" :content="t('dataIn.downloadCSVInUseTip')">
             <a class="file-name">
               <el-icon><Download /></el-icon>
@@ -581,6 +581,12 @@ function onValid() {
     }
     isOpcDsnValid.value = false;
   });
+}
+
+// 下载旧的上传文件（带上后端下载前缀）
+function handleDownloadOldFile(file: { path: string; name?: string }) {
+  const url = (dataInProps.downloadFileUrl || '') + file.path;
+  downloadByUrl(url, file.name || 'download.csv');
 }
 
 function onInvalid() {

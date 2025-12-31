@@ -765,16 +765,3 @@ pub(crate) struct NewTask {
     #[serde(default)]
     not_start: bool,
 }
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    #[test]
-    fn test_parse_csv() {
-        let dsn = Dsn::from_str("csv:./ab.csv,./cd.csv?param=1").unwrap();
-        dbg!(&dsn);
-        assert_eq!(dsn.path.unwrap(), "./ab.csv,./cd.csv");
-    }
-}

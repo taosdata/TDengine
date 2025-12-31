@@ -125,4 +125,23 @@ mod tests {
             config.java_opts.unwrap()
         );
     }
+
+    #[test]
+    fn test_from_dsn_with_overrides() {
+        // Override advanced options via DSN query params
+        let dsn = Dsn::from_str(
+            "influxdb://?read_concurrency=3&write_concurrency=7&batch_size=2048&batch_timeout=250&queue_size_t=500&cache_queue_size=99999&limit_speed=123&rows_per_read=42&jvm_opts=-Xmx1g",
+        )
+        .unwrap();
+        let config = PerformanceConfig::from_dsn(&dsn).unwrap();
+        assert_eq!(config.max_thread, 3);
+        assert_eq!(config.limit_connect, 7);
+        assert_eq!(config.limit_batch, 2048);
+        assert_eq!(config.limit_timeout, 250);
+        assert_eq!(config.queue_size_thread, 500);
+        assert_eq!(config.queue_size_data, 99999);
+        assert_eq!(config.limit_speed, 123);
+        assert_eq!(config.rows_per_read, 42);
+        assert_eq!(config.java_opts.as_deref(), Some("-Xmx1g"));
+    }
 }

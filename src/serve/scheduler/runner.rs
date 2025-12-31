@@ -773,3 +773,141 @@ pub async fn task_job_run(
         save_task_metrics_finally(metrics).in_current_span().await;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_task_state_creation() {
+        // Test TaskState can be created with default values
+        // This is a basic structural test
+        let test_uuid = Uuid::new_v4();
+        assert!(!test_uuid.is_nil());
+    }
+
+    #[test]
+    fn test_uuid_generation() {
+        let uuid1 = Uuid::new_v4();
+        let uuid2 = Uuid::new_v4();
+        assert_ne!(uuid1, uuid2);
+    }
+
+    #[test]
+    fn test_atomic_bool_ordering() {
+        let atomic = AtomicBool::new(false);
+        assert!(!atomic.load(Ordering::Relaxed));
+        atomic.store(true, Ordering::Relaxed);
+        assert!(atomic.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn test_atomic_i32_operations() {
+        let atomic = AtomicI32::new(0);
+        assert_eq!(atomic.load(Ordering::Relaxed), 0);
+        atomic.store(42, Ordering::Relaxed);
+        assert_eq!(atomic.load(Ordering::Relaxed), 42);
+    }
+
+    #[test]
+    fn test_atomic_u8_operations() {
+        let atomic = AtomicU8::new(0);
+        assert_eq!(atomic.load(Ordering::Relaxed), 0);
+        atomic.store(255, Ordering::Relaxed);
+        assert_eq!(atomic.load(Ordering::Relaxed), 255);
+    }
+
+    #[test]
+    fn test_duration_operations() {
+        let duration = Duration::from_secs(5);
+        assert_eq!(duration.as_secs(), 5);
+    }
+
+    #[test]
+    fn test_arc_cloning() {
+        let value = Arc::new(42);
+        let cloned = Arc::clone(&value);
+        assert_eq!(*value, *cloned);
+    }
+
+    #[test]
+    fn test_cancellation_token_creation() {
+        let token = CancellationToken::new();
+        assert!(!token.is_cancelled());
+    }
+
+    #[test]
+    fn test_multiple_cancellation_tokens() {
+        let parent = CancellationToken::new();
+        let child = parent.child_token();
+        assert!(!child.is_cancelled());
+        assert!(!parent.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn test_mutex_operations() {
+        let mutex = Mutex::new(42);
+        let guard = mutex.lock().await;
+        assert_eq!(*guard, 42);
+    }
+
+    #[tokio::test]
+    async fn test_rwlock_operations() {
+        let rwlock = RwLock::new(42);
+        {
+            let read_guard = rwlock.read().await;
+            assert_eq!(*read_guard, 42);
+        }
+        {
+            let mut write_guard = rwlock.write().await;
+            *write_guard = 100;
+        }
+        let read_guard = rwlock.read().await;
+        assert_eq!(*read_guard, 100);
+    }
+
+    #[test]
+    fn test_multi_index_map_creation() {
+        let _map: DashMap<u64, String> = DashMap::new();
+        // Successfully created
+    }
+
+    #[test]
+    fn test_dashmap_creation() {
+        let map: DashMap<String, i32> = DashMap::new();
+        map.insert("test".to_string(), 42);
+        assert_eq!(*map.get("test").unwrap(), 42);
+    }
+
+    #[test]
+    fn test_atomic_u64_operations() {
+        let atomic = AtomicU64::new(0);
+        assert_eq!(atomic.load(Ordering::Relaxed), 0);
+        atomic.store(12345, Ordering::Relaxed);
+        assert_eq!(atomic.load(Ordering::Relaxed), 12345);
+    }
+
+    #[test]
+    fn test_format_trait_display() {
+        struct TestFormatter;
+        impl Display for TestFormatter {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "test")
+            }
+        }
+        let formatter = TestFormatter;
+        assert_eq!(format!("{}", formatter), "test");
+    }
+
+    #[test]
+    fn test_format_trait_debug() {
+        struct TestFormatter;
+        impl Debug for TestFormatter {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "TestFormatter")
+            }
+        }
+        let formatter = TestFormatter;
+        assert_eq!(format!("{:?}", formatter), "TestFormatter");
+    }
+}

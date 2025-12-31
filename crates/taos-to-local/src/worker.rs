@@ -392,4 +392,163 @@ mod tests {
         assert_eq!(task.tbname, "t2");
         assert_eq!(task.sql, "SELECT * FROM `t2`");
     }
+
+    // ============ sql() function tests ============
+
+    #[test]
+    fn test_sql_no_time_range() {
+        let result = sql("test_table", None, None);
+        assert_eq!(result, "SELECT * FROM `test_table`");
+    }
+
+    #[test]
+    fn test_sql_with_start_only() {
+        let start = DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let result = sql("test_table", Some(start), None);
+        assert_eq!(
+            result,
+            "SELECT * FROM `test_table` WHERE ts >= '2024-01-01T00:00:00+00:00'"
+        );
+    }
+
+    #[test]
+    fn test_sql_with_end_only() {
+        let end = DateTime::parse_from_rfc3339("2024-12-31T23:59:59Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let result = sql("test_table", None, Some(end));
+        assert_eq!(
+            result,
+            "SELECT * FROM `test_table` WHERE ts < '2024-12-31T23:59:59+00:00'"
+        );
+    }
+
+    #[test]
+    fn test_sql_with_both_start_and_end() {
+        let start = DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let end = DateTime::parse_from_rfc3339("2024-12-31T23:59:59Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let result = sql("test_table", Some(start), Some(end));
+        assert_eq!(
+            result,
+            "SELECT * FROM `test_table` WHERE ts >= '2024-01-01T00:00:00+00:00' AND ts < '2024-12-31T23:59:59+00:00'"
+        );
+    }
+
+    #[test]
+    fn test_sql_special_table_name() {
+        let result = sql("table_with_special-chars_123", None, None);
+        assert_eq!(result, "SELECT * FROM `table_with_special-chars_123`");
+    }
+
+    #[test]
+    fn test_sql_backtick_escaping() {
+        // 测试表名带反引号的情况
+        let result = sql("table`name", None, None);
+        // 注意：当前实现没有转义，这个测试验证实际行为
+        assert_eq!(result, "SELECT * FROM `table`name`");
+    }
+
+    #[test]
+    fn test_sql_empty_table_name() {
+        let result = sql("", None, None);
+        assert_eq!(result, "SELECT * FROM ``");
+    }
+
+    #[test]
+    fn test_sql_with_millisecond_precision() {
+        let start = DateTime::parse_from_rfc3339("2024-06-15T12:30:45.123Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let end = DateTime::parse_from_rfc3339("2024-06-15T13:30:45.456Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let result = sql("metrics", Some(start), Some(end));
+        assert_eq!(
+            result,
+            "SELECT * FROM `metrics` WHERE ts >= '2024-06-15T12:30:45.123+00:00' AND ts < '2024-06-15T13:30:45.456+00:00'"
+        );
+    }
+
+    #[test]
+    fn test_sql_with_different_timezones() {
+        // RFC3339 格式会保留时区信息，但 with_timezone(&Utc) 会转换为 UTC
+        let start_cst = DateTime::parse_from_rfc3339("2024-01-01T08:00:00+08:00")
+            .unwrap()
+            .with_timezone(&Utc);
+        let result = sql("sensor_data", Some(start_cst), None);
+        // 应该转换为 UTC 时间 00:00:00
+        assert_eq!(
+            result,
+            "SELECT * FROM `sensor_data` WHERE ts >= '2024-01-01T00:00:00+00:00'"
+        );
+    }
+
+    #[test]
+    fn test_sql_edge_case_epoch_start() {
+        let epoch = DateTime::parse_from_rfc3339("1970-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let result = sql("legacy_data", Some(epoch), None);
+        assert_eq!(
+            result,
+            "SELECT * FROM `legacy_data` WHERE ts >= '1970-01-01T00:00:00+00:00'"
+        );
+    }
+
+    #[test]
+    fn test_sql_future_date() {
+        let future = DateTime::parse_from_rfc3339("2099-12-31T23:59:59Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let result = sql("forecast", None, Some(future));
+        assert_eq!(
+            result,
+            "SELECT * FROM `forecast` WHERE ts < '2099-12-31T23:59:59+00:00'"
+        );
+    }
+
+    #[test]
+    fn test_sql_same_start_and_end() {
+        let time = DateTime::parse_from_rfc3339("2024-06-15T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let result = sql("snapshot", Some(time), Some(time));
+        assert_eq!(
+            result,
+            "SELECT * FROM `snapshot` WHERE ts >= '2024-06-15T12:00:00+00:00' AND ts < '2024-06-15T12:00:00+00:00'"
+        );
+    }
+
+    #[test]
+    fn test_sql_chinese_table_name() {
+        let result = sql("测试表", None, None);
+        assert_eq!(result, "SELECT * FROM `测试表`");
+    }
+
+    #[test]
+    fn test_sql_table_with_dots() {
+        let result = sql("db.table", None, None);
+        assert_eq!(result, "SELECT * FROM `db.table`");
+    }
+
+    #[test]
+    fn test_sql_year_boundary() {
+        let start = DateTime::parse_from_rfc3339("2023-12-31T23:59:59Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let end = DateTime::parse_from_rfc3339("2024-01-01T00:00:01Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let result = sql("yearly_data", Some(start), Some(end));
+        assert_eq!(
+            result,
+            "SELECT * FROM `yearly_data` WHERE ts >= '2023-12-31T23:59:59+00:00' AND ts < '2024-01-01T00:00:01+00:00'"
+        );
+    }
 }

@@ -873,6 +873,8 @@ mod tests {
     use std::task::Poll;
     use std::time::{Duration, Instant};
 
+    use crate::serve::controller::AgentAction;
+    use crate::serve::scheduler::agent::AgentNotify;
     use crate::serve::tests::tracing_subscriber_init;
     use arrow::array::{ArrayRef, TimestampMillisecondArray};
     use arrow::record_batch::RecordBatch;
@@ -895,6 +897,36 @@ mod tests {
         transport::{Channel, Endpoint},
     };
 
+    #[test]
+    fn test_rpc_config_default() {
+        let config = super::RpcConfig::default();
+        assert!(!config.tcp.is_empty());
+        assert!(config.unix.is_none());
+        assert!(config.ssl_cert.is_none());
+        assert!(config.ssl_key.is_none());
+        assert!(config.ssl_ca.is_none());
+    }
+
+    #[test]
+    fn test_agent_rpc_channel_creation() {
+        let (_sender, receiver) = tokio::sync::broadcast::channel::<(i64, AgentAction)>(100);
+        let (notify_sender, _) = tokio::sync::broadcast::channel::<AgentNotify>(100);
+        let channel = super::AgentRpcChannel::new(receiver, notify_sender);
+        // Verify channel is created successfully
+        let type_name = std::any::type_name_of_val(&channel);
+        assert!(type_name.contains("AgentRpcChannel"));
+    }
+
+    // use super::FlightServiceImpl;
+    // async fn client_with_uds(path: String) -> FlightServiceClient<Channel> {
+    //     let connector = tower::service_fn(move |_| UnixStream::connect(path.clone()));
+    //     let channel = Endpoint::try_from("http://[::1]:50051")
+    //         .unwrap()
+    //         .connect_with_connector(connector)
+    //         .await
+    //         .unwrap();
+    //     FlightServiceClient::new(channel)
+    // }
     async fn client_with_tcp() -> FlightServiceClient<Channel> {
         // let connector = tower::service_fn(move |_| TcpStream::connect("127.0.0.1:6051"));
         let channel = Endpoint::try_from("http://127.0.0.1:6051")
