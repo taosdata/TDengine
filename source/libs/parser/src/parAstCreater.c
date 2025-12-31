@@ -6039,11 +6039,32 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
   char via[TSDB_COL_NAME_LEN] = {0};
   char buf[TSDB_XNODE_TASK_OPTIONS_MAX_NUM] = {0};
   if (strcmp(key, "trigger") == 0) {
-    (void)trimString(pVal->z, pVal->n, pOptions->trigger, sizeof(pOptions->trigger));
+    if (pVal->type == TK_NK_STRING) {
+      (void)trimString(pVal->z, pVal->n, pOptions->trigger, sizeof(pOptions->trigger));
+      pOptions->triggerLen = pVal->n == 2 ? 1 : pVal->n - 2;
+    } else {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Option trigger must be string");
+      goto _err;
+    }
   } else if (strcmp(key, "parser") == 0 || strcmp(key, "transform") == 0) {
-    (void)trimString(pVal->z, pVal->n, pOptions->parser, sizeof(pOptions->parser));
+    if (pVal->type == TK_NK_STRING) {
+      (void)trimString(pVal->z, pVal->n, pOptions->parser, sizeof(pOptions->parser));
+      pOptions->parserLen = pVal->n == 2 ? 1 : pVal->n - 2;
+    } else {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Option parser must be string");
+      goto _err;
+    }
   } else if (strcmp(key, "health") == 0) {
-    (void)trimString(pVal->z, pVal->n, pOptions->health, sizeof(pOptions->health));
+    if (pVal->type == TK_NK_STRING) {
+      (void)trimString(pVal->z, pVal->n, pOptions->health, sizeof(pOptions->health));
+      pOptions->healthLen = pVal->n == 2 ? 1 : pVal->n - 2;
+    } else {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Option health must be string");
+      goto _err;
+    }
   } else if (strcmp(key, "via") == 0) {
     switch (pVal->type) {
       case TK_NK_STRING:

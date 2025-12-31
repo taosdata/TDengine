@@ -13248,9 +13248,15 @@ static int32_t covertXNodeTaskOptions(SXnodeTaskOptions* pOptions, xTaskOptions*
   }
 
   pOpts->via = pOptions->via;
-  pOpts->trigger = xCreateCowStr(strlen(pOptions->trigger) + 1, pOptions->trigger, true);
-  pOpts->health = xCreateCowStr(strlen(pOptions->health) + 1, pOptions->health, true);
-  pOpts->parser = xCreateCowStr(strlen(pOptions->parser) + 1, pOptions->parser, true);
+  if (pOptions->triggerLen > 0) {
+    pOpts->trigger = xCreateCowStr(strlen(pOptions->trigger) + 1, pOptions->trigger, true);
+  }
+  if (pOptions->healthLen > 0) {
+    pOpts->health = xCreateCowStr(strlen(pOptions->health) + 1, pOptions->health, true);
+  }
+  if (pOptions->parserLen > 0) {
+    pOpts->parser = xCreateCowStr(strlen(pOptions->parser) + 1, pOptions->parser, true);
+  }
 
   pOpts->optionsNum = pOptions->optionsNum;
   for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
@@ -13262,6 +13268,7 @@ static int32_t covertXNodeTaskOptions(SXnodeTaskOptions* pOptions, xTaskOptions*
   return TSDB_CODE_SUCCESS;
 }
 static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTaskStmt* pStmt) {
+  int32_t              code = 0;
   SMCreateXnodeTaskReq createReq = {0};
 
   createReq.name = xCreateCowStr(strlen(pStmt->name) + 1, pStmt->name, false);
@@ -13277,10 +13284,12 @@ static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTas
   if (xnodeId != NULL && strlen(xnodeId) > 0) {
     createReq.xnodeId = atoi(xnodeId);
   }
-  int32_t code = covertXNodeTaskOptions(pStmt->options, &createReq.options);
-  if (code != 0) {
-    tFreeSMCreateXnodeTaskReq(&createReq);
-    return code;
+  if (pStmt->options != NULL) {
+    code = covertXNodeTaskOptions(pStmt->options, &createReq.options);
+    if (code != 0) {
+      tFreeSMCreateXnodeTaskReq(&createReq);
+      return code;
+    }
   }
 
   code =

@@ -1348,7 +1348,7 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
   (void)memcpy(xnodeObj.sinkDsn, pCreate->sink.cstr.ptr, pCreate->sink.cstr.len);
 
   xnodeObj.parserLen = pCreate->options.parser.len;
-  if (xnodeObj.parserLen > 0) {
+  if (xnodeObj.parserLen > 0 && pCreate->options.parser.ptr != NULL) {
     xnodeObj.parser = taosMemoryCalloc(1, xnodeObj.parserLen);
     if (xnodeObj.parser == NULL) goto _OVER;
     (void)memcpy(xnodeObj.parser, pCreate->options.parser.ptr, xnodeObj.parserLen);
@@ -1431,7 +1431,7 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
   }
   TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "to", sinkDsn), NULL, _OVER);
 
-  if (pCreateReq->options.parser.len > 0) {
+  if (pCreateReq->options.parser.len > 0 && pCreateReq->options.parser.ptr != NULL) {
     parser = taosStrndupi(pCreateReq->options.parser.ptr, (int64_t)pCreateReq->options.parser.len);
     if (parser == NULL) {
       code = terrno;
@@ -2003,7 +2003,7 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     if (code != 0) goto _end;
 
     // parser
-    if (pObj->parserLen > 0) {
+    if (pObj->parserLen > 0 && pObj->parser != NULL) {
       buf[0] = 0;
       STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->parser, pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
