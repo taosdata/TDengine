@@ -272,6 +272,11 @@ SSdbRaw *mndXnodeActionEncode(SXnodeObj *pObj) {
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
+  if (NULL == pObj) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
   int32_t rawDataLen = sizeof(SXnodeObj) + TSDB_XNODE_RESERVE_SIZE + pObj->urlLen + pObj->statusLen;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE, TSDB_XNODE_VER_NUMBER, rawDataLen);
@@ -307,6 +312,11 @@ SSdbRow *mndXnodeActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow   *pRow = NULL;
   SXnodeObj *pObj = NULL;
+
+  if (NULL == pRaw) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -1099,7 +1109,13 @@ SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
   int32_t code = 0;
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  int32_t totalStrLen = pObj->nameLen + pObj->sourceDsnLen + pObj->sinkDsnLen + pObj->parserLen + pObj->reasonLen;
+  if (NULL == pObj) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
+  int32_t totalStrLen =
+      pObj->nameLen + pObj->sourceDsnLen + pObj->sinkDsnLen + pObj->parserLen + pObj->reasonLen + pObj->statusLen;
   int32_t rawDataLen = sizeof(SXnodeTaskObj) + TSDB_XNODE_RESERVE_SIZE + totalStrLen;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE_TASK, TSDB_XNODE_VER_NUMBER, rawDataLen);
@@ -1147,6 +1163,11 @@ SSdbRow *mndXnodeTaskActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow       *pRow = NULL;
   SXnodeTaskObj *pObj = NULL;
+
+  if (NULL == pRaw) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -2165,6 +2186,11 @@ SSdbRaw *mndXnodeJobActionEncode(SXnodeJobObj *pObj) {
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
+  if (NULL == pObj) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
   mDebug("xnode tid:%d, jid:%d, start to encode to raw, row:%p", pObj->taskId, pObj->id, pObj);
 
   int32_t rawDataLen = sizeof(SXnodeJobObj) + TSDB_XNODE_RESERVE_SIZE + pObj->configLen + pObj->reasonLen;
@@ -2208,6 +2234,11 @@ SSdbRow *mndXnodeJobActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow      *pRow = NULL;
   SXnodeJobObj *pObj = NULL;
+
+  if (NULL == pRaw) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
@@ -2306,6 +2337,11 @@ SSdbRaw *mndXnodeUserPassActionEncode(SXnodeUserPassObj *pObj) {
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
+  if (NULL == pObj) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
   int32_t rawDataLen = sizeof(SXnodeUserPassObj) + TSDB_XNODE_RESERVE_SIZE + pObj->userLen + pObj->passLen;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE_USER_PASS, TSDB_XNODE_VER_NUMBER, rawDataLen);
@@ -2340,6 +2376,11 @@ SSdbRow *mndXnodeUserPassActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   SSdbRow           *pRow = NULL;
   SXnodeUserPassObj *pObj = NULL;
+
+  if (NULL == pRaw) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
