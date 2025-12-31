@@ -90,19 +90,19 @@ TDengine TSDB 先对用户操作进行记录和管理，然后将这些作为审
 
 ### 表结构
 
-taosKeeper 会依据上报的审计数据在相应的数据库中自动建立超级表用于存储数据。该超级表的定义如下
+taosKeeper 会依据上报的审计数据在相应的数据库中自动建立超级表用于存储数据。该超级表的定义如下：
 
 ```sql
-create stable operations(ts timestamp, details varchar(64000)， user varchar(25), operation varchar(20), db varchar(65), resource varchar(193), client_add(25)) tags (clusterID varchar(64) );
+create stable operations (ts timestamp, user_name varchar(25), operation varchar(20), db varchar(65), resource varchar(193), client_address varchar(64), details varchar(50000)) tags (cluster_id varchar(64))
 ```
 
-其中
+其中：
 
 1. db 为操作涉及的 database，resource 为操作涉及的资源。
-2. user 和 operation 为数据列，表示哪个用户在该对象上进行了什么操作
-3. timestamp 为时间戳列，表示操作发生时的时间
+2. user_name 和 operation 为数据列，表示哪个用户在该对象上进行了什么操作。
+3. ts 为时间戳列，表示操作发生时的时间。
 4. details 为该操作的一些补充细节，在大多数操作下是所执行的操作的 SQL 语句。
-5. client_add 为客户端地址，包括 ip 和端口
+5. client_address 为客户端地址，包括 ip 和端口。
 
 ### 操作列表
 

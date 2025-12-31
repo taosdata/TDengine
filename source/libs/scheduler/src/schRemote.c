@@ -134,7 +134,9 @@ _return:
 
 int32_t schProcessExplainRsp(SSchJob *pJob, SSchTask *pTask, SExplainRsp *rsp) {
   SRetrieveTableRsp *pRsp = NULL;
-  SCH_ERR_RET(qExplainUpdateExecInfo(pJob->explainCtx, rsp, pTask->plan->id.groupId, &pRsp));
+  SExplainCtx* pCtx = SCH_JOB_EXPLAIN_CTX(pJob);
+  qExplainSetCurrPlan(pCtx, pJob->subJobId);
+  SCH_ERR_RET(qExplainUpdateExecInfo(pCtx, rsp, pTask->plan->id.groupId, &pRsp));
   
   if (pRsp) {
     SCH_ERR_RET(schProcessOnExplainDone(pJob, pTask, pRsp));
@@ -243,6 +245,9 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
         code = tDecodeSVAlterTbRsp(&coder, &rsp);
         tDecoderClear(&coder);
         SCH_ERR_JRET(code);
+        if (rsp.code == TSDB_CODE_VND_SAME_TAG) {
+          rsp.code = TSDB_CODE_SUCCESS;
+        }
         SCH_ERR_JRET(rsp.code);
 
         pJob->execRes.res = rsp.pMeta;
@@ -427,6 +432,13 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
       SCH_TASK_ELOG("link broken received, error:%x - %s", rspCode, tstrerror(rspCode));
       SCH_ERR_JRET(rspCode);
       break;
+    case TDMT_MND_CREATE_TOKEN_RSP:{
+      SCreateTokenRsp batchRsp = {0};
+      code = tDeserializeSCreateTokenResp(pMsg->pData, msgSize, &batchRsp);
+      SCH_ERR_JRET(code);
+      break;
+      
+    }
     default:
       SCH_TASK_ELOG("unknown rsp msg, type:%d, status:%s", msgType, SCH_GET_TASK_STATUS_STR(pTask));
       SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -485,7 +497,7 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   qDebug("QID:0x%" PRIx64 ", handle rsp msg, type:%s, handle:%p, code:%s", qid,TMSG_INFO(pMsg->msgType), pMsg->handle,
          tstrerror(rspCode));
 
-  SCH_ERR_JRET(schProcessOnCbBegin(&pJob, &pTask, pParam->queryId, pParam->refId, pParam->taskId));
+  SCH_ERR_JRET(schProcessOnCbBegin(&pJob, &pTask, pParam->queryId, pParam->refId, pParam->subJobId, pParam->taskId));
   code = schHandleResponseMsg(pJob, pTask, pParam->seriesId, pParam->execId, pMsg, rspCode);
   pMsg->pData = NULL;
 
@@ -504,8 +516,8 @@ _return:
 
 int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
-  qDebug("QID:0x%" PRIx64 ", SID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 " drop task rsp received, code:0x%x", 
-         pParam->queryId, pParam->seriesId, pParam->clientId, pParam->taskId, code);
+  qDebug("QID:0x%" PRIx64 ", SID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 " SJID:%d drop task rsp received, code:0x%x", 
+         pParam->queryId, pParam->seriesId, pParam->clientId, pParam->taskId, pParam->subJobId, code);
   // called if drop task rsp received code
   (void)rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT, 0); // ignore error
 
@@ -521,8 +533,8 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
 
 int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
-  qDebug("QID:0x%" PRIx64 ", SID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 " task notify rsp received, code:0x%x", 
-         pParam->queryId, pParam->seriesId, pParam->clientId, pParam->taskId, code);
+  qDebug("QID:0x%" PRIx64 ", SID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 " SJID:%d task notify rsp received, code:0x%x", 
+         pParam->queryId, pParam->seriesId, pParam->clientId, pParam->taskId, pParam->subJobId, code);
   if (pMsg) {
     taosMemoryFreeClear(pMsg->pData);
     taosMemoryFreeClear(pMsg->pEpSet);
@@ -604,6 +616,7 @@ int32_t schMakeCallbackParam(SSchJob *pJob, SSchTask *pTask, int32_t msgType, bo
     param->refId = pJob->refId;
     param->clientId = SCH_CLIENT_ID(pTask);
     param->taskId = SCH_TASK_ID(pTask);
+    param->subJobId = pJob->subJobId;
     param->pTrans = pJob->conn.pTrans;
     param->execId = pTask->execId;
     *pParam = param;
@@ -1118,6 +1131,63 @@ _return:
   SCH_RET(code);
 }
 
+int32_t schBuildSubJobEndpoints(SSchTask *pTask, SArray** ppRes, SSchJob* pTarget) {
+  *ppRes = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SSchJob* pJob = NULL;
+  
+  if (SCH_IS_PARENT_JOB(pTarget) && !SCH_JOB_GOT_SUB_JOBS(pTarget)) {
+    pJob = pTarget;
+    SCH_TASK_DLOG("task query without subEndPoints, pJob:%p", pTarget);
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  int32_t subJobNum = SCH_IS_PARENT_JOB(pTarget) ? pTarget->subJobs->size : pTarget->subJobId;
+  SSchJob* pParent = SCH_IS_PARENT_JOB(pTarget) ? pTarget : (SSchJob*)pTarget->parent;
+  SDownstreamSourceNode* pSource = NULL;
+
+  if (subJobNum > 0) {
+    *ppRes = taosArrayInit(subJobNum, POINTER_BYTES);
+    if (NULL == *ppRes) {
+      SCH_ERR_RET(terrno);
+    }
+  }
+  
+  for (int32_t i = 0; i < subJobNum; ++i) {
+    pJob = taosArrayGetP(pParent->subJobs, i);
+    if (NULL == pJob || NULL == pJob->fetchTask) {
+      SCH_JOB_ELOG("no fetchTask set in job, pJob:%p, fetchTask:%p", pJob, pJob ? pJob->fetchTask : NULL);
+      SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+    }
+
+    SCH_ERR_JRET(nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, (SNode**)&pSource));
+    
+    memcpy(&pSource->addr, &pJob->resNode, sizeof(pSource->addr));
+    pSource->clientId = pJob->fetchTask->clientId;
+    pSource->taskId = pJob->fetchTask->taskId;
+    pSource->sId = pJob->fetchTask->seriesId;
+    pSource->execId = pJob->fetchTask->execId;
+    pSource->fetchMsgType = SCH_FETCH_TYPE(pJob->fetchTask);
+    pSource->localExec = pJob->attr.localExec;
+    if (NULL == taosArrayPush(*ppRes, &pSource)) {
+      nodesDestroyNode((SNode *)pSource);
+      SCH_ERR_JRET(terrno);
+    }
+  }
+
+  pJob = pTarget;
+  SCH_TASK_DLOG("task query with %d subEndPoints", subJobNum);
+
+_return:
+
+  if (code) {
+    taosArrayDestroyP(*ppRes, (FDelete)nodesDestroyNode);
+    *ppRes = NULL;
+  }
+  
+  return code;
+}
+
 int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t msgType, void* param) {
   int32_t  msgSize = 0;
   void    *msg = NULL;
@@ -1195,10 +1265,11 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       qMsg.msgMask = (pTask->plan->showRewrite) ? QUERY_MSG_MASK_SHOW_REWRITE() : 0;
       qMsg.msgMask |= (pTask->plan->isView) ? QUERY_MSG_MASK_VIEW() : 0;
       qMsg.msgMask |= (pTask->plan->isAudit) ? QUERY_MSG_MASK_AUDIT() : 0;
+      qMsg.msgMask |= (!SCH_IS_PARENT_JOB(pJob) && SCH_IS_ROOT_TASK(pTask)) ? QUERY_MSG_MASK_SUBQUERY() : 0;
       qMsg.taskType = (pJob->attr.type == JOB_TYPE_HQUERY)? TASK_TYPE_HQUERY:TASK_TYPE_QUERY;
       qMsg.explain = SCH_IS_EXPLAIN_JOB(pJob);
       qMsg.needFetch = SCH_TASK_NEED_FETCH(pTask);
-      qMsg.sqlLen = strlen(pJob->sql);
+      qMsg.sqlLen = pJob->sql ? strlen(pJob->sql) : 0;
       qMsg.sql = pJob->sql;
       qMsg.msgLen = pTask->msgLen;
       qMsg.msg = pTask->msg;
@@ -1209,23 +1280,30 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
         qMsg.compress = 1;
       }
 
+      SCH_ERR_JRET(schBuildSubJobEndpoints(pTask, &qMsg.subEndPoints, pJob));
+
       msgSize = tSerializeSSubQueryMsg(NULL, 0, &qMsg);
       if (msgSize < 0) {
         SCH_TASK_ELOG("tSerializeSSubQueryMsg get size, msgSize:%d", msgSize);
-        SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        taosArrayDestroyP(qMsg.subEndPoints, (FDelete)nodesDestroyNode);
+        SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
       }
       
       msg = taosMemoryCalloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
-        SCH_ERR_RET(terrno);
+        taosArrayDestroyP(qMsg.subEndPoints, (FDelete)nodesDestroyNode);
+        SCH_ERR_JRET(terrno);
       }
 
       if (tSerializeSSubQueryMsg(msg, msgSize, &qMsg) < 0) {
         SCH_TASK_ELOG("tSerializeSSubQueryMsg failed, msgSize:%d", msgSize);
+        taosArrayDestroyP(qMsg.subEndPoints, (FDelete)nodesDestroyNode);
         taosMemoryFree(msg);
-        SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+        SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
       }
+
+      taosArrayDestroyP(qMsg.subEndPoints, (FDelete)nodesDestroyNode);
 
       persistHandle = true;
       int64_t refId = 0;

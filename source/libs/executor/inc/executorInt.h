@@ -169,17 +169,26 @@ typedef struct SSortMergeJoinOperatorParam {
   bool initDownstream;
 } SSortMergeJoinOperatorParam;
 
+typedef enum EExchangeSourceType {
+  EX_SRC_TYPE_STB_JOIN_SCAN = 1,
+  EX_SRC_TYPE_VSTB_SCAN,
+  EX_SRC_TYPE_VSTB_WIN_SCAN,
+  EX_SRC_TYPE_VSTB_AGG_SCAN,
+  EX_SRC_TYPE_VSTB_TAG_SCAN,
+} EExchangeSourceType;
+
 typedef struct SExchangeOperatorBasicParam {
   int32_t               vgId;
   int32_t               srcOpType;
   bool                  tableSeq;
   SArray*               uidList;
-  bool                  isVtbWinScan;
-  bool                  isVtbRefScan;
-  bool                  isVtbTagScan;
+  EExchangeSourceType   type;
   bool                  isNewDeployed; // used with newDeployedSrc
   bool                  isNewParam;
-  SOrgTbInfo*           colMap;
+  uint64_t              groupid;
+  SOrgTbInfo*           orgTbInfo;
+  SArray*               batchOrgTbInfo; // SArray<SOrgTbInfo>
+  SArray*               tagList;
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
 } SExchangeOperatorBasicParam;
@@ -303,12 +312,23 @@ typedef struct STableScanInfo {
   bool            hasGroupByTag;
   bool            filesetDelimited;
   bool            needCountEmptyTable;
+  // for virtual super table scan
   SSDataBlock*    pOrgBlock;
   bool            ignoreTag;
   bool            virtualStableScan;
   SHashObj*       readerCache;
   bool            newReader;
   SArray*         pBlockColMap;
+  // for virtual super table batch scan
+  int32_t         lastBatchIdx;
+  int32_t         currentBatchIdx;
+  STimeWindow     lastTimeWindow;
+  SArray*         lastColArray;
+  SArray*         lastBlockColArray;
+  SArray*         pBatchColMap;  // SArray<SOrgTbInfo>
+  STimeWindow     cachedTimeWindow;
+  SArray*         cachedTagList;
+  uint64_t        cachedGroupId;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
@@ -676,7 +696,7 @@ typedef struct SDataGroupInfo {
 
 typedef struct SWindowRowsSup {
   STimeWindow win;
-  TSKEY       prevTs;
+  TSKEY       prevTs;  // previous timestamp
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
@@ -701,9 +721,9 @@ static inline void resetWindowRowsSup(SWindowRowsSup* pRowSup) {
   }
 
   pRowSup->win.skey = pRowSup->win.ekey = 0;
-  pRowSup->prevTs = pRowSup->startRowIndex = 0;
-  pRowSup->numOfRows = pRowSup->groupId = 0;
-  resetNumNullRows(pRowSup);
+  pRowSup->prevTs = INT64_MIN;
+  pRowSup->startRowIndex = pRowSup->groupId = 0;
+  pRowSup->numOfRows = pRowSup->numNullRows = 0;
 }
 
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
@@ -954,8 +974,8 @@ void    removeSessionResults(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, 
 int32_t copyDeleteWindowInfo(SArray* pResWins, SSHashObj* pStDeleted);
 int32_t copyDeleteSessionKey(SSHashObj* source, SSHashObj* dest);
 
-bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo);
-bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
+bool inSlidingWindow(const SInterval* pInterval, const STimeWindow* pWin, const SDataBlockInfo* pBlockInfo);
+bool inCalSlidingWindow(const SInterval* pInterval, const STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
 bool compareVal(const char* v, const SStateKeys* pKey);
 bool inWinRange(STimeWindow* range, STimeWindow* cur);
 int32_t doDeleteTimeWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SArray* result);

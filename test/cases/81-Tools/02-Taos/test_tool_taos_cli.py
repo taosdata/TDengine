@@ -14,10 +14,9 @@
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import time
+import datetime 
 import platform
-
-
-
+import pyotp
 
 class TestTaosCli:
     updatecfgDict = {
@@ -58,7 +57,7 @@ class TestTaosCli:
         self.checkManyString(rlist, results)
 
         # vec
-        rlist = self.taos(cmd + '\G"')
+        rlist = self.taos(cmd + '\\G"')
         results = [
             "****** 10.row *******",
             "ts: 2022-10-01 00:00:09.000",
@@ -93,7 +92,7 @@ class TestTaosCli:
         self.taos(f'-s "create table if not exists testdec.test(ts timestamp, dec64 decimal(10,6), dec128 decimal(24,10)) tags (note nchar(20))"')
         self.taos(f'-s "create table testdec.d0 using testdec.test(note) tags(\'test\')"')
         self.taos(f'-s "insert into testdec.d0 values(now(), \'9876.123456\', \'123456789012.0987654321\')"')
-        
+
         # check decimal64
         self.checkDecimalCommon("dec64", "9876.123456")
 
@@ -117,12 +116,13 @@ class TestTaosCli:
 
         # native restful websock test
         args = [
-            ["-Z native"], 
-            ["-T 40 -E http://localhost:6041"]
+            ["-Z native"],
+            ["-T 40 -E http://localhost:6041"],
+            ["-T 40 -E http://root:taosdata@localhost:6041"]
         ]
         for arg in args:
             self.checkResultWithMode(db, stb, arg)
-        
+
         self.checkDecimal()
 
 
@@ -130,7 +130,7 @@ class TestTaosCli:
         mode = arg[0]
         self.taos(f'{mode} -s "source {source}" ')
         self.taos(f'{mode} -s "select * from {db}.d0>>d0.csv" ')
-        
+
         # use db
         rlist = self.taos(f'{mode} -s "show databases;use {db};show databases;" ')
         # update sql
@@ -141,7 +141,7 @@ class TestTaosCli:
         if mode == "":
             self.taos(f'{mode} -s "delete from {db}.d0" ')
             self.taos(f'{mode} -s "insert into {db}.d0 file d0.csv" ')
-        
+
         sql = f"select count(*) from {db}.d0"
         self.taos(f'{mode} -B -s "{sql}" ')
         tdSql.checkAgg(sql, insertRows)
@@ -160,7 +160,7 @@ class TestTaosCli:
         db = "db"
         insertRows = 5
         for arg in args:
-            # insert 
+            # insert
             self.checkDumpInOutMode(source, arg, db, insertRows)
 
     def checkVersion(self):
@@ -177,7 +177,7 @@ class TestTaosCli:
 
         if len(rlist1[2]) < 42:
             tdLog.exit("git commit id length is invalid: " + rlist1[2])
-        
+
         keys = [
             "version:",
             "git:",
@@ -192,7 +192,7 @@ class TestTaosCli:
         rlist2 = self.taos("-?")
         self.checkSame(rlist1, rlist2)
 
-        # check return 
+        # check return
         if platform.system() == "Windows":
             strings = [
             "-a,",
@@ -209,7 +209,7 @@ class TestTaosCli:
 
         for string in strings:
             self.checkListString(rlist1, string)
-    
+
     def checkCommand(self):
         # check coredump
         queryOK = "Query OK"
@@ -235,7 +235,7 @@ class TestTaosCli:
             ['-s "help;"', "Timestamp expression Format"],
             ['-s ""', "Invalid commands"],
             ['-t', "2: service ok"],
-            
+
         ]
         if platform.system() != "Windows":
             args.append(['-o "./current/log/files/" -h localhost -uroot -ptaosdata  -s"show databases;"', queryOK])
@@ -252,10 +252,10 @@ class TestTaosCli:
         #
         # support native only
         #
-        
+
         # o logpath
         char = 'a'
-        lname =f'-o "/root/log/{char * 1000}/" -s "quit;"' 
+        lname =f'-o "/root/log/{char * 1000}/" -s "quit;"'
 
         args = [
             ['-a ""', "Invalid auth"],
@@ -273,7 +273,7 @@ class TestTaosCli:
         #
         #  cmd & env
         #
-        
+
         # env  6043 - invalid
         os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6043"
         # cmd 6041 - valid
@@ -281,7 +281,7 @@ class TestTaosCli:
         rlist = self.taos(cmd, checkRun = True)
         results = [
             "WebSocket Client Version",
-            "2022-10-01 00:01:39.000", 
+            "2022-10-01 00:01:39.000",
             "Query OK, 200 row(s) in set"
         ]
         self.checkManyString(rlist, results)
@@ -339,30 +339,30 @@ class TestTaosCli:
         # do check
         for option in options:
             self.checkExcept(taos + " -s 'show dnodes;' " + option)
-    
-    def checkModeVersion(self):    
 
-        # check default conn mode        
+    def checkModeVersion(self):
+
+        # check default conn mode
         #DEFAULT_CONN = "WebSocket"
         DEFAULT_CONN = "Native"
 
         # results
         results = [
             f"{DEFAULT_CONN} Client Version",
-            "2022-10-01 00:01:39.000", 
+            "2022-10-01 00:01:39.000",
             "Query OK, 100 row(s) in set"
         ]
-    
+
         # default
         cmd = f'-s "select ts from test.d0"'
         rlist = self.taos(cmd, checkRun = True)
         self.checkManyString(rlist, results)
-        
+
         # websocket
         cmd = f'-Z 1 -s "select ts from test.d0"'
         results[0] = "WebSocket Client Version"
         rlist = self.taos(cmd, checkRun = True)
-        self.checkManyString(rlist, results)        
+        self.checkManyString(rlist, results)
 
         # native
         cmd = f'-Z 0 -s "select ts from test.d0"'
@@ -377,7 +377,7 @@ class TestTaosCli:
         self.checkExceptCmd()
         # mode version
         self.checkModeVersion()
-    
+
     # password
     def checkPassword(self):
         # 255 char max password
@@ -386,10 +386,10 @@ class TestTaosCli:
         pwdFile = f"{os.path.dirname(__file__)}/data/pwdMax.txt"
         with open(pwdFile) as file:
             pwd = file.readline()
-        
+
         sql = f"create user {user} pass '{pwd}' "
         tdSql.execute(sql)
-         
+
         cmds = [
             f"-u{user} -p'{pwd}'      -s 'show databases;'",  # command pass
             f"-u{user} -p < {pwdFile} -s 'show databases;'"   # input   pass
@@ -398,11 +398,85 @@ class TestTaosCli:
         for cmd in cmds:
             rlist = self.taos(cmd, checkRun=True, show=False)
             self.checkListString(rlist, "Query OK,")
+    
+    # get totpCode
+    def getTotpCode(self, secret_key, interval = 30):
+        totp = pyotp.TOTP(secret_key, interval=interval)
+        totp_code = totp.now()
+        time_remaining = interval - (int(time.time()) % interval)
+        
+        tdLog.info(f"TOTP code: {totp_code}")
+        tdLog.info(f"Remain: {time_remaining} s")
+        tdLog.info(f"Generate time: {datetime.datetime.now().strftime('%H:%M:%S')}")
+        return totp_code
+    
+    # check totp code
+    def checkTotpCode(self):
+        totpSeed = "totp_user1@totpseed"
+        # create totp user
+        tdSql.execute(f"create user totp_user1 pass 'totp_user1@password' totpseed '{totpSeed}' ")
+        
+        # gen totp encrypt string()
+        sql = f"select generate_totp_secret('{totpSeed}') "
+        totpEncrypt = tdSql.getFirstValue(sql)
+        tdLog.info(f"totpEncrypt: {totpEncrypt}")
+        
+        # get totpCode
+        totpCode = self.getTotpCode(totpEncrypt)
+        tdLog.info(f"totpCode: {totpCode}")
+        
+        # login with totp code
+        taosFile = etool.taosFile()
+        command = f"echo '{totpCode}' | {taosFile} -utotp_user1 -ptotp_user1@password -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=True, show= True)
+        self.checkListString(rlist, "Query OK,")
+    
+    # check token login
+    def checkTokenLogin(self):
+        # create user and token
+        tdSql.execute(f"create user jack pass 'jack123@password' ")
+        token1 = tdSql.getFirstValue("create token jack_token1 from user jack")
+    
+        # login with token
+        taosFile = etool.taosFile()
+        success = [
+            "Connect with token ...... [ OK ]",
+            "Query OK"
+        ]
+        failed = "Connect with token ...... [ FAILED ]"
+        
+        # input
+        command = f"echo '{token1}' | {taosFile} -q -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=True, show= True)
+        self.checkManyString(rlist, success)
+        # arg
+        command = f"{taosFile} -q{token1} -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=True, show= True)
+        self.checkManyString(rlist, success)
+        
+        # error token
+        command = f"{taosFile} -qerror_token -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=False, show= True)
+        self.checkListString(rlist, failed)
+        
+        # big length token
+        bigToken = 'B' * 2048
+        command = f"{taosFile} -q{bigToken} -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=False, show= True)
+        self.checkListString(rlist, failed)
+    
+    def checkPasswordExpiredTips(self):
+        # create expired user exp_user1
+        tdSql.execute("create user exp_user1 pass 'exp_user1@password' changepass 1;")
+        
+        # login with exp_user1
+        rlist = self.taos(f"-uexp_user1 -pexp_user1@password -s 'show databases;'", checkRun=True)
+        self.checkListString(rlist, "Please reset your password using the `ALTER USER <user_name> PASS 'new_password'` command.")
 
     # run
     def test_tool_taos_cli(self):
         """taos-CLI basic test
-        
+
         1. Insert data with taosBenchmark json format
         2. Check describe show full
         3. Check basic command in different conn mode
@@ -411,6 +485,9 @@ class TestTaosCli:
         6. Check data dump in/out
         7. Check conn mode priority and except cmd
         8. Check max password length
+        9. Check totp code with input
+        10. Check password expired tips
+        11. Check token login with input/args
 
         Since: v3.0.0.0
 
@@ -420,35 +497,30 @@ class TestTaosCli:
 
         History:
             - 2025-10-23 Alex Duan Migrated from uncatalog/army/cmdline/test_taos_cli.py
+            - 2025-12-25 Alex Duan Add totp code and token login check
 
         """
         tdLog.debug(f"start to excute {__file__}")
-
+        
         # check show whole
         self.checkDescribe()
-
         # check basic
         self.checkBasic()
-
         # version
         self.checkVersion()
-
         # help
         self.checkHelp()
-
         # check command
         self.checkCommand()
-
         # check data in/out
         self.checkDumpInOut()
-
-
         # check conn mode
         self.checkConnMode()
-
         # max password
         self.checkPassword()
-
-        tdLog.success(f"{__file__} successfully executed")
-
-
+        # totp code
+        self.checkTotpCode()
+        # password expired tips
+        self.checkPasswordExpiredTips()
+        # token login
+        self.checkTokenLogin()

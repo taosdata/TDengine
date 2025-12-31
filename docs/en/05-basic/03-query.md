@@ -307,7 +307,7 @@ INTERVAL(1m) SLIDING(1m)
 SLIMIT 1;
 ```
 
-The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. The data is first partitioned by the subtable name `tbname`, then divided into 1-minute time windows, with each time window also being 1 minute long; finally, only the data from the first partition is taken as the result. The query results are as follows:
+The above SQL queries the supertable `meters` for data with timestamps greater than or equal to `2022-01-01T00:00:00+08:00` and less than `2022-01-01T00:05:00+08:00`. The data is first partitioned by the subtable name `tbname`, then divided into 1-minute time windows, with the time windows sliding every 1 minute; finally, only the data from the first partition is taken as the result. The query results are as follows:
 
 ```text
  tbname |         _wstart         |          _wend          |     avg(voltage)      |
@@ -590,6 +590,17 @@ Time-series extensions are a set of functions specially designed by TDengine for
 |STATECOUNT | Returns the number of consecutive records that meet a certain condition, appending the result as a new column at the end of each row. The condition is calculated based on the parameter, adding 1 if true, resetting to -1 if false, and skipping if the data is NULL. |
 |STATEDURATION | Returns the duration of consecutive records that meet a certain condition, appending the result as a new column at the end of each row. The condition is calculated based on the parameter, adding the time length between two records if true (the time length of the first record meeting the condition is counted as 0), resetting to -1 if false, and skipping if the data is NULL.|
 |TWA | Time Weighted Average function. Calculates the time-weighted average of a column over a period of time. |
+
+### Integral Calculation
+
+With TDengine's time-series specific functions, computing integrals over time-series data becomes straightforward: use the time-weighted average multiplied by the time window duration. For example, to calculate daily energy consumption for smart meters, use:
+
+```sql
+SELECT twa(voltage * current) * _wduration
+FROM meters
+PARTITION BY tbname
+INTERVAL(1d);
+```
 
 ## Nested Queries
 

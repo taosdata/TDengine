@@ -84,17 +84,19 @@ WebSocket Connector 历史版本：
 
 | WebSocket Connector 版本 | 主要变化                                                                              |   TDengine TSDB 版本    |
 | ----------------------- | ------------------------------------------------------------------------------------ | ----------------- |
+|          0.6.5           | 支持 TOTP 身份验证和令牌身份验证                                                                  | - |
+|          0.6.4           | 支持上报连接器版本信息                                                                  | - |
 |          0.6.3           | 支持配置 WebSocket 连接的响应超时时间（不含数据订阅）                                      | - |
 |          0.6.2           | 修复内存泄漏                                                                          | - |
-|          0.6.1           | 1. 支持 BLOB 数据类型 <br/> 2. 支持时区 <br/> 3. 支持负载均衡                       | - |
-|          0.5.3           | 支持 ipv6 地址格式                                                                       | - |
-|          0.5.2           | 升级 rust 连接器版本，修复了云服务连接的 token 问题                                       | - |
-|          0.5.1           | 支持 stmt2 参数绑定写入和查询                                                          | - |
+|          0.6.1           | 1. 支持 BLOB 数据类型 <br/> 2. 支持时区 <br/> 3. 支持负载均衡                             | - |
+|          0.5.3           | 支持 ipv6 地址格式                                                                    | - |
+|          0.5.2           | 升级 rust 连接器版本，修复了云服务连接的 token 问题                                        | - |
+|          0.5.1           | 支持 stmt2 参数绑定写入和查询                                                           | - |
 |          0.4.0           | 支持订阅新增参数动态扩展                                                                | - |
-|          0.3.9           | 修复 fetchmany 自定义行数时获取不完全的问题                                              | - |
-|          0.3.8           | 支持 SuperSet 连接到 TDengine TSDB 云服务实例                                               | - |
-|          0.3.5           | 修复 crypto provider 中的问题                                                         | - |
-|          0.3.4           | 支持 VARBINARY 和 GEOMETRY 数据类型                                                   | 3.3.0.0 及更高版本 |
+|          0.3.9           | 修复 fetchmany 自定义行数时获取不完全的问题                                               | - |
+|          0.3.8           | 支持 SuperSet 连接到 TDengine TSDB 云服务实例                                           | - |
+|          0.3.5           | 修复 crypto provider 中的问题                                                          | - |
+|          0.3.4           | 支持 VARBINARY 和 GEOMETRY 数据类型                                                    | 3.3.0.0 及更高版本 |
 |          0.3.2           | 优化 WebSocket sql 查询和插入性能，修改 readme 和 文档，修复已知问题                        | 3.2.3.0 及更高版本 |
 |          0.2.9           | 已知问题修复                                                                           | - |
 |          0.2.5           | 1. 数据订阅支持获取消费进度和重置消费进度 <br/> 2. 支持 schemaless <br/> 3. 支持 STMT        | - |
@@ -175,8 +177,8 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Pytho
 
 由于目前 Python 对 nanosecond 支持的不完善 (见下面的链接)，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，Python 连接器可能会修改相关接口。
 
-1. [https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds](https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds)
-2. [https://www.python.org/dev/peps/pep-0564/](https://www.python.org/dev/peps/pep-0564/)
+1.[parsing-datetime-strings-containing-nanoseconds](https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds)
+2. [PEP 564 -- Support for nanosecond resolution timestamps](https://www.python.org/dev/peps/pep-0564/)
   
 ## 常见问题
 
@@ -228,6 +230,8 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Pytho
       - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。此值会随着连续失败而指数增长，直到达到最大等待时间。
       - `retry_backoff_max_ms`：连接失败时的最大等待时间（毫秒），默认为 2000。
       - `read_timeout`：WebSocket 连接的响应超时时间（秒），不含数据订阅，默认为 300（5 分钟）。
+      - `totp_code`：用于基于时间的一次性密码（TOTP）身份验证
+      - `bearer_token`：用于令牌身份验证
   - **返回值**：连接对象。
   - **异常**：操作失败抛出 `ConnectionError` 异常。
 - `fn cursor(&self) -> PyResult<Cursor>`

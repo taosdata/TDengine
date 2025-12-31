@@ -98,6 +98,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_USER;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USERS_FULL, len) == 0) {
     type = TSDB_MGMT_TABLE_USER_FULL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TOKENS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TOKEN;
   } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, len) == 0) {
@@ -136,6 +138,10 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_VIEWS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ENCRYPT_ALGORITHMS, len) == 0) {
+    type = TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ENCRYPT_STATUS, len) == 0) {
+    type = TSDB_MGMT_TABLE_ENCRYPT_STATUS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SCANS, len) == 0) {
     type = TSDB_MGMT_TABLE_SCAN;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {
@@ -170,6 +176,12 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_RETENTION;
   } else if (strncasecmp(name, TSDB_INS_TABLE_RETENTION_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_RETENTION_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ROLES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ROLE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ROLE_PRIVILEGES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ROLE_PRIVILEGES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ROLE_COL_PRIVILEGES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
@@ -292,10 +304,10 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
   }
 
-  if (pShow->type == TSDB_MGMT_TABLE_COL) {  // expend capacity for ins_columns
+  // expend capacity for ins_columns and privileges
+  if (pShow->type == TSDB_MGMT_TABLE_COL || TSDB_MGMT_TABLE_PRIVILEGES ||
+      pShow->type == TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES || pShow->type == TSDB_MGMT_TABLE_ROLE_PRIVILEGES) {
     rowsToRead = SHOW_COLS_STEP_SIZE;
-  } else if (pShow->type == TSDB_MGMT_TABLE_PRIVILEGES) {
-    rowsToRead = SHOW_PRIVILEGES_STEP_SIZE;
   }
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {
@@ -307,18 +319,18 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   mDebug("show:0x%" PRIx64 ", start retrieve data, type:%d", pShow->id, pShow->type);
   if (retrieveReq.user[0] != 0) {
-    (void)memcpy(pReq->info.conn.user, retrieveReq.user, TSDB_USER_LEN);
+    (void)memcpy(RPC_MSG_USER(pReq), retrieveReq.user, TSDB_USER_LEN);
   } else {
-    (void)memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
+    (void)memcpy(RPC_MSG_USER(pReq), TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
   }
   code = -1;
   if (retrieveReq.db[0] &&
-      (code = mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type, retrieveReq.db)) != 0) {
+      (code = mndCheckShowPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pShow->type, retrieveReq.db)) != 0) {
     TAOS_RETURN(code);
   }
   if (pShow->type == TSDB_MGMT_TABLE_USER_FULL) {
-    if (strcmp(pReq->info.conn.user, "root") != 0) {
-      mError("The operation is not permitted, user:%s, pShow->type:%d", pReq->info.conn.user, pShow->type);
+    if (strcmp(RPC_MSG_USER(pReq), "root") != 0) {
+      mError("The operation is not permitted, user:%s, pShow->type:%d", RPC_MSG_USER(pReq), pShow->type);
       code = TSDB_CODE_MND_NO_RIGHTS;
       TAOS_RETURN(code);
     }

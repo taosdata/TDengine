@@ -290,7 +290,7 @@ TEST(timerangeTest, greater) {
   // ASSERT_EQ(code, 0);
   STimeWindow win = {0};
   bool        isStrict = false;
-  code = filterGetTimeRange(opNode1, &win, &isStrict);
+  code = filterGetTimeRange(opNode1, &win, &isStrict, NULL);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(isStrict, true);
   ASSERT_EQ(win.skey, tsmall + 1);
@@ -330,7 +330,7 @@ TEST(timerangeTest, greater_and_lower) {
   // ASSERT_EQ(code, 0);
   STimeWindow win = {0};
   bool        isStrict = false;
-  code = filterGetTimeRange(logicNode, &win, &isStrict);
+  code = filterGetTimeRange(logicNode, &win, &isStrict, NULL);
   ASSERT_EQ(isStrict, true);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(win.skey, tsmall + 1);
@@ -370,7 +370,7 @@ TEST(timerangeTest, greater_equal_and_lower_equal) {
   // ASSERT_EQ(code, 0);
   STimeWindow win = {0};
   bool        isStrict = false;
-  code = filterGetTimeRange(logicNode, &win, &isStrict);
+  code = filterGetTimeRange(logicNode, &win, &isStrict, NULL);
   ASSERT_EQ(isStrict, true);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(win.skey, tsmall);
@@ -435,7 +435,7 @@ TEST(timerangeTest, greater_and_lower_not_strict) {
   // ASSERT_EQ(code, 0);
   STimeWindow win = {0};
   bool        isStrict = false;
-  code = filterGetTimeRange(logicNode1, &win, &isStrict);
+  code = filterGetTimeRange(logicNode1, &win, &isStrict, NULL);
   ASSERT_EQ(isStrict, false);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(win.skey, tsmall1 + 1);

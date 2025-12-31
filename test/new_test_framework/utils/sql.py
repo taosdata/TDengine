@@ -1217,7 +1217,7 @@ class TDSql:
             )
             tdLog.exit("%s(%d) failed: sql:%s, queryCols:%d != expect:%d" % args)
 
-    def checkRowCol(self, row, col):
+    def checkRowCol(self, row, col, exit=True):
         """
         Checks if the specified row and column indices are within the range of the last query result.
 
@@ -1234,23 +1234,33 @@ class TDSql:
         if row < 0:
             filename, lineno = _fast_caller(2)
             args = (filename, lineno, self.sql, row)
-            tdLog.exit("%s(%d) failed: sql:%s, row:%d is smaller than zero" % args)
+            if exit:
+                tdLog.exit("%s(%d) failed: sql:%s, row:%d is smaller than zero" % args)
+            else:
+                return False
         if col < 0:
             filename, lineno = _fast_caller(2)
             args = (filename, lineno, self.sql, row)
-            tdLog.exit("%s(%d) failed: sql:%s, col:%d is smaller than zero" % args)
+            if exit:
+                tdLog.exit("%s(%d) failed: sql:%s, col:%d is smaller than zero" % args)
+            else:
+                return False
         if row > self.queryRows:
             filename, lineno = _fast_caller(2)
             args = (filename, lineno, self.sql, row, self.queryRows)
-            tdLog.exit(
-                "%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args
-            )
+            if exit:
+                tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
+            else:
+                return False
         if col > self.queryCols:
             filename, lineno = _fast_caller(2)
             args = (filename, lineno, self.sql, col, self.queryCols)
-            tdLog.exit(
-                "%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args
-            )
+            if exit:
+                tdLog.exit("%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args)
+            else:
+                return False
+
+        return True
 
     def checkDataType(self, row, col, dataType):
         """
@@ -1358,7 +1368,8 @@ class TDSql:
             else:
                 return False
 
-        self.checkRowCol(row, col)
+        if not self.checkRowCol(row, col, exit):
+            return False
 
         if self.queryResult[row][col] != data:
             if self.cursor.istype(col, "TIMESTAMP"):
@@ -1977,6 +1988,55 @@ class TDSql:
             for col, colData in enumerate(rowData):
                 self.checkData(row, col, colData)
         tdLog.info("check successfully")
+
+    def checkDataMemLoop(self, sql, mem, loopCount=120, waitTime=1):
+        """
+        Loop executes a SQL query and checks if the result matches the expected data.
+
+        Args:
+            sql (str): The SQL query to be executed.
+            mem (list): The expected data, represented as a list of lists.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the expected data is not a list of lists, or if the SQL result does not match the expected data.
+        """
+        
+        if not isinstance(mem, list):
+            filename, lineno = _fast_caller(1)
+            args = (filename, lineno, self.sql)
+            tdLog.exit("%s(%d) failed: sql:%s, expect data is error, must is array[][]" % args)
+   
+        #
+        # loop check not exit
+        #
+        for i in range(loopCount):
+            self.query(sql)
+            if len(mem) == self.queryRows:
+                passed = True
+                for row, rowData in enumerate(mem):
+                    for col, colData in enumerate(rowData):
+                        if self.checkData(row, col, colData, exit=False) == False:
+                            passed = False
+                            break
+                    if passed == False:
+                        break
+
+                if passed:
+                    # succ return
+                    tdLog.info(f"checkDataMemLoop attempt {i+1}/{loopCount} succeeded")
+                    return
+
+            # failed retry next               
+            tdLog.info(f"checkDataMemLoop attempt {i+1}/{loopCount} failed, waiting {waitTime} seconds before retrying...")
+            time.sleep(waitTime)
+
+        #
+        # last check
+        #
+        self.checkDataMem(sql, mem)
 
     def checkDataCsv(self, sql, csvfilePath):
         """
@@ -2934,6 +2994,19 @@ class TDSql:
             ts += step
 
         return ts
+
+    # gen insert table with fixed values, return next write ts
+    def genInsertVal(self, startTs, step, count, fixedVals):
+        # init
+        ts = startTs
+        sql = ""
+        # loop count
+        for i in range(count):
+            sql += f" ({ts},{fixedVals})"
+            # next
+            ts += step
+
+        return ts, sql
 
     
     # insert now

@@ -1803,8 +1803,8 @@ int32_t vectorAssign(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
   if (colDataIsNull_s(pRight->columnData, 0)) {
     colDataSetNNULL(pOutputCol, 0, pOut->numOfRows);
   } else {
-    char *d = colDataGetData(pRight->columnData, 0);
     for (int32_t i = 0; i < pOut->numOfRows; ++i) {
+      char *d = colDataGetData(pRight->columnData, 0);
       SCL_ERR_RET(colDataSetVal(pOutputCol, i, d, false));
     }
   }

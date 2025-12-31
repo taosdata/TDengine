@@ -1073,6 +1073,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
   }
 
   int32_t size = (int32_t)blockDataGetSerialMetaSize(taosArrayGetSize(pHandle->pDataBlock->pDataBlock));
+  size_t  rowSize = blockDataGetRowSize(pHandle->pDataBlock);
   int32_t numOfRows = blockDataGetCapacityInRow(pHandle->pDataBlock, pHandle->pageSize, size);
   if (numOfRows < 0) {
     return terrno;

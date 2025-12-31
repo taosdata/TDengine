@@ -264,7 +264,6 @@ typedef struct STqReader {
   int64_t           lastTs;
   bool              hasPrimaryKey;
   SExtSchema       *extSchema;
-  SVTSourceScanInfo vtSourceScanInfo;
 } STqReader;
 
 STqReader *tqReaderOpen(SVnode *pVnode);
@@ -294,11 +293,6 @@ bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
 int32_t tqRetrieveTaosxBlock(STqReader *pReader, SMqDataRsp* pRsp, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet, SArray* rawList, int8_t fetchMeta);
 
-int32_t tqReaderSetVtableInfo(STqReader *pReader, void *vnode, void *pAPI, SSHashObj *pVtableInfos,
-                              SSDataBlock **ppResBlock, const char *idstr);
-int32_t tqRetrieveVTableDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
-bool    tqNextVTableSourceBlockImpl(STqReader *pReader, const char *idstr);
-bool    tqReaderIsQueriedSourceTable(STqReader *pReader, uint64_t uid);
 int32_t tqCommitOffset(void* p);
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
@@ -335,8 +329,8 @@ struct STsdbCfg {
   int32_t keep2;  // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
   int32_t keepTimeOffset;  // just for save config, use STsdbKeepCfg in STsdb instead
   SRetention retentions[TSDB_RETENTION_MAX];
-  int32_t    encryptAlgorithm;
-  char       encryptKey[ENCRYPT_KEY_LEN + 1];
+  int32_t    encryptAlgr;
+  SEncryptData encryptData;
 };
 
 typedef struct {
@@ -383,8 +377,8 @@ struct SVnodeCfg {
   int16_t     hashPrefix;
   int16_t     hashSuffix;
   int32_t     tsdbPageSize;
-  int32_t     tdbEncryptAlgorithm;
-  char        tdbEncryptKey[ENCRYPT_KEY_LEN + 1];
+  int32_t      tdbEncryptAlgr;
+  SEncryptData tdbEncryptData;
   int32_t     ssChunkSize;
   int32_t     ssKeepLocal;
   int8_t      ssCompact;

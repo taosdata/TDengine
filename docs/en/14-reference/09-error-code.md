@@ -114,6 +114,8 @@ Below are the business error codes for each module.
 | 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
 | 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
 | 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
+| 0x80000140 | Edition not compatible            | Edition incompatibility between nodes                        | Check editions(enterprise or community) of all nodes (including server and client), ensure node editions are consistent or compatible |
+| 0x80000141 | Invalid signature                 | Message signature is invalid or mismatch                     | Check if client and server are using the same signature algorithm |
 
 #### tsc
 
@@ -138,18 +140,27 @@ Below are the business error codes for each module.
 | 0x8000022E | No available execution node       | No available query execution node               | Check the current query policy configuration, ensure available Qnode if needed    |
 | 0x8000022F | Table is not a supertable         | Table name in the statement is not a supertable | Check if the table name used in the statement is a supertable                     |
 | 0x80000230 | Stmt cache error                  | STMT/STMT2 internal cache error                 | Preserve the scene and logs, report issue on GitHub                               |
-| 0x80000231 | Tsc internal error                | TSC internal error                              | Preserve the scene and logs, report issue on GitHub                               |
+| 0x80000238 | Invalid TOTP code                 | Invalid TOTP code                               | Check and enter the correct TOTP code                                             |
+| 0x80000239 |  reached the maximum sessions per user limit |   reached the maximum sessions per user limit      | Check user parameter |
+| 0x8000023A |  reached the maximum connection timeout limit|    reached the maximum connection timeout limit    | Check user parameter |
+| 0x8000023B |   reached the maximum connection idle timeout limit| reached the maximum connection idle timeout limit |  Check user parameter |
+| 0x8000023C |   reached the maximum concurrency limit        |  reached the maximum concurrency limit           |  Check user parameter |
+| 0x8000023D | reached the maximum call vnode limit           | reached the maximum call vnode limit    | Check user parameter |
+| 0x8000023E | Invalid token                     | Invalid token format                            | Check and enter the correct token                                                 |
+| 0x800002FF | Tsc internal error                | TSC internal error                              | Preserve the scene and logs, report issue on GitHub                               |
 
 #### mnode
 
 | Error Code | Description                                                  | Possible Error Scenarios or Reasons                          | Suggested Actions for Users                                  |
 | ---------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | 0x80000303 | Insufficient privilege for operation                         | No permission                                                | Grant permissions                                            |
+| 0x80000309 | User has too many connections                                | User has created too many connections                        | Increase limitation                                          |
 | 0x8000030B | Data expired                                                 | Internal error                                               | Report issue                                                 |
 | 0x8000030C | Invalid query id                                             | Internal error                                               | Report issue                                                 |
 | 0x8000030E | Invalid connection id                                        | Internal error                                               | Report issue                                                 |
 | 0x80000315 | User is disabled                                             | User is unavailable                                          | Grant permissions                                            |
 | 0x80000318 | Mnode internal error                                         | Internal error                                               | Report issue                                                 |
+| 0x80000319 | User password expired                                        | User password expired                                        | Change password                                              |
 | 0x80000320 | Object already there                                         | Internal error                                               | Report issue                                                 |
 | 0x80000322 | Invalid table type                                           | Internal error                                               | Report issue                                                 |
 | 0x80000323 | Object not there                                             | Internal error                                               | Report issue                                                 |
@@ -169,6 +180,13 @@ Below are the business error codes for each module.
 | 0x80000340 | Account already exists                                       | (Enterprise only) Internal error                             | Report issue                                                 |
 | 0x80000342 | Invalid account options                                      | (Enterprise only) Operation not supported                    | Confirm if the operation is correct                          |
 | 0x80000344 | Invalid account                                              | Account does not exist                                       | Confirm if the account is correct                            |
+| 0x80000348 | Token not available                                          | Internal error                                               | Report issue                                                 |
+| 0x80000349 | Token not exist                                              | Token not exist                                              | Confirm if the token name is correct                         |
+| 0x8000034A | Token already exist                                          | Token already exist                                          | Use a new token name                                        |
+| 0x8000034B | Too many tokens                                              | User has created too many tokens                             | Increase limitation or remove unused tokens                  |
+| 0x8000034C | Invalid token name                                           | Token name is invalid                                        | Use a correct token name                                     |
+| 0x8000034D | Token expired                                                | Token is expired                                             | Set a new expire time                                        |
+| 0x8000034E | Token disabled                                               | Token is disabled                                            | Enable the token                                             |
 | 0x80000350 | User already exists                                          | Create user, duplicate creation                              | Confirm if the operation is correct                          |
 | 0x80000351 | Invalid user                                                 | User does not exist                                          | Confirm if the operation is correct                          |
 | 0x80000352 | Invalid user format                                          | Incorrect format                                             | Confirm if the operation is correct                          |
@@ -177,6 +195,7 @@ Below are the business error codes for each module.
 | 0x80000355 | Too many users                                               | (Enterprise only) Exceeding user limit                       | Adjust configuration                                         |
 | 0x80000357 | Authentication failure                                       | Incorrect password                                           | Confirm if the operation is correct                          |
 | 0x80000358 | User not available                                           | User does not exist                                          | Confirm if the operation is correct                          |
+| 0x8000035B | Wrong TOTP code                                              | TOTP code not provided or wrong TOTP code                    | Check and enter the correct TOTP code                        |
 | 0x80000360 | STable already exists                                        | Internal error                                               | Report issue                                                 |
 | 0x80000361 | STable not exist                                             | Internal error                                               | Report issue                                                 |
 | 0x80000364 | Too many tags                                                | Too many tags                                                | Cannot be modified, code-level restriction                   |
@@ -229,6 +248,7 @@ Below are the business error codes for each module.
 | 0x800003C6 | Invalid schema version while alter stb                       | Internal error                                               | Report issue                                                 |
 | 0x800003C7 | Invalid stable uid while alter stb                           | Internal error                                               | Report issue                                                 |
 | 0x800003C8 | Field used by tsma                                           | Being used                                                   | Confirm if the operation is correct                          |
+| 0x800003C9 | Exceed max column id                                         | ColumnId exceed max num of int16_t                                                                                                                                                              | Check and correct the SQL statement                                                                                                                                  |
 | 0x800003D1 | Transaction not exists                                       | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800003D2 | Invalid stage to kill                                        | Transaction is at a stage that cannot be killed (e.g., during commit) | Wait for the transaction to end, if it does not end for a long time, report issue |
 | 0x800003D3 | Conflict transaction not completed                           | Transaction conflict, cannot perform this operation          | Use the show transactions command to view the conflicting transaction, wait for the conflicting transaction to end, if it does not end for a long time, report issue |
@@ -260,11 +280,18 @@ Below are the business error codes for each module.
 | 0x800003F5 | Stream temporarily does not support source db having replica > 1 | Exceeding limit                                              | Operation not allowed                                        |
 | 0x800003F6 | Too many streams                                             | Exceeding limit                                              | Cannot be modified, code-level restriction                   |
 | 0x800003F7 | Cannot write the same stable as other stream                 | Internal error                                               | Report issue                                                 |
+| 0x8000042E | Failed to load encryption provider   | Failed to load                                               | Confirm if encryptExtDir is configured correctly                          |
 | 0x80000480 | index already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x80000481 | index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x80000482 | Invalid sma index option                                     | Internal error                                               | Report issue                                                 |
 | 0x80000483 | index already exists                                         | Already exists                                               | Confirm if the operation is correct                          |
 | 0x80000484 | index not exist                                              | Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800004E0 | Encrypt algorithm not exists in list                         | Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800004E1 | Invalid encryption algorithm type, support Symmetric_Ciphers_CBC_mode, Digests, Asymmetric_Ciphers now| Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800004E2 | Encryption algorithm already exists, please keep algorithm_id unique| Already exists                                               | Confirm if the operation is correct                          |
+| 0x800004E3 | Encryption algorithm type not match                          | Does not exist                                               | Confirm if the operation is correct                          |
+| 0x800004E4 | Invalid encryption algorithm format                          | Input algorithm id is empty                                               | Confirm if the operation is correct                          |
+| 0x800004E5 | Encryption algorithm in use                                  | Still in use                                                  | Remove all object which use this algorithm                          |
 
 #### Bnode
 
@@ -297,7 +324,7 @@ Below are the business error codes for each module.
 #### vnode
 
 | Error Code | Description                                        | Possible Error Scenarios or Reasons             | Recommended Actions |
-| ---------- | -------------------------------------------------- | ----------------------------------------------- | ------------------- |
+|------------| -------------------------------------------------- |-------------------------------------------------| ------------------- |
 | 0x80000503 | Invalid vgroup ID                                  | Old client did not update cache, internal error | Report issue        |
 | 0x80000512 | No writing privilege                               | No write permission                             | Seek authorization  |
 | 0x80000520 | Vnode does not exist                               | Internal error                                  | Report issue        |
@@ -311,6 +338,7 @@ Below are the business error codes for each module.
 | 0x80000530 | Duplicate write request                            | Duplicate write request, internal error         | Report issue        |
 | 0x80000531 | Vnode query is busy                                | Query is busy                                   | Report issue        |
 | 0x80000540 | Vnode already exist but Dbid not match             | Internal error                                  | Report issue        |
+| 0x80000542 | Exceed max column id                               | ColumnId exceed max num of int16_t              | Check and correct the SQL statement                    |
 
 #### tsdb
 
@@ -524,21 +552,33 @@ Below are the business error codes for each module.
 | 0x8000268A | Cols function's first param must be a select function that output a single row                         | The first parameter of the cols function should be a selection function    | Check and correct the SQL statement                          |
 | 0x8000268B | Invalid using alias for cols function                                                                  | Illegal cols function alias                                                | Check and correct the SQL statement                          |
 | 0x8000268C | Join primary key col must be timestamp type                                                            | Join primary key data type error                                           | Check and correct the SQL statement                          |
-| 0x8000268D | Invalid virtual table's ref column                                                                     | Create/Update Virtual table using incorrect data source column             | Check and correct the SQL statement           |
-| 0x8000268E | Invalid table type                                                                                     | Incorrect Table type                                                       | Check and correct the SQL statement           |
-| 0x8000268F | Invalid ref column type                                                                                | Virtual table's column type and data source column's type are different    | Check and correct the SQL statement           |
-| 0x80002690 | Create child table using virtual super table                                                           | Create non-virtual child table using virtual super table                   | Check and correct the SQL statement           |
-| 0x80002696 | Invalid sliding offset                                                                                 | Invalid sliding offset                                                     | Check and correct the SQL statement           |
-| 0x80002697 | Invalid interval offset                                                                                | Invalid interval offset                                                    | Check and correct the SQL statement           |
-| 0x80002698 | Invalid extend value                                                                                   | Invalid extend value                                                       | Check and correct the SQL statement           |
+| 0x8000268D | Invalid virtual table's ref column                                                                     | Create/Update Virtual table using incorrect data source column             | Check and correct the SQL statement                          |
+| 0x8000268E | Invalid table type                                                                                     | Incorrect Table type                                                       | Check and correct the SQL statement                          |
+| 0x8000268F | Invalid ref column type                                                                                | Virtual table's column type and data source column's type are different    | Check and correct the SQL statement                          |
+| 0x80002690 | Create child table using virtual super table                                                           | Create non-virtual child table using virtual super table                   | Check and correct the SQL statement                          |
+| 0x80002696 | Invalid sliding offset                                                                                 | Invalid sliding offset                                                     | Check and correct the SQL statement                          |
+| 0x80002697 | Invalid interval offset                                                                                | Invalid interval offset                                                    | Check and correct the SQL statement                          |
+| 0x80002698 | Invalid extend value                                                                                   | Invalid extend value                                                       | Check and correct the SQL statement                          |
+| 0x80002699 | Algorithm ID too long, max length is 63 character                                                      | Invalid algorithm id value                                                 | Check and correct the SQL statement                          |
+| 0x8000269A | Algorithm name too long, max length is 63 character                                                    | Invalid algorithm name value                                               | Check and correct the SQL statement                          |
+| 0x8000269B | Algorithm description too long, max length is 127 character                                            | Invalid algorithm description value                                        | Check and correct the SQL statement                          |
+| 0x8000269C | Algorithm type too long, max length is 63 character                                                    | Invalid algorithm type value                                               | Check and correct the SQL statement                          |
+| 0x8000269D | Algorithm OpenSSL name too long, max length is 63 character                                            | Invalid algorithm OpenSSL name value                                       | Check and correct the SQL statement                          |
+| 0x8000269E | Option duplicated                                                                                      | Option is only allowed to appear once but appeared twice or more           | Check and correct the SQL statement                          |
+| 0x8000269F | Invalid option value                                                                                   | Invalid option value                                                       | Check and correct the SQL statement                          |
+| 0x800026A0 | Option value too long                                                                                  | Option value too long                                                      | Check and correct the SQL statement                          |
+| 0x800026A1 | Option value too short                                                                                 | Option value too short                                                     | Check and correct the SQL statement                          |
+| 0x800026A2 | Option value too big                                                                                   | Option value too big                                                       | Check and correct the SQL statement                          |
+| 0x800026A3 | Option value too small                                                                                 | Option value too small                                                     | Check and correct the SQL statement                          |
+| 0x800026AA | Aggregate functions cannot be used for sorting in non-aggregate queries                                | Invalid ORDER BY clause clause                                             | Check and correct the SQL statement                          |
 | 0x800026FF | Parser internal error                                                                                  | Internal error in parser                                                   | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                                                                 | Internal error in planner                                                  | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN condition validation failed                                           | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002702 | Cross join not support                                                                                 | CROSS JOIN not supported                                                   | Check and correct the SQL statement                          |
-| 0x80002704 | Planner slot key not found                                                                             | Planner cannot find slotId during making physic plan                       | Preserve the scene and logs, report issue on GitHub                        |
-| 0x80002705 | Planner invalid table type                                                                             | Planner get invalid table type                                             | Preserve the scene and logs, report issue on GitHub                          |
-| 0x80002706 | Planner invalid query control plan type                                                                | Planner get invalid query control plan type during making physic plan      | Preserve the scene and logs, report issue on GitHub                         |
-| 0x80002707 | Planner invalid window type                                                                            | Planner get invalid window type during making physic plan                  | Preserve the scene and logs, report issue on GitHub                         |
+| 0x80002704 | Planner slot key not found                                                                             | Planner cannot find slotId during making physic plan                       | Preserve the scene and logs, report issue on GitHub          |
+| 0x80002705 | Planner invalid table type                                                                             | Planner get invalid table type                                             | Preserve the scene and logs, report issue on GitHub          |
+| 0x80002706 | Planner invalid query control plan type                                                                | Planner get invalid query control plan type during making physic plan      | Preserve the scene and logs, report issue on GitHub          |
+| 0x80002707 | Planner invalid window type                                                                            | Planner get invalid window type during making physic plan                  | Preserve the scene and logs, report issue on GitHub          |
 
 #### function
 
@@ -632,6 +672,16 @@ Below are the business error codes for each module.
 | 0x80000449 | Analysis failed since not enough rows               | Input data for forecasting are not enough                     | Increase the number of input rows (10 rows for forecasting at least)   |
 | 0x8000044A | Not support co-variate/multi-variate forecast       | The algorithm not support co-variate/multi-variate forecasting | Change the specified algorithm                                         |
 
+#### audit
+
+| Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
+|------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
+| 0x80006103 | Audit database must be encrypted                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006104 | Audit database wal_level must be 2                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006105 | Audit database keep2 must be greater than 1825d                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006106 | Audit database already exist                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006107 | Audit database is not allowed to change                       | Invalid param,eter                                                                                                 | Check and correct the SQL statement                           |
+
 #### virtual table
 
 | Error Code | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                                                 |
@@ -643,7 +693,9 @@ Below are the business error codes for each module.
 | 0x80006204 | Virtual table not support decimal type                  | Create virtual table using decimal type                                                                                                                              | create virtual table without using decimal type                               |
 | 0x80006205 | Virtual table not support in STMT query and STMT insert | Use virtual table in stmt query and stmt insert                                                                                                                      | do not use virtual table in stmt query and insert                             |
 | 0x80006206 | Virtual table not support in Topic                      | Use virtual table in topic                                                                                                                                           | do not use virtual table in topic                                             |
-| 0x80006207 | Virtual super table query not support origin table from different databases                      | Virtual super table's child table's origin table from different databases                                                                               | make sure virtual super table's child table's origin table from same database |
+| 0x80006207 | Virtual super table query not support origin table from different databases | Virtual super table's child table's origin table from different databases                                                                        | make sure virtual super table's child table's origin table from same database |
+| 0x80006208 | Virtual super table query find column type mismatch                         | Virtual super table's child table's column type and origin table's column type mismatch  | make sure virtual child table's column type same with origin table's column type                                                      |
+| 0x80006209 | Virtual table has too many reference tables                                 | Virtual table's origin table num is too many.                                                                                                    | make sure virtual table's origin table num do not exceed 1000.                |
 
 #### stream
 

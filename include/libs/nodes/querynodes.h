@@ -98,9 +98,16 @@ typedef struct SColumnNode {
   int32_t     resIdx;
   bool        hasDep;
   bool        hasRef;
-  char        refDbName[TSDB_DB_NAME_LEN];
-  char        refTableName[TSDB_TABLE_NAME_LEN];
-  char        refColName[TSDB_COL_NAME_LEN];
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t hasMask : 1;
+      uint8_t reserve : 7;
+    };
+  };
+  char refDbName[TSDB_DB_NAME_LEN];
+  char refTableName[TSDB_TABLE_NAME_LEN];
+  char refColName[TSDB_COL_NAME_LEN];
 } SColumnNode;
 
 typedef struct SColumnRefNode {
@@ -120,9 +127,11 @@ typedef struct STargetNode {
 
 #define VALUE_FLAG_IS_DURATION    (1 << 0)
 #define VALUE_FLAG_IS_TIME_OFFSET (1 << 1)
+#define VALUE_FLAG_VAL_UNSET      (1 << 2)
 
 #define IS_DURATION_VAL(_flag)    ((_flag)&VALUE_FLAG_IS_DURATION)
 #define IS_TIME_OFFSET_VAL(_flag) ((_flag)&VALUE_FLAG_IS_TIME_OFFSET)
+#define IS_VAL_UNSET(_flag) ((_flag)&VALUE_FLAG_VAL_UNSET)
 
 typedef struct SValueNode {
   SExprNode  node;  // QUERY_NODE_VALUE
@@ -144,6 +153,12 @@ typedef struct SValueNode {
   timezone_t tz;
   void*      charsetCxt;
 } SValueNode;
+
+typedef struct SRemoteValueNode {
+  SValueNode val;
+//  bool       valSet;
+  int32_t    subQIdx;
+} SRemoteValueNode;
 
 typedef struct SLeftValueNode {
   ENodeType type;
@@ -316,6 +331,7 @@ typedef enum EDynQueryType {
   DYN_QTYPE_STB_HASH = 1,
   DYN_QTYPE_VTB_SCAN,
   DYN_QTYPE_VTB_WINDOW,
+  DYN_QTYPE_VTB_AGG,
 } EDynQueryType;
 
 typedef struct SJoinTableNode {
@@ -344,7 +360,7 @@ typedef struct SGroupingSetNode {
   SNodeList*       pParameterList;
 } SGroupingSetNode;
 
-typedef enum EOrder { ORDER_ASC = 1, ORDER_DESC } EOrder;
+typedef enum EOrder { ORDER_UNKNOWN = 0, ORDER_ASC = 1, ORDER_DESC} EOrder;
 
 typedef enum ENullOrder { NULL_ORDER_DEFAULT = 1, NULL_ORDER_FIRST, NULL_ORDER_LAST } ENullOrder;
 
@@ -572,8 +588,16 @@ typedef struct SExtWinTimeWindow {
   int32_t     winOutIdx;
 } SExtWinTimeWindow;
 
+
+typedef enum ESubQueryType {
+  E_SUB_QUERY_SCALAR = 1,
+  E_SUB_QUERY_COW,
+  E_SUB_QUERY_TABLE
+} ESubQueryType;
+
 typedef struct SSelectStmt {
-  ENodeType       type;  // QUERY_NODE_SELECT_STMT
+  SExprNode       node;
+  ESubQueryType   subQType;
   bool            isDistinct;
   STimeWindow     timeRange;
   SNode*          pTimeRange; // STimeRangeNode for create stream
@@ -593,6 +617,7 @@ typedef struct SSelectStmt {
   SLimitNode*     pLimit;
   SLimitNode*     pSlimit;
   SNodeList*      pHint;
+  SNodeList*      pSubQueries;   // non table subqueries
   char            stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t         precision;
   int32_t         selectFuncNum;
@@ -600,7 +625,8 @@ typedef struct SSelectStmt {
   ETimeLineMode   timeLineCurMode;
   ETimeLineMode   timeLineResMode;
   int32_t         lastProcessByRowFuncId;
-  bool            timeLineFromOrderBy;
+  bool            hasNonLocalSubQ;
+  int32_t         timeLineFromOrderBy;
   bool            isEmptyResult;
   bool            isSubquery;
   bool            hasAggFuncs;
@@ -634,8 +660,10 @@ typedef struct SSelectStmt {
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
 
 typedef struct SSetOperator {
-  ENodeType        type;  // QUERY_NODE_SET_OPERATOR
+  SExprNode        node;
   ESetOperatorType opType;
+  ESubQueryType    subQType;
+  SNodeList*       pSubQueries;   // non table subqueries
   SNodeList*       pProjectionList;
   SNode*           pLeft;
   SNode*           pRight;
@@ -806,6 +834,8 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
 int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashObj* pMultiTableAlias,
                                ECollectColType type, SNodeList** pCols);
 int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols);
+int32_t nodesCollectColumnsFromMultiNodes(SNode** pNodes, int32_t numNodes, const char* pTableAlias,
+                                          ECollectColType type, SNodeList** pCols);
 
 typedef bool (*FFuncClassifier)(int32_t funcId);
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier,
@@ -831,6 +861,7 @@ bool nodesExprsHasColumn(SNodeList* pList);
 
 void*   nodesGetValueFromNode(SValueNode* pNode);
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
+int32_t nodesSetValueNodeValueExt(SValueNode* pNode, void* value, bool* needFree);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
 int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode);
@@ -858,6 +889,7 @@ void rewriteExprAliasName(SExprNode* pNode, int64_t num);
 bool isRelatedToOtherExpr(SExprNode* pExpr);
 bool nodesContainsColumn(SNode* pNode);
 int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
+int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst);
 
 #ifdef __cplusplus
 }

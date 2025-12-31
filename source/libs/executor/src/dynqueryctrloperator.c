@@ -29,6 +29,7 @@
 #include "tmsg.h"
 #include "trpc.h"
 #include "ttypes.h"
+#include "tdataformat.h"
 #include "dynqueryctrl.h"
 
 int64_t gSessionId = 0;
@@ -80,13 +81,6 @@ static void destroyStbJoinDynCtrlInfo(SStbJoinDynCtrlInfo* pStbJoin) {
   destroyStbJoinTableList(pStbJoin->ctx.prev.pListHead);
 }
 
-void destroyOrgTbInfo(void *info) {
-  SOrgTbInfo *pOrgTbInfo = (SOrgTbInfo *)info;
-  if (pOrgTbInfo) {
-    taosArrayDestroy(pOrgTbInfo->colMap);
-  }
-}
-
 void destroyColRefInfo(void *info) {
   SColRefInfo *pColRefInfo = (SColRefInfo *)info;
   if (pColRefInfo) {
@@ -114,6 +108,36 @@ void freeUseDbOutput(void* pOutput) {
   taosMemFree(pOut);
 }
 
+void destroyOtbInfoArray(void *info) {
+  SArray *pOtbInfoArray = *(SArray **)info;
+  if (pOtbInfoArray) {
+    taosArrayDestroyEx(pOtbInfoArray, destroySOrgTbInfo);
+  }
+}
+
+void destroyOtbVgIdToOtbInfoArrayMap(void *info) {
+  SHashObj* pOtbVgIdToOtbInfoArrayMap = *(SHashObj **)info;
+  if (pOtbVgIdToOtbInfoArrayMap) {
+    taosHashSetFreeFp(pOtbVgIdToOtbInfoArrayMap, destroyOtbInfoArray);
+    taosHashCleanup(pOtbVgIdToOtbInfoArrayMap);
+  }
+}
+
+void destroyTagList(void *info) {
+  SArray *pTagList = *(SArray **)info;
+  if (pTagList) {
+    taosArrayDestroyEx(pTagList, destroyTagVal);
+  }
+}
+
+void destroyVtbUidTagListMap(void *info) {
+  SHashObj* pVtbUidTagListMap = *(SHashObj **)info;
+  if (pVtbUidTagListMap) {
+    taosHashSetFreeFp(pVtbUidTagListMap, destroyTagList);
+    taosHashCleanup(pVtbUidTagListMap);
+  }
+}
+
 static void destroyVtbScanDynCtrlInfo(SVtbScanDynCtrlInfo* pVtbScan) {
   if (pVtbScan->dbName) {
     taosMemoryFreeClear(pVtbScan->dbName);
@@ -138,9 +162,9 @@ static void destroyVtbScanDynCtrlInfo(SVtbScanDynCtrlInfo* pVtbScan) {
     taosHashSetFreeFp(pVtbScan->dbVgInfoMap, freeUseDbOutput);
     taosHashCleanup(pVtbScan->dbVgInfoMap);
   }
-  if (pVtbScan->orgTbVgColMap) {
-    taosHashSetFreeFp(pVtbScan->orgTbVgColMap, destroyOrgTbInfo);
-    taosHashCleanup(pVtbScan->orgTbVgColMap);
+  if (pVtbScan->otbNameToOtbInfoMap) {
+    taosHashSetFreeFp(pVtbScan->otbNameToOtbInfoMap, destroySOrgTbInfo);
+    taosHashCleanup(pVtbScan->otbNameToOtbInfoMap);
   }
   if (pVtbScan->pRsp) {
     tFreeSUsedbRsp(pVtbScan->pRsp);
@@ -154,6 +178,28 @@ static void destroyVtbScanDynCtrlInfo(SVtbScanDynCtrlInfo* pVtbScan) {
   }
   if (pVtbScan->newAddedVgInfo) {
     taosHashCleanup(pVtbScan->newAddedVgInfo);
+  }
+  if (pVtbScan->otbVgIdToOtbInfoArrayMap) {
+    taosHashSetFreeFp(pVtbScan->otbVgIdToOtbInfoArrayMap, destroyOtbInfoArray);
+    taosHashCleanup(pVtbScan->otbVgIdToOtbInfoArrayMap);
+  }
+  if (pVtbScan->vtbUidToVgIdMapMap) {
+    taosHashSetFreeFp(pVtbScan->vtbUidToVgIdMapMap, destroyOtbVgIdToOtbInfoArrayMap);
+    taosHashCleanup(pVtbScan->vtbUidToVgIdMapMap);
+  }
+  if (pVtbScan->vtbGroupIdToVgIdMapMap) {
+    taosHashSetFreeFp(pVtbScan->vtbGroupIdToVgIdMapMap, destroyOtbVgIdToOtbInfoArrayMap);
+    taosHashCleanup(pVtbScan->vtbGroupIdToVgIdMapMap);
+  }
+  if (pVtbScan->vtbUidTagListMap) {
+    taosHashSetFreeFp(pVtbScan->vtbUidTagListMap, destroyTagList);
+    taosHashCleanup(pVtbScan->vtbUidTagListMap);
+  }
+  if (pVtbScan->vtbGroupIdTagListMap) {
+    taosHashCleanup(pVtbScan->vtbGroupIdTagListMap);
+  }
+  if (pVtbScan->vtbUidToGroupIdMap) {
+    taosHashCleanup(pVtbScan->vtbUidToGroupIdMap);
   }
 }
 
@@ -180,6 +226,7 @@ static void destroyDynQueryCtrlOperator(void* param) {
     case DYN_QTYPE_STB_HASH:
       destroyStbJoinDynCtrlInfo(&pDyn->stbJoin);
       break;
+    case DYN_QTYPE_VTB_AGG:
     case DYN_QTYPE_VTB_SCAN:
       destroyVtbScanDynCtrlInfo(&pDyn->vtbScan);
       break;
@@ -252,6 +299,107 @@ static int32_t updatePostJoinCurrTableInfo(SStbJoinDynCtrlInfo*          pStbJoi
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t copyOrgTbInfo(SOrgTbInfo* pSrc, SOrgTbInfo** ppDst) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
+  SOrgTbInfo* pTbInfo = NULL;
+
+  qDebug("start to copy org table info, vgId:%d, tbName:%s", pSrc->vgId, pSrc->tbName);
+
+  pTbInfo = taosMemoryMalloc(sizeof(SOrgTbInfo));
+  QUERY_CHECK_NULL(pTbInfo, code, lino, _return, terrno)
+
+  pTbInfo->vgId = pSrc->vgId;
+  tstrncpy(pTbInfo->tbName, pSrc->tbName, TSDB_TABLE_FNAME_LEN);
+
+  pTbInfo->colMap = taosArrayDup(pSrc->colMap, NULL);
+  QUERY_CHECK_NULL(pTbInfo->colMap, code, lino, _return, terrno)
+
+  *ppDst = pTbInfo;
+
+  return code;
+_return:
+  qError("failed to copy org table info, code:%d, line:%d", code, lino);
+  if (pTbInfo) {
+    if (pTbInfo->colMap) {
+      taosArrayDestroy(pTbInfo->colMap);
+    }
+    taosMemoryFreeClear(pTbInfo);
+  }
+  return code;
+}
+
+static int32_t buildTagListForExchangeBasicParam(SExchangeOperatorBasicParam* pBasic, SArray* pTagList) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  STagVal  tmpTag;
+
+  pBasic->tagList = taosArrayInit(1, sizeof(STagVal));
+  QUERY_CHECK_NULL(pBasic->tagList, code, lino, _return, terrno)
+
+  for (int32_t i = 0; i < taosArrayGetSize(pTagList); ++i) {
+    STagVal* pSrcTag = (STagVal*)taosArrayGet(pTagList, i);
+    QUERY_CHECK_NULL(pSrcTag, code, lino, _return, terrno)
+    tmpTag.type = pSrcTag->type;
+    tmpTag.cid = pSrcTag->cid;
+    if (IS_VAR_DATA_TYPE(pSrcTag->type)) {
+      tmpTag.nData = pSrcTag->nData;
+      tmpTag.pData = taosMemoryMalloc(tmpTag.nData);
+      QUERY_CHECK_NULL(tmpTag.pData, code, lino, _return, terrno)
+      memcpy(tmpTag.pData, pSrcTag->pData, tmpTag.nData);
+    } else {
+      tmpTag.i64 = pSrcTag->i64;
+    }
+
+    QUERY_CHECK_NULL(taosArrayPush(pBasic->tagList, &tmpTag), code, lino, _return, terrno)
+    tmpTag = (STagVal){0};
+  }
+
+  return code;
+_return:
+  if (pBasic->tagList) {
+    taosArrayDestroyEx(pBasic->tagList, destroyTagVal);
+    pBasic->tagList = NULL;
+  }
+  if (tmpTag.pData) {
+    taosMemoryFree(tmpTag.pData);
+  }
+  qError("%s failed at line: %d, code: %d", __func__, lino, code);
+  return code;
+}
+
+static int32_t buildBatchOrgTbInfoForExchangeBasicParam(SExchangeOperatorBasicParam* pBasic, SArray* pOrgTbInfoArray) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     lino = 0;
+  SOrgTbInfo  batchInfo;
+
+  pBasic->batchOrgTbInfo = taosArrayInit(1, sizeof(SOrgTbInfo));
+  QUERY_CHECK_NULL(pBasic->batchOrgTbInfo, code, lino, _return, terrno)
+
+  for (int32_t i = 0; i < taosArrayGetSize(pOrgTbInfoArray); ++i) {
+    SOrgTbInfo* pSrc = (SOrgTbInfo*)taosArrayGet(pOrgTbInfoArray, i);
+    QUERY_CHECK_NULL(pSrc, code, lino, _return, terrno)
+    batchInfo.vgId = pSrc->vgId;
+    tstrncpy(batchInfo.tbName, pSrc->tbName, TSDB_TABLE_FNAME_LEN);
+    batchInfo.colMap = taosArrayDup(pSrc->colMap, NULL);
+    QUERY_CHECK_NULL(batchInfo.colMap, code, lino, _return, terrno)
+    QUERY_CHECK_NULL(taosArrayPush(pBasic->batchOrgTbInfo, &batchInfo), code, lino, _return, terrno)
+    batchInfo = (SOrgTbInfo){0};
+  }
+
+  return code;
+_return:
+  qError("%s failed at line: %d, code: %d", __func__, lino, code);
+  if (pBasic->batchOrgTbInfo) {
+    taosArrayDestroyEx(pBasic->batchOrgTbInfo, destroySOrgTbInfo);
+    pBasic->batchOrgTbInfo = NULL;
+  }
+  if (batchInfo.colMap) {
+    taosArrayDestroy(batchInfo.colMap);
+    batchInfo.colMap = NULL;
+  }
+  return code;
+}
 
 static int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t vgId, int64_t tbUid, bool needCache, SOperatorParam* pChild) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -331,328 +479,295 @@ static int32_t buildGroupCacheNotifyOperatorParam(SOperatorParam** ppRes, int32_
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildSingleTableScanOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t* pVgId, int64_t* pUid);
-static int32_t buildExchangeOperatorParamForExternalWindow(SOperatorParam** ppRes, int32_t downstreamIdx, int64_t skey, int64_t ekey) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SExchangeOperatorParam*   pExc = NULL;
+static int32_t buildExchangeOperatorBasicParam(SExchangeOperatorBasicParam* pBasic, ENodeType srcOpType,
+                                               EExchangeSourceType exchangeType, int32_t vgId, uint64_t groupId,
+                                               SArray* pUidList, SOrgTbInfo* pOrgTbInfo, SArray* pTagList,
+                                               SArray* pOrgTbInfoArray, STimeWindow window,
+                                               SDownstreamSourceNode* pDownstreamSourceNode,
+                                               bool tableSeq, bool isNewParam, bool isNewDeployed) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
+  qDebug("buildExchangeOperatorBasicParam, srcOpType:%d, exchangeType:%d, vgId:%d, groupId:%" PRIu64 ", tableSeq:%d, "
+         "isNewParam:%d, isNewDeployed:%d", srcOpType, exchangeType, vgId, groupId, tableSeq, isNewParam, isNewDeployed);
 
-  (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
-  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
+  pBasic->srcOpType = srcOpType;
+  pBasic->vgId = vgId;
+  pBasic->groupid = groupId;
+  pBasic->window = window;
+  pBasic->tableSeq = tableSeq;
+  pBasic->type = exchangeType;
+  pBasic->isNewParam = isNewParam;
 
-  pExc = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
-  QUERY_CHECK_NULL(pExc, code, lino, _return, terrno)
+  if (pDownstreamSourceNode) {
+    pBasic->isNewDeployed = true;
+    pBasic->newDeployedSrc.type = QUERY_NODE_DOWNSTREAM_SOURCE;
+    pBasic->newDeployedSrc.clientId = pDownstreamSourceNode->clientId;// current task's taskid
+    pBasic->newDeployedSrc.taskId = pDownstreamSourceNode->taskId;
+    pBasic->newDeployedSrc.fetchMsgType = TDMT_STREAM_FETCH;
+    pBasic->newDeployedSrc.localExec = false;
+    pBasic->newDeployedSrc.addr.nodeId = pDownstreamSourceNode->addr.nodeId;
+    memcpy(&pBasic->newDeployedSrc.addr.epSet, &pDownstreamSourceNode->addr.epSet, sizeof(SEpSet));
+  } else {
+    pBasic->isNewDeployed = false;
+    pBasic->newDeployedSrc = (SDownstreamSourceNode){0};
+  }
 
+  if (pUidList) {
+    pBasic->uidList = taosArrayDup(pUidList, NULL);
+    QUERY_CHECK_NULL(pBasic->uidList, code, lino, _return, terrno)
+  } else {
+    pBasic->uidList = taosArrayInit(1, sizeof(int64_t));
+    QUERY_CHECK_NULL(pBasic->uidList, code, lino, _return, terrno)
+  }
+
+  if (pOrgTbInfo) {
+    code = copyOrgTbInfo(pOrgTbInfo, &pBasic->orgTbInfo);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else {
+    pBasic->orgTbInfo = NULL;
+  }
+
+  if (pTagList) {
+    code = buildTagListForExchangeBasicParam(pBasic, pTagList);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else {
+    pBasic->tagList = NULL;
+  }
+
+  if (pOrgTbInfoArray) {
+    code = buildBatchOrgTbInfoForExchangeBasicParam(pBasic, pOrgTbInfoArray);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else {
+    pBasic->batchOrgTbInfo = NULL;
+  }
+  return code;
+
+_return:
+  qError("%s failed at line: %d, code: %d", __func__, lino, code);
+  freeExchangeGetBasicOperatorParam(pBasic);
+  return code;
+}
+
+static int32_t buildExchangeOperatorParamImpl(SOperatorParam** ppRes, int32_t downstreamIdx, ENodeType srcOpType,
+                                              EExchangeSourceType exchangeType, int32_t vgId, uint64_t groupId,
+                                              SArray* pUidList, SOrgTbInfo* pOrgTbInfo, SArray* pTagList,
+                                              SArray* pOrgTbInfoArray, STimeWindow window,
+                                              SDownstreamSourceNode* pDownstreamSourceNode,
+                                              bool tableSeq, bool isNewParam, bool reUse, bool isNewDeployed) {
+
+  int32_t                      code = TSDB_CODE_SUCCESS;
+  int32_t                      lino = 0;
+  SOperatorParam*              pParam = NULL;
+  SExchangeOperatorParam*      pExc = NULL;
+
+  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
+
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
+  pParam->downstreamIdx = downstreamIdx;
+  pParam->reUse = reUse;
+  pParam->pChildren = NULL;
+  pParam->value = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
+  QUERY_CHECK_NULL(pParam->value, code, lino, _return, terrno)
+
+  pExc = (SExchangeOperatorParam*)pParam->value;
   pExc->multiParams = false;
-  pExc->basic.vgId = 0;
-  pExc->basic.tableSeq = true;
-  pExc->basic.isVtbRefScan = false;
-  pExc->basic.isVtbTagScan = false;
-  pExc->basic.isVtbWinScan = true;
-  pExc->basic.isNewParam = true;
-  pExc->basic.window.skey = skey;
-  pExc->basic.window.ekey = ekey;
-  pExc->basic.srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
-  pExc->basic.colMap = NULL;
-  pExc->basic.uidList = taosArrayInit(1, sizeof(int64_t));
-  QUERY_CHECK_NULL(pExc->basic.uidList, code, lino, _return, terrno)
 
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  (*ppRes)->downstreamIdx = 0;
-  (*ppRes)->reUse = true;
-  (*ppRes)->value = pExc;
+  code = buildExchangeOperatorBasicParam(&pExc->basic, srcOpType, exchangeType, vgId, groupId,
+                                         pUidList, pOrgTbInfo, pTagList, pOrgTbInfoArray,
+                                         window, pDownstreamSourceNode, tableSeq, isNewParam, isNewDeployed);
 
+  *ppRes = pParam;
   return code;
 _return:
-  qError("failed to build exchange operator param for external window, code:%d, line:%d", code, lino);
-  if (pExc) {
-   if (pExc->basic.uidList) {
-      taosArrayDestroy(pExc->basic.uidList);
-    }
-    taosMemoryFreeClear(pExc);
+  qError("%s failed at line: %d, code: %d", __func__, lino, code);
+  if (pParam) {
+    freeOperatorParam(pParam, OP_GET_PARAM);
   }
-  if (*ppRes) {
-    if ((*ppRes)->pChildren) {
-      taosArrayDestroy((*ppRes)->pChildren);
-    }
-    taosMemoryFreeClear(*ppRes);
-  }
-
   return code;
 }
 
 static int32_t buildExchangeOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, const int32_t* pVgId, int64_t* pUid) {
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  if (NULL == *ppRes) {
-    return terrno;
-  }
-  (*ppRes)->pChildren = NULL;
-  
-  SExchangeOperatorParam* pExc = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
-  if (NULL == pExc) {
-    return terrno;
-  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
 
-  pExc->multiParams = false;
-  pExc->basic.vgId = *pVgId;
-  pExc->basic.tableSeq = true;
-  pExc->basic.isVtbRefScan = false;
-  pExc->basic.isVtbWinScan = false;
-  pExc->basic.isVtbTagScan = false;
-  pExc->basic.srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
-  pExc->basic.colMap = NULL;
-  pExc->basic.uidList = taosArrayInit(1, sizeof(int64_t));
-  if (NULL == pExc->basic.uidList) {
-    taosMemoryFree(pExc);
-    return terrno;
-  }
-  if (NULL == taosArrayPush(pExc->basic.uidList, pUid)) {
-    taosArrayDestroy(pExc->basic.uidList);
-    taosMemoryFree(pExc);
-    return terrno;
-  }
+  SArray* pUidList = taosArrayInit(1, sizeof(int64_t));
+  QUERY_CHECK_NULL(pUidList, code, lino, _return, terrno)
 
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  (*ppRes)->downstreamIdx = downstreamIdx;
-  (*ppRes)->value = pExc;
-  (*ppRes)->reUse = false;
+  QUERY_CHECK_NULL(taosArrayPush(pUidList, pUid), code, lino, _return, terrno);
 
-  return TSDB_CODE_SUCCESS;
+  code = buildExchangeOperatorParamImpl(ppRes, downstreamIdx, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, EX_SRC_TYPE_STB_JOIN_SCAN,
+                                        *pVgId, 0, pUidList, NULL, NULL, NULL, (STimeWindow){0}, NULL, true, false, false, false);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  if (code) {
+    qError("failed to build exchange operator param, code:%d", code);
+  }
+  taosArrayDestroy(pUidList);
+  return code;
 }
 
-static int32_t buildBatchExchangeOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, SSHashObj* pVg) {
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  if (NULL == *ppRes) {
-    return terrno;
-  }
-  (*ppRes)->pChildren = NULL;
-  
-  SExchangeOperatorBatchParam* pExc = taosMemoryMalloc(sizeof(SExchangeOperatorBatchParam));
-  if (NULL == pExc) {
-    taosMemoryFreeClear(*ppRes);
-    return terrno;
-  }
+static int32_t buildExchangeOperatorParamForExternalWindow(SOperatorParam** ppRes, int32_t downstreamIdx, STimeWindow win) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
 
-  pExc->multiParams = true;
-  pExc->pBatchs = tSimpleHashInit(tSimpleHashGetSize(pVg), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
-  if (NULL == pExc->pBatchs) {
-    taosMemoryFree(pExc);
-    taosMemoryFreeClear(*ppRes);
-    return terrno;
-  }
-  tSimpleHashSetFreeFp(pExc->pBatchs, freeExchangeGetBasicOperatorParam);
-  
-  SExchangeOperatorBasicParam basic;
-  basic.srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  code = buildExchangeOperatorParamImpl(ppRes, downstreamIdx, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, EX_SRC_TYPE_VSTB_WIN_SCAN,
+                                        0, 0, NULL, NULL, NULL, NULL, win, NULL, true, true, true, false);
+  QUERY_CHECK_CODE(code, lino, _return);
 
-  int32_t iter = 0;
-  void* p = NULL;
-  while (NULL != (p = tSimpleHashIterate(pVg, p, &iter))) {
-    int32_t* pVgId = tSimpleHashGetKey(p, NULL);
-    SArray* pUidList = *(SArray**)p;
-    basic.vgId = *pVgId;
-    basic.uidList = pUidList;
-    basic.colMap = NULL;
-    basic.tableSeq = false;
-    basic.isVtbRefScan = false;
-    basic.isVtbWinScan = false;
-    basic.isVtbTagScan = false;
-    
-    QRY_ERR_RET(tSimpleHashPut(pExc->pBatchs, pVgId, sizeof(*pVgId), &basic, sizeof(basic)));   
-
-    qTrace("build downstreamIdx %d batch scan, vgId:%d, uidNum:%" PRId64, downstreamIdx, *pVgId, (int64_t)taosArrayGetSize(pUidList));
-    *(SArray**)p = NULL;
-  }
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  (*ppRes)->downstreamIdx = downstreamIdx;
-  (*ppRes)->value = pExc;
-  (*ppRes)->reUse = false;
-
-  return TSDB_CODE_SUCCESS;
+  return code;
+_return:
+  qError("failed to build exchange operator param for external window, code:%d", code);
+  return code;
 }
 
 static int32_t buildExchangeOperatorParamForVTagScan(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t vgId, tb_uid_t uid) {
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
-  SExchangeOperatorParam*      pExc = NULL;
-  SExchangeOperatorBasicParam* basic = NULL;
+  SArray*                      pUidList = NULL;
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
-  (*ppRes)->pChildren = NULL;
+  pUidList = taosArrayInit(1, sizeof(int64_t));
+  QUERY_CHECK_NULL(pUidList, code, lino, _return, terrno)
 
-  pExc = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
-  QUERY_CHECK_NULL(pExc, code, lino, _return, terrno)
+  QUERY_CHECK_NULL(taosArrayPush(pUidList, &uid), code, lino, _return, terrno)
 
-  pExc->multiParams = false;
-
-  basic = &pExc->basic;
-  basic->srcOpType = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
-
-  basic->vgId = vgId;
-  basic->tableSeq = false;
-  basic->isVtbRefScan = false;
-  basic->isVtbTagScan = true;
-  basic->isVtbWinScan = false;
-  basic->isNewDeployed = false;
-  basic->colMap = NULL;
-
-  basic->uidList = taosArrayInit(1, sizeof(int64_t));
-  QUERY_CHECK_NULL(basic->uidList, code, lino, _return, terrno)
-  QUERY_CHECK_NULL(taosArrayPush(basic->uidList, &uid), code, lino, _return, terrno)
-
-  (*ppRes)->pChildren = NULL;
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  (*ppRes)->downstreamIdx = downstreamIdx;
-  (*ppRes)->value = pExc;
-  (*ppRes)->reUse = true;
-
-  return TSDB_CODE_SUCCESS;
+  code = buildExchangeOperatorParamImpl(ppRes, downstreamIdx, QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN, EX_SRC_TYPE_VSTB_TAG_SCAN,
+                                        vgId, 0, pUidList, NULL, NULL, NULL, (STimeWindow){0}, NULL, false, false, true, false);
+  QUERY_CHECK_CODE(code, lino, _return);
 
 _return:
-  qError("failed to build exchange operator param for vscan, code:%d", code);
-  taosMemoryFreeClear(*ppRes);
-  if (basic) {
-    if (basic->colMap) {
-      taosArrayDestroy(basic->colMap->colMap);
-      taosMemoryFreeClear(basic->colMap);
-    }
-    if (basic->uidList) {
-      taosArrayDestroy(basic->uidList);
-    }
-    taosMemoryFreeClear(basic);
+  if (code) {
+    qError("failed to build exchange operator param for tag scan, code:%d", code);
   }
-  taosMemoryFreeClear(pExc);
+  taosArrayDestroy(pUidList);
   return code;
 }
 
-static int32_t buildExchangeOperatorParamForVScan(SOperatorParam** ppRes, int32_t downstreamIdx, SOrgTbInfo* pMap) {
+static int32_t buildExchangeOperatorParamForVScan(SOperatorParam** ppRes, int32_t downstreamIdx, SOrgTbInfo* pOrgTbInfo,
+                                                  SDownstreamSourceNode* pNewSource) {
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
-  SExchangeOperatorParam*      pExc = NULL;
-  SExchangeOperatorBasicParam* basic = NULL;
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
-  (*ppRes)->pChildren = NULL;
+  code = buildExchangeOperatorParamImpl(ppRes, downstreamIdx, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, EX_SRC_TYPE_VSTB_SCAN,
+                                        pOrgTbInfo->vgId, 0, NULL, pOrgTbInfo, NULL, NULL, (STimeWindow){0}, pNewSource, false, true, true, true);
+  QUERY_CHECK_CODE(code, lino, _return);
 
-  pExc = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
-  QUERY_CHECK_NULL(pExc, code, lino, _return, terrno)
-
-  pExc->multiParams = false;
-
-  basic = &pExc->basic;
-  basic->srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
-
-  basic->vgId = pMap->vgId;
-  basic->tableSeq = false;
-  basic->isVtbRefScan = true;
-  basic->isVtbWinScan = false;
-  basic->isVtbTagScan = false;
-  basic->isNewDeployed = false;
-  basic->isNewParam = true;
-  basic->colMap = taosMemoryMalloc(sizeof(SOrgTbInfo));
-  QUERY_CHECK_NULL(basic->colMap, code, lino, _return, terrno)
-  basic->colMap->vgId = pMap->vgId;
-  tstrncpy(basic->colMap->tbName, pMap->tbName, TSDB_TABLE_FNAME_LEN);
-  basic->colMap->colMap = taosArrayDup(pMap->colMap, NULL);
-  QUERY_CHECK_NULL(basic->colMap->colMap, code, lino, _return, terrno)
-
-  basic->uidList = taosArrayInit(1, sizeof(int64_t));
-  QUERY_CHECK_NULL(basic->uidList, code, lino, _return, terrno)
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  (*ppRes)->downstreamIdx = downstreamIdx;
-  (*ppRes)->value = pExc;
-  (*ppRes)->reUse = true;
-
-  return TSDB_CODE_SUCCESS;
-
+  return code;
 _return:
   qError("failed to build exchange operator param for vscan, code:%d", code);
-  taosMemoryFreeClear(*ppRes);
-  if (basic) {
-    if (basic->colMap) {
-      taosArrayDestroy(basic->colMap->colMap);
-      taosMemoryFreeClear(basic->colMap);
-    }
-    if (basic->uidList) {
-      taosArrayDestroy(basic->uidList);
-    }
-    taosMemoryFreeClear(basic);
-  }
-  taosMemoryFreeClear(pExc);
   return code;
 }
 
-static int32_t buildExchangeOperatorParamForVScanEx(SOperatorParam** ppRes, int32_t downstreamIdx, SOrgTbInfo* pMap, uint64_t taskId, SStreamTaskAddr* pTaskAddr) {
-  int32_t                      code = TSDB_CODE_SUCCESS;
-  int32_t                      lino = 0;
-  SExchangeOperatorParam*      pExc = NULL;
-  SExchangeOperatorBasicParam* basic = NULL;
+static int32_t buildBatchExchangeOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, SSHashObj* pVg) {
+  int32_t                       code = TSDB_CODE_SUCCESS;
+  int32_t                       line = 0;
+  SOperatorParam*               pParam = NULL;
+  SExchangeOperatorBatchParam*  pExc = NULL;
+  SExchangeOperatorBasicParam   basic = {0};
 
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
-  (*ppRes)->pChildren = NULL;
+  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, line, _return, terrno);
 
-  pExc = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
-  QUERY_CHECK_NULL(pExc, code, lino, _return, terrno)
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
+  pParam->downstreamIdx = downstreamIdx;
+  pParam->reUse = false;
+  pParam->pChildren = NULL;
+  pParam->value = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
+  QUERY_CHECK_NULL(pParam->value, code, line, _return, terrno);
 
-  pExc->multiParams = false;
+  pExc = pParam->value;
+  pExc->multiParams = true;
+  pExc->pBatchs = tSimpleHashInit(tSimpleHashGetSize(pVg), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  QUERY_CHECK_NULL(pExc->pBatchs, code, line, _return, terrno)
 
-  basic = &pExc->basic;
-  basic->srcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  tSimpleHashSetFreeFp(pExc->pBatchs, freeExchangeGetBasicOperatorParam);
 
-  basic->vgId = pMap->vgId;
-  basic->tableSeq = false;
-  basic->isVtbRefScan = true;
-  basic->isVtbWinScan = false;
-  basic->isVtbTagScan = false;
-  basic->isNewDeployed = true;
-  basic->isNewParam = true;
-  basic->newDeployedSrc.type = QUERY_NODE_DOWNSTREAM_SOURCE;
-  basic->newDeployedSrc.clientId = taskId;// current task's taskid
-  basic->newDeployedSrc.taskId = pTaskAddr->taskId;
-  basic->newDeployedSrc.fetchMsgType = TDMT_STREAM_FETCH;
-  basic->newDeployedSrc.localExec = false;
-  basic->newDeployedSrc.addr.nodeId = pTaskAddr->nodeId;
-  memcpy(&basic->newDeployedSrc.addr.epSet, &pTaskAddr->epset, sizeof(SEpSet));
-  basic->colMap = taosMemoryMalloc(sizeof(SOrgTbInfo));
-  QUERY_CHECK_NULL(basic->colMap, code, lino, _return, terrno)
-  basic->colMap->vgId = pMap->vgId;
-  tstrncpy(basic->colMap->tbName, pMap->tbName, TSDB_TABLE_FNAME_LEN);
-  basic->colMap->colMap = taosArrayDup(pMap->colMap, NULL);
-  QUERY_CHECK_NULL(basic->colMap->colMap, code, lino, _return, terrno)
+  int32_t iter = 0;
+  void*   p = NULL;
+  while (NULL != (p = tSimpleHashIterate(pVg, p, &iter))) {
+    int32_t* pVgId = tSimpleHashGetKey(p, NULL);
+    SArray*  pUidList = *(SArray**)p;
 
-  basic->uidList = taosArrayInit(1, sizeof(int64_t));
-  QUERY_CHECK_NULL(basic->uidList, code, lino, _return, terrno)
+    code = buildExchangeOperatorBasicParam(&basic, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+                                           EX_SRC_TYPE_STB_JOIN_SCAN, *pVgId, 0,
+                                           pUidList, NULL, NULL, NULL,
+                                           (STimeWindow){0}, NULL, false, false, false);
+    QUERY_CHECK_CODE(code, line, _return);
 
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  (*ppRes)->downstreamIdx = downstreamIdx;
-  (*ppRes)->value = pExc;
-  (*ppRes)->reUse = true;
+    // already transferred to batch param, can free here
+    taosArrayDestroy(pUidList);
 
-  return TSDB_CODE_SUCCESS;
+    QRY_ERR_RET(tSimpleHashPut(pExc->pBatchs, pVgId, sizeof(*pVgId), &basic, sizeof(basic)));
+
+    basic = (SExchangeOperatorBasicParam){0};
+    qTrace("build downstreamIdx %d batch scan, vgId:%d, uidNum:%" PRId64, downstreamIdx, *pVgId, (int64_t)taosArrayGetSize(pUidList));
+    *(SArray**)p = NULL;
+  }
+  *ppRes = pParam;
+
+  return code;
+  
+_return:
+  qError("failed to build batch exchange operator param, code:%d", code);
+  freeOperatorParam(pParam, OP_GET_PARAM);
+  freeExchangeGetBasicOperatorParam(&basic);
+  return code;
+}
+
+static int32_t buildBatchExchangeOperatorParamForVSAgg(SOperatorParam** ppRes, int32_t downstreamIdx, SArray* pTagList, uint64_t groupid,  SHashObj* pBatchMaps) {
+  int32_t                       code = TSDB_CODE_SUCCESS;
+  int32_t                       lino = 0;
+  SOperatorParam*               pParam = NULL;
+  SExchangeOperatorBatchParam*  pExc = NULL;
+  SExchangeOperatorBasicParam   basic = {0};
+
+  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
+
+  pParam->value = taosMemoryMalloc(sizeof(SExchangeOperatorParam));
+  QUERY_CHECK_NULL(pParam->value, code, lino, _return, terrno)
+
+  pExc = pParam->value;
+  pExc->multiParams = true;
+
+  pExc->pBatchs = tSimpleHashInit(taosHashGetSize(pBatchMaps), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  QUERY_CHECK_NULL(pExc->pBatchs, code, lino, _return, terrno)
+  tSimpleHashSetFreeFp(pExc->pBatchs, freeExchangeGetBasicOperatorParam);
+
+  size_t keyLen = 0;
+  void*  pIter = taosHashIterate(pBatchMaps, NULL);
+  while (pIter != NULL) {
+    SArray*          pOrgTbInfoArray = *(SArray**)pIter;
+    int32_t*         vgId = (int32_t*)taosHashGetKey(pIter, &keyLen);
+    STimeWindow      win = {.skey = INT64_MAX, .ekey = INT64_MIN};
+
+    code = buildExchangeOperatorBasicParam(&basic, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+                                           EX_SRC_TYPE_VSTB_AGG_SCAN, *vgId, groupid,
+                                           NULL, NULL, pTagList, pOrgTbInfoArray,
+                                           win, NULL, false, true, false);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    code = tSimpleHashPut(pExc->pBatchs, vgId, sizeof(*vgId), &basic, sizeof(basic));
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    basic = (SExchangeOperatorBasicParam){0};
+    pIter = taosHashIterate(pBatchMaps, pIter);
+  }
+
+  pParam->pChildren = NULL;
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
+  pParam->downstreamIdx = downstreamIdx;
+  pParam->reUse = false;
+
+  *ppRes = pParam;
+  return code;
 
 _return:
   qError("failed to build exchange operator param for vscan, code:%d", code);
-  taosMemoryFreeClear(*ppRes);
-  if (basic) {
-    if (basic->colMap) {
-      taosArrayDestroy(basic->colMap->colMap);
-      taosMemoryFreeClear(basic->colMap);
-    }
-    if (basic->uidList) {
-      taosArrayDestroy(basic->uidList);
-    }
-    taosMemoryFreeClear(basic);
-  }
-  taosMemoryFreeClear(pExc);
+  freeOperatorParam(pParam, OP_GET_PARAM);
+  freeExchangeGetBasicOperatorParam(&basic);
   return code;
 }
 
@@ -766,7 +881,6 @@ static int32_t buildBatchTableScanOperatorParam(SOperatorParam** ppRes, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-
 static int32_t buildSingleTableScanOperatorParam(SOperatorParam** ppRes, int32_t downstreamIdx, int32_t* pVgId, int64_t* pUid) {
   SArray* pUidList = taosArrayInit(1, sizeof(int64_t));
   if (NULL == pUidList) {
@@ -853,6 +967,273 @@ static int32_t buildSeqStbJoinOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SS
     }
   }
   
+  return code;
+}
+
+static int32_t buildVtbScanOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes, uint64_t uid) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SVTableScanOperatorParam* pVScan = NULL;
+  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
+
+  (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
+
+  pVScan = taosMemoryMalloc(sizeof(SVTableScanOperatorParam));
+  QUERY_CHECK_NULL(pVScan, code, lino, _return, terrno)
+  pVScan->pOpParamArray = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL(pVScan->pOpParamArray, code, lino, _return, terrno)
+  pVScan->uid = uid;
+  pVScan->window = pInfo->vtbScan.window;
+
+  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN;
+  (*ppRes)->downstreamIdx = 0;
+  (*ppRes)->value = pVScan;
+  (*ppRes)->reUse = false;
+
+  return TSDB_CODE_SUCCESS;
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  if (pVScan) {
+    taosArrayDestroy(pVScan->pOpParamArray);
+    taosMemoryFreeClear(pVScan);
+  }
+  if (*ppRes) {
+    taosArrayDestroy((*ppRes)->pChildren);
+    taosMemoryFreeClear(*ppRes);
+  }
+  return code;
+}
+
+static int32_t buildExternalWindowOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes, SArray* pWins, int32_t idx) {
+  int32_t                       code = TSDB_CODE_SUCCESS;
+  int32_t                       lino = 0;
+  SExternalWindowOperatorParam* pExtWinOp = NULL;
+
+  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
+
+  pExtWinOp = taosMemoryMalloc(sizeof(SExternalWindowOperatorParam));
+  QUERY_CHECK_NULL(pExtWinOp, code, lino, _return, terrno)
+
+  pExtWinOp->ExtWins = taosArrayDup(pWins, NULL);
+  QUERY_CHECK_NULL(pExtWinOp->ExtWins, code, lino, _return, terrno)
+
+  SExtWinTimeWindow *firstWin = (SExtWinTimeWindow *)taosArrayGet(pWins, 0);
+  SExtWinTimeWindow *lastWin = (SExtWinTimeWindow *)taosArrayGet(pWins, taosArrayGetSize(pWins) - 1);
+
+  (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
+
+  SOperatorParam* pExchangeOperator = NULL;
+  STimeWindow     twin = {.skey = firstWin->tw.skey, .ekey = lastWin->tw.ekey};
+  code = buildExchangeOperatorParamForExternalWindow(&pExchangeOperator, 0, twin);
+  QUERY_CHECK_CODE(code, lino, _return);
+  QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExchangeOperator), code, lino, _return, terrno)
+
+  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW;
+  (*ppRes)->downstreamIdx = idx;
+  (*ppRes)->value = pExtWinOp;
+  (*ppRes)->reUse = false;
+
+  return code;
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  if (pExtWinOp) {
+    if (pExtWinOp->ExtWins) {
+      taosArrayDestroy(pExtWinOp->ExtWins);
+    }
+    taosMemoryFree(pExtWinOp);
+  }
+  if (*ppRes) {
+    if ((*ppRes)->pChildren) {
+      taosArrayDestroy((*ppRes)->pChildren);
+    }
+    taosMemoryFree(*ppRes);
+    *ppRes = NULL;
+  }
+  return code;
+}
+
+static int32_t buildMergeOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes, SArray* pWins,
+                                       int32_t numOfDownstream, int32_t numOfWins) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SMergeOperatorParam*      pMergeOp = NULL;
+
+  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
+
+  (*ppRes)->pChildren = taosArrayInit(numOfDownstream, POINTER_BYTES);
+  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
+
+  pMergeOp = taosMemoryMalloc(sizeof(SMergeOperatorParam));
+  QUERY_CHECK_NULL(pMergeOp, code, lino, _return, terrno)
+
+  pMergeOp->winNum = numOfWins;
+
+  for (int32_t i = 0; i < numOfDownstream; i++) {
+    SOperatorParam* pExternalWinParam = NULL;
+    code = buildExternalWindowOperatorParam(pInfo, &pExternalWinParam, pWins, i);
+    QUERY_CHECK_CODE(code, lino, _return);
+    QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExternalWinParam), code, lino, _return, terrno)
+  }
+
+  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
+  (*ppRes)->downstreamIdx = 0;
+  (*ppRes)->value = pMergeOp;
+  (*ppRes)->reUse = false;
+
+  return TSDB_CODE_SUCCESS;
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  if (pMergeOp) {
+    taosMemoryFree(pMergeOp);
+  }
+  if (*ppRes) {
+    if ((*ppRes)->pChildren) {
+      for (int32_t i = 0; i < taosArrayGetSize((*ppRes)->pChildren); i++) {
+        SOperatorParam* pChildParam = (SOperatorParam*)taosArrayGet((*ppRes)->pChildren, i);
+        if (pChildParam) {
+          SExternalWindowOperatorParam* pExtWinOp = (SExternalWindowOperatorParam*)pChildParam->value;
+          if (pExtWinOp) {
+            if (pExtWinOp->ExtWins) {
+              taosArrayDestroy(pExtWinOp->ExtWins);
+            }
+            taosMemoryFree(pExtWinOp);
+          }
+          taosMemoryFree(pChildParam);
+        }
+      }
+      taosArrayDestroy((*ppRes)->pChildren);
+    }
+    taosMemoryFree(*ppRes);
+    *ppRes = NULL;
+  }
+  return code;
+}
+
+static int32_t buildAggOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SOperatorParam*           pParam = NULL;
+  SOperatorParam*           pExchangeParam = NULL;
+  SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  bool                      freeExchange = false;
+
+  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
+
+  pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno)
+
+  pParam->value = taosMemoryMalloc(sizeof(SAggOperatorParam));
+  QUERY_CHECK_NULL(pParam->value, code, lino, _return, terrno)
+
+  code = buildBatchExchangeOperatorParamForVSAgg(&pExchangeParam, 0, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  freeExchange = true;
+
+  QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pExchangeParam), code, lino, _return, terrno)
+
+  freeExchange = false;
+
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
+  pParam->downstreamIdx = 0;
+  pParam->reUse = false;
+
+  *ppRes = pParam;
+
+  return code;
+_return:
+  if (freeExchange) {
+    freeOperatorParam(pExchangeParam, OP_GET_PARAM);
+  }
+  if (pParam) {
+    freeOperatorParam(pParam, OP_GET_PARAM);
+  }
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t buildAggOperatorParamWithGroupId(SDynQueryCtrlOperatorInfo* pInfo, uint64_t groupid, SOperatorParam** ppRes) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  SOperatorParam*           pParam = NULL;
+  SOperatorParam*           pExchangeParam = NULL;
+  SHashObj*                 otbVgIdToOtbInfoArrayMap = NULL;
+  bool                      freeExchange = false;
+  void*                     pIter = taosHashGet(pVtbScan->vtbGroupIdToVgIdMapMap, &groupid, sizeof(groupid));
+
+  if (!pIter) {
+    *ppRes = NULL;
+    return code;
+  }
+
+  otbVgIdToOtbInfoArrayMap = *(SHashObj**)pIter;
+
+  pParam = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(pParam, code, lino, _return, terrno)
+
+  pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno)
+
+  code = buildBatchExchangeOperatorParamForVSAgg(&pExchangeParam, 0, NULL, groupid, otbVgIdToOtbInfoArrayMap);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  freeExchange = true;
+
+  QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pExchangeParam), code, lino, _return, terrno)
+
+  freeExchange = false;
+
+  pParam->opType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
+  pParam->downstreamIdx = 0;
+  pParam->value = NULL;
+  pParam->reUse = false;
+
+  *ppRes = pParam;
+
+  return code;
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  if (freeExchange) {
+    freeOperatorParam(pExchangeParam, OP_GET_PARAM);
+  }
+  if (pParam) {
+    freeOperatorParam(pParam, OP_GET_PARAM);
+  }
+  return code;
+}
+
+static int32_t buildAggOperatorParamForSingleChild(SDynQueryCtrlOperatorInfo* pInfo, tb_uid_t uid, uint64_t groupid, SArray* pTagList, SOperatorParam** ppRes) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SVtbScanDynCtrlInfo*      pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  SOperatorParam*           pParam = NULL;
+  SHashObj*                 pOtbVgIdToOtbInfoArrayMap = NULL;
+  void*                     pIter = taosHashGet(pVtbScan->vtbUidToVgIdMapMap, &uid, sizeof(uid));
+
+  if (pIter) {
+    pOtbVgIdToOtbInfoArrayMap = *(SHashObj**)taosHashGet(pVtbScan->vtbUidToVgIdMapMap, &uid, sizeof(uid));
+
+    code = buildBatchExchangeOperatorParamForVSAgg(&pParam, 0, pTagList, groupid, pOtbVgIdToOtbInfoArrayMap);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    *ppRes = pParam;
+  } else {
+    *ppRes = NULL;
+  }
+
+  return code;
+_return:
+  if (pParam) {
+    freeOperatorParam(pParam, OP_GET_PARAM);
+  }
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
 }
 
@@ -1319,42 +1700,6 @@ _return:
   return code;
 }
 
-static int32_t buildVtbScanOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes, uint64_t uid) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SVTableScanOperatorParam* pVScan = NULL;
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
-
-  (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
-  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
-
-  pVScan = taosMemoryMalloc(sizeof(SVTableScanOperatorParam));
-  QUERY_CHECK_NULL(pVScan, code, lino, _return, terrno)
-  pVScan->pOpParamArray = taosArrayInit(1, POINTER_BYTES);
-  QUERY_CHECK_NULL(pVScan->pOpParamArray, code, lino, _return, terrno)
-  pVScan->uid = uid;
-  pVScan->window = pInfo->vtbScan.window;
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN;
-  (*ppRes)->downstreamIdx = 0;
-  (*ppRes)->value = pVScan;
-  (*ppRes)->reUse = false;
-
-  return TSDB_CODE_SUCCESS;
-_return:
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  if (pVScan) {
-    taosArrayDestroy(pVScan->pOpParamArray);
-    taosMemoryFreeClear(pVScan);
-  }
-  if (*ppRes) {
-    taosArrayDestroy((*ppRes)->pChildren);
-    taosMemoryFreeClear(*ppRes);
-  }
-  return code;
-}
-
 int32_t dynProcessUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   int32_t                    lino = 0;
   SOperatorInfo*             operator=(SOperatorInfo*) param;
@@ -1751,9 +2096,376 @@ int32_t getVgIdFromColref(SOperatorInfo* pOperator, const char* colRef, int32_t*
   QUERY_CHECK_CODE(code, line, _return);
 
 _return:
+  if (code) {
+    qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
+  }
   taosMemoryFree(refDbName);
   taosMemoryFree(refTbName);
   taosMemoryFree(refColName);
+  return code;
+}
+
+static int32_t generateTagArrayByTagBlockAndSave(SHashObj* vtbUidTagListMap, tb_uid_t uid, SSDataBlock *pTagVal, int32_t rowIdx) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t line = 0;
+  STagVal tagVal = {0};
+  // last col is uid
+
+  SArray* pTagList = taosArrayInit(1, sizeof(STagVal));
+  QUERY_CHECK_NULL(pTagList, code, line, _return, terrno)
+
+  for (int32_t k = 0; k < taosArrayGetSize(pTagVal->pDataBlock) - 1; k++) {
+    SColumnInfoData *pTagCol = taosArrayGet(pTagVal->pDataBlock, k);
+    QUERY_CHECK_NULL(pTagCol, code, line, _return, terrno)
+    tagVal.type = pTagCol->info.type;
+    tagVal.cid = pTagCol->info.colId;
+    if (!colDataIsNull_s(pTagCol, rowIdx)) {
+      char*   pData = colDataGetData(pTagCol, rowIdx);
+      if (IS_VAR_DATA_TYPE(pTagCol->info.type)) {
+        tagVal.nData = varDataLen(pData);
+        tagVal.pData = taosMemoryMalloc(tagVal.nData);
+        QUERY_CHECK_NULL(tagVal.pData, code, line, _return, terrno)
+        memcpy(tagVal.pData, varDataVal(pData), varDataLen(pData));
+        QUERY_CHECK_NULL(taosArrayPush(pTagList, &tagVal), code, line, _return, terrno)
+      } else {
+        memcpy(&tagVal.i64, pData, tDataTypes[pTagCol->info.type].bytes);
+        QUERY_CHECK_NULL(taosArrayPush(pTagList, &tagVal), code, line, _return, terrno)
+      }
+    } else {
+      tagVal.pData = NULL;
+      tagVal.nData = 0;
+      QUERY_CHECK_NULL(taosArrayPush(pTagList, &tagVal), code, line, _return, terrno)
+    }
+    tagVal = (STagVal){0};
+  }
+  code = taosHashPut(vtbUidTagListMap, &uid, sizeof(uid), &pTagList, POINTER_BYTES);
+  QUERY_CHECK_CODE(code, line, _return);
+
+  return code;
+_return:
+  if (tagVal.pData) {
+    taosMemoryFreeClear(tagVal.pData);
+  }
+  if (pTagList) {
+    taosArrayDestroyEx(pTagList, destroyTagVal);
+  }
+  qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
+  return code;
+}
+
+int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pColRefInfo, tb_uid_t* uid, int32_t* vgId) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+  SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  SDBVgInfo*                 dbVgInfo = NULL;
+
+  for (int32_t j = 0; j < taosArrayGetSize(pColRefInfo); j++) {
+    SColRefInfo *pKV = (SColRefInfo*)taosArrayGet(pColRefInfo, j);
+    *uid = pKV->uid;
+    *vgId = pKV->vgId;
+    if (pKV->colrefName != NULL && colNeedScan(pOperator, pKV->colId)) {
+      char*   refDbName = NULL;
+      char*   refTbName = NULL;
+      char*   refColName = NULL;
+      SName   name = {0};
+      char    dbFname[TSDB_DB_FNAME_LEN] = {0};
+      char    orgTbFName[TSDB_TABLE_FNAME_LEN] = {0};
+
+      code = extractColRefName(pKV->colrefName, &refDbName, &refTbName, &refColName);
+      QUERY_CHECK_CODE(code, line, _return);
+
+      toName(pInfo->vtbScan.acctId, refDbName, refTbName, &name);
+
+      code = getDbVgInfo(pOperator, &name, &dbVgInfo);
+      QUERY_CHECK_CODE(code, line, _return);
+      code = tNameGetFullDbName(&name, dbFname);
+      QUERY_CHECK_CODE(code, line, _return);
+      code = tNameGetFullTableName(&name, orgTbFName);
+      QUERY_CHECK_CODE(code, line, _return);
+
+      void *pVal = taosHashGet(pVtbScan->otbNameToOtbInfoMap, orgTbFName, sizeof(orgTbFName));
+      if (!pVal) {
+        SOrgTbInfo orgTbInfo = {0};
+        code = getVgId(dbVgInfo, dbFname, &orgTbInfo.vgId, name.tname);
+        QUERY_CHECK_CODE(code, line, _return);
+        tstrncpy(orgTbInfo.tbName, orgTbFName, sizeof(orgTbInfo.tbName));
+        orgTbInfo.colMap = taosArrayInit(10, sizeof(SColIdNameKV));
+        QUERY_CHECK_NULL(orgTbInfo.colMap, code, line, _return, terrno)
+        SColIdNameKV colIdNameKV = {0};
+        colIdNameKV.colId = pKV->colId;
+        tstrncpy(colIdNameKV.colName, refColName, sizeof(colIdNameKV.colName));
+        QUERY_CHECK_NULL(taosArrayPush(orgTbInfo.colMap, &colIdNameKV), code, line, _return, terrno)
+        code = taosHashPut(pVtbScan->otbNameToOtbInfoMap, orgTbFName, sizeof(orgTbFName), &orgTbInfo, sizeof(orgTbInfo));
+        QUERY_CHECK_CODE(code, line, _return);
+      } else {
+        SOrgTbInfo *tbInfo = (SOrgTbInfo *)pVal;
+        SColIdNameKV colIdNameKV = {0};
+        colIdNameKV.colId = pKV->colId;
+        tstrncpy(colIdNameKV.colName, refColName, sizeof(colIdNameKV.colName));
+        QUERY_CHECK_NULL(taosArrayPush(tbInfo->colMap, &colIdNameKV), code, line, _return, terrno)
+      }
+      taosMemoryFree(refDbName);
+      taosMemoryFree(refTbName);
+      taosMemoryFree(refColName);
+    }
+  }
+
+_return:
+  if (code) {
+    qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
+  }
+  return code;
+}
+
+static int32_t getTagBlockAndProcess(SOperatorInfo* pOperator, bool hasPartition) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+  SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  SExecTaskInfo*             pTaskInfo = pOperator->pTaskInfo;
+  SArray*                    pColRefArray = NULL;
+  SOperatorInfo*             pSystableScanOp = pOperator->pDownstream[0];
+  SOperatorInfo*             pTagScanOp = pOperator->pDownstream[1];
+
+  pVtbScan->vtbUidTagListMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  QUERY_CHECK_NULL(pVtbScan->vtbUidTagListMap, code, line, _return, terrno)
+  taosHashSetFreeFp(pVtbScan->vtbUidTagListMap, destroyTagList);
+  if (hasPartition) {
+    pVtbScan->vtbUidToGroupIdMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+    pVtbScan->vtbGroupIdTagListMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
+    QUERY_CHECK_NULL(pVtbScan->vtbUidToGroupIdMap, code, line, _return, terrno)
+    QUERY_CHECK_NULL(pVtbScan->vtbGroupIdTagListMap, code, line, _return, terrno)
+    taosHashSetFreeFp(pVtbScan->vtbGroupIdTagListMap, destroyVtbUidTagListMap);
+  }
+
+  while (true) {
+    SSDataBlock *pTagVal = NULL;
+    code = pTagScanOp->fpSet.getNextFn(pTagScanOp, &pTagVal);
+    QUERY_CHECK_CODE(code, line, _return);
+    if (pTagVal == NULL) {
+      break;
+    }
+    SHashObj *vtbUidTagListMap = NULL;
+    if (hasPartition) {
+      void* pIter = taosHashGet(pVtbScan->vtbGroupIdTagListMap, &pTagVal->info.id.groupId, sizeof(pTagVal->info.id.groupId));
+      if (pIter) {
+        vtbUidTagListMap = *(SHashObj**)pIter;
+      } else {
+        vtbUidTagListMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+        QUERY_CHECK_NULL(vtbUidTagListMap, code, line, _return, terrno)
+        taosHashSetFreeFp(vtbUidTagListMap, destroyTagList);
+
+        code = taosHashPut(pVtbScan->vtbGroupIdTagListMap, &pTagVal->info.id.groupId, sizeof(pTagVal->info.id.groupId), &vtbUidTagListMap, POINTER_BYTES);
+        QUERY_CHECK_CODE(code, line, _return);
+      }
+    } else {
+      vtbUidTagListMap = pVtbScan->vtbUidTagListMap;
+    }
+
+    SColumnInfoData *pUidCol = taosArrayGetLast(pTagVal->pDataBlock);
+    QUERY_CHECK_NULL(pUidCol, code, line, _return, terrno)
+    for (int32_t i = 0; i < pTagVal->info.rows; i++) {
+      tb_uid_t uid = 0;
+      if (!colDataIsNull_s(pUidCol, i)) {
+        GET_TYPED_DATA(uid, int64_t, TSDB_DATA_TYPE_BIGINT, colDataGetNumData(pUidCol, i), 0);
+        QUERY_CHECK_CODE(code, line, _return);
+      }
+
+      code = generateTagArrayByTagBlockAndSave(vtbUidTagListMap, uid, pTagVal, i);
+      QUERY_CHECK_CODE(code, line, _return);
+
+      if (hasPartition) {
+        code = taosHashPut(pVtbScan->vtbUidToGroupIdMap, &uid, sizeof(uid), &pTagVal->info.id.groupId, sizeof(pTagVal->info.id.groupId));
+        QUERY_CHECK_CODE(code, line, _return);
+      }
+    }
+  }
+
+  return code;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
+  return code;
+}
+
+static int32_t processChildTableListAndGenerateOrgTbInfoMap(SOperatorInfo* pOperator) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+  SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  SExecTaskInfo*             pTaskInfo = pOperator->pTaskInfo;
+  SArray*                    pColRefArray = NULL;
+  SOperatorInfo*             pSystableScanOp = pOperator->pDownstream[0];
+  SOperatorInfo*             pTagScanOp = pOperator->pDownstream[1];
+
+  pVtbScan->vtbUidToVgIdMapMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  QUERY_CHECK_NULL(pVtbScan->vtbUidToVgIdMapMap, code, line, _return, terrno)
+
+  for (int32_t i = 0; i < taosArrayGetSize(pVtbScan->childTableList); i++) {
+    SHashObj* otbVgIdToOtbInfoArrayMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+    QUERY_CHECK_NULL(otbVgIdToOtbInfoArrayMap, code, line, _return, terrno)
+
+    SArray* pColRefInfo = (SArray*)taosArrayGetP(pVtbScan->childTableList, i);
+    QUERY_CHECK_NULL(pColRefInfo, code, line, _return, terrno)
+
+    tb_uid_t uid = 0;
+    int32_t  vgId = 0;
+    code = virtualTableScanProcessColRefInfo(pOperator, pColRefInfo, &uid, &vgId);
+    QUERY_CHECK_CODE(code, line, _return);
+
+    size_t len = 0;
+    void*  pOrgTbInfo = taosHashIterate(pVtbScan->otbNameToOtbInfoMap, NULL);
+    while (pOrgTbInfo != NULL) {
+      char*       key = taosHashGetKey(pOrgTbInfo, &len);
+      SOrgTbInfo* orgTbInfo = (SOrgTbInfo*)pOrgTbInfo;
+
+      void* pIter = taosHashGet(otbVgIdToOtbInfoArrayMap, &orgTbInfo->vgId, sizeof(orgTbInfo->vgId));
+      if (!pIter) {
+        SArray* pOrgTbInfoArray = taosArrayInit(1, sizeof(SOrgTbInfo));
+        QUERY_CHECK_NULL(pOrgTbInfoArray, code, line, _return, terrno)
+        QUERY_CHECK_NULL(taosArrayPush(pOrgTbInfoArray, orgTbInfo), code, line, _return, terrno)
+        code = taosHashPut(otbVgIdToOtbInfoArrayMap, &orgTbInfo->vgId, sizeof(orgTbInfo->vgId), &pOrgTbInfoArray, POINTER_BYTES);
+        QUERY_CHECK_CODE(code, line, _return);
+      } else {
+        SArray* pOrgTbInfoArray = *(SArray**)pIter;
+        QUERY_CHECK_NULL(pOrgTbInfoArray, code, line, _return, terrno)
+        QUERY_CHECK_NULL(taosArrayPush(pOrgTbInfoArray, orgTbInfo), code, line, _return, terrno)
+      }
+
+      pOrgTbInfo = taosHashIterate(pVtbScan->otbNameToOtbInfoMap, pOrgTbInfo);
+
+      code = taosHashRemove(pVtbScan->otbNameToOtbInfoMap, key, len);
+      QUERY_CHECK_CODE(code, line, _return);
+    }
+
+    code = taosHashPut(pVtbScan->vtbUidToVgIdMapMap, &uid, sizeof(uid), &otbVgIdToOtbInfoArrayMap, POINTER_BYTES);
+    QUERY_CHECK_CODE(code, line, _return);
+  }
+
+  return code;
+_return:
+  qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
+  return code;
+}
+
+static int32_t buildOrgTbInfoSingle(SOperatorInfo* pOperator, bool hasPartition) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+
+  code = processChildTableListAndGenerateOrgTbInfoMap(pOperator);
+  QUERY_CHECK_CODE(code, line, _return);
+
+  // process tag
+  code = getTagBlockAndProcess(pOperator, hasPartition);
+  QUERY_CHECK_CODE(code, line, _return);
+
+  return code;
+_return:
+  qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
+  return code;
+}
+
+static int32_t buildOrgTbInfoBatch(SOperatorInfo* pOperator, bool hasPartition) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+  SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  SExecTaskInfo*             pTaskInfo = pOperator->pTaskInfo;
+  SArray*                    pColRefArray = NULL;
+  SOperatorInfo*             pSystableScanOp = pOperator->pDownstream[0];
+  SOperatorInfo*             pTagScanOp = pOperator->pDownstream[1];
+
+  if (hasPartition) {
+    pVtbScan->vtbUidToGroupIdMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+    pVtbScan->vtbGroupIdTagListMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
+    pVtbScan->vtbGroupIdToVgIdMapMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
+
+    QUERY_CHECK_NULL(pVtbScan->vtbGroupIdToVgIdMapMap, code, line, _return, terrno)
+    QUERY_CHECK_NULL(pVtbScan->vtbUidToGroupIdMap, code, line, _return, terrno)
+    QUERY_CHECK_NULL(pVtbScan->vtbGroupIdTagListMap, code, line, _return, terrno)
+    taosHashSetFreeFp(pVtbScan->vtbGroupIdToVgIdMapMap, destroyOtbVgIdToOtbInfoArrayMap);
+  } else {
+    pVtbScan->otbVgIdToOtbInfoArrayMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+    QUERY_CHECK_NULL(pVtbScan->otbVgIdToOtbInfoArrayMap, code, line, _return, terrno)
+  }
+
+  while (true && hasPartition) {
+    SSDataBlock* pTagVal = NULL;
+    code = pTagScanOp->fpSet.getNextFn(pTagScanOp, &pTagVal);
+    QUERY_CHECK_CODE(code, line, _return);
+    if (pTagVal == NULL) {
+      break;
+    }
+
+    SColumnInfoData *pUidCol = taosArrayGetLast(pTagVal->pDataBlock);
+    QUERY_CHECK_NULL(pUidCol, code, line, _return, terrno)
+    for (int32_t i = 0; i < pTagVal->info.rows; i++) {
+      tb_uid_t uid = 0;
+      if (!colDataIsNull_s(pUidCol, i)) {
+        GET_TYPED_DATA(uid, int64_t, TSDB_DATA_TYPE_BIGINT, colDataGetNumData(pUidCol, i), 0);
+        QUERY_CHECK_CODE(code, line, _return);
+      }
+      code = taosHashPut(pVtbScan->vtbUidToGroupIdMap, &uid, sizeof(uid), &pTagVal->info.id.groupId, sizeof(pTagVal->info.id.groupId));
+      QUERY_CHECK_CODE(code, line, _return);
+    }
+    code = taosHashPut(pVtbScan->vtbGroupIdTagListMap, &pTagVal->info.id.groupId, sizeof(pTagVal->info.id.groupId), NULL, 0);
+    QUERY_CHECK_CODE(code, line, _return);
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pVtbScan->childTableList); i++) {
+    SArray* pColRefInfo = (SArray*)taosArrayGetP(pVtbScan->childTableList, i);
+    QUERY_CHECK_NULL(pColRefInfo, code, line, _return, terrno)
+    tb_uid_t uid = 0;
+    int32_t  vgId = 0;
+    code = virtualTableScanProcessColRefInfo(pOperator, pColRefInfo, &uid, &vgId);
+    QUERY_CHECK_CODE(code, line, _return);
+
+    SHashObj* otbVgIdToOtbInfoArrayMap = NULL;
+    if (hasPartition) {
+      uint64_t* groupId = (uint64_t *)taosHashGet(pVtbScan->vtbUidToGroupIdMap, &uid, sizeof(uid));
+      QUERY_CHECK_NULL(groupId, code, line, _return, terrno)
+
+      void* pHashIter = taosHashGet(pVtbScan->vtbGroupIdToVgIdMapMap, groupId, sizeof(*groupId));
+      if (pHashIter) {
+        otbVgIdToOtbInfoArrayMap = *(SHashObj**)pHashIter;
+      } else {
+        otbVgIdToOtbInfoArrayMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+        QUERY_CHECK_NULL(otbVgIdToOtbInfoArrayMap, code, line, _return, terrno)
+        code = taosHashPut(pVtbScan->vtbGroupIdToVgIdMapMap, groupId, sizeof(*groupId), &otbVgIdToOtbInfoArrayMap, POINTER_BYTES);
+        QUERY_CHECK_CODE(code, line, _return);
+      }
+    } else {
+      otbVgIdToOtbInfoArrayMap = pVtbScan->otbVgIdToOtbInfoArrayMap;
+    }
+
+    size_t len = 0;
+    void*  pOrgTbInfo = taosHashIterate(pVtbScan->otbNameToOtbInfoMap, NULL);
+    while (pOrgTbInfo != NULL) {
+      char*       key = taosHashGetKey(pOrgTbInfo, &len);
+      SOrgTbInfo* orgTbInfo = (SOrgTbInfo*)pOrgTbInfo;
+      void* pIter = taosHashGet(otbVgIdToOtbInfoArrayMap, &orgTbInfo->vgId, sizeof(orgTbInfo->vgId));
+      if (!pIter) {
+        SArray* pOrgTbInfoArray = taosArrayInit(1, sizeof(SOrgTbInfo));
+        QUERY_CHECK_NULL(pOrgTbInfoArray, code, line, _return, terrno)
+        QUERY_CHECK_NULL(taosArrayPush(pOrgTbInfoArray, orgTbInfo), code, line, _return, terrno)
+        code = taosHashPut(otbVgIdToOtbInfoArrayMap, &orgTbInfo->vgId, sizeof(orgTbInfo->vgId), &pOrgTbInfoArray, POINTER_BYTES);
+        QUERY_CHECK_CODE(code, line, _return);
+      } else {
+        SArray* pOrgTbInfoArray = *(SArray**)pIter;
+        QUERY_CHECK_NULL(pOrgTbInfoArray, code, line, _return, terrno)
+        QUERY_CHECK_NULL(taosArrayPush(pOrgTbInfoArray, orgTbInfo), code, line, _return, terrno)
+      }
+
+      pOrgTbInfo = taosHashIterate(pVtbScan->otbNameToOtbInfoMap, pOrgTbInfo);
+
+      code = taosHashRemove(pVtbScan->otbNameToOtbInfoMap, key, len);
+      QUERY_CHECK_CODE(code, line, _return);
+    }
+  }
+  return code;
+_return:
+  qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
   return code;
 }
 
@@ -1764,10 +2476,18 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
   SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
   SExecTaskInfo*             pTaskInfo = pOperator->pTaskInfo;
   SArray*                    pColRefArray = NULL;
-  SOperatorInfo*             pSystableScanOp = pOperator->pDownstream[1];
-
+  SOperatorInfo*             pSystableScanOp = NULL;
+  
   pVtbScan->childTableMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   QUERY_CHECK_NULL(pVtbScan->childTableMap, code, line, _return, terrno)
+
+  if (pInfo->qType == DYN_QTYPE_VTB_AGG) {
+    pVtbScan->otbNameToOtbInfoMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    QUERY_CHECK_NULL(pVtbScan->otbNameToOtbInfoMap, code, line, _return, terrno)
+    pSystableScanOp = pOperator->pDownstream[0];
+  } else {
+    pSystableScanOp = pOperator->pDownstream[1];
+  }
 
   while (true) {
     SSDataBlock *pChildInfo = NULL;
@@ -1795,25 +2515,28 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
           code = getColRefInfo(&info, pChildInfo->pDataBlock, i);
           QUERY_CHECK_CODE(code, line, _return);
 
-          if (pInfo->vtbScan.dynTbUid != 0 && info.uid != pInfo->vtbScan.dynTbUid) {
-            destroyColRefInfo(&info);
-            continue;
-          }
-
-          if (pTaskInfo->pStreamRuntimeInfo) {
-            if (pVtbScan->curOrgTbVg == NULL) {
-              pVtbScan->curOrgTbVg = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-              QUERY_CHECK_NULL(pVtbScan->curOrgTbVg, code, line, _return, terrno)
+          if (pInfo->qType == DYN_QTYPE_VTB_SCAN) {
+            if (pInfo->vtbScan.dynTbUid != 0 && info.uid != pInfo->vtbScan.dynTbUid) {
+              qTrace("dynQueryCtrl tb uid filter, info uid:%" PRIu64 ", dyn tb uid:%" PRIu64, info.uid,
+                     pInfo->vtbScan.dynTbUid);
+              destroyColRefInfo(&info);
+              continue;
             }
 
-            if (info.colrefName) {
-              int32_t vgId;
-              code = getVgIdFromColref(pOperator, info.colrefName, &vgId);
-              QUERY_CHECK_CODE(code, line, _return);
-              code = taosHashPut(pVtbScan->curOrgTbVg, &vgId, sizeof(vgId), NULL, 0);
-              QUERY_CHECK_CODE(code, line, _return);
-            }
+            if (pTaskInfo->pStreamRuntimeInfo) {
+              if (pVtbScan->curOrgTbVg == NULL) {
+                pVtbScan->curOrgTbVg = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+                QUERY_CHECK_NULL(pVtbScan->curOrgTbVg, code, line, _return, terrno)
+              }
 
+              if (info.colrefName) {
+                int32_t vgId;
+                code = getVgIdFromColref(pOperator, info.colrefName, &vgId);
+                QUERY_CHECK_CODE(code, line, _return);
+                code = taosHashPut(pVtbScan->curOrgTbVg, &vgId, sizeof(vgId), NULL, 0);
+                QUERY_CHECK_CODE(code, line, _return);
+              }
+            }
           }
 
           if (taosHashGet(pVtbScan->childTableMap, varDataVal(ctbName), varDataLen(ctbName)) == NULL) {
@@ -1836,7 +2559,25 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
     }
   }
 
-  code = processOrgTbVg(pVtbScan, pTaskInfo, 1);
+  switch (pInfo->qType) {
+    case DYN_QTYPE_VTB_AGG: {
+      if (pVtbScan->batchProcessChild) {
+        code = buildOrgTbInfoBatch(pOperator, pVtbScan->hasPartition);
+      } else {
+        code = buildOrgTbInfoSingle(pOperator, pVtbScan->hasPartition);
+      }
+      break;
+    }
+    case DYN_QTYPE_VTB_SCAN: {
+      code = processOrgTbVg(pVtbScan, pTaskInfo, 1);
+      break;
+    }
+    default: {
+      code = TSDB_CODE_PLAN_INVALID_DYN_CTRL_TYPE;
+      break;
+    }
+  }
+
   QUERY_CHECK_CODE(code, line, _return);
 
 _return:
@@ -1953,71 +2694,6 @@ _return:
   return code;
 }
 
-int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pColRefInfo, tb_uid_t* uid, int32_t* vgId) {
-  int32_t                    code = TSDB_CODE_SUCCESS;
-  int32_t                    line = 0;
-  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
-  SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
-  SDBVgInfo*                 dbVgInfo = NULL;
-
-  for (int32_t j = 0; j < taosArrayGetSize(pColRefInfo); j++) {
-    SColRefInfo *pKV = (SColRefInfo*)taosArrayGet(pColRefInfo, j);
-    *uid = pKV->uid;
-    *vgId = pKV->vgId;
-    if (pKV->colrefName != NULL && colNeedScan(pOperator, pKV->colId)) {
-      char*   refDbName = NULL;
-      char*   refTbName = NULL;
-      char*   refColName = NULL;
-      SName   name = {0};
-      char    dbFname[TSDB_DB_FNAME_LEN] = {0};
-      char    orgTbFName[TSDB_TABLE_FNAME_LEN] = {0};
-
-      code = extractColRefName(pKV->colrefName, &refDbName, &refTbName, &refColName);
-      QUERY_CHECK_CODE(code, line, _return);
-
-      toName(pInfo->vtbScan.acctId, refDbName, refTbName, &name);
-
-      code = getDbVgInfo(pOperator, &name, &dbVgInfo);
-      QUERY_CHECK_CODE(code, line, _return);
-      code = tNameGetFullDbName(&name, dbFname);
-      QUERY_CHECK_CODE(code, line, _return);
-      code = tNameGetFullTableName(&name, orgTbFName);
-      QUERY_CHECK_CODE(code, line, _return);
-
-      void *pVal = taosHashGet(pVtbScan->orgTbVgColMap, orgTbFName, sizeof(orgTbFName));
-      if (!pVal) {
-        SOrgTbInfo map = {0};
-        code = getVgId(dbVgInfo, dbFname, &map.vgId, name.tname);
-        QUERY_CHECK_CODE(code, line, _return);
-        tstrncpy(map.tbName, orgTbFName, sizeof(map.tbName));
-        map.colMap = taosArrayInit(10, sizeof(SColIdNameKV));
-        QUERY_CHECK_NULL(map.colMap, code, line, _return, terrno)
-        SColIdNameKV colIdNameKV = {0};
-        colIdNameKV.colId = pKV->colId;
-        tstrncpy(colIdNameKV.colName, refColName, sizeof(colIdNameKV.colName));
-        QUERY_CHECK_NULL(taosArrayPush(map.colMap, &colIdNameKV), code, line, _return, terrno)
-        code = taosHashPut(pVtbScan->orgTbVgColMap, orgTbFName, sizeof(orgTbFName), &map, sizeof(map));
-        QUERY_CHECK_CODE(code, line, _return);
-      } else {
-        SOrgTbInfo *tbInfo = (SOrgTbInfo *)pVal;
-        SColIdNameKV colIdNameKV = {0};
-        colIdNameKV.colId = pKV->colId;
-        tstrncpy(colIdNameKV.colName, refColName, sizeof(colIdNameKV.colName));
-        QUERY_CHECK_NULL(taosArrayPush(tbInfo->colMap, &colIdNameKV), code, line, _return, terrno)
-      }
-      taosMemoryFree(refDbName);
-      taosMemoryFree(refTbName);
-      taosMemoryFree(refColName);
-    }
-  }
-
-_return:
-  if (code) {
-    qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
-  }
-  return code;
-}
-
 int32_t virtualTableScanBuildDownStreamOpParam(SOperatorInfo* pOperator, tb_uid_t uid, int32_t vgId) {
   int32_t                    code = TSDB_CODE_SUCCESS;
   int32_t                    line = 0;
@@ -2029,22 +2705,31 @@ int32_t virtualTableScanBuildDownStreamOpParam(SOperatorInfo* pOperator, tb_uid_
   code = buildVtbScanOperatorParam(pInfo, &pVtbScan->vtbScanParam, uid);
   QUERY_CHECK_CODE(code, line, _return);
 
-  void* pIter = taosHashIterate(pVtbScan->orgTbVgColMap, NULL);
+  void* pIter = taosHashIterate(pVtbScan->otbNameToOtbInfoMap, NULL);
   while (pIter != NULL) {
     SOrgTbInfo*      pMap = (SOrgTbInfo*)pIter;
     SOperatorParam*  pExchangeParam = NULL;
     SStreamTaskAddr* addr = taosHashGet(pVtbScan->newAddedVgInfo, &pMap->vgId, sizeof(pMap->vgId));
     if (addr != NULL) {
-      code = buildExchangeOperatorParamForVScanEx(&pExchangeParam, 0, pMap, pTaskInfo->id.taskId, addr);
+      SDownstreamSourceNode newSource = {0};
+      newSource.type = QUERY_NODE_DOWNSTREAM_SOURCE;
+      newSource.clientId = pTaskInfo->id.taskId;// current task's taskid
+      newSource.taskId = addr->taskId;
+      newSource.fetchMsgType = TDMT_STREAM_FETCH;
+      newSource.localExec = false;
+      newSource.addr.nodeId = addr->nodeId;
+      memcpy(&newSource.addr.epSet, &addr->epset, sizeof(SEpSet));
+
+      code = buildExchangeOperatorParamForVScan(&pExchangeParam, 0, pMap, &newSource);
       QUERY_CHECK_CODE(code, line, _return);
       code = taosHashRemove(pVtbScan->newAddedVgInfo, &pMap->vgId, sizeof(pMap->vgId));
       QUERY_CHECK_CODE(code, line, _return);
     } else {
-      code = buildExchangeOperatorParamForVScan(&pExchangeParam, 0, pMap);
+      code = buildExchangeOperatorParamForVScan(&pExchangeParam, 0, pMap, NULL);
       QUERY_CHECK_CODE(code, line, _return);
     }
     QUERY_CHECK_NULL(taosArrayPush(((SVTableScanOperatorParam*)pVtbScan->vtbScanParam->value)->pOpParamArray, &pExchangeParam), code, line, _return, terrno)
-    pIter = taosHashIterate(pVtbScan->orgTbVgColMap, pIter);
+    pIter = taosHashIterate(pVtbScan->otbNameToOtbInfoMap, pIter);
   }
 
   SOperatorParam*  pExchangeParam = NULL;
@@ -2066,16 +2751,16 @@ int32_t virtualTableScanGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
   SOperatorInfo*             pVtbScanOp = pOperator->pDownstream[0];
 
-  pVtbScan->orgTbVgColMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-  QUERY_CHECK_NULL(pVtbScan->orgTbVgColMap, code, line, _return, terrno)
-  taosHashSetFreeFp(pVtbScan->orgTbVgColMap, destroyOrgTbInfo);
+  pVtbScan->otbNameToOtbInfoMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  QUERY_CHECK_NULL(pVtbScan->otbNameToOtbInfoMap, code, line, _return, terrno)
+  taosHashSetFreeFp(pVtbScan->otbNameToOtbInfoMap, destroySOrgTbInfo);
 
   while (true) {
     if (pVtbScan->curTableIdx == pVtbScan->lastTableIdx) {
       code = pVtbScanOp->fpSet.getNextFn(pVtbScanOp, pRes);
       QUERY_CHECK_CODE(code, line, _return);
     } else {
-      taosHashClear(pVtbScan->orgTbVgColMap);
+      taosHashClear(pVtbScan->otbNameToOtbInfoMap);
       SArray* pColRefInfo = NULL;
       if (pVtbScan->isSuperTable) {
         pColRefInfo = (SArray*)taosArrayGetP(pVtbScan->childTableList, pVtbScan->curTableIdx);
@@ -2118,8 +2803,8 @@ int32_t virtualTableScanGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   }
 
 _return:
-  taosHashCleanup(pVtbScan->orgTbVgColMap);
-  pVtbScan->orgTbVgColMap = NULL;
+  taosHashCleanup(pVtbScan->otbNameToOtbInfoMap);
+  pVtbScan->otbNameToOtbInfoMap = NULL;
   if (code) {
     qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
   }
@@ -2241,6 +2926,23 @@ int32_t initSeqStbJoinTableHash(SStbJoinPrevJoinCtx* pPrev, bool batchFetch) {
   return TSDB_CODE_SUCCESS;
 }
 
+static void updateDynTbUidIfNeeded(SVtbScanDynCtrlInfo* pVtbScan, SStreamRuntimeInfo* pStreamRuntimeInfo) {
+  if (pStreamRuntimeInfo == NULL) {
+    return;
+  }
+
+  SArray* vals = pStreamRuntimeInfo->funcInfo.pStreamPartColVals;
+  for (int32_t i = 0; i < taosArrayGetSize(vals); ++i) {
+    SStreamGroupValue* pValue = taosArrayGet(vals, i);
+    if (pValue != NULL && pValue->isTbname && pValue->uid != pVtbScan->dynTbUid) {
+      qTrace("dynQueryCtrl dyn tb uid:%" PRIu64 " reset to:%" PRIu64, pVtbScan->dynTbUid, pValue->uid);
+
+      pVtbScan->dynTbUid = pValue->uid;
+      break;
+    }
+  }
+}
+
 static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
                                SDynQueryCtrlPhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo) {
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -2249,6 +2951,9 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
   code = tsem_init(&pInfo->vtbScan.ready, 0, 0);
   QUERY_CHECK_CODE(code, line, _return);
 
+  pInfo->vtbScan.genNewParam = true;
+  pInfo->vtbScan.batchProcessChild = pPhyciNode->vtbScan.batchProcessChild;
+  pInfo->vtbScan.hasPartition = pPhyciNode->vtbScan.hasPartition;
   pInfo->vtbScan.scanAllCols = pPhyciNode->vtbScan.scanAllCols;
   pInfo->vtbScan.isSuperTable = pPhyciNode->vtbScan.isSuperTable;
   pInfo->vtbScan.rversion = pPhyciNode->vtbScan.rversion;
@@ -2274,15 +2979,8 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
     QUERY_CHECK_CODE(code, line, _return);
   }
 
-  if (pPhyciNode->dynTbname) {
-    SArray* vals = pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPartColVals;
-    for (int32_t i = 0; i < taosArrayGetSize(vals); ++i) {
-      SStreamGroupValue* pValue = taosArrayGet(vals, i);
-      if (pValue != NULL && pValue->isTbname) {
-        pInfo->vtbScan.dynTbUid = pValue->uid;
-        break;
-      }
-    }
+  if (pPhyciNode->dynTbname && pTaskInfo) {
+    updateDynTbUidIfNeeded(&pInfo->vtbScan, pTaskInfo->pStreamRuntimeInfo);
   }
 
   pInfo->vtbScan.readColList = taosArrayInit(LIST_LENGTH(pPhyciNode->vtbScan.pScanCols), sizeof(col_id_t));
@@ -2299,6 +2997,14 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
 
   pInfo->vtbScan.dbVgInfoMap = taosHashInit(taosArrayGetSize(pInfo->vtbScan.childTableList), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   QUERY_CHECK_NULL(pInfo->vtbScan.dbVgInfoMap, code, line, _return, terrno)
+
+  pInfo->vtbScan.otbNameToOtbInfoMap = NULL;
+  pInfo->vtbScan.otbVgIdToOtbInfoArrayMap = NULL;
+  pInfo->vtbScan.vtbUidToVgIdMapMap = NULL;
+  pInfo->vtbScan.vtbGroupIdToVgIdMapMap = NULL;
+  pInfo->vtbScan.vtbUidTagListMap = NULL;
+  pInfo->vtbScan.vtbGroupIdTagListMap = NULL;
+  pInfo->vtbScan.vtbUidToGroupIdMap = NULL;
 
   return code;
 _return:
@@ -2362,113 +3068,6 @@ static int32_t extractTsCol(SSDataBlock* pBlock, int32_t slotId, TSKEY** ppTsCol
   return code;
 _return:
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  return code;
-}
-
-static int32_t buildExternalWindowOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes, SArray* pWins, int32_t idx) {
-  int32_t                       code = TSDB_CODE_SUCCESS;
-  int32_t                       lino = 0;
-  SExternalWindowOperatorParam* pExtWinOp = NULL;
-
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
-
-  pExtWinOp = taosMemoryMalloc(sizeof(SExternalWindowOperatorParam));
-  QUERY_CHECK_NULL(pExtWinOp, code, lino, _return, terrno)
-
-  pExtWinOp->ExtWins = taosArrayDup(pWins, NULL);
-  QUERY_CHECK_NULL(pExtWinOp->ExtWins, code, lino, _return, terrno)
-
-  SExtWinTimeWindow *firstWin = (SExtWinTimeWindow *)taosArrayGet(pWins, 0);
-  SExtWinTimeWindow *lastWin = (SExtWinTimeWindow *)taosArrayGet(pWins, taosArrayGetSize(pWins) - 1);
-
-  (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
-  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
-
-  SOperatorParam* pExchangeOperator = NULL;
-  code = buildExchangeOperatorParamForExternalWindow(&pExchangeOperator, 0, firstWin->tw.skey, lastWin->tw.ekey);
-  QUERY_CHECK_CODE(code, lino, _return);
-  QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExchangeOperator), code, lino, _return, terrno)
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW;
-  (*ppRes)->downstreamIdx = idx;
-  (*ppRes)->value = pExtWinOp;
-  (*ppRes)->reUse = false;
-
-  return code;
-_return:
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  if (pExtWinOp) {
-    if (pExtWinOp->ExtWins) {
-      taosArrayDestroy(pExtWinOp->ExtWins);
-    }
-    taosMemoryFree(pExtWinOp);
-  }
-  if (*ppRes) {
-    if ((*ppRes)->pChildren) {
-      taosArrayDestroy((*ppRes)->pChildren);
-    }
-    taosMemoryFree(*ppRes);
-    *ppRes = NULL;
-  }
-  return code;
-}
-
-static int32_t buildMergeOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperatorParam** ppRes, SArray* pWins,
-                                       int32_t numOfDownstream, int32_t numOfWins) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SMergeOperatorParam*      pMergeOp = NULL;
-
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
-
-  (*ppRes)->pChildren = taosArrayInit(numOfDownstream, POINTER_BYTES);
-  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
-
-  pMergeOp = taosMemoryMalloc(sizeof(SMergeOperatorParam));
-  QUERY_CHECK_NULL(pMergeOp, code, lino, _return, terrno)
-
-  pMergeOp->winNum = numOfWins;
-
-  for (int32_t i = 0; i < numOfDownstream; i++) {
-    SOperatorParam* pExternalWinParam = NULL;
-    code = buildExternalWindowOperatorParam(pInfo, &pExternalWinParam, pWins, i);
-    QUERY_CHECK_CODE(code, lino, _return);
-    QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExternalWinParam), code, lino, _return, terrno)
-  }
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
-  (*ppRes)->downstreamIdx = 0;
-  (*ppRes)->value = pMergeOp;
-  (*ppRes)->reUse = false;
-
-  return TSDB_CODE_SUCCESS;
-_return:
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  if (pMergeOp) {
-    taosMemoryFree(pMergeOp);
-  }
-  if (*ppRes) {
-    if ((*ppRes)->pChildren) {
-      for (int32_t i = 0; i < taosArrayGetSize((*ppRes)->pChildren); i++) {
-        SOperatorParam* pChildParam = (SOperatorParam*)taosArrayGet((*ppRes)->pChildren, i);
-        if (pChildParam) {
-          SExternalWindowOperatorParam* pExtWinOp = (SExternalWindowOperatorParam*)pChildParam->value;
-          if (pExtWinOp) {
-            if (pExtWinOp->ExtWins) {
-              taosArrayDestroy(pExtWinOp->ExtWins);
-            }
-            taosMemoryFree(pExtWinOp);
-          }
-          taosMemoryFree(pChildParam);
-        }
-      }
-      taosArrayDestroy((*ppRes)->pChildren);
-    }
-    taosMemoryFree(*ppRes);
-    *ppRes = NULL;
-  }
   return code;
 }
 
@@ -2828,7 +3427,10 @@ _return:
 }
 
 static int32_t resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
-  SDynQueryCtrlOperatorInfo* pDyn = pOper->info;
+  SDynQueryCtrlOperatorInfo*    pDyn = pOper->info;
+  SDynQueryCtrlPhysiNode const* pPhyciNode = pOper->pPhyNode;
+  SExecTaskInfo*                pTaskInfo = pOper->pTaskInfo;
+
   pOper->status = OP_NOT_OPENED;
 
   switch (pDyn->qType) {
@@ -2853,10 +3455,10 @@ static int32_t resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
     case DYN_QTYPE_VTB_SCAN: {
       SVtbScanDynCtrlInfo* pVtbScan = &pDyn->vtbScan;
       
-      if (pVtbScan->orgTbVgColMap) {
-        taosHashSetFreeFp(pVtbScan->orgTbVgColMap, destroyOrgTbInfo);
-        taosHashCleanup(pVtbScan->orgTbVgColMap);
-        pVtbScan->orgTbVgColMap = NULL;
+      if (pVtbScan->otbNameToOtbInfoMap) {
+        taosHashSetFreeFp(pVtbScan->otbNameToOtbInfoMap, destroySOrgTbInfo);
+        taosHashCleanup(pVtbScan->otbNameToOtbInfoMap);
+        pVtbScan->otbNameToOtbInfoMap = NULL;
       }
       if (pVtbScan->pRsp) {
         tFreeSUsedbRsp(pVtbScan->pRsp);
@@ -2872,6 +3474,9 @@ static int32_t resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
       }
       if (pVtbScan->childTableList) {
         taosArrayClearEx(pVtbScan->childTableList, destroyColRefArray);
+      }
+      if (pPhyciNode->dynTbname && pTaskInfo) {
+        updateDynTbUidIfNeeded(pVtbScan, pTaskInfo->pStreamRuntimeInfo);
       }
       pVtbScan->curTableIdx = 0;
       pVtbScan->lastTableIdx = -1;
@@ -2900,6 +3505,198 @@ static int32_t resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
   return 0;
 }
 
+int32_t vtbAggOpen(SOperatorInfo* pOperator) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  int64_t                    st = 0;
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+
+  if (OPTR_IS_OPENED(pOperator)) {
+    return code;
+  }
+
+  if (pOperator->cost.openCost == 0) {
+    st = taosGetTimestampUs();
+  }
+
+  code = buildVirtualSuperTableScanChildTableMap(pOperator);
+  QUERY_CHECK_CODE(code, line, _return);
+  OPTR_SET_OPENED(pOperator);
+
+_return:
+  if (pOperator->cost.openCost == 0) {
+    pOperator->cost.openCost = (double)(taosGetTimestampUs() - st) / 1000.0;
+  }
+  if (code) {
+    qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
+    pOperator->pTaskInfo->code = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
+  }
+  return code;
+}
+
+int32_t virtualTableAggGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+  SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  SOperatorInfo*             pAggOp = pOperator->pDownstream[pOperator->numOfDownstream - 1];
+  SOperatorInfo*             pTagScanOp = pOperator->pDownstream[1];
+  SOperatorParam*            pAggParam = NULL;
+
+  if (pInfo->vtbScan.hasPartition) {
+    if (pInfo->vtbScan.batchProcessChild) {
+      void* pIter = taosHashIterate(pVtbScan->vtbGroupIdTagListMap, NULL);
+      while (pIter) {
+        size_t     keyLen = 0;
+        uint64_t   groupid = *(uint64_t*)taosHashGetKey(pIter, &keyLen);
+
+        code = buildAggOperatorParamWithGroupId(pInfo, groupid, &pAggParam);
+        QUERY_CHECK_CODE(code, line, _return);
+
+        if (pAggParam) {
+          code = pAggOp->fpSet.getNextExtFn(pAggOp, pAggParam, pRes);
+          QUERY_CHECK_CODE(code, line, _return);
+        } else {
+          *pRes = NULL;
+        }
+
+        pIter = taosHashIterate(pVtbScan->vtbGroupIdTagListMap, pIter);
+
+        if (*pRes) {
+          (*pRes)->info.id.groupId = groupid;
+          code = taosHashRemove(pVtbScan->vtbGroupIdTagListMap, &groupid, keyLen);
+          QUERY_CHECK_CODE(code, line, _return);
+          break;
+        }
+      }
+    } else {
+      void *pIter = taosHashIterate(pVtbScan->vtbGroupIdTagListMap, NULL);
+      while (pIter) {
+        size_t     keyLen = 0;
+        uint64_t*  groupid = (uint64_t*)taosHashGetKey(pIter, &keyLen);
+        SHashObj*  vtbUidTagListMap = *(SHashObj**)pIter;
+
+        void* pIter2 = taosHashIterate(vtbUidTagListMap, NULL);
+        while (pIter2) {
+          size_t   keyLen2 = 0;
+          tb_uid_t uid = *(tb_uid_t*)taosHashGetKey(pIter2, &keyLen2);
+          SArray*  pTagList = *(SArray**)pIter2;
+
+          if (pVtbScan->genNewParam) {
+            code = buildAggOperatorParamForSingleChild(pInfo, uid, *groupid, pTagList, &pAggParam);
+            QUERY_CHECK_CODE(code, line, _return);
+            if (pAggParam) {
+              code = pAggOp->fpSet.getNextExtFn(pAggOp, pAggParam, pRes);
+              QUERY_CHECK_CODE(code, line, _return);
+            } else {
+              *pRes = NULL;
+            }
+          } else {
+            code = pAggOp->fpSet.getNextFn(pAggOp, pRes);
+            QUERY_CHECK_CODE(code, line, _return);
+          }
+
+          if (*pRes) {
+            pVtbScan->genNewParam = false;
+            (*pRes)->info.id.groupId = *groupid;
+            break;
+          }
+          pVtbScan->genNewParam = true;
+          pIter2 = taosHashIterate(vtbUidTagListMap, pIter2);
+          code = taosHashRemove(vtbUidTagListMap, &uid, keyLen);
+          QUERY_CHECK_CODE(code, line, _return);
+        }
+        if (*pRes) {
+          break;
+        }
+        pIter = taosHashIterate(pVtbScan->vtbGroupIdTagListMap, pIter);
+        code = taosHashRemove(pVtbScan->vtbGroupIdTagListMap, groupid, keyLen);
+        QUERY_CHECK_CODE(code, line, _return);
+      }
+    }
+
+  } else {
+    if (pInfo->vtbScan.batchProcessChild) {
+      code = buildAggOperatorParam(pInfo, &pAggParam);
+      QUERY_CHECK_CODE(code, line, _return);
+
+      code = pAggOp->fpSet.getNextExtFn(pAggOp, pAggParam, pRes);
+      QUERY_CHECK_CODE(code, line, _return);
+      setOperatorCompleted(pOperator);
+    } else {
+      void* pIter = taosHashIterate(pVtbScan->vtbUidTagListMap, NULL);
+      while (pIter) {
+        size_t   keyLen = 0;
+        tb_uid_t uid = *(tb_uid_t*)taosHashGetKey(pIter, &keyLen);
+        SArray*  pTagList = *(SArray**)pIter;
+
+        if (pVtbScan->genNewParam) {
+          code = buildAggOperatorParamForSingleChild(pInfo, uid, 0, pTagList, &pAggParam);
+          QUERY_CHECK_CODE(code, line, _return);
+
+          if (pAggParam) {
+            code = pAggOp->fpSet.getNextExtFn(pAggOp, pAggParam, pRes);
+            QUERY_CHECK_CODE(code, line, _return);
+          } else {
+            *pRes = NULL;
+          }
+        } else {
+          code = pAggOp->fpSet.getNextFn(pAggOp, pRes);
+          QUERY_CHECK_CODE(code, line, _return);
+        }
+
+        if (*pRes) {
+          pVtbScan->genNewParam = false;
+          break;
+        }
+        pVtbScan->genNewParam = true;
+        pIter = taosHashIterate(pVtbScan->vtbUidTagListMap, pIter);
+        code = taosHashRemove(pVtbScan->vtbUidTagListMap, &uid, keyLen);
+        QUERY_CHECK_CODE(code, line, _return);
+      }
+    }
+  }
+_return:
+  if (code) {
+    qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
+  }
+  return code;
+}
+
+int32_t vtbAggNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+  SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+
+  QRY_PARAM_CHECK(pRes);
+  if (pOperator->status == OP_EXEC_DONE) {
+    return code;
+  }
+
+  code = pOperator->fpSet._openFn(pOperator);
+  QUERY_CHECK_CODE(code, line, _return);
+
+  if (pVtbScan->isSuperTable && taosArrayGetSize(pVtbScan->childTableList) == 0) {
+    setOperatorCompleted(pOperator);
+    return code;
+  }
+
+  code = virtualTableAggGetNext(pOperator, pRes);
+  QUERY_CHECK_CODE(code, line, _return);
+
+  return code;
+
+_return:
+  if (code) {
+    qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
+    pOperator->pTaskInfo->code = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
+  }
+  return code;
+}
+
 int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                        SDynQueryCtrlPhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo,
                                        SMsgCb* pMsgCb, SOperatorInfo** pOptrInfo) {
@@ -2916,6 +3713,7 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
   pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   QUERY_CHECK_NULL(pOperator, code, line, _error, terrno)
 
+  pOperator->pPhyNode = pPhyciNode;
   pTaskInfo->dynamicTask = (int8_t)pPhyciNode->node.dynamicOp;
 
   code = appendDownstream(pOperator, pDownstream, numOfDownstream);
@@ -2945,6 +3743,12 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
       QUERY_CHECK_CODE(code, line, _error);
       nextFp = vtbWindowNext;
       openFp = vtbWindowOpen;
+      break;
+    case DYN_QTYPE_VTB_AGG:
+      code = initVtbScanInfo(pInfo, pMsgCb, pPhyciNode, pTaskInfo);
+      QUERY_CHECK_CODE(code, line, _error);
+      nextFp = vtbAggNext;
+      openFp = vtbAggOpen;
       break;
     default:
       qError("unsupported dynamic query ctrl type: %d", pInfo->qType);

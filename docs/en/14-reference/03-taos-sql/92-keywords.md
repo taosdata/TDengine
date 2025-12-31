@@ -35,11 +35,13 @@ The list of keywords is as follows:
 | AS                   | |
 | ASC                  | |
 | ASOF                 | |
-| ASYNC                | 3.3.6.0+ |
-| AT_ONCE              | |
+| ASYNC                | 3.3.6.0 - 3.3.7.0 |
+| AT_ONCE              | 3.0.0.0 - 3.3.7.0 |
 | ATTACH               | |
 | AUTO                 | 3.3.5.0+ |
 | ASSIGN               | 3.3.6.0+ |
+| ALGR_NAME            | 3.4.0.0+ |
+| ALGR_TYPE            | 3.4.0.0+ |
 
 ### B
 
@@ -74,6 +76,7 @@ The list of keywords is as follows:
 | CACHE                | |
 | CACHEMODEL           | |
 | CACHESIZE            | |
+| CALC_NOTIFY_ONLY     | 3.3.7.0+ |
 | CASE                 | |
 | CAST                 | |
 | CHANGE               | |
@@ -92,6 +95,7 @@ The list of keywords is as follows:
 | COMPACT_TIME_OFFSET  | 3.3.5.0+ |
 | COMPACT_TIME_RANGE   | 3.3.5.0+ |
 | COMPOSITE            | 3.3.6.3+ |
+| COMPRESS             | |
 | CONCAT               | |
 | CONFLICT             | |
 | CONNECTION           | |
@@ -100,7 +104,7 @@ The list of keywords is as follows:
 | CONSUMER             | |
 | CONSUMERS            | |
 | CONTAINS             | |
-| CONTINUOUS_WINDOW_CLOSE | 3.3.6.0+ |
+| CONTINUOUS_WINDOW_CLOSE | 3.3.6.0 - 3.3.7.0 |
 | COPY                 | |
 | COUNT                | |
 | COUNT_WINDOW         | |
@@ -117,10 +121,13 @@ The list of keywords is as follows:
 | DATABASE             | |
 | DATABASES            | |
 | DBS                  | |
+| DB_KEY               | |
 | DECIMAL              | 3.3.6.0+ |
 | DEFERRED             | |
 | DELETE               | |
 | DELETE_MARK          | |
+| DELETE_OUTPUT_TABLE  | 3.3.7.0+ |
+| DELETE_RECALC        | 3.3.7.0+ |
 | DELIMITERS           | |
 | DESC                 | |
 | DESCRIBE             | |
@@ -142,18 +149,24 @@ The list of keywords is as follows:
 |----------------------|-|
 | EACH                 | |
 | ELSE                 | |
+| ENCODE               | |
 | ENABLE               | |
 | ENCRYPT_ALGORITHM    | |
 | ENCRYPT_KEY          | |
+| ENCRYPT_STATUS       | |
 | ENCRYPTIONS          | |
 | END                  | |
 | EQ                   | |
+| EVENT_TYPE           | 3.3.7.0+ |
 | EVENT_WINDOW         | |
 | EVERY                | |
 | EXCEPT               | |
 | EXISTS               | |
-| EXPIRED              | |
+| EXPIRED              | 3.0.0.0 - 3.3.7.0 |
+| EXPIRED_TIME         | 3.3.7.0+ |
 | EXPLAIN              | |
+| ENCRYPT_ALGORITHMS   | 3.4.0.0+ |
+| ENCRYPT_ALGR         | 3.4.0.0+ |
 
 ### F
 
@@ -164,13 +177,15 @@ The list of keywords is as follows:
 | FILE                 | |
 | FILL                 | |
 | FILL_HISTORY         | |
+| FILL_HISTORY_FIRST   | 3.3.7.0+ |
 | FIRST                | |
 | FLOAT                | |
 | FLOW                 | 3.3.4.3+ |
 | FLUSH                | |
 | FOR                  | |
 | FORCE                | |
-| FORCE_WINDOW_CLOSE   | 3.3.4.3+ |
+| FORCE_OUTPUT         | 3.3.7.0+ |
+| FORCE_WINDOW_CLOSE   | 3.3.4.3 - 3.3.7.0 |
 | FROM                 | |
 | FROWTS               | 3.3.4.3+ |
 | FULL                 | |
@@ -204,6 +219,8 @@ The list of keywords is as follows:
 | ID                   | |
 | IF                   | |
 | IGNORE               | |
+| IGNORE_DISORDER      | 3.3.7.0+ |
+| IGNORE_NODATA_TRIGGER| 3.3.7.0+ |
 | ILLEGAL              | |
 | IMMEDIATE            | |
 | IMPORT               | |
@@ -213,6 +230,7 @@ The list of keywords is as follows:
 | INITIALLY            | |
 | INNER                | |
 | INSERT               | |
+| INSTANCES            | |
 | INSTEAD              | |
 | INT                  | |
 | INTEGER              | |
@@ -226,6 +244,7 @@ The list of keywords is as follows:
 | IS_IMPORT            | |
 | ISFILLED             | |
 | ISNULL               | |
+| IS_AUDIT             | 3.3.9.0+ |
 
 ### J
 
@@ -260,8 +279,10 @@ The list of keywords is as follows:
 | LIKE                 | |
 | LIMIT                | |
 | LINEAR               | |
+| LOCK                 | |
 | LOCAL                | |
 | LOGS                 | |
+| LOW_LATENCY_CALC     | 3.3.7.0+ |
 | LP                   | |
 | LSHIFT               | |
 | LT                   | |
@@ -284,11 +305,14 @@ The list of keywords is as follows:
 | MNODES               | |
 | MODIFY               | |
 | MODULES              | |
+| MOUNT                | |
+| MOUNTS               | |
 
 ### N
 
 |Keyword|Description|
 |----------------------|-|
+| NEAR                 | |
 | NCHAR                | |
 | NE                   | |
 | NEXT                 | |
@@ -298,6 +322,7 @@ The list of keywords is as follows:
 | NOT                  | |
 | NOTIFY               | 3.3.6.0+ |
 | NOTIFY_HISTORY       | 3.3.6.0+ |
+| NOTIFY_OPTIONS       | 3.3.7.0+ |
 | NOTNULL              | |
 | NOW                  | |
 | NULL                 | |
@@ -312,11 +337,15 @@ The list of keywords is as follows:
 | OFFSET               | |
 | ON                   | |
 | ONLY                 | |
-| ON_FAILURE           | 3.3.6.0+ |
+| ON_FAILURE           | 3.3.6.0 - 3.3.7.0 |
+| ON_FAILURE_PAUSE     | 3.3.7.0+ |
+| OPTIONS              | 3.3.7.0+ |
 | OR                   | |
 | ORDER                | |
 | OUTER                | |
+| OUTPUT_SUBTABLE      | 3.3.7.0+ |
 | OUTPUTTYPE           | |
+| OSSL_ALGR_NAME       | 3.4.0.0+ |
 
 ### P
 
@@ -327,11 +356,13 @@ The list of keywords is as follows:
 | PARTITION            | |
 | PASS                 | |
 | PAUSE                | |
+| PERIOD               | 3.3.7.0+ |
 | PI                   | |
 | PLUS                 | |
 | PORT                 | |
 | POSITION             | |
 | PPS                  | |
+| PRE_FILTER           | 3.3.7.0+ |
 | PRECISION            | |
 | PREV                 | |
 | PRIMARY              | |
@@ -362,10 +393,13 @@ The list of keywords is as follows:
 | RANGE                | |
 | RATIO                | |
 | READ                 | |
+| RECALCULATE          | |
 | RECURSIVE            | |
 | REGEXP               | 3.3.6.0+ |
 | REDISTRIBUTE         | |
+| RELOAD               | |
 | REM                  | |
+| RENAME               | |
 | REPLACE              | |
 | REPLICA              | |
 | REPLICAS             | 3.3.7.0+ |
@@ -373,6 +407,7 @@ The list of keywords is as follows:
 | RESTORE              | |
 | RESTRICT             | |
 | RESUME               | |
+| RETENTION            | |
 | RETENTIONS           | |
 | REVOKE               | |
 | RIGHT                | |
@@ -381,11 +416,16 @@ The list of keywords is as follows:
 | ROWTS                | |
 | RP                   | |
 | RSHIFT               | |
+| ROLE                 | |
+| ROLES                | |
+| RSMA                 | |
+| RSMAS                | |
 
 ### S
 
 |Keyword|Description|
 |----------------------|-|
+| S3MIGRATE            | |
 | SCHEMALESS           | |
 | SCORES               | |
 | SELECT               | |
@@ -410,6 +450,7 @@ The list of keywords is as follows:
 | SS_COMPACT           | |
 | SS_KEEPLOCAL         | |
 | SSMIGRATE            | |
+| SSMIGRATES           | |
 | STABLE               | |
 | STABLES              | |
 | STAR                 | |
@@ -417,6 +458,7 @@ The list of keywords is as follows:
 | STATE                | |
 | STATE_WINDOW         | |
 | STATEMENT            | |
+| STOP                 | |
 | STORAGE              | |
 | STREAM               | |
 | STREAMS              | |
@@ -427,7 +469,8 @@ The list of keywords is as follows:
 | SUBSCRIPTIONS        | |
 | SUBSTR               | |
 | SUBSTRING            | |
-| SUBTABLE             | |
+| SUBTABLE             | 3.0.0.0 - 3.3.7.0 |
+| SVR_KEY              | |
 | SYSINFO              | |
 | SYSTEM               | |
 
@@ -449,12 +492,14 @@ The list of keywords is as follows:
 | TINYINT              | |
 | TO                   | |
 | TODAY                | |
+| TOKEN                | |
+| TOKENS               | |
 | TOPIC                | |
 | TOPICS               | |
 | TRAILING             | |
 | TRANSACTION          | |
 | TRANSACTIONS         | |
-| TRIGGER              | |
+| TRIGGER              | 3.0.0.0 - 3.3.7.0 |
 | TRIM                 | |
 | TRUE_FOR             | 3.3.6.0+ |
 | TSDB_PAGESIZE        | |
@@ -469,6 +514,7 @@ The list of keywords is as follows:
 |----------------------|-|
 | UNION                | |
 | UNSAFE               | |
+| UNLOCK               | |
 | UNSIGNED             | |
 | UNTREATED            | |
 | UPDATE               | |
@@ -487,14 +533,19 @@ The list of keywords is as follows:
 | VARBINARY            | |
 | VARCHAR              | |
 | VARIABLE             | |
+| VTABLE               | |
+| VTABLES              | |
 | VARIABLES            | |
 | VERBOSE              | |
 | VGROUP               | |
 | VGROUPS              | |
 | VIEW                 | |
 | VIEWS                | |
+| VIRTUAL              | |
 | VNODE                | |
 | VNODES               | |
+| VTABLE               | |
+| VTABLES              | |
 
 ### W
 
@@ -515,6 +566,7 @@ The list of keywords is as follows:
 | WINDOW               | |
 | WINDOW_CLOSE         | |
 | WINDOW_OFFSET        | |
+| WINDOW_OPEN          | 3.3.7.0+ |
 | WITH                 | |
 | WRITE                | |
 | WSTART               | |

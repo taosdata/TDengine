@@ -112,7 +112,7 @@ QUERY_PLAN:          -> Table Scan on tb1 (columns=2 width=12 order=[asc|1 desc|
 *************************** 5.row ***************************
 QUERY_PLAN:    -> Aggregate (functions=3 width=16 input_order=desc )
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Data Exchange 1:1 (width=20)
+QUERY_PLAN:       -> Data Exchange 1:1 (width=16)
 *************************** 7.row ***************************
-QUERY_PLAN:          -> Last Row Scan on tb1 (columns=2 pseudo_columns=2 width=20 )
+QUERY_PLAN:          -> Last Row Scan on tb1 (columns=1 pseudo_columns=2 width=16 )
 

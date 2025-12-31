@@ -114,6 +114,8 @@ typedef struct SParseContext {
   SStmtCallback*   pStmtCb;
   const char*      pUser;
   const char*      pEffectiveUser;
+  int64_t          userId;
+  int64_t          effectiveUserId;
   bool             topicQuery;
   bool             parseOnly;
   bool             isSuperUser;
@@ -193,7 +195,8 @@ int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bi
                                 int32_t colIdx, int32_t rowNum, void* charsetCxt);
 int32_t qBuildStmtColFields(void* pDataBlock, int32_t* fieldNum, TAOS_FIELD_E** fields);
 int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, SSHashObj* parsedCols, uint8_t tbNameFlag,
-                               int32_t* fieldNum, TAOS_FIELD_ALL** fields);
+                               int32_t* fieldNum, TAOS_FIELD_ALL** fields, int32_t* placeholderOfTags,
+                               int32_t* placeholderOfCols);
 int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TAOS_FIELD_E** fields);
 int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
                            TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);

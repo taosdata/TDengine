@@ -82,6 +82,8 @@ typedef struct SStreamInserterParam {
   int8_t    tbType;
   char*     dbFName;
   void*     pSinkHandle;
+  SArray*   colCids;
+  SArray*   tagCids;
 } SStreamInserterParam;
 
 typedef struct SStreamVtableDeployInfo {
@@ -127,8 +129,7 @@ bool    qNeedReset(qTaskInfo_t pInfo);
  * @param SReadHandle
  * @return
  */
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
-                                     uint64_t id);
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, uint64_t id);
 
 int32_t qGetColumnsFromNodeList(void* data, bool isList, SArray** pColList);
 SSDataBlock* createDataBlockFromDescNode(void* pNode);
@@ -181,7 +182,7 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
  */
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
-                        EOPTR_EXEC_MODEL model);
+                        EOPTR_EXEC_MODEL model, SArray* subEndPoints);
 
 /**
  *
@@ -309,9 +310,16 @@ int32_t streamForceOutput(qTaskInfo_t tInfo, SSDataBlock** pRes, int32_t winIdx)
 int32_t streamCalcOneScalarExpr(SNode* pExpr, SScalarParam* pDst, const SStreamRuntimeFuncInfo* pExtraParams);
 int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t rowStartIdx, int32_t rowEndIdx,  const SStreamRuntimeFuncInfo* pExtraParams);
 void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
-
+void    setTaskScalarExtraInfo(qTaskInfo_t tinfo);
 int32_t dropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq);
 int32_t dropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
+int32_t qSemWait(qTaskInfo_t pTask, tsem_t* pSem);
+
+int32_t getTaskCode(void* pTaskInfo);
+bool    isTaskKilled(void* pTaskInfo);
+
+
+int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid);
 
 #ifdef __cplusplus
 }

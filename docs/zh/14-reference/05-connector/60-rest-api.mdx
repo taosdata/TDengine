@@ -84,7 +84,7 @@ http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_m
 
 例如：`http://h1.taos.com:6041/rest/sql/test` 是指向地址为 `h1.taos.com:6041` 的 URL，并将默认使用的数据库库名设置为 `test`。
 
-HTTP 请求的 Header 里需带有身份认证信息，TDengine TSDB 支持 Basic 认证与自定义认证两种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
+HTTP 请求的 Header 里需带有身份认证信息，TDengine TSDB 支持 Basic 认证、Token 认证与自定义认证三种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
 
 - [自定义身份认证信息](#自定义授权码)如下所示：
 
@@ -96,6 +96,12 @@ HTTP 请求的 Header 里需带有身份认证信息，TDengine TSDB 支持 Basi
 
   ```text
   Authorization: Basic <TOKEN>
+  ```
+
+- Token 身份认证信息如下所示：
+
+  ```text
+  Authorization: Bearer <TOKEN>
   ```
 
 HTTP 请求的 BODY 里就是一个完整的 SQL 语句，SQL 语句中的数据表应提供数据库前缀，例如 db_name.tb_name。如果表名不带数据库前缀，又没有在 URL 中指定数据库名的话，系统会返回错误。因为 HTTP 模块只是一个简单的转发，没有当前 DB 的概念。
@@ -435,6 +441,36 @@ curl --location 'http://<fqdn>:<port>/rest/sql' \
 }
 ```
 
+## token 认证
+
+TDengine TSDB 从 3.4.0.0 版本开始支持 token 认证机制，token 认证机制与 Basic 认证机制类似，区别在于 token 认证机制使用的授权码 `<TOKEN>` 是由 TDengine TSDB 服务器端生成并分发给客户端的，而不是由客户端通过 Base64 编码生成的。
+
+HTTP 请求的 Header 里需带有身份认证信息，Token 认证信息如下所示：
+
+```text
+Authorization: Bearer <TOKEN>
+```
+
+TOKEN 使用 SQL 语句 `CREATE TOKEN` 创建，具体见 [令牌管理](../../taos-sql/user/#令牌管理)。
+
+样例：
+
+1. 创建 token：
+
+    ```bash
+    taos> create token root_token from user root\G;
+    *************************** 1.row ***************************
+    token: bjUvkeBfqFsrXBSj8QjnORJcN0nyA6vdkLNAbkI2MhbWPt289OnIQcZHDIDa8SR
+    ```
+
+2. 使用 token 进行查询：
+
+    ```bash
+    curl -L -H "Authorization: Bearer bjUvkeBfqFsrXBSj8QjnORJcN0nyA6vdkLNAbkI2MhbWPt289OnIQcZHDIDa8SR" \
+      -d "select name, ntables, status from information_schema.ins_databases;" \
+      h1.taosdata.com:6041/rest/sql
+    ```
+
 ## 自定义授权码
 
 HTTP 请求中需要带有授权码 `<TOKEN>`，用于身份识别。授权码通常由管理员提供，可简单的通过发送 `HTTP GET` 请求来获取授权码，操作如下：
@@ -570,7 +606,7 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
 #### TDengine TSDB 2.x 响应代码和消息体
 
-```JSON
+```json
 {
   "status": "succ",
   "head": [

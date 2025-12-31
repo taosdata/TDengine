@@ -60,6 +60,7 @@ typedef struct {
   int8_t   connType;
   char     label[TSDB_LABEL_LEN];
   char     user[TSDB_UNI_LEN];  // meter ID
+  char     identifier[128];     // token or user
   int32_t  compatibilityVer;
   int32_t  compressSize;  // -1: no compress, 0 : all data compressed, size: compress data if larger than size
   int8_t   encryption;    // encrypt or not
@@ -95,11 +96,18 @@ typedef struct {
   int8_t        startReadTimer;
   int64_t       readTimeout;
   int8_t        ipv6;
+  int8_t        enableSasl;
   TdThreadMutex mutex;
 
-  void* pSSLContext;  // SSL context for mTLS
   int8_t enableSSL;
 
+  // void* pSSLContext;  // SSL context for mTLS
+  // void* pNewSSLContext;  // SSL context for mTLS update version  
+  
+  // int32_t loadTlsCount;   
+  // int8_t tlsLoading;
+  int8_t isToken;
+  void *pTlsMgt;
 } SRpcInfo;
 #else
 void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);

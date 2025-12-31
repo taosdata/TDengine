@@ -515,14 +515,17 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_WINDOW_OFFSET:
       code = makeNode(type, sizeof(SWindowOffsetNode), &pNode);
       break;
+    case QUERY_NODE_RANGE_AROUND:
+      code = makeNode(type, sizeof(SRangeAroundNode), &pNode);
+      break;
     case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
       code = makeNode(type, sizeof(SStreamNotifyOptions), &pNode);
       break;
+    case QUERY_NODE_REMOTE_VALUE:
+      code = makeNode(type, sizeof(SRemoteValueNode), &pNode);
+      break;
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
-      break;
-    case QUERY_NODE_RANGE_AROUND:
-      code = makeNode(type, sizeof(SRangeAroundNode), &pNode);
       break;
     case QUERY_NODE_SELECT_STMT:
       code = makeNode(type, sizeof(SSelectStmt), &pNode);
@@ -601,11 +604,26 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_CREATE_USER_STMT:
       code = makeNode(type, sizeof(SCreateUserStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT:
+      code = makeNode(type, sizeof(SCreateEncryptAlgrStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:
+      code = makeNode(type, sizeof(SDropEncryptAlgrStmt), &pNode);
+      break;
     case QUERY_NODE_ALTER_USER_STMT:
       code = makeNode(type, sizeof(SAlterUserStmt), &pNode);
       break;
     case QUERY_NODE_DROP_USER_STMT:
       code = makeNode(type, sizeof(SDropUserStmt), &pNode);
+      break;
+    case QUERY_NODE_CREATE_ROLE_STMT:
+      code = makeNode(type, sizeof(SCreateRoleStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_ROLE_STMT:
+      code = makeNode(type, sizeof(SDropRoleStmt), &pNode);
+      break;
+    case QUERY_NODE_ALTER_ROLE_STMT:
+      code = makeNode(type, sizeof(SAlterRoleStmt), &pNode);
       break;
     case QUERY_NODE_USE_DATABASE_STMT:
       code = makeNode(type, sizeof(SUseDatabaseStmt), &pNode);
@@ -636,6 +654,18 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_BNODE_OPTIONS:
       code = makeNode(type, sizeof(SBnodeOptions), &pNode);
+      break;
+    case QUERY_NODE_DATE_TIME_RANGE:
+      code = makeNode(type, sizeof(SDateTimeRangeNode), &pNode);
+      break;
+    case QUERY_NODE_IP_RANGE:
+      code = makeNode(type, sizeof(SIpRangeNode), &pNode);
+      break;
+    case QUERY_NODE_USER_OPTIONS:
+      code = makeNode(type, sizeof(SUserOptions), &pNode);
+      break;
+    case QUERY_NODE_TOKEN_OPTIONS:
+      code = makeNode(type, sizeof(STokenOptions), &pNode);
       break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = makeNode(type, sizeof(SCreateIndexStmt), &pNode);
@@ -734,6 +764,15 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_TRIM_DATABASE_WAL_STMT:
       code = makeNode(type, sizeof(STrimDbWalStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_TOKEN_STMT:
+      code = makeNode(type, sizeof(SCreateTokenStmt), &pNode);
+      break;
+    case QUERY_NODE_ALTER_TOKEN_STMT:
+      code = makeNode(type, sizeof(SAlterTokenStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_TOKEN_STMT:
+      code = makeNode(type, sizeof(SDropTokenStmt), &pNode);
+      break;
     case QUERY_NODE_MERGE_VGROUP_STMT:
       code = makeNode(type, sizeof(SMergeVgroupStmt), &pNode);
       break;
@@ -774,6 +813,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_VTABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_USERS_FULL_STMT:
+    case QUERY_NODE_SHOW_ROLES_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
@@ -788,6 +828,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_VIEWS_STMT:
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
@@ -799,6 +841,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_RSMAS_STMT:
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
     case QUERY_NODE_SHOW_INSTANCES_STMT:
+    case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
+    case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
       code = makeNode(type, sizeof(SShowStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -848,6 +892,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_SHOW_SSMIGRATES_STMT:
       code = makeNode(type, sizeof(SShowSsMigratesStmt), &pNode);
+      break;
+    case QUERY_NODE_SHOW_TOKENS_STMT:
+      code = makeNode(type, sizeof(SShowTokensStmt), &pNode);
       break;
     case QUERY_NODE_KILL_QUERY_STMT:
       code = makeNode(type, sizeof(SKillQueryStmt), &pNode);
@@ -1078,6 +1125,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_SCORES_STMT:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
+    case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
+      code = makeNode(type, sizeof(SAlterDnodeStmt), &pNode);
+      break;
+    case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
+      code = makeNode(type, sizeof(SAlterEncryptKeyStmt), &pNode);
+      break;
     default:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
@@ -1178,6 +1231,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_COLUMN:
       destroyExprNode((SExprNode*)pNode);
       break;
+    case QUERY_NODE_REMOTE_VALUE: 
     case QUERY_NODE_VALUE: {
       SValueNode* pValue = (SValueNode*)pNode;
       destroyExprNode((SExprNode*)pNode);
@@ -1483,6 +1537,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
+      nodesDestroyList(pStmt->pSubQueries);
       nodesDestroyList(pStmt->pProjectionList);
       nodesDestroyNode(pStmt->pLeft);
       nodesDestroyNode(pStmt->pRight);
@@ -1492,6 +1547,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pStmt = (SSelectStmt*)pNode;
+      nodesDestroyList(pStmt->pSubQueries);
       nodesDestroyNode(pStmt->pTimeRange);
       nodesDestroyList(pStmt->pProjectionList);
       nodesDestroyList(pStmt->pProjectionBindList);
@@ -1645,23 +1701,33 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_CREATE_USER_STMT: {
       SCreateUserStmt* pStmt = (SCreateUserStmt*)pNode;
       taosMemoryFree(pStmt->pIpRanges);
-      nodesDestroyList(pStmt->pNodeListIpRanges);
+      taosMemoryFree(pStmt->pTimeRanges);
+      break;
+    }
+    case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT: {
       break;
     }
     case QUERY_NODE_ALTER_USER_STMT: {
       SAlterUserStmt* pStmt = (SAlterUserStmt*)pNode;
-      taosMemoryFree(pStmt->pIpRanges);
-      nodesDestroyList(pStmt->pNodeListIpRanges);
+      nodesDestroyNode((SNode*)pStmt->pUserOptions);
+      break;
+    }
+    case QUERY_NODE_ALTER_TOKEN_STMT: {
+      SAlterTokenStmt* pStmt = (SAlterTokenStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->pTokenOptions);
+      break;
     }
     case QUERY_NODE_DROP_USER_STMT:     // no pointer field
     case QUERY_NODE_USE_DATABASE_STMT:  // no pointer field
     case QUERY_NODE_CREATE_DNODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_DNODE_STMT:    // no pointer field
     case QUERY_NODE_ALTER_DNODE_STMT:   // no pointer field
+    case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:  // no pointer field
     case QUERY_NODE_CREATE_ANODE_STMT:  // no pointer field
     case QUERY_NODE_UPDATE_ANODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_ANODE_STMT:    // no pointer field
     case QUERY_NODE_DROP_BNODE_STMT:    // no pointer field
+    case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:     // no pointer field
       break;
     case QUERY_NODE_CREATE_BNODE_STMT: {
       SBnodeOptions* pOptions = ((SCreateBnodeStmt*)pNode)->pOptions;
@@ -1671,6 +1737,18 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_BNODE_OPTIONS: {
       SBnodeOptions* pOptions = (SBnodeOptions*)pNode;
       // nodesDestroyList(pOptions->pProtocol);
+      break;
+    }
+    case QUERY_NODE_DATE_TIME_RANGE:  // no pointer field
+    case QUERY_NODE_IP_RANGE:         // no pointer field
+    case QUERY_NODE_TOKEN_OPTIONS:    // no pointer field
+      break;
+    case QUERY_NODE_USER_OPTIONS: {
+      SUserOptions* opts = (SUserOptions*)pNode;
+      nodesDestroyList(opts->pIpRanges);
+      nodesDestroyList(opts->pDropIpRanges);
+      nodesDestroyList(opts->pTimeRanges);
+      nodesDestroyList(opts->pDropTimeRanges);
       break;
     }
     case QUERY_NODE_CREATE_INDEX_STMT: {
@@ -1762,15 +1840,19 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pTrigger);
       break;
     }
-    case QUERY_NODE_DROP_STREAM_STMT:                     // no pointer field
+    case QUERY_NODE_DROP_STREAM_STMT:
+      nodesDestroyList(((SDropStreamStmt*)pNode)->pStreamList);
+      break;
     case QUERY_NODE_PAUSE_STREAM_STMT:                    // no pointer field
     case QUERY_NODE_RESUME_STREAM_STMT:                   // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_STMT:                  // no pointer field
-    case QUERY_NODE_ASSIGN_LEADER_STMT: 
+    case QUERY_NODE_ASSIGN_LEADER_STMT:                   // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:           // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:  // no pointer field
-    case QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT:          // no pointer field
+    case QUERY_NODE_SET_VGROUP_KEEP_VERSION_STMT:         // no pointer field
     case QUERY_NODE_TRIM_DATABASE_WAL_STMT:               // no pointer field
+    case QUERY_NODE_CREATE_TOKEN_STMT:                    // no pointer field
+    case QUERY_NODE_DROP_TOKEN_STMT:                      // no pointer field
     case QUERY_NODE_MERGE_VGROUP_STMT:                    // no pointer field
       break;
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
@@ -1780,10 +1862,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SYNCDB_STMT:        // no pointer field
       break;
     case QUERY_NODE_GRANT_STMT:
-      nodesDestroyNode(((SGrantStmt*)pNode)->pTagCond);
+      nodesDestroyNode(((SGrantStmt*)pNode)->pCond);
       break;
     case QUERY_NODE_REVOKE_STMT:
-      nodesDestroyNode(((SRevokeStmt*)pNode)->pTagCond);
+      nodesDestroyNode(((SRevokeStmt*)pNode)->pCond);
       break;
     case QUERY_NODE_ALTER_CLUSTER_STMT:  // no pointer field
       break;
@@ -1806,6 +1888,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_VTABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_USERS_FULL_STMT:
+    case QUERY_NODE_SHOW_ROLES_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
@@ -1821,11 +1904,15 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_ROLE_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_ROLE_COL_PRIVILEGES_STMT:
     case QUERY_NODE_SHOW_VIEWS_STMT:
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
+    case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
+    case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
     case QUERY_NODE_SHOW_TSMAS_STMT:
     case QUERY_NODE_SHOW_USAGE_STMT:
     case QUERY_NODE_SHOW_MOUNTS_STMT:
@@ -1863,6 +1950,8 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_SHOW_SSMIGRATES_STMT:
+      break;
+    case QUERY_NODE_SHOW_TOKENS_STMT:
       break;
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT: {
       SShowTransactionDetailsStmt* pStmt = (SShowTransactionDetailsStmt*)pNode;
@@ -1972,6 +2061,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pLogicNode->pExtScanRange);
       nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pExtTimeRange);
+      nodesDestroyNode(pLogicNode->pPrimaryCond);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -2111,7 +2201,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL: {
       SDynQueryCtrlLogicNode* pLogicNode = (SDynQueryCtrlLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
-      if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN) {
+      if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN || pLogicNode->qType == DYN_QTYPE_VTB_AGG) {
         taosMemoryFreeClear(pLogicNode->vtbScan.pVgroupList);
         nodesDestroyList(pLogicNode->vtbScan.pOrgVgIds);
       }
@@ -2172,6 +2262,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pPhyNode->pExtScanRange);
       nodesDestroyNode(pPhyNode->pTimeRange);
       nodesDestroyNode(pPhyNode->pExtTimeRange);
+      nodesDestroyNode(pPhyNode->pPrimaryCond);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
@@ -2349,7 +2440,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
       SDynQueryCtrlPhysiNode* pPhyNode = (SDynQueryCtrlPhysiNode*)pNode;
-      if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN) {
+      if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN || pPhyNode->qType == DYN_QTYPE_VTB_AGG) {
         nodesDestroyList(pPhyNode->vtbScan.pScanCols);
         nodesDestroyList(pPhyNode->vtbScan.pOrgVgIds);
       }
@@ -2380,6 +2471,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN:
       nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
+      nodesDestroyList(((SQueryPlan*)pNode)->pChildren);
       break;
     default:
       break;
@@ -2444,6 +2536,7 @@ int32_t nodesListMakeStrictAppend(SNodeList** pList, SNode* pNode) {
   if (NULL == *pList) {
     int32_t code = nodesMakeList(pList);
     if (NULL == *pList) {
+      nodesDestroyNode(pNode);
       return code;
     }
   }
@@ -2729,6 +2822,87 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+int32_t nodesSetValueNodeValueExt(SValueNode* pNode, void* value, bool* needFree) {
+  *needFree = true;
+  
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL:
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+      pNode->datum.b = *(bool*)value;
+      *(bool*)&pNode->typeData = pNode->datum.b;
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      pNode->datum.i = *(int8_t*)value;
+      *(int8_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      pNode->datum.i = *(int16_t*)value;
+      *(int16_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_INT:
+      pNode->datum.i = *(int32_t*)value;
+      *(int32_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      pNode->datum.i = *(int64_t*)value;
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      pNode->datum.i = *(int64_t*)value;
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      pNode->datum.u = *(int8_t*)value;
+      *(int8_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      pNode->datum.u = *(int16_t*)value;
+      *(int16_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      pNode->datum.u = *(int32_t*)value;
+      *(int32_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      pNode->datum.u = *(uint64_t*)value;
+      *(uint64_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      pNode->datum.d = *(float*)value;
+      *(float*)&pNode->typeData = pNode->datum.d;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      pNode->datum.d = *(double*)value;
+      *(double*)&pNode->typeData = pNode->datum.d;
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+    case TSDB_DATA_TYPE_GEOMETRY:
+      pNode->datum.p = (char*)value;
+      *needFree = false;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      pNode->datum.i = *(int64_t*)value;
+      pNode->typeData = *(int64_t*)value;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL:
+      pNode->datum.p = (char*)value;
+      *needFree = false;
+      break;
+    default:
+      return TSDB_CODE_APP_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 char* nodesGetStrValueFromNode(SValueNode* pNode) {
   switch (pNode->node.resType.type) {
     case TSDB_DATA_TYPE_BOOL: {
@@ -2808,7 +2982,8 @@ char* nodesGetStrValueFromNode(SValueNode* pNode) {
 bool nodesIsExprNode(const SNode* pNode) {
   ENodeType type = nodeType(pNode);
   return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type ||
-          QUERY_NODE_FUNCTION == type || QUERY_NODE_LOGIC_CONDITION == type || QUERY_NODE_CASE_WHEN == type);
+          QUERY_NODE_FUNCTION == type || QUERY_NODE_LOGIC_CONDITION == type || QUERY_NODE_CASE_WHEN == type ||
+          QUERY_NODE_REMOTE_VALUE == type || QUERY_NODE_SELECT_STMT == type || QUERY_NODE_SET_OPERATOR == type);
 }
 
 bool nodesIsUnaryOp(const SOperatorNode* pOp) {
@@ -3078,7 +3253,8 @@ int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashOb
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols) {
+int32_t nodesCollectColumnsFromMultiNodes(SNode** pNodes, int32_t numNodes, const char* pTableAlias,
+                                          ECollectColType type, SNodeList** pCols) {
   if (NULL == pCols) {
     return TSDB_CODE_FAILED;
   }
@@ -3101,7 +3277,12 @@ int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, EColle
   }
   *pCols = NULL;
 
-  nodesWalkExpr(node, collectColumns, &cxt);
+  for (int32_t i = 0; i < numNodes; ++i) {
+    nodesWalkExpr(pNodes[i], collectColumns, &cxt);
+    if (TSDB_CODE_SUCCESS != cxt.errCode) {
+      break;
+    }
+  }
 
   taosHashCleanup(cxt.pColHash);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
@@ -3115,6 +3296,10 @@ int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, EColle
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols) {
+  return nodesCollectColumnsFromMultiNodes(&node, 1, pTableAlias, type, pCols);
 }
 
 typedef struct SCollectFuncsCxt {
@@ -3801,4 +3986,40 @@ void tFreeStreamVtbDbVgInfo(void* param) {
 
   tSimpleHashCleanup(*ppHash);
 }
+
+
+bool nodesIsScalarSubQuery(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      return pSelect->subQType == E_SUB_QUERY_SCALAR;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      return pSet->subQType == E_SUB_QUERY_SCALAR;
+    }
+    default:
+      break;
+  }
+
+  return false;
+}
+
+char* nodesGetSubSql(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      return pSelect->node.userAlias;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      return pSet->node.userAlias;
+    }
+    default:
+      break;
+  }
+
+  return NULL;
+}
+
 

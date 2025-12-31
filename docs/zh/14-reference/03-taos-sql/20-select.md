@@ -306,7 +306,7 @@ TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
 
 ## INTERP
 
-interp 子句是 INTERP 函数 (../function/#interp) 的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句 (window_clause)、分组子句 (group_by_clause) 也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用。
+interp 子句是 [INTERP 函数](../function/#interp) 的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句 (window_clause)、分组子句 (group_by_clause) 也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用。
 
 - INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。
@@ -526,6 +526,20 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
     - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：PERCENTILE。
 
 :::
+
+## 非相关标量子查询
+
+非相关标量子查询是 SQL 中一种独立可执行的子查询类型，其核心特征为仅返回单个值（一行一列），且执行过程完全不依赖外层查询的任何字段，任何符合这一特征的查询语句都可以作为非相关标量子查询，也可以在查询语句的任意子句、函数、表达式中使用非相关标量子查询，只要语法定义为表达式的部分均可以使用非相关标量子查询，非相关标量子查询也可以嵌套使用。
+非相关标量子查询可以先独立计算出结果，再将该结果代入外层查询作为筛选条件或参考值，常用于基于聚合值（如平均值、最大值）的过滤或多表查询结果结合的场景，执行效率高于相关子查询。
+
+从 3.4.0.0 版本开始，TDengine TSDB 开始在查询语句中支持非相关标量子查询，其他语句（流计算、订阅、DDL、DML 等）暂不支持。
+
+以出现在 SELECT、WHERE 子句中的非相关标量子查询示例如下：
+
+```sql
+SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
+SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
+```
 
 ## UNION 子句
 

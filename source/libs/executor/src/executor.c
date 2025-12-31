@@ -40,6 +40,12 @@ static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
 int32_t             exchangeObjRefPool = -1;
 SGlobalExecInfo     gExecInfo = {0};
 
+void setTaskScalarExtraInfo(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  gTaskScalarExtra.pSubJobCtx = &pTaskInfo->subJobCtx;
+  gTaskScalarExtra.fp = qFetchRemoteValue;
+}
+
 void gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f getMnode) {
   gExecInfo.dnode = pDnode;
   gExecInfo.getMnode = getMnode;
@@ -203,8 +209,7 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
   return code;
 }
 
-qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, int32_t* numOfCols,
-                                     uint64_t id) {
+qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int32_t vgId, uint64_t id) {
   if (msg == NULL) {  // create raw scan
     SExecTaskInfo* pTaskInfo = NULL;
 
@@ -227,28 +232,17 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* pReaderHandle, int3
   SSubplan* pPlan = NULL;
   int32_t   code = qStringToSubplan(msg, &pPlan);
   if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to parse subplan from msg, msg:%s code:%s", (char*) msg, tstrerror(code));
     terrno = code;
     return NULL;
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(pReaderHandle, vgId, 0, pPlan, &pTaskInfo, NULL, 0, NULL, OPTR_EXEC_MODEL_QUEUE);
+  code = qCreateExecTask(pReaderHandle, vgId, 0, pPlan, &pTaskInfo, NULL, 0, NULL, OPTR_EXEC_MODEL_QUEUE, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     qDestroyTask(pTaskInfo);
     terrno = code;
     return NULL;
-  }
-
-  // extract the number of output columns
-  SDataBlockDescNode* pDescNode = pPlan->pNode->pOutputDataBlockDesc;
-  *numOfCols = 0;
-
-  SNode* pNode;
-  FOREACH(pNode, pDescNode->pSlots) {
-    SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
-    if (pSlotDesc->output) {
-      ++(*numOfCols);
-    }
   }
 
   return pTaskInfo;
@@ -298,7 +292,7 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
   qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
 
-  code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
+  code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, NULL);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
     qError("failed to createExecTaskInfo, code:%s", tstrerror(code));
     goto _error;
@@ -507,14 +501,14 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
     }
 
     if (t->check == 1) {
-      STableKeyInfo info = {.groupId = 0, .uid = t->childUid};
-      code = isQualifiedTable(&info, pScanInfo->pTagCond, pScanInfo->readHandle.vnode, &qualified, pAPI);
+      code = isQualifiedTable(t->childUid, pScanInfo->pTagCond, pScanInfo->readHandle.vnode, &qualified, pAPI);
       if (code != TSDB_CODE_SUCCESS) {
-        qError("failed to filter new table, uid:0x%" PRIx64 ", %s", info.uid, idstr);
+        qError("failed to filter new table, uid:0x%" PRIx64 ", %s", t->childUid, idstr);
         continue;
       }
 
       if (!qualified) {
+        qInfo("table uid:0x%" PRIx64 " is unqualified for tag condition, %s", t->childUid, idstr);
         continue;
       }
     }
@@ -699,21 +693,50 @@ int32_t qExecutorInit(void) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qSemWait(qTaskInfo_t task, tsem_t* pSem) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SExecTaskInfo* pTask = (SExecTaskInfo*)task;
+  if (pTask->pWorkerCb) {
+    code = pTask->pWorkerCb->beforeBlocking(pTask->pWorkerCb->pPool);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTask->code = code;
+      return pTask->code;
+    }
+  }
+
+  code = tsem_wait(pSem);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    pTask->code = code;
+    return pTask->code;
+  }
+
+  if (pTask->pWorkerCb) {
+    code = pTask->pWorkerCb->afterRecoverFromBlocking(pTask->pWorkerCb->pPool);
+    if (code != TSDB_CODE_SUCCESS) {
+      pTask->code = code;
+      return pTask->code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
-                        EOPTR_EXEC_MODEL model) {
+                        EOPTR_EXEC_MODEL model, SArray* subEndPoints) {
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
   (void)taosThreadOnce(&initPoolOnce, initRefPool);
 
-  qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d", taskId, pSubplan->id.queryId, vgId);
+  qDebug("start to create task, TID:0x%" PRIx64 " QID:0x%" PRIx64 ", vgId:%d, subEndPoinsNum:%d", 
+    taskId, pSubplan->id.queryId, vgId, (int32_t)taosArrayGetSize(subEndPoints));
 
   readHandle->uid = 0;
-  int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
+  int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model, subEndPoints);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
     qError("failed to createExecTaskInfo, code:%s", tstrerror(code));
     goto _error;
   }
-
+    
   if (handle) {
     SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50, .compress = compressResult};
     void*           pSinkManager = NULL;
@@ -750,8 +773,8 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     }
   }
 
-  qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64 " code:%s", taskId, pSubplan->id.queryId,
-         tstrerror(code));
+  qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64 " code:%s subEndPoints:%d", 
+    taskId, pSubplan->id.queryId, tstrerror(code), (int32_t)taosArrayGetSize((*pTask)->subJobCtx.subEndPoints));
 
 _error:
   // if failed to add ref for all tables in this query, abort current query
@@ -1028,6 +1051,16 @@ void qRemoveTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo) {
 }
 
 void qStopTaskOperators(SExecTaskInfo* pTaskInfo) {
+  if (pTaskInfo->subJobCtx.hasSubJobs) {
+    taosWLockLatch(&pTaskInfo->subJobCtx.lock);
+    if (pTaskInfo->subJobCtx.param) {
+      ((SScalarFetchParam*)pTaskInfo->subJobCtx.param)->pSubJobCtx = NULL;
+    }
+    pTaskInfo->subJobCtx.code = pTaskInfo->code;
+    int32_t code = tsem_post(&pTaskInfo->subJobCtx.ready);
+    taosWUnLockLatch(&pTaskInfo->subJobCtx.lock);
+  }
+  
   taosWLockLatch(&pTaskInfo->stopInfo.lock);
 
   int32_t num = taosArrayGetSize(pTaskInfo->stopInfo.pStopInfo);
@@ -1140,6 +1173,7 @@ static void printTaskExecCostInLog(SExecTaskInfo* pTaskInfo) {
            pSummary->elapsedTime / 1000.0);
   }
 }
+
 
 void qDestroyTask(qTaskInfo_t qTaskHandle) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qTaskHandle;
@@ -1510,6 +1544,7 @@ end:
 void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   if (pMsg->info.ahandle == NULL) {
+    rpcFreeCont(pMsg->pCont);
     qError("pMsg->info.ahandle is NULL");
     return;
   }
@@ -1956,7 +1991,9 @@ int32_t streamCalcOneScalarExprInRange(SNode* pExpr, SScalarParam* pDst, int32_t
       code = terrno;
     }
     if (code == 0) {
-      code = scalarCalculateInRange(pSclNode, pBlockList, pDst, rowStartIdx, rowEndIdx, pExtraParams, NULL);
+      gTaskScalarExtra.pStreamInfo = (void*)pExtraParams;
+      gTaskScalarExtra.pStreamRange = NULL;
+      code = scalarCalculateInRange(pSclNode, pBlockList, pDst, rowStartIdx, rowEndIdx, &gTaskScalarExtra);
     }
     taosArrayDestroy(pBlockList);
   }
@@ -2141,6 +2178,14 @@ void destroyStreamInserterParam(SStreamInserterParam* pParam) {
       taosArrayDestroy(pParam->pTagFields);
       pParam->pTagFields = NULL;
     }
+    if (pParam->colCids) {
+      taosArrayDestroy(pParam->colCids);
+      pParam->colCids = NULL;
+    }
+    if (pParam->tagCids) {
+      taosArrayDestroy(pParam->tagCids);
+      pParam->tagCids = NULL;
+    }
     taosMemFree(pParam);
   }
 }
@@ -2183,6 +2228,20 @@ int32_t cloneStreamInserterParam(SStreamInserterParam** ppDst, SStreamInserterPa
     (*ppDst)->pTagFields = NULL;
   }
 
+  if (pSrc->colCids && pSrc->colCids->size > 0) {
+    (*ppDst)->colCids = taosArrayDup(pSrc->colCids, NULL);
+    TSDB_CHECK_NULL((*ppDst)->colCids, code, lino, _exit, terrno);
+  } else {
+    (*ppDst)->colCids = NULL;
+  }
+
+  if (pSrc->tagCids && pSrc->tagCids->size > 0) {
+    (*ppDst)->tagCids = taosArrayDup(pSrc->tagCids, NULL);
+    TSDB_CHECK_NULL((*ppDst)->tagCids, code, lino, _exit, terrno);
+  } else {
+    (*ppDst)->tagCids = NULL;
+  }
+
 _exit:
 
   if (code != 0) {
@@ -2202,4 +2261,44 @@ int32_t dropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pRe
 
 int32_t dropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName) {
   return doDropStreamTableByTbName(pMsgCb, pOutput, pReq, tbName);
+}
+
+int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  STableListInfo* pList = tableListCreate();
+  if (pList == NULL) {
+    code = terrno;
+    goto end;
+  }
+  // SArray* uidListCopy = taosArrayDup(uidList, NULL);
+  // if (uidListCopy == NULL) {
+  //   code = terrno;
+  //   goto end;
+  // }
+
+  SNode* pTagCond = node == NULL ? NULL : ((SSubplan*)node)->pTagCond;
+  pList->idInfo.suid = suid;
+  pList->idInfo.tableType = TD_SUPER_TABLE;
+  code = doFilterTableByTagCond(pVnode, pList, uidList, pTagCond, &((SExecTaskInfo*)pTaskInfo)->storageAPI);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }                                              
+  // taosArrayClear(uidList);
+  // for (int32_t i = 0; i < taosArrayGetSize(uidListCopy); i++){
+  //   void* tmp = taosArrayGet(uidListCopy, i);
+  //   if (tmp == NULL) {
+  //     continue;
+  //   }
+  //   int32_t* slot = taosHashGet(pList->map, tmp, LONG_BYTES);
+  //   if (slot == NULL) {
+  //     if (taosArrayPush(uidList, tmp) == NULL) {
+  //       code = terrno;
+  //       goto end;
+  //     }
+  //   }
+  // }
+end:
+  // taosArrayDestroy(uidListCopy);
+  tableListDestroy(pList);
+  return code;
 }

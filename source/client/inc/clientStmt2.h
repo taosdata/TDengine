@@ -104,7 +104,8 @@ typedef struct {
   bool              bindRowFormat;
   bool              fixValueTags;
   SVCreateTbReq    *fixValueTbReq;
-
+  int32_t           placeholderOfTags;
+  int32_t           placeholderOfCols;
   SStbInterlaceInfo siInfo;
 } SStmtSQLInfo2;
 /*
@@ -247,7 +248,7 @@ extern char *gStmt2StatusStr[];
   do {                                                                                              \
     (pStmt)->seqId++;                                                                               \
     (pStmt)->seqIds[n]++;                                                                           \
-    STMT2_DLOG("switch status %dth:%d %s", (pStmt)->seqIds[n], (pStmt)->seqId, gStmt2StatusStr[n]); \
+    STMT2_TLOG("switch status %dth:%d %s", (pStmt)->seqIds[n], (pStmt)->seqId, gStmt2StatusStr[n]); \
   } while (0)
 
 TAOS_STMT2 *stmtInit2(STscObj *taos, TAOS_STMT2_OPTION *pOptions);
