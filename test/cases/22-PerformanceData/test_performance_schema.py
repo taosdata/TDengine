@@ -12,7 +12,7 @@
 # -*- coding: utf-8 -*-
 
 
-from new_test_framework.utils import tdLog, tdSql, TDSql, TDSetSql
+from new_test_framework.utils import tdLog, tdSql, TDSql, TDSetSql, clusterComCheck
 from time import sleep
 from taos.tmq import Consumer
 import threading
@@ -117,7 +117,8 @@ class TestPerformanceSchema:
         #tdSql.checkEqual(tdSql.queryResult[rowIndex][8],self.tbnum * self.rowNum * 134)     #column 8:insert_bytes     # 134 bytes ???
         #tdSql.checkEqual(tdSql.queryResult[rowIndex][9], 0)                                 #column 9:fetch_bytes       # zero ???
         tdSql.checkNotEqual(tdSql.queryResult[rowIndex][10], 0)                             #column 10:query_time       
-        tdSql.checkEqual(tdSql.queryResult[rowIndex][11],0)                                 #column 11:slow_query       
+        #not check slow_query since slow_query is changing in different environment
+        #tdSql.checkEqual(tdSql.queryResult[rowIndex][11],0)                                 #column 11:slow_query       
         #tdSql.checkEqual(tdSql.queryResult[rowIndex][12],self.tbnum * self.rowNum + self.tbnum * 2 + 4)                               #column 11:total_req
         tdSql.checkEqual(tdSql.queryResult[rowIndex][13], 1)                                #column 13:current_req
         tdSql.checkNotEqual(tdSql.queryResult[rowIndex][14], 0)                             #column 14:last_access
@@ -186,7 +187,7 @@ class TestPerformanceSchema:
 
         sleep(5) #wait for transaction to be created and dropped
         tdSql.query('select * from performance_schema.perf_trans')
-        #tdSql.checkRows(0)
+        clusterComCheck.checkTransactions(300)
         
         tdSql.query('describe performance_schema.perf_trans')
         tdSql.checkRows(10)

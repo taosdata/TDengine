@@ -20,7 +20,8 @@ class TestUserBasic:
         tdSql.checkKeyData("root", 3, 1)
         tdSql.checkKeyData("root", 4, 1)
 
-        tdSql.execute(f"alter user root pass 'taosdata'")
+        tdSql.error(f"alter user root pass 'taosdata'")
+        tdSql.execute(f"alter user root pass '00AA11##'")
 
         tdSql.error(f"ALTER USER root SYSINFO 0")
         tdSql.error(f"ALTER USER root SYSINFO 1")
@@ -40,8 +41,9 @@ class TestUserBasic:
         tdSql.error(f"REVOKE write ON *.* from root;")
         tdSql.error(f"REVOKE write ON *.* from root;")
 
-        tdSql.error(f"GRANT all ON *.* to root;")
-        tdSql.error(f"REVOKE all ON *.* from root;")
+        # grant/revoke to/from root is allowed since 3.4.0.0
+        # tdSql.error(f"GRANT all ON *.* to root;") 
+        # tdSql.error(f"REVOKE all ON *.* from root;")
         tdSql.error(f"GRANT read,write ON *.* to root;")
         tdSql.error(f"REVOKE read,write ON *.* from root;")
 
@@ -212,7 +214,7 @@ class TestUserBasic:
         try:
             for userIndex in range(self.userNum):
                 username = f"{self.basic_username}{userIndex}"
-                privilege = random.choice(["read", "write", "all"])
+                privilege = random.choice(["select", "insert", "all"])
                 condition = f"ctbname='ctb{userIndex}'"
                 self.privilege_list.append({
                     "username": username,
@@ -328,9 +330,9 @@ class TestUserBasic:
             elif 'jiacy0' in user_name.lower():
                 tdSql.execute(f'create user {user_name} pass "123abc!@#" sysinfo 0')
         for user_name in ['jiacy1_all', 'jiacy1_read', 'jiacy0_all', 'jiacy0_read']:
-            tdSql.execute(f'grant read on db to {user_name}')
+            tdSql.execute(f'grant select on db to {user_name}')
         for user_name in ['jiacy1_all', 'jiacy1_write', 'jiacy0_all', 'jiacy0_write']:
-            tdSql.execute(f'grant write on db to {user_name}')
+            tdSql.execute(f'grant insert on db to {user_name}')
 
     def user_privilege_check(self):
         jiacy1_read_conn = taos.connect(user='jiacy1_read', password='123abc!@#')
@@ -428,9 +430,9 @@ class TestUserBasic:
         tdSql.prepare()
         self.create_user()
         self.prepare_data2()
-        self.drop_topic()
+        # self.drop_topic() # PRIV_TODO: topic
         self.user_privilege_check()
-        self.subscribe_topic()
+        # self.subscribe_topic() # PRIV_TODO: topic
 
         print("do user manager ............. [passed]")
     

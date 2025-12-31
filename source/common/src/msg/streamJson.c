@@ -87,6 +87,7 @@ static int32_t jsonToSessionTrigger(const SJson* pJson, void* pObj) {
 
 static const char* jkStateTriggerSlotId           = "slotId";
 static const char* jkStateTriggerExtend           = "extend";
+static const char* jkStateTriggerZeroth           = "zeroth";
 static const char* jkStateTriggerTrueForDuration  = "trueForDuration";
 static const char* jkStateTriggerExpr             = "expr";
 static int32_t stateTriggerToJson(const void* pObj, SJson* pJson) {
@@ -95,6 +96,10 @@ static int32_t stateTriggerToJson(const void* pObj, SJson* pJson) {
     pJson, jkStateTriggerSlotId, pTrigger->slotId));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkStateTriggerExtend, pTrigger->extend));
+  if (NULL != pTrigger->zeroth) {
+    TAOS_CHECK_RETURN(tjsonAddStringToObject(
+      pJson, jkStateTriggerZeroth, (const char*)pTrigger->zeroth));
+  }
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkStateTriggerTrueForDuration, pTrigger->trueForDuration));
   if (NULL != pTrigger->expr) {
@@ -110,6 +115,8 @@ static int32_t jsonToStateTrigger(const SJson* pJson, void* pObj) {
     tjsonGetSmallIntValue(pJson, jkStateTriggerSlotId, &pTrigger->slotId));
   TAOS_CHECK_RETURN(
     tjsonGetSmallIntValue(pJson, jkStateTriggerExtend, &pTrigger->extend));
+  TAOS_CHECK_RETURN(tjsonDupStringValue(
+    pJson, jkStateTriggerZeroth, (char**)&pTrigger->zeroth));
   TAOS_CHECK_RETURN(tjsonGetBigIntValue(
     pJson, jkStateTriggerTrueForDuration, &pTrigger->trueForDuration));
   TAOS_CHECK_RETURN(tjsonDupStringValue(

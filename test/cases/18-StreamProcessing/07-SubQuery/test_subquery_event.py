@@ -468,11 +468,11 @@ class TestStreamSubqueryEvent:
 
         stream = StreamItem(
             id=38,
-            stream="create stream rdb.s38 event_window(start with c2=0 end with c2=10) from tdb.triggers partition by tbname into rdb.r38 as select _twstart ts, _irowts, _isfilled, interp(c1), _irowtsorigin, _twend, _twduration, _twrownum from %%trows RANGE(_twend) FILL(linear);",
-            res_query="select * from rdb.r38 where tag_tbname='t1' limit 1",
-            exp_query="select _irowts , _isfilled , interp(c1) from tdb.t1 RANGE('2025-01-01 00:05:00.000') FILL(linear);",
+            stream="create stream rdb.s38 event_window(start with c2=0 end with c2=10) from tdb.triggers partition by tbname into rdb.r38 as select _twstart ts, _irowts, _isfilled, interp(c1), _twend, _twduration, _twrownum from %%trows RANGE(_twend) FILL(linear);",
+            res_query="select `_irowts`, `_isfilled`, `interp(c1)`, `_twrownum` from rdb.r38 where tag_tbname='t1' limit 1",
+            exp_query="select _irowts , _isfilled , interp(c1), 2 from tdb.t1 RANGE('2025-01-01 00:01:00.000') FILL(linear);",
         )
-        # self.streams.append(stream) TD-36112 forbidden
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=39,
@@ -606,11 +606,11 @@ class TestStreamSubqueryEvent:
 
         stream = StreamItem(
             id=55,
-            stream="create stream rdb.s55 event_window(start with c2=0 end with c2=10) from tdb.t1 into rdb.r55 as select _irowts , _isfilled , _irowts_origin, interp(cts), interp(cint), interp(cuint), interp(cbigint), interp(cubigint), interp(cfloat), interp(cdouble), interp(csmallint), interp(cusmallint), interp(ctinyint) from qdb.meters partition by %%1 RANGE(_twstart) fill(linear)",
-            res_query="select * from rdb.r55",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s55 event_window(start with c2=0 end with c2=10) from tdb.t1 into rdb.r55 as select _irowts , _isfilled , _irowts_origin, interp(cint), interp(cuint), interp(cbigint), interp(cubigint), interp(cfloat), interp(cdouble), interp(csmallint), interp(cusmallint), interp(ctinyint) from qdb.meters where tbname='t1' RANGE(_twstart + 1s) fill(near)",
+            res_query="select * from rdb.r55 limit 3",
+            exp_query="select _wstart + 1s, true, _wstart, first(cint), first(cuint), first(cbigint), first(cubigint), first(cfloat), first(cdouble), first(csmallint), first(cusmallint), first(ctinyint) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' and tbname='t1' interval(5m);",
         )
-        # self.streams.append(stream) TD-36112 forbidden
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=56,
@@ -630,19 +630,19 @@ class TestStreamSubqueryEvent:
 
         stream = StreamItem(
             id=58,
-            stream="create stream rdb.s58 event_window(start with c2=0 end with c2=10) from tdb.triggers partition by tbname into rdb.r58 as select interp(cbigint) from qdb.v1 where ctinyint > 0 and cint > 2 RANGE('2025-01-01 00:02:00.000', '2025-01-01 00:08:00.000') EVERY (1m) FILL(linear) limit 50;",
-            res_query="select * from rdb.r58",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s58 event_window(start with c2=0 end with c2=10) from tdb.triggers partition by tbname into rdb.r58 as select _irowts, interp(cbigint), _isfilled from qdb.v1 where ctinyint > 0 and cint > 2 RANGE('2025-01-01 00:02:00.000', '2025-01-01 00:08:00.000') EVERY (1m) FILL(linear) limit 50;",
+            res_query="select * from rdb.r58 where tag_tbname='t1'",
+            exp_query="select _wstart, first(cbigint), false, 't1' from qdb.v1 where cts >= '2025-01-01 00:02:00.000' and cts <= '2025-01-01 00:08:00.000' and tbname='v1' partition by tbname interval(1m);",
         )
-        # self.streams.append(stream) TD-36112 forbidden
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=59,
-            stream="create stream rdb.s59 event_window(start with c2=0 end with c2=10) from tdb.triggers partition by id into rdb.r59 as select interp(csmallint) from qdb.meters partition by tbname where ctinyint > 0 and cint > 2 RANGE('2025-01-01 00:02:00.000') EVERY (1m) FILL(linear)",
-            res_query="select * from rdb.r59",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s59 event_window(start with c2=0 end with c2=10) from tdb.triggers partition by tbname into rdb.r59 as select _irowts, interp(csmallint), _isfilled from qdb.meters where ctinyint > 0 and cint > 2 partition by tbname RANGE('2025-01-01 00:02:01.000') EVERY (1m) FILL(next)",
+            res_query="select * from rdb.r59 where tag_tbname='t1'",
+            exp_query="select timestamp '2025-01-01 00:02:01.000', last(csmallint), true, tbname from qdb.meters where cts >= '2025-01-01 00:02:00.000' and cts <= '2025-01-01 00:02:30.000' and tbname='t1' partition by tbname;",
         )
-        # self.streams.append(stream) TD-36112 forbidden
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=60,
@@ -1231,6 +1231,15 @@ class TestStreamSubqueryEvent:
             exp_query="select tb.cts tbts, ta.ts tats, ta.c1 tac1, ta.c2 tac2, tb.cint tbc1, tb.cuint tbc2 from tdb.t1 ta right join qdb.t1 tb on ta.ts=tb.cts where tb.cts >= '2025-01-01 00:00:00.000' and tb.cts < '2025-01-01 00:15:00.000';",
         )
         self.streams.append(stream)
+
+        stream = StreamItem(
+            id=133,
+            stream="create stream rdb.s133 event_window(start with c2=0 end with c2=10) from tdb.triggers partition by tbname into rdb.r133 as select _twstart ts, APERCENTILE(cint, 25) c1, AVG(cuint) c2, SUM(cint) c3, COUNT(cbigint) c4, ELAPSED(cts) c5, HYPERLOGLOG(cdouble) c6, LEASTSQUARES(csmallint, 1, 2) c7, SPREAD(ctinyint) c8, STDDEV(cutinyint) c9, STDDEV_POP(cfloat) c10, SUM(cdecimal8) c11, VAR_POP(cbigint) c12, PERCENTILE(cint, 25) c13 from qdb.meters where tbname = 't1' and cts >= _twstart and cts < _twstart + 5m;",
+            res_query="select ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c12, c13 from rdb.r133 where tag_tbname='t1' limit 3",
+            exp_query="select _wstart, APERCENTILE(cint, 25), AVG(cuint), SUM(cint), COUNT(cbigint), 270000, HYPERLOGLOG(cdouble), LEASTSQUARES(csmallint, 1, 2), SPREAD(ctinyint), STDDEV(cutinyint), STDDEV_POP(cfloat), VAR_POP(cbigint), PERCENTILE(cint, 25) from qdb.t1 where cts >='2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' interval(5m);",
+        )
+        #self.streams.append(stream)
+
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:

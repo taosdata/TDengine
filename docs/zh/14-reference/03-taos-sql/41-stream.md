@@ -29,7 +29,7 @@ trigger_type: {
   | SLIDING(sliding_val[, offset_time]) 
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col [, extend]) [TRUE_FOR(duration_time)] 
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
   | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(duration_time)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
@@ -144,13 +144,14 @@ SESSION(ts_col, session_val)
 ##### 状态窗口触发
 
 ```sql
-STATE_WINDOW(col [, extend]) [TRUE_FOR(duration_time)] 
+STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
 ```
 
 状态窗口触发是指对触发表的写入数据按照状态窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。各参数含义如下：
 
 - col：状态列的列名。
 - extend：可选，窗口开始结束时的扩展策略：extend 值为 0 时，窗口开始、结束时间为该状态的第一条、最后一条数据对应的时间戳；extend 值为 1 时，窗口开始时间不变，窗口结束时间向后扩展至下一个窗口开始之前；extend 值为 2 时，窗口开始时间向前扩展至上一个窗口结束之后，窗口结束时间不变。
+- zeorth_state：可选，指定“零状态”，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置 zeroth_extend 数值时，extend 值为强制输入项，不允许留空或省略。
 - duration_time：可选，指定窗口的最小持续时长，如果某个窗口的时长低于该设定值，则会自动舍弃，不产生触发。
 
 使用说明：
@@ -596,7 +597,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME}
 仅删除流式计算任务，由流式计算写入的数据不会被删除。
 
 ```sql
-DROP STREAM [IF EXISTS] [db_name.]stream_name;
+DROP STREAM [IF EXISTS] [db_name.]stream_name [, [db_name.]stream_name] ...
 ```
 
 ## 查看流式计算
@@ -822,7 +823,7 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 
 - 暂不支持按普通数据列分组的场景。
 - 暂不支持 `Geometry` 数据类型。
-- 暂不支持 `Interp`、`Percentile`、`Forecast` 和 UDF 函数。
+- 暂不支持 UDF 函数。
 - 暂不支持在 `NOTIFY_OPTIONS` 中使用 `ON_FAILURE_PAUSE` 选项。
 - 暂不支持 `Windows` 平台。
 

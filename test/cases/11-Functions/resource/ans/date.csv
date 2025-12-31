@@ -15,12 +15,16 @@ taos> select date(-1000)
  1970-01-01                     |
 
 taos> select date(1000.0)
+
+DB error: Invalid parameter data type : date [0x80002802] 
 taos> select date(cast(timestamp"2025-08-11 23:03:39" as bigint))
  date(cast(timestamp"2025-08-11 23:03:39" as bigint)) |
 =======================================================
  2025-08-11                                           |
 
 taos> select date(timestamp\"2025-08-11 23:03:39\")
+
+DB error: unrecognized token: "\"2025-08-11 23:03:39\")" [0x80002600] 
 taos> select date("2025-08-11 12:00:02.000")
  date("2025-08-11 12:00:02.000") |
 ==================================
@@ -32,6 +36,8 @@ taos> select date("9999-12-31")
  9999-12-31                     |
 
 taos> select cast(date(timestamp\"2025-08-11 23:03:39\") as bigint)
+
+DB error: unrecognized token: "\"2025-08-11 23:03:39\") as bigint)" [0x80002600] 
 taos> select to_timestamp(date("2025-08-21T12:00:00+0800"), "yyyy-mm-dd")
  to_timestamp(date("2025-08-21T12:00:00+0800"), "yyyy-mm-dd") |
 ===============================================================
@@ -103,3 +109,5 @@ taos> select groupid, date(last(ts)) from ts_4893.meters group by groupid
        1 | 2027-01-15                     |
 
 taos> select groupid, date(ts - 1d) from ts_4893.meters group by groupid
+
+DB error: Not a GROUP BY expression [0x8000260A] 

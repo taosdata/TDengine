@@ -53,6 +53,7 @@
 (void)mndGetOrCreateRebSub
 (void)mndPullupArbUpdateGroupBatch
 (void)mndRefreshUserIpWhiteList
+(void)mndRefreshUserDateTimeWhiteList
 (void)mndSendArbHeartBeatReq
 (void)mndUpdClusterInfo
 (void)mndUpdateArbHeartBeat

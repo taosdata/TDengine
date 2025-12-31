@@ -74,6 +74,7 @@ class TestStreamSchema:
                 tdLog.info("Stream is running!")
                 break
             
+            tdLog.debug(f"current stream status: {tdSql.getData(0,0)}")
             time.sleep(1)
     
     def insertCheckData1(self):
@@ -107,6 +108,7 @@ class TestStreamSchema:
                 tdLog.info("get 6 rows")
                 break
             
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
             time.sleep(1)
 
         tdLog.info(f"check create/insert ctable successfully.")
@@ -132,7 +134,7 @@ class TestStreamSchema:
             if tdSql.getData(0,0) == 5:
                 tdLog.info("get 5 rows")
                 break
-            
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
             time.sleep(1)
 
         while True:
@@ -141,6 +143,7 @@ class TestStreamSchema:
                 tdLog.info("get 2 rows where tag_tbname='t2'")
                 break
             
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
             time.sleep(1)
 
         tdLog.info(f"check drop/create ctable successfully.")
@@ -166,6 +169,7 @@ class TestStreamSchema:
                 tdLog.info("get 6 rows")
                 break
             
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
             time.sleep(1)
 
         tdSql.query(f"select * from db.stb_out where `avg(c0)`=23")
@@ -195,6 +199,7 @@ class TestStreamSchema:
                 tdLog.info("get 8 rows")
                 break
             
+            tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
             time.sleep(1)
 
         tdSql.query(f"select * from db.stb_out where `avg(c0)`=23")

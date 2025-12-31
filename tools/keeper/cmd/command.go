@@ -181,13 +181,13 @@ func (cmd *Command) TransferTaosdDnodesDataDirs() error {
 }
 
 func (cmd *Command) TransferTaosdMnodesInfo() error {
-	sql := "select cluster_id, mnode_id, mnode_ep, CASE role WHEN 'offline' THEN 0 WHEN 'follower' THEN 100 WHEN 'candidate' THEN 101 WHEN 'leader' THEN 102 WHEN 'learner' THEN 104 ELSE 103 END as role, ts from m_info a where "
+	sql := "select cluster_id, mnode_id, mnode_ep, CASE `role` WHEN 'offline' THEN 0 WHEN 'follower' THEN 100 WHEN 'candidate' THEN 101 WHEN 'leader' THEN 102 WHEN 'learner' THEN 104 ELSE 103 END as `role`, ts from m_info a where "
 	dstTable := "taosd_mnodes_info"
 	return cmd.TransferTableToDst(sql, dstTable, 3)
 }
 
 func (cmd *Command) TransferTaosdVnodesInfo() error {
-	sql := "select cluster_id, 0 as vgroup_id, 'UNKNOWN' as database_name, dnode_id, CASE vnode_role WHEN 'offline' THEN 0 WHEN 'follower' THEN 100 WHEN 'candidate' THEN 101 WHEN 'leader' THEN 102 WHEN 'learner' THEN 104 ELSE 103 END as role, ts from vnodes_role a where "
+	sql := "select cluster_id, 0 as vgroup_id, 'UNKNOWN' as database_name, dnode_id, CASE vnode_role WHEN 'offline' THEN 0 WHEN 'follower' THEN 100 WHEN 'candidate' THEN 101 WHEN 'leader' THEN 102 WHEN 'learner' THEN 104 ELSE 103 END as `role`, ts from vnodes_role a where "
 	dstTable := "taosd_vnodes_info"
 	return cmd.TransferTableToDst(sql, dstTable, 4)
 }

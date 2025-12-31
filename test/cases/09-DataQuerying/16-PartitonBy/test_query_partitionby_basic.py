@@ -568,16 +568,14 @@ class TestPartitionByBasic:
             ts = self.ts + i*10000
             tdSql.execute(f"create table {tbname} using {self.dbname}.{self.stable} tags ({ts} , {i} , %d ,%d , %f , 1 , 2, 'true', 'binary_{i}' ,'nchar_{i}',{i},{i},10,20 )"%(i*10,i*1.0,i*1.0))
 
-    def insert_db(self, tb_nums, row_nums):
-        sql = "insert into "
+    def insert_db(self, tb_nums, row_nums):           
         for i in range(tb_nums):
             tbname = f"{self.dbname}.sub_{self.stable}_{i}"
             ts_base = self.ts + i*10000
-            sql += f" {tbname} values"
             for row in range(row_nums):
                 ts = ts_base + row*1000
-                sql += f" ({ts} , {row} , {row} , {row} , {row} , 1 , 2 , 'true' , 'binary_{row}' , 'nchar_{row}' , {row} , {row} , 1 ,2 )"
-        tdSql.execute(sql)
+                tdSql.execute(f"insert into {tbname} values({ts} , {row} , {row} , {row} , {row} , 1 , 2 , 'true' , 'binary_{row}' , 'nchar_{row}' , {row} , {row} , 1 ,2 )")
+
 
     def check_groupby(self, keyword, check_num, nonempty_tb_num):
         ####### by tbname
@@ -587,8 +585,11 @@ class TestPartitionByBasic:
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} {keyword} by tbname ")
         tdSql.checkRows(check_num)
 
-        tdSql.query(f"select tbname from {self.dbname}.{self.stable} {keyword} by tbname order by count(*)")
-        tdSql.checkRows(check_num)
+        if(keyword.strip() == "group"):
+            tdSql.query(f"select tbname from {self.dbname}.{self.stable} {keyword} by tbname order by count(*)")
+            tdSql.checkRows(check_num)
+        else:
+            tdSql.error(f"select tbname from {self.dbname}.{self.stable} {keyword} by tbname order by count(*)")
 
         # last
         tdSql.query(f"select last(ts), count(*) from {self.dbname}.{self.stable} {keyword} by tbname order by last(ts)")
@@ -646,8 +647,11 @@ class TestPartitionByBasic:
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} {keyword} by 1 ")
         tdSql.checkRows(check_num)
 
-        tdSql.query(f"select tbname from {self.dbname}.{self.stable} {keyword} by 1 order by count(*)")
-        tdSql.checkRows(check_num)
+        if(keyword.strip() == "group"):
+            tdSql.query(f"select tbname from {self.dbname}.{self.stable} {keyword} by 1 order by count(*)")
+            tdSql.checkRows(check_num)
+        else:
+            tdSql.error(f"select tbname from {self.dbname}.{self.stable} {keyword} by 1 order by count(*)")
 
         # last
         tdSql.query(f"select tbname from {self.dbname}.{self.stable} {keyword} by 1 having count(*)>=0")
@@ -724,8 +728,11 @@ class TestPartitionByBasic:
         tdSql.query(f"select t1 as t1_alias, count(*) from {self.dbname}.{self.stable} {keyword} by t1_alias ")
         tdSql.checkRows(check_num)
 
-        tdSql.query(f"select t1 as t1_alias from {self.dbname}.{self.stable} {keyword} by t1_alias order by count(*)")
-        tdSql.checkRows(check_num)
+        if(keyword.strip() == "group"):
+            tdSql.query(f"select t1 as t1_alias from {self.dbname}.{self.stable} {keyword} by t1_alias order by count(*)")
+            tdSql.checkRows(check_num)
+        else:
+            tdSql.error(f"select t1 as t1_alias from {self.dbname}.{self.stable} {keyword} by t1_alias order by count(*)")
 
         # last
         tdSql.query(f"select t1 as t1_alias from {self.dbname}.{self.stable} {keyword} by t1_alias having count(*)>=0")

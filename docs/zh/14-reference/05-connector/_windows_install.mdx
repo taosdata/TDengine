@@ -25,7 +25,8 @@ import PkgListV37 from "/components/PkgListV37";
 
 :::tip
 
-1. 如利用 FQDN 连接服务器，必须确认本机网络环境 DNS 已配置好，或在 hosts 文件中添加 FQDN 寻址记录，如编辑 C:\Windows\system32\drivers\etc\hosts，添加类似如下的记录：`192.168.1.99 h1.taos.com`
-2. 卸载：运行 unins000.exe 可卸载 TDengine 应用驱动。
+1. 自 3.4.0.0 版开始，企业版与社区版不完全兼容，为避免二者互联导致兼容性问题，请务必安装与服务端对应的客户端驱动。当使用社区版驱动连接企业版服务端或使用企业版驱动连接社区版服务端时，会返回错误“Edition not compatible”。
+2. 如利用 FQDN 连接服务器，必须确认本机网络环境 DNS 已配置好，或在 hosts 文件中添加 FQDN 寻址记录，如编辑 C:\Windows\system32\drivers\etc\hosts，添加类似如下的记录：`192.168.1.99 h1.taos.com`
+3. 卸载：运行 unins000.exe 可卸载 TDengine 应用驱动。
 
 :::

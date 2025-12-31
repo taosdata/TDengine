@@ -24,6 +24,7 @@ class TestBoundary:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
         #tdSql.init(conn.cursor())
+        tdSql.execute("alter local 'maxSQLLength' '1048576'")
         cls.boundary = DataBoundary()
         cls.dbname_length_boundary = cls.boundary.DBNAME_MAX_LENGTH
         cls.tbname_length_boundary = cls.boundary.TBNAME_MAX_LENGTH
@@ -468,4 +469,3 @@ class TestBoundary:
         tdSql.error("alter local 'maxSQLLength' '1048575'")
 
         tdSql.execute("drop database db_maxsql_large")
-

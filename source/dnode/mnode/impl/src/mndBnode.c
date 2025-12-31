@@ -273,7 +273,7 @@ static int32_t mndProcessCreateBnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSMCreateBnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
   mInfo("bnode:%d, start to create", createReq.dnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_BNODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_BNODE), NULL, _OVER);
 
   pObj = mndAcquireBnode(pMnode, createReq.dnodeId);
   if (pObj != NULL) {
@@ -426,7 +426,7 @@ static int32_t mndProcessDropBnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSMDropBnodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
   mInfo("bnode:%d, start to drop", dropReq.dnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_BNODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_BNODE), NULL, _OVER);
 
   if (dropReq.dnodeId <= 0) {
     code = TSDB_CODE_INVALID_MSG;
