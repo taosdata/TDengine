@@ -104,7 +104,7 @@ void transCacheReleaseByRefId(int64_t refId) {
     STransEntry* p = taosArrayGet(transInstCache.pArray, i);
     if (p->refId == refId) {
       (void)atomic_sub_fetch_32(&p->ref, 1);
-      tDebug("trans %p acquire by refId:%" PRId64 ", ref count:%d", p->pTrans, refId, atomic_load_32(&p->ref));
+      tDebug("trans %p release by refId:%" PRId64 ", ref count:%d", p->pTrans, refId, atomic_load_32(&p->ref));
       code = 0;
       break;
     }
@@ -189,7 +189,7 @@ int32_t transDecompressMsg(char** msg, int32_t* len) {
   char* pCont = transContFromHead(pHead);
 
   STransCompMsg* pComp = (STransCompMsg*)pCont;
-  int32_t        oriLen = htonl(pComp->contLen);
+  int32_t        oriLen = ntohl(pComp->contLen);
 
   int32_t tlen = *len;
   char*   buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
@@ -224,7 +224,7 @@ int32_t transDecompressMsgExt(char const* msg, int32_t len, char** out, int32_t*
   char*          pCont = transContFromHead(pHead);
 
   STransCompMsg* pComp = (STransCompMsg*)pCont;
-  int32_t        oriLen = htonl(pComp->contLen);
+  int32_t        oriLen = ntohl(pComp->contLen);
 
   int32_t tlen = len;
   char*   buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
@@ -418,9 +418,12 @@ bool transReadComplete(SConnBuffer* connBuf) {
     if (p->left == -1) {
       STransMsgHead head;
       memcpy((char*)&head, connBuf->buf, sizeof(head));
-      int32_t msgLen = (int32_t)htonl(head.msgLen);
+      int32_t msgLen = (int32_t)ntohl(head.msgLen);
       p->total = msgLen;
-      p->invalid = head.version != TRANS_VER;
+      p->invalid = (head.version != TRANS_VER || msgLen >= TRANS_MSG_LIMIT);
+      if (p->invalid) {
+        tError("recv invalid msg, version:%d, expect:%d, msg len %d", head.version, TRANS_VER, msgLen);
+      }
     }
     if (p->total >= p->len) {
       p->left = p->total - p->len;

@@ -82,6 +82,8 @@ typedef struct SStreamInserterParam {
   int8_t    tbType;
   char*     dbFName;
   void*     pSinkHandle;
+  SArray*   colCids;
+  SArray*   tagCids;
 } SStreamInserterParam;
 
 typedef struct SStreamVtableDeployInfo {

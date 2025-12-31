@@ -52,10 +52,12 @@ typedef enum {
 } AUTH_TYPE;
 
 typedef struct SUserAuthInfo {
-  char      user[TSDB_USER_LEN];
-  SName     tbName;
-  bool      isView;
-  AUTH_TYPE type;
+  char         user[TSDB_USER_LEN];
+  int64_t      userId;
+  SName        tbName;
+  bool         isView;
+  EPrivType    privType;
+  EPrivObjType objType;
 } SUserAuthInfo;
 
 typedef enum {

@@ -99,9 +99,16 @@ typedef struct SColumnNode {
   int32_t     resIdx;
   bool        hasDep;
   bool        hasRef;
-  char        refDbName[TSDB_DB_NAME_LEN];
-  char        refTableName[TSDB_TABLE_NAME_LEN];
-  char        refColName[TSDB_COL_NAME_LEN];
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t hasMask : 1;
+      uint8_t reserve : 7;
+    };
+  };
+  char refDbName[TSDB_DB_NAME_LEN];
+  char refTableName[TSDB_TABLE_NAME_LEN];
+  char refColName[TSDB_COL_NAME_LEN];
 } SColumnNode;
 
 typedef struct SColumnRefNode {
@@ -845,6 +852,8 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
 int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashObj* pMultiTableAlias,
                                ECollectColType type, SNodeList** pCols);
 int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols);
+int32_t nodesCollectColumnsFromMultiNodes(SNode** pNodes, int32_t numNodes, const char* pTableAlias,
+                                          ECollectColType type, SNodeList** pCols);
 
 typedef bool (*FFuncClassifier)(int32_t funcId);
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier,

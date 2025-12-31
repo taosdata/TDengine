@@ -2178,6 +2178,14 @@ void destroyStreamInserterParam(SStreamInserterParam* pParam) {
       taosArrayDestroy(pParam->pTagFields);
       pParam->pTagFields = NULL;
     }
+    if (pParam->colCids) {
+      taosArrayDestroy(pParam->colCids);
+      pParam->colCids = NULL;
+    }
+    if (pParam->tagCids) {
+      taosArrayDestroy(pParam->tagCids);
+      pParam->tagCids = NULL;
+    }
     taosMemFree(pParam);
   }
 }
@@ -2218,6 +2226,20 @@ int32_t cloneStreamInserterParam(SStreamInserterParam** ppDst, SStreamInserterPa
     TSDB_CHECK_NULL((*ppDst)->pTagFields, code, lino, _exit, terrno);
   } else {
     (*ppDst)->pTagFields = NULL;
+  }
+
+  if (pSrc->colCids && pSrc->colCids->size > 0) {
+    (*ppDst)->colCids = taosArrayDup(pSrc->colCids, NULL);
+    TSDB_CHECK_NULL((*ppDst)->colCids, code, lino, _exit, terrno);
+  } else {
+    (*ppDst)->colCids = NULL;
+  }
+
+  if (pSrc->tagCids && pSrc->tagCids->size > 0) {
+    (*ppDst)->tagCids = taosArrayDup(pSrc->tagCids, NULL);
+    TSDB_CHECK_NULL((*ppDst)->tagCids, code, lino, _exit, terrno);
+  } else {
+    (*ppDst)->tagCids = NULL;
   }
 
 _exit:

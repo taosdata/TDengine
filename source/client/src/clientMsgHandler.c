@@ -17,6 +17,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
+#include "clientSession.h"
 #include "cmdnodes.h"
 #include "command.h"
 #include "os.h"
@@ -160,6 +161,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   pTscObj->passInfo.ver = connectRsp.passVer;
   pTscObj->authVer = connectRsp.authVer;
   pTscObj->whiteListInfo.ver = connectRsp.whiteListVer;
+  pTscObj->userId = connectRsp.userId;
 
   if (taosHashGet(appInfo.pInstMapByClusterId, &connectRsp.clusterId, LONG_BYTES) == NULL) {
     if (taosHashPut(appInfo.pInstMapByClusterId, &connectRsp.clusterId, LONG_BYTES, &pTscObj->pAppInfo,
@@ -175,6 +177,21 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
       monitorClientSQLReqInit(connectRsp.clusterId);
 #endif
     }
+  }
+
+  code = tscRefSessMetric(pTscObj);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to connect with user:%s, code:%s", pTscObj->user, tstrerror(code));
+    goto End;
+  }
+
+  sessMetricRef(pTscObj->pSessMetric);
+
+  SSessParam pPara = {.type = SESSION_PER_USER, .value = 1};
+  code = tscUpdateSessMetric(pTscObj, &pPara);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to connect with user:%s, code:%s", pTscObj->user, tstrerror(code));
+    goto End;
   }
 
   (void)taosThreadMutexLock(&clientHbMgr.lock);

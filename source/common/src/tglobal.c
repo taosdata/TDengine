@@ -458,7 +458,7 @@ int32_t sessionConnIdleTime = -1;
 int32_t sessionMaxConcurrency = -1;
 int32_t sessionMaxCallVnodeNum = -1;
 
-bool    tsSessionControl = 0;
+bool    tsSessionControl = 1;
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 
 

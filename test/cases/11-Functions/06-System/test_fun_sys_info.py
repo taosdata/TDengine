@@ -49,6 +49,7 @@ class TestSysinfo:
                     capture_output=True,
                 ).stdout.decode("utf8")
             ).split('"')[1]
+            version_info = version_info + "-enterprise"
             tdSql.checkData(0, 0, version_info)
 
     def get_server_status(self):

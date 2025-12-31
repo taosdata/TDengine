@@ -95,6 +95,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | COMPACT_INTERVAL     | 3.3.5.0+ |
 | COMPACT_TIME_OFFSET  | 3.3.5.0+ |
 | COMPACT_TIME_RANGE   | 3.3.5.0+ |
+| COMPRESS             | |
 | CONCAT               | |
 | CONFLICT             | |
 | CONNECTION           | |
@@ -147,6 +148,7 @@ description: TDengine TSDB 保留关键字的详细列表
 |----------------------|-|
 | EACH                 | |
 | ELSE                 | |
+| ENCODE               | |
 | ENABLE               | |
 | ENCRYPT_ALGORITHM    | |
 | ENCRYPT_KEY          | |
@@ -304,6 +306,7 @@ description: TDengine TSDB 保留关键字的详细列表
 
 |关键字 | 说明|
 |----------------------|-|
+| NEAR                 | |
 | NCHAR                | |
 | NE                   | |
 | NEXT                 | |
@@ -384,10 +387,12 @@ description: TDengine TSDB 保留关键字的详细列表
 | RANGE                | |
 | RATIO                | |
 | READ                 | |
+| RECALCULATE          | |
 | RECURSIVE            | |
 | REGEXP               | 3.3.6.0+ |
 | REDISTRIBUTE         | |
 | REM                  | |
+| RENAME               | |
 | REPLACE              | |
 | REPLICA              | |
 | RESET                | |
@@ -407,6 +412,7 @@ description: TDengine TSDB 保留关键字的详细列表
 
 |关键字 | 说明|
 |----------------------|-|
+| S3MIGRATE            | |
 | SCHEMALESS           | |
 | SCORES               | |
 | SELECT               | |
@@ -514,8 +520,11 @@ description: TDengine TSDB 保留关键字的详细列表
 | VGROUPS              | |
 | VIEW                 | |
 | VIEWS                | |
+| VIRTUAL              | |
 | VNODE                | |
 | VNODES               | |
+| VTABLE               | |
+| VTABLES              | |
 
 ### W
 

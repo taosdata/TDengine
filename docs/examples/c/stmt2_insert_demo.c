@@ -35,7 +35,7 @@ void executeSQL(TAOS *taos, const char *sql) {
   TAOS_RES *res = taos_query(taos, sql);
   int       code = taos_errno(res);
   if (code != 0) {
-    fprintf(stderr, "Error: %s\n", taos_errstr(res));
+    printf("Error: %s\n", taos_errstr(res));
     taos_free_result(res);
     taos_close(taos);
     exit(EXIT_FAILURE);
@@ -52,7 +52,7 @@ void executeSQL(TAOS *taos, const char *sql) {
  */
 void checkErrorCode(TAOS_STMT2 *stmt2, int code, const char *msg) {
   if (code != 0) {
-    fprintf(stderr, "%s. Code: %d, Error: %s\n", msg, code, taos_stmt2_error(stmt2));
+    printf("%s. Code: %d, Error: %s\n", msg, code, taos_stmt2_error(stmt2));
     (void)taos_stmt2_close(stmt2);
     exit(EXIT_FAILURE);
   }
@@ -107,12 +107,10 @@ void prepareBindData(char ***table_name, TAOS_STMT2_BIND ***tags, TAOS_STMT2_BIN
     (*params)[i][3] = (TAOS_STMT2_BIND){TSDB_DATA_TYPE_FLOAT, phase, phase_len, NULL, NUM_OF_ROWS};
 
     for (int j = 0; j < NUM_OF_ROWS; j++) {
-      struct timeval tv;
-      (void)gettimeofday(&tv, NULL);
-      ts[j] = tv.tv_sec * 1000LL + tv.tv_usec / 1000 + j;
-      current[j] = (float)rand() / RAND_MAX * 30;
-      voltage[j] = rand() % 300;
-      phase[j] = (float)rand() / RAND_MAX;
+      ts[j] = 1609459200000LL + i * NUM_OF_ROWS * 1000LL + j * 1000LL;
+      current[j] = 10.0f + j * 0.5f;
+      voltage[j] = 100 + j * 10;
+      phase[j] = 0.1f + j * 0.05f;
 
       ts_len[j] = sizeof(int64_t);
       current_len[j] = sizeof(float);
@@ -158,7 +156,7 @@ void insertData(TAOS *taos) {
   TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
   TAOS_STMT2       *stmt2 = taos_stmt2_init(taos, &option);
   if (!stmt2) {
-    fprintf(stderr, "Failed to initialize TAOS statement.\n");
+    printf("Failed to initialize TAOS statement.\n");
     exit(EXIT_FAILURE);
   }
   // stmt2 prepare sql
@@ -187,8 +185,8 @@ int main() {
   uint16_t    port = 6030;
   TAOS       *taos = taos_connect(host, user, password, NULL, port);
   if (taos == NULL) {
-    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
-            taos_errstr(NULL));
+    printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
+           taos_errstr(NULL));
     taos_cleanup();
     exit(EXIT_FAILURE);
   }
