@@ -137,6 +137,29 @@ impl LangQuery {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{Lang, LangQuery};
+
+    #[test]
+    fn is_cn_true_for_zh() {
+        let q = LangQuery {
+            lang: Some(Lang::Zh),
+        };
+        assert!(q.is_cn());
+    }
+
+    #[test]
+    fn is_cn_false_for_en_or_none() {
+        let q_en = LangQuery {
+            lang: Some(Lang::En),
+        };
+        let q_none = LangQuery { lang: None };
+        assert!(!q_en.is_cn());
+        assert!(!q_none.is_cn());
+    }
+}
+
 /// List available data source definitions.
 #[utoipa::path(
     tag = "data sources",

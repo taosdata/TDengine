@@ -453,3 +453,96 @@ mod tests {
         assert_eq!(s.resume, ResumeStrategy::Never);
     }
 }
+
+#[cfg(test)]
+mod additional_tests {
+    use super::*;
+    use anyhow::anyhow;
+
+    #[test]
+    fn strategy_is_none_detects_non_default_fields() {
+        let default = Strategy::default();
+        assert!(default.is_none());
+
+        let with_schedule = Strategy {
+            schedule: Some("cron:0 * * * *".to_string()),
+            ..Strategy::default()
+        };
+        assert!(!with_schedule.is_none());
+    }
+
+    #[test]
+    fn schedule_repeatable_detection_matches_variants() {
+        let cron = Schedule::Cron("0 * * * *".to_string());
+        assert!(cron.is_repeatable_job());
+
+        let with_start = Schedule::RepeatedWithStartAt(Duration::from_secs(5), Utc::now());
+        assert!(with_start.is_repeatable_job());
+
+        assert!(!Schedule::Oneshot.is_repeatable_job());
+        assert!(!Schedule::Repeated(Duration::from_secs(1)).is_repeatable_job());
+    }
+
+    #[test]
+    fn stop_condition_repeated_and_tick_behaviour() {
+        let counter = Arc::new(AtomicU64::new(2));
+        let cond = StopCondition::Repeated(counter);
+        assert!(!cond.should_stop());
+        cond.tick();
+        assert!(!cond.should_stop());
+        cond.tick();
+        assert!(cond.should_stop());
+        cond.tick();
+        assert!(cond.should_stop());
+    }
+
+    #[test]
+    fn stop_condition_should_stop_with_respects_result_and_variant() {
+        let ok: anyhow::Result<()> = Ok(());
+        let err: anyhow::Result<()> = Err(anyhow!("boom"));
+
+        assert!(!StopCondition::Never.should_stop_with(&ok));
+        assert!(!StopCondition::Never.should_stop_with(&err));
+
+        assert!(StopCondition::Done.should_stop_with(&ok));
+        assert!(!StopCondition::Done.should_stop_with(&err));
+
+        assert!(StopCondition::Fatal.should_stop_with(&ok));
+        assert!(StopCondition::Fatal.should_stop_with(&err));
+
+        assert!(StopCondition::Unhealthy.should_stop_with(&ok));
+        assert!(StopCondition::Unhealthy.should_stop_with(&err));
+
+        let repeated = StopCondition::Repeated(Arc::new(AtomicU64::new(1)));
+        assert!(repeated.should_stop_with(&ok));
+
+        let repeated_zero = StopCondition::Repeated(Arc::new(AtomicU64::new(0)));
+        assert!(!repeated_zero.should_stop_with(&err));
+    }
+
+    #[test]
+    fn strategy_stop_condition_matches_resume_and_schedule() {
+        let cron = Strategy {
+            schedule: Some("0 * * * *".into()),
+            ..Default::default()
+        };
+        assert!(matches!(cron.stop_condition(), StopCondition::Never));
+
+        let oneshot = Strategy {
+            schedule: Some("oneshot".into()),
+            resume: ResumeStrategy::Never,
+            ..Default::default()
+        };
+        assert!(matches!(oneshot.stop_condition(), StopCondition::Done));
+
+        let retries = Strategy {
+            resume: ResumeStrategy::Retries(3),
+            ..Default::default()
+        };
+        if let StopCondition::Repeated(counter) = retries.stop_condition() {
+            assert_eq!(counter.load(Ordering::Relaxed), 3);
+        } else {
+            panic!("expected repeated stop condition");
+        }
+    }
+}

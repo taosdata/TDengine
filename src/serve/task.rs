@@ -1280,6 +1280,27 @@ mod tests {
     use super::*;
 
     #[test]
+    fn check_parser_string_timestamp_precision_allows_single_precision() {
+        let s = r#"{ "parser": { "ts": "TIMESTAMP" } }"#;
+        assert!(check_parser_string_timestamp_precision(s));
+    }
+
+    #[test]
+    fn check_parser_string_timestamp_precision_rejects_mixed_precisions() {
+        let s = r#"{ "parser": { "ts1": "TIMESTAMP", "ts2": "TIMESTAMP(us)" } }"#;
+        assert!(!check_parser_string_timestamp_precision(s));
+    }
+
+    #[test]
+    fn check_parser_timestamp_precision_removes_s_model_before_check() {
+        let v: serde_json::Value = serde_json::json!({
+            "parser": { "s_model": "ignored", "ts": "TIMESTAMP(ns)" }
+        });
+        // After removing s_model, only TIMESTAMP(ns) remains, so should pass
+        assert!(check_parser_timestamp_precision(&v));
+    }
+
+    #[test]
     fn test_failed_from_error() {
         let err = anyhow::anyhow!("test error");
         let failed = Failed::from_error(err);
