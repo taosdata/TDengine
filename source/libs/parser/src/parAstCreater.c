@@ -12,10 +12,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef TD_ASTRA
+#include <uv.h>
+#endif
+
 #include <regex.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "nodes.h"
+#include "parAst.h"
+#include "parUtil.h"
+#include "tglobal.h"
+#include "ttime.h"
 #include "cmdnodes.h"
 #include "osMemory.h"
 #include "osString.h"
@@ -23,15 +33,6 @@
 #include "tdef.h"
 #include "tmsg.h"
 #include "ttokendef.h"
-#ifndef TD_ASTRA
-#include <uv.h>
-#endif
-
-#include "nodes.h"
-#include "parAst.h"
-#include "parUtil.h"
-#include "tglobal.h"
-#include "ttime.h"
 
 #define CHECK_MAKE_NODE(p) \
   do {                     \

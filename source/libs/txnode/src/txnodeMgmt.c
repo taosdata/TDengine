@@ -27,15 +27,14 @@
 extern char **environ;
 
 #ifdef WINDOWS
-#define TAOSMQTT_DEFAULT_PATH "C:\\TDengine"
-#define TAOSMQTT_DEFAULT_EXEC "\\xnoded.exe"
+#define XNODED_DEFAULT_PATH "C:\\TDengine"
+#define XNODED_DEFAULT_EXEC "\\xnoded.exe"
 #else
 #define XNODED_DEFAULT_PATH "/usr/bin"
 #define XNODED_DEFAULT_EXEC "/xnoded"
+#endif
 
 #define XNODED_XNODED_PID_NAME ".xnoded.pid"
-
-#endif
 
 typedef struct {
   bool         isStarted;
