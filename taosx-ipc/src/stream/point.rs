@@ -122,3 +122,57 @@ pub struct RecordTransform {
     pub column_name: Option<String>,
     pub transform_expression: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::{Int32Array, StringArray};
+    use arrow::datatypes::{Field, Schema};
+
+    fn make_record_batch() -> RecordBatch {
+        let id = Int32Array::from(vec![1, 2, 3]);
+        let name = StringArray::from(vec!["a", "b", "c"]);
+        let schema = Schema::new(vec![
+            Field::new("id", DataType::Int32, false),
+            Field::new("name", DataType::Utf8, false),
+        ]);
+        RecordBatch::try_new(Arc::new(schema), vec![Arc::new(id), Arc::new(name)]).unwrap()
+    }
+
+    #[test]
+    fn point_message_nrows_and_records() {
+        let rb = make_record_batch();
+        let pm = PointMessage::new(vec![RecordMessage::from_record(rb.clone())]);
+        assert_eq!(pm.nrows(), rb.num_rows());
+        assert_eq!(pm.records().len(), 1);
+    }
+
+    #[test]
+    fn record_message_accessors_and_type_queries() {
+        let rb = make_record_batch();
+        let rm = RecordMessage::from_record(rb);
+        assert_eq!(rm.schema().fields().len(), 2);
+        assert!(rm.schema_ref().fields().len() == 2);
+        assert_eq!(rm.record().num_rows(), 3);
+        assert!(matches!(
+            rm.column_type_by_name("id"),
+            Some(DataType::Int32)
+        ));
+        assert!(matches!(
+            rm.column_type_by_name("name"),
+            Some(DataType::Utf8)
+        ));
+        assert!(rm.column_type_by_name("missing").is_none());
+    }
+
+    #[test]
+    fn record_message_clone_column_by_name_ok_and_err() {
+        let rb = make_record_batch();
+        let rm = RecordMessage::from_record(rb);
+        let col = rm.clone_column_by_name("name").unwrap();
+        assert_eq!(col.len(), rm.record().num_rows());
+        let err = rm.clone_column_by_name("nope").unwrap_err();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("not exist"));
+    }
+}

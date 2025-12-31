@@ -929,4 +929,137 @@ mod tests {
         // This should panic because it's Legacy, not IPC
         let _ = core_metrics.ipc();
     }
+
+    #[test]
+    fn test_compute_total_avg_speed_nonzero() {
+        let metrics = CommonMetrics::default();
+        metrics.total_execute_time.store(2000, SeqCst); // 2 seconds
+        metrics.total_written_rows.store(4000, SeqCst);
+        metrics.total_written_points.store(1000, SeqCst);
+
+        let mut map = serde_json::Map::new();
+        compute_total_avg_speed(&metrics, &mut map);
+
+        let rows_per_second = map.get("total_rows_per_second").unwrap().as_f64().unwrap();
+        let points_per_second = map
+            .get("total_points_per_second")
+            .unwrap()
+            .as_f64()
+            .unwrap();
+        assert!((rows_per_second - 2000.0).abs() < 1e-6);
+        assert!((points_per_second - 500.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_compute_avg_speed_running_false() {
+        let metrics = CommonMetrics::default();
+        metrics.execute_time.store(2500, SeqCst); // 2.5 seconds
+        metrics.written_rows.store(1250, SeqCst);
+        metrics.written_points.store(250, SeqCst);
+
+        let mut map = serde_json::Map::new();
+        compute_avg_speed(&metrics, &mut map, false);
+
+        let execute_time = map.get("execute_time").unwrap().as_u64().unwrap();
+        let rows_per_second = map.get("rows_per_second").unwrap().as_f64().unwrap();
+        let points_per_second = map.get("points_per_second").unwrap().as_f64().unwrap();
+
+        assert_eq!(execute_time, 2500);
+        assert!((rows_per_second - 500.0).abs() < 1e-6);
+        assert!((points_per_second - 100.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_compute_avg_speed_running_true() {
+        let metrics = CommonMetrics::default();
+        // Reset start_time to now, then wait a bit to accumulate elapsed
+        metrics.start_time.reset();
+        metrics.written_rows.store(300, SeqCst);
+        metrics.written_points.store(150, SeqCst);
+
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        let mut map = serde_json::Map::new();
+        compute_avg_speed(&metrics, &mut map, true);
+
+        let execute_time = map.get("execute_time").unwrap().as_u64().unwrap();
+        let rows_per_second = map.get("rows_per_second").unwrap().as_f64().unwrap();
+        let points_per_second = map.get("points_per_second").unwrap().as_f64().unwrap();
+
+        assert!(execute_time >= 50, "execute_time should be >= 50ms");
+        // rows_per_second ≈ 300 * 1000 / execute_time
+        let expected_rows = 300.0 * 1000.0 / execute_time as f64;
+        let expected_points = 150.0 * 1000.0 / execute_time as f64;
+        assert!((rows_per_second - expected_rows).abs() < 1e-6);
+        assert!((points_per_second - expected_points).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_split_to_total_and_current() {
+        let mut map = serde_json::Map::new();
+        map.insert("total_execute_time".to_string(), serde_json::json!(3000));
+        map.insert("total_written_rows".to_string(), serde_json::json!(6000));
+        map.insert("written_rows".to_string(), serde_json::json!(100));
+        map.insert("execute_time".to_string(), serde_json::json!(500));
+
+        let v = split_to_total_and_current(&map);
+        let total = v.get("total").unwrap();
+        let current = v.get("current").unwrap();
+
+        // total map contains only keys starting with "total_"
+        assert!(total.get("total_execute_time").is_some());
+        assert!(total.get("total_written_rows").is_some());
+        assert!(total.get("written_rows").is_none());
+
+        // current map contains other keys
+        assert!(current.get("written_rows").is_some());
+        assert!(current.get("execute_time").is_some());
+        assert!(current.get("total_execute_time").is_none());
+    }
+
+    #[test]
+    fn test_compute_total_avg_speed_zero_time_no_insert() {
+        let metrics = CommonMetrics::default();
+        metrics.total_execute_time.store(0, SeqCst);
+        metrics.total_written_rows.store(100, SeqCst);
+        metrics.total_written_points.store(50, SeqCst);
+
+        let mut map = serde_json::Map::new();
+        compute_total_avg_speed(&metrics, &mut map);
+
+        assert!(map.get("total_rows_per_second").is_none());
+        assert!(map.get("total_points_per_second").is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_metrics_arc_or_insert_and_none_path() {
+        // None path: should return f() without inserting
+        let arc_none = get_metrics_arc_or(None, || {
+            Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(
+                "stb_none".to_string(),
+                -99,
+                None,
+            )))
+        })
+        .await;
+        // None path returns provided metrics without insertion; verify attributes
+        assert_eq!(arc_none.task_id, -99);
+        assert_eq!(arc_none.stable, "stb_none");
+
+        // Some(id) path: not existing -> insert and return
+        let id = 7777_i64;
+        let arc_new = get_metrics_arc_or(Some(id), || {
+            Arc::new(CoreMetrics::Legacy(LegacyToTaosMetrics::new(
+                "stb_insert".to_string(),
+                id,
+                Some("task7777".to_string()),
+            )))
+        })
+        .await;
+        assert_eq!(arc_new.task_id, id);
+        // Verify it can be fetched again from global map
+        let arc_fetch = get_metrics(id).await.unwrap();
+        assert_eq!(arc_fetch.task_id, id);
+        assert_eq!(arc_fetch.stable, "stb_insert");
+    }
 }

@@ -128,7 +128,28 @@ namespace TDPIConnector.Service
             }
             catch (Exception ex)
             {
-                logger.Fatal("Init Failed! Please check toml config file.", ex);
+                try
+                {
+                    Console.Error.WriteLine("Init Failed! Please check toml config file.");
+                }
+                catch { }
+
+                string exType = "<unknown>";
+                string exMessage = "<message unavailable>";
+                string exStack = "<stacktrace unavailable>";
+                try { exType = ex.GetType().FullName; } catch { }
+                try { exMessage = ex.Message; } catch { }
+                try { exStack = ex.StackTrace; } catch { }
+
+                try { Console.Error.WriteLine($"Exception type: {exType}"); } catch { }
+                try { Console.Error.WriteLine($"Exception message: {exMessage}"); } catch { }
+                try { Console.Error.WriteLine($"Exception stacktrace: {exStack}"); } catch { }
+
+                try { logger?.Fatal("Init Failed! Please check toml config file."); } catch { }
+                try { if (logger != null) logger.Fatal($"Exception type: {exType}"); } catch { }
+                try { if (logger != null) logger.Fatal($"Exception message: {exMessage}"); } catch { }
+                try { if (logger != null) logger.Fatal($"Exception stacktrace: {exStack}"); } catch { }
+
                 return;
             }
 

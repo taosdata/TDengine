@@ -300,12 +300,16 @@ async fn test_sync_query_with_taos() -> anyhow::Result<()> {
     }
 
     // clean
-    taos.exec_many(vec![
-        format!("DROP TOPIC IF EXISTS FORCE `{TOPIC}`"),
-        format!("DROP DATABASE IF EXISTS `{DB_SRC}`"),
-        format!("DROP DATABASE IF EXISTS `{DB_DST}`"),
-    ])
-    .await?;
+    if let Err(err) = taos
+        .exec_many(vec![
+            format!("DROP TOPIC IF EXISTS FORCE `{TOPIC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_SRC}`"),
+            format!("DROP DATABASE IF EXISTS `{DB_DST}`"),
+        ])
+        .await
+    {
+        tracing::info!("Clean resource error: \n{err:?}");
+    }
 
     Ok(())
 }

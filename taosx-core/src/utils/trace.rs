@@ -295,8 +295,8 @@ mod tests {
     #[tokio::test]
     async fn multi_qid_db_test() {
         let tmp = tempfile::TempDir::new().unwrap();
-        set_env_data_dir(tmp.path().to_str().unwrap().to_string());
-        let counter = BatchCounter::new(1, 1).await.unwrap();
+        set_env_data_dir(tmp.path().to_str().unwrap());
+        let counter = BatchCounter::new(1).await.unwrap();
         assert_eq!(1, counter.next());
         let counter2 = BatchCounter::new(1, 1).await.unwrap();
         assert_eq!(1, counter2.next());

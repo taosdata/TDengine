@@ -78,6 +78,19 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn str_to_socket_addr_rejects_invalid_entry() {
+        let addrs = "127.0.0.1:6050,invalid-addr";
+        assert!(str_to_socket_addr(addrs).is_err());
+    }
+
+    #[tokio::test]
+    async fn str_to_socket_addr_accepts_empty_input_as_empty_list() {
+        let addrs = " , , ";
+        let rs = str_to_socket_addr(addrs).unwrap();
+        assert!(rs.is_empty());
+    }
+
+    #[tokio::test]
     async fn test_check_address_format() {
         let addrs = "127.0.0.1:6050,,0.0.0.0:6050,[::1]:6050";
         assert!(check_address_format(addrs).is_ok());
@@ -89,5 +102,23 @@ mod tests {
         assert!(check_address_format(addrs).is_err());
         let addrs = "127.0.0.1:6050,,0.0.0.0:6051";
         assert!(check_address_format(addrs).is_err());
+    }
+
+    #[tokio::test]
+    async fn check_address_format_rejects_all_empty() {
+        let addrs = " , , ";
+        assert!(matches!(
+            check_address_format(addrs),
+            Err(ParseAddrError::NoValidAddressesProvided)
+        ));
+    }
+
+    #[tokio::test]
+    async fn check_address_format_rejects_invalid_host() {
+        let addrs = "127.0.0.1:6050,not-a-host:1234";
+        assert!(matches!(
+            check_address_format(addrs),
+            Err(ParseAddrError::InvalidAddressFormat(_))
+        ));
     }
 }

@@ -518,4 +518,153 @@ mod tests {
         };
         Ok(None)
     }
+
+    /// 纯解析用例：校验 `s3_object_prefix` 的尾随斜杠归一化
+    #[test]
+    fn test_s3_config_from_dsn_prefix_normalization() {
+        // given
+        let base = "local:/tmp?s3_endpoint=http://localhost:9000&s3_access_key_id=ak&s3_secret_access_key=sk&s3_bucket=bk";
+        // when: 未带斜杠
+        let dsn1 = format!("{base}&s3_object_prefix=backup")
+            .into_dsn()
+            .unwrap();
+        let cfg1 = super::S3Config::from_dsn(&dsn1).unwrap();
+        // then
+        assert_eq!(cfg1.prefix.as_deref(), Some("backup/"));
+
+        // when: 已带斜杠
+        let dsn2 = format!("{base}&s3_object_prefix=logs/").into_dsn().unwrap();
+        let cfg2 = super::S3Config::from_dsn(&dsn2).unwrap();
+        // then
+        assert_eq!(cfg2.prefix.as_deref(), Some("logs/"));
+
+        // when: 未设置前缀
+        let dsn3 = base.into_dsn().unwrap();
+        let cfg3 = super::S3Config::from_dsn(&dsn3).unwrap();
+        // then
+        assert_eq!(cfg3.prefix, None);
+    }
+
+    /// 纯解析用例：缺失必需键时返回错误
+    #[test]
+    fn test_s3_config_from_dsn_missing_required_keys() {
+        // missing s3_endpoint
+        let dsn = "local:/tmp?s3_access_key_id=ak&s3_secret_access_key=sk&s3_bucket=bk"
+            .into_dsn()
+            .unwrap();
+        let err = super::S3Config::from_dsn(&dsn).unwrap_err();
+        assert!(format!("{err}").contains("s3_endpoint not found"));
+
+        // missing s3_access_key_id
+        let dsn =
+            "local:/tmp?s3_endpoint=http://localhost:9000&s3_secret_access_key=sk&s3_bucket=bk"
+                .into_dsn()
+                .unwrap();
+        let err = super::S3Config::from_dsn(&dsn).unwrap_err();
+        assert!(format!("{err}").contains("s3_access_key_id not found"));
+
+        // missing s3_secret_access_key
+        let dsn = "local:/tmp?s3_endpoint=http://localhost:9000&s3_access_key_id=ak&s3_bucket=bk"
+            .into_dsn()
+            .unwrap();
+        let err = super::S3Config::from_dsn(&dsn).unwrap_err();
+        assert!(format!("{err}").contains("s3_secret_access_key not found"));
+
+        // missing s3_bucket
+        let dsn = "local:/tmp?s3_endpoint=http://localhost:9000&s3_access_key_id=ak&s3_secret_access_key=sk"
+            .into_dsn()
+            .unwrap();
+        let err = super::S3Config::from_dsn(&dsn).unwrap_err();
+        assert!(format!("{err}").contains("s3_bucket not found"));
+    }
+
+    /// 纯逻辑用例：timestamp 缺失不参与时间窗口过滤；size 等于剩余数量时不删除
+    #[test]
+    fn test_filter_retention_no_timestamp_and_exact_size() {
+        // 构造 3 个文件，其中 1 个没有 timestamp（不会被 period 条件匹配）
+        let mut files = vec![
+            ZFileName::from_path("./tp-1700000000000-1-1.z").unwrap(),
+            ZFileName::from_path("./tp-1700000060000-1-2.z").unwrap(),
+        ];
+        let mut f_no_ts = files[0].clone();
+        f_no_ts.timestamp = None;
+        files.push(f_no_ts);
+
+        // period: 1 小时，只能匹配有 ts 的旧文件；size: 保留剩余全部数量（不触发删除）
+        let upload = S3Dumper::filter_retention(
+            files.iter().collect(),
+            Some(Duration::from_secs(3600)),
+            Some(2),
+        )
+        .unwrap();
+
+        // 因为只有带 ts 的旧文件会入选；size 等于剩余数量时不再删除
+        // 在上述构造里，两个有 ts 的文件中会根据当前时间判断是否过期；
+        // 我们至少验证：无 ts 的条目不会因为 period 被移动
+        assert!(upload.iter().all(|f| f.timestamp.is_some()));
+    }
+
+    /// 集成用例：运行 S3Dumper 将本地 .z 备份上传到带前缀目录，并删除本地文件
+    /// 仅当环境变量存在时运行：S3_ENDPOINT, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_BUCKET
+    #[tokio::test]
+    async fn test_s3_dumper_uploads_and_removes_with_prefix() {
+        if let Some(mut s3_cfg) = load_s3_env_args().unwrap() {
+            // 先确保前缀在远端存在：使用无前缀配置连接并写入一个占位对象
+            let mut cfg_no_prefix = s3_cfg.clone();
+            cfg_no_prefix.prefix = None;
+            let op = cfg_no_prefix.connect().await.unwrap();
+            let prefix = "ut/";
+            op.write(&format!("{}{}", prefix, "_placeholder"), "ok")
+                .await
+                .unwrap();
+
+            // 使用带前缀的配置运行 dumper
+            s3_cfg.prefix = Some(prefix.to_string());
+
+            // 构造本地临时目录与若干伪备份文件
+            let local_dir = tempfile::tempdir().unwrap().keep();
+            let now = Utc::now().timestamp_millis();
+            let names = vec![
+                format!("tp-{}-1-1.z", now - 120_000),
+                format!("tp-{}-1-2.z", now - 60_000),
+                format!("tp-{}-1-3.z", now),
+            ];
+            for n in &names {
+                let p = local_dir.join(n);
+                tokio::fs::write(&p, b"dummy").await.unwrap();
+            }
+
+            // 创建 dumper，并运行一次循环后取消
+            let cancel = tokio_util::sync::CancellationToken::new();
+            let dumper = S3Dumper::new(
+                local_dir.clone(),
+                s3_cfg.clone(),
+                None,
+                Some(0),
+                cancel.clone(),
+            )
+            .await
+            .unwrap();
+            let h = tokio::spawn(async move { dumper.run().await.unwrap() });
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            cancel.cancel();
+            h.await.unwrap();
+
+            // 验证：本地 .z 文件应已被删除
+            let mut remained = tokio::fs::read_dir(local_dir.as_path()).await.unwrap();
+            while let Ok(Some(e)) = remained.next_entry().await {
+                let name = e.file_name();
+                let name = name.to_string_lossy();
+                assert!(!name.ends_with(".z"));
+            }
+
+            // 验证：远端带前缀目录下存在对应对象
+            let loader = S3Loader::try_from(&s3_cfg).await.unwrap();
+            let objs = loader.list_dir(prefix).await.unwrap();
+            let obj_names: Vec<String> = objs.iter().map(|o| o.name().to_string()).collect();
+            for n in &names {
+                assert!(obj_names.contains(n));
+            }
+        }
+    }
 }

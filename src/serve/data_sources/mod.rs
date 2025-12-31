@@ -1018,10 +1018,25 @@ pub async fn get_pi_default_config(
             }
             _ => unimplemented!(),
         };
+
+        // Ensure parent directory exists before writing files (fixes "path not found" errors)
+        if let Some(parent) = std::path::Path::new(&file_name).parent() {
+            std::fs::create_dir_all(parent)
+                .inspect_err(|err| {
+                    tracing::error!("failed to create directory {:?}: {err:?}", parent)
+                })
+                .context("failed to create parent directory for PI default config file")?;
+        }
+
         // 保存原始 json 数据
-        std::fs::write(file_name.as_str().replace(".csv", ".json"), pi_data).unwrap();
+        let json_file = file_name.as_str().replace(".csv", ".json");
+        std::fs::write(&json_file, pi_data)
+            .inspect_err(|err| tracing::error!("{err:?}"))
+            .context("failed to write PI query json file")?;
         // 保存配置文件
-        std::fs::write(file_name.as_str(), config_data).unwrap();
+        std::fs::write(file_name.as_str(), config_data)
+            .inspect_err(|err| tracing::error!("{err:?}"))
+            .context("failed to write PI default config csv file")?;
     }
 
     return Ok(file_name);

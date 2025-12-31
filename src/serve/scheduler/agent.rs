@@ -554,3 +554,20 @@ impl Drop for AgentWorker {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn agent_state_is_connected_only_for_connected() {
+        assert!(AgentState::Connected.is_connected());
+        for state in [
+            AgentState::Wait,
+            AgentState::Disconnected,
+            AgentState::Closed,
+        ] {
+            assert!(!state.is_connected());
+        }
+    }
+}

@@ -1,6 +1,6 @@
 use actix_cors::Cors;
 use actix_files::NamedFile;
-use actix_web::CustomizeResponder;
+use actix_web::{CustomizeResponder, http::header::ContentType};
 use actix_web_rust_embed_responder::{EmbedResponse, IntoResponse};
 use anyhow::Context;
 use chrono::{SecondsFormat, TimeZone};
@@ -176,14 +176,19 @@ async fn main() -> anyhow::Result<()> {
     #[cfg(not(target_os = "windows"))]
     let path = format!("/etc/{}", env!("CUS_PROMPT"));
 
-    let mut file_path = std::path::Path::new(&path).join("explorer.toml");
-
-    if let Ok(config) = ConfigPath::try_parse().inspect_err(|err| {
-        eprintln!("Failed to parse config path: {:?}", err);
-    }) && let Some(value) = config.config_file
-    {
-        file_path = value;
-    }
+    let config = ConfigPath::parse();
+    let file_path = if let Some(config_file) = config.config_file {
+        if config_file.exists() {
+            config_file
+        } else {
+            bail!(
+                "Custom configuration file {} not found",
+                config_file.display()
+            );
+        }
+    } else {
+        std::path::Path::new(&path).join("explorer.toml")
+    };
     let _ = CONFIG_DIR.set(
         file_path
             .parent()
@@ -196,7 +201,9 @@ async fn main() -> anyhow::Result<()> {
             "Failed to read configuration from {}",
             file_path.display()
         ))?;
-        let mut args: Args = toml::from_str(&content).unwrap();
+        let mut args: Args = toml::from_str(&content).with_context(|| {
+            format!("Failed to parse configuration from {}", file_path.display())
+        })?;
         args.update_from(std::env::args());
         println!("Use configuration file path: {}", file_path.display());
         args
@@ -541,6 +548,7 @@ async fn main() -> anyhow::Result<()> {
                 .service(docs_assets)
                 .service(web::redirect("/docs-en", "/docs-en/"))
                 .service(docs_en_assets)
+                .service(web::redirect("", "/"))
                 .service(static_assets)
         }
     });
@@ -1611,7 +1619,7 @@ struct StaticAssets;
 /// - "docs/"
 /// - "docs-en/"
 async fn static_assets_with_prefix(
-    prefix: &str,
+    prefix: Option<&str>,
     path: &str,
 ) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
     const COOKIE_ROUTE: &str = "route";
@@ -1626,13 +1634,19 @@ async fn static_assets_with_prefix(
         || path.ends_with('/')
         || !path[path.rfind('/').map(|i| i + 1).unwrap_or(0)..].contains('.')
     {
-        let index = format!("{prefix}index.html");
+        let index = prefix.map_or_else(
+            || Cow::Borrowed("index.html"),
+            |prefix| Cow::Owned(format!("{prefix}index.html")),
+        );
         let cookie = Cookie::build(
             COOKIE_ROUTE,
             if path.is_empty() {
-                Cow::Borrowed(prefix)
+                Cow::Borrowed(prefix.unwrap_or(""))
             } else {
-                Cow::Owned(format!("{prefix}{path}"))
+                prefix.map_or_else(
+                    || Cow::Borrowed(path),
+                    |prefix| Cow::Owned(format!("{prefix}{path}")),
+                )
             },
         )
         .path("/")
@@ -1641,12 +1655,15 @@ async fn static_assets_with_prefix(
         return StaticAssets::get(&index)
             .into_response()
             .customize()
-            .add_cookie(&cookie);
+            .add_cookie(&cookie)
+            .append_header(ContentType::html());
     }
-    let path = format!("{prefix}{path}");
-    if let Some(file) = StaticAssets::get(&path) {
-        file.into_response().customize()
-    } else {
+    let path = prefix.map_or_else(
+        || Cow::Borrowed(path),
+        |prefix| Cow::Owned(format!("{prefix}{path}")),
+    );
+
+    if let Some(file) = StaticAssets::get(&path).or_else(|| {
         path.char_indices()
             .filter(|&(_, c)| c == '/')
             .filter_map(|(i, _)| {
@@ -1654,14 +1671,19 @@ async fn static_assets_with_prefix(
                 StaticAssets::get(part)
             })
             .next()
-            .into_response()
+    }) {
+        let mime = mime_guess::from_path(&*path).first_or_octet_stream();
+        file.into_response()
             .customize()
+            .append_header(("Content-Type", mime.essence_str()))
+    } else {
+        None.into_response().customize()
     }
 }
 /// For docs.
 #[route("/docs/{path:.*}", method = "GET", method = "HEAD")]
 async fn docs_assets(path: web::Path<String>) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
-    static_assets_with_prefix("docs/", path.as_str()).await
+    static_assets_with_prefix(Some("docs/"), path.as_str()).await
 }
 /// For docs.
 #[route("/docs-en/{path:.*}", method = "GET", method = "HEAD")]
@@ -1669,65 +1691,19 @@ async fn docs_assets(path: web::Path<String>) -> CustomizeResponder<EmbedRespons
 async fn docs_en_assets(
     path: web::Path<String>,
 ) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
-    static_assets_with_prefix("docs-en/", path.as_str()).await
+    static_assets_with_prefix(Some("docs-en/"), path.as_str()).await
 }
 
 /// For static assets as a SPA website.
 #[route("/{path:.*}", method = "GET", method = "HEAD")]
 async fn static_assets(path: web::Path<String>) -> CustomizeResponder<EmbedResponse<EmbeddedFile>> {
-    const COOKIE_ROUTE: &str = "route";
-    let path = path.as_str();
-    // Treat path as a route by responding with `index.html`.
-    //
-    // Examples:
-    // - ""
-    // - "/about"
-    // - "/about/"
-    // - "/dataIn/task"
-    if path.is_empty()
-        || path.ends_with('/')
-        || !path[path.rfind('/').map(|i| i + 1).unwrap_or(0)..].contains('.')
-    {
-        let index = "index.html";
-        let cookie = Cookie::build(COOKIE_ROUTE, if path.is_empty() { "/" } else { path })
-            .path("/")
-            .finish();
-        tracing::info!("SPA route to {path}");
-        return StaticAssets::get(index)
-            .into_response()
-            .customize()
-            .add_cookie(&cookie);
-    }
-    tracing::info!("path: {path}");
-    if let Some(file) = StaticAssets::get(path) {
-        if path.ends_with(".js") {
-            return file
-                .into_response()
-                .customize()
-                .append_header(("Content-Type", "application/javascript"));
-        }
-        // guess mime type from path
-        let mime = mime_guess::from_path(path).first_or_octet_stream();
-        file.into_response()
-            .customize()
-            .append_header(("Content-Type", mime.essence_str()))
-    } else {
-        path.char_indices()
-            .filter(|&(_, c)| c == '/')
-            .filter_map(|(i, _)| {
-                let part = &path[i + 1..];
-                StaticAssets::get(part)
-            })
-            .next()
-            .into_response()
-            .customize()
-    }
+    static_assets_with_prefix(None, path.as_str()).await
 }
 
 #[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
 struct Profile {
     /// Cluster endpoint. Use taosAdapter endpoint like `http://192.168.0.201:16041`.
-    #[clap(short, long, env = "EXPLORER_CLUSTER")]
+    #[clap(long, env = "EXPLORER_CLUSTER")]
     cluster: Option<String>,
 
     #[clap(long, env = "EXPLORER_CLUSTER_NATIVE")]
@@ -1763,10 +1739,10 @@ struct GrafanaConfig {
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]
-#[clap(trailing_var_arg = true)]
+#[clap(trailing_var_arg = true, disable_help_flag = true)]
 struct ConfigPath {
     /// Configuration file
-    #[clap(short = 'C', long, alias = "config", env = "EXPLORER_CONFIG_FILE")]
+    #[clap(short = 'c', long, alias = "config", env = "EXPLORER_CONFIG_FILE")]
     config_file: Option<PathBuf>,
 
     #[clap(allow_hyphen_values = true)]
@@ -1807,7 +1783,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
 #[clap(name = env!("CUS_CLI_NAME"), author, version = CLAP_SHORT_VERSION, about, long_about = include_str!(env!("CUS_README")))]
 struct Args {
     /// Configuration file
-    #[clap(short = 'C', long, env = "EXPLORER_CONFIG_FILE")]
+    #[clap(short = 'c', long, alias = "config", env = "EXPLORER_CONFIG_FILE")]
     config_file: Option<PathBuf>,
     /// Port
     #[clap(short, long, global = true, env = "EXPLORER_PORT")]
@@ -2440,7 +2416,7 @@ cors = true
 
         let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
         let assert = cmd
-            .arg("-C")
+            .arg("-c")
             .arg(config_file.path().to_str().unwrap())
             .timeout(std::time::Duration::from_secs(3))
             .assert();
@@ -2466,7 +2442,7 @@ cors = true
 
         let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
         let assert = cmd
-            .arg("-C")
+            .arg("-c")
             .arg(config_file.path().to_str().unwrap())
             .timeout(std::time::Duration::from_secs(15))
             .assert();
@@ -2495,7 +2471,7 @@ certificate_key = "tests/assets/cert-key.pem"
 
         let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
         let assert = cmd
-            .arg("-C")
+            .arg("-c")
             .arg(config_file.path().to_str().unwrap())
             .timeout(std::time::Duration::from_secs(3))
             .assert();

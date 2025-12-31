@@ -4015,4 +4015,65 @@ mod tests {
         assert_eq!(ts, Some("1754239316051894554".to_string()));
         Ok(())
     }
+
+    #[test]
+    fn test_message_metadata_new() {
+        let metadata = MessageMetadata::new(12345);
+        assert_eq!(metadata.ack(), 0);
+        assert_eq!(metadata.qid(), 12345);
+    }
+
+    #[test]
+    fn test_message_metadata_new_ack() {
+        let metadata = MessageMetadata::new_ack(RPC_ACK_PROCESSED, 67890, 100);
+        assert_eq!(metadata.ack(), RPC_ACK_PROCESSED);
+        assert_eq!(metadata.qid(), 67890);
+    }
+
+    #[test]
+    fn test_message_metadata_set_ack() {
+        let mut metadata = MessageMetadata::new(12345);
+        metadata.set_ack(RPC_ACK_RECEIVED);
+        assert_eq!(metadata.ack(), RPC_ACK_RECEIVED);
+        assert_eq!(metadata.qid(), 12345);
+    }
+
+    #[test]
+    fn test_message_metadata_as_bytes() {
+        let metadata = MessageMetadata::new(12345);
+        let bytes = metadata.as_bytes();
+        assert_eq!(bytes.len(), std::mem::size_of::<MessageMetadata>());
+        assert_eq!(bytes[0], 0); // ack[0]
+    }
+
+    #[test]
+    fn test_message_metadata_ack_constants() {
+        assert_eq!(RPC_ACK_REQUEST, 0);
+        assert_eq!(RPC_ACK_RECEIVED, 1);
+        assert_eq!(RPC_ACK_PROCESSED, 2);
+        assert_eq!(RPC_ACK_DROPPED, 3);
+        assert_eq!(RPC_ACK_STREAM_END, 0xFE);
+        assert_eq!(RPC_ACK_DECODE_ERROR, 0xFF);
+    }
+
+    #[test]
+    fn test_message_metadata_multiple_acks() {
+        let mut metadata = MessageMetadata::new_ack(RPC_ACK_REQUEST, 11111, 1);
+        assert_eq!(metadata.ack(), RPC_ACK_REQUEST);
+
+        metadata.set_ack(RPC_ACK_RECEIVED);
+        assert_eq!(metadata.ack(), RPC_ACK_RECEIVED);
+
+        metadata.set_ack(RPC_ACK_PROCESSED);
+        assert_eq!(metadata.ack(), RPC_ACK_PROCESSED);
+
+        metadata.set_ack(RPC_ACK_DROPPED);
+        assert_eq!(metadata.ack(), RPC_ACK_DROPPED);
+
+        metadata.set_ack(RPC_ACK_STREAM_END);
+        assert_eq!(metadata.ack(), RPC_ACK_STREAM_END);
+
+        metadata.set_ack(RPC_ACK_DECODE_ERROR);
+        assert_eq!(metadata.ack(), RPC_ACK_DECODE_ERROR);
+    }
 }

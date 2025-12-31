@@ -1004,49 +1004,105 @@ impl ParserPlugin {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use crate::set_env_plugins_home_dir;
 
-//     #[test]
-//     fn test_list_all_plugins() {
-//         let plugin_list = ParserPlugin::list_all_plugins();
-//         println!("plugin_list====: {:?}", plugin_list);
-//         // assert_eq!(plugin_list.len(), 1);
-//         // assert_eq!(plugin_list[0], "hebeipower");
-//     }
+    use super::*;
 
-//     #[test]
-//     fn test_parse_hebeipower() {
-//         println!("test_parse_hebeipower");
-//         let plugin = ParserPlugin::new("hebeipower", "U,DATA_TYPE");
-//         let parser_object = plugin.get_plugin_object();
-//         let parser_object = parser_object.unwrap_or_else(|| {
-//             println!("new plugin object");
-//             plugin.new_plugin_object().unwrap()
-//         });
+    fn setup() -> tempfile::TempDir {
+        let tempdir = tempfile::tempdir().unwrap();
+        let plugin_dir = tempdir.path().join("parsers");
+        std::fs::create_dir(&plugin_dir).unwrap();
 
-//         println!("parser_object====:");
+        // create a plugin file with gcc
+        let source_file = r#"
+        #include <stdio.h>
+        #include <stdlib.h>
+        #include <string.h>
+        #include <stdint.h>
 
-//         let mutated = parser_object.mutate(b"{}").unwrap();
-//         println!("parsed====:{}", mutated);
-//     }
+        typedef struct ParserResponse {
+            int code;
+            void* data;
+        } ParserResponse;
 
-//     #[test]
-//     fn json_extract_object_by_depth() {
-//         let plugin = ParserPlugin::new("hebeipower", "U,DATA_TYPE");
+        char* parser_name() {
+            return "hebeipower";
+        }
 
-//         let field = Field::new("a1", DataType::Utf8, false);
-//         let array: ArrayRef = Arc::new(StringArray::from(vec![
-//             r#"{"a1": "a1", "b1": 1.2}"#,
-//             r#"{"a1": "a2", "b1": 2.5, "e1": 1}"#,
-//             r#"{"a1": "a3", "c1": 1}"#,
-//             r#"{"a":1,"b":"2","c1": 35}"#,
-//         ]));
+        char* parser_version() {
+            return "1.0";
+        }
 
-//         let (records, indices) = plugin.parse_array(&field, &array).unwrap();
+        static char* parser = "parser";
+        ParserResponse parser_new(const char* ctx, int len) {
+            ParserResponse a = { code: 0, data: (void*)parser };
+            return a;
+        }
 
-//         dbg!(&records);
-//         dbg!(&indices);
-//     }
-// }
+        char* parser_mutate(void* cp, const uint8_t* input_p, uint32_t input_l, uint8_t** output_p, uint32_t* output_l) {
+            *output_p = (uint8_t*)malloc(100);
+            strcpy((char*)*output_p, "{\"string\":\"abc\",\"int\":123,\"float\":123.456,\"bool\":true,\"null\":null,\"array\":[1,2,3]}");
+
+            // Calculate the length of the string
+            *output_l = strlen((char*)*output_p);
+            return NULL;
+        }
+
+        void parser_free(void* cp) {}"#;
+        std::fs::write(plugin_dir.join("hebeipower.c"), source_file.as_bytes()).unwrap();
+        let plugin_path = plugin_dir.join("hebeipower.so");
+        std::process::Command::new("gcc")
+            .arg("-shared")
+            .arg("-fPIC")
+            .arg("-o")
+            .arg(&plugin_path)
+            .arg(plugin_dir.join("hebeipower.c"))
+            .output()
+            .expect("failed to execute process");
+        tempdir
+    }
+
+    #[test]
+    fn test_list_all_plugins() {
+        let data_dir = setup();
+        println!("data_dir====: {}", data_dir.path().display());
+        set_env_plugins_home_dir(data_dir.path());
+        let plugin_list = ParserPlugin::list_all_plugins();
+        println!("plugin_list====: {:?}", plugin_list);
+
+        let plugin_info = plugin_list.first().unwrap();
+        assert_eq!(plugin_info.name, "hebeipower");
+        let plugin = ParserPlugin::new(plugin_info.name.as_str(), "nothing").unwrap();
+
+        let input = Arc::new(StringArray::from_iter_values(["test"])) as ArrayRef;
+        let field = Field::new("field1", DataType::Utf8, true);
+        let (batch, indices) = plugin.parse_array(&field, &input).unwrap();
+        println!("batch====: {:?}", batch);
+        println!("indices====: {:?}", indices);
+
+        assert_eq!(indices.unwrap(), [0]);
+        assert_eq!(batch.num_rows(), 1);
+        assert_eq!(batch.num_columns(), 6);
+        let names = batch
+            .schema_ref()
+            .fields()
+            .iter()
+            .map(|f| f.name())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            names,
+            vec!["string", "int", "float", "bool", "null", "array"]
+        );
+        assert_eq!(*batch.column(0).data_type(), DataType::Utf8);
+        assert_eq!(*batch.column(1).data_type(), DataType::Int64);
+        assert_eq!(*batch.column(2).data_type(), DataType::Float64);
+        assert_eq!(*batch.column(3).data_type(), DataType::Boolean);
+        assert_eq!(*batch.column(4).data_type(), DataType::Null);
+        assert_eq!(
+            *batch.column(5).data_type(),
+            DataType::List(Arc::new(Field::new("item", DataType::Int64, true)))
+        );
+    }
+}

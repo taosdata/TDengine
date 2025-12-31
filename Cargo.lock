@@ -3592,6 +3592,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "float-cmp"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b09cf3155332e944990140d967ff5eceb70df778b34f77d8075db46e4704e6d8"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "flume"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5839,6 +5848,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.30.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74523f3a35e05aba87a1d978330aef40f67b0304ac79c1c00b294c9830543db6"
+dependencies = [
+ "bitflags 2.9.1",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
+]
+
+[[package]]
 name = "nkeys"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5871,6 +5892,12 @@ dependencies = [
  "memchr",
  "minimal-lexical",
 ]
+
+[[package]]
+name = "normalize-line-endings"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
 
 [[package]]
 name = "notify"
@@ -7019,7 +7046,10 @@ checksum = "a5d19ee57562043d37e82899fade9a22ebab7be9cef5026b07fda9cdd4293573"
 dependencies = [
  "anstyle",
  "difflib",
+ "float-cmp",
+ "normalize-line-endings",
  "predicates-core",
+ "regex",
 ]
 
 [[package]]
@@ -7809,6 +7839,7 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "native-tls",
  "percent-encoding",
  "pin-project-lite",
@@ -10012,6 +10043,7 @@ dependencies = [
  "mockito",
  "openidconnect 3.5.0",
  "pin-project-lite",
+ "predicates",
  "rand 0.8.5",
  "regex",
  "reqwest 0.11.27",
@@ -10238,6 +10270,7 @@ dependencies = [
  "dashmap 6.1.0",
  "deadpool",
  "dotenv",
+ "fastrand 2.3.0",
  "flume",
  "fundu",
  "futures",
@@ -10291,6 +10324,7 @@ dependencies = [
  "taos",
  "taoslog",
  "taosx-core",
+ "taosx-integration-tests",
  "taosx-ipc",
  "taosx-metrics",
  "taosx-task",
@@ -10474,6 +10508,30 @@ dependencies = [
  "winapi",
  "zerocopy",
  "zstd 0.13.3",
+]
+
+[[package]]
+name = "taosx-integration-tests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert_cmd",
+ "chrono",
+ "fastrand 2.3.0",
+ "nix",
+ "reqwest 0.12.22",
+ "serde",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "taosx-task",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
 ]
 
 [[package]]

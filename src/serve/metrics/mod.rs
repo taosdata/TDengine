@@ -108,3 +108,37 @@ fn get_profile() -> serde_json::Value {
         "grpc_tls_enabled": crate::serve::controller::agent::get_grpc_ssl_ca_certificate().is_some(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metrics_desc_maps_are_loadable() {
+        // Ensure lazy statics are initialized without panic and basic iteration works.
+        assert_eq!(METRICS_DESC_EN.iter().count(), METRICS_DESC_EN.len());
+        assert_eq!(METRICS_DESC_ZH.iter().count(), METRICS_DESC_ZH.len());
+    }
+
+    #[test]
+    fn profile_contains_expected_keys() {
+        let prof = get_profile();
+        for key in [
+            "version",
+            "core",
+            "branch",
+            "commit",
+            "build_time",
+            "build_target",
+            "build_os",
+            "grpc_tls_enabled",
+        ] {
+            assert!(
+                prof.get(key).is_some(),
+                "missing profile key: {} in {:?}",
+                key,
+                prof
+            );
+        }
+    }
+}
