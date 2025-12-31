@@ -29,7 +29,7 @@ class TestValgrindCheckError1:
         clusterComCheck.checkDnodes(3)
 
         tdLog.info(f"=============== step1: create alter drop show user")
-        tdSql.execute(f"create user u1 pass 'taosdata'")
+        tdSql.execute(f"create user u1 pass 'taosdata' password_reuse_time 0 password_reuse_max 0")
         tdSql.query(f"select * from information_schema.ins_users")
         tdSql.execute(f"alter user u1 sysinfo 1")
         tdSql.execute(f"alter user u1 enable 1")

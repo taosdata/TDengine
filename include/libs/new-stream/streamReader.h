@@ -38,6 +38,7 @@ typedef struct StreamTableListInfo {
   SHashObj*        gIdMap;       // key: groupId/suid, value: SStreamTableList
   SHashObj*        uIdMap;       // key: uid, value: SStreamTableKeyInfo*,index
   void*            pIter;        // iterator for gIdMap
+  int64_t          version;
 } StreamTableListInfo;
 
 typedef struct SStreamTriggerReaderInfo {
@@ -48,6 +49,7 @@ typedef struct SStreamTriggerReaderInfo {
   uint64_t     uid;
   int8_t       tableType;
   int8_t       isVtableStream;  // whether is virtual table stream
+  int8_t       isVtableOnlyTs;
   int8_t       deleteReCalc;
   int8_t       deleteOutTbl;
   SNode*       pTagCond;

@@ -165,12 +165,30 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
     return;
   }
 
-  SSchJob *pJob = NULL;
+  SSchJob *pJob = NULL, *pParent = NULL;
   (void)schAcquireJob(*jobId, &pJob);
   if (NULL == pJob) {
     qTrace("jobId:0x%" PRIx64 ", acquire sch job failed, may be dropped", *jobId);
     return;
   }
+
+  pParent = pJob;
+
+  if (SCH_JOB_GOT_SUB_JOBS(pParent)) {
+    int32_t subJobNum = taosArrayGetSize(pParent->subJobs);
+    for (int32_t i = 0; i < subJobNum; ++i) {
+      pJob = taosArrayGetP(pParent->subJobs, i);
+      if (NULL == pJob) {
+        qDebug("subJobId %d not found in subJobs, totalSubJobNum:%d", i, subJobNum);
+        continue;
+      }
+
+      SCH_JOB_TLOG("jobId:0x%" PRIx64 ", start to free, code:%s", *jobId, tstrerror(errCode));
+      (void)schHandleJobDrop(pJob, errCode); // ignore any error      
+    }
+  }
+
+  pJob = pParent;
 
   SCH_JOB_TLOG("jobId:0x%" PRIx64 ", start to free, code:%s", *jobId, tstrerror(errCode));
   (void)schHandleJobDrop(pJob, errCode); // ignore any error

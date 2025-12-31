@@ -467,11 +467,11 @@ class TestStreamSubqueryCount:
 
         stream = StreamItem(
             id=38,
-            stream="create stream rdb.s38 count_window(1, c1) from tdb.triggers partition by tbname into rdb.r38 as select _twstart ts, _irowts, _isfilled, interp(c1), _irowtsorigin, _twend, _twduration, _twrownum from %%trows RANGE(_twend) FILL(linear);",
-            res_query="select * from rdb.r38 where tag_tbname='t1' limit 1",
-            exp_query="select _irowts , _isfilled , interp(c1) from tdb.t1 RANGE('2025-01-01 00:05:00.000') FILL(linear);",
+            stream="create stream rdb.s38 count_window(1, c1) from tdb.triggers partition by tbname into rdb.r38 as select _twstart ts, _irowts, _isfilled, interp(c1), _twend, _twduration, _twrownum from %%trows RANGE(_twend) FILL(prev);",
+            res_query="select `_irowts`, `_isfilled`, `interp(c1)`, `_twrownum` from rdb.r38 where tag_tbname='t1' limit 1",
+            exp_query="select _irowts , _isfilled , interp(c1), 1 from tdb.t1 where _c0 >= '2025-01-01 00:00:00.000' and _c0 <= '2025-01-01 00:01:00.000' RANGE('2025-01-01 00:00:00.000') FILL(prev);",
         )
-        # self.streams.append(stream) TD-36112 forbidden
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=39,
@@ -605,11 +605,11 @@ class TestStreamSubqueryCount:
 
         stream = StreamItem(
             id=55,
-            stream="create stream rdb.s55 count_window(1, c1) from tdb.t1 into rdb.r55 as select _irowts , _isfilled , _irowts_origin, interp(cts), interp(cint), interp(cuint), interp(cbigint), interp(cubigint), interp(cfloat), interp(cdouble), interp(csmallint), interp(cusmallint), interp(ctinyint) from qdb.meters partition by %%1 RANGE(_twstart) fill(linear)",
-            res_query="select * from rdb.r55",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s55 count_window(1, c1) from tdb.t1 into rdb.r55 as select _irowts , _isfilled , _irowts_origin, interp(cint), interp(cuint), interp(cbigint), interp(cubigint), interp(cfloat), interp(cdouble), interp(csmallint), interp(cusmallint), interp(ctinyint) from qdb.meters where tbname='t1' RANGE(_twstart + 1s) fill(near)",
+            res_query="select * from rdb.r55 limit 3",
+            exp_query="select _wstart + 1s, true, _wstart, first(cint), first(cuint), first(cbigint), first(cubigint), first(cfloat), first(cdouble), first(csmallint), first(cusmallint), first(ctinyint) from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:15:00.000' and tbname='t1' interval(5m);",
         )
-        # self.streams.append(stream) TD-36112 forbidden
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=56,
@@ -629,19 +629,19 @@ class TestStreamSubqueryCount:
 
         stream = StreamItem(
             id=58,
-            stream="create stream rdb.s58 count_window(1, c1) from tdb.triggers partition by tbname into rdb.r58 as select interp(cbigint) from qdb.v1 where ctinyint > 0 and cint > 2 RANGE('2025-01-01 00:02:00.000', '2025-01-01 00:08:00.000') EVERY (1m) FILL(linear) limit 50;",
-            res_query="select * from rdb.r58",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s58 count_window(1, c1) from tdb.triggers partition by tbname into rdb.r58 as select _irowts, interp(cbigint), _isfilled from qdb.v1 where ctinyint > 0 and cint > 2 RANGE('2025-01-01 00:02:00.000', '2025-01-01 00:08:00.000') EVERY (1m) FILL(linear) limit 50;",
+            res_query="select * from rdb.r58 where tag_tbname='t1'",
+            exp_query="select _wstart, first(cbigint), false, 't1' from qdb.v1 where cts >= '2025-01-01 00:02:00.000' and cts <= '2025-01-01 00:08:00.000' and tbname='v1' partition by tbname interval(1m);",
         )
-        # self.streams.append(stream) TD-36112 forbidden
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=59,
-            stream="create stream rdb.s59 count_window(1, c1) from tdb.triggers partition by id into rdb.r59 as select interp(csmallint) from qdb.meters partition by tbname where ctinyint > 0 and cint > 2 RANGE('2025-01-01 00:02:00.000') EVERY (1m) FILL(linear)",
-            res_query="select * from rdb.r59",
-            exp_query="select _wstart, sum(cint), count(cint), tbname from qdb.meters where cts >= '2025-01-01 00:00:00.000' and cts < '2025-01-01 00:35:00.000' and tbname='t1' partition by tbname interval(5m);",
+            stream="create stream rdb.s59 count_window(1, c1) from tdb.triggers partition by tbname into rdb.r59 as select _irowts, interp(csmallint), _isfilled from qdb.meters where ctinyint > 0 and cint > 2 partition by tbname RANGE('2025-01-01 00:02:01.000') EVERY (1m) FILL(next)",
+            res_query="select `_irowts`, `interp(csmallint)`, `_isfilled` from rdb.r59 where tag_tbname='t1'",
+            exp_query="select timestamp '2025-01-01 00:02:01.000', last(csmallint), true from qdb.meters where cts >= '2025-01-01 00:02:00.000' and cts <= '2025-01-01 00:02:30.000' and tbname='t1' partition by tbname;",
         )
-        # self.streams.append(stream) TD-36112 forbidden
+        self.streams.append(stream)
 
         stream = StreamItem(
             id=60,
@@ -1257,6 +1257,23 @@ class TestStreamSubqueryCount:
             check_func=self.check136,
         )
         # self.streams.append(stream) bug
+
+        stream = StreamItem(
+            id=137,
+            stream="create stream rdb.s137 count_window(1, 10000) from tdb.v1 into rdb.r137 as select _irowts, interp(cbigint), _isfilled from qdb.v1 RANGE(_twstart, _twend + 30s) EVERY (3s) FILL(near);",
+            res_query="select * from rdb.r137",
+            exp_query="select _irowts, interp(cbigint), _isfilled from qdb.v1 RANGE('2025-01-01 00:00:00.000', '2025-01-01 00:00:30.000') EVERY (3s) FILL(near);",
+        )
+        self.streams.append(stream)
+
+        stream = StreamItem(
+            id=138,
+            stream="create stream rdb.s138 count_window(1, 10000) from tdb.v1 into rdb.r138 as select _irowts, interp(cbigint), _isfilled from qdb.v1 where _c0 >= _twstart and _c0 <= _twend RANGE(_twstart, _twend + 30s) EVERY (3s) FILL(near);",
+            res_query="select * from rdb.r138",
+            exp_query="select _irowts, interp(cbigint), _isfilled from qdb.v1 where _c0 <= '2025-01-01 00:00:00.000' RANGE('2025-01-01 00:00:00.000', '2025-01-01 00:00:30.000') EVERY (3s) FILL(near);",
+        )
+        self.streams.append(stream)
+
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:

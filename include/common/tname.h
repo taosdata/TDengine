@@ -23,6 +23,7 @@
 extern "C" {
 #endif
 
+#define TSDB_SYS_NAME_T   0
 #define TSDB_DB_NAME_T    1
 #define TSDB_TABLE_NAME_T 2
 

@@ -81,6 +81,8 @@ typedef struct SStreamRunnerTaskOutput {
   uint64_t            outStbUid;
   int32_t             outStbVersion;
   SNodeList          *pTagValExprs;
+  SArray             *colCids;
+  SArray             *tagCids;
 } SStreamRunnerTaskOutput;
 
 typedef struct SStreamRunnerTaskNotification {

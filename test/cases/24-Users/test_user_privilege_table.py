@@ -70,8 +70,10 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"grant read on test.st1 to wxy;")
-
+        tdSql.execute(f"grant select on test.st1 to wxy;")
+        tdSql.execute(f"grant use on database test to wxy;")
+        tdSql.execute(f"revoke role `SYSINFO_1` from wxy;")
+        tdSql.execute(f"grant show on table test.st1 to wxy;")
         tdSql.connect("wxy")
 
         tdSql.execute(f"reset query cache;")
@@ -94,8 +96,8 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.st1 from wxy;")
-        tdSql.execute(f"grant read on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"revoke select on test.st1 from wxy;")
+        tdSql.execute(f"grant select on test.st1 with id = 1 to wxy;")
         tdSql.query(f"show test.stables;")
         tdSql.checkRows(2)
 
@@ -120,8 +122,8 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.st1 with id = 1 from wxy;")
-        tdSql.execute(f"grant write on test.st1 to wxy;")
+        tdSql.execute(f"revoke select on test.st1 with id = 1 from wxy;")
+        tdSql.execute(f"grant insert on test.st1 to wxy;")
         tdSql.query(f"show test.stables;")
         tdSql.checkRows(2)
 
@@ -144,8 +146,8 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke write on test.st1 from wxy;")
-        tdSql.execute(f"grant write on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"revoke insert on test.st1 from wxy;")
+        tdSql.execute(f"grant insert on test.st1 with id = 1 to wxy;")
         tdSql.query(f"show test.stables;")
         tdSql.checkRows(2)
 
@@ -174,8 +176,9 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke write on test.st1 with id = 1 from wxy;")
-        tdSql.execute(f"grant read on test.* to wxy;")
+        tdSql.execute(f"revoke insert on test.st1 with id = 1 from wxy;")
+        tdSql.execute(f"grant select on test.* to wxy;")
+        tdSql.execute(f"grant show on table test.* to wxy;")
         tdSql.query(f"show test.stables;")
         tdSql.checkRows(2)
 
@@ -203,7 +206,7 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"grant read on test.st1 to wxy;")
+        tdSql.execute(f"grant select on test.st1 to wxy;")
 
         tdSql.connect("wxy")
 
@@ -229,8 +232,10 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.st1 from wxy;")
-        tdSql.execute(f"grant read on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"revoke select on test.st1 from wxy;")
+        tdSql.execute(f"revoke select on test.* from wxy;")
+        tdSql.execute(f"grant select on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"grant select on test.st2 to wxy;")
 
         tdSql.connect("wxy")
 
@@ -256,8 +261,9 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.st1 with id = 1 from wxy;")
-        tdSql.execute(f"grant write on test.st1 to wxy;")
+        tdSql.execute(f"revoke select on test.st1 with id = 1 from wxy;")
+        tdSql.execute(f"grant select on test.st1 to wxy;")
+        tdSql.execute(f"grant insert on test.st1 to wxy;")
 
         tdSql.connect("wxy")
 
@@ -283,8 +289,8 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke write on test.st1 from wxy;")
-        tdSql.execute(f"grant write on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"revoke insert on test.st1 from wxy;")
+        tdSql.execute(f"grant insert on test.st1 with id = 1 to wxy;")
 
         tdSql.connect("wxy")
 
@@ -309,9 +315,11 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.* from wxy;")
-        tdSql.execute(f"revoke write on test.st1 with id = 1 from wxy;")
-        tdSql.execute(f"grant write on test.* to wxy;")
+        tdSql.execute(f"revoke select on test.* from wxy;")
+        tdSql.execute(f"revoke select on test.st1 from wxy;")
+        tdSql.execute(f"revoke select on test.st2 from wxy;")
+        tdSql.execute(f"revoke insert on test.st1 with id = 1 from wxy;")
+        tdSql.execute(f"grant insert on test.* to wxy;")
 
         tdSql.connect("wxy")
 
@@ -333,7 +341,7 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"grant read on test.st1 to wxy;")
+        tdSql.execute(f"grant select on test.st1 to wxy;")
 
         tdSql.connect("wxy")
 
@@ -357,8 +365,8 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.st1 from wxy;")
-        tdSql.execute(f"grant read on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"revoke select on test.st1 from wxy;")
+        tdSql.execute(f"grant select on test.st1 with id = 1 to wxy;")
 
         tdSql.connect("wxy")
 
@@ -382,8 +390,8 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke read on test.st1 with id = 1 from wxy;")
-        tdSql.execute(f"grant write on test.st1 to wxy;")
+        tdSql.execute(f"revoke select on test.st1 with id = 1 from wxy;")
+        tdSql.execute(f"grant insert on test.st1 to wxy;")
 
         tdSql.connect("wxy")
 
@@ -405,8 +413,10 @@ class TestUserPrivilegeTable:
 
         tdSql.connect("root")
 
-        tdSql.execute(f"revoke write on test.st1 from wxy;")
-        tdSql.execute(f"grant write on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"revoke insert on test.st1 from wxy;")
+        tdSql.execute(f"grant insert on test.st1 with id = 1 to wxy;")
+        tdSql.execute(f"grant insert on test.st2 to wxy;")
+        tdSql.execute(f"revoke insert on test.* from wxy;")
 
         tdSql.connect("wxy")
 

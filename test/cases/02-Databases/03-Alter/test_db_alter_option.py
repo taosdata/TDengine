@@ -450,7 +450,7 @@ class TestDatabaseAlterOption:
         tdSql.error("ALTER DATABASE test COMP 1",expectErrInfo="syntax error", fullMatched=False)
         tdSql.error("ALTER DATABASE test DURATION 1",expectErrInfo="syntax error", fullMatched=False)
         tdSql.error("ALTER DATABASE test maxrows 1",expectErrInfo="syntax error", fullMatched=False)
-        tdSql.error("ALTER DATABASE test encrypt_algorithm 'sm4'",expectErrInfo="Encryption is not allowed to be changed after database is created", fullMatched=False)
+        tdSql.error("ALTER DATABASE test encrypt_algorithm 'SM4-CBC'",expectErrInfo="Encryption is not allowed to be changed after database is created", fullMatched=False)
         tdSql.error("ALTER DATABASE test vgroups 4",expectErrInfo="syntax error", fullMatched=False)
         tdSql.error("ALTER DATABASE test single_stable 1",expectErrInfo="syntax error", fullMatched=False)
         tdSql.error("ALTER DATABASE test schemaless 1",expectErrInfo="syntax error", fullMatched=False)

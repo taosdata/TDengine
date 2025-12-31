@@ -271,7 +271,7 @@ int32_t buildChildTableName(RandTableName* rName) {
 
   rName->ctbShortName[0] = 't';
   rName->ctbShortName[1] = '_';
-  taosByteArrayToHexStr(context.digest, 16, rName->ctbShortName + 2);
+  (void)taosByteArrayToHexStr((char*)context.digest, 16, rName->ctbShortName + 2);
   rName->ctbShortName[34] = 0;
 
   return TSDB_CODE_SUCCESS;

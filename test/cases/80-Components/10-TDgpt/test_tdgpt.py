@@ -68,7 +68,7 @@ class TestTDgptBasic:
         tdLog.info("create anode: 192.168.2.90:6090 successfully")
         tdSql.query("show anodes full")
 
-        # there are 17 analysis model for forecasting or anomaly-detection.
+        # there are 17 analysis models for forecasting or anomaly-detection.
         tdSql.checkRows(17)
 
         tdSql.execute("create database d0 vgroups 1")

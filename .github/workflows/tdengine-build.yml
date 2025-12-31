@@ -114,7 +114,9 @@ jobs:
             libssl-dev \
             libz-dev \
             pkg-config \
-            zlib1g
+            zlib1g \
+            groff  
+            
 
       - name: Install dependencies on macOS
         if: runner.os == 'macOS'

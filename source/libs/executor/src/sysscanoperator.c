@@ -3405,7 +3405,6 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       T_LONG_JMP(pTaskInfo->env, code);
     }
     updateLoadRemoteInfo(&pInfo->loadInfo, pRsp->numOfRows, pRsp->compLen, startTs, pOperator);
-
     // todo log the filter info
     code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     if (code != TSDB_CODE_SUCCESS) {
@@ -3543,7 +3542,8 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   QUERY_CHECK_CODE(code, lino, _error);
 
   initLimitInfo(pScanPhyNode->scan.node.pLimit, pScanPhyNode->scan.node.pSlimit, &pInfo->limitInfo);
-  initResultSizeInfo(&pOperator->resultInfo, 4096);
+  // since max column changed from 4096 -> 32767, we set the initial result size to 32K
+  initResultSizeInfo(&pOperator->resultInfo, 32768);
   code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
 

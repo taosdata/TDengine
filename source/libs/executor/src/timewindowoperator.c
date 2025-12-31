@@ -1147,6 +1147,20 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   }
 
   for (int32_t j = *startIndex; j < *endIndex; ++j) {
+    if (pBlock->info.scanFlag != PRE_SCAN) {
+      if (pInfo->winSup.lastTs == INT64_MIN || gid != pRowSup->groupId || !pInfo->hasKey) {
+        pInfo->winSup.lastTs = tsList[j];
+      } else {
+        if (tsList[j] == pInfo->winSup.lastTs) {
+          // forbid duplicated ts rows
+          qError("%s:%d duplicated ts found in state window aggregation", __FILE__, __LINE__);
+          pTaskInfo->code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
+          T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP);
+        } else {
+          pInfo->winSup.lastTs = tsList[j];
+        }
+      }
+    }
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
       doKeepStateWindowNullInfo(pRowSup, tsList[j]);
       continue;
@@ -1651,8 +1665,6 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
   calcIntervalAutoOffset(&interval);
 
   STimeWindowAggSupp as = {
-      .waterMark = pPhyNode->window.watermark,
-      .calTrigger = pPhyNode->window.triggerType,
       .maxTs = INT64_MIN,
   };
 
@@ -1941,7 +1953,7 @@ static int32_t resetStatewindowOperState(SOperatorInfo* pOper) {
 
   pInfo->cleanGroupResInfo = false;
   pInfo->hasKey = false;
-
+  pInfo->winSup.lastTs = INT64_MIN;
   cleanupGroupResInfo(&pInfo->groupResInfo);
   memset(pInfo->stateKey.pData, 0, pInfo->stateKey.bytes);
   return code;
@@ -2015,9 +2027,6 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
   initBasicInfo(&pInfo->binfo, pResBlock);
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
 
-  pInfo->twAggSup =
-      (STimeWindowAggSupp){.waterMark = pStateNode->window.watermark, .calTrigger = pStateNode->window.triggerType};
-
   code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -2026,6 +2035,8 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
   pInfo->cleanGroupResInfo = false;
   pInfo->extendOption = pStateNode->extendOption;
   pInfo->trueForLimit = pStateNode->trueForLimit;
+  pInfo->winSup.lastTs = INT64_MIN;
+
   setOperatorInfo(pOperator, "StateWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(openStateWindowAggOptr, doStateWindowAggNext, NULL, destroyStateWindowOperatorInfo,
@@ -2135,8 +2146,6 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
                     pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  pInfo->twAggSup.waterMark = pSessionNode->window.watermark;
-  pInfo->twAggSup.calTrigger = pSessionNode->window.triggerType;
   pInfo->gap = pSessionNode->gap;
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);

@@ -2007,22 +2007,13 @@ class TestJoinFull:
         tdSql.checkData(1, 1, 3)
         tdSql.checkData(2, 1, 3)
 
-        tdSql.query(
+        tdSql.error(
             f"select a.ts from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4 order by count(*);"
         )
-        tdSql.checkRows(7)
 
-        tdSql.query(
+        tdSql.error(
             f"select a.ts from sta a left window join sta b window_offset(-1s, 1s) where b.col1 between 2 and 4 order by count(*), a.ts;"
         )
-        tdSql.checkRows(7)
-        tdSql.checkData(0, 0, "2023-11-17 16:29:04")
-        tdSql.checkData(1, 0, "2023-11-17 16:29:00")
-        tdSql.checkData(2, 0, "2023-11-17 16:29:00")
-        tdSql.checkData(3, 0, "2023-11-17 16:29:03")
-        tdSql.checkData(4, 0, "2023-11-17 16:29:03")
-        tdSql.checkData(5, 0, "2023-11-17 16:29:01")
-        tdSql.checkData(6, 0, "2023-11-17 16:29:02")
 
         tdSql.query(
             f"select a.ts, count(*),last(b.ts) from sta a left window join sta b window_offset(-1s, 1s);"
@@ -5297,7 +5288,7 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 12)
 
-        tdSql.query(
+        tdSql.error(
             f"select count(a.col1) c1 from sta a join sta b on a.ts = b.ts state_window(b.col1);"
         )
 
@@ -5349,7 +5340,7 @@ class TestJoinFull:
             f"select count(a.col1) c1 from sta a left join sta b on a.ts = b.ts session(b.ts, 1s);"
         )
 
-        tdSql.query(
+        tdSql.error(
             f"select count(a.col1) c1 from sta a left join sta b on a.ts = b.ts state_window(b.col1);"
         )
 
@@ -5405,7 +5396,7 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 8)
 
-        tdSql.query(
+        tdSql.error(
             f"select count(a.col1) c1 from sta a left semi join sta b on a.ts = b.ts state_window(b.col1);"
         )
 
@@ -5464,7 +5455,7 @@ class TestJoinFull:
             f"select count(a.col1) c1 from sta a left anti join sta b on a.ts = b.ts session(b.ts, 1s);"
         )
 
-        tdSql.query(
+        tdSql.error(
             f"select count(a.col1) c1 from sta a left semi join sta b on a.ts = b.ts state_window(b.col1);"
         )
 

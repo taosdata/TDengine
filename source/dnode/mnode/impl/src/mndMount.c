@@ -496,6 +496,7 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   SMountObj      *pObj = NULL;
   SUserObj       *pUser = NULL;
   SCreateMountReq createReq = {0};
+  int64_t         tss = taosGetTimestampMs();
 
   TAOS_CHECK_EXIT(tDeserializeSCreateMountReq(pReq->pCont, pReq->contLen, &createReq));
   mInfo("mount:%s, start to create on dnode %d from %s", createReq.mountName, *createReq.dnodeIds,
@@ -518,9 +519,9 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
     }
   }
   // mount operation share the privileges of db
-  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_MOUNT, (SDbObj *)pObj));
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_MOUNT, (SDbObj *)pObj));
   TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser));
   char fullMountName[TSDB_MOUNT_NAME_LEN + 32] = {0};
   (void)snprintf(fullMountName, sizeof(fullMountName), "%d.%s", pUser->acctId, createReq.mountName);
   if ((pDb = mndAcquireDb(pMnode, fullMountName))) {
@@ -531,7 +532,13 @@ static int32_t mndProcessCreateMountReq(SRpcMsg *pReq) {
   TAOS_CHECK_EXIT(mndRetrieveMountInfo(pMnode, pReq, &createReq));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  auditRecord(pReq, pMnode->clusterId, "createMount", createReq.mountName, "", createReq.sql, createReq.sqlLen);
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "createMount", createReq.mountName, "", createReq.sql, createReq.sqlLen,
+                duration, 0);
+  }
 
 _exit:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -586,7 +593,7 @@ static int32_t mndProcessExecuteMountReq(SRpcMsg *pReq) {
   }
   // mount operation share the privileges of db
   TAOS_CHECK_EXIT(grantCheck(TSDB_GRANT_MOUNT));  // TODO: implement when the plan is ready
-  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, pReq->info.conn.user, &pUser));
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser));
 
   TAOS_CHECK_EXIT(mndCreateMount(pMnode, pReq, &mntInfo, pUser));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -666,6 +673,7 @@ static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
   int32_t       code = -1;
   SMountObj    *pObj = NULL;
   SDropMountReq dropReq = {0};
+  int64_t       tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSDropMountReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _exit);
 
@@ -682,7 +690,7 @@ static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
   }
 
   // mount operation share the privileges of db
-  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MOUNT, (SDbObj *)pObj), NULL, _exit);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_MOUNT, (SDbObj *)pObj), NULL, _exit);
 
   code = mndDropMount(pMnode, pReq, pObj);
   if (code == TSDB_CODE_SUCCESS) {
@@ -693,7 +701,12 @@ static int32_t mndProcessDropMountReq(SRpcMsg *pReq) {
   // if (tNameFromString(&name, dropReq.mountName, T_NAME_ACCT | T_NAME_DB) < 0)
   //   mError("mount:%s, failed to parse db name", dropReq.mountName);
 
-  auditRecord(pReq, pMnode->clusterId, "dropMount", dropReq.mountName, "", dropReq.sql, dropReq.sqlLen);
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "dropMount", dropReq.mountName, "", dropReq.sql, dropReq.sqlLen, duration, 0);
+  }
 
 _exit:
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {

@@ -36,7 +36,7 @@ declare -A MODEL_NAMES=(
 
 declare -A MODEL_VENV_MAP=(
     ["chronos"]="/var/lib/taos/taosanode/venv_chronos"
-    ["moirai"]="/var/lib/taos/taosanode/venv"
+    ["moirai"]="/var/lib/taos/taosanode/venv_moirai"
     ["tdtsfm"]="/var/lib/taos/taosanode/venv"
     ["timemoe"]="/var/lib/taos/taosanode/venv"
     ["timesfm"]="/var/lib/taos/taosanode/venv_timesfm"
@@ -72,11 +72,7 @@ execute_startup() {
         echo "Running startup script: ${startup_script}"
         cd "${script_path}" || exit
         echo "Current directory: $(pwd)"
-        if [ "${model}" == "moment" ]; then
-            echo "modifying moment-server.py model list"
-            sed -i "s|_model_list\[0\]|'${subdir}'|g" "${model}-server.py" && echo "${model}-server.py updated"
-        fi
-        if [ "${model}" == "tdtsfm" ] || [ "${model}" == "moment" ]; then
+        if [ "${model}" == "tdtsfm" ]; then
             echo "Running command: nohup python3 /usr/local/taos/taosanode/lib/taosanalytics/tsfmservice/${model}-server.py &"
             nohup python3 "${model}-server.py" --action server &
         else
@@ -200,7 +196,8 @@ if mount | grep -q "${MODEL_BASE_PATH}"; then
     fi
 else
     echo "Non-mounted mode: starting built-in models..."
-    for model in tdtsfm timemoe moment; do
+    models=(tdtsfm timemoe moment moirai)
+    for model in "${models[@]}"; do
         model_dir=$(find_model_file "${model}")
         if [ -n "${model_dir}" ]; then
             echo "✓ Found ${model} model at: ${model_dir}"

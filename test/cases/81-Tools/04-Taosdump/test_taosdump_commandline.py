@@ -298,7 +298,9 @@ class TestTaosdumpCommandline:
         sql = f"create user {user} pass '{pwd}' "
         tdSql.execute(sql)
         # enterprise must set
-        sql = f"grant read on test to {user}"
+        # sql = f"grant read on test to {user}"
+        sql = f"grant select on test.* to {user}"
+        sql = f"grant use on database test to {user}"
         tdSql.execute(sql)
 
         cmds = [

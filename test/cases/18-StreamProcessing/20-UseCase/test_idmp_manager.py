@@ -188,12 +188,11 @@ class Test_IDMP_Meters:
 
               # stream5
               "CREATE STREAM test.stream5      EVENT_WINDOW( START WITH `电压` > 250 and `电流` > 50 END WITH `电压` <= 250 and `电流` <= 50 ) TRUE_FOR(5s) FROM test.vt_5  STREAM_OPTIONS(FILL_HISTORY) NOTIFY('ws://idmp:6042/recv/?key=man_stream5')       ON(WINDOW_OPEN|WINDOW_CLOSE)         INTO test.result_stream5      AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `总功率` FROM %%trows",
-              # ***** bug7 *****
-              #"CREATE STREAM test.stream5_sub1 EVENT_WINDOW( START WITH `电压` > 250 and `电流` > 50 END WITH `电压` <= 250 and `电流` <= 50 ) TRUE_FOR(5s) FROM test.vt_5                               NOTIFY('ws://idmp:6042/recv/?key=man_stream5_sub1')  ON(WINDOW_CLOSE) WHERE `最小电流`<=48 INTO test.result_stream5_sub1 AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `总功率` FROM %%trows",
+              "CREATE STREAM test.stream5_sub1 EVENT_WINDOW( START WITH `电压` > 250 and `电流` > 50 END WITH `电压` <= 250 and `电流` <= 50 ) TRUE_FOR(5s) FROM test.vt_5                               NOTIFY('ws://idmp:6042/recv/?key=man_stream5_sub1')  ON(WINDOW_CLOSE) WHERE `最小电流`<=48 INTO test.result_stream5_sub1 AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `总功率` FROM %%trows",
 
 
               # stream6
-              "CREATE STREAM test.stream6      EVENT_WINDOW( START WITH `电压` > 250 and `电流` > 50 END WITH `电压` <= 250 and `电流` <= 50 ) TRUE_FOR(5s) FROM test.vt_6  STREAM_OPTIONS(FILL_HISTORY) NOTIFY('ws://idmp:6042/recv/?key=man_stream6')        ON(WINDOW_OPEN|WINDOW_CLOSE)        INTO test.result_stream6      AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `总功率` FROM %%trows",
+              "CREATE STREAM test.stream6      EVENT_WINDOW( START WITH `电压` > 250 and `电流` > 50 END WITH `电压` <= 250 and `电流` <= 50 ) TRUE_FOR(5s) FROM test.vt_6  STREAM_OPTIONS(FILL_HISTORY) NOTIFY('ws://idmp:6042/recv/?key=man_stream6')  ON(WINDOW_OPEN|WINDOW_CLOSE)  NOTIFY_OPTIONS(NOTIFY_HISTORY)   INTO test.result_stream6      AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电流`) AS `最小电流`, MAX(`电流`) AS `最大电流`, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压`, SUM(`功率`) AS `总功率` FROM %%trows",
 
               # stream7 recalculate
               "CREATE STREAM test.stream7      INTERVAL(5s) SLIDING(5s) FROM test.vt_7 STREAM_OPTIONS(IGNORE_NODATA_TRIGGER|DELETE_RECALC)   INTO test.result_stream7      AS SELECT _twstart AS ts, _twrownum as wcnt, sum(`功率`) as `总功率` FROM %%trows",
@@ -277,10 +276,8 @@ class Test_IDMP_Meters:
         self.verify_stream1()
         self.verify_stream3()
         self.verify_stream4()
-        # ***** bug5 *****
-        #self.verify_stream5()
-        # ***** bug6 *****
-        #self.verify_stream6()
+        self.verify_stream5()
+        self.verify_stream6()
         self.verify_stream7()
         self.verify_stream8()
 
@@ -310,12 +307,11 @@ class Test_IDMP_Meters:
         # wait for stream processing
         time.sleep(3)
         print("verifyResultsAgain ...")
-        # ***** bug1 *****
-        # self.verify_stream1_again()
+        self.verify_stream1_again()
         self.verify_stream3_again()
         self.verify_stream4_again()
         # ***** bug9 *****
-        #self.verify_stream7_again()
+        self.verify_stream7_again()
         self.verify_stream8_again()
 
     #
@@ -363,6 +359,13 @@ class Test_IDMP_Meters:
                 tdLog.exit(f"check taosd log failed, key={key} expect:{expect} < actual:{cnt}.")
             else:
                 print(f"check taosd log success, key:{key} expect:{expect} rule:{rule} actual:{cnt}.")
+    
+    #
+    # find notify key
+    #
+    def findNotifyKey(self, key):
+        self.checkTaosdLog(f"failed to get stream notify handle of ws://idmp:6042/recv/?key={key}", expect=1, rule=1)
+                
 
     #
     # ---------------------   find other   ----------------------
@@ -420,8 +423,7 @@ class Test_IDMP_Meters:
         items = {
            "mnode-stream-mg": 4,
            "dnode-stream-mg": 5,
-           # ***** bug4 *****
-           #"vnode-st-reader": 6,
+           "vnode-st-reader": 6,
            "snode-stream-tr": 7,
            "snode-stream-ru": 8
         }
@@ -581,7 +583,7 @@ class Test_IDMP_Meters:
     #  trigger stream5
     #
     def trigger_stream5(self):
-        ts    = self.start1
+        ts    = self.start2
         table = "test.t5"
         step  = 1000 # 1s
         cols  = "ts,fc,ic,bi,si,bin"
@@ -647,28 +649,24 @@ class Test_IDMP_Meters:
         step  = 1000 # 1s
         cols  = "ts,fc,ic,bi,si,bin"
 
-        # win1
+        # win1 order insert
         count = 5
         vals  = "50,250,10,1,'abcde'"
         ts    = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
-        # blank 5 win2 disorder
+        # blank 5 win2 for disorder
         disTs = ts
         ts += 5 * step
 
-        # win3~4
+        # win3~4 order insert
         count = 11
         vals  = "50,250,10,1,'abcde'"
         self.ts7 = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
-        # disorder win2
+        # insert win2 disorder
         count = 5
         vals  = "40,240,10,1,'disorder'"
-        disTs = tdSql.insertFixedVal(table, disTs, step, count, cols, vals)
-
-        # delete win3
-        sql = f"delete from {table} where ts >= {disTs} and ts < {disTs + 5 * step}"
-        self.exec(sql)
+        self.disTs7 = tdSql.insertFixedVal(table, disTs, step, count, cols, vals)
 
     #
     #  trigger stream7 again
@@ -694,6 +692,10 @@ class Test_IDMP_Meters:
         step  = 1000 # 1s
         count = 5
         ts    = tdSql.insertFixedVal(table, self.ts7, step, count, cols, vals)
+
+        # # delete win3 for rows 0 and 1
+        # sql = f"delete from {table} where ts >= {self.disTs7} and ts < {self.disTs7 + 2 * step}"
+        # self.exec(sql)        
 
 
     #
@@ -788,46 +790,9 @@ class Test_IDMP_Meters:
     #
     def verify_stream1_again(self):
         # check
-        result_sql = f"select * from test.result_stream1 order by tag_tbname"
-        tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() == 1)
-
-        # check data
-        data = [
-            # ts           cnt  power
-            [1752574200000, 5, 50, "t1"]
-        ]
-        tdSql.checkDataMemLoop(result_sql, data)
+        self.verify_stream1()
         print("verify stream1 again ........................... successfully.")
 
-        # sub
-        self.verify_stream1_sub1_again()
-        self.verify_stream1_sub3_again()
-
-    def verify_stream1_sub1_again(self):
-        # check
-        result_sql = f"select * from test.result_stream1_sub1 "
-        tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() == 1)
-
-        # check data
-        data = [
-            # ts           cnt  power  gid
-            [1752574200000, 5, 50, 1]
-        ]
-        tdSql.checkDataMemLoop(result_sql, data)
-        print("verify stream1 sub1 again ...................... successfully.")
-
-    def verify_stream1_sub3_again(self):
-        # check
-        result_sql = f"select * from out.result_stream1_sub3 "
-        tdSql.checkResultsByFunc(sql=result_sql, func=lambda: tdSql.getRows() == 1)
-
-        # check data
-        data = [
-            # ts           cnt  power  gid
-            [1752574200000, 5, 50, 1]
-        ]
-        tdSql.checkDataMemLoop(result_sql, data)
-        print("verify stream1 sub3 again ...................... successfully.")
 
     #
     #  verify stream3
@@ -949,8 +914,7 @@ class Test_IDMP_Meters:
         print("verify stream5 ................................. successfully.")
 
         # sub
-        # ***** bug7 *****
-        #self.verify_stream5_sub1()
+        self.verify_stream5_sub1()
 
 
     def verify_stream5_sub1(self):
@@ -968,7 +932,7 @@ class Test_IDMP_Meters:
         tdSql.checkDataMemLoop(result_sql, data)
 
         # check taosd log
-        self.checkTaosdLog("?key=man_stream5_sub1", expect = 1)
+        self.findNotifyKey("man_stream5_sub1")
         print("verify stream5 sub1 ............................ successfully.")
 
     #
@@ -987,6 +951,9 @@ class Test_IDMP_Meters:
             func = lambda: tdSql.getRows() == len(data)
         )
         tdSql.checkDataMemLoop(result_sql, data)   
+
+        # check taosd log
+        self.findNotifyKey("man_stream6")
         print("verify stream6 ................................. successfully.")
 
 
@@ -1020,7 +987,7 @@ class Test_IDMP_Meters:
         data = [
             # ts           cnt  power
             [1752574200000, 5,  50], # order
-            [1752574210000, 5,  50], # deleted
+            [1752574210000, 5,  50], # order
             [1752574215000, 5,  50]  # order
         ]
         result_sql = f"select * from test.result_stream7_sub1"
@@ -1036,14 +1003,14 @@ class Test_IDMP_Meters:
     #  verify stream7 again
     #
     def verify_stream7_again(self):
-        # ***** bug8 *****
-        ''' 
         # mem
         data = [
             # ts           cnt  power
             [1752574200000, 5,  50], # order
             [1752574205000, 5,  50], # disorder
-            [1752574215000, 5,  50],  # order
+            # [1752574210000, 3,  30], # order del row 0~1
+            [1752574210000, 5,  50],
+            [1752574215000, 5,  50], # order
             [1752574220000, 5,  50]  # again
         ]
         result_sql = f"select * from test.result_stream7"
@@ -1053,7 +1020,6 @@ class Test_IDMP_Meters:
         )
         tdSql.checkDataMemLoop(result_sql, data)   
         print("verify stream7 again ........................... successfully.")
-        '''
 
         # sub
         self.verify_stream7_sub1_again()
@@ -1066,6 +1032,7 @@ class Test_IDMP_Meters:
             # ts           cnt  power
             [1752574200000, 5,  50], # order
             [1752574205000, 5,  50], # disorder
+            [1752574210000, 5,  50], # order del row 0~1 but no set DELETE_RECALC OPTION
             [1752574215000, 5,  50], # order
             [1752574220000, 5,  50]  # again
         ]

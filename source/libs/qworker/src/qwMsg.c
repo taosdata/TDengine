@@ -43,10 +43,46 @@ void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, int32_t rawData
   rsp->numOfBlocks = htonl(input->numOfBlocks);
 }
 
-void qwFreeFetchRsp(void *msg) {
-  if (msg) {
-    rpcFreeCont(msg);
+void qwFreeFetchRsp(SQWTaskCtx *ctx, void *msg) {
+  if (NULL == msg) {
+    return;
   }
+  
+  if (!ctx->localExec) {
+    rpcFreeCont(msg);
+  } else {
+
+  }
+}
+
+int32_t qwCloneSubQueryFetchRsp(SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code) {
+  SQWSubQRes* pRes = &ctx->subQRes;
+  pRes->resGot = true;
+  pRes->code = code;
+  pRes->dataLen = dataLen;
+
+  SRetrieveTableRsp* pRsp = NULL;
+  int32_t tcode = qwMallocFetchRsp(!ctx->localExec, dataLen, &pRsp);
+  if (tcode) {
+    qError("qwMallocFetchRsp size %d, localExec:%d failed, error:%s", dataLen, ctx->localExec, tstrerror(tcode));
+    return tcode;
+  }
+
+  memcpy(pRsp, rsp, sizeof(*pRsp) + dataLen);
+
+  pRes->rsp = pRsp;
+
+  return code;
+}
+
+int32_t qwChkSaveSubQueryFetchRsp(SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd) {
+  SRetrieveTableRsp* pRsp = (SRetrieveTableRsp*)rsp;
+  if (!queryEnd || be64toh(pRsp->numOfRows) > 1) {
+    qError("invalid subQ rsp, queryEnd:%d, numOfRows:%" PRId64, queryEnd, be64toh(pRsp->numOfRows));
+    code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS;
+  }
+
+  return qwCloneSubQueryFetchRsp(ctx, rsp, dataLen, code);
 }
 
 int32_t qwBuildAndSendErrorRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code) {
@@ -436,7 +472,7 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
   *qType = msg.taskType;  // task type: TASK_TYPE_HQUERY or TASK_TYPE_QUERY
 
   SQWMsg qwMsg = {
-      .msgType = pMsg->msgType, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info};
+      .msgType = pMsg->msgType, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info, .msgMask = msg.msgMask};
 
   QW_SCH_TASK_DLOG("prerocessQuery start, handle:%p, SQL:%s", pMsg->info.handle, msg.sql);
   code = qwPreprocessQuery(QW_FPARAMS(), &qwMsg);
@@ -500,14 +536,14 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   int64_t  rId = msg.refId;
   int32_t  eId = msg.execId;
 
-  SQWMsg qwMsg = {.node = node, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info, .msgType = pMsg->msgType, .code = pMsg->code};
+  SQWMsg qwMsg = {.node = node, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info, .msgType = pMsg->msgType, .code = pMsg->code, .subEndPoints = msg.subEndPoints};
   qwMsg.msgInfo.explain = msg.explain;
   qwMsg.msgInfo.taskType = msg.taskType;
   qwMsg.msgInfo.needFetch = msg.needFetch;
   qwMsg.msgInfo.compressMsg = msg.compress;
 
-  QW_SCH_TASK_DLOG("processQuery start, node:%p, type:%s, compress:%d, handle:%p, SQL:%s, code:0x%x", node, TMSG_INFO(pMsg->msgType),
-                   msg.compress, pMsg->info.handle, msg.sql, qwMsg.code);
+  QW_SCH_TASK_DLOG("processQuery start, node:%p, type:%s, compress:%d, handle:%p, SQL:%s, code:0x%x, subEndPointsNum:%d", 
+    node, TMSG_INFO(pMsg->msgType), msg.compress, pMsg->info.handle, msg.sql, qwMsg.code, (int32_t)taosArrayGetSize(qwMsg.subEndPoints));
 
   code = qwProcessQuery(QW_FPARAMS(), &qwMsg, msg.sql);
   msg.sql = NULL;

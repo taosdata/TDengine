@@ -50,3 +50,5 @@ taos> select avg(cast(1.1 as float))
           1.10000002384186 |
 
 taos> select avg(cast(1.1 as double)
+
+DB error: Incomplete SQL statement [0x80002601] 

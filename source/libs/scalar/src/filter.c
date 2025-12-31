@@ -4750,7 +4750,7 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
+int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict, bool* hasRemoteNode) {
   SFilterInfo *info = NULL;
   int32_t      code = 0;
 
@@ -4795,6 +4795,10 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
   FLT_ERR_JRET(filterGetTimeRangeImpl(info, win, isStrict));
 
 _return:
+
+  if (hasRemoteNode && info && !(*isStrict)) {
+    *hasRemoteNode = info->hasRemoteNode;
+  }
 
   filterFreeInfo(info);
 
@@ -4946,6 +4950,12 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       }
     }
 
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (QUERY_NODE_REMOTE_VALUE == nodeType(*pNode)) {
+    stat->scalarMode = true;
+    stat->info->hasRemoteNode = true;
     return DEAL_RES_CONTINUE;
   }
 
@@ -5583,8 +5593,11 @@ int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
       taosArrayDestroy(pList);
       FLT_ERR_JRET(terrno);
     }
+
+    gTaskScalarExtra.pStreamInfo = (void*)info->pStreamRtInfo;
+    gTaskScalarExtra.pStreamRange = NULL;
     code =
-        scalarCalculate(info->sclCtx.node, pList, &output, info->pStreamRtInfo, NULL);
+        scalarCalculate(info->sclCtx.node, pList, &output, &gTaskScalarExtra);
     taosArrayDestroy(pList);
 
     *p = output.columnData;

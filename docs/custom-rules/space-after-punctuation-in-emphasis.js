@@ -23,8 +23,10 @@ module.exports = [
                     const lineContent = params.lines[child.lineNumber - 1];
                     const boldStartIndex = lineContent.indexOf(`**${boldContent}**`);
                     const columnNumber = boldStartIndex + `**${boldContent}**`.length + 1;
+                    const afterBold = lineContent.slice(boldStartIndex + `**${boldContent}**`.length);
 
-                    if (boldStartIndex !== -1) {
+                    if (afterBold && afterBold.trim().length > 0 && !afterBold.startsWith(" ")) {
+                      const columnNumber = boldStartIndex + `**${boldContent}**`.length + 1;
                       onError({
                         lineNumber: child.lineNumber || token.lineNumber,
                         detail: `Add a space after the closing emphasis markers (**), if the emphasis ends with punctuation. (Column: ${columnNumber})`,
@@ -54,8 +56,10 @@ module.exports = [
                     const lineContent = params.lines[child.lineNumber - 1];
                     const boldStartIndex = lineContent.indexOf(match[0]);
                     const columnNumber = boldStartIndex + match[0].length + 1;
+                    const afterBold = lineContent.slice(boldStartIndex + `**${boldContent}**`.length);
 
-                    if (boldStartIndex !== -1) {
+                    if (afterBold && afterBold.trim().length > 0 && !afterBold.startsWith(" ")) {
+                      const columnNumber = boldStartIndex + `**${boldContent}**`.length + 1;
                       onError({
                         lineNumber: child.lineNumber || token.lineNumber,
                         detail: `Add a space after the closing emphasis markers (**), if the emphasis ends with punctuation. (Column: ${columnNumber})`,

@@ -7,6 +7,14 @@ from abc import abstractmethod, ABC
 class AnalyticsService:
     """ Analytics root class with only one method"""
 
+    READY = 0x01
+    UNAVAILABLE = 0x02
+
+    _toStatusName = {
+        READY: 'READY',
+        UNAVAILABLE: 'UNAVAIL'
+    }
+
     @abstractmethod
     def execute(self):
         """ the main execute method to perform fc or anomaly detection """
@@ -19,11 +27,16 @@ class AnalyticsService:
         """return exist params """
         return {}
 
+    def get_status(self) -> str:
+        """return model status """
+        return AnalyticsService._toStatusName[AnalyticsService.READY]
+
 
 class AbstractAnalyticsService(AnalyticsService, ABC):
     """ abstract base analytics service class definition"""
     name = ''
     desc = ''
+    status = ''
 
     def __init__(self):
         self.list = None

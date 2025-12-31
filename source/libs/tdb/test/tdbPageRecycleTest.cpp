@@ -123,7 +123,7 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
 static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) {
   TDB *pEnv = NULL;
 
-  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0, 0, NULL);
+  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0, NULL);
   if (ret) {
     pEnv = NULL;
   }
@@ -354,7 +354,7 @@ TEST(TdbPageRecycleTest, DISABLED_simple_insert1) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, 0, NULL);
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -482,7 +482,7 @@ static void insertDb(int nData) {
   int const     pageSize = 4 * 1024;
 
   // Open Env
-  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, 0, NULL);
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -549,7 +549,7 @@ static void deleteDb(int nData) {
   int const     pageSize = 4 * 1024;
 
   // Open Env
-  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, 0, NULL);
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database

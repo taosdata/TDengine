@@ -16,6 +16,8 @@ class TestUserPrivilegeSysinfo:
         tdSql.execute(f"create user sysinfo1 pass 'taosdata'")
         tdSql.execute(f"alter user sysinfo0 sysinfo 0")
         tdSql.execute(f"alter user sysinfo1 sysinfo 1")
+        tdSql.execute(f"revoke role `SYSINFO_1` from sysinfo0;")
+        tdSql.execute(f"grant role `SYSINFO_0` to sysinfo0;")
 
         tdSql.execute(f"create database db")
         tdSql.execute(f"use db")
@@ -29,7 +31,9 @@ class TestUserPrivilegeSysinfo:
         tdSql.query(f"select * from db.ntb")
 
         tdSql.execute(f"create database d2")
-        tdSql.execute(f"GRANT all ON d2.* to sysinfo0;")
+        tdSql.execute(f"GRANT all ON d2.* to sysinfo0;") # default object is table if not specified
+        tdSql.execute(f"GRANT all ON database d2 to sysinfo0;")
+        tdSql.execute(f"GRANT show nodes to sysinfo0;")
 
         tdLog.info(f"user sysinfo0 login")
         tdSql.connect("sysinfo0")
@@ -92,7 +96,8 @@ class TestUserPrivilegeSysinfo:
         tdSql.error(f"use db")
         tdSql.error(f"alter database db replica 1;")
         tdSql.error(f"alter database db keep 21")
-        tdSql.error(f"show db.vgroups")
+        tdSql.execute(f"show db.vgroups")
+        tdSql.checkRows(0)
 
         tdSql.error(f"create table db.stb1 (ts timestamp, i int) tags (t int)")
         tdSql.error(f"create table db.ctb1 using db.stb1 tags (1)")
@@ -132,12 +137,17 @@ class TestUserPrivilegeSysinfo:
             tdSql.error(f"show snodes")
             tdSql.error(f"show qnodes")
             tdSql.error(f"show mnodes")
-            tdSql.error(f"show db.vgroups")
+            tdLog.info(f"=============== check show of sysinfo 0 - sleep")
+            tdSql.execute(f"show db.vgroups")
+            tdSql.checkRows(0)
             tdSql.error(f"show db.stables")
             tdSql.error(f"show db.tables")
             tdSql.error(f"show indexes from stb from db")
             tdSql.query(f"      show databases")
-            tdSql.error(f"show d2.vgroups")
+            tdSql.query(f"show d2.vgroups")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 'leader') # sysinfo0 can only see columns with sysinfo false
+            tdSql.checkData(1, 0, 'leader')
             tdSql.query(f"      show d2.stables")
             tdSql.query(f"      show d2.tables")
             tdSql.query(f"      show indexes from stb2 from d2")
@@ -168,7 +178,7 @@ class TestUserPrivilegeSysinfo:
 
             tdLog.info(f"=============== check information_schema of sysinfo 0")
             tdSql.query(f"show databases")
-            tdSql.checkRows(3)
+            tdSql.checkRows(4) # SYSINFO_0 can see all databases according to legacy design
 
             tdSql.execute(f"use information_schema;")
             tdSql.error(f"select * from information_schema.ins_dnodes")
@@ -219,7 +229,7 @@ class TestUserPrivilegeSysinfo:
             tdSql.query(f"      show db.vgroups")
             tdSql.error(f"show db.stables")
             tdSql.error(f"show db.tables")
-            tdSql.query(f"      show indexes from stb from db")
+            tdSql.error(f"      show indexes from stb from db") # lack of use database
             tdSql.query(f"      show databases")
             tdSql.query(f"      show d2.vgroups")
             tdSql.query(f"      show d2.stables")
@@ -252,7 +262,7 @@ class TestUserPrivilegeSysinfo:
 
             tdLog.info(f"=============== check information_schema of sysinfo 1")
             tdSql.query(f"show databases")
-            tdSql.checkRows(3)
+            tdSql.checkRows(4)
 
             tdSql.execute(f"use information_schema;")
             tdSql.query(f"select * from information_schema.ins_dnodes")
@@ -296,11 +306,15 @@ class TestUserPrivilegeSysinfo:
             if loop_flag == 0:
                 loop_flag = 1
                 tdSql.execute("alter user sysinfo0 sysinfo 1")
+                tdSql.execute("grant role `SYSINFO_1` to sysinfo0;")
+                tdSql.execute("revoke role `SYSINFO_0` from sysinfo0;")
                 tdSql.connect("sysinfo0")
                 loop_check_sysinfo_1()
             else:
                 loop_flag = 0
                 tdSql.execute("alter user sysinfo0 sysinfo 0")
+                tdSql.execute("grant role `SYSINFO_0` to sysinfo0;")
+                tdSql.execute("revoke role `SYSINFO_1` from sysinfo0;")
                 tdSql.connect("sysinfo0")
                 loop_check_sysinfo_0()
 

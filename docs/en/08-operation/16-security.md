@@ -93,19 +93,19 @@ The format of the reported audit logs is as follows
 
 ### Table Structure
 
-taosKeeper will automatically create a supertable in the corresponding database based on the reported audit data to store the data. The definition of this supertable is as follows
+taosKeeper will automatically create a supertable in the corresponding database based on the reported audit data to store the data. The definition of this supertable is as follows:
 
 ```sql
-CREATE STABLE operations(ts timestamp, details VARCHAR(64000), User VARCHAR(25), Operation VARCHAR(20), db VARCHAR(65), resource VARCHAR(193), client_add(25)) TAGS (clusterID VARCHAR(64));
+create stable operations (ts timestamp, user_name varchar(25), operation varchar(20), db varchar(65), resource varchar(193), client_address varchar(64), details varchar(50000)) tags (cluster_id varchar(64))
 ```
 
 Where:
 
 1. `db` refers to the database involved in the operation, `resource` refers to the resource involved.
-2. `User` and `Operation` are data columns, indicating which user performed what operation on the object.
-3. `timestamp` is the timestamp column, indicating the time when the operation occurred.
+2. `user_name` and `operation` are data columns, indicating which user performed what operation on the object.
+3. `ts` is the timestamp column, indicating the time when the operation occurred.
 4. `details` provide additional details of the operation, which in most cases is the SQL statement executed.
-5. `client_add` is the client address, including IP and port.
+5. `client_address` is the client address, including IP and port.
 
 ### Operation List
 

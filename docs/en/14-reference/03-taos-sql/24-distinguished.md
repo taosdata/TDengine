@@ -46,7 +46,7 @@ The syntax for the window clause is as follows:
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col [, extend]) [TRUE_FOR(true_for_duration)]
+  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
@@ -67,7 +67,7 @@ Here, `interval_val` and `sliding_val` both represent time periods, and `interva
   - Pseudocolumns _wstart,_wend, and _wduration.
   - Aggregate functions (including selection functions and time-series specific functions that can determine the number of output rows by parameters).
   - Expressions containing the above expressions.
-  - And must include at least one aggregate function.
+  - And must include at least one aggregate function(this limitation no longer exists after version 3.4.0.0).
 - The window clause cannot be used together with the GROUP BY clause.
 - WHERE statements can specify the start and end time of the query and other filtering conditions.
 
@@ -220,6 +220,16 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
  2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
  2025-01-01 00:00:03.001 |                  2999 | 2025-01-01 00:00:06.000 |                     3 |
  2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
+```
+
+The zeroth_state parameter specifies the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. When setting the value of zeroth_extend, the extend value is a mandatory input and must not be left blank or omitted. Take previous data as an example:
+
+```text
+taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status, 0, 2);
+         _wstart         |      _wduration       |          _wend          |       count(*)        |
+====================================================================================================
+ 2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
+ 2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
 The state window supports using the TRUE_FOR parameter to set its minimum duration. If the window's duration is less than the specified value, it will be discarded automatically and no result will be returned. For example, setting the minimum duration to 3 seconds:

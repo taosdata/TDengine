@@ -14,7 +14,8 @@ Please use TDengine CLI or refer to the [Execute SQL](../running-sql-statements/
 
 The above SQL will create a subscription named topic_meters. Each record in the messages obtained using this subscription is composed of the columns selected by this query statement `SELECT ts, current, voltage, phase, groupid, location FROM meters`.
 
-**Note**
+###### Note
+
 In the implementation of TDengine connectors, there are the following limitations for subscription queries.
 
 - Only data subscription is supported, and subscription with `with meta` is not supported.
@@ -49,6 +50,9 @@ There are many parameters for creating consumers, which flexibly support various
 |    `fetch.max.wait.ms`    | integer | The maximum time it takes for the server to return data once (supported from version 3.3.6.0) | Default is 1000, range [1, INT32_MAX]                        |
 |      `min.poll.rows`      | integer | The minimum number of data returned by the server once (supported from version 3.3.6.0) | Default is 4096, range [1, INT32_MAX]                        |
 |   `msg.consume.rawdata`   | integer | When consuming data, the data type pulled is binary and cannot be parsed. It is an internal parameter and is only used for taosx data migration (supported from version 3.3.6.0) | The default value of 0 indicates that it is not effective, and non-zero indicates that it is effective |
+|       `ws.tls.mode`       | integer | TLS encryption modes supported by the C WebSocket connections:<br/> - 0: TLS encryption disabled. If the server enables TLS, the client will automatically upgrade the connection.<br/> - 1: TLS encryption enabled, but the server certificate is not verified.<br/> - 2: TLS encryption enabled, the server certificate is verified, but the hostname is not verified.<br/> - 3: TLS encryption enabled, both the server certificate and hostname are verified (the server certificate must include SAN; CN will be ignored) (supported from version 3.3.8.12) | Default is 0 |
+|     `ws.tls.version`      | string | List of TLS protocol versions supported by the C WebSocket connections, separated by commas. Optional values: TLSv1.2, TLSv1.3 (supported from version 3.3.8.12) | Default is TLSv1.3 |
+|        `ws.tls.ca`        | string | The C WebSocket connection is used to verify the CA certificate file path or PEM format certificate content of the server certificate. This certificate should be a CA certificate that issued the server certificate (supported from version 3.3.8.12) | |
 
 Below are the connection parameters for connectors in various languages:
 <Tabs defaultValue="java" groupId="lang">

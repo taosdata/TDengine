@@ -27,10 +27,12 @@ options: {
     
 trigger_type: {
     PERIOD(period_time[, offset_time])
-  | [INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val[, offset_time]) 
+  | SLIDING(sliding_val[, offset_time]) 
+  | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col[, extend]) [TRUE_FOR(duration_time)] 
+  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(duration_time)]
+  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(duration_time)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
 
@@ -104,7 +106,7 @@ Applicable scenarios: Situations where calculations need to be driven continuous
 ##### Sliding Window Trigger
 
 ```sql
-[INTERVAL(interval_val[, interval_offset])] SLIDING(sliding_val) 
+INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val) 
 ```
 
 A sliding window trigger refers to triggering based on incoming data written to the trigger table, using event time and a fixed window size that slides over time. The INTERVAL window must be specified. This is a type of window trigger, and a trigger table must be specified.
@@ -143,13 +145,14 @@ Applicable Scenarios: Suitable for use cases where computations and/or notificat
 ##### State Window Trigger
 
 ```sql
-STATE_WINDOW(col[, extend]) [TRUE_FOR(duration_time)] 
+STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(duration_time)] 
 ```
 
 A state window trigger divides the written data of the trigger table into windows based on the values in a state column. A trigger occurs when a window is opened and/or closed. Parameter definitions are as follows:
 
 - col: The name of the state column.
 - extend (optional): Specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively.
+- zeroth_state (optional): Specifies the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. When setting the value of zeroth_extend, the extend value is a mandatory input and must not be left blank or omitted.
 - duration_time (optional): Specifies the minimum duration of a window. If the duration of a window is shorter than this value, the window will be discarded and no trigger will be generated.
 
 Usage Notes:
@@ -179,6 +182,34 @@ Usage Notes:
 - Supports conditional window triggering after filtering the written data.
 
 Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by event windows.
+
+##### Event Window Trigger (with Sub-Event Window Support)
+
+```sql
+EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(duration_time)]
+```
+
+An event window trigger partitions the incoming data of the trigger table into windows based on event windows. It now supports specifying multiple start conditions and can further subdivide and manage sub-event windows within the original event window based on changes in the effective trigger condition, while introducing the concept of a parent event window to aggregate related sub-event windows. Parameter definitions are as follows:
+
+- start_condition_1, start_condition_2 [, ...]: Defines multiple event start conditions. The event window opens when any one of these conditions is satisfied. The system evaluates these conditions in order from first to last, and the first satisfied condition becomes the "effective trigger condition". When all start_conditions are not satisfied, both the parent window and the last sub-window close.
+- end_condition: Definition of the event end condition. When this condition is satisfied, both the current parent window and the last sub-window close. This parameter is now optional.
+- duration_time (optional): Specifies the minimum duration of a window. If the duration of any window (including parent and sub-windows) is shorter than this value, the window will be automatically discarded and no trigger will be generated.
+
+Usage Notes:
+
+- A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
+- When used with a supertable, it must be combined with PARTITION BY tbname.
+- Supports conditional window triggering after filtering the written data.
+- Parent and sub-window behavior:
+  - No parent/sub-windows: During the event window opening period, if the effective trigger condition does not change, only one window is produced. The system treats it as a regular event window, without generating the concept of parent/sub-windows.
+  - Sub-windows: When a specific start_condition becomes the effective trigger condition, a sub-window opens. If the effective trigger condition changes, or when the end_condition is satisfied, the current sub-window closes. Sub-windows do not overlap with each other.
+  - Parent window: A parent window only opens when the second sub-window opens. The parent window's start time is the start time of the first sub-window, and its end time is the end time of the last sub-window. It closes when all start_conditions are not satisfied, or when the end_condition is satisfied.
+- Notification message extensions: In the window open (WINDOW_OPEN) notification message, two new fields are added:
+  - conditionIndex: The index number of the start condition that triggered the current window opening, counting from 0. For a parent window, its value is the same as the first sub-window's value.
+  - windowIndex: The index number of the sub-event window within the parent window, counting from 0. If it is not a sub-window (i.e., a regular event window or parent window), this field value is -1.
+- The TRUE_FOR option applies to both sub-windows and parent windows, meaning windows (whether sub-windows or parent windows) shorter than the duration limit will be directly ignored. When some sub-windows under a parent window do not meet the TRUE_FOR condition, the valid sub-windows may not be consecutive. If only 1 sub-window under a parent window meets the TRUE_FOR condition, the parent/sub-window structure is still retained and triggers notifications and computations.
+
+Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by event windows, especially in IoT and industrial data management fields where fine-grained monitoring and analysis of events based on multiple dynamically changing conditions is required. For example, in equipment fault alarms, multiple alarm level conditions (such as "load above 90" and "load above 60") can be defined, and when alarm levels change, the escalation or de-escalation of alarm states can be clearly tracked.
 
 ##### Count Window Trigger
 
@@ -567,7 +598,7 @@ These fields apply only when eventType is WINDOW_INVALIDATION.
 This operation deletes only the stream processing task. Data written by the stream processing task will not be deleted.
 
 ```sql
-DROP STREAM [IF EXISTS] [db_name.]stream_name;
+DROP STREAM [IF EXISTS] [db_name.]stream_name [, [db_name.]stream_name] ...
 ```
 
 ## View Streams
@@ -792,7 +823,7 @@ Temporary Restrictions:
 
 - Grouping by regular data columns is not yet supported.
 - The Geometry data type is not yet supported.
-- The functions Interp, Percentile, Forecast, and UDFs are not yet supported.
+- User-defined functions (UDFs) are not yet supported.
 - The DELETE_OUTPUT_TABLE option is not yet supported.
 - The ON_FAILURE_PAUSE option in NOTIFY_OPTIONS is not yet supported.
 - The Cast function is not yet supported in state window triggers.

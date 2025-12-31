@@ -55,7 +55,7 @@ def isArm64Cpu():
 def exe(command, show = False):
     code = os.system(command)
     if show:
-        print(f"eos.exe retcode={code} command:{command}")
+        print(f"eos retcode={code} command:{command}")
     return code    
 
 # execute file and return immediately

@@ -19,6 +19,7 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndToken.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
@@ -317,6 +318,18 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   int32_t code = mndRefreshUserIpWhiteList(pMnode);
   if (code != 0) {
     mError("vgId:1, failed to refresh user ip white list since %s", tstrerror(code));
+    mndSetRestored(pMnode, false);
+  }
+
+  code = mndRefreshUserDateTimeWhiteList(pMnode);
+  if (code != 0) {
+    mError("vgId:1, failed to refresh user date time white list since %s", tstrerror(code));
+    mndSetRestored(pMnode, false);
+  }
+
+  code = mndTokenCacheRebuild(pMnode);
+  if (code != 0) {
+    mError("vgId:1, failed to rebuild token cache since %s", tstrerror(code));
     mndSetRestored(pMnode, false);
   }
 

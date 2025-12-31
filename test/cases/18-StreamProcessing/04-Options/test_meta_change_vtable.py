@@ -32,6 +32,7 @@ class TestStreamMetaChangeVTable:
         tdSql.execute(f"alter all dnodes 'stdebugflag 131';")
 
         streams = []
+        # streams.append(self.Basic37208())  # [ok] add ctb and drop ctb from stb
         streams.append(self.Basic0())  # [ok] add ctb and drop ctb from stb
         streams.append(self.Basic1())  # [ok] drop data source table
         
@@ -51,6 +52,172 @@ class TestStreamMetaChangeVTable:
         
         tdStream.checkAll(streams)
 
+    class Basic37208(StreamCheckItem):
+        def __init__(self):
+            self.db  = "sdb37208"
+            self.stbName = "stb"
+            self.vstbName = "vstb"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1 buffer 8 precision '{TestStreamMetaChangeVTable.precision}'")
+            tdSql.execute(f"create table if not exists  {self.db}.{self.stbName}  (cts timestamp, cint int) tags (tint int, tbigint bigint)")            
+            tdSql.execute(f"create table if not exists  {self.db}.{self.vstbName} (cts timestamp, cint int) tags (tint int, tbigint bigint) virtual 1")
+
+            tdSql.execute(f"create table {self.db}.ct1 using {self.db}.{self.stbName} (tint, tbigint)tags(1, 1)")
+            tdSql.execute(f"create table {self.db}.ct2 using {self.db}.{self.stbName} (tint, tbigint)tags(2, 2)")
+            tdSql.execute(f"create table {self.db}.ct3 using {self.db}.{self.stbName} (tint, tbigint)tags(3, 3)")
+            tdSql.execute(f"create table {self.db}.ct4 using {self.db}.{self.stbName} (tint, tbigint)tags(4, 4)")
+            tdSql.execute(f"create table {self.db}.ct5 using {self.db}.{self.stbName} (tint, tbigint)tags(5, 5)")
+
+            tdSql.execute(f"create vtable {self.db}.vct1 (cint from {self.db}.ct1.cint) using {self.db}.{self.vstbName} tags(1,1)")
+            # tdSql.execute(f"create vtable vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2,2)")
+            # tdSql.execute(f"create vtable vct4 (cint from {self.db}.ct4.cint) using {self.db}.{self.vstbName} tags(4,4)")  
+            # tdSql.execute(f"create vtable vct5 (cint from {self.db}.ct5.cint) using {self.db}.{self.vstbName} tags(5,5)")
+
+            # tdSql.execute(
+            #     f"create stream {self.db}.s37208_g count_window(1) from {self.vstbName} partition by tbname, tint into {self.db}.res_stb OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            # )
+
+            # tdSql.error(f"alter table vct2 set tag tint = 9")
+
+            # tdSql.execute(
+            #     f"create stream {self.db}.s37208_g_f count_window(1) from {self.vstbName} partition by tbname, tint stream_options(DELETE_OUTPUT_TABLE) into {self.db}.res_stb_f OUTPUT_SUBTABLE(CONCAT('res_stb_f_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%trows;"
+            # )
+
+            tdSql.execute(f"create table if not exists {self.db}.tt (cts timestamp, cint int, cfloat float, cdouble double, cvar varchar(4)) tags (tint int, tbigint bigint)")            
+
+            tdSql.execute(
+                f"create stream {self.db}.s37208_g_t1 state_window(cint) from {self.db}.tt partition by tbname, tint stream_options(pre_filter(cdouble >= 10)) into {self.db}.res_stb_t1 as select first(_c0), last_row(_c0), sum(cfloat) from %%trows;"
+            )
+
+            # tdSql.execute(
+            #     f"create stream {self.db}.s37208_g_t2 count_window(1) from {self.vstbName} partition by tbname, tint stream_options(pre_filter(tbigint >= 10)) into res_stb_t2 OUTPUT_SUBTABLE(CONCAT('res_stb_t2_', tbname)) (firstts, lastts, cnt_v, sum_v, avg_v) as select first(_c0), last_row(_c0), count(cint), sum(cint), avg(cint) from %%tbname where cts >= _twstart and cts <= _twend;"
+            # )
+
+
+        def insert1(self):
+            tdSql.execute(f"create vtable {self.db}.vct2 (cint from {self.db}.ct2.cint) using {self.db}.{self.vstbName} tags(2,2)")
+
+            sqls = [
+                "insert into ct1 values ('2025-01-01 00:00:00', 1);",
+                "insert into ct2 values ('2025-01-01 00:00:00', 1);",
+            ]
+            tdSql.executes(sqls)
+
+        def check1(self):
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_f%"',
+                func=lambda: tdSql.getRows() == 2,
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_%"',
+                func=lambda: tdSql.getRows() == 4,
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct1",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 2, 1)
+                and tdSql.compareData(0, 3, 1)
+                and tdSql.compareData(0, 4, 1),
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct2",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 2, 1)
+                and tdSql.compareData(0, 3, 1)
+                and tdSql.compareData(0, 4, 1),
+            )
+
+        def insert2(self):
+            tdSql.execute(f"drop table {self.db}.vct2")
+            tdSql.execute(f"insert into ct2 values ('2025-01-02 00:00:00', 1);")
+            time.sleep(5) # stream get schema change by 10s timer
+            tdSql.execute(f"insert into ct2 values ('2025-01-03 00:00:00', 1);")
+
+
+        def check2(self):
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_f%"',
+                func=lambda: tdSql.getRows() == 1,
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_%"',
+                func=lambda: tdSql.getRows() == 3,
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_vct2",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 1, "2025-01-01 00:00:00")
+                and tdSql.compareData(0, 2, 1)
+                and tdSql.compareData(0, 3, 1)
+                and tdSql.compareData(0, 4, 1),
+            )
+
+        def insert3(self):
+            tdSql.execute(f"create vtable {self.db}.vct3 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(10,10)")
+            tdSql.execute(f"create vtable {self.db}.vct4 (cint from {self.db}.ct3.cint) using {self.db}.{self.vstbName} tags(20,20)")
+            time.sleep(5)
+            tdSql.execute(f"insert into ct4 values ('2025-01-01 00:01:00', 1);")
+            tdSql.execute(f"insert into ct3 values ('2025-01-01 00:01:00', 1);")
+            tdSql.execute(f"alter table {self.db}.ct1 set tag tbigint = 30")
+            time.sleep(5)
+            tdSql.execute(f"insert into {self.db}.ct1 values ('2025-01-03 00:00:00', 1);")
+            tdSql.execute(f"alter table {self.db}.ct3 set tag tbigint = 3")
+            tdSql.execute(f"alter table {self.db}.ct4 set tag tbigint = 30")
+            time.sleep(5)
+            tdSql.execute(f"insert into ct4 values ('2025-01-02 00:01:00', 1);")
+            tdSql.execute(f"insert into ct3 values ('2025-01-02 00:01:00', 1);")
+
+        def check3(self):  
+            tdSql.checkResultsByFunc(
+                sql=f'select * from information_schema.ins_tables where db_name="{self.db}" and table_name like "res_stb_%"',
+                func=lambda: tdSql.getRows() == 5,
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_t2_vct1",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2025-01-03 00:01:00")
+                and tdSql.compareData(0, 1, "2025-01-03 00:01:00")
+                and tdSql.compareData(0, 2, 1)
+                and tdSql.compareData(0, 3, 1)
+                and tdSql.compareData(0, 4, 1)
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_t2_vct3",
+                func=lambda: tdSql.getRows() == 1
+                and tdSql.compareData(0, 0, "2025-01-01 00:01:00")
+                and tdSql.compareData(0, 1, "2025-01-01 00:01:00")
+                and tdSql.compareData(0, 2, 1)
+                and tdSql.compareData(0, 3, 1)
+                and tdSql.compareData(0, 4, 1)
+            )
+
+            tdSql.checkResultsByFunc(
+                sql=f"select firstts, lastts, cnt_v, sum_v, avg_v from {self.db}.res_stb_f_vct4",
+                func=lambda: tdSql.getRows() == 2
+                and tdSql.compareData(0, 0, "2025-01-01 00:01:00")
+                and tdSql.compareData(0, 1, "2025-01-01 00:01:00")
+                and tdSql.compareData(0, 2, 1)
+                and tdSql.compareData(0, 3, 1)
+                and tdSql.compareData(0, 4, 1)
+                and tdSql.compareData(1, 0, "2025-01-02 00:01:00")
+                and tdSql.compareData(1, 1, "2025-01-02 00:01:00")
+                and tdSql.compareData(1, 2, 1)
+                and tdSql.compareData(1, 3, 1)
+                and tdSql.compareData(1, 4, 1),
+            )
     class Basic0(StreamCheckItem):
         def __init__(self):
             self.db  = "sdb0"

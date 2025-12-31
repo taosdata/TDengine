@@ -2964,6 +2964,14 @@ _err:
   return code;
 }
 
+
+void destroyTagVal(void *pTag) {
+  STagVal* pTagVal = (STagVal*)pTag;
+  if (pTagVal && IS_VAR_DATA_TYPE(pTagVal->type)) {
+    taosMemoryFree(pTagVal->pData);
+  }
+}
+
 // STSchema ========================================
 STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
   STSchema *pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn) * numOfCols);
@@ -4568,7 +4576,7 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
             goto _exit;
           }
         } else {
-          if (varDataTLen(data + offset) > bytes) {
+          if (varDataTLen(data + offset) > bytes || (type == TSDB_DATA_TYPE_NCHAR && varDataLen(data + offset) % TSDB_NCHAR_SIZE != 0)) {
             uError("var data length invalid, varDataTLen(data + offset):%d > bytes:%d", (int)varDataTLen(data + offset),
                    bytes);
             code = TSDB_CODE_PAR_VALUE_TOO_LONG;

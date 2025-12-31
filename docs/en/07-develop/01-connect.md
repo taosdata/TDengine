@@ -12,6 +12,7 @@ import ConnNode from "../assets/resources/_connect_node.mdx";
 import ConnPythonNative from "../assets/resources/_connect_python.mdx";
 import ConnCSNative from "../assets/resources/_connect_cs.mdx";
 import ConnC from "../assets/resources/_connect_c.mdx";
+import ConnCWebSocket from "../assets/resources/_connect_c_ws.mdx";
 import InstallOnLinux from "../assets/resources/_linux_install.mdx";
 import InstallOnWindows from "../assets/resources/_windows_install.mdx";
 import InstallOnMacOS from "../assets/resources/_macos_install.mdx";
@@ -528,11 +529,7 @@ SQLAlchemy supports configuring multiple server addresses through the `hosts` pa
 </TabItem>
 
 <TabItem label="C" value="c">
-
-```c
-{{#include docs/examples/c-ws-new/connect_example.c}}
-```
-
+  <ConnCWebSocket />
 </TabItem>
 
 <TabItem label="REST API" value="rest">

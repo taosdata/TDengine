@@ -235,6 +235,11 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
 
       return TSDB_CODE_SUCCESS;
     }
+    case QUERY_NODE_REMOTE_VALUE: {
+      SRemoteValueNode* pRemote = (SRemoteValueNode*)pNode;
+      *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      return TSDB_CODE_SUCCESS;
+    }
     default:
       break;
   }

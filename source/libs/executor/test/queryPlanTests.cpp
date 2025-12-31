@@ -2381,10 +2381,10 @@ void qptCreateWindowPhysiNode(SWindowPhysiNode* pWindow) {
   qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
   qptMakeColumnNode(&pWindow->pTsEnd);
 
-  pWindow->triggerType = taosRand();
-  pWindow->watermark = taosRand();
-  pWindow->deleteMark = taosRand();
-  pWindow->igExpired = taosRand();
+  pWindow->unusedParam1 = taosRand();
+  pWindow->unusedParam2 = taosRand();
+  pWindow->unusedParam3 = taosRand();
+  pWindow->unusedParam4 = taosRand();
   pWindow->mergeDataBlock = QPT_RAND_BOOL_V;
 }
 
@@ -3096,7 +3096,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
     case QUERY_NODE_PHYSICAL_SUBPLAN: {
       DataSinkHandle handle = NULL;
       qptCtx.result.code = qCreateExecTask(pReadHandle, qptCtx.param.vnode.vgId, pTaskInfo->id.taskId, (SSubplan*)pNode, (qTaskInfo_t*)&pTaskInfo, &handle, 
-          QPT_RAND_BOOL_V ? 0 : 1, taosStrdup("sql string"), OPTR_EXEC_MODEL_BATCH);
+          QPT_RAND_BOOL_V ? 0 : 1, taosStrdup("sql string"), OPTR_EXEC_MODEL_BATCH, NULL);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN: {

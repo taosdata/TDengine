@@ -32,4 +32,3 @@ sympy==1.12
 threadpoolctl==3.5.0
 urllib3==2.5.0
 Flask-Testing==0.8.1
-

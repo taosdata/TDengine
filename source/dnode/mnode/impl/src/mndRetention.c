@@ -23,6 +23,7 @@
 #include "mndRetentionDetail.h"
 #include "mndShow.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 #include "mndVgroup.h"
 #include "tmisce.h"
 #include "tmsgcb.h"
@@ -270,6 +271,11 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   SDbObj        *pDb = NULL;
   int32_t        code = 0, lino = 0;
   char           tmpBuf[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  SUserObj      *pUser = NULL;
+  SDbObj        *pIterDb = NULL;
+  char           objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  bool           showAll = false, showIter = false;
+  int64_t        dbUid = 0;
 
   if ((pShow->db[0] != 0) && (sep = strchr(pShow->db, '.')) && (*(++sep) != 0)) {
     if (IS_SYS_DBNAME(sep)) {
@@ -279,9 +285,13 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     }
   }
 
+  MND_SHOW_CHECK_OBJ_PRIVILEGE_ALL(RPC_MSG_USER(pReq), PRIV_SHOW_RETENTIONS, PRIV_OBJ_DB, 0, _OVER);
+
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_RETENTION, pShow->pIter, (void **)&pObj);
     if (pShow->pIter == NULL) break;
+
+    MND_SHOW_CHECK_DB_PRIVILEGE(pDb, pObj->dbname, pObj, RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_RETENTIONS, _OVER);
 
     SColumnInfoData *pColInfo;
     int32_t          cols = 0;
@@ -297,7 +307,6 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     SName name = {0};
     if ((code = tNameFromString(&name, pObj->dbname, T_NAME_ACCT | T_NAME_DB)) != 0) {
       sdbRelease(pSdb, pObj);
-      sdbCancelFetch(pSdb, pShow->pIter);
       TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
     (void)tNameGetDbName(&name, varDataVal(tmpBuf));
@@ -329,6 +338,7 @@ static int32_t mndRetrieveRetention(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
   }
 
 _OVER:
+  if (pUser) mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);
   if (code != 0) {
     mError("failed to retrieve retention at line %d since %s", lino, tstrerror(code));
@@ -489,6 +499,7 @@ int32_t mndProcessKillRetentionReq(SRpcMsg *pReq) {
   int32_t           code = 0;
   int32_t           lino = 0;
   SKillRetentionReq req = {0};  // reuse SKillCompactReq
+  int64_t           tss = taosGetTimestampMs();
 
   if ((code = tDeserializeSKillCompactReq(pReq->pCont, pReq->contLen, &req)) != 0) {
     TAOS_RETURN(code);
@@ -504,18 +515,23 @@ int32_t mndProcessKillRetentionReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_TRIM_DB), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_TRIM_DB), &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndKillRetention(pMnode, pReq, pObj), &lino, _OVER);
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char    obj[TSDB_INT32_ID_LEN] = {0};
-  int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pObj->id);
-  if ((uint32_t)nBytes < sizeof(obj)) {
-    auditRecord(pReq, pMnode->clusterId, "killRetention", pObj->dbname, obj, req.sql, req.sqlLen);
-  } else {
-    mError("retention:%" PRId32 " failed to audit since %s", pObj->id, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    char    obj[TSDB_INT32_ID_LEN] = {0};
+    int32_t nBytes = snprintf(obj, sizeof(obj), "%d", pObj->id);
+    if ((uint32_t)nBytes < sizeof(obj)) {
+      int64_t tse = taosGetTimestampMs();
+      double  duration = (double)(tse - tss);
+      duration = duration / 1000;
+      auditRecord(pReq, pMnode->clusterId, "killRetention", pObj->dbname, obj, req.sql, req.sqlLen, duration, 0);
+    } else {
+      mError("retention:%" PRId32 " failed to audit since %s", pObj->id, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+    }
   }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -888,7 +904,12 @@ static void mndRetentionPullup(SMnode *pMnode) {
 }
 
 static int32_t mndTrimDbDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow *tw) {
+  int64_t tss = taosGetTimestampMs();
   if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) {
+    return 0;
+  }
+
+  if (tsAuditLevel < AUDIT_LEVEL_CLUSTER) {
     return 0;
   }
 
@@ -910,7 +931,11 @@ static int32_t mndTrimDbDispatchAudit(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb
     sqlLen = tsnprintf(sql, sizeof(sql), "trim db %s start with %" PRIi64 " end with %" PRIi64, pDbName, tw->skey,
                        tw->ekey);
   }
-  auditRecord(NULL, pMnode->clusterId, "autoTrimDB", name.dbname, "", sql, sqlLen);
+
+  int64_t tse = taosGetTimestampMs();
+  double  duration = (double)(tse - tss);
+  duration = duration / 1000;
+  auditRecord(NULL, pMnode->clusterId, "autoTrimDB", name.dbname, "", sql, sqlLen, duration, 0);
 
   return 0;
 }

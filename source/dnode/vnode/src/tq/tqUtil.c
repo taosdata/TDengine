@@ -32,14 +32,20 @@ int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   pRsp->blockDataLen = taosArrayInit(0, sizeof(int32_t));
   TSDB_CHECK_NULL(pRsp->blockDataLen, code, lino, END, terrno);
 
+  pRsp->blockSchema = taosArrayInit(0, sizeof(void*));
+  TSDB_CHECK_NULL(pRsp->blockSchema, code, lino, END, terrno);
+  
   tOffsetCopy(&pRsp->reqOffset, &pOffset);
   tOffsetCopy(&pRsp->rspOffset, &pOffset);
   pRsp->withTbName = 0;
-  pRsp->withSchema = false;
+  pRsp->withSchema = 1;
 
 END:
   if (code != 0){
     tqError("%s failed at:%d, code:%s", __FUNCTION__ , lino, tstrerror(code));
+    taosArrayDestroy(pRsp->blockData);
+    taosArrayDestroy(pRsp->blockDataLen);
+    taosArrayDestroy(pRsp->blockSchema);
   }
   return code;
 }
@@ -299,6 +305,7 @@ goto END;
 tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);\
 code = tqSendDataRsp(pHandle, pMsg, pRequest, &taosxRsp, POLL_RSP_TYPE(pRequest, taosxRsp), vgId);\
 goto END;
+
 static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                   SRpcMsg* pMsg, STqOffsetVal* offset) {
   int32_t         vgId = TD_VID(pTq->pVnode);

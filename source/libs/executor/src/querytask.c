@@ -80,6 +80,8 @@ int32_t doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t getTaskCode(void* pTaskInfo) { return ((SExecTaskInfo*)pTaskInfo)->code; }
+
 bool isTaskKilled(void* pTaskInfo) { return (0 != ((SExecTaskInfo*)pTaskInfo)->code); }
 
 void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode) {
@@ -97,8 +99,42 @@ void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status) {
   }
 }
 
+
+int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadHandle* readHandle) {
+  STaskSubJobCtx* ctx = &pTaskInfo->subJobCtx;
+
+  ctx->queryId = pTaskInfo->id.queryId;
+  ctx->idStr = pTaskInfo->id.str;
+  ctx->pTaskInfo = pTaskInfo;
+  ctx->subEndPoints = subEndPoints;
+  ctx->rpcHandle = (readHandle && readHandle->pMsgCb) ? readHandle->pMsgCb->clientRpc : NULL;
+  
+  int32_t subJobNum = taosArrayGetSize(subEndPoints);
+  if (subJobNum > 0) {
+    pTaskInfo->subJobCtx.subResValues = taosArrayInit_s(POINTER_BYTES, subJobNum);
+    if (NULL == pTaskInfo->subJobCtx.subResValues) {
+      qError("%s taosArrayInit_s %d subJobValues failed, error:%s", GET_TASKID(pTaskInfo), subJobNum, tstrerror(terrno));
+      return terrno;
+    }
+    
+    int32_t code = tsem_init(&ctx->ready, 0, 0);
+    if (code) {
+      qError("%s tsem_init failed, error:%s", GET_TASKID(pTaskInfo), tstrerror(code));
+      return code;
+    }
+    
+    pTaskInfo->subJobCtx.hasSubJobs = true;
+
+    qDebug("%s subJobCtx with %d endPoints inited", pTaskInfo->id.str, subJobNum);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+
 int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model) {
+                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray* subEndPoints) {
   int32_t code = doCreateTask(pPlan->id.queryId, taskId, vgId, model, &pHandle->api, pTaskInfo);
   if (*pTaskInfo == NULL || code != 0) {
     nodesDestroyNode((SNode*)pPlan);
@@ -126,6 +162,16 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
 
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
   (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
+
+  code = initTaskSubJobCtx(*pTaskInfo, subEndPoints, pHandle);
+  if (code != TSDB_CODE_SUCCESS) {
+    doDestroyTask(*pTaskInfo);
+    (*pTaskInfo) = NULL;
+    return code;
+  }
+
+  setTaskScalarExtraInfo(*pTaskInfo);
+  
   code = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user,
                         pPlan->dbFName, &((*pTaskInfo)->pRoot), model);
 
@@ -277,10 +323,24 @@ static void freeBlock(void* pParam) {
   blockDataDestroy(pBlock);
 }
 
+
+void destroySubJobCtx(STaskSubJobCtx* pCtx) {
+  if (pCtx->transporterId > 0) {
+    int32_t ret = asyncFreeConnById(pCtx->rpcHandle, pCtx->transporterId);
+    if (ret != 0) {
+      qDebug("%s failed to free subQ rpc handle, code:%s", pCtx->idStr, tstrerror(ret));
+    }
+    pCtx->transporterId = -1;
+  }
+  taosArrayDestroy(pCtx->subResValues);
+}
+
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
   destroyOperator(pTaskInfo->pRoot);
   pTaskInfo->pRoot = NULL;
+
+  destroySubJobCtx(&pTaskInfo->subJobCtx);
 
   taosArrayDestroyEx(pTaskInfo->schemaInfos, cleanupQueriedTableScanInfo);
   cleanupStreamInfo(&pTaskInfo->streamInfo);

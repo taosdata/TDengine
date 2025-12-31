@@ -114,6 +114,8 @@ typedef struct SParseContext {
   SStmtCallback*   pStmtCb;
   const char*      pUser;
   const char*      pEffectiveUser;
+  int64_t          userId;
+  int64_t          effectiveUserId;
   bool             topicQuery;
   bool             parseOnly;
   bool             isSuperUser;

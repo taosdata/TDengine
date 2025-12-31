@@ -248,7 +248,7 @@ void createUsers(TAOS *taos, const char *host, char *qstr) {
   // users
   for (int i = 0; i < nUser; ++i) {
     sprintf(users[i], "user%d", i);
-    sprintf(qstr, "CREATE USER %s PASS 'taosdata'", users[i]);
+    sprintf(qstr, "CREATE USER %s PASS 'taosdata' PASSWORD_REUSE_MAX 0 PASSWORD_REUSE_TIME 0", users[i]);
     queryDB(taos, qstr);
 
     taosu[i] = taos_connect(host, users[i], "taosdata", NULL, 0);
@@ -476,7 +476,7 @@ _loop:
     nUserDropped = 0;
     for (int i = 0; i < nTestUsers; ++i) {
       sprintf(users[i], "user%d", i);
-      sprintf(qstr, "CREATE USER %s PASS 'taos@123'", users[i]);
+      sprintf(qstr, "CREATE USER %s PASS 'taos@123' PASSWORD_REUSE_MAX 0 PASSWORD_REUSE_TIME 0", users[i]);
       fprintf(stderr, "%s:%d create user:%s\n", __func__, __LINE__, users[i]);
       queryDB(taos, qstr);
     }
@@ -487,9 +487,12 @@ _loop:
 
 void clearTestEnv(TAOS *taos, const char *host, char *qstr) {
   fprintf(stderr, "######## %s start #########\n", __func__);
-  // restore  password
-  sprintf(qstr, "alter user root pass 'taosdata'");
-  queryDB(taos, qstr);
+
+  // NOTE: root password cannot be restored now as the result of
+  // 'PASSWORD_REUSE_MAX' and 'PASSWORD_REUSE_TIME'.
+  //
+  //  sprintf(qstr, "alter user root pass 'taosdata'");
+  //  queryDB(taos, qstr);
 
   if (isDropUser) {
     for (int i = 0; i < nUser; ++i) {

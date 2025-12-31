@@ -10,6 +10,9 @@ if(TD_LINUX)
   DEP_ext_xxhash(util)
   DEP_ext_lzma2(util)
 endif()
+if (NOT ${TD_WINDOWS})
+  DEP_ext_ssl(util)
+endif()
 DEP_ext_geos(util)
 if(${BUILD_PCRE2})          # {
   DEP_ext_pcre2(util)
@@ -30,6 +33,7 @@ endif(${ASSERT_NOT_CORE})
 target_include_directories(
     util
     PUBLIC "${TD_SOURCE_DIR}/include/util"
+    PUBLIC "${TD_SOURCE_DIR}/contrib/libaes/inc"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     PRIVATE "${TD_SOURCE_DIR}/include/common"
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
@@ -40,6 +44,7 @@ target_link_libraries(
     PUBLIC os common decimal
     PUBLIC api
     PUBLIC TSZ
+    PUBLIC aes
 )
 
 if(${BUILD_TEST})

@@ -72,9 +72,8 @@ int32_t tsdbSttFileWriteTombRecord(SSttFileWriter *writer, const STombRecord *re
 bool    tsdbSttFileWriterIsOpened(SSttFileWriter *writer);
 
 int32_t tsdbFileWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize,
-                            int32_t encryptAlgorithm, char *encryptKey);
-int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize, int32_t encryptAlgorithm,
-                               char *encryptKey);
+                            SEncryptData *encryptData);
+int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize, SEncryptData *encryptData);
 
 struct SSttFileWriterConfig {
   STsdb    *tsdb;

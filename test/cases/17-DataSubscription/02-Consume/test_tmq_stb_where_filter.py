@@ -186,7 +186,6 @@ class TestCase:
         tdSql.execute(insertString)
 
         #test drop tag
-        tdSql.error("alter stable %s.%s drop tag t1" %(paraDict['dbName'], paraDict['stbName']))
         tdSql.execute("alter stable %s.%s drop tag t2" %(paraDict['dbName'], paraDict['stbName']))
         tdSql.execute("alter stable %s.%s drop column c2" %(paraDict['dbName'], paraDict['stbName']))
 

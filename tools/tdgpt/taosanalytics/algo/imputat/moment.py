@@ -5,7 +5,7 @@ import json
 import requests
 
 from taosanalytics.conf import app_logger, conf
-from taosanalytics.service import AbstractImputationService
+from taosanalytics.service import (AbstractImputationService, AnalyticsService)
 
 
 class _MomentImputationService(AbstractImputationService):
@@ -75,4 +75,13 @@ class _MomentImputationService(AbstractImputationService):
 
         app_logger.log_inst.info("%s specify freq: %s, precision: %s", self.__class__.__name__,
                                  self.freq, self.precision)
+
+    def get_status(self) -> str:
+        try:
+            _ = requests.get(self.service_host, headers=self.headers, timeout=5)
+        except Exception as e:
+            app_logger.log_inst.error("failed to connect the service: %s %s", self.service_host, str(e))
+            return AnalyticsService._toStatusName[AnalyticsService.UNAVAILABLE]
+
+        return super().get_status()
 

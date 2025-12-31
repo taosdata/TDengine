@@ -111,6 +111,12 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pInit->user) {
     tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
   }
+
+  if (pInit->isToken && pInit->user) {
+    tstrncpy(pRpc->identifier, pInit->user, sizeof(pRpc->identifier));
+    pRpc->isToken = 1;
+  }
+
   pRpc->timeToGetConn = pInit->timeToGetConn;
   if (pRpc->timeToGetConn == 0) {
     pRpc->timeToGetConn = 10 * 1000;
@@ -118,19 +124,41 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->notWaitAvaliableConn = pInit->notWaitAvaliableConn;
   pRpc->ipv6 = pInit->ipv6;
 
+
+  code = transTlsCxtMgtInit((STlsCxtMgt **)&pRpc->pTlsMgt); 
+  TAOS_CHECK_GOTO(code, NULL, _end);
+
   if (pInit->enableSSL == 1) {
-    code = transTlsCtxCreate(pInit, (SSslCtx**)&pRpc->pSSLContext);
+    SSslCtx* pCxt = NULL;
+    code = transTlsCxtCreate(pInit, (SSslCtx**)&pCxt);
     TAOS_CHECK_GOTO(code, NULL, _end);
 
-    if (pRpc->pSSLContext == NULL) {
+    if (pCxt == NULL) {
       tError("Failed to create SSL context for %s", pRpc->label);
       TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
     }
+
+    code = transTlsCxtMgtAppend((STlsCxtMgt*)pRpc->pTlsMgt, pCxt);
+    TAOS_CHECK_GOTO(code, NULL, _end);
+
+
     tInfo("TLS is enabled for %s", pRpc->label);
     pRpc->enableSSL = 1;
   } else {
     tInfo("TLS is not enabled for %s", pRpc->label);
     pRpc->enableSSL = 0;
+  }
+
+  pRpc->enableSasl = pInit->enableSasl;
+
+  if (pRpc->enableSasl) {
+    tInfo("SASL is enabled for %s", pRpc->label);
+    if (!pRpc->enableSSL) {
+      tWarn("Enabling SASL without TLS may expose sensitive information for %s", pRpc->label);
+      TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
+    }
+  } else {
+    tInfo("SASL is not enabled for %s", pRpc->label);
   }
 
   pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(&addr, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
@@ -151,9 +179,12 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   return (void*)refId;
 _end:
-  if (pRpc->pSSLContext) {
-    transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
+  if (pRpc->pTlsMgt) {
+    transTlsCxtMgtDestroy((STlsCxtMgt*)pRpc->pTlsMgt);
   }
+  // if (pRpc->pSSLContext) {
+  //   transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
+  // }
   taosMemoryFree(pRpc);
   terrno = code;
 
@@ -176,7 +207,17 @@ void rpcCloseImpl(void* arg) {
   if (pRpc->tcphandle != NULL) {
     (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
   }
-  transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
+
+  // if (pRpc->pSSLContext) {
+  //   transTlsCtxDestroy((SSslCtx*)pRpc->pSSLContext);
+  //   pRpc->pSSLContext = NULL;
+  // }
+  transTlsCxtMgtDestroy((STlsCxtMgt*)pRpc->pTlsMgt);
+
+  // if (pRpc->pNewSSLContext != NULL) {
+  //   transTlsCtxDestroy((SSslCtx*)pRpc->pNewSSLContext);
+  //   pRpc->pNewSSLContext = NULL;
+  // }
   taosMemoryFree(pRpc);
 }
 
@@ -254,6 +295,9 @@ int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
 }
 // server only
 int32_t rpcSetIpWhite(void* thandle, void* arg) { return transSetIpWhiteList(thandle, arg, NULL); }
+
+int32_t rpcSetTimeIpWhite(void* thandle, void* arg) { return transSetTimeIpWhiteList(thandle, arg, NULL); }
+int32_t rpcReloadTlsConfig(void* handle, int8_t type) { return transReloadTlsConfig(handle, type); }
 
 int32_t rpcAllocHandle(int64_t* refId) { return transAllocHandle(refId); }
 
@@ -368,6 +412,11 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->parent = pInit->parent;
   if (pInit->user) {
     tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
+  }
+
+  if (pInit->isToken && pInit->user) {
+    tstrncpy(pRpc->identifier, pInit->user, sizeof(pRpc->identifier));
+    pRpc->isToken = 1;
   }
   pRpc->timeToGetConn = pInit->timeToGetConn;
   if (pRpc->timeToGetConn == 0) {

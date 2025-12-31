@@ -429,6 +429,24 @@ static FORCE_INLINE int32_t tDecodeBinary(SDecoder* pCoder, uint8_t** val, uint3
   TAOS_RETURN(tDecodeBinaryWithSize(pCoder, length, val));
 }
 
+static FORCE_INLINE int32_t tDecodeBinaryTo(SDecoder* pCoder, uint8_t* val, uint32_t size) {
+  uint32_t len = 0;
+
+  TAOS_CHECK_RETURN(tDecodeU32v(pCoder, &len));
+
+  if (len != size) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  if (pCoder->pos + len > pCoder->size) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+  }
+
+  TAOS_MEMCPY(val, pCoder->data + pCoder->pos, len);
+  pCoder->pos += len;
+  return 0;
+}
+
 static FORCE_INLINE int32_t tDecodeCStrAndLen(SDecoder* pCoder, char** val, uint32_t* len) {
   TAOS_CHECK_RETURN(tDecodeBinary(pCoder, (uint8_t**)val, len));
   if (*len > 0) {  // notice!!!  *len maybe 0

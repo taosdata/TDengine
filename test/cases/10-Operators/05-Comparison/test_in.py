@@ -97,7 +97,7 @@ class TestIn:
         tdSql.query(
             f"explain verbose true select * from tb1 where tts in ('2022-07-10 16:31:01', '2022-07-10 16:31:03', 1657441865000);"
         )
-        tdSql.checkRows(3)
+        tdSql.checkRows(4)
         tdSql.checkData(
             2, 0, "      Time Range: [-9223372036854775808, 9223372036854775807]"
         )

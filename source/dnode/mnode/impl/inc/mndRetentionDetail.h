@@ -33,7 +33,6 @@ int32_t  mndRetentionDetailActionUpdate(SSdb *pSdb, SRetentionDetailObj *pOldRet
                                         SRetentionDetailObj *pNewRetention);
 int32_t  mndAddRetentionDetailToTrans(SMnode *pMnode, STrans *pTrans, SRetentionObj *pRetention, SVgObj *pVgroup,
                                       SVnodeGid *pVgid, int32_t index);
-int32_t  mndRetrieveRetentionDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 
 #ifdef __cplusplus
 }

@@ -14,10 +14,9 @@
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import time
+import datetime 
 import platform
-
-
-
+import pyotp
 
 class TestTaosCli:
     updatecfgDict = {
@@ -58,7 +57,7 @@ class TestTaosCli:
         self.checkManyString(rlist, results)
 
         # vec
-        rlist = self.taos(cmd + '\G"')
+        rlist = self.taos(cmd + '\\G"')
         results = [
             "****** 10.row *******",
             "ts: 2022-10-01 00:00:09.000",
@@ -399,6 +398,80 @@ class TestTaosCli:
         for cmd in cmds:
             rlist = self.taos(cmd, checkRun=True, show=False)
             self.checkListString(rlist, "Query OK,")
+    
+    # get totpCode
+    def getTotpCode(self, secret_key, interval = 30):
+        totp = pyotp.TOTP(secret_key, interval=interval)
+        totp_code = totp.now()
+        time_remaining = interval - (int(time.time()) % interval)
+        
+        tdLog.info(f"TOTP code: {totp_code}")
+        tdLog.info(f"Remain: {time_remaining} s")
+        tdLog.info(f"Generate time: {datetime.datetime.now().strftime('%H:%M:%S')}")
+        return totp_code
+    
+    # check totp code
+    def checkTotpCode(self):
+        totpSeed = "totp_user1@totpseed"
+        # create totp user
+        tdSql.execute(f"create user totp_user1 pass 'totp_user1@password' totpseed '{totpSeed}' ")
+        
+        # gen totp encrypt string()
+        sql = f"select generate_totp_secret('{totpSeed}') "
+        totpEncrypt = tdSql.getFirstValue(sql)
+        tdLog.info(f"totpEncrypt: {totpEncrypt}")
+        
+        # get totpCode
+        totpCode = self.getTotpCode(totpEncrypt)
+        tdLog.info(f"totpCode: {totpCode}")
+        
+        # login with totp code
+        taosFile = etool.taosFile()
+        command = f"echo '{totpCode}' | {taosFile} -utotp_user1 -ptotp_user1@password -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=True, show= True)
+        self.checkListString(rlist, "Query OK,")
+    
+    # check token login
+    def checkTokenLogin(self):
+        # create user and token
+        tdSql.execute(f"create user jack pass 'jack123@password' ")
+        token1 = tdSql.getFirstValue("create token jack_token1 from user jack")
+    
+        # login with token
+        taosFile = etool.taosFile()
+        success = [
+            "Connect with token ...... [ OK ]",
+            "Query OK"
+        ]
+        failed = "Connect with token ...... [ FAILED ]"
+        
+        # input
+        command = f"echo '{token1}' | {taosFile} -q -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=True, show= True)
+        self.checkManyString(rlist, success)
+        # arg
+        command = f"{taosFile} -q{token1} -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=True, show= True)
+        self.checkManyString(rlist, success)
+        
+        # error token
+        command = f"{taosFile} -qerror_token -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=False, show= True)
+        self.checkListString(rlist, failed)
+        
+        # big length token
+        bigToken = 'B' * 2048
+        command = f"{taosFile} -q{bigToken} -s 'show databases;' "
+        rlist = etool.runRetList(command, checkRun=False, show= True)
+        self.checkListString(rlist, failed)
+    
+    def checkPasswordExpiredTips(self):
+        # create expired user exp_user1
+        tdSql.execute("create user exp_user1 pass 'exp_user1@password' changepass 1;")
+        
+        # login with exp_user1
+        rlist = self.taos(f"-uexp_user1 -pexp_user1@password -s 'show databases;'", checkRun=True)
+        self.checkListString(rlist, "Please reset your password using the `ALTER USER <user_name> PASS 'new_password'` command.")
 
     # run
     def test_tool_taos_cli(self):
@@ -412,6 +485,9 @@ class TestTaosCli:
         6. Check data dump in/out
         7. Check conn mode priority and except cmd
         8. Check max password length
+        9. Check totp code with input
+        10. Check password expired tips
+        11. Check token login with input/args
 
         Since: v3.0.0.0
 
@@ -421,35 +497,30 @@ class TestTaosCli:
 
         History:
             - 2025-10-23 Alex Duan Migrated from uncatalog/army/cmdline/test_taos_cli.py
+            - 2025-12-25 Alex Duan Add totp code and token login check
 
         """
         tdLog.debug(f"start to excute {__file__}")
-
+        
         # check show whole
         self.checkDescribe()
-
         # check basic
         self.checkBasic()
-
         # version
         self.checkVersion()
-
         # help
         self.checkHelp()
-
         # check command
         self.checkCommand()
-
         # check data in/out
         self.checkDumpInOut()
-
-
         # check conn mode
         self.checkConnMode()
-
         # max password
         self.checkPassword()
-
-        tdLog.success(f"{__file__} successfully executed")
-
-
+        # totp code
+        self.checkTotpCode()
+        # password expired tips
+        self.checkPasswordExpiredTips()
+        # token login
+        self.checkTokenLogin()

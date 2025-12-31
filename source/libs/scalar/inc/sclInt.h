@@ -23,6 +23,7 @@ extern "C" {
 #include "thash.h"
 #include "querynodes.h"
 #include "function.h"
+#include "scalar.h"
 
 typedef struct SOperatorValueType {
   int32_t  opResType;
@@ -40,14 +41,18 @@ typedef struct SScalarStreamCtx {
   SScalarParam       twend;
 } SScalarStreamCtx;
 
+
 typedef struct SScalarCtx {
   int32_t            code;
   bool               dual;       /* whether select stmt has from stmt */
+  bool               remoteIncluded; /* whether include remote node calc */
   SArray*            pBlockList; /* element is SSDataBlock* */
   SHashObj*          pRes;       /* element is SScalarParam */
   void*              param;      // additional parameter (meta actually) for acquire value such as tbname/tags values
   SOperatorValueType type;
   SScalarStreamCtx   stream;
+  void*              pSubJobCtx;
+  sclFetchFromRemote fetchFp;
 } SScalarCtx;
 
 #define SCL_DATA_TYPE_DUMMY_HASH 9000

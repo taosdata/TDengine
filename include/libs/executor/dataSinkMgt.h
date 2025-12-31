@@ -86,6 +86,7 @@ typedef struct SStreamDataInserterInfo {
 typedef struct SInputData {
   const struct SSDataBlock* pData;
   SStreamDataInserterInfo*  pStreamDataInserterInfo;
+  void*                     pTask;
 } SInputData;
 
 typedef struct SOutputData {

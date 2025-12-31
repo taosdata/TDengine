@@ -18,6 +18,7 @@
 #include "sdb.h"
 #include "sync.h"
 #include "tchecksum.h"
+#include "tencrypt.h"
 #include "tglobal.h"
 #include "wal.h"
 
@@ -45,6 +46,26 @@ static int32_t sdbDeployData(SSdb *pSdb) {
   }
 
   mInfo("sdb deploy success");
+  return 0;
+}
+
+static int32_t sdbUpgradeData(SSdb *pSdb, int32_t version) {
+  int32_t code = 0;
+  mInfo("start to upgrade sdb");
+
+  for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
+    SdbUpgradeFp fp = pSdb->upgradeFps[i];
+    if (fp == NULL) continue;
+
+    mInfo("start to upgrade sdb:%s", sdbTableName(i));
+    code = (*fp)(pSdb->pMnode, version);
+    if (code != 0) {
+      mError("failed to upgrade sdb:%s since %s", sdbTableName(i), tstrerror(code));
+      return -1;
+    }
+  }
+
+  mInfo("sdb upgrade success");
   return 0;
 }
 
@@ -346,7 +367,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     }
 
     readLen = pRaw->dataLen + sizeof(int32_t);
-    if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
+    if (tsMetaKey[0] != '\0') {
       readLen = ENCRYPTED_LEN(pRaw->dataLen) + sizeof(int32_t);
     }
     if (readLen >= bufLen) {
@@ -376,7 +397,12 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       goto _OVER;
     }
 
-    if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
+    if (taosWaitCfgKeyLoaded() != 0) {
+      code = terrno;
+      goto _OVER;
+    }
+
+    if (tsMetaKey[0] != '\0') {
       int32_t count = 0;
 
       char *plantContent = taosMemoryMalloc(ENCRYPTED_LEN(pRaw->dataLen));
@@ -385,16 +411,21 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
         goto _OVER;
       }
 
-      SCryptOpts opts;
+      SCryptOpts opts = {0};
       opts.len = ENCRYPTED_LEN(pRaw->dataLen);
       opts.source = pRaw->pData;
       opts.result = plantContent;
       opts.unitLen = 16;
-      tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+      opts.pOsslAlgrName = taosGetEncryptAlgoName(tsEncryptAlgorithmType);
+      tstrncpy(opts.key, tsMetaKey, ENCRYPT_KEY_LEN + 1);
 
       count = CBC_Decrypt(&opts);
+      if (count <= 0) {
+        code = terrno;
+        goto _OVER;
+      }
 
-      // mDebug("read sdb, CBC_Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
+      // mDebug("read sdb, CBC Decrypt dataLen:%d, descrypted len:%d, %s", pRaw->dataLen, count, __FUNCTION__);
 
       memcpy(pRaw->pData, plantContent, pRaw->dataLen);
       taosMemoryFree(plantContent);
@@ -520,7 +551,15 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
 
         int32_t newDataLen = pRaw->dataLen;
         char   *newData = pRaw->pData;
-        if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
+
+        if (taosWaitCfgKeyLoaded() != 0) {
+          code = terrno;
+          taosHashCancelIterate(hash, ppRow);
+          sdbFreeRaw(pRaw);
+          break;
+        }
+
+        if (tsMetaKey[0] != '\0') {
           newDataLen = ENCRYPTED_LEN(pRaw->dataLen);
           newData = taosMemoryMalloc(newDataLen);
           if (newData == NULL) {
@@ -530,16 +569,23 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
             break;
           }
 
-          SCryptOpts opts;
+          SCryptOpts opts = {0};
           opts.len = newDataLen;
           opts.source = pRaw->pData;
           opts.result = newData;
           opts.unitLen = 16;
-          tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
+          opts.pOsslAlgrName = taosGetEncryptAlgoName(tsEncryptAlgorithmType);
+          tstrncpy(opts.key, tsMetaKey, ENCRYPT_KEY_LEN + 1);
 
           int32_t count = CBC_Encrypt(&opts);
+          if (count <= 0) {
+            code = terrno;
+            taosHashCancelIterate(hash, ppRow);
+            sdbFreeRaw(pRaw);
+            break;
+          }
 
-          // mDebug("write sdb, CBC_Encrypt encryptedDataLen:%d, dataLen:%d, %s",
+          // mDebug("write sdb, CBC Encrypt encryptedDataLen:%d, dataLen:%d, %s",
           //       newDataLen, pRaw->dataLen, __FUNCTION__);
         }
 
@@ -654,6 +700,21 @@ int32_t sdbWriteFileForDump(SSdb *pSdb, int32_t skip_type) {
 int32_t sdbDeploy(SSdb *pSdb) {
   int32_t code = 0;
   code = sdbDeployData(pSdb);
+  if (code != 0) {
+    TAOS_RETURN(code);
+  }
+
+  code = sdbWriteFile(pSdb, 0);
+  if (code != 0) {
+    TAOS_RETURN(code);
+  }
+
+  return 0;
+}
+
+int32_t sdbUpgrade(SSdb *pSdb, int32_t version) {
+  int32_t code = 0;
+  code = sdbUpgradeData(pSdb, version);
   if (code != 0) {
     TAOS_RETURN(code);
   }

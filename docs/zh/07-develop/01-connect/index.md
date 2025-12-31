@@ -13,6 +13,7 @@ import ConnNode from "./_connect_node.mdx";
 import ConnPythonNative from "./_connect_python.mdx";
 import ConnCSNative from "./_connect_cs.mdx";
 import ConnC from "./_connect_c.mdx";
+import ConnCWebSocket from "./_connect_c_ws.mdx";
 import InstallOnLinux from "../../14-reference/05-connector/_linux_install.mdx";
 import InstallOnWindows from "../../14-reference/05-connector/_windows_install.mdx";
 import InstallOnMacOS from "../../14-reference/05-connector/_macos_install.mdx";
@@ -453,9 +454,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
     ```
   </TabItem>
   <TabItem label="C" value="c">
-    ```c
-    {{#include docs/examples/c-ws-new/connect_example.c}}
-    ```
+    <ConnCWebSocket />
   </TabItem>
 </Tabs>
 

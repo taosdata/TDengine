@@ -124,7 +124,6 @@ typedef struct SParseStreamInfo {
   bool             calcClause;
   bool             triggerClause;
   bool             outTableClause;
-  bool             withExtWindow;
   bool             extLeftEq; // used for external window, true means include left border
   bool             extRightEq; // used for external window, true means include right border
   SNode*           triggerTbl;
@@ -166,10 +165,10 @@ int32_t reserveTableVgroupInCache(int32_t acctId, const char* pDb, const char* p
 int32_t reserveTableVgroupInCacheExt(const SName* pName, SParseMetaCache* pMetaCache);
 int32_t reserveDbVgVersionInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache);
 int32_t reserveDbCfgInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache);
-int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
-                               SParseMetaCache* pMetaCache);
-int32_t reserveViewUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
-                              SParseMetaCache* pMetaCache);
+int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable,
+                               EPrivType privType, EPrivObjType objType, SParseMetaCache* pMetaCache);
+int32_t reserveViewUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable,
+                                   EPrivType privType, EPrivObjType objType, SParseMetaCache* pMetaCache);
 int32_t reserveUdfInCache(const char* pFunc, SParseMetaCache* pMetaCache);
 int32_t reserveTableIndexInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTableCfgInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
@@ -197,7 +196,6 @@ void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
 int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* pTable, SNodeList* pHint, SNode** ppSelect);
 int32_t getTableTsmasFromCache(SParseMetaCache* pMetaCache, const SName* pTbName, SArray** pTsmas);
 int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, STableTSMAInfo** pTsma);
-
 /**
  * @brief return a - b with overflow check
  * @retval val range between [INT64_MIN, INT64_MAX]

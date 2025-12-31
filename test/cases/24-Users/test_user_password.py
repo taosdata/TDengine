@@ -14,8 +14,8 @@ class TestUserPassword:
     #
     def do_user_password(self):
         tdLog.info(f"============= step1")
-        tdSql.execute(f"create user u_read pass 'tbx12F132!'")
-        tdSql.execute(f"create user u_write pass 'tbx12145&*'")
+        tdSql.execute(f"create user u_read pass 'tbx12F132!' password_reuse_time 0 password_reuse_max 0")
+        tdSql.execute(f"create user u_write pass 'tbx12145&*' password_reuse_time 0 password_reuse_max 0")
 
         tdSql.execute(f"alter user u_read pass 'taosdata'")
         tdSql.execute(f"alter user u_write pass 'taosdata'")
@@ -276,7 +276,7 @@ class TestUserPassword:
         tdSql.execute(f"create user u27 pass 'taosdata1.'")
 
         tdSql.execute(
-            f"CREATE USER `_xTest1` PASS '2729c41a99b2c5222aa7dd9fc1ce3de7' SYSINFO 1 CREATEDB 0 IS_IMPORT 1 HOST '127.0.0.1';"
+            f"CREATE USER `_xTest1` PASS '2729c41a99b2c5222aa7dd9fc1ce3dE7' SYSINFO 1 CREATEDB 0 IS_IMPORT 1 HOST '127.0.0.1';"
         )
         tdSql.error(
             f"CREATE USER `_xTest2` PASS '2729c41a99b2c5222aa7dd9fc1ce3de7' SYSINFO 1 CREATEDB 0 IS_IMPORT 0 HOST '127.0.0.1';"
@@ -319,7 +319,7 @@ class TestUserPassword:
         time.sleep(3)
 
         # weak
-        tdSql.execute("create user test1 pass '12345678' sysinfo 0;")
+        tdSql.execute("create user test1 pass '12345678' sysinfo 0 password_reuse_time 0 password_reuse_max 0;")
 
         tdSql.execute("alter user test1 pass '12345678';")
 
