@@ -9308,7 +9308,7 @@ static int32_t grantStmtToJson(const void* pObj, SJson* pJson) {
       if (len > 0) privSet[len - 1] = '\0';  // remove last comma
       code = tjsonAddStringToObject(pJson, jkGrantStmtPrivileges, privSet);
     } else if (pNode->optrType == TSDB_ALTER_ROLE_ROLE) {
-      code = tjsonAddStringToObject(pJson, "roleName", pNode->roleName);
+      code = tjsonAddStringToObject(pJson, jkRoleStmtRoleName, pNode->roleName);
     }
   }
 
@@ -9329,28 +9329,32 @@ static int32_t jsonToGrantStmt(const SJson* pJson, void* pObj) {
     tjsonGetNumberValue(pJson, "optrType", pNode->optrType, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    char privSet[256] = {0};
-    code = tjsonGetStringValue2(pJson, jkGrantStmtPrivileges, privSet, sizeof(privSet));
-    if (TSDB_CODE_SUCCESS == code) {
-      int32_t split_num = 0;
-      char**  split = strsplit(privSet, ",", &split_num);
-      if (!split) {
-        nodesError("failed at line %d to parse privileges string: %s", __LINE__, privSet);
-        return TSDB_CODE_INVALID_PARA;
-      }
-      for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
-        if (i < split_num) {
-          uint64_t value = 0;
-          if ((code = taosStr2Uint64(split[i], &value))) {
-            taosMemoryFree(split);
-            return code;
-          }
-          pNode->privileges.privSet.set[i] = value;
-        } else {
-          pNode->privileges.privSet.set[i] = 0;
+    if (pNode->optrType == TSDB_ALTER_ROLE_PRIVILEGES) {
+      char privSet[256] = {0};
+      code = tjsonGetStringValue2(pJson, jkGrantStmtPrivileges, privSet, sizeof(privSet));
+      if (TSDB_CODE_SUCCESS == code) {
+        int32_t split_num = 0;
+        char**  split = strsplit(privSet, ",", &split_num);
+        if (!split) {
+          nodesError("failed at line %d to parse privileges string: %s", __LINE__, privSet);
+          return TSDB_CODE_INVALID_PARA;
         }
+        for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+          if (i < split_num) {
+            uint64_t value = 0;
+            if ((code = taosStr2Uint64(split[i], &value))) {
+              taosMemoryFree(split);
+              return code;
+            }
+            pNode->privileges.privSet.set[i] = value;
+          } else {
+            pNode->privileges.privSet.set[i] = 0;
+          }
+        }
+        taosMemoryFree(split);
       }
-      taosMemoryFree(split);
+    } else if (pNode->optrType == TSDB_ALTER_ROLE_ROLE) {
+      code = tjsonGetStringValue(pJson, jkRoleStmtRoleName, pNode->roleName);
     }
   }
 
