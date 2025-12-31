@@ -80,7 +80,7 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     default:
       break;
   }
-  if (isPrimaryKeyImpl((SNode*)pFunc)) {
+  if (fmIsKeepOrderFunc(pFunc) && isPrimaryKeyImpl((SNode*)pFunc)) {
     if (!isPartitionBy || (pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
                            isPrimaryKeyImpl(pOrderByFirstExpr))) {
       pCol->isPrimTs = true;
@@ -2524,16 +2524,22 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
-static bool isPrimaryKeySort(SNodeList* pOrderByList) {
-  SNode* pExpr = ((SOrderByExprNode*)nodesListGetNode(pOrderByList, 0))->pExpr;
-  if (QUERY_NODE_COLUMN != nodeType(pExpr)) {
+static bool checkPrimaryKeySort(SSelectStmt* pSelect, SNodeList* pOrderByList) {
+  SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pOrderByList, 0);
+  SNode*            pExpr = firstSortKey->pExpr;
+  if (pSelect->timeLineFromOrderBy == ORDER_UNKNOWN) {
+    if (pExpr && ((SExprNode*)pExpr)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      pSelect->timeLineFromOrderBy = firstSortKey->order;
+      return true;
+    }
     return false;
+  } else {
+    return isPrimaryKeyImpl(pExpr);
   }
-  return isPrimaryKeyImpl(pExpr);
 }
 
 static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (NULL == pSelect->pOrderByList) {
+  if (NULL == pSelect->pOrderByList || pSelect->pOrderByList->length == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2546,11 +2552,12 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pSort->groupSort = pSelect->groupSort;
   pSort->node.groupAction = pSort->groupSort ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
   pSort->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
-  pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
-                                    ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
-                                    : DATA_ORDER_LEVEL_NONE;
-  if (pCxt->pPlanCxt->streamCalcQuery &&
-      nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
+
+  pSort->node.resultDataOrder =
+      checkPrimaryKeySort(pSelect, pSelect->pOrderByList)  // 以 order 是否用主键排序来判断输出是否有序
+          ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
+          : DATA_ORDER_LEVEL_NONE;
+  if (pCxt->pPlanCxt->streamCalcQuery && nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
       ((SRealTableNode*)pSelect->pFromTable)->placeholderType == SP_PARTITION_ROWS) {
     pSort->skipPKSortOpt = true;
   }

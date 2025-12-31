@@ -258,6 +258,17 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
     case QUERY_NODE_LOGIC_PLAN_PARTITION: {
       return;
     }
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC: {
+      SIndefRowsFuncLogicNode* pIndefNode = (SIndefRowsFuncLogicNode*)pNode;
+      SNode*                   pFunc = NULL;
+      FOREACH(pFunc, pIndefNode->pFuncs) {
+        if (fmIsIndefiniteRowsFunc(((SFunctionNode*)pFunc)->funcId) && !fmIsKeepOrderFunc((SFunctionNode*)pFunc)) {
+          pNode->outputTsOrder = TSDB_ORDER_NONE;
+          return;
+        }
+      }
+      pNode->outputTsOrder = order;
+    }
     default:
       pNode->outputTsOrder = order;
       break;
@@ -2701,7 +2712,7 @@ static bool sortPriKeyOptIsPriKeyOrderBy(SNodeList* pSortKeys) {
     return false;
   }
   SNode* pNode = ((SOrderByExprNode*)nodesListGetNode(pSortKeys, 0))->pExpr;
-  return (QUERY_NODE_COLUMN == nodeType(pNode) ? isPrimaryKeyImpl(pNode) : false);
+  return (QUERY_NODE_COLUMN == nodeType(pNode) ? isPrimaryKeyImpl(pNode) : false);   // sort 被优化掉，主键判断需要不依赖排序
 }
 
 static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
@@ -2709,8 +2720,8 @@ static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
   SSortLogicNode* pSort = (SSortLogicNode*)pNode;
-  if (pSort->skipPKSortOpt || !sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys) ||
-      1 != LIST_LENGTH(pSort->node.pChildren)) {
+  if (pSort->node.inputTsOrder == TSDB_ORDER_NONE || pSort->skipPKSortOpt ||
+      !sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys) || 1 != LIST_LENGTH(pSort->node.pChildren)) {
     return false;
   }
   SNode* pChild = nodesListGetNode(pSort->node.pChildren, 0);
