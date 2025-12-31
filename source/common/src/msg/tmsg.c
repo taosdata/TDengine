@@ -5379,7 +5379,8 @@ int32_t cloneDataTimeWhiteListRsp(const SRetrieveDateTimeWhiteListRsp *src, SRet
     SUserDateTimeWhiteList       *destUser = &p->pUsers[i];
 
     destUser->ver = srcUser->ver;
-    strncpy(destUser->user, srcUser->user, strlen(srcUser->user));
+    strncpy(destUser->user, srcUser->user, sizeof(destUser->user));
+
     destUser->numWhiteLists = srcUser->numWhiteLists;
 
     destUser->pWhiteLists = taosMemoryMalloc(destUser->numWhiteLists * sizeof(SDateTimeWhiteListItem));
