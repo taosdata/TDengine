@@ -165,7 +165,7 @@ class TestDdlInSysdb:
 
         tdSql.query(f"select table_name from information_schema.ins_tables where db_name = 'information_schema' order by table_name")
 
-        tdSql.checkRows(53)
+        tdSql.checkRows(57)
 
         tdSql.checkData(0, 0, "ins_anodes")
 
@@ -756,7 +756,7 @@ class TestDdlInSysdb:
         )
         tdSql.checkRows(3)
 
-        tdSql.checkData(0, 1, 60)
+        tdSql.checkData(0, 1, 64)
 
         tdSql.checkData(1, 1, 10)
 
@@ -771,7 +771,7 @@ class TestDdlInSysdb:
 
         tdSql.checkData(1, 1, 5)
 
-        tdSql.checkData(2, 1, 53)
+        tdSql.checkData(2, 1, 57)
 
         tdSql.checkData(3, 1, 6)
 
@@ -790,7 +790,7 @@ class TestDdlInSysdb:
 
         tdSql.checkData(4, 2, 3)
 
-        tdSql.checkData(5, 2, 53)
+        tdSql.checkData(5, 2, 57)
 
         tdSql.checkData(6, 2, 6)
 
@@ -926,7 +926,8 @@ class TestDdlInSysdb:
             'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_virtual_child_columns', 'ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
                 'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes",
-                        "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts", "ins_stream_recalculates", "ins_ssmigrates", 'ins_scans', 'ins_scan_details', 'ins_rsmas', 'ins_retentions', 'ins_retention_details', 'ins_encrypt_algorithms', "ins_tokens" , 'ins_encrypt_status']
+                        "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts", "ins_stream_recalculates", "ins_ssmigrates", 'ins_scans', 'ins_scan_details', 'ins_rsmas', 'ins_retentions', 'ins_retention_details', 'ins_encrypt_algorithms', "ins_tokens" , 'ins_encrypt_status',
+                        "ins_xnodes", "ins_xnode_tasks", "ins_xnode_jobs","ins_xnode_agents"]
         self.perf_list = ['perf_connections', 'perf_queries',
                          'perf_consumers',  'perf_trans', 'perf_apps','perf_instances']
 
