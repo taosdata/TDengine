@@ -59,7 +59,8 @@ pub fn init(args: &Args) -> anyhow::Result<()> {
     let appender = builder.build().context("build log appender error")?;
 
     use tracing_subscriber::Layer;
-    let mut layers = vec![TaosLayer::<Qid>::new(appender).boxed()];
+    #[allow(unused_mut)]
+    let mut layers = vec![taoslog::layer::TaosLayer::<Qid, _, _>::new(appender).boxed()];
 
     #[cfg(debug_assertions)]
     layers.push(
