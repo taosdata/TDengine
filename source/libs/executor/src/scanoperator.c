@@ -3869,15 +3869,15 @@ static int32_t resetTagScanOperatorState(SOperatorInfo* pOper) {
   STagScanInfo*   pInfo = pOper->info;
 
   pOper->status = OP_NOT_OPENED;
-  STagScanPhysiNode * pTagScanNode = (STagScanPhysiNode*)pOper->pPhyNode;
- if (pTagScanNode->onlyMetaCtbIdx) {
-    SExecTaskInfo* pTaskInfo = pOper->pTaskInfo;
-    SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
-    pAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor);
-    pInfo->pCtbCursor = NULL;
- } else {
-    pInfo->curPos = 0;
- }
+  STagScanPhysiNode* pTagScanNode = (STagScanPhysiNode*)pOper->pPhyNode;
+  if (pTagScanNode->onlyMetaCtbIdx) {
+      SExecTaskInfo* pTaskInfo = pOper->pTaskInfo;
+      SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
+      pAPI->metaFn.closeCtbCursor(pInfo->pCtbCursor);
+      pInfo->pCtbCursor = NULL;
+  } else {
+      pInfo->curPos = 0;
+  }
 
   return code;
 }
