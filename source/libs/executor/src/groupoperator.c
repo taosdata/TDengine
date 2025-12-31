@@ -286,34 +286,7 @@ static void doAssignGroupKeys(SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t
   }
 }
 
-static bool addNewGroupForSLimit(SLimitInfo* pLimitInfo) {
-  if (pLimitInfo) {
-    if (pLimitInfo->remainGroupOffset > 0) {
-      pLimitInfo->remainGroupOffset -= 1;
-      return false;
-    } else {
-      pLimitInfo->numOfOutputGroups += 1;
-    }
-  }
-  return true;
-}
-
-static bool isFirstGroupForSLimit(SLimitInfo* pLimitInfo) {
-  if (pLimitInfo) {
-    return pLimitInfo->numOfOutputGroups == 1;
-  }
-  return false;
-}
-
-static bool slimitReached(SLimitInfo* pLimitInfo) {
-  if (pLimitInfo && pLimitInfo->slimit.limit >= 0 &&
-      pLimitInfo->numOfOutputGroups >= pLimitInfo->slimit.limit) {
-    return true;  // limit reached, stop processing further rows
-  }
-  return false;
-}
-
-static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock, SLimitInfo* pLimitInfo) {
+static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
   SGroupbyOperatorInfo* pInfo = pOperator->info;
 
@@ -333,7 +306,6 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock, SLim
     if (!pInfo->isInit) {
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
       pInfo->isInit = true;
-      if (!addNewGroupForSLimit(pLimitInfo)) continue;
       num++;
       continue;
     }
@@ -344,29 +316,14 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock, SLim
       continue;
     }
 
-    if (slimitReached(pLimitInfo)) {
-      break;  // limit reached, stop processing further rows
-    }
-
-    if (!addNewGroupForSLimit(pLimitInfo)) {
-      recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
-      continue;
-    }
-
     // j == 0: The first row of a new block does not belongs to the previous existed group
-    // isFirstGroupForSLimit(pLimitInfo):  The new group is found, set the result output buffer for the previous group
-    // if this new group is the first group, it means the previous group need be skipped by soffset
-    // but the num is still needed to be updated for new group
-    if (j == 0 || isFirstGroupForSLimit(pLimitInfo)) {
+    if (j == 0) {
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
       num = 1;
       continue;
     }
 
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
-
-    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
-
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
                                           len, pBlock->info.id.groupId, pInfo->aggSup.pResultBuf, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
@@ -375,13 +332,14 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock, SLim
 
     int32_t rowIndex = j - num;
     ret = applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows,
-                                                   pOperator->exprSupp.numOfExprs);
+                                          pOperator->exprSupp.numOfExprs);
     if (ret != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, ret);
     }
 
     // assign the group keys or user input constant values if required
     doAssignGroupKeys(pCtx, pOperator->exprSupp.numOfExprs, pBlock->info.rows, rowIndex);
+    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     num = 1;
   }
 
@@ -445,12 +403,55 @@ void doBuildResultDatablockByHash(SOperatorInfo* pOperator, SOptrBasicInfo* pbIn
   }
 }
 
+static bool slimitReached(SLimitInfo* pLimitInfo) {
+  if (pLimitInfo && pLimitInfo->slimit.limit >= 0 &&
+      pLimitInfo->numOfOutputGroups >= pLimitInfo->slimit.limit) {
+    return true;  // limit reached, stop processing further rows
+  }
+  return false;
+}
+
+static int32_t doGroupResultSlimit(SSDataBlock* pRes, SLimitInfo* pLimitInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pRes == NULL || pRes->info.rows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pLimitInfo && pLimitInfo->remainGroupOffset > 0) {
+    if (pRes->info.rows <= pLimitInfo->remainGroupOffset) {
+      pLimitInfo->remainGroupOffset -= pRes->info.rows;
+      blockDataCleanup(pRes);
+    } else {
+      code = blockDataTrimFirstRows(pRes, pLimitInfo->remainGroupOffset);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+  pLimitInfo->remainGroupOffset = 0;
+  if (pLimitInfo && pLimitInfo->slimit.limit >= 0 && pRes->info.rows > 0) {
+    int32_t remainRows = pLimitInfo->slimit.limit - pLimitInfo->numOfOutputGroups;
+    if (pRes->info.rows > remainRows) {
+      blockDataKeepFirstNRows(pRes, remainRows);
+    }
+    pLimitInfo->numOfOutputGroups += pRes->info.rows;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static SSDataBlock* buildGroupResultDataBlockByHash(SOperatorInfo* pOperator) {
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
   SGroupbyOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*          pRes = pInfo->binfo.pRes;
+  SLimitInfo*           pLimitInfo = &pInfo->limitInfo;
 
   // after filter, if result block turn to null, get next from whole set
   while (1) {
@@ -459,13 +460,17 @@ static SSDataBlock* buildGroupResultDataBlockByHash(SOperatorInfo* pOperator) {
     code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    if (!hasRemainResultByHash(pOperator)) {
+    code = doGroupResultSlimit(pRes, pLimitInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (!hasRemainResultByHash(pOperator) || slimitReached(pLimitInfo)) {
       setOperatorCompleted(pOperator);
       // clean hash after completed
       tSimpleHashCleanup(pInfo->aggSup.pResultRowHashTable);
       pInfo->aggSup.pResultRowHashTable = NULL;
       break;
     }
+
     if (pRes->info.rows > 0) {
       break;
     }
@@ -500,12 +505,7 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     return code;
   }
 
-  SLimitInfo* pLimitInfo = &pInfo->limitInfo;
-
   while (1) {
-    if (slimitReached(pLimitInfo)) {
-      break;
-    }
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       break;
@@ -524,7 +524,7 @@ static int32_t hashGroupbyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    doHashGroupbyAgg(pOperator, pBlock, pLimitInfo);
+    doHashGroupbyAgg(pOperator, pBlock);
   }
 
   pOperator->status = OP_RES_TO_RETURN;
