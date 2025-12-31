@@ -91,7 +91,7 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
     getXnodedPidPath(pidPath, PATH_MAX);
     (void)taosRemoveFile(pidPath);
   } else {
-    xndInfo("xnoded process restart, exit status %ld, signal %d", exitStatus, termSignal);
+    xndInfo("xnoded process restart, exit status %" PRId64 ", signal %d", exitStatus, termSignal);
     uv_sleep(2000);
     int32_t code = xnodeMgmtSpawnXnoded(pData);
     if (code != 0) {
@@ -201,7 +201,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   char xnodedUserPass[XNODE_USER_PASS_LEN] = {0};
   snprintf(xnodedUserPass, XNODE_USER_PASS_LEN, "%s=%s", "XNODED_USER_PASS", pData->userPass);
   char xnodeClusterId[32] = {0};
-  snprintf(xnodeClusterId, 32, "%s=%lu", "XNODED_CLUSTER_ID", pData->clusterId);
+  snprintf(xnodeClusterId, 32, "%s=%" PRIu64, "XNODED_CLUSTER_ID", pData->clusterId);
 
   char xnodePipeSocket[PATH_MAX + 64] = {0};
   snprintf(xnodePipeSocket, PATH_MAX + 64, "%s=%s", "XNODED_LISTEN", xnodedPipeSocket);
