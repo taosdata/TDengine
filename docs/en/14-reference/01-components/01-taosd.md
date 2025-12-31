@@ -56,11 +56,10 @@ Additional Notes:
 | maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
 | shareConnLimit         | Added in 3.3.4.0        | Supported, effective after restart                           | Number of requests a connection can share, range 1-512, default value 10 |
 | readTimeout            | Added in 3.3.4.0        | Supported, effective after restart                           | Minimum timeout for a single request, range 64-604800, in seconds, default value 900 |
-| forceReadConfig        |                         | Not supported                                                | Force read configuration file; default value false |
-| mqttPort               |                         | Not supported                                                | MQTT service listening port, range 1-65056, default value 6083 |
-| enableTLS              |                         | Supported, effective immediately                             | Whether to enable TLS connection; 0: disable, 1: enable; default value 0 |
+| mqttPort               | After 3.3.6.23          | Not supported                                                | MQTT service listening port, range 1-65056, default value 6083 |
+| enableTLS              | After 3.3.8.4           | Supported, effective immediately                             | Whether to enable TLS connection; 0: disable, 1: enable; default value 0 |
 | enableSasl             | After 3.4.0.0           | Supported, effective immediately                             | Whether to enable SASL authentication; 0: disable, 1: enable; default value 0 |
-| rpcRecvLogThreshold    |                         | Supported, effective immediately                             | RPC receive log threshold, RPC requests exceeding this time will be logged, range 1-1048576, in seconds, default value 3 |
+| rpcRecvLogThreshold    | After 3.3.8.4           | Supported, effective immediately                             | RPC receive log threshold, RPC requests exceeding this time will be logged, range 1-1048576, in seconds, default value 3 |
 
 ### Monitoring Related
 
@@ -98,7 +97,7 @@ Additional Notes:
 | filterScalarMode         |                   | Not supported                      | Force scalar filter mode, 0: off; 1: on, default value 0     |
 | queryRsmaTolerance       |                   | Not supported                      | Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds |
 | pqSortMemThreshold       |                   | Not supported                      | Internal parameter, memory threshold for sorting             |
-| updateCacheBatch         |                   | Not supported                      | Whether to batch update cache; default value true |
+| updateCacheBatch         | After 3.3.4.11    | Not supported                      | Whether to batch update cache; default value true |
 | sessionControl           | After 3.4.0.0     | Supported, effective after restart | Whether to enable session control function; default value true |
 | sessionPerUser           | After 3.4.0.0     | Supported, effective immediately   | Maximum number of sessions allowed per user, -1 means no limit, range -1-INT32_MAX, default value -1 |
 | sessionConnTime          | After 3.4.0.0     | Supported, effective immediately   | Session connection time limit, -1 means no limit, range -1-INT32_MAX, in seconds, default value -1 |
@@ -286,8 +285,8 @@ The effective value of charset is UTF-8.
 | uptimeInterval             |                   | Supported, effective immediately   | Internal parameter, for recording system uptime                                                                                                                                                                                                                                |
 | timeseriesThreshold        |                   | Supported, effective immediately   | Internal parameter, for usage statistics                                                                                                                                                                                                                                       |
 | udf                        |                   | Supported, effective after restart | Whether to start UDF service; 0: do not start, 1: start; default value 1(The default value on Windows is 0.) |
-| udfdResFuncs               |                   | Supported, effective after restart | UDF resident function list, these functions are only unloaded when udfd exits; Internal parameter; default value empty |
-| udfdLdLibPath              |                   | Supported, effective after restart | UDF dynamic library search path; Internal parameter; default value empty |
+| udfdResFuncs               |                   | Supported, effective after restart | Internal parameter, for setting UDF result sets|
+| udfdLdLibPath              |                   | Supported, effective after restart | Internal parameter, indicates the library path for loading UDF |
 | streamBatchRequestWaitMs   |                   | Not supported                      | Stream computing batch request wait time, range 0-1800000, in milliseconds, default value 5000 |
 | numOfMnodeStreamMgmtThreads|                   | Not supported                      | Mnode stream management thread count, range 2-5, default value is one quarter of CPU cores (not less than 2, not exceeding 5) |
 | numOfStreamMgmtThreads     |                   | Not supported                      | Vnode stream management thread count, range 2-5, default value is one eighth of CPU cores (not less than 2, not exceeding 5) |
@@ -355,6 +354,7 @@ The effective value of charset is UTF-8.
 | -------------------- | ----------------- | -------------------------------- | ------------------------------------------------------------ |
 | enableCoreFile       |                   | Supported, effective immediately | Whether to generate a core file when crashing, 0: do not generate, 1: generate; default value is 1 |
 | configDir            |                   | Not supported                    | Directory where the configuration files are located          |
+| forceReadConfig        | After 3.3.5.0           | Not supported                                                | Force read configuration file; default value false |
 | scriptDir            |                   | Not supported                    | Directory for internal test tool scripts                     |
 | assert               |                   | Not supported                    | Assertion control switch, default value is 0                 |
 | randErrorChance      |                   | Supported, effective immediately | Internal parameter, used for random failure testing          |
@@ -384,9 +384,9 @@ The effective value of charset is UTF-8.
 | maxRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | curRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compressor     |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
-| compareAsStrInGreatest |             | Supported, effective immediately   | Whether to compare values as strings in GREATEST function; default value true |
-| showFullCreateTableColumn |              | Supported, effective immediately   | Whether SHOW CREATE TABLE displays full column information; 0: only table name and database name, 1: full create statement; default value 0 |
-| multiResultFunctionStarReturnTags |     | Supported, effective immediately   | Whether multi-result functions return tag columns when using *; default value false |
+| compareAsStrInGreatest | After 3.4.0.0  | Supported, effective immediately   | Whether to compare values as strings in GREATEST function; default value true |
+| showFullCreateTableColumn |  After 3.4.0.0 | Supported, effective immediately   | Whether SHOW CREATE TABLE displays full column information; 0: only table name and database name, 1: full create statement; default value 0 |
+| multiResultFunctionStarReturnTags | After 3.4.0.0 | Supported, effective immediately   | Whether multi-result functions return tag columns when using *; default value false |
 
 ## taosd Monitoring Metrics
 
