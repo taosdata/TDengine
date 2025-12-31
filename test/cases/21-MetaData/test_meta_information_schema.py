@@ -927,7 +927,7 @@ class TestDdlInSysdb:
                 'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
                 'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes",
                         "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts", "ins_stream_recalculates", "ins_ssmigrates", 'ins_scans', 'ins_scan_details', 'ins_rsmas', 'ins_retentions', 'ins_retention_details', 'ins_encrypt_algorithms', "ins_tokens" , 'ins_encrypt_status',
-                        "ins_xnodes", "ins_xnode_tasks", "ins_xnode_jobs","ins_xnode_agents"]
+                        "ins_roles", "ins_role_privileges", "ins_role_column_privileges", "ins_xnodes", "ins_xnode_tasks", "ins_xnode_jobs","ins_xnode_agents"]
         self.perf_list = ['perf_connections', 'perf_queries',
                          'perf_consumers',  'perf_trans', 'perf_apps','perf_instances']
 
@@ -1089,7 +1089,7 @@ class TestDdlInSysdb:
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkRows(71)
+        tdSql.checkRows(72)
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
