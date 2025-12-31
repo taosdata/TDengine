@@ -82,7 +82,9 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
     }
     char xnodedPipeSocket[PATH_MAX] = {0};
     getXnodedPipeName(xnodedPipeSocket, PATH_MAX);
-    (void)unlink(xnodedPipeSocket);
+    if (0 != unlink(xnodedPipeSocket)) {
+      xndWarn("txnode failed to unlink, socket:%s, err:%s", xnodedPipeSocket, terrstr());
+    }
 
     char *pidPath = xnodedPipeSocket;
     memset(pidPath, 0, PATH_MAX);
@@ -173,7 +175,9 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
 
   char xnodedPipeSocket[PATH_MAX] = {0};
   getXnodedPipeName(xnodedPipeSocket, PATH_MAX);
-  (void)unlink(xnodedPipeSocket);
+  if (0 != unlink(xnodedPipeSocket)) {
+    xndWarn("txnode failed to unlink, ignore if first time, socket:%s, err:%s", xnodedPipeSocket, terrstr());
+  }
 
   TAOS_UV_LIB_ERROR_RET(uv_pipe_init(&pData->loop, &pData->ctrlPipe, 1));
 
