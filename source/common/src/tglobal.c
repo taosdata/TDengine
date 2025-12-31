@@ -70,6 +70,7 @@ char tsTLSSvrKeyPath[PATH_MAX] = {0};
 char tsTLSCliCertPath[PATH_MAX] = {0};
 char tsTLSCliKeyPath[PATH_MAX] = {0};
 
+
 int8_t tsEnableTLS = 0;
 int8_t tsEnableSasl = 0;
 // common
