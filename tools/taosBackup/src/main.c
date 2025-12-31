@@ -9,15 +9,16 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
     
-#include "taosBackup.h"
-#include "bckArgs.h"
+#include "bck.h"
+#include "backup.h"
+#include "restore.h"
 
 int main(int argc, char *argv[]) {
     printf("taosBackup tool v1.0\n");
     int code = TSDB_CODE_SUCCESS;
 
     //
-    //  arguments 
+    //  init arguments
     //
     if (argsInit(argc, argv) != 0) {
         printf("init args failed\n");
@@ -43,7 +44,7 @@ int main(int argc, char *argv[]) {
     }
 
     //
-    // destroy
+    // destroy arguments
     //
     argsDestroy();
     return 0;

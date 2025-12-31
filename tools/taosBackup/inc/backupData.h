@@ -9,13 +9,34 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef INC_BACKARGS_H_
-#define INC_BACKARGS_H_
+#ifndef INC_BACKUPDATA_H_
+#define INC_BACKUPDATA_H_
 
+#include "backup.h"
 
 //
 // ---------------- define ----------------
 //
 
 
-#endif  // INC_BACKARGS_H_
+//
+// ---------------- struct ----------------
+//
+
+// data
+typedef struct DataThread {
+    char ** childTableNames;
+    int numChildTables;
+    char dbName[TSDB_DB_NAME_LEN];
+    char stbName[TSDB_TABLE_NAME_LEN];
+    TAOS* conn;
+    pthread_t pid;
+} DataThread;
+
+
+//
+// ---------------- interface ----------------
+//
+
+
+#endif  // INC_BACKUPDATA_H_

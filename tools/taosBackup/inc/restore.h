@@ -9,19 +9,16 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef INC_BCKLOG_H_
-#define INC_BCKLOG_H_
+#ifndef INC_RESTORE_H_
+#define INC_RESTORE_H_
 
 
 //
 // ---------------- define ----------------
 //
 
-void logError(const char *format, ...);
-void logInfo(const char *format, ...);
-void logWarn(const char *format, ...);
-void logDebug(const char *format, ...); 
 
+// ---------------- interface ----------------
+int restoreMain();
 
-
-#endif  // INC_BCKLOG_H_
+#endif  // INC_RESTORE_H_

@@ -1,0 +1,255 @@
+/*
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the MIT license as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ */
+    
+#include "backupMeta.h"
+
+
+//
+// ----------------------------------- FUNCTION --------------------------------------
+//
+
+int genBackTableSql(const char *dbName, const char *tableName, char *sql, int len) {
+    snprintf(sql, len, "SELECT * FROM %s.%s", dbName, tableName);
+
+    return TSDB_CODE_SUCCESS;
+}
+
+
+void obtainDBFile(const char *dbName,  char *dbPath, int len, char* fileName) {
+    // db path: <outPath>/db_<crc>/
+    snprintf(dbPath, len, "%s/db_%x/%s", argOutPath(), getCrc(dbName), fileName);
+    return TSDB_CODE_SUCCESS;
+}
+
+
+//
+// -------------------------------------- META -----------------------------------------
+//
+int backCreateDbSql(const char *dbName) {
+    int code = TSDB_CODE_FAILED;
+    
+    // path
+    char sqlFile[MAX_PATH_LEN] = {0};
+    obtainDBFile(dbName, sqlFile, sizeof(sqlFile), FILE_DBSQL);
+
+    // sql
+    char sql[512] = {0};
+    snprintf(sql, sizeof(sql), "show create database %s;", dbName);
+    code = queryWriteFile(sql, sqlFile);
+
+    return code;
+}
+
+
+int backCreateStbSql(const char *dbName, const char *stbName) {
+    int code = TSDB_CODE_FAILED;
+    
+    // path
+    char sqlFile[MAX_PATH_LEN] = {0};
+    obtainDBFile(dbName, sqlFile, sizeof(sqlFile), FILE_DBSQL);
+
+    // sql
+    char sql[512] = {0};
+    snprintf(sql, sizeof(sql), "show create table %s.%s;", dbName, stbName);
+    code = queryWriteFile(sql, sqlFile);
+
+    return code;
+}
+
+int backStbSchema(const char *dbName, const char *stbName, char ** selectTags) {
+    int code = TSDB_CODE_FAILED;
+    
+    // path
+    char jsonFile[MAX_PATH_LEN] = {0};
+    char name[64] = {0};
+    snprintf(name, sizeof(name), "stb_%x.json", getCrc(stbName));
+    
+    obtainDBFile(dbName, jsonFile, sizeof(jsonFile), name);
+    
+    // json
+    char sql[512] = {0};
+    snprintf(sql, sizeof(sql), "show create table %s.%s;", dbName, stbName);
+    code = queryWriteJson(sql, jsonFile, selectTags);
+
+    return code;
+}
+
+//
+// back data thread
+//
+static void* backTagThread(void *arg) {
+    return NULL;
+}
+
+//
+// split tag thread
+//
+TagThread * splitTagThread(DBInfo *dbInfo, StbInfo *stbInfo, int *code, int *outCount) {
+    *code = TSDB_CODE_SUCCESS;
+    int threadCnt = *outCount;
+    const char* dbName = dbInfo->dbName;
+    const char* stbName = stbInfo->stbName;
+
+    char sql[512] = {0};
+    snprintf(sql, sizeof(sql), "select count(*) from information_schema.ins_tables where db_name='%s' and stable_name='%s';", dbName, stbName);
+    int tableCnt = 0;
+    
+    // query table count
+    code = getFirstIntValue(sql, &tableCnt);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("get child table count failed(%d): %s.%s", code, dbName, stbName);
+        return NULL;
+    }
+    if (tableCnt == 0) {
+        logWarn("%s.%s child table count is zero.", dbName, stbName);
+        *outCount = 0;
+        return NULL;
+    }
+
+    if (tableCnt < threadCnt) {
+        threadCnt = tableCnt;
+    }
+
+    // tag thread
+    TagThread * threads = (TagThread *)calloc(threadCnt, sizeof(TagThread));
+    if (threads == NULL) {
+        *code = TSDB_CODE_FAILED;
+        return NULL;
+    }
+
+    for(int i = 0; i < threadCnt; i++) {
+        threads[i].dbInfo  = dbInfo;
+        threads[i].stbInfo = stbInfo;
+        threads[i].limit   = tableCnt / threadCnt;
+        if (i == threadCnt -1) {
+            threads[i].limit += tableCnt % threadCnt;
+        }
+        threads[i].offset  = i * (tableCnt / threadCnt);
+        threads[i].conn    = getConnection();
+    }
+
+    // succ
+    *outCount = threadCnt;
+    return threads;
+}
+
+//
+// tag create threads
+//
+int backChildTableTags(DBInfo *dbInfo, StbInfo *stbInfo) {
+    int code = TSDB_CODE_FAILED;
+    int count = argTagThread();
+
+    // splite tags with vgroups
+    TagThread *threads = splitTagThread(dbInfo, stbInfo, &code, &count);
+    if (threads == NULL) {
+        return code;
+    }
+
+    // create threads
+    for (int i = 0; i < count; i++) {
+        if(pthread_create(&threads[i].pid, NULL, backTagThread, (void *)&threads[i]) != 0) {
+            logError("create backup thread failed(%s) for stb:%s", strerror(errno), stbInfo->stbName);
+            freePtr(threads);
+            return TSDB_CODE_BACKUP_CREATE_THREAD_FAILED;
+        }
+    }
+
+    // wait threads
+    for (int i = 0; i < count; i++) {
+        pthread_join(threads[i].pid, NULL);
+    }
+
+    // free
+    freePtr(threads);
+    return code;
+}
+
+//
+// normal tables create sql
+//
+int backNormalTablesSql(const char *dbName) {
+    int code = TSDB_CODE_FAILED;
+
+    return code;
+}
+
+//
+// backup database meta
+//
+int backDatabaseMeta(DBInfo *dbInfo) {
+    int code = TSDB_CODE_FAILED;
+    char *dbName = dbInfo->dbName;
+
+    //
+    // database sql
+    //
+    code = backCreateDbSql(dbName);
+    if (code != TSDB_CODE_SUCCESS) {
+        return code;
+    }
+
+    //
+    // super tables meta
+    //
+    int code = TSDB_CODE_FAILED;
+    char ** stbNames = getDBSuperTableNames(dbName, &code);
+    if (stbNames == NULL) {
+        return code;
+    }
+
+    // Loop super table
+    for (int i = 0; stbNames[i] != NULL; i++) {
+        logInfo("backup super table meta: %s.%s\n", dbName, stbNames[i]);
+        StbInfo stbInfo;
+        memset(&stbInfo, 0, sizeof(StbInfo));
+        stbInfo.dbInfo = dbInfo;
+        stbInfo.stbName = stbNames[i];
+
+        // sql
+        code = backCreateStbSql(dbName, stbNames[i]);
+        if (code != TSDB_CODE_SUCCESS) {
+            freeArrayPtr(stbNames);
+            return code;
+        }
+        // schema
+        char * selectTags = NULL; 
+        code = backStbSchema(dbName, stbNames[i], &selectTags);
+        if (code != TSDB_CODE_SUCCESS) {
+            freeArrayPtr(stbNames);
+            freePtr(selectTags);
+            return code;
+        }
+        // tags
+        stbInfo.selectTags = selectTags;
+        code = backChildTableTags(dbInfo, &stbInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+            freeArrayPtr(stbNames);
+            freePtr(selectTags);
+            
+            return code;
+        }
+        // free
+        freePtr(selectTags);
+    }    
+
+    freeArrayPtr(stbNames);
+
+    //
+    // normal tables sql
+    //
+    code = backNormalTablesSql(dbName);
+    if (code != TSDB_CODE_SUCCESS) {
+        return code;
+    }
+
+    return code;
+}

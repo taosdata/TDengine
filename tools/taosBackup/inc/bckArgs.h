@@ -56,6 +56,7 @@ int argRetryCount();
 int argRetrySleepMs();
 
 int argDataThread();
+int argTagThread();
 
 char* argOutPath();
 

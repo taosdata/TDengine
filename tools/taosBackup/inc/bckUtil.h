@@ -9,17 +9,26 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef INC_BCKBACKUPIMPL_H_
-#define INC_BCKBACKUPIMPL_H_
+#ifndef INC_UTIL_H_
+#define INC_UTIL_H_
 
+#include <stdbool.h>
 
 //
 // ---------------- define ----------------
 //
 
+// ---------------- interface ----------------
+unsigned int getCrc(const char *name);
 
-// ---------------- error code ----------------
+void sleepMs(int ms);
 
+void freeArrayPtr(char **ptr);
 
+void freePtr(void *ptr);
 
-#endif  // INC_BCKBACKUPIMPL_H_
+bool errorCodeCanRetry(int code);
+
+unsigned int getCrc(const char *name);
+
+#endif  // INC_UTIL_H_

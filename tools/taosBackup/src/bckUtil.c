@@ -30,6 +30,12 @@ void freeArrayPtr(char **ptr) {
     free(ptr);
 }
 
+void freePtr(void *ptr) {
+    if (ptr != NULL) {
+        free(ptr);
+    }
+}
+
 bool errorCodeCanRetry(int code) {
     if (code == TSDB_CODE_RPC_NETWORK_ERROR ||
         code == TSDB_CODE_RPC_NETWORK_BUSY ||
