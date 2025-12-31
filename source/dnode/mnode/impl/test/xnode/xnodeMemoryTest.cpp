@@ -96,11 +96,12 @@ class XnodeMemoryTest : public ::testing::Test {
   SXnodeTaskObj* createTask(int tid, const char* name, int xnodeId) {
     SXnodeTaskObj* task = (SXnodeTaskObj*)taosMemMalloc(sizeof(SXnodeTaskObj));
     allocCount++;
-
     memset(task, 0, sizeof(SXnodeTaskObj));
     task->id = tid;
     task->xnodeId = xnodeId;
     task->via = -1;
+    task->name = (char*)taosMemCalloc(1, strlen(name) + 1);
+    allocCount++;
 
     if (name) {
       strncpy(task->name, name, sizeof(task->name) - 1);
