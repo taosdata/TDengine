@@ -352,7 +352,7 @@ function setup_env() {
     
   else
     # server/默认，按 verMode/pkgMode/entMode 细分
-    # entMode lite will have xname next version,so keep xnode in tools.
+    # entMode lite will include xnode in the next version, so it is added to the tools list for forward compatibility.
     remove_name="remove.sh"
     tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}")
     if [ "${verMode}" == "cluster" ]; then

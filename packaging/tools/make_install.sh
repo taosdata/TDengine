@@ -190,7 +190,6 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosudf ] && ${csudo}cp -r ${binary_dir}/build/bin/taosudf ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosmqtt ] && ${csudo}cp -r ${binary_dir}/build/bin/taosmqtt ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
-    
     ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
 
     ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin || :
