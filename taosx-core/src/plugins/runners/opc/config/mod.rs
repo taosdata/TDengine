@@ -14,7 +14,7 @@ use crate::runners::opc::config::collect::CollectConfig;
 use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::report::ReportConfig;
-use crate::runners::opc::{opc_datasets_impl, OpcType};
+use crate::runners::opc::{OpcType, opc_datasets_impl};
 use crate::sink::point::model::SourceType;
 
 pub mod collect;
@@ -58,7 +58,7 @@ impl OPCConfig {
     pub async fn from_dsn_collect_mode(
         dsn: &Dsn,
         ipc_port: u16,
-        task_id: Option<i64>,
+        task_job_id: Option<(i64, i64)>,
     ) -> anyhow::Result<Self> {
         if dsn.driver != "opc" && dsn.driver != "opcua" && dsn.driver != "opcda" {
             bail!("invalid opc driver");
@@ -115,7 +115,7 @@ impl OPCConfig {
         } else {
             dsn_clone.set("da.tags", points);
         }
-        let collect = CollectConfig::from_dsn(&dsn_clone, task_id).await?;
+        let collect = CollectConfig::from_dsn(&dsn_clone, task_job_id).await?;
 
         Ok(Self {
             opc_type,
@@ -333,7 +333,9 @@ regex_id = "^(?!.*_Error).+$"
 
     #[tokio::test]
     async fn test_dsn_to_toml_in_collect_mode() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         let dsn = "opcua://192.168.2.16:53530?csv_config_file=@./tests/opc/opcua-3.3.6.0.csv"
             .into_dsn()

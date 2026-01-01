@@ -676,17 +676,16 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_export_import_with_taos() -> anyhow::Result<()> {
-        use file_guard::Lock;
         use std::fs::OpenOptions;
 
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .truncate(true)
             .open("./tests/migrations.lock")?;
 
-        let _lock = file_guard::lock(&mut file, Lock::Exclusive, 0, 1)?;
+        file.lock()?;
 
         let _ = tracing_subscriber::fmt()
             .with_env_filter(

@@ -1,10 +1,10 @@
 use std::{borrow::Cow, marker::PhantomData};
 
-use tracing_actix_web::{root_span, RootSpanBuilder};
+use tracing_actix_web::{RootSpanBuilder, root_span};
 
 use crate::{
-    utils::{QidMetadataGetter, QidMetadataSetter},
     QidManager,
+    utils::{QidMetadataGetter, QidMetadataSetter},
 };
 
 pub struct TaosRootSpanBuilder<Q>(PhantomData<Q>);

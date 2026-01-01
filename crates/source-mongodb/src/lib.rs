@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::DateTime;
@@ -12,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::utils::port_pool::PortPool;
-use taosx_core::{Action, Parser, TaskNotifySender, Transferred, build_ipc};
+use taosx_core::{Action, Parser, TaskNotifySender, Via, build_ipc};
 
 use config::MongoDBConfig;
 use config::connect::ConnectConfig;
@@ -169,20 +168,15 @@ pub async fn mongodb_to_taos(
     _jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     let mut config = MongoDBConfig::from_dsn(&from)?;
 
     // set task_id
-    config.task_id = task_id;
-    tracing::info!(
-        "{MONGODB_NAME} task start, id: {:?}, configuration: {:?}",
-        task_id,
-        config
-    );
+    config.task_job_id = task_job_id;
+    tracing::info!("{MONGODB_NAME} task start, id: {task_job_id:?}, configuration: {config:?}",);
 
     // set ipc port
     let port = port_pool
@@ -192,9 +186,8 @@ pub async fn mongodb_to_taos(
     let socket = format!("127.0.0.1:{}", port.get());
     config.ipc_port = Some(port.get());
     tracing::info!(
-        "{MONGODB_NAME} task ipc port: {}, id: {:?}",
+        "{MONGODB_NAME} task ipc port: {}, id: {task_job_id:?}",
         port.get(),
-        task_id
     );
 
     // create ipc handler
@@ -207,8 +200,7 @@ pub async fn mongodb_to_taos(
         None,
         &cancel,
         with_agent,
-        transferred,
-        task_id,
+        task_job_id,
         notify,
         None,
     )
@@ -253,14 +245,14 @@ pub async fn mongodb_to_taos(
                 }
             },
             _ = cancel.cancelled() => {
-                tracing::info!("{MONGODB_NAME} task cancelled, id: {}", task_id.unwrap_or(-1));
+                tracing::info!("{MONGODB_NAME} task cancelled, id: {task_job_id:?}");
                 abort_handle.abort();
             }
         }
         // send an empty tuple
         let _ = ipc.send(());
         // stop the connector
-        tracing::info!("{MONGODB_NAME} task done, id: {}", task_id.unwrap_or(-1));
+        tracing::info!("{MONGODB_NAME} task done, id: {task_job_id:?}");
         ipc.close().await?;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -563,9 +555,8 @@ mod tests {
         let port_pool = PortPool::default();
         let cancel = CancellationToken::new();
         let with_agent = None;
-        let transferred = None;
         let _span = tracing::info_span!("test_mongodb_to_taos");
-        let task_id = Some(1);
+        let task_job_id = Some((1, 1));
         let (notify, _) = flume::unbounded();
 
         mongodb_to_taos(
@@ -577,8 +568,7 @@ mod tests {
             &port_pool,
             cancel,
             with_agent,
-            transferred,
-            task_id,
+            task_job_id,
             notify,
         )
         .await

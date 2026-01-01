@@ -13,7 +13,7 @@ use taosx_core::utils::sql::connect_taos_root;
 #[derive(Debug, Clone)]
 pub struct LocalRestoreConfig {
     #[allow(unused)]
-    task_id: Option<String>,
+    task_job_id: Option<(i64, i64)>,
     #[allow(unused)]
     raw_from: Dsn,
     #[allow(unused)]
@@ -77,7 +77,7 @@ impl LocalRestoreConfig {
 
 pub struct LocalRestoreConfigBuilder {
     /// 任务ID
-    task_id: Option<String>,
+    task_job_id: Option<(i64, i64)>,
     /// e.g. local:$TAOSX_DATA_DIR/backip/$TASK_ID?topic=x123&from=2021-01-01T00:00:00Z&to=2021-01-02T00:00:00Z
     from: Dsn,
     /// e.g. taos+ws://$HOST:$PORT/$DATABASE
@@ -85,9 +85,9 @@ pub struct LocalRestoreConfigBuilder {
 }
 
 impl LocalRestoreConfigBuilder {
-    pub fn new(task_id: &Option<String>, from: &Dsn, to: &Dsn) -> Self {
+    pub fn new(task_job_id: Option<(i64, i64)>, from: &Dsn, to: &Dsn) -> Self {
         Self {
-            task_id: task_id.clone(),
+            task_job_id,
             from: from.clone(),
             to: to.clone(),
         }
@@ -103,8 +103,11 @@ impl LocalRestoreConfigBuilder {
         // backup directory
         let mut backup_dir = utils::parse_dir_in_dsn(&self.from, None)?
             .ok_or(anyhow::anyhow!("path not found in dsn"))?;
-        if let Some(backup_task_id) = &backup_obj.task_id {
-            backup_dir = backup_dir.join(backup_task_id);
+        if let (Some(backup_task_id), Some(backup_job_id)) = (backup_obj.task_id, backup_obj.job_id)
+        {
+            backup_dir = backup_dir
+                .join(backup_task_id.to_string())
+                .join(backup_job_id.to_string());
         }
 
         // s3_enable
@@ -127,8 +130,10 @@ impl LocalRestoreConfigBuilder {
         // error_restore_dir
         let mut error_restore_dir = utils::parse_dir_in_dsn(&self.from, None)?
             .ok_or(anyhow::anyhow!("path not found in dsn"))?;
-        if let Some(restore_task_id) = &self.task_id {
-            error_restore_dir = error_restore_dir.join(restore_task_id);
+        if let Some((restore_task_id, restore_job_id)) = self.task_job_id {
+            error_restore_dir = error_restore_dir
+                .join(restore_task_id.to_string())
+                .join(restore_job_id.to_string());
         }
 
         // error.max.retry
@@ -145,7 +150,7 @@ impl LocalRestoreConfigBuilder {
         let post_action = PostAction::try_from_dsn(&self.from)?;
 
         Ok(LocalRestoreConfig {
-            task_id: self.task_id.clone(),
+            task_job_id: self.task_job_id,
             raw_from: self.from.clone(),
             raw_to: self.to.clone(),
             backup_obj,

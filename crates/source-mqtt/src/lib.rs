@@ -25,7 +25,7 @@ use taosx_core::plugins::runners::{get_data_dir, set_tcp_keepalive};
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::sink::persist::PersistConfig;
 use taosx_core::utils::codec::Processor;
-use taosx_core::{Parser, Transferred, build_ipc};
+use taosx_core::{Parser, Via, build_ipc};
 
 use crate::config::MqttConfig;
 
@@ -34,6 +34,7 @@ pub mod client;
 pub mod config;
 mod dump;
 mod metrics;
+pub mod split_job;
 pub mod topic;
 
 pub const MQTT_ID: &str = "mqtt";
@@ -45,21 +46,22 @@ pub async fn mqtt_to_taos(
     mut parser: Option<Parser>,
     to: Dsn,
     upstream_cancel_token: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: taosx_core::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let cancel_token = upstream_cancel_token.child_token();
     let _drop_token_guard = cancel_token.clone().drop_guard();
 
-    tracing::info!(task_id, ?from, ?to, "MQTT task start");
+    tracing::info!(?task_job_id, ?from, ?to, "MQTT task start");
 
-    if with_agent.is_some() {
-        let task_id = task_id.context("Task id not found for agent runner")?;
-        let _ = taosx_core::core_metrics::init_task_metrics(&from, &to, task_id, None).await;
+    if let Some(Via {
+        task_id, job_id, ..
+    }) = with_agent
+    {
+        let _ = taosx_core::core_metrics::init_task_metrics(&from, &to, task_id, job_id).await;
     }
-    let metrics = get_metrics_arc_from_i64(task_id).await;
+    let metrics = get_metrics_arc_from_i64(task_job_id);
     if let Some(parser) = parser.as_mut() {
         parser.set_metrics(metrics.clone());
     }
@@ -70,25 +72,28 @@ pub async fn mqtt_to_taos(
     let config: MqttConfig = from.try_into()?;
     let schema = Arc::new(build_schema(config.topic_pattern.as_ref()));
 
-    let tid = task_id
-        .or(with_agent.as_ref().map(|a| a.0))
-        .context("task id not found")?;
-    let persist_config = config.persist_data.as_ref().map(|c| PersistConfig {
-        task_id: tid,
-        record_metrics: true,
-        schemas: HashMap::from_iter([(
-            schema.clone(),
-            c.dir.clone().unwrap_or_else(|| {
-                get_data_dir()
-                    .join("tasks")
-                    .join(tid.to_string())
-                    .join("persist_queue")
-            }),
-        )]),
-        batch_size: Some(config.task.batch_size),
-        batch_timeout: Some(Duration::from_millis(config.task.batch_timeout as u64)),
-        batch_chunk_size: None,
-    });
+    let persist_config = task_job_id
+        .or(with_agent.as_ref().map(|a| (a.task_id, a.job_id)))
+        .and_then(|(task_id, job_id)| {
+            config.persist_data.as_ref().map(|c| PersistConfig {
+                task_id,
+                job_id,
+                record_metrics: true,
+                schemas: HashMap::from_iter([(
+                    schema.clone(),
+                    c.dir.clone().unwrap_or_else(|| {
+                        get_data_dir()
+                            .join("tasks")
+                            .join(task_id.to_string())
+                            .join(job_id.to_string())
+                            .join("persist_queue")
+                    }),
+                )]),
+                batch_size: Some(config.task.batch_size),
+                batch_timeout: Some(Duration::from_millis(config.task.batch_timeout as u64)),
+                batch_chunk_size: None,
+            })
+        });
 
     let (mut ipc_server_handle, socket) = build_ipc(
         None,
@@ -99,8 +104,7 @@ pub async fn mqtt_to_taos(
         None,
         &cancel_token,
         with_agent,
-        transferred,
-        task_id,
+        task_job_id,
         notify.clone(),
         persist_config,
     )
@@ -109,7 +113,7 @@ pub async fn mqtt_to_taos(
 
     let mut tasks = match execute(
         socket,
-        task_id,
+        task_job_id,
         config,
         schema.clone(),
         metrics.clone(),
@@ -181,7 +185,7 @@ pub async fn mqtt_to_taos(
     }
 
     safe_exit!();
-    tracing::info!(task_id, "MQTT task finished");
+    tracing::info!(?task_job_id, "MQTT task finished");
 
     Ok(())
 }
@@ -189,32 +193,13 @@ pub async fn mqtt_to_taos(
 #[instrument(skip_all)]
 async fn execute(
     socket: std::net::SocketAddr,
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     config: MqttConfig,
     schema: Arc<Schema>,
     mqtt_metrics: Arc<MqttMetrics>,
     cancel_token: CancellationToken,
 ) -> anyhow::Result<JoinSet<Result<(), anyhow::Error>>> {
     let mut tasks = JoinSet::new();
-
-    tasks.spawn(
-        {
-            let token = cancel_token.clone();
-            let mqtt_metrics = mqtt_metrics.clone();
-            async move {
-                loop {
-                    tokio::select! {
-                        _ = tokio::time::sleep(Duration::from_millis(500)) => {
-                            mqtt_metrics.update_metrics();
-                        }
-                        _ = token.cancelled() => break,
-                    }
-                }
-                Ok(())
-            }
-        }
-        .instrument(tracing::info_span!("mqtt_metrics_update")),
-    );
 
     // read ack
     let (permit_tx, permit_rx) = flume::bounded(config.task.maximum_processing_batch);
@@ -383,10 +368,11 @@ async fn execute(
                     let path = config
                         .path
                         .or_else(|| {
-                            task_id.map(|id| {
+                            task_job_id.map(|(task_id, job_id)| {
                                 get_data_dir()
                                     .join("tasks")
-                                    .join(format!("{id}"))
+                                    .join(task_id.to_string())
+                                    .join(job_id.to_string())
                                     .join("rawdata")
                             })
                         })

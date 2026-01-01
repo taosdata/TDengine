@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::Context;
 use chrono::NaiveTime;
 use chrono::{DateTime, FixedOffset, NaiveDate};
 use linked_hash_map::LinkedHashMap;
@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::utils::port_pool::PortPool;
-use taosx_core::{Action, Parser, TaskNotifySender, Transferred, build_ipc};
+use taosx_core::{Parser, TaskNotifySender, Via, build_ipc};
 
 use crate::appender::column_meta::ColumnMeta;
 use crate::config::MssqlConfig;
@@ -71,7 +71,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 
     // replace subtable fields
     let distinct_sql = config.task.generate_distinct_sql()?;
-    let values = if !distinct_sql.is_empty() {
+    let values = if let Some(distinct_sql) = distinct_sql {
         query.select_for_schema(&distinct_sql).await?
     } else {
         LinkedHashMap::new()
@@ -140,31 +140,24 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 pub async fn mssql_to_taos(
     from: Dsn,
     parser: Option<Parser>,
-    _transform: Vec<Action>,
     to: Dsn,
-    _jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     let mut config = MssqlConfig::from_dsn(&from)?;
 
     // set task_id
-    config.task_id = task_id;
-    tracing::info!(
-        "{MSSQL_NAME} task start, id: {:?}, configuration: {:?}",
-        task_id,
-        config
-    );
+    config.task_job_id = task_job_id;
+    tracing::info!("{MSSQL_NAME} task start, id: {task_job_id:?}, configuration: {config:?}");
 
     // set ipc port
     let port = port_pool
         .get()
         .await
-        .ok_or_else(|| anyhow::format_err!("No available port for connection"))?;
+        .context("No available port for connection")?;
     let socket = format!("127.0.0.1:{}", port);
     config.ipc_port = Some(port.get());
 
@@ -178,8 +171,7 @@ pub async fn mssql_to_taos(
         None,
         &cancel,
         with_agent,
-        transferred,
-        task_id,
+        task_job_id,
         notify,
         None,
     )
@@ -224,14 +216,14 @@ pub async fn mssql_to_taos(
                 }
             },
             _ = cancel.cancelled() => {
-                tracing::info!("{MSSQL_NAME} task cancelled, id: {}", task_id.unwrap_or(-1));
+                tracing::info!("{MSSQL_NAME} task cancelled, id: {task_job_id:?}");
                 abort_handle.abort();
             }
         }
         // send an empty tuple
         let _ = ipc.send(());
         // stop the connector
-        tracing::info!("{MSSQL_NAME} task done, id: {}", task_id.unwrap_or(-1));
+        tracing::info!("{MSSQL_NAME} task done, id: {task_job_id:?}");
         ipc.close().await?;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -530,32 +522,18 @@ mod tests {
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
         let parser = None;
-        let transform = vec![];
-        let jobs = 1;
         let port_pool = PortPool::default();
         let cancel = CancellationToken::new();
         let with_agent = None;
-        let transferred = None;
         let _span = tracing::info_span!("test_mssql_to_taos");
-        let task_id = Some(1);
+        let task_id = Some((1, 1));
         let (notify, _) = flume::unbounded();
 
         mssql_to_taos(
-            from,
-            parser,
-            transform,
-            to,
-            jobs,
-            &port_pool,
-            cancel,
-            with_agent,
-            transferred,
-            task_id,
-            notify,
+            from, parser, to, &port_pool, cancel, with_agent, task_id, notify,
         )
         .await
         .ok();
-        // let _ = res.await;
     }
 
     #[ignore]

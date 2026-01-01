@@ -50,6 +50,9 @@ impl MqttMetrics {
     }
     pub(crate) fn add_fetched_messages(&self) {
         self.fetched_messages.fetch_add(1, atomic::Ordering::SeqCst);
+        self.metrics
+            .ipc()
+            .set_extra_metric(&FETCHED_MESSAGES, self.fetched_messages());
     }
 
     pub(crate) fn fetched_messages(&self) -> u64 {
@@ -58,6 +61,9 @@ impl MqttMetrics {
 
     pub(crate) fn add_dumped_messages(&self) {
         self.dumped_messages.fetch_add(1, atomic::Ordering::SeqCst);
+        self.metrics
+            .ipc()
+            .set_extra_metric(&DUMPED_MESSAGES, self.dumped_messages());
     }
 
     pub(crate) fn dumped_messages(&self) -> u64 {
@@ -66,6 +72,9 @@ impl MqttMetrics {
 
     pub(crate) fn add_fetched_acks(&self) {
         self.fetched_acks.fetch_add(1, atomic::Ordering::SeqCst);
+        self.metrics
+            .ipc()
+            .set_extra_metric(&FETCHED_ACKS, self.fetched_acks());
     }
 
     pub(crate) fn fetched_acks(&self) -> u64 {
@@ -74,6 +83,9 @@ impl MqttMetrics {
 
     pub(crate) fn add_ack_fails(&self) {
         self.ack_fails.fetch_add(1, atomic::Ordering::SeqCst);
+        self.metrics
+            .ipc()
+            .set_extra_metric(&ACK_FAILS, self.ack_fails());
     }
 
     pub(crate) fn ack_fails(&self) -> u64 {
@@ -83,11 +95,17 @@ impl MqttMetrics {
     pub(crate) fn add_unprocessed_messages(&self) {
         self.unprocessed_messages
             .fetch_add(1, atomic::Ordering::SeqCst);
+        self.metrics
+            .ipc()
+            .set_extra_metric(&UNPROCESSED_MESSAGES, self.unprocessed_messages());
     }
 
     pub(crate) fn sub_unprocessed_messages(&self, value: u64) {
         self.unprocessed_messages
             .fetch_sub(value, atomic::Ordering::SeqCst);
+        self.metrics
+            .ipc()
+            .set_extra_metric(&UNPROCESSED_MESSAGES, self.unprocessed_messages());
     }
 
     pub(crate) fn unprocessed_messages(&self) -> u64 {
@@ -96,6 +114,9 @@ impl MqttMetrics {
 
     pub(crate) fn add_sent_batches(&self) {
         self.sent_batches.fetch_add(1, atomic::Ordering::SeqCst);
+        self.metrics
+            .ipc()
+            .set_extra_metric(&SENT_BATCHES, self.sent_batches());
     }
 
     pub(crate) fn sent_batches(&self) -> u64 {
@@ -104,6 +125,9 @@ impl MqttMetrics {
 
     pub(crate) fn add_discarded_messages(&self) {
         self.discard_messages.fetch_add(1, atomic::Ordering::SeqCst);
+        self.metrics
+            .ipc()
+            .set_extra_metric(&DISCARDED_MESSAGES, self.discarded_messages());
     }
 
     pub(crate) fn discarded_messages(&self) -> u64 {
@@ -113,6 +137,9 @@ impl MqttMetrics {
     pub(crate) fn add_discarded_dump_messages(&self) {
         self.discard_dump_messages
             .fetch_add(1, atomic::Ordering::SeqCst);
+        self.metrics
+            .ipc()
+            .set_extra_metric(&DISCARDED_DUMP_MESSAGES, self.discard_dump_messages());
     }
 
     pub(crate) fn discard_dump_messages(&self) -> u64 {
@@ -122,6 +149,9 @@ impl MqttMetrics {
     pub(crate) fn add_received_bytes(&self, bytes: u64) {
         self.received_bytes
             .fetch_add(bytes, atomic::Ordering::SeqCst);
+        self.metrics
+            .ipc()
+            .set_extra_metric(&RECEIVED_BYTES, self.received_bytes());
     }
 
     pub(crate) fn received_bytes(&self) -> u64 {
@@ -140,19 +170,6 @@ impl MqttMetrics {
         metrics.set_extra_metric(&DISCARDED_DUMP_MESSAGES, 0);
         metrics.set_extra_metric(&RECEIVED_BYTES, 0);
     }
-
-    pub(crate) fn update_metrics(&self) {
-        let metrics = self.metrics.ipc();
-        metrics.set_extra_metric(&FETCHED_MESSAGES, self.fetched_messages());
-        metrics.set_extra_metric(&DUMPED_MESSAGES, self.dumped_messages());
-        metrics.set_extra_metric(&FETCHED_ACKS, self.fetched_acks());
-        metrics.set_extra_metric(&ACK_FAILS, self.ack_fails());
-        metrics.set_extra_metric(&UNPROCESSED_MESSAGES, self.unprocessed_messages());
-        metrics.set_extra_metric(&SENT_BATCHES, self.sent_batches());
-        metrics.set_extra_metric(&DISCARDED_MESSAGES, self.discarded_messages());
-        metrics.set_extra_metric(&DISCARDED_DUMP_MESSAGES, self.discard_dump_messages());
-        metrics.set_extra_metric(&RECEIVED_BYTES, self.received_bytes());
-    }
 }
 
 #[cfg(test)]
@@ -166,7 +183,7 @@ mod tests {
 
     #[tokio::test]
     async fn metrics_test() -> anyhow::Result<()> {
-        let metrics = init_task_metrics(&"mqtt://".parse()?, &"taos://".parse()?, 1, None)
+        let metrics = init_task_metrics(&"mqtt://".parse()?, &"taos://".parse()?, 1, 1)
             .await
             .context("metrics not found")?;
         let metrics = MqttMetrics::new(metrics);
@@ -181,7 +198,6 @@ mod tests {
         metrics.add_discarded_messages();
         metrics.add_discarded_dump_messages();
 
-        metrics.update_metrics();
         let extras = &metrics.metrics.ipc().extras;
         assert_eq!(get_value(extras, &FETCHED_MESSAGES).await, Some(1));
         assert_eq!(get_value(extras, &DUMPED_MESSAGES).await, Some(1));

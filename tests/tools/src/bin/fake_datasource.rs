@@ -4,8 +4,8 @@ use std::{
     num::NonZero,
     path::PathBuf,
     sync::{
-        atomic::{self, AtomicU64},
         Arc,
+        atomic::{self, AtomicU64},
     },
     time::Duration,
 };
@@ -14,9 +14,9 @@ use anyhow::Context;
 use arrow::{
     array::{BinaryArray, Int32Array},
     ipc::{
+        CompressionType,
         reader::StreamReader,
         writer::{IpcWriteOptions, StreamWriter},
-        CompressionType,
     },
 };
 use clap::Parser;
@@ -264,16 +264,18 @@ fn generate(args: Generate) -> anyhow::Result<()> {
         let faker = faker.clone();
         let batch_tx = tx.clone();
         let gen_count = gen_count.clone();
-        std::thread::spawn(move || loop {
-            let batch = faker
-                .rand_record_batch()
-                .expect("generate record batch error");
-            gen_count.fetch_add(1, atomic::Ordering::SeqCst);
-            if let Some(interval) = interval {
-                std::thread::sleep(interval);
-            }
-            if batch_tx.send(batch).is_err() {
-                break;
+        std::thread::spawn(move || {
+            loop {
+                let batch = faker
+                    .rand_record_batch()
+                    .expect("generate record batch error");
+                gen_count.fetch_add(1, atomic::Ordering::SeqCst);
+                if let Some(interval) = interval {
+                    std::thread::sleep(interval);
+                }
+                if batch_tx.send(batch).is_err() {
+                    break;
+                }
             }
         });
     }

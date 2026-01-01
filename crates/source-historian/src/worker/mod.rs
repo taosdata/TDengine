@@ -33,7 +33,7 @@ const SYNCHRONIZE_TASK_PREFIX: &str = "syn";
 /// migrate data
 pub async fn migrate_history(mut config: TaskConfig, logger: Sender<String>) -> anyhow::Result<()> {
     // get break point
-    let break_point = get_break_point(config.task_id);
+    let break_point = get_break_point(config.task_job_id);
     if let Some(begin_date_time) = break_point {
         tracing::info!(
             "migrate history start from break point: {}",
@@ -80,8 +80,8 @@ pub async fn sync_history(
     logger: Sender<String>,
 ) -> anyhow::Result<()> {
     // get break point
-    let task_id = task_config.task_id;
-    let break_pint = get_break_point(task_id);
+    let task_job_id = task_config.task_job_id;
+    let break_pint = get_break_point(task_job_id);
     if let Some(break_point) = break_pint {
         tracing::info!(
             "sync history start from break point: {}",
@@ -290,11 +290,10 @@ pub async fn sync_live(task_config: TaskConfig, logger: Sender<String>) -> anyho
     }
 }
 
-fn get_break_point(task_id: Option<i64>) -> Option<DateTime<Utc>> {
-    task_id?;
+fn get_break_point(task_job_id: Option<(i64, i64)>) -> Option<DateTime<Utc>> {
+    let (task_id, job_id) = task_job_id?;
 
-    let task_id = format!("{}", task_id.unwrap());
-    let breakpoints_res = breakpoints::breakpoints_get_all(&task_id);
+    let breakpoints_res = breakpoints::breakpoints_get_all(task_id, job_id);
     if breakpoints_res.is_err() {
         return None;
     }
@@ -667,16 +666,16 @@ impl Consumer {
             }
 
             // set break point
-            let task_id = task
-                .task_id
-                .map(|id| format!("{}", id))
-                .ok_or(anyhow::anyhow!("task_id cannot be None"))?;
+            let (task_id, job_id) = task
+                .task_job_id
+                .context("task id and job id are required")?;
+
             let sub_task_id = task
                 .sub_task_id
                 .ok_or(anyhow::anyhow!("sub_task_id cannot be None"))?;
             let breakpoint = end.to_rfc3339().to_string();
 
-            breakpoints::breakpoints_set(&task_id, &sub_task_id, &breakpoint)?;
+            breakpoints::breakpoints_set(task_id, job_id, &sub_task_id, &breakpoint)?;
         }
         drop(tx);
 
@@ -759,18 +758,16 @@ mod tests {
     #[test]
     fn test_break_point() {
         let task_id = 99999;
-        let break_point = get_break_point(Some(task_id));
+        let break_point = get_break_point(Some((task_id, -1)));
         if break_point.is_none() {
             // given
-            let id_string = format!("{}", task_id);
-            breakpoints::breakpoints_set(id_string.as_str(), "mig-1", "2021-08-01T00:00:00Z")
-                .unwrap();
+            breakpoints::breakpoints_set(task_id, -1, "mig-1", "2021-08-01T00:00:00Z").unwrap();
             // when
-            let break_point = get_break_point(Some(task_id)).unwrap();
+            let break_point = get_break_point(Some((task_id, -1))).unwrap();
             // then
             assert_eq!("2021-08-01T00:00:00+00:00", break_point.to_rfc3339());
 
-            breakpoints::breakpoints_remove(id_string.as_str(), "mig-1").unwrap();
+            breakpoints::breakpoints_remove(task_id, -1, "mig-1").unwrap();
         }
     }
 

@@ -2,8 +2,8 @@ use std::{collections::BTreeMap, path::Path};
 
 use bytes::Bytes;
 use persist_queue::{
-    fs::{writer, FsQueue},
     RawWriter,
+    fs::{FsQueue, writer},
 };
 use tempfile::tempdir;
 

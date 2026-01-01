@@ -10,10 +10,10 @@ use std::{
 use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, BooleanArray, Decimal128Array, FixedSizeBinaryArray,
-        Float16Array, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
+        Float16Array, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array, Int64Array,
         LargeBinaryArray, LargeStringArray, ListArray, StringArray, StructArray,
         TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
-        TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        TimestampSecondArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
     },
     datatypes::{DataType, Schema},
     error::ArrowError,
@@ -23,11 +23,11 @@ use arrow::{
 use faststr::FastStr;
 use futures::Stream;
 use taos::{ColumnView, Itertools, Precision, Ty, Value};
-use tracing::{error, instrument, Span};
+use tracing::{Span, error, instrument};
 
 use crate::{
     ack::{AckType, AckWriter},
-    constants::{__ATTRS__, __CONTROL__, __RECORDS__, __TABLES_INDEX__, __TABLE_NAME__, __TYPE__},
+    constants::{__ATTRS__, __CONTROL__, __RECORDS__, __TABLE_NAME__, __TABLES_INDEX__, __TYPE__},
     prelude::{IpcDataType, IpcMetadata, LushMessageType, StreamType},
     stream::{
         flat::FlatMessage,
@@ -154,14 +154,14 @@ impl IpcParser {
     pub fn columns(&self) -> Vec<&String> {
         let f = self.schema.field_with_name(__RECORDS__).unwrap();
         let t = f.data_type();
-        if let DataType::List(f) = t {
-            if let DataType::Struct(fields) = f.data_type() {
-                return fields
-                    .iter()
-                    .filter(|f| f.name() != __TABLE_NAME__)
-                    .map(|f| f.name())
-                    .collect();
-            }
+        if let DataType::List(f) = t
+            && let DataType::Struct(fields) = f.data_type()
+        {
+            return fields
+                .iter()
+                .filter(|f| f.name() != __TABLE_NAME__)
+                .map(|f| f.name())
+                .collect();
         }
 
         unreachable!()
@@ -335,12 +335,11 @@ impl IpcParser {
                 // let (name, values) = values.split_at(1);
                 let name = values.remove(0);
 
-                let s = LushInsertAttrs {
+                LushInsertAttrs {
                     name: FastStr::new(name.1.strict_as_str()),
                     using: Some(using.clone()),
                     tags: Some(values),
-                };
-                s
+                }
             })
             .collect_vec()
     }
@@ -479,13 +478,11 @@ impl IpcParser {
                 // let (name, values) = values.split_at(1);
                 let name = values.remove(0);
 
-                let s = LushInsertAttrs {
+                LushInsertAttrs {
                     name: FastStr::new(name.1.strict_as_str()),
                     using: Some(using.clone()),
                     tags: Some(values),
-                };
-                // dbg!(s)
-                s
+                }
             })
             .collect_vec()
             .into_iter()
@@ -746,7 +743,7 @@ mod arrow_to_taos {
 
     /// parse arrow array to column view, unsupported value will be ignored(as NULL)
     pub fn parse_str_into(ty: &IpcDataType, data: Vec<Option<&str>>) -> ColumnView {
-        let view = match ty {
+        match ty {
             crate::prelude::IpcDataType::Null => {
                 unreachable!("null is not supported");
             }
@@ -1065,8 +1062,7 @@ mod arrow_to_taos {
                     .collect::<Vec<_>>();
                 ColumnView::from_blob_bytes::<Vec<u8>, _, _, _>(v)
             }
-        };
-        view
+        }
     }
 }
 
@@ -3522,11 +3518,13 @@ mod tests {
         )]));
         let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(bin)]).unwrap();
         let views = record_batch_to_column_view(&batch, Precision::Millisecond);
-        assert!(views[0]
-            .get(0)
-            .unwrap()
-            .to_sql_value()
-            .contains("binary_data"));
+        assert!(
+            views[0]
+                .get(0)
+                .unwrap()
+                .to_sql_value()
+                .contains("binary_data")
+        );
         assert!(views[0].get(1).unwrap().is_null());
         assert_eq!(views[0].get(2).unwrap().to_sql_value(), "\"\"");
     }

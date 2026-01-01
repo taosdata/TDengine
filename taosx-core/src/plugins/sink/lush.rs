@@ -1,12 +1,12 @@
-use std::{borrow::Borrow, collections::HashMap, time::Duration};
+use std::{borrow::Borrow, collections::HashMap, sync::LazyLock, time::Duration};
 
 use super::{
     flat::Records,
-    transform::{modeler::Modeler, Parser},
+    transform::{Parser, modeler::Modeler},
 };
 use crate::{
     plugins::transform::{
-        handling_strategy::HandlingResult, ConcatBatches, MessageTableMeta, TableOptions,
+        ConcatBatches, MessageTableMeta, TableOptions, handling_strategy::HandlingResult,
     },
     runners::pi::transform::{
         PIElementModelConfig, PIPointModelConfig, PiModelType, SuperTableConfig,
@@ -14,7 +14,7 @@ use crate::{
     sink::{process_archive, process_cache},
     utils::{breakpoints::BreakpointDb, sql::values_to_sqls, trace::Qid},
 };
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use archive::ArchiveType;
 use arrow::array::{ArrayRef, StringArray, UInt16Builder};
 use arrow::{array::Array, record_batch::RecordBatch};
@@ -25,20 +25,19 @@ use chrono::{DateTime, TimeDelta, Utc};
 use faststr::FastStr;
 use flume::Sender;
 use itertools::Itertools as _;
-use lazy_static::lazy_static;
 use linked_hash_map::LinkedHashMap;
 use serde::Serialize;
 use std::sync::Arc;
 use taos::Dsn;
-use taos::{taos_query::Manager, AsyncQueryable, TaosBuilder, TaosPool, Ty};
+use taos::{AsyncQueryable, TaosBuilder, TaosPool, Ty, taos_query::Manager};
 use taoslog::{
-    utils::{QidMetadataGetter, Span},
     QidManager,
+    utils::{QidMetadataGetter, Span},
 };
 use taosx_ipc::stream::reader::LushInsertAttrs;
 use thiserror::Error;
 
-use tracing::{error, instrument, Instrument};
+use tracing::{Instrument, error, instrument};
 
 use crate::{
     core_metrics::TaskMetrics, plugins::transform::MessageArrowRecords,
@@ -461,10 +460,9 @@ pub async fn write(
                             if let Some(batch) = messages
                                 .concat_batches()
                                 .context("lush concat db connection error")?
+                                && let Err(e) = process_archive(&err, &batch, archive_tx).await
                             {
-                                if let Err(e) = process_archive(&err, &batch, archive_tx).await {
-                                    tracing::error!("archive error: {e:#}");
-                                }
+                                tracing::error!("archive error: {e:#}");
                             }
                             return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
                         }
@@ -552,12 +550,10 @@ pub async fn write(
                                         .batches
                                         .concat_batches()
                                         .context("lush concat table not exist error")?
-                                    {
-                                        if let Err(e) =
+                                        && let Err(e) =
                                             process_archive(&err, &batch, archive_tx).await
-                                        {
-                                            tracing::error!("archive error: {e:#}");
-                                        }
+                                    {
+                                        tracing::error!("archive error: {e:#}");
                                     }
 
                                     break;
@@ -601,7 +597,9 @@ pub async fn write(
                                                         field,
                                                         "Alter table error: {alter:#}"
                                                     );
-                                                    let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
+                                                    let context = format!(
+                                                        "Try alter table {stable} field `{field}` round {retry} error: {alter:#}"
+                                                    );
                                                     if error.is_err() {
                                                         error = error.context(context);
                                                     } else {
@@ -633,7 +631,9 @@ pub async fn write(
                                         .await
                                 {
                                     tracing::error!(stable, field, "Alter table error: {alter:#}");
-                                    let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
+                                    let context = format!(
+                                        "Try alter table {stable} field `{field}` round {retry} error: {alter:#}"
+                                    );
                                     if error.is_err() {
                                         error = error.context(context);
                                     } else {
@@ -643,7 +643,9 @@ pub async fn write(
                                     }
                                 } else {
                                     retry -= 1;
-                                    let context = format!("Try alter table {stable} field `{field}` round {retry} success");
+                                    let context = format!(
+                                        "Try alter table {stable} field `{field}` round {retry} success"
+                                    );
                                     if error.is_err() {
                                         error = error.context(context);
                                     } else {
@@ -693,10 +695,9 @@ pub async fn write(
                             .batches
                             .concat_batches()
                             .context("lush concat db connection error")?
+                            && let Err(e) = process_archive(&err, &batch, archive_tx).await
                         {
-                            if let Err(e) = process_archive(&err, &batch, archive_tx).await {
-                                tracing::error!("archive error: {e:#}");
-                            }
+                            tracing::error!("archive error: {e:#}");
                         }
 
                         break;
@@ -830,15 +831,13 @@ async fn handle_field_length_overflow_and_rewrite(
             }
         };
     }
-    if is_archive {
-        if let Some(batch) = batches
+    if is_archive
+        && let Some(batch) = batches
             .concat_batches()
             .context("concat archive field length overflow error")?
-        {
-            if let Err(e) = process_archive(&err_msg, &batch, archive_tx).await {
-                tracing::error!("archive error: {e:#}");
-            }
-        }
+        && let Err(e) = process_archive(&err_msg, &batch, archive_tx).await
+    {
+        tracing::error!("archive error: {e:#}");
     }
     Ok(())
 }
@@ -942,7 +941,9 @@ pub async fn create_sub_tables(
                             .await
                         {
                             tracing::error!(stable, field, "Alter table error: {alter:#}");
-                            let context = format!("Try alter table {stable} field `{field}` round {retry} error: {alter:#}");
+                            let context = format!(
+                                "Try alter table {stable} field `{field}` round {retry} error: {alter:#}"
+                            );
                             if error.is_err() {
                                 error = error.context(context);
                             } else {
@@ -1352,10 +1353,8 @@ pub async fn assert_create_table(
     }
 }
 
-lazy_static! {
-    static ref RE_0X2653: regex::Regex =
-        regex::Regex::new(r"`Value too long for column/tag: (.*)`").unwrap();
-}
+static RE_0X2653: LazyLock<regex::Regex> =
+    LazyLock::new(|| regex::Regex::new(r"`Value too long for column/tag: (.*)`").unwrap());
 
 #[instrument(skip_all)]
 async fn write_lush_stable_with_sql(
@@ -1430,11 +1429,7 @@ async fn write_lush_stable_with_sql(
 }
 
 fn truncate_sql_in_log_message(sql: &str) -> &str {
-    if sql.len() > 500 {
-        &sql[0..500]
-    } else {
-        sql
-    }
+    if sql.len() > 500 { &sql[0..500] } else { sql }
 }
 
 #[instrument(skip_all)]

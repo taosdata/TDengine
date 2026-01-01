@@ -895,6 +895,7 @@ async function getMsgBody() {
     const isSupportType = supportedTypes.includes(sourceForm.type);
     const params: Recordable = { dsn: sourceForm };
     params.dsn.sample_data_limit = transformerState.limitOffset;
+    params.dsn.get_sample_timeout = 30;
     const result = await dataInProps.transform.api.getSampleDataMsgbody(params);
     if (result && Object.hasOwnProperty.call(result, 'code')) {
       ElMessage.error(result.message || result.desc);
@@ -1408,6 +1409,7 @@ async function echoParser(parse: TransformerfullparamsType | TransformerSpbfullp
   if (supportTransform.supportSQL || sourceForm.type == 'sparkplugb') {
     const params: Recordable = { dsn: sourceForm };
     params.sample_data_limit = transformerState.limitOffset;
+    params.get_sample_timeout = 30;
     const result = await dataInProps.transform.api.getSampleDataMsgbody(params);
     if (result && Object.hasOwnProperty.call(result, 'code')) {
       ElMessage.error(result.message);

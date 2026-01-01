@@ -11,7 +11,10 @@ use linked_hash_map::LinkedHashMap;
 use multi_schema::MultiSchemaSamples;
 use serde::{Deserialize, Serialize};
 
-use crate::plugins::transform::parse::{FieldParser, ParserImpl};
+use crate::plugins::transform::{
+    modeler::ModeledJsonOutput,
+    parse::{FieldParser, ParserImpl},
+};
 use utoipa::ToSchema;
 
 use super::to_json_valid_batches;
@@ -47,13 +50,18 @@ pub enum DsSamples {
 "#)]
 pub struct DsSampleIn {
     /// Transform pipeline definition.
-    parser: crate::Pipeline,
+    #[serde(default)]
+    pub parser: crate::Pipeline,
     /// Sample data input, an array of object.
-    input: Vec<LinkedHashMap<String, serde_json::Value>>,
+    pub input: Vec<LinkedHashMap<String, serde_json::Value>>,
 }
 
 impl DsSampleIn {
-    pub fn transform(&self, tz: Option<&str>) -> anyhow::Result<impl Serialize> {
+    pub fn has_input(&self) -> bool {
+        !self.input.is_empty()
+    }
+
+    pub fn transform(&self, tz: Option<&str>) -> anyhow::Result<Vec<ModeledJsonOutput>> {
         if self.input.is_empty() {
             anyhow::bail!("Input should not be empty");
         }

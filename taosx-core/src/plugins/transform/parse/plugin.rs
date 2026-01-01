@@ -4,11 +4,10 @@ use std::collections::HashMap;
 use std::fs;
 use std::os::raw::c_char;
 use std::os::raw::c_void;
+use std::sync::LazyLock;
 use std::sync::RwLock;
 
 use dlopen2::wrapper::{Container, WrapperApi};
-
-use lazy_static::lazy_static;
 
 use serde::{Deserialize, Serialize};
 
@@ -17,14 +16,14 @@ use std::{borrow::Cow, sync::Arc};
 use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Float32Array,
-        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, ListArray, ListBuilder,
+        Float64Array, Int8Array, Int16Array, Int32Array, Int64Array, ListArray, ListBuilder,
         NullArray, StringArray, StringBuilder, TimestampMicrosecondArray,
-        TimestampMillisecondArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
-        UInt8Array,
+        TimestampMillisecondArray, TimestampNanosecondArray, UInt8Array, UInt16Array, UInt32Array,
+        UInt64Array,
     },
     datatypes::{
-        DataType, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type, Int8Type, Schema,
-        TimeUnit, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+        DataType, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type, Schema,
+        TimeUnit, UInt8Type, UInt16Type, UInt32Type, UInt64Type,
     },
     record_batch::RecordBatch,
 };
@@ -120,56 +119,53 @@ impl PluginLib {
     }
 }
 
-lazy_static! {
-    static ref PLUGIN_MAP: RwLock<HashMap<String, Arc<ParserContainer>>> = {
-        let mut plugin_map = HashMap::new();
-        let plugin_path = get_plugins_home_dir();
-        let lib_path = plugin_path.join("parsers");
+static PLUGIN_MAP: LazyLock<RwLock<HashMap<String, Arc<ParserContainer>>>> = LazyLock::new(|| {
+    let mut plugin_map = HashMap::new();
+    let plugin_path = get_plugins_home_dir();
+    let lib_path = plugin_path.join("parsers");
 
-        if let Ok(entries) = fs::read_dir(lib_path) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() {
-                    let plugin_container =
-                        unsafe { Container::load(path) }.map(|container: Container<PluginLib>| {
-                            let parser_name = container.parser_name();
-                            let parser_name =
-                                unsafe { std::ffi::CStr::from_ptr(parser_name).to_str() }
-                                    .unwrap_or("");
-                            let parser_version = container.parser_version();
-                            let parser_version =
-                                unsafe { std::ffi::CStr::from_ptr(parser_version).to_str() }
-                                    .unwrap_or("");
-                            tracing::debug!("load plugin: {parser_name}");
-                            ParserContainer {
-                                container,
-                                lib_version: parser_version.to_string(),
-                                lib_name: parser_name.to_string(),
-                                lib_id: entry.file_name().to_str().unwrap().to_string(),
-                            }
-                        });
+    if let Ok(entries) = fs::read_dir(lib_path) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                let plugin_container =
+                    unsafe { Container::load(path) }.map(|container: Container<PluginLib>| {
+                        let parser_name = container.parser_name();
+                        let parser_name =
+                            unsafe { std::ffi::CStr::from_ptr(parser_name).to_str() }.unwrap_or("");
+                        let parser_version = container.parser_version();
+                        let parser_version =
+                            unsafe { std::ffi::CStr::from_ptr(parser_version).to_str() }
+                                .unwrap_or("");
+                        tracing::debug!("load plugin: {parser_name}");
+                        ParserContainer {
+                            container,
+                            lib_version: parser_version.to_string(),
+                            lib_name: parser_name.to_string(),
+                            lib_id: entry.file_name().to_str().unwrap().to_string(),
+                        }
+                    });
 
-                    if plugin_container.is_err() {
-                        tracing::error!("load plugin failed: {:#?}", plugin_container.err());
-                        continue;
-                    }
+                if plugin_container.is_err() {
+                    tracing::error!("load plugin failed: {:#?}", plugin_container.err());
+                    continue;
+                }
 
-                    let plugin_container = plugin_container.unwrap();
-                    if plugin_container.lib_name.is_empty() {
-                        tracing::error!("plugin load from file {:?} has no name", entry.path());
-                    } else {
-                        plugin_map.insert(
-                            plugin_container.lib_name.clone(),
-                            Arc::new(plugin_container),
-                        );
-                    }
+                let plugin_container = plugin_container.unwrap();
+                if plugin_container.lib_name.is_empty() {
+                    tracing::error!("plugin load from file {:?} has no name", entry.path());
+                } else {
+                    plugin_map.insert(
+                        plugin_container.lib_name.clone(),
+                        Arc::new(plugin_container),
+                    );
                 }
             }
         }
+    }
 
-        RwLock::new(plugin_map)
-    };
-}
+    RwLock::new(plugin_map)
+});
 
 /**
  * Parser plugin for extracting fields from JSON object.

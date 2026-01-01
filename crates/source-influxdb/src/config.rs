@@ -4,7 +4,8 @@ use itertools::Itertools;
 use serde::Serialize;
 use taos::Dsn;
 
-use taosx_core::{runners::config::PerformanceConfig, utils::dsn::parse_simple_params};
+use taosx_core::runners::config::PerformanceConfig;
+use taosx_utils::dsn::parse_simple_params;
 
 pub const INFLUXDB_V1: [&str; 2] = ["1.7", "1.8"];
 pub const INFLUXDB_V2: [&str; 8] = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7"];

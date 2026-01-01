@@ -13,7 +13,7 @@ pub mod connect;
 #[derive(Debug, Clone)]
 pub struct MssqlConfig {
     // task info
-    pub task_id: Option<i64>,
+    pub task_job_id: Option<(i64, i64)>,
     pub sub_task_id: Option<String>,
     pub ipc_port: Option<u16>,
     // the datasource config
@@ -30,23 +30,12 @@ impl MssqlConfig {
             return Err(anyhow::anyhow!("invalid driver: {}", dsn.driver));
         }
         Ok(MssqlConfig {
-            task_id: Self::parse_task_id(dsn),
+            task_job_id: None,
             sub_task_id: None,
             ipc_port: None,
             connect: ConnectConfig::from_dsn(dsn)?,
             task: TaskConfig::from_dsn(dsn)?,
             advanced: AdvancedOptions::from_dsn(dsn)?,
-        })
-    }
-
-    fn parse_task_id(dsn: &Dsn) -> Option<i64> {
-        dsn.params.get("taskId").and_then(|s| {
-            s.parse::<i64>()
-                .map(Some)
-                .inspect_err(|_err| {
-                    tracing::warn!("failed to parse taskId: {}, use None", s);
-                })
-                .unwrap_or(None)
         })
     }
 }
@@ -224,17 +213,25 @@ impl TaskConfig {
             .unwrap_or(5))
     }
 
-    pub fn generate_distinct_sql(&self) -> anyhow::Result<String> {
+    pub fn generate_distinct_sql(&self) -> anyhow::Result<Option<String>> {
         // generate sql
-        let sql = self.subtable_fields.clone().unwrap_or("".to_string());
+        let Some(sql) = self.subtable_fields.as_ref() else {
+            return Ok(None);
+        };
 
         // task start time with time zone
         let start = self.start;
         let time_zone = FixedOffset::from_str(&self.time_zone.to_string())?;
         let start_tz = start.with_timezone(&time_zone);
 
+        let mut res = replace_date_placeholder(sql.clone(), start_tz);
+        if let Some(end) = self.end {
+            let end_tz = end.with_timezone(&time_zone);
+            res = replace_date_placeholder(res, end_tz);
+        }
+
         // replace the placeholders
-        anyhow::Ok(replace_date_placeholder(sql.clone(), start_tz))
+        anyhow::Ok(Some(res))
     }
 
     pub fn generate_sql(&self) -> anyhow::Result<String> {

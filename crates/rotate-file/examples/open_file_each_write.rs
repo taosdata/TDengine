@@ -1,6 +1,6 @@
 use faststr::FastStr;
 use futures::sink;
-use rotate_file::{utils::time_unit_dt_fmt, RotateWriterBuilder, SinkFn};
+use rotate_file::{RotateWriterBuilder, SinkFn, utils::time_unit_dt_fmt};
 use std::{fs::OpenOptions, io::Write, path::PathBuf};
 
 #[tokio::main]

@@ -1,7 +1,7 @@
 use super::client::UserInfo;
 use super::config::OAuthConfig;
 use crate::utils::deserialize_non_empty_string;
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use serde::{Deserialize, Serialize};
 
 /// OAuth client for TSDB “custom” provider.
@@ -330,15 +330,15 @@ impl CustomOAuthClient {
         // Test if error
         //
         // {"success":false,"code":500,"msg":"系统异常","details":"Index 1 out of bounds for length 1","returnStructureFix":true}
-        if let Ok(error) = serde_json::from_str::<ErrorDetails>(&body) {
-            if !error.success {
-                anyhow::bail!(
-                    "Sync users endpoint returned error: {}, code: {}, details: {}",
-                    error.msg,
-                    error.code,
-                    error.details
-                );
-            }
+        if let Ok(error) = serde_json::from_str::<ErrorDetails>(&body)
+            && !error.success
+        {
+            anyhow::bail!(
+                "Sync users endpoint returned error: {}, code: {}, details: {}",
+                error.msg,
+                error.code,
+                error.details
+            );
         }
 
         let items: Vec<SyncUserItem> = serde_json::from_str(&body)

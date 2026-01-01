@@ -7,7 +7,7 @@ use source_mqtt::config::{
     Certificates, parse_clean_session, parse_client_id, parse_host_port, parse_keep_alive,
     parse_tls_certificates, parse_version,
 };
-use taosx_core::utils::dsn::{option_param, parse_option_param, parse_simple_params};
+use taosx_utils::dsn::{option_param, parse_option_param, parse_simple_params};
 
 #[derive(Clone)]
 pub struct TmqConfig {

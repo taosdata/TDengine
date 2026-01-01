@@ -8,21 +8,18 @@ use arrow::{
 };
 use arrow_schema::Fields;
 use faststr::FastStr;
-use lazy_static::lazy_static;
-use rhai::{Dynamic, EvalAltResult, LexError, ParseError, ParseErrorType, Scope, AST};
+use rhai::{AST, Dynamic, EvalAltResult, LexError, ParseError, ParseErrorType, Scope};
 use rhai_dylib::module_resolvers::libloading::DylibModuleResolver;
-use rhai_dylib::rhai::{config::hashing::set_hashing_seed, Engine};
-use serde::{de::Visitor, Deserialize, Deserializer, Serialize};
+use rhai_dylib::rhai::{Engine, config::hashing::set_hashing_seed};
+use serde::{Deserialize, Deserializer, Serialize, de::Visitor};
 use serde_json::Value;
-use std::fmt;
 use std::{collections::HashMap, sync::Arc};
+use std::{fmt, sync::LazyLock};
 use tracing::{instrument, warn};
 
 use super::Parse;
 
-lazy_static! {
-    static ref ENGINE: Engine = init_engine();
-}
+static ENGINE: LazyLock<Engine> = LazyLock::new(init_engine);
 
 fn init_engine() -> Engine {
     let seed_values: [u64; 4] = [2, 0, 2, 7];
@@ -545,10 +542,12 @@ mod tests {
         assert_eq!(udt1, udt2);
         let udt_err = serde_json::from_str::<Udt>(r#"{"udt": 8.8}"#);
         assert!(udt_err.is_err());
-        assert!(udt_err
-            .unwrap_err()
-            .to_string()
-            .contains("expected a string to parse into UdtAST"));
+        assert!(
+            udt_err
+                .unwrap_err()
+                .to_string()
+                .contains("expected a string to parse into UdtAST")
+        );
     }
     #[test]
     fn eval_with_udt_nested_array() {
@@ -758,11 +757,11 @@ mod tests {
         let input = format!(
             "{{\"udt\": \"{}\"}}",
             r#"
-        if (data["n"] == 0) { 
+        if (data["n"] == 0) {
             []
-        } else if (data["n"] == 1) { 
-            [#{"a": 1, "b": "v2"}] 
-        } else { 
+        } else if (data["n"] == 1) {
+            [#{"a": 1, "b": "v2"}]
+        } else {
             [#{"a": 3}, #{"b": "v5"}]
         }"#
             .replace("\"", "\\\"")
@@ -789,11 +788,11 @@ mod tests {
         let input = format!(
             "{{\"udt\": \"{}\"}}",
             r#"
-        if (data"n"] == 0) { 
+        if (data"n"] == 0) {
             []
-        } else if (data["n"] == 1) { 
-            [#{"a": 1, "b": "v2"}] 
-        } else { 
+        } else if (data["n"] == 1) {
+            [#{"a": 1, "b": "v2"}]
+        } else {
             [#{"a": 3}, #{"b": "v5"}]
         }"#
             .replace("\"", "\\\"")

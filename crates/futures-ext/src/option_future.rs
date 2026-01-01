@@ -58,9 +58,11 @@ mod tests {
     #[tokio::test]
     async fn poll_test() -> anyhow::Result<()> {
         assert_eq!(OptionFuture::from(Some(async { 1 })).await, 1);
-        assert!(OptionFuture::from(None::<std::future::Ready<()>>)
-            .now_or_never()
-            .is_none());
+        assert!(
+            OptionFuture::from(None::<std::future::Ready<()>>)
+                .now_or_never()
+                .is_none()
+        );
         Ok(())
     }
 }

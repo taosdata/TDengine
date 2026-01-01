@@ -3,16 +3,16 @@ use std::{
     path::Path,
     str::FromStr,
     sync::{
-        atomic::{self, AtomicI64},
         OnceLock,
+        atomic::{self, AtomicI64},
     },
 };
 
 use chrono::{FixedOffset, Local};
 use rand::{
+    Rng,
     distributions::{Alphanumeric, DistString, Slice},
     seq::SliceRandom,
-    Rng,
 };
 use serde_json as json;
 use serde_with::serde_as;
@@ -68,9 +68,11 @@ impl ArraySchema {
     pub fn rand_array(&self) -> Result<json::Value> {
         let len = self.length.rand_value()? as usize;
 
-        Ok(json::json!((0..len)
-            .map(|_| self.elements.rand_json_value())
-            .collect::<Result<Vec<_>>>()?))
+        Ok(json::json!(
+            (0..len)
+                .map(|_| self.elements.rand_json_value())
+                .collect::<Result<Vec<_>>>()?
+        ))
     }
 }
 

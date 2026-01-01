@@ -31,8 +31,8 @@ pub fn repeat_interval() -> Duration {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ResumeStrategy {
-    #[default]
     Always,
+    #[default]
     Never,
     Once,
     Retries(u16),
@@ -119,7 +119,7 @@ impl FromStr for ErrorRate {
 }
 
 #[serde_as]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default)]
 #[serde(default)]
 pub struct Strategy {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -184,12 +184,6 @@ pub enum Schedule {
     RepeatedLimit(Duration, u16),
 }
 
-impl Schedule {
-    pub(crate) fn is_repeatable_job(&self) -> bool {
-        matches!(self, Schedule::Cron(_)) || matches!(self, Schedule::RepeatedWithStartAt(_, _))
-    }
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum StopCondition {
     /// Means never stop a job even in repeated or cron job.
@@ -204,26 +198,6 @@ pub enum StopCondition {
     Repeated(Arc<AtomicU64>),
 }
 
-// trait FatalErrorExt {
-//     fn is_fatal_error(&self) -> bool;
-// }
-
-// impl FatalErrorExt for anyhow::Error {
-//     fn is_fatal_error(&self) -> bool {
-//         let err = format!("{:#}", self);
-
-//         if err.contains("0xE00")
-//             || err.contains("0x000B")
-//             || err.contains("WebSocket internal error")
-//             || err.contains("WebSocket protocol error")
-//         {
-//             // Websocket error, connection error should not be fatal.
-//             return false;
-//         }
-
-//         true
-//     }
-// }
 impl StopCondition {
     pub fn should_stop(&self) -> bool {
         match self {
@@ -236,27 +210,6 @@ impl StopCondition {
             }
         }
     }
-
-    // Similar to `should_stop` but also check the result.
-    // pub fn should_stop_with(&self, result: &Result<(), anyhow::Error>) -> bool {
-    //     match self {
-    //         StopCondition::Never => false,
-    //         StopCondition::Done => match result {
-    //             Ok(_) => true,
-    //             Err(_) => false,
-    //         },
-    //         StopCondition::Fatal => match result {
-    //             Ok(_) => false,
-    //             Err(err) => {
-    //                 return err.is_fatal_error();
-    //             }
-    //         },
-    //         StopCondition::Unhealthy => result.is_err(),
-    //         StopCondition::Repeated(atomic) => {
-    //             atomic.load(std::sync::atomic::Ordering::Relaxed) > 0
-    //         }
-    //     }
-    // }
 
     pub fn should_stop_with_ok(&self) -> bool {
         match self {
@@ -272,10 +225,8 @@ impl StopCondition {
 
     pub fn should_stop_with_error(&self) -> bool {
         match self {
-            StopCondition::Never => false,
-            StopCondition::Done => false,
-            StopCondition::Fatal => true,
-            StopCondition::Unhealthy => true,
+            StopCondition::Never | StopCondition::Done => false,
+            StopCondition::Fatal | StopCondition::Unhealthy => true,
             StopCondition::Repeated(atomic) => {
                 atomic.load(std::sync::atomic::Ordering::Relaxed) > 0
             }
@@ -304,7 +255,7 @@ impl Strategy {
     pub const fn const_new() -> Self {
         Self {
             schedule: None,
-            resume: ResumeStrategy::Always,
+            resume: ResumeStrategy::Never,
             health: HealthOpts::new(),
             upcoming: None,
             interval: None,
@@ -386,39 +337,6 @@ impl Strategy {
     }
 }
 
-impl<'r, DB: sqlx::Database> sqlx::Decode<'r, DB> for Strategy
-where
-    &'r str: sqlx::Decode<'r, DB>,
-{
-    fn decode(
-        value: <DB as sqlx::database::Database>::ValueRef<'r>,
-    ) -> Result<Self, sqlx::error::BoxDynError> {
-        let v: &'r str = sqlx::Decode::decode(value)?;
-        Self::from_str(v).map_err(|err| Box::new(err) as _)
-    }
-}
-impl<'q, DB: sqlx::Database> sqlx::encode::Encode<'q, DB> for Strategy
-where
-    String: sqlx::Encode<'q, DB>,
-{
-    fn encode_by_ref(
-        &self,
-        buf: &mut <DB as sqlx::database::Database>::ArgumentBuffer<'q>,
-    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
-        let val = serde_json::to_string(&self).unwrap();
-        <String as sqlx::encode::Encode<'q, DB>>::encode(val, buf as _)
-    }
-}
-
-impl<'t, DB: sqlx::Database> sqlx::Type<DB> for Strategy
-where
-    &'t str: sqlx::Type<DB>,
-{
-    fn type_info() -> DB::TypeInfo {
-        <&'t str as sqlx::Type<DB>>::type_info()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -429,21 +347,21 @@ mod tests {
         let s = r#"{}"#;
         let s: Strategy = serde_json::from_str(s).unwrap();
         assert_eq!(s.schedule, None);
-        assert_eq!(s.resume, ResumeStrategy::Always);
+        assert_eq!(s.resume, ResumeStrategy::Never);
         assert_eq!(s.upcoming, None);
         assert_eq!(s.interval, None);
 
         let s = r#"{"interval": null}"#;
         let s: Strategy = serde_json::from_str(s).unwrap();
         assert_eq!(s.schedule, None);
-        assert_eq!(s.resume, ResumeStrategy::Always);
+        assert_eq!(s.resume, ResumeStrategy::Never);
         assert_eq!(s.upcoming, None);
         assert_eq!(s.interval, None);
 
         let s = r#"{"interval": "1s"}"#;
         let s: Strategy = serde_json::from_str(s).unwrap();
         assert_eq!(s.schedule, None);
-        assert_eq!(s.resume, ResumeStrategy::Always);
+        assert_eq!(s.resume, ResumeStrategy::Never);
         assert_eq!(s.upcoming, None);
         assert_eq!(s.interval, Some(("1s".to_string(), Duration::from_secs(1))));
 
@@ -469,18 +387,6 @@ mod additional_tests {
             ..Strategy::default()
         };
         assert!(!with_schedule.is_none());
-    }
-
-    #[test]
-    fn schedule_repeatable_detection_matches_variants() {
-        let cron = Schedule::Cron("0 * * * *".to_string());
-        assert!(cron.is_repeatable_job());
-
-        let with_start = Schedule::RepeatedWithStartAt(Duration::from_secs(5), Utc::now());
-        assert!(with_start.is_repeatable_job());
-
-        assert!(!Schedule::Oneshot.is_repeatable_job());
-        assert!(!Schedule::Repeated(Duration::from_secs(1)).is_repeatable_job());
     }
 
     #[test]

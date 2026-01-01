@@ -1,50 +1,46 @@
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
-use std::path::Path;
 use std::{sync::Arc, time::Duration};
 
 use actix_cors::Cors;
 use actix_multipart::form::MultipartFormConfig;
-use actix_web::web;
 use actix_web::{
     App, HttpResponse, HttpServer, Responder, get,
-    web::{Data, PayloadConfig, ServiceConfig, resource},
+    web::{Data, PayloadConfig, ServiceConfig},
 };
 use anyhow::{Context, Result};
 use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
-use controller::replica::ReplicaOpts;
-use routes::replica::{delete_replica_monitor, start_replica_monitor, stop_replica_monitor};
 use rustls::{
     ServerConfig,
     pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject as _},
 };
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
-use tracing::{Instrument, info, instrument};
+use taosx_core::global::XNODE_HTTP_PORTS;
+use tokio_util::sync::CancellationToken;
+use tracing::instrument;
 use tracing_actix_web::TracingLogger;
-use trigger::Strategy;
 use utils::ip::{is_support_ipv6, str_to_socket_addr};
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
 use self::scheduler::agent::AgentSpawnSender;
 use self::{
-    agent::{create_agent, delete_agent, get_agent_activities, get_agents, update_agent},
-    routes::{cluster::get_cluster_connector_transferred, utils::handle_get_heap},
+    routes::utils::handle_get_heap,
     rpc::AgentRpcChannel,
-    scheduler::{
-        SchedulerNotifier, SchedulerNotify, TaskScheduler, agent::AgentWorker,
-        runner::AgentIntegrationChannel,
-    },
+    scheduler::{SchedulerNotifier, SchedulerNotify, TaskScheduler, agent::AgentWorker},
 };
-use crate::serve::controller::agent::{
-    Activity, ActivityOrder, Agent, AgentActivityFilter, AgentConnectors, AgentProps, AgentStatus,
-    AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
+use crate::executor_worker_threads;
+use crate::serve::controller::{
+    activity::Activity,
+    agent::{
+        ActivityOrder, Agent, AgentConnectors, AgentStatus, AgentToken, AgentUpdates,
+        AgentWithToken,
+    },
 };
 use crate::serve::opc::AddPointReq;
 use crate::serve::opc::GetPointsHeaderReq;
 use crate::serve::opc::PointDetail;
-use crate::{build, executor_worker_threads};
 use controller::*;
 use data_sources::*;
 use taoslog::middleware::TaosRootSpanBuilder;
@@ -52,7 +48,6 @@ use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::utils::trace::Qid;
 use task::*;
 
-mod agent;
 mod backup;
 mod controller;
 mod data_sources;
@@ -184,28 +179,12 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
     |config: &mut ServiceConfig| {
         config
             .app_data(store)
-            .service(get_tasks)
-            .service(get_tasks_count)
-            .service(export_tasks)
-            .service(import_tasks)
-            .service(create_task)
-            .service(update_task)
-            .service(delete_tasks)
-            .service(delete_task)
-            .service(get_task_by_id)
-            .service(get_task_offsets_by_id)
-            .service(start_tasks)
-            .service(start_task)
-            .service(stop_tasks)
-            .service(stop_task)
             .service(metrics::metrics_exporter)
             .service(metrics::metrics_desc)
             .service(get_sample)
             .service(get_sample_by_dsn)
             .service(data_source_is_valid)
             .service(data_source_sink_is_valid)
-            .service(data_sources_in)
-            .service(data_sources_in_one)
             .service(data_source_collection)
             .service(get_point_options)
             .service(data_source_sample)
@@ -222,16 +201,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(page_point_data)
             .service(opc::get_point_header)
             .service(opc::append_point)
-            .service(create_agent)
-            .service(update_agent)
-            .service(delete_agent)
-            .service(get_agents)
-            .service(get_agent_activities)
-            .service(get_cluster_connector_transferred)
             .service(handle_get_heap)
-            .service(get_task_activities_by_id)
-            .service(get_task_metrics)
-            .service(get_task_csv_files)
             .service(get_tmq_task_vgroup_progress)
             .service(get_tmq_task_table_progress)
             .service(check_exists_files)
@@ -243,9 +213,6 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(metrics::profile)
             .service(filemeta)
             .service(health)
-            .service(start_replica_monitor)
-            .service(stop_replica_monitor)
-            .service(delete_replica_monitor)
             .service(backup::get_backup_points)
             .service(kafka::seek_to_end);
     }
@@ -269,23 +236,6 @@ async fn health() -> impl Responder {
 }
 
 impl Cli {
-    pub fn get_database_url(&self) -> String {
-        if let Some(path) = self.database_url.as_deref() {
-            path.to_string()
-        } else if let Ok(url) = std::env::var("DATABASE_URL") {
-            url
-        } else if let Ok(root) = std::env::var("TAOSX_DATA_DIR") {
-            format!(
-                "sqlite:{}",
-                Path::new(&root)
-                    .join(format!("{}x.db", build::CUS_PROMPT))
-                    .display()
-            )
-        } else {
-            format!("sqlite:{}x.db", build::CUS_PROMPT)
-        }
-    }
-
     #[inline]
     pub fn get_listen_address(&self) -> Result<Vec<SocketAddr>> {
         match self.listen.as_ref() {
@@ -321,45 +271,21 @@ impl Cli {
     pub(super) async fn controller(
         &self,
         scheduler: TaskScheduler,
-        max_activities_per_entity: usize,
+        _max_activities_per_entity: usize,
     ) -> Result<TaskControllerRef> {
         if let Some(interval) = self.repeat_interval {
             tracing::debug!("initial repeat interval");
             let dur = Duration::from_secs(interval);
             controller::trigger::init_repeat_interval(dur);
         }
-        let database_url = self.get_database_url();
-        tracing::debug!(db = database_url, "create database connection");
-        let controller =
-            TaskControllerRef::from_sqlite(&database_url, scheduler, max_activities_per_entity)
-                .in_current_span()
-                .await
-                .inspect_err(|err| tracing::error!("{err:#}"))?;
 
-        if !self.do_not_resume.unwrap_or(false) {
-            info!("resume all tasks");
-            let ctl = controller.clone();
-            tokio::spawn(
-                async move {
-                    if let Err(err) = ctl.start_all_with_schedule().await {
-                        tracing::error!("resume all tasks error: {err:#}");
-                    }
-
-                    info!("resume all replica monitors if have any");
-                    if let Err(err) = ctl.start_all_replicas_monitor().await {
-                        tracing::error!("resume replica monitor error: {err:#}");
-                    }
-                }
-                .in_current_span(),
-            );
-        }
-        Ok(controller)
+        Ok(TaskControllerRef::new(scheduler))
     }
 
     pub(super) async fn channels(
         &self,
     ) -> (
-        AgentIntegrationChannel,
+        AgentWorker,
         AgentRpcChannel,
         AgentSpawnSender,
         SchedulerNotifier,
@@ -380,10 +306,9 @@ impl Cli {
             agent_spawn_receiver,
         )
         .await;
-        let agent_integration_channel = AgentIntegrationChannel::Server(agent_worker);
         let agent_rpc_channel = AgentRpcChannel::new(agent_activity_receiver, agent_notify_sender);
         (
-            agent_integration_channel,
+            agent_worker,
             agent_rpc_channel,
             agent_spawn_sender,
             scheduler_notify_sender,
@@ -393,10 +318,9 @@ impl Cli {
     pub(super) async fn scheduler(
         &self,
         scheduler_notify_sender: SchedulerNotifier,
-        agent_integration_channel: AgentIntegrationChannel,
+        agent_worker: AgentWorker,
     ) -> Result<TaskScheduler> {
-        let scheduler =
-            TaskScheduler::new(scheduler_notify_sender, agent_integration_channel).await?;
+        let scheduler = TaskScheduler::new(scheduler_notify_sender, agent_worker).await?;
         Ok(scheduler)
     }
 
@@ -431,6 +355,7 @@ impl Cli {
         controller: TaskControllerRef,
         grpc_handle: tokio::task::JoinHandle<Result<()>>,
         monitor: monitor::Monitor,
+        cancel_token: CancellationToken,
     ) -> Result<()> {
         let span = tracing::info_span!("server", addr = self.listen).entered();
         let store_cloned = controller.clone();
@@ -440,49 +365,25 @@ impl Cli {
         #[openapi(
             components(
                 schemas(
-                    TaskDetail,
                     NewTask,
-                    UpdateTask,
-                    Labels,
-                    Strategy,
-                    Task,
                     Activity,
                     Failed,
                     DataSourceInput,
-                    DataSourceDefinition,
-                    ProtocolItem,
-                    Param,
-                    GroupedParams,
-                    DataSourceOptions,
-                    OptionDef,
-                    Protocol,
-                    DataSourceType,
                     CloudTarget,
                     Transformer,
                     DataIn,
-                    Authentication,
-                    Hint,
-                    HintDefinition,
-                    Definitions,
-                    AuthItem,
                     Agent,
-                    AgentFilter,
-                    AgentProps,
                     AgentUpdates,
                     AgentWithToken,
                     AgentStatus,
                     AgentToken,
                     AgentConnectors,
                     DataSetsReq,
-                    ConnectorTransferred,
-                    DatasetsDefinition,
                     LangQuery,
                     Lang,
                     UploadForm,
                     FileMetaRequest,
-                    AgentActivityFilter,
                     Activity,
-                    LevelFilter,
                     ActivityOrder,
                     DsSampleIn,
                     DsSampleOut,
@@ -490,29 +391,12 @@ impl Cli {
                     PointDetail,
                     GetPointsHeaderReq,
                     AddPointReq,
-                    ReplicaOpts,
-                    crate::serve::trigger::Strategy,
                     crate::serve::backup::BackupPoint,
                 ),
                 responses(
                 )
             ),
             paths(
-                task::get_tasks,
-                task::get_tasks_count,
-                task::export_tasks,
-                task::import_tasks,
-                task::create_task,
-                task::update_task,
-                task::delete_tasks,
-                task::delete_task,
-                task::start_tasks,
-                task::start_task,
-                task::stop_tasks,
-                task::stop_task,
-                task::get_task_by_id,
-                task::get_task_offsets_by_id,
-                task::get_task_activities_by_id,
                 task::upload_files,
                 task::filemeta,
                 task::check_exists_files,
@@ -521,8 +405,6 @@ impl Cli {
                 metrics::metrics_desc,
                 data_source_is_valid,
                 data_source_sink_is_valid,
-                data_sources_in,
-                data_sources_in_one,
                 data_source_collection,
                 get_point_options,
                 data_source_sample,
@@ -537,18 +419,9 @@ impl Cli {
                 page_point_data,
                 opc::get_point_header,
                 opc::append_point,
-                agent::create_agent,
-                agent::update_agent,
-                agent::delete_agent,
-                agent::get_agents,
-                agent::get_agent_activities,
                 privileges::privileges_migrate,
                 privileges::privileges_export,
                 privileges::privileges_import,
-                routes::cluster::get_cluster_connector_transferred,
-                routes::replica::start_replica_monitor,
-                routes::replica::stop_replica_monitor,
-                routes::replica::delete_replica_monitor,
                 crate::serve::backup::get_backup_points,
                 crate::serve::data_sources::kafka::seek_to_end,
             ),
@@ -556,20 +429,20 @@ impl Cli {
                 (name = "tasks", description = "Task management endpoints"),
                 (name = "data sources", description = "Data in/out"),
                 (name = "transform", description = "Transform simulation"),
-                (name = "agents", description = "Agents Management"),
-                (name = "cluster", description = "Cluster Information"),
                 (name = "privileges", description = "Migrate Passwords and Privileges"),
                 (name = "backup", description = "Backup"),
                 (name = "replica", description = "Replica Monitor"),
             ),
         )]
         struct ApiDoc;
-        assert!(!controller::DATA_SOURCE_DEFINITIONS.is_empty());
 
         let openapi = ApiDoc::openapi();
         let handle = monitor.init();
         let recorder = Data::new(handle);
         let addrs = self.get_listen_address()?;
+        XNODE_HTTP_PORTS
+            .set(addrs.iter().map(|addr| addr.port()).collect())
+            .ok();
         let tls = self.load_certs()?;
 
         let server = HttpServer::new(move || {
@@ -592,18 +465,6 @@ impl Cli {
                 .service(
                     SwaggerUi::new("/swagger-ui/{_:.*}")
                         .url("/api-doc/openapi.json", openapi.clone()),
-                )
-                .service(
-                    resource("/metrics/task/{task_id}")
-                        .route(web::get().to(metrics::ws::send_task_metrics)),
-                )
-                .service(
-                    resource("/activities/tasks/{cluster_id}")
-                        .route(web::get().to(task::send_all_tasks_activities)),
-                )
-                .service(
-                    resource("/activities/agents/{cluster_id}")
-                        .route(web::get().to(agent::send_all_agents_activities)),
                 )
         });
 
@@ -651,10 +512,11 @@ impl Cli {
             rs = grpc_handle => {
                 tracing::info!("flight RPC service stopped, stopped by: {:?}", rs);
             }
-            _ = tokio::signal::ctrl_c() => {
-                tracing::info!("Ctrl+C triggered");
+            signal = wait_signal() => {
+                tracing::info!("Signal triggered: {signal:?}");
             }
         };
+        cancel_token.cancel();
         store_cloned.shutdown().await?;
         tokio::time::sleep(Duration::from_millis(200)).await;
         drop(store_cloned);
@@ -668,6 +530,7 @@ impl Cli {
         channel: AgentRpcChannel,
         spawn_sender: AgentSpawnSender,
         monitor: monitor::Monitor,
+        cancel_token: CancellationToken,
     ) -> Result<()> {
         let mut flight = rpc::RpcConfig::default();
         if let Some(addr) = self.grpc.as_ref() {
@@ -690,7 +553,7 @@ impl Cli {
             .collect::<Vec<_>>()
             .join(",");
         flight
-            .serve_with_controller(controller, channel, spawn_sender, monitor)
+            .serve_with_controller(controller, channel, spawn_sender, monitor, cancel_token)
             .await
             .map_err(|err| {
                 tracing::error!("grpc(addr:{:?}) init error: {:?}", addr, err);
@@ -699,4 +562,37 @@ impl Cli {
 
         Ok(())
     }
+}
+
+#[derive(Debug)]
+pub enum Signal {
+    Interrupt,
+    Terminate,
+    Hangup,
+    Quit,
+}
+
+#[cfg(unix)]
+async fn wait_signal() -> std::io::Result<Signal> {
+    use futures_ext::select::{Select4, select4};
+    use tokio::signal::unix::{SignalKind, signal};
+    match select4(
+        signal(SignalKind::interrupt())?.recv(),
+        signal(SignalKind::terminate())?.recv(),
+        signal(SignalKind::hangup())?.recv(),
+        signal(SignalKind::quit())?.recv(),
+    )
+    .await
+    {
+        Select4::T1(_) => Ok(Signal::Interrupt),
+        Select4::T2(_) => Ok(Signal::Terminate),
+        Select4::T3(_) => Ok(Signal::Hangup),
+        Select4::T4(_) => Ok(Signal::Quit),
+    }
+}
+
+#[cfg(not(unix))]
+async fn wait_signal() -> std::io::Result<Signal> {
+    tokio::signal::ctrl_c().await;
+    Ok(Signal::Interrupt)
 }

@@ -205,12 +205,12 @@ impl S3Dumper {
         };
 
         // 遍历剩下的 files，取 files.len() - backup_retention_size 个文件，将其移动到 files_to_upload
-        if let Some(retention_size) = retention_size {
-            if retain.len() > retention_size as usize {
-                let to_remove = retain.len() - retention_size as usize;
-                for f in retain.into_iter().take(to_remove) {
-                    to_upload.push(f.clone());
-                }
+        if let Some(retention_size) = retention_size
+            && retain.len() > retention_size as usize
+        {
+            let to_remove = retain.len() - retention_size as usize;
+            for f in retain.into_iter().take(to_remove) {
+                to_upload.push(f.clone());
             }
         }
 

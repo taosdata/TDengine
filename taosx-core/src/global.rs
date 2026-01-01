@@ -6,6 +6,8 @@ pub static mut DRY_RUN: bool = false;
 pub static mut SQL_TAG_CACHE_CAPACITY: usize = 0;
 pub static mut DRY_RUN_DATASOURCE: bool = false;
 
+pub static XNODE_HTTP_PORTS: OnceLock<Vec<u16>> = OnceLock::new();
+
 pub static TABLE_TAG_CACHE: OnceLock<scc::HashSet<String>> = OnceLock::new();
 
 pub static AGENT_CLIENT_CA: OnceLock<Certificate> = OnceLock::new();
@@ -42,10 +44,10 @@ pub(crate) fn agent_in_memory_cache_capacity() -> NonZeroUsize {
 }
 
 pub fn set_agent_in_memory_cache_capacity(capacity: usize) {
-    if let Some(capacity) = NonZeroUsize::new(capacity) {
-        if AGENT_IN_MEMORY_CACHE_CAPACITY.set(capacity).is_ok() {
-            tracing::info!("Set agent cache queue capacity to {}", capacity);
-        }
+    if let Some(capacity) = NonZeroUsize::new(capacity)
+        && AGENT_IN_MEMORY_CACHE_CAPACITY.set(capacity).is_ok()
+    {
+        tracing::info!("Set agent cache queue capacity to {capacity}");
     }
 }
 

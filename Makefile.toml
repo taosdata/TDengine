@@ -121,16 +121,6 @@ args = [
 ]
 
 [tasks.taosx]
-condition.files_modified = { input = [
-  "${CARGO_MAKE_WORKING_DIRECTORY}/**/Cargo.*",
-  "src/**/*.rs",
-  "crates/**/*.rs",
-  "taosx-core/src/**/*.rs",
-  "taosx-ipc/src/**/*.rs",
-  "taosx-metrics/src/**/*.rs",
-], output = [
-  "target/${BUILD_PROFILE}/taosx",
-] }
 dependencies = ["install-protoc"]
 command = "cargo"
 args = ["build", "-p", "taosx", "--profile", "${BUILD_PROFILE}"]
@@ -752,6 +742,48 @@ if eq ${BUILD_PROFILE} "dev"
   rm target/debug/taosx
 else
   rm target/${BUILD_PROFILE}/taosx
+end
+"""
+
+[tasks.clean-xnoded]
+script_runner = "@duckscript"
+script.pre = """
+echo "Clean xnoded with profile ${BUILD_PROFILE}"
+if eq ${BUILD_PROFILE} "dev"
+  rm target/debug/xnoded
+else
+  rm target/${BUILD_PROFILE}/xnoded
+end
+"""
+
+[tasks.xnoded]
+command = "cargo"
+args = ["build", "-p", "xnoded", "--profile", "${BUILD_PROFILE}"]
+
+[tasks.deploy-xnoded]
+dependencies = ["clean-xnoded", "xnoded"]
+script_runner = "@duckscript"
+script.main = """
+!include_files .github/helpers.duck
+
+if eq ${BUILD_PROFILE} "dev"
+  cp target/${BUILD_PROFILE}/xnoded target/deploy/xnoded
+else
+  upx_run target/${BUILD_PROFILE}/xnoded target/deploy/xnoded
+end
+"""
+
+[tasks.deploy-xnoded.windows]
+script_runner = "@duckscript"
+script = """
+!include_files .github/helpers.duck
+
+cus_prompt = get_env CUS_PROMPT
+profile = get_env "BUILD_PROFILE"
+if eq ${profile} "dev"
+  cp target/debug/xnoded.exe target/deploy/xnoded.exe
+else
+  upx_run target/${profile}/xnoded.exe target/deploy/xnoded.exe
 end
 """
 

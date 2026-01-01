@@ -5,6 +5,7 @@ use chrono::Local;
 use itertools::Itertools;
 use ringbuf::traits::{Consumer, RingBuffer};
 use taos::Dsn;
+use taosx_core::Via;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
@@ -14,7 +15,7 @@ use taosx_core::dsv::DataSourceValidation;
 use taosx_core::runners::new_rolling_file_appender;
 use taosx_core::utils::mask_dsn;
 use taosx_core::utils::monitor::send_sub_process_info;
-use taosx_core::{DataSet, Transferred, build_ipc, utils::port_pool::PortPool};
+use taosx_core::{DataSet, build_ipc, utils::port_pool::PortPool};
 
 use config::{ConnectionConfig, INFLUXDB_V1, InfluxdbConfig};
 
@@ -45,7 +46,8 @@ pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
     fields(
         x.influxdb.source = % mask_dsn(& from),
         x.influxdb.sink = % mask_dsn(& to),
-        x.influxdb.agent = with_agent.as_ref().map(| a | a.0),
+        x.influxdb.task = with_agent.as_ref().map(| a | a.task_id),
+        x.influxdb.job = with_agent.as_ref().map(| a | a.job_id),
     )
 )]
 
@@ -54,9 +56,8 @@ pub async fn influxdb_to_taos(
     to: Dsn,
     port_pool: &PortPool,
     cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: taosx_core::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let ipc_port = port_pool
@@ -76,12 +77,16 @@ pub async fn influxdb_to_taos(
     let temp_path = config_file.into_temp_path();
     tracing::info!("Using config file {}", config_path.display());
     // save the temporary file to task dir
-    if let Some(task_id) = task_id {
-        let path = get_data_dir().join("tasks").join(task_id.to_string());
+    if let Some((task_id, job_id)) = task_job_id {
+        let path = get_data_dir()
+            .join("tasks")
+            .join(task_id.to_string())
+            .join(job_id.to_string());
         std::fs::create_dir_all(&path).unwrap();
         let path = path.join(format!(
-            "{}-{}-{}.{}",
+            "{}-{}-{}-{}.{}",
             task_id,
+            job_id,
             "influxdb",
             chrono::Local::now().format("%Y%m%d%H%M"),
             "toml"
@@ -98,8 +103,7 @@ pub async fn influxdb_to_taos(
         None,
         &cancel,
         with_agent,
-        transferred,
-        task_id,
+        task_job_id,
         notify,
         None,
     )
@@ -107,9 +111,10 @@ pub async fn influxdb_to_taos(
 
     tokio::time::sleep(Duration::from_millis(500)).await;
 
+    let (task_id, job_id) = task_job_id.unwrap_or((0, 0));
     let log_dir = log_path();
     std::fs::create_dir_all(&log_dir).with_context(|| format!("Log path {}", log_dir.display()))?;
-    let component = format!("influxdb-{}", task_id.unwrap_or(0));
+    let component = format!("influxdb-{}-{}", task_id, job_id);
     tracing::info!("log dir: {}", &log_dir.display());
 
     let appender = new_rolling_file_appender(log_dir.as_path(), &component)
@@ -176,7 +181,7 @@ pub async fn influxdb_to_taos(
     };
 
     let mut child = child.spawn().context("Start InfluxDB collector error")?;
-    send_sub_process_info(child.id(), task_id, "influxdb").await;
+    send_sub_process_info(child.id(), Some((task_id, job_id)), "influxdb").await;
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();

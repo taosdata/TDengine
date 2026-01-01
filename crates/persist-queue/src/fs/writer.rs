@@ -1,12 +1,11 @@
 use std::{
     collections::BTreeMap,
-    fs::File,
+    fs::{File, TryLockError},
     io::SeekFrom,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
-use fs2::{lock_contended_error, FileExt};
 use futures::SinkExt;
 use parking_lot::Mutex;
 use snafu::ResultExt;
@@ -18,7 +17,7 @@ use crate::{
     SyncFileDataSnafu,
 };
 
-use super::{codec::WriteCodec, format_segment_id, EntryPosition, LOCK_FILE_EXTENSION};
+use super::{EntryPosition, LOCK_FILE_EXTENSION, codec::WriteCodec, format_segment_id};
 
 pub struct Writer<B> {
     dir: PathBuf,
@@ -43,13 +42,13 @@ impl<B> Writer<B> {
         let _lock_file = std::fs::File::create(&lock_file_path).context(OpenFileSnafu {
             path: &lock_file_path,
         })?;
-        match _lock_file.try_lock_exclusive() {
+        match _lock_file.try_lock() {
             Ok(_) => {}
-            Err(e) if e.kind() == lock_contended_error().kind() => return DirLockedSnafu.fail(),
-            Err(e) => {
+            Err(TryLockError::WouldBlock) => return DirLockedSnafu.fail(),
+            Err(TryLockError::Error(e)) => {
                 return Err(e).context(ExclusiveLockFileSnafu {
                     path: &lock_file_path,
-                })?
+                })?;
             }
         }
 

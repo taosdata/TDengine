@@ -1,5 +1,5 @@
-use std::sync::atomic::{self, AtomicU64};
 use std::sync::Arc;
+use std::sync::atomic::{self, AtomicU64};
 use std::time::Instant;
 use std::{path::PathBuf, time::Duration};
 
@@ -123,18 +123,20 @@ async fn main() {
                 };
 
                 let (msg_tx, msg_rx) = flume::bounded(10000);
-                std::thread::spawn(move || loop {
-                    let value = faker
-                        .rand_json_value()
-                        .context("gen fake data error")
-                        .and_then(|value| {
-                            serde_json::to_vec(&value).context("serialize json error")
-                        })
-                        .and_then(|value| {
-                            processor.process(value).context("processor process error")
-                        })
-                        .inspect_err(|e| println!("get value error: {e:#}"));
-                    msg_tx.send(value).ok();
+                std::thread::spawn(move || {
+                    loop {
+                        let value = faker
+                            .rand_json_value()
+                            .context("gen fake data error")
+                            .and_then(|value| {
+                                serde_json::to_vec(&value).context("serialize json error")
+                            })
+                            .and_then(|value| {
+                                processor.process(value).context("processor process error")
+                            })
+                            .inspect_err(|e| println!("get value error: {e:#}"));
+                        msg_tx.send(value).ok();
+                    }
                 });
 
                 loop {

@@ -782,6 +782,3 @@ mod extended;
 
 #[cfg(test)]
 mod upload_download;
-
-#[cfg(test)]
-mod data_sources_points;

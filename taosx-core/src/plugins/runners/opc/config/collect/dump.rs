@@ -11,7 +11,7 @@ pub struct DumpConfig {
 }
 
 impl DumpConfig {
-    pub fn from_dsn(dsn: &Dsn, task_id: Option<i64>) -> anyhow::Result<Option<Self>> {
+    pub fn from_dsn(dsn: &Dsn, task_job_id: Option<(i64, i64)>) -> anyhow::Result<Option<Self>> {
         let enable = Self::parse_enable(dsn)?;
         let dump_config = match enable {
             None => None,
@@ -23,10 +23,11 @@ impl DumpConfig {
                         .or(dsn.get("keep_raw_data_dir"))
                         .map(|v| v.to_string())
                         .or_else(|| {
-                            task_id.map(|id| {
+                            task_job_id.map(|(task_id, job_id)| {
                                 let path = get_data_dir()
                                     .join("tasks")
-                                    .join(format!("{id}"))
+                                    .join(task_id.to_string())
+                                    .join(job_id.to_string())
                                     .join("rawdata");
                                 path.display().to_string()
                             })
@@ -102,8 +103,11 @@ mod tests {
         #[cfg(unix)]
         {
             let dsn = Dsn::from_str("opc://?enable=true").unwrap();
-            let config = DumpConfig::from_dsn(&dsn, Some(1)).unwrap().unwrap();
-            assert_eq!(config.path.unwrap(), "/var/lib/taos/taosx/tasks/1/rawdata");
+            let config = DumpConfig::from_dsn(&dsn, Some((1, 1))).unwrap().unwrap();
+            assert_eq!(
+                config.path.unwrap(),
+                "/var/lib/taos/taosx/tasks/1/1/rawdata"
+            );
         }
         let dsn = Dsn::from_str("opc://?enable=true&path=abc").unwrap();
         let config = DumpConfig::from_dsn(&dsn, None);

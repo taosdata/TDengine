@@ -9,16 +9,14 @@ use faststr::FastStr;
 use futures::pin_mut;
 use metrics::Metrics;
 use taos::Dsn;
-use taosx_core::{TaskNotifySender, core_metrics};
+use taosx_core::{TaskNotifySender, Via, core_metrics};
 use taosx_ipc::ack::{AckReaderBuilder, AckType};
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
-use taosx_core::{
-    build_ipc, core_metrics::get_metrics_arc_from_i64, plugins::Parser,
-    utils::futs_helper::select_cancel,
-};
+use futures_ext::select::select_cancel;
+use taosx_core::{build_ipc, core_metrics::get_metrics_arc_from_i64, plugins::Parser};
 
 use source_mqtt::{
     client::{GenericMessagePoller, MessagePoller},
@@ -42,23 +40,25 @@ pub const SPARKPLUGB_ID: &str = "sparkplugb";
 pub async fn sparkplugb_to_taos(
     from: &Dsn,
     to: &Dsn,
-    with_agent: Option<(i64, String, String)>,
+    with_agent: Option<Via>,
     mut parser: Option<Parser>,
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
     cancel: &CancellationToken,
 ) -> anyhow::Result<()> {
     let cancel_token = cancel.child_token();
     let _guard = cancel_token.clone().drop_guard();
-    tracing::info!(task_id, ?from, ?to, "SparkplugB task start");
+    tracing::info!(?task_job_id, ?from, ?to, "SparkplugB task start");
 
-    if with_agent.is_some() {
-        let task_id = task_id.context("task id not found for agent runner")?;
-        core_metrics::init_task_metrics(from, to, task_id, None)
+    if let Some(Via {
+        task_id, job_id, ..
+    }) = with_agent
+    {
+        core_metrics::init_task_metrics(from, to, task_id, job_id)
             .await
             .context("init task metrics error")?;
     }
-    let metrics = get_metrics_arc_from_i64(task_id).await;
+    let metrics = get_metrics_arc_from_i64(task_job_id);
     if let Some(parser) = parser.as_mut() {
         parser.set_metrics(metrics.clone());
     }
@@ -76,8 +76,7 @@ pub async fn sparkplugb_to_taos(
         None,
         cancel,
         with_agent,
-        None,
-        task_id,
+        task_job_id,
         notify,
         None,
     )
@@ -148,7 +147,7 @@ pub async fn sparkplugb_to_taos(
     }
 
     safe_exit!();
-    tracing::info!(task_id, "MQTT task finished");
+    tracing::info!(?task_job_id, "MQTT task finished");
     Ok(())
 }
 

@@ -8,6 +8,7 @@ use tracing_subscriber::fmt::MakeWriter;
 
 pub struct RawDataLogger {
     task_id: i64,
+    job_id: i64,
     keep_raw_data: bool,
     data_dir: String,
     keep_days: usize,
@@ -17,6 +18,7 @@ pub struct RawDataLogger {
 impl RawDataLogger {
     pub fn new(
         task_id: i64,
+        job_id: i64,
         keep_raw_data: bool,
         data_dir: String,
         keep_days: usize,
@@ -24,6 +26,7 @@ impl RawDataLogger {
     ) -> Self {
         Self {
             task_id,
+            job_id,
             keep_raw_data,
             data_dir,
             keep_days,
@@ -37,12 +40,13 @@ impl RawDataLogger {
             let rx = self.rx.clone();
             tokio::spawn(async move { while rx.recv_async().await.is_ok() {} });
         } else {
-            let log_dir = format!("{}/tasks/{}", self.data_dir, self.task_id);
+            let log_dir = format!("{}/tasks/{}/{}", self.data_dir, self.task_id, self.job_id);
             let appender = raw_data_log(Path::new(&log_dir), self.keep_days)
                 .expect("failed to create raw data logger");
             tracing::debug!(
-                "keep task:{} raw data in files: {:?}",
+                "keep task:({},{}) raw data in dir: {}",
                 self.task_id,
+                self.job_id,
                 log_dir
             );
 
@@ -136,7 +140,7 @@ mod tests {
     async fn test_raw_data_logger() {
         let (tx, rx) = flume::bounded(0);
 
-        let logger = RawDataLogger::new(0, true, "logs".to_string(), 1, rx);
+        let logger = RawDataLogger::new(0, 0, true, "logs".to_string(), 1, rx);
         logger.start();
 
         let senders = (0..10)
@@ -160,8 +164,14 @@ mod tests {
     async fn test_raw_data_logger_without_keep() {
         // When keep_raw_data is false, start() should spawn a drain task that simply consumes messages.
         let (tx, rx) = flume::bounded::<String>(16);
-        let logger =
-            RawDataLogger::new(42, false, std::env::temp_dir().display().to_string(), 0, rx);
+        let logger = RawDataLogger::new(
+            42,
+            42,
+            false,
+            std::env::temp_dir().display().to_string(),
+            0,
+            rx,
+        );
         logger.start();
 
         // Send a few messages, then drop sender so the background task can exit.
@@ -190,7 +200,7 @@ mod tests {
         let _ = std::fs::create_dir_all(&tmp);
 
         let (tx, rx) = flume::bounded::<String>(16);
-        let logger = RawDataLogger::new(100, true, tmp.display().to_string(), 1, rx);
+        let logger = RawDataLogger::new(100, 100, true, tmp.display().to_string(), 1, rx);
         logger.start();
 
         // Send a handful of messages to exercise write path

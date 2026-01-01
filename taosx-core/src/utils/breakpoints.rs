@@ -1,15 +1,18 @@
 use crate::get_data_dir;
 use anyhow::Context;
-use flate2::{write::GzEncoder, Compression};
+use flate2::{Compression, write::GzEncoder};
 use std::{
     io::Write,
     path::{Path, PathBuf},
 };
 use tracing::{debug, info};
 
-pub fn breakpoints_db_dir(task_id: &str) -> PathBuf {
+pub fn breakpoints_db_dir(task_id: i64, job_id: i64) -> PathBuf {
     let path = get_data_dir();
-    path.join("tasks").join(task_id).join("breakpoints")
+    path.join("tasks")
+        .join(task_id.to_string())
+        .join(job_id.to_string())
+        .join("breakpoints")
 }
 
 #[derive(Debug, Clone)]
@@ -53,8 +56,8 @@ impl BreakpointDb {
         }
     }
 
-    pub async fn new_with_task(id: &str) -> anyhow::Result<Self> {
-        let path = breakpoints_db_dir(id);
+    pub async fn new_with_task(task_id: i64, job_id: i64) -> anyhow::Result<Self> {
+        let path = breakpoints_db_dir(task_id, job_id);
         tokio::task::spawn_blocking(move || Self::open(path.as_path())).await?
     }
 
@@ -101,11 +104,16 @@ impl BreakpointDb {
     }
 }
 
-pub fn breakpoints_set(task_id: &str, sub_task: &str, breakpoints: &str) -> anyhow::Result<()> {
-    if task_id == "-1" {
+pub fn breakpoints_set(
+    task_id: i64,
+    job_id: i64,
+    sub_task: &str,
+    breakpoints: &str,
+) -> anyhow::Result<()> {
+    if task_id == -1 {
         return Ok(());
     }
-    let path = breakpoints_db_dir(task_id);
+    let path = breakpoints_db_dir(task_id, job_id);
     debug!(
         "breakpoints db path: {}, breakpoints key: {}, value: {}",
         path.display(),
@@ -118,8 +126,12 @@ pub fn breakpoints_set(task_id: &str, sub_task: &str, breakpoints: &str) -> anyh
     Ok(())
 }
 
-pub fn breakpoints_get(task_id: &str, sub_task: &str) -> anyhow::Result<Option<String>> {
-    let path = breakpoints_db_dir(task_id);
+pub fn breakpoints_get(
+    task_id: i64,
+    job_id: i64,
+    sub_task: &str,
+) -> anyhow::Result<Option<String>> {
+    let path = breakpoints_db_dir(task_id, job_id);
     // if path not exist, return None to avoid create db file
     if !path.exists() {
         return Ok(None);
@@ -134,10 +146,11 @@ pub fn breakpoints_get(task_id: &str, sub_task: &str) -> anyhow::Result<Option<S
 }
 
 pub async fn breakpoints_get_async(
-    task_id: &str,
+    task_id: i64,
+    job_id: i64,
     sub_task: &str,
 ) -> anyhow::Result<Option<String>> {
-    let path = breakpoints_db_dir(task_id);
+    let path = breakpoints_db_dir(task_id, job_id);
     // if path not exist, return None to avoid create db file
     if !path.exists() {
         return Ok(None);
@@ -155,8 +168,8 @@ pub async fn breakpoints_get_async(
     .await?
 }
 
-pub fn breakpoints_get_all(task_id: &str) -> anyhow::Result<Vec<(String, String)>> {
-    let path = breakpoints_db_dir(task_id);
+pub fn breakpoints_get_all(task_id: i64, job_id: i64) -> anyhow::Result<Vec<(String, String)>> {
+    let path = breakpoints_db_dir(task_id, job_id);
     // if path not exist, return None to avoid create db file
     if !path.exists() {
         return Ok(vec![]);
@@ -174,8 +187,8 @@ pub fn breakpoints_get_all(task_id: &str) -> anyhow::Result<Vec<(String, String)
     Ok(result)
 }
 
-pub fn export_breakpoints_to_csv(task_id: &str) -> anyhow::Result<Option<String>> {
-    let breakpoint_db_path = breakpoints_db_dir(task_id);
+pub fn export_breakpoints_to_csv(task_id: i64, job_id: i64) -> anyhow::Result<Option<String>> {
+    let breakpoint_db_path = breakpoints_db_dir(task_id, job_id);
     // if path not exist, return None to avoid create db file
     if !breakpoint_db_path.exists() {
         return Ok(None);
@@ -191,12 +204,15 @@ pub fn export_breakpoints_to_csv(task_id: &str) -> anyhow::Result<Option<String>
         file.write_all(&value)?;
         file.write_all(b"\n")?;
     }
-    let relative_path = "tasks/".to_string() + task_id + "/breakpoints.csv";
+    let relative_path = format!("tasks/{task_id}/{job_id}/breakpoints.csv");
     Ok(Some(relative_path))
 }
 
-pub fn export_breakpoints_to_compressed_csv(task_id: &str) -> anyhow::Result<Option<String>> {
-    let breakpoint_db_path = breakpoints_db_dir(task_id);
+pub fn export_breakpoints_to_compressed_csv(
+    task_id: i64,
+    job_id: i64,
+) -> anyhow::Result<Option<String>> {
+    let breakpoint_db_path = breakpoints_db_dir(task_id, job_id);
     // if path not exist, return None to avoid create db file
     if !breakpoint_db_path.exists() {
         return Ok(None);
@@ -215,20 +231,20 @@ pub fn export_breakpoints_to_compressed_csv(task_id: &str) -> anyhow::Result<Opt
     let export_file = breakpoint_db_path.with_extension("csv.gz");
     let mut file = std::fs::File::create(export_file)?;
     file.write_all(&compressed_data)?;
-    let relative_path = "tasks/".to_string() + task_id + "/breakpoints.csv.gz";
+    let relative_path = format!("tasks/{task_id}/{job_id}/breakpoints.csv.gz");
     Ok(Some(relative_path))
 }
 
-pub fn breakpoints_remove(task_id: &str, sub_task: &str) -> anyhow::Result<()> {
-    let path = breakpoints_db_dir(task_id);
+pub fn breakpoints_remove(task_id: i64, job_id: i64, sub_task: &str) -> anyhow::Result<()> {
+    let path = breakpoints_db_dir(task_id, job_id);
     let db =
         sled::open(path).map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
     db.remove(sub_task)?;
     Ok(())
 }
 
-pub fn breakpoints_clear(task_id: &str) -> anyhow::Result<()> {
-    let path = breakpoints_db_dir(task_id);
+pub fn breakpoints_clear(task_id: i64, job_id: i64) -> anyhow::Result<()> {
+    let path = breakpoints_db_dir(task_id, job_id);
     // delete db file
     info!("delete breakpoints db file: {}", path.display());
     if path.exists() {
@@ -243,15 +259,14 @@ mod tests {
 
     #[test]
     fn test_breakpoints_db_dir() {
-        let task_id = "1";
         // let path = breakpoints_db_dir(task_id);
         // assert_eq!(path, "./data/1/breakpoints");
 
         // set env
-        std::env::set_var("TAOSX_DATA_DIR", "/tmp/data");
-        let path = breakpoints_db_dir(task_id);
+        unsafe { std::env::set_var("TAOSX_DATA_DIR", "/tmp/data") };
+        let path = breakpoints_db_dir(1, 1);
         assert_eq!(
-            "/tmp/data/tasks/1/breakpoints",
+            "/tmp/data/tasks/1/1/breakpoints",
             format!("{:}", path.display())
         );
     }
@@ -259,77 +274,77 @@ mod tests {
     #[test]
     fn test_breakpoints_remove() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
-        let task_id = "1";
+        unsafe { std::env::set_var("TAOSX_DATA_DIR", tmp.path()) };
+        let task_id = 1;
         let sub_task = "t0001";
         let breakpoints = "2023-01-01 20:00:00";
-        breakpoints_set(task_id, sub_task, breakpoints).unwrap();
+        breakpoints_set(task_id, -1, sub_task, breakpoints).unwrap();
 
-        let result = breakpoints_get(task_id, sub_task).unwrap();
+        let result = breakpoints_get(task_id, -1, sub_task).unwrap();
         assert_eq!(result.unwrap(), breakpoints);
 
-        breakpoints_remove(task_id, sub_task).unwrap();
-        let result = breakpoints_get(task_id, sub_task).unwrap();
+        breakpoints_remove(task_id, -1, sub_task).unwrap();
+        let result = breakpoints_get(task_id, -1, sub_task).unwrap();
         assert_eq!(result, None);
     }
 
     #[test]
     fn test_breakpoints_clear() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
-        let task_id = "2";
+        unsafe { std::env::set_var("TAOSX_DATA_DIR", tmp.path()) };
+        let task_id = 2;
         let sub_task = "t0001";
         let breakpoints = "2023-01-01 20:00:00";
-        breakpoints_set(task_id, sub_task, breakpoints).unwrap();
+        breakpoints_set(task_id, -1, sub_task, breakpoints).unwrap();
 
-        let result = breakpoints_get(task_id, sub_task).unwrap();
+        let result = breakpoints_get(task_id, -1, sub_task).unwrap();
         assert_eq!(result.unwrap(), breakpoints);
 
-        breakpoints_clear(task_id).unwrap();
+        breakpoints_clear(task_id, -1).unwrap();
 
-        let path = breakpoints_db_dir(task_id);
+        let path = breakpoints_db_dir(task_id, -1);
         assert!(!path.exists());
 
-        let result = breakpoints_get(task_id, sub_task).unwrap();
+        let result = breakpoints_get(task_id, -1, sub_task).unwrap();
         assert_eq!(result, None);
     }
 
     #[test]
     fn test_breakpoints_full_routine() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
-        let res_not_exist = breakpoints_get("20", "t0001").unwrap();
+        unsafe { std::env::set_var("TAOSX_DATA_DIR", tmp.path()) };
+        let res_not_exist = breakpoints_get(20, -1, "t0001").unwrap();
         assert_eq!(res_not_exist, None);
 
-        let task_id = "1";
+        let task_id = 1;
         let sub_task = "t0001";
         let breakpoints = "2023-01-01 20:00:00";
-        breakpoints_set(task_id, sub_task, breakpoints).unwrap();
+        breakpoints_set(task_id, -1, sub_task, breakpoints).unwrap();
 
-        let result = breakpoints_get(task_id, sub_task).unwrap();
+        let result = breakpoints_get(task_id, -1, sub_task).unwrap();
         assert_eq!(result.unwrap(), breakpoints);
     }
 
     #[test]
     fn test_breakpoints_get_all() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
-        let task_id = "1";
+        unsafe { std::env::set_var("TAOSX_DATA_DIR", tmp.path()) };
+        let task_id = 1;
         let sub_task = "t0001";
         let breakpoints = "2023-01-01 20:00:00";
-        breakpoints_set(task_id, sub_task, breakpoints).unwrap();
+        breakpoints_set(task_id, -1, sub_task, breakpoints).unwrap();
 
-        let task_id = "2";
+        let task_id = 2;
         let sub_task = "t0002";
         let breakpoints = "2023-01-01 20:00:00";
-        breakpoints_set(task_id, sub_task, breakpoints).unwrap();
+        breakpoints_set(task_id, -1, sub_task, breakpoints).unwrap();
 
-        let result = breakpoints_get_all("1").unwrap();
+        let result = breakpoints_get_all(1, -1).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0, "t0001");
         assert_eq!(result[0].1, "2023-01-01 20:00:00");
 
-        let result = breakpoints_get_all("2").unwrap();
+        let result = breakpoints_get_all(2, -1).unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0, "t0002");
         assert_eq!(result[0].1, "2023-01-01 20:00:00");
@@ -338,18 +353,18 @@ mod tests {
     #[test]
     fn test_breakpoints_set_multi_thread() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
+        unsafe { std::env::set_var("TAOSX_DATA_DIR", tmp.path()) };
         use std::thread;
         let mut handles = vec![];
         let n = 10;
         for i in 0..n {
-            let task_id = format!("task{}", i);
+            let task_id = i;
             let sub_task = format!("sub_task{}", i);
             let breakpoints = format!("breakpoints{}", i);
 
             let handle = thread::spawn(move || {
                 // 调用 breakpoints_set 函数
-                match breakpoints_set(&task_id, &sub_task, &breakpoints) {
+                match breakpoints_set(task_id, -1, &sub_task, &breakpoints) {
                     Ok(()) => println!("Thread {} succeeded", i),
                     Err(err) => println!("Thread {} failed: {}", i, err),
                 }
@@ -365,26 +380,25 @@ mod tests {
 
         // 验证所有数据都写入成功
         for i in 0..n {
-            let task_id = format!("task{}", i);
             let sub_task = format!("sub_task{}", i);
             let breakpoints = format!("breakpoints{}", i);
 
-            let result = breakpoints_get(&task_id, &sub_task).unwrap();
+            let result = breakpoints_get(i, -1, &sub_task).unwrap();
             assert_eq!(result.unwrap(), breakpoints);
         }
 
         // 清理数据
         for i in 0..n {
-            let task_id = format!("task{}", i);
-            breakpoints_clear(&task_id).unwrap();
+            breakpoints_clear(i, -1).unwrap();
         }
     }
 
     #[tokio::test]
     async fn test_export() {
-        std::env::set_var("TAOSX_DATA_DIR", "/var/lib/taos/taosx");
-        let task_id = "1000000";
-        let breakpoint_db = BreakpointDb::new_with_task(task_id).await.unwrap();
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", "/var/lib/taos/taosx");
+        }
+        let breakpoint_db = BreakpointDb::new_with_task(1000000, -1).await.unwrap();
         breakpoint_db
             .set("table1", "2023-01-01 20:00:00")
             .await
@@ -398,7 +412,7 @@ mod tests {
             .await
             .unwrap();
         drop(breakpoint_db);
-        let export_file = export_breakpoints_to_csv(task_id).unwrap().unwrap();
+        let export_file = export_breakpoints_to_csv(1000000, -1).unwrap().unwrap();
         println!("{}", export_file);
     }
 }

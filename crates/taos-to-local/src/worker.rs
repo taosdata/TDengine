@@ -358,7 +358,7 @@ mod tests {
 
         // 构造 Td2LocalContext，填入 QueryObject 和 Schema
         let ctx = Td2LocalContext {
-            task_id: None,
+            task_job_id: None,
             raw_from: "taos:///test".into_dsn().unwrap(),
             raw_to: "local:///".into_dsn().unwrap(),
             config,

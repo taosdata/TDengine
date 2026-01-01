@@ -1,6 +1,6 @@
 use std::{io::Write, string::FromUtf8Error};
 
-use snafu::{ensure, ResultExt};
+use snafu::{ResultExt, ensure};
 
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {

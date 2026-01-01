@@ -1,8 +1,8 @@
 use std::{
     path::PathBuf,
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     time::Duration,
 };
@@ -12,9 +12,9 @@ use clap::Parser;
 use futures::StreamExt;
 use orc_rust::ArrowReaderBuilder;
 use rdkafka::{
+    ClientConfig,
     producer::{FutureProducer, FutureRecord, Producer},
     util::Timeout,
-    ClientConfig,
 };
 use tokio::{sync::Semaphore, task::JoinSet};
 use tokio_util::sync::CancellationToken;

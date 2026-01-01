@@ -22,10 +22,9 @@ use taosx_core::core_metrics::{CoreMetrics, get_metrics_arc_or, insert_metrics};
 use taosx_core::sink::channel_based_transformer;
 use taosx_core::sink::ipc_metric::IpcMetrics;
 use taosx_core::utils::breakpoints;
-use taosx_core::utils::dsn::json_to_dsn;
-use taosx_core::utils::port_pool::PortPool;
-use taosx_core::{Parser, TaskNotifySender, Transferred, utils};
+use taosx_core::{Parser, TaskNotifySender, utils};
 use taosx_ipc::types::dsv::DataSourceValidation;
+use taosx_utils::dsn::json_to_dsn;
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -152,25 +151,22 @@ async fn csv_to_taos_with_channel(
     mut parser: Option<Parser>,
     to: Dsn,
     cancel: CancellationToken,
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
 ) -> Result<()> {
     // load metrics
-    let metrics_arc = get_metrics_arc_or(task_id, || {
+    let metrics_arc = get_metrics_arc_or(task_job_id, || {
         // task_id is None if taosx run
         Arc::new(CoreMetrics::IPC(IpcMetrics::new(
             "taosx_task_csv".to_string(),
-            task_id.unwrap_or(-1),
-            None,
+            -1,
+            -1,
         )))
-    })
-    .await;
+    });
     if let Some(parser) = parser.as_mut() {
         parser.set_metrics(metrics_arc.clone());
     }
-    if task_id.is_none() {
-        insert_metrics(-1, metrics_arc.clone()).await;
-    }
+    insert_metrics(-1, -1, metrics_arc.clone());
 
     tracing::info!("CSV to Taos, from: {from}, to: {to}");
     let builder = taos::TaosBuilder::from_dsn(to)?;
@@ -181,7 +177,7 @@ async fn csv_to_taos_with_channel(
         worker_cancel,
         parser,
         Some("csv"),
-        task_id,
+        task_job_id,
         notify,
         32,
     )
@@ -195,7 +191,8 @@ async fn csv_to_taos_with_channel(
         info!("CSV worker finished, total record batches: {}", count);
     });
 
-    let mut source = CsvSource::new(task_id, &mut from, msg.clone(), metrics_arc.clone()).await?;
+    let mut source =
+        CsvSource::new(task_job_id, &mut from, msg.clone(), metrics_arc.clone()).await?;
     // metrics::counter!(METRIC_CSV_FILES, source.readers.len() as u64);
     info!("spawn CSV worker");
     let worker = tokio::spawn({
@@ -223,7 +220,7 @@ async fn csv_to_taos_with_channel(
                             let now = Utc::now();
                             let mut files = Vec::new();
                             if let Some(files_map) =
-                                NOTIFY_NEW_FILES.get(&task_id.unwrap_or_default())
+                                NOTIFY_NEW_FILES.get(&task_job_id.unwrap_or_default())
                             {
                                 files_map.scan(|path, update_time| {
                                     let time_delta = (now - *update_time).num_seconds() as u64;
@@ -239,7 +236,7 @@ async fn csv_to_taos_with_channel(
                                 let mut from_clone = from_clone.clone();
                                 from_clone.path = Some(path.clone());
                                 let mut source = CsvSource::new(
-                                    task_id,
+                                    task_job_id,
                                     &mut from_clone,
                                     msg.clone(),
                                     metrics_arc.clone(),
@@ -252,7 +249,7 @@ async fn csv_to_taos_with_channel(
                                 }
                                 // remove the file from notify list
                                 let _ = NOTIFY_NEW_FILES
-                                    .entry(task_id.unwrap_or_default())
+                                    .entry(task_job_id.unwrap_or((-1, -1)))
                                     .and_modify(|files_map| {
                                         files_map.remove(&path);
                                     });
@@ -267,7 +264,7 @@ async fn csv_to_taos_with_channel(
                 let mut watcher = notify::recommended_watcher({
                     move |event: notify::Result<notify::Event>| match event {
                         Ok(event) => {
-                            process_notify_event(task_id, event);
+                            process_notify_event(task_job_id, event);
                         }
                         Err(e) => {
                             tracing::error!("CSV source, notify event error: {e}");
@@ -325,14 +322,15 @@ async fn csv_to_taos_with_channel(
     Ok(())
 }
 
-static NOTIFY_NEW_FILES: LazyLock<scc::HashMap<i64, scc::HashMap<String, DateTime<Utc>>>> =
+#[allow(clippy::type_complexity)]
+static NOTIFY_NEW_FILES: LazyLock<scc::HashMap<(i64, i64), scc::HashMap<String, DateTime<Utc>>>> =
     LazyLock::new(scc::HashMap::new);
 
 /// process the notify event
 ///
 /// if the event is access(close) or create(file) or modify(data)
 /// or modify(name(to)), continue to process the path.
-fn process_notify_event(task_id: Option<i64>, event: Event) {
+fn process_notify_event(task_job_id: Option<(i64, i64)>, event: Event) {
     match event.kind {
         notify::EventKind::Access(kind) => match kind {
             notify::event::AccessKind::Read => {
@@ -343,7 +341,7 @@ fn process_notify_event(task_id: Option<i64>, event: Event) {
             }
             notify::event::AccessKind::Close(_) => {
                 tracing::info!("notify event(access(close)): {:?}", event.paths);
-                process_new_file(task_id, event.paths);
+                process_new_file(task_job_id, event.paths);
             }
             _ => tracing::debug!(
                 "notify event-(access({:?})), ignore: {:?}",
@@ -354,7 +352,7 @@ fn process_notify_event(task_id: Option<i64>, event: Event) {
         notify::EventKind::Create(kind) => match kind {
             notify::event::CreateKind::File => {
                 tracing::info!("notify event(create(file)): {:?}", event.paths);
-                process_new_file(task_id, event.paths);
+                process_new_file(task_job_id, event.paths);
             }
             notify::event::CreateKind::Folder => {
                 tracing::debug!("notify event(create(folder)), ignore: {:?}", event.paths);
@@ -368,7 +366,7 @@ fn process_notify_event(task_id: Option<i64>, event: Event) {
         notify::EventKind::Modify(kind) => match kind {
             notify::event::ModifyKind::Data(_) => {
                 tracing::info!("notify event(modify(data)): {:?}", event.paths);
-                process_new_file(task_id, event.paths);
+                process_new_file(task_job_id, event.paths);
             }
             notify::event::ModifyKind::Metadata(_) => {
                 tracing::debug!("notify event(modify(metadata)), ignore: {:?}", event.paths);
@@ -376,7 +374,7 @@ fn process_notify_event(task_id: Option<i64>, event: Event) {
             notify::event::ModifyKind::Name(mode) => match mode {
                 notify::event::RenameMode::To => {
                     tracing::info!("notify event(modify(name(to))): {:?}", event.paths);
-                    process_new_file(task_id, event.paths);
+                    process_new_file(task_job_id, event.paths);
                 }
                 _ => tracing::debug!(
                     "notify event(modify(name({:?}))), ignore: {:?}",
@@ -413,7 +411,7 @@ fn process_notify_event(task_id: Option<i64>, event: Event) {
 /// otherwise, add it.
 ///
 /// ignore temporary files.
-fn process_new_file(task_id: Option<i64>, paths: Vec<PathBuf>) {
+fn process_new_file(task_job_id: Option<(i64, i64)>, paths: Vec<PathBuf>) {
     let now = Utc::now();
     paths.iter().for_each(|path| {
         let path = path.to_str().unwrap_or_default();
@@ -423,7 +421,7 @@ fn process_new_file(task_id: Option<i64>, paths: Vec<PathBuf>) {
         }
         // record the last notify time
         NOTIFY_NEW_FILES
-            .entry(task_id.unwrap_or_default())
+            .entry(task_job_id.unwrap_or((-1, -1)))
             .and_modify(|file_map| {
                 file_map
                     .entry(path.to_string())
@@ -445,14 +443,11 @@ pub async fn csv_to_taos(
     from: Dsn,
     parser: Option<Parser>,
     to: Dsn,
-    _: &PortPool,
     cancel: CancellationToken,
-    _with_agent: Option<(i64, String, String)>,
-    _transferred: Option<Arc<Transferred>>,
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     notify: crate::TaskNotifySender,
 ) -> Result<()> {
-    csv_to_taos_with_channel(from, parser, to, cancel, task_id, notify).await
+    csv_to_taos_with_channel(from, parser, to, cancel, task_job_id, notify).await
 }
 
 pub struct CsvHeader {
@@ -463,7 +458,7 @@ pub struct CsvHeader {
 
 #[derive(Debug, Clone)]
 pub struct CsvOption {
-    pub task_id: Option<i64>,
+    pub task_job_id: Option<(i64, i64)>,
     pub has_header: bool,
     pub headers: Vec<String>,
     pub skip: Option<usize>,
@@ -484,7 +479,7 @@ pub struct CsvOption {
 impl Default for CsvOption {
     fn default() -> Self {
         Self {
-            task_id: None,
+            task_job_id: None,
             has_header: true,
             headers: vec![],
             skip: None,
@@ -642,7 +637,7 @@ impl CsvOption {
             .unwrap_or(1);
 
         Ok(Self {
-            task_id: None,
+            task_job_id: None,
             has_header,
             headers,
             skip,
@@ -948,14 +943,14 @@ impl std::fmt::Debug for CsvSource {
 }
 
 pub async fn get_paths_from_dsn_and_breakpoints(
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     dsn: &mut Dsn,
 ) -> anyhow::Result<Vec<String>> {
     // parse csv options
     let option = CsvOption::from_dsn(dsn.clone())?;
 
     // get breakpoint
-    let breakpoints = get_breakpoint(task_id).unwrap_or_default();
+    let breakpoints = get_breakpoint(task_job_id).unwrap_or_default();
 
     // dsn: csv:path/to/csv/path_1/or/file_1,path/to/csv/path_2/or/file_2?has_header=&header=&skip=&delimiter=&batch_size=&concurrent=
     let dsn_paths = match &dsn.path {
@@ -980,7 +975,7 @@ pub async fn get_paths_from_dsn_and_breakpoints(
     let paths_in_breakpoints = sort_paths(paths_in_breakpoints, option.sort);
     paths_in_breakpoints.iter().for_each(|path| {
         add_csv_file_to_task(
-            task_id,
+            task_job_id,
             path,
             FileStatus::Completed,
             *breakpoints.get(path).unwrap(),
@@ -1009,7 +1004,7 @@ pub async fn get_paths_from_dsn_and_breakpoints(
 
     // record to file list, the status is not started
     paths.iter().for_each(|path| {
-        add_csv_file_to_task(task_id, path, FileStatus::NotStarted, 0);
+        add_csv_file_to_task(task_job_id, path, FileStatus::NotStarted, 0);
     });
 
     Ok(paths)
@@ -1061,17 +1056,17 @@ pub fn sort_paths(paths: Vec<String>, sort: usize) -> Vec<String> {
 
 impl CsvSource {
     async fn new(
-        task_id: Option<i64>,
+        task_job_id: Option<(i64, i64)>,
         dsn: &mut Dsn,
         sender: MsgSender,
         metrics_arc: Arc<CoreMetrics>,
     ) -> Result<CsvSource> {
         // get csv option
         let mut option = CsvOption::from_dsn(dsn.clone())?;
-        option.task_id = task_id;
+        option.task_job_id = task_job_id;
 
         // get paths
-        let paths = get_paths_from_dsn_and_breakpoints(task_id, dsn).await?;
+        let paths = get_paths_from_dsn_and_breakpoints(task_job_id, dsn).await?;
 
         if option.concurrent == 0 {
             option.concurrent = paths.len();
@@ -1096,7 +1091,7 @@ impl CsvSource {
         }
 
         // get breakpoint
-        let breakpoints = get_breakpoint(task_id).unwrap_or_default();
+        let breakpoints = get_breakpoint(task_job_id).unwrap_or_default();
 
         // extra metrics
         let total_csv_files = breakpoints.len() + paths.len();
@@ -1207,7 +1202,7 @@ impl CsvSource {
             let permit = semaphore.clone().acquire_owned().await?;
             let option = self.option.clone();
             let sender = self.sender.clone();
-            let task_id = self.option.task_id;
+            let task_job_id = self.option.task_job_id;
             let keep_processed_files = self.option.keep_processed_files;
             let metrics_arc = metrics_arc.clone();
             // let total = total.clone();
@@ -1216,7 +1211,7 @@ impl CsvSource {
                     info!("Deal with csv reader");
 
                     // record to file list, the status is processing
-                    add_csv_file_to_task(task_id, &path, FileStatus::Processing, 0);
+                    add_csv_file_to_task(task_job_id, &path, FileStatus::Processing, 0);
 
                     // let res =
                     //     CsvSource::deal_file(reader, port, batch_size, skip_error, null_pattern)
@@ -1227,18 +1222,21 @@ impl CsvSource {
                     while let Some(batch) = stream.next().await {
                         let batch = batch?;
                         count += batch.num_rows();
-                        sender.send_async(Ok(batch)).await?;
+                        sender
+                            .send_async(Ok(batch))
+                            .await
+                            .context("CSV send batch error")?;
                         tracing::debug!(path, count, "send batches to writer");
 
                         // record to file list, the status is processing
-                        add_csv_file_to_task(task_id, &path, FileStatus::Processing, count);
+                        add_csv_file_to_task(task_job_id, &path, FileStatus::Processing, count);
                     }
 
                     // write to breakpoint file
-                    let _ = set_breakpoint(task_id, &path, count).await;
+                    let _ = set_breakpoint(task_job_id, &path, count).await;
 
                     // record to file list, the status is completed
-                    add_csv_file_to_task(task_id, &path, FileStatus::Completed, count);
+                    add_csv_file_to_task(task_job_id, &path, FileStatus::Completed, count);
 
                     // record in metrics
                     let metrics = metrics_arc.ipc();
@@ -1397,52 +1395,6 @@ impl CsvSource {
     }
 }
 
-/*
-#[tokio::test]
-async fn test_csv_source() -> anyhow::Result<()> {
-    std::env::set_var("RUST_LOG", "debug");
-    pretty_env_logger::init();
-    let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
-    use std::str::FromStr;
-
-    let (notify, _) = flume::unbounded();
-    csv_to_taos(
-        Dsn::from_str("csv:../tests/csv/table-ns/ns.csv?batch_size=1000").unwrap(),
-        Some(
-            Parser::from_str(
-                r#"{
-  "parse": {
-    "time": { "as": "timestamp(ns)", "alias": "time" },
-    "field0": { "as": "int" },
-    "field7": { "as": "int" }
-  },
-  "model": {
-    "name": "f_{field0}",
-    "using": "stb1",
-    "tags": ["field0"],
-    "columns": ["time", "field7"]
-  }
-}"#,
-            )
-            .unwrap(),
-        ),
-        Dsn::from_str("taos:///testns").unwrap(),
-        &Default::default(),
-        Default::default(),
-        None,
-        None,
-        span.clone(),
-        notify,
-    )
-    .await?;
-    tokio::time::sleep(Duration::from_secs(10)).await;
-    let taos = TaosBuilder::from_dsn("taos:///testns")?.build().await?;
-    let u: usize = taos.query_one("select count(*) from stb1").await?.unwrap();
-    assert_eq!(u, 200);
-    Ok(())
-}
-*/
-
 pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
     let (sender, _) = flume::bounded(0);
     if let Err(err) = CsvSource::new(
@@ -1459,29 +1411,41 @@ pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
     }
 }
 
-pub async fn set_breakpoint(task_id: Option<i64>, path: &str, amount: usize) -> anyhow::Result<()> {
-    if task_id.is_none_or(|id| id == -1 || id == 0) {
+pub async fn set_breakpoint(
+    task_job_id: Option<(i64, i64)>,
+    path: &str,
+    amount: usize,
+) -> anyhow::Result<()> {
+    let Some((task_id, job_id)) = task_job_id else {
+        return Ok(());
+    };
+    if task_id <= 0 {
         return Ok(());
     }
-    let task_id = format!("{}", task_id.unwrap_or(0));
+
     let amount = format!("{}", amount);
     // set breakpoint, if failed, retry after 1s
-    let mut result = breakpoints::breakpoints_set(&task_id, path, &amount);
+    let mut result = breakpoints::breakpoints_set(task_id, job_id, path, &amount);
     while let Err(e) = result {
-        tracing::error!("set breakpoint for task {task_id} failed, error: {e}, retry after 1s");
+        tracing::error!(
+            "set breakpoint for task ({task_id},{job_id}) failed, error: {e}, retry after 1s"
+        );
         tokio::time::sleep(Duration::from_secs(1)).await;
-        result = breakpoints::breakpoints_set(&task_id, path, &amount);
+        result = breakpoints::breakpoints_set(task_id, job_id, path, &amount);
     }
     tracing::info!("set breakpoint for task {task_id} success, '{path}: {amount}'");
     Ok(())
 }
 
-pub fn get_breakpoint(task_id: Option<i64>) -> anyhow::Result<HashMap<String, usize>> {
-    if task_id.is_none_or(|id| id == -1 || id == 0) {
+pub fn get_breakpoint(task_job_id: Option<(i64, i64)>) -> anyhow::Result<HashMap<String, usize>> {
+    let Some((task_id, job_id)) = task_job_id else {
+        return Ok(HashMap::new());
+    };
+    if task_id <= 0 {
         return Ok(HashMap::new());
     }
-    let task_id = format!("{}", task_id.unwrap_or(0));
-    let result = breakpoints::breakpoints_get_all(&task_id);
+
+    let result = breakpoints::breakpoints_get_all(task_id, job_id);
     match result {
         Ok(records) => {
             let map = records
@@ -1518,21 +1482,22 @@ pub struct TaskFile {
     end_time: Option<DateTime<Utc>>,
 }
 
-static TASK_FILES: LazyLock<scc::HashMap<String, Vec<TaskFile>>> = LazyLock::new(scc::HashMap::new);
+static TASK_FILES: LazyLock<scc::HashMap<(i64, i64), Vec<TaskFile>>> =
+    LazyLock::new(scc::HashMap::new);
 
 pub async fn get_csv_files_from_task(
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     from: &str,
 ) -> anyhow::Result<Vec<TaskFile>> {
-    let task_id_str = format!("{}", task_id.unwrap_or(0));
-    if let Some(files) = TASK_FILES.get_async(&task_id_str).await {
+    let key = task_job_id.unwrap_or((-1, -1));
+    if let Some(files) = TASK_FILES.get_async(&key).await {
         Ok(files.get().clone())
     } else {
         // 重新生成文件列表
         // let dsn: Dsn = from.parse()?;
         let dsn = json_to_dsn(&serde_json::Value::String(from.to_string()))?;
-        let _ = get_paths_from_dsn_and_breakpoints(task_id, &mut dsn.clone()).await?;
-        if let Some(files) = TASK_FILES.get_async(&task_id_str).await {
+        let _ = get_paths_from_dsn_and_breakpoints(task_job_id, &mut dsn.clone()).await?;
+        if let Some(files) = TASK_FILES.get_async(&key).await {
             Ok(files.get().clone())
         } else {
             Ok(vec![])
@@ -1540,8 +1505,12 @@ pub async fn get_csv_files_from_task(
     }
 }
 
-fn add_csv_file_to_task(task_id: Option<i64>, path: &str, status: FileStatus, amount: usize) {
-    let task_id = format!("{}", task_id.unwrap_or(0));
+fn add_csv_file_to_task(
+    task_job_id: Option<(i64, i64)>,
+    path: &str,
+    status: FileStatus,
+    amount: usize,
+) {
     let start_time = Some(Utc::now());
     let end_time = if status.eq(&FileStatus::Completed) {
         Some(Utc::now())
@@ -1549,7 +1518,7 @@ fn add_csv_file_to_task(task_id: Option<i64>, path: &str, status: FileStatus, am
         None
     };
     TASK_FILES
-        .entry(task_id)
+        .entry(task_job_id.unwrap_or((-1, -1)))
         .and_modify(|files| {
             for file in files.iter_mut() {
                 if file.path == path {
@@ -1826,10 +1795,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_breakpoint() {
-        let task_id = Some(1);
+        let task_job_id = Some((1, -1));
         let path = "test.csv";
         let amount = 100;
-        let result = set_breakpoint(task_id, path, amount).await;
+        let result = set_breakpoint(task_job_id, path, amount).await;
         assert!(result.is_ok());
     }
 
@@ -1844,8 +1813,8 @@ mod tests {
 
     #[test]
     fn test_get_breakpoint() {
-        let task_id = Some(1);
-        let result = get_breakpoint(task_id);
+        let task_job_id = Some((1, -1));
+        let result = get_breakpoint(task_job_id);
         dbg!(&result);
         assert!(result.is_ok());
     }
@@ -1857,13 +1826,13 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 0);
 
-        let _ = set_breakpoint(Some(0), "test.csv", 100).await;
-        let result = get_breakpoint(Some(0));
+        let _ = set_breakpoint(Some((0, -1)), "test.csv", 100).await;
+        let result = get_breakpoint(Some((0, -1)));
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 0);
 
-        let _ = set_breakpoint(Some(-1), "test.csv", 100).await;
-        let result = get_breakpoint(Some(-1));
+        let _ = set_breakpoint(Some((-1, -1)), "test.csv", 100).await;
+        let result = get_breakpoint(Some((-1, -1)));
         assert!(result.is_ok());
         assert_eq!(result.unwrap().len(), 0);
     }

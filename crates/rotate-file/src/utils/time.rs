@@ -36,7 +36,7 @@ pub fn time_unit_dt_fmt(unit: &str) -> anyhow::Result<&'static str> {
 mod test {
     use chrono::TimeZone;
 
-    use crate::utils::{parse_from_str, YYMMDD, YYMMDDHH, YYMMDDHHMM};
+    use crate::utils::{YYMMDD, YYMMDDHH, YYMMDDHHMM, parse_from_str};
 
     #[test]
     fn test_parse_from_str() {

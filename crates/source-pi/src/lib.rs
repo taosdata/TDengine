@@ -1,12 +1,13 @@
-use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
+use std::sync::Arc;
+use std::{fs, io::prelude::*, path::PathBuf, time::Duration};
 
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::runners::pi::config::PiConfig;
 use taosx_core::runners::{get_data_dir, get_plugin_dir, new_rolling_file_appender};
 use taosx_core::sink::lush::LushModelConfig;
 use taosx_core::utils::monitor::send_sub_process_info;
-use taosx_core::{Action, Transferred, build_ipc, utils::port_pool::PortPool};
-use taosx_core::{TaskNotify, TaskNotifySender, get_log_dir};
+use taosx_core::{Action, build_ipc, utils::port_pool::PortPool};
+use taosx_core::{TaskNotify, TaskNotifySender, Via, get_log_dir};
 
 use anyhow::Context;
 use serde::Deserialize;
@@ -52,16 +53,11 @@ pub async fn pi_to_taos(
     jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     tracing::info!("Start {} task", from.driver);
-    // #[cfg(not(target_os = "windows"))]
-    // {
-    //     anyhow::bail!("PI connector support only windows platform");
-    // }
     let td_database = to.subject.clone();
     let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
     let target_pool_for_ipc = target_pool.clone();
@@ -79,7 +75,7 @@ pub async fn pi_to_taos(
         td_database.unwrap(),
         ipc_port.get(),
         sql_port.get(),
-        task_id,
+        task_job_id,
     )
     .await
     .context("Failed to create PIConfig")?;
@@ -91,12 +87,16 @@ pub async fn pi_to_taos(
     let temp_path = config_file.into_temp_path();
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
     // save the temporary file to task dir
-    if let Some(task_id) = task_id {
-        let path = get_data_dir().join("tasks").join(task_id.to_string());
+    if let Some((task_id, job_id)) = task_job_id {
+        let path = get_data_dir()
+            .join("tasks")
+            .join(task_id.to_string())
+            .join(job_id.to_string());
         std::fs::create_dir_all(&path).unwrap();
         let path = path.join(format!(
-            "{}-{}-{}.{}",
+            "{}-{}-{}-{}.{}",
             task_id,
+            job_id,
             "pi",
             chrono::Local::now().format("%Y%m%d%H%M"),
             "toml"
@@ -171,16 +171,16 @@ pub async fn pi_to_taos(
         lush_model_config,
         &cancel,
         with_agent,
-        transferred,
-        task_id,
+        task_job_id,
         notify.clone(),
         None,
     )
     .await?;
+    let (task_id, job_id) = task_job_id.unwrap_or((0, 0));
     tokio::time::sleep(Duration::from_millis(500)).await;
     let log_dir = log_path();
     std::fs::create_dir_all(&log_dir).with_context(|| format!("Log path {}", log_dir.display()))?;
-    let component = format!("pi-{}", task_id.unwrap_or(0));
+    let component = format!("pi-{task_id}-{job_id}");
     tracing::info!("Log dir: {}", &log_dir.display());
 
     let appender = new_rolling_file_appender(log_dir.as_path(), &component)
@@ -199,7 +199,7 @@ pub async fn pi_to_taos(
                 .stderr(std::process::Stdio::piped())
                 .spawn()
                 .context("Start PI collector error")?;
-            send_sub_process_info(child_command.id(), task_id, "pi").await;
+            send_sub_process_info(child_command.id(), task_job_id, "pi").await;
         }
         _ => {
             anyhow::bail!("wrong driver configured");
@@ -209,7 +209,6 @@ pub async fn pi_to_taos(
         .stderr
         .take()
         .expect("Failed to capture stderr");
-    let log_task_id = task_id.unwrap_or_default();
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stderr);
         let mut line = String::new();
@@ -222,7 +221,7 @@ pub async fn pi_to_taos(
             }
             let mut w = appender.make_writer();
             use std::io::Write as _;
-            w.write_all(format!("[task:{}]{}", log_task_id, line).as_bytes())?;
+            w.write_all(format!("[task:{task_id}-{job_id}]{line}").as_bytes())?;
             if let Err(err) = w.flush() {
                 eprintln!("failed to write PI log: {err}");
             }

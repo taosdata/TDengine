@@ -1,4 +1,4 @@
-use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
+use aes_gcm::{Aes256Gcm, KeyInit, Nonce, aead::Aead};
 use base64::Engine;
 
 /// AES-256-GCM encrypted data, concatenated with nonce at the front.

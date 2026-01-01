@@ -408,14 +408,18 @@ def build_and_install_taosx(mode):
     os.chdir(taosx_dir)
     if mode == "Release":
         os.system(f'cargo make -e VER_NUMBER={release_info.TdengineVersion} -e CUS_PROMPT={release_info.CustomPrompt} -e CUS_NAME="{release_info.CustomName}" -e CUS_EMAIL={release_info.CustomEmail} -e BUILD_PROFILE=release deploy-taosx')
+        os.system(f'cargo make -e VER_NUMBER={release_info.TdengineVersion} -e CUS_PROMPT={release_info.CustomPrompt} -e CUS_NAME="{release_info.CustomName}" -e CUS_EMAIL={release_info.CustomEmail} -e BUILD_PROFILE=release deploy-xnoded')
     else:
         os.system(f'cargo make -e VER_NUMBER={release_info.TdengineVersion} -e CUS_PROMPT={release_info.CustomPrompt} -e CUS_NAME="{release_info.CustomName}" -e CUS_EMAIL={release_info.CustomEmail} -e BUILD_PROFILE=dev deploy-taosx')
+        os.system(f'cargo make -e VER_NUMBER={release_info.TdengineVersion} -e CUS_PROMPT={release_info.CustomPrompt} -e CUS_NAME="{release_info.CustomName}" -e CUS_EMAIL={release_info.CustomEmail} -e BUILD_PROFILE=dev deploy-xnoded')
 
     taosx_install_path = os.path.join(release_info.InstallPath, "bin")
     check_directory(taosx_install_path)
     taosx_path = os.path.join(taosx_dir, "target", "deploy", get_taosx_output_name())
+    xnoded_path = os.path.join(taosx_dir, "target", "deploy", "xnoded")
     try:
         shutil.copy2(taosx_path, taosx_install_path)
+        shutil.copy2(xnoded_path, taosx_install_path)
         # if release_info.OS == 'Windows':  # Windows操作系统
         #     exe_target = os.path.join(taosx_install_path, f"{release_info.CustomPrompt}x.exe")
         #     shutil.copy2(taosx_path, exe_target)

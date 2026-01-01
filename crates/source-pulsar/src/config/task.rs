@@ -7,8 +7,9 @@ use std::{collections::HashMap, str::FromStr};
 use taos::Dsn;
 use taosx_core::{
     config::AdvancedOptions,
-    utils::{self, codec::StringDecoder, dsn::parse_simple_params},
+    utils::{self, codec::StringDecoder},
 };
+use taosx_utils::dsn::parse_simple_params;
 
 #[derive(Debug, Clone)]
 pub struct PulsarTaskConfig {

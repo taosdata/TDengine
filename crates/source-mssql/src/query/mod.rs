@@ -1,6 +1,7 @@
 use crate::appender;
 use crate::config::connect::ConnectConfig;
 
+use anyhow::Context;
 use arrow::array::RecordBatch;
 use futures::TryStreamExt;
 use linked_hash_map::LinkedHashMap;
@@ -84,57 +85,43 @@ impl MssqlQuery {
         manager.create_pool()
     }
 
-    pub async fn select_distinct_values(
+    pub async fn select_all(
         &mut self,
         sql: &str,
     ) -> anyhow::Result<(LinkedHashMap<String, ColumnType>, Vec<Row>)> {
         // get a connection
         let mut conn = self.pool.get().await?;
         // select data
-        let result = conn.query(sql, &[]).await;
-        match result {
-            Ok(mut stream) => {
-                let mut col_map = LinkedHashMap::new();
-                let mut rows = Vec::new();
-                let columns = stream.columns().await;
-                match columns {
-                    Ok(Some(columns)) => {
-                        for column in columns {
-                            col_map.insert(column.name().to_string(), column.column_type());
-                        }
-                    }
-                    Ok(None) => {
-                        anyhow::bail!("no columns");
-                    }
-                    Err(e) => {
-                        anyhow::bail!("failed to get columns, cause: {}", e.to_string());
-                    }
+        let mut stream = conn.query(sql, &[]).await.context("failed to query data")?;
+        let mut col_map = LinkedHashMap::new();
+        let mut rows = Vec::new();
+        let columns = stream.columns().await.context("failed to get columns")?;
+        match columns {
+            Some(columns) => {
+                for column in columns {
+                    col_map.insert(column.name().to_string(), column.column_type());
                 }
-                loop {
-                    let item = stream.try_next().await;
-                    match item {
-                        Ok(Some(item)) => match item {
-                            QueryItem::Row(row) => {
-                                rows.push(row);
-                            }
-                            QueryItem::Metadata(_) => {}
-                        },
-                        Ok(None) => {
-                            break;
-                        }
-                        Err(e) => anyhow::bail!(
-                            "failed to select distinct values, cause: {}",
-                            e.to_string()
-                        ),
-                    }
-                }
-                Ok((col_map, rows))
             }
-            Err(err) => anyhow::bail!(
-                "failed to select distinct values, cause: {}",
-                err.to_string()
-            ),
+            None => {
+                anyhow::bail!("no columns");
+            }
         }
+        loop {
+            let item = stream.try_next().await;
+            match item {
+                Ok(Some(item)) => match item {
+                    QueryItem::Row(row) => {
+                        rows.push(row);
+                    }
+                    QueryItem::Metadata(_) => {}
+                },
+                Ok(None) => {
+                    break;
+                }
+                Err(e) => anyhow::bail!("failed to select data, cause: {e}"),
+            }
+        }
+        Ok((col_map, rows))
     }
 
     pub async fn select_for_schema(
@@ -167,54 +154,6 @@ impl MssqlQuery {
             Err(e) => {
                 anyhow::bail!("failed to execute query, cause: {}", e.to_string());
             }
-        }
-    }
-
-    #[allow(dead_code)]
-    pub async fn select_all(
-        &mut self,
-        sql: &str,
-    ) -> anyhow::Result<(LinkedHashMap<String, ColumnType>, Vec<Row>)> {
-        // get a connection
-        let mut conn = self.pool.get().await?;
-        // select data
-        let result = conn.query(sql, &[]).await;
-        match result {
-            Ok(mut stream) => {
-                let mut col_map = LinkedHashMap::new();
-                let mut rows = Vec::new();
-                let columns = stream.columns().await;
-                match columns {
-                    Ok(Some(columns)) => {
-                        for column in columns {
-                            col_map.insert(column.name().to_string(), column.column_type());
-                        }
-                    }
-                    Ok(None) => {
-                        anyhow::bail!("no columns");
-                    }
-                    Err(e) => {
-                        anyhow::bail!("failed to get columns, cause: {}", e.to_string());
-                    }
-                }
-                loop {
-                    let item = stream.try_next().await;
-                    match item {
-                        Ok(Some(item)) => match item {
-                            QueryItem::Row(row) => {
-                                rows.push(row);
-                            }
-                            QueryItem::Metadata(_) => {}
-                        },
-                        Ok(None) => {
-                            break;
-                        }
-                        Err(e) => anyhow::bail!("failed to select data, cause: {}", e.to_string()),
-                    }
-                }
-                Ok((col_map, rows))
-            }
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
         }
     }
 
@@ -450,7 +389,7 @@ mod tests {
         match result {
             Ok(mut query) => {
                 let query_result = query
-                    .select_distinct_values("select distinct name,value from t_metric")
+                    .select_all("select distinct name,value from t_metric")
                     .await;
                 match query_result {
                     Ok((col_map, rows)) => {

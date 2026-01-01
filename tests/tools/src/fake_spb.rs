@@ -6,8 +6,8 @@ use std::{
     collections::HashMap,
     path::Path,
     sync::{
-        atomic::{self, AtomicU64, AtomicU8},
         Arc, LazyLock,
+        atomic::{self, AtomicU8, AtomicU64},
     },
 };
 

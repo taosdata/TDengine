@@ -152,6 +152,8 @@ import { getTimeParser } from '../../model/util';
 import { ElMessage, FormInstance } from 'element-plus';
 import { getDataInProps } from '../../model/useDataIn';
 import { t } from 'locales';
+import { base64Utils } from 'utils';
+import { instance } from 'config';
 
 const METRIC_IN_ORDER = [
   'start_time',
@@ -295,7 +297,10 @@ function connect() {
   disconnect();
   loading.value = false;
   activeName.value = 'current';
-  socket.value = new WebSocket(dataInProps.metrics.webSocketUrl + props.taskId);
+  const user = instance.user;
+  const pass = instance.password;
+  const token = base64Utils.encode(user + ':' + pass);
+  socket.value = new WebSocket(dataInProps.metrics.webSocketUrl + props.taskId + '/' + token);
 
   if (socket.value) {
     socket.value.onerror = (err: any) => {

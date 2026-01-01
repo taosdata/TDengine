@@ -3,7 +3,7 @@ use crate::config::connect::ConnectConfig;
 use taosx_core::utils::replace_date_placeholder;
 use taosx_core::{plugins::config::AdvancedOptions, utils};
 
-use anyhow::Ok;
+use anyhow::{Context, Ok};
 use chrono::{DateTime, Duration, FixedOffset, Utc};
 use std::str::FromStr;
 use taos::Dsn;
@@ -13,7 +13,7 @@ pub mod connect;
 #[derive(Debug, Clone)]
 pub struct PostgresConfig {
     // task info
-    pub task_id: Option<i64>,
+    pub task_job_id: Option<(i64, i64)>,
     pub sub_task_id: Option<String>,
     pub ipc_port: Option<u16>,
     // the datasource config
@@ -30,23 +30,12 @@ impl PostgresConfig {
             return Err(anyhow::anyhow!("invalid driver: {}", dsn.driver));
         }
         Ok(PostgresConfig {
-            task_id: Self::parse_task_id(dsn),
+            task_job_id: None,
             sub_task_id: None,
             ipc_port: None,
             connect: ConnectConfig::from_dsn(dsn)?,
             task: TaskConfig::from_dsn(dsn)?,
             advanced: AdvancedOptions::from_dsn(dsn)?,
-        })
-    }
-
-    fn parse_task_id(dsn: &Dsn) -> Option<i64> {
-        dsn.params.get("taskId").and_then(|s| {
-            s.parse::<i64>()
-                .map(Some)
-                .inspect_err(|_err| {
-                    tracing::warn!("failed to parse taskId: {}, use None", s);
-                })
-                .unwrap_or(None)
         })
     }
 }
@@ -106,7 +95,7 @@ impl TaskConfig {
                 anyhow::Ok(start_time)
             })
             .transpose()?
-            .expect("start is required");
+            .context("start is required")?;
         Ok(start)
     }
 
@@ -224,9 +213,11 @@ impl TaskConfig {
             .unwrap_or(5))
     }
 
-    pub fn generate_distinct_sql(&self) -> anyhow::Result<String> {
+    pub fn generate_distinct_sql(&self) -> anyhow::Result<Option<String>> {
         // generate sql
-        let sql = self.subtable_fields.clone().unwrap_or("".to_string());
+        let Some(sql) = self.subtable_fields.as_ref() else {
+            return Ok(None);
+        };
 
         // task start time with time zone
         let start = self.start;
@@ -234,7 +225,12 @@ impl TaskConfig {
         let start_tz = start.with_timezone(&time_zone);
 
         // replace the placeholders
-        anyhow::Ok(replace_date_placeholder(sql.clone(), start_tz))
+        let mut res = replace_date_placeholder(sql.clone(), start_tz);
+        if let Some(end) = self.end {
+            let end_ts = end.with_timezone(&time_zone);
+            res = replace_date_placeholder(res, end_ts);
+        }
+        anyhow::Ok(Some(res))
     }
 
     pub fn generate_sql(&self) -> anyhow::Result<String> {

@@ -1,5 +1,4 @@
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset, NaiveDateTime};
@@ -13,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::utils::port_pool::PortPool;
-use taosx_core::{Action, Parser, TaskNotifySender, Transferred, build_ipc};
+use taosx_core::{Action, Parser, TaskNotifySender, Via, build_ipc};
 
 use appender::column_meta::ColumnMeta;
 use config::OracleConfig;
@@ -77,7 +76,7 @@ fn get_sample_sync(dsn: Dsn) -> anyhow::Result<DsSampleIn> {
 
     // replace subtable fields
     let distinct_sql = config.task.generate_distinct_sql()?;
-    let values = if !distinct_sql.is_empty() {
+    let values = if let Some(distinct_sql) = distinct_sql {
         query.select_for_schema(&distinct_sql)?
     } else {
         LinkedHashMap::new()
@@ -152,20 +151,15 @@ pub async fn oracle_to_taos(
     _jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     let mut config = OracleConfig::from_dsn(&from)?;
 
     // set task_id
-    config.task_id = task_id;
-    tracing::info!(
-        "{ORACLE_NAME} task start, id: {:?}, configuration: {:?}",
-        task_id,
-        config
-    );
+    config.task_job_id = task_job_id;
+    tracing::info!("{ORACLE_NAME} task start, id: {task_job_id:?}, configuration: {config:?}");
 
     // set ipc port
     let port = port_pool
@@ -185,8 +179,7 @@ pub async fn oracle_to_taos(
         None,
         &cancel,
         with_agent,
-        transferred,
-        task_id,
+        task_job_id,
         notify,
         None,
     )
@@ -231,14 +224,14 @@ pub async fn oracle_to_taos(
                 }
             },
             _ = cancel.cancelled() => {
-                tracing::info!("{ORACLE_NAME} task cancelled, id: {}", task_id.unwrap_or(-1));
+                tracing::info!("{ORACLE_NAME} task cancelled, id: {:?}", task_job_id.unwrap_or((-1,-1)));
                 abort_handle.abort();
             }
         }
         // send an empty tuple
         let _ = ipc.send(());
         // stop the connector
-        tracing::info!("{ORACLE_NAME} task done, id: {}", task_id.unwrap_or(-1));
+        tracing::info!("{ORACLE_NAME} task done, id: {:?}", task_job_id.unwrap_or((-1,-1)));
         ipc.close().await?;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -503,22 +496,11 @@ mod tests {
         let port_pool = PortPool::default();
         let cancel = CancellationToken::new();
         let with_agent = None;
-        let transferred = None;
-        let task_id = Some(1);
+        let task_id = Some((1, 1));
         let (notify, _) = flume::unbounded();
 
         oracle_to_taos(
-            from,
-            parser,
-            transform,
-            to,
-            jobs,
-            &port_pool,
-            cancel,
-            with_agent,
-            transferred,
-            task_id,
-            notify,
+            from, parser, transform, to, jobs, &port_pool, cancel, with_agent, task_id, notify,
         )
         .await
         .ok();

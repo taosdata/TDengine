@@ -7,11 +7,11 @@ use parquet::{
     errors::ParquetError,
     file::properties::WriterProperties,
 };
-use rotate_file::{utils::time_unit_dt_fmt, RotateFileError, RotateWriterBuilder, SinkFn};
+use rotate_file::{RotateFileError, RotateWriterBuilder, SinkFn, utils::time_unit_dt_fmt};
 use std::{fs::OpenOptions, marker::PhantomData, path::PathBuf};
 use tokio::sync::oneshot;
 
-use crate::{Archive, Cache, ARCHIVE_PREFIX, CACHE_PREFIX};
+use crate::{ARCHIVE_PREFIX, Archive, CACHE_PREFIX, Cache};
 
 #[derive(Debug)]
 pub struct RewriteMsg {
@@ -30,6 +30,7 @@ where
     F: Fn(T) -> anyhow::Result<()>,
 {
     task_id: i64,
+    job_id: i64,
     cache: Cache,
     archive: Archive,
     update_metrics: F,
@@ -41,9 +42,16 @@ where
     T: From<u64>,
     F: Fn(T) -> anyhow::Result<()>,
 {
-    pub fn new(task_id: i64, cache: Cache, archive: Archive, update_metrics: F) -> Self {
+    pub fn new(
+        task_id: i64,
+        job_id: i64,
+        cache: Cache,
+        archive: Archive,
+        update_metrics: F,
+    ) -> Self {
         Self {
             task_id,
+            job_id,
             cache,
             archive,
             update_metrics,
@@ -61,6 +69,7 @@ where
 
         let cache_writer = RotateWriterBuilder::new()
             .id(self.task_id)
+            .job_id(self.job_id)
             .dir(self.cache.location.to_string())
             .prefix(
                 self.cache
@@ -104,6 +113,7 @@ where
             .map_err(ArchiveError::BuildRotateFileError)?;
         let archive_writer = RotateWriterBuilder::new()
             .id(self.task_id)
+            .job_id(self.job_id)
             .dir(self.archive.location.to_string())
             .prefix(
                 self.archive
@@ -249,7 +259,7 @@ pub enum ArchiveError {
 
 #[cfg(test)]
 mod tests {
-    use crate::{get_rewrite_files, Archive, ArchiveConsumer, ArchiveType, Cache};
+    use crate::{Archive, ArchiveConsumer, ArchiveType, Cache, get_rewrite_files};
     use arrow::{
         array::{Int64Array, RecordBatch},
         datatypes::{DataType, Field},
@@ -284,7 +294,7 @@ mod tests {
         let (archive_tx, archive_rx) = flume::bounded(10);
 
         tokio::spawn(async move {
-            let _ = ArchiveConsumer::new(task_id, cache, archive, |num_rows: u64| {
+            let _ = ArchiveConsumer::new(task_id, -1, cache, archive, |num_rows: u64| {
                 println!("exec update metrics: {}", num_rows);
                 Ok::<_, anyhow::Error>(())
             })

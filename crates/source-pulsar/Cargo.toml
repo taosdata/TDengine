@@ -1,6 +1,6 @@
 [package]
 name = "source-pulsar"
-edition = "2024"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
@@ -43,6 +43,8 @@ ecb = "0.1.2"
 aes = "0.8.4"
 aes-gcm = "0.10.3"
 generic-array = "1.3.5"
+
+taosx-utils.workspace = true
 
 [lints]
 workspace = true

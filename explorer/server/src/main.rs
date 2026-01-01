@@ -1,6 +1,6 @@
 use actix_cors::Cors;
 use actix_files::NamedFile;
-use actix_web::{http::header::ContentType, CustomizeResponder};
+use actix_web::{CustomizeResponder, http::header::ContentType};
 use actix_web_rust_embed_responder::{EmbedResponse, IntoResponse};
 use anyhow::Context;
 use chrono::{SecondsFormat, TimeZone};
@@ -15,7 +15,7 @@ use log::LevelFilter;
 use reqwest::RequestBuilder;
 use rustls::server::ServerConfig;
 use rustls_pemfile::{certs, private_key};
-use serde_with::{serde_as, FromInto};
+use serde_with::{FromInto, serde_as};
 use std::{
     borrow::Cow,
     collections::HashMap,
@@ -32,32 +32,31 @@ use std::{
 use taos::{taos_query::common::RowView, *};
 use taos_query::Manager;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 use tracing_actix_web::TracingLogger;
 
 use actix_web::{
+    App, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, Responder, ResponseError,
     body::BoxBody,
-    dev::{fn_service, ServiceRequest, ServiceResponse},
+    dev::{ServiceRequest, ServiceResponse, fn_service},
     error,
     http::header::X_FORWARDED_FOR,
     middleware::Compress,
     route,
     web::{self, Query},
-    App, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, Responder, ResponseError,
 };
 use anyhow::bail;
-use awc::{cookie::Cookie, Client as AwcClient};
+use awc::cookie::Cookie;
 use clap::Parser;
-use qid::{Qid, DEFAULT_INSTANCE_ID, INSTANCE_ID};
+use qid::{DEFAULT_INSTANCE_ID, INSTANCE_ID, Qid};
 use rust_embed::{EmbeddedFile, RustEmbed};
 use serde::{Deserialize, Serialize};
 use taoslog::{
+    QidManager,
     layer::TaosLayer,
     middleware::TaosRootSpanBuilder,
     utils::{QidMetadataGetter, Span},
     writer::RollingFileAppender,
-    QidManager,
 };
 use tracing::debug;
 use tracing_subscriber::{
@@ -68,7 +67,8 @@ use tracing_subscriber::{
 
 use sql::need_limit;
 
-use crate::{oauth::SessionManager, security::SecurityConfig};
+use crate::{oauth::SessionManager, security::SecurityConfig, x_api::proxy::x_proxy};
+use x_api::{agent::*, datasource::*, tasks::*, transform::*, ws::*};
 
 mod favorites;
 mod monitor;
@@ -78,6 +78,7 @@ mod security;
 mod sql;
 mod utils;
 mod verification;
+mod x_api;
 
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
@@ -125,10 +126,14 @@ async fn get_connection(dsn: &Dsn) -> anyhow::Result<Object<Manager<TaosBuilder>
 
     let pool_error = |err: PoolError<_>| -> anyhow::Error {
         match err {
-                PoolError::Backend(inner_err) => anyhow::Error::new(inner_err).context("failed to get connection from pool"),
-                PoolError::Timeout(timeout_type) => anyhow::anyhow!("Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"),
-                err => anyhow::anyhow!("Failed to get connection: {err:#}"),
+            PoolError::Backend(inner_err) => {
+                anyhow::Error::new(inner_err).context("failed to get connection from pool")
             }
+            PoolError::Timeout(timeout_type) => anyhow::anyhow!(
+                "Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"
+            ),
+            err => anyhow::anyhow!("Failed to get connection: {err:#}"),
+        }
     };
     if let Some(pool) = user_pool {
         return pool.get().await.map_err(pool_error);
@@ -429,7 +434,49 @@ async fn main() -> anyhow::Result<()> {
             .app_data(web::Data::new(session_manager.clone()))
             // .route("/", web::get().to(index))
             .route("/api/-/rest/{path:.*}", web::to(rest_proxy))
-            .route("/api/x/{api:.*}", web::to(x_api))
+            // ===== x apis start =====
+            .route("/api/x/tasks", web::get().to(get_tasks))
+            .route("/api/x/tasks", web::post().to(create_task))
+            .route("/api/x/tasks/{id}", web::patch().to(update_task))
+            .route("/api/x/tasks/{id}", web::delete().to(delete_task))
+            .route("/api/x/tasks/{id}", web::get().to(get_task))
+            .route("/api/x/tasks/{id}/start", web::post().to(start_task))
+            .route("/api/x/tasks/{id}/stop", web::post().to(stop_task))
+            .route("/api/x/tasks/start", web::post().to(batch_start_tasks))
+            .route("/api/x/tasks/stop", web::post().to(batch_stop_tasks))
+            .route("/api/x/tasks/delete", web::delete().to(batch_delete_tasks))
+            .route("/api/x/tasks/export", web::get().to(export_task))
+            .route("/api/x/tasks/import", web::post().to(import_task))
+            .route(
+                "/api/x/tasks/{task_id}/metrics",
+                web::get().to(get_task_metrics),
+            )
+            .route("/api/x/ds/in/validate", web::post().to(validate))
+            .route("/api/x/ds/in/sample", web::post().to(get_sample))
+            // websockets
+            .route(
+                "/api/x/activities/tasks/{cluster_id}/{token}",
+                web::get().to(get_ws_tasks_activities),
+            )
+            .route(
+                "/api/x/activities/agents/{cluster_id}/{token}",
+                web::get().to(get_ws_agents_activities),
+            )
+            .route(
+                "/api/x/metrics/task/{task_id}/{token}",
+                web::get().to(get_ws_metrics),
+            )
+            // Transform APIs
+            .route("/api/x/transform/sample/flat", web::post().to(sample_flat))
+            .route(
+                "/api/x/transform/sample/flat/s_model/preview",
+                web::post().to(stable_preview),
+            )
+            // agents
+            .route("/api/x/agents", web::get().to(get_agents))
+            // others
+            .route("/api/x/{api:.*}", web::to(x_proxy))
+            // ====== x apis end =====
             .route("/grafana/{grafana_path:.*}", web::to(grafana_api))
             .route("/api/-/login", web::to(login))
             .configure(|cfg| {
@@ -758,14 +805,13 @@ async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> i
     let client = client.get(url).headers(qid::headers_with_qid(&qid));
     let client = client.timeout(Duration::from_secs(10));
 
-    if let Ok(resp) = client.send().await {
-        if let Ok(json) = resp.json::<serde_json::Value>().await {
-            if let Some(version) = json.get("version") {
-                profile
-                    .version
-                    .replace(version.as_str().unwrap_or_default().into());
-            }
-        }
+    if let Ok(resp) = client.send().await
+        && let Ok(json) = resp.json::<serde_json::Value>().await
+        && let Some(version) = json.get("version")
+    {
+        profile
+            .version
+            .replace(version.as_str().unwrap_or_default().into());
     }
 
     HttpResponse::Ok().json(&profile)
@@ -1060,15 +1106,15 @@ fn real_ip_forward(req: &HttpRequest, mut builder: RequestBuilder) -> RequestBui
     static X_REAL_IP: &str = "x-real-ip";
     let info = req.connection_info();
     let real_ip = info.realip_remote_addr().or(info.peer_addr());
-    if !req.headers().contains_key(X_FORWARDED_FOR) {
-        if let Some(real_ip) = real_ip {
-            builder = builder.header(X_FORWARDED_FOR, real_ip);
-        }
+    if !req.headers().contains_key(X_FORWARDED_FOR)
+        && let Some(real_ip) = real_ip
+    {
+        builder = builder.header(X_FORWARDED_FOR, real_ip);
     }
-    if !req.headers().contains_key(X_REAL_IP) {
-        if let Some(real_ip) = real_ip {
-            builder = builder.header(X_REAL_IP, real_ip);
-        }
+    if !req.headers().contains_key(X_REAL_IP)
+        && let Some(real_ip) = real_ip
+    {
+        builder = builder.header(X_REAL_IP, real_ip);
     }
     for (key, value) in req.headers() {
         builder = builder.header(key, value);
@@ -1078,178 +1124,37 @@ fn real_ip_forward(req: &HttpRequest, mut builder: RequestBuilder) -> RequestBui
 
 async fn proxy(
     req: HttpRequest,
-    payload: web::Payload,
-    client: web::Data<reqwest::Client>,
+    mut payload: web::Payload,
+    client: &reqwest::Client,
     url: &str,
     append_headers: Option<HeaderMap>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    if req.headers().contains_key("upgrade") {
-        // Proper websocket proxy: backend (awc) <-> client (actix_ws)
-        use awc::ws::{Frame as AwcFrame, Message as AwcMessage};
-        use futures_util::{SinkExt, StreamExt};
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
-        let backend_url = url.to_string();
-        // 1. Connect to backend first so we can fail early if it does not upgrade.
-        let awc_client = AwcClient::new();
-        let mut ws_req = awc_client.ws(&backend_url);
-        for (k, v) in req.headers().iter() {
-            let name = k.as_str().to_ascii_lowercase();
-            if name.starts_with("sec-websocket")
-                || matches!(
-                    name.as_str(),
-                    "authorization" | "cookie" | "origin" | "sec-websocket-protocol"
-                )
-            {
-                ws_req = ws_req.set_header(k.clone(), v.clone());
+    tokio::task::spawn_local(async move {
+        while let Some(chunk) = payload.next().await {
+            if let Err(err) = tx.send(chunk) {
+                tracing::warn!("Error sending payload chunk: {err}");
             }
         }
-        if let Some(extra) = append_headers.as_ref() {
-            for (k, v) in extra.iter() {
-                ws_req = ws_req.set_header(k, v.clone());
-            }
-        }
-        let (backend_res, backend_framed) = ws_req
-            .connect()
-            .await
-            .map_err(error::ErrorInternalServerError)?;
-        if backend_res.status() != actix_web::http::StatusCode::SWITCHING_PROTOCOLS {
-            return Err(actix_web::error::ErrorBadRequest(format!(
-                "Unexpected status code from target: {}",
-                backend_res.status()
-            )));
-        }
+    });
 
-        // 2. Perform actix_ws handshake with client.
-        let (mut client_resp, session, mut client_stream) = actix_ws::handle(&req, payload)?;
-        // Propagate chosen subprotocol from backend if present.
-        if let Some(sp) = backend_res.headers().get("sec-websocket-protocol").cloned() {
-            use actix_web::http::header::HeaderName;
-            client_resp
-                .headers_mut()
-                .insert(HeaderName::from_static("sec-websocket-protocol"), sp);
-        }
-
-        // 3. Split backend framed.
-        let (mut backend_sink, mut backend_stream) = backend_framed.split();
-        let cancel = CancellationToken::new();
-
-        // Task A: client -> backend
-        actix_web::rt::spawn({
-            let cancel = cancel.clone();
-            async move {
-                while let Some(msg) = client_stream.next().await {
-                    match msg {
-                        Ok(actix_ws::Message::Text(t)) => {
-                            if backend_sink.send(AwcMessage::Text(t)).await.is_err() {
-                                break;
-                            }
-                        }
-                        Ok(actix_ws::Message::Binary(b)) => {
-                            if backend_sink.send(AwcMessage::Binary(b)).await.is_err() {
-                                break;
-                            }
-                        }
-                        Ok(actix_ws::Message::Ping(b)) => {
-                            let _ = backend_sink.send(AwcMessage::Ping(b)).await;
-                        }
-                        Ok(actix_ws::Message::Pong(_)) => { /* ignore */ }
-                        Ok(actix_ws::Message::Close(reason)) => {
-                            let _ = backend_sink.send(AwcMessage::Close(reason)).await;
-                            break;
-                        }
-                        Ok(actix_ws::Message::Continuation(_)) => { /* ignore */ }
-                        Ok(actix_ws::Message::Nop) => { /* ignore */ }
-                        Err(e) => {
-                            tracing::error!("client ws error: {e}");
-                            break;
-                        }
-                    }
-                }
-                if let Err(e) = backend_sink.send(AwcMessage::Close(None)).await {
-                    tracing::error!("send close frame to backend failed: {e}");
-                }
-                if let Err(e) = backend_sink.close().await {
-                    tracing::error!("close backend sink failed: {e}");
-                }
-                cancel.cancel();
-            }
-        });
-
-        // Task B: backend -> client
-        actix_web::rt::spawn({
-            let cancel = cancel.clone();
-            let mut session = session.clone();
-            async move {
-                while let Some(frame) = backend_stream.next().await {
-                    match frame {
-                        Ok(AwcFrame::Text(t)) => {
-                            if session
-                                .text(std::str::from_utf8(&t).unwrap_or_default())
-                                .await
-                                .is_err()
-                            {
-                                break;
-                            }
-                        }
-                        Ok(AwcFrame::Binary(b)) => {
-                            if session.binary(b).await.is_err() {
-                                break;
-                            }
-                        }
-                        Ok(AwcFrame::Ping(b)) => {
-                            let _ = session.pong(&b).await;
-                        }
-                        Ok(AwcFrame::Pong(_)) => { /* ignore */ }
-                        Ok(AwcFrame::Close(reason)) => {
-                            let _ = session.close(reason).await;
-                            break;
-                        }
-                        Ok(_) => { /* ignore */ }
-                        Err(e) => {
-                            tracing::error!("backend ws error: {e}");
-                            break;
-                        }
-                    }
-                }
-                cancel.cancel();
-            }
-        });
-
-        // Optional cleanup watcher
-        actix_web::rt::spawn(async move {
-            cancel.cancelled().await;
-            tracing::debug!("ws proxy closed {backend_url}");
-        });
-
-        Ok(client_resp)
-    } else {
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-
-        tokio::task::spawn_local(async move {
-            let mut payload = payload;
-            while let Some(chunk) = payload.next().await {
-                if let Err(err) = tx.send(chunk) {
-                    tracing::warn!("Error sending payload chunk: {err}");
-                }
-            }
-        });
-
-        debug!(url, "proxy to taosx");
-        let mut builder = client
-            .request(req.method().clone(), url)
-            .timeout(Duration::from_secs(u64::MAX))
-            .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
-        if let Some(headers) = append_headers {
-            builder = builder.headers(headers);
-        }
-        builder = real_ip_forward(&req, builder);
-        builder
-            .send()
-            .await
-            .map_err(error::ErrorInternalServerError)
-            .map(reqwest_into_http_response)
-            .inspect(|_| debug!("Got taosx proxy result"))
+    debug!(url, "proxy to taosx");
+    let mut builder = client
+        .request(req.method().clone(), url)
+        .timeout(Duration::from_secs(u64::MAX))
+        .body(reqwest::Body::wrap_stream(UnboundedReceiverStream::new(rx)));
+    if let Some(headers) = append_headers {
+        builder = builder.headers(headers);
     }
+    builder = real_ip_forward(&req, builder);
+
+    builder
+        .send()
+        .await
+        .map_err(error::ErrorInternalServerError)
+        .map(reqwest_into_http_response)
+        .inspect(|_| debug!("Got taosx proxy result"))
 }
 
 #[instrument(skip_all)]
@@ -1458,40 +1363,6 @@ fn reqwest_into_http_response(res: reqwest::Response) -> HttpResponse {
     client_resp.streaming(res.bytes_stream())
 }
 
-#[cfg(feature = "disable-x-api")]
-#[instrument(skip_all)]
-async fn x_api(_req: HttpRequest) -> impl Responder {
-    Ok::<_, std::convert::Infallible>(HttpResponse::NotFound().body("taosX API is required"))
-}
-
-#[cfg(not(feature = "disable-x-api"))]
-#[instrument(skip_all)]
-async fn x_api(
-    args: web::Data<Args>,
-    client: web::Data<reqwest::Client>,
-    api: web::Path<String>,
-    req: HttpRequest,
-    payload: web::Payload,
-) -> impl Responder {
-    if args.profile.x_api.is_none() {
-        return Ok(HttpResponse::NotFound().body("taosX API is required"));
-    }
-    let x = args.profile.x_api.as_deref().unwrap();
-    let url = format!("{x}/{api}?{}", req.query_string());
-
-    let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
-    qid.add_sequence_id();
-    proxy(
-        req,
-        payload,
-        client,
-        &url,
-        Some(qid::headers_with_qid(&qid)),
-    )
-    .await
-    .map_err(RestErrResponse::new)
-}
-
 static GRAFANA_API: OnceLock<String> = OnceLock::new();
 
 #[instrument(skip_all)]
@@ -1531,7 +1402,7 @@ async fn grafana_api(
     let token = format!("Bearer {}", grafana.unwrap().token.as_ref().unwrap());
     headers.insert("Authorization", HeaderValue::from_str(&token).unwrap());
 
-    proxy(req, payload, client, &url, Some(headers))
+    proxy(req, payload, &client, &url, Some(headers))
         .await
         .map_err(RestErrResponse::new)
 }
@@ -2151,31 +2022,31 @@ impl Args {
                     desc: "active code or connector active code must exist at lease one".into(),
                 });
             }
-            if let Some(active_code) = license.active_code.as_ref() {
-                if !active_code.is_empty() {
-                    let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
-                    qid.add_sequence_id();
-                    debug!("exec sql");
-                    conn.exec_with_req_id(&sql, qid.get())
-                        .await
-                        .map_err(|err| {
-                            RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
-                        })
-                        .inspect(|_| debug!("Got sql result"))?;
-                }
+            if let Some(active_code) = license.active_code.as_ref()
+                && !active_code.is_empty()
+            {
+                let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
+                qid.add_sequence_id();
+                debug!("exec sql");
+                conn.exec_with_req_id(&sql, qid.get())
+                    .await
+                    .map_err(|err| {
+                        RestErrResponse::new(format!("Invalid cluster active code: {err:#}"))
+                    })
+                    .inspect(|_| debug!("Got sql result"))?;
             }
-            if let Some(c_active_code) = license.c_active_code.as_ref() {
-                if !c_active_code.is_empty() {
-                    let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
-                    qid.add_sequence_id();
-                    debug!("Exec sql");
-                    conn.exec_with_req_id(&sql, qid.get())
-                        .await
-                        .map_err(|err| {
-                            RestErrResponse::new(format!("Invalid connector active code: {err:#}"))
-                        })?;
-                    debug!("Got sql result");
-                }
+            if let Some(c_active_code) = license.c_active_code.as_ref()
+                && !c_active_code.is_empty()
+            {
+                let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
+                qid.add_sequence_id();
+                debug!("Exec sql");
+                conn.exec_with_req_id(&sql, qid.get())
+                    .await
+                    .map_err(|err| {
+                        RestErrResponse::new(format!("Invalid connector active code: {err:#}"))
+                    })?;
+                debug!("Got sql result");
             }
         }
         Ok(RestOkResponse {
@@ -2705,7 +2576,11 @@ certificate_key = "tests/assets/cert-key.pem"
 
         unsafe {
             std::env::set_var("MONITOR_FQDN", "fake1");
+        }
+        unsafe {
             std::env::set_var("MONITOR_PORT", "6044");
+        }
+        unsafe {
             std::env::set_var("MONITOR_INTERVAL", "5");
         }
         let args = Args::parse_from(["explorer"]).monitor;
@@ -2714,7 +2589,11 @@ certificate_key = "tests/assets/cert-key.pem"
         assert_eq!(args.monitor_interval, 5);
         unsafe {
             std::env::remove_var("MONITOR_FQDN");
+        }
+        unsafe {
             std::env::remove_var("MONITOR_PORT");
+        }
+        unsafe {
             std::env::remove_var("MONITOR_INTERVAL");
         }
 

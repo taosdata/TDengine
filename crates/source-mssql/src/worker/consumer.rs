@@ -216,7 +216,7 @@ mod tests {
         let dsn = Dsn::from_str("mssql://test:123456@192.168.1.66:1433/test_taosx?encryption=On&trust_cert=true&sql=select * from t_metric&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let mut config = MssqlConfig::from_dsn(&dsn).unwrap();
-        config.task_id = Some(1);
+        config.task_job_id = Some((1, 1));
         config.sub_task_id = Some("mig-1".to_string());
         config.ipc_port = Some(6666);
 

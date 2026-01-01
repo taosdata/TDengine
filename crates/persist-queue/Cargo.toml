@@ -1,6 +1,6 @@
 [package]
 name = "persist-queue"
-edition = "2021"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
@@ -17,7 +17,6 @@ crc32fast = "1.4.2"
 tokio-stream = { workspace = true, features = ["fs", "sync"] }
 tracing.workspace = true
 parking_lot.workspace = true
-fs2 = "0.4.3"
 bitfield.workspace = true
 
 [dev-dependencies]

@@ -1,5 +1,4 @@
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{FixedOffset, NaiveDateTime};
@@ -13,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::utils::port_pool::PortPool;
-use taosx_core::{Parser, TaskNotifySender, Transferred, build_ipc};
+use taosx_core::{Parser, TaskNotifySender, Via, build_ipc};
 
 use crate::appender::column_meta::ColumnMeta;
 use crate::config::MySqlConfig;
@@ -82,7 +81,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 
     // replace subtable fields
     let distinct_sql = config.task.generate_distinct_sql()?;
-    let values = if !distinct_sql.is_empty() {
+    let values = if let Some(distinct_sql) = distinct_sql {
         query.select_one_for_schema(&distinct_sql).await?
     } else {
         None
@@ -161,18 +160,17 @@ pub async fn mysql_to_taos(
     to: Dsn,
     port_pool: &PortPool,
     cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     let mut config = MySqlConfig::from_dsn(&from)?;
 
-    // set task_id
-    config.task_id = task_id;
+    // set task_job_id
+    config.task_job_id = task_job_id;
     tracing::info!(
         "{MYSQL_NAME} task start, id: {:?}, configuration: {:?}",
-        task_id,
+        task_job_id,
         config
     );
 
@@ -194,8 +192,7 @@ pub async fn mysql_to_taos(
         None,
         &cancel,
         with_agent,
-        transferred,
-        task_id,
+        task_job_id,
         notify,
         None,
     )
@@ -240,14 +237,14 @@ pub async fn mysql_to_taos(
                 }
             },
             _ = cancel.cancelled() => {
-                tracing::info!("{MYSQL_NAME} task cancelled, id: {}", task_id.unwrap_or(-1));
+                tracing::info!("{MYSQL_NAME} task cancelled, id: {task_job_id:?}");
                 abort_handle.abort();
             }
         }
         // send an empty tuple
         let _ = ipc.send(());
         // stop the connector
-        tracing::info!("{MYSQL_NAME} task done, id: {}", task_id.unwrap_or(-1));
+        tracing::info!("{MYSQL_NAME} task done, id: {task_job_id:?}");
         ipc.close().await?;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -344,7 +341,7 @@ fn generate_json_value(
             }
         }
         // 字符串
-        "CHAR" | "VARCHAR" | "TINYTEXT" | "TEXT" | "MEDUIMTEXT" | "LONGTEXT" => {
+        "CHAR" | "VARCHAR" | "TINYTEXT" | "TEXT" | "MEDIUMTEXT" | "LONGTEXT" => {
             let val = row.try_get::<Option<String>, _>(cidx)?;
             match val {
                 None => Ok(json!(null)),
@@ -580,7 +577,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_mysql_to_taos() {
+    async fn test_mysql_to_taos_with_datasource() {
         let from = Dsn::from_str("mysql://root:123456@192.168.1.45:3306/test_ci?sql=select * from t_metric&start=2024-01-01T00:00:00Z&end=2024-04-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let to = Dsn::from_str("taos://localhost:6030/ms").unwrap();
@@ -588,24 +585,14 @@ mod tests {
         let port_pool = PortPool::default();
         let cancel = CancellationToken::new();
         let with_agent = None;
-        let transferred = None;
-        let task_id = Some(1);
+        let task_id = Some((1, 1));
         let (notify, _) = flume::unbounded();
 
         mysql_to_taos(
-            from,
-            parser,
-            to,
-            &port_pool,
-            cancel,
-            with_agent,
-            transferred,
-            task_id,
-            notify,
+            from, parser, to, &port_pool, cancel, with_agent, task_id, notify,
         )
         .await
         .ok();
-        // let _ = res.await;
     }
 
     #[tokio::test]

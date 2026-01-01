@@ -5,28 +5,30 @@
 //! ----------       --------------------------         -------------------
 //!
 
+use std::sync::LazyLock;
+
 use flume::{Receiver, Sender};
-use lazy_static::lazy_static;
-use metrics::gauge;
 use metrics::IntoLabels;
+use metrics::gauge;
 use sysinfo::Pid;
 
-lazy_static! {
-    static ref CHANNEL: (Sender<SubInfo>, Receiver<SubInfo>) = flume::bounded::<SubInfo>(100);
-}
+static CHANNEL: LazyLock<(Sender<SubInfo>, Receiver<SubInfo>)> =
+    LazyLock::new(|| flume::bounded::<SubInfo>(100));
 
 #[derive(Debug, Clone)]
 pub struct SubInfo {
     sub_pid: u32,
     task_id: i64,
+    job_id: i64,
     datasource_name: String,
 }
 
 impl SubInfo {
-    pub fn new(sub_pid: u32, task_id: i64, datasource_name: &str) -> Self {
+    pub fn new(sub_pid: u32, task_id: i64, job_id: i64, datasource_name: &str) -> Self {
         Self {
             sub_pid,
             task_id,
+            job_id,
             datasource_name: datasource_name.to_string(),
         }
     }
@@ -34,16 +36,15 @@ impl SubInfo {
 
 pub async fn send_sub_process_info(
     sub_pid: Option<u32>,
-    task_id: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     datasource_name: &str,
 ) {
-    if task_id.is_none() {
+    let Some((task_id, job_id)) = task_job_id else {
         tracing::debug!("task id is None");
         return;
-    }
-    let task_id = task_id.unwrap();
+    };
     if let Some(sub_pid) = sub_pid {
-        let sub_info = SubInfo::new(sub_pid, task_id, datasource_name);
+        let sub_info = SubInfo::new(sub_pid, task_id, job_id, datasource_name);
         let sender = CHANNEL.0.clone();
         if let Err(err) = sender.send_async(sub_info).await {
             tracing::error!("send sub process info error: {}", err);
@@ -64,6 +65,7 @@ pub async fn update_sub_connector_process_metrics(
     while let Ok(sub_info) = CHANNEL.1.try_recv() {
         let sub_process_id = Pid::from_u32(sub_info.sub_pid);
         let task_id = sub_info.task_id.to_string();
+        let job_id = sub_info.job_id.to_string();
         let ds_name = sub_info.datasource_name.clone();
         let sub_process = sys.process(sub_process_id);
         if sub_process.is_none() {
@@ -93,12 +95,14 @@ pub async fn update_sub_connector_process_metrics(
         let stable = "taosx_connector".to_string();
         let taosx_id_key = "taosx_id".to_string();
         let task_id_key = "task_id".to_string();
+        let job_id_key = "job_id".to_string();
         let ds_name_key = "ds_name".to_string();
         let labels = vec![
             (stable_key, stable),
             (taosx_id_key, taosx_id.clone()),
             (ds_name_key, ds_name),
             (task_id_key, task_id),
+            (job_id_key, job_id),
         ];
         let labels = labels.into_labels();
         gauge!("process_id", labels.clone()).set(sub_info.sub_pid as f64);

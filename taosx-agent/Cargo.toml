@@ -1,14 +1,14 @@
 [package]
 name = "taosx-agent"
 version.workspace = true
-edition = "2021"
+edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow.workspace = true
 cfg-if.workspace = true
-clap = { workspace = true, features = ["derive", "env"] }
+clap.workspace = true
 clap-verbosity-flag = { workspace = true }
 const_format.workspace = true
 log = { workspace = true, features = ["serde"] }
@@ -47,6 +47,7 @@ tokio = { workspace = true, features = [
   "fs",
 ] }
 tokio-util.workspace = true
+tokio-stream.workspace = true
 tracing = { workspace = true, features = ["log"] }
 
 taosx-core = { path = "../taosx-core" }
@@ -68,9 +69,10 @@ sysinfo = { workspace = true }
 
 taosx-task.workspace = true
 source-kinghistorian.workspace = true
+taosx-utils.workspace = true
 
 [build-dependencies]
-dotenv = "0.15.0"
+dotenv.workspace = true
 shadow-rs = { workspace = true }
 
 [lints]

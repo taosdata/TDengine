@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use linked_hash_map::LinkedHashMap;
@@ -17,7 +16,7 @@ use crate::query::PostgresQuery;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::DsSampleIn;
 use taosx_core::utils::port_pool::PortPool;
-use taosx_core::{Action, Parser, TaskNotifySender, Transferred, build_ipc};
+use taosx_core::{Action, Parser, TaskNotifySender, Via, build_ipc};
 
 use self::worker::migrate_history;
 
@@ -80,7 +79,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
 
     // replace subtable fields
     let distinct_sql = config.task.generate_distinct_sql()?;
-    let values = if !distinct_sql.is_empty() {
+    let values = if let Some(distinct_sql) = distinct_sql {
         query.select_one_for_schema(&distinct_sql).await?
     } else {
         None
@@ -160,20 +159,15 @@ pub async fn postgres_to_taos(
     _jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     let mut config = PostgresConfig::from_dsn(&from)?;
 
     // set task_id
-    config.task_id = task_id;
-    tracing::info!(
-        "{POSTGRES_NAME} task start, id: {:?}, configuration: {:?}",
-        task_id,
-        config
-    );
+    config.task_job_id = task_job_id;
+    tracing::info!("{POSTGRES_NAME} task start, id: {task_job_id:?}, configuration: {config:?}",);
 
     // set ipc port
     let port = port_pool
@@ -193,8 +187,7 @@ pub async fn postgres_to_taos(
         None,
         &cancel,
         with_agent,
-        transferred,
-        task_id,
+        task_job_id,
         notify,
         None,
     )
@@ -239,14 +232,14 @@ pub async fn postgres_to_taos(
                 }
             },
             _ = cancel.cancelled() => {
-                tracing::info!("{POSTGRES_NAME} task cancelled, id: {}", task_id.unwrap_or(-1));
+                tracing::info!("{POSTGRES_NAME} task cancelled, id: {:?}", task_job_id.unwrap_or((-1,-1)));
                 abort_handle.abort();
             }
         }
         // send an empty tuple
         let _ = ipc.send(());
         // stop the connector
-        tracing::info!("{POSTGRES_NAME} task done, id: {}", task_id.unwrap_or(-1));
+        tracing::info!("{POSTGRES_NAME} task done, id: {:?}", task_job_id.unwrap_or((-1,-1)));
         ipc.close().await?;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -647,23 +640,12 @@ mod tests {
         let port_pool = PortPool::default();
         let cancel = CancellationToken::new();
         let with_agent = None;
-        let transferred = None;
         let _span = tracing::info_span!("test_postgres_to_taos");
-        let task_id = Some(1);
+        let task_id = Some((1, 1));
         let (notify, _) = flume::unbounded();
 
         postgres_to_taos(
-            from,
-            parser,
-            transform,
-            to,
-            jobs,
-            &port_pool,
-            cancel,
-            with_agent,
-            transferred,
-            task_id,
-            notify,
+            from, parser, transform, to, jobs, &port_pool, cancel, with_agent, task_id, notify,
         )
         .await
         .ok();

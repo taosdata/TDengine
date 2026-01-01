@@ -7,32 +7,34 @@ use arrow::{datatypes::Schema, record_batch::RecordBatch};
 use arrow_flight::{FlightData, PutResult, decode::DecodedFlightData};
 use bytes::Bytes;
 use flume::Sender;
-use futures::{Stream, TryFutureExt, TryStreamExt};
+use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use taoslog::QidManager;
 use taoslog::utils::{QidMetadataGetter, QidMetadataSetter};
 use taosx_core::core_metrics::{TaskMetrics, get_metrics_arc_from_i64, init_task_metrics};
 use taosx_core::plugins;
 use taosx_core::sink::{handle_point_message_init, read_cache_and_rewrite};
-use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::trace::Qid;
 use taosx_core::{
-    ConnectorLicense, IpcStreamWorker, Parser,
+    IpcStreamWorker, Parser,
     core_metrics::get_metrics,
     sink::{
         IpcErrorStrategy, MessageMetadata, RPC_ACK_PROCESSED, RPC_ACK_RECEIVED, RPC_ACK_STREAM_END,
         handle_lush_message_init, lush::TableTagCache,
     },
-    utils::{breakpoints::BreakpointDb, get_main_version_from_server_version, get_server_version},
+    utils::breakpoints::BreakpointDb,
 };
+use taosx_utils::dsn::json_to_dsn;
 use tonic::{Status, Streaming};
 use tracing::{Instrument, Span, instrument};
 use zerocopy::FromBytes;
 
+use crate::serve::controller::Task;
+use crate::serve::scheduler::agent::AgentNotify;
 use crate::serve::{
-    controller::{Activity, TaskControllerRef, TaskDetail, transferred::ConnectorTransferred},
+    controller::{TaskControllerRef, activity::Activity},
     scheduler::agent::{AgentNotifySender, AgentSpawnSender},
 };
 
@@ -41,11 +43,11 @@ pub struct PutStream {
     req: Streaming<FlightData>,
     controller: TaskControllerRef,
     task_id: i64,
+    job_id: i64,
     remote: Option<std::net::SocketAddr>,
     notify_sender: AgentNotifySender,
     qid: Qid,
     spawn_sender: AgentSpawnSender,
-    cluster_id: i64,
     agent_id: i64,
 }
 
@@ -72,33 +74,15 @@ struct AppMetadata {
     data_trace_id: u64,
 }
 
-// lazy_static! {
-//     static ref IPC_STREAM_CACHE: Arc<RwLock<HashMap<TraceStreamId, PutStreamChannel>>> =
-//         Arc::new(RwLock::new(HashMap::new()));
-// }
-
-// pub async fn get_ipc_stream_channel(trace_id: TraceStreamId) -> Option<PutStreamChannel> {
-//     let mut cache = IPC_STREAM_CACHE.write().await;
-//     cache.remove(&trace_id)
-// }
-
-// pub async fn put_ipc_stream_channel(trace_id: TraceStreamId, channel: PutStreamChannel) {
-//     let mut cache = IPC_STREAM_CACHE.write().await;
-//     cache.insert(trace_id, channel);
-// }
-#[instrument(skip_all)]
 async fn ipc_stream_writer(
     notify_sender: AgentNotifySender,
     agent_id: i64,
-    task: TaskDetail,
+    task: Task,
     pool: taos::TaosPool,
     lock: Arc<tokio::sync::Mutex<()>>,
     schema: Arc<arrow::datatypes::Schema>,
     tx: Weak<flume::Sender<(arrow::record_batch::RecordBatch, Qid)>>,
     rx: flume::Receiver<(arrow::record_batch::RecordBatch, Qid)>,
-    // rsp_tx: flume::Sender<anyhow::Result<()>>,
-    license: Option<ConnectorLicense>,
-    _transferred: Option<Arc<ConnectorTransferred>>,
     lush_table_cache: Option<Arc<TableTagCache>>,
     breakpoint_db: Option<BreakpointDb>,
     span: tracing::Span,
@@ -122,7 +106,7 @@ async fn ipc_stream_writer(
         Activity::ipc_started(task.id),
     ))?;
     let task_id = task.id;
-    // let from: Dsn = task.from.parse().unwrap();
+    let job_id = task.job_id;
     let from = json_to_dsn(&serde_json::Value::String(task.from.clone()))?;
     let to: Dsn = task.to.parse().unwrap();
     let taos = pool.get().await?;
@@ -131,12 +115,10 @@ async fn ipc_stream_writer(
         from.clone(),
         lock,
         schema,
-        license,
-        None,
         lush_table_cache,
         breakpoint_db.clone(),
         span,
-        Some(task_id),
+        Some((task_id, job_id)),
     )
     .in_current_span()
     .await?;
@@ -147,13 +129,11 @@ async fn ipc_stream_writer(
         .map(Arc::new);
     let metadata = worker.parser.metadata();
     let metrics_arc = {
-        if let Some(arc) = get_metrics(task_id).await {
+        if let Some(arc) = get_metrics(task_id, job_id) {
             arc
         } else {
-            let _ = init_task_metrics(&from, &to, task_id, None).await;
-            get_metrics(task_id)
-                .await
-                .ok_or_else(|| anyhow::format_err!("metrics not found"))?
+            let _ = init_task_metrics(&from, &to, task_id, job_id).await;
+            get_metrics(task_id, job_id).ok_or_else(|| anyhow::format_err!("metrics not found"))?
         }
     };
 
@@ -270,7 +250,7 @@ async fn ipc_stream_writer(
                                     .send(
                                         crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                             agent_id,
-                                            Activity::warn(task_id, message),
+                                            Activity::warn(task_id, job_id, message),
                                         ),
                                     )
                                     .ok();
@@ -285,6 +265,7 @@ async fn ipc_stream_writer(
                                     .send(crate::serve::scheduler::agent::AgentNotify::WriterError(
                                         agent_id,
                                         task_id,
+                                        job_id,
                                         format!("{err:#}"),
                                     ))
                                     .ok();
@@ -314,13 +295,12 @@ async fn ipc_stream_writer(
                                     let _ = notify_sender.send(
                                         crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                             agent_id,
-                                            Activity::info(
+                                            Activity::running(
                                                 task_id,
+                                                job_id,
                                                 format!(
-                                                    "Rescue from {} continuous errors",
-                                                    last_errors
+                                                    "Rescue from {last_errors} continuous errors",
                                                 ),
-                                                "running",
                                             ),
                                         ),
                                     );
@@ -361,8 +341,8 @@ async fn ipc_stream_writer(
 
 #[instrument(skip_all)]
 async fn spawn_stream_writer(
-    cluster_id: i64,
     task_id: i64,
+    job_id: i64,
     agent_id: i64,
     controller: &TaskControllerRef,
     notify_sender: AgentNotifySender,
@@ -371,17 +351,15 @@ async fn spawn_stream_writer(
     archive_tx: Sender<ArchiveType>,
 ) -> anyhow::Result<PutStreamChannel> {
     let task = controller
-        .get(task_id)
+        .get_task(task_id, job_id)
         .await
-        .map_err(|err| Status::internal(err.to_string()))?
-        .ok_or_else(|| anyhow::format_err!("Cannot find task {}", task_id))?;
+        .with_context(|| format!("Cannot find task ({task_id},{job_id})"))?;
     // dbg!(&task);
     let builder = TaosBuilder::from_dsn(&task.to)?;
     let pool = builder.pool()?;
     let lock = Arc::new(tokio::sync::Mutex::new(()));
     // let from_dsn: Dsn = task.from.parse()?;
     let from_dsn = json_to_dsn(&serde_json::Value::String(task.from.clone()))?;
-    let to_dsn: Dsn = task.to.parse()?;
 
     let connector = match from_dsn.driver.as_str() {
         "opcda" => Some("opc_da"),
@@ -408,7 +386,7 @@ async fn spawn_stream_writer(
             let task_lush_table_cache_lock = controller.scheduler.lush_table_cache.clone();
             let mut task_lush_table_cache = task_lush_table_cache_lock.write().await;
             let lush_table_cache = if let std::collections::hash_map::Entry::Vacant(e) =
-                task_lush_table_cache.entry(task_id)
+                task_lush_table_cache.entry((task_id, job_id))
             {
                 tracing::info!("Create new lush_table_cache");
                 let table_tag_cache = Arc::new(TableTagCache::new());
@@ -416,16 +394,20 @@ async fn spawn_stream_writer(
                 Some(table_tag_cache)
             } else {
                 tracing::info!("Got existing lush_table_cache");
-                Some(task_lush_table_cache.get(&task_id).unwrap().clone())
+                Some(
+                    task_lush_table_cache
+                        .get(&(task_id, job_id))
+                        .unwrap()
+                        .clone(),
+                )
             };
             let task_breakpoint_db_lock = controller.scheduler.task_breakpoint_db.clone();
             let mut task_breakpoint_db = task_breakpoint_db_lock.write().await;
             let breakpoint_db = if let std::collections::hash_map::Entry::Vacant(e) =
-                task_breakpoint_db.entry(task_id)
+                task_breakpoint_db.entry((task_id, job_id))
             {
                 tracing::info!("Create new breakpoint_db");
-                let task_id_str = task_id.to_string();
-                let breakpoint_db = BreakpointDb::new_with_task(task_id_str.as_str()).await;
+                let breakpoint_db = BreakpointDb::new_with_task(task_id, job_id).await;
                 if let Err(err) = breakpoint_db {
                     tracing::error!("BreakpointDb init error: {}", err);
                     return Err(err);
@@ -435,7 +417,7 @@ async fn spawn_stream_writer(
                 Some(breakpoint_db)
             } else {
                 tracing::info!("Got existing breakpoint_db");
-                Some(task_breakpoint_db.get(&task_id).unwrap().clone())
+                Some(task_breakpoint_db.get(&(task_id, job_id)).unwrap().clone())
             };
             (lush_table_cache, breakpoint_db)
         }
@@ -446,66 +428,12 @@ async fn spawn_stream_writer(
 
     tracing::trace!(schema = ?schema, "parsing put stream schema");
     let tx_cloned = Arc::downgrade(&tx);
-    let taos = pool.get().await?;
 
     let ipc_error_strategy = IpcErrorStrategy::from(connector);
 
     // let should_abort = Arc::new(AtomicBool::new(false));
     let (abort_message_tx, abort_message_rx) = flume::bounded(1);
     let notify = Arc::new(tokio::sync::Notify::new());
-
-    let license: Option<ConnectorLicense> = if let Some(connector) = connector {
-        // get tdengine server version and handle compatibility
-        let server_version = get_server_version(&taos).await?;
-        let (a, b, c) = get_main_version_from_server_version(&server_version).unwrap();
-        let grants_sql = if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
-            format!(
-                "select `limits` from information_schema.ins_grants_full where grant_name='{connector}'"
-            )
-        } else {
-            format!("select `{connector}` from information_schema.ins_grants")
-        };
-
-        #[cfg(feature = "disable-enterprise-connector-validation")]
-        let license: Option<ConnectorLicense> = None;
-        #[cfg(not(feature = "disable-enterprise-connector-validation"))]
-        let license: Option<ConnectorLicense> =
-            if to_dsn.get("token").is_some() && to_dsn.protocol.is_some() {
-                None
-            } else {
-                taos.query_one::<_, String>(&grants_sql)
-                    .await
-                    .unwrap_or(None)
-                    .and_then(|s| serde_json::from_str(&s).ok())
-            };
-
-        if let Some(license) = license {
-            if a > 3 || (a == 3 && b > 2) || (a == 3 && b == 2 && c >= 3) {
-                if license.is_expired_second() {
-                    anyhow::bail!(
-                        "The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code."
-                    )
-                }
-            } else if license.is_expired_day() {
-                anyhow::bail!(
-                    "The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code."
-                )
-            }
-        }
-        None
-    } else {
-        None
-    };
-
-    let transferred = match connector {
-        Some(_) => {
-            controller
-                .transferred
-                .get(&(cluster_id, from_dsn.driver.clone()))
-                .await
-        }
-        _ => None,
-    };
 
     // Spawn writer task.
     tokio::spawn({
@@ -527,9 +455,6 @@ async fn spawn_stream_writer(
                             schema,
                             tx_cloned,
                             rx.clone(),
-                            // rsp_tx,
-                            license,
-                            transferred,
                             lush_table_cache,
                             breakpoint_db,
                             Span::current(),
@@ -550,9 +475,9 @@ async fn spawn_stream_writer(
                     "IPC stream writer spawn error"
                 );
                 notify_sender
-                    .send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                    .send(AgentNotify::TaskActivity(
                         agent_id,
-                        Activity::warn(task_id, format!("{err:#}")),
+                        Activity::warn(task_id, job_id, format!("{err:#}")),
                     ))
                     .ok();
                 drop(rx);
@@ -570,9 +495,9 @@ async fn spawn_stream_writer(
                 }
             }
             notify_sender
-                .send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                .send(AgentNotify::TaskActivity(
                     agent_id,
-                    Activity::ipc_finished(task_id),
+                    Activity::ipc_finished(task_id, job_id),
                 ))
                 .ok();
 
@@ -595,75 +520,20 @@ impl PutStream {
     pub(super) async fn new(
         controller: TaskControllerRef,
         task_id: i64,
+        job_id: i64,
         req: Streaming<FlightData>,
         notify_sender: AgentNotifySender,
         remote: Option<std::net::SocketAddr>,
         qid: Qid,
         spawn_sender: AgentSpawnSender,
     ) -> anyhow::Result<Self> {
-        use tokio_retry2::RetryError;
-        use tokio_retry2::strategy::{ExponentialBackoff, MaxInterval, jitter};
-        let mut retry = ExponentialBackoff::from_millis(100)
-            .factor(2)
-            .max_delay_millis(100)
-            .max_interval(5000)
-            .map(jitter)
-            .take(5);
-
-        let task = loop {
-            let cond = controller
-                .get(task_id)
-                .map_ok_or_else(RetryError::to_transient, move |task| {
-                    task.ok_or_else(|| {
-                        RetryError::permanent(anyhow::format_err!(
-                            "Cannot find task task_id{task_id}"
-                        ))
-                    })
-                })
-                .instrument(tracing::info_span!("RetryGetTask"))
-                .await;
-            match cond {
-                Ok(task) => {
-                    break task;
-                }
-                Err(err) => {
-                    tracing::error!(
-                        error.source = format!("{err:#}"),
-                        "Cannot get task in controller"
-                    );
-                    match err {
-                        RetryError::Permanent(err) => {
-                            return Err(err);
-                        }
-                        RetryError::Transient { err, retry_after } => {
-                            if let Some(duration) = retry_after.or(retry.next()) {
-                                tokio::time::sleep(duration).await;
-                            } else {
-                                return Err(err);
-                            }
-                        }
-                    }
-                }
-            }
-        };
+        let task = controller
+            .get_task(task_id, job_id)
+            .await
+            .context("Task not found")?;
         let builder = TaosBuilder::from_dsn(&task.to)?;
         let _ = builder.pool()?;
 
-        let cluster_id: i64 = if let Some(cluster_id) = task.task.labels.find("to_cluster") {
-            cluster_id.parse().map_err(|err| {
-                anyhow::format_err!("Cannot parse cluster id from \"{cluster_id}\": {err}")
-            })?
-        } else {
-            let taos = TaosBuilder::from_dsn(&task.to)?.build().await?;
-            taos.query_one("select id from information_schema.ins_cluster")
-                .await
-                .map_err(|err| {
-                    anyhow::format_err!("Cannot retrieve cluster id in grpc putting stream: {err}")
-                })?
-                .ok_or_else(|| {
-                    anyhow::format_err!("Cannot find cluster id in grpc putting stream")
-                })?
-        };
         let agent_id = task
             .via
             .ok_or_else(|| anyhow::format_err!("Cannot find agent id for task {}", task_id))?;
@@ -671,11 +541,11 @@ impl PutStream {
             req,
             controller,
             task_id,
+            job_id,
             notify_sender,
             remote,
             qid,
             spawn_sender,
-            cluster_id,
             agent_id,
         })
     }
@@ -701,90 +571,6 @@ impl PutStream {
             );
             Into::into(err)
         }));
-        // let (abort_tx, abort_rx) = tokio::sync::oneshot::channel();
-
-        // let (tx, abort_message_rx, notify) = if let Some((tx, abort_message_rx, notify)) =
-        //     get_ipc_stream_channel(stream_trace_id).await
-        // {
-        //     // 如果之前有连接，说明是重连
-        //     tracing::info!("Reconnect IPC stream");
-        //     // 如果之前有连接，直接返回，不需要再次创建 Writer
-        //     (tx, abort_message_rx, notify)
-        // } else {
-        //     let schema = stream
-        //         .try_next()
-        //         .await?
-        //         .ok_or_else(|| anyhow::format_err!("Invalid IPC stream"))?;
-        //     let schema =
-        //         if let arrow_flight::decode::DecodedPayload::Schema(schema) = schema.payload {
-        //             schema
-        //             // let _ = span.enter();
-        //         } else {
-        //             anyhow::bail!("Invalid IPC stream");
-        //         };
-
-        //     spawn_stream_writer(
-        //         self.stream_trace_id,
-        //         self.cluster_id,
-        //         self.task_id,
-        //         self.agent_id,
-        //         &self.controller,
-        //         self.notify_sender.clone(),
-        //         self.spawn_sender.clone(),
-        //         schema,
-        //     )
-        //     .in_current_span()
-        //     .await?
-        // };
-
-        // response channel
-        // tokio::spawn({
-        //     let tx = tx.clone();
-        //     let abort_message_rx = abort_message_rx.clone();
-        //     let notify = notify.clone();
-        //     async move {
-        //         let put_stream_cache = async {
-        //             tracing::info!(
-        //                 worker.senders = tx.sender_count(),
-        //                 worker.receivers = tx.receiver_count(),
-        //                 worker.capacity = tx.capacity(),
-        //                 "IPC stream abort"
-        //             );
-        //             if abort_message_rx.is_disconnected() {
-        //                 tracing::info!(
-        //                     "IPC worker will be stopped since abort message channel is closed"
-        //                 );
-        //                 return;
-        //             }
-        //             put_ipc_stream_channel(
-        //                 stream_trace_id,
-        //                 (tx, abort_message_rx.clone(), notify.clone()),
-        //             )
-        //             .await;
-        //             tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-        //             {
-        //                 let mut cache = IPC_STREAM_CACHE.write().await;
-        //                 if let Some(channel) = cache.get(&stream_trace_id) {
-        //                     if channel.1.same_channel(&abort_message_rx) {
-        //                         cache.remove(&stream_trace_id);
-        //                         tracing::info!(
-        //                             "IPC worker has not been reconnected, remove from cache"
-        //                         );
-        //                     }
-        //                 }
-        //             }
-        //         };
-        //         tokio::select! {
-        //             _ = abort_rx => {
-        //                 put_stream_cache.await;
-        //             }
-        //             _ = notify.notified() => {
-        //                 tracing::info!("IPC stream closed");
-        //             }
-        //         }
-        //     }
-        //     .in_current_span()
-        // });
 
         let schema = stream
             .try_next()
@@ -798,12 +584,12 @@ impl PutStream {
         };
 
         let task_id = self.task_id;
+        let job_id = self.job_id;
         let task = self
             .controller
-            .get(task_id)
+            .get_task(task_id, job_id)
             .await
-            .map_err(|err| Status::internal(err.to_string()))?
-            .ok_or_else(|| anyhow::format_err!("Cannot find task {}", task_id))?;
+            .with_context(|| format!("Cannot find task {task_id}"))?;
         let mut parser: Option<Parser> = task
             .parser
             .as_ref()
@@ -811,12 +597,12 @@ impl PutStream {
         if let Some(parser) = parser.as_mut() {
             match parser {
                 plugins::Parser::Inner(parser) => {
-                    parser.organize_archive(task.id)?;
-                    parser.organize_cache(task.id)?;
+                    parser.organize_archive(task.id, job_id)?;
+                    parser.organize_cache(task.id, job_id)?;
                 }
                 plugins::Parser::WithSample { parser, input: _ } => {
-                    parser.organize_archive(task.id)?;
-                    parser.organize_cache(task.id)?;
+                    parser.organize_archive(task.id, job_id)?;
+                    parser.organize_cache(task.id, job_id)?;
                 }
             };
         }
@@ -840,9 +626,9 @@ impl PutStream {
                     ),
                     None => (Cache::default(), Archive::default()),
                 };
-                let metrics = get_metrics_arc_from_i64(Some(task_id)).await;
+                let metrics = get_metrics_arc_from_i64(Some((task_id, job_id)));
 
-                match ArchiveConsumer::new(task_id, cache, archive, |num_rows: u64| {
+                match ArchiveConsumer::new(task_id, job_id, cache, archive, |num_rows: u64| {
                     let metrics = metrics.ipc();
                     metrics.add_archived_rows(num_rows);
                     Ok::<_, anyhow::Error>(())
@@ -899,8 +685,14 @@ impl PutStream {
                 tracing::info!("the 'rewrite file' thread has completed, task id: {task_id:?}",);
             });
             if let Some(parser) = parser_clone {
-                read_cache_and_rewrite(task_id, &pool, &parser, &archive_tx_clone, &cancellation)
-                    .await
+                read_cache_and_rewrite(
+                    (task_id, job_id),
+                    &pool,
+                    &parser,
+                    &archive_tx_clone,
+                    &cancellation,
+                )
+                .await
             } else {
                 Ok(())
             }
@@ -914,8 +706,8 @@ impl PutStream {
         let abort_handle_process_cache = process_cache.abort_handle();
 
         let (tx, abort_message_rx, notify) = spawn_stream_writer(
-            self.cluster_id,
             self.task_id,
+            self.job_id,
             self.agent_id,
             &self.controller,
             self.notify_sender.clone(),
@@ -927,28 +719,25 @@ impl PutStream {
 
         // 任务的 metrics 在启动任务的时候已经放入全局 Map 中，所以这里一定存在
         let metrics_arc = {
-            if let Some(arc) = get_metrics(self.task_id).await {
+            if let Some(arc) = get_metrics(self.task_id, self.job_id) {
                 arc
             } else {
                 let task = self
                     .controller
-                    .get(self.task_id)
+                    .get_task(self.task_id, self.job_id)
                     .await
-                    .map_err(|err| Status::internal(err.to_string()))
-                    .unwrap()
-                    .unwrap();
+                    .with_context(|| format!("Task ({task_id},{job_id}) not found"))?;
                 // let from: Dsn = task.from.parse()?;
                 let from = json_to_dsn(&serde_json::Value::String(task.from.clone()))?;
                 let to: Dsn = task.to.parse()?;
-                let _ = init_task_metrics(&from, &to, self.task_id, None).await;
-                get_metrics(self.task_id)
-                    .await
+                let _ = init_task_metrics(&from, &to, self.task_id, self.job_id).await;
+                get_metrics(self.task_id, self.job_id)
                     .ok_or_else(|| anyhow::format_err!("metrics not found"))?
             }
         };
 
         let notify_sender = self.notify_sender.clone();
-        let task_id = self.task_id;
+        let (task_id, job_id) = (self.task_id, self.job_id);
         let (put_tx, put_rx) = flume::bounded(0);
 
         tokio::spawn(async move {
@@ -1011,7 +800,7 @@ impl PutStream {
                             // Check if task is cancelled
                             let is_cancelled = {
                                 let tasks = controller.scheduler.tasks.read().await;
-                                if let Some(job) = tasks.get_by_task_id(&task_id) {
+                                if let Some(job) = tasks.get_by_task_job_id(&(task_id, job_id)) {
                                     job.task.cancellation.is_cancelled()
                                 } else {
                                     true
@@ -1057,7 +846,7 @@ impl PutStream {
                                         if let Err(err) = notify_sender.send(
                                             crate::serve::scheduler::agent::AgentNotify::TaskActivity(
                                                 agent_id,
-                                                Activity::warn(task_id, format!("Put stream message error: {err:#}")),
+                                                Activity::warn(task_id, job_id, format!("Put stream message error: {err:#}")),
                                             ),
                                         ) {
                                             tracing::warn!(
@@ -1157,14 +946,12 @@ impl PutStream {
         }.in_current_span());
         Ok(PutStreamResp {
             put_rx: put_rx.into_stream(),
-            // abort_tx,
         })
     }
 }
+
 pub(super) struct PutStreamResp {
     put_rx: PutStreamInner,
-    // #[allow(dead_code)]
-    // abort_tx: PutStreamAbortSender,
 }
 
 impl Stream for PutStreamResp {

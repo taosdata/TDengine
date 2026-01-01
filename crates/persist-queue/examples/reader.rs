@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use persist_queue::{
-    fs::{FsQueue, ReadFrom},
     RawReader,
+    fs::{FsQueue, ReadFrom},
 };
 use tempfile::tempdir;
 use tokio_util::sync::CancellationToken;

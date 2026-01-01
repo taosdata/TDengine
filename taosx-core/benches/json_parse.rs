@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use arrow::array::{ArrayRef, StringArray};
 use arrow_schema::{DataType, Field};
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use serde_json::json;
-use taosx_core::plugins::transform::parse::{json::Json, Parse};
+use taosx_core::plugins::transform::parse::{Parse, json::Json};
 
 fn json_parse_normal(c: &mut Criterion) {
     let parser: Json = serde_json::from_value(json!({

@@ -12,7 +12,7 @@ use crate::{QueryObject, Schema};
 
 #[derive(Clone)]
 pub struct Td2LocalContext {
-    pub task_id: Option<String>,
+    pub task_job_id: Option<(i64, i64)>,
     pub raw_from: Dsn,
     pub raw_to: Dsn,
     pub config: Td2LocalConfig,
@@ -25,7 +25,7 @@ pub struct Td2LocalContext {
 impl Debug for Td2LocalContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Td2LocalContext")
-            .field("task_id", &self.task_id)
+            .field("task_job_id", &self.task_job_id)
             .field("raw_from", &self.raw_from.to_string())
             .field("raw_to", &self.raw_to.to_string())
             .finish()
@@ -53,15 +53,15 @@ pub struct Td2LocalConfig {
 }
 
 pub struct Td2LocalConfigBuilder {
-    task_id: Option<String>,
+    task_job_id: Option<(i64, i64)>,
     from: Dsn,
     to: Dsn,
 }
 
 impl Td2LocalConfigBuilder {
-    pub fn new(task_id: Option<&str>, from: &Dsn, to: &Dsn) -> Self {
+    pub fn new(task_job_id: Option<(i64, i64)>, from: &Dsn, to: &Dsn) -> Self {
         Self {
-            task_id: task_id.map(|s| s.to_string()),
+            task_job_id,
             from: from.clone(),
             to: to.clone(),
         }
@@ -92,7 +92,7 @@ impl Td2LocalConfigBuilder {
                     .unwrap_or(1),
             );
         // 存备份文件的目录
-        let backup_dir = utils::parse_backup_dir(&self.to, self.task_id.as_deref())?;
+        let backup_dir = utils::parse_backup_dir(&self.to, self.task_job_id)?;
         // 备份文件的最大字节数，默认1GB
         let backup_max_size = utils::parse_keys_in_dsn::<String>(
             &self.to,

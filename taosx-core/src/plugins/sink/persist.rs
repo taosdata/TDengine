@@ -3,8 +3,8 @@ use std::{
     ops::Deref,
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, LazyLock,
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
 };
@@ -15,9 +15,8 @@ use arrow_compute_ext::RecordBatchExt;
 use arrow_schema::{ArrowError, Schema};
 use faststr::FastStr;
 use futures::{
-    pin_mut,
+    FutureExt, pin_mut,
     stream::{FuturesOrdered, StreamExt},
-    FutureExt,
 };
 use parking_lot::Mutex;
 use persist_queue::fs::EntryPosition;
@@ -27,12 +26,13 @@ use tokio::{sync::oneshot, task::JoinSet};
 use tokio_util::sync::CancellationToken;
 
 use taosx_ipc::ack::LushAck;
-use tracing::{info_span, Instrument};
+use tracing::{Instrument, info_span};
 
 use crate::{
     core_metrics::CoreMetrics,
-    utils::{self, breakpoints::BreakpointDb, futs_helper::select_cancel},
+    utils::{self, breakpoints::BreakpointDb},
 };
+use futures_ext::select::select_cancel;
 
 const PERSIST_QUEUE_BREAKPOINT_KEY: &str = "persist_queue_breakpoint";
 const DEFAULT_READ_BATCH_SIZE: usize = 1000;
@@ -44,12 +44,13 @@ const METRICS_PERSIST_WRITE_MESSAGES: FastStr = FastStr::from_static_str("persis
 const METRICS_PERSIST_RECEIVED_ACKS: FastStr = FastStr::from_static_str("persist_received_acks");
 const METRICS_PERSIST_SEND_BATCHES: FastStr = FastStr::from_static_str("persist_send_batches");
 
-static TASK_PERSIST_METRICS: LazyLock<scc::HashIndex<i64, Arc<PersistMetrics>>> =
+static TASK_PERSIST_METRICS: LazyLock<scc::HashIndex<(i64, i64), Arc<PersistMetrics>>> =
     LazyLock::new(scc::HashIndex::new);
 
 #[derive(Debug, Clone)]
 pub struct PersistConfig {
     pub task_id: i64,
+    pub job_id: i64,
     pub schemas: HashMap<Arc<Schema>, PathBuf>,
     pub record_metrics: bool,
     /// number of rows in one RecordBatch
@@ -80,6 +81,7 @@ pub struct PersistComponents {
 #[derive(Clone)]
 pub struct PersistComponent {
     pub task_id: i64,
+    pub job_id: i64,
     pub dir: PathBuf,
     pub schema: Arc<Schema>,
     pub payload_tx: flume::Sender<Vec<u8>>,
@@ -91,6 +93,7 @@ pub struct PersistComponent {
 impl PersistComponent {
     pub fn new(
         task_id: i64,
+        job_id: i64,
         dir: PathBuf,
         schema: Arc<Schema>,
         payload_tx: flume::Sender<Vec<u8>>,
@@ -100,6 +103,7 @@ impl PersistComponent {
     ) -> Self {
         Self {
             task_id,
+            job_id,
             dir,
             schema,
             payload_tx,
@@ -205,6 +209,7 @@ pub async fn get_persist(
             schema.clone(),
             PersistComponent::new(
                 config.task_id,
+                config.job_id,
                 dir,
                 schema,
                 payload_tx,
@@ -249,7 +254,7 @@ where
         .unwrap_or(DEFAULT_BATCH_CHUNK_SIZE);
 
     let metric_entry = TASK_PERSIST_METRICS
-        .entry(persist.task_id)
+        .entry((persist.task_id, persist.job_id))
         .or_insert(Arc::new(PersistMetrics::new(
             metrics,
             Duration::from_millis(100),
@@ -782,6 +787,7 @@ mod tests {
         let (mut components, mut tasks) = get_persist(
             PersistConfig {
                 task_id: 0,
+                job_id: 0,
                 record_metrics: false,
                 schemas: HashMap::from_iter([(schema.clone(), dir.path().to_path_buf())]),
                 batch_size: Some(10),

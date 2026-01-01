@@ -1,18 +1,18 @@
 use std::{str::FromStr, sync::OnceLock, time::Duration};
 
-use actix_web::{web, HttpRequest};
+use actix_web::{HttpRequest, web};
 use anyhow::Context;
 use faststr::FastStr;
 use sqlx::{
+    ConnectOptions, QueryBuilder, SqlitePool,
     migrate::Migrator,
     pool::PoolOptions,
     sqlite::SqliteJournalMode,
     types::chrono::{self, Utc},
-    ConnectOptions, QueryBuilder, SqlitePool,
 };
-use tracing::{instrument, warn, Instrument};
+use tracing::{Instrument, instrument, warn};
 
-use crate::{oauth::middleware::extract_auth_from_request, R};
+use crate::{R, oauth::middleware::extract_auth_from_request};
 
 static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 
@@ -672,7 +672,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_web_handlers() {
-        use base64::{engine::general_purpose::STANDARD, Engine as _};
+        use base64::{Engine as _, engine::general_purpose::STANDARD};
 
         let temp_dir = assert_fs::TempDir::with_prefix("favorites_sql_web_handlers").unwrap();
         let fav_sql = Storage::new(temp_dir.path().to_str().unwrap())

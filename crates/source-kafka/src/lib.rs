@@ -23,7 +23,7 @@ use taosx_ipc::ack::LushAck;
 use taosx_ipc::prelude::ArrowDataType;
 
 use taosx_core::core_metrics::{CoreMetrics, get_metrics_arc_from_i64};
-use taosx_core::{Parser, TaskNotify, TaskNotifySender};
+use taosx_core::{Parser, TaskNotify, TaskNotifySender, Via};
 
 use crate::config::task::KafkaTaskConfig;
 use crate::context::CustomContext;
@@ -36,6 +36,7 @@ mod message_sender;
 pub mod pending_ack_fut;
 pub mod poll;
 pub mod sample;
+pub mod split_job;
 mod sub_task;
 pub mod topic_offset;
 pub mod valid;
@@ -96,29 +97,22 @@ pub async fn kafka_to_taos(
     mut parser: Option<Parser>,
     to: Dsn,
     upstream_cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     let cancel = upstream_cancel.child_token();
     let _drop_guard = cancel.clone().drop_guard();
+    let (task_id, job_id) = task_job_id.unwrap_or((-1, -1));
     tracing::info!(
-        "Kafka task: {} start, from: {}, parser: {}, to: {}",
-        task_id.unwrap_or(-1),
-        from,
+        "Kafka task: ({task_id},{job_id}) start, from: {from}, parser: {}, to: {to}",
         serde_json::to_string(&parser)?,
-        to
     );
-    if with_agent.is_some() {
-        let _ = taosx_core::core_metrics::init_task_metrics(
-            &from,
-            &to,
-            task_id.ok_or_else(|| anyhow::anyhow!("No task id with agent runner"))?,
-            None,
-        )
-        .await;
+    if let Some(via) = &with_agent {
+        let _ =
+            taosx_core::core_metrics::init_task_metrics(&from, &to, via.task_id, via.job_id).await;
     }
-    let metrics_arc = get_metrics_arc_from_i64(task_id).await;
+    let metrics_arc = get_metrics_arc_from_i64(task_job_id);
     if let Some(parser) = parser.as_mut() {
         parser.set_metrics(metrics_arc.clone());
     }
@@ -138,7 +132,7 @@ pub async fn kafka_to_taos(
             let (input_tx, input_rx) = flume::bounded(parallel);
             let (ack_tx, ack_rx) = flume::bounded(parallel);
             let schema = Arc::new(build_schema());
-            let batch_counter = BatchCounter::new(with_agent.0 as u16).await?;
+            let batch_counter = BatchCounter::new(with_agent.task_id, with_agent.job_id).await?;
             let cancel = cancel.clone();
             tokio::spawn(
                 async move {
@@ -167,7 +161,7 @@ pub async fn kafka_to_taos(
                 cancel.child_token(),
                 parser,
                 Some(KAFKA_ID),
-                task_id,
+                Some((task_id, job_id)),
                 notify.clone(),
                 parallel,
             )
@@ -262,7 +256,7 @@ pub async fn kafka_to_taos(
     }
     // send an empty tuple
     // stop the connector
-    tracing::info!(task_id = task_id.unwrap_or(-1), "Kafka task Done");
+    tracing::info!(task.id = task_id, job.id = job_id, "Kafka task Done");
     // wait for completion
     tokio::time::sleep(Duration::from_millis(100)).await;
     Ok(())
@@ -450,7 +444,6 @@ async fn execute(
                         &metrics,
                         &global_last_message,
                     )
-                    .in_current_span()
                     .await
                     {
                         Ok(status) => return Ok(status),

@@ -52,10 +52,10 @@ impl ValueBuilder for CastValueBuilder {
                         return Ok(record.column(index).clone());
                     }
                     DataType::List(field) if field.data_type().is_numeric() => {
-                        return Ok(record.column(index).clone())
+                        return Ok(record.column(index).clone());
                     }
                     DataType::Binary | DataType::LargeBinary => {
-                        return Ok(record.column(index).clone())
+                        return Ok(record.column(index).clone());
                     }
                     _ => {
                         let mut values = Vec::new();
@@ -197,11 +197,13 @@ mod tests {
             .unwrap();
         assert_eq!(field.name(), "n4");
         assert_eq!(*field.data_type(), DataType::Boolean);
-        assert!(value
-            .as_any()
-            .downcast_ref::<BooleanArray>()
-            .unwrap()
-            .value(0));
+        assert!(
+            value
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap()
+                .value(0)
+        );
 
         // default timestamp
         let builder: CastValueBuilder =

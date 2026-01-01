@@ -1,7 +1,7 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use taoslog::{layer::TaosLayer, writer::RollingFileAppender, QidManager};
+use criterion::{Criterion, criterion_group, criterion_main};
+use taoslog::{QidManager, layer::TaosLayer, writer::RollingFileAppender};
 use tracing::level_filters::LevelFilter;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
+use tracing_subscriber::{Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Clone)]
 struct Qid(u64);

@@ -1,0 +1,318 @@
+use std::{collections::HashMap, sync::Arc};
+
+use actix_files::NamedFile;
+use actix_web::{
+    HttpRequest, Responder, ResponseError,
+    web::{self, Data, Json, Path, Query},
+};
+use anyhow::Context;
+use chrono::Local;
+use ha_core::{
+    consts::TASK_METRICS_STABLE,
+    types::{HaTask, TaskStatus},
+};
+use taos::Dsn;
+use taosx_core::core_metrics::get_task_metrics_string;
+use tokio::{fs::OpenOptions, io::AsyncWriteExt};
+use tracing::instrument;
+
+use super::{get_dsn, types::*};
+use crate::{
+    Args,
+    sql::{exec, query},
+    x_api::{JsonResult, Result},
+};
+
+pub async fn get_tasks(args: web::Data<Args>, req: HttpRequest) -> JsonResult<Vec<GetTaskResult>> {
+    let dsn = get_dsn(&args, &req).await?;
+    let data = query::<TaskRecord>(&dsn, "SHOW XNODE TASKS").await?;
+    Ok(Json(
+        data.into_iter()
+            .map(|v| v.try_into())
+            .collect::<anyhow::Result<_>>()?,
+    ))
+}
+
+pub async fn get_task(
+    args: web::Data<Args>,
+    task_id: Path<i64>,
+    req: HttpRequest,
+) -> JsonResult<GetTaskResult> {
+    let task_id = task_id.into_inner();
+    let dsn = get_dsn(&args, &req).await?;
+    let data = query::<TaskRecord>(&dsn, "SHOW XNODE TASKS").await?;
+    Ok(Json(
+        data.into_iter()
+            .find(|v| v.id == task_id)
+            .map(|v| v.try_into())
+            .transpose()?
+            .context("task {} not found")?,
+    ))
+}
+
+#[instrument(skip_all)]
+pub async fn create_task(
+    args: web::Data<Args>,
+    Json(task): Json<Task>,
+    req: HttpRequest,
+) -> JsonResult<()> {
+    create_task_inner(&args, &req, task, true).await?;
+    Ok(Json(()))
+}
+
+#[instrument(skip_all)]
+async fn create_task_inner(args: &Args, req: &HttpRequest, task: Task, start: bool) -> Result<()> {
+    // create
+    let task_name = task.name.clone();
+    let config: HaTask = task.try_into()?;
+    let mut sql = format!(
+        "CREATE XNODE TASK '{}' FROM '{}' TO '{}'",
+        task_name, config.from, config.to
+    );
+
+    let status = TaskStatus::Created;
+    if let Some(parser) = config
+        .parser
+        .as_ref()
+        .map(serde_json::to_string::<serde_json::Value>)
+        .transpose()
+        .context("invalid `parser` param")?
+    {
+        sql.push_str(&format!(
+            " WITH PARSER '{}' STATUS '{status}'",
+            parser.replace(r"\", r"\\"),
+        ));
+    } else {
+        sql.push_str(&format!(" WITH STATUS '{status}'"));
+    }
+
+    tracing::debug!(sql, "create task sql");
+    let dsn = get_dsn(args, req).await?;
+    exec(&dsn, &sql).await?;
+
+    // start
+    if start {
+        let sql = format!("START XNODE TASK '{}'", task_name);
+        exec(&dsn, &sql).await?;
+    }
+
+    Ok(())
+}
+
+pub async fn update_task(
+    args: web::Data<Args>,
+    task_id: Path<i64>,
+    Json(task): Json<Task>,
+    req: HttpRequest,
+) -> JsonResult<()> {
+    // update
+    let task_id = task_id.into_inner();
+    let config: HaTask = task.try_into()?;
+    let mut sql = format!(
+        "ALTER XNODE TASK {} FROM '{}' TO '{}'",
+        task_id, config.from, config.to
+    );
+    if let Some(parser) = config
+        .parser
+        .as_ref()
+        .map(serde_json::to_string::<serde_json::Value>)
+        .transpose()
+        .context("invalid `parser` param")?
+    {
+        sql.push_str(&format!(" WITH PARSER '{}'", parser));
+    }
+
+    let dsn = get_dsn(&args, &req).await?;
+    exec(&dsn, &sql).await?;
+
+    // start
+    let sql = format!("START XNODE TASK {}", task_id);
+    exec(&dsn, &sql).await?;
+    Ok(Json(()))
+}
+
+pub async fn delete_task(
+    args: web::Data<Args>,
+    task_id: Path<i64>,
+    req: HttpRequest,
+) -> JsonResult<()> {
+    let task_id = task_id.into_inner();
+    let dsn = get_dsn(&args, &req).await?;
+    let sql = format!("DROP XNODE TASK {}", task_id);
+    exec(&dsn, &sql).await?;
+    Ok(Json(()))
+}
+
+pub async fn start_task(
+    args: web::Data<Args>,
+    task_id: Path<i64>,
+    req: HttpRequest,
+) -> JsonResult<()> {
+    let task_id = task_id.into_inner();
+    let dsn = get_dsn(&args, &req).await?;
+    let sql = format!("START XNODE TASK {}", task_id);
+    exec(&dsn, &sql).await?;
+    Ok(Json(()))
+}
+
+pub async fn stop_task(
+    args: web::Data<Args>,
+    task_id: Path<i64>,
+    req: HttpRequest,
+) -> JsonResult<()> {
+    let task_id = task_id.into_inner();
+    let dsn = get_dsn(&args, &req).await?;
+    let sql = format!("STOP XNODE TASK {}", task_id);
+    exec(&dsn, &sql).await?;
+    Ok(Json(()))
+}
+
+pub async fn batch_start_tasks(
+    args: web::Data<Args>,
+    task_ids: web::Json<Vec<i64>>,
+    req: HttpRequest,
+) -> JsonResult<()> {
+    let task_ids = task_ids.into_inner();
+    let dsn = get_dsn(&args, &req).await?;
+    for task_id in task_ids {
+        let sql = format!("START XNODE TASK {}", task_id);
+        exec(&dsn, &sql).await?;
+    }
+    Ok(Json(()))
+}
+
+pub async fn batch_stop_tasks(
+    args: web::Data<Args>,
+    task_ids: web::Json<Vec<i64>>,
+    req: HttpRequest,
+) -> JsonResult<()> {
+    let task_ids = task_ids.into_inner();
+    let dsn = get_dsn(&args, &req).await?;
+    for task_id in task_ids {
+        let sql = format!("STOP XNODE TASK {}", task_id);
+        exec(&dsn, &sql).await?;
+    }
+    Ok(Json(()))
+}
+
+pub async fn batch_delete_tasks(
+    args: web::Data<Args>,
+    task_ids: web::Json<Vec<i64>>,
+    req: HttpRequest,
+) -> JsonResult<()> {
+    let task_ids = task_ids.into_inner();
+    let dsn = get_dsn(&args, &req).await?;
+    for task_id in task_ids {
+        let sql = format!("DROP XNODE TASK {}", task_id);
+        exec(&dsn, &sql).await?;
+    }
+    Ok(Json(()))
+}
+
+pub async fn export_task(
+    args: web::Data<Args>,
+    ids: Query<ExportTaskParam>,
+    req: HttpRequest,
+) -> impl Responder {
+    match export_task_inner(&args, &req, &ids).await {
+        Ok(file) => file.into_response(&req),
+        Err(e) => e.error_response(),
+    }
+}
+
+async fn export_task_inner(
+    args: &Args,
+    req: &HttpRequest,
+    ids: &ExportTaskParam,
+) -> Result<NamedFile> {
+    let dsn = get_dsn(args, req).await?;
+    let mut tasks = query::<TaskRecord>(&dsn, "SHOW XNODE TASKS")
+        .await?
+        .into_iter()
+        .map(|v| (v.id, v))
+        .collect::<HashMap<_, _>>();
+
+    let ids = ids.ids()?;
+    let mut exported = Vec::with_capacity(ids.len());
+    for id in ids {
+        if let Some(task) = tasks.remove(&id) {
+            exported.push(task.try_into()?);
+        }
+    }
+    let now = Local::now();
+    let res = ExportTaskResult {
+        tasks_num: tasks.len(),
+        export_time: now.to_rfc3339(),
+        tasks: exported,
+    };
+    let content = serde_json::to_string_pretty(&res).context("serialize export content error")?;
+    let file_name = format!(
+        "/tmp/taos-explorer-tasks-{}.json",
+        now.format("%Y%m%d%H%M%S")
+    );
+    let mut file = OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(&file_name)
+        .await
+        .context("create export file error")?;
+    file.write_all(content.as_bytes())
+        .await
+        .context("write export file error")?;
+    file.flush().await.context("flush export file error")?;
+
+    Ok(NamedFile::open(file_name).context("open export named file error")?)
+}
+
+pub async fn import_task(
+    args: web::Data<Args>,
+    params: Query<ExportTaskResult>,
+    req: HttpRequest,
+) -> JsonResult<()> {
+    for task in &params.tasks {
+        create_task_inner(&args, &req, task.into(), false).await?;
+    }
+    Ok(Json(()))
+}
+
+pub async fn get_task_metrics(
+    args: Data<Args>,
+    task_id: Path<i64>,
+    req: HttpRequest,
+) -> Result<String> {
+    let task_id = task_id.into_inner();
+    let dsn = get_dsn(&args, &req).await?;
+    Ok(get_all_task_job_metrics(dsn, task_id).await?)
+}
+
+pub async fn get_all_task_job_metrics(dsn: Dsn, task_id: i64) -> anyhow::Result<String> {
+    let sql =
+        format!("select last_row(metrics) from log.{TASK_METRICS_STABLE} partition by tbname");
+
+    let metrics = query::<String>(&dsn, &sql).await?;
+
+    let mut iter = metrics.into_iter();
+    let Some(mut result) = iter
+        .next()
+        .map(|v| serde_json::from_str(&v))
+        .transpose()
+        .context("deserialize metrics")?
+    else {
+        return Ok("{}".into());
+    };
+    for item in iter {
+        let item = serde_json::from_str(&item).context("deserialize metrics")?;
+        result += item;
+    }
+
+    let task = query::<TaskRecord>(&dsn, "SHOW XNODE TASKS")
+        .await?
+        .into_iter()
+        .find(|v| v.id == task_id)
+        .context("task not found")?;
+
+    let res = get_task_metrics_string(task.status.unwrap_or(TaskStatus::Created), Arc::new(result))
+        .context("serialize metrics to string error")?;
+    Ok(res)
+}

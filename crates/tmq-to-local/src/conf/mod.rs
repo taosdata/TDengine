@@ -15,7 +15,7 @@ use tracing::Instrument;
 #[derive(Debug, Clone)]
 pub struct BackupConfig {
     #[allow(unused)]
-    pub task_id: Option<String>,
+    pub task_job_id: Option<(i64, i64)>,
     raw_from: Dsn,
     #[allow(unused)]
     raw_to: Dsn,
@@ -60,14 +60,15 @@ pub struct BackupConfig {
 }
 
 impl BackupConfig {
-    pub fn group_id(task_id: &Option<String>, from: &Dsn, to: &Dsn) -> String {
+    pub fn group_id(task_id: Option<(i64, i64)>, from: &Dsn, to: &Dsn) -> String {
         if let Some(oneshot_topic) = from.get("use.topic.name") {
             return oneshot_topic.to_string();
         }
 
         let mut salt = vec![from.to_string(), to.to_string()];
-        if let Some(task_id) = task_id {
+        if let Some((task_id, job_id)) = task_id {
             salt.push(task_id.to_string());
+            salt.push(job_id.to_string());
         }
         generate_hash(salt)
     }
@@ -297,15 +298,15 @@ impl BackupPointGenMode {
 }
 
 pub struct BackupConfigBuilder {
-    task_id: Option<String>,
+    task_job_id: Option<(i64, i64)>,
     from: Dsn,
     to: Dsn,
 }
 
 impl BackupConfigBuilder {
-    pub fn new(task_id: Option<String>, from: &Dsn, to: &Dsn) -> Self {
+    pub fn new(task_job_id: Option<(i64, i64)>, from: &Dsn, to: &Dsn) -> Self {
         Self {
-            task_id,
+            task_job_id,
             from: from.clone(),
             to: to.clone(),
         }
@@ -372,10 +373,10 @@ impl BackupConfigBuilder {
             .context("failed to parse backup point generate mode")?;
 
         // backup dir
-        let backup_dir = utils::parse_backup_dir(&self.to, self.task_id.as_deref())?;
+        let backup_dir = utils::parse_backup_dir(&self.to, self.task_job_id)?;
 
         // topic 与 group.id 相同
-        let topic = BackupConfig::group_id(&self.task_id, &self.from, &self.to);
+        let topic = BackupConfig::group_id(self.task_job_id, &self.from, &self.to);
 
         // error.retry.max
         let error_retry_max =
@@ -430,7 +431,7 @@ impl BackupConfigBuilder {
         };
 
         Ok(BackupConfig {
-            task_id: self.task_id.clone(),
+            task_job_id: self.task_job_id,
             raw_from: self.from.clone(),
             raw_to: self.to.clone(),
             server_version,
@@ -509,7 +510,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(config.task_id, None);
+        assert_eq!(config.task_job_id, None);
         assert_eq!(config.database, "log");
         assert_eq!(config.backup_dir, Path::new("/tmp").canonicalize().unwrap());
     }
@@ -522,7 +523,7 @@ mod tests {
                     .into_dsn()
                     .unwrap(),
             topic: "abc".to_string(),
-            task_id: None,
+            task_job_id: None,
             raw_to: Default::default(),
             server_version: "3.3.3.3".to_string(),
             database: Default::default(),
@@ -561,7 +562,7 @@ mod tests {
         let config = BackupConfig {
             raw_from: "tmq://host:6030/db".into_dsn().unwrap(),
             topic: "abc".to_string(),
-            task_id: None,
+            task_job_id: None,
             raw_to: Default::default(),
             server_version: "3.3.3.3".to_string(),
             database: Default::default(),
@@ -593,7 +594,7 @@ mod tests {
         let config = BackupConfig {
             raw_from: "tmq+ws://host:6041/db".into_dsn().unwrap(),
             topic: "abc".to_string(),
-            task_id: None,
+            task_job_id: None,
             raw_to: Default::default(),
             server_version: "3.3.3.3".to_string(),
             database: Default::default(),
@@ -625,7 +626,7 @@ mod tests {
         let config = BackupConfig {
             raw_from: "tmq+http://host:6041/db".into_dsn().unwrap(),
             topic: "abc".to_string(),
-            task_id: None,
+            task_job_id: None,
             raw_to: Default::default(),
             server_version: "3.3.3.3".to_string(),
             database: Default::default(),
@@ -657,7 +658,7 @@ mod tests {
         let config = BackupConfig {
             raw_from: "tmq+wss://host:6041/db".into_dsn().unwrap(),
             topic: "abc".to_string(),
-            task_id: None,
+            task_job_id: None,
             raw_to: Default::default(),
             server_version: "3.3.3.3".to_string(),
             database: Default::default(),
@@ -689,7 +690,7 @@ mod tests {
         let config = BackupConfig {
             raw_from: "tmq+https://host:6041/db".into_dsn().unwrap(),
             topic: "abc".to_string(),
-            task_id: None,
+            task_job_id: None,
             raw_to: Default::default(),
             server_version: "3.3.3.3".to_string(),
             database: Default::default(),
@@ -723,7 +724,7 @@ mod tests {
                 .into_dsn()
                 .unwrap(),
             topic: "abc".to_string(),
-            task_id: None,
+            task_job_id: None,
             raw_to: Default::default(),
             server_version: "3.3.3.3".to_string(),
             database: Default::default(),

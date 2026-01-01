@@ -1,6 +1,6 @@
 [package]
 name = "source-sparkplugb"
-edition = "2024"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
@@ -29,6 +29,8 @@ chrono.workspace = true
 taosx-core.workspace = true
 taosx-ipc.workspace = true
 source-mqtt = { path = "../source-mqtt" }
+futures-ext.workspace = true
+taosx-utils.workspace = true
 
 [lints]
 workspace = true

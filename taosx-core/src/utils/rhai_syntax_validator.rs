@@ -1,9 +1,8 @@
-use lazy_static::lazy_static;
+use std::sync::LazyLock;
+
 use rhai::{Engine, Scope};
 
-lazy_static! {
-    pub static ref ENGINE: Engine = Engine::new();
-}
+pub static ENGINE: LazyLock<Engine> = LazyLock::new(Engine::new);
 
 /**
  * 数学表达式.

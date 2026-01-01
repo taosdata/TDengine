@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use persist_queue::{
-    fs::{EntryPosition, FsQueue, ReadFrom},
     RawReader, RawWriter,
+    fs::{EntryPosition, FsQueue, ReadFrom},
 };
 use tempfile::tempdir;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};

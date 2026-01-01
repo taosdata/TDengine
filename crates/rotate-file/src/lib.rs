@@ -36,6 +36,7 @@ pub struct ForceRotateData {
 #[derive(Clone)]
 pub struct RotateWriter<Item> {
     id: i64,
+    job_id: i64,
     sender: flume::Sender<RequestMsg<Item>>,
 }
 
@@ -45,10 +46,10 @@ impl<Item> RotateWriter<Item> {
         self.sender
             .send_async(RequestMsg::Write(WriteData { data, resp_tx }))
             .await
-            .map_err(|e| RotateFileError::InnerSendError(self.id, e.to_string()))?;
+            .map_err(|e| RotateFileError::InnerSendError(self.id, self.job_id, e.to_string()))?;
         resp_rx
             .await
-            .map_err(|e| RotateFileError::InnerReceiveError(self.id, e.to_string()))?
+            .map_err(|e| RotateFileError::InnerReceiveError(self.id, self.job_id, e.to_string()))?
     }
 
     pub async fn snapshot(&self) -> Result<Vec<PathBuf>, RotateFileError> {
@@ -56,10 +57,10 @@ impl<Item> RotateWriter<Item> {
         self.sender
             .send_async(RequestMsg::Snapshot(SnapshotData { resp_tx }))
             .await
-            .map_err(|e| RotateFileError::InnerSendError(self.id, e.to_string()))?;
+            .map_err(|e| RotateFileError::InnerSendError(self.id, self.job_id, e.to_string()))?;
         resp_rx
             .await
-            .map_err(|e| RotateFileError::InnerReceiveError(self.id, e.to_string()))?
+            .map_err(|e| RotateFileError::InnerReceiveError(self.id, self.job_id, e.to_string()))?
     }
 
     pub async fn close(&self) -> Result<(), RotateFileError> {
@@ -67,7 +68,9 @@ impl<Item> RotateWriter<Item> {
             self.sender
                 .send_async(RequestMsg::Close)
                 .await
-                .map_err(|e| RotateFileError::InnerSendError(self.id, e.to_string()))?;
+                .map_err(|e| {
+                    RotateFileError::InnerSendError(self.id, self.job_id, e.to_string())
+                })?;
         }
         Ok(())
     }
@@ -77,15 +80,16 @@ impl<Item> RotateWriter<Item> {
         self.sender
             .send_async(RequestMsg::ForceRotate(ForceRotateData { resp_tx }))
             .await
-            .map_err(|e| RotateFileError::InnerSendError(self.id, e.to_string()))?;
+            .map_err(|e| RotateFileError::InnerSendError(self.id, self.job_id, e.to_string()))?;
         resp_rx
             .await
-            .map_err(|e| RotateFileError::InnerReceiveError(self.id, e.to_string()))?
+            .map_err(|e| RotateFileError::InnerReceiveError(self.id, self.job_id, e.to_string()))?
     }
 }
 
 pub struct RotateWriterBuilder<Item, E1, E2> {
     pub id: Option<i64>,
+    pub job_id: Option<i64>,
     pub dir: Option<FastStr>,
     pub rotate_count: Option<usize>,
     pub max_size_value: Option<usize>,
@@ -107,6 +111,7 @@ where
     fn default() -> Self {
         Self {
             id: None,
+            job_id: None,
             dir: None,
             rotate_count: None,
             max_size_value: None,
@@ -159,6 +164,7 @@ where
         }
         not_allow_none!(
             id,
+            job_id,
             dir,
             prefix,
             file_dt_fmt,
@@ -170,6 +176,7 @@ where
             keep_time_unit
         );
         let id = self.id.unwrap();
+        let job_id = self.job_id.unwrap();
         let dir = self.dir.unwrap();
         let prefix = self.prefix.unwrap();
         let file_dt_fmt = self.file_dt_fmt.unwrap();
@@ -195,14 +202,23 @@ where
         if keep_time_value < 1 {
             return Err(RotateFileError::InvalidKeepTimeValue {
                 id,
+                job_id,
                 keep_time_value,
             });
         }
         if max_size_value < 1 {
-            return Err(RotateFileError::InvalidMaxSizeValue { id, max_size_value });
+            return Err(RotateFileError::InvalidMaxSizeValue {
+                id,
+                job_id,
+                max_size_value,
+            });
         }
         if rotate_count < 1 {
-            return Err(RotateFileError::InvalidRotateCount { id, rotate_count });
+            return Err(RotateFileError::InvalidRotateCount {
+                id,
+                job_id,
+                rotate_count,
+            });
         }
 
         // create dir if not exists
@@ -210,6 +226,7 @@ where
         if !dir.exists() {
             create_dir_all(dir.clone()).map_err(|error| RotateFileError::CreateDirError {
                 id,
+                job_id,
                 dir: dir.to_string_lossy().to_string(),
                 error,
             })?;
@@ -232,6 +249,7 @@ where
         let sink = Box::pin(
             gen_sink(file_path).map_err(|e| RotateFileError::GenSinkError {
                 id,
+                job_id,
                 error: e.into().into(),
             })?,
         );
@@ -242,6 +260,7 @@ where
 
         let writer = InnerRotateWriter {
             id,
+            job_id,
             max_num_file: rotate_count,
             max_size,
             num_of_time_unit: keep_time_value,
@@ -253,12 +272,23 @@ where
         };
         let tx = writer.spawn()?;
 
-        Ok(RotateWriter { id, sender: tx })
+        Ok(RotateWriter {
+            id,
+            job_id,
+            sender: tx,
+        })
     }
 
     pub fn id(self, id: i64) -> Self {
         Self {
             id: Some(id),
+            ..self
+        }
+    }
+
+    pub fn job_id(self, job_id: i64) -> Self {
+        Self {
+            job_id: Some(job_id),
             ..self
         }
     }
@@ -344,9 +374,10 @@ pub enum RotateFileError {
     ParamIsEmpty { param: String },
     #[error("RotateWriter Close error: {0}")]
     CloseError(String),
-    #[error("RotateWriter {id} create {dir} meet error: {error}")]
+    #[error("RotateWriter ({id},{job_id}) create {dir} meet error: {error}")]
     CreateDirError {
         id: i64,
+        job_id: i64,
         dir: String,
         error: std::io::Error,
     },
@@ -354,54 +385,82 @@ pub enum RotateFileError {
     TimeUnitNotSupport { time_unit: String },
     #[error("RotateWriter size unit {size_unit} not support, only support KB, MB, GB")]
     SizeUnitNotSupport { size_unit: String },
-    #[error("RotateWriter {0} inner send error: {1}")]
-    InnerSendError(i64, String),
-    #[error("RotateWriter {0} inner receive error: {1}")]
-    InnerReceiveError(i64, String),
+    #[error("RotateWriter ({0},{1}) inner send error: {2}")]
+    InnerSendError(i64, i64, String),
+    #[error("RotateWriter ({0},{1}) inner receive error: {2}")]
+    InnerReceiveError(i64, i64, String),
     #[error("RotateWriter {id} gen sink error: {error}")]
     GenSinkError {
         id: i64,
+        job_id: i64,
         error: Box<dyn std::error::Error + Sync + Send + 'static>,
     },
-    #[error("RotateWriter {id} exec sink fn error: {error}")]
+    #[error("RotateWriter ({id},{job_id}) exec sink fn error: {error}")]
     ExecSinkFnError {
         id: i64,
+        job_id: i64,
         error: Box<dyn std::error::Error + Sync + Send + 'static>,
     },
-    #[error("RotateWriter {id} close sink error: {error}")]
+    #[error("RotateWriter ({id},{job_id}) close sink error: {error}")]
     CloseSinkError {
         id: i64,
+        job_id: i64,
         error: Box<dyn std::error::Error + Sync + Send + 'static>,
     },
-    #[error("RotateWriter {id} create file {file} meet error: {error}")]
+    #[error("RotateWriter ({id},{job_id}) create file {file} meet error: {error}")]
     CreateFileError {
         id: i64,
+        job_id: i64,
         file: String,
         error: std::io::Error,
     },
-    #[error("RotateWriter {id} create thread meet error: {error}")]
-    CreateThreadError { id: i64, error: std::io::Error },
-    #[error("RotateWriter {id} create tokio runtime error: {error}")]
-    CreateTokioRuntimeError { id: i64, error: std::io::Error },
+    #[error("RotateWriter ({id},{job_id}) create thread meet error: {error}")]
+    CreateThreadError {
+        id: i64,
+        job_id: i64,
+        error: std::io::Error,
+    },
+    #[error("RotateWriter ({id},{job_id}) create tokio runtime error: {error}")]
+    CreateTokioRuntimeError {
+        id: i64,
+        job_id: i64,
+        error: std::io::Error,
+    },
     #[error("RotateWriter read dir: {dir}, meet error: {error}")]
     ReadDirError { dir: String, error: std::io::Error },
-    #[error("RotateWriter {id} remove file {file} meet error: {error}")]
+    #[error("RotateWriter ({id},{job_id}) remove file {file} meet error: {error}")]
     RemoveFileError {
         id: i64,
+        job_id: i64,
         file: String,
         error: std::io::Error,
     },
     #[error("RotateWriter file name {file_name} is invalid, error: {error}")]
     InvalidFileName { file_name: String, error: String },
-    #[error("RotateWriter {id} keep time value {keep_time_value} must be greater than 0")]
-    InvalidKeepTimeValue { id: i64, keep_time_value: usize },
-    #[error("RotateWriter {id} max size value {max_size_value} must be greater than 0")]
-    InvalidMaxSizeValue { id: i64, max_size_value: usize },
-    #[error("RotateWriter {id} rotate count {rotate_count} must be greater than 0")]
-    InvalidRotateCount { id: i64, rotate_count: usize },
-    #[error("RotateWriter {id} rename file {from} to {to} meet error: {error}")]
+    #[error(
+        "RotateWriter ({id},{job_id}) keep time value {keep_time_value} must be greater than 0"
+    )]
+    InvalidKeepTimeValue {
+        id: i64,
+        job_id: i64,
+        keep_time_value: usize,
+    },
+    #[error("RotateWriter ({id},{job_id}) max size value {max_size_value} must be greater than 0")]
+    InvalidMaxSizeValue {
+        id: i64,
+        job_id: i64,
+        max_size_value: usize,
+    },
+    #[error("RotateWriter ({id},{job_id}) rotate count {rotate_count} must be greater than 0")]
+    InvalidRotateCount {
+        id: i64,
+        job_id: i64,
+        rotate_count: usize,
+    },
+    #[error("RotateWriter ({id},{job_id}) rename file {from} to {to} meet error: {error}")]
     RenameFileError {
         id: i64,
+        job_id: i64,
         from: String,
         to: String,
         error: std::io::Error,
@@ -410,7 +469,7 @@ pub enum RotateFileError {
 
 #[cfg(test)]
 mod tests {
-    use crate::{utils::time_unit_dt_fmt, writer::FileName, RotateWriterBuilder, SinkFn};
+    use crate::{RotateWriterBuilder, SinkFn, utils::time_unit_dt_fmt, writer::FileName};
     use faststr::FastStr;
     use futures::sink;
     use std::{
@@ -425,6 +484,7 @@ mod tests {
         let dt_fmt = time_unit_dt_fmt("m")?;
         let cache_writer = RotateWriterBuilder::new()
             .id(999)
+            .job_id(-1)
             .dir("/tmp/taosx/cache")
             .prefix("cache")
             .file_dt_fmt(dt_fmt)

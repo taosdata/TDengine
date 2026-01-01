@@ -208,7 +208,7 @@ mod tests {
         let dsn = Dsn::from_str("postgres://postgres:tbase125!@192.168.1.40:5432/test_taosx?sql=select * from public.t_metric&start=2021-01-01T00:00:00Z&end=2021-02-01T00:00:00Z&interval=12h&delay=0")
             .unwrap();
         let mut config = PostgresConfig::from_dsn(&dsn).unwrap();
-        config.task_id = Some(1);
+        config.task_job_id = Some((1, 1));
         config.sub_task_id = Some("mig-1".to_string());
         config.ipc_port = Some(6666);
 

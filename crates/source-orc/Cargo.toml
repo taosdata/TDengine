@@ -1,6 +1,6 @@
 [package]
 name = "source-orc"
-edition = "2024"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
@@ -12,9 +12,10 @@ taos.workspace = true
 tracing.workspace = true
 futures.workspace = true
 orc-rust.workspace = true
+opendal.workspace = true
 
 taosx-core.workspace = true
-opendal.workspace = true
+taosx-utils.workspace = true
 
 [lints]
 workspace = true

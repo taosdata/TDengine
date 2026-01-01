@@ -4,25 +4,25 @@ use std::{
     ops::{ControlFlow, Deref},
     path::PathBuf,
     sync::{
-        atomic::{AtomicU8, Ordering},
         Arc,
+        atomic::{AtomicU8, Ordering},
     },
     time::Duration,
 };
 
 use crate::{
+    Action, Parser, TaskNotify, TaskNotifySender,
     core_metrics::CoreMetrics,
     plugins::transform::sample::DsSampleIn,
-    utils::breakpoints::{breakpoints_db_dir, BreakpointDb},
-    Action, Parser, TaskNotify, TaskNotifySender,
+    utils::breakpoints::{BreakpointDb, breakpoints_db_dir},
 };
 use anyhow::bail;
 use bon::Builder;
 use faststr::FastStr;
 use serde::{Deserialize, Serialize};
-use taos::{tokio::task::JoinSet, Dsn};
+use taos::{Dsn, tokio::task::JoinSet};
 use tokio::{
-    sync::{broadcast, Mutex},
+    sync::{Mutex, broadcast},
     task::AbortHandle,
 };
 use tokio_util::sync::{CancellationToken, DropGuard};
@@ -87,8 +87,10 @@ pub enum Runtime {
     Server {
         /// Task ID.
         tid: i64,
-        /// Job UUID.
-        jid: FastStr,
+        /// Job ID.
+        jid: i64,
+        /// Schedule UUID.
+        sid: FastStr,
         /// Agent ID.
         aid: Option<i64>,
     },
@@ -98,8 +100,10 @@ pub enum Runtime {
     Agent {
         /// Task ID
         tid: i64,
-        /// Job UUID
-        jid: FastStr,
+        /// Job ID.
+        jid: i64,
+        /// Schedule UUID
+        sid: FastStr,
         /// Agent ID
         aid: i64,
         /// Remote server
@@ -147,16 +151,20 @@ impl Runtime {
                 let s = format!("tmp:{:?}:{:?}", aid, remote);
                 FastStr::from_string(s)
             }
-            Runtime::Server { tid, jid, .. } => FastStr::from_string(format!("serve:{tid}:{jid}")),
-            Runtime::Agent { aid, tid, jid, .. } => {
-                FastStr::from_string(format!("agent:{aid}:{tid}:{jid}"))
+            Runtime::Server { tid, sid: jid, .. } => {
+                FastStr::from_string(format!("serve:{tid}:{jid}"))
             }
+            Runtime::Agent {
+                aid, tid, sid: jid, ..
+            } => FastStr::from_string(format!("agent:{aid}:{tid}:{jid}")),
         }
     }
 
-    pub fn tid(&self) -> Option<i64> {
+    pub fn task_job_id(&self) -> Option<(i64, i64)> {
         match self {
-            Runtime::Server { tid, .. } | Runtime::Agent { tid, .. } => Some(*tid),
+            Runtime::Server { tid, jid, .. } | Runtime::Agent { tid, jid, .. } => {
+                Some((*tid, *jid))
+            }
             _ => None,
         }
     }
@@ -164,8 +172,8 @@ impl Runtime {
     pub fn breakpoint_db(&self) -> anyhow::Result<BreakpointDb> {
         match self {
             Runtime::Cli { wd } => BreakpointDb::open(&wd.join("breakpoints")),
-            Runtime::Server { tid, .. } | Runtime::Agent { tid, .. } => {
-                BreakpointDb::open(&breakpoints_db_dir(tid.to_string().as_str()))
+            Runtime::Server { tid, jid, .. } | Runtime::Agent { tid, jid, .. } => {
+                BreakpointDb::open(&breakpoints_db_dir(*tid, *jid))
             }
             _ => bail!("Breakpoint not supported for this runtime"),
         }
@@ -218,12 +226,13 @@ impl Environment {
 
     pub fn from_server(
         tid: i64,
-        jid: FastStr,
+        jid: i64,
+        sid: FastStr,
         aid: Option<i64>,
         props: ExecOpts,
         notifier: TaskNotifySender,
     ) -> Self {
-        let runtime = Runtime::Server { tid, jid, aid };
+        let runtime = Runtime::Server { tid, jid, sid, aid };
         let guard = TaskGuard::new();
         Self {
             runtime,
@@ -237,7 +246,8 @@ impl Environment {
     pub fn from_agent(
         aid: i64,
         tid: i64,
-        jid: FastStr,
+        jid: i64,
+        sid: FastStr,
         remote: FastStr,
         props: ExecOpts,
         notifier: TaskNotifySender,
@@ -246,6 +256,7 @@ impl Environment {
             aid,
             tid,
             jid,
+            sid,
             remote,
         };
         let guard = TaskGuard::new();
@@ -270,8 +281,8 @@ impl Environment {
         self.runtime.id()
     }
 
-    pub fn tid(&self) -> Option<i64> {
-        self.runtime.tid()
+    pub fn task_job_id(&self) -> Option<(i64, i64)> {
+        self.runtime.task_job_id()
     }
     pub fn into_context(self) -> anyhow::Result<Context> {
         Context::new(self)
@@ -842,7 +853,7 @@ pub struct Container {
     executors: scc::HashMap<FastStr, Executor>,
 
     /// Executors indexed by task id.
-    executors_by_id: scc::HashMap<i64, Executor>,
+    executors_by_id: scc::HashMap<(i64, i64), Executor>,
 
     /// Join set for all executors.
     join_set: Arc<Mutex<JoinSet<anyhow::Result<TaskExitStatus>>>>,
@@ -850,7 +861,7 @@ pub struct Container {
 
 pub struct TaskHandler {
     id: FastStr,
-    tid: Option<i64>,
+    task_job_id: Option<(i64, i64)>,
     state: AtomicRunState,
     handle: AbortHandle,
 }
@@ -906,19 +917,19 @@ impl Container {
     }
 
     /// Run a task and wait for completion or stop/cancel signals.
-    #[tracing::instrument(level = "debug", skip_all, fields(tid = env.tid()))]
+    #[tracing::instrument(level = "debug", skip_all, fields(tid = ?env.task_job_id()))]
     pub async fn spawn(&self, opts: TaskOpts, env: Environment) -> anyhow::Result<TaskHandler> {
         let exec = self.get_or_build_executor(opts, env).await?;
         if exec.state.get().is_executing() {
             Err(anyhow::anyhow!("Task is already running"))
         } else {
             let id = exec.env.id();
-            let tid = exec.env.tid();
+            let task_job_id = exec.env.task_job_id();
             let state = exec.state.clone();
             let handle = self.join_set.lock().await.spawn(exec.execute());
             Ok(TaskHandler {
                 id,
-                tid,
+                task_job_id,
                 state,
                 handle,
             })
@@ -926,7 +937,7 @@ impl Container {
     }
 
     /// Run a task and wait for completion or stop/cancel signals.
-    #[tracing::instrument(level = "debug", skip_all, fields(tid = env.tid()))]
+    #[tracing::instrument(level = "debug", skip_all, fields(tid = ?env.task_job_id()))]
     pub async fn run_task(
         &self,
         opts: TaskOpts,
@@ -948,8 +959,8 @@ impl Container {
 
     /// Stop a task by task ID.
     #[tracing::instrument(level = "debug", skip(self))]
-    pub async fn stop_task_by_id(&self, tid: i64) -> anyhow::Result<()> {
-        if let Some(entry) = self.executors_by_id.get(&tid) {
+    pub async fn stop_task_by_id(&self, task_id: i64, job_id: i64) -> anyhow::Result<()> {
+        if let Some(entry) = self.executors_by_id.get(&(task_id, job_id)) {
             entry.env.guard().stop();
         }
         Ok(())
@@ -960,7 +971,7 @@ impl Container {
     pub async fn stop_all(&self) {
         self.executors
             .scan_async(|eid, v| {
-                tracing::info!(%eid, tid = v.env.tid(), "Stop task");
+                tracing::info!(%eid, tid = ?v.env.task_job_id(), "Stop task");
                 v.env.guard().stop();
             })
             .await;
@@ -973,8 +984,8 @@ impl Container {
     /// This is useful when a task is failed and need to be restarted, or a task
     /// is completed and need to be rerun.
     #[tracing::instrument(level = "debug", skip(self))]
-    pub async fn reset_task_by_id(&self, tid: i64) -> anyhow::Result<()> {
-        if let Some(entry) = self.executors_by_id.get_async(&tid).await {
+    pub async fn reset_task_by_id(&self, task_id: i64, job_id: i64) -> anyhow::Result<()> {
+        if let Some(entry) = self.executors_by_id.get_async(&(task_id, job_id)).await {
             entry.executor.metrics().reset();
             entry.executor.reset().await;
         }
@@ -1016,7 +1027,7 @@ impl Container {
                 opts,
                 state,
             };
-            if let Some(tid) = exec.env.tid() {
+            if let Some(tid) = exec.env.task_job_id() {
                 let _ = self.executors_by_id.insert(tid, exec.clone());
             }
             let _ = self.executors.insert(executor_id, exec);
@@ -1219,8 +1230,8 @@ mod tests {
             parser: None,
         };
         let task = set.get_or_build_executor(opts, env).await;
-        assert!(task
-            .inspect_err(|err| {
+        assert!(
+            task.inspect_err(|err| {
                 dbg!(err);
                 assert_eq!(
                     err.to_string(),
@@ -1228,6 +1239,7 @@ mod tests {
                     "Error: {err:#}"
                 );
             })
-            .is_err());
+            .is_err()
+        );
     }
 }

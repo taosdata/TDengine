@@ -26,10 +26,10 @@ use taosx_core::{
     tmq::{tmq_metric::TmqMetrics, *},
     utils::{
         constants::{VERSION_3_3_0, VERSION_3_3_6},
-        dsn::json_to_dsn,
         interval::IntervalLimit,
     },
 };
+use taosx_utils::dsn::json_to_dsn;
 
 use legacy_to_taos::sync_super_table_schema;
 
@@ -1303,7 +1303,7 @@ pub async fn tmq_to_td(
     actions: Vec<Action>,
     mut to: Dsn,
     cancel: CancellationToken,
-    task_id: Option<String>,
+    task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     let cancel = cancel.child_token();
@@ -1409,10 +1409,9 @@ pub async fn tmq_to_td(
         to.params = to_params;
     }
     from.params = from_params;
-    let metrics_arc = get_metrics_arc_or(task_id.as_deref().and_then(|s| s.parse().ok()), || {
+    let metrics_arc = get_metrics_arc_or(task_job_id, || {
         Arc::new(CoreMetrics::TMQ(TmqMetrics::default()))
-    })
-    .await;
+    });
     let metrics = metrics_arc.tmq();
     metrics.topics.fetch_add(topics.len() as _, SeqCst);
 
@@ -2024,7 +2023,8 @@ mod tests {
         const DB_SRC: &str = "td32960_005_src";
         const DB_DST: &str = "td32960_005_dst";
         const TOPIC: &str = "test_realtime_sync";
-        const TID: u64 = 32960005;
+        const TID: i64 = 32960005;
+        const JID: i64 = -1;
         const THREADS: u64 = 10; // 写入的并发
         const TABLES: u64 = 100; // 每个线程写入 T 张表, 不要修改
         const BATCH_NUM: u64 = 250; // 每个表写入 BATCH_NUM 次
@@ -2065,7 +2065,7 @@ mod tests {
                 vec![],
                 to,
                 CancellationToken::new(),
-                Some(TID.to_string()),
+                Some((TID, JID)),
                 tx,
             )
             .await
@@ -2159,7 +2159,8 @@ mod tests {
         let ws_enable = std::env::var("WS_ENABLE").is_ok_and(|w| w.eq_ignore_ascii_case("true"));
         const DB_SRC: &str = "test_timestamp_out_of_range_1";
         const DB_DST: &str = "test_timestamp_out_of_range_2";
-        const TID: u64 = 32960000;
+        const TID: i64 = 32960000;
+        const JID: i64 = -1;
         const DAYS: i64 = 10;
 
         let now = Utc::now();
@@ -2206,7 +2207,7 @@ mod tests {
             vec![],
             to,
             CancellationToken::new(),
-            Some(TID.to_string()),
+            Some((TID, JID)),
             tx.clone(),
         )
         .await?;
@@ -2276,7 +2277,8 @@ mod tests {
             .unwrap_or(false);
         const DB_SRC: &str = "td34829_src";
         const DB_DST: &str = "td34829_dst";
-        const TID: i32 = 34829;
+        const TID: i64 = 34829;
+        const JID: i64 = -1;
         const STREAM: &str = "current_state_window";
         let group_id = format!("test_td{TID}");
         let topic_name = format!("test_replica_td{TID}");
@@ -2351,15 +2353,7 @@ mod tests {
         let (tx, rx) = flume::unbounded();
         let tx_clone = tx.clone();
         let h = tokio::spawn(async move {
-            tmq_to_td(
-                from,
-                vec![],
-                to,
-                cancel_clone,
-                Some(TID.to_string()),
-                tx_clone,
-            )
-            .await
+            tmq_to_td(from, vec![], to, cancel_clone, Some((TID, JID)), tx_clone).await
         });
 
         // 3. write data in DB_SRC
@@ -2456,7 +2450,8 @@ mod tests {
             .unwrap_or(false);
         const DB_SRC: &str = "td33080_src";
         const DB_DST: &str = "td33080_dst";
-        const TID: u64 = 33080;
+        const TID: i64 = 33080;
+        const JID: i64 = -1;
         const TABLES: u64 = 100;
         const ROWS: usize = 100;
 
@@ -2497,15 +2492,7 @@ mod tests {
         let (tx, rx) = flume::unbounded();
         let tx_clone = tx.clone();
         let h = tokio::spawn(async move {
-            tmq_to_td(
-                from,
-                vec![],
-                to,
-                cancel_clone,
-                Some(TID.to_string()),
-                tx_clone,
-            )
-            .await
+            tmq_to_td(from, vec![], to, cancel_clone, Some((TID, JID)), tx_clone).await
         });
 
         // start writing data

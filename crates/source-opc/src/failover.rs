@@ -2,7 +2,8 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use taos::Dsn;
-use taosx_core::{runners::opc::config::connect::ConnectConfig, utils::dsn::parse_multiple_value};
+use taosx_core::runners::opc::config::connect::ConnectConfig;
+use taosx_utils::dsn::parse_multiple_value;
 
 pub fn failover_config(from: Dsn, to: Dsn) -> anyhow::Result<Vec<(Dsn, Dsn)>> {
     let mut res = Vec::new();
@@ -28,7 +29,7 @@ pub fn failover_config(from: Dsn, to: Dsn) -> anyhow::Result<Vec<(Dsn, Dsn)>> {
 
 #[cfg(test)]
 mod tests {
-    use taosx_core::utils::dsn::json_to_dsn;
+    use taosx_utils::dsn::json_to_dsn;
 
     use super::*;
 

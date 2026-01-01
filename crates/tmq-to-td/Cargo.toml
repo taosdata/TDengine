@@ -1,6 +1,6 @@
 [package]
 name = "tmq-to-td"
-edition = "2024"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
@@ -20,12 +20,12 @@ chrono.workspace = true
 semver.workspace = true
 awaitgroup.workspace = true
 tracing-subscriber.workspace = true
-lazy_static.workspace = true
 regex.workspace = true
 async-trait.workspace = true
 
 taosx-core.workspace = true
 legacy-to-taos.path = "../legacy-to-taos"
+taosx-utils.workspace = true
 
 [lints]
 workspace = true

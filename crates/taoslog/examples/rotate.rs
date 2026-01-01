@@ -2,7 +2,7 @@ use std::{io::BufRead, thread};
 
 use crossbeam::sync::WaitGroup;
 use rand::Rng;
-use taoslog::{layer::TaosLayer, writer::RollingFileAppender, QidManager};
+use taoslog::{QidManager, layer::TaosLayer, writer::RollingFileAppender};
 use tracing::level_filters::LevelFilter;
 use tracing_log::LogTracer;
 use tracing_subscriber::Layer;

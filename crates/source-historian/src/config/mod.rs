@@ -14,7 +14,7 @@ use super::{HistorianTable, TaskMode};
 #[derive(Debug, Clone)]
 pub struct TaskConfig {
     // task info
-    pub task_id: Option<i64>,
+    pub task_job_id: Option<(i64, i64)>,
     pub sub_task_id: Option<String>,
     // communication
     pub connect: ConnectConfig,
@@ -65,7 +65,7 @@ impl TaskConfig {
         let advanced_options = AdvancedOptions::from_dsn(dsn)?;
 
         Ok(TaskConfig {
-            task_id,
+            task_job_id: task_id.map(|id| (id, -1)),
             sub_task_id: None,
             connect,
             ipc_port: None,

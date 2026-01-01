@@ -1,15 +1,15 @@
-use std::ops::Deref;
+use std::{ops::Deref, sync::LazyLock};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use async_backtrace::framed;
 use itertools::Itertools;
 use semver::Version;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, RawResult, TaosBuilder, TaosPool};
-use tracing::{debug, instrument, Instrument};
+use tracing::{Instrument, debug, instrument};
 
 use crate::{
-    utils::{constants::*, mask_dsn},
     ConnectorLicense,
+    utils::{constants::*, mask_dsn},
 };
 
 /// Check if an TDengine dsn is in cloud env
@@ -73,13 +73,11 @@ impl LicenseKind {
     }
 }
 
-lazy_static::lazy_static! {
-    static ref INFORMATION_GRANTS_FULL: std::borrow::Cow<'static, str> = {
-        std::env::var("INFORMATION_GRANTS_FULL")
-            .map(|s| s.into())
-            .unwrap_or_else(|_| "information_schema.ins_grants_full".into())
-    };
-}
+static INFORMATION_GRANTS_FULL: LazyLock<std::borrow::Cow<'static, str>> = LazyLock::new(|| {
+    std::env::var("INFORMATION_GRANTS_FULL")
+        .map(|s| s.into())
+        .unwrap_or_else(|_| "information_schema.ins_grants_full".into())
+});
 
 async fn check_grant_of(
     builder: &TaosBuilder,
@@ -94,7 +92,9 @@ async fn check_grant_of(
         .assert_enterprise_edition();
     if let Err(err) = edition {
         tracing::warn!(err = %err, "{grant} feature requires enterprise edition");
-        return Ok(LicenseKind::Edition(anyhow!("{grant} feature requires enterprise edition, cause: {err:#}, please contact the TDengine customer success team for further assistance.")));
+        return Ok(LicenseKind::Edition(anyhow!(
+            "{grant} feature requires enterprise edition, cause: {err:#}, please contact the TDengine customer success team for further assistance."
+        )));
     }
 
     let conn = builder.build().await?;
@@ -130,7 +130,9 @@ async fn check_grant_of(
     if ok {
         Ok(LicenseKind::good())
     } else {
-        Ok(LicenseKind::Edition(anyhow!("{grant} expired at {expire}, please contact the TDengine customer success team for further assistance.")))
+        Ok(LicenseKind::Edition(anyhow!(
+            "{grant} expired at {expire}, please contact the TDengine customer success team for further assistance."
+        )))
     }
 }
 
@@ -337,7 +339,9 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     .assert_enterprise_edition();
 
                 if let Err(err) = edition {
-                    return Ok(LicenseKind::Edition(anyhow!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
+                    return Ok(LicenseKind::Edition(anyhow!(
+                        "The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance."
+                    )));
                 }
 
                 return check_connector_grant_of(&sink_builder, &sink_version, TMQ_LICENSE_ID)
@@ -382,7 +386,9 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     .context("Failed to check source edition")?
                     .assert_enterprise_edition();
                 if let Err(err) = edition {
-                    return Ok(LicenseKind::Edition(anyhow!("The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
+                    return Ok(LicenseKind::Edition(anyhow!(
+                        "The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance."
+                    )));
                 }
             }
             if sink_version < VERSION_3_1_3 {
@@ -430,7 +436,9 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 .context("Failed to check destination edition")?
                 .assert_enterprise_edition();
             if let Err(err) = edition {
-                return Ok(LicenseKind::Edition(anyhow!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
+                return Ok(LicenseKind::Edition(anyhow!(
+                    "The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance."
+                )));
             }
             return Ok(LicenseKind::good());
         }
@@ -477,7 +485,9 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 .assert_enterprise_edition();
 
             if let Err(err) = edition {
-                return Ok(LicenseKind::Edition(anyhow!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
+                return Ok(LicenseKind::Edition(anyhow!(
+                    "The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance."
+                )));
             }
 
             if sink_version < VERSION_3_1_3 {
@@ -505,7 +515,9 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                     .assert_enterprise_edition();
 
             if let Err(err) = edition {
-                return Ok(LicenseKind::Edition(anyhow!("The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.")));
+                return Ok(LicenseKind::Edition(anyhow!(
+                    "The source is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance."
+                )));
             }
         }
         ("local", "tmq" | "taos") => {
@@ -527,7 +539,9 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
 
             if edition.is_err() {
                 let err = edition.unwrap_err().to_string();
-                bail!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
+                bail!(
+                    "The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance."
+                );
             }
         }
         (_, "tmq" | "taos") => {
@@ -566,7 +580,9 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
 
             if edition.is_err() {
                 let err = edition.unwrap_err().to_string();
-                bail!("The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance.");
+                bail!(
+                    "The destination is not a valid TDengine enterprise edition, cause: {err}, please contact the TDengine customer success team for further assistance."
+                );
             }
 
             let connector = match from.driver.as_str() {
@@ -631,7 +647,9 @@ async fn get_valid_taos_version(
     )?;
 
     if source_version >= VERSION_3_3_0 && sink_version < VERSION_3_3_0 {
-        bail!("Source version is 3.3.0 or later, but sink version is earlier than 3.3.0, which is not supported.");
+        bail!(
+            "Source version is 3.3.0 or later, but sink version is earlier than 3.3.0, which is not supported."
+        );
     }
     Ok((source_version, sink_version))
 }
@@ -647,7 +665,9 @@ mod tests {
         let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::Level::DEBUG)
             .try_init();
-        std::env::set_var("INFORMATION_GRANTS_FULL", "test.test_grants_full");
+        unsafe {
+            std::env::set_var("INFORMATION_GRANTS_FULL", "test.test_grants_full");
+        }
         let now = chrono::Local::now();
         let expired = chrono::Local::now() - (chrono::Duration::days(10));
         let future = chrono::Local::now() + (chrono::Duration::days(100));
@@ -673,16 +693,20 @@ mod tests {
         let to = Dsn::from_str("taos:///test").unwrap();
         let res = validate_enterprise_license(&from, &to).await;
         assert!(res.is_err(), "{:#?}", res);
-        assert!(dbg!(format!("{:#}", res.unwrap_err()))
-            .contains("You enterprise edition has no active_active license"));
+        assert!(
+            dbg!(format!("{:#}", res.unwrap_err()))
+                .contains("You enterprise edition has no active_active license")
+        );
 
         conn.exec("insert into test.test_grants_full values(now, 'active_active', 'Active-Active', '2022-01-01 00:00:00', NULL)")
             .await
             .unwrap();
         let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
         assert!(res.is_err(), "{:#?}", res);
-        assert!(dbg!(format!("{:#}", res.unwrap_err()))
-            .contains("active_active expired at 2022-01-01 00:00:00"));
+        assert!(
+            dbg!(format!("{:#}", res.unwrap_err()))
+                .contains("active_active expired at 2022-01-01 00:00:00")
+        );
 
         conn.exec_many([
             "delete from test.test_grants_full".to_string(),
@@ -694,8 +718,10 @@ mod tests {
         .await
         .unwrap();
         let err = validate_enterprise_license(&from, &to).await.unwrap_err();
-        assert!(dbg!(format!("{:#}", err))
-            .contains("The current connector td3.0 is not supported by license."));
+        assert!(
+            dbg!(format!("{:#}", err))
+                .contains("The current connector td3.0 is not supported by license.")
+        );
 
         let (grant, display) = ("td3.0", "TDengine 3.0");
         conn.exec(format!(
@@ -707,8 +733,10 @@ mod tests {
         .unwrap();
         let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
         assert!(res.is_err(), "{:#?}", res);
-        assert!(dbg!(format!("{:#}", res.unwrap_err()))
-            .contains("The current connector td3.0 has been expired for"));
+        assert!(
+            dbg!(format!("{:#}", res.unwrap_err()))
+                .contains("The current connector td3.0 has been expired for")
+        );
         conn.exec_many([
             "delete from test.test_grants_full".to_string(),
             format!(
@@ -734,7 +762,9 @@ mod tests {
         let _ = tracing_subscriber::fmt()
             .with_max_level(tracing::Level::DEBUG)
             .try_init();
-        std::env::set_var("INFORMATION_GRANTS_FULL", "test.test_grants_full2");
+        unsafe {
+            std::env::set_var("INFORMATION_GRANTS_FULL", "test.test_grants_full2");
+        }
         let now = chrono::Local::now();
         let expired = chrono::Local::now() - (chrono::Duration::days(10));
         let future = chrono::Local::now() + (chrono::Duration::days(100));
@@ -760,16 +790,20 @@ mod tests {
         let to = Dsn::from_str("taos:///test").unwrap();
         let res = validate_enterprise_license(&from, &to).await;
         assert!(res.is_err(), "{:#?}", res);
-        assert!(dbg!(format!("{:#}", res.unwrap_err()))
-            .contains("You enterprise edition has no active_active license"));
+        assert!(
+            dbg!(format!("{:#}", res.unwrap_err()))
+                .contains("You enterprise edition has no active_active license")
+        );
 
         conn.exec("insert into test.test_grants_full2 values(now, 'active_active', 'Active-Active', '2022-01-01 00:00:00', NULL)")
             .await
             .unwrap();
         let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
         assert!(res.is_err(), "{:#?}", res);
-        assert!(dbg!(format!("{:#}", res.unwrap_err()))
-            .contains("active_active expired at 2022-01-01 00:00:00"));
+        assert!(
+            dbg!(format!("{:#}", res.unwrap_err()))
+                .contains("active_active expired at 2022-01-01 00:00:00")
+        );
 
         conn.exec_many([
             "delete from test.test_grants_full2".to_string(),
@@ -792,8 +826,10 @@ mod tests {
         .unwrap();
         let res = validate_enterprise_license(&from, &to).await.unwrap().ok();
         assert!(res.is_err(), "{:#?}", res);
-        assert!(dbg!(format!("{:#}", res.unwrap_err()))
-            .contains("The current connector td3.0 has been expired for"));
+        assert!(
+            dbg!(format!("{:#}", res.unwrap_err()))
+                .contains("The current connector td3.0 has been expired for")
+        );
         conn.exec_many([
             "delete from test.test_grants_full2".to_string(),
             format!(

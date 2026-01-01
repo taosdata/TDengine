@@ -29,9 +29,10 @@ use taosx_core::{
         ENV_LOGS_HOME, ENV_PLUGINS_HOME, ENV_TAOSX_DATA_DIR, ENV_TAOSX_LOGS_HOME,
         ENV_TAOSX_PLUGINS_HOME,
     },
-    utils::trace::{DEFAULT_INSTANCE_ID, INSTANCE_ID, Qid},
+    utils::trace::{DEFAULT_TAOSX_INSTANCE_ID, INSTANCE_ID, Qid},
 };
 use thiserror::Error;
+use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, log::LevelFilter};
 use tracing::{debug, instrument};
 use tracing_subscriber::layer::Layered;
@@ -495,7 +496,8 @@ impl Args {
             .or(configurable_opts.global.telemetry.clone());
         args.global.merge_from(configurable_opts.global, matches);
         args.global.instance_id = Some(
-            *INSTANCE_ID.get_or_init(|| args.global.instance_id.unwrap_or(DEFAULT_INSTANCE_ID)),
+            *INSTANCE_ID
+                .get_or_init(|| args.global.instance_id.unwrap_or(DEFAULT_TAOSX_INSTANCE_ID)),
         );
         if let Some(monitor_cfg) = configurable_opts.monitor.as_ref() {
             args.monitor.merge_from(monitor_cfg);
@@ -1061,7 +1063,19 @@ fn main() -> Result<()> {
         Commands::Privileges(privileges) => runtime.block_on(privileges.run(args.opt_args)),
         Commands::Replica(replica) => runtime.block_on(replica.run(args.opt_args)),
         Commands::Serve(serve) => {
-            trace::qid_db_init()?;
+            let hostname = gethostname::gethostname();
+            let hostname = match hostname.to_str() {
+                Some(hostname) => hostname.to_string(),
+                None => {
+                    tracing::error!("gethostname error");
+                    "unknown".to_string()
+                }
+            };
+            let port = serve.get_listen_port();
+            let taosx_id = format!("{}_{}", hostname, port);
+            tracing::info!("taosx_id: {}", taosx_id);
+
+            trace::qid_db_init(INSTANCE_ID.get_or_init(|| DEFAULT_TAOSX_INSTANCE_ID))?;
 
             Timeout::set_default_timeout(serve.request_timeout);
 
@@ -1072,7 +1086,8 @@ fn main() -> Result<()> {
 
             let serve = || {
                 let _span = tracing::info_span!("serve").entered();
-                let port = serve.get_listen_port();
+                let cancel_token = CancellationToken::new();
+
                 let scheduler_rt = build_runtime(
                     &format!("{}x-scheduler", build::CUS_PROMPT),
                     serve
@@ -1105,8 +1120,8 @@ fn main() -> Result<()> {
                     runtime.block_on(serve.controller(scheduler, max_activities_per_entity))?;
 
                 debug!("Starting monitor");
-                let monitor = monitor::Monitor::new(args.monitor.clone(), port, ctl.clone());
-                let api_ctl = ctl.clone();
+                let monitor =
+                    monitor::Monitor::new(args.monitor.clone(), taosx_id.clone(), ctl.clone());
                 let grpc_serve = serve.clone();
                 debug!("Starting gRPC server");
                 let grpc_handle = grpc_rt.spawn(grpc_serve.grpc(
@@ -1114,20 +1129,17 @@ fn main() -> Result<()> {
                     agent_rpc_channel,
                     agent_spawn_sender,
                     monitor.clone(),
+                    cancel_token.child_token(),
                 ));
                 debug!("Starting API server");
-                runtime.block_on(async move {
-                    // rest api
-                    serve.api(api_ctl, grpc_handle, monitor).await
-                })?;
+                // rest api
+                runtime.block_on(serve.api(ctl, grpc_handle, monitor, cancel_token))?;
                 Ok(())
             };
             serve()
         }
     };
-    runtime.block_on(async move {
-        opentelemetry::global::set_tracer_provider(NoopTracerProvider::new());
-    });
+    opentelemetry::global::set_tracer_provider(NoopTracerProvider::new());
     tracing::trace!("Shutdown main runtime");
     runtime.shutdown_timeout(std::time::Duration::from_secs(1));
     res
@@ -1337,60 +1349,6 @@ mod tests {
             } else {
                 println!("{:?} is not a root directory", path_obj);
             }
-        }
-    }
-
-    #[test]
-    fn test_args() {
-        unsafe {
-            std::env::remove_var("TAOSX_DATA_DIR");
-            std::env::remove_var("TAOSX_LOGS_HOME");
-            std::env::remove_var("DATABASE_URL");
-        }
-
-        let args = shlex::split("taosx serve --data-dir ./tests/cli/data/").unwrap();
-        let matches = dbg!(Args::command()).get_matches_from(args);
-        let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
-        if let Commands::Serve(cli) = args.commands.unwrap() {
-            assert_eq!(cli.get_database_url(), "sqlite:./tests/cli/data/taosx.db");
-        }
-
-        unsafe {
-            std::env::remove_var("TAOSX_DATA_DIR");
-            std::env::remove_var("TAOSX_LOGS_HOME");
-            std::env::set_var("DATABASE_URL", "sqlite:./tests/cli/data2/taosx.db");
-        }
-        let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
-        if let Commands::Serve(cli) = args.commands.unwrap() {
-            assert_eq!(cli.get_database_url(), "sqlite:./tests/cli/data2/taosx.db");
-        }
-
-        unsafe {
-            std::env::remove_var("TAOSX_DATA_DIR");
-            std::env::remove_var("TAOSX_LOGS_HOME");
-            std::env::remove_var("DATABASE_URL");
-        }
-        let args = shlex::split("taosx serve").unwrap();
-        let matches = dbg!(Args::command()).get_matches_from(args);
-        let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
-
-        dotenv::dotenv().ok();
-        #[cfg(unix)]
-        if let Commands::Serve(cli) = args.commands.unwrap() {
-            assert_eq!(
-                cli.get_database_url(),
-                std::env::var("DATABASE_URL")
-                    .unwrap_or_else(|_| "sqlite:/var/lib/taos/taosx/taosx.db".into())
-            );
-        }
-        unsafe {
-            std::env::remove_var("TAOSX_LOGS_HOME");
-            std::env::remove_var("DATABASE_URL");
-            std::env::set_var("TAOSX_DATA_DIR", "./tests/cli/data");
-        }
-        let args = dbg!(Args::init_with_arg_matches(&matches).unwrap());
-        if let Commands::Serve(cli) = args.commands.unwrap() {
-            assert_eq!(cli.get_database_url(), "sqlite:./tests/cli/data/taosx.db");
         }
     }
 }

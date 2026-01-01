@@ -4,10 +4,10 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use taos::Dsn;
 
+use crate::runners::opc::config::OpcType;
 use crate::runners::opc::config::collect::da::DaCollectConfig;
 use crate::runners::opc::config::collect::dump::DumpConfig;
 use crate::runners::opc::config::collect::ua::UaCollectConfig;
-use crate::runners::opc::config::OpcType;
 use crate::utils;
 
 pub mod da;
@@ -62,7 +62,7 @@ pub struct CollectConfig {
 }
 
 impl CollectConfig {
-    pub async fn from_dsn(dsn: &Dsn, task_id: Option<i64>) -> anyhow::Result<Self> {
+    pub async fn from_dsn(dsn: &Dsn, task_job_id: Option<(i64, i64)>) -> anyhow::Result<Self> {
         let opc_type = OpcType::from_dsn(dsn)?;
         let collect_config = match opc_type {
             OpcType::OPCUA => Self {
@@ -72,7 +72,7 @@ impl CollectConfig {
                 ua: Some(UaCollectConfig::from_dsn(dsn).await?),
                 da: None,
                 persist_data: PersistDataConfig::from_dsn(dsn)?,
-                dump: DumpConfig::from_dsn(dsn, task_id)?,
+                dump: DumpConfig::from_dsn(dsn, task_job_id)?,
             },
             OpcType::OPCDA => Self {
                 interval: Self::parse_interval(dsn)?,
@@ -81,7 +81,7 @@ impl CollectConfig {
                 ua: None,
                 da: Some(DaCollectConfig::from_dsn(dsn).await?),
                 persist_data: PersistDataConfig::from_dsn(dsn)?,
-                dump: DumpConfig::from_dsn(dsn, task_id)?,
+                dump: DumpConfig::from_dsn(dsn, task_job_id)?,
             },
             OpcType::FAKE => Self {
                 interval: None,

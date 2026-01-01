@@ -1,7 +1,7 @@
 [package]
 name = "taosx-core"
 version = { workspace = true }
-edition = "2021"
+edition.workspace = true
 homepage = "https://taosdata.com"
 publish = false
 description = "taosX - TDengine data integration tool"
@@ -37,13 +37,12 @@ strum = { workspace = true, features = ["derive"] }
 paste.workspace = true
 half = "2.3"
 humantime.workspace = true
-clap = { workspace = true, features = ["default", "derive"] }
+clap.workspace = true
 convert_case = "0.8"
 csv-async.workspace = true
 flate2.workspace = true
 futures = { workspace = true, features = ["thread-pool"] }
-itertools = { workspace = true }
-lazy_static.workspace = true
+itertools.workspace = true
 linked-hash-map.workspace = true
 log.workspace = true
 fundu.workspace = true
@@ -107,7 +106,6 @@ rumqttc.workspace = true
 opendal = { workspace = true, features = ["services-s3"] }
 taoslog.workspace = true
 bitfield.workspace = true
-file-guard = "0.2.0"
 config = "0.14.0"
 snafu.workspace = true
 parking_lot.workspace = true
@@ -115,10 +113,13 @@ lz4.workspace = true
 snap.workspace = true
 zstd.workspace = true
 hex.workspace = true
-persist-queue = { path = "../crates/persist-queue" }
-archive = { workspace = true }
 serde_regex = "1"
 dateparser = "0.2.1"
+
+persist-queue = { path = "../crates/persist-queue" }
+archive.workspace = true
+taosx-utils.workspace = true
+ha-core.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
@@ -131,7 +132,7 @@ libc = "0.2"
 openssl = { version = "0.10.55", features = ["vendored"] }
 
 [target.'cfg(target_arch="loongarch64")'.dependencies]
-openssl = { version = "0.10.55" }
+openssl = "0.10.55"
 
 [features]
 default = ["optin", "native-tls"]
@@ -142,7 +143,7 @@ disable-enterprise-only-validation = []
 disable-enterprise-connector-validation = []
 
 [build-dependencies]
-dotenv = "0.15.0"
+dotenv.workspace = true
 shadow-rs = { workspace = true }
 
 [dev-dependencies]

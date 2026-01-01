@@ -40,7 +40,7 @@ pub mod t2l;
 #[instrument(skip_all, fields(task_id))]
 #[async_backtrace::framed]
 pub async fn local_to_taos(
-    task_id: Option<String>,
+    task_job_id: Option<(i64, i64)>,
     from: Dsn,
     to: Dsn,
     cancel: CancellationToken,
@@ -48,7 +48,7 @@ pub async fn local_to_taos(
     tracing::info!("local_to_taos start");
 
     // 解析参数
-    let config = LocalRestoreConfigBuilder::new(&task_id, &from, &to)
+    let config = LocalRestoreConfigBuilder::new(task_job_id, &from, &to)
         .build()
         .await
         .context("parse local_to_taos config error")?;
@@ -70,11 +70,8 @@ pub async fn local_to_taos(
     let stop_flag = watcher.get_stop_flag();
 
     // load metrics
-    let tid = task_id
-        .clone()
-        .and_then(|id| id.parse::<i64>().ok())
-        .unwrap_or(-1);
-    let metrics = get_metrics(tid).await.map(LocalToTaosMetrics::new);
+    let (task_id, job_id) = task_job_id.unwrap_or((-1, -1));
+    let metrics = get_metrics(task_id, job_id).map(LocalToTaosMetrics::new);
 
     let (tx, rx) = flume::unbounded();
     let taos_pool = config.connect_taos_pool().await?;

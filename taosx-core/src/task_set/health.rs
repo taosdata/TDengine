@@ -10,13 +10,13 @@ use crate::core_metrics::CoreMetrics;
 use bon::Builder;
 use chrono::{DateTime, Utc};
 use ringbuf::{
-    traits::{Consumer, Observer, RingBuffer},
     HeapRb,
+    traits::{Consumer, Observer, RingBuffer},
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIs, EnumString, VariantNames};
 use tokio::{sync::broadcast, task::AbortHandle};
-use tracing::{instrument, Instrument};
+use tracing::{Instrument, instrument};
 
 /// Health state machine.
 #[derive(

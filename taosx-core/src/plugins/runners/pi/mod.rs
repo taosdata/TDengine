@@ -345,7 +345,10 @@ mod tests {
         assert!(!validation.support);
         assert_eq!("pi", validation.data_source);
         assert_eq!(None, validation.version);
-        assert_eq!("failed to connect to dsn: pi://WIN-2OA23UM12TN/Met1?PISystemName=other, cause: pi plugin not found at: \"/usr/local/taos/plugins/pi/taosx-pi.exe\"", validation.message.unwrap());
+        assert_eq!(
+            "failed to connect to dsn: pi://WIN-2OA23UM12TN/Met1?PISystemName=other, cause: pi plugin not found at: \"/usr/local/taos/plugins/pi/taosx-pi.exe\"",
+            validation.message.unwrap()
+        );
     }
 
     #[ignore]
@@ -368,6 +371,9 @@ mod tests {
         assert!(!validation.support);
         assert_eq!("pibackfill", validation.data_source);
         assert_eq!(None, validation.version);
-        assert_eq!("failed to connect to dsn: pibackfill://WIN-2OA23UM12TN/Met1?PISystemName=other, cause: pibackfill plugin not found at: \"/usr/local/taos/plugins/pi/taosx-pi-backfill.exe\"", validation.message.unwrap());
+        assert_eq!(
+            "failed to connect to dsn: pibackfill://WIN-2OA23UM12TN/Met1?PISystemName=other, cause: pibackfill plugin not found at: \"/usr/local/taos/plugins/pi/taosx-pi-backfill.exe\"",
+            validation.message.unwrap()
+        );
     }
 }

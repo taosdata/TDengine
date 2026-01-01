@@ -6,14 +6,14 @@ use itertools::Itertools;
 use serde_arrow::schema::SerdeArrowSchema;
 
 use crate::plugins::transform::{
-    modeler::{stable::STableModel, ModeledJsonOutput},
+    modeler::{ModeledJsonOutput, stable::STableModel},
     to_json_valid_batches,
 };
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct MultiSchemaSamples {
-    parser: crate::Pipeline,
-    samples: Vec<SampleWithSchema>,
+    pub parser: crate::Pipeline,
+    pub samples: Vec<SampleWithSchema>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -41,17 +41,25 @@ impl MultiSchemaSamples {
     pub fn new(parser: crate::Pipeline, samples: Vec<SampleWithSchema>) -> Self {
         Self { parser, samples }
     }
+
+    pub fn has_input(&self) -> bool {
+        !self.samples.is_empty()
+    }
 }
 
 impl MultiSchemaSamples {
-    pub fn transform(self, tz: Option<&str>) -> anyhow::Result<Vec<ModeledJsonOutput>> {
+    pub fn transform(&self, tz: Option<&str>) -> anyhow::Result<Vec<ModeledJsonOutput>> {
         if self.samples.is_empty() {
             anyhow::bail!("Input should not be empty");
         }
 
         let mut ret = Vec::new();
-        for sample in self.samples {
-            let fields: Vec<Field> = sample.schema.try_into().context("get schema field error")?;
+        for sample in &self.samples {
+            let fields: Vec<Field> = sample
+                .schema
+                .clone()
+                .try_into()
+                .context("get schema field error")?;
             let schema = Schema::new(fields);
             let json = sample
                 .input

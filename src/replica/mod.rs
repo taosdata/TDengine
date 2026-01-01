@@ -181,12 +181,10 @@ impl Hash for Replica {
 }
 
 mod words {
-    use lazy_static::lazy_static;
+    use std::sync::LazyLock;
 
-    lazy_static! {
-        /// A 2048 words list for generating replica id.
-        pub static ref WORDS: Vec<&'static str> = include_str!("words.txt").lines().collect();
-    }
+    pub static WORDS: LazyLock<Vec<&'static str>> =
+        LazyLock::new(|| include_str!("words.txt").lines().collect());
 }
 
 impl Replica {

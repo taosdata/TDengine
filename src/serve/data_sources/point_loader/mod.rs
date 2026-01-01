@@ -1,25 +1,21 @@
 use actix_files::NamedFile;
 use actix_web::web::Json;
 use actix_web::web::{Data, Query};
-use anyhow::{Context, anyhow};
+use anyhow::anyhow;
 use csv::Reader;
-use lazy_static::lazy_static;
 use serde::Deserialize;
 use serde::Serialize;
 use source_opc::{DA_ROW, UA_ROW};
 use std::collections::HashMap;
 use std::io::Write;
-use std::sync::Arc;
-use taos::IntoDsn;
+use std::sync::{Arc, LazyLock};
 use taosx_core::runners::opc::OpcType;
-use taosx_core::utils::dsn::json_to_dsn;
-use taosx_core::{DataSetsReq, list_datasets_from};
 use taosx_ipc::types::DataSet;
+use taosx_utils::dsn::json_to_dsn;
 use tempfile::TempPath;
 use tokio::sync::RwLock;
 use utoipa::*;
 
-use crate::serve::TaskController;
 use crate::serve::controller::TaskControllerRef;
 
 #[derive(Debug, Deserialize, ToSchema, IntoParams)]
@@ -28,7 +24,6 @@ pub struct DownloadAllPointsParams {
     from_json: Option<serde_json::Value>,
     via: Option<i64>,
     categories: String,
-    lang: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -126,7 +121,6 @@ pub struct OpcPoint {
 /// 同步下载所有数据点位
 pub async fn download_all_point_csv_file(
     controller: Data<TaskControllerRef>,
-    // data: Query<DataSetsReq>,
     params: Query<DownloadAllPointsParams>,
 ) -> anyhow::Result<NamedFile> {
     let params = params.into_inner();
@@ -139,14 +133,9 @@ pub async fn download_all_point_csv_file(
         return Err(anyhow!("from is required"));
     };
 
-    let (data, _) = get_all_points(
-        from,
-        params.via,
-        params.categories,
-        controller.into_inner().as_ref(),
-        params.lang,
-    )
-    .await?;
+    let (data, _) = controller
+        .get_all_points(from, params.via, params.categories)
+        .await?;
 
     let mut config_file = tempfile::NamedTempFile::new()?;
     tracing::debug!(
@@ -164,12 +153,10 @@ enum TaskStatus {
 }
 
 // Define a static shared hashmap， task_id -> task_status
-lazy_static! {
-    static ref SHARED_MAP: Arc<RwLock<HashMap<String, TaskStatus>>> = {
-        let map = HashMap::new();
-        Arc::new(RwLock::new(map))
-    };
-}
+static SHARED_MAP: LazyLock<Arc<RwLock<HashMap<String, TaskStatus>>>> = LazyLock::new(|| {
+    let map = HashMap::new();
+    Arc::new(RwLock::new(map))
+});
 
 // 异步下载数据点位，会将当前任务id返回给前端
 pub async fn arrange_point_file_download_task(
@@ -196,14 +183,9 @@ pub async fn arrange_point_file_download_task(
             params.from.unwrap_or_default()
         };
 
-        match get_all_points(
-            from,
-            params.via,
-            params.categories,
-            controller.into_inner().as_ref(),
-            params.lang,
-        )
-        .await
+        match controller
+            .get_all_points(from, params.via, params.categories)
+            .await
         {
             Ok((data, point_count)) => {
                 let mut config_file = tempfile::NamedTempFile::new().unwrap();
@@ -336,77 +318,6 @@ fn get_safe_string_for_csv(s: &str) -> String {
     safe_str
 }
 
-async fn get_all_points(
-    from: String,
-    via: Option<i64>,
-    categories: String,
-    controller: &TaskController,
-    _lang: Option<String>,
-) -> anyhow::Result<(String, usize)> {
-    let mut from = from.into_dsn()?;
-
-    let pattern = match from.driver.as_str() {
-        "pi" | "pibackfill" => None,
-        _ => Some(String::from(".*")),
-    };
-    let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
-
-    let datasets = if let Some(agent) = via {
-        controller
-            .list_datasets_via_agent_v1(agent, &mut from, categories, via)
-            .await
-    } else {
-        let data = DataSetsReq {
-            from: Some(from.to_string()),
-            from_json: None,
-            categories: vec![categories],
-            via,
-            offset: 0,
-            pattern,
-            limit,
-            lang: None,
-        };
-        list_datasets_from(&data).await
-    }
-    .context("failed to list datasets")?;
-
-    let point_count = datasets.len();
-    let data = match from.driver.as_str() {
-        "opcda" => {
-            // header
-            let mut result = source_opc::get_template(OpcType::OPCDA, false);
-            // rows
-            datasets.iter().enumerate().for_each(|(i, item)| {
-                let row = da_template_row(i + 1, item);
-                result.push_str(row.as_str());
-            });
-            result
-        }
-        "opcua" => {
-            // header
-            let mut result = source_opc::get_template(OpcType::OPCUA, false);
-            // rows
-            datasets.iter().enumerate().for_each(|(i, item)| {
-                let row = ua_template_row(i + 1, item);
-                result.push_str(row.as_str());
-            });
-            result
-        }
-        "kinghist" => source_kinghistorian::to_csv_context(datasets)
-            .await
-            .inspect_err(|err| {
-                tracing::error!(
-                    "failed to generate kinghistorian csv content, err: {:?}",
-                    err
-                )
-            })
-            .context("failed to generate kinghistorian csv content")?,
-        _ => unimplemented!(),
-    };
-
-    Ok((data, point_count))
-}
-
 fn get_enabled(item: DataSet) -> i8 {
     item.options
         .map(|o| {
@@ -427,7 +338,7 @@ fn get_enabled(item: DataSet) -> i8 {
 }
 
 // 替换 UA_ROW 的前三个字段和最后一个字段
-fn ua_template_row(row_idx: usize, item: &DataSet) -> String {
+pub fn ua_template_row(row_idx: usize, item: &DataSet) -> String {
     let mut cols = vec![];
     for (idx, col) in UA_ROW.iter().enumerate() {
         if idx == 0 {
@@ -452,7 +363,7 @@ fn ua_template_row(row_idx: usize, item: &DataSet) -> String {
     format!("{}\n", cols.join(","))
 }
 
-fn da_template_row(row_idx: usize, item: &DataSet) -> String {
+pub fn da_template_row(row_idx: usize, item: &DataSet) -> String {
     // 替换 DA_ROW 的前三个字段和最后一个字段
     let mut cols = vec![];
     for (idx, col) in DA_ROW.iter().enumerate() {

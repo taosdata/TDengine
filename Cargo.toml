@@ -4,7 +4,6 @@ members = [
   "taosx-core",
   "taosx-agent",
   "taosx-metrics",
-  "crates/sqlite-optimizer",
   "crates/arrow-compute-ext",
   "crates/arrow-cast-guess-precision",
   "crates/futures-ext",
@@ -45,28 +44,36 @@ members = [
   "crates/source-kinghistorian/kinghistorian-sys",
   "crates/source-pulsar",
   "crates/reclaim-memory",
+  "crates/ha-core",
+  "crates/ha-rpc-client",
+  "xnoded",
+  "crates/utils",
 ]
 exclude = ["crates/transform/parsers/hebeipower"]
 
 [workspace.dependencies]
-chrono = { version = "0.4.37" }
-chrono-tz = { version = "0.10.1" }
+axum = "0.8"
+axum-extra = "0.12"
+tower-http = "0.6"
+chrono = "0.4.37"
+chrono-tz = "0.10.1"
+dotenv = "0.15"
 shadow-rs = { version = "0.38.1", default-features = false }
-itertools = { version = "0.14.0" }
-flume = { version = "0.11" }
-urlencoding = { version = "2" }
-reqwest = { version = "0.12" }
-clap = { version = "4.5.30", features = ["default", "derive"] }
-clap-verbosity-flag = { version = "3.0.2" }
-regex = { version = "1.11.0" }
-libc = { version = "0.2" }
+itertools = "0.14.0"
+flume = "0.11"
+urlencoding = "2"
+reqwest = "0.12"
+clap = { version = "4.5", features = ["default", "derive", "env"] }
+clap-verbosity-flag = "3.0.2"
+regex = "1.11.0"
+libc = "0.2"
 
 arrow = { version = "55", features = [
   "chrono-tz",
   "ipc_compression",
   "prettyprint",
 ] }
-arrow-flight = { version = "55" }
+arrow-flight = "55"
 arrow-schema = { version = "55", features = ["serde"] }
 arrow-compute-ext = { path = "crates/arrow-compute-ext" }
 arrow-cast-guess-precision = { path = "crates/arrow-cast-guess-precision" }
@@ -76,12 +83,12 @@ parquet = "55"
 futures-ext = { path = "crates/futures-ext" }
 dashmap = "6.1.0"
 faststr = { version = "0.2.31", features = ["serde"] }
-rayon = { version = "1" }
+rayon = "1"
 
 metrics = "0.24"
 metrics-util = { version = "0.20", features = ["storage"] }
 
-scc = { version = "2" }
+scc = "2"
 tonic = "0.12.3"
 zerocopy = { version = "0.8.18", features = ["derive"] }
 bytes = "1.10.0"
@@ -93,20 +100,21 @@ serde = "1"
 # NOTE: 当前 arrow-json 不兼容 serde_json 的 arbitrary_precision feature，添加需谨慎
 serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
 fundu = "2.0.1"
-opendal = { version = "0.53" }
+opendal = "0.53"
 rumqttc = "0.25.0"
 rustls = { version = "0.23.18", default-features = false }
-rustls-pemfile = { version = "2" }
+rustls-pemfile = "2"
 rustls-native-certs = "0.8"
 
 snafu = "0.8.5"
-tokio = "1.46"
+tokio = "1.48"
 notify = "8.1"
 tokio-util = "0.7"
 futures = "0.3"
 futures-util = "0.3"
 tokio-stream = "0.1"
 tracing = "0.1"
+tracing-actix-web = "0.7"
 anyhow = "1"
 thiserror = "2"
 parking_lot = "0.12.3"
@@ -128,7 +136,7 @@ hex = "0.4.3"
 csv = "1.2"
 csv-async = { version = "1.2.4", features = ["tokio"] }
 
-uuid = "1.17"
+uuid = "1"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 tiberius = { version = "0.12.2", default-features = false, features = [
   "chrono",
@@ -139,8 +147,8 @@ tiberius = { version = "0.12.2", default-features = false, features = [
 ] }
 deadpool-tiberius = "=0.1.8"
 deadpool = "=0.10"
-tokio-process-terminate = { version = "0.3" }
-ringbuf = { version = "0.4" }
+tokio-process-terminate = "0.3"
+ringbuf = "0.4"
 toml = "0.9"
 mongodb = { version = "3.3.0", features = [
   "aws-auth",
@@ -161,7 +169,7 @@ sqlx-postgres = { version = "0.8", features = [
   "bigdecimal",
   "bit-vec",
 ] }
-tracing-subscriber = { version = "0.3" }
+tracing-subscriber = "0.3"
 cfg-if = "1"
 base64 = "0.22.1"
 oracle = { version = "0.6", features = ["chrono"] }
@@ -172,7 +180,6 @@ glob = "0.3.1"
 humantime = "2.1"
 semver = "1"
 awaitgroup = "0.7.0"
-lazy_static = "1.4"
 async-trait = "0.1"
 async-backtrace = "0.2.2"
 async-compression = { version = "0.4", default-features = false, features = [
@@ -202,7 +209,7 @@ duckdb = "1.3"
 num = "0.4"
 criterion = { version = "0.7", features = ["html_reports"] }
 dlopen2 = "0.8.0"
-
+jsonwebtoken = "9.1.0"
 pulsar = "6.4.1"
 md5 = "0.8"
 
@@ -212,6 +219,12 @@ taosx-task.path = "crates/task"
 taosx-metrics.path = "./taosx-metrics"
 source-csv.path = "./crates/source-csv"
 source-kafka.path = "./crates/source-kafka"
+source-mqtt.path = "./crates/source-mqtt"
+source-mongodb.path = "./crates/source-mongodb"
+source-mysql.path = "./crates/source-mysql"
+source-postgres.path = "./crates/source-postgres"
+source-oracle.path = "./crates/source-oracle"
+source-mssql.path = "./crates/source-mssql"
 source-kinghistorian.path = "./crates/source-kinghistorian"
 tmq-to-local.path = "./crates/tmq-to-local"
 tmq-to-td.path = "./crates/tmq-to-td"
@@ -219,8 +232,11 @@ legacy-to-taos.path = "./crates/legacy-to-taos"
 local-to-taos.path = "./crates/local-to-taos"
 source-opc.path = "./crates/source-opc"
 taoslog = { path = "crates/taoslog", features = ["ansi"] }
-archive = { path = "./crates/archive" }
-reclaim-memory = { path = "./crates/reclaim-memory" }
+archive.path = "./crates/archive"
+reclaim-memory.path = "./crates/reclaim-memory"
+ha-core.path = "./crates/ha-core"
+ha-rpc-client.path = "./crates/ha-rpc-client"
+taosx-utils.path = "./crates/utils"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
@@ -231,6 +247,7 @@ features = ["ws", "optin", "deadpool"]
 
 [workspace.package]
 version = "1.11.0"
+edition = "2024"
 rust-version = "1.90.0"
 
 [workspace.lints.clippy]
@@ -240,7 +257,7 @@ too_many_arguments = "allow"
 name = "taosx"
 version.workspace = true
 build = "build.rs"
-edition = "2024"
+edition.workspace = true
 exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 homepage = "https://taosdata.com"
 rust-version = { workspace = true }
@@ -251,6 +268,7 @@ description = "taosX - TDengine data integration tool"
 anyhow.workspace = true
 arrow = { workspace = true }
 arrow-flight = { workspace = true }
+arrow-schema.workspace = true
 zerocopy = { workspace = true }
 opendal = { workspace = true, features = ["services-s3"] }
 #multi_index_map = "0.15.0"
@@ -259,7 +277,6 @@ scc = { workspace = true, features = ["serde"] }
 semver.workspace = true
 shadow-rs = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
-sqlite-optimizer = { path = "crates/sqlite-optimizer" }
 
 twelf = { version = "0.15.0", default-features = false, features = [
   "toml",
@@ -268,14 +285,13 @@ twelf = { version = "0.15.0", default-features = false, features = [
 ] }
 
 chrono = { workspace = true }
-clap = { workspace = true, features = ["default", "derive", "env"] }
+clap.workspace = true
 clap-verbosity-flag = { workspace = true }
 csv.workspace = true
 csv-async.workspace = true
 dashmap = { workspace = true }
 fundu.workspace = true
 futures.workspace = true
-lazy_static.workspace = true
 linked-hash-map.workspace = true
 itertools.workspace = true
 log = { workspace = true, features = ["serde"] }
@@ -305,7 +321,6 @@ actix-web.workspace = true
 actix-ws.workspace = true
 base64.workspace = true
 serde_json = { version = "1.0", features = ["raw_value"] }
-sqlx = { workspace = true, features = ["sqlite", "chrono", "json"] }
 utoipa.workspace = true
 utoipa-swagger-ui.workspace = true
 uuid = { workspace = true, features = [
@@ -329,7 +344,7 @@ metrics-util = { workspace = true }
 sysinfo = { workspace = true }
 
 async-backtrace.workspace = true
-dotenv = "0.15.0"
+dotenv.workspace = true
 
 flume.workspace = true
 futures-util.workspace = true
@@ -339,18 +354,18 @@ tokio-cron-scheduler = { path = "crates/tokio-cron-scheduler" }
 mimalloc = { workspace = true, optional = true }
 tempfile.workspace = true
 
-bytes = { workspace = true }
-jsonwebtoken = "9.1.0"
+bytes.workspace = true
+jsonwebtoken.workspace = true
 rand.workspace = true
 
 console-subscriber = { version = "0.4.0", optional = true }
-opentelemetry = { version = "0.30" }
+opentelemetry = "0.30"
 opentelemetry-otlp = { version = "0.30", features = ["grpc-tonic"] }
-opentelemetry_sdk = { version = "0.30" }
+opentelemetry_sdk =  "0.30"
 reqwest = { workspace = true, features = ["json"] }
 tracing = { workspace = true, features = ["log"] }
-tracing-actix-web = "0.7"
-tracing-opentelemetry = { version = "0.31" }
+tracing-actix-web.workspace = true
+tracing-opentelemetry = "0.31"
 tracing-subscriber = { workspace = true, features = [
   "time",
   "local-time",
@@ -365,12 +380,21 @@ notify.workspace = true
 taoslog.workspace = true
 tokio-retry2 = { version = "0.5.6", features = ["jitter", "tracing"] }
 
+parking_lot.workspace = true
+cached = { version = "0.56.0", features = ["async"] }
+
 # taosx crates
 taosx-core.workspace = true
 taosx-ipc.workspace = true
 taosx-metrics.workspace = true
 taosx-task.workspace = true
 source-kafka.workspace = true
+source-mqtt.workspace = true
+source-mongodb.workspace = true
+source-mysql.workspace = true
+source-postgres.workspace = true
+source-oracle.workspace = true
+source-mssql.workspace = true
 tmq-to-local.workspace = true
 tmq-to-td.workspace = true
 legacy-to-taos.workspace = true
@@ -379,9 +403,10 @@ source-opc.workspace = true
 source-csv.workspace = true
 source-kinghistorian.workspace = true
 reclaim-memory.workspace = true
-
+ha-core.workspace = true
+futures-ext.workspace = true
 archive = { workspace = true }
-cached = { version = "0.56.0", features = ["async"] }
+taosx-utils.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = { version = "0.6.0", optional = true }
@@ -394,8 +419,7 @@ tikv-jemalloc-ctl = { version = "0.6.0", optional = true }
 jemalloc_pprof = { version = "0.8.0", git = "https://github.com/polarsignals/rust-jemalloc-pprof.git", optional = true }
 
 [build-dependencies]
-sqlx = { workspace = true, features = ["sqlite", "chrono"] }
-dotenv = "0.15.0"
+dotenv.workspace = true
 
 shadow-rs = { workspace = true }
 
@@ -419,12 +443,8 @@ jemallocator = [
   "tikv-jemalloc-ctl",
   "jemalloc_pprof",
 ]
-rustls = ["sqlx/runtime-tokio-rustls", "taos/ws-rustls", "taosx-core/rustls"]
-native-tls = [
-  "sqlx/runtime-tokio-native-tls",
-  "taos/ws-native-tls",
-  "taosx-core/native-tls",
-]
+rustls = ["taos/ws-rustls", "taosx-core/rustls"]
+native-tls = ["taos/ws-native-tls", "taosx-core/native-tls"]
 disable-enterprise-only-validation = [
   "taosx-core/disable-enterprise-only-validation",
 ]

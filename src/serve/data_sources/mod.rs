@@ -5,10 +5,9 @@ use actix_web::{
     HttpRequest, HttpResponse, Responder, get,
     http::header::{ContentDisposition, ContentType},
     post,
-    web::{self, Data, Json, Query},
+    web::{Data, Json, Query},
 };
 use anyhow::Context;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{Code, Dsn, IntoDsn};
 use taosx_task::validate::validate_dsn;
@@ -17,11 +16,9 @@ use tracing::{Instrument, Span, instrument};
 use utoipa::*;
 
 use crate::serve::{controller::TaskControllerRef, task::Failed};
-pub use definition::*;
 pub use point_loader::*;
 use taosx_core::plugins::sink::point::{csv::CsvParser, model::ModelType};
 use taosx_core::plugins::transform::sample::DsSamples;
-use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::timeout::{Timeout, TimeoutType};
 use taosx_core::{DataSetsReq, get_data_dir, list_datasets_from};
 use taosx_core::{QueryDataSourceReq, dsv::DataSourceValidation};
@@ -32,8 +29,8 @@ use taosx_core::{
         transform::{PIElementModelConfig, PIPointModelConfig},
     },
 };
+use taosx_utils::dsn::json_to_dsn;
 
-mod definition;
 pub(crate) mod kafka;
 pub(crate) mod opc;
 mod point_loader;
@@ -137,88 +134,6 @@ impl LangQuery {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{Lang, LangQuery};
-
-    #[test]
-    fn is_cn_true_for_zh() {
-        let q = LangQuery {
-            lang: Some(Lang::Zh),
-        };
-        assert!(q.is_cn());
-    }
-
-    #[test]
-    fn is_cn_false_for_en_or_none() {
-        let q_en = LangQuery {
-            lang: Some(Lang::En),
-        };
-        let q_none = LangQuery { lang: None };
-        assert!(!q_en.is_cn());
-        assert!(!q_none.is_cn());
-    }
-}
-
-/// List available data source definitions.
-#[utoipa::path(
-    tag = "data sources",
-    responses(
-        (status = 200, description = "Available data sources", body = Vec<DataSourceDefinition>),
-    ),
-    params(
-        LangQuery,
-    ),
-)]
-#[get("/ds/in")]
-pub(super) async fn data_sources_in(lang: Query<LangQuery>) -> impl Responder {
-    HttpResponse::Ok()
-        .content_type(ContentType::json())
-        .json(if lang.is_cn() {
-            super::controller::DATA_SOURCE_DEFINITIONS_CN
-                .values()
-                .collect_vec()
-        } else {
-            super::controller::DATA_SOURCE_DEFINITIONS
-                .values()
-                .collect_vec()
-        })
-}
-
-/// Get data source definition by name(id).
-#[utoipa::path(
-    tag = "data sources",
-    responses(
-        (status = 200, description = "Data source definition of some", body = DataSourceDefinition),
-    ),
-    params(
-        LangQuery,
-    ),
-)]
-#[get("/ds/in/{name}")]
-pub(super) async fn data_sources_in_one(
-    name: web::Path<String>,
-    lang: Query<LangQuery>,
-) -> impl Responder {
-    let name = name.as_str();
-    match if lang.is_cn() {
-        super::controller::DATA_SOURCE_DEFINITIONS_CN.get(name)
-    } else {
-        super::controller::DATA_SOURCE_DEFINITIONS.get(name)
-    } {
-        Some(ds) => HttpResponse::Ok()
-            .content_type(ContentType::json())
-            .json(ds),
-        None => HttpResponse::NotFound()
-            .content_type(ContentType::json())
-            .json(Failed::new(
-                Code::new(-1),
-                "Data source not found".to_string(),
-                (),
-            )),
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct DsField {
     name: String,
@@ -236,6 +151,7 @@ pub struct TzQuery {
     /// Timezone name, e.g. "Asia/Shanghai"
     tz: Option<String>,
 }
+
 /// Flat stream transform sample data simulation.
 #[utoipa::path(
     tag = "transform",
@@ -961,9 +877,6 @@ pub(super) async fn download_point_template_file(
 )]
 #[post("/ds/in/point/file/is_valid")]
 pub async fn is_csv_valid(req: Json<DsnAgentQuery>) -> impl Responder {
-    // set current dir to DATA_DIR
-    let _ = std::env::set_current_dir(get_data_dir());
-
     let query = req.into_inner();
     let timeout_sec = query.timeout.unwrap_or(Timeout::get(TimeoutType::Default));
 
@@ -993,7 +906,10 @@ pub async fn is_csv_valid(req: Json<DsnAgentQuery>) -> impl Responder {
     }
 }
 
-async fn is_csv_valid_impl(req: DsnAgentQuery) -> anyhow::Result<()> {
+pub async fn is_csv_valid_impl(req: DsnAgentQuery) -> anyhow::Result<()> {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
     let from = json_to_dsn(&req.dsn)?;
 
     let driver = from.driver.to_lowercase();

@@ -1,12 +1,13 @@
 [package]
 name = "taos-explorer"
 version = "1.10.0"
-edition = "2021"
+edition.workspace = true
 description = "TDengine Explorer UI"
 
 [dependencies]
 actix-cors.workspace = true
 actix-files.workspace = true
+actix-multipart.workspace = true
 actix-web.workspace = true
 actix-ws.workspace = true
 awc.workspace = true
@@ -23,7 +24,7 @@ reqwest = { version = "0.11", default-features = false, features = [
 ] }
 clap-verbosity-flag = { workspace = true }
 anyhow.workspace = true
-clap = { workspace = true, features = ["derive", "env"] }
+clap.workspace = true
 sqlx = { workspace = true, features = ["sqlite", "chrono", "runtime-tokio"] }
 tokio = { workspace = true, features = ["full"] }
 tokio-util = { workspace = true, features = ["compat"] }
@@ -38,11 +39,10 @@ serde_json = { version = "1", features = ["arbitrary_precision"] }
 thiserror.workspace = true
 toml.workspace = true
 tracing.workspace = true
-tracing-actix-web = "0.7.11"
+tracing-actix-web.workspace = true
 tracing-subscriber.workspace = true
 sha1 = "0.10.6"
 rand.workspace = true
-lazy_static.workspace = true
 captcha = "1"
 deadpool.workspace = true
 const_format.workspace = true
@@ -82,6 +82,22 @@ aes = "0.8.4"
 hkdf = "0.12.4"
 hmac = "0.12.1"
 mime_guess = "2.0.5"
+tonic.workspace = true
+flume.workspace = true
+arrow.workspace = true
+arrow-flight.workspace = true
+itertools.workspace = true
+source-csv.workspace = true
+tempfile.workspace = true
+csv.workspace = true
+csv-async.workspace = true
+
+ha-core.workspace = true
+ha-rpc-client.workspace = true
+taosx-core.workspace = true
+taosx-utils.workspace = true
+futures-ext.workspace = true
+
 
 [dependencies.taos]
 workspace = true

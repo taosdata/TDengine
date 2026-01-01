@@ -1,3 +1,4 @@
+use crate::point_updater::PointsUpdater;
 use anyhow::Context;
 use csv_async::AsyncReader;
 use futures_util::StreamExt;
@@ -16,13 +17,12 @@ use taosx_core::runners::{get_data_dir, get_logs_home_dir, new_rolling_file_appe
 use taosx_core::sink::persist::PersistConfig;
 use taosx_core::sink::point::csv::parse_csv_config_files;
 use taosx_core::sink::point::model::SourceType;
-use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::monitor::send_sub_process_info;
-use taosx_core::{
-    Action, DataSet, DataSetsReq, Transferred, build_ipc, utils::port_pool::PortPool,
-};
-use taosx_core::{TaskNotify, TaskNotifySender, core_metrics, get_log_dir};
+use taosx_core::{DataSet, DataSetsReq, build_ipc, utils::port_pool::PortPool};
+use taosx_core::{TaskNotify, TaskNotifySender, Via, core_metrics, get_log_dir};
 use taosx_ipc::types::OptionSet;
+use taosx_utils::dsn::json_to_dsn;
+
 use tempfile::NamedTempFile;
 use tokio::io::AsyncWriteExt;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -31,25 +31,19 @@ use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing_subscriber::fmt::MakeWriter;
 
-use crate::point_updater::PointsUpdater;
-
 pub mod failover;
 mod point_updater;
 mod schema;
 
 /// OPC dataIn task
-#[instrument(skip_all, fields(task.id = with_agent.as_ref().map(| v | v.0)))]
-
+#[instrument(skip_all, fields(task.id = with_agent.as_ref().map(| v | v.task_id), job.id = with_agent.as_ref().map(| v | v.job_id)))]
 pub async fn opc_to_taos(
     from: Dsn,
-    _actions: Vec<Action>,
     to: Dsn,
-    _jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
-    with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
-    task_id: Option<i64>,
+    with_agent: Option<Via>,
+    task_job_id: Option<(i64, i64)>,
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     if to.subject.is_none() {
@@ -58,14 +52,16 @@ pub async fn opc_to_taos(
             to.clone().to_string()
         );
     }
-    if with_agent.is_some() {
-        let task_id = task_id.context("Task id not found for agent runner")?;
-        let _ = core_metrics::init_task_metrics(&from, &to, task_id, None).await;
+    if let Some(Via {
+        task_id, job_id, ..
+    }) = with_agent
+    {
+        let _ = core_metrics::init_task_metrics(&from, &to, task_id, job_id).await;
     }
     let ipc_port = port_pool
         .get()
         .await
-        .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
+        .context("No available port for OPC connection")?;
 
     tracing::info!("OPC task start, from: {}, to: {}", from, to);
 
@@ -74,24 +70,26 @@ pub async fn opc_to_taos(
     let auth_certificate = get_temp_file(&from, "auth_certificate");
     let auth_private_key = get_temp_file(&from, "auth_private_key");
 
-    let mut config = OPCConfig::from_dsn_collect_mode(&from, ipc_port.get(), task_id).await?;
+    let mut config = OPCConfig::from_dsn_collect_mode(&from, ipc_port.get(), task_job_id).await?;
 
     config.set_temp_filepath("certificate", certificate.as_ref())?;
     config.set_temp_filepath("private_key", private_key.as_ref())?;
     config.set_temp_filepath("auth_certificate", auth_certificate.as_ref())?;
     config.set_temp_filepath("auth_private_key", auth_private_key.as_ref())?;
 
-    let persist_config = task_id
-        .or(with_agent.as_ref().map(|a| a.0))
-        .and_then(|tid| {
+    let persist_config = task_job_id
+        .or(with_agent.as_ref().map(|a| (a.task_id, a.job_id)))
+        .and_then(|(tid, jid)| {
             config.collect.as_ref().and_then(|c| {
                 c.persist_data.as_ref().map(|c| PersistConfig {
                     task_id: tid,
+                    job_id: jid,
                     record_metrics: true,
                     schemas: get_schema_path(c.dir.clone().unwrap_or_else(|| {
                         get_data_dir()
                             .join("tasks")
                             .join(tid.to_string())
+                            .join(jid.to_string())
                             .join("persist_queue")
                     })),
                     batch_size: config.report.batch_size.map(|v| v as _),
@@ -120,17 +118,18 @@ pub async fn opc_to_taos(
         None,
         &cancel,
         with_agent,
-        transferred,
-        task_id,
+        task_job_id,
         notify.clone(),
         persist_config,
     )
     .await?;
 
+    let (task_id, job_id) = task_job_id.unwrap_or((-1, -1));
     // OPCConfig -> collect.toml
     let config_dir = get_data_dir()
         .join("tasks")
-        .join(format!("{}", task_id.unwrap_or(-1)));
+        .join(task_id.to_string())
+        .join(job_id.to_string());
     std::fs::create_dir_all(&config_dir).map_err(|err| {
         anyhow::anyhow!(
             "failed to create config dir: {}, cause: {}",
@@ -162,7 +161,12 @@ pub async fn opc_to_taos(
         .stderr(std::process::Stdio::piped());
 
     let mut child = child.spawn()?;
-    send_sub_process_info(child.id(), task_id, config.opc_type.to_string().as_str()).await;
+    send_sub_process_info(
+        child.id(),
+        task_job_id,
+        config.opc_type.to_string().as_str(),
+    )
+    .await;
 
     // start points updating task
     let pu_cancel_token = CancellationToken::new();
@@ -179,7 +183,7 @@ pub async fn opc_to_taos(
 
     // create log file: opc.log
     let log_path = get_logs_home_dir();
-    let log_file_name = format!("opc-{}", task_id.unwrap_or(0));
+    let log_file_name = format!("opc-{task_id}-{job_id}");
     let appender = new_rolling_file_appender(log_path.as_path(), &log_file_name)
         .context("failed to create opc log")?;
 
