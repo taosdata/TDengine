@@ -38,7 +38,6 @@ keeperName="${PREFIX}keeper"
 inspect_name="${PREFIX}inspect"
 set_malloc_bin="set_taos_malloc.sh"
 mqtt_name="${PREFIX}mqtt"
-xnode_name="xnoded"
 taosgen_name="${PREFIX}gen"
 
 # Color setting
@@ -352,9 +351,8 @@ function setup_env() {
     
   else
     # server/默认，按 verMode/pkgMode/entMode 细分
-    # entMode lite will include xnode in the next version, so it is added to the tools list for forward compatibility.
     remove_name="remove.sh"
-    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}")
+    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}")
     if [ "${verMode}" == "cluster" ]; then
       if [ "${entMode}" == "lite" ]; then
         services=("${serverName}" "${adapterName}" "${explorerName}" "${keeperName}")
@@ -1164,6 +1162,8 @@ function install_service_on_systemd() {
     chmod 644 "${service_config}" || { echo "Failed to set permissions for ${service_config}"; exit 1; }
     
     rm -f "$tmp_service_file"
+    ${sysctl_cmd} daemon-reload
+    ${sysctl_cmd} enable $1
   fi
 
   # # set default malloc config for cluster(enterprise) and edge(community)
@@ -1174,8 +1174,7 @@ function install_service_on_systemd() {
   #   fi
   # fi
 
-  ${sysctl_cmd} daemon-reload
-  ${sysctl_cmd} enable $1
+
 }
 
 function install_service() {
