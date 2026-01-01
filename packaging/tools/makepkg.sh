@@ -102,6 +102,7 @@ else
       ${build_dir}/bin/${clientName}keeper \
       ${build_dir}/bin/taosudf \
       ${build_dir}/bin/taosmqtt \
+      ${build_dir}/bin/xnoded \
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \
