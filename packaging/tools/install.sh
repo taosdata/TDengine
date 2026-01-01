@@ -1164,6 +1164,8 @@ function install_service_on_systemd() {
     chmod 644 "${service_config}" || { echo "Failed to set permissions for ${service_config}"; exit 1; }
     
     rm -f "$tmp_service_file"
+    ${sysctl_cmd} daemon-reload
+    ${sysctl_cmd} enable $1
   fi
 
   # # set default malloc config for cluster(enterprise) and edge(community)
@@ -1174,8 +1176,7 @@ function install_service_on_systemd() {
   #   fi
   # fi
 
-  ${sysctl_cmd} daemon-reload
-  ${sysctl_cmd} enable $1
+
 }
 
 function install_service() {
