@@ -65,6 +65,7 @@ Source: {#MyAppSourceDir}\taosd.exe; DestDir: "{app}"; Flags: igNoreversion recu
 Source: {#MyAppSourceDir}\taosadapter.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosadapter.exe')
 Source: {#MyAppSourceDir}\taoskeeper.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taoskeeper.exe')
 Source: {#MyAppSourceDir}\taosx.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taosx.exe')
+Source: {#MyAppSourceDir}\xnoded.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs;
 Source: {#MyAppSourceDir}\taos-explorer.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('taos-explorer.exe')
 Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: igNoreversion 64bit;Check:IsWin64;
 Source: {#MyAppSourceDir}\append\opc_gdba_32\*; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
