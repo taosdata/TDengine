@@ -245,7 +245,6 @@ function install_bin() {
     ${csudo}rm -f ${bin_link_dir}/taosd    || :
     ${csudo}rm -f ${bin_link_dir}/taosudf  || :
     ${csudo}rm -f ${bin_link_dir}/taosmqtt || :
-    ${csudo}rm -f ${bin_link_dir}/xnoded || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter     || :
     ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
     ${csudo}rm -f ${bin_link_dir}/taoskeeper || :
@@ -301,9 +300,6 @@ function install_bin() {
     fi
     if [ -x ${bin_dir}/taos-explorer ]; then
       ${csudo}ln -s ${bin_dir}/taos-explorer ${bin_link_dir}/taos-explorer           2>>${install_log_path} || return 1
-    fi
-    if [ -x ${bin_dir}/xnoded ]; then
-      ${csudo}ln -s ${bin_dir}/xnoded ${bin_link_dir}/xnoded           2>>${install_log_path} || return 1
     fi
     if [ -x ${bin_dir}/start-all.sh ]; then
       ${csudo}ln -s ${bin_dir}/start-all.sh ${bin_link_dir}/start-all.sh           2>>${install_log_path} || return 1
