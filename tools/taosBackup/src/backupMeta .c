@@ -23,12 +23,6 @@ int genBackTableSql(const char *dbName, const char *tableName, char *sql, int le
 }
 
 
-void obtainDBFile(const char *dbName,  char *dbPath, int len, char* fileName) {
-    // db path: <outPath>/db_<crc>/
-    snprintf(dbPath, len, "%s/db_%x/%s", argOutPath(), getCrc(dbName), fileName);
-    return TSDB_CODE_SUCCESS;
-}
-
 
 //
 // -------------------------------------- META -----------------------------------------
@@ -38,12 +32,12 @@ int backCreateDbSql(const char *dbName) {
     
     // path
     char sqlFile[MAX_PATH_LEN] = {0};
-    obtainDBFile(dbName, sqlFile, sizeof(sqlFile), FILE_DBSQL);
+    obtainFileName(BACK_FILE_DBSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
 
     // sql
     char sql[512] = {0};
     snprintf(sql, sizeof(sql), "show create database %s;", dbName);
-    code = queryWriteFile(sql, sqlFile);
+    code = queryWriteTxt(sql, sqlFile);
 
     return code;
 }
@@ -54,12 +48,12 @@ int backCreateStbSql(const char *dbName, const char *stbName) {
     
     // path
     char sqlFile[MAX_PATH_LEN] = {0};
-    obtainDBFile(dbName, sqlFile, sizeof(sqlFile), FILE_DBSQL);
+    obtainFileName(BACK_FILE_DBSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
 
     // sql
     char sql[512] = {0};
     snprintf(sql, sizeof(sql), "show create table %s.%s;", dbName, stbName);
-    code = queryWriteFile(sql, sqlFile);
+    code = queryWriteTxt(sql, sqlFile);
 
     return code;
 }
@@ -68,11 +62,8 @@ int backStbSchema(const char *dbName, const char *stbName, char ** selectTags) {
     int code = TSDB_CODE_FAILED;
     
     // path
-    char jsonFile[MAX_PATH_LEN] = {0};
-    char name[64] = {0};
-    snprintf(name, sizeof(name), "stb_%x.json", getCrc(stbName));
-    
-    obtainDBFile(dbName, jsonFile, sizeof(jsonFile), name);
+    char jsonFile[MAX_PATH_LEN] = {0};    
+    obtainFileName(BACK_FILE_STBJSON, dbName, stbName, NULL, 0, 0, BINARY_TAOS, jsonFile, sizeof(jsonFile));
     
     // json
     char sql[512] = {0};
@@ -83,9 +74,44 @@ int backStbSchema(const char *dbName, const char *stbName, char ** selectTags) {
 }
 
 //
-// back data thread
+// back tag data thread
 //
 static void* backTagThread(void *arg) {
+    TagThread *thread = (TagThread *)arg;
+
+    char *sql = (char *)calloc(TSDB_MAX_SQL_LEN, sizeof(char));
+    if (sql == NULL) {
+        logError("allocate sql buffer failed");
+        return NULL;
+    }
+    snprintf(sql, TSDB_MAX_SQL_LEN, 
+             "SELECT DISTINCT tbname,%s FROM %s.%s "
+             "ORDER BY tbname "
+             "LIMIT %d OFFSET %d;",
+             thread->stbInfo->selectTags,
+             thread->dbInfo->dbName,
+             thread->stbInfo->stbName,
+             thread->limit,
+             thread->offset);
+    
+    // sql result to file
+    char fileName[MAX_PATH_LEN] = {0};
+    StorageFormat format = argStorageFormat();
+
+    int code = obtainFileName(BACK_FILE_TAG, thread->dbInfo->dbName, thread->stbInfo->stbName, NULL, thread->index, 0, format, fileName, sizeof(fileName));
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("generate backup file name failed(%d): %s.%s", code, thread->dbInfo->dbName, thread->stbInfo->stbName);
+        freePtr(sql);
+        return NULL;
+    }
+    freePtr(sql);
+
+    code = queryWriteBinary(sql, format, fileName);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("query write binary failed. sql=%s, format=%d file=%s", sql, format, fileName);
+        return NULL;
+    }
+    
     return NULL;
 }
 
@@ -128,6 +154,7 @@ TagThread * splitTagThread(DBInfo *dbInfo, StbInfo *stbInfo, int *code, int *out
     for(int i = 0; i < threadCnt; i++) {
         threads[i].dbInfo  = dbInfo;
         threads[i].stbInfo = stbInfo;
+        threads[i].index   = i + 1;
         threads[i].limit   = tableCnt / threadCnt;
         if (i == threadCnt -1) {
             threads[i].limit += tableCnt % threadCnt;

@@ -32,15 +32,23 @@
 
 // ---------------- define ----------------
 #define MAX_PATH_LEN 512
-#define FILE_DBSQL   "db.sql"
-#define FILE_DBJSON  "db.json"
+#define FOLDER_MAXFILE 100000
+
 
 // ---------------- enum ----------------
 
 typedef enum  {
-    BACK_FILE_TYPE_META = 0,
-    BACK_FILE_TYPE_DATA = 1,
+    BACK_FILE_DBSQL   = 0,
+    BACK_FILE_STBJSON = 1,
+    BACK_FILE_TAG     = 2,
+    BACK_FILE_DATA    = 3
 } BackFileType;
+
+typedef enum  {
+    BINARY_TAOS = 0,
+    BINARY_PARQUET = 1,
+} StorageFormat;
+
 
 // ---------------- struct ----------------
 

@@ -55,15 +55,20 @@ enum ActionType argAction();
 int argRetryCount();
 int argRetrySleepMs();
 
+// path
+char* argOutPath();
+
+// thread
 int argDataThread();
 int argTagThread();
-
-char* argOutPath();
 
 // connection args
 char*  argHost();
 int    argPort();
 char*  argUser();
 char*  argPassword();
+
+// format
+StorageFormat argStorageFormat();
 
 #endif  // INC_BACKARGS_H_

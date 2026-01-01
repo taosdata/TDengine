@@ -9,15 +9,10 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
     
-#include "util.h"
+#include "bck.h"
 #include "bckFile.h"
-#include "bckLog.h"
-#include "bckDb.h"
-#include "taos.h"
-#include "taoserror.h"
 
-
-int queryWriteFile(const char *sql, const char *pathFile) {
+int queryWriteTxt(const char *sql, const char *pathFile) {
     TAOS *conn = getConnection();
     if (!conn) {
         logError("get connection failed");
@@ -160,5 +155,11 @@ int queryWriteJson(const char *sql, const char *pathFile, char ** selectTags) {
         free(tagBuf);
     }
     
+    return TSDB_CODE_SUCCESS;
+}
+
+
+// query result write to file with columnar storage
+int queryWriteBinary(const char *sql, StorageFormat format, const char *pathFile) {
     return TSDB_CODE_SUCCESS;
 }

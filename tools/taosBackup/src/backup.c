@@ -17,9 +17,6 @@
 // -------------------------------------- UTIL -----------------------------------------
 //
 
-int genBackFileName(BackFileType fileType, const char *dbName, const char *tableName, char *fileName, int len) {
-    return TSDB_CODE_SUCCESS;
-}
 
 
 //

@@ -31,4 +31,14 @@ bool errorCodeCanRetry(int code);
 
 unsigned int getCrc(const char *name);
 
+int obtainFileName(BackFileType fileType, 
+                      const char *dbName, 
+                      const char *stbName,
+                      const char *tbName,
+                      int index,
+                      int fileCount,
+                      StorageFormat format,
+                      char *fileName, 
+                      int len);
+
 #endif  // INC_UTIL_H_

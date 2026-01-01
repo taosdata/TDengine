@@ -9,11 +9,8 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
     
-#include "util.h"
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include "taoserror.h"
+#include  "bck.h"
+#include "bckUtil.h"
 
 void sleepMs(int ms) {
     usleep(ms * 1000);
@@ -55,4 +52,39 @@ unsigned int getCrc(const char *name) {
         }
     }
     return ~crc;
+}
+
+
+int obtainFileName(BackFileType fileType, 
+                      const char *dbName, 
+                      const char *stbName,
+                      const char *tbName,
+                      int index,
+                      int fileCount,
+                      StorageFormat format,
+                      char *fileName, 
+                      int len) {
+
+    char * outPath = argsOutPath();
+    const char * ext = (format == BINARY_TAOS) ? "dat" : "parquet";
+
+    switch (fileType)
+    {
+    case BACK_FILE_DBSQL:
+        snprintf(fileName, len, "%s/db.sql", outPath, dbName);
+        break;
+    case BACK_FILE_STBJSON:
+        snprintf(fileName, len, "%s/%s/schema.json", outPath, dbName, stbName);
+        break;
+    case BACK_FILE_TAG:
+        snprintf(fileName, len, "%s/%s/tags/tag_%d.%s", outPath, dbName, stbName, index, ext);
+        break;
+    case BACK_FILE_DATA:
+        snprintf(fileName, len, "%s/%s/data%d_%d/%s.%s", outPath, dbName, stbName, index, fileCount/FOLDER_MAXFILE + 1, tbName, ext);
+        break;
+    default:
+        return TSDB_CODE_BACKUP_INVALID_PARAM;
+    }
+    
+    return TSDB_CODE_SUCCESS;
 }

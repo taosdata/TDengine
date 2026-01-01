@@ -18,6 +18,9 @@
 // ---------------- define ----------------
 //
 
+// ---------------- util ----------------
+int genBackFileName(BackFileType fileType, const char *dbName, const char *tableName, int index, StorageFormat format, char *fileName, int len);
+
 
 // ---------------- interface ----------------
 int backupMain();

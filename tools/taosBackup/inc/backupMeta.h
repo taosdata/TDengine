@@ -29,6 +29,7 @@ typedef struct TagThread {
     StbInfo*  stbInfo;
     int       limit;
     int       offset;
+    int       index;
     TAOS*     conn;
     pthread_t pid;
 } TagThread;

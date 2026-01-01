@@ -9,20 +9,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
     
-#include <pthread.h>
-#include <string.h>
-#include <errno.h>
-
-#include "taos.h"
-#include "tdef.h"
-#include "taoserror.h"
-
-#include "bckLog.h"
-#include "bckError.h"
-#include "bckArgs.h"
-#include "util.h"
-#include "bckBackup.h"
-#include "taosBackup.h"
+#include "backupData.h"
 
 
 //
@@ -66,8 +53,9 @@ int writeBlockToFile(const char *fileName, void *block) {
 int backChildTableData(DataThread* group, const char *childTableName) {
     int code = TSDB_CODE_FAILED;
     // get write file name
+    StorageFormat format = argStorageFormat();
     char fileName[MAX_PATH_LEN];
-    code = genBackFileName(BACK_FILE_TYPE_DATA, group->dbName, childTableName, fileName, sizeof(fileName));
+    code = genBackFileName(BACK_FILE_TYPE_DATA, group->dbName, childTableName, 0, format, fileName, sizeof(fileName));
     if (code != TSDB_CODE_SUCCESS) {
         return code;
     }
