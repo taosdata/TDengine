@@ -706,6 +706,35 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80007017 | Stream vtable calculate need redeploy | 流计算语句中的虚拟表的原始表分布发生变更 | 流会自动处理该错误，无需处理                           |
 | 0x80007018 | Stream info contains invalid JSON format messages | 流计算内部编码兼容性问题 | 保留现场和日志，github 上报         |
 
+#### xnode
+
+| 错误码      | 错误描述                                               | 可能的出错场景或者可能的原因                           | 建议用户采取的措施                              |
+|------------|-------------------------------------------------------|---------------------------------------------------|----------------------------------------------|
+| 0x80008000 | Xnode already exists                                  | Xnode 已经创建                                     | 检查 taosx 节点地址                             |
+| 0x80008001 | Xnode already deployed                                | Xnode 已经部署                                     | -                                              |
+| 0x80008002 | Xnode not there                                       | 没有创建任何 xnode                                  | 使用 taosx 地址创建 xnode                      |
+| 0x80008003 | Xnode tool long url                                   | Xnode URL 太长                                     | 缩短 URL                                       |
+| 0x80008004 | Xnode invalid protocol                                | Xnode 协议无效                                        | 检查并修正 taosx 端口                          |
+| 0x80008006 | Xnode invalid message content                         | Xnode 消息内容无效                                    | 检查并修正 Xnode 请求                          |
+| 0x80008007 | Xnode not found                                       | 找不到 Xnode ID 或 URL                                | 检查 xnode ID 或 URL                            |
+| 0x80008008 | Xnode xnoded exec failure                             | xnode 进程已退出                                      | 检查 xnoded 进程并重启 taosd                  |
+| 0x80008009 | Xnode xnoded can't access                             | xnoded 进程未运行                                     | 重启 taosd                                     |
+| 0x8000800A | Xnode xnoded response is null                         | xnoded 响应错误                                       | 重试                                            |
+| 0x8000800C | Xnode request action response not success code        | xnode 请求失败                                       | 检查配置并重试                                  |
+| 0x8000800D | Xnode first-time setup requires username and password | 创建 XNODE 时未提供用户名和密码的错误                | 修正 SQL                                        |
+| 0x8000800E | Xnode username or password error when setup           | 创建 XNODE 时用户名和密码错误                        | 检查用户名和密码                                |
+| 0x8000800F | Xnode task already exist                              | Xnode 任务已经存在                                    | 检查任务配置并修正                              |
+| 0x80008010 | Xnode task not exist                                  | Xnode 任务不存在                                      | 使用已存在的任务进行操作                        |
+| 0x80008011 | Xnode task name too long                              | Xnode 任务名称太长                                    | 修正配置并重试                                  |
+| 0x80008012 | Xnode task job syntax error                           | Xnode 任务作业语法错误                                | 修正任务作业配置并重试                          |
+| 0x80008013 | Xnode task job config too long                        | Xnode 任务作业配置太长                                | 修正任务作业配置并重试                          |
+| 0x80008014 | Xnode job not exist                                   | Xnode 任务作业不存在                                  | 检查任务作业 ID                                  |
+| 0x80008015 | Xnode task/job reason too long                        | Xnode 任务/作业原因太长                              | 向开发人员报告此问题至 GitHub                    |
+| 0x80008016 | Xnode xnoded response timeout                         | xnoded 响应超时                                       | 重试                                            |
+| 0x80008017 | Xnode where clause column not exist                   | Xnode where 子句列不存在                              | 检查 where 条件                                  |
+| 0x80008018 | Xnode where clause column type diff                   | Xnode where 子句列类型不匹配                          | 检查 where 条件                                  |
+| 0x80008019 | Xnode where clause operator not support               | Xnode where 子句不支持 NOT                            | 检查 where 条件                                  |
+
 ## 连接器
 
 下面是各语言连接器自身的错误码。连接器除了返回自身错误码外，也会返回上文中 TSDB 的错误码。

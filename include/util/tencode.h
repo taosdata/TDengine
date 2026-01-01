@@ -226,10 +226,16 @@ static FORCE_INLINE int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, 
 }
 
 static FORCE_INLINE int32_t tEncodeCStrWithLen(SEncoder* pCoder, const char* val, uint32_t len) {
+  if (val == NULL) {
+    return tEncodeU32v(pCoder, 0);
+  }
   return tEncodeBinary(pCoder, (uint8_t*)val, len + 1);
 }
 
 static FORCE_INLINE int32_t tEncodeCStr(SEncoder* pCoder, const char* val) {
+  if (val == NULL) {
+    return tEncodeU32v(pCoder, 0);
+  }
   return tEncodeCStrWithLen(pCoder, val, (uint32_t)strlen(val));
 }
 

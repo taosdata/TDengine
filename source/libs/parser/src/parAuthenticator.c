@@ -783,6 +783,10 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
+    case QUERY_NODE_SHOW_XNODES_STMT: // TODO: check auth for xnode resources
+    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
+    case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
+    case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW);
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:

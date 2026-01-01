@@ -914,6 +914,35 @@ static int32_t collectMetaKeyFromShowBackupNodes(SCollectMetaKeyCxt* pCxt, SShow
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t collectMetaKeyFromShowXnodes(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  if (pCxt->pParseCxt->enableSysInfo) {
+    return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODES,
+                                   pCxt->pMetaCache);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t collectMetaKeyFromShowXnodeTasks(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  if (pCxt->pParseCxt->enableSysInfo) {
+    return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_TASKS,
+                                   pCxt->pMetaCache);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t collectMetaKeyFromShowXnodeAgents(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  if (pCxt->pParseCxt->enableSysInfo) {
+    return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_AGENTS,
+                                   pCxt->pMetaCache);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t collectMetaKeyFromShowXnodeJobs(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  if (pCxt->pParseCxt->enableSysInfo) {
+    return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_JOBS,
+                                   pCxt->pMetaCache);
+  }
+  return TSDB_CODE_SUCCESS;
+}
 static int32_t collectMetaKeyFromShowArbGroups(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   if (pCxt->pParseCxt->enableSysInfo) {
     return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_ARBGROUPS,
@@ -1805,6 +1834,14 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowBnodes(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
       return collectMetaKeyFromShowBackupNodes(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_XNODES_STMT:
+      return collectMetaKeyFromShowXnodes(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
+      return collectMetaKeyFromShowXnodeTasks(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
+      return collectMetaKeyFromShowXnodeAgents(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
+      return collectMetaKeyFromShowXnodeJobs(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
       return collectMetaKeyFromShowArbGroups(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CLUSTER_STMT:

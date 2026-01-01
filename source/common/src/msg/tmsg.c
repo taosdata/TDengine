@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+
 #include "tmsg.h"
 #include "tglobal.h"
 
@@ -3138,7 +3139,7 @@ int32_t cvtIpWhiteListDualToV4(SIpWhiteListDual *pWhiteListDual, SIpWhiteList **
 }
 
 void initUserDefautSessCfg(SUserSessCfg *pCfg) {
-   pCfg->sessPerUser = -1;  
+   pCfg->sessPerUser = -1;
    pCfg->sessConnTime = -1;
    pCfg->sessConnIdleTime = -1;
    pCfg->sessMaxConcurrency = -1;
@@ -3147,11 +3148,11 @@ void initUserDefautSessCfg(SUserSessCfg *pCfg) {
 static int32_t tEncodeSessCfg(SEncoder *encoder, SUserSessCfg *pCfg) {
   int32_t code = 0;
   int32_t lino = 0;
-  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessPerUser)); 
-  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessConnTime)); 
-  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessConnIdleTime)); 
-  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessMaxConcurrency)); 
-  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessMaxCallVnodeNum)); 
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessPerUser));
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessConnTime));
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessConnIdleTime));
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessMaxConcurrency));
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessMaxCallVnodeNum));
 _exit:
   return code;
 }
@@ -6975,7 +6976,7 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
     pReq->encryptAlgrName[0] = '\0';
     pReq->isAudit = 0;
   }
-  
+
   tEndDecode(&decoder);
 
 _exit:
