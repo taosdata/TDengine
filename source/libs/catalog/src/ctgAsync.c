@@ -3853,7 +3853,7 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
   SCtgMsgCtx*       pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
   if (NULL == pMsgCtx) {
     ctgError("fail to get the %dth pMsgCtx", -1);
-    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   if (NULL == pMsgCtx->pBatchs) {
@@ -3862,7 +3862,7 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
 
   rsp.pRawRes = taosMemoryCalloc(1, sizeof(SUserAuthRes));
   if (NULL == rsp.pRawRes) {
-    CTG_ERR_RET(terrno);
+    CTG_ERR_JRET(terrno);
   }
 
   if (TSDB_CODE_SUCCESS != pCtx->subTaskCode) {
@@ -3870,11 +3870,12 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
       tbNotExists = true;
       pCtx->subTaskCode = 0;
     } else {
-      CTG_ERR_RET(pCtx->subTaskCode);
+      taosMemoryFreeClear(rsp.pRawRes);
+      CTG_ERR_JRET(pCtx->subTaskCode);
     }
   }
 
-  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, &pCtx->user, tbNotExists, &inCache, &rsp));
+  CTG_ERR_JRET(ctgChkAuthFromCache(pCtg, &pCtx->user, tbNotExists, &inCache, &rsp));
   if (inCache) {
     pTask->res = rsp.pRawRes;
 
@@ -3891,12 +3892,23 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
     SCtgTbMetaParam param;
     param.pName = &pCtx->user.tbName;
     param.flag = CTG_FLAG_SYNC_OP;
-    CTG_ERR_RET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_TB_META, ctgGetUserCb, &param));
+    CTG_ERR_JRET(ctgLaunchSubTask(&pTask, CTG_TASK_GET_TB_META, ctgGetUserCb, &param));
   } else {
-    CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pConn, pCtx->user.user, NULL, pTask));
+    CTG_ERR_JRET(ctgGetUserDbAuthFromMnode(pCtg, pConn, pCtx->user.user, NULL, pTask));
   }
 
   return TSDB_CODE_SUCCESS;
+
+_return:
+
+  if (CTG_TASK_LAUNCHED == pTask->status) {
+    int32_t newCode = ctgHandleTaskEnd(pTask, code);
+    if (newCode && TSDB_CODE_SUCCESS == code) {
+      code = newCode;
+    }
+  }
+
+  CTG_RET(code);
 }
 
 int32_t ctgLaunchGetSvrVerTask(SCtgTask* pTask) {
