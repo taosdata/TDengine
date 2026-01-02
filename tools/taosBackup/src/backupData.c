@@ -16,22 +16,17 @@
 // -------------------------------------- UTIL -----------------------------------------
 //
 
+void loadCheckPoint(StbInfo *stbInfo, DataThread *threads, int threadCnt) {
+}
 
+void saveCheckPoint(StbInfo *stbInfo, DataThread *thread, int offset) {
+}
 
 int genBackTableSql(const char *dbName, const char *tableName, char *sql, int len) {
     snprintf(sql, len, "SELECT * FROM %s.%s", dbName, tableName);
 
     return TSDB_CODE_SUCCESS;
 }
-
-
-void obtainDBFile(const char *dbName,  char *dbPath, int len, char* fileName) {
-    // db path: <outPath>/db_<crc>/
-    snprintf(dbPath, len, "%s/db_%x/%s", argOutPath(), getCrc(dbName), fileName);
-    return TSDB_CODE_SUCCESS;
-}
-
-
 
 //
 // -------------------------------------- DATA -----------------------------------------
@@ -50,25 +45,26 @@ int writeBlockToFile(const char *fileName, void *block) {
 //
 // back child table data on thread group
 //
-int backChildTableData(DataThread* group, const char *childTableName) {
+int backChildTableData(DataThread* thread, const char *childTableName) {
     int code = TSDB_CODE_FAILED;
+    const char* dbName = thread->dbInfo->dbName;
     // get write file name
     StorageFormat format = argStorageFormat();
     char fileName[MAX_PATH_LEN];
-    code = genBackFileName(BACK_FILE_TYPE_DATA, group->dbName, childTableName, 0, format, fileName, sizeof(fileName));
+    code = obtainFileName(BACK_FILE_DATA, dbName, childTableName, 0, format, fileName, sizeof(fileName));
     if (code != TSDB_CODE_SUCCESS) {
         return code;
     }
 
     // query sql
     char sql[512] = {0};
-    code = genBackTableSql(group->dbName, childTableName, sql, sizeof(sql));
+    code = genBackTableSql(dbName, childTableName, sql, sizeof(sql));
     if (code != TSDB_CODE_SUCCESS) {
-        logError("generate backup table sql failed(%d): %s.%s", code, group->dbName, childTableName);
+        logError("generate backup table sql failed(%d): %s.%s", code, dbName, childTableName);
         return code;
     }
 
-    TAOS_RES* res = taos_query(group->conn, sql);
+    TAOS_RES* res = taos_query(thread->conn, sql);
     if (res == NULL) {
         logError("query child table data failed(%s): %s", taos_errstr(res), sql);
         return taos_errno(res);
@@ -101,16 +97,44 @@ int backChildTableData(DataThread* group, const char *childTableName) {
 static void* backDataThread(void *arg) {
     int retryCount   = argRetryCount();
     int retrySleepMs = argRetrySleepMs();
+    
+    DataThread * thread = (DataThread *)arg;
 
-    DataThread * group = (DataThread *)arg;
-    for (int i = 0; i < group->numChildTables; i++) {
-        logInfo("backup child table data: %s", group->childTableNames[i]);
+    char sql[512] = {0};
+    snprintf(sql, sizeof(sql), "select tbname from `%s`.`%s` ORDER BY tbname LIMIT %d OFFSET %d;",
+             thread->dbInfo->dbName,
+             thread->stbInfo->stbName,
+             thread->limit,
+             thread->offset);
+    
+    // query child table names
+    TAOS* conn = getConnect();
+    TAOS_RES *res = taos_query(conn, sql);
+    if (res == NULL || taos_errno(res)) {
+        logError("query child table names failed(%s): %s", taos_errstr(res), sql);
+        if (res) taos_free_result(res);
+        releaseConnection(conn);
+        return NULL;
+    }
+
+    // loop child tables
+    TAOS_ROW row;
+    int offset = thread->offset;
+    while ((row = taos_fetch_row(res))) {
+        char *childTableName = (char *)row[0];
+        if (childTableName == NULL) {
+            logWarn("child table name is NULL, skip. offset: %d sql=%s", offset, sql);
+            offset += 1;
+            continue;
+        }
+
+        logInfo("backup child table data: %s", childTableName);
         
         // support retry
         int n = 0;
         while (n < retryCount) {
             // back child table data
-            int code = backChildTableData(group, group->childTableNames[i]);
+            int code = backChildTableData(thread, childTableName);
 
             // check code
             if (code == TSDB_CODE_SUCCESS) {
@@ -120,15 +144,22 @@ static void* backDataThread(void *arg) {
             else if (errorCodeCanRetry(code)) {
                 // can retry
                 n += 1;
-                logInfo("retry backup child table data: %s, times: %d", group->childTableNames[i], n);
+                logInfo("retry backup child table data: %s, times: %d", childTableName, n);
                 sleepMs(retrySleepMs);
             } else {
                 // not retry
-                logError("backup child table data failed(%d): %s.%s", code, group->dbName, group->childTableNames[i]);
+                logError("backup child table data failed(%d): %s.%s", code, thread->dbInfo->dbName, childTableName);
                 break;
             }
         }
+
+        // save checkpoint
+        offset += 1;
+        saveCheckPoint(thread->stbInfo, thread, offset);
     }
+
+    taos_free_result(res);
+    releaseConnection(conn);
 
     return NULL;
 }
@@ -136,28 +167,84 @@ static void* backDataThread(void *arg) {
 //
 // split child tables to thread groups
 //
-DataThread ** splitTablesToThread(const char *dbName, const char *stbName, int *code, int threadCount) {
+DataThread * splitDataThread(StbInfo *stbInfo, int *code, int *outCount) {
+    int threadCnt = *outCount;
+    DBInfo *dbInfo = stbInfo->dbInfo;
+    const char* dbName = stbInfo->dbInfo->dbName;
+    const char* stbName = stbInfo->stbName;
+
+    char sql[512] = {0};
+    snprintf(sql, sizeof(sql), "select count(*) from information_schema.ins_tables where db_name='%s' and stable_name='%s';", dbName, stbName);
+    int tableCnt = 0;
+    
+    // query table count
+    code = getFirstIntValue(sql, &tableCnt);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("get child table count failed(%d): %s.%s", code, dbName, stbName);
+        return NULL;
+    }
+    if (tableCnt == 0) {
+        logWarn("%s.%s child table count is zero.", dbName, stbName);
+        *outCount = 0;
+        return NULL;
+    }
+
+    if (tableCnt < threadCnt) {
+        threadCnt = tableCnt;
+    }
+
+    // tag thread
+    DataThread * threads = (DataThread *)calloc(threadCnt, sizeof(DataThread));
+    if (threads == NULL) {
+        *code = TSDB_CODE_FAILED;
+        return NULL;
+    }
+
+    int remain = tableCnt % threadCnt;
+    int base = tableCnt / threadCnt;
+    int offset = 0;
+
+    for(int i = 0; i < threadCnt; i++) {
+        threads[i].dbInfo  = dbInfo;
+        threads[i].stbInfo = stbInfo;
+        threads[i].index   = i + 1;
+        threads[i].limit   = base;
+        if (remain > 0) {
+            remain--;
+            threads[i].limit += 1;
+        }
+        threads[i].offset  = offset;
+        threads[i].conn    = getConnection();
+        offset += threads[i].limit;
+    }
+
+    // succ
+    *outCount = threadCnt;
     *code = TSDB_CODE_SUCCESS;
-    return NULL;
+    return threads;
 }
 
 //
 // data create threads
 //
-int backStbData(const char *dbName, const char *stbName) {
+int backStbData(StbInfo *stbInfo) {
     int code = TSDB_CODE_FAILED;
     int count = argDataThread();
 
     // splite child tables to thread groups
-    DataThread ** threads = splitTablesToThread(dbName, stbName, &code, count);
+    DataThread * threads = splitDataThread(stbInfo, &code, &count);
     if (threads == NULL) {
         return code;
     }
+    logInfo("backup data thread count: %d", count);
+
+    // load checkpoint
+    loadCheckPoint(stbInfo, threads, count);
 
     // create threads
     for (int i = 0; i < count; i++) {
-        if(pthread_create(&threads[i]->pid, NULL, backDataThread, (void *)threads[i]) != 0) {
-            logError("create backup thread failed(%s) for stb: %s.%s", strerror(errno), dbName, stbName);
+        if(pthread_create(&threads[i].pid, NULL, backDataThread, (void *)&threads[i]) != 0) {
+            logError("create backup thread failed(%s) for stb: %s.%s", strerror(errno), stbInfo->dbInfo->dbName, stbInfo->stbName);
             free(threads);
             return TSDB_CODE_BACKUP_CREATE_THREAD_FAILED;
         }
@@ -165,7 +252,7 @@ int backStbData(const char *dbName, const char *stbName) {
 
     // wait threads
     for (int i = 0; i < count; i++) {
-        pthread_join(threads[i]->pid, NULL);
+        pthread_join(threads[i].pid, NULL);
     }
 
     // free
@@ -176,8 +263,9 @@ int backStbData(const char *dbName, const char *stbName) {
 //
 // backup database data
 //
-int backDatabaseData(const char *dbName) {
+int backDatabaseData(DBInfo *dbInfo) {
     int code = TSDB_CODE_FAILED;
+    const char *dbName = dbInfo->dbName;
 
     //
     // super tables
@@ -187,7 +275,13 @@ int backDatabaseData(const char *dbName) {
         return code;
     }
     for (int i = 0; stbNames[i] != NULL; i++) {
-        code = backStbData(dbName, stbNames[i]);
+        logInfo("backup super table meta: %s.%s\n", dbName, stbNames[i]);
+        StbInfo stbInfo;
+        memset(&stbInfo, 0, sizeof(StbInfo));
+        stbInfo.dbInfo = dbInfo;
+        stbInfo.stbName = stbNames[i];
+
+        code = backStbData(&stbInfo);
         if (code != TSDB_CODE_SUCCESS) {
             freeArrayPtr(stbNames);
             return code;
@@ -202,59 +296,6 @@ int backDatabaseData(const char *dbName) {
     code = backNormalTableData(dbName);
     if (code != TSDB_CODE_SUCCESS) {
         return code;
-    }
-
-    return code;
-}
-
-//
-// ------------------- main ---------------------
-//
-
-//
-// backup database
-//
-int backDatabase(const char *dbName) {
-    // meta
-    int code = TSDB_CODE_FAILED;
-    code = backDatabaseMeta(dbName);
-    if (code != TSDB_CODE_SUCCESS) {
-        printf("backup database meta failed, code: %d\n", code);
-        return code;
-    }
-
-    // data
-    code = backDatabaseData(dbName);
-    if (code != TSDB_CODE_SUCCESS) {
-        printf("backup super table meta failed, code: %d\n", code);
-        return code;
-    }
-
-    return code;
-}
-
-//
-// backup main function
-//
-int backupMain() {
-    // init
-    int code = TSDB_CODE_FAILED;
-
-    char **backDB = argsGetBackDB();
-    if (backDB == NULL) {
-        printf("no database to backup\n");
-        return TSDB_CODE_BACKUP_INVALID_PARAM;
-    }
-
-    for (int i = 0; backDB[i] != NULL; i++) {
-        printf("backup database: %s\n", backDB[i]);
-
-        // backup data
-        code = backupDatabase(backDB[i]);
-        if (code != TSDB_CODE_SUCCESS) {
-            printf("backup data failed, code: %d\n", code);
-            return code;
-        }
     }
 
     return code;

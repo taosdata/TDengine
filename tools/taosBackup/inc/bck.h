@@ -29,6 +29,7 @@
 #include "bckError.h"
 #include "bckFile.h"
 #include "bckDb.h"
+#include "bckPool.h"
 
 // ---------------- define ----------------
 #define MAX_PATH_LEN 512

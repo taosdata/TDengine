@@ -119,7 +119,6 @@ static void* backTagThread(void *arg) {
 // split tag thread
 //
 TagThread * splitTagThread(DBInfo *dbInfo, StbInfo *stbInfo, int *code, int *outCount) {
-    *code = TSDB_CODE_SUCCESS;
     int threadCnt = *outCount;
     const char* dbName = dbInfo->dbName;
     const char* stbName = stbInfo->stbName;
@@ -151,20 +150,27 @@ TagThread * splitTagThread(DBInfo *dbInfo, StbInfo *stbInfo, int *code, int *out
         return NULL;
     }
 
+    int remain = tableCnt % threadCnt;
+    int base = tableCnt / threadCnt;
+    int offset = 0;
+
     for(int i = 0; i < threadCnt; i++) {
         threads[i].dbInfo  = dbInfo;
         threads[i].stbInfo = stbInfo;
         threads[i].index   = i + 1;
-        threads[i].limit   = tableCnt / threadCnt;
-        if (i == threadCnt -1) {
-            threads[i].limit += tableCnt % threadCnt;
+        threads[i].limit   = base;
+        if (remain > 0) {
+            remain--;
+            threads[i].limit += 1;
         }
-        threads[i].offset  = i * (tableCnt / threadCnt);
+        threads[i].offset  = offset;
         threads[i].conn    = getConnection();
+        offset += threads[i].limit;
     }
 
     // succ
     *outCount = threadCnt;
+    *code = TSDB_CODE_SUCCESS;
     return threads;
 }
 

@@ -24,12 +24,13 @@
 //
 
 // data
-typedef struct DataThread {
-    char ** childTableNames;
-    int numChildTables;
-    char dbName[TSDB_DB_NAME_LEN];
-    char stbName[TSDB_TABLE_NAME_LEN];
-    TAOS* conn;
+typedef struct {
+    DBInfo*   dbInfo;
+    StbInfo*  stbInfo;
+    int       limit;
+    int       offset;
+    int       index;
+    TAOS*     conn;
     pthread_t pid;
 } DataThread;
 
@@ -37,6 +38,6 @@ typedef struct DataThread {
 //
 // ---------------- interface ----------------
 //
-
+int backDatabaseData(DBInfo *dbInfo);
 
 #endif  // INC_BACKUPDATA_H_
