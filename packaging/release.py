@@ -138,6 +138,10 @@ def get_taosx_output_name():
     else:
         return f"{release_info.CustomPrompt}x"
 
+def get_xnoded_output_name():
+    return "xnoded.exe" if release_info.OS == 'Windows' else "xnoded"
+
+
 def get_taosx_agent_output_name():
     if release_info.OS == 'Windows':  # Windows操作系统
         return f"{release_info.CustomPrompt}x-agent.exe"
@@ -416,7 +420,7 @@ def build_and_install_taosx(mode):
     taosx_install_path = os.path.join(release_info.InstallPath, "bin")
     check_directory(taosx_install_path)
     taosx_path = os.path.join(taosx_dir, "target", "deploy", get_taosx_output_name())
-    xnoded_path = os.path.join(taosx_dir, "target", "deploy", "xnoded")
+    xnoded_path = os.path.join(taosx_dir, "target", "deploy", get_xnoded_output_name())
     try:
         shutil.copy2(taosx_path, taosx_install_path)
         shutil.copy2(xnoded_path, taosx_install_path)
