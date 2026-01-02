@@ -13,9 +13,11 @@ use axum::{
     serve::Listener,
 };
 use futures::FutureExt;
+#[cfg(unix)]
+use tokio::net::{UnixListener, UnixSocket, UnixStream};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
-    net::{TcpListener, TcpStream, UnixListener, UnixSocket, UnixStream, lookup_host},
+    net::{TcpListener, TcpStream, lookup_host},
 };
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse};
@@ -84,11 +86,13 @@ pub async fn start_http(
 
 enum ServeListener {
     Tcp(TcpListener),
+    #[cfg(unix)]
     UnixSocket(UnixListener),
 }
 
 enum ServeStream {
     Tcp(TcpStream),
+    #[cfg(unix)]
     UnixSocket(UnixStream),
 }
 
@@ -96,6 +100,7 @@ enum ServeStream {
 #[allow(dead_code)]
 enum ServeAddr {
     Tcp(std::net::SocketAddr),
+    #[cfg(unix)]
     UnixSocket(tokio::net::unix::SocketAddr),
 }
 
@@ -108,6 +113,7 @@ impl AsyncRead for ServeStream {
         let this = self.as_mut();
         match this.get_mut() {
             ServeStream::Tcp(stream) => Pin::new(stream).poll_read(cx, buf),
+            #[cfg(unix)]
             ServeStream::UnixSocket(stream) => Pin::new(stream).poll_read(cx, buf),
         }
     }
@@ -122,6 +128,7 @@ impl AsyncWrite for ServeStream {
         let this = self.as_mut();
         match this.get_mut() {
             ServeStream::Tcp(stream) => Pin::new(stream).poll_write(cx, buf),
+            #[cfg(unix)]
             ServeStream::UnixSocket(stream) => Pin::new(stream).poll_write(cx, buf),
         }
     }
@@ -134,6 +141,7 @@ impl AsyncWrite for ServeStream {
         let this = self.as_mut();
         match this.get_mut() {
             ServeStream::Tcp(stream) => Pin::new(stream).poll_write_vectored(cx, bufs),
+            #[cfg(unix)]
             ServeStream::UnixSocket(stream) => Pin::new(stream).poll_write_vectored(cx, bufs),
         }
     }
@@ -141,6 +149,7 @@ impl AsyncWrite for ServeStream {
     fn is_write_vectored(&self) -> bool {
         match self {
             ServeStream::Tcp(stream) => stream.is_write_vectored(),
+            #[cfg(unix)]
             ServeStream::UnixSocket(stream) => stream.is_write_vectored(),
         }
     }
@@ -152,6 +161,7 @@ impl AsyncWrite for ServeStream {
         let this = self.as_mut();
         match this.get_mut() {
             ServeStream::Tcp(stream) => Pin::new(stream).poll_flush(cx),
+            #[cfg(unix)]
             ServeStream::UnixSocket(stream) => Pin::new(stream).poll_flush(cx),
         }
     }
@@ -163,6 +173,7 @@ impl AsyncWrite for ServeStream {
         let this = self.as_mut();
         match this.get_mut() {
             ServeStream::Tcp(stream) => Pin::new(stream).poll_shutdown(cx),
+            #[cfg(unix)]
             ServeStream::UnixSocket(stream) => Pin::new(stream).poll_shutdown(cx),
         }
     }
@@ -181,6 +192,7 @@ impl Listener for ServeListener {
                     .map(|(stream, addr)| (ServeStream::Tcp(stream), ServeAddr::Tcp(addr)))
                     .await
             }
+            #[cfg(unix)]
             ServeListener::UnixSocket(listener) => {
                 listener
                     .accept()
@@ -195,6 +207,7 @@ impl Listener for ServeListener {
     fn local_addr(&self) -> tokio::io::Result<Self::Addr> {
         match self {
             ServeListener::Tcp(listener) => listener.local_addr().map(ServeAddr::Tcp),
+            #[cfg(unix)]
             ServeListener::UnixSocket(listener) => listener.local_addr().map(ServeAddr::UnixSocket),
         }
     }
@@ -209,6 +222,7 @@ async fn build_tcp_listener(addr: &str) -> anyhow::Result<ServeListener> {
 }
 
 #[instrument(skip_all)]
+#[cfg(unix)]
 async fn build_unix_listener(path: &str) -> anyhow::Result<ServeListener> {
     let socket = UnixSocket::new_stream().context("build unix socket error")?;
     socket
@@ -217,7 +231,12 @@ async fn build_unix_listener(path: &str) -> anyhow::Result<ServeListener> {
     let listener = socket.listen(1024).context("unix socket listen error")?;
     Ok(ServeListener::UnixSocket(listener))
 }
-
+#[cfg(not(unix))]
+async fn build_unix_listener(path: &str) -> anyhow::Result<ServeListener> {
+    Err(anyhow::anyhow!(
+        "unix socket is not supported on this platform: {path}"
+    ))
+}
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
     #[snafu(transparent)]
