@@ -68,7 +68,7 @@ void indexInit(int32_t threadNum) {
 void indexEnvInit() {
   // refactor later
   indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, indexThreads, "index", NULL);
-  indexRefMgt = taosOpenRef(1000, indexDestroy);
+  indexRefMgt = taosOpenRef(__func__, __LINE__, 1000, indexDestroy);
 }
 void indexCleanup() {
   // refacto later

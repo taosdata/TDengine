@@ -103,13 +103,14 @@ int32_t ctgInitGetTbMetasTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
   SCtgTbMetasCtx* ctx = task.taskCtx;
   ctx->pNames = param;
   ctx->pResList = taosArrayInit(pJob->tbMetaNum, sizeof(SMetaRes));
-  printf("%s:%d Initialized SCtgTbMetasCtx with pResList at %p\n", __func__, __LINE__, ctx->pResList);
   if (NULL == ctx->pResList) {
     qError("QID:0x%" PRIx64 ", taosArrayInit %d SMetaRes %d failed", pJob->queryId, pJob->tbMetaNum,
            (int32_t)sizeof(SMetaRes));
     ctgFreeTask(&task, true);
     CTG_ERR_RET(terrno);
   }
+  tbMetaResHook = ctx->pResList;
+  printf("%s:%d tbMetaResHook - Initialized SCtgTbMetasCtx with pResList at %p\n", __func__, __LINE__, ctx->pResList);
 
   if (NULL == taosArrayPush(pJob->pTasks, &task)) {
     ctgFreeTask(&task, true);
@@ -261,8 +262,8 @@ int32_t ctgInitGetTbHashsTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
     ctgFreeTask(&task, true);
     CTG_ERR_RET(terrno);
   }
-  printf("%s:%d Initialized SCtgTbHashsCtx with pResList at %p\n", __func__, __LINE__, ctx->pResList);
   tbHashResHook = ctx->pResList;
+  printf("%s:%d tbHashResHook - Initialized SCtgTbHashsCtx with pResList at %p\n", __func__, __LINE__, ctx->pResList);
 
   if (NULL == taosArrayPush(pJob->pTasks, &task)) {
     ctgFreeTask(&task, true);
@@ -538,7 +539,7 @@ int32_t ctgInitGetViewsTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
     CTG_ERR_RET(terrno);
   }
   tbViewResHook = ctx->pResList;
-  printf("%s:%d Initialized SCtgViewsCtx with pResList at %p\n", __func__, __LINE__, ctx->pResList);
+  printf("%s:%d tbViewResHook: Initialized SCtgViewsCtx with pResList at %p\n", __func__, __LINE__, ctx->pResList);
 
   if (NULL == taosArrayPush(pJob->pTasks, &task)) {
     ctgFreeTask(&task, true);
@@ -1127,16 +1128,19 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
     CTG_ERR_JRET(terrno);
   }
 
+  double el = (taosGetTimestampUs() - st) / 1000.0;
+  printf("%s:%d QID:0x%" PRIx64 ", rsetId:%d, job:%p, refId:0x%" PRIx64
+         ", catalog job initialized, task num:%d, forceUpdate:%d, elapsed time:%.2f ms\n",
+         __func__, __LINE__, pJob->queryId, gCtgMgmt.jobPool, pJob, pJob->refId, taskNum, pReq->forceUpdate, el);
+
   void* p = taosAcquireRef(gCtgMgmt.jobPool, pJob->refId);
   if (NULL == p) {
     ctgError("acquire job from ref failed, refId:%" PRId64 ", error:%s", pJob->refId, tstrerror(terrno));
     CTG_ERR_JRET(terrno);
   }
 
-  double el = (taosGetTimestampUs() - st) / 1000.0;
-  qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64
-         ", catalog job initialized, task num:%d, forceUpdate:%d, elapsed time:%.2f ms",
-         pJob->queryId, pJob->refId, taskNum, pReq->forceUpdate, el);
+  printf("%s:%d rsetId:%d, job:%p, refId:0x%" PRIx64 ", acquire catalog after addRef for job\n", __func__, __LINE__,
+         gCtgMgmt.jobPool, pJob, pJob->refId);
   return TSDB_CODE_SUCCESS;
 
 _return:
@@ -1588,9 +1592,11 @@ int32_t ctgCallUserCb(void* param) {
   qDebug("QID:0x%" PRIx64 ", catalog end to call user cb", pJob->queryId);
 
   int64_t refId = pJob->refId;
-  int32_t code = taosRemoveRef(gCtgMgmt.jobPool, refId);
+  printf("%s:%d QID:0x%" PRIx64 ", job:0x%" PRIx64 ", catalog job finished and removed from jobPool\n", __func__,
+         __LINE__, pJob->queryId, refId);
+  int32_t code = taosRemoveRefCatalog(gCtgMgmt.jobPool, refId);
   if (code) {
-    qError("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", remove catalog job from jobPool failed, error:%s", pJob->queryId, refId,
+    qError("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", ## REMOVE ## catalog job from jobPool failed, error:%s", pJob->queryId, refId,
            tstrerror(code));
   }
 
@@ -3876,7 +3882,7 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
     CTG_ERR_RET(terrno);
   }
   tbUserAuthResHook = rsp.pRawRes;
-  printf("%s:%d hooked tbUserAuthResHook: %p\n", __func__, __LINE__, tbUserAuthResHook);
+  printf("%s:%d tbUserAuthResHook - Initialized SUserAuthRes at %p\n", __func__, __LINE__, tbUserAuthResHook);
 
   if (TSDB_CODE_SUCCESS != pCtx->subTaskCode) {
     if (CTG_TABLE_NOT_EXIST(pCtx->subTaskCode)) {
@@ -4544,7 +4550,7 @@ SCtgAsyncFps gCtgAsyncFps[] = {
     {ctgInitGetTSMATask, ctgLaunchGetTSMATask, ctgHandleGetTSMARsp, ctgDumpTSMARes, NULL, NULL, 1},
     {ctgInitGetTbNamesTask, ctgLaunchGetTbNamesTask, ctgHandleGetTbNamesRsp, ctgDumpTbNamesRes, NULL, NULL, 1},
     {ctgInitGetVStbRefDbsTask, ctgLaunchGetVStbRefDbsTask, ctgHandleGetVStbRefDbsRsp, ctgDumpVStbRefDbsRes, NULL, NULL, 2},
-};
+}; // ctgHandleMsgCallback - ctgHandleGetTbMetaRsp
 
 int32_t ctgMakeAsyncRes(SCtgJob* pJob) {
   int32_t code = 0;

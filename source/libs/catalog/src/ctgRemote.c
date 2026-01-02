@@ -455,6 +455,7 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
   CTG_API_JENTER();
 
   pJob = taosAcquireRef(gCtgMgmt.jobPool, cbParam->refId);
+  printf("%s:%d acquire catalog job refId:0x%" PRIx64 "\n", __func__, __LINE__, cbParam->refId);
   if (NULL == pJob) {
     qDebug("catalog job refId 0x%" PRIx64 " already dropped", cbParam->refId);
     goto _return;
@@ -514,10 +515,11 @@ _return:
   taosMemoryFree(pMsg->pEpSet);
 
   if (pJob) {
-    int32_t code2 = taosReleaseRef(gCtgMgmt.jobPool, cbParam->refId);
+    int32_t code2 = taosReleaseRefCatalog(gCtgMgmt.jobPool, cbParam->refId);
     if (code2) {
       qError("release catalog job refId:%" PRId64 " failed, error:%s", cbParam->refId, tstrerror(code2));
     }
+    printf("%s:%d release catalog job refId:0x%" PRIx64 "\n", __func__, __LINE__, cbParam->refId);
   }
 
   CTG_API_LEAVE(code);

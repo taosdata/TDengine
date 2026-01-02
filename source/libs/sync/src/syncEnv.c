@@ -35,7 +35,7 @@ int32_t syncInit() {
   (void)memset(&gSyncEnv, 0, sizeof(SSyncEnv));
   gSyncEnv.pTimerManager = taosTmrInit(1000, 50, 10000, "SYNC-ENV");
 
-  gNodeRefId = taosOpenRef(200, (RefFp)syncNodeClose);
+  gNodeRefId = taosOpenRef(__func__, __LINE__, 200, (RefFp)syncNodeClose);
   if (gNodeRefId < 0) {
     sError("failed to init node rset");
     syncCleanUp();
@@ -43,7 +43,7 @@ int32_t syncInit() {
   }
   sDebug("sync node rset is open, rsetId:%d", gNodeRefId);
 
-  gHbDataRefId = taosOpenRef(200, (RefFp)syncHbTimerDataFree);
+  gHbDataRefId = taosOpenRef(__func__, __LINE__, 200, (RefFp)syncHbTimerDataFree);
   if (gHbDataRefId < 0) {
     sError("failed to init hbdata rset");
     syncCleanUp();

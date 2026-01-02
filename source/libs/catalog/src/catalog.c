@@ -918,7 +918,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
   }
   gCtgMgmt.queue.tail = gCtgMgmt.queue.head;
 
-  gCtgMgmt.jobPool = taosOpenRef(200, ctgFreeJob);
+  gCtgMgmt.jobPool = taosOpenRef(__func__, __LINE__, 200, ctgFreeJob);
   if (gCtgMgmt.jobPool < 0) {
     qError("taosOpenRef failed, error:%s", tstrerror(terrno));
     CTG_ERR_RET(terrno);
@@ -938,8 +938,8 @@ int32_t catalogInit(SCatalogCfg* cfg) {
 
   CTG_ERR_RET(ctgStartUpdateThread());
 
-  qInfo("catalog initialized, maxDb:%u, maxTbl:%u, dbRentSec:%u, stbRentSec:%u", gCtgMgmt.cfg.maxDBCacheNum,
-        gCtgMgmt.cfg.maxTblCacheNum, gCtgMgmt.cfg.dbRentSec, gCtgMgmt.cfg.stbRentSec);
+  printf("jobPool:%d, catalog initialized, maxDb:%u, maxTbl:%u, dbRentSec:%u, stbRentSec:%u\n", gCtgMgmt.jobPool,
+         gCtgMgmt.cfg.maxDBCacheNum, gCtgMgmt.cfg.maxTblCacheNum, gCtgMgmt.cfg.dbRentSec, gCtgMgmt.cfg.stbRentSec);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1589,13 +1589,15 @@ int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SC
 _return:
 
   if (pJob) {
-    int32_t code2 = taosReleaseRef(gCtgMgmt.jobPool, pJob->refId);
+    int32_t code2 = taosReleaseRefCatalog(gCtgMgmt.jobPool, pJob->refId);
+    printf("## %s:%d release catalog job refId:%" PRId64 " result:%d\n", __func__, __LINE__, pJob->refId, code2);
     if (TSDB_CODE_SUCCESS) {
       qError("release catalog job refId:%" PRId64 " falied, error:%s", pJob->refId, tstrerror(code2));
     }
 
     if (code) {
-      code2 = taosRemoveRef(gCtgMgmt.jobPool, pJob->refId);
+      code2 = taosRemoveRefCatalog(gCtgMgmt.jobPool, pJob->refId);
+      printf("## %s:%d remove catalog job refId:%" PRId64 " result:%d\n", __func__, __LINE__, pJob->refId, code2);
       if (TSDB_CODE_SUCCESS) {
         qError("remove catalog job refId:%" PRId64 " falied, error:%s", pJob->refId, tstrerror(code2));
       }

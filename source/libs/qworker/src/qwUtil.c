@@ -668,7 +668,7 @@ void qwDestroyImpl(void *pMgmt) {
 int32_t qwOpenRef(void) {
   taosWLockLatch(&gQwMgmt.lock);
   if (gQwMgmt.qwRef < 0) {
-    gQwMgmt.qwRef = taosOpenRef(100, qwDestroyImpl);
+    gQwMgmt.qwRef = taosOpenRef(__func__, __LINE__, 100, qwDestroyImpl);
     if (gQwMgmt.qwRef < 0) {
       taosWUnLockLatch(&gQwMgmt.lock);
       qError("init qworker ref failed");

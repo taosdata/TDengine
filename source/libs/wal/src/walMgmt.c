@@ -44,7 +44,7 @@ int32_t walInit(stopDnodeFn stopDnode) {
   }
 
   if (old == 0) {
-    tsWal.refSetId = taosOpenRef(TSDB_MIN_VNODES, walFreeObj);
+    tsWal.refSetId = taosOpenRef(__func__, __LINE__, TSDB_MIN_VNODES, walFreeObj);
 
     int32_t code = walCreateThread();
     if (TSDB_CODE_SUCCESS != code) {

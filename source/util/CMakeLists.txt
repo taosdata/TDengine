@@ -45,6 +45,7 @@ target_link_libraries(
     PUBLIC api
     PUBLIC TSZ
     PUBLIC aes
+    PRIVATE dl
 )
 
 if(${BUILD_TEST})

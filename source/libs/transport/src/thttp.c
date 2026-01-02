@@ -870,10 +870,10 @@ static void transHttpDestroyRecvHandle(void* handle) {
 int64_t transInitHttpChanImpl();
 
 static void transHttpEnvInit() {
-  httpRefMgt = taosOpenRef(64, transHttpDestroyHandle);
+  httpRefMgt = taosOpenRef(__func__, __LINE__, 64, transHttpDestroyHandle);
   httpDefaultChanId = transInitHttpChanImpl();
   httpSeqNum = 0;
-  httpRecvRefMgt = taosOpenRef(8, transHttpDestroyRecvHandle);
+  httpRecvRefMgt = taosOpenRef(__func__, __LINE__, 8, transHttpDestroyRecvHandle);
 }
 
 void transHttpEnvDestroy() {

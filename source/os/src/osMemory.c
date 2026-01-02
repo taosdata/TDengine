@@ -423,16 +423,16 @@ void taosMemFree(void *ptr) {
 #else
   if (ptr == tbHashResHook || ptr == tbMetaResHook || ptr == tbViewResHook || ptr == tbUserAuthResHook) {
     if (ptr == tbHashResHook) {
-      printf("%s:%d free tbHashResHook at %p\n", __func__, __LINE__, tbHashResHook);
+      printf("@@ %s:%d free tbHashResHook at %p\n", __func__, __LINE__, tbHashResHook);
       tbHashResHook = 0;
     } else if (ptr == tbMetaResHook) {
-      printf("%s:%d free tbMetaResHook at %p\n", __func__, __LINE__, tbMetaResHook);
+      printf("@@ %s:%d free tbMetaResHook at %p\n", __func__, __LINE__, tbMetaResHook);
       tbMetaResHook = 0;
     } else if (ptr == tbViewResHook) {
-      printf("%s:%d free tbViewResHook at %p\n", __func__, __LINE__, tbViewResHook);
+      printf("@@ %s:%d free tbViewResHook at %p\n", __func__, __LINE__, tbViewResHook);
       tbViewResHook = 0;
     } else if (ptr == tbUserAuthResHook) {
-      printf("%s:%d free tbUserAuthResHook at %p\n", __func__, __LINE__, tbUserAuthResHook);
+      printf("@@ %s:%d free tbUserAuthResHook at %p\n", __func__, __LINE__, tbUserAuthResHook);
       tbUserAuthResHook = 0;
     }
   }

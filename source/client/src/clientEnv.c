@@ -1145,8 +1145,8 @@ void taos_init_imp(void) {
   ENV_ERR_RET(fmFuncMgtInit(), "failed to init funcMgt");
   ENV_ERR_RET(nodesInitAllocatorSet(), "failed to init allocator set");
 
-  clientConnRefPool = taosOpenRef(200, destroyTscObj);
-  clientReqRefPool = taosOpenRef(40960, doDestroyRequest);
+  clientConnRefPool = taosOpenRef(__func__, __LINE__, 200, destroyTscObj);
+  clientReqRefPool = taosOpenRef(__func__, __LINE__, 40960, doDestroyRequest);
 
   ENV_ERR_RET(taosGetAppName(appInfo.appName, NULL), "failed to get app name");
   ENV_ERR_RET(taosThreadMutexInit(&appInfo.mutex, NULL), "failed to init thread mutex");
