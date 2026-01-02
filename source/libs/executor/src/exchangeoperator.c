@@ -435,7 +435,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
       qDebug("block with rows:%" PRId64 " loaded", p->info.rows);
       return p;
     }
-}
+  }
 }
 
 static int32_t loadRemoteDataNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
@@ -873,13 +873,14 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
     return terrno;
   }
 
+  pScan->paramType = DYN_TYPE_SCAN_PARAM;
   pScan->pUidList = taosArrayDup(pUidList, NULL);
   if (NULL == pScan->pUidList) {
     taosMemoryFree(pScan);
     taosMemoryFreeClear(*ppRes);
     return terrno;
   }
-  pScan->type = DYN_TYPE_STB_JOIN;
+  pScan->dynType = DYN_TYPE_STB_JOIN;
   pScan->tableSeq = tableSeq;
   pScan->pOrgTbInfo = NULL;
   pScan->pBatchTbInfo = NULL;
@@ -908,6 +909,7 @@ int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, 
   pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
   QUERY_CHECK_NULL(pScan, code, lino, _return, terrno);
 
+  pScan->paramType = DYN_TYPE_SCAN_PARAM;
   if (pUidList) {
     pScan->pUidList = taosArrayDup(pUidList, NULL);
     QUERY_CHECK_NULL(pScan->pUidList, code, lino, _return, terrno);
@@ -931,7 +933,7 @@ int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, 
   pScan->pBatchTbInfo = NULL;
 
 
-  pScan->type = type;
+  pScan->dynType = DYN_TYPE_VSTB_SINGLE_SCAN;
   pScan->tableSeq = tableSeq;
   pScan->window.skey = window->skey;
   pScan->window.ekey = window->ekey;
@@ -968,6 +970,7 @@ int32_t buildTableScanOperatorParamBatchInfo(SOperatorParam** ppRes, uint64_t gr
   pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
   QUERY_CHECK_NULL(pScan, code, lino, _return, terrno);
 
+  pScan->paramType = DYN_TYPE_SCAN_PARAM;
   pScan->groupid = groupid;
   if (pUidList) {
     pScan->pUidList = taosArrayDup(pUidList, NULL);
@@ -1019,7 +1022,7 @@ int32_t buildTableScanOperatorParamBatchInfo(SOperatorParam** ppRes, uint64_t gr
   }
 
 
-  pScan->type = DYN_TYPE_VSTB_BATCH_SCAN;
+  pScan->dynType = DYN_TYPE_VSTB_BATCH_SCAN;
   pScan->tableSeq = tableSeq;
   pScan->window.skey = window->skey;
   pScan->window.ekey = window->ekey;

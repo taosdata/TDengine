@@ -16,7 +16,6 @@
 #ifndef _TD_COMMON_DEF_H_
 #define _TD_COMMON_DEF_H_
 
-#include "tarray.h"
 #include "tmsg.h"
 #include "tvariant.h"
 
