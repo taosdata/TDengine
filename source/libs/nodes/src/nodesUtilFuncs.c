@@ -232,7 +232,7 @@ int32_t nodesInitAllocatorSet() {
     return TSDB_CODE_SUCCESS;
   }
 
-  g_allocatorReqRefPool = taosOpenRef(__func__, __LINE__, 1024, destroyNodeAllocator);
+  g_allocatorReqRefPool = taosOpenRef(1024, destroyNodeAllocator);
   if (g_allocatorReqRefPool < 0) {
     nodesError("init nodes failed");
     return TSDB_CODE_OUT_OF_MEMORY;

@@ -1699,7 +1699,7 @@ static void tmqMgmtInit(void) {
     goto END;
   }
 
-  tmqMgmt.rsetId = taosOpenRef(__func__, __LINE__, 10000, tmqFreeImpl);
+  tmqMgmt.rsetId = taosOpenRef(10000, tmqFreeImpl);
   if (tmqMgmt.rsetId < 0) {
     goto END;
   }

@@ -68,7 +68,7 @@ static void cleanupRefPool() {
 }
 
 static void initRefPool() {
-  exchangeObjRefPool = taosOpenRef(__func__, __LINE__, 1024, doDestroyExchangeOperatorInfo);
+  exchangeObjRefPool = taosOpenRef(1024, doDestroyExchangeOperatorInfo);
   (void)atexit(cleanupRefPool);
 }
 

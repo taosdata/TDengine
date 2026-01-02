@@ -972,10 +972,10 @@ bool transCompareReqAndUserEpset(SReqEpSet* a, SEpSet* b) {
 static void transInitEnv() {
   refMgt = transOpenRefMgt(50000, transDestroyExHandle);
   svrRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
-  instMgt = taosOpenRef(__func__, __LINE__, 50, rpcCloseImpl);
+  instMgt = taosOpenRef(50, rpcCloseImpl);
   transCacheInit();
 
-  transSyncMsgMgt = taosOpenRef(__func__, __LINE__, 50, transDestroySyncMsg);
+  transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
   TAOS_UNUSED(uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1"));
 
   saslLibInit();
@@ -1007,7 +1007,7 @@ void transCleanup() {
 }
 int32_t transOpenRefMgt(int size, void (*func)(void*)) {
   // added into once later
-  return taosOpenRef(__func__, __LINE__, size, func);
+  return taosOpenRef(size, func);
 }
 void transCloseRefMgt(int32_t mgt) {
   // close ref
@@ -1552,8 +1552,8 @@ void* procClientMsg(void* arg) {
 static void transInitEnv() {
   refMgt = transOpenRefMgt(50000, transDestroyExHandle);
   svrRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
-  instMgt = taosOpenRef(__func__, __LINE__, 50, rpcCloseImpl);
-  transSyncMsgMgt = taosOpenRef(__func__, __LINE__, 50, transDestroySyncMsg);
+  instMgt = taosOpenRef(50, rpcCloseImpl);
+  transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
 
   taosThreadMutexInit(&tableMutex, NULL);
   hashTable = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UINT), true, HASH_NO_LOCK);
@@ -1679,7 +1679,7 @@ void transCleanup() {
 }
 int32_t transOpenRefMgt(int size, void (*func)(void*)) {
   /// add later
-  return taosOpenRef(__func__, __LINE__, size, func);
+  return taosOpenRef(size, func);
 }
 void transCloseRefMgt(int32_t mgt) {
   // close ref

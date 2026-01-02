@@ -53,7 +53,7 @@ int32_t smaInit() {
 
   if (old == 0) {
     // init tref rset
-    smaMgmt.rsetId = taosOpenRef(__func__, __LINE__,SMA_MGMT_REF_NUM, tdDestroyRSmaStat);
+    smaMgmt.rsetId = taosOpenRef(SMA_MGMT_REF_NUM, tdDestroyRSmaStat);
 
     if (smaMgmt.rsetId < 0) {
       atomic_store_8(&smaMgmt.inited, 0);

@@ -918,7 +918,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
   }
   gCtgMgmt.queue.tail = gCtgMgmt.queue.head;
 
-  gCtgMgmt.jobPool = taosOpenRef(__func__, __LINE__, 200, ctgFreeJob);
+  gCtgMgmt.jobPool = taosOpenRef(200, ctgFreeJob);
   if (gCtgMgmt.jobPool < 0) {
     qError("taosOpenRef failed, error:%s", tstrerror(terrno));
     CTG_ERR_RET(terrno);

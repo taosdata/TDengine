@@ -38,7 +38,7 @@ int32_t schedulerInit() {
   qInfo("scheduler init, policy: %d, maxNodeTableNum: %" PRId64", reSchedule:%d",
     schMgmt.cfg.schPolicy, schMgmt.cfg.maxNodeTableNum, schMgmt.cfg.enableReSchedule);
 
-  schMgmt.jobRef = taosOpenRef(__func__, __LINE__, schMgmt.cfg.maxJobNum, schFreeJobImpl);
+  schMgmt.jobRef = taosOpenRef(schMgmt.cfg.maxJobNum, schFreeJobImpl);
   if (schMgmt.jobRef < 0) {
     qError("init schduler jobRef failed, num:%u", schMgmt.cfg.maxJobNum);
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);

@@ -62,7 +62,7 @@ static void    taosDecRsetCount(SRefSet *pSet);
 static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove, int32_t *isReleased);
 static int32_t taosDecRefCountCatalog(int32_t rsetId, int64_t rid, int32_t remove, int32_t *isReleased);
 
-int32_t taosOpenRef(const char* func, int32_t lino, int32_t max, RefFp fp) {
+int32_t taosOpenRef(int32_t max, RefFp fp) {
   SRefNode **nodeList;
   SRefSet   *pSet;
   int64_t   *lockedBy;
@@ -112,7 +112,6 @@ int32_t taosOpenRef(const char* func, int32_t lino, int32_t max, RefFp fp) {
 
   (void)taosThreadMutexUnlock(&tsRefMutex);
 
-  printf("@@ %s:%d taosOpenRef rsetId:%d, max:%d, fp:%p\n", func, lino, rsetId, max, fp);
   return rsetId;
 }
 
