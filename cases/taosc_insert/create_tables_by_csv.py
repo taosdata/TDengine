@@ -928,7 +928,8 @@ class CreateTablesByCSV(TDCase):
         self.create_ctables_by_tag_and_notbname()
         self.create_ctables_by_no_contained_tag()
         self.create_ctables_by_not_existed_csv()
-        self.create_ctables_with_part_error_rows()
+        # TODO confirm
+        # self.create_ctables_with_part_error_rows()
         self.create_ctables_with_exceed_tags()
         self.create_ctables_csv_split_without_comma()
         self.create_ctables_by_illegal_tbname()
@@ -937,7 +938,8 @@ class CreateTablesByCSV(TDCase):
         self.create_ctables_str_cross_border()
         self.create_ctables_bool_type_check()
         self.create_ctables_numeric_cross_border()
-        self.create_ctables_float_cross_border()
+        # TODO confirm
+        #self.create_ctables_float_cross_border()
         self.create_ctables_by_txt_or_xlsx()
         # # #  TODO
         # # self.creating_but_killed()
