@@ -217,22 +217,23 @@ static void tRowGetKeyFromColData(int64_t ts, SColumnInfoData* pPkCol, int32_t r
 }
 
 typedef enum {
-  INVALID_TIMESTAMP_REASON_NONE = 0,
+  INVALID_TIMESTAMP_REASON_NONE = 0,  /* not invalid */
   INVALID_TIMESTAMP_REASON_PREV_TS_EQUAL = 1,
   INVALID_TIMESTAMP_REASON_PREV_TS_SMALLER = 2,
-}EInvalidTimestampReason;
-/*
-  Timestamp is invalid if current timestamp <= previous timestamp.
+} EInvalidTimestampReason;
+
+/**
+  @brief Timestamp is invalid if current timestamp <= previous timestamp.
   Only timestamp is considered even if composite primary key exists.
 */
-static EInvalidTimestampReason isInvalidTimestamp(STimeSliceOperatorInfo* pSliceInfo,
-                                   int64_t currentTs, SColumnInfoData* pPkCol,
-                                   int32_t curIndex) {
+static EInvalidTimestampReason isInvalidTimestamp(
+  STimeSliceOperatorInfo* pSliceInfo, int64_t currentTs,
+  SColumnInfoData* pPkCol, int32_t curIndex) {
   if (currentTs > pSliceInfo->win.ekey) {
     return INVALID_TIMESTAMP_REASON_NONE;
   }
   if (pSliceInfo->prevTsSet && currentTs <= pSliceInfo->prevKey.ts) {
-    /*
+    /**
       Input data of time slice operator must be ordered by
       timestamp ascendingly, except the prev scan.
       So prevTs should never be updated to equal or smaller timestamp.
@@ -900,6 +901,64 @@ static void saveBlockStatus(STimeSliceOperatorInfo* pSliceInfo, SSDataBlock* pBl
   pSliceInfo->pRemainRes = NULL;
 }
 
+/**
+  @brief set the 'get param' for the downstream operator to notify the prev/next
+  scan when the current timestamp is reached the notifyTs. Here we use the 'get
+  param' to notify the downstream because the notification is going to impact
+  the data query flow.
+  @param pOperator: the current operator(parent operator)
+  @param notifyTs: the timestamp to notify the downstream operator
+*/
+static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
+                                       TSKEY notifyTs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pOperator->pDownstreamGetParams == NULL) {
+    pOperator->pDownstreamGetParams =
+      taosMemoryCalloc(pOperator->numOfDownstream, POINTER_BYTES);
+    QUERY_CHECK_NULL(pOperator->pDownstreamGetParams, code, lino, _end,
+                     terrno);
+  }
+
+  for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    SOperatorInfo* pDownstream = pOperator->pDownstream[i];
+    if (pDownstream == NULL ||
+        (pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
+         pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_EXCHANGE)) {
+      /**
+        Only table scan and exchange operator are supported right now.
+      */
+      continue;
+    }
+    SOperatorParam* pParam = pOperator->pDownstreamGetParams[i];
+    if (pParam != NULL) {
+      freeOperatorParam(pParam, OP_GET_PARAM);
+    }
+
+    STableScanOperatorTsParam* tsParam =
+      taosMemoryCalloc(1, sizeof(STableScanOperatorTsParam));
+    QUERY_CHECK_NULL(tsParam, code, lino, _end, terrno);
+    tsParam->paramType = NOTIFY_TYPE_SCAN_PARAM;
+    tsParam->notifyTs = notifyTs;
+
+    pParam = (SOperatorParam*)taosMemoryCalloc(1, sizeof(SOperatorParam));
+    QUERY_CHECK_NULL(pParam, code, lino, _end, terrno);
+    pParam->opType = pDownstream->operatorType;
+    pParam->downstreamIdx = i;
+    pParam->value = tsParam;
+    pParam->pChildren = NULL;
+    pParam->reUse = false;
+    pOperator->pDownstreamGetParams[i] = pParam;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int64_t getNextTimestamp(int64_t current, SInterval* pInterval) {
   return taosTimeAdd(current, pInterval->interval,
                      pInterval->intervalUnit, pInterval->precision, NULL);
@@ -909,8 +968,8 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
                                STimeSliceOperatorInfo* pSliceInfo,
                                SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
                                bool ignoreNull) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
   SSDataBlock* pResBlock = pSliceInfo->pRes;
   SInterval*   pInterval = &pSliceInfo->interval;
   bool         notified = false;
@@ -932,7 +991,8 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
     }
 
     if (!notified && (ts < pSliceInfo->win.skey || ts > pSliceInfo->win.ekey)) {
-      // TODO(tooony): notify the downstream operator to stop the prev/next scan
+      code = setDownstreamOpGetParam(pOperator, ts);
+      QUERY_CHECK_CODE(code, lino, _end);
       notified = true;
     }
 
@@ -1083,7 +1143,8 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   int32_t                 order = TSDB_ORDER_ASC;
 
   if (checkWindowBoundReached(pSliceInfo)) {
-    // TODO(tooony): notify the downstream operator to stop the prev/next scan
+    code = setDownstreamOpGetParam(pOperator, pSliceInfo->win.ekey + 1);
+    QUERY_CHECK_CODE(code, lino, _end);
     goto _end;
   }
 
@@ -1155,8 +1216,8 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
 
     while (1) {
-      SSDataBlock* pBlock = pSliceInfo->pRemainRes ? pSliceInfo->pRemainRes :
-        getNextBlockFromDownstream(pOperator, 0);
+      SSDataBlock* pBlock = pSliceInfo->pRemainRes ?
+        pSliceInfo->pRemainRes : getNextBlockFromDownstream(pOperator, 0);
       if (pBlock == NULL) {
         setOperatorCompleted(pOperator);
         break;

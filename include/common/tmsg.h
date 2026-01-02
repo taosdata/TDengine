@@ -4217,17 +4217,28 @@ typedef enum {
   DYN_TYPE_VSTB_BATCH_SCAN,
 } ETableScanDynType;
 
+typedef enum {
+  DYN_TYPE_SCAN_PARAM,
+  NOTIFY_TYPE_SCAN_PARAM,
+} ETableScanParamType;
+
 typedef struct STableScanOperatorParam {
-  bool              tableSeq;
-  bool              isNewParam;
-  uint64_t          groupid;
-  SArray*           pUidList;
-  SOrgTbInfo*       pOrgTbInfo;
-  SArray*           pBatchTbInfo;  // SArray<SOrgTbInfo>
-  SArray*           pTagList;
-  STimeWindow       window;
-  ETableScanDynType type;
+  ETableScanParamType paramType;
+  bool                tableSeq;
+  bool                isNewParam;
+  uint64_t            groupid;
+  SArray*             pUidList;
+  SOrgTbInfo*         pOrgTbInfo;
+  SArray*             pBatchTbInfo;  // SArray<SOrgTbInfo>
+  SArray*             pTagList;
+  STimeWindow         window;
+  ETableScanDynType   dynType;
 } STableScanOperatorParam;
+
+typedef struct STableScanOperatorTsParam {
+  ETableScanParamType paramType;
+  TSKEY notifyTs;
+} STableScanOperatorTsParam;
 
 typedef struct STagScanOperatorParam {
   tb_uid_t vcUid;

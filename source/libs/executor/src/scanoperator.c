@@ -947,6 +947,33 @@ static SSDataBlock* getBlockForEmptyTable(SOperatorInfo* pOperator, const STable
   return pBlock;
 }
 
+static int32_t prepareTableScan(SOperatorInfo* pOperator) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  qDebug("%s, prepareTableScan start", GET_TASKID(pOperator->pTaskInfo));
+  SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
+  if (pGetParam &&
+      *(ETableScanParamType*)pGetParam->value == NOTIFY_TYPE_SCAN_PARAM) {
+    STableScanOperatorTsParam* pTsParam =
+      (STableScanOperatorTsParam*)pGetParam->value;
+
+    STableScanInfo* pTableScanInfo = pOperator->info;
+    SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+    SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
+    code = pAPI->tsdReader.tsdReaderStepDone(pTableScanInfo->base.dataReader,
+                                             pTsParam->notifyTs);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  qDebug("%s, prepareTableScan end", GET_TASKID(pOperator->pTaskInfo));
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
@@ -1277,8 +1304,9 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
 
   cleanupQueryTableDataCond(&pInfo->base.cond);
 
-  if (pOperator->pOperatorGetParam) {
-    STableScanOperatorParam* pParam = (STableScanOperatorParam*)pOperator->pOperatorGetParam->value;
+  SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
+  if (pGetParam && *(ETableScanParamType*)pGetParam == DYN_TYPE_SCAN_PARAM) {
+    STableScanOperatorParam* pParam = (STableScanOperatorParam*)pGetParam->value;
     pInfo->pBatchColMap = pParam->pBatchTbInfo;
     pParam->pBatchTbInfo = NULL;
     pInfo->cachedTimeWindow = pParam->window;
@@ -2114,10 +2142,15 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   QRY_PARAM_CHECK(ppRes);
   qTrace("%s call", __FUNCTION__);
 
-  if (pOperator->pOperatorGetParam || pInfo->pBatchColMap) {
-    ETableScanDynType type = pOperator->pOperatorGetParam ?
-                                                          ((STableScanOperatorParam*)pOperator->pOperatorGetParam->value)->type :
-                                                          DYN_TYPE_VSTB_BATCH_SCAN;
+  code = pOperator->fpSet._openFn(pOperator);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
+  if ((pGetParam && *(ETableScanParamType*)pGetParam == DYN_TYPE_SCAN_PARAM) ||
+      pInfo->pBatchColMap) {
+    ETableScanDynType type = pGetParam ?
+      ((STableScanOperatorParam*)pGetParam->value)->dynType :
+      DYN_TYPE_VSTB_BATCH_SCAN;
 
     code = doDynamicTableScanNext(pOperator, type, ppRes);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2434,7 +2467,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
 
   pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScanNext, NULL,
+  pOperator->fpSet = createOperatorFpSet(prepareTableScan, doTableScanNext, NULL,
                                          destroyTableScanOperatorInfo,
                                          optrDefaultBufFn,
                                          getTableScannerExecInfo,
@@ -3771,12 +3804,13 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   STagScanInfo* pInfo = pOperator->info;
-  if (pOperator->pOperatorGetParam) {
+  SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
+  if (pGetParam && *(ETableScanParamType*)pGetParam == DYN_TYPE_SCAN_PARAM) {
     pOperator->resultInfo.totalRows = 0;
     pOperator->dynamicTask = true;
     pInfo->curPos = 0;
     code = createTagScanTableListInfoFromParam(pOperator);
-    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    freeOperatorParam(pGetParam, OP_GET_PARAM);
     pOperator->pOperatorGetParam = NULL;
     QUERY_CHECK_CODE(code, lino, _end);
 
