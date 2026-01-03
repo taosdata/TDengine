@@ -3880,7 +3880,6 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
       tbNotExists = true;
       pCtx->subTaskCode = 0;
     } else {
-      taosMemoryFreeClear(rsp.pRawRes);
       CTG_ERR_JRET(pCtx->subTaskCode);
     }
   }
@@ -3910,6 +3909,8 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
   return TSDB_CODE_SUCCESS;
 
 _return:
+
+  taosMemoryFreeClear(rsp.pRawRes);
 
   if (CTG_TASK_LAUNCHED == pTask->status) {
     int32_t newCode = ctgHandleTaskEnd(pTask, code);
