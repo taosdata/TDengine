@@ -23,7 +23,7 @@ CREATE XNODE 'url' USER name PASS 'password';
 
 #### 参数说明
 
-- **url**: Xnode 节点的地址，格式为 `host:port`，端口号为 taosx GRPC 端口
+- **url**: Xnode 节点的地址，格式为 `host:port`，端口号为 taosx GRPC 端口（默认 6055）
 - 首次创建需要指定用户名和密码，用于 xnoded 连接 taosd
 
 #### 示例
