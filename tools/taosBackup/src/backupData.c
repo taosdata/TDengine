@@ -10,7 +10,8 @@
  */
     
 #include "backupData.h"
-
+#include "storageTaos.h"
+#include "storageParquet.h"
 
 //
 // -------------------------------------- UTIL -----------------------------------------
@@ -23,7 +24,14 @@ void saveCheckPoint(StbInfo *stbInfo, DataThread *thread, int offset) {
 }
 
 int genBackTableSql(const char *dbName, const char *tableName, char *sql, int len) {
-    snprintf(sql, len, "SELECT * FROM %s.%s", dbName, tableName);
+    char *timeFilter = argTimeFilter();
+    if (timeFilter != NULL) {
+        // no time filter
+        timeFilter = "";
+    }
+    
+    snprintf(sql, len, "SELECT * FROM `%s`.`%s` %s", dbName, tableName, timeFilter);
+    logDebug(" backup table sql: %s", sql);
 
     return TSDB_CODE_SUCCESS;
 }
@@ -34,24 +42,16 @@ int genBackTableSql(const char *dbName, const char *tableName, char *sql, int le
 
 
 //
-// write data block to file
-//
-int writeBlockToFile(const char *fileName, void *block) {
-    int code = TSDB_CODE_FAILED;
-
-    return code;
-}
-
-//
 // back child table data on thread group
 //
 int backChildTableData(DataThread* thread, const char *childTableName) {
     int code = TSDB_CODE_FAILED;
     const char* dbName = thread->dbInfo->dbName;
+    const char* stbName = thread->stbInfo->stbName;
     // get write file name
     StorageFormat format = argStorageFormat();
     char fileName[MAX_PATH_LEN];
-    code = obtainFileName(BACK_FILE_DATA, dbName, childTableName, 0, format, fileName, sizeof(fileName));
+    code = obtainFileName(BACK_FILE_DATA, dbName, stbName, childTableName, 0, format, fileName, sizeof(fileName));
     if (code != TSDB_CODE_SUCCESS) {
         return code;
     }
@@ -75,8 +75,17 @@ int backChildTableData(DataThread* thread, const char *childTableName) {
     int blockRows = 0;
     void *block = NULL;
     while (taos_fetch_raw_block(res, &blockRows, &block) == TSDB_CODE_SUCCESS) {
-        // write to file
-        code = writeBlockToFile(fileName, block);
+        if (blockRows == 0 || block == NULL) {
+            continue;
+        }
+        // write block to file
+        if (format == BINARY_PARQUET) {
+            // parquet
+            code = writeBlockToFileParquet(fileName, block, blockRows);
+        } else {
+            // taos
+            code = writeBlockToFileTaos(fileName, block, blockRows);
+        }
         if (code != TSDB_CODE_SUCCESS) {
             logError("write data block to file failed(%d): %s", code, fileName);
             taos_free_result(res);

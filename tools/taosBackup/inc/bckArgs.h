@@ -52,6 +52,10 @@ void argsDestroy();
 // get action
 enum ActionType argAction();
 
+// time start-end
+char* argTimeFilter();
+
+// retry
 int argRetryCount();
 int argRetrySleepMs();
 
