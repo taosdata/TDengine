@@ -1557,7 +1557,15 @@ int32_t ctgCallSubCb(SCtgTask* pTask) {
     SCtgMsgCtx* pParMsgCtx = CTG_GET_TASK_MSGCTX(pParent, -1);
 
     pParMsgCtx->pBatchs = pMsgCtx->pBatchs;
-    CTG_ERR_JRET(pParent->subRes.fp(pParent));
+    // all parents' cb should be called even if one fails
+    int32_t ret = pParent->subRes.fp(pParent);
+    if (ret) {
+      code = ret;
+      qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64
+             ", task:%d, type:%d,%s,  subTask:%d, target:%s, call sub cb failed, error:%s",
+             pTask->pJob->queryId, pTask->pJob->refId, pTask->taskId, pTask->type, ctgTaskTypeStr(pTask->type),
+             pTask->subTask, pTask->msgCtx.target, tstrerror(ret));
+    }
   }
 
 _return:
@@ -1608,7 +1616,9 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
   pTask->code = rspCode;
   pTask->status = CTG_TASK_DONE;
 
-  CTG_ERR_JRET(ctgCallSubCb(pTask));
+  // Should not return directly, need to update job errCode and check whether all tasks are done. Otherwise, jobs may
+  // not end properly and cause memory leak.
+  code = ctgCallSubCb(pTask);
 
   int32_t taskDone = atomic_add_fetch_32(&pJob->taskDone, 1);
   if (taskDone < taosArrayGetSize(pJob->pTasks)) {
