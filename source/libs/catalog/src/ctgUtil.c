@@ -2175,7 +2175,7 @@ _return:
   CTG_RET(code);
 }
 
-#if 1
+#if 0
 static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
   STableMeta*      pMeta = NULL;
@@ -2474,6 +2474,14 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
         return TSDB_CODE_SUCCESS;
       }
       return TSDB_CODE_SUCCESS;
+    } else if (pReq->useDb) {
+      const SPrivInfo* dbPrivInfo = privInfoGet(PRIV_DB_USE);
+      if (!dbPrivInfo) {
+        return TSDB_CODE_CTG_INTERNAL_ERROR;
+      }
+      if (!privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, dbPrivInfo, true)) {
+        return TSDB_CODE_SUCCESS;
+      }
     }
     if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
       req->singleType = pReq->privType;

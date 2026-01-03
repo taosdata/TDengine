@@ -2038,6 +2038,7 @@ static void setUserAuthInfo(SParseContext* pCxt, SName* pTbName, SUserAuthInfo* 
   pInfo->userId = pCxt->userId;
   pInfo->privType = PRIV_TBL_INSERT;
   pInfo->objType = PRIV_OBJ_TBL;
+  pInfo->useDb = 1;
 }
 
 static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache, SNode** pTagCond) {

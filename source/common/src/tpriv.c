@@ -577,8 +577,8 @@ _exit:
   return code;
 }
 
-bool privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName, SPrivInfo* privInfo,
-                         bool recursive) {
+bool privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
+                         const SPrivInfo* privInfo, bool recursive) {
 #if 0  // debug info, remove when release
   uInfo("--------------------------------");
   uInfo("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s", __func__, __LINE__,
