@@ -2186,14 +2186,25 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
     code = getTargetTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
   }
 
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-    if (TSDB_SUPER_TABLE != pStmt->pTableMeta->tableType) {
-      pCxt->needTableTagVal = (NULL != pTagCond);
-      pCxt->missCache = (NULL != pTagCond);
+  if (TSDB_CODE_SUCCESS == code) {
+#ifdef TD_ENTERPRISE
+    if (!pCxt->missCache) {
+      if (TSDB_SUPER_TABLE != pStmt->pTableMeta->tableType) {
+        pCxt->needTableTagVal = (NULL != pTagCond);
+        pCxt->missCache = (NULL != pTagCond);
+      } else {
+        pStmt->pTagCond = NULL;
+        code = nodesCloneNode(pTagCond, &pStmt->pTagCond);
+      }
     } else {
-      pStmt->pTagCond = NULL;
-      code = nodesCloneNode(pTagCond, &pStmt->pTagCond);
+      // If miss cache, always request tag value and reserved for permission check later if pTagCond exists. This may
+      // lead to redundant request but ensure correctness, and this only happens when cache is invalid or first time
+      // insert.
+      pCxt->needTableTagVal = true;
     }
+#else
+    pStmt->pTagCond = NULL;
+#endif
   }
   nodesDestroyNode(pTagCond);
 
@@ -2848,7 +2859,6 @@ static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModif
       code = tTagNew(pStbRowsCxt->aTagVals, 1, false, &pStbRowsCxt->pTag);
     }
   }
-
   if (code == TSDB_CODE_SUCCESS && pStbRowsCxt->pTagCond) {
     code = checkSubtablePrivilege(pStbRowsCxt->aTagVals, pStbRowsCxt->aTagNames, &pStbRowsCxt->pTagCond);
   }
@@ -4267,6 +4277,7 @@ static int32_t buildTagNameFromMeta(STableMeta* pMeta, SArray** pTagName) {
 }
 
 static int32_t checkSubtablePrivilegeForTable(const SArray* pTables, SVnodeModifyOpStmt* pStmt) {
+#ifdef TD_ENTERPRISE
   if (1 != taosArrayGetSize(pTables)) {
     return TSDB_CODE_FAILED;
   }
@@ -4283,6 +4294,9 @@ static int32_t checkSubtablePrivilegeForTable(const SArray* pTables, SVnodeModif
   }
   taosArrayDestroy(pTagName);
   return code;
+#else
+  return TSDB_CODE_SUCCESS;
+#endif
 }
 
 static int32_t processTableSchemaFromMetaData(SInsertParseContext* pCxt, const SMetaData* pMetaData,
