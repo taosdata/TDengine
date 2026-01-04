@@ -2196,7 +2196,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
         pStmt->pTagCond = NULL;
         code = nodesCloneNode(pTagCond, &pStmt->pTagCond);
       }
-    } else {
+    } else if (!pCxt->pComCxt->isSuperUser) {
       // If miss cache, always request tag value and reserved for permission check later if pTagCond exists. This may
       // lead to redundant request but ensure correctness, and this only happens when cache is invalid or first time
       // insert.

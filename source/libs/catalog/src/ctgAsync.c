@@ -1622,14 +1622,11 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
 
   int32_t taskDone = atomic_add_fetch_32(&pJob->taskDone, 1);
   if (taskDone < taosArrayGetSize(pJob->pTasks)) {
-    printf("prop:QID:0x%" PRIx64 ", job:0x%" PRIx64 ", task:%d,%s, task done:%d, total:%d\n", pJob->queryId, pJob->refId,
+    qDebug("QID:0x%" PRIx64 ", job:0x%" PRIx64 ", task:%d,%s, task done:%d, total:%d", pJob->queryId, pJob->refId,
            pTask->type, ctgTaskTypeStr(pTask->type), taskDone, (int32_t)taosArrayGetSize(pJob->pTasks));
 
     ctgUpdateJobErrCode(pJob, rspCode);
     return TSDB_CODE_SUCCESS;
-  } else {
-    printf("prop:QID:0x%" PRIx64 ", job:0x%" PRIx64 ", task:%d,%s, all tasks done:%d, total:%d\n", pJob->queryId,
-           pJob->refId, pTask->type, ctgTaskTypeStr(pTask->type), taskDone, (int32_t)taosArrayGetSize(pJob->pTasks));
   }
 
   CTG_ERR_JRET(ctgMakeAsyncRes(pJob));
