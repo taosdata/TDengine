@@ -1020,7 +1020,7 @@
 
 # 82-UnitTest
 
-200,,n,cases,bash 82-UnitTest/test.sh # PRIV_TODO parserTest
+200,,n,cases,bash 82-UnitTest/test.sh
 
 # 83-DocTest
 
