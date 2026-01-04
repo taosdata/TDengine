@@ -14,8 +14,7 @@ from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
 from vtable_util import VtableQueryUtil
 
-class TestVTableQuerySameDBStbWindowState:
-
+class TestVTablePlanAggOptimize:
     def setup_class(cls):
         vtbUtil = VtableQueryUtil()
         vtbUtil.prepare_same_db_vtables()
@@ -28,34 +27,23 @@ class TestVTableQuerySameDBStbWindowState:
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
-    def test_select_virtual_super_table(self):
-        """Query: virtual stable from same db
+    def test_virtual_table_plan(self):
+        """Query: virtual stable query plan
 
-        1. test vstable select super table same db state in mode 0
-        2. test vstable select super table same db state in mode 1
-        3. test vstable select super table same db state in mode 2
+        1. test select virtual super table window's plan
 
-        Since: v3.3.8.0
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
 
         Labels: virtual
 
         Jira: None
 
         History:
-            - 2025-11-21 Jing Sima Split from test_vtable_query_cross_db_stb_window.py
+            - 2025-1-14 Jing Sima created
 
         """
-
-        self.run_normal_query("test_vstable_select_test_state_mode_0")
-        self.run_normal_query("test_vstable_select_test_state_mode_1")
-        self.run_normal_query("test_vstable_select_test_state_mode_2")
-
-        self.run_normal_query("test_vstable_select_test_state_mode_0_batch_hint")
-        self.run_normal_query("test_vstable_select_test_state_mode_1_batch_hint")
-        self.run_normal_query("test_vstable_select_test_state_mode_2_batch_hint")
-
-        # self.run_normal_query("test_vstable_select_test_state_mode_0_single_hint")
-        # self.run_normal_query("test_vstable_select_test_state_mode_1_single_hint")
-        # self.run_normal_query("test_vstable_select_test_state_mode_2_single_hint")
-
+        self.run_normal_query("test_vstable_plan_test_window_state")
 
