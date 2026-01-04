@@ -9376,19 +9376,29 @@ static int32_t grantStmtToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddStringToObject(pJson, jkGrantStmtObjName, pNode->objName);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    char    privSet[256] = {0};
-    int32_t len = 0;
-    for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
-      len += snprintf(privSet + len, sizeof(privSet) - len, "%" PRIu64 ",", pNode->privileges.privSet.set[i]);
-      if (len >= sizeof(privSet)) {
-        code = TSDB_CODE_OUT_OF_RANGE;
-        break;
-      }
+    if (pNode->tabName[0] != '\0') {
+      code = tjsonAddStringToObject(pJson, jkNameTableName, pNode->tabName);
     }
-    if (len > 0) privSet[len - 1] = '\0';
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "optrType", pNode->optrType);
+  }
 
-    if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pNode->optrType == TSDB_ALTER_ROLE_PRIVILEGES) {
+      char    privSet[PRIV_GROUP_CNT * 20 + 1] = {0};
+      int32_t len = 0;
+      for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+        len += snprintf(privSet + len, sizeof(privSet) - len, "%" PRIu64 ",", pNode->privileges.privSet.set[i]);
+        if (len >= sizeof(privSet)) {
+          code = TSDB_CODE_OUT_OF_RANGE;
+          break;
+        }
+      }
+      if (len > 0) privSet[len - 1] = '\0';  // remove last comma
       code = tjsonAddStringToObject(pJson, jkGrantStmtPrivileges, privSet);
+    } else if (pNode->optrType == TSDB_ALTER_ROLE_ROLE) {
+      code = tjsonAddStringToObject(pJson, jkRoleStmtRoleName, pNode->roleName);
     }
   }
 
@@ -9403,33 +9413,38 @@ static int32_t jsonToGrantStmt(const SJson* pJson, void* pObj) {
     code = tjsonGetStringValue(pJson, jkGrantStmtObjName, pNode->objName);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    char privSet[256] = {0};
-    code = tjsonGetStringValue(pJson, jkGrantStmtPrivileges, privSet);
-    if (TSDB_CODE_SUCCESS == code) {
-      char*   token = strtok(privSet, ",");
-      int32_t i = 0;
-
-      while (token != NULL && i < PRIV_GROUP_CNT) {
-        char* cleaned_token = token;
-        while (*cleaned_token == ' ') cleaned_token++;
-
-        char*    endptr = NULL;
-        uint64_t value = 0;
-        TAOS_CHECK_RETURN(taosStr2Uint64(cleaned_token, &value));
-
-        if (endptr == cleaned_token || *endptr != '\0') {
-          code = TSDB_CODE_INVALID_PARA;
-          break;
+    code = tjsonGetStringValue(pJson, jkNameTableName, pNode->tabName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, "optrType", pNode->optrType, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pNode->optrType == TSDB_ALTER_ROLE_PRIVILEGES) {
+      char privSet[256] = {0};
+      code = tjsonGetStringValue2(pJson, jkGrantStmtPrivileges, privSet, sizeof(privSet));
+      if (TSDB_CODE_SUCCESS == code) {
+        int32_t split_num = 0;
+        char**  split = strsplit(privSet, ",", &split_num);
+        if (!split) {
+          nodesError("failed at line %d to parse privileges string: %s", __LINE__, privSet);
+          return TSDB_CODE_INVALID_PARA;
         }
-
-        pNode->privileges.privSet.set[i] = value;
-        i++;
-        token = strtok(NULL, ",");
+        for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+          if (i < split_num) {
+            uint64_t value = 0;
+            if ((code = taosStr2Uint64(split[i], &value))) {
+              taosMemoryFree(split);
+              return code;
+            }
+            pNode->privileges.privSet.set[i] = value;
+          } else {
+            pNode->privileges.privSet.set[i] = 0;
+          }
+        }
+        taosMemoryFree(split);
       }
-
-      if (TSDB_CODE_SUCCESS == code && i != PRIV_GROUP_CNT) {
-        code = TSDB_CODE_INVALID_PARA;
-      }
+    } else if (pNode->optrType == TSDB_ALTER_ROLE_ROLE) {
+      code = tjsonGetStringValue(pJson, jkRoleStmtRoleName, pNode->roleName);
     }
   }
 
