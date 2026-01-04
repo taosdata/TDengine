@@ -56,6 +56,7 @@ typedef struct SPlanContext {
   const char* pUser;
   bool        sysInfo;
   int64_t     allocatorId;
+  int64_t     userId;
   void*       timezone;
   int64_t     recalculateInterval;
   bool        streamVtableCalc;

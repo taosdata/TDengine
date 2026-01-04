@@ -383,7 +383,7 @@ static int32_t mndProcessCreateAnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSMCreateAnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
   mInfo("anode:%s, start to create", createReq.url);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_ANODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_ANODE), NULL, _OVER);
 
   pObj = mndAcquireAnodeByURL(pMnode, createReq.url);
   if (pObj != NULL) {
@@ -475,7 +475,7 @@ static int32_t mndProcessUpdateAnodeReq(SRpcMsg *pReq) {
   }
 
   TAOS_CHECK_GOTO(tDeserializeSMUpdateAnodeReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_UPDATE_ANODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_UPDATE_ANODE), NULL, _OVER);
 
   if (updateReq.anodeId == -1) {
     code = mndUpdateAllAnodes(pMnode, pReq);
@@ -566,7 +566,7 @@ static int32_t mndProcessDropAnodeReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSMDropAnodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
   mInfo("anode:%d, start to drop", dropReq.anodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_ANODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_ANODE), NULL, _OVER);
 
   if (dropReq.anodeId <= 0) {
     code = TSDB_CODE_INVALID_MSG;

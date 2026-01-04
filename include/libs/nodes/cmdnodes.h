@@ -66,6 +66,9 @@ extern "C" {
 
 #define SHOW_ALIVE_RESULT_COLS 1
 
+#define CREATE_USER_TOKEN_RESULT_COLS       1
+#define CREATE_USER_TOKEN_RESULT_FIELD1_LEN (TSDB_TOKEN_LEN + VARSTR_HEADER_SIZE)
+
 #define BIT_FLAG_MASK(n)               (1 << n)
 #define BIT_FLAG_SET_MASK(val, mask)   ((val) |= (mask))
 #define BIT_FLAG_UNSET_MASK(val, mask) ((val) &= ~(mask))
@@ -481,7 +484,7 @@ typedef struct SCreateUserStmt {
   char      password[TSDB_USER_PASSWORD_LONGLEN];
   char      totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
 
-  int8_t ignoreExisting;
+  int8_t  ignoreExists;
   int8_t sysinfo;
   int8_t createDb;
   int8_t isImport;
@@ -527,7 +530,74 @@ typedef struct SAlterUserStmt {
 typedef struct SDropUserStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
+  bool      ignoreNotExists;
 } SDropUserStmt;
+
+typedef struct SCreateRoleStmt {
+  ENodeType type;
+  char      name[TSDB_ROLE_LEN];
+  bool      ignoreExists;
+} SCreateRoleStmt;
+
+typedef struct SDropRoleStmt {
+  ENodeType type;
+  char      name[TSDB_ROLE_LEN];
+  bool      ignoreNotExists;
+} SDropRoleStmt;
+
+typedef struct SAlterRoleStmt {
+  ENodeType type;
+  char      name[TSDB_ROLE_LEN];
+  int8_t    alterType;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t lock : 1;  // 1: lock, 0: unlock
+      uint8_t reserve : 7;
+    };
+  };
+} SAlterRoleStmt;
+
+typedef struct STokenOptions {
+  ENodeType type;
+
+  bool hasEnable;
+  bool hasTtl;
+  bool hasProvider;
+  bool hasExtraInfo;
+
+  int8_t  enable;
+  int32_t ttl;
+  char    provider[TSDB_TOKEN_PROVIDER_LEN];
+  char    extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+} STokenOptions;
+
+typedef struct SCreateTokenStmt {
+  ENodeType type;
+
+  char    name[TSDB_TOKEN_NAME_LEN];
+  char    user[TSDB_USER_LEN];
+  int8_t  enable;
+  int8_t  ignoreExists;
+  int32_t ttl;
+  char    provider[TSDB_TOKEN_PROVIDER_LEN];
+  char    extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+} SCreateTokenStmt;
+
+typedef struct SAlterTokenStmt {
+  ENodeType type;
+
+  char           name[TSDB_TOKEN_NAME_LEN];
+  STokenOptions* pTokenOptions;
+} SAlterTokenStmt;
+
+typedef struct SDropTokenStmt {
+  ENodeType type;
+
+  char      name[TSDB_TOKEN_NAME_LEN];
+  bool      ignoreNotExists;
+} SDropTokenStmt;
+
 
 typedef struct SDropEncryptAlgrStmt {
   ENodeType type;
@@ -626,6 +696,7 @@ typedef struct SShowCreateViewStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
   char      viewName[TSDB_VIEW_NAME_LEN];
+  bool      hasPrivilege;
   void*     pViewMeta;
 } SShowCreateViewStmt;
 
@@ -635,6 +706,7 @@ typedef struct SShowCreateRsmaStmt {
   char      rsmaName[TSDB_TABLE_NAME_LEN];
   void*     pRsmaMeta;  // SRsmaInfoRsp;
   void*     pTableCfg;  // STableCfg
+  bool      hasPrivilege;
 } SShowCreateRsmaStmt;
 
 typedef struct SShowTableDistributedStmt {
@@ -690,6 +762,10 @@ typedef struct SShowScanDetailsStmt {
 typedef struct SShowSsMigratesStmt {
   ENodeType type;
 } SShowSsMigratesStmt;
+
+typedef struct SShowTokensStmt {
+  ENodeType type;
+} SShowTokensStmt;
 
 typedef struct SShowTransactionDetailsStmt {
   ENodeType type;
@@ -781,6 +857,12 @@ typedef struct SAlterLocalStmt {
   char      value[TSDB_DNODE_VALUE_LEN];
 } SAlterLocalStmt;
 
+typedef struct SAlterEncryptKeyStmt {
+  ENodeType type;
+  int8_t    keyType;  // 0: SVR_KEY, 1: DB_KEY
+  char      newKey[ENCRYPT_KEY_LEN + 1];
+} SAlterEncryptKeyStmt;
+
 typedef struct SDescribeStmt {
   ENodeType   type;
   char        dbName[TSDB_DB_NAME_LEN];
@@ -827,10 +909,9 @@ typedef struct SCreateStreamStmt {
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {
-  ENodeType type;
-  char      streamDbName[TSDB_DB_NAME_LEN];
-  char      streamName[TSDB_TABLE_NAME_LEN];
-  bool      ignoreNotExists;
+  ENodeType  type;
+  bool       ignoreNotExists;
+  SNodeList* pStreamList;  // list of SStreamNode for batch drop
 } SDropStreamStmt;
 
 typedef struct SPauseStreamStmt {
@@ -888,15 +969,20 @@ typedef struct SDropViewStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   char      viewName[TSDB_VIEW_NAME_LEN];
   bool      ignoreNotExists;
+  bool      hasPrivilege;
 } SDropViewStmt;
 
 typedef struct SGrantStmt {
   ENodeType type;
-  char      userName[TSDB_USER_LEN];
-  char      objName[TSDB_DB_NAME_LEN];  // db or topic
+  int8_t    optrType;                    // privilege/role/...
+  char      principal[TSDB_ROLE_LEN];    // user or role name
+  char      objName[TSDB_OBJ_NAME_LEN];  // db or topic
   char      tabName[TSDB_TABLE_NAME_LEN];
-  int64_t   privileges;
-  SNode*    pTagCond;
+  union {
+    SPrivSetArgs privileges;
+    char         roleName[TSDB_ROLE_LEN];
+  };
+  SNode* pCond;
 } SGrantStmt;
 
 typedef SGrantStmt SRevokeStmt;

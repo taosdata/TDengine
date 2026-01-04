@@ -92,10 +92,18 @@ const char *sdbTableName(ESdbType type) {
       return "scan_detail";
     case SDB_RSMA:
       return "rsma";
+    case SDB_RETENTION:
+      return "retention";
+    case SDB_RETENTION_DETAIL:
+      return "retention_detail";
     case SDB_INSTANCE:
       return "instance";
     case SDB_ENCRYPT_ALGORITHMS:
       return "encrypt_algr";
+    case SDB_TOKEN:
+      return "token";
+    case SDB_ROLE:
+      return "role";
     default:
       return "undefine";
   }

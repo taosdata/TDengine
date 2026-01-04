@@ -14,7 +14,7 @@ class TestWalKeepVersionTrim:
 
 
     def test_wal_keep_version_high_availability(self):
-        """Test WAL keep version and trim functionality
+        """Wal keep availability
         
         This test verifies:
         1. prepare data
@@ -22,9 +22,6 @@ class TestWalKeepVersionTrim:
         3. set keep version 0
         4. start dnode 3
         5. check wal keep version
-
-        Catalog:
-            - Database:WAL
 
         Since: v3.3.6.31
 

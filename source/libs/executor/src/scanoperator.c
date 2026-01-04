@@ -1400,11 +1400,11 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
       for (int32_t i = 0; i < pSup->numOfExprs; i++) {
         SqlFunctionCtx* ctx = &pSup->pCtx[i];
         bool           needScan = false;
-        for (int32_t j = 0; j < ctx->numOfParams; j++) {
+        for (int32_t j = 0; j < (fmIsImplicitTsFunc(ctx->functionId) ? ctx->numOfParams - 1 : ctx->numOfParams); j++) {
           SFunctParam pParam = ctx->param[j];
           for (int32_t k = 0; k < taosArrayGetSize(pColArray); k++) {
             SColIdPair* pPair = (SColIdPair*)taosArrayGet(pColArray, k);
-            if (pParam.pCol && pParam.pCol->colId == pPair->vtbColId && pPair->vtbColId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+            if (pParam.pCol && pParam.pCol->colId == pPair->vtbColId) {
               needScan |= true;
               break;
             }
@@ -2057,6 +2057,8 @@ static int32_t doVstbBatchDynamicTableScanNext(SOperatorInfo* pOperator, SSDataB
     pInfo->pResBlock = res;
     blockDataDestroy(result);
     (*ppRes) = res;
+
+    printDataBlock(res, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
   } else {
     clearVstbBatchDynamicTableScanInfo(pInfo);
     setOperatorCompleted(pOperator);

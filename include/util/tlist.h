@@ -156,6 +156,34 @@ extern "C" {
     TD_DLIST_NELES(dl) += 1;                                                                        \
   } while (0)
 
+#define TD_DLIST_INSERT_BEFORE(dl, refdln, dln)               \
+  do {                                                        \
+    if (TD_DLIST_HEAD(dl) == (refdln)) {                      \
+      TD_DLIST_HEAD(dl) = (dln);                              \
+    }                                                         \
+    TD_DLIST_NODE_PREV(dln) = TD_DLIST_NODE_PREV(refdln);     \
+    TD_DLIST_NODE_NEXT(dln) = (refdln);                       \
+    if (TD_DLIST_NODE_PREV(refdln) != NULL) {                 \
+      TD_DLIST_NODE_NEXT(TD_DLIST_NODE_PREV(refdln)) = (dln); \
+    }                                                         \
+    TD_DLIST_NODE_PREV(refdln) = (dln);                       \
+    TD_DLIST_NELES(dl) += 1;                                  \
+  } while (0)
+
+#define TD_DLIST_APPEND_AFTER(dl, refdln, dln)                \
+  do {                                                        \
+    if (TD_DLIST_TAIL(dl) == (refdln)) {                      \
+      TD_DLIST_TAIL(dl) = (dln);                              \
+    }                                                         \
+    TD_DLIST_NODE_NEXT(dln) = TD_DLIST_NODE_NEXT(refdln);     \
+    TD_DLIST_NODE_PREV(dln) = (refdln);                       \
+    if (TD_DLIST_NODE_NEXT(refdln) != NULL) {                 \
+      TD_DLIST_NODE_PREV(TD_DLIST_NODE_NEXT(refdln)) = (dln); \
+    }                                                         \
+    TD_DLIST_NODE_NEXT(refdln) = (dln);                       \
+    TD_DLIST_NELES(dl) += 1;                                  \
+  } while (0)
+
 #define TD_DLIST_POP(dl, dln)                                                \
   do {                                                                       \
     if (TD_DLIST_HEAD(dl) == (dln)) {                                        \

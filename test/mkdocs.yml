@@ -113,8 +113,8 @@ nav:
     - 16-Views: case_list_docs/Views.md
     - 17-Data Subscription: 
         - 01-Mgmt: case_list_docs/DataSubscription/Mgmt.md
-        - 02-Native: case_list_docs/DataSubscription/Native.md
-        - 04-MQTT: case_list_docs/DataSubscription/MQTT.md
+        - 02-Consume: case_list_docs/DataSubscription/Consume.md
+        - 03-MQTT: case_list_docs/DataSubscription/MQTT.md
     - 18-Stream Processing:
         - 01-Snode: case_list_docs/StreamProcessing/Snode.md
         - 02-Stream: case_list_docs/StreamProcessing/Stream.md

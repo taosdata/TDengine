@@ -1568,7 +1568,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     size_t len = 0;
     char  *keyJoined = taosStringBuilderGetResult(&sb, &len);
 
-    if (pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0) {
+    if (strlen(RPC_MSG_USER(pOriginRpc)) > 0) {
       int64_t tse = taosGetTimestampMs();
       double  duration = (double)(tse - tss);
       duration = duration / 1000;
@@ -1841,7 +1841,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     size_t len = 0;
     char  *keyJoined = taosStringBuilderGetResult(&sb, &len);
 
-    if (pOriginRpc->info.conn.user != NULL && strlen(pOriginRpc->info.conn.user) > 0) {
+    if (strlen(RPC_MSG_USER(pOriginRpc)) > 0) {
       int64_t tse = taosGetTimestampMs();
       double  duration = (double)(tse - tss);
       duration = duration / 1000;
@@ -2732,13 +2732,13 @@ _exit:
   METRICS_UPDATE(pVnode->writeMetrics.total_bytes, METRIC_LEVEL_LOW, pMsg->header.contLen);
 
   if (tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && pSubmitRsp->affectedRows > 0 &&
-      strlen(pOriginalMsg->info.conn.user) > 0 && tsInsertCounter != NULL) {
+      strlen(RPC_MSG_USER(pOriginalMsg)) > 0 && tsInsertCounter != NULL) {
     const char *sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS,
                                    pVnode->monitor.strClusterId,
                                    pVnode->monitor.strDnodeId,
                                    tsLocalEp,
                                    pVnode->monitor.strVgId,
-                                   pOriginalMsg->info.conn.user,
+                                   RPC_MSG_USER(pOriginalMsg),
                                    "Success"};
     int         tv = taos_counter_add(tsInsertCounter, pSubmitRsp->affectedRows, sample_labels);
   }
@@ -3032,13 +3032,13 @@ _err:
   if(code == TSDB_CODE_SUCCESS){
     const char *batch_sample_labels[] = {VNODE_METRIC_TAG_VALUE_DELETE, pVnode->monitor.strClusterId,
                                         pVnode->monitor.strDnodeId, tsLocalEp, pVnode->monitor.strVgId,
-                                        pOriginalMsg->info.conn.user, "Success"};
+                                        RPC_MSG_USER(pOriginalMsg), "Success"};
     taos_counter_inc(pVnode->monitor.insertCounter, batch_sample_labels);
   }
   else{
     const char *batch_sample_labels[] = {VNODE_METRIC_TAG_VALUE_DELETE, pVnode->monitor.strClusterId,
                                         pVnode->monitor.strDnodeId, tsLocalEp, pVnode->monitor.strVgId,
-                                        pOriginalMsg->info.conn.user, "Failed"};
+                                        RPC_MSG_USER(pOriginalMsg), "Failed"};
     taos_counter_inc(pVnode->monitor.insertCounter, batch_sample_labels);
   }
   */

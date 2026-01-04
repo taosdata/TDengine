@@ -801,7 +801,7 @@ class TestScalarFunction:
         self.run_char()
 
     def test_fun_sca_char_length(self):
-        """ Fun: char_length()
+        """ Fun: char_length() extend
 
         1. Support data types
         2. Query with constant/null/blank/chinese/japanese parameter

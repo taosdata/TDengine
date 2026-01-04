@@ -111,7 +111,9 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000135 | Invalid fqdn                            | 无效 FQDN                                                                  | 检查配置或输入的 FQDN 值是否正确                                                                                                                      |
 | 0x8000013C | Invalid disk id                         | 不合法的 disk id                                                           | 建议用户检查挂载磁盘是否失效或者使用参数 diskIDCheckEnabled 来跳过磁盘检查                                                                            |
 | 0x8000013D | Decimal value overflow                  | Decimal 计算溢出                                                           | 检查计算表达式和参数值是否计算结果导致类型溢出                                                                                                        |
-| 0x8000013E | Division by zero error                  | Division by zero                                                           | 检查除法操作是否除以 0                                                                                                                                |
+| 0x8000013E | Division by zero error                  | Division by zero                                                           | 检查除法操作是否除以 0                                                                                                                              |
+| 0x80000140 | Edition not compatible                  | 社区版/企业版不匹配                                                        | 检查各节点（包括服务端和客户端）是否有社区版和企业版混用的情况，确保都是企业版或都是社区版 |
+| 0x80000141 | Invalid signature                       | 消息签名无效或不正确                                                       | 检查客户端和服务端是否使用了相同的签名算法 |
 
 #### tsc
 
@@ -142,6 +144,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000023B | reached the maximum connection idle timeout limit | conn 空闲超时              |  无              |
 | 0x8000023C | reached the maximum concurrency limit            | 单个用户超过了最大并发限制   |  检查参数 |
 | 0x8000023D | reached the maximum call vnode limit              | 单条 SQL 涉及到太多 VNODE   | 检查 SQL |
+| 0x8000023E | Invalid token                     | 令牌格式错误                 | 检查并重新输入正确的令牌                                                         |
 | 0x800002FF | Tsc internal error                | TSC 内部错误                 | 保留现场和日志，github 上报 issue                                                |
 
 #### mnode
@@ -175,6 +178,13 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000340 | Account already exists                                                                       | （仅企业版）内部错误                                                              | 上报 issue                                                                                           |
 | 0x80000342 | Invalid account options                                                                      | （仅企业版）该操作不支持                                                          | 确认操作是否正确                                                                                     |
 | 0x80000344 | Invalid account                                                                              | 账户不存在                                                                        | 确认账户是否正确                                                                                     |
+| 0x80000348 | Token not available                                                                          | 内部错误                                                                          | 上报 issue                                                                                           |
+| 0x80000349 | Token not exist                                                                              | 令牌不存在                                                                        | 确认令牌是否正确                                                                                     |
+| 0x8000034A | Token already exist                                                                          | 令牌已存在                                                                        | 使用新的令牌名称                                                                                     |
+| 0x8000034B | Too many tokens                                                                              | 令牌数量太多                                                                      | 调整限额或删除不再使用的令牌                                                                         |
+| 0x8000034C | Invalid token name                                                                           | 令牌名称不合法                                                                    | 使用正确的令牌名称                                                                                   |
+| 0x8000034D | Token expired                                                                                | 令牌已过期                                                                        | 重新设置令牌的过期时间                                                                               |
+| 0x8000034E | Token Disabled                                                                               | 令牌被禁用                                                                        | 重新启用令牌                                                                                         |
 | 0x80000350 | User already exists                                                                          | Create user, 重复创建                                                             | 确认操作是否正确                                                                                     |
 | 0x80000351 | Invalid user                                                                                 | 用户不存在                                                                        | 确认操作是否正确                                                                                     |
 | 0x80000352 | Invalid user format                                                                          | 格式不正确                                                                        | 确认操作是否正确                                                                                     |

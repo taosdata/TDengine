@@ -9,7 +9,7 @@ ADD_EXECUTABLE(clientTest clientTests.cpp)
 DEP_ext_gtest(clientTest)
 TARGET_LINK_LIBRARIES(
         clientTest PRIVATE
-        os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
+        os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function totp
 )
 
 ADD_EXECUTABLE(connectOptionsTest connectOptionsTest.cpp)
@@ -91,6 +91,8 @@ TARGET_INCLUDE_DIRECTORIES(
         clientTest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/totp/inc"
 )
 
 TARGET_INCLUDE_DIRECTORIES(

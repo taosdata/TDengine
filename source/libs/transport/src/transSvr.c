@@ -66,6 +66,9 @@ typedef struct SSvrConn {
   char    secret[TSDB_PASSWORD_LEN];
   char    ckey[TSDB_PASSWORD_LEN];  // ciphering key
 
+  char   identifier[128];  // token or user
+  int8_t isToken;
+
   int64_t whiteListVer;
   int64_t dataTimeWhiteListVer;
 
@@ -518,22 +521,29 @@ void uvDataTimeWhiteListDestroy(SDataTimeWhiteListTab* pWhite) {
 
 static int32_t uvDataTimeWhiteListToStr(SUserDateTimeWhiteList* plist, char* user, char** ppBuf) {
   int32_t code = 0;
-  if (plist == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
   int32_t len = 0;
+  if (plist == NULL) {
+    tError("failed to convert data time white list to str, invalid para");
+    return len;
+  }
   int32_t limit = plist->numWhiteLists * sizeof(SDateTimeWhiteListItem) + 128;
   char*   pBuf = taosMemoryCalloc(1, limit);
+  if (pBuf == NULL) {
+    tError("failed to alloc memory for data time white list string");
+    return len;
+  }
+
   for (int32_t i = 0; i < plist->numWhiteLists; i++) {
     SDateTimeWhiteListItem* pItem = &plist->pWhiteLists[i];
     if (i == 0) {
-      len = snprintf(pBuf + strlen(pBuf), limit - strlen(pBuf), "user:%s duration:%" PRId64 ", start:%" PRId64 "; ",
-                     user, (int64_t)(pItem->duration), pItem->start);
+      len = snprintf(pBuf, limit, "user:%s duration:%" PRId64 ", start:%" PRId64 "; ", user, (int64_t)(pItem->duration),
+                     pItem->start);
     } else {
-      len = sprintf(pBuf + strlen(pBuf), "duration:%" PRId64 ", start:%" PRId64 "; ", (int64_t)(pItem->duration),
-                    pItem->start);
+      len += snprintf(pBuf + strlen(pBuf), limit - strlen(pBuf), "duration:%" PRId64 ", start:%" PRId64 "; ",
+                      (int64_t)(pItem->duration), pItem->start);
     }
   }
+  *ppBuf = pBuf;
   return len;
 }
 void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
@@ -558,14 +568,14 @@ void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
     len = uvDataTimeWhiteListToStr(pUserList, user, &pBuf);
     if (len > 0) {
       tDebug("dataTime white list %s", pBuf);
-      taosMemoryFree(pBuf);
     }
+    taosMemoryFree(pBuf);
 
     pIter = taosHashIterate(pWhiteList, pIter);
   }
 }
 int32_t uvDataTimeWhiteListAdd(SDataTimeWhiteListTab* pWhite, char* user, SUserDateTimeWhiteList* plist, int64_t ver) {
-  int32_t   code = 0;
+  int32_t code = 0;
   if (pWhite == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -698,7 +708,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
   int32_t code = 0;
   STrans* pInst = pConn->pInst;
   if (pHead->msgType == TDMT_SCH_TASK_RELEASE) {
-    int64_t qId = taosHton64(pHead->qid);
+    int64_t qId = taosNtoh64(pHead->qid);
     if (qId <= 0) {
       tError("conn:%p, recv release, but invalid sid:%" PRId64, pConn, qId);
       code = TSDB_CODE_RPC_NO_STATE;
@@ -724,7 +734,7 @@ static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
                       .msgType = pHead->msgType + 1,
                       .info.qId = qId,
                       .info.traceId = pHead->traceId,
-                      .info.seqNum = taosHton64(pHead->seqNum)};
+                      .info.seqNum = taosNtoh64(pHead->seqNum)};
 
     SSvrRespMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
     if (srvMsg == NULL) {
@@ -753,23 +763,34 @@ bool uvConnMayGetUserInfo(SSvrConn* pConn, STransMsgHead** ppHead, int32_t* msgL
   STrans*        pInst = pConn->pInst;
   STransMsgHead* pHead = *ppHead;
   int32_t        len = *msgLen;
+
+  int32_t offset = sizeof(pConn->user);
+  char*   pUser = pConn->user;
+  if (pHead->isToken) {
+    offset = sizeof(pConn->identifier);
+    pUser = pConn->identifier;
+    pConn->isToken = 1;
+  } else {
+    pConn->isToken = 0;
+  }
+
   if (pHead->withUserInfo) {
-    STransMsgHead* tHead = taosMemoryCalloc(1, len - sizeof(pInst->user));
+    STransMsgHead* tHead = taosMemoryCalloc(1, len - offset);
     if (tHead == NULL) {
       tError("conn:%p, failed to get user info since %s", pConn, tstrerror(terrno));
       return false;
     }
     memcpy((char*)tHead, (char*)pHead, TRANS_MSG_OVERHEAD);
-    memcpy((char*)tHead + TRANS_MSG_OVERHEAD, (char*)pHead + TRANS_MSG_OVERHEAD + sizeof(pInst->user),
-           len - sizeof(STransMsgHead) - sizeof(pInst->user));
-    tHead->msgLen = htonl(htonl(pHead->msgLen) - sizeof(pInst->user));
+    memcpy((char*)tHead + TRANS_MSG_OVERHEAD, (char*)pHead + TRANS_MSG_OVERHEAD + offset,
+           len - sizeof(STransMsgHead) - offset);
+    tHead->msgLen = htonl(ntohl(pHead->msgLen) - offset);
 
-    memcpy(pConn->user, (char*)pHead + TRANS_MSG_OVERHEAD, sizeof(pConn->user));
+    memcpy(pUser, (char*)pHead + TRANS_MSG_OVERHEAD, offset);
     pConn->userInited = 1;
 
     taosMemoryFree(pHead);
     *ppHead = tHead;
-    *msgLen = len - sizeof(pInst->user);
+    *msgLen = len - offset;
     return true;
   }
   return false;
@@ -781,6 +802,9 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
   int8_t     forbiddenIp = 0;
   int8_t     timeForbiddenIp = 0;
 
+  if (pConn->isToken) {
+    return status;
+  }
   if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
     forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
     if (forbiddenIp == 0) {
@@ -804,17 +828,25 @@ static int8_t uvCheckConn(SSvrConn* pConn) {
 
   return status;
 }
+static void uvSetConnInfo(SSvrConn* pConn, SRpcConnInfo* pInfo) {
+  pInfo->cliAddr = pConn->clientIp;
 
+  if (pConn->isToken) {
+    tstrncpy(pInfo->identifier, pConn->identifier, sizeof(pInfo->identifier));
+    pInfo->isToken = 1;
+  } else {
+    tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
+    pInfo->isToken = 0;
+  }
+}
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
-  int32_t        code = 0;
-  int8_t         acquire = 0;
+   
   STransMsgHead* pHead = NULL;
-
   int8_t resetBuf = 0;
   int32_t msgLen = 0;
-  code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
+  int32_t code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
   if (code != 0) {
     tError("%s conn:%p, read invalid packet since %s", transLabel(pInst), pConn, tstrerror(code));
     return false;
@@ -846,16 +878,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
   pConn->inType = pHead->msgType;
 
   int8_t forbiddenIp = uvCheckConn(pConn);
-  // int8_t forbiddenIp = 0;
-  // int8_t timeForbiddenIp = 0;
-  // if (pThrd->enableIpWhiteList && tsEnableWhiteList) {
-  //   forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
-  //   if (forbiddenIp == 0) {
-  //     uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
-  //   }
-  // }
-
-  // timeForbiddenIp = uvDataTimeWhiteListCheckConn(pThrd->pDataTimeWhiteList, pConn);
 
   if (uvMayHandleReleaseReq(pConn, pHead)) {
     return true;
@@ -882,20 +904,17 @@ static bool uvHandleReq(SSvrConn* pConn) {
   // 3. not mixed with persist
   transMsg.info.refId = pHead->noResp == 1 ? -1 : pConn->refId;
   transMsg.info.traceId = pHead->traceId;
-  transMsg.info.cliVer = htonl(pHead->compatibilityVer);
+  transMsg.info.cliVer = ntohl(pHead->compatibilityVer);
   transMsg.info.forbiddenIp = forbiddenIp;
   transMsg.info.noResp = pHead->noResp == 1 ? 1 : 0;
-  transMsg.info.seqNum = taosHton64(pHead->seqNum);
-  transMsg.info.qId = taosHton64(pHead->qid);
+  transMsg.info.seqNum = taosNtoh64(pHead->seqNum);
+  transMsg.info.qId = taosNtoh64(pHead->qid);
   transMsg.info.msgType = pHead->msgType;
 
   uvPerfLog_receive(pConn, pHead, &transMsg);
 
   // set up conn info
-  SRpcConnInfo* pConnInfo = &(transMsg.info.conn);
-  pConnInfo->cliAddr = pConn->clientIp;
-  // pConnInfo->clientPort = pConn->port;
-  tstrncpy(pConnInfo->user, pConn->user, sizeof(pConnInfo->user));
+  uvSetConnInfo(pConn, &(transMsg.info.conn));
 
   transReleaseExHandle(uvGetConnRefOfThrd(pThrd), pConn->refId);
 
@@ -1038,6 +1057,7 @@ void uvOnRecvCbSSL(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   } else {
     tError("%s conn:%p, read error since %s, received from %s, local info:%s", transLabel(pInst), conn,
            uv_err_name(nread), conn->dst, conn->src);
+    conn->broken = true;
     transUnrefSrvHandle(conn);
     return;
   }
@@ -1161,7 +1181,6 @@ static int32_t uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
-  // pHead->magicNum = htonl(TRANS_MAGIC_NUM);
   pHead->compatibilityVer = htonl(((STrans*)pConn->pInst)->compatibilityVer);
   pHead->version = TRANS_VER;
   pHead->seqNum = taosHton64(pMsg->info.seqNum);

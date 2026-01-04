@@ -228,7 +228,7 @@ static int32_t mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOld, SAcctObj *pNew) {
 
 static int32_t mndProcessCreateAcctReq(SRpcMsg *pReq) {
   int32_t code = 0;
-  code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_CREATE_ACCT);
+  code = mndCheckOperPrivilege(pReq->info.node, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_ACCT);
   if (code != 0) {
     TAOS_RETURN(code);
   }
@@ -240,7 +240,7 @@ static int32_t mndProcessCreateAcctReq(SRpcMsg *pReq) {
 
 static int32_t mndProcessAlterAcctReq(SRpcMsg *pReq) {
   int32_t code = 0;
-  code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_ALTER_ACCT);
+  code = mndCheckOperPrivilege(pReq->info.node, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_ACCT);
   if (code != 0) {
     TAOS_RETURN(code);
   }
@@ -252,7 +252,8 @@ static int32_t mndProcessAlterAcctReq(SRpcMsg *pReq) {
 
 static int32_t mndProcessDropAcctReq(SRpcMsg *pReq) {
   int32_t code = 0;
-  if ((code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_DROP_ACCT)) != 0) {
+  code = mndCheckOperPrivilege(pReq->info.node, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_ACCT);
+  if (code != 0) {
     TAOS_RETURN(code);
   }
 
