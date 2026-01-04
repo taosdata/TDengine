@@ -299,6 +299,13 @@ MQTT DSN 参数：
 
 本节讲述如何以服务模式部署 `taosX`。以服务模式运行的 taosX，其各项功能需要通过 taosExplorer 上的图形界面来使用。
 
+:::tip
+
+1. 从 3.4.0.0 版本开始，taosX 使用 TSDB 作为元数据存储介质，不再使用 sqlite 存储元数据。不与旧版本兼容。
+2. 3.4.0.0 版本开始，taosX 需要先创建 XNODE，然后才能创建任务。参考 [创建 XNODE 节点](../03-taos-sql/94-datain.md#创建节点)。
+
+:::
+
 ### 配置
 
 `taosX` 支持通过配置文件进行配置。在 Linux 上，默认配置文件路径是 `/etc/taos/taosx.toml`，在 Windows 上，默认配置文件路径是 `C:\\TDengine\\cfg\\taosx.toml`，包含以下配置项：
@@ -314,7 +321,6 @@ MQTT DSN 参数：
 - `serve.ssl_cert`：是 SSL/TLS 证书。
 - `serve.ssl_key`：是 SSL/TLS 秘钥。
 - `serve.ssl_ca`：是 SSL/TLS 根证书。
-- `serve.database_url`：`taosX` 数据库的地址，格式为 `sqlite:<path>`。
 - `serve.request_timeout`：全局接口 API 超时时间。
 - `serve.grpc`：是 `taosX` gRPC 服务监听地址，默认值为 `0.0.0.0:6055`。支持 IPv6 协议的地址，同时支持多地址，多地址需保证端口一致，且使用英文逗号，作为分割。
 - `rest_api_threads`：rest api 服务的运行时线程数。默认线程数为`当前服务器内核*2`。
@@ -361,9 +367,6 @@ MQTT DSN 参数：
 #ssl_key = "/path/to/tls/server.key"
 # TLS/SSL CA certificate
 #ssl_ca = "/path/to/tls/ca.pem"
-
-# database url
-#database_url = "sqlite:taosx.db"
 
 # default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
 #request_timeout = 30

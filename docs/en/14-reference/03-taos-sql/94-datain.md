@@ -1,0 +1,326 @@
+---
+sidebar_label: Data Ingestion
+title: Data Ingestion
+description: "Xnode distributed node and task management instructions"
+---
+
+# Data Synchronization SQL Manual
+
+This document introduces SQL commands for managing TDengine data synchronization functionality, including Xnode nodes, synchronization Task jobs, and Job shards.
+
+## XNODE Node Management
+
+XNODE nodes are the basic execution units of the data synchronization service, responsible for specific data transmission tasks.
+
+### Create Node
+
+#### Syntax
+
+```sql
+CREATE XNODE 'url'
+CREATE XNODE 'url' USER name PASS 'password';
+```
+
+#### Parameter Description
+
+- **url**: The address of the Xnode node, in the format `host:port` with port to taosx GRPC service (6055 by default)
+- Username and password need to be specified when creating for the first time, used for xnoded to connect to taosd
+
+#### Example
+
+```sql
+taos> CREATE XNODE "h1:6055";
+Create OK, 0 row(s) affected (0.050798s)
+
+taos> CREATE XNODE 'x1:6055' USER root PASS 'taosdata';
+Create OK, 0 row(s) affected (0.050798s)
+```
+
+### View Nodes
+
+#### Syntax
+
+```sql
+SHOW XNODES
+```
+
+#### Example
+
+```sql
+taos> SHOW XNODES;
+```
+
+Output result:
+
+```sql
+id | url     | status | create_time                 | update_time             |
+===============================================================================
+1  | h1:6050 | online | 2025-12-14 01:01:34.655     | 2025-12-14 01:01:34.655 |
+Query OK, 1 row(s) in set (0.005518s)
+```
+
+### Drain Node
+
+Reassign existing tasks of a node to other nodes for execution.
+
+#### Syntax
+
+```sql
+DRAIN XNODE id
+```
+
+#### Parameter Description
+
+- **id**: The ID of the Xnode node
+
+#### Example
+
+```sql
+taos> DRAIN XNODE 4;
+Query OK, 0 row(s) affected (0.014246s)
+```
+
+### Delete Node
+
+#### Syntax
+
+```sql
+DROP XNODE [FORCE] id | 'url'
+```
+
+#### Parameter Description
+
+- **id**: The ID of the Xnode node
+- **url**: The address of the Xnode node
+- **FORCE**: Force delete node
+
+#### Example
+
+```sql
+taos> DROP XNODE 1;
+Drop OK, 0 row(s) affected (0.038173s)
+
+taos> DROP XNODE "h2:6050";
+Drop OK, 0 row(s) affected (0.038593s)
+```
+
+## TASK Job Management
+
+TASK jobs define the source, destination, and data parsing rules for data synchronization.
+
+### Create Task
+
+#### Syntax
+
+```sql
+CREATE XNODE TASK 'name'
+  FROM { 'from_dns' | DATABASE 'dbname' | TOPIC 'topic' }
+  TO { 'to_dns' | DATABASE 'dbname' }
+  [ WITH task_options ]
+
+task_options:
+  [ PARSER 'parser' ]
+  [ STATUS 'status' ]
+  [ VIA viaId ]
+  [ XNODE_ID xnodeId ]
+  [ REASON 'reason' ]
+```
+
+Syntax note: All task_options can be used simultaneously, separated by spaces, order independent
+
+#### Parameter Description
+
+| Parameter    | Description                                        |
+| :----------- | :------------------------------------------------- |
+| **name**     | Task name                                          |
+| **from_dns** | Source connection string (e.g., `mqtt://...`)      |
+| **dbname**   | Database name                                      |
+| **topic**    | Topic name                                         |
+| **to_dns**   | Destination connection string (e.g., `taos://...`) |
+| **parser**   | Data parsing configuration (JSON format)           |
+| **status**   | Task status                                        |
+| **xnodeId**  | The xnode node ID where the task resides           |
+| **viaId**    | The agent ID where the task resides                |
+| **reason**   | Reason for recent task execution failure           |
+
+#### Example
+
+```sql
+taos> CREATE XNODE TASK "t4" FROM 'kafka://localhost:9092?topics=abc&group=abcgroup' TO 'taos+ws://localhost:6041/test' WITH parser '{"model":{"name":"cc_abc","using":"cc","tags":["g"],"columns":["ts","b"]},"mutate":[{"map":{"ts":{"cast":"ts","as":"TIMESTAMP(ms)"},"b":{"cast":"a","as":"VARCHAR"},"g":{"value":"1","as":"INT"}}}]}';
+Create OK, 0 row(s) affected (0.038959s)
+```
+
+### View Tasks
+
+#### Syntax
+
+```sql
+SHOW XNODE TASKS;
+```
+
+#### Example
+
+```sql
+taos> SHOW XNODE TASKS;
+```
+
+Output result:
+
+```sql
+taos> SHOW XNODE TASKS \G;
+*************************** 1.row ***************************
+         id: 3
+       name: t4
+       from: kafka://localhost:9092?topics=abc&group=abcgroup
+         to: taos+ws://localhost:6041/test
+     parser: {"model":{"name":"cc_abc","using":"cc","tags":["g"],"columns":["ts","b"]},"mutate":[{"map":{"ts":{"cast":"ts","as":"TIMESTAMP(ms)"},"b":{"cast":"a","as":"VARCHAR"},"g":{"value":"1","as":"INT"}}}]}
+        via: NULL
+   xnode_id: NULL
+     status: NULL
+     reason: NULL
+create_time: 2025-12-29 13:48:21.058
+update_time: 2025-12-29 13:48:21.058
+Query OK, 1 row(s) in set (0.005281s)
+```
+
+### Start Task
+
+#### Syntax
+
+```sql
+START XNODE TASK id | 'name';
+```
+
+#### Example
+
+```sql
+taos> START XNODE TASK 1;
+DB error: Xnode url response http code not 200 error [0x8000800C] (0.002160s)
+```
+
+### Stop Task
+
+#### Syntax
+
+```sql
+STOP XNODE TASK id | 'name';
+```
+
+#### Example
+
+```sql
+taos> STOP XNODE TASK 1;
+DB error: Xnode url response http code not 200 error [0x8000800C] (0.002047s)
+```
+
+### Modify Task
+
+#### Syntax
+
+```sql
+ALTER XNODE TASK { id | 'name' }
+  [ FROM { 'from_dns' | DATABASE 'dbname' | TOPIC 'topic' } ]
+  [ TO { 'to_dns' | DATABASE 'dbname' } ]
+  [ WITH alter_options ]
+
+alter_options:
+  [ PARSER 'parser' ]
+  [ NAME 'name' ]
+  [ STATUS 'status' ]
+  [ VIA viaId ]
+  [ XNODE_ID xnodeId ]
+  [ REASON 'reason' ]
+```
+
+Syntax note: The meaning of task_options is the same as when creating a task
+
+#### Example
+
+```sql
+taos> ALTER XNODE TASK 3 FROM 'pulsar://zgc...' TO 'testdb' WITH xnode_id 33 via 333 reason 'zgc_test';
+Query OK, 0 row(s) affected (0.036077s)
+```
+
+### Delete Task
+
+#### Syntax
+
+```sql
+DROP XNODE TASK id | 'name';
+```
+
+#### Example
+
+```sql
+taos> DROP XNODE TASK 3;
+Drop OK, 0 row(s) affected (0.038191s)
+```
+
+## JOB Shard Management
+
+JOB is the execution shard of a TASK job, supporting both manual and automatic load balancing.
+
+### View JOB Shards
+
+#### Syntax
+
+```sql
+SHOW XNODE JOBS;
+```
+
+#### Example
+
+```sql
+taos> SHOW XNODE JOBS\G;
+*************************** 1.row ***************************
+       id: 1
+  task_id: 3
+   config: config_json
+      via: -1
+ xnode_id: 11
+   status: running
+   reason: NULL
+create_time: 2025-12-14 02:52:31.281
+update_time: 2025-12-14 02:52:31.281
+Query OK, 1 row(s) in set (0.004714s)
+```
+
+### Manual Rebalance
+
+#### Syntax
+
+```sql
+REBALANCE XNODE JOB jid WITH XNODE_ID xnodeId;
+```
+
+Syntax note: Manual rebalance currently only supports the xnode_id parameter, which must include xnode id information.
+
+#### Example
+
+```sql
+taos> REBALANCE XNODE JOB 1 WITH xnode_id 1;
+Query OK, 0 row(s) affected (0.011808s)
+```
+
+### Automatic Rebalance
+
+#### Syntax
+
+```sql
+REBALANCE XNODE JOBS [ WHERE job_conditions ]
+```
+
+Syntax note: WHERE job_conditions is optional, used to filter job data that meets the conditions. Functions are not supported, all fields that appear in the SHOW XNODE JOBS command are supported. Without a WHERE condition statement, it means all jobs will undergo automatic load balancing.
+
+#### Example
+
+```sql
+taos> REBALANCE XNODE JOBS WHERE id>1;
+Query OK, 0 row(s) affected (0.014246s)
+
+taos> REBALANCE XNODE JOBS WHERE task_id=1 and (xnode_id=3 or xnode_id=4);
+Query OK, 0 row(s) affected (0.007237s)
+
+taos> REBALANCE XNODE JOBS;
+Query OK, 0 row(s) affected (0.023245s)
+```

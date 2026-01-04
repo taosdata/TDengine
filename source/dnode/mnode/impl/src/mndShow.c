@@ -15,9 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
+#include "mndInt.h"
 #include "mndPrivilege.h"
 #include "mndUser.h"
 #include "systable.h"
+#include "tmsg.h"
 
 #define SHOW_STEP_SIZE            100
 #define SHOW_COLS_STEP_SIZE       4096
@@ -74,6 +76,14 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_ANODE_FULL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_BNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODE_TASKS, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODE_TASKS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODE_AGENTS, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODE_AGENTS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODE_JOBS, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODE_JOBS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_ARBGROUPS, len) == 0) {
     type = TSDB_MGMT_TABLE_ARBGROUP;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {
@@ -313,7 +323,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   if (retrieveFp == NULL) {
     mndReleaseShowObj(pShow, false);
     code = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s: retrieveFp is NULL", pShow->id, tstrerror(code));
     TAOS_RETURN(code);
   }
 
@@ -380,7 +390,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(terrno));
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s: pRsp is NULL", pShow->id, tstrerror(terrno));
     code = terrno;
     goto _exit;
   }
@@ -405,7 +415,8 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
     int32_t len = blockEncode(pBlock, pStart, dataEncodeBufSize, pShow->pMeta->numOfColumns);
     if (len < 0) {
-      mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(terrno));
+      mError("show:0x%" PRIx64 ", failed to retrieve data since %s: block len(%d) < 0", pShow->id, tstrerror(terrno),
+             len);
       code = terrno;
       return code;
     }

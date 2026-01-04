@@ -327,6 +327,8 @@ root:taosdata@ws([::1]:6041)/testdb
   - `readTimeout` 读取数据的超时时间，默认为 5m。
   - `writeTimeout` 写入数据的超时时间，默认为 10s。
   - `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以上海时区（`Asia/Shanghai`）为例：`timezone=Asia%2FShanghai`。
+  - `bearerToken` 指定用于身份验证的 Bearer Token。
+  - `totpCode` 指定用于双因素身份验证的 TOTP 码。
 
 </TabItem>
 <TabItem label="Rust" value="rust">

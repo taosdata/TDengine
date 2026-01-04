@@ -182,7 +182,12 @@ typedef enum {
   SDB_ENCRYPT_ALGORITHMS = 39,
   SDB_TOKEN = 40,
   SDB_ROLE = 41,
-  SDB_MAX = 42
+  SDB_XNODE = 42,
+  SDB_XNODE_TASK = 43,
+  SDB_XNODE_AGENT = 44,
+  SDB_XNODE_JOB = 45,
+  SDB_XNODE_USER_PASS = 46,
+  SDB_MAX = 47
 } ESdbType;
 
 typedef struct SSdbRaw {
