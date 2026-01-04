@@ -1930,7 +1930,6 @@ void initTestEnv(const char* database, const char* stb, TAOS** pConnect, TAOS** 
       int32_t nResults = getNumOfRows(pRes);
       if (nResults >= 11) {
         privilegeOk = true;
-        taos_free_result(pRes);
         printf("privilege ok, waited %d, remain count:%d, nResults:%d, sql:%s\n", 10 - count, count, nResults, buf);
         break;
       }
