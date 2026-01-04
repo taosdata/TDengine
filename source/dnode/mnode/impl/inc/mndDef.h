@@ -699,6 +699,8 @@ typedef struct {
   int32_t    learnerProgress;
   int64_t    bufferSegmentUsed;
   int64_t    bufferSegmentSize;
+  int32_t    snapSeq;
+  int64_t    syncTotalIndex;
 } SVnodeGid;
 
 typedef struct {
