@@ -4056,7 +4056,7 @@ _exit:
 
 
 
-static int32_t base32Encode(const uint8_t *in, int32_t inLen, char *out) {
+static void base32Encode(const uint8_t *in, int32_t inLen, char *out) {
   int buffer = 0, bits = 0;
   int outLen = 0;
 
@@ -4079,7 +4079,6 @@ static int32_t base32Encode(const uint8_t *in, int32_t inLen, char *out) {
   }
 
   out[outLen] = '\0';
-  return outLen;
 }
 
 
