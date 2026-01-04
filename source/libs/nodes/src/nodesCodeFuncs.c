@@ -9300,10 +9300,14 @@ static int32_t grantStmtToJson(const void* pObj, SJson* pJson) {
 
   if (TSDB_CODE_SUCCESS == code) {
     if (pNode->optrType == TSDB_ALTER_ROLE_PRIVILEGES) {
-      char    privSet[PRIV_GROUP_CNT * 20] = {0};
+      char    privSet[PRIV_GROUP_CNT * 20 + 1] = {0};
       int32_t len = 0;
       for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
         len += snprintf(privSet + len, sizeof(privSet) - len, "%" PRIu64 ",", pNode->privileges.privSet.set[i]);
+        if (len >= sizeof(privSet)) {
+          code = TSDB_CODE_OUT_OF_RANGE;
+          break;
+        }
       }
       if (len > 0) privSet[len - 1] = '\0';  // remove last comma
       code = tjsonAddStringToObject(pJson, jkGrantStmtPrivileges, privSet);

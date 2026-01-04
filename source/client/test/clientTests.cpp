@@ -755,16 +755,16 @@ TEST(clientCase, create_db_Test) {
 //
 //   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
 //   ASSERT_TRUE(pFields == NULL);
-// 
+//
 //   int32_t numOfFields = taos_num_fields(pRes);
 //   ASSERT_EQ(numOfFields, 0);
 //   taos_free_result(pRes);
-// 
+//
 //   pRes = taos_query(pConn, "drop dnode 4");
 //   if (taos_errno(pRes) != 0) {
 //     (void)printf("error in drop dnode, reason:%s\n", taos_errstr(pRes));
 //   }
-// 
+//
 //   taos_free_result(pRes);
 //   taos_close(pConn);
 // }
