@@ -258,18 +258,6 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
     case QUERY_NODE_LOGIC_PLAN_PARTITION: {
       return;
     }
-    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC: {
-      SIndefRowsFuncLogicNode* pIndefNode = (SIndefRowsFuncLogicNode*)pNode;
-      SNode*                   pFunc = NULL;
-      FOREACH(pFunc, pIndefNode->pFuncs) {
-        if (fmIsIndefiniteRowsFunc(((SFunctionNode*)pFunc)->funcId) && !fmIsKeepOrderFunc((SFunctionNode*)pFunc)) {
-          pNode->outputTsOrder = TSDB_ORDER_NONE;
-          return;
-        }
-      }
-      pNode->outputTsOrder = order;
-      break;
-    }
     default:
       pNode->outputTsOrder = order;
       break;
