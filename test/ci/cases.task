@@ -965,7 +965,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_systb_inspect.py
 
 ## 02-Taos
-,,n,.,pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
+,,y,.,pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
 ,,n,.,pytest cases/81-Tools/02-Taos/test_tool_cmdline.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_error.py
