@@ -465,7 +465,7 @@ void sclDowngradeValueType(SValueNode *valueNode) {
 
 int32_t scalarBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData* pCol, int64_t rows) {
   int32_t  code = 0;
-  int32_t  type = vectorGetConvertType(pRemote->targetType, pRemote->node.resType.type);
+  int32_t  type = (pRemote->targetType != pRemote->node.resType.type) ? vectorGetConvertType(pRemote->targetType, pRemote->node.resType.type) : pRemote->targetType;
   STypeMod typeMod = 0;
 
   if (IS_DECIMAL_TYPE(type)) {
@@ -651,6 +651,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     }
     case QUERY_NODE_REMOTE_VALUE:
       SCL_ERR_RET(TSDB_CODE_QRY_SUBQ_EXEC_ERROR);
+      break;
     case QUERY_NODE_REMOTE_VALUE_LIST: {
       SRemoteValueListNode* pRemote = (SRemoteValueListNode*)node;
       if (!(pRemote->flag & VALUELIST_FLAG_VAL_UNSET)) {
@@ -677,11 +678,17 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       
       SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
 
+      param->hashParam.hasHashParam = true;
       param->hashParam.pHashFilter = pRemote->pHashFilter;
       param->hashParam.pHashFilterOthers = pRemote->pHashFilterOthers;
       param->hashParam.filterValueType = pRemote->filterValueType;
       param->hashParam.filterValueTypeMod = pRemote->filterValueTypeMod;
       param->colAlloced = false;
+
+      sclDebug("remoteValueList got res, node:%p, pHashFilter:%p,%d, pHashFilterOthers:%p,%d",
+        node, pRemote->pHashFilter, pRemote->pHashFilter ? taosHashGetSize(pRemote->pHashFilter) : 0,
+        pRemote->pHashFilterOthers, pRemote->pHashFilterOthers ? taosHashGetSize(pRemote->pHashFilterOthers) : 0);
+
       break;
     }  
     default:

@@ -13098,6 +13098,8 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bo
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->sId));
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->queryId));
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->taskId));
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->srcTaskId));
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->blockIdx));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->execId));
   if (pReq->pOpParam) {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 1));
@@ -13152,6 +13154,8 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
   TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->sId));
   TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->queryId));
   TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->taskId));
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->srcTaskId));
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->blockIdx));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->execId));
 
   int32_t paramNum = 0;

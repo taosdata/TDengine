@@ -152,12 +152,31 @@ typedef struct SQWJobInfo {
   SHashObj*           pSessions;
 } SQWJobInfo;
 
-typedef struct SQWSubQRes {
+typedef struct SQWRspItem {
   void*   rsp;
   int32_t dataLen;
+} SQWRspItem;
+
+typedef struct SQWWaitItem {
+  uint64_t       srcTaskId;
+  uint64_t       blockIdx;
+  int32_t        reqMsgType;
+  SRpcHandleInfo connInfo;
+} SQWWaitItem;
+
+typedef struct SQWSubQRes {
+  // common
   int32_t code;
-  int8_t  resGot;
-  int8_t  fetchFromSink;
+  int8_t  fetchDone;
+
+  // for scalar subQ
+  SQWRspItem scalarRsp;
+
+  // for non-scalar subQ
+  SRWLatch lock;
+  uint64_t firstSrcTaskId;
+  SArray*  rspList;  // SArray<SQWRspItem>
+  SArray*  waitList;  // SArray<SQWWaitItem>
 } SQWSubQRes;
 
 typedef struct SQWTaskCtx {
@@ -340,7 +359,8 @@ extern SQueryMgmt gQueryMgmt;
 #define QW_SET_RSP_CODE(ctx, code)    atomic_store_32(&(ctx)->rspCode, code)
 #define QW_UPDATE_RSP_CODE(ctx, code) (void)atomic_val_compare_exchange_32(&(ctx)->rspCode, 0, code)
 
-#define QW_IS_SCALAR_SUBQ(_ctx) ((_ctx) && (_ctx)->subQuery && E_SUB_QUERY_SCALAR == (_ctx)->subQType)
+#define QW_IS_SUBQ(_ctx) ((_ctx) && (_ctx)->subQuery)
+#define QW_IS_SCALAR_SUBQ(_ctx) (QW_IS_SUBQ(_ctx) && E_SUB_QUERY_SCALAR == (_ctx)->subQType)
 
 #define QW_QUERY_RUNNING(ctx)     (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
 #define QW_FETCH_RUNNING(ctx)     ((ctx)->inFetch)

@@ -1956,7 +1956,9 @@ int32_t doVectorCompareWithHashParam(SScalarParam *pLeft, SScalarParam *pLeftVar
                             int32_t step, __compar_fn_t fp, int32_t optr, int32_t *num) {
   int32_t code = TSDB_CODE_SUCCESS, i = startIndex;
   SHashParam* pHParam = &pRight->hashParam;
-  if (pHParam->pHashFilter)
+  //if (pHParam->pHashFilter) {
+
+  //}
   
   __compar_fn_t fpVar = NULL;
   if (pLeftVar != NULL) {

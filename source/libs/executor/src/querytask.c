@@ -104,6 +104,7 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadH
   STaskSubJobCtx* ctx = &pTaskInfo->subJobCtx;
 
   ctx->queryId = pTaskInfo->id.queryId;
+  ctx->taskId = pTaskInfo->id.taskId;
   ctx->idStr = pTaskInfo->id.str;
   ctx->pTaskInfo = pTaskInfo;
   ctx->subEndPoints = subEndPoints;

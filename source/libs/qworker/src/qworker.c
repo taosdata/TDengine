@@ -548,30 +548,94 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwHandleSubQueryFetch(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool* toFetch, void** ppRes, int32_t* dataLen) {
-  int32_t code = 0;
-  if (atomic_load_8(&ctx->subQRes.resGot)) {
-    SRetrieveTableRsp* pRsp = NULL;
-    int32_t tcode = qwMallocFetchRsp(!ctx->localExec, ctx->subQRes.dataLen, &pRsp);
-    if (tcode) {
-      qError("qwMallocFetchRsp size %d, localExec:%d failed, error:%s", ctx->subQRes.dataLen, ctx->localExec, tstrerror(tcode));
-      return tcode;
+int32_t qwCloneSubQRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppRes, int32_t* dataLen, bool* toFetch, SQWRspItem* pItem) {
+  SRetrieveTableRsp* pRsp = NULL;
+  int32_t tcode = qwMallocFetchRsp(!ctx->localExec, pItem->dataLen, &pRsp);
+  if (tcode) {
+    qError("qwMallocFetchRsp size %d, localExec:%d failed, error:%s", pItem->dataLen, ctx->localExec, tstrerror(tcode));
+    return tcode;
+  }
+
+  memcpy(pRsp, pItem->rsp, sizeof(*pRsp) + pItem->dataLen);
+
+  *ppRes = pRsp;
+  *dataLen = pItem->dataLen;
+  int32_t code = ctx->subQRes.code;
+  QW_TASK_DLOG("subQ task already got res, rsp:%p, dataLen:%d, code:%d", *ppRes, *dataLen, code);
+  *toFetch = false;
+
+  return code;
+}
+
+int32_t qwAppendToSubQWaitList(SQWTaskCtx *ctx, SQWMsg *qwMsg) {
+  if (NULL == ctx->subQRes.waitList) {
+    ctx->subQRes.waitList = taosArrayInit(16, sizeof(SQWWaitItem));
+    if (NULL == ctx->subQRes.waitList) {
+      return terrno;
     }
+  }
 
-    memcpy(pRsp, ctx->subQRes.rsp, sizeof(*pRsp) + ctx->subQRes.dataLen);
+  SResFetchReq* pReq = (SResFetchReq*)qwMsg->req;
+  SQWWaitItem item = {.srcTaskId = pReq->srcTaskId, .blockIdx = pReq->blockIdx, .reqMsgType = qwMsg->msgType, .connInfo = qwMsg->connInfo};
+  if (NULL == taosArrayPush(ctx->subQRes.waitList, &item)) {
+    return terrno;
+  }
 
-    *ppRes = pRsp;
-    *dataLen = ctx->subQRes.dataLen;
-    code = ctx->subQRes.code;
-    QW_TASK_DLOG("subQ task already got res, rsp:%p, dataLen:%d, code:%d", *ppRes, *dataLen, code);
-    *toFetch = false;
+  return TSDB_CODE_SUCCESS;
+}
 
-    return code;
+int32_t qwHandleScalarSubQFetch(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool* toFetch, void** ppRes, int32_t* dataLen) {
+  int32_t code = 0;
+  if (atomic_load_8(&ctx->subQRes.fetchDone)) {
+    return qwCloneSubQRsp(QW_FPARAMS(), ctx, ppRes, dataLen, toFetch, &ctx->subQRes.scalarRsp);
   }
 
   *toFetch = true;
 
   return code;
+}
+
+int32_t qwHandleNonScalarSubQFetch(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool* toFetch, void** ppRes, int32_t* dataLen, SQWMsg *qwMsg) {
+  int32_t code = 0;
+  SResFetchReq* pReq = (SResFetchReq*)qwMsg->req;
+  SQWSubQRes* pSub = &ctx->subQRes;
+  
+  if (0 == pSub->firstSrcTaskId) {
+    pSub->firstSrcTaskId = pReq->srcTaskId;
+    *toFetch = true;
+    return code;
+  }
+
+  if (pSub->firstSrcTaskId == pReq->srcTaskId) {
+    *toFetch = true;
+    return code;
+  }
+
+  taosWWaitLockLatch(&pSub->lock);
+
+  SQWRspItem* pItem = taosArrayGet(pSub->rspList, pReq->blockIdx);
+  if (NULL != pItem) {
+    taosWUnLockLatch(&pSub->lock);
+    return qwCloneSubQRsp(QW_FPARAMS(), ctx, ppRes, dataLen, toFetch, pItem);
+  }
+  
+  if (atomic_load_8(&ctx->subQRes.fetchDone)) {
+    taosWUnLockLatch(&pSub->lock);
+    QW_TASK_ELOG("no rsp for blockIdx:%" PRIu64 " while subQ fetch done, totalRsps:%d", pReq->blockIdx, (int32_t)taosArrayGetSize(pSub->rspList));
+    *toFetch = false;
+    return code;
+  }
+
+  code = qwAppendToSubQWaitList(ctx, qwMsg);
+  taosWUnLockLatch(&pSub->lock);
+  
+  *toFetch = false;
+
+  return code;
+}
+
+int32_t qwHandleSubQueryFetch(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool* toFetch, void** ppRes, int32_t* dataLen, SQWMsg *qwMsg) {
+  return QW_IS_SCALAR_SUBQ(ctx) ? qwHandleScalarSubQFetch(QW_FPARAMS(), ctx, toFetch, ppRes, dataLen) : qwHandleNonScalarSubQFetch(QW_FPARAMS(), ctx, toFetch, ppRes, dataLen, qwMsg);
 }
 
 int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {
@@ -1059,9 +1123,9 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     goto _return;
   }
 
-  if (QW_IS_SCALAR_SUBQ(ctx)) {
+  if (QW_IS_SUBQ(ctx)) {
     bool toFetch = false;
-    code = qwHandleSubQueryFetch(QW_FPARAMS(), ctx, &toFetch, &rsp, &dataLen);
+    code = qwHandleSubQueryFetch(QW_FPARAMS(), ctx, &toFetch, &rsp, &dataLen, qwMsg);
     if (code || !toFetch) {
       goto _return;
     }
@@ -1135,7 +1199,7 @@ _return:
     }
 
     if (!rsped) {
-      if (QW_IS_SCALAR_SUBQ(ctx) && !atomic_load_8(&ctx->subQRes.resGot)) {
+      if (QW_IS_SCALAR_SUBQ(ctx) && !atomic_load_8(&ctx->subQRes.fetchDone)) {
         code = qwChkSaveSubQueryFetchRsp(ctx, rsp, dataLen, code, sOutput.queryEnd);
       }
       

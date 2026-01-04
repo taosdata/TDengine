@@ -333,7 +333,7 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
   taosArrayDestroy(ctx->tbInfo);
 
-  if (ctx->subQRes.resGot) {
+  if (QW_IS_SUBQ(ctx)) {
     qwFreeFetchRsp(ctx, ctx->subQRes.rsp);
   }
   

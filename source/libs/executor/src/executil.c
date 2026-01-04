@@ -4396,6 +4396,7 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   req.sId = pSource->sId;
   req.clientId = pSource->clientId;
   req.taskId = pSource->taskId;
+  req.srcTaskId = ctx->taskId;
   req.queryId = ctx->queryId;
   req.execId = pSource->execId;
 

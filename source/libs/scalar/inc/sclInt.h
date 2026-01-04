@@ -158,7 +158,7 @@ int32_t sclConvertValueToSclParam(SValueNode* pValueNode, SScalarParam* out, int
 int32_t sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows, SScalarParam* pParam);
 int32_t sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode);
 
-#define GET_PARAM_TYPE(_c)     ((_c)->columnData ? (_c)->columnData->info.type : (_c)->filterValueType)
+#define GET_PARAM_TYPE(_c)     ((_c)->hashParam.hasHashParam ? (_c)->hashParam.filterValueType : (_c)->columnData->info.type)
 #define GET_PARAM_BYTES(_c)    ((_c)->columnData->info.bytes)
 #define GET_PARAM_PRECISON(_c) ((_c)->columnData->info.precision)
 #define GET_PARAM_SCALE(_c)    ((_c)->columnData->info.scale)

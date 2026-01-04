@@ -53,9 +53,9 @@ void qwFreeFetchRsp(SQWTaskCtx *ctx, void *msg) {
   }
 }
 
-int32_t qwCloneSubQueryFetchRsp(SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code) {
+int32_t qwSaveSubQueryFetchRsp(SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code) {
   SQWSubQRes* pRes = &ctx->subQRes;
-  pRes->resGot = true;
+  pRes->fetchDone = true;
   pRes->code = code;
   pRes->dataLen = dataLen;
 
@@ -80,7 +80,7 @@ int32_t qwChkSaveSubQueryFetchRsp(SQWTaskCtx *ctx, void* rsp, int32_t dataLen, i
     code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS;
   }
 
-  return qwCloneSubQueryFetchRsp(ctx, rsp, dataLen, code);
+  return qwSaveSubQueryFetchRsp(ctx, rsp, dataLen, code);
 }
 
 int32_t qwBuildAndSendErrorRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t code) {
@@ -614,7 +614,7 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   int64_t  rId = 0;
   int32_t  eId = req.execId;
 
-  SQWMsg qwMsg = {.node = node, .msg = req.pOpParam, .msgLen = 0, .connInfo = pMsg->info, .msgType = pMsg->msgType};
+  SQWMsg qwMsg = {.req = &req, .node = node, .msg = req.pOpParam, .msgLen = 0, .connInfo = pMsg->info, .msgType = pMsg->msgType};
 
   QW_SCH_TASK_DLOG("processFetch start, node:%p, handle:%p", node, pMsg->info.handle);
 

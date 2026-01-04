@@ -2404,6 +2404,7 @@ typedef struct SDownstreamSourceNode {
   uint64_t       clientId;
   uint64_t       taskId;
   uint64_t       sId;
+  uint64_t       srcTaskId;
   int32_t        execId;
   int32_t        fetchMsgType;
   bool           localExec;
@@ -3908,6 +3909,8 @@ typedef struct {
   uint64_t        queryId;
   uint64_t        clientId;
   uint64_t        taskId;
+  uint64_t        srcTaskId;  // used for subQ
+  uint64_t        blockIdx;   // used for subQ
   int32_t         execId;
   SOperatorParam* pOpParam;
 
