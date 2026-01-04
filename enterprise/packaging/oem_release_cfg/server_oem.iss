@@ -62,6 +62,7 @@ Source: {#MyAppSourceDir}\{#CusPrompt}d.exe; DestDir: "{app}"; Flags: igNorevers
 Source: {#MyAppSourceDir}\{#CusPrompt}adapter.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('{#CusPrompt}adapter.exe')
 Source: {#MyAppSourceDir}\{#CusPrompt}keeper.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('{#CusPrompt}keeper.exe')
 Source: {#MyAppSourceDir}\{#CusPrompt}x.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('{#CusPrompt}x.exe')
+Source: {#MyAppSourceDir}\xnoded.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs;
 Source: {#MyAppSourceDir}\{#CusPrompt}-explorer.exe; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs; BeforeInstall: TaskKill('{#CusPrompt}-explorer.exe')
 Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: igNoreversion recursesubdirs createallsubdirs 64bit;Check:IsWin64;
 Source: {#MyAppSourceDir}\append\opc_gdba_32\*; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
