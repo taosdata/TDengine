@@ -410,7 +410,7 @@ TEST(clientCase, connect_totp_Test) {
   taos_close(pConn);
 
   uint8_t secret[TSDB_TOTP_SECRET_LEN] = {0};
-  base32Decode(secretStr, (int32_t)strlen(secretStr), secret);
+  int32_t secretLen = base32Decode(secretStr, (int32_t)strlen(secretStr), secret);
 
   pConn = taos_connect_totp("localhost", "totp_u", "taosdata", "123456", NULL, 0);
   ASSERT_EQ(pConn, nullptr);
@@ -419,7 +419,7 @@ TEST(clientCase, connect_totp_Test) {
   ASSERT_EQ(code, TSDB_CODE_MND_WRONG_TOTP_CODE);
 
   char totp[16] = {0};
-  int totpCode = taosGenerateTotpCode(secret, sizeof(secret), 6);
+  int totpCode = taosGenerateTotpCode(secret, secretLen, 6);
   (void)taosFormatTotp(totpCode, 6, totp, sizeof(totp));
   pConn = taos_connect_totp("localhost", "totp_u", "taosdata", totp, NULL, 0);
   if (pConn == NULL) {
@@ -434,7 +434,7 @@ TEST(clientCase, connect_totp_Test) {
 
   taos_close(pConn);
 
-  totpCode = taosGenerateTotpCode(secret, sizeof(secret), 6);
+  totpCode = taosGenerateTotpCode(secret, secretLen, 6);
   (void)taosFormatTotp(totpCode, 6, totp, sizeof(totp));
   code = taos_connect_test("localhost", "totp_u", "taosdata", totp, NULL, 0);
   ASSERT_EQ(code, 0);

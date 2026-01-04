@@ -75,11 +75,7 @@ uint32_t taosSafeRand(void) {
 void taosSafeRandBytes(uint8_t* pBuf, int32_t size) {
 #ifdef WINDOWS
   HCRYPTPROV hCryptProv;
-  if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, 0)) {
-    goto _error;
-  }
   if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, CRYPT_NEWKEYSET)) {
-    CryptReleaseContext(hCryptProv, 0);
     goto _error;
   }
   if (!CryptGenRandom(hCryptProv, size, pBuf)) {

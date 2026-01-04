@@ -167,15 +167,15 @@ taos> create totp_secret for user test;
 Query OK, 1 row(s) in set (0.002314s)
 ```
 
-### 删除 TOTP 密钥
+### Drop TOTP Secret
 
 ```sql
 DROP TOTP_SECRET FROM USER user_name
 ```
 
-This command removes the TOTP secret from the user. After the secret is removed, the user's TOTP two‑factor authentication will be disabled.
+This command drops the TOTP secret from the user. After the secret is dropped, the user's TOTP two‑factor authentication will be disabled.
 
-For example, we can use the following command to remove the TOTP key from user test.
+For example, we can use the following command to drop the TOTP key from user test.
 
 ```sql
 taos> drop totp_secret from user test;

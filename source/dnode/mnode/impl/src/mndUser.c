@@ -4103,7 +4103,7 @@ static int32_t mndCreateTotpSecret(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pRe
     taosMemoryFree(pData);
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
-  
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "create-totp-secret");
   if (pTrans == NULL) {
     mError("user:%s, failed to create totp secret since %s", pUser->user, terrstr());
@@ -4197,8 +4197,8 @@ static int32_t mndProcessDropTotpSecretReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndCheckTotpSecretPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pUser), &lino, _OVER);
 
   SUserObj newUser = {0};
-  mndUserDupObj(pUser, &newUser);
-  memset(newUser.totpsecret, 0, sizeof(newUser.totpsecret));
+  TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
+  (void)memset(newUser.totpsecret, 0, sizeof(newUser.totpsecret));
   TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq), &lino, _OVER); 
 
   if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {

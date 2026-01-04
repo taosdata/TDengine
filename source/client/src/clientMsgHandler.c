@@ -1112,8 +1112,10 @@ static int32_t buildCreateTokenBlock(SCreateTokenRsp* pRsp, SSDataBlock** block)
   return TSDB_CODE_SUCCESS;
 
 END:
-  taosMemoryFree(pBlock);
-  taosArrayDestroy(pBlock->pDataBlock);
+  if (pBlock) {
+    taosArrayDestroy(pBlock->pDataBlock);
+    taosMemoryFree(pBlock);
+  }
   return code;
 }
 
@@ -1238,8 +1240,10 @@ static int32_t buildCreateTotpSecretBlock(SCreateTotpSecretRsp* pRsp, SSDataBloc
   return TSDB_CODE_SUCCESS;
 
 END:
-  taosMemoryFree(pBlock);
-  taosArrayDestroy(pBlock->pDataBlock);
+  if (pBlock) {
+    taosArrayDestroy(pBlock->pDataBlock);
+    taosMemoryFree(pBlock);
+  }
   return code;
 }
 

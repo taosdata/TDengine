@@ -803,7 +803,7 @@ void init_dump_info(tsDumpInfo *dump_info, TAOS_RES *tres, const char *sql, bool
     for (int32_t col = 0; col < dump_info->numFields; col++) {
       dump_info->width[col] = shellCalcColWidth(dump_info->fields + col, dump_info->precision);
     }
-    // set an appropriate with for token and totp_secret display
+    // set an appropriate width for token and totp_secret display
     if (shellRegexMatch(sql, "^[\t ]*create[ \t]+token[ \t]+.*", REG_EXTENDED | REG_ICASE)) {
       dump_info->width[0] = TMAX(dump_info->width[0], SHELL_SHOW_TOKEN_DISPLAY_WIDTH);
     } else if (shellRegexMatch(sql, "^[\t ]*create[ \t]+totp_secret[ \t]+.*", REG_EXTENDED | REG_ICASE)) {
