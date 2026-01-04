@@ -268,6 +268,7 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
         }
       }
       pNode->outputTsOrder = order;
+      break;
     }
     default:
       pNode->outputTsOrder = order;
@@ -2720,7 +2721,7 @@ static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
   SSortLogicNode* pSort = (SSortLogicNode*)pNode;
-  if (pSort->node.inputTsOrder == TSDB_ORDER_NONE || pSort->skipPKSortOpt ||
+  if (pSort->skipPKSortOpt ||
       !sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys) || 1 != LIST_LENGTH(pSort->node.pChildren)) {
     return false;
   }
@@ -2933,6 +2934,12 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
       *pNotOptimize = true;
       return TSDB_CODE_SUCCESS;
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+      if(pNode->outputTsOrder != sortOrder) {
+        *pNotOptimize = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      break;
     default:
       break;
   }
@@ -3033,9 +3040,14 @@ static int32_t sortPrimaryKeyOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLo
 }
 
 static const char* getJoinCondPKTable(SNode* pNode) {
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+  if (!pNode) {
+    return NULL;
+  }
+  ENodeType type = nodeType(pNode);
+
+  if (QUERY_NODE_COLUMN == type) {
     return ((SColumnNode*)pNode)->tableAlias;
-  } else if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+  } else if (QUERY_NODE_FUNCTION == type) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     if (pFunc->funcType != FUNCTION_TYPE_TIMETRUNCATE || LIST_LENGTH(pFunc->pParameterList) == 0) {
       return NULL;
@@ -3045,9 +3057,11 @@ static const char* getJoinCondPKTable(SNode* pNode) {
       return NULL;
     }
     return ((SColumnNode*)pParam)->tableAlias;
-  } else {
+  } else if (QUERY_NODE_VALUE == type) {
     return ((SValueNode*)pNode)->node.srcTable;
   }
+
+  return NULL;
 }
 
 static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SJoinLogicNode* pJoin) {
@@ -9597,6 +9611,8 @@ _return:
 
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
+  {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},
+  {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
   {.pName = "PushDownCondition",          .optimizeFunc = pdcOptimize},
   {.pName = "EliminateNotNullCond",       .optimizeFunc = eliminateNotNullCondOptimize},
@@ -9611,8 +9627,6 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "PushDownLimit",              .optimizeFunc = pushDownLimitOptimize},
   {.pName = "PartitionTags",              .optimizeFunc = partTagsOptimize},
   {.pName = "MergeProjects",              .optimizeFunc = mergeProjectsOptimize},
-  {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},
-  {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
   {.pName = "splitCacheLastFunc",         .optimizeFunc = splitCacheLastFuncOptimize},
   {.pName = "LastRowScan",                .optimizeFunc = lastRowScanOptimize},
   {.pName = "TagScan",                    .optimizeFunc = tagScanOptimize},

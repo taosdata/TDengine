@@ -239,7 +239,7 @@ static bool fmIsKeepOrderFuncId(int32_t funcId) { return isSpecificClassifyFunc(
 bool fmIsKeepOrderFunc(SFunctionNode* pFunc) {
   if (pFunc->funcType == FUNCTION_TYPE_TOP || pFunc->funcType == FUNCTION_TYPE_BOTTOM ||
       pFunc->funcType == FUNCTION_TYPE_SAMPLE) {
-    if (pFunc->pParameterList != NULL) {
+    if (pFunc->pParameterList != NULL && pFunc->pParameterList->length >= 2) {
       SNode* pParam = nodesListGetNode(pFunc->pParameterList, 1);
       if (pParam != NULL && nodeType(pParam) == QUERY_NODE_VALUE) {
         SValueNode* pConst = (SValueNode*)pParam;
