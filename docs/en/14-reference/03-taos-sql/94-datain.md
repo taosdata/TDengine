@@ -23,16 +23,16 @@ CREATE XNODE 'url' USER name PASS 'password';
 
 #### Parameter Description
 
-- **url**: The address of the Xnode node, in the format `host:port`
+- **url**: The address of the Xnode node, in the format `host:port` with port to taosx GRPC service (6055 by default)
 - Username and password need to be specified when creating for the first time, used for xnoded to connect to taosd
 
 #### Example
 
 ```sql
-taos> CREATE XNODE "h1:6050";
+taos> CREATE XNODE "h1:6055";
 Create OK, 0 row(s) affected (0.050798s)
 
-taos> CREATE XNODE 'x1:6050' USER root PASS 'taosdata';
+taos> CREATE XNODE 'x1:6055' USER root PASS 'taosdata';
 Create OK, 0 row(s) affected (0.050798s)
 ```
 
