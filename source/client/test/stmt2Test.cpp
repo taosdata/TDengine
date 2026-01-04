@@ -3336,6 +3336,37 @@ TEST(stmt2Case, mixed_bind) {
   }
 
   geosFreeBuffer(outputGeom1);
+
+  // TD-6581610626
+  taos_query(taos, "drop table if exists stmt2_testdb_19.ntb");
+  taos_query(taos, "create table stmt2_testdb_19.ntb (ts timestamp, name nchar(10), i32 int)");
+  for (int i = 0; i < 2; i++) {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option[i]);
+    ASSERT_NE(stmt, nullptr);
+
+    const char* sql = "insert into ntb (ts, name, i32) values (?, 'world', ?)";
+    int         code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    int64_t ts[2] = {1591060628000, 1591060629000};
+    int32_t t64_len[2] = {sizeof(int64_t), sizeof(int64_t)};
+
+    int32_t         i32[2] = {70, 80};
+    int32_t         i32_len[2] = {sizeof(int32_t), sizeof(int32_t)};
+    TAOS_STMT2_BIND param[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 2},
+                                {TSDB_DATA_TYPE_INT, &i32[0], &i32_len[0], NULL, 2}};
+
+    TAOS_STMT2_BIND* params[2] = {&param[0], &param[1]};
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &params[0]};
+
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    code = taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    taos_stmt2_close(stmt);
+  }
   do_query(taos, "drop database if exists stmt2_testdb_19");
   taos_close(taos);
 }

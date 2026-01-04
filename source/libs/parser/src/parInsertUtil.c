@@ -427,10 +427,12 @@ int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta*
   return code;
 }
 
-static void destroyColVal(void* p) {
-  SColVal* pVal = p;
-  if (TSDB_DATA_TYPE_NCHAR == pVal->value.type || TSDB_DATA_TYPE_GEOMETRY == pVal->value.type ||
-      TSDB_DATA_TYPE_VARBINARY == pVal->value.type || TSDB_DATA_TYPE_DECIMAL == pVal->value.type) {
+void destroyColVal(void* p) {
+  if (!p) return;
+
+  SColVal* pVal = (SColVal*)p;
+
+  if (COL_VAL_IS_VALUE(pVal) && IS_VAR_DATA_TYPE(pVal->value.type)) {
     taosMemoryFreeClear(pVal->value.pData);
   }
 }

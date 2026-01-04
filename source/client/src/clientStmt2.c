@@ -229,7 +229,7 @@ static int32_t stmtGetTbName(TAOS_STMT2* stmt, char** tbName) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stmtUpdateBindInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void* tags, SArray* cols, SName* tbName,
+static int32_t stmtUpdateBindInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void* tags, SSHashObj** cols, SName* tbName,
                                   const char* sTableName, bool autoCreateTbl, int8_t tbNameFlag) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   char       tbFName[TSDB_TABLE_FNAME_LEN];
@@ -256,23 +256,12 @@ static int32_t stmtUpdateBindInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void
     taosMemoryFreeClear(pStmt->bInfo.boundTags);
   }
 
+  // transfer ownership of cols to stmt
   if (cols) {
-    pStmt->bInfo.boundCols =
-        tSimpleHashInit(taosArrayGetSize(cols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
-    if (pStmt->bInfo.boundCols) {
-      for (int32_t i = 0; i < taosArrayGetSize(cols); i++) {
-        SColVal* pColVal = taosArrayGet(cols, i);
-        if (pColVal) {
-          code = tSimpleHashPut(pStmt->bInfo.boundCols, &pColVal->cid, sizeof(int16_t), pColVal, sizeof(SColVal));
-          if (code != 0) {
-            return code;
-          }
-        }
-      }
-    }
-  } else {
-    pStmt->bInfo.boundCols = NULL;
+    pStmt->bInfo.fixedValueCols = *cols;
+    *cols = NULL;
   }
+
   pStmt->bInfo.boundTags = tags;
   pStmt->bInfo.tagsCached = false;
   pStmt->bInfo.tbNameFlag = tbNameFlag;
@@ -294,7 +283,7 @@ static int32_t stmtUpdateExecInfo(TAOS_STMT2* stmt, SHashObj* pVgHash, SHashObj*
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stmtUpdateInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void* tags, SArray* cols, SName* tbName,
+static int32_t stmtUpdateInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void* tags, SSHashObj** cols, SName* tbName,
                               bool autoCreateTbl, SHashObj* pVgHash, SHashObj* pBlockHash, const char* sTableName,
                               uint8_t tbNameFlag) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
@@ -548,8 +537,8 @@ static int32_t stmtCleanBindInfo(STscStmt2* pStmt) {
   }
 
   if (!pStmt->bInfo.boundColsCached) {
-    tSimpleHashCleanup(pStmt->bInfo.boundCols);
-    pStmt->bInfo.boundCols = NULL;
+    tSimpleHashCleanup(pStmt->bInfo.fixedValueCols);
+    pStmt->bInfo.fixedValueCols = NULL;
   }
 
   if (!pStmt->sql.autoCreateTbl) {
@@ -1723,7 +1712,7 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
   pStmt->sql.placeholderOfTags = 0;
   pStmt->sql.placeholderOfCols = 0;
   int32_t totalNum = 0;
-  STMT_ERRI_JRET(qBuildStmtStbColFields(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.boundCols,
+  STMT_ERRI_JRET(qBuildStmtStbColFields(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.fixedValueCols,
                                         pStmt->bInfo.tbNameFlag, &totalNum, fields, &pStmt->sql.placeholderOfTags,
                                         &pStmt->sql.placeholderOfCols));
 
@@ -2111,7 +2100,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
   if (colIdx < 0) {
     if (pStmt->sql.stbInterlaceMode) {
       (*pDataBlock)->pData->flags &= ~SUBMIT_REQ_COLUMN_DATA_FORMAT;
-      code = qBindStmtStbColsValue2(*pDataBlock, pCols, pStmt->bInfo.boundCols, bind, pStmt->exec.pRequest->msgBuf,
+      code = qBindStmtStbColsValue2(*pDataBlock, pCols, pStmt->bInfo.fixedValueCols, bind, pStmt->exec.pRequest->msgBuf,
                                     pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo,
                                     pStmt->taos->optionInfo.charsetCxt, &pBlob);
       param->tblData.isOrdered = (*pDataBlock)->ordered;
@@ -2122,11 +2111,11 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
           STMT2_ELOG_E("can't mix bind row format and bind column format");
           STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
         }
-        code = qBindStmtColsValue2(*pDataBlock, pCols, pStmt->bInfo.boundCols, bind, pStmt->exec.pRequest->msgBuf,
+        code = qBindStmtColsValue2(*pDataBlock, pCols, pStmt->bInfo.fixedValueCols, bind, pStmt->exec.pRequest->msgBuf,
                                    pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt);
       } else {
         code =
-            qBindStmt2RowValue(*pDataBlock, (*pDataBlock)->pData->aRowP, pStmt->bInfo.boundCols, bind,
+            qBindStmt2RowValue(*pDataBlock, (*pDataBlock)->pData->aRowP, pStmt->bInfo.fixedValueCols, bind,
                                pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen,
                                &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo, pStmt->taos->optionInfo.charsetCxt);
       }

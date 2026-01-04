@@ -59,7 +59,7 @@ typedef struct SInsertParseContext {
   bool           needRequest;  // whether or not request server
   // bool           isStmtBind;   // whether is stmt bind
   uint8_t stmtTbNameFlag;
-  SArray* pParsedValues;  // <SColVal> for stmt bind col
+  SSHashObj* pParsedValues;  // <cid, SColVal> for stmt bind col
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
@@ -2954,10 +2954,12 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
           ctbCols->numOfCols++;
 
           if (code == TSDB_CODE_SUCCESS && pCxt->pParsedValues == NULL) {
-            pCxt->pParsedValues = taosArrayInit(16, sizeof(SColVal));
+            pCxt->pParsedValues =
+                tSimpleHashInit(pCols->numOfBound, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
             if (pCxt->pParsedValues == NULL) {
               return terrno;
             }
+            tSimpleHashSetFreeFp(pCxt->pParsedValues, destroyColVal);
           }
 
           if (code == TSDB_CODE_SUCCESS) {
@@ -2972,8 +2974,9 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
             }
 
             clonedVal.cid = pSchema->colId;
-            if (taosArrayPush(pCxt->pParsedValues, &clonedVal) == NULL) {
-              code = terrno;
+            code = tSimpleHashPut(pCxt->pParsedValues, &pSchema->colId, sizeof(int16_t), &clonedVal, sizeof(SColVal));
+            if (code != TSDB_CODE_SUCCESS) {
+              return code;
             }
           }
         } else if (pCols->pColIndex[i] < tbnameIdx) {
@@ -3206,21 +3209,11 @@ static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
   }
 }
 
-static void parsedValueDestroy(void* p) {
-  if (!p) return;
-
-  SColVal* pVal = (SColVal*)p;
-
-  if (COL_VAL_IS_VALUE(pVal) && IS_VAR_DATA_TYPE(pVal->value.type)) {
-    taosMemoryFreeClear(pVal->value.pData);
-  }
-}
-
 static void clearInsertParseContext(SInsertParseContext* pCxt) {
   if (pCxt == NULL) return;
 
   if (pCxt->pParsedValues != NULL) {
-    taosArrayDestroyEx(pCxt->pParsedValues, parsedValueDestroy);
+    tSimpleHashCleanup(pCxt->pParsedValues);
     pCxt->pParsedValues = NULL;
   }
 }
@@ -3364,11 +3357,13 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
 
         if (TSDB_CODE_SUCCESS == code && NULL != pCxt->pComCxt->pStmtCb) {
           if (NULL == pCxt->pParsedValues) {
-            pCxt->pParsedValues = taosArrayInit(16, sizeof(SColVal));
+            pCxt->pParsedValues =
+                tSimpleHashInit(pCols->numOfBound, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
             if (NULL == pCxt->pParsedValues) {
               code = terrno;
               break;
             }
+            tSimpleHashSetFreeFp(pCxt->pParsedValues, destroyColVal);
           }
 
           SColVal clonedVal = *pVal;
@@ -3381,8 +3376,8 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
             memcpy(clonedVal.value.pData, pVal->value.pData, clonedVal.value.nData);
           }
 
-          if (taosArrayPush(pCxt->pParsedValues, &clonedVal) == NULL) {
-            code = terrno;
+          code = tSimpleHashPut(pCxt->pParsedValues, &pSchema->colId, sizeof(int16_t), &clonedVal, sizeof(SColVal));
+          if (code != TSDB_CODE_SUCCESS) {
             break;
           }
         }
@@ -4058,7 +4053,7 @@ static int32_t setStmtInfo(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt)
   memcpy(tags, &pCxt->tags, sizeof(pCxt->tags));
 
   SStmtCallback* pStmtCb = pCxt->pComCxt->pStmtCb;
-  int32_t        code = (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, pCxt->pParsedValues,
+  int32_t        code = (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, &pCxt->pParsedValues,
                                        &pStmt->targetTableName, pStmt->usingTableProcessing, pStmt->pVgroupsHashObj,
                                        pStmt->pTableBlockHashObj, pStmt->usingTableName.tname, pCxt->stmtTbNameFlag);
 
