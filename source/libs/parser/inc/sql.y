@@ -530,11 +530,6 @@ priv_type(A) ::= UNLOCK USER.                                                   
 priv_type(A) ::= LOCK USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_LOCK); }
 priv_type(A) ::= SHOW USERS.                                                      { A = PRIV_SET_TYPE(PRIV_USER_SHOW); }
 
-priv_type(A) ::= CREATE AUDIT DATABASE.                                           { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_CREATE); }
-priv_type(A) ::= DROP AUDIT DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_DROP); }
-priv_type(A) ::= ALTER AUDIT DATABASE.                                            { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_ALTER); }
-priv_type(A) ::= USE AUDIT DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_USE); }
-
 priv_type(A) ::= CREATE TOKEN.                                                    { A = PRIV_SET_TYPE(PRIV_TOKEN_CREATE); }
 priv_type(A) ::= DROP TOKEN.                                                      { A = PRIV_SET_TYPE(PRIV_TOKEN_DROP); }
 priv_type(A) ::= ALTER TOKEN.                                                     { A = PRIV_SET_TYPE(PRIV_TOKEN_ALTER); }

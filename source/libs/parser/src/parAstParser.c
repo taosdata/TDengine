@@ -326,6 +326,15 @@ static int32_t collectMetaKeyFromSelect(SCollectMetaKeyCxt* pCxt, SSelectStmt* p
   return cxt.errCode;
 }
 
+static int32_t collectMetaKeyFromCreateDatabase(SCollectMetaKeyCxt* pCxt, SCreateDatabaseStmt* pStmt) {
+  if (pStmt->pOptions && pStmt->pOptions->isAudit) {
+    return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_AUDIT_DB_CREATE, 0,
+                                  pCxt->pMetaCache);
+  }
+  return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_DB_CREATE, 0,
+                                pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromAlterDatabase(SCollectMetaKeyCxt* pCxt, SAlterDatabaseStmt* pStmt) {
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1976,7 +1985,7 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
       return collectMetaKeyFromShowAlive(pCxt, (SShowAliveStmt*)pStmt);
     case QUERY_NODE_CREATE_DATABASE_STMT:
-      return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_DB_CREATE);
+      return collectMetaKeyFromCreateDatabase(pCxt, (SCreateDatabaseStmt*)pStmt);
     case QUERY_NODE_DROP_DATABASE_STMT:
       return collectMetaKeyFromDropDatabase(pCxt, (SDropDatabaseStmt*)pStmt);
     case QUERY_NODE_BALANCE_VGROUP_STMT:

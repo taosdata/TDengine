@@ -80,11 +80,22 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
+        // rewrite audit privilege for db owner
+        if (dbCfgInfo.isAudit && pAuthInfo->objType == PRIV_OBJ_DB) {
+          if (pAuthInfo->privType == PRIV_DB_USE) {
+            pAuthInfo->privType = PRIV_AUDIT_DB_USE;
+            pAuthInfo->objType = PRIV_OBJ_CLUSTER;
+          } else if (pAuthInfo->privType == PRIV_CM_ALTER) {
+            pAuthInfo->privType = PRIV_AUDIT_DB_ALTER;
+            pAuthInfo->objType = PRIV_OBJ_CLUSTER;
+          } else if (pAuthInfo->privType == PRIV_CM_DROP) {
+            pAuthInfo->privType = PRIV_AUDIT_DB_DROP;
+            pAuthInfo->objType = PRIV_OBJ_CLUSTER;
+          }
+          return TSDB_CODE_SUCCESS;
+        }
         if (dbCfgInfo.ownerId == pAuthInfo->userId) {
           pAuthRes->pass[pAuthInfo->isView ? AUTH_RES_VIEW : AUTH_RES_BASIC] = true;
-#if 0
-          printf("%s:%d db %s owner match, pass\n", __func__, __LINE__, dbFName);
-#endif
           return TSDB_CODE_SUCCESS;
         }
         break;
@@ -678,6 +689,13 @@ static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
   return 0;  // return 0 and check owner later in translateShowCreateRsma since rsma ctgCatalog not available yet
 }
 
+static int32_t authCreateDatabase(SAuthCxt* pCxt, SCreateDatabaseStmt* pStmt) {
+  if (pStmt->pOptions && pStmt->pOptions->isAudit) {
+    return authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_AUDIT_DB_CREATE);
+  }
+  return authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_DB_CREATE);
+}
+
 static int32_t authGrant(SAuthCxt* pCxt, SGrantStmt* pStmt) {
   if (pStmt->optrType == TSDB_ALTER_ROLE_ROLE) {
     if (IS_SYS_PREFIX(pStmt->roleName)) {
@@ -831,7 +849,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       return authShowCreateRsma(pCxt, (SShowCreateRsmaStmt*)pStmt);
     case QUERY_NODE_CREATE_DATABASE_STMT:
-      return authSysPrivileges(pCxt, pStmt, PRIV_DB_CREATE);
+      return authCreateDatabase(pCxt, (SCreateDatabaseStmt*)pStmt);
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_VG_BALANCE);
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
