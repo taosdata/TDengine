@@ -221,8 +221,6 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
 int32_t qCreateSName2(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                       int32_t msgBufLen);
 
-void qDestroyBoundColInfo(void* pInfo);
-
 int32_t smlInitHandle(SQuery** query);
 int32_t smlBuildRow(STableDataCxt* pTableCxt);
 int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* kv, int32_t index, void* charsetCxt);

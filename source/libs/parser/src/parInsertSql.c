@@ -2427,7 +2427,7 @@ int32_t initTableColSubmitData(STableDataCxt* pTableCxt) {
 }
 
 int32_t initTableColSubmitDataWithBoundInfo(STableDataCxt* pTableCxt, SBoundColInfo pBoundColsInfo) {
-  insDestroyBoundColInfo(&(pTableCxt->boundColsInfo));
+  qDestroyBoundColInfo(&(pTableCxt->boundColsInfo));
   pTableCxt->boundColsInfo = pBoundColsInfo;
   for (int32_t i = 0; i < pBoundColsInfo.numOfBound; ++i) {
     SSchema*  pSchema = &pTableCxt->pMeta->schema[pTableCxt->boundColsInfo.pColIndex[i]];
@@ -3235,7 +3235,7 @@ static int32_t parseStbBoundInfo(SVnodeModifyOpStmt* pStmt, SStbRowsDataContext*
     return code;
   }
 
-  insDestroyBoundColInfo(&((*ppTableDataCxt)->boundColsInfo));
+  qDestroyBoundColInfo(&((*ppTableDataCxt)->boundColsInfo));
   (*ppTableDataCxt)->boundColsInfo = pStbRowsCxt->boundColsInfo;
 
   (*ppTableDataCxt)->boundColsInfo.pColIndex = taosMemoryCalloc(pStbRowsCxt->boundColsInfo.numOfBound, sizeof(int16_t));
@@ -3816,7 +3816,7 @@ static void destroyStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
   pStbRowsCxt->aTagVals = NULL;
   taosArrayDestroy(pStbRowsCxt->aTagNames);
   pStbRowsCxt->aTagNames = NULL;
-  insDestroyBoundColInfo(&pStbRowsCxt->boundColsInfo);
+  qDestroyBoundColInfo(&pStbRowsCxt->boundColsInfo);
   tTagFree(pStbRowsCxt->pTag);
   pStbRowsCxt->pTag = NULL;
   taosMemoryFreeClear(pStbRowsCxt->pCtbMeta);
@@ -3936,7 +3936,7 @@ static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeMod
 }
 
 static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  insDestroyBoundColInfo(&pCxt->tags);
+  qDestroyBoundColInfo(&pCxt->tags);
   clearInsertParseContext(pCxt);
   taosMemoryFreeClear(pStmt->pTableMeta);
   nodesDestroyNode(pStmt->pTagCond);
@@ -4640,7 +4640,7 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
     code = setRefreshMeta(*pQuery);
   }
 
-  insDestroyBoundColInfo(&context.tags);
+  qDestroyBoundColInfo(&context.tags);
   clearInsertParseContext(&context);
   // if no data to insert, set emptyMode to avoid request server
   if (!context.needRequest) {

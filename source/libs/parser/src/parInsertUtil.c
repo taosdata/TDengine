@@ -27,16 +27,6 @@
 #include "tmisce.h"
 #include "ttypes.h"
 
-void qDestroyBoundColInfo(void* pInfo) {
-  if (NULL == pInfo) {
-    return;
-  }
-
-  SBoundColInfo* pBoundInfo = (SBoundColInfo*)pInfo;
-
-  taosMemoryFreeClear(pBoundInfo->pColIndex);
-}
-
 static char* tableNameGetPosition(SToken* pToken, char target) {
   bool inEscape = false;
   bool inQuote = false;
@@ -269,8 +259,6 @@ void insCheckTableDataOrder(STableDataCxt* pTableCxt, SRowKey* rowKey) {
   return;
 }
 
-void insDestroyBoundColInfo(SBoundColInfo* pInfo) { taosMemoryFreeClear(pInfo->pColIndex); }
-
 static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreateTbReq, STableDataCxt** pOutput,
                                   bool colMode, bool ignoreColVals) {
   STableDataCxt* pTableCxt = taosMemoryCalloc(1, sizeof(STableDataCxt));
@@ -444,7 +432,7 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
 
   taosMemoryFreeClear(pTableCxt->pMeta);
   tDestroyTSchema(pTableCxt->pSchema);
-  insDestroyBoundColInfo(&pTableCxt->boundColsInfo);
+  qDestroyBoundColInfo(&pTableCxt->boundColsInfo);
   taosArrayDestroyEx(pTableCxt->pValues, destroyColVal);
   if (pTableCxt->pData) {
     tDestroySubmitTbData(pTableCxt->pData, TSDB_MSG_FLG_ENCODE);
