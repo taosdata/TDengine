@@ -5001,6 +5001,42 @@ _err:
   return NULL;
 }
 
+SNode* createCreateTotpSecretStmt(SAstCreateContext* pCxt, SToken* pUserName) {
+  SCreateTotpSecretStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkUserName(pCxt, pUserName));
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_TOTP_SECRET_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  COPY_STRING_FORM_ID_TOKEN(pStmt->user, pUserName);
+  return (SNode*)pStmt;
+
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+
+SNode* createDropTotpSecretStmt(SAstCreateContext* pCxt, SToken* pUserName) {
+  SDropTotpSecretStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkUserName(pCxt, pUserName));
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_TOTP_SECRET_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  COPY_STRING_FORM_ID_TOKEN(pStmt->user, pUserName);
+  return (SNode*)pStmt;
+
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+
 SNode* createDropEncryptAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId) {
   CHECK_PARSER_STATUS(pCxt);
   if (algorithmId->n >= TSDB_ENCRYPT_ALGR_NAME_LEN) {

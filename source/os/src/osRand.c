@@ -72,6 +72,42 @@ uint32_t taosSafeRand(void) {
 #endif
 }
 
+void taosSafeRandBytes(uint8_t* pBuf, int32_t size) {
+#ifdef WINDOWS
+  HCRYPTPROV hCryptProv;
+  if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, 0)) {
+    goto _error;
+  }
+  if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, CRYPT_NEWKEYSET)) {
+    CryptReleaseContext(hCryptProv, 0);
+    goto _error;
+  }
+  if (!CryptGenRandom(hCryptProv, size, pBuf)) {
+    CryptReleaseContext(hCryptProv, 0);
+    goto _error;
+  }
+  CryptReleaseContext(hCryptProv, 0);
+  return;
+#elif !defined(TD_ASTRA)
+  TdFilePtr pFile;
+  pFile = taosOpenFile("/dev/urandom", TD_FILE_READ);
+  if (pFile == NULL) {
+    goto _error;
+  }
+  if (taosReadFile(pFile, pBuf, size) < 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    goto _error;
+  }
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+  return;
+#endif
+
+_error:
+  for (int32_t i = 0; i < size; ++i) {
+    pBuf[i] = (uint8_t)(taosRand() % 256);
+  }
+}
+
 void taosRandStr(char* str, int32_t size) {
   const char* set = "abcdefghijklmnopqrstuvwxyz0123456789-_.";
   int32_t     len = 39;
