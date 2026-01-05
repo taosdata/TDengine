@@ -980,13 +980,14 @@ int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
   (*ppRes)->pChildren = NULL;
   (*ppRes)->reUse = false;
 
-  return code;
 _return:
-  qError("%s failed at %d, failed to build scan operator msg:%s",
-         __func__, lino, tstrerror(code));
-  taosMemoryFreeClear(*ppRes);
-  if (pTsParam) {
-    taosMemoryFree(pTsParam);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at %d, failed to build scan operator msg:%s",
+           __func__, lino, tstrerror(code));
+    taosMemoryFreeClear(*ppRes);
+    if (pTsParam) {
+      taosMemoryFree(pTsParam);
+    }
   }
   return code;
 }
@@ -1604,6 +1605,7 @@ int32_t doNotifyExchangeSource(SOperatorInfo* pOperator) {
     qDebug("%s notify msg sent to source 0 (vgId:%d, taskId:0x%" PRIx64
           ", execId:%d)", GET_TASKID(pTaskInfo), pSource->addr.nodeId,
           pSource->taskId, pSource->execId);
+    freeOperatorParam(req.pOpParam, OP_GET_PARAM);
   } else {
     qError("%s, %s failed since multi params are not supported for notify msg",
            GET_TASKID(pTaskInfo), __func__);

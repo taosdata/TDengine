@@ -4156,16 +4156,6 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
-  uint64_t clientId;
-  uint64_t taskId;
-  int32_t  execId;
-  TSKEY    notifyTs;
-} SQueryNotifyReq;
-
-typedef struct {
-  SMsgHead header;
-  uint64_t sId;
-  uint64_t queryId;
   uint64_t taskId;
 } SResReadyReq;
 

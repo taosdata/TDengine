@@ -952,9 +952,11 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
         /**
           Only table scan and exchange operator are supported right now.
         */
-        qError("%s only table scan and exchange operator are supported "
-          "for notify, but got %d", __func__, pDownstream->operatorType);
-        return TSDB_CODE_INVALID_PARA;
+        qError("%s, %s only table scan and exchange operator are supported "
+               "for notify, but got %d, skip notify step done",
+               GET_TASKID(pOperator->pTaskInfo), __func__,
+               pDownstream->operatorType);
+        continue;
       }
     }
 

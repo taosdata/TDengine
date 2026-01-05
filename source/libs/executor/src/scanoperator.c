@@ -947,6 +947,10 @@ static SSDataBlock* getBlockForEmptyTable(SOperatorInfo* pOperator, const STable
   return pBlock;
 }
 
+/**
+  @brief prepare table scan, if the get param contains notify info,
+  notify the table scan operator's reader that current step is done
+*/
 static int32_t prepareTableScan(SOperatorInfo* pOperator) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -957,6 +961,7 @@ static int32_t prepareTableScan(SOperatorInfo* pOperator) {
       *(ETableScanGetParamType*)pGetParam->value == NOTIFY_TYPE_SCAN_PARAM) {
     STableScanOperatorParam* pNotify =
       (STableScanOperatorParam*)pGetParam->value;
+    pOperator->pOperatorGetParam = NULL;
 
     STableScanInfo* pTableScanInfo = pOperator->info;
     SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
@@ -969,7 +974,8 @@ static int32_t prepareTableScan(SOperatorInfo* pOperator) {
   qDebug("%s, prepareTableScan end", GET_TASKID(pOperator->pTaskInfo));
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s, %s failed at line %d since %s",
+           GET_TASKID(pOperator->pTaskInfo), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -3810,7 +3816,7 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
     pOperator->dynamicTask = true;
     pInfo->curPos = 0;
     code = createTagScanTableListInfoFromParam(pOperator);
-    freeOperatorParam(pGetParam, OP_GET_PARAM);
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
     pOperator->pOperatorGetParam = NULL;
     QUERY_CHECK_CODE(code, lino, _end);
 

@@ -57,11 +57,6 @@ void setOperatorResetStateFn(SOperatorInfo* pOperator, __optr_reset_state_fn_t r
   pOperator->fpSet.resetStateFn = resetFn;
 }
 
-void setOperatorNotifyFn(SOperatorInfo* pOperator,
-                         __optr_notify_fn_t notifyFn) {
-  pOperator->fpSet.notifyFn = notifyFn;
-}
-
 int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {
   OPTR_SET_OPENED(pOperator);
   pOperator->cost.openCost = 0;

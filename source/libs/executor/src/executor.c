@@ -14,7 +14,6 @@
  */
 
 #include "executor.h"
-#include <bits/stdint-intn.h>
 #include <stdint.h>
 #include "cmdnodes.h"
 #include "dataSinkInt.h"
@@ -24,7 +23,6 @@
 #include "operator.h"
 #include "osMemPool.h"
 #include "osMemory.h"
-#include "osSleep.h"
 #include "planner.h"
 #include "query.h"
 #include "querytask.h"
@@ -33,7 +31,6 @@
 #include "taosdef.h"
 #include "tarray.h"
 #include "tdatablock.h"
-#include "tlog.h"
 #include "tref.h"
 #include "trpc.h"
 #include "tudf.h"
