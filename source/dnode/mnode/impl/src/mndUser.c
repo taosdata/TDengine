@@ -1016,9 +1016,9 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.sysInfo = 1;
   userObj.enable = 1;
 #ifdef TD_ALLOW_DEFAULT_PASSWORD
-  userObj.changePass = 2; 
+  userObj.changePass = 2; // 2: allow but not force user to change password
 #else
-  userObj.changePass = 1;
+  userObj.changePass = 1; // 1: force user to change password
 #endif
   userObj.ipWhiteListVer = taosGetTimestampMs();
   userObj.connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
