@@ -2701,7 +2701,7 @@ static bool sortPriKeyOptIsPriKeyOrderBy(SNodeList* pSortKeys) {
     return false;
   }
   SNode* pNode = ((SOrderByExprNode*)nodesListGetNode(pSortKeys, 0))->pExpr;
-  return (QUERY_NODE_COLUMN == nodeType(pNode) ? isPrimaryKeyImpl(pNode) : false);   // sort 被优化掉，主键判断需要不依赖排序
+  return (QUERY_NODE_COLUMN == nodeType(pNode) ? isPrimaryKeyImpl(pNode) : false);
 }
 
 static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
