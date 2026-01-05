@@ -7,6 +7,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"math"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -15,11 +16,15 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
+	"github.com/taosdata/taoskeeper/util"
 )
 
-func TestIPv6(t *testing.T) {
+func TestMain(m *testing.M) {
 	config.InitConfig()
+	os.Exit(m.Run())
+}
 
+func TestIPv6(t *testing.T) {
 	conn, err := NewConnector("root", "taosdata", "[::1]", 6041, false)
 	assert.NoError(t, err)
 
@@ -101,7 +106,6 @@ func TestExecuteWithRetry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			// Setup log capturing
 			logger := logrus.New()
 			testHook := &TestLogHook{}
@@ -278,4 +282,56 @@ func TestConnectorQuery_ErrorPath_NoAuthExit_ReturnsError(t *testing.T) {
 	if qerr.Error() == "Authentication failure" {
 		t.Fatalf("unexpected auth failure branch triggered")
 	}
+}
+
+func IsEnterpriseTest() bool {
+	if _, ok := os.LookupEnv("TEST_ENTERPRISE"); ok {
+		return true
+	}
+	return false
+}
+
+func TestNewConnectorWithDbAndToken(t *testing.T) {
+	if !IsEnterpriseTest() {
+		t.Skip("only for TDengine Enterprise")
+	}
+
+	conn, err := NewConnector("root", "taosdata", "localhost", 6041, false)
+	assert.NoError(t, err)
+	defer conn.Close()
+
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1766988529", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "create database test_1766988529", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	conn.Exec(context.Background(), "drop user c_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	_, err = conn.Exec(context.Background(), "create user c_token_user pass 'token_pass_1'", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant use,create table on database test_1766988529 to c_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "grant all on test_1766988529.* to c_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	time.Sleep(10 * time.Second)
+
+	data, err := conn.Query(context.Background(), "create token test_c_bearer_token from user c_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	token := data.Data[0][0].(string)
+
+	conn1, err := NewConnectorWithDbAndToken("", "", token, "localhost", 6041, "test_1766988529", false)
+	assert.NoError(t, err)
+	defer conn1.Close()
+
+	connt, err := NewConnectorWithDbAndToken("root", "taosdata", token, "localhost", 6041, "test_1766988529", false)
+	assert.NoError(t, err)
+	defer connt.Close()
+
+	_, err = connt.Exec(context.Background(), "create stable st (ts timestamp, c1 int) tags (t1 int)", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(context.Background(), "drop database if exists test_1766988529", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+	_, err = conn.Exec(context.Background(), "drop user c_token_user", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
 }

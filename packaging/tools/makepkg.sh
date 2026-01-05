@@ -387,7 +387,7 @@ if [ "$verMode" == "cluster" ]; then
 
         # copy taosx
         if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/${clientName2}x ]; then
-          cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/${clientName2}x ${install_dir}          
+          cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/${clientName2}x ${install_dir}
           cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
           sed -i "s/uninstall.sh/uninstall_${clientName2}x.sh/g" ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
           sed -i "s/PREFIX=\"taos\"/PREFIX=\"${clientName2}\"/g" ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh

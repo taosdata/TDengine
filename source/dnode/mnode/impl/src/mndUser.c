@@ -4265,11 +4265,9 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     COL_DATA_SET_VAL_GOTO((const char *)&pUser->callPerSession, false, pUser, pShow->pIter, _exit);
 
-    /* not supported yet
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    COL_DATA_SET_VAL_GOTO((const char *)&pUser->vnodePerSession, false, pUser, pShow->pIter, _exit);
-*/
+    COL_DATA_SET_VAL_GOTO((const char *)&pUser->vnodePerCall, false, pUser, pShow->pIter, _exit);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);

@@ -38,11 +38,11 @@ echo -e ${top_dir}
 serverName="taosanoded"
 configFile="taosanode.ini"
 tarName="package.tar.gz"
+initFile="__init__.py"
 
 # create compressed install file.
 release_dir="${top_dir}/release"
 
-#package_name='linux'
 install_dir="${release_dir}/${productName}-${version}"
 
 cfg_dir="${top_dir}/cfg"
@@ -76,6 +76,15 @@ cp -r ${top_dir}/script/ini_utils.sh ${install_dir}/bin/ && chmod a+x ${install_
 cp -r ${top_dir}/script/st*.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 cp -r ${top_dir}/script/uninstall.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
 cp -r ${top_dir}/requirements_ess.txt ${install_dir}/ || :
+
+# check if the __init__ file exists
+if [ ! -f "${lib_install_dir}/taosanalytics/$initFile" ]; then
+  echo "Error: $initFile not found, failed set the version. Please check the existance of __init__.py" >&2; exit 1
+else
+  # replace the version number
+  sed -i "s/^__version__ = .*/__version__ = '${version}'/" "${lib_install_dir}/taosanalytics/$initFile"
+  echo "Version updated to ${version} in $initFile"
+fi
 
 # copy model files
 model_dir=${model_dir:-""}

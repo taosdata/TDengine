@@ -876,6 +876,9 @@
 
 # 31-Keywords
 
+# 42-xnode
+,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
+,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_systables.py
 
 # 70-Cluster
 
