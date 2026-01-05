@@ -2041,14 +2041,15 @@ static void setUserAuthInfo(SParseContext* pCxt, SName* pTbName, SUserAuthInfo* 
   pInfo->useDb = 1;
 }
 
-static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache, SNode** pTagCond) {
+static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache, bool* pWithInsertCond,
+                         SNode** pTagCond) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SUserAuthInfo authInfo = {0};
   setUserAuthInfo(pCxt, pTbName, &authInfo);
   SUserAuthRes authRes = {0};
-  bool         exists = true;
+  SUserAuthRsp authRsp = {0};
   if (pCxt->async) {
-    code = catalogChkAuthFromCache(pCxt->pCatalog, &authInfo, &authRes, &exists);
+    code = catalogChkAuthFromCache(pCxt->pCatalog, &authInfo, &authRes, &authRsp);
   } else {
     SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
                              .requestId = pCxt->requestId,
@@ -2057,12 +2058,15 @@ static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache, 
     code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    if (!exists) {
+    if (0 == authRsp.exists) {
       *pMissCache = true;
     } else if (!authRes.pass[AUTH_RES_BASIC]) {
       code = TSDB_CODE_PAR_PERMISSION_DENIED;
     } else if (NULL != authRes.pCond[AUTH_RES_BASIC]) {
       *pTagCond = authRes.pCond[AUTH_RES_BASIC];
+    }
+    if (pWithInsertCond) {
+      *pWithInsertCond = (authRsp.withInsertCond == 1);
     }
   }
   return code;
@@ -2181,7 +2185,8 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
     return TSDB_CODE_SUCCESS;
   }
   SNode*  pTagCond = NULL;
-  int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache, &pTagCond);
+  bool    withInsertCond = false;
+  int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache, &withInsertCond, &pTagCond);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTargetTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
   }
@@ -2196,7 +2201,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
         pStmt->pTagCond = NULL;
         code = nodesCloneNode(pTagCond, &pStmt->pTagCond);
       }
-    } else if (!pCxt->pComCxt->isSuperUser) {
+    } else if (withInsertCond && !pCxt->pComCxt->isSuperUser) {
       // If miss cache, always request tag value and reserved for permission check later if pTagCond exists. This may
       // lead to redundant request but ensure correctness, and this only happens when cache is invalid or first time
       // insert.

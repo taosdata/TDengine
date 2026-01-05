@@ -70,13 +70,24 @@ typedef struct SUserAuthInfo {
 typedef enum {
   AUTH_RES_BASIC = 0,
   AUTH_RES_VIEW,
-  AUTH_RES_MAX_VALUE
+  AUTH_RES_MAX_VALUE,
 } AUTH_RES_TYPE;
 
 typedef struct SUserAuthRes {
   bool   pass[AUTH_RES_MAX_VALUE];
   SNode* pCond[AUTH_RES_MAX_VALUE];
 } SUserAuthRes;
+
+typedef struct SUserAuthRsp {
+  union {
+    uint8_t flag;  // bit0: useDb
+    struct {
+      uint8_t exists : 1;
+      uint8_t withInsertCond : 1;
+      uint8_t reserve : 7;
+    };
+  };
+} SUserAuthRsp;
 
 typedef struct SDbInfo {
   int32_t vgVer;
@@ -392,7 +403,7 @@ int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* f
 
 int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pAuth, SUserAuthRes* pRes);
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, bool* exists);
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, SUserAuthRsp *pRsp);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 

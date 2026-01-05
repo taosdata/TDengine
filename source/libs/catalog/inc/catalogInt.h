@@ -176,6 +176,7 @@ typedef struct SCtgAuthReq {
 typedef struct SCtgAuthRsp {
   SUserAuthRes* pRawRes;
   bool          metaNotExists;
+  bool          withInsertCond;
 } SCtgAuthRsp;
 
 typedef struct SCtgTbCacheInfo {

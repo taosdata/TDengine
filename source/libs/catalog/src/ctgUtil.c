@@ -2343,6 +2343,7 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
 
     CTG_ERR_JRET(catalogGetCachedTableMeta(pCtg, pSName, &pMeta));
     if (NULL == pMeta) {
+      res->withInsertCond = (req->authInfo.withInsertCond == 1);
       if (req->onlyCache) {
         res->metaNotExists = true;
         ctgDebug("db:%s, tb:%s meta not in cache for auth", pSName->dbname, pSName->tname);
@@ -2389,6 +2390,7 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
     if (TSDB_CHILD_TABLE == pMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pMeta->tableType) {
       CTG_ERR_JRET(ctgGetCachedStbNameFromSuid(pCtg, dbFName, pMeta->suid, &stbName));
       if (NULL == stbName) {
+        res->withInsertCond = (req->authInfo.withInsertCond == 1);
         if (req->onlyCache) {
           res->metaNotExists = true;
           ctgDebug("suid:%" PRIu64 ", name not in cache for auth", pMeta->suid);

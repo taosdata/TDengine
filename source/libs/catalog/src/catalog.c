@@ -365,7 +365,7 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq, SUserAuthRes* pRes, bool* exists) {
+int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq, SUserAuthRes* pRes, SUserAuthRsp *pRsp) {
   bool    inCache = false;
   int32_t code = 0;
   SCtgAuthRsp rsp = {0};
@@ -373,14 +373,18 @@ int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq,
 
   CTG_ERR_RET(ctgChkAuthFromCache(pCtg, pReq, false, &inCache, &rsp));
 
+  if (pRsp) {
+    pRsp->withInsertCond = rsp.withInsertCond;
+  }
+
   if (inCache) {
-    if (exists) {
-      *exists = true;
+    if (pRsp) {
+      pRsp->exists = 1;
     }
-    
+
     return TSDB_CODE_SUCCESS;
-  } else if (exists) {
-    *exists = false;
+  } else if (pRsp) {
+    pRsp->exists = 0;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1825,15 +1829,15 @@ _return:
   CTG_API_LEAVE(code);
 }
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth,        SUserAuthRes* pRes, bool* exists) {
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, SUserAuthRsp *pRsp) {
   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == pAuth || NULL == pRes || NULL == exists) {
+  if (NULL == pCtg || NULL == pAuth || NULL == pRes || NULL == pRsp) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
   int32_t code = 0;
-  CTG_ERR_JRET(ctgChkAuth(pCtg, NULL, pAuth, pRes, exists));
+  CTG_ERR_JRET(ctgChkAuth(pCtg, NULL, pAuth, pRes, pRsp));
 
 _return:
 
