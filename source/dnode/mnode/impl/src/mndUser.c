@@ -989,7 +989,6 @@ static void dropOldPasswords(SUserObj *pUser) {
 
 
 
-
 static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -1016,7 +1015,11 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
   userObj.sysInfo = 1;
   userObj.enable = 1;
-  userObj.changePass = 2;
+#ifdef TD_ALLOW_DEFAULT_PASSWORD
+  userObj.changePass = 2; 
+#else
+  userObj.changePass = 1;
+#endif
   userObj.ipWhiteListVer = taosGetTimestampMs();
   userObj.connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
   userObj.connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
