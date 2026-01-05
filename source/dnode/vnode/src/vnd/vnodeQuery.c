@@ -180,6 +180,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
       (void)strcpy(metaRsp.stbName, mer2.me.name);
       metaRsp.suid = mer2.me.uid;
+      metaRsp.ownerId = mer2.me.stbEntry.ownerId;  // child table shares ownerId with super table
       schema = mer2.me.stbEntry.schemaRow;
       schemaTag = mer2.me.stbEntry.schemaTag;
       break;

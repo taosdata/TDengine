@@ -20570,8 +20570,8 @@ typedef struct SVgroupCreateTableBatch {
   char               dbName[TSDB_DB_NAME_LEN];
 } SVgroupCreateTableBatch;
 
-static int32_t buildVirtualTableBatchReq(const SCreateVTableStmt* pStmt, const SVgroupInfo* pVgroupInfo,
-                                         SVgroupCreateTableBatch* pBatch) {
+static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateVTableStmt* pStmt,
+                                         const SVgroupInfo* pVgroupInfo, SVgroupCreateTableBatch* pBatch) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SVCreateTbReq req = {0};
   SNode*        pCol;
@@ -20582,6 +20582,7 @@ static int32_t buildVirtualTableBatchReq(const SCreateVTableStmt* pStmt, const S
   req.ntb.schemaRow.nCols = LIST_LENGTH(pStmt->pCols);
   req.ntb.schemaRow.version = 1;
   req.ntb.schemaRow.pSchema = taosMemoryCalloc(req.ntb.schemaRow.nCols, sizeof(SSchema));
+  req.ntb.userId = pCxt->pParseCxt->userId;
   if (NULL == req.name || NULL == req.ntb.schemaRow.pSchema) {
     PAR_ERR_JRET(terrno);
   }
@@ -20679,7 +20680,7 @@ _return:
   return code;
 }
 
-static int32_t buildNormalTableBatchReq(const SCreateTableStmt* pStmt, const SVgroupInfo* pVgroupInfo,
+static int32_t buildNormalTableBatchReq(STranslateContext* pCxt, const SCreateTableStmt* pStmt, const SVgroupInfo* pVgroupInfo,
                                         SVgroupCreateTableBatch* pBatch) {
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
@@ -20702,6 +20703,7 @@ static int32_t buildNormalTableBatchReq(const SCreateTableStmt* pStmt, const SVg
   req.ntb.schemaRow.nCols = LIST_LENGTH(pStmt->pCols);
   req.ntb.schemaRow.version = 1;
   req.ntb.schemaRow.pSchema = taosMemoryCalloc(req.ntb.schemaRow.nCols, sizeof(SSchema));
+  req.ntb.userId = pCxt->pParseCxt->userId;
   if (NULL == req.name || NULL == req.ntb.schemaRow.pSchema) {
     tdDestroySVCreateTbReq(&req);
     return terrno;
@@ -20840,15 +20842,15 @@ static void destroyCreateTbReqArray(SArray* pArray) {
   taosArrayDestroy(pArray);
 }
 
-static int32_t buildCreateTableDataBlock(int32_t acctId, const SCreateTableStmt* pStmt, const SVgroupInfo* pInfo,
-                                         SArray** pBufArray) {
+static int32_t buildCreateTableDataBlock(STranslateContext* pCxt, const SCreateTableStmt* pStmt,
+                                         const SVgroupInfo* pInfo, SArray** pBufArray) {
   *pBufArray = taosArrayInit(1, POINTER_BYTES);
   if (NULL == *pBufArray) {
     return terrno;
   }
 
   SVgroupCreateTableBatch tbatch = {0};
-  int32_t                 code = buildNormalTableBatchReq(pStmt, pInfo, &tbatch);
+  int32_t                 code = buildNormalTableBatchReq(pCxt, pStmt, pInfo, &tbatch);
   if (TSDB_CODE_SUCCESS == code) {
     code = serializeVgroupCreateTableBatch(&tbatch, *pBufArray);
   }
@@ -20875,7 +20877,7 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   }
   SArray* pBufArray = NULL;
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildCreateTableDataBlock(pCxt->pParseCxt->acctId, pStmt, &info, &pBufArray);
+    code = buildCreateTableDataBlock(pCxt, pStmt, &info, &pBufArray);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
@@ -22876,10 +22878,11 @@ static int32_t rewriteAlterVirtualTable(STranslateContext* pCxt, SQuery* pQuery)
   return rewriteAlterTable(pCxt, pQuery, true);
 }
 
-static int32_t buildCreateVTableDataBlock(const SCreateVTableStmt* pStmt, const SVgroupInfo* pInfo, SArray* pBufArray) {
+static int32_t buildCreateVTableDataBlock(STranslateContext* pCxt, const SCreateVTableStmt* pStmt,
+                                          const SVgroupInfo* pInfo, SArray* pBufArray) {
   SVgroupCreateTableBatch tbatch = {0};
   int32_t                 code = TSDB_CODE_SUCCESS;
-  PAR_ERR_JRET(buildVirtualTableBatchReq(pStmt, pInfo, &tbatch));
+  PAR_ERR_JRET(buildVirtualTableBatchReq(pCxt, pStmt, pInfo, &tbatch));
   PAR_ERR_JRET(serializeVgroupCreateTableBatch(&tbatch, pBufArray));
 
 _return:
@@ -22971,7 +22974,7 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
   PAR_ERR_JRET(getTableHashVgroupImpl(pCxt, &name, &info));
   PAR_ERR_JRET(collectUseTable(&name, pCxt->pTargetTables));
 
-  PAR_ERR_JRET(buildCreateVTableDataBlock(pStmt, &info, pBufArray));
+  PAR_ERR_JRET(buildCreateVTableDataBlock(pCxt, pStmt, &info, pBufArray));
   PAR_ERR_JRET(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
 
   return code;

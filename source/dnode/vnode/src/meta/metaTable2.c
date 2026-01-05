@@ -498,6 +498,7 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
       .ntbEntry.comment = pReq->comment,
       .ntbEntry.schemaRow = pReq->ntb.schemaRow,
       .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
+      .ntbEntry.ownerId = pReq->ntb.userId,
       .colCmpr = pReq->colCmpr,
       .pExtSchemas = pReq->pExtSchemas,
   };
@@ -565,6 +566,7 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
                       .ntbEntry.comment = pReq->comment,
                       .ntbEntry.schemaRow = pReq->ntb.schemaRow,
                       .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
+                      .ntbEntry.ownerId = pReq->ntb.userId,
                       .colRef = pReq->colRef};
 
   code = metaBuildCreateVirtualNormalTableRsp(pMeta, &entry, ppRsp);

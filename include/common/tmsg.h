@@ -4670,6 +4670,7 @@ typedef struct SVCreateTbReq {
     } ctb;
     struct {
       SSchemaWrapper schemaRow;
+      int64_t        userId;
     } ntb;
   };
   int32_t         sqlLen;

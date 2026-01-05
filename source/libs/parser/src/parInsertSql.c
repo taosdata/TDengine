@@ -4582,14 +4582,14 @@ static int32_t buildInsertDbReq(SName* pName, SArray** pDbs) {
   return code;
 }
 
-static int32_t buildInsertUserAuthReq(const char* pUser, SName* pName, SArray** pUserAuth) {
+static int32_t buildInsertUserAuthReq(SParseContext* pCxt, SName* pName, SArray** pUserAuth) {
   *pUserAuth = taosArrayInit(1, sizeof(SUserAuthInfo));
   if (NULL == *pUserAuth) {
     return terrno;
   }
 
-  SUserAuthInfo userAuth = {.privType = PRIV_TBL_INSERT, .objType = PRIV_OBJ_TBL};
-  snprintf(userAuth.user, sizeof(userAuth.user), "%s", pUser);
+  SUserAuthInfo userAuth = {.privType = PRIV_TBL_INSERT, .objType = PRIV_OBJ_TBL, .userId = pCxt->userId};
+  snprintf(userAuth.user, sizeof(userAuth.user), "%s", pCxt->pUser);
   memcpy(&userAuth.tbName, pName, sizeof(SName));
   if (NULL == taosArrayPush(*pUserAuth, &userAuth)) {
     taosArrayDestroy(*pUserAuth);
@@ -4604,7 +4604,7 @@ static int32_t buildInsertTableTagReq(SName* pName, SArray** pTables) { return b
 
 static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SCatalogReq* pCatalogReq) {
   int32_t code = buildInsertUserAuthReq(
-      pCxt->pComCxt->pUser, (0 == pStmt->usingTableName.type ? &pStmt->targetTableName : &pStmt->usingTableName),
+      pCxt->pComCxt, (0 == pStmt->usingTableName.type ? &pStmt->targetTableName : &pStmt->usingTableName),
       &pCatalogReq->pUser);
   if (TSDB_CODE_SUCCESS == code && pCxt->needTableTagVal) {
     code = buildInsertTableTagReq(&pStmt->targetTableName, &pCatalogReq->pTableTag);

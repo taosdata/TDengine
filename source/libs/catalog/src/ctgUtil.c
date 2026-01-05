@@ -2356,8 +2356,14 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
     }
 
+    if (req->authInfo.userId == 0) {
+      // userId is 0, skip owner check
+      ctgWarn("%s:%d userId is 0 for %s, skip owner check for  %s.%s", __func__, __LINE__, pReq->user, dbFName, tbName);
+      assert(0);
+    }
+
     // compatible with old version without ownerId
-    if (pReq->userId == pMeta->ownerId || pMeta->ownerId == 0) {
+    if (req->authInfo.userId == pMeta->ownerId || pMeta->ownerId == 0) {
       res->pRawRes->pass[AUTH_RES_BASIC] = true;
       goto _return;
     }

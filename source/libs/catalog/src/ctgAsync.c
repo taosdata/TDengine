@@ -377,6 +377,7 @@ int32_t ctgInitGetUserTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
   SCtgUserCtx* ctx = task.taskCtx;
 
   TAOS_MEMCPY(&ctx->user, user, sizeof(*user));
+  ctx->user.userId = user->userId;
 
   if (NULL == taosArrayPush(pJob->pTasks, &task)) {
     ctgFreeTask(&task, true);

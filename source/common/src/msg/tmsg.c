@@ -14265,6 +14265,9 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   } else {
     TAOS_CHECK_EXIT(tEncodeI8(pCoder, 0));
   }
+  if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+    TAOS_CHECK_EXIT(tEncodeI64v(pCoder, pReq->ntb.userId));
+  }
 
   tEndEncode(pCoder);
 _exit:
@@ -14341,7 +14344,12 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
         TAOS_CHECK_EXIT(tDecodeSExtSchemas(pCoder, &pReq->pExtSchemas, pReq->ntb.schemaRow.nCols));
       }
     }
-  }
+
+    if (!tDecodeIsEnd(pCoder)) {
+      if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+        TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pReq->ntb.userId));
+      }
+    }
 
   tEndDecode(pCoder);
 _exit:
