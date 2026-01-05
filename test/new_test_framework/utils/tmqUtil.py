@@ -37,6 +37,17 @@ class TMQCom:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
+    def waitTransactionZeroWithTsql(self, tsql):
+        for i in range(300):
+            sql ="show transactions;"
+            tsql.execute(sql)
+            result = tsql.fetchall()
+            rows = len(result)
+            if rows == 0:
+                tdLog.info("transaction count became zero.")
+                return True
+            time.sleep(1)
+
     def initConsumerTable(self,cdbName='cdb', replicaVar=1):
         tdLog.info("create consume database, and consume info table, and consume result table")
         tdSql.query("create database if not exists %s vgroups 1 replica %d"%(cdbName,replicaVar))
@@ -168,6 +179,7 @@ class TMQCom:
 
         tsql.execute("create database if not exists %s vgroups %d replica %d"%(dbName, vgroups, replica))
         tdLog.debug("complete to create database %s"%(dbName))
+        self.waitTransactionZeroWithTsql(tsql)
         return
 
     # self.create_stable() and self.create_ctable() and self.insert_data_interlaceByMultiTbl() : The three functions are matched
