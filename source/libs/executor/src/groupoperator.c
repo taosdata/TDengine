@@ -316,7 +316,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       continue;
     }
 
-    // j == 0: The first row of a new block does not belongs to the previous existed group
+    // The first row of a new block does not belongs to the previous existed group
     if (j == 0) {
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
       num = 1;
@@ -343,7 +343,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     num = 1;
   }
 
-  // the last group data will set result after all rows are processed, be set here
+  // The data of the last group is processed here, and if there is only one group, it is also processed here.
   if (num > 0) {
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
@@ -415,7 +415,7 @@ static int32_t doGroupResultSlimit(SSDataBlock* pRes, SLimitInfo* pLimitInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  if (pRes == NULL || pRes->info.rows == 0) {
+  if (pRes == NULL || pRes->info.rows == 0 || !pLimitInfo) {
     return TSDB_CODE_SUCCESS;
   }
 
