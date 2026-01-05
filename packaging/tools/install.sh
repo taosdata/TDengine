@@ -6,7 +6,7 @@
 set -e
 # set -x
 
-verMode=cluster
+verMode=edge
 pkgMode=full
 entMode=full
 
@@ -176,7 +176,6 @@ Options:
   -e [yes | no]             Interactive FQDN setting
   -d [install dir]          Custom installation directory
   -s                        Silent mode installation
-  -q [taos_dir]             Silent mode with custom installation directory
 EOF
 }
 
@@ -198,13 +197,6 @@ while getopts "hv:e:d:sq:" arg; do
   s)
     silent_mode=1
     interactiveFqdn="no"
-    ;;
-  q)
-    silent_mode=1
-    interactiveFqdn="no"
-    taos_dir="${OPTARG%/}/${PREFIX}"
-    taos_dir=$(eval echo "${taos_dir}")
-    taos_dir_set=1
     ;;
   h)
     show_help
@@ -310,6 +302,9 @@ function setup_env() {
       inc_link_dir="/usr/local/include"
       service_config_dir=""
       sysctl_cmd=""
+      cfg_link_dir=""
+      data_link_dir=""
+      log_link_dir=""
     fi
   else
     # Non-root user directories
@@ -317,6 +312,9 @@ function setup_env() {
     dataDir="${installDir}/data"
     logDir="${installDir}/log"
     configDir="${installDir}/cfg"
+    cfg_link_dir=""
+    data_link_dir=""
+    log_link_dir=""
     if [ "$osType" != "Darwin" ]; then
       bin_link_dir="$HOME/.local/bin"
       lib_link_dir="$HOME/.local/lib"
@@ -373,7 +371,28 @@ function setup_env() {
       services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
     fi
   fi
-  
+  taosd_path=$(command -v taosd 2>/dev/null || true)
+  if [ -n "$taosd_path" ]; then
+    taosd_ver=$($taosd_path -V 2>/dev/null | grep version | awk '{print $3}' || true)
+    echo "Detected taosd is already installed at: $taosd_path"
+    echo "Current version: $taosd_ver"
+    if [ $user_mode -ne 0 ] && [[ "$taosd_path" == /usr/* || "$taosd_path" == /opt/* ]]; then
+      echo "Taosd is installed by root. You are not root and cannot overwrite the system installation."
+      echo "Please run the installer as root, or uninstall the existing version first."
+    fi
+    # Silent mode handling
+    if [ "$silent_mode" = "1" ] ; then
+      echo "It will overwrite/update the existing installation."
+      confirm="Y"
+    else
+      read -p "Do you want to overwrite/update the installation? [Y/n]: " confirm
+      confirm=${confirm:-Y}
+    fi
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+      echo "Installation cancelled."
+      exit 0
+    fi
+  fi
   log info "Detected install mode: $mode_desc"
   log info "TDengine installation path: ${installDir}"
   log info "Data directory: ${dataDir}"
@@ -516,7 +535,7 @@ function install_bin() {
     fi
 
     # Add PATH
-    if ! grep -q "${install_main_dir}/bin" "$env_file" 2>/dev/null; then
+    if ! grep -q "${bin_link_dir}" "$env_file" 2>/dev/null; then
       echo -e "\n# TDengine install path" >> "$env_file"
       echo "export PATH=\"${bin_link_dir}:\$PATH\"" >> "$env_file"
       log info "Added TDengine bin to PATH (${env_file})"
@@ -1324,17 +1343,14 @@ function finished_install_info(){
       else
         entries+=("To read the user manual:|https://docs.tdengine.com")
       fi
-
-      if [ "$(id -u)" -ne 0 ]; then
-        entries+=("|")
-        entries+=("Note:|You are running ${productName} as a non-root user. Please make sure that your user has read/write permissions to the data directory (${dataDir}), log directory (${logDir}), and configuration directory (${configDir}).")
-      fi
+      entries+=("|")
 
     else
       entries+=("To configure ${PREFIX}d:|edit ${configDir}/${configFile}")
       entries+=("To start ${PREFIX}d:|${sysctl_cmd} start ${serverName}")
       entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn")
       entries+=("To read the user manual:|https://docs.tdengine.com")
+      entries+=("|")
     fi
 
     # compute max label length
@@ -1360,7 +1376,11 @@ function finished_install_info(){
       value="${pair#*|}"
       log info_color "$(printf "%-${max}s %s" "$label" "$value")"
     done
-
+    if [ "$(id -u)" -ne 0 ]; then
+      log info_color "Environment variables for TDengine have been added to $HOME/.bashrc."
+      log info_color "To make them effective, please run: source \$HOME/.bashrc"
+      log info_color "Or simply open a new terminal window."
+    fi
     echo
 }
 
