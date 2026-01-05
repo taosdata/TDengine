@@ -65,6 +65,7 @@ static int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code)
 static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex);
 static int32_t getCompletedSources(const SArray* pArray, int32_t* pRes);
 static int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator);
+static int32_t doNotifyExchangeSource(SOperatorInfo* pOperator);
 static int32_t seqLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock,
@@ -959,6 +960,37 @@ _return:
   return code;
 }
 
+int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
+                                          int32_t srcOpType, TSKEY notifyTs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno);
+
+  STableScanOperatorParam* pTsParam =
+    taosMemoryMalloc(sizeof(STableScanOperatorParam));
+  QUERY_CHECK_NULL(pTsParam, code, lino, _return, terrno);
+
+  pTsParam->paramType = NOTIFY_TYPE_SCAN_PARAM;
+  pTsParam->notifyTs = notifyTs;
+
+  (*ppRes)->opType = srcOpType;
+  (*ppRes)->downstreamIdx = 0;
+  (*ppRes)->value = pTsParam;
+  (*ppRes)->pChildren = NULL;
+  (*ppRes)->reUse = false;
+
+  return code;
+_return:
+  qError("%s failed at %d, failed to build scan operator msg:%s",
+         __func__, lino, tstrerror(code));
+  taosMemoryFreeClear(*ppRes);
+  if (pTsParam) {
+    taosMemoryFree(pTsParam);
+  }
+  return code;
+}
+
 int32_t buildTableScanOperatorParamBatchInfo(SOperatorParam** ppRes, uint64_t groupid, SArray* pUidList, int32_t srcOpType, SArray *pBatchMap, SArray *pTagList, bool tableSeq, STimeWindow *window, bool isNewParam) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
@@ -1480,6 +1512,109 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
+/**
+  @brief send "step done" notification message to exchange source
+*/
+int32_t doNotifyExchangeSource(SOperatorInfo* pOperator) {
+  SExchangeInfo* pExchangeInfo = pOperator->info;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
+  QUERY_CHECK_NULL(pGetParam, code, lino, _end, terrno);
+  char* pMsg = NULL;
+
+  SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pGetParam->value;
+  if (!pParam->multiParams) {
+    SExchangeOperatorBasicParam* pBasic = &pParam->basic;
+    if (pBasic->paramType != NOTIFY_TYPE_EXCHANGE_PARAM) {
+      qError("%s, %s failed since invalid exchange operator param type %d",
+             GET_TASKID(pTaskInfo), __func__, pBasic->paramType);
+      code = TSDB_CODE_INVALID_PARA;
+      goto _end;
+    }
+    size_t  totalSources = taosArrayGetSize(pExchangeInfo->pSourceDataInfo);
+    if (totalSources > 1) {
+      qError("%s, %s failed since multi sources are not supported for "
+             "notify exchange source", GET_TASKID(pTaskInfo), __func__);
+      code = TSDB_CODE_INVALID_PARA;
+      goto _end;
+    }
+    SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo,
+                                              0);
+    if (pDataInfo->type != 0) {
+      qError("%s, %s failed since source type %d or srcOpType %d is not "
+             "supported for notify exchange source", GET_TASKID(pTaskInfo),
+             __func__, pDataInfo->type, pDataInfo->srcOpType);
+      code = TSDB_CODE_INVALID_PARA;
+      goto _end;
+    }
+
+    SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources,
+                                                  pDataInfo->index);
+    if (!pSource) {
+      code = terrno;
+      goto _end;
+    }
+    SResFetchReq req = {0};
+    req.header.vgId = pSource->addr.nodeId;
+    req.sId         = pSource->sId;
+    req.clientId    = pSource->clientId;
+    req.taskId      = pSource->taskId;
+    req.queryId     = pTaskInfo->id.queryId;
+    req.execId      = pSource->execId;
+    if (pTaskInfo->pStreamRuntimeInfo) {
+      /* TODO: notify stream runner */
+    }
+
+    code =
+      buildTableScanOperatorParamNotify(&req.pOpParam,
+                                        QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+                                        pBasic->notifyTs);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req, false);
+    if (msgSize < 0) {
+      code = msgSize;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    pMsg = rpcMallocCont(msgSize);
+    msgSize = tSerializeSResFetchReq(pMsg, msgSize, &req, false);
+    if (msgSize < 0) {
+      code = msgSize;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    SRpcMsg rpcMsg = {
+      .pCont = pMsg,
+      .contLen = msgSize,
+      .msgType = TDMT_SCH_FETCH,
+      .info.ahandle = 0,
+      .info.notFreeAhandle = 1,
+      .info.refId = 0,
+      .info.handle = 0,
+      .info.noResp = 1,
+      .code = 0
+    };
+    code = rpcSendRequest(pExchangeInfo->pTransporter, &pSource->addr.epSet,
+                          &rpcMsg, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    qDebug("%s notify msg sent to source 0 (vgId:%d, taskId:0x%" PRIx64
+          ", execId:%d)", GET_TASKID(pTaskInfo), pSource->addr.nodeId,
+          pSource->taskId, pSource->execId);
+  } else {
+    qError("%s, %s failed since multi params are not supported for notify msg",
+           GET_TASKID(pTaskInfo), __func__);
+    code = TSDB_CODE_INVALID_PARA;
+    goto _end;
+  }
+
+_end:
+  return code;
+}
+
 int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
@@ -1717,6 +1852,12 @@ static int32_t loadTagListFromBasicParam(SSourceDataInfo* pDataInfo, SExchangeOp
   STagVal  dstTag;
   bool     needFree = false;
 
+  if (pBasicParam->paramType != DYN_TYPE_EXCHANGE_PARAM) {
+    qError("%s failed since invalid exchange operator param type %d",
+      __func__, pBasicParam->paramType);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   if (pDataInfo->tagList) {
     taosArrayClear(pDataInfo->tagList);
   }
@@ -1764,6 +1905,12 @@ int32_t loadBatchColMapFromBasicParam(SSourceDataInfo* pDataInfo, SExchangeOpera
   SOrgTbInfo  dstOrgTbInfo = {0};
   bool        needFree = false;
 
+  if (pBasicParam->paramType != DYN_TYPE_EXCHANGE_PARAM) {
+    qError("%s failed since invalid exchange operator param type %d",
+      __func__, pBasicParam->paramType);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   if (pBasicParam->batchOrgTbInfo) {
     pDataInfo->batchOrgTbInfo = taosArrayInit(1, sizeof(SOrgTbInfo));
     QUERY_CHECK_NULL(pDataInfo->batchOrgTbInfo, code, lino, _return, terrno);
@@ -1796,9 +1943,15 @@ _return:
   return code;
 }
 
-int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasicParam* pBasicParam) {
+int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
+                                SExchangeOperatorBasicParam* pBasicParam) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
+  if (pBasicParam->paramType != DYN_TYPE_EXCHANGE_PARAM) {
+    qError("%s, %s failed since invalid exchange operator param type %d",
+      GET_TASKID(pOperator->pTaskInfo), __func__, pBasicParam->paramType);
+    return TSDB_CODE_INVALID_PARA;
+  }
   SExchangeInfo*     pExchangeInfo = pOperator->info;
   SExchangeSrcIndex* pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
 
@@ -2020,9 +2173,12 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   
-  if ((OPTR_IS_OPENED(pOperator) && !pExchangeInfo->dynamicOp) ||
+  if ((OPTR_IS_OPENED(pOperator) && !pExchangeInfo->dynamicOp &&
+       NULL == pOperator->pOperatorGetParam) ||
       (pExchangeInfo->dynamicOp && NULL == pOperator->pOperatorGetParam)) {
-    qDebug("skip prepare, opened:%d, dynamicOp:%d, getParam:%p", OPTR_IS_OPENED(pOperator), pExchangeInfo->dynamicOp, pOperator->pOperatorGetParam);
+    qDebug("%s, skip prepare, opened:%d, dynamicOp:%d, getParam:%p",
+      GET_TASKID(pOperator->pTaskInfo), OPTR_IS_OPENED(pOperator),
+      pExchangeInfo->dynamicOp, pOperator->pOperatorGetParam);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2031,11 +2187,19 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (pOperator->status == OP_NOT_OPENED && (pExchangeInfo->dynamicOp && pExchangeInfo->seqLoadData) || IS_STREAM_MODE(pOperator->pTaskInfo)) {
+  if (pOperator->status == OP_NOT_OPENED &&
+      (pExchangeInfo->dynamicOp && pExchangeInfo->seqLoadData) ||
+      IS_STREAM_MODE(pOperator->pTaskInfo)) {
     pExchangeInfo->current = 0;
   }
 
   int64_t st = taosGetTimestampUs();
+
+  if (!pExchangeInfo->dynamicOp && NULL != pOperator->pOperatorGetParam) {
+    code = doNotifyExchangeSource(pOperator);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pOperator->pOperatorGetParam = NULL;
+  }
 
   if (!IS_STREAM_MODE(pOperator->pTaskInfo) && !pExchangeInfo->seqLoadData) {
     code = prepareConcurrentlyLoad(pOperator);

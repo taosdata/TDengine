@@ -1222,21 +1222,23 @@ void freeOperatorParamImpl(SOperatorParam* pParam, SOperatorParamType type) {
 
 void freeExchangeGetBasicOperatorParam(void* pParam) {
   SExchangeOperatorBasicParam* pBasic = (SExchangeOperatorBasicParam*)pParam;
-  if (pBasic->uidList) {
-    taosArrayDestroy(pBasic->uidList);
-    pBasic->uidList = NULL;
-  }
-  if (pBasic->orgTbInfo) {
-    taosArrayDestroy(pBasic->orgTbInfo->colMap);
-    taosMemoryFreeClear(pBasic->orgTbInfo);
-  }
-  if (pBasic->batchOrgTbInfo) {
-    taosArrayDestroyEx(pBasic->batchOrgTbInfo, destroySOrgTbInfo);
-    pBasic->batchOrgTbInfo = NULL;
-  }
-  if (pBasic->tagList) {
-    taosArrayDestroyEx(pBasic->tagList, destroyTagVal);
-    pBasic->tagList = NULL;
+  if (pBasic->paramType == DYN_TYPE_EXCHANGE_PARAM) {
+    if (pBasic->uidList) {
+      taosArrayDestroy(pBasic->uidList);
+      pBasic->uidList = NULL;
+    }
+    if (pBasic->orgTbInfo) {
+      taosArrayDestroy(pBasic->orgTbInfo->colMap);
+      taosMemoryFreeClear(pBasic->orgTbInfo);
+    }
+    if (pBasic->batchOrgTbInfo) {
+      taosArrayDestroyEx(pBasic->batchOrgTbInfo, destroySOrgTbInfo);
+      pBasic->batchOrgTbInfo = NULL;
+    }
+    if (pBasic->tagList) {
+      taosArrayDestroyEx(pBasic->tagList, destroyTagVal);
+      pBasic->tagList = NULL;
+    }
   }
 }
 
@@ -1280,7 +1282,7 @@ void freeInterpFuncNotifyOperatorParam(SOperatorParam* pParam) {
 }
 
 void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
-  ETableScanParamType paramType = *(ETableScanParamType*)pParam->value;
+  ETableScanGetParamType paramType = *(ETableScanGetParamType*)pParam->value;
 
   switch (paramType) {
     case DYN_TYPE_SCAN_PARAM: {

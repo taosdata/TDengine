@@ -4156,6 +4156,16 @@ typedef struct {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
+  uint64_t clientId;
+  uint64_t taskId;
+  int32_t  execId;
+  TSKEY    notifyTs;
+} SQueryNotifyReq;
+
+typedef struct {
+  SMsgHead header;
+  uint64_t sId;
+  uint64_t queryId;
   uint64_t taskId;
 } SResReadyReq;
 
@@ -4218,27 +4228,25 @@ typedef enum {
 } ETableScanDynType;
 
 typedef enum {
-  DYN_TYPE_SCAN_PARAM,
+  DYN_TYPE_SCAN_PARAM = 1,
   NOTIFY_TYPE_SCAN_PARAM,
-} ETableScanParamType;
+} ETableScanGetParamType;
 
 typedef struct STableScanOperatorParam {
-  ETableScanParamType paramType;
-  bool                tableSeq;
-  bool                isNewParam;
-  uint64_t            groupid;
-  SArray*             pUidList;
-  SOrgTbInfo*         pOrgTbInfo;
-  SArray*             pBatchTbInfo;  // SArray<SOrgTbInfo>
-  SArray*             pTagList;
-  STimeWindow         window;
-  ETableScanDynType   dynType;
-} STableScanOperatorParam;
-
-typedef struct STableScanOperatorTsParam {
-  ETableScanParamType paramType;
+  ETableScanGetParamType paramType;
+  /* used for dynamic table scan */
+  bool                   tableSeq;
+  bool                   isNewParam;
+  uint64_t               groupid;
+  SArray*                pUidList;
+  SOrgTbInfo*            pOrgTbInfo;
+  SArray*                pBatchTbInfo;  // SArray<SOrgTbInfo>
+  SArray*                pTagList;
+  STimeWindow            window;
+  ETableScanDynType      dynType;
+  /* used for notify */
   TSKEY notifyTs;
-} STableScanOperatorTsParam;
+} STableScanOperatorParam;
 
 typedef struct STagScanOperatorParam {
   tb_uid_t vcUid;

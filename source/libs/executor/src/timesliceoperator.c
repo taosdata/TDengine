@@ -50,6 +50,8 @@ typedef struct STimeSliceOperatorInfo {
   bool                 hasPk;
   SColumn              pkCol;
   int64_t              rangeInterval;
+  bool                 prevNotified;
+  bool                 nextNotified;
 } STimeSliceOperatorInfo;
 
 static void destroyTimeSliceOperatorInfo(void* param);
@@ -923,24 +925,38 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
 
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SOperatorInfo* pDownstream = pOperator->pDownstream[i];
-    if (pDownstream == NULL ||
-        (pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
-         pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_EXCHANGE)) {
-      /**
-        Only table scan and exchange operator are supported right now.
-      */
-      continue;
-    }
     SOperatorParam* pParam = pOperator->pDownstreamGetParams[i];
     if (pParam != NULL) {
       freeOperatorParam(pParam, OP_GET_PARAM);
     }
 
-    STableScanOperatorTsParam* tsParam =
-      taosMemoryCalloc(1, sizeof(STableScanOperatorTsParam));
-    QUERY_CHECK_NULL(tsParam, code, lino, _end, terrno);
-    tsParam->paramType = NOTIFY_TYPE_SCAN_PARAM;
-    tsParam->notifyTs = notifyTs;
+    void* tsParam = NULL;
+    switch (pDownstream->operatorType) {
+      case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
+        tsParam = taosMemoryCalloc(1, sizeof(STableScanOperatorParam));
+        QUERY_CHECK_NULL(tsParam, code, lino, _end, terrno);
+        ((STableScanOperatorParam*)tsParam)->paramType = NOTIFY_TYPE_SCAN_PARAM;
+        ((STableScanOperatorParam*)tsParam)->notifyTs = notifyTs;
+        break;
+      }
+      case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
+        tsParam = taosMemoryCalloc(1, sizeof(SExchangeOperatorParam));
+        QUERY_CHECK_NULL(tsParam, code, lino, _end, terrno);
+        ((SExchangeOperatorParam*)tsParam)->multiParams = false;
+        ((SExchangeOperatorParam*)tsParam)->basic.paramType =
+          NOTIFY_TYPE_EXCHANGE_PARAM;
+        ((SExchangeOperatorParam*)tsParam)->basic.notifyTs = notifyTs;
+        break;
+      }
+      default: {
+        /**
+          Only table scan and exchange operator are supported right now.
+        */
+        qError("%s only table scan and exchange operator are supported "
+          "for notify, but got %d", __func__, pDownstream->operatorType);
+        return TSDB_CODE_INVALID_PARA;
+      }
+    }
 
     pParam = (SOperatorParam*)taosMemoryCalloc(1, sizeof(SOperatorParam));
     QUERY_CHECK_NULL(pParam, code, lino, _end, terrno);
@@ -965,14 +981,13 @@ static int64_t getNextTimestamp(int64_t current, SInterval* pInterval) {
 }
 
 static void doTimesliceImpl(SOperatorInfo* pOperator,
-                               STimeSliceOperatorInfo* pSliceInfo,
-                               SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
-                               bool ignoreNull) {
+                            STimeSliceOperatorInfo* pSliceInfo,
+                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
+                            bool ignoreNull) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SSDataBlock* pResBlock = pSliceInfo->pRes;
   SInterval*   pInterval = &pSliceInfo->interval;
-  bool         notified = false;
 
   SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock,
                                          pSliceInfo->tsCol.slotId);
@@ -990,10 +1005,15 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
       continue;
     }
 
-    if (!notified && (ts < pSliceInfo->win.skey || ts > pSliceInfo->win.ekey)) {
+    if ((!pSliceInfo->prevNotified && ts < pSliceInfo->win.skey) ||
+        (!pSliceInfo->nextNotified && ts > pSliceInfo->win.ekey)) {
       code = setDownstreamOpGetParam(pOperator, ts);
       QUERY_CHECK_CODE(code, lino, _end);
-      notified = true;
+      if (ts < pSliceInfo->win.skey) {
+        pSliceInfo->prevNotified = true;
+      } else {
+        pSliceInfo->nextNotified = true;
+      }
     }
 
     EInvalidTimestampReason invalidReason = isInvalidTimestamp(pSliceInfo, ts,
@@ -1129,6 +1149,8 @@ static int32_t copyPrevGroupKey(SExprSupp* pExprSup, SArray* pGroupKeys, SSDataB
 static void resetTimesliceInfo(STimeSliceOperatorInfo* pSliceInfo) {
   pSliceInfo->current = pSliceInfo->win.skey;
   pSliceInfo->prevTsSet = false;
+  pSliceInfo->prevNotified = false;
+  pSliceInfo->nextNotified = false;
   resetKeeperInfo(pSliceInfo);
 }
 

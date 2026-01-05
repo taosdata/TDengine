@@ -177,7 +177,14 @@ typedef enum EExchangeSourceType {
   EX_SRC_TYPE_VSTB_TAG_SCAN,
 } EExchangeSourceType;
 
+typedef enum {
+  DYN_TYPE_EXCHANGE_PARAM = 1,
+  NOTIFY_TYPE_EXCHANGE_PARAM,
+} EExchangeGetParamType;
+
 typedef struct SExchangeOperatorBasicParam {
+  EExchangeGetParamType paramType;
+  /* dynamic scan params */
   int32_t               vgId;
   int32_t               srcOpType;
   bool                  tableSeq;
@@ -191,6 +198,8 @@ typedef struct SExchangeOperatorBasicParam {
   SArray*               tagList;
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
+  /* notify scan params */
+  TSKEY notifyTs;
 } SExchangeOperatorBasicParam;
 
 typedef struct SExchangeOperatorBatchParam {
@@ -961,6 +970,8 @@ void    destroyOperatorParamValue(void* pValues);
 int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
 int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam);
+int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
+                                          int32_t srcOpType, TSKEY notifyTs);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
 void    freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);

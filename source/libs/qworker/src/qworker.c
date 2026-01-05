@@ -4,6 +4,7 @@
 #include "executor.h"
 #include "planner.h"
 #include "query.h"
+#include "querynodes.h"
 #include "qwInt.h"
 #include "qwMsg.h"
 #include "tcommon.h"
@@ -70,7 +71,8 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
 _return:
 
-  if ((!ctx->dynamicTask) && (!ctx->explain || ctx->explainRsped)) {
+  if ((!ctx->dynamicTask) && (!ctx->explain || ctx->explainRsped) &&
+       !QW_EVENT_RECEIVED(ctx, QW_EVENT_NOTIFY)) {
     qwFreeTaskHandle(ctx);
   }
 
@@ -122,6 +124,16 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
 
     if (taskHandle) {
       qwDbgSimulateSleep();
+
+      if (QW_EVENT_RECEIVED(ctx, QW_EVENT_NOTIFY)) {
+        code = notifyTableScanTask(taskHandle, atomic_load_64(&ctx->notifyTs));
+        if (TSDB_CODE_SUCCESS != code) {
+          QW_TASK_ELOG("notifyTableScanTask failed in %s, code:%x - %s",
+                       __func__, code, tstrerror(code));
+          QW_ERR_JRET(code);
+        }
+        QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_NOTIFY);
+      }
 
       setTaskScalarExtraInfo(taskHandle);
       taosEnableMemPoolUsage(ctx->memPoolSession);
@@ -1045,17 +1057,33 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   void         *rsp = NULL;
   SQWPhaseInput input = {0};
 
-  QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_FETCH, &input, NULL));
-
   QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
+
+  if (qwMsg->msg) {
+    SOperatorParam* pOpParam = (SOperatorParam*)qwMsg->msg;
+    if (pOpParam->opType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
+        ((STableScanOperatorParam*)pOpParam->value)->paramType ==
+        NOTIFY_TYPE_SCAN_PARAM) {
+      /**
+        store notify ts to task ctx and set event received, so that the
+        task can notify the table scan done before next scan
+      */
+      atomic_store_64(&ctx->notifyTs,
+                       ((STableScanOperatorParam*)pOpParam->value)->notifyTs);
+      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_NOTIFY);
+      goto _return;
+    }
+  }
+
+  QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_FETCH, &input, NULL));
 
   ctx->fetchMsgType = qwMsg->msgType;
   ctx->dataConnInfo = qwMsg->connInfo;
 
   if (qwMsg->msg) {
-    code = qwStartDynamicTaskNewExec(QW_FPARAMS(), ctx, qwMsg);
-    qwMsg->msg = NULL;
-    goto _return;
+      code = qwStartDynamicTaskNewExec(QW_FPARAMS(), ctx, qwMsg);
+      qwMsg->msg = NULL;
+      goto _return;
   }
 
   if (ctx->subQuery) {
@@ -1067,7 +1095,8 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   SOutputData sOutput = {0};
-  QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawDataLen, &rsp, &sOutput));
+  QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawDataLen,
+                                    &rsp, &sOutput));
 
   if (NULL == rsp) {
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
@@ -1083,8 +1112,10 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     }
   }
 
-  if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {
-    QW_TASK_DLOG("task not end and buf is %s, need to continue query", qwBufStatusStr(sOutput.bufStatus));
+  if ((!sOutput.queryEnd) &&
+      (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {
+    QW_TASK_DLOG("task not end and buf is %s, need to continue query",
+                 qwBufStatusStr(sOutput.bufStatus));
 
     QW_LOCK(QW_WRITE, &ctx->lock);
     locked = true;
@@ -1095,7 +1126,8 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     } else if (QW_QUERY_RUNNING(ctx)) {
       atomic_store_8((int8_t *)&ctx->queryContinue, 1);
     } else if (0 == atomic_load_8((int8_t *)&ctx->queryInQueue)) {
-      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXEC, ctx->dynamicTask));
+      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXEC,
+                                     ctx->dynamicTask));
       atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
 
       QW_ERR_JRET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));

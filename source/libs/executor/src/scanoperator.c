@@ -954,15 +954,15 @@ static int32_t prepareTableScan(SOperatorInfo* pOperator) {
   qDebug("%s, prepareTableScan start", GET_TASKID(pOperator->pTaskInfo));
   SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
   if (pGetParam &&
-      *(ETableScanParamType*)pGetParam->value == NOTIFY_TYPE_SCAN_PARAM) {
-    STableScanOperatorTsParam* pTsParam =
-      (STableScanOperatorTsParam*)pGetParam->value;
+      *(ETableScanGetParamType*)pGetParam->value == NOTIFY_TYPE_SCAN_PARAM) {
+    STableScanOperatorParam* pNotify =
+      (STableScanOperatorParam*)pGetParam->value;
 
     STableScanInfo* pTableScanInfo = pOperator->info;
     SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
     SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
     code = pAPI->tsdReader.tsdReaderStepDone(pTableScanInfo->base.dataReader,
-                                             pTsParam->notifyTs);
+                                             pNotify->notifyTs);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -1305,7 +1305,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
   cleanupQueryTableDataCond(&pInfo->base.cond);
 
   SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
-  if (pGetParam && *(ETableScanParamType*)pGetParam == DYN_TYPE_SCAN_PARAM) {
+  if (pGetParam && *(ETableScanGetParamType*)pGetParam->value == DYN_TYPE_SCAN_PARAM) {
     STableScanOperatorParam* pParam = (STableScanOperatorParam*)pGetParam->value;
     pInfo->pBatchColMap = pParam->pBatchTbInfo;
     pParam->pBatchTbInfo = NULL;
@@ -2146,7 +2146,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   QUERY_CHECK_CODE(code, lino, _end);
 
   SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
-  if ((pGetParam && *(ETableScanParamType*)pGetParam == DYN_TYPE_SCAN_PARAM) ||
+  if ((pGetParam && *(ETableScanGetParamType*)pGetParam == DYN_TYPE_SCAN_PARAM) ||
       pInfo->pBatchColMap) {
     ETableScanDynType type = pGetParam ?
       ((STableScanOperatorParam*)pGetParam->value)->dynType :
@@ -2467,8 +2467,8 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
 
   pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
 
-  pOperator->fpSet = createOperatorFpSet(prepareTableScan, doTableScanNext, NULL,
-                                         destroyTableScanOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(prepareTableScan, doTableScanNext,
+                                         NULL, destroyTableScanOperatorInfo,
                                          optrDefaultBufFn,
                                          getTableScannerExecInfo,
                                          optrDefaultGetNextExtFn, NULL);
@@ -3805,7 +3805,7 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
   int32_t       lino = 0;
   STagScanInfo* pInfo = pOperator->info;
   SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
-  if (pGetParam && *(ETableScanParamType*)pGetParam == DYN_TYPE_SCAN_PARAM) {
+  if (pGetParam && *(ETableScanGetParamType*)pGetParam == DYN_TYPE_SCAN_PARAM) {
     pOperator->resultInfo.totalRows = 0;
     pOperator->dynamicTask = true;
     pInfo->curPos = 0;

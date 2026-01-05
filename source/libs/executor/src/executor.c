@@ -14,6 +14,7 @@
  */
 
 #include "executor.h"
+#include <bits/stdint-intn.h>
 #include <stdint.h>
 #include "cmdnodes.h"
 #include "dataSinkInt.h"
@@ -23,6 +24,7 @@
 #include "operator.h"
 #include "osMemPool.h"
 #include "osMemory.h"
+#include "osSleep.h"
 #include "planner.h"
 #include "query.h"
 #include "querytask.h"
@@ -31,6 +33,7 @@
 #include "taosdef.h"
 #include "tarray.h"
 #include "tdatablock.h"
+#include "tlog.h"
 #include "tref.h"
 #include "trpc.h"
 #include "tudf.h"
@@ -2301,5 +2304,28 @@ int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pT
 end:
   // taosArrayDestroy(uidListCopy);
   tableListDestroy(pList);
+  return code;
+}
+
+int32_t notifyTableScanTask(qTaskInfo_t tinfo, TSKEY notifyTs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (pTaskInfo->pRoot != NULL) {
+    SOperatorInfo* pOperator = pTaskInfo->pRoot;
+    if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+      SStorageAPI* pApi = &pOperator->pTaskInfo->storageAPI;
+      code = pApi->tsdReader.tsdReaderStepDone(
+        ((STableScanInfo*)pOperator->info)->base.dataReader, notifyTs);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+  qDebug("%s succeed to notify table scan operator", GET_TASKID(pTaskInfo));
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s, failed to notify table scan operator, since:%s",
+           GET_TASKID(pTaskInfo), tstrerror(code));
+  }
   return code;
 }

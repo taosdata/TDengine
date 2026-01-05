@@ -12895,7 +12895,7 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
-      ETableScanParamType paramType = *(ETableScanParamType *)pOpParam->value;
+      ETableScanGetParamType paramType = *(ETableScanGetParamType *)pOpParam->value;
       switch (paramType) {
         case DYN_TYPE_SCAN_PARAM: {
           STableScanOperatorParam *pScan = (STableScanOperatorParam *)pOpParam->value;
@@ -12976,11 +12976,11 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
           break;
         }
         case NOTIFY_TYPE_SCAN_PARAM: {
-          STableScanOperatorTsParam *pTsParam =
-            (STableScanOperatorTsParam *)pOpParam->value;
+          STableScanOperatorParam *pNotify =
+            (STableScanOperatorParam *)pOpParam->value;
 
-          TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pTsParam->paramType));
-          TAOS_CHECK_RETURN(tEncodeI64(pEncoder, (int64_t)(pTsParam->notifyTs)));
+          TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pNotify->paramType));
+          TAOS_CHECK_RETURN(tEncodeI64(pEncoder, (int64_t)(pNotify->notifyTs)));
           break;
         }
         default: {
@@ -13023,11 +13023,12 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
-      ETableScanParamType paramType;
+      ETableScanGetParamType paramType;
       TAOS_CHECK_RETURN(tDecodeI32(pDecoder, (int32_t *)&paramType));
       switch (paramType) {
         case DYN_TYPE_SCAN_PARAM: {
-          pOpParam->value = taosMemoryMalloc(sizeof(STableScanOperatorParam));
+          pOpParam->value = taosMemoryCalloc(1,
+                                             sizeof(STableScanOperatorParam));
           if (NULL == pOpParam->value) {
             TAOS_CHECK_RETURN(terrno);
           }
@@ -13150,13 +13151,15 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
           break;
         }
         case NOTIFY_TYPE_SCAN_PARAM: {
-          pOpParam->value = taosMemoryMalloc(sizeof(STableScanOperatorTsParam));
+          pOpParam->value = taosMemoryCalloc(1,
+                                             sizeof(STableScanOperatorParam));
           if (NULL == pOpParam->value) {
             TAOS_CHECK_RETURN(terrno);
           }
-          STableScanOperatorTsParam *pTsParam = pOpParam->value;
-          pTsParam->paramType = paramType;
-          TAOS_CHECK_RETURN(tDecodeI64(pDecoder, (int64_t *)&pTsParam->notifyTs));
+          STableScanOperatorParam *pNotify = pOpParam->value;
+          pNotify->paramType = paramType;
+          TAOS_CHECK_RETURN(tDecodeI64(pDecoder,
+                                       (int64_t *)&pNotify->notifyTs));
           break;
         }
         default:
