@@ -224,3 +224,12 @@ class TestSLimitLimit:
         tdSql.query("select tbname, 1 from sta group by tbname limit 0")
         tdSql.checkRows(0)
         
+        tdSql.query("select tbname, top(f1, 2) from sta group by tbname slimit 1")
+        tdSql.checkRows(2)
+        
+        tdSql.query("select tbname, top(f1, 2) from sta group by tbname limit 1")
+        tdSql.checkRows(2)
+        
+        tdSql.query("select tbname, top(f1, 2) from sta group by tbname slimit 1 limit 1")
+        tdSql.checkRows(1)
+        
