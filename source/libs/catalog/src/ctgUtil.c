@@ -2373,13 +2373,14 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
         TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
       if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
         res->pRawRes->pass[AUTH_RES_BASIC] = true;
-        goto _return;
       }
+      goto _return; // return directly for normal/super table
     } else {
       if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, false)) {
         res->pRawRes->pass[AUTH_RES_BASIC] = true;
         goto _return;
       }
+      // check super table privilege
     }
 
     if (stbName) {

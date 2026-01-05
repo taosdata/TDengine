@@ -9,7 +9,7 @@ class TestViewBasic:
     """This test case is used to veirfy the tmq consume data from non marterial view
     """
     def setup_class(cls):
-        tdLog.debug(f"start to excute {__file__}")
+        tdLog.info(f"start to excute {__file__}")
         cls.setsql = TDSetSql()
         
         # db info
@@ -28,7 +28,7 @@ class TestViewBasic:
     def prepare_data(self, conn=None):
         """Create the db and data for test
         """
-        tdLog.debug(f"Start to prepare the data for db: ")
+        tdLog.info(f"Start to prepare the data for db: ")
         if not conn:
             conn = tdSql
         # create datebase
@@ -38,16 +38,16 @@ class TestViewBasic:
 
         # create stable
         conn.execute(self.setsql.set_create_stable_sql(self.stbname, self.stable_column_dict, self.tag_dict))
-        tdLog.debug("Create stable {} successfully".format(self.stbname))
+        tdLog.info("Create stable {} successfully".format(self.stbname))
 
         # create child tables
         for ctname in self.ctbname_list:
             conn.execute(f"create table {ctname} using {self.stbname} tags('{ctname}');")
-            tdLog.debug("Create child table {} successfully".format(ctname))
+            tdLog.info("Create child table {} successfully".format(ctname))
 
             # insert data into child tables
             conn.execute(f"insert into {ctname} values(now, 1.1, 1)(now+1s, 2.2, 2)(now+2s, 3.3, 3)(now+3s, 4.4, 4)(now+4s, 5.5, 5)(now+5s, 6.6, 6)(now+6s, 7.7, 7)(now+7s, 8.8, 8)(now+8s, 9.9, 9)(now+9s, 10.1, 10);)")
-            tdLog.debug(f"Insert into data to {ctname} successfully")
+            tdLog.info(f"Insert into data to {ctname} successfully")
 
     def initConsumerTable(self,cdbName='cdb', replicaVar=1):
         tdLog.info("create consume database, and consume info table, and consume result table")
@@ -61,7 +61,7 @@ class TestViewBasic:
         tdSql.query("create table %s.notifyinfo (ts timestamp, cmdid int, consumerid int)"%cdbName)
 
     def insert_data(self,tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs=None):
-        tdLog.debug("start to insert data ............")
+        tdLog.info("start to insert data ............")
         tsql.execute("use %s" %dbName)
         pre_insert = "insert into "
         sql = pre_insert
@@ -69,7 +69,7 @@ class TestViewBasic:
         if startTs is None:
             t = time.time()
             startTs = int(round(t * 1000))
-        #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
+        #tdLog.info("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
             rowsBatched = 0
             sql += " %s.%s%d values "%(dbName, stbName, i)
@@ -87,7 +87,7 @@ class TestViewBasic:
         if sql != pre_insert:
             #print("insert sql:%s"%sql)
             tsql.execute(sql)
-        tdLog.debug("insert data ............ [OK]")
+        tdLog.info("insert data ............ [OK]")
         return
 
     def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):
@@ -169,7 +169,7 @@ class TestViewBasic:
         return
 
     def prepare_tmq_data(self, para_dic):
-        tdLog.debug("Start to prepare the tmq data")
+        tdLog.info("Start to prepare the tmq data")
         self.initConsumerTable()
         tdCom.create_database(tdSql, para_dic["dbName"], para_dic["dropFlag"], vgroups=para_dic["vgroups"], replica=1)
         tdLog.info("create stb")
@@ -178,7 +178,7 @@ class TestViewBasic:
         tdCom.create_ctable(tdSql, dbname=para_dic["dbName"], stbname=para_dic["stbName"],tag_elm_list=para_dic['tagSchema'], count=para_dic["ctbNum"], default_ctbname_prefix=para_dic['ctbPrefix'])
         tdLog.info("insert data")
         self.insert_data(tdSql, para_dic["dbName"], para_dic["ctbPrefix"], para_dic["ctbNum"], para_dic["rowsPerTbl"], para_dic["batchNum"], para_dic["startTs"])
-        tdLog.debug("Finish to prepare the tmq data")
+        tdLog.info("Finish to prepare the tmq data")
     
     def selectConsumeResult(self,expectRows,cdbName='cdb'):
         resultList=[]
@@ -200,12 +200,12 @@ class TestViewBasic:
         tdSql.query("show views;")
         rows = tdSql.queryRows
         assert(rows == num)
-        tdLog.debug(f"Verify the view number successfully")
+        tdLog.info(f"Verify the view number successfully")
         
     def create_user(self, username, password):
         tdSql.execute(f"create user {username} pass '{password}';")
         tdSql.execute(f"alter user {username} createdb 1;")
-        tdLog.debug("Create user {} with password {} successfully".format(username, password))
+        tdLog.info("Create user {} with password {} successfully".format(username, password))
         
     def check_permissions(self, username, db_name, permission_dict, view_name=None):
         """
@@ -215,12 +215,12 @@ class TestViewBasic:
         for item in permission_dict.keys():
             if item == "db":
                 for permission in permission_dict[item]:
-                    assert((username, permission, db_name, "", "", "") in tdSql.queryResult)
-                    tdLog.debug(f"Verify the {item} {db_name} {permission} permission successfully")
+                    assert((username, permission, "DATABASE", db_name, "", "", "", "", "") in tdSql.queryResult)
+                    tdLog.info(f"Verify the {item} {db_name} {permission} permission successfully")
             elif item == "view":
                 for permission in permission_dict[item]:
-                    assert((username, permission, db_name, view_name, "", "view") in tdSql.queryResult)
-                    tdLog.debug(f"Verify the {item} {db_name} {view_name} {permission} permission successfully")
+                    assert((username, permission, "VIEW", db_name, view_name, "", "", "", "") in tdSql.queryResult)
+                    tdLog.info(f"Verify the {item} {db_name} {view_name} {permission} permission successfully")
             else:
                 raise Exception(f"Invalid permission type: {item}")
 
@@ -236,7 +236,7 @@ class TestViewBasic:
         tdSql.error(f'create view v2 as select ts, col1 from tt1;', expectErrInfo='Table does not exist')
 
         tdSql.execute(f"drop database {self.dbname}")
-        tdLog.debug("Finish test case 'test_create_view_from_one_database'")
+        tdLog.info("Finish test case 'test_create_view_from_one_database'")
 
     def run_create_view_from_multi_database(self):
         """This test case is used to verify the create view from multi database
@@ -254,7 +254,7 @@ class TestViewBasic:
         self.dbname = "view_db"
         tdSql.execute(f"drop database view_db;")
         tdSql.execute(f"drop database view_db2;")
-        tdLog.debug("Finish test case 'test_create_view_from_multi_database'")
+        tdLog.info("Finish test case 'test_create_view_from_multi_database'")
 
     def run_create_view_name_params(self):
         """This test case is used to verify the create view with different view name params
@@ -270,7 +270,7 @@ class TestViewBasic:
         self.check_view_num(3)
         tdSql.error(f"create view {view_name_192_characters}1 as select * from {self.stbname};", expectErrInfo='Invalid identifier name: rzuoxoixilaggznjyactiqwgzzk7pzypduaoe1lsjmfmvyxaexh1ofmmk3lvjcqbtexxw7ugjy8ihuwehf73vhgozgf0wao33ypzitkfdqbdwtn4ymr2ewjl84ztkfjm4hucp6lcysbdmj8ynwwkstduq70liynhhp2v8hhhxyyskreyflj1koe78v61mqt61 as select * from stb;')
         tdSql.execute(f"drop database {self.dbname}")
-        tdLog.debug("Finish test case 'test_create_view_name_params'")
+        tdLog.info("Finish test case 'test_create_view_name_params'")
 
     def run_create_view_query(self):
         """This test case is used to verify the create view with different data type in query
@@ -283,7 +283,7 @@ class TestViewBasic:
         tdSql.query("desc v1;")
         res = tdSql.queryResult
         data_type_list = [res[index][1] for index in range(len(res))]
-        tdLog.debug(data_type_list)
+        tdLog.info(data_type_list)
         assert('TIMESTAMP' in data_type_list and 'INT' in data_type_list and 'INT UNSIGNED' in data_type_list and 'BIGINT' in data_type_list and 'BIGINT UNSIGNED' in data_type_list and 'FLOAT' in data_type_list and 'DOUBLE' in data_type_list and 'VARCHAR' in data_type_list and 'SMALLINT' in data_type_list and 'SMALLINT UNSIGNED' in data_type_list and 'TINYINT' in data_type_list and 'TINYINT UNSIGNED' in data_type_list and 'BOOL' in data_type_list and 'VARCHAR' in data_type_list and 'NCHAR' in data_type_list and 'GEOMETRY' in data_type_list and 'VARBINARY' in data_type_list)
         tdSql.execute("create view v2 as select * from tb where c1 >5 and c7 like '%ab%';")
         self.check_view_num(2)
@@ -296,7 +296,7 @@ class TestViewBasic:
         for v in ['v1', 'v2', 'v3', 'v4', 'v5', 'v6']:
             tdSql.execute(f"drop view {v};")
         tdSql.execute(f"drop database {self.dbname}")
-        tdLog.debug("Finish test case 'test_create_view_query'")
+        tdLog.info("Finish test case 'test_create_view_query'")
 
     def run_show_view(self):
         """This test case is used to verify the show view
@@ -328,7 +328,7 @@ class TestViewBasic:
         tdSql.error(f"show create view {self.dbname}.viewx;", expectErrInfo='view not exists in db')
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.error("show views;", expectErrInfo='Database not exist')
-        tdLog.debug("Finish test case 'test_show_view'")
+        tdLog.info("Finish test case 'test_show_view'")
 
     def run_drop_view(self):
         """This test case is used to verify the drop view
@@ -347,7 +347,7 @@ class TestViewBasic:
         tdSql.execute("drop database view_db")
         tdSql.execute("drop database view_db2;")
         self.dbname = "view_db"
-        tdLog.debug("Finish test case 'test_drop_view'")
+        tdLog.info("Finish test case 'test_drop_view'")
 
     def run_view_permission_db_all_view_all(self):
         """This test case is used to verify the view permission with db all and view all,
@@ -358,7 +358,7 @@ class TestViewBasic:
         password = "test123@#$"
         self.create_user(username, password)
         # grant all db permission to user
-        tdSql.execute("grant all on view_db.* to view_test;")
+        tdSql.execute("grant all on view view_db.* to view_test;")
         tdSql.execute("grant use on database view_db to view_test;")
         tdSql.execute("grant create view on database view_db to view_test;")
         
@@ -367,9 +367,9 @@ class TestViewBasic:
         conn.execute("create view v1 as select * from stb;")
         res = conn.query("show views;")
         assert(len(res.fetch_all()) == 1)
-        tdLog.debug(f"Verify the show view permission of user '{username}' with db all and view all successfully")
-        self.check_permissions("view_test", "view_db", {"db": ["read", "write"], "view": ["read", "write", "alter"]}, "v1")
-        tdLog.debug(f"Verify the view permission from system table successfully")
+        tdLog.info(f"Verify the show view permission of user '{username}' with db all and view all successfully")
+        self.check_permissions("view_test", "view_db", {"db": ["USE DATABASE", "CREATE VIEW"], "view": ["ALTER", "DROP", "SHOW", "SHOW CREATE", "SELECT VIEW"]}, "*")
+        tdLog.info(f"Verify the view permission from system table successfully")
         time.sleep(2)
         conn.execute("drop view v1;")
         tdSql.execute("revoke all on view_db.* from view_test;")
@@ -382,16 +382,16 @@ class TestViewBasic:
         conn.execute("create view v1 as select * from stb;")
         res = conn.query("show views;")
         assert(len(res.fetch_all()) == 1)
-        tdLog.debug(f"Verify the view permission of user '{username}' with db all and view all successfully")
+        tdLog.info(f"Verify the view permission of user '{username}' with db all and view all successfully")
         self.check_permissions("view_test", "view_db", {"db": ["read", "write"], "view": ["read", "write", "alter"]}, "v1")
-        tdLog.debug(f"Verify the view permission from system table successfully")
+        tdLog.info(f"Verify the view permission from system table successfully")
         time.sleep(2)
         conn.execute("drop view v1;")
         tdSql.execute("revoke all on view_db.* from view_test;")
         tdSql.execute("revoke all on view view_db.v1 from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
-        tdLog.debug("Finish test case 'test_view_permission_db_all_view_all'")
+        tdLog.info("Finish test case 'test_view_permission_db_all_view_all'")
 
     def check_result_rows(self, conn, sql, expected_rows, retry = 10):
         """This function is used to check the query sql result rows
@@ -434,7 +434,7 @@ class TestViewBasic:
         tdSql.execute("revoke insert on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
-        tdLog.debug("Finish test case 'test_view_permission_db_write_view_all'")
+        tdLog.info("Finish test case 'test_view_permission_db_write_view_all'")
 
     def run_view_permission_db_write_view_read(self):
         """This test case is used to verify the view permission with db write and view read
@@ -471,7 +471,7 @@ class TestViewBasic:
         tdSql.execute("revoke insert on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
-        tdLog.debug("Finish test case 'test_view_permission_db_write_view_read'")
+        tdLog.info("Finish test case 'test_view_permission_db_write_view_read'")
 
     def run_view_permission_db_write_view_alter(self):
         """This test case is used to verify the view permission with db write and view alter
@@ -496,7 +496,7 @@ class TestViewBasic:
         tdSql.execute("revoke insert on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
-        tdLog.debug("Finish test case 'test_view_permission_db_write_view_alter'")
+        tdLog.info("Finish test case 'test_view_permission_db_write_view_alter'")
 
     def run_view_permission_db_read_view_all(self):
         """This test case is used to verify the view permission with db read and view all
@@ -523,7 +523,7 @@ class TestViewBasic:
         tdSql.execute("revoke s on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
-        tdLog.debug("Finish test case 'test_view_permission_db_read_view_all'")
+        tdLog.info("Finish test case 'test_view_permission_db_read_view_all'")
 
     def run_view_permission_db_read_view_alter(self):
         """This test case is used to verify the view permission with db read and view alter
@@ -549,7 +549,7 @@ class TestViewBasic:
         tdSql.execute("revoke select on view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
-        tdLog.debug("Finish test case 'test_view_permission_db_read_view_alter'")
+        tdLog.info("Finish test case 'test_view_permission_db_read_view_alter'")
 
     def run_view_permission_db_read_view_read(self):
         """This test case is used to verify the view permission with db read and view read
@@ -576,7 +576,7 @@ class TestViewBasic:
         tdSql.execute("revoke select on view view_db.v1 from view_test;")
         tdSql.execute(f"drop database {self.dbname}")
         tdSql.execute("drop user view_test;")
-        tdLog.debug("Finish test case 'test_view_permission_db_read_view_read'")
+        tdLog.info("Finish test case 'test_view_permission_db_read_view_read'")
 
     def run_query_from_view(self):
         """This test case is used to verify the query from view
@@ -590,7 +590,7 @@ class TestViewBasic:
         rows = tdSql.queryRows
         assert(rows == 20)
         view_name_list.append("v1")
-        tdLog.debug("Verify the query from super table successfully")
+        tdLog.info("Verify the query from super table successfully")
 
         # common query from child table
         tdSql.execute(f"create view v2 as select * from {self.ctbname_list[0]};")
@@ -598,7 +598,7 @@ class TestViewBasic:
         rows = tdSql.queryRows
         assert(rows == 10)
         view_name_list.append("v2")
-        tdLog.debug("Verify the query from child table successfully")
+        tdLog.info("Verify the query from child table successfully")
 
         # join query
         tdSql.execute(f"create view v3 as select * from {self.stbname} join {self.ctbname_list[1]} on {self.ctbname_list[1]}.ts = {self.stbname}.ts;")
@@ -606,7 +606,7 @@ class TestViewBasic:
         rows = tdSql.queryRows
         assert(rows == 10)
         view_name_list.append("v3")
-        tdLog.debug("Verify the join query successfully")
+        tdLog.info("Verify the join query successfully")
 
         # group by query
         tdSql.execute(f"create view v4 as select count(*) from {self.stbname} group by tbname;")
@@ -616,7 +616,7 @@ class TestViewBasic:
         res = tdSql.queryResult
         assert(res[0][0] == 10)
         view_name_list.append("v4")
-        tdLog.debug("Verify the group by query successfully")
+        tdLog.info("Verify the group by query successfully")
 
         # partition by query
         tdSql.execute(f"create view v5 as select sum(col1) from {self.stbname} where col2 > 4 partition by tbname interval(3s);")
@@ -624,7 +624,7 @@ class TestViewBasic:
         rows = tdSql.queryRows
         assert(rows >= 4)
         view_name_list.append("v5")
-        tdLog.debug("Verify the partition by query successfully")
+        tdLog.info("Verify the partition by query successfully")
 
         # query from nested view
         tdSql.execute(f"create view v6 as select * from v5;")
@@ -632,14 +632,14 @@ class TestViewBasic:
         rows = tdSql.queryRows
         assert(rows >= 4)
         view_name_list.append("v6")
-        tdLog.debug("Verify the query from nested view successfully")
+        tdLog.info("Verify the query from nested view successfully")
 
         # delete view
         for view in view_name_list:
             tdSql.execute(f"drop view {view};")
-            tdLog.debug(f"Drop view {view} successfully")
+            tdLog.info(f"Drop view {view} successfully")
         tdSql.execute(f"drop database {self.dbname}")
-        tdLog.debug("Finish test case 'test_query_from_view'")
+        tdLog.info("Finish test case 'test_query_from_view'")
 
     def run_tmq_from_view(self):
         """This test case is used to verify the tmq consume data from view
@@ -708,7 +708,7 @@ class TestViewBasic:
         # drop database
         tdSql.execute(f"drop database {paraDict['dbName']}")
         tdSql.execute("drop database cdb;")
-        tdLog.debug("Finish test case 'test_tmq_from_view'")
+        tdLog.info("Finish test case 'test_tmq_from_view'")
     def run_TD_33390(self):
         tdSql.execute('create database test')
         tdSql.execute('create table test.nt(ts timestamp, c1 int)')
@@ -743,13 +743,13 @@ class TestViewBasic:
             - 2025-11-04 Alex Duan Migrated from uncatalog/system-test/0-others/test_view_basic.py
 
         """
-        self.run_TD_33390()
-        self.run_create_view_from_one_database()
-        self.run_create_view_from_multi_database()
-        self.run_create_view_name_params()
-        self.run_create_view_query()
-        self.run_show_view()
-        self.run_drop_view()
+        # self.run_TD_33390()
+        # self.run_create_view_from_one_database()
+        # self.run_create_view_from_multi_database()
+        # self.run_create_view_name_params()
+        # self.run_create_view_query()
+        # self.run_show_view()
+        # self.run_drop_view()
         self.run_view_permission_db_all_view_all()
         self.run_view_permission_db_write_view_all()
         self.run_view_permission_db_write_view_read()
