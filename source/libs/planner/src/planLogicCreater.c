@@ -2524,18 +2524,12 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
-static bool checkPrimaryKeySort(SSelectStmt* pSelect, SNodeList* pOrderByList) {
-  SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pOrderByList, 0);
-  SNode*            pExpr = firstSortKey->pExpr;
-  if (pSelect->timeLineFromOrderBy == ORDER_UNKNOWN) {
-    if (pExpr && ((SExprNode*)pExpr)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      pSelect->timeLineFromOrderBy = firstSortKey->order;
-      return true;
-    }
+static bool isPrimaryKeySort(SNodeList* pOrderByList) {
+  SNode* pExpr = ((SOrderByExprNode*)nodesListGetNode(pOrderByList, 0))->pExpr;
+  if (QUERY_NODE_COLUMN != nodeType(pExpr)) {
     return false;
-  } else {
-    return isPrimaryKeyImpl(pExpr);
   }
+  return isPrimaryKeyImpl(pExpr);
 }
 
 static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
@@ -2553,10 +2547,9 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pSort->node.groupAction = pSort->groupSort ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
   pSort->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
 
-  pSort->node.resultDataOrder =
-      checkPrimaryKeySort(pSelect, pSelect->pOrderByList)  // 以 order 是否用主键排序来判断输出是否有序
-          ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
-          : DATA_ORDER_LEVEL_NONE;
+  pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
+                                    ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
+                                    : DATA_ORDER_LEVEL_NONE;
   if (pCxt->pPlanCxt->streamCalcQuery && nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
       ((SRealTableNode*)pSelect->pFromTable)->placeholderType == SP_PARTITION_ROWS) {
     pSort->skipPKSortOpt = true;
