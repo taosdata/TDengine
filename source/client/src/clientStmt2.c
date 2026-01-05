@@ -1278,7 +1278,6 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
   pStmt->bInfo.needParse = true;
   pStmt->sql.status = STMT_INIT;
   pStmt->sql.siInfo.tableColsReady = true;
-  pStmt->execSemWaited = false;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1490,6 +1489,11 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
     if (NULL == pDataBlock) {
       STMT2_ELOG("table %s not found in exec blockHash:%p", pStmt->bInfo.tbFName, pStmt->exec.pBlockHash);
       STMT_ERR_RET(TSDB_CODE_TSC_STMT_CACHE_ERROR);
+    }
+    if (pStmt->sql.stbInterlaceMode && (*pDataBlock)->pData->pCreateTbReq) {
+      tdDestroySVCreateTbReq((*pDataBlock)->pData->pCreateTbReq);
+      taosMemoryFreeClear((*pDataBlock)->pData->pCreateTbReq);
+      (*pDataBlock)->pData->pCreateTbReq = NULL;
     }
   }
   if (pStmt->bInfo.inExecCache && !pStmt->sql.autoCreateTbl) {
