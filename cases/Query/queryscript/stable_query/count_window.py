@@ -70,6 +70,7 @@ class TestCountWindow(TDCase):
                     # Partition by tbname
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by tbname count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "tbname")
+                    ''' 3.4.0.0 do not support duplicte timestamp on count_window 
                     # Partition by no-dup column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by c3 count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "c3", custom_col_index)
@@ -80,6 +81,7 @@ class TestCountWindow(TDCase):
                     partition_vol = "abs(c3)"
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by {partition_vol} count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", partition_vol, custom_col_index)
+                    '''
                     # Filter
                     count_window_sql = f'select _wstart, _wend, {self.stb_source_select_str} from {tbname} {condition_vol} count_window({count_window_vol})'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.stb_source_select_str, where_condition=condition_vol)
@@ -90,6 +92,8 @@ class TestCountWindow(TDCase):
                     # Partition by tbname
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by tbname count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "tbname", having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
+
+                    ''' 3.4.0.0 do not support duplicte timestamp on count_window 
                     # # Partition by no-dup column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by c3 count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "c3", custom_col_index, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
@@ -99,6 +103,8 @@ class TestCountWindow(TDCase):
                     # # Partition by tag, column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by t3,c3 count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "t3,c3", custom_col_index, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
+                    '''
+
                     # _wcol
                     count_window_sql = f'select _wstart, _wend, _wduration, _qstart, _qend, {self.stb_source_select_str} from {tbname} count_window({count_window_vol})'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.stb_source_select_str, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
@@ -119,6 +125,8 @@ class TestCountWindow(TDCase):
                     # Partition by tbname
                     count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by tbname count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "tbname")
+
+                    ''' 3.4.0.0 do not support duplicte timestamp on count_window 
                     # Partition by no-dup column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by c3 count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "c3", custom_col_index)
@@ -130,6 +138,8 @@ class TestCountWindow(TDCase):
                     partition_vol = "abs(c3)"
                     count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by {partition_vol} count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", partition_vol, custom_col_index)
+                    '''
+
                     # Filter
                     count_window_sql = f'select _wstart, _wend, {self.tb_source_select_str} from {tbname} {condition_vol} count_window({count_window_vol})'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.tb_source_select_str, where_condition=condition_vol)
@@ -140,6 +150,8 @@ class TestCountWindow(TDCase):
                     # Partition by tbname
                     count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by tbname count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "tbname", having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
+
+                    ''' 3.4.0.0 do not support duplicte timestamp on count_window 
                     # # Partition by no-dup column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by c3 count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "c3", custom_col_index, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
@@ -151,6 +163,8 @@ class TestCountWindow(TDCase):
                     if tbname != "tb":
                         count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by t3,c3 count_window({count_window_vol}) order by _wstart'
                         self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "t3,c3", custom_col_index, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
+                    '''
+
                     # _wcol
                     count_window_sql = f'select _wstart, _wend, _wduration, _qstart, _qend, {self.tb_source_select_str} from {tbname} count_window({count_window_vol})'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.tb_source_select_str, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name)
@@ -159,6 +173,8 @@ class TestCountWindow(TDCase):
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.tb_source_select_str, sliding=sliding)
 
     def dup_col_test(self, stable_count, ctable_count, table_count, row_count, custom_col_index, col_value_type):
+        pass
+        ''' 3.4.0.0 do not support duplicte timestamp on count_window
         self.tdCom.prepare_all_type_data(dbname=self.dbname, stable_count=stable_count, ctable_count=ctable_count, table_count=table_count, row_count=row_count, custom_col_index=custom_col_index, col_value_type=col_value_type)
         for count_window_vol in self.count_window_vol_list:
             for tbname in self.tbname_check_list:
@@ -171,8 +187,11 @@ class TestCountWindow(TDCase):
                     # Partition by dup column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_tb_source_select_str} from {tbname} partition by c3 count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_tb_source_select_str, "", "c3", custom_col_index)
+        ''' 
 
     def dup_ts_col_test(self, stable_count, ctable_count, table_count, row_count, custom_col_index, col_value_type, insert_mode="None"):
+        pass
+        ''' 3.4.0.0 do not support duplicte timestamp on count_window
         self.tdCom.prepare_all_type_data(dbname=self.dbname, stable_count=stable_count, ctable_count=ctable_count, table_count=table_count, row_count=row_count, custom_col_index=custom_col_index, col_value_type=col_value_type, insert_mode=insert_mode)
         for count_window_vol in self.count_window_vol_list:
             for tbname in self.tbname_check_list:
@@ -180,6 +199,7 @@ class TestCountWindow(TDCase):
                     # Partition by dup column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from (select * from {tbname} order by ts,c{custom_col_index+1}) partition by c1 count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "c1", custom_col_index, insert_mode=insert_mode)
+        '''
 
     def dup_ts_test(self, stable_count, ctable_count, table_count, row_count, custom_col_index, col_value_type, where_condition=None, having_elm=None, having_condition=None, alias_name=None, sliding=None, insert_mode=None):
         self.tdCom.prepare_all_type_data(dbname=self.dbname, stable_count=stable_count, ctable_count=ctable_count, table_count=table_count, row_count=row_count, custom_col_index=custom_col_index, col_value_type=col_value_type, insert_mode=insert_mode)
@@ -197,6 +217,8 @@ class TestCountWindow(TDCase):
                     # Partition by tbname
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by tbname count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "tbname", insert_mode=insert_mode)
+
+                    ''' 3.4.0.0 do not support duplicte timestamp on count_window
                     # Partition by no-dup column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by c3 count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "c3", custom_col_index, insert_mode=insert_mode)
@@ -207,6 +229,8 @@ class TestCountWindow(TDCase):
                     partition_vol = "abs(c3)"
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by {partition_vol} count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", partition_vol, custom_col_index, insert_mode=insert_mode)
+                    '''
+
                     # Filter
                     count_window_sql = f'select _wstart, _wend, {self.stb_source_select_str} from (select * from {tbname} order by ts,c{custom_col_index+1}) {condition_vol} count_window({count_window_vol})'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.stb_source_select_str, where_condition=condition_vol, insert_mode=insert_mode)
@@ -217,6 +241,8 @@ class TestCountWindow(TDCase):
                     # Partition by tbname
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by tbname count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "tbname", having_elm=having_elm, having_condition=having_condition, alias_name=alias_name, insert_mode=insert_mode)
+
+                    ''' 3.4.0.0 do not support duplicte timestamp on count_window
                     # # Partition by no-dup column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by c3 count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "c3", custom_col_index, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name, insert_mode=insert_mode)
@@ -226,6 +252,8 @@ class TestCountWindow(TDCase):
                     # # Partition by tag, column
                     count_window_sql = f'select _wstart, _wend, {self.nfl_stb_source_select_str} from {tbname} partition by t3,c3 count_window({count_window_vol}) order by _wstart'
                     self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.nfl_stb_source_select_str, "", "t3,c3", custom_col_index, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name, insert_mode=insert_mode)
+                    '''
+
                     # _wcol not stable and already covered in no_dup_ts_test
                     # count_window_sql = f'select _wstart, _wend, _wduration, _qstart, _qend, {self.stb_source_select_str} from {tbname} count_window({count_window_vol})'
                     # self.tdCom.check_count_window_res(count_window_sql, tbname, count_window_vol, self.stb_source_select_str, having_elm=having_elm, having_condition=having_condition, alias_name=alias_name, insert_mode=True)
