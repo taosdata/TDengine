@@ -70,28 +70,12 @@ int backChildTableData(DataThread* thread, const char *childTableName) {
         return taos_errno(res);
     }
 
-    // while fetch data
-    int numRows = 0;
-    int blockRows = 0;
-    void *block = NULL;
-    while (taos_fetch_raw_block(res, &blockRows, &block) == TSDB_CODE_SUCCESS) {
-        if (blockRows == 0 || block == NULL) {
-            continue;
-        }
-        // write block to file
-        if (format == BINARY_PARQUET) {
-            // parquet
-            code = writeBlockToFileParquet(fileName, block, blockRows);
-        } else {
-            // taos
-            code = writeBlockToFileTaos(fileName, block, blockRows);
-        }
-        if (code != TSDB_CODE_SUCCESS) {
-            logError("write data block to file failed(%d): %s", code, fileName);
-            taos_free_result(res);
-            return code;
-        }
-        numRows += blockRows;
+    if (format == BINARY_PARQUET) {
+        // parquet
+        code = resultToFileParquet(res, fileName);
+    } else {
+        // taos
+        code = resultToFileTaos(res, fileName);
     }
 
     // free

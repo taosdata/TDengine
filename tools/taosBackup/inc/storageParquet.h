@@ -20,6 +20,6 @@
 
 
 // ---------------- interface ----------------
-int writeBlockToFileParquet(const char *fileName, void *block, int blockRows);
+int resultToFileParquet(TAOS_RES *res, const char *fileName);
 
 #endif  // INC_STORAGE_PARQUET_H_

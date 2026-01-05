@@ -18,8 +18,17 @@
 // ---------------- define ----------------
 //
 
+//
+// ---------------- struct ----------------
+//
+typedef struct {
+    char *fileName;
+    FILE *fp;
+    // add members if needed
+} TaosFile;
+
 
 // ---------------- interface ----------------
-int writeBlockToFileTaos(const char *fileName, void *block, int blockRows);
+int resultToFileTaos(TAOS_RES *res, const char *fileName);
 
 #endif  // INC_STORAGE_TAOS_H_

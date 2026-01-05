@@ -14,7 +14,7 @@
 //
 // write block to parquet file
 //
-int writeBlockToFileParquet(const char *fileName, void *block, int blockRows) {
+int resultToFileParquet(TAOS_RES *res, const char *fileName) {
     int code = TSDB_CODE_FAILED;
 
     return code;
