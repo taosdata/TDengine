@@ -2582,11 +2582,6 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
       SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
 
       if (isPrimaryKeyImpl(firstSortKey->pExpr)) pSort->node.outputTsOrder = firstSortKey->order;
-      // if (isPrimaryKeyImpl(firstSortKey->pExpr)) {
-      //   pSort->node.outputTsOrder = firstSortKey->order;
-      // } else if (!pSelect->pWindow) {
-      //   setPrimaryKey();
-      // }
       if (firstSortKey->pExpr->type == QUERY_NODE_COLUMN) {
         SColumnNode* pCol = (SColumnNode*)firstSortKey->pExpr;
         int16_t      projIdx = 1;
