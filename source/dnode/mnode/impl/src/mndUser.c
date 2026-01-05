@@ -1028,12 +1028,11 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
   userObj.passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
   userObj.passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
-  // this is the root user, set some fields to -1 to allow the user login without restriction
-  userObj.sessionPerUser = -1;
-  userObj.failedLoginAttempts = -1;
-  userObj.passwordLifeTime = -1;
-  userObj.passwordGraceTime = -1;
-  userObj.inactiveAccountTime = -1;
+  userObj.sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
+  userObj.failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
+  userObj.passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
+  userObj.passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
+  userObj.inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
   userObj.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
   userObj.tokenNum = 0;
 
@@ -1043,6 +1042,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   }
   
   TAOS_CHECK_GOTO(createDefaultIpWhiteList(&userObj.pIpWhiteListDual), &lino, _ERROR);
+  // if this is the root user, change the value of some fields to allow the user login without restriction
   if (strcmp(user, TSDB_DEFAULT_USER) == 0) {
     userObj.superUser = 1;
     userObj.createdb = 1;
@@ -1051,10 +1051,10 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     userObj.vnodePerCall = -1;
     userObj.failedLoginAttempts = -1;
     userObj.passwordLifeTime = -1;
+    userObj.passwordGraceTime = -1;
     userObj.passwordLockTime = 1;
     userObj.inactiveAccountTime = -1;
     userObj.allowTokenNum = -1;
-    userObj.tokenNum = 0;
   }
 
   userObj.roles = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
