@@ -6,7 +6,7 @@
 set -e
 # set -x
 
-verMode=edge
+verMode=cluster
 pkgMode=full
 entMode=full
 
@@ -61,7 +61,7 @@ silent_mode=0
 
 # User mode variables (will be initialized in setup_env)
 user_mode=0
-default_path=""
+default_dir=""
 mode_desc=""
 sysctl_cmd=""
 
@@ -190,8 +190,8 @@ while getopts "hv:e:d:sq:" arg; do
     verType=$(echo $OPTARG)
     ;;
   d)
-    taosDir="${OPTARG%/}/${PREFIX}"
-    taosDir=$(eval echo "${taosDir}")
+    taos_dir="${OPTARG%/}/${PREFIX}"
+    taos_dir=$(eval echo "${taos_dir}")
     # user define install dir
     taos_dir_set=1
     ;;
@@ -202,8 +202,8 @@ while getopts "hv:e:d:sq:" arg; do
   q)
     silent_mode=1
     interactiveFqdn="no"
-    taosDir="${OPTARG%/}/${PREFIX}"
-    taosDir=$(eval echo "${taosDir}")
+    taos_dir="${OPTARG%/}/${PREFIX}"
+    taos_dir=$(eval echo "${taos_dir}")
     taos_dir_set=1
     ;;
   h)
@@ -244,13 +244,13 @@ function setup_env() {
   fi
 
   # 2. User mode detection
-  if [[ $EUID -eq 0 ]]; then
+  if [[ "$(id -u)" -eq 0 ]]; then
     user_mode=0
-    default_path="/usr/local/${PREFIX}"
+    default_dir="/usr/local/${PREFIX}"
     mode_desc="root (system-wide)"
   else
     user_mode=1
-    default_path="$HOME/${PREFIX}"
+    default_dir="$HOME/${PREFIX}"
     user="$(whoami)"
     mode_desc="user ($user)"
   fi
@@ -258,21 +258,21 @@ function setup_env() {
   # 3. Install directory setting
   if [[ $silent_mode -eq 0 && $taos_dir_set -eq 0 ]]; then
     while true; do
-      echo -ne "${GREEN_DARK}Do you want to install TDengine to the default path?${NC}" \
-               "${default_path}" \
+      echo -ne "${GREEN_DARK}Do you want to install TDengine to the default directory?${NC}" \
+               "${default_dir}" \
                "${GREEN_DARK}(Y/n)${NC}"
 
-      read -e -r -p " : " use_default_path
-      if [[ -z "$use_default_path" || "$use_default_path" =~ ^[Yy]$ ]]; then
-        taosDir="$default_path"
+      read -e -r -p " : " use_default_dir
+      if [[ -z "$use_default_dir" || "$use_default_dir" =~ ^[Yy]$ ]]; then
+        taos_dir="$default_dir"
         break
-      elif [[ "$use_default_path" =~ ^[Nn]$ ]]; then
-        echo -en "${GREEN_DARK}Please input new install path ${NC}"
-        read  -e -r -p " : " new_path
-        if [ -n "$new_path" ]; then
-          taosDir="${new_path%/}/${PREFIX}"
+      elif [[ "$use_default_dir" =~ ^[Nn]$ ]]; then
+        echo -en "${GREEN_DARK}Please input new install directory ${NC}"
+        read  -e -r -p " : " new_dir
+        if [ -n "$new_dir" ]; then
+          taos_dir="${new_dir%/}/${PREFIX}"
         else
-          taosDir="$default_path"
+          taos_dir="$default_dir"
         fi
         break
       else
@@ -280,30 +280,30 @@ function setup_env() {
       fi
     done
   else
-    log info "Detected install mode: $mode_desc"
     if [[ $taos_dir_set -eq 0 ]]; then
-      taosDir="$default_path"
+      taos_dir="$default_dir"
     fi
   fi
 
   # 4. Set directories based on user mode and OS type
   if [[ $user_mode -eq 0 ]]; then
     # Root user directories
-    installDir="${taosDir}"
+    installDir="${taos_dir}"
+    dataDir="/var/lib/${PREFIX}"
+    logDir="/var/log/${PREFIX}"
+    configDir="/etc/${PREFIX}"
     if [ "$osType" != "Darwin" ]; then
-      dataDir="/var/lib/${PREFIX}"
-      logDir="/var/log/${PREFIX}"
-      configDir="/etc/${PREFIX}"
       bin_link_dir="/usr/bin"
       lib_link_dir="/usr/lib"
       lib64_link_dir="/usr/lib64"
       inc_link_dir="/usr/include"
       service_config_dir="/etc/systemd/system"
       sysctl_cmd="systemctl"
+      # only for root user, create data/log/config dir links
+      cfg_link_dir="${installDir}/cfg"
+      data_link_dir="${installDir}/data"
+      log_link_dir="${installDir}/log"
     else
-      dataDir="${installDir}/data"
-      logDir=~/${productName}/log
-      configDir="/etc/${PREFIX}"
       bin_link_dir="/usr/local/bin"
       lib_link_dir="/usr/local/lib"
       lib64_link_dir=""
@@ -313,7 +313,7 @@ function setup_env() {
     fi
   else
     # Non-root user directories
-    installDir="${taosDir}"
+    installDir="${taos_dir}"
     dataDir="${installDir}/data"
     logDir="${installDir}/log"
     configDir="${installDir}/cfg"
@@ -340,7 +340,7 @@ function setup_env() {
     fi
   fi
   bin_dir="${installDir}/bin"
-  driver_path=${installDir}/driver
+  driver_dir=${installDir}/driver
   install_main_dir=${installDir}
   
   #  tools/services/config_files files setting
@@ -374,6 +374,7 @@ function setup_env() {
     fi
   fi
   
+  log info "Detected install mode: $mode_desc"
   log info "TDengine installation path: ${installDir}"
   log info "Data directory: ${dataDir}"
   log info "Log directory: ${logDir}"
@@ -408,21 +409,22 @@ function kill_process() {
 
 function install_main_path() {
   #create install main dir and all sub dir
-  if [ $taos_dir_set -eq 0 ] && [ $user_mode -eq 0 ]; then
-    rm -rf "${install_main_dir}/cfg" || :
+  if [[ $user_mode -eq 0 ]]; then
+    rm -rf "${data_link_dir}" || :
+    rm -rf "${log_link_dir}" || :
+    rm -rf "${cfg_link_dir}" || :
   fi
-  rm -rf "${install_main_dir}/bin" || :
-  rm -rf "${driver_path}/" || :
+  rm -rf "${bin_dir}" || :
+  rm -rf "${driver_dir}" || :
   rm -rf "${install_main_dir}/examples" || :
   rm -rf "${install_main_dir}/include" || :
   rm -rf "${install_main_dir}/share" || :
-  rm -rf ${install_main_dir}/log || :
 
-  mkdir -p ${install_main_dir}
-  mkdir -p ${install_main_dir}/cfg
-  mkdir -p "${install_main_dir}/bin"
+
   #  mkdir -p ${install_main_dir}/connector
-  mkdir -p "${driver_path}/"
+  mkdir -p ${install_main_dir}
+  mkdir -p "${bin_dir}" 
+  mkdir -p "${driver_dir}"
   mkdir -p "${install_main_dir}/examples"
   mkdir -p "${install_main_dir}/include"
   mkdir -p "${configDir}"
@@ -469,9 +471,6 @@ function install_bin() {
     if [ -d ${script_dir}/${xname}/bin ]; then
       cp -r ${script_dir}/${xname}/bin/* ${install_main_dir}/bin
     fi
-    if [ -e ${script_dir}/${xname}/uninstall_${xname}.sh ]; then
-      cp -r ${script_dir}/${xname}/uninstall_${xname}.sh ${install_main_dir}/uninstall_${xname}.sh
-    fi
   fi
 
   if [ -f ${script_dir}/bin/quick_deploy.sh ]; then
@@ -507,8 +506,6 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${service} ] && ln -sf ${install_main_dir}/bin/${service} ${bin_link_dir}/${service} || :
   done
 
-  [ -x ${install_main_dir}/uninstall_${xname}.sh ] && ln -sf ${install_main_dir}/uninstall_${xname}.sh ${bin_link_dir}/uninstall_${xname}.sh || :
-
   # Add TDengine bin to PATH and LD_LIBRARY_PATH for non-root users
   if [[ $user_mode -eq 1 ]]; then
     local env_file=""
@@ -521,7 +518,7 @@ function install_bin() {
     # Add PATH
     if ! grep -q "${install_main_dir}/bin" "$env_file" 2>/dev/null; then
       echo -e "\n# TDengine install path" >> "$env_file"
-      echo "export PATH=\"${install_main_dir}/bin:\$PATH\"" >> "$env_file"
+      echo "export PATH=\"${bin_link_dir}:\$PATH\"" >> "$env_file"
       log info "Added TDengine bin to PATH (${env_file})"
     fi
 
@@ -548,26 +545,26 @@ function install_lib() {
     rm -f ${lib64_link_dir}/libtaosws.* || :
   fi
   #rm -rf ${v15_java_app_dir}              || :
-  cp -rf ${script_dir}/driver/* ${driver_path}/ && chmod 777 ${driver_path}/*
+  cp -rf ${script_dir}/driver/* ${driver_dir}/ && chmod 777 ${driver_dir}/*
 
   # Link libraries based on OS type
   if [ "$osType" != "Darwin" ]; then
     # Linux specific linking
-    ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.so.3
+    ln -sf ${driver_dir}/libtaos.* ${lib_link_dir}/libtaos.so.3
     ln -sf ${lib_link_dir}/libtaos.so.3 ${lib_link_dir}/libtaos.so
-    ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.so.3
+    ln -sf ${driver_dir}/libtaosnative.* ${lib_link_dir}/libtaosnative.so.3
     ln -sf ${lib_link_dir}/libtaosnative.so.3 ${lib_link_dir}/libtaosnative.so
 
-    ln -sf ${driver_path}/libtaosws.so.* ${lib_link_dir}/libtaosws.so
+    ln -sf ${driver_dir}/libtaosws.so.* ${lib_link_dir}/libtaosws.so
 
     # Link lib64 if it exists
     if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
-      ln -sf ${driver_path}/libtaos.* ${lib64_link_dir}/libtaos.so.3 || :
+      ln -sf ${driver_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.3 || :
       ln -sf ${lib64_link_dir}/libtaos.so.3 ${lib64_link_dir}/libtaos.so || :
-      ln -sf ${driver_path}/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.3 || :
+      ln -sf ${driver_dir}/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.3 || :
       ln -sf ${lib64_link_dir}/libtaosnative.so.3 ${lib64_link_dir}/libtaosnative.so || :
 
-      ln -sf ${driver_path}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
+      ln -sf ${driver_dir}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so || :
     fi
 
     # Update library cache
@@ -576,12 +573,12 @@ function install_lib() {
     fi
   else
     # macOS specific linking
-    ln -sf ${driver_path}/libtaos.* ${lib_link_dir}/libtaos.3.dylib
+    ln -sf ${driver_dir}/libtaos.* ${lib_link_dir}/libtaos.3.dylib
     ln -sf ${lib_link_dir}/libtaos.3.dylib ${lib_link_dir}/libtaos.dylib
-    ln -sf ${driver_path}/libtaosnative.* ${lib_link_dir}/libtaosnative.3.dylib
+    ln -sf ${driver_dir}/libtaosnative.* ${lib_link_dir}/libtaosnative.3.dylib
     ln -sf ${lib_link_dir}/libtaosnative.3.dylib ${lib_link_dir}/libtaosnative.dylib
 
-    for f in ${driver_path}/libtaosws.dylib.*; do
+    for f in ${driver_dir}/libtaosws.dylib.*; do
       [ -f "$f" ] && ln -sf "$f" "${lib_link_dir}/libtaosws.dylib"
     done
     # Update dyld shared cache
@@ -592,10 +589,10 @@ function install_lib() {
 
   # Link jemalloc.so and tcmalloc.so (Linux only)
   if [ "$osType" != "Darwin" ]; then
-    jemalloc_file="${driver_path}/libjemalloc.so.2"
-    tcmalloc_file="${driver_path}/libtcmalloc.so.4.5.18"
-    [ -f "${jemalloc_file}" ] && ln -sf "${jemalloc_file}" "${driver_path}/libjemalloc.so" || echo "jemalloc file not found: ${jemalloc_file}"
-    [ -f "${tcmalloc_file}" ] && ln -sf "${tcmalloc_file}" "${driver_path}/libtcmalloc.so" || echo "tcmalloc file not found: ${tcmalloc_file}"
+    jemalloc_file="${driver_dir}/libjemalloc.so.2"
+    tcmalloc_file="${driver_dir}/libtcmalloc.so.4.5.18"
+    [ -f "${jemalloc_file}" ] && ln -sf "${jemalloc_file}" "${driver_dir}/libjemalloc.so" || echo "jemalloc file not found: ${jemalloc_file}"
+    [ -f "${tcmalloc_file}" ] && ln -sf "${tcmalloc_file}" "${driver_dir}/libtcmalloc.so" || echo "tcmalloc file not found: ${tcmalloc_file}"
   fi
   
 }
@@ -958,8 +955,7 @@ function install_taosd_config() {
       cp ${file_name} ${configDir}/${configFile}
     fi
   fi
-  if [ $taos_dir_set -eq 0 ] && [ $user_mode -eq 0 ]; then
-    rm -rf ${install_main_dir}/cfg || :
+  if [ $user_mode -eq 0 ]; then
     ln -sf "${configDir}" "${install_main_dir}/cfg"
   fi
 }
@@ -1029,15 +1025,15 @@ function install_log() {
         mkdir -p ${logDir} && chmod 777 ${logDir}
     fi
     
-    if [ $taos_dir_set -eq 0 ] && [ $user_mode -eq 0 ]; then
-      ln -sf ${logDir} ${install_main_dir}/log
+    if [ $user_mode -eq 0 ]; then
+      ln -sf ${logDir} ${log_link_dir}
     fi
 }
 
 function install_data() {
   mkdir -p ${dataDir}
-  if [ $taos_dir_set -eq 0 ] && [ $user_mode -eq 0 ]; then
-    ln -sf ${dataDir} ${install_main_dir}/data
+  if [ $user_mode -eq 0 ]; then
+    ln -sf ${dataDir} ${data_link_dir}
   fi
 }
 
@@ -1328,6 +1324,12 @@ function finished_install_info(){
       else
         entries+=("To read the user manual:|https://docs.tdengine.com")
       fi
+
+      if [ "$(id -u)" -ne 0 ]; then
+        entries+=("|")
+        entries+=("Note:|You are running ${productName} as a non-root user. Please make sure that your user has read/write permissions to the data directory (${dataDir}), log directory (${logDir}), and configuration directory (${configDir}).")
+      fi
+
     else
       entries+=("To configure ${PREFIX}d:|edit ${configDir}/${configFile}")
       entries+=("To start ${PREFIX}d:|${sysctl_cmd} start ${serverName}")
