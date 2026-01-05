@@ -710,6 +710,7 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
 
     parserDebug("merge same uid data: %" PRId64 ", vgId:%d", pTbCtx->pData->uid, pVgCxt->vgId);
 
+    taosArrayDestroy(pTbCtx->pData->aRowP);
     if (pTbCtx->pData->pCreateTbReq != NULL) {
       tdDestroySVCreateTbReq(pTbCtx->pData->pCreateTbReq);
       taosMemoryFree(pTbCtx->pData->pCreateTbReq);

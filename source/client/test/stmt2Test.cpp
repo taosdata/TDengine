@@ -3296,12 +3296,6 @@ TEST(stmt2Case, mixed_bind) {
     code = taos_stmt2_prepare(stmt, stmt_sql, 0);
     checkError(stmt, code, __FILE__, __LINE__);
 
-    int             fieldNum = 0;
-    TAOS_FIELD_ALL* pFields = NULL;
-    // code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
-    // checkError(stmt, code, __FILE__, __LINE__);
-    // ASSERT_EQ(fieldNum, 19);
-
     TAOS_STMT2_BIND* tags[2] = {&params_tags[0], &params_tags[0]};
     TAOS_STMT2_BIND* cols[2] = {&params_cols[0], &params_cols[0]};
     TAOS_STMT2_BINDV bindv = {2, &tbname[0 + k * 4], &tags[0], &cols[0]};
