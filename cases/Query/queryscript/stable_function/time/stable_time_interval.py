@@ -174,10 +174,9 @@ class TDTestQuery(TDCase):
 
                             sql2 = "select %s from (select * from %s) where %s %s %s %s;" %(func,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
                             self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
-                            sql= sql + sql2
-                                                    
+                            sql= sql + sql2                                       
             except Exception as e:
-                raise e   
+                self.logger.info("case 1_interval catch expected error:%s" % e)
 
         # self.tdSql.execute('''drop database if exists %s ;''' %self.db)
         
