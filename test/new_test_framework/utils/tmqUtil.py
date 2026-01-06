@@ -37,14 +37,18 @@ class TMQCom:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def waitTransactionZeroWithTsql(self, tsql):
-        for i in range(300):
-            sql ="show transactions;"
-            result = tsql.query(sql)
-            if result == 0:
+    def waitTransactionZeroWithTsql(self, tsql, timeout=300):
+        count = 0
+        while count < timeout:
+            sql = "show transactions;"
+            tsql.execute(sql)
+            result = tsql.fetchall()
+            if not result:
                 tdLog.info("transaction count became zero.")
                 return True
             time.sleep(1)
+            count += 1
+        tdLog.exit(f"Timeout after {timeout} seconds waiting for transaction count to become zero.")
 
     def initConsumerTable(self,cdbName='cdb', replicaVar=1):
         tdLog.info("create consume database, and consume info table, and consume result table")
