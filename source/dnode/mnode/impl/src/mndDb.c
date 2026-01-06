@@ -988,6 +988,13 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
                     NULL, _OVER);
     pNewUserDuped = &newUserObj;
   }
+#else
+  // Considering the efficiency of use db privileges in some scenarios like insert operation, owned DBs is stored.
+  if (!pUser->superUser) {
+    TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUserObj), NULL, _OVER);
+    TAOS_CHECK_GOTO(taosHashPut(newUserObj.ownedDbs, dbObj.name, strlen(dbObj.name) + 1, NULL, 0), NULL, _OVER);
+    pNewUserDuped = &newUserObj;
+  }
 #endif
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-db");

@@ -2513,7 +2513,12 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
         return TSDB_CODE_CTG_INTERNAL_ERROR;
       }
       if (!privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, dbPrivInfo, true)) {
-        return TSDB_CODE_SUCCESS;
+        SDbCfgInfo dbCfg = {0};
+        char       dbFName[TSDB_DB_FNAME_LEN];
+        (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
+        if (!taosHashGet(pInfo->ownedDbs, dbFName, strlen(dbFName) + 1)) {
+          return TSDB_CODE_SUCCESS;
+        }
       }
     }
     if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
@@ -2849,7 +2854,7 @@ uint64_t ctgGetDbVgroupCacheSize(SDBVgInfo* pVg) {
          taosArrayGetSize(pVg->vgArray) * sizeof(SVgroupInfo);
 }
 
-static uint64_t tGetPrivObjPoliciesSize(SHashObj* pHash) {
+static uint64_t tGetHashKvSize(SHashObj* pHash) {
   uint64_t totalSize = 0;
   int32_t  nPolicies = taosHashGetSize((SHashObj*)pHash);
   if (nPolicies > 0) {
@@ -2990,10 +2995,11 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp* pAuth) {
     ref = taosHashIterate(pAuth->useDbs, ref);
   }
 #endif
-  cacheSize += tGetPrivObjPoliciesSize(pAuth->objPrivs);
+  cacheSize += tGetHashKvSize(pAuth->objPrivs);
   cacheSize += tGetPrivTblPoliciesSize(pAuth->selectTbs);
   cacheSize += tGetPrivTblPoliciesSize(pAuth->insertTbs);
   cacheSize += tGetPrivTblPoliciesSize(pAuth->deleteTbs);
+  cacheSize += tGetHashKvSize(pAuth->ownedDbs);
 
   return cacheSize;
 }

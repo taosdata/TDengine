@@ -1804,6 +1804,7 @@ typedef struct {
   SHashObj* selectTbs;
   SHashObj* insertTbs;
   SHashObj* deleteTbs;
+  SHashObj* ownedDbs;
   int64_t   whiteListVer;
 
   SUserSessCfg sessCfg;

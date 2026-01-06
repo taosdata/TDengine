@@ -1133,6 +1133,15 @@ static int32_t tSerializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj) {
     TAOS_CHECK_EXIT(tEncodeU8(&encoder, flag));  // value: 0 reset, 1 set(default)
   }
 
+  int32_t nOwnedDbs = taosHashGetSize(pObj->ownedDbs);
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nOwnedDbs));
+  pIter = NULL;
+  while ((pIter = taosHashIterate(pObj->ownedDbs, pIter))) {
+    size_t keyLen = 0;
+    char  *key = taosHashGetKey(pIter, &keyLen);  // key: dbFName
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, key));
+  }
+
   tEndEncode(&encoder);
   tlen = encoder.pos;
 _exit:
@@ -1171,6 +1180,23 @@ static int32_t tDeserializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj)
       uint8_t flag = 0;
       TAOS_CHECK_EXIT(tDecodeU8(&decoder, &flag));
       TAOS_CHECK_EXIT(taosHashPut(pObj->roles, key, keyLen + 1, &flag, sizeof(flag)));
+    }
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    int32_t nOwnedDbs = 0;
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &nOwnedDbs));
+    if (nOwnedDbs > 0) {
+      if (!pObj->ownedDbs &&
+          !(pObj->ownedDbs =
+                taosHashInit(nOwnedDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), 1, HASH_ENTRY_LOCK))) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t i = 0; i < nOwnedDbs; ++i) {
+        int32_t keyLen = 0;
+        char   *key = NULL;
+        TAOS_CHECK_EXIT(tDecodeCStrAndLen(&decoder, &key, &keyLen));
+        TAOS_CHECK_EXIT(taosHashPut(pObj->ownedDbs, key, keyLen + 1, NULL, 0));
+      }
     }
   }
 
@@ -2034,30 +2060,6 @@ int32_t mndDupTableHash(SHashObj *pOld, SHashObj **ppNew) {
   TAOS_RETURN(code);
 }
 
-int32_t mndDupUseDbHash(SHashObj *pOld, SHashObj **ppNew) {
-  int32_t code = 0;
-  *ppNew =
-      taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-  if (*ppNew == NULL) {
-    TAOS_RETURN(terrno);
-  }
-
-  int32_t *db = taosHashIterate(pOld, NULL);
-  while (db != NULL) {
-    size_t keyLen = 0;
-    char  *key = taosHashGetKey(db, &keyLen);
-
-    if ((code = taosHashPut(*ppNew, key, keyLen, db, sizeof(*db))) != 0) {
-      taosHashCancelIterate(pOld, db);
-      taosHashCleanup(*ppNew);
-      TAOS_RETURN(code);
-    }
-    db = taosHashIterate(pOld, db);
-  }
-
-  TAOS_RETURN(code);
-}
-
 int32_t mndDupRoleHash(SHashObj *pOld, SHashObj **ppNew) {
   if (!(*ppNew = taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
                               HASH_ENTRY_LOCK))) {
@@ -2155,6 +2157,27 @@ _exit:
   TAOS_RETURN(code);
 }
 
+int32_t mndDupKVHash(SHashObj *pOld, SHashObj **ppNew) {
+  if (!(*ppNew = taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+                              HASH_ENTRY_LOCK))) {
+    TAOS_RETURN(terrno);
+  }
+  int32_t code = 0;
+  void   *val = NULL;
+  while ((val = taosHashIterate(pOld, val))) {
+    size_t klen = 0;
+    char  *key = taosHashGetKey(val, &klen);
+    size_t vlen = taosHashGetValueSize(val);
+    if ((code = taosHashPut(*ppNew, key, klen, vlen > 0 ? val : NULL, vlen)) != 0) {
+      taosHashCancelIterate(pOld, val);
+      taosHashCleanup(*ppNew);
+      TAOS_RETURN(code);
+    }
+  }
+
+  TAOS_RETURN(code);
+}
+
 int32_t mndDupPrivObjHash(SHashObj *pOld, SHashObj **ppNew) {
   if (!(*ppNew = taosHashInit(taosHashGetSize(pOld), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
                              HASH_ENTRY_LOCK))) {
@@ -2228,6 +2251,7 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   pNew->insertTbs = NULL;
   pNew->updateTbs = NULL;
   pNew->deleteTbs = NULL;
+  pNew->ownedDbs = NULL;
   pNew->pTimeWhiteList = NULL;
   pNew->roles = NULL;
 
@@ -2238,6 +2262,7 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
     goto _OVER;
   }
   (void)memcpy(pNew->passwords, pUser->passwords, pUser->numOfPasswords * sizeof(SUserPassword));
+  TAOS_CHECK_GOTO(mndDupKVHash(pUser->ownedDbs, &pNew->ownedDbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupPrivObjHash(pUser->objPrivs, &pNew->objPrivs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->selectTbs, &pNew->selectTbs, false), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->insertTbs, &pNew->insertTbs, false), NULL, _OVER);
@@ -2262,6 +2287,7 @@ _OVER:
 }
 
 void mndUserFreeObj(SUserObj *pUser) {
+  taosHashCleanup(pUser->ownedDbs);
   taosHashCleanup(pUser->objPrivs);
   taosHashCleanup(pUser->selectTbs);
   taosHashCleanup(pUser->insertTbs);
@@ -2271,6 +2297,7 @@ void mndUserFreeObj(SUserObj *pUser) {
   taosMemoryFreeClear(pUser->passwords);
   taosMemoryFreeClear(pUser->pIpWhiteListDual);
   taosMemoryFreeClear(pUser->pTimeWhiteList);
+  pUser->ownedDbs = NULL;
   pUser->objPrivs = NULL;
   pUser->selectTbs = NULL;
   pUser->insertTbs = NULL;
@@ -2317,6 +2344,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   (void)memcpy(pOld->salt, pNew->salt, sizeof(pOld->salt));
   (void)memcpy(pOld->totpsecret, pNew->totpsecret, sizeof(pOld->totpsecret));
   pOld->sysPrivs = pNew->sysPrivs;
+  TSWAP(pOld->ownedDbs, pNew->ownedDbs);
   TSWAP(pOld->objPrivs, pNew->objPrivs);
   TSWAP(pOld->selectTbs, pNew->selectTbs);
   TSWAP(pOld->insertTbs, pNew->insertTbs);

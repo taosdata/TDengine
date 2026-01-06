@@ -628,7 +628,7 @@ typedef struct {
   // SHashObj* readViews;
   // SHashObj* writeViews;
   // SHashObj* alterViews;
-  // SHashObj* useDbs;
+  SHashObj* ownedDbs;  // k:dbFName, v: empty
   SRWLatch  lock;
   int8_t    passEncryptAlgorithm;
 } SUserObj;

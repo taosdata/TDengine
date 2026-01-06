@@ -36,6 +36,7 @@ int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo);
 // for trans test
 SSdbRaw *mndUserActionEncode(SUserObj *pUser);
 int32_t  mndDupDbHash(SHashObj *pOld, SHashObj **ppNew);
+int32_t  mndDupKVHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndDupTableHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndDupTopicHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndDupRoleHash(SHashObj *pOld, SHashObj **ppNew);

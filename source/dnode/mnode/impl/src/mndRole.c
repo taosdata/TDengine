@@ -1062,6 +1062,7 @@ static int32_t mndRetrieveColPrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBl
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
+#if 0
   int32_t   cols = 0;
   SRoleObj *pObj = NULL;
   char     *pBuf = NULL, *qBuf = NULL;
@@ -1120,7 +1121,7 @@ static int32_t mndRetrieveColPrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBl
       //   }
       // }
       // skip db, table, condition, notes, columns, update_time
-      COL_DATA_SET_EMPTY_VARCHAR(pBuf, 6);
+      COL_DATA_SET_EMPTY_VARCHAR(pBuf, 7);
       numOfRows++;
     }
 
@@ -1135,6 +1136,7 @@ _exit:
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
+#endif
   return numOfRows;
 }
 
