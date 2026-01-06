@@ -2,6 +2,7 @@
 
 set +e
 #set -x
+
 if [[ "$OSTYPE" == "darwin"* ]]; then
   TD_OS="Darwin"
 else
@@ -51,12 +52,10 @@ asan=$(cat "${LOG_DIR}"/*.asan)
 
 # ---------- 3. 统计 ----------
 # non_32: 真泄漏（非 32 字节）
-non_32=$(  grep -E "Direct leak(?! of 32 byte)" <<<"$asan" |
-            grep -Ev "$ignore_pat" | wc -l)
+non_32=$(grep -E "Direct leak(?! of 32 byte)" <<< "$asan" | grep -Ev "$ignore_pat" | wc -l)
 
 # byte32: 32 字节且非白名单
-byte32=$(  grep -E "Direct leak of 32 byte" <<<"$asan" |
-            grep -Ev "$ignore_pat" | wc -l)
+byte32=$(grep -E "Direct leak of 32 byte" <<< "$asan" | grep -Ev "$ignore_pat" | wc -l)
 
 # ---------- 4. 判断 ----------
 if [[ $archOs == *aarch64* ]]; then
