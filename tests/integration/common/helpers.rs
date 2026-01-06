@@ -91,6 +91,17 @@ pub fn generate_test_table_name(prefix: &str) -> String {
     )
 }
 
+pub fn terminate_process(pid: u32) {
+    if cfg!(windows) {
+        // do nothing;
+    } else if let Err(err) = nix::sys::signal::kill(
+        nix::unistd::Pid::from_raw(pid as i32),
+        nix::sys::signal::SIGTERM,
+    ) {
+        eprintln!("Failed to terminate process {}: {}", pid, err);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

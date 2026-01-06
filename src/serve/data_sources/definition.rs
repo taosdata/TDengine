@@ -936,6 +936,115 @@ mod tests {
     use super::*;
 
     #[test]
+    fn authentication_is_none_checks_all_fields() {
+        let mut auth = Authentication::default();
+        assert!(auth.is_none());
+
+        auth.display = Some("Display".into());
+        assert!(!auth.is_none());
+
+        auth.display = None;
+        auth.alternatives.push(AuthItem {
+            name: "token".into(),
+            ..Default::default()
+        });
+        assert!(!auth.is_none());
+    }
+
+    #[test]
+    fn hint_type_parse_value_handles_integer_bounds() {
+        let mut hint = HintType::Integer {
+            value: None,
+            min: Some(1),
+            max: Some(5),
+            default: None,
+        };
+        assert!(!hint.parse_value("0"));
+        assert!(hint.parse_value("3"));
+        if let HintType::Integer {
+            value, min, max, ..
+        } = &hint
+        {
+            assert_eq!(*min, Some(1));
+            assert_eq!(*max, Some(5));
+            assert_eq!(*value, Some(3));
+        } else {
+            panic!("expected integer hint");
+        }
+        assert!(!hint.parse_value("10"));
+    }
+
+    #[test]
+    fn hint_type_parse_value_respects_string_choices() {
+        let mut hint = HintType::Str {
+            value: None,
+            choices: vec!["alpha".into(), "beta".into()],
+            default: None,
+        };
+        assert!(!hint.parse_value("gamma"));
+        assert!(hint.parse_value("alpha"));
+        if let HintType::Str { value, .. } = hint {
+            assert_eq!(value, Some("alpha".to_string()));
+        } else {
+            panic!("expected string hint");
+        }
+    }
+
+    #[test]
+    fn hint_type_parse_value_parses_bool_and_time() {
+        let mut bool_hint = HintType::Bool {
+            value: None,
+            default: None,
+        };
+        assert!(bool_hint.parse_value("true"));
+        if let HintType::Bool { value, .. } = bool_hint {
+            assert_eq!(value, Some(true));
+        } else {
+            panic!("expected bool hint");
+        }
+        assert!(
+            !HintType::Bool {
+                value: None,
+                default: None
+            }
+            .parse_value("not-bool")
+        );
+
+        let mut time_hint = HintType::Time {
+            value: None,
+            default: None,
+        };
+        assert!(time_hint.parse_value("2024-01-01T00:00:00Z"));
+        if let HintType::Time { value, .. } = time_hint {
+            assert_eq!(value, Some("2024-01-01T00:00:00+00:00".to_string()));
+        } else {
+            panic!("expected time hint");
+        }
+        assert!(
+            !HintType::Time {
+                value: None,
+                default: None
+            }
+            .parse_value("invalid-time")
+        );
+    }
+
+    #[test]
+    fn definitions_is_none_when_hints_absent() {
+        let mut defs = Definitions::default();
+        assert!(defs.is_none());
+
+        defs.hints.push(HintDefinition {
+            name: "h".into(),
+            r#type: "string".into(),
+            choices: vec![],
+            min: None,
+            max: None,
+        });
+        assert!(!defs.is_none());
+    }
+
+    #[test]
     fn test() {
         use std::str::FromStr;
         let json = include_str!("en/tmq.yaml");

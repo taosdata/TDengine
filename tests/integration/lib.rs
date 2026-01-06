@@ -3,21 +3,15 @@
 /// This module provides the foundation for all taosX integration tests.
 /// It organizes tests by category:
 ///
-/// - `core`: Core functionality (TMQ, backup, replication)
-/// - `datasources`: Data source connector tests
-/// - `e2e`: End-to-end scenario tests
 /// - `common`: Shared fixtures and utilities
-#[cfg(test)]
-mod common;
+/// - `core`: Core functionality (TMQ, backup, replication)
+/// - `e2e`: End-to-end scenario tests
+/// - `datasources`: Data source connector tests
+pub mod common;
+pub mod core;
 
 #[cfg(test)]
-#[path = "datasources/mod.rs"]
 mod datasources;
-
-#[cfg(test)]
-#[path = "core/mod.rs"]
-mod core;
-
 #[cfg(test)]
 mod e2e;
 

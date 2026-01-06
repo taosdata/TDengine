@@ -129,6 +129,12 @@ pub struct TestContext {
     pub db_name: String,
 }
 
+impl Default for TestContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TestContext {
     /// Create a new test context with a unique database
     pub fn new() -> Self {
