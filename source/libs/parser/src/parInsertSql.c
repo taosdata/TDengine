@@ -2976,6 +2976,10 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
             clonedVal.cid = pSchema->colId;
             code = tSimpleHashPut(pCxt->pParsedValues, &pSchema->colId, sizeof(int16_t), &clonedVal, sizeof(SColVal));
             if (code != TSDB_CODE_SUCCESS) {
+              if (COL_VAL_IS_VALUE(&clonedVal) && IS_VAR_DATA_TYPE(clonedVal.value.type)) {
+                taosMemoryFree(clonedVal.value.pData);
+                clonedVal.value.pData = NULL;
+              }
               return code;
             }
           }
@@ -3355,7 +3359,7 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
       if (TSDB_CODE_SUCCESS == code) {
         code = parseValueToken(pCxt, pSql, pToken, pSchema, pExtSchema, getTableInfo(pTableCxt->pMeta).precision, pVal);
 
-        if (TSDB_CODE_SUCCESS == code && NULL != pCxt->pComCxt->pStmtCb) {
+        if (TSDB_CODE_SUCCESS == code && pCxt->pComCxt->stmtBindVersion!=0) {
           if (NULL == pCxt->pParsedValues) {
             pCxt->pParsedValues =
                 tSimpleHashInit(pCols->numOfBound, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
@@ -3378,6 +3382,10 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
 
           code = tSimpleHashPut(pCxt->pParsedValues, &pSchema->colId, sizeof(int16_t), &clonedVal, sizeof(SColVal));
           if (code != TSDB_CODE_SUCCESS) {
+            if (COL_VAL_IS_VALUE(&clonedVal) && IS_VAR_DATA_TYPE(clonedVal.value.type)) {
+              taosMemoryFree(clonedVal.value.pData);
+              clonedVal.value.pData = NULL;
+            }
             break;
           }
         }
