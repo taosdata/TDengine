@@ -1015,12 +1015,17 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
   userObj.sysInfo = 1;
   userObj.enable = 1;
+
+#ifdef TD_ENTERPRISE
+
 #ifdef TD_ALLOW_DEFAULT_PASSWORD
   userObj.changePass = 2; // 2: allow but not force user to change password
 #else
   userObj.changePass = 1; // 1: force user to change password
 #endif
+
   userObj.ipWhiteListVer = taosGetTimestampMs();
+  userObj.timeWhiteListVer = userObj.ipWhiteListVer;
   userObj.connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
   userObj.connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
   userObj.callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
@@ -1035,6 +1040,30 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
   userObj.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
   userObj.tokenNum = 0;
+
+#else // TD_ENTERPRISE
+
+  userObj.ipWhiteListVer = 0;
+  userObj.timeWhiteListVer = 0;
+  userObj.changePass = 2; // 2: allow but not force user to change password
+  userObj.connectTime = -1;
+  userObj.connectIdleTime = -1;
+  userObj.callPerSession = -1;
+  userObj.vnodePerCall = -1;
+  userObj.passwordReuseTime = 0;
+  userObj.passwordReuseMax = 0;
+  userObj.passwordLockTime = -1;
+  userObj.sessionPerUser = -1;
+  userObj.failedLoginAttempts = -1;
+  userObj.passwordLifeTime = -1;
+  userObj.passwordGraceTime = -1;
+  userObj.inactiveAccountTime = -1;
+  userObj.allowTokenNum = -1;
+  userObj.tokenNum = 0;
+
+#endif // TD_ENTERPRISE
+
+
 
   userObj.pTimeWhiteList = taosMemoryCalloc(1, sizeof(SDateTimeWhiteList));
   if (userObj.pTimeWhiteList == NULL) {
@@ -2512,6 +2541,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.createdb = pCreate->createDb;
   userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
 
+#ifdef TD_ENTERPRISE
+
   userObj.changePass = pCreate->changepass;
   userObj.sessionPerUser = pCreate->sessionPerUser;
   userObj.connectTime = pCreate->connectTime;
@@ -2634,6 +2665,35 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
 
   userObj.ipWhiteListVer = taosGetTimestampMs();
   userObj.timeWhiteListVer = userObj.ipWhiteListVer;
+
+#else // TD_ENTERPRISE
+
+  userObj.changePass = 1;
+  userObj.sessionPerUser = -1;
+  userObj.connectTime = -1;
+  userObj.connectIdleTime = -1;
+  userObj.callPerSession = -1;
+  userObj.vnodePerCall = -1;
+  userObj.failedLoginAttempts = -1;
+  userObj.passwordLifeTime = -1;
+  userObj.passwordReuseTime = 0;
+  userObj.passwordReuseMax = 0;
+  userObj.passwordLockTime = -1;
+  userObj.passwordGraceTime = -1;
+  userObj.inactiveAccountTime = -1;
+  userObj.allowTokenNum = -1;
+  userObj.tokenNum = 0;
+
+  TAOS_CHECK_GOTO(createDefaultIpWhiteList(&userObj.pIpWhiteListDual), &lino, _OVER);
+  userObj.pTimeWhiteList = (SDateTimeWhiteList*)taosMemoryCalloc(1, sizeof(SDateTimeWhiteList));
+  if (userObj.pTimeWhiteList == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  }
+
+  userObj.ipWhiteListVer = 0;
+  userObj.timeWhiteListVer = 0;
+
+#endif // TD_ENTERPRISE
 
   userObj.roles = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (userObj.roles == NULL) {
@@ -3615,6 +3675,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     newUser.createdb = pAlterReq->createdb;
   }
 
+#ifdef TD_ENTERPRISE
   if (pAlterReq->hasChangepass) {
     auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "changepass:%d,", pAlterReq->changepass);
     newUser.changePass = pAlterReq->changepass;
@@ -3862,6 +3923,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     newUser.pTimeWhiteList = p;
     newUser.timeWhiteListVer++;
   }
+#endif // TD_ENTERPRISE
 
   TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq), &lino, _OVER);
   code = TSDB_CODE_ACTION_IN_PROGRESS;
