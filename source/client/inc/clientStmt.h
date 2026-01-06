@@ -66,7 +66,7 @@ typedef struct SStmtBindInfo {
   bool     tagsCached;
   uint8_t  tbNameFlag;
   void    *boundTags;
-  char     tbName[TSDB_TABLE_FNAME_LEN];
+  char     tbName[TSDB_TABLE_NAME_LEN];
   char     tbFName[TSDB_TABLE_FNAME_LEN];
   char     stbFName[TSDB_TABLE_FNAME_LEN];
   SName    sname;

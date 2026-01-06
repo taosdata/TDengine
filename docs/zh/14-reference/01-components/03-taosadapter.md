@@ -15,7 +15,7 @@ TDengine 的各语言连接器通过 WebSocket 接口与 TDengine 进行通信�
 
 架构图如下：
 
-![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
+![TDengine Database taosAdapter Architecture](taosAdapter-architecture.png)
 
 ## 功能列表
 
@@ -862,7 +862,7 @@ curl --location 'http://127.0.0.1:6041/record_sql' \
   ```sql
    select * from t1
    where c1 = "ab"
-   ```
+  ```
 
    csv 文件中的记录为：
 

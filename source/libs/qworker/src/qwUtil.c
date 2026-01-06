@@ -418,16 +418,16 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   atomic_store_ptr(&ctx->sinkHandle, NULL);
   atomic_store_ptr(&ctx->pJobInfo, NULL);
   atomic_store_ptr(&ctx->memPoolSession, NULL);
+  atomic_store_ptr(&ctx->tbInfo, NULL);
 
   QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_DROP);
 
   if (taosHashRemove(mgmt->ctxHash, id, sizeof(id))) {
     QW_TASK_ELOG_E("taosHashRemove from ctx hash failed");
-    code = QW_CTX_NOT_EXISTS_ERR_CODE(mgmt);
+    return QW_CTX_NOT_EXISTS_ERR_CODE(mgmt);
   }
 
   qwFreeTaskCtx(QW_FPARAMS(), &octx);
-  ctx->tbInfo = NULL;
 
   QW_TASK_DLOG_E("task ctx dropped");
   

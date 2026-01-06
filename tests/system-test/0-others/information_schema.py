@@ -223,7 +223,7 @@ class TDTestCase:
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         tdSql.checkRows(333)
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkRows(64)
+        tdSql.checkRows(65)
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
@@ -278,6 +278,7 @@ class TDTestCase:
             'view':'View',
             'audit':'Audit',
             'storage':'Multi-Tier Storage',
+            "data_sync":'Data Synchronization',
             'backup_restore':'Data Backup & Restore',
             'object_storage':'Object Storage',
             'active_active':'Active-Active',
@@ -303,6 +304,7 @@ class TDTestCase:
             'sparkplugb':"SparkplugB",
             'orc':'ORC',
             'kinghist':'KingHistorian',
+            'pulsar':'Pulsar',
             'idmp_ts_attr':'TDengine IDMP Time-Series Attributes',
             'idmp_nts_attr':'TDengine IDMP Non-Time-Series Attributes',
             'idmp_element':'TDengine IDMP Elements',

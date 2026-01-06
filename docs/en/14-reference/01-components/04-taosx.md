@@ -310,7 +310,7 @@ As shown below:
 # default global request timeout which unit is second. This parameter takes effect for certain interfaces that require a timeout setting
 #request_timeout = 30
 
-# GRPC listen address，use ip:port like `0.0.0.0:6055`.
+# GRPC listen address; use ip:port like `0.0.0.0:6055`.
 #
 # When use this in explorer, please set explorer grpc configuration to **Public** IP or
 # FQDN with correct port, which might be changed exposing to Public network.

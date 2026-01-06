@@ -490,10 +490,9 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
     }
 
     if (t->check == 1) {
-      STableKeyInfo info = {.groupId = 0, .uid = t->childUid};
-      code = isQualifiedTable(&info, pScanInfo->pTagCond, pScanInfo->readHandle.vnode, &qualified, pAPI);
+      code = isQualifiedTable(t->childUid, pScanInfo->pTagCond, pScanInfo->readHandle.vnode, &qualified, pAPI);
       if (code != TSDB_CODE_SUCCESS) {
-        qError("failed to filter new table, uid:0x%" PRIx64 ", %s", info.uid, idstr);
+        qError("failed to filter new table, uid:0x%" PRIx64 ", %s", t->childUid, idstr);
         continue;
       }
 
@@ -1815,4 +1814,65 @@ void qResetTaskCode(qTaskInfo_t tinfo) {
   int32_t code = pTaskInfo->code;
   pTaskInfo->code = 0;
   qDebug("0x%" PRIx64 " reset task code to be success, prev:%s", pTaskInfo->id.taskId, tstrerror(code));
+}
+
+static int32_t doFilterTableByTagCond(void* pVnode, void* pListInfo, SArray* pUidList, SNode* pTagCond, SStorageAPI* pStorageAPI){
+  bool   listAdded = false;
+  int32_t code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, true, &listAdded);
+  if (code == 0 && !listAdded) {
+    int32_t numOfTables = taosArrayGetSize(pUidList);
+    for (int i = 0; i < numOfTables; i++) {
+      void* tmp = taosArrayGet(pUidList, i);
+      if (tmp == NULL) {
+        return terrno;
+      }
+      STableKeyInfo info = {.uid = *(uint64_t*)tmp, .groupId = 0};
+
+      void* p = taosArrayPush(((STableListInfo*)pListInfo)->pTableList, &info);
+      if (p == NULL) {
+        return terrno;
+      }
+    }
+  }
+  return code;
+}
+
+int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  STableListInfo* pList = tableListCreate();
+  if (pList == NULL) {
+    code = terrno;
+    goto end;
+  }
+  // SArray* uidListCopy = taosArrayDup(uidList, NULL);
+  // if (uidListCopy == NULL) {
+  //   code = terrno;
+  //   goto end;
+  // }
+
+  SNode* pTagCond = node == NULL ? NULL : ((SSubplan*)node)->pTagCond;
+  pList->idInfo.suid = suid;
+  pList->idInfo.tableType = TD_SUPER_TABLE;
+  code = doFilterTableByTagCond(pVnode, pList, uidList, pTagCond, &((SExecTaskInfo*)pTaskInfo)->storageAPI);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }                                              
+  // taosArrayClear(uidList);
+  // for (int32_t i = 0; i < taosArrayGetSize(uidListCopy); i++){
+  //   void* tmp = taosArrayGet(uidListCopy, i);
+  //   if (tmp == NULL) {
+  //     continue;
+  //   }
+  //   int32_t* slot = taosHashGet(pList->map, tmp, LONG_BYTES);
+  //   if (slot == NULL) {
+  //     if (taosArrayPush(uidList, tmp) == NULL) {
+  //       code = terrno;
+  //       goto end;
+  //     }
+  //   }
+  // }
+end:
+  // taosArrayDestroy(uidListCopy);
+  tableListDestroy(pList);
+  return code;
 }

@@ -309,7 +309,7 @@ static const SSysDbTableSchema vgroupsSchema[] = {
     {.name = "v4_status", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "v4_applied/committed", .bytes = TSDB_SYNC_APPLY_COMMIT_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "is_ready", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
-    {.name = "cacheload", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "cacheload", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
     {.name = "cacheelements", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "tsma", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
     {.name = "keep_version", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
@@ -569,6 +569,7 @@ static const SSysDbTableSchema connectionsSchema[] = {
     {.name = "user_ip", .bytes = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "native_version", .bytes = TSDB_VERSION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
     {.name = "connector_info", .bytes = CONNECTOR_INFO_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
+    {.name = "type", .bytes = 16 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
 };
 
 static const SSysDbTableSchema consumerSchema[] = {
