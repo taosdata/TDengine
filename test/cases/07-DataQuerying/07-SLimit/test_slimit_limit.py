@@ -120,6 +120,7 @@ class TestSLimitLimit:
         tdSql.checkRows(1)
         
         self.GroupAggWithSlimit()
+        self.GroupAggWithOffset()
 
     def GroupAggWithSlimit(self):
         tdSql.execute(f"drop database if exists db1;")
@@ -233,4 +234,57 @@ class TestSLimitLimit:
             
             tdSql.query("select tbname, top(f1, 2) from sta group by tbname slimit 1 limit 1")
             tdSql.checkRows(1)
+     
+    def GroupAggWithOffset(self):
+        tdSql.execute(f"drop database if exists db2;")
+        tdSql.execute(f"create database db2 vgroups 1;")
+        tdSql.execute(f"use db2;")
+        tdSql.execute(
+            f"create stable stb (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);"
+        )
+        tdSql.execute(f"create table tb1 using stb tags(1, 1, 1);")
+        tdSql.execute(f"create table tb2 using stb tags(2, 2, 2);")
+        
+        for batch in range(0, 5):
+            sql = "insert into tb1 values"
+            for i in range(0, 1000):
+                ts = 1650957301000 + batch * 1000 + i
+                f1 = batch * 1000 + i
+                sql += f" ({ts}, {f1}, \"a\"),"
+            sql = sql.rstrip(",") + ";"
+            tdSql.execute(sql)
+        
+ 
+        for batch in range(0, 5):
+            sql = "insert into tb2 values"
+            for i in range(0, 1000):
+                ts = 1650957301000 + batch * 1000 + i
+                f1 = 10000 + batch * 1000 + i
+                sql += f" ({ts}, {f1}, \"b\"),"
+            sql = sql.rstrip(",") + ";"
+            tdSql.execute(sql)    
+            
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1)")
+        tdSql.checkRows(5001)            
+            
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 2000 offset 4100")
+        tdSql.checkRows(901)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 100 offset 4100")
+        tdSql.checkRows(100)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 5000 offset 500")
+        tdSql.checkRows(4501)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 100 offset 500")
+        tdSql.checkRows(100)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1000)")
+        tdSql.checkRows(6000)            
+            
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1000) limit 2000 offset 4100")
+        tdSql.checkRows(1900)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1000) limit 6000 offset 500")
+        tdSql.checkRows(5500)
         
