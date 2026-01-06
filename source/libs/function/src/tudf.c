@@ -866,6 +866,12 @@ void *decodeUdfResponse(const void *buf, SUdfResponse *rsp) {
       buf = decodeUdfSetupResponse(buf, &rsp->setupRsp);
       break;
     case UDF_TASK_CALL:
+      if (rsp->code) {
+        fnError("udf response failed, code:0x%x", rsp->code);
+
+        return NULL;
+      }
+
       buf = decodeUdfCallResponse(buf, &rsp->callRsp);
       break;
     case UDF_TASK_TEARDOWN:
