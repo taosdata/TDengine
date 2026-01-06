@@ -37,12 +37,12 @@ class TMQCom:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def waitTransactionZeroWithTsql(self, tsql, timeout=300):
+    def waitTransactionZeroWithTdsql(self, td_sql, timeout=300):
         count = 0
         while count < timeout:
             sql = "show transactions;"
-            tsql.execute(sql)
-            result = tsql.fetchall()
+            td_sql.execute(sql)
+            result = td_sql.fetchall()
             if not result:
                 tdLog.info("transaction count became zero.")
                 return True
@@ -180,8 +180,11 @@ class TMQCom:
             tsql.execute("drop database if exists %s"%(dbName))
 
         tsql.execute("create database if not exists %s vgroups %d replica %d"%(dbName, vgroups, replica))
-        tdLog.debug("complete to create database %s"%(dbName))
-        self.waitTransactionZeroWithTsql(tsql)
+        create_db_statu = self.waitTransactionZeroWithTdsql(tsql)
+        if not create_db_statu:
+            tdLog.exit("Transaction did not reach zero, aborting test.")
+        else:
+            tdLog.debug("complete to create database %s"%(dbName))
         return
 
     # self.create_stable() and self.create_ctable() and self.insert_data_interlaceByMultiTbl() : The three functions are matched

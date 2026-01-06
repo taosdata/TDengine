@@ -422,9 +422,9 @@ class TDCom:
     ########################################################################################################################################
     # new common API
     ########################################################################################################################################
-    def create_database(self,tsql, dbName='test',dropFlag=1,**kwargs):
+    def create_database(self,td_sql, dbName='test',dropFlag=1,**kwargs):
         if dropFlag == 1:
-            tsql.execute("drop database if exists %s"%(dbName))
+            td_sql.execute("drop database if exists %s"%(dbName))
         '''
         vgroups replica precision strict wal fsync comp cachelast single_stable buffer pagesize pages minrows maxrows duration keep retentions
         '''
@@ -440,11 +440,16 @@ class TDCom:
             sqlString += f'{dbParams}'
 
         tdLog.debug("create db sql: %s"%sqlString)
-        tsql.execute(sqlString)
-        tdLog.debug("complete to create database %s"%(dbName))
+        td_sql.execute(sqlString)
+        create_db_statu = self.waitTransactionZeroWithTsql(td_sql)
+        if not create_db_statu:
+            # 这里可以加异常处理或日志
+            tdLog.exit("Transaction did not reach zero, aborting test.")
+        else:
+            tdLog.debug("complete to create database %s"%(dbName))
         return
 
-    # def create_stable(self,tsql, dbName,stbName,column_elm_list=None, tag_elm_list=None):
+    # def create_stable(self,td_sql, dbName,stbName,column_elm_list=None, tag_elm_list=None):
     #     colSchema = ''
     #     for i in range(columnDict['int']):
     #         colSchema += ', c%d int'%i
@@ -454,12 +459,12 @@ class TDCom:
     #             tagSchema += ','
     #         tagSchema += 't%d int'%i
 
-    #     tsql.execute("create table if not exists %s.%s (ts timestamp %s) tags(%s)"%(dbName, stbName, colSchema, tagSchema))
+    #     td_sql.execute("create table if not exists %s.%s (ts timestamp %s) tags(%s)"%(dbName, stbName, colSchema, tagSchema))
     #     tdLog.debug("complete to create %s.%s" %(dbName, stbName))
     #     return
 
-    # def create_ctables(self,tsql, dbName,stbName,ctbNum,tagDict):
-    #     tsql.execute("use %s" %dbName)
+    # def create_ctables(self,td_sql, dbName,stbName,ctbNum,tagDict):
+    #     td_sql.execute("use %s" %dbName)
     #     tagsValues = ''
     #     for i in range(tagDict['int']):
     #         if i > 0:
@@ -472,17 +477,17 @@ class TDCom:
     #     for i in range(ctbNum):
     #         sql += " %s_%d using %s tags(%s)"%(stbName,i,stbName,tagsValues)
     #         if (i > 0) and (i%100 == 0):
-    #             tsql.execute(sql)
+    #             td_sql.execute(sql)
     #             sql = pre_create
     #     if sql != pre_create:
-    #         tsql.execute(sql)
+    #         td_sql.execute(sql)
 
     #     tdLog.debug("complete to create %d child tables in %s.%s" %(ctbNum, dbName, stbName))
     #     return
 
-    # def insert_data(self,tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs=0):
+    # def insert_data(self,td_sql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs=0):
     #     tdLog.debug("start to insert data ............")
-    #     tsql.execute("use %s" %dbName)
+    #     td_sql.execute("use %s" %dbName)
     #     pre_insert = "insert into "
     #     sql = pre_insert
     #     if startTs == 0:
@@ -494,7 +499,7 @@ class TDCom:
     #         for j in range(rowsPerTbl):
     #             sql += "(%d, %d, %d)"%(startTs + j, j, j)
     #             if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
-    #                 tsql.execute(sql)
+    #                 td_sql.execute(sql)
     #                 if j < rowsPerTbl - 1:
     #                     sql = "insert into %s_%d values " %(stbName,i)
     #                 else:
@@ -502,7 +507,7 @@ class TDCom:
     #     #end sql
     #     if sql != pre_insert:
     #         #print("insert sql:%s"%sql)
-    #         tsql.execute(sql)
+    #         td_sql.execute(sql)
     #     tdLog.debug("insert data ............ [OK]")
     #     return
 
@@ -731,7 +736,7 @@ class TDCom:
         # column_value_list = [self.ts_value] + self.column_value_list
         return column_value_list
 
-    def create_stable(self, tsql, dbname=None, stbname="stb", column_elm_list=None, tag_elm_list=None,
+    def create_stable(self, td_sql, dbname=None, stbname="stb", column_elm_list=None, tag_elm_list=None,
                      count=1, default_stbname_prefix="stb", **kwargs):
         colname_prefix = 'c'
         tagname_prefix = 't'
@@ -746,14 +751,14 @@ class TDCom:
         if int(count) <= 1:
             create_stable_sql = f'create table {dbname}.{stbname} ({column_type_str}) tags ({tag_type_str}) {stb_params};'
             tdLog.info("create stb sql: %s"%create_stable_sql)
-            tsql.execute(create_stable_sql)
+            td_sql.execute(create_stable_sql)
         else:
             for _ in range(count):
                 create_stable_sql = f'create table {dbname}.{default_stbname_prefix}{stbname_index_start_num} ({column_type_str}) tags ({tag_type_str}) {stb_params};'
                 stbname_index_start_num += 1
-                tsql.execute(create_stable_sql)
+                td_sql.execute(create_stable_sql)
 
-    def create_ctable(self, tsql, dbname=None, stbname=None, tag_elm_list=None, count=1, default_ctbname_prefix="ctb", **kwargs):
+    def create_ctable(self, td_sql, dbname=None, stbname=None, tag_elm_list=None, count=1, default_ctbname_prefix="ctb", **kwargs):
         ctbname_index_start_num = 0
         ctb_params = ""
         if len(kwargs) > 0:
@@ -771,15 +776,15 @@ class TDCom:
 
         if int(count) <= 1:
             create_ctable_sql = f'create table {dbname}.{default_ctbname_prefix}{ctbname_index_start_num}  using {dbname}.{stbname} tags ({tag_value_str}) {ctb_params};'
-            tsql.execute(create_ctable_sql)
+            td_sql.execute(create_ctable_sql)
         else:
             for _ in range(count):
                 create_ctable_sql = f'create table {dbname}.{default_ctbname_prefix}{ctbname_index_start_num} using {dbname}.{stbname} tags ({tag_value_str}) {ctb_params};'
                 ctbname_index_start_num += 1
                 tdLog.info("create ctb sql: %s"%create_ctable_sql)
-                tsql.execute(create_ctable_sql)
+                td_sql.execute(create_ctable_sql)
 
-    def create_table(self, tsql, dbname=None, tbname="ntb", column_elm_list=None, count=1, **kwargs):
+    def create_table(self, td_sql, dbname=None, tbname="ntb", column_elm_list=None, count=1, **kwargs):
         tbname_index_start_num = 1
         tbname_prefix="ntb"
 
@@ -791,14 +796,14 @@ class TDCom:
 
         if int(count) <= 1:
             create_table_sql = f'create table {dbname}.{tbname} ({column_type_str}) {tb_params};'
-            tsql.execute(create_table_sql)
+            td_sql.execute(create_table_sql)
         else:
             for _ in range(count):
                 create_table_sql = f'create table {dbname}.{tbname_prefix}{tbname_index_start_num} ({column_type_str}) {tb_params};'
                 tbname_index_start_num += 1
-                tsql.execute(create_table_sql)
+                td_sql.execute(create_table_sql)
 
-    def insert_rows(self, tsql, dbname=None, tbname=None, column_ele_list=None, start_ts_value=None, count=1):
+    def insert_rows(self, td_sql, dbname=None, tbname=None, column_ele_list=None, start_ts_value=None, count=1):
         if start_ts_value is None:
             start_ts_value = self.genTs()[0]
 
@@ -813,7 +818,7 @@ class TDCom:
         column_value_str = column_value_str.rstrip()[:-1]
         if int(count) <= 1:
             insert_sql = f'insert into {self.tb_name} values ({column_value_str});'
-            tsql.execute(insert_sql)
+            td_sql.execute(insert_sql)
         else:
             for num in range(count):
                 column_value_list = self.gen_column_value_list(column_ele_list, f'{start_ts_value}+{num}s')
@@ -828,7 +833,7 @@ class TDCom:
                         idx += 1
                 column_value_str = column_value_str.rstrip()[:-1]
                 insert_sql = f'insert into {dbname}.{tbname} values ({column_value_str});'
-                tsql.execute(insert_sql)
+                td_sql.execute(insert_sql)
     def getOneRow(self, location, containElm):
         res_list = list()
         if 0 <= location < tdSql.queryRows:
@@ -2418,6 +2423,20 @@ class TDCom:
         except Exception as e:
             # Handle any other exceptions that may occur
             print(f"An error occurred: {e}")
+
+        def waitTransactionZeroWithTdsql(self, td_sql, timeout=300):
+            count = 0
+            while count < timeout:
+                sql = "show transactions;"
+                td_sql.execute(sql)
+                result = td_sql.fetchall()
+                if not result:
+                    tdLog.info("transaction count became zero.")
+                    return True
+                time.sleep(1)
+                count += 1
+            tdLog.exit(f"Timeout after {timeout} seconds waiting for transaction count to become zero.")
+
 def is_json(msg):
     if isinstance(msg, str):
         try:
