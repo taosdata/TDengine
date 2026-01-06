@@ -864,9 +864,16 @@ typedef struct {
   int64_t     ownerId;
   SSchema*    pSchemas;
   SSchemaExt* pSchemaExt;
-  int8_t      virtualStb;
-  int32_t     numOfColRefs;
-  SColRef*    pColRefs;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t virtualStb : 1;
+      uint8_t isAudit : 1;
+      uint8_t reserved : 6;
+    };
+  };
+  int32_t  numOfColRefs;
+  SColRef* pColRefs;
 } STableMetaRsp;
 
 typedef struct {
