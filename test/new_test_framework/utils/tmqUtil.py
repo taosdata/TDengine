@@ -40,10 +40,8 @@ class TMQCom:
     def waitTransactionZeroWithTsql(self, tsql):
         for i in range(300):
             sql ="show transactions;"
-            tsql.execute(sql)
-            result = tsql.fetchall()
-            rows = len(result)
-            if rows == 0:
+            result = tsql.query(sql)
+            if result == 0:
                 tdLog.info("transaction count became zero.")
                 return True
             time.sleep(1)
