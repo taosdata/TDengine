@@ -118,3 +118,119 @@ class TestSLimitLimit:
 
         tdSql.query(f"select t1,f1,count(*) from sta group by f1, t1 slimit 1 limit 1;")
         tdSql.checkRows(1)
+        
+        self.GroupAggWithSlimit()
+
+    def GroupAggWithSlimit(self):
+        tdSql.execute(f"drop database if exists db1;")
+        tdSql.execute(f"create database db1 vgroups 1;")
+        tdSql.execute(f"use db1;")
+        tdSql.execute(
+            f"create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);"
+        )
+        tdSql.execute(f"create table tb1 using sta tags(1, 1, 1);")
+        tdSql.execute(f"create table tb2 using sta tags(2, 2, 2);")
+        
+        tdSql.execute(f"insert into tb1 values ('2022-04-26 15:15:01', 1, \"a\");")
+        tdSql.execute(f"insert into tb1 values ('2022-04-26 15:15:02', 11, \"a\");")
+        tdSql.execute(f"insert into tb2 values ('2022-04-26 15:15:01', 2, \"a\");")
+        tdSql.execute(f"insert into tb2 values ('2022-04-26 15:15:02', 22, \"a\");")
+
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 1")
+        tdSql.checkRows(1)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 1 offset 1")
+        tdSql.checkRows(1)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 1 offset 2")
+        tdSql.checkRows(1)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 1 offset 3")
+        tdSql.checkRows(0)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 2 offset 1")
+        tdSql.checkRows(2)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 2 offset 2")
+        tdSql.checkRows(1)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 2 offset 3")
+        tdSql.checkRows(0)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 3 offset 1")
+        tdSql.checkRows(2)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 3 offset 2")
+        tdSql.checkRows(1)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 3 offset 3")
+        tdSql.checkRows(0)
+                    
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 100 offset 1")
+        tdSql.checkRows(2)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 100 offset 2")
+        tdSql.checkRows(1)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 100 offset 3")
+        tdSql.checkRows(0)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 0 offset 1")
+        tdSql.checkRows(0)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 0 offset 2")
+        tdSql.checkRows(0)
+        
+        tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 0 offset 3")
+        tdSql.checkRows(0)
+        
+        # Repeat the tests multiple times to check for stability
+        for _ in range(10):      
+            tdSql.query("select tbname, 1, ts from sta partition by tbname limit 1")
+            tdSql.checkRows(2)
+    
+            tdSql.query("select tbname, 1, ts from sta partition by tbname limit 2")
+            tdSql.checkRows(4)
+            
+            tdSql.query("select tbname, 1, ts from sta partition by tbname limit 2 offset 1")
+            tdSql.checkRows(2)
+            
+            tdSql.query("select tbname, 1, ts from sta partition by tbname limit 2 offset 2")
+            tdSql.checkRows(0)
+                
+            tdSql.query("select tbname, 1, ts from sta partition by tbname limit 0")
+            tdSql.checkRows(0)
+            
+            tdSql.query("select tbname, 1, ts from sta partition by tbname limit 3")
+            tdSql.checkRows(4)
+            
+            tdSql.query("select tbname, 1, ts from sta partition by tbname limit 3 offset 1")
+            tdSql.checkRows(2)
+            
+            tdSql.query("select f1, first(ts) from sta group by f1 limit 0")
+            tdSql.checkRows(0)
+            
+            tdSql.query("select f1, first(ts) from sta group by f1 limit 1")
+            tdSql.checkRows(4)
+            
+            tdSql.query("select f1, first(ts) from sta group by f1 limit 1 offset 1")
+            tdSql.checkRows(0)
+            
+            tdSql.query("select tbname, first(ts) from sta group by tbname limit 1")
+            tdSql.checkRows(2)
+            
+            tdSql.query("select tbname, 1 from sta group by tbname limit 1")
+            tdSql.checkRows(2)
+            
+            tdSql.query("select tbname, 1 from sta group by tbname limit 0")
+            tdSql.checkRows(0)
+            
+            tdSql.query("select tbname, top(f1, 2) from sta group by tbname slimit 1")
+            tdSql.checkRows(2)
+            
+            tdSql.query("select tbname, top(f1, 2) from sta group by tbname limit 1")
+            tdSql.checkRows(2)
+            
+            tdSql.query("select tbname, top(f1, 2) from sta group by tbname slimit 1 limit 1")
+            tdSql.checkRows(1)
+        

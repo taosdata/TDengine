@@ -40,6 +40,7 @@ typedef struct SGroupbyOperatorInfo {
   SGroupResInfo  groupResInfo;
   SExprSupp      scalarSup;
   SOperatorInfo  *pOperator;
+  SLimitInfo     limitInfo;
 } SGroupbyOperatorInfo;
 
 // The sort in partition may be needed later.
@@ -304,9 +305,6 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (!pInfo->isInit) {
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
-      if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
-        T_LONG_JMP(pTaskInfo->env, terrno);
-      }
       pInfo->isInit = true;
       num++;
       continue;
@@ -320,11 +318,8 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
     // The first row of a new block does not belongs to the previous existed group
     if (j == 0) {
-      num++;
       recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
-      if (terrno != TSDB_CODE_SUCCESS) {  // group by json error
-        T_LONG_JMP(pTaskInfo->env, terrno);
-      }
+      num = 1;
       continue;
     }
 
@@ -337,7 +332,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
     int32_t rowIndex = j - num;
     ret = applyAggFunctionOnPartialTuples(pTaskInfo, pCtx, NULL, rowIndex, num, pBlock->info.rows,
-                                                   pOperator->exprSupp.numOfExprs);
+                                          pOperator->exprSupp.numOfExprs);
     if (ret != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, ret);
     }
@@ -348,6 +343,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     num = 1;
   }
 
+  // The data of the last group is processed here, and if there is only one group, it is also processed here.
   if (num > 0) {
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
     int32_t ret = setGroupResultOutputBuf(pOperator, &(pInfo->binfo), pOperator->exprSupp.numOfExprs, pInfo->keyBuf,
@@ -407,12 +403,55 @@ void doBuildResultDatablockByHash(SOperatorInfo* pOperator, SOptrBasicInfo* pbIn
   }
 }
 
+static bool slimitReached(SLimitInfo* pLimitInfo) {
+  if (pLimitInfo && pLimitInfo->slimit.limit >= 0 &&
+      pLimitInfo->numOfOutputGroups >= pLimitInfo->slimit.limit) {
+    return true;  // limit reached, stop processing further rows
+  }
+  return false;
+}
+
+static int32_t doGroupResultSlimit(SSDataBlock* pRes, SLimitInfo* pLimitInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pRes == NULL || pRes->info.rows == 0 || !pLimitInfo) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pLimitInfo && pLimitInfo->remainGroupOffset > 0) {
+    if (pRes->info.rows <= pLimitInfo->remainGroupOffset) {
+      pLimitInfo->remainGroupOffset -= pRes->info.rows;
+      blockDataCleanup(pRes);
+    } else {
+      code = blockDataTrimFirstRows(pRes, pLimitInfo->remainGroupOffset);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+  pLimitInfo->remainGroupOffset = 0;
+  if (pLimitInfo && pLimitInfo->slimit.limit >= 0 && pRes->info.rows > 0) {
+    int32_t remainRows = pLimitInfo->slimit.limit - pLimitInfo->numOfOutputGroups;
+    if (pRes->info.rows > remainRows) {
+      blockDataKeepFirstNRows(pRes, remainRows);
+    }
+    pLimitInfo->numOfOutputGroups += pRes->info.rows;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static SSDataBlock* buildGroupResultDataBlockByHash(SOperatorInfo* pOperator) {
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
   SGroupbyOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*          pRes = pInfo->binfo.pRes;
+  SLimitInfo*           pLimitInfo = &pInfo->limitInfo;
 
   // after filter, if result block turn to null, get next from whole set
   while (1) {
@@ -421,13 +460,17 @@ static SSDataBlock* buildGroupResultDataBlockByHash(SOperatorInfo* pOperator) {
     code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    if (!hasRemainResultByHash(pOperator)) {
+    code = doGroupResultSlimit(pRes, pLimitInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (!hasRemainResultByHash(pOperator) || slimitReached(pLimitInfo)) {
       setOperatorCompleted(pOperator);
       // clean hash after completed
       tSimpleHashCleanup(pInfo->aggSup.pResultRowHashTable);
       pInfo->aggSup.pResultRowHashTable = NULL;
       break;
     }
+
     if (pRes->info.rows > 0) {
       break;
     }
@@ -535,6 +578,8 @@ int32_t createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNo
     goto _error;
   }
   initBasicInfo(&pInfo->binfo, pResBlock);
+
+  initLimitInfo(pAggNode->node.pLimit, pAggNode->node.pSlimit, &pInfo->limitInfo);
 
   pInfo->pGroupCols = NULL;
   code = extractColumnInfo(pAggNode->pGroupKeys, &pInfo->pGroupCols);
