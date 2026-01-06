@@ -1566,6 +1566,14 @@ int32_t doNotifyExchangeSource(SOperatorInfo* pOperator) {
     req.queryId     = pTaskInfo->id.queryId;
     req.execId      = pSource->execId;
     if (pTaskInfo->pStreamRuntimeInfo) {
+      /* send to stream runner */
+      if (pSource->fetchMsgType != TDMT_STREAM_FETCH) {
+        /**
+          Only send notify message to stream fetching from vnode.
+          If fetch from runner or cache, don't need to send notify message.
+        */
+        goto _end;
+      }
       req.dynTbname = pExchangeInfo->dynTbname;
       req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
       req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
