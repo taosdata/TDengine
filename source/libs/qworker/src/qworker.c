@@ -1062,6 +1062,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   if (qwMsg->msg) {
     SOperatorParam* pOpParam = (SOperatorParam*)qwMsg->msg;
     if (pOpParam->opType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
+        pOpParam->value != NULL &&
         ((STableScanOperatorParam*)pOpParam->value)->paramType ==
         NOTIFY_TYPE_SCAN_PARAM) {
       /**

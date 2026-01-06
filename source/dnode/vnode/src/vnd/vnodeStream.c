@@ -3821,6 +3821,23 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   ST_TASK_DLOG("vgId:%d %s start, execId:%d, reset:%d, pTaskInfo:%p, scan type:%d", TD_VID(pVnode), __func__, req.execId, req.reset,
                sStreamReaderCalcInfo->pTaskInfo, nodeType(sStreamReaderCalcInfo->calcAst->pNode));
 
+  if (req.pOpParam != NULL && req.pOpParam->value != NULL &&
+      req.pOpParam->opType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
+      req.pOpParam->opType == nodeType(sStreamReaderCalcInfo->calcAst->pNode)) {
+    STableScanOperatorParam* pScanParam =
+      (STableScanOperatorParam*)req.pOpParam->value;
+    if (pScanParam->paramType == NOTIFY_TYPE_SCAN_PARAM) {
+      /**
+        If receiving notify message, notify the table scan task to step done.
+        Don't need to do real fetch work.
+      */
+      STREAM_CHECK_RET_GOTO(
+        notifyTableScanTask(sStreamReaderCalcInfo->pTaskInfo,
+                            pScanParam->notifyTs));
+      goto end;
+    }
+  }
+
   if (req.reset) {
     int64_t uid = 0;
     if (req.dynTbname) {

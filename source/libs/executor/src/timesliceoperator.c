@@ -1219,9 +1219,17 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     pSliceInfo->current = pSliceInfo->win.skey;
   }
 
-  SSDataBlock*            pResBlock = pSliceInfo->pRes;
-
+  SSDataBlock* pResBlock = pSliceInfo->pRes;
   blockDataCleanup(pResBlock);
+
+  if (pTaskInfo->pStreamRuntimeInfo != NULL) {
+    /**
+      For stream calculation, the interp operator is triggered by the window,
+      so we need to reset the notified status for each window.
+    */
+    pSliceInfo->prevNotified = false;
+    pSliceInfo->nextNotified = false;
+  }
 
   while (1) {
     if (pSliceInfo->pNextGroupRes != NULL) {

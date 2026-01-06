@@ -1566,7 +1566,10 @@ int32_t doNotifyExchangeSource(SOperatorInfo* pOperator) {
     req.queryId     = pTaskInfo->id.queryId;
     req.execId      = pSource->execId;
     if (pTaskInfo->pStreamRuntimeInfo) {
-      /* TODO: notify stream runner */
+      req.dynTbname = pExchangeInfo->dynTbname;
+      req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
+      req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+      req.reset = false;
     }
 
     code =
@@ -1591,7 +1594,7 @@ int32_t doNotifyExchangeSource(SOperatorInfo* pOperator) {
     SRpcMsg rpcMsg = {
       .pCont = pMsg,
       .contLen = msgSize,
-      .msgType = TDMT_SCH_FETCH,
+      .msgType = pSource->fetchMsgType,
       .info.ahandle = 0,
       .info.notFreeAhandle = 1,
       .info.refId = 0,

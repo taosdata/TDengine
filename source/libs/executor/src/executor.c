@@ -2307,6 +2307,9 @@ end:
 int32_t notifyTableScanTask(qTaskInfo_t tinfo, TSKEY notifyTs) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  /* If tinfo is NULL, it means the task is killed, just return success. */
+  TSDB_CHECK_NULL(tinfo, code, lino, _end, TSDB_CODE_SUCCESS);
+
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   if (pTaskInfo->pRoot != NULL) {
     SOperatorInfo* pOperator = pTaskInfo->pRoot;
@@ -2321,8 +2324,8 @@ int32_t notifyTableScanTask(qTaskInfo_t tinfo, TSKEY notifyTs) {
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s, failed to notify table scan operator, since:%s",
-           GET_TASKID(pTaskInfo), tstrerror(code));
+    qError("%s, failed to notify table scan operator at line %d, since:%s",
+           GET_TASKID(pTaskInfo), lino, tstrerror(code));
   }
   return code;
 }
