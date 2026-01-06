@@ -6879,6 +6879,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    // this function is deprecated and not documented,
     .name = "generate_totp_secret",
     .type = FUNCTION_TYPE_GENERATE_TOTP_SECRET,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
