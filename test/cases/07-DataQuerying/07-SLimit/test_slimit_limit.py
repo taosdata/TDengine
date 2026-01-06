@@ -245,27 +245,23 @@ class TestSLimitLimit:
         tdSql.execute(f"create table tb1 using stb tags(1, 1, 1);")
         tdSql.execute(f"create table tb2 using stb tags(2, 2, 2);")
         
-        for batch in range(0, 5):
-            sql = "insert into tb1 values"
-            for i in range(0, 1000):
-                ts = 1650957301000 + batch * 1000 + i
-                f1 = batch * 1000 + i
-                sql += f" ({ts}, {f1}, \"a\"),"
-            sql = sql.rstrip(",") + ";"
-            tdSql.execute(sql)
-        
- 
-        for batch in range(0, 5):
-            sql = "insert into tb2 values"
-            for i in range(0, 1000):
-                ts = 1650957301000 + batch * 1000 + i
-                f1 = 10000 + batch * 1000 + i
-                sql += f" ({ts}, {f1}, \"b\"),"
-            sql = sql.rstrip(",") + ";"
-            tdSql.execute(sql)    
+        BASE_TS = 1650957301000
+
+        def _insert_data(table_name: str, f1_base: int, f2_val: str):
+            for batch in range(0, 5):
+                sql_values = []
+                for i in range(0, 1000):
+                    ts = BASE_TS + batch * 1000 + i
+                    f1 = f1_base + batch * 1000 + i
+                    sql_values.append(f'({ts}, {f1}, "{f2_val}")')
+                sql = f"insert into {table_name} values {','.join(sql_values)};"
+                tdSql.execute(sql)
+
+        _insert_data("tb1", 0, "a")
+        _insert_data("tb2", 10000, "b")
             
         tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1)")
-        tdSql.checkRows(5001)            
+        tdSql.checkRows(5001)
             
         tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1) limit 2000 offset 4100")
         tdSql.checkRows(901)
@@ -280,7 +276,7 @@ class TestSLimitLimit:
         tdSql.checkRows(100)
         
         tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1000)")
-        tdSql.checkRows(6000)            
+        tdSql.checkRows(6000)
             
         tdSql.query("(select f1 from tb1) union (select f1 from tb2 limit 1000) limit 2000 offset 4100")
         tdSql.checkRows(1900)
