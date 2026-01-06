@@ -419,7 +419,7 @@ SNode*  createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceTyp
 SNode*  createRebalanceXnodeJobStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* resourceId,
                                     SNode* pNodeOptions);
 SNode*  createRebalanceXnodeJobWhereStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere);
-SNode*  alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceName,
+SNode*  alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResIdOrName,
                                   SNode* pSource, SNode* pSink, SNode* pNode);
 /** end @section xnode */
 

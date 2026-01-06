@@ -1180,6 +1180,16 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_DROP_XNODE_JOB_STMT:
       code = makeNode(type, sizeof(SDropXnodeJobStmt), &pNode);
+      break;
+    case QUERY_NODE_CREATE_XNODE_AGENT_STMT:
+      code = makeNode(type, sizeof(SCreateXnodeAgentStmt), &pNode);
+      break;
+    case QUERY_NODE_ALTER_XNODE_AGENT_STMT:
+      code = makeNode(type, sizeof(SAlterXnodeAgentStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_XNODE_AGENT_STMT:
+      code = makeNode(type, sizeof(SDropXnodeAgentStmt), &pNode);
+      break;
     case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
       code = makeNode(type, sizeof(SAlterDnodeStmt), &pNode);
       break;
@@ -2572,7 +2582,22 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->options);
       break;
     }
-
+    case QUERY_NODE_CREATE_XNODE_AGENT_STMT: {
+      SCreateXnodeAgentStmt* pStmt = (SCreateXnodeAgentStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->options);
+      break;
+    }
+    case QUERY_NODE_ALTER_XNODE_AGENT_STMT: {
+      SAlterXnodeAgentStmt* pStmt = (SAlterXnodeAgentStmt*)pNode;
+      xFreeCowStr(&pStmt->name);
+      nodesDestroyNode((SNode*)pStmt->options);
+      break;
+    }
+    case QUERY_NODE_DROP_XNODE_AGENT_STMT: {
+      SDropXnodeAgentStmt* pStmt = (SDropXnodeAgentStmt*)pNode;
+      taosMemFreeClear(pStmt->name);
+      break;
+    }
     default:
       break;
   }

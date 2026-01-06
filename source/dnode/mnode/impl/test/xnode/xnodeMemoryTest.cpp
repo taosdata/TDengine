@@ -10,28 +10,6 @@
 #include <cstring>
 #include <vector>
 
-// Test structure
-// typedef struct SXnodeObj {
-//   int32_t id;
-//   int32_t urlLen;
-//   char*   url;
-//   int32_t statusLen;
-//   char*   status;
-//   int64_t createTime;
-//   int64_t updateTime;
-// } SXnodeObj;
-
-// typedef struct SXnodeTaskObj {
-//   int32_t tid;
-//   char    name[64];
-//   int32_t xnodeId;
-//   int32_t agentId;
-//   int32_t optionsLen;
-//   char*   options;
-//   int64_t createTime;
-//   int64_t updateTime;
-// } SXnodeTaskObj;
-
 extern "C" {
 #include "mndDef.h"
 }
@@ -82,29 +60,31 @@ class XnodeMemoryTest : public ::testing::Test {
     if (!obj) return;
 
     if (obj->url) {
-      taosMemFree(obj->url);
+      taosMemoryFree(obj->url);
+      freeCount++;
     }
 
     if (obj->status) {
-      taosMemFree(obj->status);
+      taosMemoryFree(obj->status);
+      freeCount++;
     }
 
-    taosMemFree(obj);
+    taosMemoryFree(obj);
     freeCount++;
   }
 
   SXnodeTaskObj* createTask(int tid, const char* name, int xnodeId) {
-    SXnodeTaskObj* task = (SXnodeTaskObj*)taosMemMalloc(sizeof(SXnodeTaskObj));
+    SXnodeTaskObj* task = (SXnodeTaskObj*)taosMemoryMalloc(sizeof(SXnodeTaskObj));
     allocCount++;
     memset(task, 0, sizeof(SXnodeTaskObj));
     task->id = tid;
     task->xnodeId = xnodeId;
     task->via = -1;
-    task->name = (char*)taosMemCalloc(1, strlen(name) + 1);
+    task->name = (char*)taosMemoryCalloc(1, strlen(name) + 1);
     allocCount++;
 
     if (name) {
-      strncpy(task->name, name, sizeof(task->name) - 1);
+      strncpy(task->name, name, strlen(name) + 1);
     }
 
     return task;
@@ -208,15 +188,6 @@ TEST_F(XnodeMemoryTest, TaskObjectMemory) {
   EXPECT_EQ(task->id, 100);
   EXPECT_STREQ(task->name, "test_task");
   EXPECT_EQ(task->xnodeId, 1);
-
-  // Add options
-  const char* opts = "key1=value1,key2=value2";
-  // task->optionsLen = strlen(opts) + 1;
-  // task->options = (char*)taosMemMalloc(task->optionsLen);
-  allocCount++;
-  // strcpy(task->options, opts);
-
-  // EXPECT_STREQ(task->options, opts);
 
   freeTask(task);
 }
