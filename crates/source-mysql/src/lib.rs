@@ -142,6 +142,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
             "parse": parse_sample,
         }
     });
+
     let ds_sample_in: DsSampleIn = serde_json::from_value(sample_json.clone()).map_err(|err| {
         anyhow::anyhow!(
             "failed to parse sample data, cause: {}, value: {:?}",

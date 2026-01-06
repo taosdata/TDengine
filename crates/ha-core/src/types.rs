@@ -377,4 +377,4 @@ pub struct TaskMetrics {
 
 pub type GetSamplesFrom = String;
 
-pub type GetSamplesResult = Vec<serde_json::Value>;
+pub type GetSamplesResult = serde_json::Value;

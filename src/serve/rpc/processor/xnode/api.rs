@@ -105,14 +105,9 @@ pub async fn get_samples(context: &str) -> ApiResult<serde_json::Value> {
     let samples = taosx_task::sample::get_sample(context)
         .await
         .map_err(internal_err)?;
-    match samples {
-        DsSamples::Simple(samples) => serde_json::to_value(samples.input)
-            .context("input not valid json value")
-            .map_err(internal_err),
-        DsSamples::MultiSchema(samples) => serde_json::to_value(samples.samples)
-            .context("samples not valid json value")
-            .map_err(internal_err),
-    }
+    serde_json::to_value(samples)
+        .context("failed to serialize samples to json value")
+        .map_err(internal_err)
 }
 
 pub fn get_x_http_port() -> ApiResult<Option<Vec<u16>>> {

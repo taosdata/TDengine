@@ -55,13 +55,6 @@ pub async fn get_sample(
         .get_samples(&from.to_string())
         .await
         .context("get sample error")?;
-    let res = match from.driver.as_str() {
-        "sparkplugb" => serde_json::json!({
-            "samples": samples
-        }),
-        _ => serde_json::json!({
-            "input": samples
-        }),
-    };
-    Ok(Json(res))
+
+    Ok(Json(samples))
 }
