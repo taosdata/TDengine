@@ -624,7 +624,7 @@ static int32_t doSetTagColumnData(SVirtualTableScanInfo* pInfo, SSDataBlock* pTa
   return code;
 }
 
-int32_t   virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
+int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   int32_t                        code = TSDB_CODE_SUCCESS;
   int32_t                        lino = 0;
   SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;

@@ -961,6 +961,11 @@ static int32_t prepareTableScan(SOperatorInfo* pOperator) {
       *(ETableScanGetParamType*)pGetParam->value == NOTIFY_TYPE_SCAN_PARAM) {
     STableScanOperatorParam* pNotify =
       (STableScanOperatorParam*)pGetParam->value;
+    /**
+      Set getParam to NULL to avoid impacting following table scan operation.
+      The param is referenced by getParam, and it will be freed by
+      the caller of doTableScanNext.
+    */
     pOperator->pOperatorGetParam = NULL;
 
     STableScanInfo* pTableScanInfo = pOperator->info;
@@ -1311,8 +1316,10 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
   cleanupQueryTableDataCond(&pInfo->base.cond);
 
   SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
-  if (pGetParam && *(ETableScanGetParamType*)pGetParam->value == DYN_TYPE_SCAN_PARAM) {
-    STableScanOperatorParam* pParam = (STableScanOperatorParam*)pGetParam->value;
+  if (pGetParam &&
+      *(ETableScanGetParamType*)pGetParam->value == DYN_TYPE_SCAN_PARAM) {
+    STableScanOperatorParam* pParam =
+      (STableScanOperatorParam*)pGetParam->value;
     pInfo->pBatchColMap = pParam->pBatchTbInfo;
     pParam->pBatchTbInfo = NULL;
     pInfo->cachedTimeWindow = pParam->window;
@@ -2152,8 +2159,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   QUERY_CHECK_CODE(code, lino, _end);
 
   SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
-  if ((pGetParam && *(ETableScanGetParamType*)pGetParam == DYN_TYPE_SCAN_PARAM) ||
-      pInfo->pBatchColMap) {
+  if (pGetParam || pInfo->pBatchColMap) {
     ETableScanDynType type = pGetParam ?
       ((STableScanOperatorParam*)pGetParam->value)->dynType :
       DYN_TYPE_VSTB_BATCH_SCAN;
@@ -3810,8 +3816,7 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   STagScanInfo* pInfo = pOperator->info;
-  SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
-  if (pGetParam && *(ETableScanGetParamType*)pGetParam == DYN_TYPE_SCAN_PARAM) {
+  if (pOperator->pOperatorGetParam) {
     pOperator->resultInfo.totalRows = 0;
     pOperator->dynamicTask = true;
     pInfo->curPos = 0;

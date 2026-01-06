@@ -334,7 +334,6 @@ static int32_t buildTagListForExchangeBasicParam(SExchangeOperatorBasicParam* pB
   int32_t  lino = 0;
   STagVal  tmpTag;
 
-  pBasic->paramType = DYN_TYPE_EXCHANGE_PARAM;
   pBasic->tagList = taosArrayInit(1, sizeof(STagVal));
   QUERY_CHECK_NULL(pBasic->tagList, code, lino, _return, terrno)
 
@@ -374,7 +373,6 @@ static int32_t buildBatchOrgTbInfoForExchangeBasicParam(SExchangeOperatorBasicPa
   int32_t     lino = 0;
   SOrgTbInfo  batchInfo;
 
-  pBasic->paramType = DYN_TYPE_EXCHANGE_PARAM;
   pBasic->batchOrgTbInfo = taosArrayInit(1, sizeof(SOrgTbInfo));
   QUERY_CHECK_NULL(pBasic->batchOrgTbInfo, code, lino, _return, terrno)
 
