@@ -468,8 +468,7 @@
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_py.py
 #,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_with_const.py
 ,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_restart_taosd.py
-# Temporarily disable memory leak detection for UDF tests
-#,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_test.py
+,,y,.,./ci/pytest.sh pytest cases/12-UDFs/test_udf_test.py
 ,,n,.,pytest cases/12-UDFs/test_udf_test.py
 ,,n,.,pytest cases/12-UDFs/test_udf_create.py
 ,,n,.,pytest cases/12-UDFs/test_udf_cfg1.py
@@ -876,6 +875,9 @@
 
 # 31-Keywords
 
+# 42-xnode
+,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
+,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_systables.py
 
 # 70-Cluster
 
@@ -962,7 +964,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_systb_inspect.py
 
 ## 02-Taos
-,,n,.,pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
 ,,n,.,pytest cases/81-Tools/02-Taos/test_tool_cmdline.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_error.py
@@ -1020,7 +1022,7 @@
 
 # 82-UnitTest
 
-200,,n,cases,bash 82-UnitTest/test.sh # PRIV_TODO parserTest
+200,,n,cases,bash 82-UnitTest/test.sh
 
 # 83-DocTest
 

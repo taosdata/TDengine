@@ -235,6 +235,7 @@ class TestCase:
         tmqCom.getStartConsumeNotifyFromTmqsim()
         tdLog.info("================= stop dnode, and remove data file, then start dnode ===========================")
         tdDnodes.stop(1)
+        tmqCom.stopTmqSimProcess("tmq_sim")
         
         time.sleep(5)
         dataPath = buildPath + "/../sim/dnode1/data/*"

@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+
 #include "tmsg.h"
 #include "tglobal.h"
 
@@ -3138,7 +3139,7 @@ int32_t cvtIpWhiteListDualToV4(SIpWhiteListDual *pWhiteListDual, SIpWhiteList **
 }
 
 void initUserDefautSessCfg(SUserSessCfg *pCfg) {
-   pCfg->sessPerUser = -1;  
+   pCfg->sessPerUser = -1;
    pCfg->sessConnTime = -1;
    pCfg->sessConnIdleTime = -1;
    pCfg->sessMaxConcurrency = -1;
@@ -3147,11 +3148,11 @@ void initUserDefautSessCfg(SUserSessCfg *pCfg) {
 static int32_t tEncodeSessCfg(SEncoder *encoder, SUserSessCfg *pCfg) {
   int32_t code = 0;
   int32_t lino = 0;
-  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessPerUser)); 
-  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessConnTime)); 
-  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessConnIdleTime)); 
-  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessMaxConcurrency)); 
-  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessMaxCallVnodeNum)); 
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessPerUser));
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessConnTime));
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessConnIdleTime));
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessMaxConcurrency));
+  TAOS_CHECK_EXIT(tEncodeI32(encoder, pCfg->sessMaxCallVnodeNum));
 _exit:
   return code;
 }
@@ -4495,6 +4496,86 @@ void    tFreeSDropTokenReq(SDropTokenReq* pReq) {
   FREESQL();
 }
 
+int32_t tSerializeSCreateTotpSecretReq(void* buf, int32_t bufLen, SCreateTotpSecretReq* pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->user));
+  ENCODESQL();
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCreateTotpSecretReq(void* buf, int32_t bufLen, SCreateTotpSecretReq* pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
+  DECODESQL();
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void    tFreeSCreateTotpSecretReq(SCreateTotpSecretReq* pReq) {
+  FREESQL();
+}
+
+int32_t tSerializeSCreateTotpSecretRsp(void* buf, int32_t bufLen, SCreateTotpSecretRsp* pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->user));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->totpSecret));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCreateTotpSecretRsp(void* buf, int32_t bufLen, SCreateTotpSecretRsp* pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->user));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->totpSecret));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
 int32_t tSerializeSGetUserAuthReq(void *buf, int32_t bufLen, SGetUserAuthReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -5379,7 +5460,8 @@ int32_t cloneDataTimeWhiteListRsp(const SRetrieveDateTimeWhiteListRsp *src, SRet
     SUserDateTimeWhiteList       *destUser = &p->pUsers[i];
 
     destUser->ver = srcUser->ver;
-    strncpy(destUser->user, srcUser->user, strlen(srcUser->user));
+    strncpy(destUser->user, srcUser->user, sizeof(destUser->user));
+
     destUser->numWhiteLists = srcUser->numWhiteLists;
 
     destUser->pWhiteLists = taosMemoryMalloc(destUser->numWhiteLists * sizeof(SDateTimeWhiteListItem));
@@ -6974,7 +7056,7 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
     pReq->encryptAlgrName[0] = '\0';
     pReq->isAudit = 0;
   }
-  
+
   tEndDecode(&decoder);
 
 _exit:

@@ -19,6 +19,7 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndXnode.h"
 #include "mndToken.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
@@ -406,7 +407,8 @@ static void mndBecomeFollower(const SSyncFSM *pFsm) {
   }
   (void)taosThreadMutexUnlock(&pMgmt->lock);
 
-  msmHandleBecomeNotLeader(pMnode);  
+  msmHandleBecomeNotLeader(pMnode);
+  mndXnodeHandleBecomeNotLeader();
 }
 
 static void mndBecomeLearner(const SSyncFSM *pFsm) {
@@ -427,7 +429,8 @@ static void mndBecomeLearner(const SSyncFSM *pFsm) {
   }
   (void)taosThreadMutexUnlock(&pMgmt->lock);
 
-  msmHandleBecomeNotLeader(pMnode);  
+  msmHandleBecomeNotLeader(pMnode);
+  mndXnodeHandleBecomeNotLeader();
 }
 
 static void mndBecomeLeader(const SSyncFSM *pFsm) {
@@ -435,6 +438,7 @@ static void mndBecomeLeader(const SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
 
   msmHandleBecomeLeader(pMnode);
+  mndXnodeHandleBecomeLeader(pMnode);
 }
 
 static bool mndApplyQueueEmpty(const SSyncFSM *pFsm) {

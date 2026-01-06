@@ -61,13 +61,8 @@ func Init() *http.Server {
 
 	if version.IsEnterprise == "true" {
 		if conf.Audit.Enable {
-			audit, err := api.NewAudit(conf)
-			if err != nil {
-				panic(err)
-			}
-			if err = audit.Init(router); err != nil {
-				panic(err)
-			}
+			audit := api.NewAudit(conf)
+			audit.Init(router)
 		}
 	}
 
@@ -100,8 +95,7 @@ func Start(server *http.Server) {
 	if err != nil {
 		logger.Fatal(err)
 	}
-	err = s.Run()
-	if err != nil {
+	if err := s.Run(); err != nil {
 		logger.Fatal(err)
 	}
 }
@@ -123,8 +117,16 @@ func (p *program) Start(s service.Service) error {
 
 	server := p.server
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(fmt.Errorf("taoskeeper start up fail! %v", err))
+		if ssl := config.Conf.SSL; ssl.Enable {
+			logger.Infof("Starting HTTPS service at %s", server.Addr)
+			if err := server.ListenAndServeTLS(ssl.CertFile, ssl.KeyFile); err != nil && err != http.ErrServerClosed {
+				panic(fmt.Errorf("taoskeeper HTTPS start up fail! %v", err))
+			}
+		} else {
+			logger.Infof("Starting HTTP service at %s", server.Addr)
+			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				panic(fmt.Errorf("taoskeeper start up fail! %v", err))
+			}
 		}
 	}()
 	return nil

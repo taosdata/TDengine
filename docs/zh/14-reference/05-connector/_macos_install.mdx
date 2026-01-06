@@ -11,7 +11,8 @@ import PkgListV37 from "/components/PkgListV37";
 
 :::tip
 
-1. 如本机没有部署 TDengine 服务，仅安装了应用驱动，则 `taos.cfg` 中仅需配置 `firstEP`，无需在本机配置 `FQDN`。
-2. 为防止与服务器端连接时出现“Unable to resolve FQDN”错误，建议确认本机的 `/etc/hosts` 文件已经配置了服务器正确的 FQDN 值，或配置好了 DNS 服务。
+1. 自 3.4.0.0 版开始，企业版与社区版不完全兼容，为避免二者互联导致兼容性问题，请务必安装与服务端对应的客户端驱动。当使用社区版驱动连接企业版服务端或使用企业版驱动连接社区版服务端时，会返回错误“Edition not compatible”。
+2. 如本机没有部署 TDengine 服务，仅安装了应用驱动，则 `taos.cfg` 中仅需配置 `firstEP`，无需在本机配置 `FQDN`。
+3. 为防止与服务器端连接时出现“Unable to resolve FQDN”错误，建议确认本机的 `/etc/hosts` 文件已经配置了服务器正确的 FQDN 值，或配置好了 DNS 服务。
 
 :::

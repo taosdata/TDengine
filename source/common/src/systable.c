@@ -314,7 +314,7 @@ static const SSysDbTableSchema userUsersFullSchema[] = {
     {.name = "connect_time", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "connect_idle_timeout", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "call_per_session", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
-    //{.name = "vnode_per_call", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "vnode_per_call", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "failed_login_attempts", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "password_life_time", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "password_reuse_time", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
@@ -690,6 +690,57 @@ static const SSysDbTableSchema userRolePrivilegesSchema[] = {
     {.name = "update_time", .bytes = 40 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
+static const SSysDbTableSchema xnodesSchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "url", .bytes = TSDB_XNODE_URL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "status", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+
+/** Migrate task table from old taosx */
+static const SSysDbTableSchema xnodeTasksSchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "name", .bytes = TSDB_XNODE_TASK_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "from", .bytes = TSDB_XNODE_TASK_SOURCE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "to", .bytes = TSDB_XNODE_TASK_SINK_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "parser", .bytes = TSDB_XNODE_TASK_PARSER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    /// Agent ID.
+    {.name = "via", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "xnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "status", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "reason", .bytes = TSDB_XNODE_TASK_REASON_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+/** For xnode task slices, one task may have multiple slices. */
+static const SSysDbTableSchema xnodeTaskJobSchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "task_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "config", .bytes = TSDB_XNODE_TASK_JOB_CONFIG_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "via", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "xnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "status", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "reason", .bytes = TSDB_XNODE_TASK_REASON_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+/** Migrate agents table from old taosx */
+static const SSysDbTableSchema xnodeAgentsSchema[] = {
+    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "name", .bytes = TSDB_XNODE_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "scope", .bytes = TSDB_XNODE_URL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+
+
+/**
+ * @brief Defines the metadata for system tables.
+ *
+ * @note The order of system tables in this array must match the order in which EShowType is defined in the header file.
+ *       This ensures that the system tables are correctly mapped to their respective show types.
+ */
 static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_DNODES, dnodesSchema, tListLen(dnodesSchema), true},
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema), true},
@@ -747,6 +798,10 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_ROLES, userRolesSchema, tListLen(userRolesSchema), true},
     {TSDB_INS_TABLE_ROLE_PRIVILEGES, userRolePrivilegesSchema, tListLen(userRolePrivilegesSchema), true},
     {TSDB_INS_TABLE_ROLE_COL_PRIVILEGES, userRoleColumnPrivilegesSchema, tListLen(userRoleColumnPrivilegesSchema), true},
+    {TSDB_INS_TABLE_XNODES, xnodesSchema, tListLen(xnodesSchema), true},
+    {TSDB_INS_TABLE_XNODE_TASKS, xnodeTasksSchema, tListLen(xnodeTasksSchema), true},
+    {TSDB_INS_TABLE_XNODE_AGENTS, xnodeAgentsSchema, tListLen(xnodeAgentsSchema), true},
+    {TSDB_INS_TABLE_XNODE_JOBS, xnodeTaskJobSchema, tListLen(xnodeTaskJobSchema), true},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

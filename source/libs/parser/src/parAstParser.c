@@ -785,6 +785,11 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
     PAR_ERR_RET(cxt.errCode);
     PAR_ERR_RET(reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pCxt->pMetaCache));
     PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pCxt->pMetaCache));
+    PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pTriggerTable->table.dbName,
+                                       pTriggerTable->table.tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL,
+                                       pCxt->pMetaCache));
+    PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pTriggerTable->table.dbName,
+                                       NULL, PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache));
   }
   if (pStmt->pQuery) {
     PAR_ERR_RET(collectMetaKeyFromQuery(pCxt, pStmt->pQuery));
@@ -793,17 +798,11 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
                                      PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache));
   PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->streamDbName, NULL,
                                      PRIV_STREAM_CREATE, PRIV_OBJ_DB, pCxt->pMetaCache));
-  PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->targetDbName, NULL,
-                                     PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache));
-  PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->targetDbName, NULL,
-                                     PRIV_TBL_CREATE, PRIV_OBJ_DB, pCxt->pMetaCache));
-  if (pStmt->pTrigger) {
-    SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
-    STableNode*         pTriggerTable = (STableNode*)pTrigger->pTrigerTable;
-    if (pTriggerTable) {
-      PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pTriggerTable->dbName,
-                                         pTriggerTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
-    }
+  if (pStmt->targetDbName[0] != '\0') {
+    PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->targetDbName, NULL,
+                                       PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache));
+    PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->targetDbName, NULL,
+                                       PRIV_TBL_CREATE, PRIV_OBJ_DB, pCxt->pMetaCache));
   }
 
   return code;
@@ -914,6 +913,35 @@ static int32_t collectMetaKeyFromShowBackupNodes(SCollectMetaKeyCxt* pCxt, SShow
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t collectMetaKeyFromShowXnodes(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  if (pCxt->pParseCxt->enableSysInfo) {
+    return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODES,
+                                   pCxt->pMetaCache);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t collectMetaKeyFromShowXnodeTasks(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  if (pCxt->pParseCxt->enableSysInfo) {
+    return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_TASKS,
+                                   pCxt->pMetaCache);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t collectMetaKeyFromShowXnodeAgents(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  if (pCxt->pParseCxt->enableSysInfo) {
+    return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_AGENTS,
+                                   pCxt->pMetaCache);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t collectMetaKeyFromShowXnodeJobs(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  if (pCxt->pParseCxt->enableSysInfo) {
+    return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_JOBS,
+                                   pCxt->pMetaCache);
+  }
+  return TSDB_CODE_SUCCESS;
+}
 static int32_t collectMetaKeyFromShowArbGroups(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   if (pCxt->pParseCxt->enableSysInfo) {
     return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_ARBGROUPS,
@@ -1849,6 +1877,18 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
       code = collectMetaKeyFromShowBackupNodes(pCxt, (SShowStmt*)pStmt);
+      break;
+    case QUERY_NODE_SHOW_XNODES_STMT:
+      code = collectMetaKeyFromShowXnodes(pCxt, (SShowStmt*)pStmt);
+      break;
+    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
+      code = collectMetaKeyFromShowXnodeTasks(pCxt, (SShowStmt*)pStmt);
+      break;
+    case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
+      code = collectMetaKeyFromShowXnodeAgents(pCxt, (SShowStmt*)pStmt);
+      break;
+    case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
+      code = collectMetaKeyFromShowXnodeJobs(pCxt, (SShowStmt*)pStmt);
       break;
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
       code = collectMetaKeyFromShowArbGroups(pCxt, (SShowStmt*)pStmt);
