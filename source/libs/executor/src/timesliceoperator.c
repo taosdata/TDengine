@@ -961,7 +961,12 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
     }
 
     pParam = (SOperatorParam*)taosMemoryCalloc(1, sizeof(SOperatorParam));
-    QUERY_CHECK_NULL(pParam, code, lino, _end, terrno);
+    if (pParam == NULL) {
+      code = terrno;
+      lino = __LINE__;
+      taosMemoryFree(tsParam);
+      goto _end;
+    }
     pParam->opType = pDownstream->operatorType;
     pParam->downstreamIdx = i;
     pParam->value = tsParam;

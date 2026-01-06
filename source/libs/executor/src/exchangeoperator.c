@@ -19,6 +19,7 @@
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
+#include "taoserror.h"
 #include "tdatablock.h"
 #include "thash.h"
 #include "tmsg.h"
@@ -1521,9 +1522,10 @@ int32_t doNotifyExchangeSource(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
+  SResFetchReq   req = {0};
+  char*          pMsg = NULL;
   SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
   QUERY_CHECK_NULL(pGetParam, code, lino, _end, terrno);
-  char* pMsg = NULL;
 
   SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pGetParam->value;
   if (!pParam->multiParams) {
@@ -1534,7 +1536,7 @@ int32_t doNotifyExchangeSource(SOperatorInfo* pOperator) {
       code = TSDB_CODE_INVALID_PARA;
       goto _end;
     }
-    size_t  totalSources = taosArrayGetSize(pExchangeInfo->pSourceDataInfo);
+    size_t totalSources = taosArrayGetSize(pExchangeInfo->pSourceDataInfo);
     if (totalSources > 1) {
       qError("%s, %s failed since multi sources are not supported for "
              "notify exchange source", GET_TASKID(pTaskInfo), __func__);
@@ -1557,7 +1559,6 @@ int32_t doNotifyExchangeSource(SOperatorInfo* pOperator) {
       code = terrno;
       goto _end;
     }
-    SResFetchReq req = {0};
     req.header.vgId = pSource->addr.nodeId;
     req.sId         = pSource->sId;
     req.clientId    = pSource->clientId;
@@ -1605,7 +1606,6 @@ int32_t doNotifyExchangeSource(SOperatorInfo* pOperator) {
     qDebug("%s notify msg sent to source 0 (vgId:%d, taskId:0x%" PRIx64
           ", execId:%d)", GET_TASKID(pTaskInfo), pSource->addr.nodeId,
           pSource->taskId, pSource->execId);
-    freeOperatorParam(req.pOpParam, OP_GET_PARAM);
   } else {
     qError("%s, %s failed since multi params are not supported for notify msg",
            GET_TASKID(pTaskInfo), __func__);
@@ -1614,6 +1614,7 @@ int32_t doNotifyExchangeSource(SOperatorInfo* pOperator) {
   }
 
 _end:
+  freeOperatorParam(req.pOpParam, OP_GET_PARAM);
   return code;
 }
 
