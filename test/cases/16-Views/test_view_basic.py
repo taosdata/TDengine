@@ -361,6 +361,8 @@ class TestViewBasic:
         tdSql.execute("grant all on view view_db.* to view_test;")
         tdSql.execute("grant use on database view_db to view_test;")
         tdSql.execute("grant create view on database view_db to view_test;")
+        tdSql.execute("grant select on view_db.stb to view_test;")
+        tdSql.execute("grant create database to view_test;")
         
         conn = taos.connect(user=username, password=password)
         conn.execute(f"use {self.dbname};")
@@ -372,9 +374,10 @@ class TestViewBasic:
         tdLog.info(f"Verify the view permission from system table successfully")
         time.sleep(2)
         conn.execute("drop view v1;")
-        tdSql.execute("revoke all on view_db.* from view_test;")
+        tdSql.execute("revoke all on view view_db.* from view_test;")
         tdSql.execute(f"drop database {self.dbname};")
         time.sleep(1)
+
 
         # prepare data by user 'view_test'
         self.prepare_data(conn)
@@ -383,7 +386,7 @@ class TestViewBasic:
         res = conn.query("show views;")
         assert(len(res.fetch_all()) == 1)
         tdLog.info(f"Verify the view permission of user '{username}' with db all and view all successfully")
-        self.check_permissions("view_test", "view_db", {"db": ["read", "write"], "view": ["read", "write", "alter"]}, "v1")
+        self.check_permissions("view_test", "view_db", {"db": ["USE DATABASE", "CREATE VIEW"], "view": ["XX"]}, "*")
         tdLog.info(f"Verify the view permission from system table successfully")
         time.sleep(2)
         conn.execute("drop view v1;")

@@ -2421,6 +2421,30 @@ _return:
 
   CTG_RET(code);
 }
+
+static int32_t ctgChkSetCommonAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
+  int32_t        code = 0;
+  SUserAuthInfo* pReq = req->pRawReq;
+  SPrivInfo*     privInfo = req->privInfo;
+  char           tbFName[TSDB_TABLE_FNAME_LEN];
+
+  if ((code = tNameExtractFullName(&pReq->tbName, tbFName))) {
+    ctgError("tNameExtractFullName failed, error:%s, type:%d, dbName:%s, tname:%s", tstrerror(code), pReq->tbName.type,
+             pReq->tbName.dbname, pReq->tbName.tname);
+    CTG_ERR_RET(code);
+  }
+
+  if (privHasObjPrivilege(req->authInfo.objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, pReq->tbName.tname,
+                          privInfo, true)) {
+    if (privInfo->objType == PRIV_OBJ_VIEW) {
+      res->pRawRes->pass[AUTH_RES_VIEW] = true;
+    } else {
+      res->pRawRes->pass[AUTH_RES_BASIC] = true;
+    }
+  }
+
+  CTG_RET(code);
+}
 #endif
 
 int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
@@ -2524,13 +2548,15 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
           }
           break;
         }
+        case PRIV_VIEW_SELECT:
         case PRIV_CM_ALTER:
         case PRIV_CM_DROP:
         case PRIV_CM_SHOW_CREATE: {
-          // don't support tag condition
-          CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
-          if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
-            return TSDB_CODE_SUCCESS;
+          if (pReq->objType == PRIV_OBJ_TBL) {
+            // don't support tag condition
+            CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
+          } else {
+            CTG_ERR_RET(ctgChkSetCommonAuthRsp(pCtg, req, res));
           }
           break;
         }
@@ -2673,12 +2699,12 @@ int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res)
 }
 
 int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
-#ifdef TD_ENTERPRISE
-  CTG_ERR_RET(ctgChkSetViewAuthRes(pCtg, req, res));
-  if (req->pRawReq->isView) {
-    return TSDB_CODE_SUCCESS;
-  }
-#endif
+// #ifdef TD_ENTERPRISE
+//   CTG_ERR_RET(ctgChkSetViewAuthRes(pCtg, req, res));
+//   if (req->pRawReq->isView) {
+//     return TSDB_CODE_SUCCESS;
+//   }
+// #endif
   CTG_RET(ctgChkSetBasicAuthRes(pCtg, req, res));
 }
 

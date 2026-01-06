@@ -120,7 +120,7 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
   int32_t code = setUserAuthInfo(pCxt->pParseCxt, pDbName, pTabName, privType, objType, isView, effective, &authInfo);
   if (TSDB_CODE_SUCCESS != code) return code;
   SUserAuthRes authRes = {0};
-  if (NULL != pCxt->pMetaCache) {
+  if (NULL != pCxt->pMetaCache && privType != PRIV_VIEW_SELECT) {
     code = checkAuthByOwner(pCxt, &authInfo, &authRes);
     if (code == TSDB_CODE_SUCCESS && authRes.pass[auth_res_type]) {
       goto _exit;
@@ -265,8 +265,15 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     STableMeta* pTableMeta = NULL;
     toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     int32_t code = getTargetMetaImpl(pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, &name, &pTableMeta, true);
-    if (TSDB_CODE_SUCCESS == code && TSDB_VIEW_TABLE == pTableMeta->tableType) {
-      isView = true;
+    if (TSDB_CODE_SUCCESS == code) {
+      if(pTableMeta->ownerId == pAuthCxt->pParseCxt->userId) {
+        // owner has all privileges
+        taosMemoryFree(pTableMeta);
+        return DEAL_RES_CONTINUE;
+      }
+      if(TSDB_VIEW_TABLE == pTableMeta->tableType) {
+        isView = true;
+      }
     }
     taosMemoryFree(pTableMeta);
 #endif
@@ -282,10 +289,10 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
       }
     } else {
       pAuthCxt->errCode =
-          checkViewAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL);
+          checkViewAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW, NULL);
       if (TSDB_CODE_SUCCESS != pAuthCxt->errCode && NULL != pAuthCxt->pParseCxt->pEffectiveUser) {
         pAuthCxt->errCode =
-            checkViewEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL);
+            checkViewEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW, NULL);
       }
     }
     return TSDB_CODE_SUCCESS == pAuthCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
