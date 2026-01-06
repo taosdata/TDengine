@@ -965,11 +965,11 @@ int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
                                           int32_t srcOpType, TSKEY notifyTs) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno);
 
   STableScanOperatorParam* pTsParam =
-    taosMemoryMalloc(sizeof(STableScanOperatorParam));
+    taosMemoryCalloc(1, sizeof(STableScanOperatorParam));
   QUERY_CHECK_NULL(pTsParam, code, lino, _return, terrno);
 
   pTsParam->paramType = NOTIFY_TYPE_SCAN_PARAM;
