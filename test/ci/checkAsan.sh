@@ -41,55 +41,36 @@ LOG_DIR=$TAOS_DIR/asan
 # shellcheck disable=SC2126
 error_num=$(cat "${LOG_DIR}"/*.asan | grep "ERROR" | wc -l)
 
-# 定义要忽略的 Direct leak 关键字
-IGNORE_LEAK_PATTERNS=(
-  "Direct leak of 32 byte"
-  "taosMemCalloc"
-  "transDumpFromBuffer"
-  "cliHandleResp"
-)
-
-# 构造 grep -v 过滤串
-build_grep_v() {
-  local cmd=""
-  for pattern in "${IGNORE_LEAK_PATTERNS[@]}"; do
-    cmd+="| grep -v \"$pattern\" "
-  done
-  echo "$cmd"
-}
-
-# 统计 memory_leak
-get_memory_leak_count() {
-  local extra_pattern="$1"
-  local cmd="cat \"${LOG_DIR}\"/*.asan | grep \"Direct leak\" $extra_pattern | wc -l"
-  eval "$cmd"
-}
-
-# 统计 memory_count（只统计 Direct leak of 32 byte，且过滤其它）
-get_memory_count() {
-  local extra_pattern="$1"
-  local cmd="cat \"${LOG_DIR}\"/*.asan | grep \"Direct leak of 32 byte\" $extra_pattern | wc -l"
-  eval "$cmd"
-}
-
-# 构造过滤串
-GREP_V_CMD=$(build_grep_v)
-
 archOs=$(arch)
-# shellcheck disable=SC2126
-if [[ $archOs =~ "aarch64" ]]; then
-  echo "arm64 check mem leak"
-  memory_leak=$(get_memory_leak_count "$GREP_V_CMD")
-  memory_count=$(get_memory_count "$GREP_V_CMD")
 
-  if [ "$memory_count" -eq "$error_num" ] && [ "$memory_leak" -eq 0 ]; then
+# ---------- 1. 集中白名单，以后要加只改这里 ----------
+ignore_pat='taosMemCalloc|transDumpFromBuffer|cliHandleResp'
+
+# ---------- 2. 一次性读出内容，避免 4 次 cat ----------
+asan=$(cat "${LOG_DIR}"/*.asan)
+
+# ---------- 3. 统计 ----------
+# non_32: 真泄漏（非 32 字节）
+non_32=$(  grep -E "Direct leak(?! of 32 byte)" <<<"$asan" |
+            grep -Ev "$ignore_pat" | wc -l)
+
+# byte32: 32 字节且非白名单
+byte32=$(  grep -E "Direct leak of 32 byte" <<<"$asan" |
+            grep -Ev "$ignore_pat" | wc -l)
+
+# ---------- 4. 判断 ----------
+if [[ $archOs == *aarch64* ]]; then
+  echo "arm64 check mem leak"
+  if [[ $non_32 -eq 0 && $byte32 -eq $error_num ]]; then
     echo "reset error_num to 0, ignore: __cxa_thread_atexit_impl leak"
     error_num=0
   fi
 else
   echo "os check mem leak"
-  memory_leak=$(get_memory_leak_count "$GREP_V_CMD")
+  # 非 arm64 只关心真泄漏
+  [[ $non_32 -eq 0 ]] && echo "no memory leak detected"
 fi
+
 # shellcheck disable=SC2126
 indirect_leak=$(cat "${LOG_DIR}"/*.asan | grep "Indirect leak" | wc -l)
 # shellcheck disable=SC2126
