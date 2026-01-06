@@ -296,7 +296,35 @@ int32_t mndCheckAlterUserPrivilege(SMnode* pMnode, const char *opUser, const cha
   // so no need to check pAlter->hasTotpseed here
 _OVER:
   mndReleaseUser(pMnode, pOperUser);
-  return code;
+  TAOS_RETURN(code);
+}
+
+// super user can modify totp secret of any non-super user, user can also modify its own totp secret
+int32_t mndCheckTotpSecretPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser) {
+  int32_t code = 0, lino = 0;
+  SUserObj *pOperUser = NULL;
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, opUser, &pOperUser), &lino, _OVER);
+
+  if (opToken == NULL && mndMustChangePassword(pOperUser)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_PASSWORD_EXPIRED, &lino, _OVER);
+  }
+
+  if (!pOperUser->enable) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, &lino, _OVER);
+  }
+
+  if (pOperUser->superUser && !pUser->superUser) {
+    goto _OVER;
+  }
+
+  if (strcmp(pUser->user, pOperUser->user) != 0) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+  }
+
+_OVER:
+  mndReleaseUser(pMnode, pOperUser);
+  TAOS_RETURN(code);
 }
 
 int32_t mndCheckTokenPrivilege(SMnode* pMnode, const char* opUser, const char* opToken, const char *user, const char* token) {
