@@ -158,9 +158,9 @@ The list of keywords is as follows:
 | ELSE                 | |
 | ENCODE               | |
 | ENABLE               | |
-| ENCRYPT_ALGR         | 3.4.0.0+ |
 | ENCRYPT_ALGORITHM    | |
 | ENCRYPT_ALGORITHMS   | 3.4.0.0+ |
+| ENCRYPT_ALGR         | 3.4.0.0+ |
 | ENCRYPT_KEY          | |
 | ENCRYPT_STATUS       | |
 | ENCRYPTIONS          | |
@@ -429,15 +429,21 @@ The list of keywords is as follows:
 | RETENTIONS           | |
 | REVOKE               | |
 | RIGHT                | |
+| ROLE                 | |
+| ROLES                | |
 | ROLLUP               | |
 | ROW                  | |
 | ROWTS                | |
 | RP                   | |
 | RSHIFT               | |
-| ROLE                 | |
-| ROLES                | |
 | RSMA                 | |
 | RSMAS                | |
+| RIGHT                | |
+| ROLLUP               | |
+| ROW                  | |
+| ROWTS                | |
+| RP                   | |
+| RSHIFT               | |
 
 ### S
 
