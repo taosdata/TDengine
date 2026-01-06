@@ -84,12 +84,11 @@ If you are using Maven to manage your project, simply add the following dependen
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.5.2</version>
+  <version>3.8.0</version>
 </dependency>
 ```
 
 </TabItem>
-
 <TabItem label="Python" value="python">
 
 - **Pre-installation Preparation**

@@ -323,6 +323,7 @@ static SKeyword keywordTable[] = {
     {"TOPIC",                TK_TOPIC},
     {"TOPICS",               TK_TOPICS},
     {"TOTPSEED",             TK_TOTPSEED},
+    {"TOTP_SECRET",          TK_TOTP_SECRET},
     {"TRAILING",             TK_TRAILING},
     {"TRANSACTION",          TK_TRANSACTION},
     {"TRANSACTIONS",         TK_TRANSACTIONS},
