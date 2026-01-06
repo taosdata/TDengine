@@ -174,6 +174,7 @@ pub async fn run_collectors(
         let task_config = task_config.clone();
         // 处理 cancel
         let cancel_inner = cancel.clone();
+
         // On Windows, the underlying kinghistorian bindings use !Send types.
         // Run each collector on a dedicated current-thread runtime inside a blocking task
         // to avoid the Send bound required by tokio::spawn.
@@ -901,6 +902,12 @@ fn collect_realtime(
                 .tag_name()
                 .context("failed to get tag name from data record")?;
             let rows = data_record.data;
+
+            tracing::debug!(
+                "kinghistorian realtime subscribed raw data received: tag={}, rows_len={}",
+                name,
+                rows.len()
+            );
             if rows.is_empty() {
                 continue;
             }
@@ -955,7 +962,6 @@ fn collect_realtime(
                 name
             );
         }
-
         tracing::info!("kinghistorian realtime data collection stopped");
 
         Ok(())

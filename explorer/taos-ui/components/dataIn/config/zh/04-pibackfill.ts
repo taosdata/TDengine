@@ -53,6 +53,36 @@ export default {
           type: 'input'
         },
         {
+          label: 'PI 用户名',
+          description: '用于连接 PI 服务器的用户名。',
+          field: 'PIServerUser',
+          required: false,
+          placeholder: '如: pidemo',
+          pattern: null,
+          defaultValue: '',
+          type: 'input'
+        },
+        {
+          label: 'PI 密码',
+          description: '用于连接 PI 服务器的密码。',
+          field: 'PIServerPassword',
+          required: false,
+          placeholder: '如: ********',
+          pattern: null,
+          defaultValue: '',
+          type: 'password'
+        },
+        {
+          label: 'PI 域名',
+          description: '用于连接 PI 服务器的域名。',
+          field: 'PIServerDomain',
+          required: false,
+          placeholder: '如: MYDOMAIN',
+          pattern: null,
+          defaultValue: '',
+          type: 'input'
+        },
+        {
           label: 'AFDatabaseName',
           description: 'AF 数据库名',
           field: 'subject',

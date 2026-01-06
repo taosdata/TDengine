@@ -36,7 +36,6 @@ pub mod pi;
 #[cfg(feature = "test-historian")]
 pub mod historian;
 
-#[cfg(test)]
 mod tests {
     #[test]
     fn test_datasource_modules_structure() {

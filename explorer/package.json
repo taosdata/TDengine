@@ -40,7 +40,7 @@
     "moment": "^2.30.1",
     "moment-timezone": "^0.5.46",
     "pinia": "^2.1.7",
-    "qs": "^6.12.2",
+    "qs": "^6.14.1",
     "sql-formatter": "^15.4.11",
     "taos-ui": "workspace:taos-ui@1.0.0",
     "unplugin-element-plus": "^0.9.0",

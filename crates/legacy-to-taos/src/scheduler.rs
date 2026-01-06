@@ -139,8 +139,14 @@ async fn worker(
                                 && retries > 0
                             {
                                 // 0xE00: connection error
-                                from = source.get().await?;
-                                to = target.get().await?;
+                                from = source
+                                    .get()
+                                    .await
+                                    .context("Failed to get source connection")?;
+                                to = target
+                                    .get()
+                                    .await
+                                    .context("Failed to get target connection")?;
                                 retries -= 1;
                                 tracing::warn!(
                                     "[worker:{worker}] sync stable {stable} error: {err}, retrying ... {retries} times left"
@@ -215,8 +221,12 @@ async fn worker(
                                         && retries > 0
                                     {
                                         // 0xE00: connection error
-                                        from = source.get().await?;
-                                        to = target.get().await?;
+                                        from = source.get().await.context(
+                                            "Failed to get source connection for table creation",
+                                        )?;
+                                        to = target.get().await.context(
+                                            "Failed to get target connection for table creation",
+                                        )?;
                                         retries -= 1;
                                         tracing::warn!(
                                             "[worker:{worker}] sync stable {stable} error: {err}, retrying ... {retries} times left"
@@ -1097,7 +1107,10 @@ async fn sync_sparse_stable(
             metrics: Arc<CoreMetrics>,
         ) -> anyhow::Result<()> {
             let metrics = metrics.legacy();
-            let to = target.get().await?;
+            let to = target
+                .get()
+                .await
+                .context("Failed to get target connection for sparse_concurrent_runner")?;
             while let Ok((records, sql)) = recv.recv_async().await {
                 to.exec(sql.as_str()).await?;
                 metrics.add_success_blocks(1);

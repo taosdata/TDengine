@@ -6,7 +6,7 @@ publish = false
 
 [lib]
 name = "taosx_integration_tests"
-path = "integration/lib.rs"
+path = "lib.rs"
 
 [features]
 default = []
@@ -47,8 +47,8 @@ tokio = { workspace = true, features = ["full", "test-util"] }
 tokio-util = { workspace = true }
 
 # taosX dependencies
-taosx-core = { path = "../taosx-core" }
-taosx-task = { path = "../crates/task" }
+taosx-core = { path = "../../taosx-core" }
+taosx-task = { path = "../../crates/task", optional = true }
 taos = { workspace = true }
 
 # Utilities
@@ -57,4 +57,11 @@ anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 chrono = { workspace = true }
-
+fastrand = "2"
+url = "2"
+serde_json = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+reqwest = { workspace = true, features = ["json", "blocking", "multipart"] }
+tempfile = { workspace = true }
+assert_cmd = { workspace = true }
+nix = { version = "0.30", features = ["signal"] }

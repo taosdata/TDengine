@@ -54,7 +54,7 @@
     "lodash-es": "^4.17.21",
     "mavon-editor": "^3.0.1",
     "pinia": "^2.2.6",
-    "qs": "^6.13.0",
+    "qs": "^6.14.1",
     "sql-formatter": "^15.4.11",
     "streamsaver": "^2.0.6",
     "unocss": "^0.62.3",

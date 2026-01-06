@@ -1205,10 +1205,11 @@ sed -i 's#SF:.*taosx/#SF:#' target/llvm-cov-merged.lcov
 
 # 1. remove third-party crates: tokio-cron-scheduler, rust-sasl
 # 2. remove windows only data sources including PI and KingHistorian
-#lcov --remove target/llvm-cov-merged.lcov -o target/llvm-cov-filter.lcov 'crates/tokio-cron-scheduler/*' 'crates/rust-sasl/*' 'crates/source-pi/*' 'crates/source-kinghistorian/*'
+# 3. remove compatibility layer
+lcov --remove target/llvm-cov-merged.lcov -o target/llvm-cov-filter.lcov 'crates/tokio-cron-scheduler/*' 'crates/rust-sasl/*' 'src/privileges/*' 'crates/sink*' 'crates/source-king*' 'taosx-core/src/plugins/sink/*' 'crates/source-pulsar/*' 'crates/source-mssql/*' 'crates/source-postgres/*' 'taosx-agent/*'
 
 # make output clean
-#mv target/llvm-cov-filter.lcov target/llvm-cov-merged.lcov
+mv target/llvm-cov-filter.lcov target/llvm-cov-merged.lcov
 """
 
 [tasks.install-locally]
