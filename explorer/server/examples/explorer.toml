@@ -132,3 +132,45 @@ interval = 10
 #
 #encryption_key = "your-base64-encoded-32-bytes-key"
 
+# OAuth 2.0 SSO configuration
+#
+#[oauth]
+# Enable OAuth 2.0 SSO
+#enabled = true
+# OAuth 2.0 provider type
+#provider = "oidc" # choices: oidc/plain
+
+# OAuth 2.0 provider display name
+#
+#[oauth.provider_display_name]
+#zh = "统一认证平台"
+#en = "OAuth 2.0"
+
+# OIDC Standard Provider Example
+#
+#[oauth.oidc]
+#client_id = "your-client-id"
+#client_secret = "your-client-secret"
+#issuer_url = "http://localhost:8080/realms/taosdata"
+#scopes = ["openid", "profile", "email"]
+
+# Redirect URI - adjust based on your test environment
+#redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+
+# Example Plain OAuth 2.0 SSO with GitHub
+#
+#[oauth.plain]
+#client_id = "github client id"
+#client_secret = "github client secret"
+
+#authorize_url = "https://github.com/login/oauth/authorize"
+#token_url = "https://github.com/login/oauth/access_token"
+#profile_url = "https://api.github.com/user"
+
+# Redirect URI - adjust based on your test environment
+#redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+
+# User attribute mapping
+#[oauth.user_mapping]
+#username = "username"
+#email = "email"
