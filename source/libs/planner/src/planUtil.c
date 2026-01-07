@@ -789,3 +789,23 @@ void rewriteTargetsWithResId(SNodeList* pTargets) {
     pCol->resIdx = pCol->projRefIdx;
   }
 }
+
+bool checkScanLogicNode(SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    return true;
+  }
+
+  SNode* node = NULL;
+  FOREACH(node, pNode->pChildren) {
+    if (checkScanLogicNode((SLogicNode*)node)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
