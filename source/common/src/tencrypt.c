@@ -371,6 +371,11 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
   char                *plainContent = NULL;
   STdEncryptFileHeader header;
 
+  if (taosWaitCfgKeyLoaded() != 0) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   if (filepath == NULL || data == NULL || dataLen == NULL) {
     code = TSDB_CODE_INVALID_PARA;
     TSDB_CHECK_CODE(code, lino, _exit);

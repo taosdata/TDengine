@@ -405,6 +405,12 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
 int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl,
                            SArray *pArgs);
+
+int32_t taosPreLoadCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
+                       bool tsc);
+int32_t taosApplyCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
+                     bool tsc);
+int32_t tryLoadCfgFromDataDir(SConfig *pCfg);
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
                     bool tsc);
 void    taosCleanupCfg();
