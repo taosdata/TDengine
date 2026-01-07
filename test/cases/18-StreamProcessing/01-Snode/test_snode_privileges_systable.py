@@ -183,8 +183,8 @@ class TestStreamPrivilegesSysTable:
 
     def createUser(self):
         tdLog.info(f"create user")
-        tdSql.execute(f'create user {self.username1} pass "taosdata"')
-        tdSql.execute(f'create user {self.username2} pass "taosdata"')
+        tdSql.execute(f'create user {self.username1} pass "AAbb1122"')
+        tdSql.execute(f'create user {self.username2} pass "AAbb1122"')
         self.checkResultRows(2)
 
     def noSysInfo(self):

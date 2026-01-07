@@ -98,7 +98,7 @@ class TestUserPrivilegeDb:
         tdSql.execute(f"REVOKE select,insert ON *.* from user1;")
 
         tdLog.info(f"=============== create users")
-        tdSql.execute(f"create user u1 PASS 'taosdata'")
+        tdSql.execute(f"create user u1 PASS 'AAbb1122'")
         tdSql.query(f"select * from information_schema.ins_users")
         tdSql.checkRows(4)
 

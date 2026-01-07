@@ -22,14 +22,14 @@ class TestGrantBugs:
 
         sqls = [
             "CREATE DATABASE IF NOT EXISTS `_xTest2` vgroups 1",
-            "CREATE USER `_xTest` PASS 'taosdata'",
+            "CREATE USER `_xTest` PASS 'AAbb1122'",
             "CREATE TABLE IF NOT EXISTS `_xTest2`.`meters` (ts timestamp, v1 int) tags(t1 int)",
 
             "CREATE DATABASE IF NOT EXISTS `test2` vgroups 1",
-            "CREATE USER `user1` PASS 'taosdata'",
+            "CREATE USER `user1` PASS 'AAbb1122'",
             "CREATE TABLE IF NOT EXISTS `test2`.`meters2` (ts timestamp, v1 int) tags(t1 int)",
 
-            "CREATE USER `read_user` PASS 'taosdata'"
+            "CREATE USER `read_user` PASS 'AAbb1122'"
         ]
         tdSql.executes(sqls)
 
