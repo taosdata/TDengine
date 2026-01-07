@@ -19317,11 +19317,13 @@ static int32_t translateTableSubquery(STranslateContext* pCxt, SNode* pNode) {
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
   int32_t    currLevel = pCxt->currLevel;
+  bool       dual = pCxt->dual;
   pCxt->currLevel = ++(pCxt->levelNo);
   code = translateQuery(pCxt, pNode);
   pCxt->currClause = currClause;
   pCxt->pCurrStmt = pCurrStmt;
   pCxt->currLevel = currLevel;
+  pCxt->dual = dual;
 
   return code;
 }
@@ -19357,11 +19359,13 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
     parserError("Correlated subQuery not supported now");
     code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
   }
+/*  
   if (pCxt->hasLocalSubQ) {
     parserError("Only query with FROM supported now");
     code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
   }
-    
+*/
+
   return code;
 }
 
