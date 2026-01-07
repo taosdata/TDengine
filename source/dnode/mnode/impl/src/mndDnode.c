@@ -39,7 +39,6 @@
 #include "taoskInt.h"
 #endif
 
-#define SYNC_SNAPSHOT_SEQ_END   0x7FFFFFFF
 #define TSDB_DNODE_VER_NUMBER   2
 #define TSDB_DNODE_RESERVE_SIZE 40
 

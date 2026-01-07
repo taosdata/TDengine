@@ -30,7 +30,6 @@
 #include "mndUser.h"
 #include "tmisce.h"
 
-#define SYNC_SNAPSHOT_SEQ_END            0x7FFFFFFF
 #define VGROUP_VER_COMPAT_MOUNT_KEEP_VER 2
 #define VGROUP_VER_NUMBER                VGROUP_VER_COMPAT_MOUNT_KEEP_VER
 #define VGROUP_RESERVE_SIZE              60
@@ -287,6 +286,7 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
         pNewGid->bufferSegmentSize = pOldGid->bufferSegmentSize;
         pNewGid->learnerProgress = pOldGid->learnerProgress;
         pNewGid->snapSeq = pOldGid->snapSeq;
+        pNewGid->syncTotalIndex = pOldGid->syncTotalIndex;
       }
     }
   }
