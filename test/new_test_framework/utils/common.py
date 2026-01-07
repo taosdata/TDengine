@@ -2424,16 +2424,16 @@ class TDCom:
             # Handle any other exceptions that may occur
             print(f"An error occurred: {e}")
 
-        def waitTransactionZeroWithTdsql(self, td_sql, timeout=300):
-            count = 0
-            while count < timeout:
-                result = td_sql.query("show transactions;")
-                if result == 0 :
-                    tdLog.info("transaction count became zero.")
-                    return True
-                time.sleep(1)
-                count += 1
-            tdLog.exit(f"Timeout after {timeout} seconds waiting for transaction count to become zero.")
+    def waitTransactionZeroWithTdsql(self, td_sql, timeout=300):
+        count = 0
+        while count < timeout:
+            result = td_sql.query("show transactions;")
+            if result == 0 :
+                tdLog.info("transaction count became zero.")
+                return True
+            time.sleep(1)
+            count += 1
+        tdLog.exit(f"Timeout after {timeout} seconds waiting for transaction count to become zero.")
 
 def is_json(msg):
     if isinstance(msg, str):
