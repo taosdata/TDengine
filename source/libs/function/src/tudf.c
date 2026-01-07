@@ -1199,7 +1199,7 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
       }
     }
   }
-  uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
+  //uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
   *pHandle = NULL;
   code = doSetupUdf(udfName, pHandle);
   if (code == TSDB_CODE_SUCCESS) {
@@ -1208,7 +1208,7 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
     stub.handle = *pHandle;
     ++stub.refCount;
     stub.createTime = taosGetTimestampUs();
-    uv_mutex_lock(&gUdfcProxy.udfStubsMutex);
+    //uv_mutex_lock(&gUdfcProxy.udfStubsMutex);
     if (taosArrayPush(gUdfcProxy.udfStubs, &stub) == NULL) {
       fnError("acquireUdfFuncHandle: failed to push udf stub to array");
       uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
@@ -1216,10 +1216,11 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
     } else {
       taosArraySort(gUdfcProxy.udfStubs, compareUdfcFuncSub);
     }
-    uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
   } else {
     *pHandle = NULL;
   }
+
+  uv_mutex_unlock(&gUdfcProxy.udfStubsMutex);
 
 _exit:
   return code;
