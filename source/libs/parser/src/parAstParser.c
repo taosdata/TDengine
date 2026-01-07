@@ -1559,10 +1559,11 @@ static int32_t collectMetaKeyFromCreateViewStmt(SCollectMetaKeyCxt* pCxt, SCreat
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    if (QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery) && QUERY_NODE_SET_OPERATOR != nodeType(pStmt->pQuery)) {
+    if (!pStmt->pQuery ||
+        (QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery) && QUERY_NODE_SET_OPERATOR != nodeType(pStmt->pQuery))) {
       code = TSDB_CODE_PAR_INVALID_VIEW_QUERY;
     } else {
-      code = collectMetaKeyFromSelect(pCxt, (SSelectStmt*)pStmt->pQuery);
+      code = collectMetaKeyFromQuery(pCxt, pStmt->pQuery);
     }
   }
 

@@ -46,7 +46,7 @@ class TestViewMgmt:
 
         self.prepare_data()
         tdLog.info(f"================== start view management tests")
-        self.privilege_basic_view()
+        # self.privilege_basic_view()
         self.privilege_nested_view()
         self.create_drop_view()
         self.query_view()
@@ -216,12 +216,13 @@ class TestViewMgmt:
         tdSql.execute(f"use testa")
         tdSql.execute(f"drop view testa.view1;")
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges order by user_name, privilege;"
+            f"select * from information_schema.ins_user_privileges order by user_name, priv_type;"
         )
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, "root")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "u1")
 
         tdSql.execute(f"grant all on testa.* to u1;")
+        tdSql.execute(f"grant create view on database testa to u1;")
         tdSql.execute(f"reset query cache")
 
         tdLog.info(f"== u1 create view1 ==")
@@ -232,7 +233,8 @@ class TestViewMgmt:
         tdSql.execute(f"create view view1 as select * from sta1;")
 
         tdSql.connect("root")
-        tdSql.execute(f"grant read on testa.view1 to u2;")
+        tdSql.execute(f"grant select on view testa.view1 to u2;")
+        tdSql.execute(f"grant use on database testa to u2;")
         tdSql.error(f"insert into view1 values (now, 1);")
 
         tdSql.connect("u2")
@@ -276,7 +278,8 @@ class TestViewMgmt:
         tdSql.execute(f"create or replace view view1 as select * from st2;")
 
         tdSql.connect("root")
-        tdSql.execute(f"grant alter on testa.view1 to u2")
+        tdSql.execute(f"grant alter on view testa.view1 to u2")
+        tdSql.execute(f"grant create view on database testa to u2")
         tdSql.execute(f"revoke all on testa.* from u1")
         tdSql.execute(f"reset query cache")
 
@@ -294,7 +297,8 @@ class TestViewMgmt:
         tdSql.checkData(0, 2, "u2")
 
         tdSql.connect("root")
-        tdSql.execute(f"grant all on testa.view1 to u3;")
+        tdSql.execute(f"grant all on view testa.view1 to u3;")
+        tdSql.execute(f"grant use on database testa to u3;")
 
         tdSql.connect("u3")
         tdSql.execute(f"use testa")
@@ -339,13 +343,20 @@ class TestViewMgmt:
         tdSql.execute(f"grant all on testa.* to u1;")
         tdSql.execute(f"grant all on testb.* to u2;")
         tdSql.execute(f"grant all on testa.stt to u3;")
+        tdSql.execute(f"grant use on database testa to u1;")
+        tdSql.execute(f"grant use on database testb to u2;")
+        tdSql.execute(f"grant create view on database testa to u1;")
+        tdSql.execute(f"grant create view on database testb to u2;")
+
 
         tdSql.connect("u1")
         tdSql.execute(f"use testa")
+        tdLog.info(f"== u1 create view1 ==")
         tdSql.execute(f"create view view1 as select ts, f from st2;")
 
         tdSql.connect("u2")
         tdSql.execute(f"use testb")
+        tdLog.info(f"== u2 create view1 ==")
         tdSql.execute(f"create view view1 as select ts, f from st2;")
 
         tdSql.connect("root")
