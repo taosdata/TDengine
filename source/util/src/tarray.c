@@ -126,10 +126,19 @@ void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
 }
 
 int32_t taosArrayAddZeroData(SArray* pArray, int32_t nEles) {
-  int32_t code = taosArrayEnsureCap(pArray, pArray->size + nEles);
-  if (code) {
-    terrno = code;
-    return code;
+  int32_t code = 0;
+  if (pArray == NULL || nEles < 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  if (pArray->size + nEles > pArray->capacity) {
+    code = taosArrayEnsureCap(pArray, pArray->size + nEles);
+    if (code) {
+      terrno = code;
+      return code;
+    }
+    void* dst = TARRAY_GET_ELEM(pArray, pArray->size);
+    memset(dst, 0, (size_t)nEles * pArray->elemSize);
   }
   pArray->size += nEles;
   return 0;
