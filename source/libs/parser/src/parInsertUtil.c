@@ -626,22 +626,24 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
   rowP = (SArray**)tSimpleHashGet(pTableNameHash, tbname, strlen(tbname));
 
   if (rowP != NULL && *rowP != NULL) {
-    for (int32_t j = 0; j < taosArrayGetSize(*rowP); ++j) {
+    int32_t aRowPSize = taosArrayGetSize(pTbCtx->pData->aRowP);
+    for (int32_t j = 0; j < aRowPSize; ++j) {
       SRow* pRow = (SRow*)taosArrayGetP(pTbCtx->pData->aRowP, j);
       if (pRow) {
         if (NULL == taosArrayPush(*rowP, &pRow)) {
           return terrno;
         }
       }
+    }
 
-      code = tRowSort(*rowP);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-      code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
+    // Sort and merge the combined array once after all rows are added
+    code = tRowSort(*rowP);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
 
     parserDebug("merge same uid data: %" PRId64 ", vgId:%d", pTbCtx->pData->uid, pVgCxt->vgId);
