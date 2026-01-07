@@ -1061,8 +1061,6 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
 
 #endif // TD_ENTERPRISE
 
-
-
   userObj.pTimeWhiteList = taosMemoryCalloc(1, sizeof(SDateTimeWhiteList));
   if (userObj.pTimeWhiteList == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _ERROR);
@@ -1077,9 +1075,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     userObj.callPerSession = -1;
     userObj.vnodePerCall = -1;
     userObj.failedLoginAttempts = -1;
-    userObj.passwordLifeTime = -1;
     userObj.passwordGraceTime = -1;
-    userObj.passwordLockTime = 1;
     userObj.inactiveAccountTime = -1;
     userObj.allowTokenNum = -1;
   }
