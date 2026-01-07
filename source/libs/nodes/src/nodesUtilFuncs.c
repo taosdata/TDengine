@@ -2789,6 +2789,10 @@ SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
   return NULL;
 }
 
+int32_t nodesListGetSize(SNodeList* pList) {
+  return (NULL == pList) ? 0 : pList->length;
+}
+
 SListCell* nodesListGetCell(SNodeList* pList, int32_t index) {
   SNode* node;
   FOREACH(node, pList) {

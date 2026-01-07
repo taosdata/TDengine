@@ -1094,7 +1094,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pIntNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, nodesListGetSize(pIntNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pIntNode->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -1157,7 +1157,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pIntNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, nodesListGetSize(pIntNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pIntNode->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -1278,7 +1278,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pSessNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, nodesListGetSize(pSessNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pSessNode->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
@@ -1321,7 +1321,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
 
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pStateNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, nodesListGetSize(pStateNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pStateNode->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
@@ -1709,7 +1709,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pIntNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, nodesListGetSize(pIntNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
@@ -1825,7 +1825,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pEventNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, nodesListGetSize(pEventNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pEventNode->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
@@ -2064,7 +2064,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pCountNode->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, nodesListGetSize(pCountNode->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pCountNode->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
@@ -2089,7 +2089,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pExternal->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, nodesListGetSize(pExternal->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pExternal->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -2137,7 +2137,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pExternal->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, nodesListGetSize(pExternal->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pExternal->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
@@ -2185,7 +2185,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pExternal->window.pFuncs->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, nodesListGetSize(pExternal->window.pFuncs));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pExternal->window.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
