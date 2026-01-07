@@ -39,6 +39,7 @@ typedef struct SPlanContext {
   bool        topicQuery;
   bool        streamCalcQuery;
   bool        streamTriggerQuery;
+  bool        streamForceOutput;
   bool        rSmaQuery;
   bool        showRewrite;
   bool        isView;
