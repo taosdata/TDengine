@@ -181,10 +181,9 @@ class TestScalarSubQuery3d:
                         self.querySql = self.subSqls[self.mainIdx].replace("{scalarSql}", "(" + self.subSqls[self.secondIdx] + ")")
                         self.querySql = self.querySql.replace("{scalarSql}", self.scalarSqls[self.subIdx])
                         self.querySql = self.querySql.replace("{tableName}", self.tableNames[self.tableIdx])
-                        #self.querySql = self.querySql.replace("{ntableName}", self.tableNames[self.ntableIdx])
                         # ensure exactly one trailing semicolon
                         self.querySql = self.querySql.rstrip().rstrip(';') + ';'
-                        tdLog.info(f"generated sql: {self.querySql}")
+                        #tdLog.info(f"generated sql: {self.querySql}")
 
                         self.saved_count += 1
 

@@ -659,8 +659,7 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   }
   copyValueTrimEscape(val->literal, pLiteral->n + 1, pLiteral,
                       pCxt->pQueryCxt->hasDupQuoteChar && (TK_NK_ID == pLiteral->type));
-  if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type &&
-      (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
+  if (TK_NK_STRING == pLiteral->type) {
     (void)trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
   }
   val->node.resType.type = dataType;
@@ -5000,6 +4999,42 @@ _err:
   nodesDestroyNode((SNode*)pStmt);
   return NULL;
 }
+
+SNode* createCreateTotpSecretStmt(SAstCreateContext* pCxt, SToken* pUserName) {
+  SCreateTotpSecretStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkUserName(pCxt, pUserName));
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_TOTP_SECRET_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  COPY_STRING_FORM_ID_TOKEN(pStmt->user, pUserName);
+  return (SNode*)pStmt;
+
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+
+SNode* createDropTotpSecretStmt(SAstCreateContext* pCxt, SToken* pUserName) {
+  SDropTotpSecretStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkUserName(pCxt, pUserName));
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_TOTP_SECRET_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  COPY_STRING_FORM_ID_TOKEN(pStmt->user, pUserName);
+  return (SNode*)pStmt;
+
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
 
 SNode* createDropEncryptAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId) {
   CHECK_PARSER_STATUS(pCxt);
