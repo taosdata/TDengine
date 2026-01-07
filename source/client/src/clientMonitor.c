@@ -14,7 +14,8 @@ SRWLatch    monitorLock;
 void*       monitorTimer;
 SHashObj*   monitorCounterHash;
 int32_t     monitorFlag = 0;
-int32_t     quitCnt = 0;
+int64_t     quitTime = 0;
+int32_t     quitCnt = -1;
 tsem2_t     monitorSem;
 STaosQueue* monitorQueue;
 SHashObj*   monitorSlowLogHash;
@@ -31,22 +32,15 @@ static int32_t getSlowLogTmpDir(char* tmpPath, int32_t size) {
   return 0;
 }
 
-static void processFileInTheEnd(TdFilePtr pFile, char* path) {
-  if (pFile == NULL) {
+static void processFileInTheEnd(TdFilePtr* pFile, char* path) {
+  if (pFile == NULL || *pFile == NULL) {
     return;
   }
-  if (taosFtruncateFile(pFile, 0) != 0) {
-    tscError("failed to truncate file:%s, terrno:%d", path, terrno);
-    return;
-  }
-  if (taosUnLockFile(pFile) != 0) {
-    tscError("failed to unlock file:%s, terrno:%d", path, terrno);
-    return;
-  }
-  if (taosCloseFile(&(pFile)) != 0) {
+  if (taosCloseFile(pFile) != 0) {
     tscError("failed to close file:%s, terrno:%d", path, terrno);
     return;
   }
+  *pFile = NULL;
   if (taosRemoveFile(path) != 0) {
     tscError("failed to remove file:%s, terrno:%d", path, terrno);
     return;
@@ -58,7 +52,9 @@ static void destroySlowLogClient(void* data) {
     return;
   }
   SlowLogClient* slowLogClient = *(SlowLogClient**)data;
-  processFileInTheEnd(slowLogClient->pFile, slowLogClient->path);
+  if (slowLogClient->offset == 0){
+    processFileInTheEnd(&slowLogClient->pFile, slowLogClient->path);
+  }
   taosMemoryFree(slowLogClient);
 }
 
@@ -89,6 +85,9 @@ static void monitorFreeSlowLogData(void* paras) {
   taosMemoryFreeClear(pData->data);
   if (pData->type == SLOW_LOG_READ_BEGINNIG) {
     taosMemoryFree(pData->fileName);
+    if (taosCloseFile(&(pData->pFile)) != 0) {
+      tscError("failed to close file:%p", pData->pFile);
+    }
   }
 }
 
@@ -119,24 +118,20 @@ static int32_t monitorReportAsyncCB(void* param, SDataBuf* pMsg, int32_t code) {
     if (code != 0) {
       tscError("failed to send slow log:%s, clusterId:0x%" PRIx64, p->data, p->clusterId);
     }
-    MonitorSlowLogData tmp = {.clusterId = p->clusterId,
-                              .type = p->type,
-                              .fileName = p->fileName,
-                              .pFile = p->pFile,
-                              .offset = p->offset,
-                              .data = NULL};
-    if (monitorPutData2MonitorQueue(tmp) == 0) {
-      p->fileName = NULL;
-    } else {
-      if (taosCloseFile(&(p->pFile)) != 0) {
-        tscError("failed to close file:%p", p->pFile);
-      }
+    MonitorSlowLogData tmp = *p;
+    tmp.data = NULL;
+    p->fileName = NULL;
+    p->pFile = NULL;
+    if (monitorPutData2MonitorQueue(tmp) != 0) {
+      monitorFreeSlowLogData(&tmp);
     }
   }
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t sendReport(void* pTransporter, SEpSet* epSet, char* pCont, MONITOR_TYPE type, void* param) {
+  int32_t code = 0;
+  void* buf = NULL;
   SStatisReq sStatisReq;
   sStatisReq.pCont = pCont;
   sStatisReq.contLen = strlen(pCont);
@@ -144,23 +139,25 @@ static int32_t sendReport(void* pTransporter, SEpSet* epSet, char* pCont, MONITO
 
   int tlen = tSerializeSStatisReq(NULL, 0, &sStatisReq);
   if (tlen < 0) {
+    code = terrno;
     goto FAILED;
   }
-  void* buf = taosMemoryMalloc(tlen);
+  buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     tscError("sendReport failed, out of memory, len:%d", tlen);
+    code = terrno;
     goto FAILED;
   }
   tlen = tSerializeSStatisReq(buf, tlen, &sStatisReq);
   if (tlen < 0) {
-    taosMemoryFree(buf);
+    code = terrno;
     goto FAILED;
   }
 
   SMsgSendInfo* pInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (pInfo == NULL) {
     tscError("sendReport failed, out of memory send info");
-    taosMemoryFree(buf);
+    code = terrno;
     goto FAILED;
   }
   pInfo->fp = monitorReportAsyncCB;
@@ -176,11 +173,9 @@ static int32_t sendReport(void* pTransporter, SEpSet* epSet, char* pCont, MONITO
   return asyncSendMsgToServer(pTransporter, epSet, NULL, pInfo);
 
 FAILED:
-  if (taosCloseFile(&(((MonitorSlowLogData*)param)->pFile)) != 0) {
-    tscError("failed to close file:%p", ((MonitorSlowLogData*)param)->pFile);
-  }
+  taosMemoryFree(buf);
   monitorFreeSlowLogDataEx(param);
-  return TAOS_GET_TERRNO(TSDB_CODE_TSC_INTERNAL_ERROR);
+  return code;
 }
 
 static void generateClusterReport(taos_collector_registry_t* registry, void* pTransporter, SEpSet* epSet) {
@@ -431,7 +426,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char* tmpP
   if (taosWriteFile(pFile, slowLogData->data, strlen(slowLogData->data) + 1) < 0) {
     tscError("failed to write len to file:%p since %s", pFile, terrstr());
   }
-  tscDebug("monitor write slow log to file:%p, clusterId:0x%" PRIx64, pFile, slowLogData->clusterId);
+  tscDebug("monitor write slow log to file:%p, clusterId:0x%" PRIx64 ", data:%s", pFile, slowLogData->clusterId, slowLogData->data);
 }
 
 static char* readFile(TdFilePtr pFile, int64_t* offset, int64_t size) {
@@ -471,98 +466,118 @@ static char* readFile(TdFilePtr pFile, int64_t* offset, int64_t size) {
   }
 
   totalSize = 0;
-  while (1) {
+  while(1){
     size_t len = strlen(buf);
-    totalSize += (len + 1);
-    if (totalSize > readSize || len == 0) {
-      *(buf - 1) = ']';
+    if (len == SLOW_LOG_SEND_SIZE_MAX) {  // one item is too long
+      *offset = size;
+      *buf = ']';
+      *(buf+1) = '\0';
+      break;
+    }
+
+    totalSize += (len+1);
+    if (totalSize > readSize) {
+      *(buf-1) = ']';
       *buf = '\0';
       break;
     }
-    buf[len] = ',';  // replace '\0' with ','
+
+    if (len == 0) {   // one item is empty
+      if (*(buf - 1) == '[') {      // data is "\0"
+        // no data read
+        *buf = ']';
+        *(buf + 1) = '\0';
+      } else {                      // data is "ass\0\0"
+        *(buf - 1) = ']';
+        *buf = '\0';
+      }
+      *offset += 1;
+      break;
+    }
+    buf[len] = ','; // replace '\0' with ','
     buf += (len + 1);
-    *offset += (len + 1);
+    *offset += (len+1);
   }
 
   tscDebug("monitor readFile slow log end, data:%s, offset:%" PRId64, pCont, *offset);
   return pCont;
 }
 
-static int64_t getFileSize(char* path) {
-  int64_t fileSize = 0;
-  if (taosStatFile(path, &fileSize, NULL, NULL) < 0) {
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
-  }
+static int32_t getFileSize(char* path, int64_t* fileSize) {
+  int32_t code = 0;
+  code = taosStatFile(path, fileSize, NULL, NULL);
 
-  return fileSize;
+  return code;
 }
 
-static int32_t sendSlowLog(int64_t clusterId, char* data, TdFilePtr pFile, int64_t offset, SLOW_LOG_QUEUE_TYPE type,
-                           char* fileName, void* pTransporter, SEpSet* epSet) {
+static int32_t sendSlowLog(int64_t clusterId, char* data, TdFilePtr* pFile, int64_t offset, SLOW_LOG_QUEUE_TYPE type,
+                           char** fileName, void* pTransporter, SEpSet* epSet) {
   if (data == NULL) {
-    if (taosCloseFile(&pFile) != 0) {
-      tscError("failed to close file:%p", pFile);
-    }
-    taosMemoryFree(fileName);
     return TSDB_CODE_INVALID_PARA;
   }
-  MonitorSlowLogData* pParam = taosMemoryMalloc(sizeof(MonitorSlowLogData));
+  MonitorSlowLogData* pParam = taosMemoryCalloc(1, sizeof(MonitorSlowLogData));
   if (pParam == NULL) {
-    if (taosCloseFile(&pFile) != 0) {
-      tscError("failed to close file:%p", pFile);
-    }
     taosMemoryFree(data);
-    taosMemoryFree(fileName);
     return terrno;
   }
   pParam->data = data;
   pParam->offset = offset;
   pParam->clusterId = clusterId;
   pParam->type = type;
-  pParam->pFile = pFile;
-  pParam->fileName = fileName;
+  if (pFile != NULL) {
+    TSWAP(*pFile, pParam->pFile);
+  }
+  if (fileName != NULL) {
+    TSWAP(*fileName, pParam->fileName);
+  }
   return sendReport(pTransporter, epSet, data, MONITOR_TYPE_SLOW_LOG, pParam);
 }
 
-static int32_t monitorReadSend(int64_t clusterId, TdFilePtr pFile, int64_t* offset, int64_t size,
-                               SLOW_LOG_QUEUE_TYPE type, char* fileName) {
+static int32_t monitorReadSend(int64_t clusterId, TdFilePtr* pFile, int64_t* offset, int64_t size,
+                               SLOW_LOG_QUEUE_TYPE type, char** fileName) {
   SAppInstInfo* pInst = getAppInstByClusterId(clusterId);
   if (pInst == NULL) {
     tscError("failed to get app instance by clusterId:0x%" PRIx64, clusterId);
-    if (taosCloseFile(&pFile) != 0) {
-      tscError("failed to close file:%p", pFile);
-    }
-    taosMemoryFree(fileName);
     return terrno;
   }
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
-  char*  data = readFile(pFile, offset, size);
+  char*  data = readFile(*pFile, offset, size);
   if (data == NULL) return terrno;
   return sendSlowLog(clusterId, data, (type == SLOW_LOG_READ_BEGINNIG ? pFile : NULL), *offset, type, fileName,
                      pInst->pTransporter, &ep);
 }
 
-static void monitorSendSlowLogAtBeginning(int64_t clusterId, char** fileName, TdFilePtr pFile, int64_t offset) {
+static void monitorSendSlowLogAtBeginning(int64_t clusterId, char** fileName, TdFilePtr* pFile, int64_t offset) {
+  int32_t code = 0;
   if (fileName == NULL) {
     return;
   }
-  int64_t size = getFileSize(*fileName);
+  int64_t size = 0;
+  code = getFileSize(*fileName, &size);
+  if (code < 0) {
+    tscError("failed to get file size for file:%s, code:%d, errno:%d", *fileName, code, errno);
+    return;
+  }
   if (size <= offset) {
     processFileInTheEnd(pFile, *fileName);
-    tscDebug("monitor delete file:%s", *fileName);
+    tscInfo("monitor at beginning delete file:%s", *fileName);
   } else {
-    int32_t code = monitorReadSend(clusterId, pFile, &offset, size, SLOW_LOG_READ_BEGINNIG, *fileName);
+    int32_t code = monitorReadSend(clusterId, pFile, &offset, size, SLOW_LOG_READ_BEGINNIG, fileName);
     if (code == 0) {
       tscDebug("monitor send slow log succ, clusterId:0x%" PRIx64, clusterId);
     } else {
-      tscError("monitor send slow log failed, clusterId:0x%" PRIx64 ", ret:%d", clusterId,
-               code);
+      tscError("monitor send slow log failed, clusterId:0x%" PRIx64 ", ret:%d", clusterId, code);
     }
-    *fileName = NULL;
   }
+  if (taosCloseFile(pFile) != 0) {
+    tscError("failed to close file:%p", *pFile);
+  }
+  *pFile = NULL;
+  taosMemoryFreeClear(*fileName);
 }
 
 static void monitorSendSlowLogAtRunning(int64_t clusterId) {
+  int32_t code = 0;
   void* tmp = taosHashGet(monitorSlowLogHash, &clusterId, LONG_BYTES);
   if (tmp == NULL) {
     tscError("failed to get slow log client by clusterId:0x%" PRIx64, clusterId);
@@ -573,7 +588,12 @@ static void monitorSendSlowLogAtRunning(int64_t clusterId) {
     tscError("failed to get slow log client by clusterId:0x%" PRIx64, clusterId);
     return;
   }
-  int64_t size = getFileSize(pClient->path);
+  int64_t size = 0;
+  code = getFileSize(pClient->path, &size);
+  if (code < 0) {
+    tscError("failed to get file size for file:%s, code:%d, errno:%d", pClient->path, code, errno);
+    return;
+  }
   if (size <= pClient->offset) {
     if (taosFtruncateFile(pClient->pFile, 0) < 0) {
       tscError("failed to truncate file:%p code:%d", pClient->pFile, terrno);
@@ -581,49 +601,55 @@ static void monitorSendSlowLogAtRunning(int64_t clusterId) {
     tscDebug("monitor truncate file to 0 file:%p", pClient->pFile);
     pClient->offset = 0;
   } else {
-    int32_t code = monitorReadSend(clusterId, pClient->pFile, &pClient->offset, size, SLOW_LOG_READ_RUNNING, NULL);
+    code = monitorReadSend(clusterId, &pClient->pFile, &pClient->offset, size, SLOW_LOG_READ_RUNNING, NULL);
     tscDebug("monitor send slow log clusterId:0x%" PRIx64 ", ret:%d", clusterId, code);
   }
 }
 
-static bool monitorSendSlowLogAtQuit(int64_t clusterId) {
+static void monitorSendSlowLogAtQuit(int64_t clusterId) {
+  int32_t code = 0;
   void* tmp = taosHashGet(monitorSlowLogHash, &clusterId, LONG_BYTES);
   if (tmp == NULL) {
-    return true;
+    return;
   }
   SlowLogClient* pClient = (*(SlowLogClient**)tmp);
   if (pClient == NULL) {
-    return true;
+    return;
   }
-  int64_t size = getFileSize(pClient->path);
+  int64_t size = 0;
+  code = getFileSize(pClient->path, &size);
+  if (code < 0) {
+    tscError("failed to get file size for file:%s, code:%d, errno:%d", pClient->path, code, errno);
+    return;
+  }
   if (size <= pClient->offset) {
-    processFileInTheEnd(pClient->pFile, pClient->path);
-    pClient->pFile = NULL;
-    tscInfo("monitor remove file:%s", pClient->path);
-    if ((--quitCnt) == 0) {
-      return true;
-    }
+    tscInfo("monitor at quit remove file:%s", pClient->path);
+    --quitCnt;
+    pClient->offset = 0;
   } else {
-    int32_t code = monitorReadSend(clusterId, pClient->pFile, &pClient->offset, size, SLOW_LOG_READ_QUIT, NULL);
-    tscDebug("monitor send slow log clusterId:0x%" PRIx64 ", ret:%d", clusterId, code);
+    int32_t code = monitorReadSend(clusterId, &pClient->pFile, &pClient->offset, size, SLOW_LOG_READ_QUIT, NULL);
+    tscDebug("monitor send slow log at quit clusterId:0x%" PRIx64 ", code:%d", clusterId, code);
   }
-  return false;
 }
 static void monitorSendAllSlowLogAtQuit() {
+  int32_t  code = 0;
   void* pIter = NULL;
+  quitCnt = 0;
   while ((pIter = taosHashIterate(monitorSlowLogHash, pIter))) {
     SlowLogClient* pClient = (*(SlowLogClient**)pIter);
     if (pClient == NULL) {
       continue;
     }
-    int64_t size = getFileSize(pClient->path);
-    if (size <= pClient->offset) {
-      processFileInTheEnd(pClient->pFile, pClient->path);
-      pClient->pFile = NULL;
-    } else if (pClient->offset == 0) {
+    int64_t size = 0;
+    code = getFileSize(pClient->path, &size);
+    if (code < 0) {
+      tscError("failed to get file size for file:%s, code:%d, errno:%d", pClient->path, code, errno);
+      continue;
+    }
+    if (size > pClient->offset) {
       int64_t* clusterId = (int64_t*)taosHashGetKey(pIter, NULL);
-      int32_t  code = monitorReadSend(*clusterId, pClient->pFile, &pClient->offset, size, SLOW_LOG_READ_QUIT, NULL);
-      tscDebug("monitor send slow log clusterId:0x%" PRIx64 ", ret:%d", *clusterId, code);
+      code = monitorReadSend(*clusterId, &pClient->pFile, &pClient->offset, size, SLOW_LOG_READ_QUIT, NULL);
+      tscInfo("monitor send slow log at quit, clusterId:0x%" PRIx64 ", ret:%d", *clusterId, code);
       if (code == 0) {
         quitCnt++;
       }
@@ -652,6 +678,7 @@ static void processFileRemoved(SlowLogClient* pClient) {
 }
 
 static void monitorSendAllSlowLog() {
+  int32_t code = 0;
   int64_t t = taosGetMonoTimestampMs();
   void*   pIter = NULL;
   while ((pIter = taosHashIterate(monitorSlowLogHash, pIter))) {
@@ -669,18 +696,21 @@ static void monitorSendAllSlowLog() {
     }
 
     if (pClient->offset == 0) {
-      int64_t size = getFileSize(pClient->path);
-      if (size <= 0) {
-        if (size < 0) {
-          tscError("monitor failed to get file size:%s, err:%d", pClient->path, ERRNO);
-          if (ERRNO == ENOENT) {
-            processFileRemoved(pClient);
-          }
+      int64_t size = 0;
+      code = getFileSize(pClient->path, &size);
+      if (code < 0) {
+        tscError("monitor failed to get file size:%s, err:%d", pClient->path, ERRNO);
+        if (ERRNO == ENOENT) {
+          processFileRemoved(pClient);
         }
+      }
+
+      if (size == 0) {
         continue;
       }
-      int32_t code = monitorReadSend(*clusterId, pClient->pFile, &pClient->offset, size, SLOW_LOG_READ_RUNNING, NULL);
-      tscDebug("monitor send slow log clusterId:0x%" PRIx64 ", ret:%d", *clusterId, code);
+
+      code = monitorReadSend(*clusterId, &pClient->pFile, &pClient->offset, size, SLOW_LOG_READ_RUNNING, NULL);
+      tscDebug("monitor send slow log running, clusterId:0x%" PRIx64 ", ret:%d", *clusterId, code);
     }
   }
 }
@@ -738,16 +768,13 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId) {
     char* tmp = taosStrdup(filename);
     if (tmp == NULL) {
       tscError("failed to dup string:%s since %s", filename, terrstr());
-      if (taosUnLockFile(pFile) != 0) {
-        tscError("failed to unlock file:%s, terrno:%d", filename, terrno);
-      }
       if (taosCloseFile(&(pFile)) != 0) {
         tscError("failed to close file:%s, terrno:%d", filename, terrno);
       }
       continue;
     }
-    monitorSendSlowLogAtBeginning(clusterId, &tmp, pFile, 0);
-    taosMemoryFree(tmp);
+    tscInfo("monitor send slow log from temp file:%s", filename);
+    monitorSendSlowLogAtBeginning(clusterId, &tmp, &pFile, 0);
   }
 
   int32_t ret = taosCloseDir(&pDir);
@@ -759,54 +786,44 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId) {
 static void* monitorThreadFunc(void* param) {
   setThreadName("client-monitor-slowlog");
   tscInfo("monitor update thread started");
-  int64_t quitTime = 0;
+  MonitorSlowLogData* slowLogData = NULL;
   while (1) {
     if (atomic_load_32(&monitorFlag) == 1) {
-      if (quitCnt == 0) {
-        monitorSendAllSlowLogAtQuit();
-        if (quitCnt == 0) {
-          tscInfo("monitorThreadFunc quit since no slow log to send");
-          break;
-        }
-        quitTime = taosGetMonoTimestampMs();
-      }
-      if (taosGetMonoTimestampMs() - quitTime > 500) {  // quit at most 500ms
-        tscInfo("monitorThreadFunc quit since timeout");
+      if ((taosGetMonoTimestampMs() - quitTime > 5000 || quitCnt == 0) &&
+          slowLogData == NULL) {  // quit at most 5000ms or no data need to send
+        tscInfo("monitorThreadFunc quit since timeout or quitcnt:%d", quitCnt);
         break;
       }
     }
 
-    MonitorSlowLogData* slowLogData = NULL;
     taosReadQitem(monitorQueue, (void**)&slowLogData);
     if (slowLogData != NULL) {
-      if (slowLogData->type == SLOW_LOG_READ_BEGINNIG && quitCnt == 0) {
+      if (slowLogData->type == SLOW_LOG_READ_BEGINNIG && atomic_load_32(&monitorFlag) == 0) {
         if (slowLogData->pFile != NULL) {
-          monitorSendSlowLogAtBeginning(slowLogData->clusterId, &(slowLogData->fileName), slowLogData->pFile,
+          monitorSendSlowLogAtBeginning(slowLogData->clusterId, &slowLogData->fileName, &slowLogData->pFile,
                                         slowLogData->offset);
         } else {
           monitorSendAllSlowLogFromTempDir(slowLogData->clusterId);
         }
       } else if (slowLogData->type == SLOW_LOG_WRITE) {
         monitorWriteSlowLog2File(slowLogData, tmpSlowLogPath);
-      } else if (slowLogData->type == SLOW_LOG_READ_RUNNING) {
+      } else if (slowLogData->type == SLOW_LOG_READ_RUNNING && atomic_load_32(&monitorFlag) == 0) {
         monitorSendSlowLogAtRunning(slowLogData->clusterId);
       } else if (slowLogData->type == SLOW_LOG_READ_QUIT) {
-        if (monitorSendSlowLogAtQuit(slowLogData->clusterId)) {
-          tscInfo("monitorThreadFunc quit since all slow log sended");
-          monitorFreeSlowLogData(slowLogData);
-          taosFreeQitem(slowLogData);
-          break;
-        }
+        monitorSendSlowLogAtQuit(slowLogData->clusterId);
+      } else if (slowLogData->type == SLOW_LOG_READ_QUIT_SEND_ALL) {
+        monitorSendAllSlowLogAtQuit();
       }
       monitorFreeSlowLogData(slowLogData);
       taosFreeQitem(slowLogData);
     }
 
-    if (quitCnt == 0) {
+    if (atomic_load_32(&monitorFlag) == 0) {
       monitorSendAllSlowLog();
     }
     (void)tsem2_timewait(&monitorSem, 100);
   }
+
   return NULL;
 }
 
@@ -889,10 +906,31 @@ int32_t monitorInit() {
   return tscMonitortInit();
 }
 
+void monitorPutQuitMsg2MonitorQueue() {
+  MonitorSlowLogData* slowLogData = NULL;
+  int32_t code = taosAllocateQitem(sizeof(MonitorSlowLogData), DEF_QITEM, 0, (void**)&slowLogData);
+  if (code) {
+    tscError("monitor failed to allocate slow log data");
+    return;
+  }
+  slowLogData->type = SLOW_LOG_READ_QUIT_SEND_ALL;
+  tscDebug("monitor write quit msg to queue");
+  code = taosWriteQitem(monitorQueue, slowLogData);
+  if (code == 0) {
+    if (tsem2_post(&monitorSem) != 0) {
+      tscError("failed to post semaphore");
+    }
+  } else {
+    taosFreeQitem(slowLogData);
+  }
+}
+
 void monitorClose() {
   tscInfo("monitor close");
   taosWLockLatch(&monitorLock);
   atomic_store_32(&monitorFlag, 1);
+  atomic_store_64(&quitTime, taosGetMonoTimestampMs());
+  monitorPutQuitMsg2MonitorQueue();
   tscMonitorStop();
   sendAllCounter();
   taosHashCleanup(monitorCounterHash);
@@ -910,8 +948,8 @@ int32_t monitorPutData2MonitorQueue(MonitorSlowLogData data) {
   MonitorSlowLogData* slowLogData = NULL;
 
   if (atomic_load_32(&monitorFlag) == 1) {
-    tscError("monitor slow log thread is exiting");
-    return -1;
+    tscInfo("monitor slow log thread is exiting");
+    return TSDB_CODE_APP_IS_STOPPING;
   }
 
   code = taosAllocateQitem(sizeof(MonitorSlowLogData), DEF_QITEM, 0, (void**)&slowLogData);
@@ -922,18 +960,15 @@ int32_t monitorPutData2MonitorQueue(MonitorSlowLogData data) {
   *slowLogData = data;
   tscDebug("monitor write slow log to queue, clusterId:0x%" PRIx64 " type:%s, data:%s", slowLogData->clusterId,
            queueTypeStr[slowLogData->type], slowLogData->data);
-  if (taosWriteQitem(monitorQueue, slowLogData) == 0) {
+  code = taosWriteQitem(monitorQueue, slowLogData);
+  if (code == 0) {
     if (tsem2_post(&monitorSem) != 0) {
       tscError("failed to post semaphore");
     }
   } else {
-    if (taosCloseFile(&(slowLogData->pFile)) != 0) {
-      tscError("failed to close file:%p", slowLogData->pFile);
-    }
-    monitorFreeSlowLogData(slowLogData);
     taosFreeQitem(slowLogData);
   }
-  return 0;
+  return code;
 }
 
 int32_t reportCB(void* param, SDataBuf* pMsg, int32_t code) {
