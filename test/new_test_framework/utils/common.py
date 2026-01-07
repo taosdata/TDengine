@@ -2427,10 +2427,8 @@ class TDCom:
         def waitTransactionZeroWithTdsql(self, td_sql, timeout=300):
             count = 0
             while count < timeout:
-                sql = "show transactions;"
-                td_sql.execute(sql)
-                result = td_sql.fetchall()
-                if not result:
+                result = td_sql.query("show transactions;")
+                if result == 0 :
                     tdLog.info("transaction count became zero.")
                     return True
                 time.sleep(1)
