@@ -3828,13 +3828,12 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       (STableScanOperatorParam*)req.pOpParam->value;
     if (pScanParam->paramType == NOTIFY_TYPE_SCAN_PARAM) {
       /**
-        If receiving notify message, notify the table scan task to step done.
-        Don't need to do real fetch work.
+        If receiving notify message, keep the notify ts and set event received.
+        Note: skip the real fetch work!
       */
-      STREAM_CHECK_RET_GOTO(
-        notifyTableScanTask(sStreamReaderCalcInfo->pTaskInfo,
-                            pScanParam->notifyTs));
-      goto end;
+      ST_SET_EVENT_RECEIVED(sStreamReaderCalcInfo, ST_EVENT_NOTIFY);
+      atomic_store_64(&sStreamReaderCalcInfo->notifyTs, pScanParam->notifyTs);
+      goto notify_end;
     }
   }
 
@@ -3871,7 +3870,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
         STREAM_CHECK_RET_GOTO(processCalaTimeRange(sStreamReaderCalcInfo, &req, node, &handle, true));
       } else {
         ST_TASK_DLOG("vgId:%d %s no interp time range node", TD_VID(pVnode), __func__);
-      }      
+      }
     }
 
     TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);
@@ -3897,6 +3896,12 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   pResList = taosArrayInit(4, POINTER_BYTES);
   STREAM_CHECK_NULL_GOTO(pResList, terrno);
   uint64_t ts = 0;
+  if (ST_EVENT_RECEIVED(sStreamReaderCalcInfo, ST_EVENT_NOTIFY)) {
+    STREAM_CHECK_RET_GOTO(
+      notifyTableScanTask(sStreamReaderCalcInfo->pTaskInfo,
+                          atomic_load_64(&sStreamReaderCalcInfo->notifyTs)));
+    ST_SET_EVENT_PROCESSED(sStreamReaderCalcInfo, ST_EVENT_NOTIFY);
+  }
   STREAM_CHECK_RET_GOTO(qExecTaskOpt(sStreamReaderCalcInfo->pTaskInfo, pResList, &ts, &hasNext, NULL, req.pOpParam != NULL));
 
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
@@ -3915,6 +3920,7 @@ end:
   STREAM_CHECK_RET_GOTO(streamBuildFetchRsp(pResList, hasNext, &buf, &size, pVnode->config.tsdbCfg.precision));
   taosArrayDestroy(pResList);
   streamReleaseTask(taskAddr);
+  taskAddr = NULL;  /* avoid double release */
 
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST){
     code = TDB_CODE_SUCCESS;
@@ -3923,6 +3929,9 @@ end:
   SRpcMsg rsp = {.msgType = TDMT_STREAM_FETCH_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
   tDestroySResFetchReq(&req);
+
+notify_end:
+  streamReleaseTask(taskAddr);
   return code;
 }
 

@@ -102,6 +102,9 @@ typedef struct SStreamTriggerReaderCalcInfo {
   qTaskInfo_t pTaskInfo;
   SStreamRuntimeInfo rtInfo;
   SStreamRuntimeFuncInfo tmpRtFuncInfo;
+
+  int8_t events[ST_EVENT_MAX];
+  TSKEY notifyTs;
 } SStreamTriggerReaderCalcInfo;
 
 // typedef enum { STREAM_SCAN_GROUP_ONE_BY_ONE, STREAM_SCAN_ALL } EScanMode;

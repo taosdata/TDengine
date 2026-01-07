@@ -24,6 +24,12 @@ extern "C" {
 #include "tlog.h"
 #include "executor.h"
 
+enum {
+  ST_EVENT_NOTIFY = 1,
+
+  ST_EVENT_MAX,
+};
+
 #define STREAM_HB_INTERVAL_MS 600
 
 #define STREAM_MAX_GROUP_NUM  5
@@ -45,6 +51,18 @@ extern "C" {
 #define STREAM_CLR_FLAG(st, f) (st) &= (~f)
 
 #define STREAM_CALC_REQ_MAX_WIN_NUM 40960
+
+enum {
+  ST_EVENT_NOT_RECEIVED = 0,
+  ST_EVENT_RECEIVED,
+  ST_EVENT_PROCESSED,
+};
+
+#define ST_GET_EVENT(ctx, event)           atomic_load_8(&(ctx)->events[event])
+#define ST_EVENT_RECEIVED(ctx, event)      (ST_GET_EVENT(ctx, event) == ST_EVENT_RECEIVED)
+#define ST_EVENT_PROCESSED(ctx, event)     (ST_GET_EVENT(ctx, event) == ST_EVENT_PROCESSED)
+#define ST_SET_EVENT_RECEIVED(ctx, event)  atomic_store_8(&(ctx)->events[event], ST_EVENT_RECEIVED)
+#define ST_SET_EVENT_PROCESSED(ctx, event) atomic_store_8(&(ctx)->events[event], ST_EVENT_PROCESSED)
 
 typedef struct SStreamReaderTask {
   SStreamTask task;
