@@ -96,13 +96,15 @@ class PrepareEnv(BaseStep):
             
             # create stream sql
             log.out("prepare execute main sql...")
+            log.out(self.scene.sql)
             conn.execute(self.scene.sql)
-            
             
             # wait for stream to be ready
             log.out("prepare wait stream ready...")
             self.wait_stream_ready(conn)
             conn.close()
+            log.outSuccess("Stream is ready!")
+            
             return True
         except Exception as e:
             log.out(f"PrepareEnv run except: {e} sql:\n{self.scene.sql}")

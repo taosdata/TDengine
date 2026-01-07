@@ -10,19 +10,23 @@ testCases:
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_a2
-      expectRows: 150
+      equalSql: select count(*) from 
+                     (
+                        select _wstart ts, count(*) 
+                            from db1.readings interval(1m)
+                     )
+      diffRows: 0
 
     - scenarioId: "A3"
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_a3
-      expectRows: 186
-
-    - scenarioId: "A4"
-      querySql: select count(*) from db1.readings
-      dataRows: 9988893
-      verifySql: select count(*) from db1.res_a4
-      expectRows: 8888      
+      equalSql: select count(*) from 
+                     (
+                        select _wstart ts, count(*) 
+                            from db1.readings interval(1m)
+                     )
+      diffRows: 0
 
     - scenarioId: "A5"
       querySql: select count(*) from db1.readings
@@ -40,7 +44,8 @@ testCases:
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_a7
-      expectRows: 8888
+      equalSql: select count(*) from (select _wstart ts, avg(fuel_consumption) from db1.readings interval(1h))
+      
 
     # F1 F2 F3 F4 F8
 
@@ -54,7 +59,7 @@ testCases:
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_f2
-      expectRows: 8888
+      expectRows: 150
 
     - scenarioId: "F3"
       querySql: select count(*) from db1.readings
@@ -66,13 +71,47 @@ testCases:
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_f4
-      expectRows: 8888
+      equalSql: select count(*) from 
+                   (
+                        select a.ts, avg_load/avg_fuel efficiency, a.fleet from 
+                             (
+                                  select _wstart ts, avg(fuel_consumption) avg_fuel, fleet 
+                                       from db1.readings 
+                                       partition by fleet 
+                                       interval(1h) 
+                                       order by ts
+                             ) a 
+                             join 
+                             (
+                                   select _wstart ts, avg(current_load) avg_load, fleet 
+                                        from db2.diagnostics 
+                                        partition by fleet 
+                                        interval(1h) 
+                                        order by ts
+                             ) b 
+                             on a.ts = b.ts and a.fleet = b.fleet
+                   )
+                   where ts < '2025-01-01 11:00:00' 
+      diffRows: 0
 
     - scenarioId: "F8"
       querySql: select count(*) from db1.readings
       dataRows: 9988893
       verifySql: select count(*) from db1.res_f8
-      expectRows: 8888
+      equalSql:  select count(*) from 
+                    (
+                        select ts, name, top(avg_fuel, 5) top_fuel, fleet from 
+                             (
+                                   select _wstart ts, avg(fuel_consumption) avg_fuel, name, fleet 
+                                       from db1.readings 
+                                       partition by tbname 
+                                       interval(1h)
+                             )
+                             where ts < '2025-01-01 11:00:00' 
+                             partition by fleet, ts 
+                             order by ts, fleet, top_fuel desc
+                    )
+      diffRows: 0
 
     # T1 T2 T3 T4 T7 T8
 
