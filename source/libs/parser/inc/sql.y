@@ -111,7 +111,7 @@ user_enabled(A) ::= ACCOUNT UNLOCK.                                             
 user_enabled(A) ::= ENABLE NK_INTEGER(B).                                         { A = taosStr2Int8(B.z, NULL, 10); }
 
 %type user_option                                                                 { SUserOptions* }
-// NOTE: TOTPSEED is deprecated, please use CREATE/DROP TOTPSECRET.
+// NOTE: TOTPSEED is deprecated, please use CREATE/DROP TOTP_SECRET.
 user_option(A) ::= TOTPSEED NK_STRING(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsTotpseed(pCxt, A, &B); }
 user_option(A) ::= TOTPSEED NULL.                                                 { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsTotpseed(pCxt, A, NULL); }
 user_option(A) ::= user_enabled(B).                                               { A = mergeUserOptions(pCxt, NULL, NULL); A->enable = B; A->hasEnable = true; }
