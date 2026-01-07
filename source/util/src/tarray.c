@@ -125,6 +125,16 @@ void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
   return dst;
 }
 
+int32_t taosArrayAddZeroData(SArray* pArray, int32_t nEles) {
+  int32_t code = taosArrayEnsureCap(pArray, pArray->size + nEles);
+  if (code) {
+    terrno = code;
+    return code;
+  }
+  pArray->size += nEles;
+  return 0;
+}
+
 void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)(void*)) {
   size_t size = pArray->size;
   if (size <= 1) {

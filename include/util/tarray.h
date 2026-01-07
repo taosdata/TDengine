@@ -64,6 +64,15 @@ void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles);
 /**
  *
  * @param pArray
+ * @param pData
+ * @param nEles
+ * @return
+ */
+int32_t taosArrayAddZeroData(SArray* pArray, int32_t nEles);
+
+/**
+ *
+ * @param pArray
  * @param comparFn
  * @param fp
  */

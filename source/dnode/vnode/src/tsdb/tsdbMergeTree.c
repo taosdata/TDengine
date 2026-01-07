@@ -518,14 +518,11 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
             pInfo->memSize += (IS_VAR_DATA_TYPE(vFirst.type) || vFirst.type == TSDB_DATA_TYPE_DECIMAL)? (vFirst.nData + vLast.nData):0;
           }
         } else {
-          SValue vFirst = {0};
-          for (int32_t j = 0; j < size; ++j) {
-            px = taosArrayPush(pInfo->pFirstKey, &vFirst);
-            TSDB_CHECK_NULL(px, code, lino, _end, terrno);
-
-            px = taosArrayPush(pInfo->pLastKey, &vFirst);
-            TSDB_CHECK_NULL(px, code, lino, _end, terrno);
-          }
+          // SValue vFirst = {0}; is equal array init with zeroed data
+          code = taosArrayAddZeroData(pInfo->pFirstKey, size);
+          TSDB_CHECK_NULL(px, code, lino, _end, terrno);
+          code = taosArrayAddZeroData(pInfo->pLastKey, size);
+          TSDB_CHECK_NULL(px, code, lino, _end, terrno);
         }
       } else {
         STbStatisRecord record = {0};
@@ -568,11 +565,11 @@ static int32_t loadSttStatisticsBlockData(SSttFileReader *pSttFileReader, SSttBl
 
             pInfo->memSize += (IS_VAR_DATA_TYPE(first.type) || first.type == TSDB_DATA_TYPE_DECIMAL)? (first.nData + last.nData):0;
           } else {
-            SValue v = {0};
-            px = taosArrayPush(pInfo->pFirstKey, &v);
+            // append empty value, SValue v = {0}; 
+            code = taosArrayAddZeroData(pInfo->pFirstKey, 1);
             TSDB_CHECK_NULL(px, code, lino, _end, terrno);
 
-            px = taosArrayPush(pInfo->pLastKey, &v);
+            code = taosArrayAddZeroData(pInfo->pLastKey, 1);
             TSDB_CHECK_NULL(px, code, lino, _end, terrno);
           }
 
