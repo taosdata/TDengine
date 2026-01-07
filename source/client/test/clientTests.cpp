@@ -1940,7 +1940,7 @@ void initTestEnv(const char* database, const char* stb, TAOS** pConnect, TAOS** 
   }
 
   char* tempUser = "control_user";
-  sprintf(buf, "create user if not exists %s pass \'taosdata\'", tempUser);
+  sprintf(buf, "create user if not exists %s pass \'AAbb1122\'", tempUser);
   pRes = taos_query(pRootConn, buf);
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
@@ -1984,7 +1984,7 @@ void initTestEnv(const char* database, const char* stb, TAOS** pConnect, TAOS** 
     ASSERT_TRUE(privilegeOk);
   }
 
-  pUserConn = taos_connect("localhost", tempUser, "taosdata", NULL, 0);
+  pUserConn = taos_connect("localhost", tempUser, "AAbb1122", NULL, 0);
   ASSERT_NE(pUserConn, nullptr);
   *pUserConnect = pUserConn;
 }
@@ -2015,12 +2015,12 @@ void testSessionPerUser() {
 
     taosMsleep(6100);
     for (int32_t i = 0; i < 10; i++) {
-      TAOS* pUserConn = taos_connect("localhost", userBuf, "taosdata", NULL, 0);
+      TAOS* pUserConn = taos_connect("localhost", userBuf, "AAbb1122", NULL, 0);
       taosArrayPush(p, &pUserConn);
     }
 
     {
-      TAOS* pUserConn = taos_connect("localhost", userBuf, "taosdata", NULL, 0);
+      TAOS* pUserConn = taos_connect("localhost", userBuf, "AAbb1122", NULL, 0);
       ASSERT_EQ(pUserConn, nullptr);
     }
 
@@ -2032,7 +2032,7 @@ void testSessionPerUser() {
     taosArrayDestroy(p);
     {
       taosMsleep(6200);
-      TAOS* pUserConn = taos_connect("localhost", userBuf, "taosdata", NULL, 0);
+      TAOS* pUserConn = taos_connect("localhost", userBuf, "AAbb1122", NULL, 0);
       ASSERT_NE(pUserConn, nullptr);
       taos_close(pUserConn);
     }

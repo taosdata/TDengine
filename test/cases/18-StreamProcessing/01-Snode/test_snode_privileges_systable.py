@@ -60,14 +60,14 @@ class TestStreamPrivilegesSysTable:
         # check normal user no sysinfo\createdb to query  ins_streams
         self.noSysInfo()
         self.noCreateDB()
-        tdSql.connect(f"{self.username1}")
+        tdSql.connect(self.username1, "AAbb1122")
         tdLog.info(f"connect user {self.username1} ")
         # self.queryInsStreams()
         # self.queryInsStreamTasks()
         # self.queryInsStreamRecalculates()
 
         self.SysInfo()
-        tdSql.connect(f"{self.username1}")
+        tdSql.connect(self.username1, "AAbb1122")
         tdLog.info(f"connect user {self.username1} ")
         self.queryInsStreamsAfterGrant()
         self.queryInsStreamTasksAfterGrant()

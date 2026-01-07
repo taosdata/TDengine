@@ -125,7 +125,7 @@ class TestUserPrivilegeDb:
 
         tdLog.info(f"=============== re connect")
         tdLog.info(f"user u1 login")
-        tdSql.connect("u1")
+        tdSql.connect("u1", "AAbb1122")
 
         tdSql.error(f"drop database d1;")
         tdSql.error(f"drop database d2;")
