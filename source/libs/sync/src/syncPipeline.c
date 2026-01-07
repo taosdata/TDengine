@@ -1169,6 +1169,7 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
         tsnprintf(reason, 100, "failed to get prev log term");
       else
         tsnprintf(reason, 100, "log term mismatch");
+      pNode->snapSeq = -1;
       if ((code = syncNodeStartSnapshot(pNode, &destId, reason)) < 0) {
         sError("vgId:%d, failed to start snapshot for peer dnode:%d", pNode->vgId, DID(&destId));
         TAOS_RETURN(code);
