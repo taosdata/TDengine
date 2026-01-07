@@ -160,22 +160,13 @@ static bool isValidSimplePassword(const char* password) {
 
 
 
-static bool isValidStrongPassword(const char* password) {
-  if (strcmp(password, "taosdata") == 0) {
-    return true;
-  }
-  return taosIsComplexString(password);
-}
-
-
-
 static bool isValidPassword(SAstCreateContext* pCxt, const char* password, bool imported) {
   if (imported) {
     return strlen(password) == TSDB_PASSWORD_LEN;
   }
 
   if (tsEnableStrongPassword) {
-    return isValidStrongPassword(password);
+    return taosIsComplexString(password);
   }
 
   return isValidSimplePassword(password);
