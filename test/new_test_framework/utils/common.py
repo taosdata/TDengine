@@ -439,14 +439,14 @@ class TDCom:
                     dbParams += f'{param} {value} '
             sqlString += f'{dbParams}'
 
-        tdLog.debug("create db sql: %s"%sqlString)
+        tdLog.debug(f"create db sql: {sqlString}")
         td_sql.execute(sqlString)
-        create_db_statu = self.waitTransactionZeroWithTsql(td_sql)
+        create_db_statu = self.waitTransactionZeroWithTdsql(td_sql)
         if not create_db_statu:
             # 这里可以加异常处理或日志
             tdLog.exit("Transaction did not reach zero, aborting test.")
         else:
-            tdLog.debug("complete to create database %s"%(dbName))
+            tdLog.debug(f"complete to create database {dbName}")
         return
 
     # def create_stable(self,td_sql, dbName,stbName,column_elm_list=None, tag_elm_list=None):
