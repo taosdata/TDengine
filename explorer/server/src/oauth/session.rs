@@ -17,16 +17,27 @@ use crate::utils::aes::{aes_decrypt_base64, aes_encrypt_base64};
 use crate::utils::cbc::derive_key_from_user_agent;
 use crate::Args;
 
+const SELF_PROVIDED: &str = "__self__";
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct OAuthUser {
     pub user_id: i64,
     pub username: String,
+    pub provider: String,
     pub tsdb_username: Option<String>,
     pub tsdb_password: Option<String>,
     pub email: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+impl OAuthUser {
+    /// Is self provided
+    pub fn is_self_provided(&self) -> bool {
+        self.provider.as_str() == SELF_PROVIDED
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthSession {
     #[serde(flatten)]
@@ -670,7 +681,6 @@ impl SessionManager {
         expires_in: Option<i64>,
     ) -> Result<OAuthSession> {
         let mut tx = self.pool.begin().await?;
-        const SELF_PROVIDED: &str = "__self__";
         let username = &tsdb.username;
         let expires_in = expires_in.unwrap_or(i64::MAX);
         let expires_in = chrono::Duration::try_seconds(expires_in).unwrap_or(chrono::Duration::MAX);
@@ -682,7 +692,7 @@ impl SessionManager {
 
         let user = sqlx::query_as::<_, OAuthUser>(
             r#"
-            SELECT user_id, username, tsdb_username, tsdb_password, email, created_at, updated_at
+            SELECT user_id, username, provider, tsdb_username, tsdb_password, email, created_at, updated_at
             FROM oauth_users
             WHERE provider = ? AND username = ?
             "#,
@@ -753,6 +763,7 @@ impl SessionManager {
                 tsdb_password: None,
                 created_at: now,
                 updated_at: now,
+                provider: SELF_PROVIDED.to_string(),
             }
         };
 
@@ -853,6 +864,7 @@ impl SessionManager {
                 tsdb_password: None,
                 created_at: now,
                 updated_at: now,
+                provider,
             }
         };
 
@@ -931,7 +943,7 @@ impl SessionManager {
         let mut tx = self.pool.begin().await?;
         let user = sqlx::query_as::<_, OAuthUser>(
             r#"
-            SELECT user_id, username, tsdb_username, tsdb_password, email, created_at, updated_at
+            SELECT user_id, username, provider, tsdb_username, tsdb_password, email, created_at, updated_at
             FROM oauth_users
             WHERE user_id = (
                 SELECT user_id FROM oauth_sessions WHERE session_id = ?

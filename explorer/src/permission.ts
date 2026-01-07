@@ -46,7 +46,10 @@ router.beforeEach(async (to: RouteLocationNormalized, from: RouteLocationNormali
             const encryptedPwd = encrypt(encryptedPassword);
             localStorage.setItem('pwd', encryptedPwd);
 
-            await store.dispatch('app/setOAuthBinded', true);
+            const SELF_PROVIDED = '__self__';
+            if (user.provider !== SELF_PROVIDED) {
+              await store.dispatch('app/setOAuthBinded', true);
+            }
           }
         }
         if (user.user_id) {
@@ -81,14 +84,28 @@ router.beforeEach(async (to: RouteLocationNormalized, from: RouteLocationNormali
       } catch (error) {
         console.log('获取url失败', error);
       }
-      const hasToken = getToken();
-      // console.log('state', store, store.state);
-      if (!hasToken && !store.state.app.isOAuthLogin) {
+      // Check for session-based authentication or OAuth login
+      // Session validation happens on the backend via httpOnly cookies
+      if (!store.state.app.loginWithSession) {
         if (whiteList.includes(to.name ? to.name.toString() : '')) {
           console.log('登录页面');
           next();
         } else {
-          console.log('无token跳转登录');
+          const user = await oauthMe(false);
+          if (user.tsdb_username) {
+            // store.dispatch('app/setUsername', user.tsdb_username);
+            localStorage.setItem('username', user.tsdb_username);
+            const key = Cookies.get('encrypt_key') || '';
+            if (key) {
+              const encryptedPassword = aesCbcMac.decryptCbcMac(user.tsdb_password, key);
+              const encryptedPwd = encrypt(encryptedPassword);
+              localStorage.setItem('pwd', encryptedPwd);
+
+              await store.dispatch('app/setLoginWithSession', true);
+              return next();
+            }
+          }
+          console.log('无session跳转登录');
           next(`/login`);
         }
       }
@@ -98,9 +115,10 @@ router.beforeEach(async (to: RouteLocationNormalized, from: RouteLocationNormali
     console.log('eeee', error);
   }
 });
-// 切换标签页之后返回页面，查询token
+// 切换标签页之后返回页面，查询session
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && !getToken() && !store.state.app.isOAuthLogin) {
+  const hasSession = Cookies.get(SessionIdKey) || store.state.app.isOAuthLogin;
+  if (!document.hidden && !getToken() && !hasSession) {
     store.dispatch('app/logout', false);
   }
 });

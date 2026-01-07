@@ -95,7 +95,7 @@ export function oauthLogout() {
   console.log('Logging out...');
   return request({
     baseURL: apiPath,
-    url: `/oauth/logout`,
+    url: `/logout`,
     method: 'post',
     withCredentials: true
   });
@@ -121,7 +121,7 @@ export function checkOAuthSession() {
 export function oauthMe(autoLogoutOn401 = true) {
   return request({
     baseURL: apiPath,
-    url: `/oauth/me`,
+    url: `/me`,
     method: 'get',
     withCredentials: true,
     autoLogoutOn401

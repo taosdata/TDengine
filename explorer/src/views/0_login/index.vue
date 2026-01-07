@@ -86,7 +86,7 @@
 </template>
 <script setup lang="ts">
 import { DbBase64 } from '../../utils/dbBase64';
-import { deleteCookieItem, getLocalLang } from '@/utils/index';
+import { getLocalLang } from '@/utils/index';
 import { sendSQLReq } from '@/api/explorer';
 import { FormInstance } from 'element-plus';
 import dataJson from './data.json';
@@ -348,26 +348,22 @@ async function oauthBindSubmit() {
     $error(`${t('login.oauthBindError')}: ${error.message}`);
   }
 }
-async function login() {
-  if (oauthBind.value) {
-    await oauthBindSubmit();
-    return;
-  }
-  const token = 'Basic ' + DbBase64.encode(trimmedUsername.value + ':' + trimmedPassword.value);
-  store.commit('app/SET_TOKEN', token);
-  localStorage.setItem('username', trimmedUsername.value);
-  localStorage.setItem('pwd', encryptedPwd.value);
-
-  store.commit('app/SAVE_LOGIN_INFO', {
-    username: trimmedUsername.value,
-    pwd: trimmedPassword.value
-  });
+async function basicAuthLogin() {
+  // Use session-based authentication instead of cookie-based token
   try {
     const sql = 'select server_version()';
-    const res = await firstLoginWith(token, sql);
+    const res = await firstLoginWith(trimmedUsername.value, trimmedPassword.value, sql);
 
     if (res && res.code == 0 && !res.desc) {
-      localStorage.setItem('TDengine-Token', token);
+      // Store token in memory for the initial request only
+      store.commit('app/SET_LOGIN_WITH_SESSION', true);
+      localStorage.setItem('username', trimmedUsername.value);
+      localStorage.setItem('pwd', encryptedPwd.value);
+
+      store.commit('app/SAVE_LOGIN_INFO', {
+        username: trimmedUsername.value,
+        pwd: trimmedPassword.value
+      });
       const server_version = res.data[0][0];
       const registered_user = res.registered_user || '';
       if (registered_user) {
@@ -406,10 +402,21 @@ async function login() {
     }
   } catch (error) {
     console.log('error', error);
-    $error(t('login.servExceptionTip'));
+    if (error.response && error.response.data.desc) {
+      console.log('api response:', error.response);
+      $error(error.response.data.desc);
+    } else {
+      $error(t('login.servExceptionTip'));
+    }
     loading.value = false;
-    deleteCookieItem();
   }
+}
+async function login() {
+  if (oauthBind.value) {
+    await oauthBindSubmit();
+    return;
+  }
+  await basicAuthLogin();
 }
 async function getClusterAndDashboardUrl() {
   try {

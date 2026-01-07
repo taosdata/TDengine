@@ -20,7 +20,10 @@
     </el-form-item>
     <el-form-item :label="t('login.newPass')" prop="new_password">
       <el-popover trigger="click" placement="right-end">
-        <ol v-dompurify-html="t(enableStrongPassword ? 'login.passwordTip' : 'login.passwordNotStrictTip')" style="padding-left: 10px; list-style: unset"></ol>
+        <ol
+          v-dompurify-html="t(enableStrongPassword ? 'login.passwordTip' : 'login.passwordNotStrictTip')"
+          style="padding-left: 10px; list-style: unset"
+        ></ol>
         <template #reference>
           <el-input
             v-model.trim="changeForm.new_password"
@@ -56,7 +59,6 @@
 import { validPassword, validPasswordNotStrict } from '@/utils/validate';
 import { getDatabaseVariables } from '@/api/database';
 import { sendSQLReq } from '@/api/explorer';
-import { deleteCookieItem } from '@/utils/index';
 import { decrypt } from '@/utils/index';
 import type { FormInstance } from 'element-plus';
 
@@ -149,7 +151,6 @@ function change() {
             requestIng.value = false;
             localStorage.removeItem('username');
             localStorage.removeItem('pwd');
-            deleteCookieItem();
             ElMessageBox.alert(t('login.changepwdtip'), t('tips'), {
               showCancelButton: false,
               showConfirmButton: true,
@@ -176,9 +177,8 @@ function change() {
 
 onMounted(async () => {
   const result = await getDatabaseVariables('enableStrongPassword');
-  enableStrongPassword.value = (result === true || result === 'true' || result === '1');
+  enableStrongPassword.value = result === true || result === 'true' || result === '1';
 });
-
 </script>
 
 <style lang="scss" scoped>

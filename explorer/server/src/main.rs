@@ -68,7 +68,11 @@ use tracing_subscriber::{
 
 use sql::need_limit;
 
-use crate::{oauth::SessionManager, security::SecurityConfig};
+use crate::{
+    oauth::{middleware::TsdbCredential, SessionManager},
+    security::SecurityConfig,
+    utils::xor::TimeBasedXor,
+};
 
 mod favorites;
 mod monitor;
@@ -78,6 +82,8 @@ mod security;
 mod sql;
 mod utils;
 mod verification;
+
+litcrypt::use_litcrypt!("AeRohyohKee4saih9se7cu6ieHagh1ko");
 
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
@@ -432,6 +438,16 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/x/{api:.*}", web::to(x_api))
             .route("/grafana/{grafana_path:.*}", web::to(grafana_api))
             .route("/api/-/login", web::to(login))
+            .route("/api/-/oauth/me", web::get().to(oauth::handlers::oauth_me))
+            .route("/api/-/me", web::get().to(oauth::handlers::oauth_me))
+            .route(
+                "/api/-/logout",
+                web::post().to(oauth::handlers::oauth_logout),
+            )
+            .route(
+                "/api/-/oauth/logout",
+                web::post().to(oauth::handlers::oauth_logout),
+            )
             .configure(|cfg| {
                 // Register OAuth routes if enabled
                 if oauth_client.is_some() {
@@ -452,11 +468,6 @@ async fn main() -> anyhow::Result<()> {
                         .route(
                             "/api/-/oauth/bind",
                             web::post().to(oauth::handlers::oauth_bind),
-                        )
-                        .route("/api/-/oauth/me", web::get().to(oauth::handlers::oauth_me))
-                        .route(
-                            "/api/-/oauth/logout",
-                            web::post().to(oauth::handlers::oauth_logout),
                         )
                         .route(
                             "/api/-/oauth/users",
@@ -1286,21 +1297,29 @@ async fn modify_password(
         }
     }
 }
+#[derive(Debug, Deserialize)]
+struct LoginBody {
+    username: String,
+    encrypted_password: String,
+}
 
 #[instrument(skip_all)]
 async fn login(
     db: web::Data<Storage>,
     args: web::Data<Args>,
-    req: HttpRequest,
+    session_manager: web::Data<SessionManager>,
     query: Query<HashMap<String, String>>,
+    body: web::Json<LoginBody>,
 ) -> impl Responder {
-    let auth = oauth::middleware::extract_auth_from_request(&req)
-        .await
-        .and_then(|auth| auth.ok_or_else(|| "No credentials found in headers".to_string()));
-    if auth.is_err() {
-        return HttpResponse::Unauthorized().json(RestErrResponse::new(auth.err().unwrap()));
-    }
-    let auth = auth.unwrap();
+    const XOR_DECODER: TimeBasedXor = TimeBasedXor::new(60);
+    let body = body.into_inner();
+    let password = if let Ok(password) = XOR_DECODER.decrypt(&body.encrypted_password) {
+        password
+    } else {
+        tracing::warn!("Invalid login: {}", body.username);
+        return HttpResponse::Unauthorized().json(RestErrResponse::new("Invalid password"));
+    };
+    let auth = TsdbCredential::basic(body.username, password);
 
     let tz = query.get("tz");
     let sql = "select server_version()";
@@ -1321,10 +1340,47 @@ async fn login(
                     tracing::error!("Expect verification subject exist");
                 }
             }
-            resp.append_header(("X-Explorer-Version", build::PKG_VERSION));
+
+            // Create session for basic auth and set session_id cookie
+            match session_manager
+                .create_self_provided_session(
+                    &auth,
+                    Some(3600), // 1 hour session expiration
+                )
+                .await
+            {
+                Ok(session) => {
+                    let session_id = session.session_id();
+                    tracing::info!("Created basic auth session: {}", session_id);
+
+                    // Create a HttpOnly, Secure session cookie for session_id
+                    let session_cookie = Cookie::build("session_id", session_id)
+                        .path("/")
+                        .http_only(true)
+                        .same_site(awc::cookie::SameSite::Lax)
+                        .max_age(actix_web::cookie::time::Duration::seconds(3600)) // 1 hour
+                        .finish();
+
+                    resp.append_header(("X-Explorer-Version", build::PKG_VERSION))
+                        .cookie(session_cookie);
+                }
+                Err(e) => {
+                    tracing::error!("Failed to create basic auth session: {:#}", e);
+                    // Continue without session cookie for backward compatibility
+                    resp.append_header(("X-Explorer-Version", build::PKG_VERSION));
+                }
+            }
+
             resp.json(ok)
         }
-        Err(err) => HttpResponse::InternalServerError().json(err),
+        Err(err) => {
+            tracing::error!("Failed to authenticate user: {:#}", err);
+            if err.desc.contains("[0x0357]") {
+                HttpResponse::Unauthorized().json(err)
+            } else {
+                HttpResponse::InternalServerError().json(err)
+            }
+        }
     }
 }
 

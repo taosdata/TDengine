@@ -29,6 +29,16 @@ pub struct TsdbCredential {
     pub password: String,
 }
 
+impl TsdbCredential {
+    pub fn basic(username: String, password: String) -> Self {
+        Self {
+            auth_type: AuthType::Basic,
+            username,
+            password,
+        }
+    }
+}
+
 impl std::fmt::Display for TsdbCredential {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(

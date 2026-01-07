@@ -82,6 +82,7 @@ aes = "0.8.4"
 hkdf = "0.12.4"
 hmac = "0.12.1"
 mime_guess = "2.0.5"
+litcrypt = "0.4.0"
 
 [dependencies.taos]
 workspace = true

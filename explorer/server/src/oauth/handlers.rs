@@ -694,26 +694,28 @@ pub async fn oauth_me(
                 }
             });
 
-            let cookie = Cookie::build(ENCRYPT_KEY, &key)
+            let cookie_encrypt_key = Cookie::build(ENCRYPT_KEY, &key)
                 .path("/")
                 .same_site(SameSite::Lax)
                 .max_age(actix_web::cookie::time::Duration::seconds(360))
                 .finish();
-            let session = Cookie::build(SESSION_ID_COOKIE, session_id)
+            let cookie_session = Cookie::build(SESSION_ID_COOKIE, session_id)
                 .path("/")
                 .http_only(true)
                 .same_site(SameSite::Lax)
                 .max_age(actix_web::cookie::time::Duration::seconds(3600))
                 .finish();
             HttpResponse::Ok()
-                .cookie(cookie)
-                .cookie(session)
+                .cookie(cookie_encrypt_key)
+                .cookie(cookie_session)
                 .json(serde_json::json!({
                     "user_id": user.user_id,
                     "email": user.email,
                     "username": user.username,
                     "tsdb_username": user.tsdb_username,
                     "tsdb_password": password,
+                    "provider": user.provider,
+                    "is_self_provided": user.is_self_provided()
                 }))
         }
         Ok(None) => HttpResponse::Unauthorized().json(RestErrResponse::new("Session not found")),

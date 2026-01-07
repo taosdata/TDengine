@@ -181,21 +181,6 @@ export function OpenNewTab(url: string) {
   a.dispatchEvent(e);
 }
 
-//删除cookie某一项目
-export function deleteCookieItem() {
-  const cookieItems = document.cookie.split(';');
-  for (let i = 0; i < cookieItems.length; i++) {
-    let item = cookieItems[i];
-    while (item.charAt(0) === ' ') {
-      item = item.substring(1);
-    }
-    if (item.indexOf('TDengine-Token=') === 0) {
-      document.cookie = encodeURIComponent(item.split('=')[0]) + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-      break;
-    }
-  }
-}
-
 //加密
 export function encrypt(data) {
   const encryptedData = CryptoJS.AES.encrypt(
