@@ -217,22 +217,14 @@ class TaosD:
             fqdn = cfg["fqdn"]
             
             # Find taosk binary path on remote server
-            taosk_path = dnode.get("taoskPath")
-            if not taosk_path:
-                # Try to find taosk: first check standard paths, then search workspace
-                find_cmd = (
-                    "if [ -f /usr/bin/taosk ]; then echo /usr/bin/taosk; "
-                    "elif [ -f /usr/local/bin/taosk ]; then echo /usr/local/bin/taosk; "
-                    "else find /root/TDinternal -name taosk -type f 2>/dev/null | head -1; fi"
-                )
-                taosk_result = self._remote.cmd(fqdn, [find_cmd])
-                if taosk_result and taosk_result.strip():
-                    taosk_path = taosk_result.strip()
-                    self.logger.debug(f"Found taosk at: {taosk_path}")
-                else:
-                    # Fallback to /usr/bin/taosk
-                    taosk_path = "/usr/bin/taosk"
-                    self.logger.warning(f"taosk not found, using fallback: {taosk_path}")
+            print(f"taosd path: {dnode['taosdPath']}")
+            taosdPath = dnode['taosdPath']
+            parentPath = os.path.dirname(taosdPath)
+            taosk_path = os.path.join(parentPath, "taosk")
+
+            if not os.path.exists(taosk_path):
+                self.logger.error(f"taosk not found at: {taosk_path}")
+                return
             
             # Build taosk command to execute on remote server
             cmd_parts = [taosk_path, '-c', config_dir]
