@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, TDSql, TDCom
+from new_test_framework.utils import tdLog, tdSql, TDSql, TDCom, etool
 import os
 import platform
 import time
@@ -44,7 +44,22 @@ class TestUserSecurity:
             self.login(user=user_name, password=password)
             
     def drop_user(self, user_name):
-        tdSql.execute(f"DROP USER {user_name}")            
+        tdSql.execute(f"DROP USER {user_name}")
+        
+    
+    def except_create_user(self, option, min, max):
+        self.login()
+        old_pass = "abcd@1234"
+        tdSql.error(f"create user except_user pass '{old_pass}' {option}  abc")
+        tdSql.error(f"create user except_user pass '{old_pass}' {option} 'abc'")
+        tdSql.error(f"create user except_user pass '{old_pass}' {option} '1'")
+        tdSql.error(f"create user except_user pass '{old_pass}' {option}  -1")
+        if max is not None:
+            tdSql.error(f"create user except_user pass '{old_pass}' {option} {max+1}")
+        if min is not None:
+            tdSql.error(f"create user except_user pass '{old_pass}' {option} {min-1}")
+        tdSql.error(f"create user except_user pass '{old_pass}' a{option}  0")
+        tdSql.error(f"create user except_user pass '{old_pass}' {option}b  0")
             
     def create_session(self, user_name, password, num):
         conns = []
@@ -104,7 +119,25 @@ class TestUserSecurity:
 
         print(f" threads results:{results}")            
         if not all(results):
-            raise Exception("Not all sessions executed the SQL successfully")        
+            raise Exception("Not all sessions executed the SQL successfully")    
+    
+    def check_in_max_succ_login(self, user_name, password, max_attempts):
+        for i in range(max_attempts - 1):            
+            self.login_failed(user=user_name, password="wrong_password")
+        self.login(user=user_name, password=password)            
+
+    def check_over_max_failed_login(self, user_name, password, max_attempts):
+        for i in range(max_attempts):
+            self.login_failed(user=user_name, password="wrong_password")
+        
+        # Next attempt should lock the user
+        try:
+            self.login(user=user_name, password=password)
+        except Exception as e:
+            print(f" User {user_name} locked as expected after {max_attempts} failed attempts: {e}")
+            return
+        
+        raise Exception(f"User {user_name} was not locked after {max_attempts} failed attempts")
     
     #
     # --------------------------- create user ----------------------------
@@ -140,13 +173,7 @@ class TestUserSecurity:
         tdSql.error(f"alter user {user} pass '{new_pass}'")
         
         # except
-        self.login()
-        tdSql.error(f"create user except_user pass '{old_pass}' CHANGEPASS abc")
-        tdSql.error(f"create user except_user pass '{old_pass}' CHANGEPASS '1'")
-        tdSql.error(f"create user except_user pass '{old_pass}' CHANGEPASS -1")
-        tdSql.error(f"create user except_user pass '{old_pass}' CHANGEPASS 3")
-        tdSql.error(f"create user except_user pass '{old_pass}' CHANGEPAS  0")
-        tdSql.error(f"create user except_user pass '{old_pass}' ACHANGEPASS  0")
+        self.except_create_user("CHANGEPASS", 0, 2)
         
         # root login
         self.login()
@@ -247,16 +274,126 @@ class TestUserSecurity:
         self.check_user_option(user, "CALL_PER_SESSION", 5)
         self.create_multiple_sessions(user, password, "show databases", 5)
 
-        print("option CALL_PER_SESSION .............. [ passed ] ")
+        print("option CALL_PER_SESSION ............... [ passed ] ")
+
+    # option VNODE_PER_CALL
+    def options_vnode_per_call(self):
+        password = "abcd@1234"
+        self.login()
+        succ = False
+        
+        # defalut check (-1, unlimited)
+        user = "user_vnode_per_call1"
+        self.create_user(user, password=password)
+        self.check_user_option(user, "VNODE_PER_CALL", -1)
+        tdSql.execute(f"grant all on test.* to {user}")
+        tdSql.execute(f"grant all on  database test to {user}")
+        self.login(user=user, password=password)
+        for i in range(20):
+            time.sleep(1)
+            try:
+                tdSql.checkFirstValue(f"select count(*) from test.meters", 10000)
+                print("  default vnode per call unlimited works fine.")
+                succ = True
+                break
+            except:
+                print(f"  try {i+1} times ...")   
+        if not succ:
+            raise Exception("Default vnode per call unlimited failed")        
+
+        # min
+        user = "user_vnode_per_call2"
+        succ = False
+        self.login()        
+        self.create_user(user, password=password, options="VNODE_PER_CALL 1")
+        self.check_user_option(user, "VNODE_PER_CALL", 1)
+        tdSql.execute(f"grant all on test.* to {user}")
+        tdSql.execute(f"grant all on  database test to {user}")
+        self.login(user=user, password=password)
+        for i in range(20):
+            time.sleep(1)
+            try:
+                tdSql.checkFirstValue(f"select count(*) from test.meters", 10000)
+                break
+            except Exception as e:                
+                if str(e).find("[0x023d]") >= 0: # TSDB_CODE_TSC_SESS_MAX_CALL_VNODE_LIMIT
+                    print(f"  hit max vnode per call limit as expected.")
+                    succ = True
+                    break
+                print(f"  try {i+1} times ... error:{e}")
+        if not succ:
+            raise Exception("Min vnode per call 1 vgroup failed")
+
+        # equal db vgroups 16
+        user = "user_vnode_per_call3"
+        succ = False
+        self.login()
+        self.create_user(user, password=password, options="VNODE_PER_CALL 16")
+        self.check_user_option(user, "VNODE_PER_CALL", 16)
+        tdSql.execute(f"grant all on test.* to {user}")
+        tdSql.execute(f"grant all on  database test to {user}")
+        self.login(user=user, password=password)
+        for i in range(20):
+            time.sleep(1)
+            try:
+                tdSql.checkFirstValue(f"select count(*) from test.meters", 10000)
+                print("  vnode per call 16 vgroups works fine.")
+                succ = True
+                break
+            except Exception as e:
+                print(f"  try {i+1} times ... error:{e}")
+        if not succ:
+            raise Exception("vnode per call 16 vgroups failed")
+        
+        # except
+        self.except_create_user("VNODE_PER_CALL", 1, None)
+
+        print("option VNODE_PER_CALL ................. [ passed ] ")
+
+    # option FAILED_LOGIN_ATTEMPTS
+    def options_failed_login_attempts(self):
+        password = "abcd@1234"
+        # defalut check (3)
+        user = "user_failed_login1"
+        self.create_user(user, password=password)
+        self.check_user_option(user, "FAILED_LOGIN_ATTEMPTS", 3)
+        self.check_in_max_succ_login(user, password, 3)
+        self.check_over_max_failed_login(user, password, 3)
+
+        # min check (1)
+        user = "user_failed_login2"
+        # check option value
+        self.login()
+        self.create_user(user, options="FAILED_LOGIN_ATTEMPTS 1")
+        self.check_user_option(user, "FAILED_LOGIN_ATTEMPTS", 1)
+        self.check_over_max_failed_login(user, password, 1)
+
+        # big check (10)
+        user = "user_failed_login3"
+        # check option value
+        self.login()
+        self.create_user(user, options="FAILED_LOGIN_ATTEMPTS 10")
+        self.check_user_option(user, "FAILED_LOGIN_ATTEMPTS", 10)
+        self.check_in_max_succ_login(user, password, 10)
+        self.check_over_max_failed_login(user, password, 10)
+        
+        # except
+        self.except_create_user("FAILED_LOGIN_ATTEMPTS", 1, None)
+
+        print("option FAILED_LOGIN_ATTEMPTS .......... [ passed ] ")
         
     
     def do_create_user(self):
         print("\n")
+        #'''
         self.options_changepass()
         self.options_session_per_user()
         self.options_connect_time()
         self.options_connect_idle_time()
         self.options_call_per_session()
+        self.options_vnode_per_call()
+        #'''
+        self.options_failed_login_attempts()        
 
     #
     # --------------------------- show user ----------------------------
@@ -287,7 +424,15 @@ class TestUserSecurity:
     #
     def do_token(self):
         pass
+    
+    # prepare data
+    def prepare_data(self):
+        command = f"-v 16 -t 100 -n 100 -y"
+        etool.benchMark(command)
 
+    #
+    # --------------------------- main ----------------------------
+    #
     def test_user_security(self):
         """User security
 
@@ -308,6 +453,7 @@ class TestUserSecurity:
             - 2026-01-06 Alex Duan created
 
         """
+        self.prepare_data()
         self.do_create_user()
         self.do_show_user()
         self.do_alter_user()

@@ -3078,6 +3078,5 @@ class TDSql:
         filename, lineno = _fast_caller(1)
         tdLog.exit(f"{filename}({lineno}) failed: field name {fieldName} not exist")   
 
-
 # global
 tdSql = TDSql()
