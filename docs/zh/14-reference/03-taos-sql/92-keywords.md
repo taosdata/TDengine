@@ -23,6 +23,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | ALIAS                | |
 | ALIVE                | |
 | ALL                  | |
+| ALLOW_DATETIME       | 3.4.0.0+ |
+| ALLOW_TOKEN_NUM      | 3.4.0.0+ |
 | ALTER                | |
 | ANALYZE              | 3.3.4.3+ |
 | AND                  | |
@@ -41,6 +43,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | ATTACH               | |
 | AUTO                 | 3.3.5.0+ |
 | ASSIGN               | 3.3.6.0+ |
+| ALGR_NAME            | 3.4.0.0+ |
+| ALGR_TYPE            | 3.4.0.0+ |
 
 ### B
 
@@ -76,9 +80,11 @@ description: TDengine TSDB 保留关键字的详细列表
 | CACHEMODEL           | |
 | CACHESIZE            | |
 | CALC_NOTIFY_ONLY     | 3.3.7.0+ |
+| CALL_PER_SESSION     | 3.4.0.0+ |
 | CASE                 | |
 | CAST                 | |
 | CHANGE               | |
+| CHANGEPASS           | 3.4.0.0+ |
 | CHILD                | |
 | CLIENT_VERSION       | |
 | CLUSTER              | |
@@ -93,9 +99,12 @@ description: TDengine TSDB 保留关键字的详细列表
 | COMPACT_INTERVAL     | 3.3.5.0+ |
 | COMPACT_TIME_OFFSET  | 3.3.5.0+ |
 | COMPACT_TIME_RANGE   | 3.3.5.0+ |
+| COMPOSITE            | 3.3.6.3+ |
 | COMPRESS             | |
 | CONCAT               | |
 | CONFLICT             | |
+| CONNECT_IDLE_TIME    | 3.4.0.0+ |
+| CONNECT_TIME         | 3.4.0.0+ |
 | CONNECTION           | |
 | CONNECTIONS          | |
 | CONNS                | |
@@ -119,7 +128,9 @@ description: TDengine TSDB 保留关键字的详细列表
 | DATABASE             | |
 | DATABASES            | |
 | DBS                  | |
+| DB_KEY               | |
 | DECIMAL              | 3.3.6.0+ |
+| DEFAULT              | 3.4.0.0+ |
 | DEFERRED             | |
 | DELETE               | |
 | DELETE_MARK          | |
@@ -149,7 +160,10 @@ description: TDengine TSDB 保留关键字的详细列表
 | ENCODE               | |
 | ENABLE               | |
 | ENCRYPT_ALGORITHM    | |
+| ENCRYPT_ALGORITHMS   | 3.4.0.0+ |
+| ENCRYPT_ALGR         | 3.4.0.0+ |
 | ENCRYPT_KEY          | |
+| ENCRYPT_STATUS       | |
 | ENCRYPTIONS          | |
 | END                  | |
 | EQ                   | |
@@ -161,12 +175,14 @@ description: TDengine TSDB 保留关键字的详细列表
 | EXPIRED              | 3.0.0.0 - 3.3.7.0 |
 | EXPIRED_TIME         | 3.3.7.0+ |
 | EXPLAIN              | |
+| EXTRA_INFO           | 3.4.0.0+ |
 
 ### F
 
 |关键字 | 说明|
 |----------------------|-|
 | FAIL                 | |
+| FAILED_LOGIN_ATTEMPTS  | 3.4.0.0+ |
 | FHIGH                | 3.3.4.3+ |
 | FILE                 | |
 | FILL                 | |
@@ -219,11 +235,13 @@ description: TDengine TSDB 保留关键字的详细列表
 | IMMEDIATE            | |
 | IMPORT               | |
 | IN                   | |
+| INACTIVE_ACCOUNT_TIME   | 3.4.0.0+ |
 | INDEX                | |
 | INDEXES              | |
 | INITIALLY            | |
 | INNER                | |
 | INSERT               | |
+| INSTANCES            | |
 | INSTEAD              | |
 | INT                  | |
 | INTEGER              | |
@@ -237,6 +255,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | IS_IMPORT            | |
 | ISFILLED             | |
 | ISNULL               | |
+| IS_AUDIT             | 3.3.9.0+ |
 
 ### J
 
@@ -271,6 +290,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | LIKE                 | |
 | LIMIT                | |
 | LINEAR               | |
+| LOCK                 | |
 | LOCAL                | |
 | LOGS                 | |
 | LOW_LATENCY_CALC     | 3.3.7.0+ |
@@ -296,6 +316,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | MNODES               | |
 | MODIFY               | |
 | MODULES              | |
+| MOUNT                | |
+| MOUNTS               | |
 
 ### N
 
@@ -309,6 +331,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | NONE                 | |
 | NORMAL               | |
 | NOT                  | |
+| NOT_ALLOW_DATETIME   | 3.4.0.0+ |
+| NOT_ALLOW_HOST       | 3.4.0.0+ |
 | NOTIFY               | 3.3.6.0+ |
 | NOTIFY_HISTORY       | 3.3.6.0+ |
 | NOTIFY_OPTIONS       | 3.3.7.0+ |
@@ -334,6 +358,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | OUTER                | |
 | OUTPUT_SUBTABLE      | 3.3.7.0+ |
 | OUTPUTTYPE           | |
+| OSSL_ALGR_NAME       | 3.4.0.0+ |
 
 ### P
 
@@ -343,6 +368,11 @@ description: TDengine TSDB 保留关键字的详细列表
 | PAGESIZE             | |
 | PARTITION            | |
 | PASS                 | |
+| PASSWORD_LIFE_TIME   | 3.4.0.0+ |
+| PASSWORD_REUSE_TIME  | 3.4.0.0+ |
+| PASSWORD_REUSE_MAX   | 3.4.0.0+ |
+| PASSWORD_LOCK_TIME   | 3.4.0.0+ |
+| PASSWORD_GRACE_TIME  | 3.4.0.0+ |
 | PAUSE                | |
 | PERIOD               | 3.3.7.0+ |
 | PI                   | |
@@ -356,6 +386,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | PRIMARY              | |
 | PRIVILEGE            | |
 | PRIVILEGES           | |
+| PROVIDER             | 3.4.0.0+ |
 
 ### Q
 
@@ -385,16 +416,29 @@ description: TDengine TSDB 保留关键字的详细列表
 | RECURSIVE            | |
 | REGEXP               | 3.3.6.0+ |
 | REDISTRIBUTE         | |
+| RELOAD               | |
 | REM                  | |
 | RENAME               | |
 | REPLACE              | |
 | REPLICA              | |
+| REPLICAS             | 3.3.7.0+ |
 | RESET                | |
 | RESTORE              | |
 | RESTRICT             | |
 | RESUME               | |
+| RETENTION            | |
 | RETENTIONS           | |
 | REVOKE               | |
+| RIGHT                | |
+| ROLE                 | |
+| ROLES                | |
+| ROLLUP               | |
+| ROW                  | |
+| ROWTS                | |
+| RP                   | |
+| RSHIFT               | |
+| RSMA                 | |
+| RSMAS                | |
 | RIGHT                | |
 | ROLLUP               | |
 | ROW                  | |
@@ -414,6 +458,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | SERVER_STATUS        | |
 | SERVER_VERSION       | |
 | SESSION              | |
+| SESSION_PER_USER     | 3.4.0.0+ |
 | SET                  | |
 | SHOW                 | |
 | SINGLE_STABLE        | |
@@ -431,6 +476,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | SS_COMPACT           | |
 | SS_KEEPLOCAL         | |
 | SSMIGRATE            | |
+| SSMIGRATES           | |
 | STABLE               | |
 | STABLES              | |
 | STAR                 | |
@@ -438,6 +484,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | STATE                | |
 | STATE_WINDOW         | |
 | STATEMENT            | |
+| STOP                 | |
 | STORAGE              | |
 | STREAM               | |
 | STREAMS              | |
@@ -449,6 +496,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | SUBSTR               | |
 | SUBSTRING            | |
 | SUBTABLE             | 3.0.0.0 - 3.3.7.0 |
+| SVR_KEY              | |
 | SYSINFO              | |
 | SYSTEM               | |
 
@@ -470,8 +518,11 @@ description: TDengine TSDB 保留关键字的详细列表
 | TINYINT              | |
 | TO                   | |
 | TODAY                | |
+| TOKEN                | 3.4.0.0+ |
+| TOKENS               | 3.4.0.0+ |
 | TOPIC                | |
 | TOPICS               | |
+| TOTP_SECRET          | 3.4.0.0+ |
 | TRAILING             | |
 | TRANSACTION          | |
 | TRANSACTIONS         | |
@@ -490,6 +541,7 @@ description: TDengine TSDB 保留关键字的详细列表
 |----------------------|-|
 | UNION                | |
 | UNSAFE               | |
+| UNLOCK               | |
 | UNSIGNED             | |
 | UNTREATED            | |
 | UPDATE               | |
@@ -508,6 +560,8 @@ description: TDengine TSDB 保留关键字的详细列表
 | VARBINARY            | |
 | VARCHAR              | |
 | VARIABLE             | |
+| VTABLE               | |
+| VTABLES              | |
 | VARIABLES            | |
 | VERBOSE              | |
 | VGROUP               | |
@@ -516,6 +570,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | VIEWS                | |
 | VIRTUAL              | |
 | VNODE                | |
+| VNODE_PER_CALL       | 3.4.0.0+ |
 | VNODES               | |
 | VTABLE               | |
 | VTABLES              | |

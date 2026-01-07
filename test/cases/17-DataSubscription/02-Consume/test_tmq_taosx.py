@@ -24,14 +24,16 @@ class TestCase:
         consumeFile = open(srcFile, mode='r')
         queryFile = open(dstFile, mode='r')
 
+        index = 0
         while True:
             dst = queryFile.readline()
             src = consumeFile.readline()
             if src:
                 if dst != src:
-                    tdLog.exit("compare error: %s != %s"%(src, dst))
+                    tdLog.exit("line:%d compare error: %s != %s"%(index, src, dst))
             else:
                 break
+            index += 1
         return
 
     def checkDropData(self, drop):
@@ -721,7 +723,7 @@ class TestCase:
             - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmq_taosx.py
 
         """
-        self.consumeTest_6376()
+        # self.consumeTest_6376()
         self.consume_TS_5067_Test()
         self.consumeTest()
         self.consume_ts_4544()

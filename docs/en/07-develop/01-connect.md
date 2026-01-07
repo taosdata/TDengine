@@ -12,6 +12,7 @@ import ConnNode from "../assets/resources/_connect_node.mdx";
 import ConnPythonNative from "../assets/resources/_connect_python.mdx";
 import ConnCSNative from "../assets/resources/_connect_cs.mdx";
 import ConnC from "../assets/resources/_connect_c.mdx";
+import ConnCWebSocket from "../assets/resources/_connect_c_ws.mdx";
 import InstallOnLinux from "../assets/resources/_linux_install.mdx";
 import InstallOnWindows from "../assets/resources/_windows_install.mdx";
 import InstallOnMacOS from "../assets/resources/_macos_install.mdx";
@@ -83,12 +84,11 @@ If you are using Maven to manage your project, simply add the following dependen
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.5.2</version>
+  <version>3.8.0</version>
 </dependency>
 ```
 
 </TabItem>
-
 <TabItem label="Python" value="python">
 
 - **Pre-installation Preparation**
@@ -357,6 +357,7 @@ REST connection:
 - `token` the token used when connecting to cloud services.
 - `skipVerify` whether to skip certificate verification, default is false which means not skipping certificate verification, set to true if connecting to an insecure service.
 - `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
+- `bearerToken` the token used for authentication.
 
 WebSocket connection:
 
@@ -364,6 +365,8 @@ WebSocket connection:
 - `readTimeout` the timeout for reading data, default is 5m.
 - `writeTimeout` the timeout for writing data, default is 10s.
 - `timezone` specifies the timezone used for the connection. Both SQL parsing and query results will be converted according to this timezone. Only IANA timezone formats are supported, and special characters need to be encoded. Taking the Shanghai timezone (`Asia/Shanghai`) as an example: `timezone=Asia%2FShanghai`.
+- `bearerToken` the token used for authentication.
+- `totpCode` the TOTP code used for two-factor authentication.
 
 </TabItem>
 
@@ -528,11 +531,7 @@ SQLAlchemy supports configuring multiple server addresses through the `hosts` pa
 </TabItem>
 
 <TabItem label="C" value="c">
-
-```c
-{{#include docs/examples/c-ws-new/connect_example.c}}
-```
-
+  <ConnCWebSocket />
 </TabItem>
 
 <TabItem label="REST API" value="rest">

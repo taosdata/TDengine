@@ -520,7 +520,7 @@ int main(int argc, char* argv[]) {
   // ANCHOR_END: unsubscribe_and_close
 
   thread_stop = 1;
-  pthread_join(thread_id, NULL);
+  (void)pthread_join(thread_id, NULL);
 
   if (drop_topic(pConn) < 0) {
     fprintf(stderr, "Failed to drop topic.\n");

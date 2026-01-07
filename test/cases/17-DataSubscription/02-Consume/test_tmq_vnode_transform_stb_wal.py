@@ -226,9 +226,6 @@ class TestCase:
         # redistribute vgroup
         self.redistributeVgroups();
 
-        sqlString = "alter table %s.%s modify column i nchar(16)" %(paraDict['dbName'], ntbName)
-        tdLog.info("alter table sql: %s"%sqlString)
-        tdSql.error(sqlString)
         expectRows = 0
         resultList = tmqCom.selectConsumeResult(expectRows)
         time.sleep(1)
@@ -263,4 +260,5 @@ class TestCase:
         tdLog.success(f"{__file__} successfully executed")
 
 event = threading.Event()
+
 

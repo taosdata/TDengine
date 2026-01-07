@@ -19,6 +19,8 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndXnode.h"
+#include "mndToken.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
@@ -320,6 +322,18 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
     mndSetRestored(pMnode, false);
   }
 
+  code = mndRefreshUserDateTimeWhiteList(pMnode);
+  if (code != 0) {
+    mError("vgId:1, failed to refresh user date time white list since %s", tstrerror(code));
+    mndSetRestored(pMnode, false);
+  }
+
+  code = mndTokenCacheRebuild(pMnode);
+  if (code != 0) {
+    mError("vgId:1, failed to rebuild token cache since %s", tstrerror(code));
+    mndSetRestored(pMnode, false);
+  }
+
   SyncIndex fsmIndex = mndSyncAppliedIndex(pFsm);
   if (commitIdx != fsmIndex) {
     mError("vgId:1, failed to sync restore, commitIdx:%" PRId64 " is not equal to appliedIdx:%" PRId64, commitIdx,
@@ -393,7 +407,8 @@ static void mndBecomeFollower(const SSyncFSM *pFsm) {
   }
   (void)taosThreadMutexUnlock(&pMgmt->lock);
 
-  msmHandleBecomeNotLeader(pMnode);  
+  msmHandleBecomeNotLeader(pMnode);
+  mndXnodeHandleBecomeNotLeader();
 }
 
 static void mndBecomeLearner(const SSyncFSM *pFsm) {
@@ -414,7 +429,8 @@ static void mndBecomeLearner(const SSyncFSM *pFsm) {
   }
   (void)taosThreadMutexUnlock(&pMgmt->lock);
 
-  msmHandleBecomeNotLeader(pMnode);  
+  msmHandleBecomeNotLeader(pMnode);
+  mndXnodeHandleBecomeNotLeader();
 }
 
 static void mndBecomeLeader(const SSyncFSM *pFsm) {
@@ -422,6 +438,7 @@ static void mndBecomeLeader(const SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
 
   msmHandleBecomeLeader(pMnode);
+  mndXnodeHandleBecomeLeader(pMnode);
 }
 
 static bool mndApplyQueueEmpty(const SSyncFSM *pFsm) {

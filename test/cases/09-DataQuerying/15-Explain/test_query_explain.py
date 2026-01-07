@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck, tdCom, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck, tdCom, tdDnodes,etool
 import datetime
 import random
 import os
@@ -40,6 +40,7 @@ class TestExplain:
         
     def Explain(self):
         tdLog.info(f'======== step1')
+        tdSql.execute(f"drop database if exists db1;")
         tdSql.execute(f"create database db1 vgroups 3 cachesize 10 cachemodel 'both';")
         tdSql.execute(f"use db1;")
         tdSql.query(f"select * from information_schema.ins_databases;")
@@ -172,78 +173,85 @@ class TestExplain:
         tdSql.execute(f"create database test")
         tdSql.execute(f"use test")
         tdSql.execute(
-            f"CREATE STABLE `meters` (`ts` TIMESTAMP, `c2` INT) TAGS (`cc` VARCHAR(3))"
+            f"CREATE STABLE `meters` (`ts` TIMESTAMP, `c2` INT) TAGS (`cc` VARCHAR(3), `cc2` VARCHAR(3))"
         )
 
         tdSql.execute(
-            f'insert into d1 using meters tags("MY") values("2022-05-15 00:01:08.000 ",234)'
+            f'insert into d1 using meters (cc) tags("MY") values("2022-05-15 00:01:08.000 ",234)'
         )
         tdSql.execute(
-            f'insert into d1 using meters tags("MY") values("2022-05-16 00:01:08.000 ",136)'
+            f'insert into d1 using meters (cc) tags("MY") values("2022-05-16 00:01:08.000 ",136)'
         )
         tdSql.execute(
-            f'insert into d1 using meters tags("MY") values("2022-05-17 00:01:08.000 ", 59)'
+            f'insert into d1 using meters (cc) tags("MY") values("2022-05-17 00:01:08.000 ", 59)'
         )
         tdSql.execute(
-            f'insert into d1 using meters tags("MY") values("2022-05-18 00:01:08.000 ", 58)'
+            f'insert into d1 using meters (cc) tags("MY") values("2022-05-18 00:01:08.000 ", 58)'
         )
         tdSql.execute(
-            f'insert into d1 using meters tags("MY") values("2022-05-19 00:01:08.000 ",243)'
+            f'insert into d1 using meters (cc) tags("MY") values("2022-05-19 00:01:08.000 ",243)'
         )
         tdSql.execute(
-            f'insert into d1 using meters tags("MY") values("2022-05-20 00:01:08.000 ",120)'
+            f'insert into d1 using meters (cc) tags("MY") values("2022-05-20 00:01:08.000 ",120)'
         )
         tdSql.execute(
-            f'insert into d1 using meters tags("MY") values("2022-05-21 00:01:08.000 ", 11)'
+            f'insert into d1 using meters (cc) tags("MY") values("2022-05-21 00:01:08.000 ", 11)'
         )
         tdSql.execute(
-            f'insert into d1 using meters tags("MY") values("2022-05-22 00:01:08.000 ",196)'
+            f'insert into d1 using meters (cc) tags("MY") values("2022-05-22 00:01:08.000 ",196)'
         )
         tdSql.execute(
-            f'insert into d1 using meters tags("MY") values("2022-05-23 00:01:08.000 ",116)'
+            f'insert into d1 using meters (cc) tags("MY") values("2022-05-23 00:01:08.000 ",116)'
         )
         tdSql.execute(
-            f'insert into d1 using meters tags("MY") values("2022-05-24 00:01:08.000 ",210)'
+            f'insert into d1 using meters (cc) tags("MY") values("2022-05-24 00:01:08.000 ",210)'
         )
 
         tdSql.execute(
-            f'insert into d2 using meters tags("HT") values("2022-05-15 00:01:08.000", 234)'
+            f'insert into d2 using meters (cc) tags("HT") values("2022-05-15 00:01:08.000", 234)'
         )
         tdSql.execute(
-            f'insert into d2 using meters tags("HT") values("2022-05-16 00:01:08.000", 136)'
+            f'insert into d2 using meters (cc) tags("HT") values("2022-05-16 00:01:08.000", 136)'
         )
         tdSql.execute(
-            f'insert into d2 using meters tags("HT") values("2022-05-17 00:01:08.000",  59)'
+            f'insert into d2 using meters (cc) tags("HT") values("2022-05-17 00:01:08.000",  59)'
         )
         tdSql.execute(
-            f'insert into d2 using meters tags("HT") values("2022-05-18 00:01:08.000",  58)'
+            f'insert into d2 using meters (cc) tags("HT") values("2022-05-18 00:01:08.000",  58)'
         )
         tdSql.execute(
-            f'insert into d2 using meters tags("HT") values("2022-05-19 00:01:08.000", 243)'
+            f'insert into d2 using meters (cc) tags("HT") values("2022-05-19 00:01:08.000", 243)'
         )
         tdSql.execute(
-            f'insert into d2 using meters tags("HT") values("2022-05-20 00:01:08.000", 120)'
+            f'insert into d2 using meters (cc) tags("HT") values("2022-05-20 00:01:08.000", 120)'
         )
         tdSql.execute(
-            f'insert into d2 using meters tags("HT") values("2022-05-21 00:01:08.000",  11)'
+            f'insert into d2 using meters (cc) tags("HT") values("2022-05-21 00:01:08.000",  11)'
         )
         tdSql.execute(
-            f'insert into d2 using meters tags("HT") values("2022-05-22 00:01:08.000", 196)'
+            f'insert into d2 using meters (cc) tags("HT") values("2022-05-22 00:01:08.000", 196)'
         )
         tdSql.execute(
-            f'insert into d2 using meters tags("HT") values("2022-05-23 00:01:08.000", 116)'
+            f'insert into d2 using meters (cc) tags("HT") values("2022-05-23 00:01:08.000", 116)'
         )
         tdSql.execute(
-            f'insert into d2 using meters tags("HT") values("2022-05-24 00:01:08.000", 210)'
+            f'insert into d2 using meters (cc) tags("HT") values("2022-05-24 00:01:08.000", 210)'
         )
 
-        resultfile = tdCom.generate_query_result(
-            "cases/09-DataQuerying/15-Explain/t/test_explain.sql", "test_explain"
-        )
-        tdLog.info(f"resultfile: {resultfile}")
-        tdCom.compare_result_files(
-            resultfile, "cases/09-DataQuerying/15-Explain/r/test_explain.result"
-        )
+        testCase = "test_explain"
+        tdLog.info(f"test case : {testCase}.")
+        self.sqlFile = etool.curFile(__file__, f"t/test_explain.sql")
+        self.ansFile = etool.curFile(__file__, f"r/test_explain.result")
+
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
+
+        #resultfile = tdCom.generate_query_result(
+        #    "cases/09-DataQuerying/15-Explain/t/test_explain.sql", "test_explain"
+        #)
+        #tdLog.info(f"resultfile: {resultfile}")
+        #tdCom.compare_result_files(
+        #    resultfile, "cases/09-DataQuerying/15-Explain/r/test_explain.result"
+        #)
         print("do explain basic ...................... [passed]")
         
     #
@@ -292,7 +300,7 @@ class TestExplain:
 
         # TD-20582
         tdSql.query("explain analyze verbose true select count(*) from ac_stb where T1=1")
-        tdSql.checkRows(16)
+        tdSql.checkRows(17)
 
         # TD-20581
         tdSql.execute("insert into ntb0 select * from ntb0")

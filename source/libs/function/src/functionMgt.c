@@ -256,12 +256,14 @@ bool fmIsForecastFunc(int32_t funcId) {
 
 bool fmIsAnalysisPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_ANALYTICS_PC_FUNC); }
 
-bool fmIsImputationFunc(int32_t funcId) {
+bool fmIsImputationCorrelationFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
   }
 
-  return FUNCTION_TYPE_IMPUTATION == funcMgtBuiltins[funcId].type;
+  int32_t type = funcMgtBuiltins[funcId].type;
+  return FUNCTION_TYPE_IMPUTATION == type || FUNCTION_TYPE_DTW == type || FUNCTION_TYPE_DTW_PATH == type ||
+         FUNCTION_TYPE_TLCC == type;
 }
 
 bool fmIsLastRowFunc(int32_t funcId) {

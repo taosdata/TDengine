@@ -18,6 +18,14 @@
 #include "tgrant.h"
 #include "thttp.h"
 #include "streamMsg.h"
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+#include "taoskInt.h"
+#endif
+
+// Encryption key expiration constants
+#define ENCRYPT_KEY_EXPIRE_DAYS      30
+#define MILLISECONDS_PER_DAY         (24 * 3600 * 1000)
+#define ENCRYPT_KEY_EXPIRE_THRESHOLD ((int64_t)ENCRYPT_KEY_EXPIRE_DAYS * MILLISECONDS_PER_DAY)
 
 static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
@@ -53,6 +61,103 @@ static void *dmConfigThreadFp(void *param) {
     float interval = curTime - lastTime;
     if (interval >= tsStatusIntervalMs) {
       dmSendConfigReq(pMgmt);
+      lastTime = curTime;
+    }
+  }
+  return NULL;
+}
+
+static void *dmKeySyncThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-keysync");
+
+  // Wait a bit before first sync attempt
+  taosMsleep(3000);
+
+  while (1) {
+    taosMsleep(100);
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+
+    int64_t curTime = taosGetTimestampMs();
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = curTime - lastTime;
+    if (interval >= tsStatusIntervalMs) {
+      // Sync keys periodically (every 30 seconds) or on first run
+      if (tsEncryptKeysStatus == TSDB_ENCRYPT_KEY_STAT_LOADED) {
+        // Check if encryption keys are expired
+        int64_t svrKeyAge = curTime - tsSvrKeyUpdateTime;
+        int64_t dbKeyAge = curTime - tsDbKeyUpdateTime;
+
+        if (svrKeyAge > ENCRYPT_KEY_EXPIRE_THRESHOLD || dbKeyAge > ENCRYPT_KEY_EXPIRE_THRESHOLD) {
+          dWarn("encryption keys may be expired, svrKeyAge:%" PRId64 " days, dbKeyAge:%" PRId64
+                " days, attempting reload",
+                svrKeyAge / MILLISECONDS_PER_DAY, dbKeyAge / MILLISECONDS_PER_DAY);
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+          // Try to reload keys from file
+          char masterKeyFile[PATH_MAX] = {0};
+          char derivedKeyFile[PATH_MAX] = {0};
+          snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP,
+                   TD_DIRSEP, TD_DIRSEP);
+          snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP,
+                   TD_DIRSEP, TD_DIRSEP);
+
+          char    svrKey[129] = {0};
+          char    dbKey[129] = {0};
+          char    cfgKey[129] = {0};
+          char    metaKey[129] = {0};
+          char    dataKey[129] = {0};
+          int32_t algorithm = 0;
+          int32_t cfgAlgorithm = 0;
+          int32_t metaAlgorithm = 0;
+          int32_t fileVersion = 0;
+          int32_t keyVersion = 0;
+          int64_t createTime = 0;
+          int64_t svrKeyUpdateTime = 0;
+          int64_t dbKeyUpdateTime = 0;
+
+          int32_t code =
+              taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
+                                   &cfgAlgorithm, &metaAlgorithm, &fileVersion, &keyVersion, &createTime, 
+                                   &svrKeyUpdateTime, &dbKeyUpdateTime);
+          if (code == 0) {
+            // Update global variables with reloaded keys
+            tstrncpy(tsSvrKey, svrKey, sizeof(tsSvrKey));
+            tstrncpy(tsDbKey, dbKey, sizeof(tsDbKey));
+            tstrncpy(tsCfgKey, cfgKey, sizeof(tsCfgKey));
+            tstrncpy(tsMetaKey, metaKey, sizeof(tsMetaKey));
+            tstrncpy(tsDataKey, dataKey, sizeof(tsDataKey));
+            tsEncryptAlgorithmType = algorithm;
+            tsCfgAlgorithm = cfgAlgorithm;
+            tsMetaAlgorithm = metaAlgorithm;
+            tsEncryptFileVersion = fileVersion;
+            tsEncryptKeyVersion = keyVersion;
+            tsEncryptKeyCreateTime = createTime;
+            tsSvrKeyUpdateTime = svrKeyUpdateTime;
+            tsDbKeyUpdateTime = dbKeyUpdateTime;
+
+            // Check if keys are still expired after reload
+            svrKeyAge = curTime - tsSvrKeyUpdateTime;
+            dbKeyAge = curTime - tsDbKeyUpdateTime;
+            if (svrKeyAge > ENCRYPT_KEY_EXPIRE_THRESHOLD || dbKeyAge > ENCRYPT_KEY_EXPIRE_THRESHOLD) {
+              dError("encryption keys are still expired after reload, svrKeyAge:%" PRId64 " days, dbKeyAge:%" PRId64
+                     " days, please rotate keys",
+                     svrKeyAge / MILLISECONDS_PER_DAY, dbKeyAge / MILLISECONDS_PER_DAY);
+            } else {
+              dInfo("successfully reloaded encryption keys, svrKeyAge:%" PRId64 " days, dbKeyAge:%" PRId64 " days",
+                    svrKeyAge / MILLISECONDS_PER_DAY, dbKeyAge / MILLISECONDS_PER_DAY);
+            }
+          } else {
+            dError("failed to reload encryption keys since %s", tstrerror(code));
+          }
+#endif
+      }
+      } else if (tsEncryptKeysStatus == TSDB_ENCRYPT_KEY_STAT_DISABLED) {
+        dInfo("encryption keys are disabled, stopping key sync thread");
+        break;
+      } else {
+        dmSendKeySyncReq(pMgmt);
+      }
       lastTime = curTime;
     }
   }
@@ -388,6 +493,25 @@ int32_t dmStartConfigThread(SDnodeMgmt *pMgmt) {
   return 0;
 }
 
+int32_t dmStartKeySyncThread(SDnodeMgmt *pMgmt) {
+  int32_t      code = 0;
+  TdThreadAttr thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+#ifdef TD_COMPACT_OS
+  (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
+#endif
+  if (taosThreadCreate(&pMgmt->keySyncThread, &thAttr, dmKeySyncThreadFp, pMgmt) != 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    dError("failed to create key sync thread since %s", tstrerror(code));
+    return code;
+  }
+
+  (void)taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-keysync", "initialized");
+  return 0;
+}
+
 int32_t dmStartStatusInfoThread(SDnodeMgmt *pMgmt) {
   int32_t      code = 0;
   TdThreadAttr thAttr;
@@ -418,6 +542,13 @@ void dmStopConfigThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->configThread)) {
     (void)taosThreadJoin(pMgmt->configThread, NULL);
     taosThreadClear(&pMgmt->configThread);
+  }
+}
+
+void dmStopKeySyncThread(SDnodeMgmt *pMgmt) {
+  if (taosCheckPthreadValid(pMgmt->keySyncThread)) {
+    (void)taosThreadJoin(pMgmt->keySyncThread, NULL);
+    taosThreadClear(&pMgmt->keySyncThread);
   }
 }
 
@@ -633,7 +764,15 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CREATE_ENCRYPT_KEY:
       code = dmProcessCreateEncryptKeyReq(pMgmt, pMsg);
       break;
+    case TDMT_MND_ALTER_ENCRYPT_KEY:
+      code = dmProcessAlterEncryptKeyReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_RELOAD_DNODE_TLS:
+      code = dmProcessReloadTlsConfig(pMgmt, pMsg);
+      // code = dmProcessReloadEncryptKeyReq(pMgmt, pMsg);
+      break;
     default:
+
       code = TSDB_CODE_MSG_NOT_PROCESSED;
       dGError("msg:%p, not processed in mgmt queue, reason:%s", pMsg, tstrerror(code));
       break;

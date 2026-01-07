@@ -140,6 +140,7 @@ int32_t smaDebugFlag = 131;
 int32_t idxDebugFlag = 131;
 int32_t sndDebugFlag = 131;
 int32_t bndDebugFlag = 131;
+int32_t xndDebugFlag = 131;
 int32_t simDebugFlag = 131;
 int32_t bseDebugFlag = 131;
 
@@ -216,6 +217,7 @@ int32_t taosInitSlowLog() {
   int32_t code = getDay(day, sizeof(day));
   if (code != 0) {
     (void)printf("failed to get day, reason:%s\n", tstrerror(code));
+    SET_ERROR_MSG("failed to get day, reason:%s", tstrerror(code));
     return code;
   }
   (void)snprintf(name, PATH_MAX + TD_TIME_STR_LEN, "%s.%s", tsLogObj.slowLogName, day);
@@ -228,6 +230,7 @@ int32_t taosInitSlowLog() {
   tsLogObj.slowHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_APPEND);
   if (tsLogObj.slowHandle->pFile == NULL) {
     (void)printf("\nfailed to open slow log file:%s, reason:%s\n", name, strerror(ERRNO));
+    SET_ERROR_MSG("failed to open slow log file:%s, reason:%s", name, strerror(ERRNO));
     return terrno;
   }
 
@@ -570,6 +573,7 @@ static bool taosCheckFileIsOpen(char *logFileName) {
       return false;
     } else {
       printf("\n%s:%d failed to open log file:%s, reason:%s\n", __func__, __LINE__, logFileName, strerror(ERRNO));
+      SET_ERROR_MSG("%s:%d failed to open log file:%s, reason:%s", __func__, __LINE__, logFileName, strerror(ERRNO));
       return true;
     }
   }
@@ -672,6 +676,7 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
   tsLogObj.logHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE);
   if (tsLogObj.logHandle->pFile == NULL) {
     (void)printf("\n%s:%d failed to open log file:%s, reason:%s\n", __func__, __LINE__, name, strerror(ERRNO));
+    SET_ERROR_MSG("%s:%d failed to open log file:%s, reason:%s", __func__, __LINE__, name, strerror(ERRNO));
     return terrno;
   }
   TAOS_UNUSED(taosLockLogFile(tsLogObj.logHandle->pFile));
@@ -698,6 +703,7 @@ _exit:
   if (code != 0) {
     taosUnLockLogFile(tsLogObj.logHandle->pFile);
     TAOS_UNUSED(printf("failed to init normal log file:%s at line %d, reason:%s\n", name, lino, tstrerror(code)));
+    SET_ERROR_MSG("failed to init normal log file:%s at line %d, reason:%s", name, lino, tstrerror(code));
   }
   return code;
 }

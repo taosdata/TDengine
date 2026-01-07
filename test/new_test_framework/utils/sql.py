@@ -2995,6 +2995,19 @@ class TDSql:
 
         return ts
 
+    # gen insert table with fixed values, return next write ts
+    def genInsertVal(self, startTs, step, count, fixedVals):
+        # init
+        ts = startTs
+        sql = ""
+        # loop count
+        for i in range(count):
+            sql += f" ({ts},{fixedVals})"
+            # next
+            ts += step
+
+        return ts, sql
+
     
     # insert now
     def insertNow(self, table, sleepS, count, cols, fixedVals):

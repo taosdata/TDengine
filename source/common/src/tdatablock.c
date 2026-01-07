@@ -105,6 +105,7 @@ int32_t calcStrBytesByType(int8_t type, char* data) { return getDataLen(type, da
 
 static int32_t checkAllocLen(SColumnInfoData* pColumnInfoData, char** pData, int32_t dataLen){
   SVarColAttr* pAttr = &pColumnInfoData->varmeta;
+  char* buf = NULL;
   if (pAttr->allocLen < pAttr->length + dataLen) {
     uint32_t newSize = pAttr->allocLen;
     if (newSize <= 1) {
@@ -118,7 +119,7 @@ static int32_t checkAllocLen(SColumnInfoData* pColumnInfoData, char** pData, int
       }
     }
 
-    char* buf = taosMemoryRealloc(*pData, newSize);
+    buf = taosMemoryRealloc(*pData, newSize);
     if (buf == NULL) {
       return terrno;
     }
@@ -149,6 +150,13 @@ static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowI
       pColumnInfoData->varmeta.length = pColumnInfoData->varmeta.offset[rowIndex];
     }
 
+    bool overlap = false;
+    uint64_t offset = 0;
+    if ((uint64_t)pData >= (uint64_t)pColumnInfoData->pData && ((uint64_t)pData + dataLen) <= ((uint64_t)pColumnInfoData->pData + pColumnInfoData->varmeta.allocLen)) {
+      overlap = true;
+      offset = (uint64_t)pData - (uint64_t)pColumnInfoData->pData;
+    }
+
     int32_t code = checkAllocLen(pColumnInfoData, &pColumnInfoData->pData, dataLen);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -157,7 +165,7 @@ static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowI
     uint32_t len = pColumnInfoData->varmeta.length;
     pColumnInfoData->varmeta.offset[rowIndex] = len;
 
-    (void)memmove(pColumnInfoData->pData + len, pData, dataLen);
+    (void)memmove(pColumnInfoData->pData + len, overlap ? (pColumnInfoData->pData + offset) : pData, dataLen);
     pColumnInfoData->varmeta.length += dataLen;
   } else {
     memcpy(pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex, pData, pColumnInfoData->info.bytes);
@@ -698,7 +706,7 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) 
 
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   if (numOfCols <= 0) {
-    return -1;
+    return 0;
   }
 
   int32_t index = (tsColumnIndex == -1) ? 0 : tsColumnIndex;
@@ -1258,16 +1266,26 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
   return pBlock->info.rowSize;
 }
 
+size_t blockDataGetSerialMetaSizeImpl(uint32_t numOfCols, bool internal) {
+  // | version | total length | total rows | blankFull | total columns | flag seg| block group id | column schema
+  // | each column length
+  // internal: |scanFlag |
+  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(bool) + sizeof(int32_t) + sizeof(int32_t) +
+         sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t) + 
+         (internal ? (sizeof(uint8_t)) : 0);
+}
+
+size_t blockDataGetSerialMetaSizeInternal(uint32_t numOfCols) {
+  return blockDataGetSerialMetaSizeImpl(numOfCols, true);
+}
+
 /**
  * @refitem blockDataToBuf for the meta size
  * @param pBlock
  * @return
  */
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols) {
-  // | version | total length | total rows | blankFull | total columns | flag seg| block group id | column schema
-  // | each column length
-  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(bool) + sizeof(int32_t) + sizeof(int32_t) +
-         sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
+  return blockDataGetSerialMetaSizeImpl(numOfCols, false);
 }
 
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
@@ -2239,13 +2257,25 @@ int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDat
   QUERY_CHECK_NULL(pTemplateBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_NULL(pColMap, code, lino, _return, TSDB_CODE_INVALID_PARA);
 
-  QUERY_CHECK_CODE(createOneDataBlock(pTemplateBlock, false, &pDstBlock), lino, _return);
-  QUERY_CHECK_CODE(blockDataEnsureCapacity(pDstBlock, pSrcBlock->info.rows), lino, _return);
+  code = createOneDataBlock(pTemplateBlock, false, &pDstBlock);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = blockDataEnsureCapacity(pDstBlock, pSrcBlock->info.rows);
+  QUERY_CHECK_CODE(code, lino, _return);
 
-  for (int32_t i = 0; i < taosArrayGetSize(pDstBlock->pDataBlock); ++i) {
-    SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
-    QUERY_CHECK_NULL(pDst, code, lino, _return, terrno);
-    colDataSetNNULL(pDst, 0, pSrcBlock->info.rows);
+  if (pSrcBlock->pBlockAgg) {
+    size_t num = taosArrayGetSize(pDstBlock->pDataBlock);
+    pDstBlock->pBlockAgg = taosMemoryCalloc(num, sizeof(SColumnDataAgg));
+    QUERY_CHECK_NULL(pDstBlock->pBlockAgg, code, lino, _return, terrno);
+    for (int i = 0; i < num; ++i) {
+      pDstBlock->pBlockAgg[i].colId = i;
+      pDstBlock->pBlockAgg[i].numOfNull = pSrcBlock->info.rows;
+    }
+  } else {
+    for (int32_t i = 0; i < taosArrayGetSize(pDstBlock->pDataBlock); ++i) {
+      SColumnInfoData* pDst = taosArrayGet(pDstBlock->pDataBlock, i);
+      QUERY_CHECK_NULL(pDst, code, lino, _return, terrno);
+      colDataSetNNULL(pDst, 0, pSrcBlock->info.rows);
+    }
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pColMap); i++) {
@@ -2257,7 +2287,12 @@ int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDat
       if (pSrcCol->info.colId == pColPair->orgColId) {
         SColumnInfoData* pDstCol = taosArrayGet(pDstBlock->pDataBlock, pColPair->vtbSlotId);
         QUERY_CHECK_NULL(pDstCol, code, lino, _return, terrno);
-        QUERY_CHECK_CODE(colDataAssign(pDstCol, pSrcCol, (int32_t)pSrcBlock->info.rows, &pSrcBlock->info), lino, _return);
+        if (pSrcBlock->pBlockAgg) {
+          (void)memcpy(&pDstBlock->pBlockAgg[pColPair->vtbSlotId], &pSrcBlock->pBlockAgg[j], sizeof(SColumnDataAgg));
+          pDstBlock->pBlockAgg[pColPair->vtbSlotId].numOfNull = 0;
+        } else {
+          QUERY_CHECK_CODE(colDataAssign(pDstCol, pSrcCol, (int32_t)pSrcBlock->info.rows, &pSrcBlock->info), lino, _return);
+        }
       }
     }
   }
@@ -3291,7 +3326,7 @@ static int32_t blockCheckSize(int64_t blockSize) {
   return code;
 }
 // return length of encoded data, return -1 if failed
-int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols) {
+int32_t blockEncodeImpl(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols, bool internal) {
   int32_t code = blockDataCheck(pBlock);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
@@ -3353,7 +3388,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
   int32_t* colSizes = (int32_t*)data;
   data += numOfCols * sizeof(int32_t);
 
-  dataLen = blockDataGetSerialMetaSize(numOfCols);
+  dataLen = internal ? blockDataGetSerialMetaSizeInternal(numOfCols) : blockDataGetSerialMetaSize(numOfCols);
   blockSize = dataLen;
 
   int32_t numOfRows = pBlock->info.rows;
@@ -3431,6 +3466,12 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
   *blankFill = pBlock->info.blankFill;
   data += sizeof(bool);
 
+  if (internal) {
+    uint8_t* scanFlag = (uint8_t*)data;
+    *scanFlag = pBlock->info.scanFlag;
+    data += sizeof(uint8_t);
+  }
+
   *actualLen = dataLen;
 #ifndef NO_UNALIGNED_ACCESS
   *groupId = pBlock->info.id.groupId;
@@ -3447,7 +3488,18 @@ _exit:
   return -1;
 }
 
-int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos) {
+// return length of encoded data, return -1 if failed
+int32_t blockEncodeInternal(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols) {
+  return blockEncodeImpl(pBlock, data, dataBuflen, numOfCols, true);
+}
+
+
+// return length of encoded data, return -1 if failed
+int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols) {
+  return blockEncodeImpl(pBlock, data, dataBuflen, numOfCols, false);
+}
+
+int32_t blockDecodeImpl(SSDataBlock* pBlock, const char* pData, const char** pEndPos, bool internal) {
   const char* pStart = pData;
 
   int32_t version = *(int32_t*)pStart;
@@ -3571,10 +3623,15 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
   bool blankFill = *(bool*)pStart;
   pStart += sizeof(bool);
 
+  if (internal && (pStart - pData) < dataLen) {
+    pBlock->info.scanFlag = *(uint8_t*)pStart;
+    pStart += sizeof(uint8_t);
+  }
+
   pBlock->info.dataLoad = 1;
   pBlock->info.rows = numOfRows;
   pBlock->info.blankFill = blankFill;
-  if (pStart - pData != dataLen) {
+  if (internal && (pStart - pData != dataLen)) {
     uError("block decode msg len error, pStart:%p, pData:%p, dataLen:%d", pStart, pData, dataLen);
     terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     return terrno;
@@ -3591,6 +3648,13 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t blockDecodeInternal(SSDataBlock* pBlock, const char* pData, const char** pEndPos) {
+  return blockDecodeImpl(pBlock, pData, pEndPos, true);
+}
+int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos) {
+  return blockDecodeImpl(pBlock, pData, pEndPos, false);
 }
 
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList) {
@@ -3782,6 +3846,11 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
 int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
   return blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock)) + blockDataGetSize(pBlock);
 }
+
+int32_t blockGetInternalEncodeSize(const SSDataBlock* pBlock) {
+  return blockDataGetSerialMetaSizeInternal(taosArrayGetSize(pBlock->pDataBlock)) + blockDataGetSize(pBlock);
+}
+
 
 int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
   if (!pDataBlock || !pOrderInfo) return 0;
@@ -4438,3 +4507,4 @@ int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t row, 
   *ts = *(TSKEY*)(pColInfoData->pData + row * sizeof(TSKEY));
   return TSDB_CODE_SUCCESS;
 }
+

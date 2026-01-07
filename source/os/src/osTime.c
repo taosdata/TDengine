@@ -446,6 +446,9 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
   }
   return r;
 #else
+  if (tz == NULL) {
+    tz = getGlobalDefaultTZ();
+  }
   time_t r = (tz != NULL ? mktime_z(tz, timep) : mktime(timep));
   if (r == (time_t)-1) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
@@ -556,6 +559,9 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
   }
   return res;
 #else
+  if (tz == NULL) {
+    tz = getGlobalDefaultTZ();
+  }
   res = (tz != NULL ? localtime_rz(tz, timep, result) : localtime_r(timep, result));
   if (res == NULL && buf != NULL) {
     (void)snprintf(buf, bufSize, "NaN");

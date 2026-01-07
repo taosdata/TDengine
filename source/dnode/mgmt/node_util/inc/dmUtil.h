@@ -100,7 +100,8 @@ typedef enum {
   QNODE = 3,
   SNODE = 4,
   BNODE = 5,
-  NODE_END = 6,
+  XNODE = 6,
+  NODE_END = 7,
 } EDndNodeType;
 
 typedef enum {
@@ -148,6 +149,7 @@ typedef struct {
   SMsgCb         msgCb;
   bool           validMnodeEps;
   int64_t        ipWhiteVer;
+  int64_t        timeWhiteVer;
   char           machineId[TSDB_MACHINE_ID_LEN + 1];
   EEncryptAlgor  encryptAlgorigthm;
   EEncryptScope  encryptScope;

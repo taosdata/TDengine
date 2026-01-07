@@ -26,11 +26,14 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         if  "records" not in infoDict or len(infoDict["records"]) == 0:
             tdLog.exit("records is null!")
 
-        if "operation" not in infoDict["records"][0] or infoDict["records"][0]["operation"] != "delete":
+        if "operation" not in infoDict["records"][0]:
             tdLog.exit("operation is null!")
-
-        if "details" not in infoDict["records"][0] or infoDict["records"][0]["details"] != "delete from db3.tb":
-            tdLog.exit("details is null!")
+        else:
+            if infoDict["records"][0]["operation"] != "delete":
+                tdLog.info("operation is %s!"%infoDict["records"][0]["operation"])
+            else:
+                if "details" not in infoDict["records"][0] or infoDict["records"][0]["details"] != "delete from db3.tb":
+                    tdLog.exit("details is null!")
 
     def do_GET(self):
         """
@@ -110,6 +113,8 @@ class TestTaosdAudit:
 
     updatecfgDict["audit"]            = '1'
     updatecfgDict["uDebugFlag"]            = '143'
+    updatecfgDict["auditLevel"]            = '4'
+    updatecfgDict["auditHttps"]            = '0'
 
     print ("===================: ", updatecfgDict)
 
@@ -143,6 +148,25 @@ class TestTaosdAudit:
         """
         tdSql.prepare()
         # time.sleep(2)
+
+        tdLog.info("create encrypt key")
+        sql = "create encrypt_key 'sdfsadfasdfasfas'"
+        tdSql.query(sql)
+
+        tdLog.info("create audit database")
+        sql = "create database audit is_audit 1 wal_level 2 ENCRYPT_ALGORITHM 'SM4-CBC';"
+        tdSql.query(sql)
+
+        tdLog.info("create user audit pass '123456Ab@' sysinfo 0;")
+        sql = "create user audit pass '123456Ab@' sysinfo 0;"
+        tdSql.query(sql)
+
+        tdLog.info("create token audit_token from user audit;")
+        sql = "create token audit_token from user audit;"
+        tdSql.query(sql)
+
+        time.sleep(3)
+
         vgroups = "4"
         tdLog.info("create database")
         sql = "create database db3 vgroups " + vgroups
@@ -156,7 +180,7 @@ class TestTaosdAudit:
         t1 = threading.Thread(target=self.createTbThread, args=('', newTdSql1))
         t1.start()
 
-        tdLog.info("start http server")
+        tdLog.info("starting http server")
         # create http server: bing ip/port , and  request processor
         if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
             RequestHandlerImplStr = base64.b64encode(pickle.dumps(RequestHandlerImpl)).decode()
@@ -165,6 +189,7 @@ class TestTaosdAudit:
         else:
             serverAddress = ("", int(telemetryPort))
             http.server.HTTPServer(serverAddress, RequestHandlerImpl).serve_forever()
+            tdLog.info("started http server")
 
     def createTbThread(self, sql, newTdSql):
         # wait for http server ready

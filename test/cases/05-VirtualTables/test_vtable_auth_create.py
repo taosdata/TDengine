@@ -27,7 +27,7 @@ class TestVtableAuthCreate:
     def test_create_virtual_normal_table(self):
         """Auth: create virtual normal table
 
-        test "write", "read", "none", "all" each auth user create opration
+        test "insert", "select", "none", "all" each auth user create opration
 
         Catalog:
             - VirtualTable
@@ -48,7 +48,7 @@ class TestVtableAuthCreate:
         tdSql.execute("create table test_vtable_auth_org_table_2(ts timestamp, int_col int);")
         tdSql.execute("create user test_vtable_user_create PASS 'test12@#*';")
 
-        priv_list = ["write", "read", "none", "all"]
+        priv_list = ["insert", "select", "none", "all"]
 
         testconn = taos.connect(user='test_vtable_user_create', password='test12@#*')
         cursor = testconn.cursor()
@@ -63,15 +63,18 @@ class TestVtableAuthCreate:
                 for priv_tb2 in priv_list:
                     tdSql.execute("use test_vtable_auth_create;")
                     tdSql.execute(f"grant {priv_db} on test_vtable_auth_create to test_vtable_user_create;")
+                    tdSql.execute(f"grant use on database test_vtable_auth_create to test_vtable_user_create;")
+                    if(priv_db == "insert" or priv_db == "all"):
+                        tdSql.execute(f"grant create table on database test_vtable_auth_create to test_vtable_user_create;")
                     if (priv_tb1 != "none"):
                         tdSql.execute(f"grant {priv_tb1} on test_vtable_auth_create.test_vtable_auth_org_table_1 to test_vtable_user_create;")
                     if (priv_tb2 != "none"):
                         tdSql.execute(f"grant {priv_tb2} on test_vtable_auth_create.test_vtable_auth_org_table_2 to test_vtable_user_create;")
 
                     tdSql.execute(f"reset query cache")
-                    tdLog.info(f"priv_db: {priv_db}, priv_tb1: {priv_tb1}, priv_tb2: {priv_tb2}")
+                    tdLog.info(f"start to check: priv_db: {priv_db}, priv_tb1: {priv_tb1}, priv_tb2: {priv_tb2}")
                     testSql.execute("use test_vtable_auth_create;")
-                    if (priv_db == "read"):
+                    if (priv_db == "select"):
                         testSql.error(f"create vtable test_vtable_auth_vtb_{i}("
                                       "ts timestamp, "
                                       "int_col_1 int from test_vtable_auth_org_table_1.int_col, "
@@ -81,7 +84,7 @@ class TestVtableAuthCreate:
                                         "ts timestamp, "
                                         "int_col_1 int from test_vtable_auth_org_table_1.int_col, "
                                         "int_col_2 int from test_vtable_auth_org_table_2.int_col);")
-                    elif (priv_tb1 == "write" or priv_tb2 == "write" or priv_tb1 == "none" or priv_tb2 == "none"):
+                    elif (priv_tb1 == "insert" or priv_tb2 == "insert" or priv_tb1 == "none" or priv_tb2 == "none"):
                         testSql.error(f"create vtable test_vtable_auth_vtb_{i}("
                                       "ts timestamp, "
                                       "int_col_1 int from test_vtable_auth_org_table_1.int_col, "
@@ -95,10 +98,13 @@ class TestVtableAuthCreate:
 
 
                     tdSql.execute(f"revoke {priv_db} on test_vtable_auth_create from test_vtable_user_create;")
+                    if(priv_db == "insert" or priv_db == "all"):
+                        tdSql.execute(f"revoke create table on database test_vtable_auth_create from test_vtable_user_create;")
                     if (priv_tb1 != "none"):
                         tdSql.execute(f"revoke {priv_tb1} on test_vtable_auth_create.test_vtable_auth_org_table_1 from test_vtable_user_create;")
                     if (priv_tb2 != "none"):
                         tdSql.execute(f"revoke {priv_tb2} on test_vtable_auth_create.test_vtable_auth_org_table_2 from test_vtable_user_create;")
+                    tdLog.info(f"finish to check: priv_db: {priv_db}, priv_tb1: {priv_tb1}, priv_tb2: {priv_tb2}")
                     i+=1
 
         tdSql.execute("drop database test_vtable_auth_create;")
@@ -106,7 +112,7 @@ class TestVtableAuthCreate:
     def test_create_virtual_child_table(self):
         """Auth: create virtual child table
 
-        test "write", "read", "none", "all" each auth user create opration
+        test "insert", "select", "none", "all" each auth user create opration
 
         Catalog:
             - VirtualTable
@@ -127,7 +133,7 @@ class TestVtableAuthCreate:
         tdSql.execute("create table test_vtable_auth_org_table_2(ts timestamp, int_col int);")
         tdSql.execute("create user test_vct_user_create PASS 'test12@#*';")
         tdSql.execute("create stable test_vtable_auth_stb_1(ts timestamp, int_col_1 int, int_col_2 int) TAGS (int_tag int) virtual 1;")
-        priv_list = ["write", "read", "none", "all"]
+        priv_list = ["insert", "select", "none", "all"]
 
         testconn = taos.connect(user='test_vct_user_create', password='test12@#*')
         cursor = testconn.cursor()
@@ -142,15 +148,18 @@ class TestVtableAuthCreate:
                 for priv_tb2 in priv_list:
                     tdSql.execute("use test_vctable_auth_create;")
                     tdSql.execute(f"grant {priv_db} on test_vctable_auth_create to test_vct_user_create;")
+                    tdSql.execute(f"grant use on database test_vctable_auth_create to test_vct_user_create;")
+                    if(priv_db == "insert" or priv_db == "all"):
+                        tdSql.execute(f"grant create table on database test_vctable_auth_create to test_vct_user_create;")
                     if (priv_tb1 != "none"):
                         tdSql.execute(f"grant {priv_tb1} on test_vctable_auth_create.test_vtable_auth_org_table_1 to test_vct_user_create;")
                     if (priv_tb2 != "none"):
                         tdSql.execute(f"grant {priv_tb2} on test_vctable_auth_create.test_vtable_auth_org_table_2 to test_vct_user_create;")
 
                     tdSql.execute(f"reset query cache")
-                    tdLog.info(f"priv_db: {priv_db}, priv_tb1: {priv_tb1}, priv_tb2: {priv_tb2}")
+                    tdLog.info(f"start to check: priv_db: {priv_db}, priv_tb1: {priv_tb1}, priv_tb2: {priv_tb2}")
                     testSql.execute("use test_vctable_auth_create;")
-                    if (priv_db == "read"):
+                    if (priv_db == "select"):
                         testSql.error(f"create vtable test_vctable_auth_vtb_{i}("
                                       "test_vtable_auth_org_table_1.int_col, "
                                       "test_vtable_auth_org_table_2.int_col) "
@@ -163,7 +172,7 @@ class TestVtableAuthCreate:
                                         "USING test_vtable_auth_stb_1 "
                                         "TAGS (1);")
                     else:
-                        if (priv_tb1 == "write" or priv_tb1 == "none" or priv_tb2 == "write" or priv_tb2 == "none"):
+                        if (priv_tb1 == "insert" or priv_tb1 == "none" or priv_tb2 == "insert" or priv_tb2 == "none"):
                             testSql.error(f"create vtable test_vctable_auth_vtb_{i}("
                                           "test_vtable_auth_org_table_1.int_col, "
                                           "test_vtable_auth_org_table_2.int_col) "
@@ -179,12 +188,13 @@ class TestVtableAuthCreate:
 
 
                     tdSql.execute(f"revoke {priv_db} on test_vctable_auth_create from test_vct_user_create;")
+                    if(priv_db == "insert" or priv_db == "all"):
+                        tdSql.execute(f"revoke create table on database test_vctable_auth_create from test_vct_user_create;")
                     if (priv_tb1 != "none"):
                         tdSql.execute(f"revoke {priv_tb1} on test_vctable_auth_create.test_vtable_auth_org_table_1 from test_vct_user_create;")
                     if (priv_tb2 != "none"):
                         tdSql.execute(f"revoke {priv_tb2} on test_vctable_auth_create.test_vtable_auth_org_table_2 from test_vct_user_create;")
+                    tdLog.info(f"finish to check: priv_db: {priv_db}, priv_tb1: {priv_tb1}, priv_tb2: {priv_tb2}")
                     i+=1
 
         tdSql.execute("drop database test_vctable_auth_create;")
-
-

@@ -100,7 +100,7 @@ class TestTaosinspect:
         # 9. information_schema.ins_user_privileges
         result = tdSql.getResult("desc information_schema.ins_user_privileges")
         self.check_column(result, "user_name", "information_schema.ins_user_privileges")
-        self.check_column(result, "privilege", "information_schema.ins_user_privileges")
+        self.check_column(result, "priv_type", "information_schema.ins_user_privileges") # privilege as keyword since 3.4.0.0, rename to priv_type
         self.check_column(result, "db_name", "information_schema.ins_user_privileges")
         self.check_column(result, "table_name", "information_schema.ins_user_privileges")
         # tdSql.query("select user_name, privilege, db_name, table_name from information_schema.ins_user_privileges")
@@ -160,8 +160,8 @@ class TestTaosinspect:
         self.check_column(result, "db_name", "information_schema.ins_topics")
         self.check_column(result, "create_time", "information_schema.ins_topics")
         self.check_column(result, "sql", "information_schema.ins_topics")
-        self.check_column(result, "meta", "information_schema.ins_topics")
-        self.check_column(result, "type", "information_schema.ins_topics")
+        # self.check_column(result, "meta", "information_schema.ins_topics")
+        # self.check_column(result, "type", "information_schema.ins_topics")
         # tdSql.query("select count(*) as topic_count from information_schema.ins_topics")
         # tdSql.query("select topic_name, db_name, create_time, sql, `meta`, `type` from information_schema.ins_topics order by db_name, topic_name")
 

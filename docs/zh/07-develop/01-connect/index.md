@@ -13,6 +13,7 @@ import ConnNode from "./_connect_node.mdx";
 import ConnPythonNative from "./_connect_python.mdx";
 import ConnCSNative from "./_connect_cs.mdx";
 import ConnC from "./_connect_c.mdx";
+import ConnCWebSocket from "./_connect_c_ws.mdx";
 import InstallOnLinux from "../../14-reference/05-connector/_linux_install.mdx";
 import InstallOnWindows from "../../14-reference/05-connector/_windows_install.mdx";
 import InstallOnMacOS from "../../14-reference/05-connector/_macos_install.mdx";
@@ -68,7 +69,7 @@ import ConnectorType from "../../14-reference/05-connector/_connector_type.mdx";
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.7.8</version>
+  <version>3.8.0</version>
 </dependency>
 ```
 
@@ -326,6 +327,8 @@ root:taosdata@ws([::1]:6041)/testdb
   - `readTimeout` 读取数据的超时时间，默认为 5m。
   - `writeTimeout` 写入数据的超时时间，默认为 10s。
   - `timezone` 指定连接使用的时区，sql 解析以及查询结果都会按照此时区进行转换，只支持 IANA 时区格式，特殊字符需要进行编码，以上海时区（`Asia/Shanghai`）为例：`timezone=Asia%2FShanghai`。
+  - `bearerToken` 指定用于身份验证的 Bearer Token。
+  - `totpCode` 指定用于双因素身份验证的 TOTP 码。
 
 </TabItem>
 <TabItem label="Rust" value="rust">
@@ -453,9 +456,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
     ```
   </TabItem>
   <TabItem label="C" value="c">
-    ```c
-    {{#include docs/examples/c-ws-new/connect_example.c}}
-    ```
+    <ConnCWebSocket />
   </TabItem>
 </Tabs>
 

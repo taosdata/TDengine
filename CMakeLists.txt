@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(
   TDengine
@@ -45,6 +46,8 @@ add_library(api INTERFACE)
 target_include_directories(api INTERFACE "include/client")
 
 add_subdirectory(contrib/TSZ)
+add_subdirectory(contrib/libaes)
+add_subdirectory(contrib/libmqtt)
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(utils)

@@ -16,12 +16,14 @@
 #ifndef _TD_CMD_NODES_H_
 #define _TD_CMD_NODES_H_
 
+#include "tmsg.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "query.h"
 #include "querynodes.h"
+#include "tdef.h"
 #include "tglobal.h"
 
 #define DESCRIBE_RESULT_COLS               4
@@ -31,7 +33,7 @@ extern "C" {
 #define DESCRIBE_RESULT_TYPE_LEN           (20 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_NOTE_LEN           (16 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_COPRESS_OPTION_LEN (TSDB_CL_COMPRESS_OPTION_LEN + VARSTR_HEADER_SIZE)
-#define DESCRIBE_RESULT_COL_REF_LEN         (TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_COL_REF_LEN        (TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE)
 
 #define SHOW_CREATE_DB_RESULT_COLS       2
 #define SHOW_CREATE_DB_RESULT_FIELD1_LEN (TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE)
@@ -66,6 +68,12 @@ extern "C" {
 
 #define SHOW_ALIVE_RESULT_COLS 1
 
+#define CREATE_TOKEN_RESULT_COLS       1
+#define CREATE_TOKEN_RESULT_FIELD1_LEN (TSDB_TOKEN_LEN + VARSTR_HEADER_SIZE)
+
+#define CREATE_TOTP_SECRET_RESULT_COLS       1
+#define CREATE_TOTP_SECRET_RESULT_FIELD1_LEN ((TSDB_TOTP_SECRET_LEN * 8 + 4) / 5 + 1 + VARSTR_HEADER_SIZE)
+
 #define BIT_FLAG_MASK(n)               (1 << n)
 #define BIT_FLAG_SET_MASK(val, mask)   ((val) |= (mask))
 #define BIT_FLAG_UNSET_MASK(val, mask) ((val) &= ~(mask))
@@ -77,9 +85,9 @@ extern "C" {
 #define PRIVILEGE_TYPE_SUBSCRIBE BIT_FLAG_MASK(3)
 #define PRIVILEGE_TYPE_ALTER     BIT_FLAG_MASK(4)
 
-#define EVENT_NONE               0
-#define EVENT_WINDOW_CLOSE       BIT_FLAG_MASK(0)
-#define EVENT_WINDOW_OPEN        BIT_FLAG_MASK(1)
+#define EVENT_NONE         0
+#define EVENT_WINDOW_CLOSE BIT_FLAG_MASK(0)
+#define EVENT_WINDOW_OPEN  BIT_FLAG_MASK(1)
 
 #define NOTIFY_NONE              0
 #define NOTIFY_HISTORY           BIT_FLAG_MASK(0)
@@ -97,7 +105,7 @@ typedef struct SDatabaseOptions {
   int8_t      encryptAlgorithm;
   int32_t     daysPerFile;
   char        dnodeListStr[TSDB_DNODE_LIST_LEN];
-  char        encryptAlgorithmStr[TSDB_ENCRYPT_ALGO_STR_LEN];
+  char        encryptAlgorithmStr[TSDB_ENCRYPT_ALGR_NAME_LEN];
   SValueNode* pDaysPerFile;
   int32_t     fsyncPeriod;
   int32_t     maxRowsPerBlock;
@@ -144,6 +152,7 @@ typedef struct SDatabaseOptions {
   SNodeList*  pCompactTimeRangeList;
   // for cache
   SDbCfgInfo* pDbCfg;
+  int8_t      isAudit;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -193,6 +202,7 @@ typedef struct SCompactDatabaseStmt {
   SNode*    pStart;
   SNode*    pEnd;
   bool      metaOnly;
+  bool      force;
 } SCompactDatabaseStmt;
 
 typedef struct SRollupDatabaseStmt {
@@ -230,6 +240,7 @@ typedef struct SCompactVgroupsStmt {
   SNode*     pStart;
   SNode*     pEnd;
   bool       metaOnly;
+  bool       force;
 } SCompactVgroupsStmt;
 
 typedef struct SRollupVgroupsStmt {
@@ -249,22 +260,22 @@ typedef struct SScanVgroupsStmt {
 } SScanVgroupsStmt;
 
 typedef struct STableOptions {
-  ENodeType  type;
-  bool       virtualStb;
-  bool       commentNull;
-  char       comment[TSDB_TB_COMMENT_LEN];
-  SNodeList* pMaxDelay;
-  int64_t    maxDelay1;
-  int64_t    maxDelay2;
-  SNodeList* pWatermark;
-  int64_t    watermark1;
-  int64_t    watermark2;
-  SNodeList* pDeleteMark;
-  int64_t    deleteMark1;
-  int64_t    deleteMark2;
-  SNodeList* pRollupFuncs;
-  int32_t    ttl;
-  SNodeList* pSma;
+  ENodeType   type;
+  bool        virtualStb;
+  bool        commentNull;
+  char        comment[TSDB_TB_COMMENT_LEN];
+  SNodeList*  pMaxDelay;
+  int64_t     maxDelay1;
+  int64_t     maxDelay2;
+  SNodeList*  pWatermark;
+  int64_t     watermark1;
+  int64_t     watermark2;
+  SNodeList*  pDeleteMark;
+  int64_t     deleteMark1;
+  int64_t     deleteMark2;
+  SNodeList*  pRollupFuncs;
+  int32_t     ttl;
+  SNodeList*  pSma;
   SValueNode* pKeepNode;
   int32_t     keep;
 } STableOptions;
@@ -302,24 +313,24 @@ typedef struct SCreateTableStmt {
 } SCreateTableStmt;
 
 typedef struct SCreateVTableStmt {
-  ENodeType      type;
-  char           dbName[TSDB_DB_NAME_LEN];
-  char           tableName[TSDB_TABLE_NAME_LEN];
-  bool           ignoreExists;
-  SNodeList*     pCols;
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       tableName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreExists;
+  SNodeList* pCols;
 } SCreateVTableStmt;
 
 typedef struct SCreateVSubTableStmt {
-  ENodeType      type;
-  char           dbName[TSDB_DB_NAME_LEN];
-  char           tableName[TSDB_TABLE_NAME_LEN];
-  char           useDbName[TSDB_DB_NAME_LEN];
-  char           useTableName[TSDB_TABLE_NAME_LEN];
-  bool           ignoreExists;
-  SNodeList*     pSpecificTags;
-  SNodeList*     pValsOfTags;
-  SNodeList*     pSpecificColRefs;
-  SNodeList*     pColRefs;
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       tableName[TSDB_TABLE_NAME_LEN];
+  char       useDbName[TSDB_DB_NAME_LEN];
+  char       useTableName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreExists;
+  SNodeList* pSpecificTags;
+  SNodeList* pValsOfTags;
+  SNodeList* pSpecificColRefs;
+  SNodeList* pColRefs;
 } SCreateVSubTableStmt;
 
 typedef struct SCreateSubTableClause {
@@ -405,37 +416,209 @@ typedef struct SAlterTableMultiStmt {
   SNodeList* pNodeListTagValue;
 } SAlterTableMultiStmt;
 
-typedef struct SCreateUserStmt {
-  ENodeType   type;
-  char        userName[TSDB_USER_LEN];
-  char        password[TSDB_USET_PASSWORD_LONGLEN];
-  int8_t      sysinfo;
-  int8_t      createDb;
-  int8_t      isImport;
-  int32_t     numIpRanges;
-  SIpRange*   pIpRanges;
 
-  SNodeList* pNodeListIpRanges;
+// ip range for user options
+typedef struct SIpRangeNode{
+  ENodeType type;
+  SIpRange range;
+} SIpRangeNode;
+
+
+// date time range for user options
+typedef struct SDateTimeRangeNode {
+  ENodeType type;
+  SDateTimeRange range;
+} SDateTimeRangeNode;
+
+
+typedef struct SUserOptions {
+  ENodeType type;
+
+  bool hasPassword;
+  bool hasTotpseed;
+  bool hasEnable;
+  bool hasSysinfo;
+  bool hasIsImport;
+  bool hasCreatedb;
+  bool hasChangepass;
+  bool hasSessionPerUser;
+  bool hasConnectTime;
+  bool hasConnectIdleTime;
+  bool hasCallPerSession;
+  bool hasVnodePerCall;
+  bool hasFailedLoginAttempts;
+  bool hasPasswordLifeTime;
+  bool hasPasswordReuseTime;
+  bool hasPasswordReuseMax;
+  bool hasPasswordLockTime;
+  bool hasPasswordGraceTime;
+  bool hasInactiveAccountTime;
+  bool hasAllowTokenNum;
+
+  char   password[TSDB_USER_PASSWORD_LONGLEN];
+  char   totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
+  int8_t enable;
+  int8_t sysinfo;
+  int8_t isImport;
+  int8_t createdb;
+  int8_t changepass;
+  int32_t sessionPerUser;
+  int32_t connectTime;
+  int32_t connectIdleTime;
+  int32_t callPerSession;
+  int32_t vnodePerCall;
+  int32_t failedLoginAttempts;
+  int32_t passwordLifeTime;
+  int32_t passwordReuseTime;
+  int32_t passwordReuseMax;
+  int32_t passwordLockTime;
+  int32_t passwordGraceTime;
+  int32_t inactiveAccountTime;
+  int32_t allowTokenNum;
+
+  SNodeList* pIpRanges;
+  SNodeList* pDropIpRanges;  // only for alter user
+  SNodeList* pTimeRanges;
+  SNodeList* pDropTimeRanges;  // only for alter user
+
+} SUserOptions;
+
+typedef struct SCreateUserStmt {
+  ENodeType type;
+  char      userName[TSDB_USER_LEN];
+  char      password[TSDB_USER_PASSWORD_LONGLEN];
+  char      totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
+
+  int8_t  ignoreExists;
+  int8_t sysinfo;
+  int8_t createDb;
+  int8_t isImport;
+  int8_t changepass;
+  int8_t enable;
+
+  int32_t sessionPerUser;
+  int32_t connectTime;
+  int32_t connectIdleTime;
+  int32_t callPerSession;
+  int32_t vnodePerCall;
+  int32_t failedLoginAttempts;
+  int32_t passwordLifeTime;
+  int32_t passwordReuseTime;
+  int32_t passwordReuseMax;
+  int32_t passwordLockTime;
+  int32_t passwordGraceTime;
+  int32_t inactiveAccountTime;
+  int32_t allowTokenNum;
+
+  int32_t   numIpRanges;
+  SIpRange* pIpRanges;
+
+  int32_t         numTimeRanges;
+  SDateTimeRange* pTimeRanges;
 } SCreateUserStmt;
+
+typedef struct SCreateEncryptAlgrStmt {
+  ENodeType type;
+  char      algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char      name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char      desc[TSDB_ENCRYPT_ALGR_DESC_LEN];
+  char      algrType[TSDB_ENCRYPT_ALGR_TYPE_LEN];
+  char      osslAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SCreateEncryptAlgrStmt;
 
 typedef struct SAlterUserStmt {
   ENodeType   type;
   char        userName[TSDB_USER_LEN];
-  int8_t      alterType;
-  char        password[TSDB_USET_PASSWORD_LONGLEN];
-  int8_t      enable;
-  int8_t      sysinfo;
-  int8_t      createdb;
-  int32_t     numIpRanges;
-  SIpRange*   pIpRanges;
-
-  SNodeList* pNodeListIpRanges;
+  SUserOptions* pUserOptions;
 } SAlterUserStmt;
 
 typedef struct SDropUserStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];
+  bool      ignoreNotExists;
 } SDropUserStmt;
+
+typedef struct SCreateRoleStmt {
+  ENodeType type;
+  char      name[TSDB_ROLE_LEN];
+  bool      ignoreExists;
+} SCreateRoleStmt;
+
+typedef struct SDropRoleStmt {
+  ENodeType type;
+  char      name[TSDB_ROLE_LEN];
+  bool      ignoreNotExists;
+} SDropRoleStmt;
+
+typedef struct SAlterRoleStmt {
+  ENodeType type;
+  char      name[TSDB_ROLE_LEN];
+  int8_t    alterType;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t lock : 1;  // 1: lock, 0: unlock
+      uint8_t reserve : 7;
+    };
+  };
+} SAlterRoleStmt;
+
+typedef struct STokenOptions {
+  ENodeType type;
+
+  bool hasEnable;
+  bool hasTtl;
+  bool hasProvider;
+  bool hasExtraInfo;
+
+  int8_t  enable;
+  int32_t ttl;
+  char    provider[TSDB_TOKEN_PROVIDER_LEN];
+  char    extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+} STokenOptions;
+
+typedef struct SCreateTokenStmt {
+  ENodeType type;
+
+  char    name[TSDB_TOKEN_NAME_LEN];
+  char    user[TSDB_USER_LEN];
+  int8_t  enable;
+  int8_t  ignoreExists;
+  int32_t ttl;
+  char    provider[TSDB_TOKEN_PROVIDER_LEN];
+  char    extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+} SCreateTokenStmt;
+
+typedef struct SAlterTokenStmt {
+  ENodeType type;
+
+  char           name[TSDB_TOKEN_NAME_LEN];
+  STokenOptions* pTokenOptions;
+} SAlterTokenStmt;
+
+typedef struct SDropTokenStmt {
+  ENodeType type;
+
+  char      name[TSDB_TOKEN_NAME_LEN];
+  bool      ignoreNotExists;
+} SDropTokenStmt;
+
+typedef struct SCreateTotpSecretStmt {
+  ENodeType type;
+
+  char      user[TSDB_USER_LEN];
+} SCreateTotpSecretStmt;
+
+typedef struct SDropTotpSecretStmt {
+  ENodeType type;
+
+  char      user[TSDB_USER_LEN];
+} SDropTotpSecretStmt;
+
+typedef struct SDropEncryptAlgrStmt {
+  ENodeType type;
+  char      algorithmId[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SDropEncryptAlgrStmt;
 
 typedef struct SCreateDnodeStmt {
   ENodeType type;
@@ -496,6 +679,127 @@ typedef struct {
   int32_t   dnodeId;
 } SUpdateBnodeStmt;
 
+typedef struct {
+  ENodeType type;
+  char      url[TSDB_XNODE_URL_LEN + 3];
+  // Create xnode with new user.
+  char user[TSDB_USER_LEN + 3];
+  // Create xnode with new user password. `user` and `pass` should exist along with each other.
+  char pass[TSDB_USER_PASSWORD_LONGLEN + 3];
+} SCreateXnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   xnodeId;
+  char      url[TSDB_XNODE_URL_LEN + 3];
+  bool      force;
+} SDropXnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   xnodeId;
+} SDrainXnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   xnodeId;
+} SUpdateXnodeStmt;
+
+typedef struct {
+  ENodeType    type;
+  // xTaskOptions opts;
+  // taosX Agent ID.
+  int32_t via;
+  int32_t triggerLen;
+  char    trigger[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
+  int32_t healthLen;
+  char    health[TSDB_XNODE_TASK_TRIGGER_LEN + 3];
+  int32_t parserLen;
+  char    parser[TSDB_XNODE_TASK_PARSER_LEN + 3];
+  int32_t optionsNum;
+  char*   options[TSDB_XNODE_TASK_OPTIONS_MAX_NUM];  // options in the form of "key=value", e.g., "group.id=task1",
+                                                     // "via=1", "parser=taosx"
+} SXnodeTaskOptions;
+
+typedef struct {
+  ENodeType   type;
+  xTaskSource source;
+  // ENodeXTaskSourceType sourceType;
+  // char                 database[TSDB_DB_NAME_LEN + 3];
+  // char                 topic[TSDB_TOPIC_NAME_LEN + 3];
+  // char                 dsn[TSDB_XNODE_TASK_SOURCE_LEN + 3];
+} SXTaskSource;
+
+typedef struct {
+  ENodeType type;
+  xTaskSink sink;
+} SXTaskSink;
+
+typedef struct {
+  ENodeType          type;
+  char               name[TSDB_TABLE_NAME_LEN + 3];
+  SXTaskSource*      source;
+  SXTaskSink*        sink;
+  SXnodeTaskOptions* options;
+} SCreateXnodeTaskStmt;
+
+typedef struct {
+  ENodeType          type;
+  int32_t            tid;  // task id.
+  CowStr             name;
+  SXTaskSource*      source;
+  SXTaskSink*        sink;
+  SXnodeTaskOptions* options;
+} SUpdateXnodeTaskStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   tid;  // task id.
+  CowStr    name;
+} SStartXnodeTaskStmt, SStopXnodeTaskStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   tid;      // Short for XNode task id.
+  int32_t   nameLen;  // length of name
+  char*     name;
+  bool      force;  // DROP XNODE TASK FORCE 'name'
+} SDropXnodeTaskStmt;
+
+typedef struct {
+  ENodeType          type;
+  char               name[TSDB_TABLE_NAME_LEN + 3];
+  SXnodeTaskOptions* options;
+} SXnodeAgentCreateStmt;
+
+// typedef struct {
+//   ENodeType type;
+//   char      name[TSDB_TABLE_NAME_LEN + 3];
+//   bool      force;  // DROP XNODE TASK FORCE 'name'
+// } SXnodeTaskDropStmt;
+// typedef SXnodeTaskDropStmt SXnodeAgentDropStmt;
+
+typedef struct {
+  ENodeType          type;
+  int32_t            tid;
+  SXnodeTaskOptions* options;
+} SCreateXnodeJobStmt;
+typedef struct {
+  ENodeType          type;
+  int32_t            jid;
+  SXnodeTaskOptions* options;
+} SAlterXnodeJobStmt, SRebalanceXnodeJobStmt;
+typedef struct {
+  ENodeType          type;
+  int32_t            jid;
+  int32_t            tid;
+  SXnodeTaskOptions* options;
+} SDropXnodeJobStmt;
+typedef struct {
+  ENodeType type;
+  SNode*    pWhere;
+} SRebalanceXnodeJobWhereStmt;
+
 typedef struct SShowStmt {
   ENodeType     type;
   SNode*        pDbName;  // SValueNode
@@ -529,6 +833,7 @@ typedef struct SShowCreateViewStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
   char      viewName[TSDB_VIEW_NAME_LEN];
+  bool      hasPrivilege;
   void*     pViewMeta;
 } SShowCreateViewStmt;
 
@@ -538,6 +843,7 @@ typedef struct SShowCreateRsmaStmt {
   char      rsmaName[TSDB_TABLE_NAME_LEN];
   void*     pRsmaMeta;  // SRsmaInfoRsp;
   void*     pTableCfg;  // STableCfg
+  bool      hasPrivilege;
 } SShowCreateRsmaStmt;
 
 typedef struct SShowTableDistributedStmt {
@@ -594,6 +900,10 @@ typedef struct SShowSsMigratesStmt {
   ENodeType type;
 } SShowSsMigratesStmt;
 
+typedef struct SShowTokensStmt {
+  ENodeType type;
+} SShowTokensStmt;
+
 typedef struct SShowTransactionDetailsStmt {
   ENodeType type;
   SNode*    pTransactionId;
@@ -612,15 +922,15 @@ typedef struct SIndexOptions {
 } SIndexOptions;
 
 typedef struct SCreateIndexStmt {
-  ENodeType       type;
-  EIndexType      indexType;
-  bool            ignoreExists;
-  char            indexDbName[TSDB_DB_NAME_LEN];
-  char            indexName[TSDB_INDEX_NAME_LEN];
-  char            dbName[TSDB_DB_NAME_LEN];
-  char            tableName[TSDB_TABLE_NAME_LEN];
-  SNodeList*      pCols;
-  SIndexOptions*  pOptions;
+  ENodeType      type;
+  EIndexType     indexType;
+  bool           ignoreExists;
+  char           indexDbName[TSDB_DB_NAME_LEN];
+  char           indexName[TSDB_INDEX_NAME_LEN];
+  char           dbName[TSDB_DB_NAME_LEN];
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  SNodeList*     pCols;
+  SIndexOptions* pOptions;
 } SCreateIndexStmt;
 
 typedef struct SDropIndexStmt {
@@ -654,6 +964,7 @@ typedef struct SCreateTopicStmt {
   int8_t    withMeta;
   SNode*    pQuery;
   SNode*    pWhere;
+  bool      reload;
 } SCreateTopicStmt;
 
 typedef struct SDropTopicStmt {
@@ -683,6 +994,12 @@ typedef struct SAlterLocalStmt {
   char      value[TSDB_DNODE_VALUE_LEN];
 } SAlterLocalStmt;
 
+typedef struct SAlterEncryptKeyStmt {
+  ENodeType type;
+  int8_t    keyType;  // 0: SVR_KEY, 1: DB_KEY
+  char      newKey[ENCRYPT_KEY_LEN + 1];
+} SAlterEncryptKeyStmt;
+
 typedef struct SDescribeStmt {
   ENodeType   type;
   char        dbName[TSDB_DB_NAME_LEN];
@@ -707,32 +1024,31 @@ typedef enum EStreamNotifyEventType {
 } EStreamNotifyEventType;
 
 typedef struct SStreamNotifyOptions {
-  ENodeType                    type;
-  SNodeList*                   pAddrUrls;
-  SNode*                       pWhere;
-  int64_t                      eventType;
-  int64_t                      notifyType;
+  ENodeType  type;
+  SNodeList* pAddrUrls;
+  SNode*     pWhere;
+  int64_t    eventType;
+  int64_t    notifyType;
 } SStreamNotifyOptions;
 
 typedef struct SCreateStreamStmt {
-  ENodeType             type;
-  char                  streamDbName[TSDB_DB_NAME_LEN];
-  char                  streamName[TSDB_TABLE_NAME_LEN];
-  char                  targetDbName[TSDB_DB_NAME_LEN];
-  char                  targetTabName[TSDB_TABLE_NAME_LEN];
-  bool                  ignoreExists;
-  SNode*                pTrigger; // SStreamTriggerNode
-  SNode*                pQuery;
-  SNode*                pSubtable;
-  SNodeList*            pTags; // SStreamTagDefNode
-  SNodeList*            pCols; // SColumnDefNode
+  ENodeType  type;
+  char       streamDbName[TSDB_DB_NAME_LEN];
+  char       streamName[TSDB_TABLE_NAME_LEN];
+  char       targetDbName[TSDB_DB_NAME_LEN];
+  char       targetTabName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreExists;
+  SNode*     pTrigger;  // SStreamTriggerNode
+  SNode*     pQuery;
+  SNode*     pSubtable;
+  SNodeList* pTags;  // SStreamTagDefNode
+  SNodeList* pCols;  // SColumnDefNode
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {
-  ENodeType type;
-  char      streamDbName[TSDB_DB_NAME_LEN];
-  char      streamName[TSDB_TABLE_NAME_LEN];
-  bool      ignoreNotExists;
+  ENodeType  type;
+  bool       ignoreNotExists;
+  SNodeList* pStreamList;  // list of SStreamNode for batch drop
 } SDropStreamStmt;
 
 typedef struct SPauseStreamStmt {
@@ -790,15 +1106,20 @@ typedef struct SDropViewStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   char      viewName[TSDB_VIEW_NAME_LEN];
   bool      ignoreNotExists;
+  bool      hasPrivilege;
 } SDropViewStmt;
 
 typedef struct SGrantStmt {
   ENodeType type;
-  char      userName[TSDB_USER_LEN];
-  char      objName[TSDB_DB_NAME_LEN];  // db or topic
+  int8_t    optrType;                    // privilege/role/...
+  char      principal[TSDB_ROLE_LEN];    // user or role name
+  char      objName[TSDB_OBJ_NAME_LEN];  // db or topic
   char      tabName[TSDB_TABLE_NAME_LEN];
-  int64_t   privileges;
-  SNode*    pTagCond;
+  union {
+    SPrivSetArgs privileges;
+    char         roleName[TSDB_ROLE_LEN];
+  };
+  SNode* pCond;
 } SGrantStmt;
 
 typedef SGrantStmt SRevokeStmt;
@@ -859,14 +1180,14 @@ typedef struct STSMAOptions {
 } STSMAOptions;
 
 typedef struct SCreateTSMAStmt {
-  ENodeType       type;
-  bool            ignoreExists;
-  char            tsmaName[TSDB_TABLE_NAME_LEN];
-  char            dbName[TSDB_DB_NAME_LEN];
-  char            tableName[TSDB_TABLE_NAME_LEN];  // base tb name or base tsma name
-  char            originalTbName[TSDB_TABLE_NAME_LEN];
-  STSMAOptions*   pOptions;
-  uint8_t         precision;
+  ENodeType     type;
+  bool          ignoreExists;
+  char          tsmaName[TSDB_TABLE_NAME_LEN];
+  char          dbName[TSDB_DB_NAME_LEN];
+  char          tableName[TSDB_TABLE_NAME_LEN];  // base tb name or base tsma name
+  char          originalTbName[TSDB_TABLE_NAME_LEN];
+  STSMAOptions* pOptions;
+  uint8_t       precision;
 } SCreateTSMAStmt;
 
 typedef struct SDropTSMAStmt {
