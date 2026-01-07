@@ -226,10 +226,16 @@ static FORCE_INLINE int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, 
 }
 
 static FORCE_INLINE int32_t tEncodeCStrWithLen(SEncoder* pCoder, const char* val, uint32_t len) {
+  if (val == NULL) {
+    return tEncodeU32v(pCoder, 0);
+  }
   return tEncodeBinary(pCoder, (uint8_t*)val, len + 1);
 }
 
 static FORCE_INLINE int32_t tEncodeCStr(SEncoder* pCoder, const char* val) {
+  if (val == NULL) {
+    return tEncodeU32v(pCoder, 0);
+  }
   return tEncodeCStrWithLen(pCoder, val, (uint32_t)strlen(val));
 }
 
@@ -427,6 +433,24 @@ static FORCE_INLINE int32_t tDecodeBinary(SDecoder* pCoder, uint8_t** val, uint3
   }
 
   TAOS_RETURN(tDecodeBinaryWithSize(pCoder, length, val));
+}
+
+static FORCE_INLINE int32_t tDecodeBinaryTo(SDecoder* pCoder, uint8_t* val, uint32_t size) {
+  uint32_t len = 0;
+
+  TAOS_CHECK_RETURN(tDecodeU32v(pCoder, &len));
+
+  if (len != size) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  if (pCoder->pos + len > pCoder->size) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+  }
+
+  TAOS_MEMCPY(val, pCoder->data + pCoder->pos, len);
+  pCoder->pos += len;
+  return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeCStrAndLen(SDecoder* pCoder, char** val, uint32_t* len) {

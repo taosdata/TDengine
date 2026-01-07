@@ -37,7 +37,9 @@ SClientHbMgr clientHbMgr = {0};
 
 static int32_t hbCreateThread();
 static void    hbStopThread();
+static int32_t hbUpdateUserSessMertric(const char *user, SUserSessCfg *pCfg);
 static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *batchRsp);
+
 static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog,
                                         SAppHbMgr *pAppHbMgr) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -57,6 +59,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
     tscDebug("hb to update user auth, user:%s, version:%d", rsp->user, rsp->version);
 
     TSC_ERR_JRET(catalogUpdateUserAuthInfo(pCatalog, rsp));
+
   }
 
   if (numOfBatchs > 0) {
@@ -70,7 +73,7 @@ _return:
   return code;
 }
 
-static int32_t updateUserSessMetric(const char *user, SUserSessCfg *pCfg) {
+static int32_t hbUpdateUserSessMertric(const char *user, SUserSessCfg *pCfg) {
   int32_t code = 0;
   int32_t lino = 0;
   if (user == NULL || pCfg == NULL) {
@@ -156,16 +159,12 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
             }
           }
         }
-        code = sessMgtRemoveUser(pTscObj->user);
-        if (code != 0) {
-          tscError("failed to remove user session metric, user:%s, code:%d", pTscObj->user, code);  
-        }
         releaseTscObj(pReq->connKey.tscRid);
         continue;
       }
 
       pTscObj->authVer = pRsp->version;
-      if (updateUserSessMetric(pTscObj->user, &pRsp->sessCfg) != 0) {
+      if (hbUpdateUserSessMertric(pTscObj->user, &pRsp->sessCfg) != 0) {
         tscError("failed to update user session metric, user:%s", pTscObj->user);
       }
 

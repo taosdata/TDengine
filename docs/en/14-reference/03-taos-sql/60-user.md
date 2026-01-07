@@ -17,6 +17,7 @@ CREATE USER user_name PASS 'password'
   [CONNECT_TIME {value | DEFAULT | UNLIMITED}]
   [CONNECT_IDLE_TIME {value | DEFAULT | UNLIMITED}]
   [CALL_PER_SESSION {value | DEFAULT | UNLIMITED}]
+  [VNODE_PER_CALL {value | DEFAULT | UNLIMITED}]
   [FAILED_LOGIN_ATTEMPTS {value | DEFAULT | UNLIMITED}]
   [PASSWORD_LOCK_TIME {value | DEFAULT | UNLIMITED}]
   [PASSWORD_LIFE_TIME {value | DEFAULT | UNLIMITED}]
@@ -47,6 +48,7 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `CONNECT_TIME` The maximum allowed duration for a single session in minutes. The default value is `480`, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `CONNECT_IDLE_TIME` The maximum allowed idle duration for a single session in minutes. The default value is `30`, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `CALL_PER_SESSION` The maximum allowed number of sub-calls per session. The default value is `10`, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
+- `VNODE_PER_CALL` The maximum number of vnodes that a single call can involve. The default value is `-1`, which means unlimited. Support in Enterprise Edition v3.4.0.0 and above.
 - `FAILED_LOGIN_ATTEMPTS` The number of allowed consecutive failed login attempts; the user will be locked after exceeding this limit. The default value is `3`, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `PASSWORD_LOCK_TIME` The unlock waiting time for the user when locked due to failed login attempts, in minutes. The default value is `1440`, with a minimum of `1`, set to `UNLIMITED` means the user is locked for ever. Support in Enterprise Edition v3.4.0.0 and above.
 - `PASSWORD_LIFE_TIME` Password validity period, in days. The default value is `90`, with a minimum of `1`, set to `UNLIMITED` means never expire. Support in Enterprise Edition v3.4.0.0 and above.
@@ -98,7 +100,7 @@ Query OK, 2 row(s) in set (0.007383s)
 ## Delete User
 
 ```sql
-DROP USER user_name;
+DROP USER [IF EXISTS] user_name;
 ```
 
 ## Modify User Configuration
@@ -116,6 +118,7 @@ alter_user_clause: {
   [CONNECT_TIME {value | DEFAULT | UNLIMITED}]
   [CONNECT_IDLE_TIME {value | DEFAULT | UNLIMITED}]
   [CALL_PER_SESSION {value | DEFAULT | UNLIMITED}]
+  [VNODE_PER_CALL {value | DEFAULT | UNLIMITED}]
   [FAILED_LOGIN_ATTEMPTS {value | DEFAULT | UNLIMITED}]
   [PASSWORD_LOCK_TIME {value | DEFAULT | UNLIMITED}]
   [PASSWORD_LIFE_TIME {value | DEFAULT | UNLIMITED}]
@@ -142,6 +145,43 @@ taos> alter user test enable 0;
 Query OK, 0 of 0 rows affected (0.001160s)
 ```
 
+## TOTP Two-Factor Authentication
+
+TOTP Two-Factor Authentication is a feature of TDengine TSDB Enterprise Edition, support in version v3.4.0.1 and above.
+
+### Create/Update TOTP secret
+
+```sql
+CREATE TOTP_SECRET FOR USER user_name
+```
+
+If the user has not yet created a TOTP secret, this command will create a TOTP secret for the user. If the user has already created a TOTP secret, this command will update the secret for the user. In either case, this command will return the newly created secret, which will only be displayed once, please save it promptly. The system will automatically enable TOTP two-factor authentication for users who have a TOTP secret.
+
+For example, we can use the following command to create a TOTP secret for user test.
+
+```sql
+taos> create totp_secret for user test;
+                     totp_secret                      |
+=======================================================
+ ERIRPLZL4ZBFTPT5BNXMVFPR4Z3PTHUWTBTCNZPOHYPYQGTD25XA |
+Query OK, 1 row(s) in set (0.002314s)
+```
+
+### Drop TOTP Secret
+
+```sql
+DROP TOTP_SECRET FROM USER user_name
+```
+
+This command drops the TOTP secret from the user. After the secret is dropped, the user's TOTP two‑factor authentication will be disabled.
+
+For example, we can use the following command to drop the TOTP key from user test.
+
+```sql
+taos> drop totp_secret from user test;
+Drop OK, 0 row(s) affected (0.002295s)
+```
+
 ## Token Management
 
 Token management is a feature of TDengine TSDB Enterprise Edition, support in version v3.4.0.0 and above.
@@ -149,7 +189,7 @@ Token management is a feature of TDengine TSDB Enterprise Edition, support in ve
 ### Create Token
 
 ```sql
-CREATE TOKEN token_name FROM USER user_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value]
+CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value]
 ```
 
 The token_name can be up to 31 bytes long.
@@ -209,7 +249,7 @@ When modify the validity period (TTL), new validity period starts from the time 
 ### Drop Token
 
 ```sql
-DROP TOKEN token_name;
+DROP TOKEN [IF EXISTS] token_name;
 ```
 
 Note that when drop a user, tokens of the user will be cascade deleted simultaneously.

@@ -114,6 +114,8 @@ Below are the business error codes for each module.
 | 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
 | 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
 | 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
+| 0x80000140 | Edition not compatible            | Edition incompatibility between nodes                        | Check editions(enterprise or community) of all nodes (including server and client), ensure node editions are consistent or compatible |
+| 0x80000141 | Invalid signature                 | Message signature is invalid or mismatch                     | Check if client and server are using the same signature algorithm |
 
 #### tsc
 
@@ -705,6 +707,35 @@ Below are the business error codes for each module.
 | 0x80007016 | Stream output table name calc failed  | Output table name calculation failed      | Check if the output table name rules in the stream creation statement are correct and if NULL values exist      |
 | 0x80007017 | Stream vtable calculate need redeploy | Stream vtable calculate need redeploy      | Stream will handle this error automatically                                                                      |
 | 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
+
+#### xnode
+
+| Error Code | Description                                           | Possible Error Scenarios or Reasons                         | Recommended Actions for Users                |
+|------------|-------------------------------------------------------|-------------------------------------------------------------|----------------------------------------------|
+| 0x80008000 | Xnode already exists                                  | Xnode is already created                                    | Check the taosx node address                 |
+| 0x80008001 | Xnode already deployed                                | Xnode is already deployed                                   | -                                            |
+| 0x80008002 | Xnode not there                                       | No xnode has been created                                   | Create xnode with taosx address              |
+| 0x80008003 | Xnode tool long url                                   | Xnode url is too long                                       | Make the url shorter                         |
+| 0x80008004 | Xnode invalid protocol                                | Xnode invalid protocol                                      | Check and correct the taosx port             |
+| 0x80008006 | Xnode invalid message content                         | Xnode invalid message content                               | Check and correct the Xnode request          |
+| 0x80008007 | Xnode not found                                       | Xnode id or url not found                                   | Check the xnode id or url                    |
+| 0x80008008 | Xnode xnoded exec failure                             | xnode process exited                                        | Check the xnoded process and restart taosd   |
+| 0x80008009 | Xnode xnoded can't access                             | xnoded process does not running                             | restart taosd                                |
+| 0x8000800A | Xnode xnoded response is null                         | xnoded response error                                       | Retry                                        |
+| 0x8000800C | Xnode request action response not success code        | xnode request failure                                       | Check the configuration and retry            |
+| 0x8000800D | Xnode first-time setup requires username and password | Error when first create XNODE without username and password | Correct the SQL                              |
+| 0x8000800E | Xnode username or password error when setup           | Username and password error when creating XNODE             | Check the username and password              |
+| 0x8000800F | Xnode task already exist                              | Xnode task is already exist                                 | Check the task configuration and correct it  |
+| 0x80008010 | Xnode task not exist                                  | Xnode task not exist                                        | Use an exist task to operate                 |
+| 0x80008011 | Xnode task name too long                              | Xnode task name is too long                                 | Correct the configuration and retry          |
+| 0x80008012 | Xnode task job syntax error                           | Xnode task job syntax error                                 | Correct the task job configuration and retry |
+| 0x80008013 | Xnode task job config too long                        | Xnode task job config too long                              | Correct the task job configuration and retry |
+| 0x80008014 | Xnode job not exist                                   | Xnode task job not exist                                    | Check task job id                            |
+| 0x80008015 | Xnode task/job reason too long                        | Xnode task/job reason too long                              | Report the issue to developers on GitHub    |
+| 0x80008016 | Xnode xnoded response timeout                         | xnoded response timeout                                     | Retry                                        |
+| 0x80008017 | Xnode where clause column not exist                   | Xnode where clause column not exist                         | Check the where condition                    |
+| 0x80008018 | Xnode where clause column type diff                   | Xnode where clause column type is not expected              | Check the where condition                    |
+| 0x80008019 | Xnode where clause operator not support               | Xnode where clause does not support NOT                     | Check the where condition                    |
 
 ## Connectors
 

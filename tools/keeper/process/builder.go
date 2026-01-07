@@ -12,7 +12,7 @@ import (
 
 var builderLogger = log.GetLogger("BLD")
 
-func ExpandMetricsFromConfig(ctx context.Context, conn *db.Connector, cfg *config.MetricsConfig) (tables map[string]struct{}, err error) {
+func ExpandMetricsFromConfig(ctx context.Context, conn *db.Connector, cfg *config.Metrics) (tables map[string]struct{}, err error) {
 	tables = make(map[string]struct{})
 	for _, name := range cfg.Tables {
 		builderLogger.Debug("normal table: ", name)

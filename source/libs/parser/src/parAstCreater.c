@@ -16,11 +16,23 @@
 #include <uv.h>
 #endif
 
+#include <regex.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+
 #include "nodes.h"
 #include "parAst.h"
 #include "parUtil.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "cmdnodes.h"
+#include "osMemory.h"
+#include "osString.h"
+#include "parToken.h"
+#include "tdef.h"
+#include "tmsg.h"
+#include "ttokendef.h"
 
 #define CHECK_MAKE_NODE(p) \
   do {                     \
@@ -52,6 +64,14 @@
   } while (0)
 
 #define COPY_STRING_FORM_ID_TOKEN(buf, pToken) strncpy(buf, (pToken)->z, TMIN((pToken)->n, sizeof(buf) - 1))
+#define TRIM_STRING_FORM_ID_TOKEN(buf, pToken)                      \
+  do {                                                              \
+    if (pToken->z[0] == '`') {                                      \
+      (void)trimString(pToken->z, pToken->n, buf, sizeof(buf) - 1); \
+    } else {                                                        \
+      COPY_STRING_FORM_ID_TOKEN(buf, pToken);                       \
+    }                                                               \
+  } while (0)
 #define COPY_STRING_FORM_STR_TOKEN(buf, pToken)                              \
   do {                                                                       \
     if ((pToken)->n > 2) {                                                   \
@@ -59,6 +79,20 @@
     }                                                                        \
   } while (0)
 
+#define COPY_COW_STR_FROM_ID_TOKEN(cow, pToken)                  \
+  do {                                                           \
+    if (pToken->z[0] == '`') {                                   \
+      (cow) = xCreateCowStr((pToken)->n - 2, (pToken)->z + 1, true); \
+    } else {                                                     \
+      (cow) = xCreateCowStr((pToken)->n, (pToken)->z, true); \
+    }                                                            \
+  } while (0)
+#define COPY_COW_STR_FROM_STR_TOKEN(cow, pToken)                     \
+  do {                                                               \
+    if ((pToken)->n > 2) {                                           \
+      (cow) = xCreateCowStr((pToken)->n - 2, (pToken)->z + 1, true); \
+    }                                                                \
+  } while (0)
 SToken nil_token = {.type = TK_NK_NIL, .n = 0, .z = NULL};
 
 void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
@@ -73,12 +107,17 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->errCode = TSDB_CODE_SUCCESS;
 }
 
-static void trimEscape(SAstCreateContext* pCxt, SToken* pName) {
+static void trimEscape(SAstCreateContext* pCxt, SToken* pName, bool trimStar) {
   // todo need to deal with `ioo``ii` -> ioo`ii: done
   if (NULL != pName && pName->n > 1 && TS_ESCAPE_CHAR == pName->z[0]) {
     if (!pCxt->pQueryCxt->hasDupQuoteChar) {
       pName->z += 1;
       pName->n -= 2;
+      // * is forbidden as an identifier name
+      if (pName->z[0] == '*' && trimStar && pName->n == 1) {
+        pName->z[0] = '\0';
+        pName->n = 0;
+      }
     } else {
       int32_t i = 1, j = 0;
       for (; i < pName->n - 1; ++i) {
@@ -103,7 +142,7 @@ static bool checkUserName(SAstCreateContext* pCxt, SToken* pUserName) {
     }
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    trimEscape(pCxt, pUserName);
+    trimEscape(pCxt, pUserName, true);
   }
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
@@ -193,14 +232,28 @@ static bool checkAndSplitEndpoint(SAstCreateContext* pCxt, const SToken* pEp, co
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
+static bool checkObjName(SAstCreateContext* pCxt, SToken* pObjName, bool need) {
+  if (NULL == pObjName || TK_NK_NIL == pObjName->type) {
+    if (need) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME);
+    }
+  } else {
+    trimEscape(pCxt, pObjName, true);
+    if (pObjName->n >= TSDB_OBJ_NAME_LEN || pObjName->n == 0) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pObjName->z);
+    }
+  }
+  return TSDB_CODE_SUCCESS == pCxt->errCode;
+}
+
 static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool demandDb) {
   if (NULL == pDbName) {
     if (demandDb && NULL == pCxt->pQueryCxt->db) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DB_NOT_SPECIFIED);
     }
   } else {
-    trimEscape(pCxt, pDbName);
-    if (pDbName->n >= TSDB_DB_NAME_LEN || pDbName->n == 0) {
+    trimEscape(pCxt, pDbName, true);
+    if (pDbName->n >= TSDB_DB_NAME_LEN || (demandDb && (pDbName->n == 0))) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pDbName->z);
     }
   }
@@ -208,7 +261,7 @@ static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool demandDb)
 }
 
 static bool checkTableName(SAstCreateContext* pCxt, SToken* pTableName) {
-  trimEscape(pCxt, pTableName);
+  trimEscape(pCxt, pTableName, true);
   if (NULL != pTableName && pTableName->type != TK_NK_NIL &&
       (pTableName->n >= TSDB_TABLE_NAME_LEN || pTableName->n == 0)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pTableName->z);
@@ -218,7 +271,7 @@ static bool checkTableName(SAstCreateContext* pCxt, SToken* pTableName) {
 }
 
 static bool checkColumnName(SAstCreateContext* pCxt, SToken* pColumnName) {
-  trimEscape(pCxt, pColumnName);
+  trimEscape(pCxt, pColumnName, true);
   if (NULL != pColumnName && pColumnName->type != TK_NK_NIL &&
       (pColumnName->n >= TSDB_COL_NAME_LEN || pColumnName->n == 0)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pColumnName->z);
@@ -228,8 +281,8 @@ static bool checkColumnName(SAstCreateContext* pCxt, SToken* pColumnName) {
 }
 
 static bool checkIndexName(SAstCreateContext* pCxt, SToken* pIndexName) {
-  trimEscape(pCxt, pIndexName);
-  if (NULL != pIndexName && pIndexName->n >= TSDB_INDEX_NAME_LEN) {
+  trimEscape(pCxt, pIndexName, true);
+  if (NULL != pIndexName && (pIndexName->n >= TSDB_INDEX_NAME_LEN || pIndexName->n == 0)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pIndexName->z);
     return false;
   }
@@ -237,7 +290,7 @@ static bool checkIndexName(SAstCreateContext* pCxt, SToken* pIndexName) {
 }
 
 static bool checkTopicName(SAstCreateContext* pCxt, SToken* pTopicName) {
-  trimEscape(pCxt, pTopicName);
+  trimEscape(pCxt, pTopicName, true);
   if (pTopicName->n >= TSDB_TOPIC_NAME_LEN || pTopicName->n == 0) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pTopicName->z);
     return false;
@@ -246,8 +299,8 @@ static bool checkTopicName(SAstCreateContext* pCxt, SToken* pTopicName) {
 }
 
 static bool checkCGroupName(SAstCreateContext* pCxt, SToken* pCGroup) {
-  trimEscape(pCxt, pCGroup);
-  if (pCGroup->n >= TSDB_CGROUP_LEN) {
+  trimEscape(pCxt, pCGroup, true);
+  if (pCGroup->n >= TSDB_CGROUP_LEN || pCGroup->n == 0) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pCGroup->z);
     return false;
   }
@@ -255,7 +308,7 @@ static bool checkCGroupName(SAstCreateContext* pCxt, SToken* pCGroup) {
 }
 
 static bool checkViewName(SAstCreateContext* pCxt, SToken* pViewName) {
-  trimEscape(pCxt, pViewName);
+  trimEscape(pCxt, pViewName, true);
   if (pViewName->n >= TSDB_VIEW_NAME_LEN || pViewName->n == 0) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pViewName->z);
     return false;
@@ -264,7 +317,7 @@ static bool checkViewName(SAstCreateContext* pCxt, SToken* pViewName) {
 }
 
 static bool checkStreamName(SAstCreateContext* pCxt, SToken* pStreamName) {
-  trimEscape(pCxt, pStreamName);
+  trimEscape(pCxt, pStreamName, true);
   if (pStreamName->n >= TSDB_STREAM_NAME_LEN || pStreamName->n == 0) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pStreamName->z);
     return false;
@@ -282,7 +335,7 @@ static bool checkComment(SAstCreateContext* pCxt, const SToken* pCommentToken, b
 }
 
 static bool checkRsmaName(SAstCreateContext* pCxt, SToken* pRsmaToken) {
-  trimEscape(pCxt, pRsmaToken);
+  trimEscape(pCxt, pRsmaToken, true);
   if (NULL == pRsmaToken) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   } else if (pRsmaToken->n >= TSDB_TABLE_NAME_LEN) {
@@ -294,7 +347,7 @@ static bool checkRsmaName(SAstCreateContext* pCxt, SToken* pRsmaToken) {
 }
 
 static bool checkTsmaName(SAstCreateContext* pCxt, SToken* pTsmaToken) {
-  trimEscape(pCxt, pTsmaToken);
+  trimEscape(pCxt, pTsmaToken, true);
   if (NULL == pTsmaToken) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   } else if (pTsmaToken->n >= TSDB_TABLE_NAME_LEN - strlen(TSMA_RES_STB_POSTFIX)) {
@@ -306,7 +359,7 @@ static bool checkTsmaName(SAstCreateContext* pCxt, SToken* pTsmaToken) {
 }
 
 static bool checkMountPath(SAstCreateContext* pCxt, SToken* pMountPath) {
-  trimEscape(pCxt, pMountPath);
+  trimEscape(pCxt, pMountPath, true);
   if (pMountPath->n >= TSDB_MOUNT_PATH_LEN || pMountPath->n == 0) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pMountPath->z);
     return false;
@@ -457,6 +510,83 @@ _err:
   return NULL;
 }
 
+SPrivSetArgs privArgsAdd(SAstCreateContext* pCxt, SPrivSetArgs arg1, SPrivSetArgs arg2) {
+  CHECK_PARSER_STATUS(pCxt);
+  SPrivSetArgs merged = arg1;
+  merged.nPrivArgs += arg2.nPrivArgs;
+  if (merged.nPrivArgs > TSDB_PRIV_MAX_INPUT_ARGS) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                "Invalid privilege types: exceed max privilege number:%d", TSDB_PRIV_MAX_INPUT_ARGS);
+    CHECK_PARSER_STATUS(pCxt);
+  }
+  for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+    if (arg2.privSet.set[i]) {
+      merged.privSet.set[i] |= arg2.privSet.set[i];
+    }
+  }
+  if (merged.selectCols) {
+    if (arg2.selectCols) {
+      pCxt->errCode = nodesListAppendList((SNodeList*)merged.selectCols, (SNodeList*)arg2.selectCols);
+      CHECK_PARSER_STATUS(pCxt);
+    }
+  } else if (arg2.selectCols) {
+    merged.selectCols = arg2.selectCols;
+  }
+  if (LIST_LENGTH((SNodeList*)merged.selectCols) > TSDB_MAX_COLUMNS) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                "Invalid privilege columns: SELECT exceed max columns number:%d", TSDB_MAX_COLUMNS);
+    CHECK_PARSER_STATUS(pCxt);
+  }
+  if (merged.insertCols) {
+    if (arg2.insertCols) {
+      pCxt->errCode = nodesListAppendList((SNodeList*)merged.insertCols, (SNodeList*)arg2.insertCols);
+      CHECK_PARSER_STATUS(pCxt);
+    }
+  } else if (arg2.insertCols) {
+    merged.insertCols = arg2.insertCols;
+  }
+  if (LIST_LENGTH((SNodeList*)merged.insertCols) > TSDB_MAX_COLUMNS) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                "Invalid privilege columns: INSERT exceed max columns number:%d", TSDB_MAX_COLUMNS);
+    CHECK_PARSER_STATUS(pCxt);
+  }
+  if (merged.updateCols) {
+    if (arg2.updateCols) {
+      pCxt->errCode = nodesListAppendList((SNodeList*)merged.updateCols, (SNodeList*)arg2.updateCols);
+      CHECK_PARSER_STATUS(pCxt);
+    }
+  } else if (arg2.updateCols) {
+    merged.updateCols = arg2.updateCols;
+  }
+  if (LIST_LENGTH((SNodeList*)merged.updateCols) > TSDB_MAX_COLUMNS) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                "Invalid privilege columns: UPDATE exceed max columns number:%d", TSDB_MAX_COLUMNS);
+    CHECK_PARSER_STATUS(pCxt);
+  }
+_err:
+  return merged;
+}
+
+SPrivSetArgs privArgsSetType(SAstCreateContext* pCxt, EPrivType type) {
+  CHECK_PARSER_STATUS(pCxt);
+  SPrivSetArgs args = {.nPrivArgs = 1};
+  privAddType(&args.privSet, type);
+_err:
+  return args;
+}
+
+SPrivSetArgs privArgsSetCols(SAstCreateContext* pCxt, SNodeList* selectCols, SNodeList* insertCols,
+                             SNodeList* updateCols) {
+  CHECK_PARSER_STATUS(pCxt);
+  SPrivSetArgs args = {.nPrivArgs = 1, .selectCols = selectCols, .insertCols = insertCols, .updateCols = updateCols};
+_err:
+  return args;
+}
+
 SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pColumnName) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkTableName(pCxt, pTableAlias) || !checkColumnName(pCxt, pColumnName)) {
@@ -472,6 +602,17 @@ SNode* createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pC
   return (SNode*)col;
 _err:
   return NULL;
+}
+
+/**
+ * @param type: 1 with mask; 0 without mask
+ */
+SNode* createColumnNodeExt(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pColumnName, int8_t type) {
+  SNode* result = createColumnNode(pCxt, pTableAlias, pColumnName);
+  if (result != NULL) {
+    if (type == 1) ((SColumnNode*)result)->hasMask = 1;
+  }
+  return result;
 }
 
 SNode* createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId) {
@@ -518,8 +659,7 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   }
   copyValueTrimEscape(val->literal, pLiteral->n + 1, pLiteral,
                       pCxt->pQueryCxt->hasDupQuoteChar && (TK_NK_ID == pLiteral->type));
-  if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type &&
-      (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
+  if (TK_NK_STRING == pLiteral->type) {
     (void)trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
   }
   val->node.resType.type = dataType;
@@ -849,7 +989,7 @@ _err:
 }
 
 SNode* createIdentifierValueNode(SAstCreateContext* pCxt, SToken* pLiteral) {
-  trimEscape(pCxt, pLiteral);
+  trimEscape(pCxt, pLiteral, false);
   return createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, pLiteral);
 }
 
@@ -2024,7 +2164,7 @@ _err:
 
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias) {
   CHECK_PARSER_STATUS(pCxt);
-  trimEscape(pCxt, pAlias);
+  trimEscape(pCxt, pAlias, false);
   SExprNode* pExpr = (SExprNode*)pNode;
   int32_t    len = TMIN(sizeof(pExpr->aliasName) - 1, pAlias->n);
   strncpy(pExpr->aliasName, pAlias->z, len);
@@ -3527,6 +3667,31 @@ _err:
   return NULL;
 }
 
+SNode* createShowXNodeResourcesStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowStmt* pStmt = NULL;
+  switch (resourceType) {
+    case XNODE_TASK:
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_TASKS_STMT, (SNode**)&pStmt);
+      CHECK_MAKE_NODE(pStmt);
+      break;
+    case XNODE_AGENT:
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_AGENTS_STMT, (SNode**)&pStmt);
+      CHECK_MAKE_NODE(pStmt);
+      break;
+    case XNODE_JOB:
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_JOBS_STMT, (SNode**)&pStmt);
+      CHECK_MAKE_NODE(pStmt);
+      break;
+    default:
+      pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+      goto _err;
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createShowStmtWithFull(SAstCreateContext* pCxt, ENodeType type) {
   CHECK_PARSER_STATUS(pCxt);
   SShowStmt* pStmt = NULL;
@@ -4024,7 +4189,8 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
   pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
   pOptions->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
-  pOptions->vnodePerCall = -1; // not implemented yet, so use -1 instead of TSDB_USER_VNODE_PER_CALL_DEFAULT;
+  pOptions->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;  // not implemented yet, so use -1 instead of
+                                                                // TSDB_USER_VNODE_PER_CALL_DEFAULT;
   pOptions->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
   pOptions->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
   pOptions->passwordReuseTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
@@ -4494,7 +4660,7 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
     SDateTimeRangeNode* node = (SDateTimeRangeNode*)(pNode);
     pStmt->pTimeRanges[i++] = node->range;
   }
-  
+
   nodesDestroyNode((SNode*)opts);
   return (SNode*)pStmt;
 
@@ -4528,18 +4694,38 @@ _err:
 
 
 
-SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName) {
+SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName, bool ignoreNotExists) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkUserName(pCxt, pUserName));
   SDropUserStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
+  pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 _err:
   return NULL;
 }
 
+static bool checkRoleName(SAstCreateContext* pCxt, SToken* pName, bool checkSysName) {
+  if (NULL == pName) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  } else {
+    if (pName->n >= TSDB_ROLE_LEN) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    trimEscape(pCxt, pName, true);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    if (checkSysName && taosStrncasecmp(pName->z, "sys", 3) == 0) {  // system reserved role name prefix
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "Cannot create/drop/alter roles with reserved prefix 'sys'");
+    }
+  }
+  return TSDB_CODE_SUCCESS == pCxt->errCode;
+}
 
 
 STokenOptions* createDefaultTokenOptions(SAstCreateContext* pCxt) {
@@ -4680,11 +4866,62 @@ static bool checkTokenName(SAstCreateContext* pCxt, SToken* pTokenName) {
     }
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    trimEscape(pCxt, pTokenName);
+    trimEscape(pCxt, pTokenName, true);
   }
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
+SNode* createCreateRoleStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkRoleName(pCxt, pName, true));
+  SCreateRoleStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_ROLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->name, pName);
+  pStmt->ignoreExists = ignoreExists;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createDropRoleStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkRoleName(pCxt, pName, true));
+  SDropRoleStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_ROLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->name, pName);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+/**
+ * used by user and role
+ */
+SNode* createAlterRoleStmt(SAstCreateContext* pCxt, SToken* pName, int8_t alterType, void* pAlterInfo) {
+  SAlterRoleStmt* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkUserName(pCxt, pName));
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_ROLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->name, pName);
+  pStmt->alterType = alterType;
+  switch (alterType) {
+    case TSDB_ALTER_ROLE_LOCK: {
+      SToken* pVal = pAlterInfo;
+      pStmt->lock = taosStr2Int8(pVal->z, NULL, 10);
+      break;
+    }
+    default:
+      break;
+  }
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
 
 
 SNode* createCreateTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, SToken* pUserName, STokenOptions* opts, bool ignoreExists) {
@@ -4745,7 +4982,7 @@ _err:
 
 
 
-SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName) {
+SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, bool ignoreNotExists) {
   SDropTokenStmt* pStmt = NULL;
 
   CHECK_PARSER_STATUS(pCxt);
@@ -4755,6 +4992,7 @@ SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName) {
   CHECK_MAKE_NODE(pStmt);
 
   COPY_STRING_FORM_ID_TOKEN(pStmt->name, pTokenName);
+  pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 
 _err:
@@ -4762,6 +5000,40 @@ _err:
   return NULL;
 }
 
+SNode* createCreateTotpSecretStmt(SAstCreateContext* pCxt, SToken* pUserName) {
+  SCreateTotpSecretStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkUserName(pCxt, pUserName));
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_TOTP_SECRET_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  COPY_STRING_FORM_ID_TOKEN(pStmt->user, pUserName);
+  return (SNode*)pStmt;
+
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+
+SNode* createDropTotpSecretStmt(SAstCreateContext* pCxt, SToken* pUserName) {
+  SDropTotpSecretStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkUserName(pCxt, pUserName));
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_TOTP_SECRET_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  COPY_STRING_FORM_ID_TOKEN(pStmt->user, pUserName);
+  return (SNode*)pStmt;
+
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
 
 
 SNode* createDropEncryptAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId) {
@@ -4975,6 +5247,953 @@ SNode* setBnodeOption(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pO
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     return pOptions;
   }
+}
+
+SNode* createCreateXnodeWithUserPassStmt(SAstCreateContext* pCxt, const SToken* pUrl, SToken* pUser,
+                                         const SToken* pPass) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateXnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  (void)trimString(pUrl->z, pUrl->n, pStmt->url, sizeof(pStmt->url));
+
+  if (pUser != NULL) {
+    CHECK_NAME(checkUserName(pCxt, pUser));
+    COPY_STRING_FORM_ID_TOKEN(pStmt->user, pUser);
+  }
+  if (pPass != NULL) {
+    if (pPass->n <= 2) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode password should not be empty");
+      goto _err;
+    }
+    strncpy(pStmt->pass, pPass->z + 1, pPass->n - 2);
+    pStmt->pass[sizeof(pStmt->pass) - 1] = '\0';
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pUrl) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateXnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  (void)trimString(pUrl->z, pUrl->n, pStmt->url, sizeof(pStmt->url));
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool force) {
+  if (NULL == pXnode) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode id should not be NULL or empty");
+    goto _err;
+  }
+  CHECK_PARSER_STATUS(pCxt);
+  SDropXnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  pStmt->force = force;
+  if (pXnode->type == TK_NK_STRING) {
+    if (pXnode->n <= 2) {
+      pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode url should not be all be NULL");
+        goto _err;
+    }
+    COPY_STRING_FORM_STR_TOKEN(pStmt->url, pXnode);
+  } else if(pXnode->type == TK_NK_INTEGER) {
+    pStmt->xnodeId = taosStr2Int32(pXnode->z, NULL, 10);
+  } else {
+    pCxt->errCode =
+      generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode id or url should not be all be NULL");
+  }
+
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createDrainXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pXnode) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode id should not be NULL or empty");
+    goto _err;
+  }
+  if (pXnode->type != TK_NK_INTEGER) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode id should be an integer");
+    goto _err;
+  }
+
+  SDrainXnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DRAIN_XNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->xnodeId = taosStr2Int32(pXnode->z, NULL, 10);
+  if (pStmt->xnodeId <= 0) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode id should be greater than 0");
+    goto _err;
+  }
+
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+// SNode* createUpdateXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool updateAll) {
+//   CHECK_PARSER_STATUS(pCxt);
+//   SUpdateXnodeStmt* pStmt = NULL;
+//   pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_XNODE_STMT, (SNode**)&pStmt);
+//   CHECK_MAKE_NODE(pStmt);
+//   if (NULL != pXnode) {
+//     pStmt->xnodeId = taosStr2Int32(pXnode->z, NULL, 10);
+//   } else {
+//     pStmt->xnodeId = -1;
+//   }
+//   return (SNode*)pStmt;
+// _err:
+//   return NULL;
+// }
+
+EXnodeResourceType setXnodeResourceType(SAstCreateContext* pCxt, const SToken* pResourceId) {
+  CHECK_PARSER_STATUS(pCxt);
+  const size_t TASK_LEN = 4;
+  const size_t TASKS_LEN = 5;
+  const size_t AGENT_LEN = 5;
+  const size_t AGENTS_LEN = 6;
+  const size_t JOB_LEN = 3;
+  const size_t JOBS_LEN = 4;
+
+  if (pResourceId->z[0] == '`') {
+    if (strncmp(pResourceId->z + 1, "task", TASK_LEN) == 0 || strncmp(pResourceId->z + 1, "tasks", TASKS_LEN) == 0) {
+      return XNODE_TASK;
+    }
+    if (strncmp(pResourceId->z + 1, "agent", AGENT_LEN) == 0 ||
+        strncmp(pResourceId->z + 1, "agents", AGENTS_LEN) == 0) {
+      return XNODE_AGENT;
+    }
+    if (strncmp(pResourceId->z + 1, "job", JOB_LEN) == 0 || strncmp(pResourceId->z + 1, "jobs", JOBS_LEN) == 0) {
+      return XNODE_JOB;
+    }
+
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid xnode resource type (task/agent) at: %s", pResourceId->z);
+    goto _err;
+  }
+  if (strncmp(pResourceId->z, "task", TASK_LEN) == 0 || strncmp(pResourceId->z, "tasks", TASKS_LEN) == 0) {
+    return XNODE_TASK;
+  }
+  if (strncmp(pResourceId->z, "agent", AGENT_LEN) == 0 || strncmp(pResourceId->z, "agents", AGENTS_LEN) == 0) {
+    return XNODE_AGENT;
+  }
+  if (strncmp(pResourceId->z, "job", JOB_LEN) == 0 || strncmp(pResourceId->z, "jobs", JOBS_LEN) == 0) {
+    return XNODE_JOB;
+  }
+  pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                          "Invalid xnode resource type (task/agent/job) at: %s", pResourceId->z);
+  goto _err;
+
+_err:
+  return XNODE_UNKNOWN;
+}
+SNode* createXnodeSourceAsDsn(SAstCreateContext* pCxt, const SToken* pToken) {
+  SXTaskSource* pSource = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_XNODE_TASK_SOURCE_OPT, (SNode**)&pSource);
+  CHECK_MAKE_NODE(pSource);
+  if (pToken == NULL || pToken->n <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode source dsn should not be NULL or empty");
+    goto _err;
+  }
+  if (pToken->n > TSDB_XNODE_TASK_SOURCE_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid xnode source dsn length: %d, max length: %d", pToken->n,
+                                            TSDB_XNODE_TASK_SOURCE_LEN);
+    goto _err;
+  }
+  pSource->source.type = XNODE_TASK_SOURCE_DSN;
+  COPY_COW_STR_FROM_STR_TOKEN(pSource->source.cstr, pToken);
+  return (SNode*)pSource;
+_err:
+  return NULL;
+}
+SNode* createXnodeSourceAsDatabase(SAstCreateContext* pCxt, const SToken* pToken) {
+  SXTaskSource* pSource = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_XNODE_TASK_SOURCE_OPT, (SNode**)&pSource);
+  CHECK_MAKE_NODE(pSource);
+  if (pToken == NULL || pToken->n <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode source database should not be NULL or empty");
+    goto _err;
+  }
+  if (pToken->n > TSDB_XNODE_TASK_SOURCE_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid xnode source database length: %d, max length: %d", pToken->n,
+                                            TSDB_XNODE_TASK_SOURCE_LEN);
+    goto _err;
+  }
+  pSource->source.type = XNODE_TASK_SOURCE_DATABASE;
+  COPY_COW_STR_FROM_ID_TOKEN(pSource->source.cstr, pToken);
+  return (SNode*)pSource;
+_err:
+  return NULL;
+}
+SNode* createXnodeSourceAsTopic(SAstCreateContext* pCxt, const SToken* pToken) {
+  SXTaskSource* pSource = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_XNODE_TASK_SOURCE_OPT, (SNode**)&pSource);
+  CHECK_MAKE_NODE(pSource);
+  if (pToken == NULL || pToken->n <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode source dsn should not be NULL or empty");
+    goto _err;
+  }
+  if (pToken->n > TSDB_TOPIC_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid xnode source topic length: %d, max length: %d", pToken->n,
+                                            TSDB_TOPIC_NAME_LEN);
+    goto _err;
+  }
+  pSource->source.type = XNODE_TASK_SOURCE_TOPIC;
+  COPY_COW_STR_FROM_STR_TOKEN(pSource->source.cstr, pToken);
+  return (SNode*)pSource;
+_err:
+  return NULL;
+}
+SNode* createXnodeSinkAsDsn(SAstCreateContext* pCxt, const SToken* pToken) {
+  SXTaskSink* pSink = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_XNODE_TASK_SINK_OPT, (SNode**)&pSink);
+  CHECK_MAKE_NODE(pSink);
+  if (pToken == NULL || pToken->n <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode sink dsn should not be NULL or empty");
+    goto _err;
+  }
+  if (pToken->n > TSDB_XNODE_TASK_SINK_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid xnode sink dsn length: %d, max length: %d", pToken->n,
+                                            TSDB_XNODE_TASK_SINK_LEN);
+    goto _err;
+  }
+  pSink->sink.type = XNODE_TASK_SINK_DSN;
+  COPY_COW_STR_FROM_STR_TOKEN(pSink->sink.cstr, pToken);
+  return (SNode*)pSink;
+_err:
+  return NULL;
+}
+SNode* createXnodeSinkAsDatabase(SAstCreateContext* pCxt, const SToken* pToken) {
+  SXTaskSink* pSink = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_XNODE_TASK_SINK_OPT, (SNode**)&pSink);
+  CHECK_MAKE_NODE(pSink);
+  if (pToken == NULL || pToken->n <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Xnode sink database should not be NULL or empty");
+    goto _err;
+  }
+  if (pToken->n > TSDB_XNODE_TASK_SINK_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid xnode sink database length: %d, max length: %d", pToken->n,
+                                            TSDB_XNODE_TASK_SINK_LEN);
+    goto _err;
+  }
+  pSink->sink.type = XNODE_TASK_SINK_DATABASE;
+  if (pToken->type == TK_NK_STRING) {
+    COPY_COW_STR_FROM_STR_TOKEN(pSink->sink.cstr, pToken);
+  } else if (pToken->type == TK_NK_ID) {
+    COPY_COW_STR_FROM_ID_TOKEN(pSink->sink.cstr, pToken);
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid xnode sink database type: %d", pToken->type);
+    goto _err;
+  }
+
+  return (SNode*)pSink;
+_err:
+  return NULL;
+}
+
+SNode* createXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceName, SNode* pSource,
+                                          SNode* pSink, SNode* pNode) {
+  SNode* pStmt = NULL;
+  if (pResourceName == NULL) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task name should not be NULL");
+    goto _err;
+  }
+  if (pSource == NULL || pSink == NULL) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Xnode task source and sink should not be NULL");
+    goto _err;
+  }
+  if (nodeType(pSource) != QUERY_NODE_XNODE_TASK_SOURCE_OPT || nodeType(pSink) != QUERY_NODE_XNODE_TASK_SINK_OPT) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Xnode task source and sink should be valid nodes");
+    goto _err;
+  }
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_TASK_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  SCreateXnodeTaskStmt* pTaskStmt = (SCreateXnodeTaskStmt*)pStmt;
+  if (pResourceName->type == TK_NK_STRING) {
+    COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
+  } else if (pResourceName->type == TK_NK_ID) {
+    COPY_STRING_FORM_STR_TOKEN(pTaskStmt->name, pResourceName);
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid xnode name type: %d",
+                                            pResourceName->type);
+    goto _err;
+  }
+
+  if (pSource != NULL) {
+    SXTaskSource* source = (SXTaskSource*)(pSource);
+    pTaskStmt->source = source;
+  }
+  if (pSink != NULL) {
+    SXTaskSink* sink = (SXTaskSink*)(pSink);
+    pTaskStmt->sink = sink;
+  }
+  if (pNode != NULL) {
+    if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
+      SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
+      pTaskStmt->options = options;
+    }
+  }
+  return (SNode*)pTaskStmt;
+_err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
+  return NULL;
+}
+
+SNode* createXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceName, SNode* pSource,
+                                           SNode* pSink, SNode* pNode) {
+  SNode* pStmt = NULL;
+  if (pSource != NULL || pSink != NULL) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Xnode agent should not have source or sink");
+    goto _err;
+  }
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODES_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+_err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
+  return NULL;
+}
+
+SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceName,
+                                  SNode* pSource, SNode* pSink, SNode* pNode) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  switch (resourceType) {
+    case XNODE_TASK: {
+      return createXnodeTaskWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pNode);
+    }
+    case XNODE_AGENT: {
+      return createXnodeAgentWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pNode);
+      break;
+    }
+    default:
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "Invalid xnode resource type: %d", resourceType);
+      goto _err;
+  }
+_err:
+  return NULL;
+}
+
+SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType resourceType, SToken* pIdOrName) {
+  SNode* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  if (resourceType != XNODE_TASK) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid xnode resource type: %d", resourceType);
+    goto _err;
+  }
+  if (pIdOrName == NULL || (pIdOrName != NULL && pIdOrName->type != TK_NK_INTEGER && pIdOrName->type != TK_NK_STRING)) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Xnode task id or name should be an integer or string");
+    goto _err;
+  }
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_START_XNODE_TASK_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  SStartXnodeTaskStmt* pTaskStmt = (SStartXnodeTaskStmt*)pStmt;
+  if (pIdOrName->type == TK_NK_INTEGER) {
+    pTaskStmt->tid = taosStr2Int32(pIdOrName->z, NULL, 10);
+    if (pTaskStmt->tid <= 0) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Task id should be greater than 0");
+      goto _err;
+    }
+  } else {
+    if (pIdOrName->n > TSDB_XNODE_RESOURCE_NAME_LEN + 2) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "Xnode task name should be less than %d characters", TSDB_XNODE_RESOURCE_NAME_LEN);
+      goto _err;
+    }
+    char buf[TSDB_XNODE_RESOURCE_NAME_LEN + 1] = {0};
+    COPY_STRING_FORM_STR_TOKEN(buf, pIdOrName);
+    pTaskStmt->name = xCreateCowStr(strlen(buf) + 1, buf, true);
+  }
+
+  return (SNode*)pTaskStmt;
+_err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
+  return NULL;
+}
+
+SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType resourceType, SToken* pIdOrName) {
+  SNode* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  if (resourceType != XNODE_TASK) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Only support stop task, invalid resource type: %d", resourceType);
+    goto _err;
+  }
+  if (pIdOrName != NULL && pIdOrName->type != TK_NK_INTEGER && pIdOrName->type != TK_NK_STRING) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Xnode task id or name should be an integer or string");
+    goto _err;
+  }
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_STOP_XNODE_TASK_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  SStopXnodeTaskStmt* pTaskStmt = (SStopXnodeTaskStmt*)pStmt;
+  if (pIdOrName->type == TK_NK_INTEGER) {
+    pTaskStmt->tid = taosStr2Int32(pIdOrName->z, NULL, 10);
+    if (pTaskStmt->tid <= 0) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Task id should be greater than 0");
+      goto _err;
+    }
+  } else {
+    if (pIdOrName->n > TSDB_XNODE_RESOURCE_NAME_LEN + 2) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "Xnode task name should be less than %d characters", TSDB_XNODE_RESOURCE_NAME_LEN);
+      goto _err;
+    }
+    char buf[TSDB_XNODE_RESOURCE_NAME_LEN + 1] = {0};
+    COPY_STRING_FORM_STR_TOKEN(buf, pIdOrName);
+    pTaskStmt->name = xCreateCowStr(strlen(buf) + 1, buf, true);
+  }
+
+  return (SNode*)pTaskStmt;
+_err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
+  return NULL;
+}
+
+SNode* rebalanceXnodeJobWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceId, SNode* pNode) {
+  SNode* pStmt = NULL;
+  if (pResourceId == NULL) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode job id should not be NULL");
+    goto _err;
+  }
+  if (pNode == NULL) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode job options should not be NULL");
+    goto _err;
+  }
+  if (pResourceId->type != TK_NK_INTEGER) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode job id should be an integer");
+    goto _err;
+  }
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_REBALANCE_XNODE_JOB_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  SRebalanceXnodeJobStmt* pJobStmt = (SRebalanceXnodeJobStmt*)pStmt;
+  char                    buf[TSDB_XNODE_RESOURCE_ID_LEN] = {0};
+  COPY_STRING_FORM_ID_TOKEN(buf, pResourceId);
+  pJobStmt->jid = atoi(buf);
+
+  if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
+    SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
+    // printXnodeTaskOptions(&options->opts);
+    pJobStmt->options = options;
+  }
+  return (SNode*)pJobStmt;
+_err:
+  return NULL;
+}
+
+SNode* createRebalanceXnodeJobStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* resourceId,
+                                   SNode* pNodeOptions) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  switch (resourceType) {
+    case XNODE_JOB: {
+      return rebalanceXnodeJobWithOptionsDirectly(pCxt, resourceId, pNodeOptions);
+    }
+    default:
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "Invalid xnode resource type: %d, rebalance only support job", resourceType);
+      goto _err;
+  }
+_err:
+  return NULL;
+}
+
+SNode* rebalanceXnodeJobWhereDirectly(SAstCreateContext* pCxt, SNode* pWhere) {
+  int32_t code = 0;
+  SNode*  pStmt = NULL;
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  SRebalanceXnodeJobWhereStmt* pJobStmt = (SRebalanceXnodeJobWhereStmt*)pStmt;
+  pJobStmt->pWhere = pWhere;
+
+  return (SNode*)pJobStmt;
+_err:
+  return NULL;
+}
+
+SNode* createRebalanceXnodeJobWhereStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  switch (resourceType) {
+    case XNODE_JOB: {
+      return rebalanceXnodeJobWhereDirectly(pCxt, pWhere);
+    }
+    default:
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "Invalid xnode resource type: %d, rebalance only support job", resourceType);
+      goto _err;
+  }
+_err:
+  return NULL;
+}
+
+SNode* updateXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResIdOrName, SNode* pSource,
+                                          SNode* pSink, SNode* pNode) {
+  SNode* pStmt = NULL;
+
+  if ((pSource != NULL && nodeType(pSource) != QUERY_NODE_XNODE_TASK_SOURCE_OPT) ||
+      (pSink != NULL && nodeType(pSink) != QUERY_NODE_XNODE_TASK_SINK_OPT)) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Xnode task source and sink should be valid nodes");
+    goto _err;
+  }
+  if (pSource == NULL && pSink == NULL && pNode == NULL) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Xnode task source, sink, and with options can't all be NULL");
+    goto _err;
+  }
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_UPDATE_XNODE_TASK_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  SUpdateXnodeTaskStmt* pTaskStmt = (SUpdateXnodeTaskStmt*)pStmt;
+  if (pResIdOrName->type == TK_NK_INTEGER) {
+    pTaskStmt->tid = taosStr2Int32(pResIdOrName->z, NULL, 10);
+  } else {
+    if (pResIdOrName->n <= 2) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task name be empty string");
+      goto _err;
+    }
+    char buf[TSDB_XNODE_NAME_LEN];
+    COPY_STRING_FORM_STR_TOKEN(buf, pResIdOrName);
+    pTaskStmt->name = xCreateCowStr(strlen(buf) + 1, buf, true);
+  }
+
+  if (pSource != NULL) {
+    SXTaskSource* source = (SXTaskSource*)(pSource);
+    pTaskStmt->source = source;
+  }
+  if (pSink != NULL) {
+    SXTaskSink* sink = (SXTaskSink*)(pSink);
+    pTaskStmt->sink = sink;
+  }
+  if (pNode != NULL) {
+    if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
+      SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
+      pTaskStmt->options = options;
+    }
+  }
+  return (SNode*)pTaskStmt;
+_err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
+  return NULL;
+}
+
+SNode* alterXnodeJobWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceName, SNode* pNode) {
+  SNode* pStmt = NULL;
+  if (pResourceName == NULL) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode job id should not be NULL");
+    goto _err;
+  }
+  if (pNode == NULL) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode job options should not be NULL");
+    goto _err;
+  }
+  if (pResourceName->type != TK_NK_INTEGER) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode job id should be integer");
+    goto _err;
+  }
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_XNODE_JOB_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  SAlterXnodeJobStmt* pJobStmt = (SAlterXnodeJobStmt*)pStmt;
+  char                buf[TSDB_XNODE_RESOURCE_ID_LEN] = {0};
+  COPY_STRING_FORM_ID_TOKEN(buf, pResourceName);
+  pJobStmt->jid = atoi(buf);
+
+  if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
+    SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
+    pJobStmt->options = options;
+  }
+  return (SNode*)pJobStmt;
+_err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
+  return NULL;
+}
+
+SNode* alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceId,
+                                 SNode* pSource, SNode* pSink, SNode* pNode) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  switch (resourceType) {
+    case XNODE_TASK: {
+      return updateXnodeTaskWithOptionsDirectly(pCxt, pResourceId, pSource, pSink, pNode);
+    }
+    case XNODE_AGENT: {
+      return createXnodeAgentWithOptionsDirectly(pCxt, pResourceId, pSource, pSink, pNode);
+      break;
+    }
+    case XNODE_JOB: {
+      return alterXnodeJobWithOptionsDirectly(pCxt, pResourceId, pNode);
+    }
+    default:
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "Invalid xnode resource type: %d", resourceType);
+      goto _err;
+  }
+_err:
+  return NULL;
+}
+
+SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResourceName) {
+  SNode* pStmt = NULL;
+  char   buf[TSDB_XNODE_TASK_NAME_LEN + 1];
+
+  CHECK_PARSER_STATUS(pCxt);
+  if (pResourceName == NULL || pResourceName->n <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Xnode resource name should not be NULL or empty");
+    goto _err;
+  }
+  if (pResourceName->n > TSDB_XNODE_RESOURCE_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid xnode resource name length: %d, max length: %d", pResourceName->n,
+                                            TSDB_XNODE_RESOURCE_NAME_LEN);
+    goto _err;
+  }
+  switch (resourceType) {
+    case XNODE_TASK:
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_TASK_STMT, (SNode**)&pStmt);
+      CHECK_MAKE_NODE(pStmt);
+      SDropXnodeTaskStmt* pTaskStmt = (SDropXnodeTaskStmt*)pStmt;
+
+      if (pResourceName->type == TK_NK_STRING) {
+        if (pResourceName->n > TSDB_XNODE_TASK_NAME_LEN + 2) {
+          pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                  "Invalid xnode task name length: %d, max length: %d",
+                                                  pResourceName->n, TSDB_XNODE_TASK_NAME_LEN);
+          goto _err;
+        }
+        COPY_STRING_FORM_STR_TOKEN(buf, pResourceName);
+        pTaskStmt->name = taosStrndupi(buf, sizeof(buf));
+      } else if (pResourceName->type == TK_NK_ID) {
+        COPY_STRING_FORM_ID_TOKEN(buf, pResourceName);
+        pTaskStmt->name = taosStrndupi(buf, sizeof(buf));
+      } else if (pResourceName->type == TK_NK_INTEGER) {
+        pTaskStmt->tid = taosStr2Int32(pResourceName->z, NULL, 10);
+      } else {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                "Invalid xnode job id type: %d", pResourceName->type);
+        goto _err;
+      }
+      break;
+    case XNODE_AGENT:
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_AGENT_STMT, (SNode**)&pStmt);
+      CHECK_MAKE_NODE(pStmt);
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "Unimplemented drop xnode agent with: %s", pResourceName->z);
+      goto _err;
+      break;
+    case XNODE_JOB:
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_JOB_STMT, (SNode**)&pStmt);
+      CHECK_MAKE_NODE(pStmt);
+      SDropXnodeJobStmt* pJobStmt = (SDropXnodeJobStmt*)pStmt;
+
+      if (pResourceName->type == TK_NK_STRING) {
+        pJobStmt->jid = taosStr2Int32(pResourceName->z, NULL, 10);
+      } else if (pResourceName->type == TK_NK_INTEGER) {
+        pJobStmt->jid = taosStr2Int32(pResourceName->z, NULL, 10);
+      } else {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                "Invalid xnode job id type: %d", pResourceName->type);
+        goto _err;
+      }
+      break;
+    default:
+      break;
+  }
+  return (SNode*)pStmt;
+_err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
+  return NULL;
+}
+SNode* dropXnodeResourceOn(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResource, SNode* pWhere) {
+  char resourceId[TSDB_XNODE_RESOURCE_ID_LEN + 1];
+  SShowStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  if (pResource == NULL || pResource->n <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode resource name should not be NULL or empty");
+    goto _err;
+  }
+  if (pResource->n > TSDB_XNODE_RESOURCE_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid xnode resource name length: %d, max length: %d", pResource->n,
+                                            TSDB_XNODE_RESOURCE_NAME_LEN);
+    goto _err;
+  }
+  switch (resourceType) {
+    case XNODE_TASK:
+      // pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_TASK_STMT, (SNode**)&pStmt);
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_TASKS_STMT, (SNode**)&pStmt);
+      CHECK_MAKE_NODE(pStmt);
+      break;
+    case XNODE_AGENT:
+      // pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_AGENT_STMT, (SNode**)&pStmt);
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_AGENTS_STMT, (SNode**)&pStmt);
+      CHECK_MAKE_NODE(pStmt);
+      break;
+    case XNODE_JOB:
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_JOBS_STMT, (SNode**)&pStmt);
+      CHECK_MAKE_NODE(pStmt);
+      break;
+    default:
+      break;
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+// SNode* dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere) {
+//   CHECK_PARSER_STATUS(pCxt);
+//   SShowStmt* pStmt = NULL;
+//   switch (resourceType) {
+//     case XNODE_TASK:
+//       // pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_TASK_STMT, (SNode**)&pStmt);
+//       pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_TASKS_STMT, (SNode**)&pStmt);
+//       CHECK_MAKE_NODE(pStmt);
+//       break;
+//     case XNODE_AGENT:
+//       // pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_AGENT_STMT, (SNode**)&pStmt);
+//       pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_AGENTS_STMT, (SNode**)&pStmt);
+//       CHECK_MAKE_NODE(pStmt);
+//       break;
+//     case XNODE_JOB:
+//       pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_JOBS_STMT, (SNode**)&pStmt);
+//       CHECK_MAKE_NODE(pStmt);
+//       break;
+//     default:
+//       break;
+//   }
+//   return (SNode*)pStmt;
+// _err:
+//   return NULL;
+// }
+SNode* createDefaultXnodeTaskOptions(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SXnodeTaskOptions* pOptions = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_XNODE_TASK_OPTIONS, (SNode**)&pOptions);
+  CHECK_MAKE_NODE(pOptions);
+  return (SNode*)pOptions;
+_err:
+  return NULL;
+}
+
+static char   TRIGGER[8] = "trigger";
+static SToken TRIGGER_TOKEN = {
+    .n = 7,
+    .type = TK_NK_ID,
+    .z = TRIGGER,
+};
+SToken* createTriggerToken() { return &TRIGGER_TOKEN; }
+
+SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken* pKey, SToken* pVal) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (pTaskOptions == NULL) {
+    pTaskOptions = createDefaultXnodeTaskOptions(pCxt);
+    if (pTaskOptions == NULL) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task options should not be NULL");
+      goto _err;
+    }
+  }
+  SXnodeTaskOptions* pOptions = (SXnodeTaskOptions*)pTaskOptions;
+  char               key[TSDB_COL_NAME_LEN] = {0};
+  if (pKey == NULL) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Option name for xnode should not be empty");
+    goto _err;
+  }
+  TRIM_STRING_FORM_ID_TOKEN(key, pKey);
+
+  if (strlen(key) == 0) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Option name for xnode should not be empty");
+    goto _err;
+  }
+  char via[TSDB_COL_NAME_LEN] = {0};
+  char buf[TSDB_XNODE_TASK_OPTIONS_MAX_NUM] = {0};
+  if (strcmp(key, "trigger") == 0) {
+    if (pVal->type == TK_NK_STRING) {
+      (void)trimString(pVal->z, pVal->n, pOptions->trigger, sizeof(pOptions->trigger));
+      pOptions->triggerLen = pVal->n == 2 ? 1 : pVal->n - 2;
+    } else {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Option trigger must be string");
+      goto _err;
+    }
+  } else if (strcmp(key, "parser") == 0 || strcmp(key, "transform") == 0) {
+    if (pVal->type == TK_NK_STRING) {
+      (void)trimString(pVal->z, pVal->n, pOptions->parser, sizeof(pOptions->parser));
+      pOptions->parserLen = pVal->n == 2 ? 1 : pVal->n - 2;
+    } else {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Option parser must be string");
+      goto _err;
+    }
+  } else if (strcmp(key, "health") == 0) {
+    if (pVal->type == TK_NK_STRING) {
+      (void)trimString(pVal->z, pVal->n, pOptions->health, sizeof(pOptions->health));
+      pOptions->healthLen = pVal->n == 2 ? 1 : pVal->n - 2;
+    } else {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Option health must be string");
+      goto _err;
+    }
+  } else if (strcmp(key, "via") == 0) {
+    switch (pVal->type) {
+      case TK_NK_STRING:
+        (void)trimString(pVal->z, pVal->n, via, sizeof(via));
+        pOptions->via = taosStr2Int32(via, NULL, 10);
+        if (pOptions->via <= 0) {
+          pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                   "Invalid xnode task option via: %s", pVal->z);
+          goto _err;
+        }
+        break;
+      case TK_NK_INTEGER:
+        pOptions->via = taosStr2Int32(pVal->z, NULL, 10);
+        break;
+      default:
+        pCxt->errCode =
+            generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid xnode task option: %s", key);
+    }
+  } else {
+    if (pOptions->optionsNum < TSDB_XNODE_TASK_OPTIONS_MAX_NUM) {
+      char* pKeyVal = NULL;
+      if (pVal != NULL) {
+        parserDebug("key value length expected: %d, actual: %d\n", pKey->n + pVal->n + 2, pKey->n + pVal->n);
+        pKeyVal = taosMemoryMalloc(pKey->n + pVal->n + 2);
+        memset(pKeyVal, 0, pKey->n + pVal->n + 2);
+
+        CHECK_OUT_OF_MEM(pKeyVal);
+        size_t pos = strlen(key);
+        memcpy(pKeyVal, key, pos);
+        pKeyVal[pos] = '=';  // Add '=' after the key
+        pos++;
+
+        if (pVal->type == TK_NK_STRING) {
+          (void)trimString(pVal->z, pVal->n, pKeyVal + pos, pVal->n + 1);
+        } else {
+          strncpy(pKeyVal + pos, pVal->z, TMIN(pVal->n, pKey->n + pVal->n + 2 - pos - 1));
+          pKeyVal[pos + pVal->n] = '\0';
+        }
+      } else {
+        size_t keyLen = strlen(key);
+        pKeyVal = taosMemoryMalloc(keyLen + 1);
+        memset(pKeyVal, 0, keyLen + 1);
+        CHECK_OUT_OF_MEM(pKeyVal);
+        memcpy(pKeyVal, key, keyLen);
+      }
+      pOptions->options[pOptions->optionsNum] = pKeyVal;
+      pOptions->optionsNum++;
+    } else {
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                               "reaches max options number(%d) %s", pOptions->optionsNum, key);
+      goto _err;
+    }
+  }
+_err:
+  return pTaskOptions;
+}
+
+SNode* createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pTidToken,
+                                     SNode* pNodeOptions) {
+  CHECK_PARSER_STATUS(pCxt);
+  SNode* pStmt = NULL;
+
+  switch (resourceType) {
+    case XNODE_JOB: {
+      if (pTidToken == NULL || pTidToken->n <= 0) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                "Xnode job task id should not be NULL or empty");
+        goto _err;
+      }
+      if (pNodeOptions == NULL || nodeType(pNodeOptions) != QUERY_NODE_XNODE_TASK_OPTIONS) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                "Xnode job options should not be NULL or empty");
+        goto _err;
+      }
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_JOB_STMT, &pStmt);
+      CHECK_MAKE_NODE(pStmt);
+      SCreateXnodeJobStmt* pJobStmt = (SCreateXnodeJobStmt*)pStmt;
+      pJobStmt->options = (SXnodeTaskOptions*)pNodeOptions;
+      pJobStmt->tid = pTidToken->type == TK_NK_STRING ? atoi(pTidToken->z) : taosStr2Int32(pTidToken->z, NULL, 10);
+      break;
+    }
+    default:
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "Invalid xnode resource type: %d with ON clause", resourceType);
+      goto _err;
+  }
+  return pStmt;
+_err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
+  return NULL;
 }
 
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
@@ -5728,22 +6947,23 @@ _err:
   return NULL;
 }
 
-SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pStream) {
+SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNodeList* pStreamList) {
   CHECK_PARSER_STATUS(pCxt);
   SDropStreamStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_STREAM_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  if (pStream) {
-    tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
-    tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
+
+  if (pStreamList) {
+    pStmt->pStreamList = pStreamList;
   } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "stream name cannot be empty");
     goto _err;
   }
-  nodesDestroyNode(pStream);
+
   pStmt->ignoreNotExists = ignoreNotExists;
   return (SNode*)pStmt;
 _err:
+  nodesDestroyList(pStreamList);
   return NULL;
 }
 
@@ -5935,47 +7155,79 @@ _err:
   return NULL;
 }
 
-SNode* createGrantStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair* pPrivLevel, SToken* pUserName,
-                       SNode* pTagCond) {
+SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
+                       SNode* pCond, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
-  CHECK_NAME(checkUserName(pCxt, pUserName));
-  CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
+  CHECK_NAME(checkRoleName(pCxt, pPrincipal, false));
   SGrantStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_GRANT_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  pStmt->privileges = privileges;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
-  if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
-    COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
+  pStmt->optrType = optrType;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->principal, pPrincipal);
+  switch (optrType) {
+    case TSDB_ALTER_ROLE_LOCK:
+      break;
+    case TSDB_ALTER_ROLE_PRIVILEGES: {
+      CHECK_NAME(checkObjName(pCxt, &pPrivLevel->first, false));
+      CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
+      pStmt->privileges = *(SPrivSetArgs*)resouces;
+      if (TK_NK_NIL != pPrivLevel->first.type) {
+        COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
+      }
+      if (TK_NK_NIL != pPrivLevel->second.type) {
+        COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
+      }
+      pStmt->privileges.objType = pPrivLevel->objType;
+      pStmt->pCond = pCond;
+      break;
+    }
+    case TSDB_ALTER_ROLE_ROLE: {
+      SToken* pRole = (SToken*)resouces;
+      CHECK_NAME(checkRoleName(pCxt, pRole, false));
+      COPY_STRING_FORM_ID_TOKEN(pStmt->roleName, pRole);
+      break;
+    }
+    default:
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "unsupported grant type");
+      goto _err;
   }
-  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
-  pStmt->pTagCond = pTagCond;
   return (SNode*)pStmt;
 _err:
-  nodesDestroyNode(pTagCond);
+  nodesDestroyNode(pCond);
   return NULL;
 }
 
-SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, STokenPair* pPrivLevel, SToken* pUserName,
-                        SNode* pTagCond) {
+SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
+                        SNode* pCond, int8_t optrType) {
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
-  CHECK_NAME(checkUserName(pCxt, pUserName));
-  CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
+  CHECK_NAME(checkUserName(pCxt, pPrincipal));
   SRevokeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_REVOKE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  pStmt->privileges = privileges;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
-  if (TK_NK_NIL != pPrivLevel->second.type && TK_NK_STAR != pPrivLevel->second.type) {
-    COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
+  pStmt->optrType = optrType;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->principal, pPrincipal);
+  if (optrType == TSDB_ALTER_ROLE_PRIVILEGES) {
+    CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
+    CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
+    pStmt->privileges = *(SPrivSetArgs*)resouces;
+    COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
+    if (TK_NK_NIL != pPrivLevel->second.type) {
+      COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
+    }
+    pStmt->privileges.objType = pPrivLevel->objType;
+    pStmt->pCond = pCond;
+  } else if (optrType == TSDB_ALTER_ROLE_ROLE) {
+    SToken* pRole = (SToken*)resouces;
+    CHECK_NAME(checkRoleName(pCxt, pRole, false));
+    COPY_STRING_FORM_ID_TOKEN(pStmt->roleName, pRole);
+  } else {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "unsupported revoke type");
+    goto _err;
   }
-  COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
-  pStmt->pTagCond = pTagCond;
+
   return (SNode*)pStmt;
 _err:
-  nodesDestroyNode(pTagCond);
+  nodesDestroyNode(pCond);
   return NULL;
 }
 

@@ -18,6 +18,7 @@ CREATE USER user_name PASS 'password'
   [CONNECT_TIME {value | DEFAULT | UNLIMITED}]
   [CONNECT_IDLE_TIME {value | DEFAULT | UNLIMITED}]
   [CALL_PER_SESSION {value | DEFAULT | UNLIMITED}]
+  [VNODE_PER_CALL {value | DEFAULT | UNLIMITED}]
   [FAILED_LOGIN_ATTEMPTS {value | DEFAULT | UNLIMITED}]
   [PASSWORD_LOCK_TIME {value | DEFAULT | UNLIMITED}]
   [PASSWORD_LIFE_TIME {value | DEFAULT | UNLIMITED}]
@@ -48,6 +49,7 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `CONNECT_TIME` 限制单次会话最大持续时间，单位为分钟，默认 480，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `CONNECT_IDLE_TIME` 允许的会话最大空闲时间，单位为分钟，默认 30，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `CALL_PER_SESSION` 单会话最大并发子调用数量，默认 10，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
+- `VNODE_PER_CALL` 单调用可以涉及的最大 vnode 数量。默认 -1，代表无限制。从企业版 v3.4.0.0 开始支持。
 - `FAILED_LOGIN_ATTEMPTS` 允许的连续失败登录次数，超过次数后账户将被锁定，默认 3，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_LOCK_TIME` 账户因登录失败被锁定后的解锁等待时间，单位分钟，默认 1440，最小 1，设置为 UNLIMITED 则永久锁定。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_LIFE_TIME` 密码有效期，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不过期。从企业版 v3.4.0.0 开始支持。
@@ -99,7 +101,7 @@ Query OK, 2 row(s) in set (0.007383s)
 ## 删除用户
 
 ```sql
-DROP USER user_name;
+DROP USER [IF EXISTS] user_name;
 ```
 
 ## 修改用户配置
@@ -117,6 +119,7 @@ alter_user_clause: {
   [CONNECT_TIME {value | DEFAULT | UNLIMITED}]
   [CONNECT_IDLE_TIME {value | DEFAULT | UNLIMITED}]
   [CALL_PER_SESSION {value | DEFAULT | UNLIMITED}]
+  [VNODE_PER_CALL {value | DEFAULT | UNLIMITED}]
   [FAILED_LOGIN_ATTEMPTS {value | DEFAULT | UNLIMITED}]
   [PASSWORD_LOCK_TIME {value | DEFAULT | UNLIMITED}]
   [PASSWORD_LIFE_TIME {value | DEFAULT | UNLIMITED}]
@@ -143,6 +146,43 @@ taos> alter user test enable 0;
 Query OK, 0 of 0 rows affected (0.001160s)
 ```
 
+## TOTP 双因认证
+
+TOTP 双因认证是 TDengine TSDB 企业版功能，从企业版 v3.4.0.1 开始支持。
+
+### 创建/更新 TOTP 密钥
+
+```sql
+CREATE TOTP_SECRET FOR USER user_name
+```
+
+如果用户还未创建 TOTP 密钥，此命令将为该用户创建 TOTP 密钥。如果用户已经创建了 TOTP 密钥，此命令为用户更新该密钥。不论哪种情况，此命令会返回新创建的密钥，此密钥仅展示一次，请及时保存。系统会为创建了 TOTP 密钥的用户自动启用 TOTP 双因认证。
+
+例如，可以使用下面的命令为用户 test 创建 TOTP 密钥。
+
+```sql
+taos> create totp_secret for user test;
+                     totp_secret                      |
+=======================================================
+ ERIRPLZL4ZBFTPT5BNXMVFPR4Z3PTHUWTBTCNZPOHYPYQGTD25XA |
+Query OK, 1 row(s) in set (0.002314s)
+```
+
+### 删除 TOTP 密钥
+
+```sql
+DROP TOTP_SECRET FROM USER user_name
+```
+
+此命令删除用户的 TOTP 密钥，密钥删除后，用户的 TOTP 双因认证功能将被禁用。
+
+例如，可以使用下面的命令删除用户 test 的 TOTP 密钥。
+
+```sql
+taos> drop totp_secret from user test;
+Drop OK, 0 row(s) affected (0.002295s)
+```
+
 ## 令牌管理
 
 令牌管理是 TDengine TSDB 企业版功能，从企业版 v3.4.0.0 开始支持。
@@ -150,7 +190,7 @@ Query OK, 0 of 0 rows affected (0.001160s)
 ### 创建令牌
 
 ```sql
-CREATE TOKEN token_name FROM USER user_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value]
+CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value]
 ```
 
 令牌名称最长 31 个字节。
@@ -210,7 +250,7 @@ ALTER TOKEN token_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO v
 ### 删除令牌
 
 ```sql
-DROP TOKEN token_name;
+DROP TOKEN [IF EXISTS] token_name;
 ```
 
 另外，删除用户时，其令牌会被同时级联删除。

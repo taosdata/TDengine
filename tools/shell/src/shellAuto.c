@@ -119,6 +119,7 @@ SWords shellCommands[] = {
     {"compact vgroups in( <anyword>", 0, 0, NULL},
     {"create mount <mount_name> on dnode <dnode_id> from <path>;", 0, 0, NULL},
     {"create token <anyword> from user <user_name> <token_opt> <anyword> <token_opt> <anyword> <token_opt> <anyword> <token_opt> <anyword> ;", 0, 0, NULL},
+    {"create totp_secret for user <user_name>;", 0, 0, NULL},
     {"create user <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword>", 0, 0, NULL},
 #else
     {"create user <anyword> pass <anyword> createdb 1;", 0, 0, NULL},
@@ -159,6 +160,7 @@ SWords shellCommands[] = {
 #ifdef TD_ENTERPRISE
     {"merge vgroup <vgroup_id> <vgroup_id>;", 0, 0, NULL},
     {"drop token <token_name>;", 0, 0, NULL},
+    {"drop totp_secret from user <user_name>;", 0, 0, NULL},
     {"drop mount <mount_name>;", 0, 0, NULL},
 #endif
     {"pause stream <stream_name>;", 0, 0, NULL},
@@ -235,7 +237,12 @@ SWords shellCommands[] = {
     {"show transactions;", 0, 0, NULL},
     {"show tsmas;", 0, 0, NULL},
     {"show rsmas;", 0, 0, NULL},
+    {"show roles;", 0, 0, NULL},
+    {"show role privileges;", 0, 0, NULL},
+    {"show role column privileges;", 0, 0, NULL},
     {"show users;", 0, 0, NULL},
+    {"show user privileges;", 0, 0, NULL},
+    {"show user column privileges;", 0, 0, NULL},
     {"show variables;", 0, 0, NULL},
     {"show local variables;", 0, 0, NULL},
     {"show vnodes;", 0, 0, NULL},
@@ -328,7 +335,6 @@ char* functions[] = {
     "date(",           "corr(",
     "cols(",           "find_in_set(",
     "like_in_set(",    "regexp_in_set(",
-    "generate_totp_secret(",
     "case ",           "when "
 };
 
@@ -418,7 +424,6 @@ char* field_options[] = {
 // create user options
 char * create_uopt[] = {
     "pass ",
-    "totpseed ",
     "account ",
     "sysinfo ",
     "createdb ",
@@ -445,7 +450,6 @@ char * create_uopt[] = {
 // alter user options
 char * alter_uopt[] = {
     "pass ",
-    "totpseed ",
     "account ",
     "sysinfo ",
     "createdb ",
@@ -764,7 +768,12 @@ void showHelp() {
     show transactions;\n\
     show tsmas;\n\
     show rsmas;\n\
+    show roles;\n\
+    show role privileges;\n\
+    show role column privileges;\n\
     show users;\n\
+    show user privileges;\n\
+    show user column privileges;\n\
     show variables;\n\
     show local variables;\n\
     show vnodes;\n\
@@ -794,8 +803,10 @@ void showHelp() {
     create view <view_name> as select ...\n\
     create mount <mount_name> on dnode <dnode_id> from <path>;\n\
     create token <token_name> from user <user_name> [token options];\n\
+    create totp_secret for user <user_name>;\n\
     drop mount <mount_name>;\n\
     drop token <token_name>;\n\
+    drop totp_secret from user <user_name>;\n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
     split vgroup <vgroup_id>;\n\
     ssmigrate database <db_name>;\n\

@@ -123,6 +123,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TIME_ERROR,                   "Internal error in tim
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DISK_ID,              "Internal error invalid disk id")
 TAOS_DEFINE_ERROR(TSDB_CODE_DECIMAL_OVERFLOW,             "Decimal value overflow")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_EDITION_NOT_COMPATIBLE,       "Edition not compatible")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_SIGNATURE,            "Invalid signature")
+
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_QHANDLE,          "Invalid qhandle")
@@ -250,7 +253,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_USER_FROM_CONN,        "Can not get user from
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USERS,           "Too many users")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ALTER_OPER,       "Invalid alter operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_AUTH_FAILURE,             "Authentication failure")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_PRIVILEDGE_EXIST,         "User already have this priviledge")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_PRIVILEGE_EXIST,          "Already have this privilege")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_PASSWORD_REUSE,      "Password reuse detected")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_WRONG_TOTP_CODE,          "Wrong TOTP code")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_IP_RANGE,   "Too many ranges in IP white list")
@@ -474,6 +477,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_SSMIGRATE_ALREADY_EXIST,  "ssmigrate already exi
 // mnode-trim
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_RETENTION_ID,     "Invalid retention id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRIM_ALREADY_EXIST,       "Trim or rollup already exist")
+
+// mnode-role
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_ALREADY_EXIST,       "Role already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_EXIST,           "Invalid role")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_AVAILABLE,       "Role not available")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_INVALID_FORMAT,      "Invalid role format")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_SUBROLE_EXCEEDED,    "Subrole count exceeded")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
@@ -892,6 +902,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG,       "Option value too bi
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL,     "Option value too small")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ORDERBY_INVALID_EXPR,       "Aggregate functions cannot be used for sorting in non-aggregate queries")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT,  "Conflict between privilege type and target")
+
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal error")
@@ -1104,6 +1116,33 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE,    "Stream output table
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED,  "Stream output table name calc failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY,    "Stream vtable calculate need redeploy")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INVALID_JSON,        "Stream mnd invalid json message")
+
+// Xnode
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,            "Xnode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_ALREADY_DEPLOYED,             "Xnode already deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NOT_EXIST,                "Xnode not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TOO_LONG_URL,             "Xnode too long url")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_INVALID_PROTOCOL,         "Xnode invalid protocol")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_INVALID_MSG,              "Xnode invalid message content")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_FOUND,                    "Xnode nod found")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_UV_EXEC_FAILURE,              "Xnode xnoded exec failure")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_CANT_ACCESS,          "Xnode xnoded url can't access")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RESP_IS_NULL,         "Xnode xnoded response is null")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR,          "Xnode request action response not success code")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NEED_USER_PASS,           "Xnode first-time setup requires username and password")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_USER_PASS_NOT_EXIST,      "Xnode username or password error when setup")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_ALREADY_EXIST,       "Xnode task already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_NOT_EXIST,           "Xnode task not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_NAME_TOO_LONG,       "Xnode task name too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,         "Xnode task job syntax error")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG, "Xnode task job config too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_JOB_NOT_EXIST,            "Xnode job not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG,     "Xnode task/job reason too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT,         "Xnode xnoded response timeout")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_COL_NOT_EXIST,      "Xnode where clause column not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_COL_TYPE_DIFF,      "Xnode where clause column type diff")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_OP_NOT_SUPPORT,     "Xnode where clause operator not support")
+
 
 #ifdef TAOS_ERROR_C
 };

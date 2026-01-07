@@ -15,9 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
+#include "mndInt.h"
 #include "mndPrivilege.h"
 #include "mndUser.h"
 #include "systable.h"
+#include "tmsg.h"
 
 #define SHOW_STEP_SIZE            100
 #define SHOW_COLS_STEP_SIZE       4096
@@ -74,6 +76,14 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_ANODE_FULL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_BNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODE_TASKS, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODE_TASKS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODE_AGENTS, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODE_AGENTS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODE_JOBS, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODE_JOBS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_ARBGROUPS, len) == 0) {
     type = TSDB_MGMT_TABLE_ARBGROUP;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {
@@ -176,6 +186,12 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_RETENTION;
   } else if (strncasecmp(name, TSDB_INS_TABLE_RETENTION_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_RETENTION_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ROLES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ROLE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ROLE_PRIVILEGES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ROLE_PRIVILEGES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ROLE_COL_PRIVILEGES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
@@ -298,24 +314,24 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
   }
 
-  if (pShow->type == TSDB_MGMT_TABLE_COL) {  // expend capacity for ins_columns
+  // expend capacity for ins_columns and privileges
+  if (pShow->type == TSDB_MGMT_TABLE_COL || TSDB_MGMT_TABLE_PRIVILEGES ||
+      pShow->type == TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES || pShow->type == TSDB_MGMT_TABLE_ROLE_PRIVILEGES) {
     rowsToRead = SHOW_COLS_STEP_SIZE;
-  } else if (pShow->type == TSDB_MGMT_TABLE_PRIVILEGES) {
-    rowsToRead = SHOW_PRIVILEGES_STEP_SIZE;
   }
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {
     mndReleaseShowObj(pShow, false);
     code = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s: retrieveFp is NULL", pShow->id, tstrerror(code));
     TAOS_RETURN(code);
   }
 
   mDebug("show:0x%" PRIx64 ", start retrieve data, type:%d", pShow->id, pShow->type);
   if (retrieveReq.user[0] != 0) {
-    (void)memcpy(pReq->info.conn.user, retrieveReq.user, TSDB_USER_LEN);
+    (void)memcpy(RPC_MSG_USER(pReq), retrieveReq.user, TSDB_USER_LEN);
   } else {
-    (void)memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
+    (void)memcpy(RPC_MSG_USER(pReq), TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
   }
   code = -1;
   if (retrieveReq.db[0] &&
@@ -374,7 +390,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(terrno));
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s: pRsp is NULL", pShow->id, tstrerror(terrno));
     code = terrno;
     goto _exit;
   }
@@ -399,7 +415,8 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
     int32_t len = blockEncode(pBlock, pStart, dataEncodeBufSize, pShow->pMeta->numOfColumns);
     if (len < 0) {
-      mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(terrno));
+      mError("show:0x%" PRIx64 ", failed to retrieve data since %s: block len(%d) < 0", pShow->id, tstrerror(terrno),
+             len);
       code = terrno;
       return code;
     }

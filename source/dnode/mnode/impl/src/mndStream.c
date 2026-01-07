@@ -20,6 +20,7 @@
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 #include "osMemory.h"
 #include "parser.h"
 #include "taoserror.h"
@@ -141,6 +142,7 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStream
 
   atomic_store_32(&pOldStream->mainSnodeId, pNewStream->mainSnodeId);
   atomic_store_8(&pOldStream->userStopped, atomic_load_8(&pNewStream->userStopped));
+  pOldStream->ownerId = pNewStream->ownerId;
   pOldStream->updateTime = pNewStream->updateTime;
   
   return 0;
@@ -195,16 +197,19 @@ int32_t  mndStreamSeqActionInsert(SSdb *pSdb, SStreamSeq *pStream) { return 0; }
 int32_t  mndStreamSeqActionDelete(SSdb *pSdb, SStreamSeq *pStream) { return 0; }
 int32_t  mndStreamSeqActionUpdate(SSdb *pSdb, SStreamSeq *pOldStream, SStreamSeq *pNewStream) { return 0; }
 
-static void mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamReq *pCreate, int32_t snodeId) {
-  int32_t     code = 0;
+static void mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamReq *pCreate, SUserObj *pOperUser,
+                              int32_t snodeId) {
+  int32_t code = 0;
 
   pObj->pCreate = pCreate;
   strncpy(pObj->name, pCreate->name, TSDB_STREAM_FNAME_LEN);
+  (void)snprintf(pObj->createUser, sizeof(pObj->createUser), "%s", pOperUser->name);
+  pObj->ownerId = pOperUser->uid;
   pObj->mainSnodeId = snodeId;
-  
+
   pObj->userDropped = 0;
   pObj->userStopped = 0;
-  
+
   pObj->createTime = taosGetTimestampMs();
   pObj->updateTime = pObj->createTime;
 
@@ -332,42 +337,65 @@ _OVER:
   return code;
 }
 
-static int32_t mndStreamValidateCreate(SMnode *pMnode, const char* user, const char* token, SCMCreateStreamReq* pCreate) {
+static int32_t mndStreamValidateCreate(SMnode *pMnode, SUserObj* pOperUser, SCMCreateStreamReq* pCreate) {
   int32_t code = 0, lino = 0;
   int64_t streamId = pCreate->streamId;
+  char   *pUser = pOperUser->name;
+  char    objFName[TSDB_PRIV_MAX_KEY_LEN] = {0};
+
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
 
   if (pCreate->streamDB) {
-    code = mndCheckDbPrivilegeByName(pMnode, user, token, MND_OPER_WRITE_DB, pCreate->streamDB);
+    // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_WRITE_DB, pCreate->streamDB);
+    code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pCreate->streamDB, NULL);
     if (code) {
-      mstsError("user %s failed to create stream %s in db %s since %s", user, pCreate->name, pCreate->streamDB, tstrerror(code));
+      mstsError("user %s failed to create stream %s in db %s since %s", pUser, pCreate->name, pCreate->streamDB,
+                tstrerror(code));
     }
     TSDB_CHECK_CODE(code, lino, _OVER);
   }
 
   if (pCreate->triggerDB) {
-    code = mndCheckDbPrivilegeByName(pMnode, user, token, MND_OPER_READ_DB, pCreate->triggerDB);
+    // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_READ_DB, pCreate->triggerDB);
+    code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pCreate->triggerDB, NULL);
     if (code) {
-      mstsError("user %s failed to create stream %s using trigger db %s since %s", user, pCreate->name, pCreate->triggerDB, tstrerror(code));
+      mstsError("user %s failed to create stream %s using trigger db %s since %s", pUser, pCreate->name,
+                pCreate->triggerDB, tstrerror(code));
     }
     TSDB_CHECK_CODE(code, lino, _OVER);
+#if 0  // TODO check the owner of trigger table
+    if (pCreate->triggerTblName) {
+      // check trigger table privilege
+      code = mndCheckObjPrivilegeRecF(pMnode, pUser, PRIV_TBL_SELECT, "", pCreate->triggerDB, pCreate->triggerTblName);
+      if (code) {
+        mstsError("user %s failed to create stream %s using trigger table %s.%s since %s", pUser, pCreate->name,
+                  pCreate->triggerDB, pCreate->triggerTblName, tstrerror(code));
+      }
+      TSDB_CHECK_CODE(code, lino, _OVER);
+    }
+#endif
   }
 
   if (pCreate->calcDB) {
     int32_t dbNum = taosArrayGetSize(pCreate->calcDB);
     for (int32_t i = 0; i < dbNum; ++i) {
-      char* calcDB = taosArrayGetP(pCreate->calcDB, i);
-      code = mndCheckDbPrivilegeByName(pMnode, user, token, MND_OPER_READ_DB, calcDB);
+      char *calcDB = taosArrayGetP(pCreate->calcDB, i);
+      // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_READ_DB, calcDB);
+      code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, calcDB, NULL);
       if (code) {
-        mstsError("user %s failed to create stream %s using calcDB %s since %s", user, pCreate->name, calcDB, tstrerror(code));
+        mstsError("user %s failed to create stream %s using calcDB %s since %s", pUser, pCreate->name, calcDB,
+                  tstrerror(code));
       }
       TSDB_CHECK_CODE(code, lino, _OVER);
     }
   }
 
   if (pCreate->outDB) {
-    code = mndCheckDbPrivilegeByName(pMnode, user, token, MND_OPER_WRITE_DB, pCreate->outDB);
+    // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_WRITE_DB, pCreate->outDB);
+    code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pCreate->outDB, NULL);
     if (code) {
-      mstsError("user %s failed to create stream %s using out db %s since %s", user, pCreate->name, pCreate->outDB, tstrerror(code));
+      mstsError("user %s failed to create stream %s using out db %s since %s", pUser, pCreate->name, pCreate->outDB,
+                tstrerror(code));
     }
     TSDB_CHECK_CODE(code, lino, _OVER);
   }
@@ -426,11 +454,25 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   SSdb       *pSdb = pMnode->pSdb;
   int32_t     numOfRows = 0;
   SStreamObj *pStream = NULL;
-  int32_t     code = 0;
+  SUserObj   *pOperUser = NULL;
+  int32_t     code = 0, lino = 0;
+  bool        showAll = false;
+
+  TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
+  showAll =
+      (0 == mndCheckObjPrivilegeRec(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_STREAM, 0, pOperUser->acctId, "*", "*"));
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_STREAM, pShow->pIter, (void **)&pStream);
     if (pShow->pIter == NULL) break;
+
+    if (!showAll) {
+      if ((mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_STREAM, pStream->ownerId,
+                                    pStream->pCreate->streamDB, pStream->pCreate->name))) {
+        sdbRelease(pSdb, pStream);
+        continue;
+      }
+    }
 
     code = mstSetStreamAttrResBlock(pMnode, pStream, pBlock, numOfRows);
     if (code == 0) {
@@ -438,8 +480,14 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     }
     sdbRelease(pSdb, pStream);
   }
-
+  code = 0;
   pShow->numOfRows += numOfRows;
+_exit:
+  mndReleaseUser(pMnode, pOperUser);
+  if (code != 0) {
+    mError("failed to retrieve stream list at line %d since %s", lino, tstrerror(code));
+    TAOS_RETURN(code);
+  }
   return numOfRows;
 }
 
@@ -563,6 +611,7 @@ void mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, in
 static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
+  SUserObj   *pOperUser = NULL;
   int32_t     code = 0;
 
   SMPauseStreamReq pauseReq = {0};
@@ -589,12 +638,24 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
   
   mstsInfo("start to stop stream %s", pStream->name);
 
-  code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
-  if (code != TSDB_CODE_SUCCESS) {
+  // code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
+  if((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser))) {
     mstsError("user %s failed to stop stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
+
+  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
+                                            NULL)) ||
+      (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_STOP, PRIV_OBJ_STREAM, pStream->ownerId,
+                                       pStream->pCreate->streamDB, pStream->pCreate->name))) {
+    mstsError("user %s failed to stop stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
+    mndReleaseUser(pMnode, pOperUser);
+    sdbRelease(pMnode->pSdb, pStream);
+    return code;
+  }
+
+  mndReleaseUser(pMnode, pOperUser); // release user after privilege check
 
   if (atomic_load_8(&pStream->userDropped)) {
     code = TSDB_CODE_MND_STREAM_DROPPING;
@@ -645,6 +706,7 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
 static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
+  SUserObj   *pOperUser = NULL;
   int32_t     code = 0;
 
   if ((code = grantCheckExpire(TSDB_GRANT_STREAMS)) < 0) {
@@ -676,12 +738,24 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
 
   mstsInfo("start to start stream %s from stopped", pStream->name);
 
-  code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
-  if (code != TSDB_CODE_SUCCESS) {
+  // code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser))) {
     mstsError("user %s failed to start stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     return code;
   }
+
+  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
+                                            NULL)) ||
+      (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_START, PRIV_OBJ_STREAM, pStream->ownerId,
+                                       pStream->pCreate->streamDB, pStream->pCreate->name))) {
+    mstsError("user %s failed to start stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
+    mndReleaseUser(pMnode, pOperUser);
+    sdbRelease(pMnode->pSdb, pStream);
+    return code;
+  }
+
+  mndReleaseUser(pMnode, pOperUser); // release user after privilege check
 
   if (atomic_load_8(&pStream->userDropped)) {
     code = TSDB_CODE_MND_STREAM_DROPPING;
@@ -735,11 +809,12 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
-
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
+  SUserObj   *pOperUser = NULL;
   int32_t     code = 0;
+  int32_t     notExistNum = 0;
 
   SMDropStreamReq dropReq = {0};
   int64_t         tss = taosGetTimestampMs();
@@ -749,112 +824,164 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  mDebug("recv drop stream:%s msg", dropReq.name);
+  mDebug("recv drop stream msg, count:%d", dropReq.count);
 
-  code = mndAcquireStream(pMnode, dropReq.name, &pStream);
-  if (pStream == NULL || code != 0) {
-    if (dropReq.igNotExists) {
-      mInfo("stream:%s not exist, ignore not exist is set, drop stream exec done with success", dropReq.name);
-      sdbRelease(pMnode->pSdb, pStream);
-      tFreeMDropStreamReq(&dropReq);
-      return 0;
-    } else {
-      mError("stream:%s not exist failed to drop it", dropReq.name);
-      tFreeMDropStreamReq(&dropReq);
-      TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
-    }
-  }
-
-  int64_t streamId = pStream->pCreate->streamId;
-
-  code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
+  // Acquire user object for privilege check
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
   if (code != 0) {
-    mstsError("user %s failed to drop stream %s since %s", RPC_MSG_USER(pReq), dropReq.name, tstrerror(code));
-    sdbRelease(pMnode->pSdb, pStream);
     tFreeMDropStreamReq(&dropReq);
-    return code;
+    TAOS_RETURN(code);
   }
 
-  if (pStream->pCreate->tsmaId != 0) {
-    mstsDebug("try to drop tsma related stream, tsmaId:%" PRIx64, pStream->pCreate->tsmaId);
-
-    void    *pIter = NULL;
-    SSmaObj *pSma = NULL;
-    pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
-    while (pIter) {
-      if (pSma && pSma->uid == pStream->pCreate->tsmaId) {
-        sdbRelease(pMnode->pSdb, pSma);
-        sdbRelease(pMnode->pSdb, pStream);
-
-        sdbCancelFetch(pMnode->pSdb, pIter);
+  // check if all streams exist
+  if (!dropReq.igNotExists) {
+    for (int32_t i = 0; i < dropReq.count; i++) {
+      if (!sdbCheckExists(pMnode->pSdb, SDB_STREAM, dropReq.name[i])) {
+        mError("stream:%s not exist failed to drop it", dropReq.name[i]);
+        mndReleaseUser(pMnode, pOperUser);
         tFreeMDropStreamReq(&dropReq);
-        code = TSDB_CODE_TSMA_MUST_BE_DROPPED;
-
-        mstsError("refused to drop tsma-related stream %s since tsma still exists", dropReq.name);
-        TAOS_RETURN(code);
+        TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
       }
-
-      if (pSma) {
-        sdbRelease(pMnode->pSdb, pSma);
-      }
-
-      pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
     }
   }
 
-  mstsInfo("start to drop stream %s", pStream->pCreate->name);
-
-  pStream->updateTime = taosGetTimestampMs();
-
-  atomic_store_8(&pStream->userDropped, 1);
-
-  MND_STREAM_SET_LAST_TS(STM_EVENT_DROP_STREAM, pStream->updateTime);
-
-  msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
-
-  STrans *pTrans = NULL;
-  code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_NOTHING, MND_STREAM_DROP_NAME, &pTrans);
-  if (pTrans == NULL || code) {
-    mstsError("failed to drop stream %s since %s", dropReq.name, tstrerror(code));
-    sdbRelease(pMnode->pSdb, pStream);
+  // Create a single transaction for all stream drops
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, MND_STREAM_DROP_NAME);
+  if (pTrans == NULL) {
+    mError("failed to create drop stream transaction since %s", tstrerror(terrno));
+    code = terrno;
+    mndReleaseUser(pMnode, pOperUser);
     tFreeMDropStreamReq(&dropReq);
     TAOS_RETURN(code);
   }
+  pTrans->ableToBeKilled = true;
 
-  // drop stream
-  code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_DROPPED);
-  if (code) {
-    mstsError("trans:%d, failed to append drop stream trans since %s", pTrans->id, tstrerror(code));
+  // Process all streams and add them to the transaction
+  for (int32_t i = 0; i < dropReq.count; i++) {
+    char *streamName = dropReq.name[i];
+    mDebug("drop stream[%d/%d]: %s", i + 1, dropReq.count, streamName);
+
+    code = mndAcquireStream(pMnode, streamName, &pStream);
+    if (pStream == NULL || code != 0) {
+      mWarn("stream:%s not exist, ignore not exist is set, drop stream exec done with success", streamName);
+      sdbRelease(pMnode->pSdb, pStream);
+      pStream = NULL;
+      notExistNum++;
+      continue;
+    }
+
+    int64_t streamId = pStream->pCreate->streamId;
+
+    if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
+                                              NULL)) ||
+        (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_STREAM, pStream->ownerId,
+                                         pStream->pCreate->streamDB, pStream->pCreate->name))) {
+      mstsError("user %s failed to drop stream %s since %s", pReq->info.conn.user, streamName, tstrerror(code));
+      sdbRelease(pMnode->pSdb, pStream);
+      pStream = NULL;
+      mndTransDrop(pTrans);
+      pTrans = NULL;
+      goto _OVER;
+    }
+
+    if (pStream->pCreate->tsmaId != 0) {
+      mstsDebug("try to drop tsma related stream, tsmaId:%" PRIx64, pStream->pCreate->tsmaId);
+
+      void    *pIter = NULL;
+      SSmaObj *pSma = NULL;
+      pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
+      while (pIter) {
+        if (pSma && pSma->uid == pStream->pCreate->tsmaId) {
+          sdbRelease(pMnode->pSdb, pSma);
+          sdbRelease(pMnode->pSdb, pStream);
+          pStream = NULL;
+
+          sdbCancelFetch(pMnode->pSdb, pIter);
+          code = TSDB_CODE_TSMA_MUST_BE_DROPPED;
+
+          mstsError("refused to drop tsma-related stream %s since tsma still exists", streamName);
+          mndTransDrop(pTrans);
+          pTrans = NULL;
+          goto _OVER;
+        }
+
+        if (pSma) {
+          sdbRelease(pMnode->pSdb, pSma);
+        }
+
+        pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
+      }
+    }
+
+    mstsInfo("start to drop stream %s", pStream->pCreate->name);
+
+    pStream->updateTime = taosGetTimestampMs();
+
+    atomic_store_8(&pStream->userDropped, 1);
+
+    MND_STREAM_SET_LAST_TS(STM_EVENT_DROP_STREAM, pStream->updateTime);
+
+    msmUndeployStream(pMnode, streamId, pStream->pCreate->name);
+
+    // Append drop stream operation to the transaction
+    code = mndStreamTransAppend(pStream, pTrans, SDB_STATUS_DROPPED);
+    if (code) {
+      mstsError("trans:%d, failed to append drop stream %s trans since %s", pTrans->id, streamName, tstrerror(code));
+      sdbRelease(pMnode->pSdb, pStream);
+      pStream = NULL;
+      // mndStreamTransAppend already called mndTransDrop on failure, set pTrans to NULL to avoid double free
+      pTrans = NULL;
+      goto _OVER;
+    }
+
     sdbRelease(pMnode->pSdb, pStream);
+    pStream = NULL;
+
+    mstsDebug("drop stream %s added to transaction", streamName);
+  }
+
+  // Prepare and execute the transaction for all streams
+  if (notExistNum < dropReq.count) {
+    code = mndTransPrepare(pMnode, pTrans);
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+      mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, tstrerror(code));
+      mndTransDrop(pTrans);
+      goto _OVER;
+    }
+    mInfo("trans:%d, drop stream transaction prepared for %d streams", pTrans->id, dropReq.count - notExistNum);
+  } else {
+    // All streams don't exist, no need to prepare transaction
     mndTransDrop(pTrans);
-    tFreeMDropStreamReq(&dropReq);
-    TAOS_RETURN(code);
+    pTrans = NULL;
   }
 
-  code = mndTransPrepare(pMnode, pTrans);
-  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mstsError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, tstrerror(code));
-    sdbRelease(pMnode->pSdb, pStream);
-    mndTransDrop(pTrans);
-    tFreeMDropStreamReq(&dropReq);
-    TAOS_RETURN(code);
-  }
-
-  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE && notExistNum < dropReq.count) {
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;
-    auditRecord(pReq, pMnode->clusterId, "dropStream", "", pStream->pCreate->streamDB, NULL, 0, duration, 0);
+    // Use first stream's database for audit (assuming all streams are from same db in batch)
+    if (dropReq.count > 0) {
+      SStreamObj *pFirstStream = NULL;
+      if (mndAcquireStream(pMnode, dropReq.name[0], &pFirstStream) == 0 && pFirstStream != NULL) {
+        auditRecord(pReq, pMnode->clusterId, "dropStream", "", pFirstStream->pCreate->streamDB, NULL, 0, duration, 0);
+        sdbRelease(pMnode->pSdb, pFirstStream);
+      }
+    }
   }
 
-  sdbRelease(pMnode->pSdb, pStream);
-  mndTransDrop(pTrans);
+  // If any stream was successfully added to transaction, return ACTION_IN_PROGRESS
+  // Otherwise, all streams don't exist (and igNotExists is set), return SUCCESS
+  code = (notExistNum < dropReq.count) ? TSDB_CODE_ACTION_IN_PROGRESS : TSDB_CODE_SUCCESS;
 
-  mstsDebug("drop stream %s half completed", dropReq.name);
-  code = TSDB_CODE_ACTION_IN_PROGRESS;
-
+_OVER:
+  if (pStream) {
+    sdbRelease(pMnode->pSdb, pStream);
+  }
+  if (pTrans) {
+    mndTransDrop(pTrans);
+  }
+  mndReleaseUser(pMnode, pOperUser);
   tFreeMDropStreamReq(&dropReq);
-  
   TAOS_RETURN(code);
 }
 
@@ -862,6 +989,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
   SStreamObj  streamObj = {0};
+  SUserObj    *pOperUser = NULL;
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
   STrans     *pTrans = NULL;
@@ -908,10 +1036,15 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndStreamValidateCreate(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pCreate);
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
+  if (pOperUser == NULL) {
+    TSDB_CHECK_CODE(TSDB_CODE_MND_NO_USER_FROM_CONN, lino, _OVER);
+  }
+
+  code = mndStreamValidateCreate(pMnode, pOperUser, pCreate);
   TSDB_CHECK_CODE(code, lino, _OVER);
 
-  mndStreamBuildObj(pMnode, &streamObj, pCreate, snodeId);
+  mndStreamBuildObj(pMnode, &streamObj, pCreate, pOperUser, snodeId);
   pCreate = NULL;
 
   pStream = &streamObj;
@@ -972,6 +1105,7 @@ _OVER:
 
   mndTransDrop(pTrans);
   tFreeStreamObj(&streamObj);
+  mndReleaseUser(pMnode, pOperUser);
 
   return code;
 }
@@ -979,6 +1113,7 @@ _OVER:
 static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
+  SUserObj   *pOperUser = NULL;
   int32_t     code = 0;
   int64_t     tss = taosGetTimestampMs();
 
@@ -1003,13 +1138,33 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   
   mstsInfo("start to recalc stream %s", recalcReq.name);
 
-  code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
-  if (code != TSDB_CODE_SUCCESS) {
-    mstsError("user %s failed to recalc stream %s since %s", RPC_MSG_USER(pReq), recalcReq.name, tstrerror(code));
+  // code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pStream->pCreate->streamDB);
+  // if (code != TSDB_CODE_SUCCESS) {
+  //   mstsError("user %s failed to recalc stream %s since %s", RPC_MSG_USER(pReq), recalcReq.name, tstrerror(code));
+  //   sdbRelease(pMnode->pSdb, pStream);
+  //   tFreeMRecalcStreamReq(&recalcReq);
+  //   return code;
+  // }
+
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser))) {
+    mstsError("user %s failed to recalc stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
+    sdbRelease(pMnode->pSdb, pStream);
+    tFreeMRecalcStreamReq(&recalcReq);
+    TAOS_RETURN(code);
+  }
+
+  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pStream->pCreate->streamDB,
+                                            NULL)) ||
+      (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_START, PRIV_OBJ_STREAM, pStream->ownerId,
+                                       pStream->pCreate->streamDB, pStream->pCreate->name))) {
+    mstsError("user %s failed to recalc stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
+    mndReleaseUser(pMnode, pOperUser);
     sdbRelease(pMnode->pSdb, pStream);
     tFreeMRecalcStreamReq(&recalcReq);
     return code;
   }
+
+  mndReleaseUser(pMnode, pOperUser); // release user after privilege check
 
   if (atomic_load_8(&pStream->userDropped)) {
     code = TSDB_CODE_MND_STREAM_DROPPING;

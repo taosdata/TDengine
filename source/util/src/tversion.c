@@ -97,6 +97,25 @@ int32_t taosCheckVersionCompatible(int32_t clientVer, int32_t serverVer, int32_t
   }
 }
 
+int32_t taosCheckEditionCompatible(const char *pClientVersion, const char *pServerVersion) {
+  const char *pClientEdition = strrchr(pClientVersion, '.');
+  const char *pServerEdition = strrchr(pServerVersion, '.');
+
+  // according to current version number design, the last segment is edition info.
+  // the following checks are based on this assumption, if the design changes, the
+  // checks should be updated accordingly
+
+  if ((pServerEdition == NULL) || (pClientEdition == NULL)) {
+    return TSDB_CODE_EDITION_NOT_COMPATIBLE;
+  }
+  
+  if (strcmp(pServerEdition, pClientEdition) != 0) {
+    return TSDB_CODE_EDITION_NOT_COMPATIBLE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t taosCheckVersionCompatibleFromStr(const char *pClientVersion, const char *pServerVersion,
                                           int32_t comparedSegments) {
   int32_t clientVersion = 0;
@@ -107,6 +126,9 @@ int32_t taosCheckVersionCompatibleFromStr(const char *pClientVersion, const char
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = taosCheckVersionCompatible(clientVersion, serverVersion, comparedSegments);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = taosCheckEditionCompatible(pClientVersion, pServerVersion);
   }
   return code;
 }

@@ -28,6 +28,7 @@ inspect_name="${PREFIX}inspect"
 tarbitratorName="tarbitratord"
 mqtt_name="${PREFIX}mqtt"
 taosgen_name="${PREFIX}gen"
+xnode_name="xnoded"
 productName="TDengine TSDB"
 
 function usage() {
@@ -170,9 +171,9 @@ if [ "${verMode}" == "cluster" ]; then
   else
     services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
   fi
-  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${PREFIX}udf" "${mqtt_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh" "uninstall_taosx.sh")
+  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${PREFIX}udf" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh" "uninstall_taosx.sh")
 else
-  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${PREFIX}udf" "${mqtt_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh")
+  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${PREFIX}udf" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh")
   services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
 fi
 
@@ -199,16 +200,16 @@ else
   service_mod=2
 fi
 
-
-
 kill_service_of() {
-  _service=$1
+  local svc=$1
   # grep -v -x "$$" : exclude the current script's own PID
   # ps -o pid=,comm= -p ... : get pid and command name
   # awk '$2 != "rmtaos" && $2 != "uninstall.sh" {print $1}' : exclude rmtaos and uninstall.sh processes
-  pids=$(pgrep -x "$_service" | grep -v -x "$$" | xargs -r ps -o pid=,comm= -p 2>/dev/null | awk '$2 != "rmtaos" && $2 != "uninstall.sh" {print $1}')
+  pids=$(pgrep -x "$svc" | grep -v -x "$$" || true)
   if [ -n "$pids" ]; then
-    kill -9 "$pids" || :
+    echo "$pids" | xargs -r ps -o pid=,comm= -p 2>/dev/null \
+      | awk '$2 != "rmtaos" && $2 != "uninstall.sh" {print $1}' \
+      | xargs -r kill -9 2>/dev/null || true
   fi
 }
 

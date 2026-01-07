@@ -2067,7 +2067,6 @@ static int32_t mndProcessUpdateDnodeReloadTls(SRpcMsg *pReq) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pAddr); i++) {
     SEpSet *pEpSet = (SEpSet *)taosArrayGet(pAddr, i);
-    // SEpSet epSet = mndCreateEpSetByStr(addr);
     SRpcMsg rpcMsg = {.msgType = TDMT_DND_RELOAD_DNODE_TLS, .pCont = NULL, .contLen = 0};
     code = tmsgSendReq(pEpSet, &rpcMsg);
     if (code != 0) {

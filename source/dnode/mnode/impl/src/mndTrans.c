@@ -1413,7 +1413,7 @@ static int32_t mndTransCheckCommitActions(SMnode *pMnode, STrans *pTrans) {
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   int32_t code = 0;
   if (pTrans == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    TAOS_CHECK_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
   mInfo("trans:%d, action list:", pTrans->id);
@@ -1489,7 +1489,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   mndTransExecute(pMnode, pNew, false);
   mndReleaseTrans(pMnode, pNew);
   // TDOD change to TAOS_RETURN(code);
-  return 0;
+  TAOS_RETURN(0);
 }
 
 static int32_t mndTransCommit(SMnode *pMnode, STrans *pTrans) {
@@ -1619,6 +1619,12 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         void   *pCont = NULL;
         int32_t contLen = 0;
         if (0 == mndBuildSMCreateTokenResp(pTrans, &pCont, &contLen)) {
+          mndTransSetRpcRsp(pTrans, pCont, contLen);
+        }
+      } else if (pTrans->originRpcType == TDMT_MND_CREATE_TOTP_SECRET) {
+        void   *pCont = NULL;
+        int32_t contLen = 0;
+        if (0 == mndBuildSMCreateTotpSecretResp(pTrans, &pCont, &contLen)) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
       }

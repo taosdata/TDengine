@@ -781,6 +781,10 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 
   设置连接数据库使用的密码（默认值：`"taosdata"`）。
 
+- **`collectd.token`**
+
+  设置连接数据库使用的token（默认值：`""`），TDengine TSDB 3.4.0.0 及以上企业版生效。
+
 - **`collectd.ttl`**
 
   定义 collectd 数据的生存时间（默认值：`0`，表示无超时）。
@@ -820,6 +824,10 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 - **`opentsdb_telnet.password`**
 
   设置数据库连接密码（默认值：`"taosdata"`）。
+
+- **`opentsdb_telnet.token`**
+
+  设置连接数据库使用的token（默认值：`""`），TDengine TSDB 3.4.0.0 及以上企业版生效。
 
 - **`opentsdb_telnet.ttl`**
 
@@ -866,6 +874,10 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 - **`statsd.password`**
 
   设置数据库连接密码（默认值：`"taosdata"`）。
+
+- **`statsd.token`**
+
+  设置连接数据库使用的token（默认值：`""`），TDengine TSDB 3.4.0.0 及以上企业版生效。
 
 - **`statsd.ttl`**
 
@@ -926,6 +938,10 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 - **`open_metrics.password`**
 
   设置连接 TDengine TSDB 的密码（默认值：`"taosdata"`）。
+
+- **`open_metrics.token`**
+
+  设置连接数据库使用的token（默认值：`""`），TDengine TSDB 3.4.0.0 及以上企业版生效。
 
 - **`open_metrics.urls`**
 
@@ -1008,6 +1024,10 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 - **`node_exporter.password`**
 
   设置数据库连接密码（默认值：`"taosdata"`）。
+
+- **`node_exporter.token`**
+
+  设置连接数据库使用的token（默认值：`""`），TDengine TSDB 3.4.0.0 及以上企业版生效。
 
 - **`node_exporter.ttl`**
 
@@ -1181,6 +1201,7 @@ rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i
 | `collectd.enable`                     | `TAOS_ADAPTER_COLLECTD_ENABLE`                        |
 | `collectd.password`                   | `TAOS_ADAPTER_COLLECTD_PASSWORD`                      |
 | `collectd.port`                       | `TAOS_ADAPTER_COLLECTD_PORT`                          |
+| `collectd.token`                      | `TAOS_ADAPTER_COLLECTD_TOKEN`                         |
 | `collectd.ttl`                        | `TAOS_ADAPTER_COLLECTD_TTL`                           |
 | `collectd.user`                       | `TAOS_ADAPTER_COLLECTD_USER`                          |
 | `collectd.worker`                     | `TAOS_ADAPTER_COLLECTD_WORKER`                        |
@@ -1228,6 +1249,7 @@ rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i
 | `node_exporter.keyFile`               | `TAOS_ADAPTER_NODE_EXPORTER_KEY_FILE`                 |
 | `node_exporter.password`              | `TAOS_ADAPTER_NODE_EXPORTER_PASSWORD`                 |
 | `node_exporter.responseTimeout`       | `TAOS_ADAPTER_NODE_EXPORTER_RESPONSE_TIMEOUT`         |
+| `node_exporter.token`                 | `TAOS_ADAPTER_NODE_EXPORTER_TOKEN`                    |
 | `node_exporter.ttl`                   | `TAOS_ADAPTER_NODE_EXPORTER_TTL`                      |
 | `node_exporter.urls`                  | `TAOS_ADAPTER_NODE_EXPORTER_URLS`                     |
 | `node_exporter.user`                  | `TAOS_ADAPTER_NODE_EXPORTER_USER`                     |
@@ -1246,6 +1268,7 @@ rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i
 | `open_metrics.insecureSkipVerify`     | `TAOS_ADAPTER_OPEN_METRICS_INSECURE_SKIP_VERIFY`      |
 | `open_metrics.gatherDurationSeconds`  | `TAOS_ADAPTER_OPEN_METRICS_GATHER_DURATION_SECONDS`   |
 | `open_metrics.ignoreTimestamp`        | `TAOS_ADAPTER_OPEN_METRICS_IGNORE_TIMESTAMP`          |
+| `open_metrics.token`                  | `TAOS_ADAPTER_OPEN_METRICS_TOKEN`                     |
 | `open_metrics.ttl`                    | `TAOS_ADAPTER_OPEN_METRICS_TTL`                       |
 | `opentsdb.enable`                     | `TAOS_ADAPTER_OPENTSDB_ENABLE`                        |
 | `opentsdb_telnet.batchSize`           | `TAOS_ADAPTER_OPENTSDB_TELNET_BATCH_SIZE`             |
@@ -1256,6 +1279,7 @@ rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i
 | `opentsdb_telnet.password`            | `TAOS_ADAPTER_OPENTSDB_TELNET_PASSWORD`               |
 | `opentsdb_telnet.ports`               | `TAOS_ADAPTER_OPENTSDB_TELNET_PORTS`                  |
 | `opentsdb_telnet.tcpKeepAlive`        | `TAOS_ADAPTER_OPENTSDB_TELNET_TCP_KEEP_ALIVE`         |
+| `opentsdb_telnet.token`               | `TAOS_ADAPTER_OPENTSDB_TELNET_TOKEN`                  |
 | `opentsdb_telnet.ttl`                 | `TAOS_ADAPTER_OPENTSDB_TELNET_TTL`                    |
 | `opentsdb_telnet.user`                | `TAOS_ADAPTER_OPENTSDB_TELNET_USER`                   |
 | `pool.idleTimeout`                    | `TAOS_ADAPTER_POOL_IDLE_TIMEOUT`                      |
@@ -1290,6 +1314,7 @@ rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i
 | `statsd.port`                         | `TAOS_ADAPTER_STATSD_PORT`                            |
 | `statsd.protocol`                     | `TAOS_ADAPTER_STATSD_PROTOCOL`                        |
 | `statsd.tcpKeepAlive`                 | `TAOS_ADAPTER_STATSD_TCP_KEEP_ALIVE`                  |
+| `statsd.token`                        | `TAOS_ADAPTER_STATSD_TOKEN`                           |
 | `statsd.ttl`                          | `TAOS_ADAPTER_STATSD_TTL`                             |
 | `statsd.user`                         | `TAOS_ADAPTER_STATSD_USER`                            |
 | `statsd.worker`                       | `TAOS_ADAPTER_STATSD_WORKER`                          |
@@ -1600,266 +1625,275 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 <details>
 <summary>详细信息</summary>
 
-| field                                               | type      | is\_tag | comment                |
-|:----------------------------------------------------|:----------|:--------|:-----------------------|
-| _ts                                                 | TIMESTAMP |         | 数据采集时间戳                |
-| taos_connect_total                                  | DOUBLE    |         | 尝试建立连接的总次数             |
-| taos_connect_success                                | DOUBLE    |         | 成功建立连接的次数              |
-| taos_connect_fail                                   | DOUBLE    |         | 建立连接失败的次数              |
-| taos_close_total                                    | DOUBLE    |         | 尝试关闭连接的总次数             |
-| taos_close_success                                  | DOUBLE    |         | 成功关闭连接的次数              |
-| taos_schemaless_insert_total                        | DOUBLE    |         | schemaless 插入操作的总次数    |
-| taos_schemaless_insert_success                      | DOUBLE    |         | schemaless 插入成功的次数     |
-| taos_schemaless_insert_fail                         | DOUBLE    |         | schemaless 插入失败的次数     |
-| taos_schemaless_free_result_total                   | DOUBLE    |         | schemaless 释放结果集的总次数   |
-| taos_schemaless_free_result_success                 | DOUBLE    |         | schemaless 成功释放结果集的次数  |
-| taos_query_total                                    | DOUBLE    |         | 执行同步 SQL 的总次数          |
-| taos_query_success                                  | DOUBLE    |         | 执行同步 SQL 成功的次数         |
-| taos_query_fail                                     | DOUBLE    |         | 执行同步 SQL 失败的次数         |
-| taos_query_free_result_total                        | DOUBLE    |         | 释放同步 SQL 结果集的总次数       |
-| taos_query_free_result_success                      | DOUBLE    |         | 成功释放同步 SQL 结果集的次数      |
-| taos_query_a_with_reqid_total                       | DOUBLE    |         | 带请求 ID 的异步 SQL 总次数     |
-| taos_query_a_with_reqid_success                     | DOUBLE    |         | 带请求 ID 的异步 SQL 成功次数    |
-| taos_query_a_with_reqid_callback_total              | DOUBLE    |         | 带请求 ID 的异步 SQL 回调总次数   |
-| taos_query_a_with_reqid_callback_success            | DOUBLE    |         | 带请求 ID 的异步 SQL 回调成功次数  |
-| taos_query_a_with_reqid_callback_fail               | DOUBLE    |         | 带请求 ID 的异步 SQL 回调失败次数  |
-| taos_query_a_free_result_total                      | DOUBLE    |         | 异步 SQL 释放结果集的总次数       |
-| taos_query_a_free_result_success                    | DOUBLE    |         | 异步 SQL 成功释放结果集的次数      |
-| tmq_consumer_poll_result_total                      | DOUBLE    |         | 消费者 poll 有数据的总次数       |
-| tmq_free_result_total                               | DOUBLE    |         | 释放 TMQ 数据的总次数          |
-| tmq_free_result_success                             | DOUBLE    |         | 成功释放 TMQ 数据的次数         |
-| taos_stmt2_init_total                               | DOUBLE    |         | stmt2 初始化的总次数          |
-| taos_stmt2_init_success                             | DOUBLE    |         | stmt2 初始化成功的次数         |
-| taos_stmt2_init_fail                                | DOUBLE    |         | stmt2 初始化失败的次数         |
-| taos_stmt2_close_total                              | DOUBLE    |         | stmt2 关闭的总次数           |
-| taos_stmt2_close_success                            | DOUBLE    |         | stmt2 关闭成功的次数          |
-| taos_stmt2_close_fail                               | DOUBLE    |         | stmt2 关闭失败的次数          |
-| taos_stmt2_get_fields_total                         | DOUBLE    |         | stmt2 获取字段的总次数         |
-| taos_stmt2_get_fields_success                       | DOUBLE    |         | stmt2 成功获取字段的次数        |
-| taos_stmt2_get_fields_fail                          | DOUBLE    |         | stmt2 获取字段失败的次数        |
-| taos_stmt2_free_fields_total                        | DOUBLE    |         | stmt2 释放字段的总次数         |
-| taos_stmt2_free_fields_success                      | DOUBLE    |         | stmt2 成功释放字段的次数        |
-| taos_stmt_init_with_reqid_total                     | DOUBLE    |         | 带请求 ID 的 stmt 初始化总次数   |
-| taos_stmt_init_with_reqid_success                   | DOUBLE    |         | 带请求 ID 的 stmt 初始化成功次数  |
-| taos_stmt_init_with_reqid_fail                      | DOUBLE    |         | 带请求 ID 的 stmt 初始化失败次数  |
-| taos_stmt_close_total                               | DOUBLE    |         | stmt 关闭的总次数            |
-| taos_stmt_close_success                             | DOUBLE    |         | stmt 关闭成功的次数           |
-| taos_stmt_close_fail                                | DOUBLE    |         | stmt 关闭失败的次数           |
-| taos_stmt_get_tag_fields_total                      | DOUBLE    |         | stmt 获取 tag 字段的总次数     |
-| taos_stmt_get_tag_fields_success                    | DOUBLE    |         | stmt 成功获取 tag 字段的次数    |
-| taos_stmt_get_tag_fields_fail                       | DOUBLE    |         | stmt 获取 tag 字段失败的次数    |
-| taos_stmt_get_col_fields_total                      | DOUBLE    |         | stmt 获取列字段的总次数         |
-| taos_stmt_get_col_fields_success                    | DOUBLE    |         | stmt 成功获取列字段的次数        |
-| taos_stmt_get_col_fields_fail                       | DOUBLE    |         | stmt 获取列字段失败的次数        |
-| taos_stmt_reclaim_fields_total                      | DOUBLE    |         | stmt 释放字段的总次数          |
-| taos_stmt_reclaim_fields_success                    | DOUBLE    |         | stmt 成功释放字段的次数         |
-| tmq_get_json_meta_total                             | DOUBLE    |         | tmq 获取 JSON 元数据的总次数    |
-| tmq_get_json_meta_success                           | DOUBLE    |         | tmq 成功获取 JSON 元数据的次数   |
-| tmq_free_json_meta_total                            | DOUBLE    |         | tmq 释放 JSON 元数据的总次数    |
-| tmq_free_json_meta_success                          | DOUBLE    |         | tmq 成功释放 JSON 元数据的次数   |
-| taos_fetch_whitelist_a_total                        | DOUBLE    |         | 异步获取白名单的总次数            |
-| taos_fetch_whitelist_a_success                      | DOUBLE    |         | 异步成功获取白名单的次数           |
-| taos_fetch_whitelist_a_callback_total               | DOUBLE    |         | 异步获取白名单回调总次数           |
-| taos_fetch_whitelist_a_callback_success             | DOUBLE    |         | 异步成功获取白名单回调次数          |
-| taos_fetch_whitelist_a_callback_fail                | DOUBLE    |         | 异步获取白名单回调失败次数          |
-| taos_fetch_rows_a_total                             | DOUBLE    |         | 异步获取行的总次数              |
-| taos_fetch_rows_a_success                           | DOUBLE    |         | 异步成功获取行的次数             |
-| taos_fetch_rows_a_callback_total                    | DOUBLE    |         | 异步获取行回调总次数             |
-| taos_fetch_rows_a_callback_success                  | DOUBLE    |         | 异步成功获取行回调次数            |
-| taos_fetch_rows_a_callback_fail                     | DOUBLE    |         | 异步获取行回调失败次数            |
-| taos_fetch_raw_block_a_total                        | DOUBLE    |         | 异步获取原始块的总次数            |
-| taos_fetch_raw_block_a_success                      | DOUBLE    |         | 异步成功获取原始块的次数           |
-| taos_fetch_raw_block_a_callback_total               | DOUBLE    |         | 异步获取原始块回调总次数           |
-| taos_fetch_raw_block_a_callback_success             | DOUBLE    |         | 异步成功获取原始块回调次数          |
-| taos_fetch_raw_block_a_callback_fail                | DOUBLE    |         | 异步获取原始块回调失败次数          |
-| tmq_get_raw_total                                   | DOUBLE    |         | 获取原始数据的总次数             |
-| tmq_get_raw_success                                 | DOUBLE    |         | 成功获取原始数据的次数            |
-| tmq_get_raw_fail                                    | DOUBLE    |         | 获取原始数据失败的次数            |
-| tmq_free_raw_total                                  | DOUBLE    |         | 释放原始数据的总次数             |
-| tmq_free_raw_success                                | DOUBLE    |         | 成功释放原始数据的次数            |
-| tmq_consumer_new_total                              | DOUBLE    |         | 创建新消费者的总次数             |
-| tmq_consumer_new_success                            | DOUBLE    |         | 成功创建新消费者的次数            |
-| tmq_consumer_new_fail                               | DOUBLE    |         | 创建新消费者失败的次数            |
-| tmq_consumer_close_total                            | DOUBLE    |         | 关闭消费者的总次数              |
-| tmq_consumer_close_success                          | DOUBLE    |         | 成功关闭消费者的次数             |
-| tmq_consumer_close_fail                             | DOUBLE    |         | 关闭消费者失败的次数             |
-| tmq_subscribe_total                                 | DOUBLE    |         | 订阅主题的总次数               |
-| tmq_subscribe_success                               | DOUBLE    |         | 成功订阅主题的次数              |
-| tmq_subscribe_fail                                  | DOUBLE    |         | 订阅主题失败的次数              |
-| tmq_unsubscribe_total                               | DOUBLE    |         | 取消订阅的总次数               |
-| tmq_unsubscribe_success                             | DOUBLE    |         | 成功取消订阅的次数              |
-| tmq_unsubscribe_fail                                | DOUBLE    |         | 取消订阅失败的次数              |
-| tmq_list_new_total                                  | DOUBLE    |         | 创建新主题列表的总次数            |
-| tmq_list_new_success                                | DOUBLE    |         | 成功创建新主题列表的次数           |
-| tmq_list_new_fail                                   | DOUBLE    |         | 创建新主题列表失败的次数           |
-| tmq_list_destroy_total                              | DOUBLE    |         | 销毁主题列表的总次数             |
-| tmq_list_destroy_success                            | DOUBLE    |         | 成功销毁主题列表的次数            |
-| tmq_conf_new_total                                  | DOUBLE    |         | tmq 创建新配置的总次数          |
-| tmq_conf_new_success                                | DOUBLE    |         | tmq 成功创建新配置的次数         |
-| tmq_conf_new_fail                                   | DOUBLE    |         | tmq 创建新配置失败的次数         |
-| tmq_conf_destroy_total                              | DOUBLE    |         | tmq 销毁配置的总次数           |
-| tmq_conf_destroy_success                            | DOUBLE    |         | tmq 成功销毁配置的次数          |
-| taos_stmt2_prepare_total                            | DOUBLE    |         | stmt2 准备的总次数           |
-| taos_stmt2_prepare_success                          | DOUBLE    |         | stmt2 准备成功的次数          |
-| taos_stmt2_prepare_fail                             | DOUBLE    |         | stmt2 准备失败的次数          |
-| taos_stmt2_is_insert_total                          | DOUBLE    |         | 检查是否为插入的总次数            |
-| taos_stmt2_is_insert_success                        | DOUBLE    |         | 成功检查是否为插入的次数           |
-| taos_stmt2_is_insert_fail                           | DOUBLE    |         | 检查是否为插入失败的次数           |
-| taos_stmt2_bind_param_total                         | DOUBLE    |         | stmt2 绑定参数的总次数         |
-| taos_stmt2_bind_param_success                       | DOUBLE    |         | stmt2 成功绑定参数的次数        |
-| taos_stmt2_bind_param_fail                          | DOUBLE    |         | stmt2 绑定参数失败的次数        |
-| taos_stmt2_exec_total                               | DOUBLE    |         | stmt2 执行的总次数           |
-| taos_stmt2_exec_success                             | DOUBLE    |         | stmt2 执行成功的次数          |
-| taos_stmt2_exec_fail                                | DOUBLE    |         | stmt2 执行失败的次数          |
-| taos_stmt2_error_total                              | DOUBLE    |         | stmt2 错误检查的总次数         |
-| taos_stmt2_error_success                            | DOUBLE    |         | stmt2 成功检查错误的次数        |
-| taos_fetch_row_total                                | DOUBLE    |         | 同步获取行的总次数              |
-| taos_fetch_row_success                              | DOUBLE    |         | 成功同步获取行的次数             |
-| taos_is_update_query_total                          | DOUBLE    |         | 检查是否为更新语句的总次数          |
-| taos_is_update_query_success                        | DOUBLE    |         | 成功检查是否为更新语句的次数         |
-| taos_affected_rows_total                            | DOUBLE    |         | SQL 获取影响行数的总次数         |
-| taos_affected_rows_success                          | DOUBLE    |         | SQL 成功获取影响行数的次数        |
-| taos_num_fields_total                               | DOUBLE    |         | 获取字段数量的总次数             |
-| taos_num_fields_success                             | DOUBLE    |         | 成功获取字段数量的次数            |
-| taos_fetch_fields_e_total                           | DOUBLE    |         | 获取字段信息的扩展总次数           |
-| taos_fetch_fields_e_success                         | DOUBLE    |         | 成功获取字段信息的扩展次数          |
-| taos_fetch_fields_e_fail                            | DOUBLE    |         | 获取字段信息的扩展失败次数          |
-| taos_result_precision_total                         | DOUBLE    |         | 获取结果精度的总次数             |
-| taos_result_precision_success                       | DOUBLE    |         | 成功获取结果精度的次数            |
-| taos_get_raw_block_total                            | DOUBLE    |         | 获取原始块的总次数              |
-| taos_get_raw_block_success                          | DOUBLE    |         | 成功获取原始块的次数             |
-| taos_fetch_raw_block_total                          | DOUBLE    |         | 拉取原始块的总次数              |
-| taos_fetch_raw_block_success                        | DOUBLE    |         | 成功拉取原始块的次数             |
-| taos_fetch_raw_block_fail                           | DOUBLE    |         | 拉取原始块失败的次数             |
-| taos_fetch_lengths_total                            | DOUBLE    |         | 获取字段长度的总次数             |
-| taos_fetch_lengths_success                          | DOUBLE    |         | 成功获取字段长度的次数            |
-| taos_write_raw_block_with_reqid_total               | DOUBLE    |         | 带请求 ID 写入原始块的总次数       |
-| taos_write_raw_block_with_reqid_success             | DOUBLE    |         | 带请求 ID 成功写入原始块的次数      |
-| taos_write_raw_block_with_reqid_fail                | DOUBLE    |         | 带请求 ID 写入原始块失败的次数      |
-| taos_write_raw_block_with_fields_with_reqid_total   | DOUBLE    |         | 带请求 ID 和字段写入原始块的总次数    |
-| taos_write_raw_block_with_fields_with_reqid_success | DOUBLE    |         | 带请求 ID 和字段成功写入原始块的次数   |
-| taos_write_raw_block_with_fields_with_reqid_fail    | DOUBLE    |         | 带请求 ID 和字段写入原始块失败的次数   |
-| tmq_write_raw_total                                 | DOUBLE    |         | 写入原始数据的 TMQ 总次数        |
-| tmq_write_raw_success                               | DOUBLE    |         | 成功写入原始数据的 TMQ 次数       |
-| tmq_write_raw_fail                                  | DOUBLE    |         | 写入原始数据的 TMQ 失败次数       |
-| taos_stmt_prepare_total                             | DOUBLE    |         | stmt 准备的总次数            |
-| taos_stmt_prepare_success                           | DOUBLE    |         | stmt 准备成功的次数           |
-| taos_stmt_prepare_fail                              | DOUBLE    |         | stmt 准备失败的次数           |
-| taos_stmt_is_insert_total                           | DOUBLE    |         | 检查 stmt 是否为插入的总次数      |
-| taos_stmt_is_insert_success                         | DOUBLE    |         | 成功检查 stmt 是否为插入的次数     |
-| taos_stmt_is_insert_fail                            | DOUBLE    |         | 检查 stmt 是否为插入失败的次数     |
-| taos_stmt_set_tbname_total                          | DOUBLE    |         | stmt 设置表名的总次数          |
-| taos_stmt_set_tbname_success                        | DOUBLE    |         | stmt 成功设置表名的次数         |
-| taos_stmt_set_tbname_fail                           | DOUBLE    |         | stmt 设置表名失败的次数         |
-| taos_stmt_set_tags_total                            | DOUBLE    |         | stmt 设置 tag 的总次数       |
-| taos_stmt_set_tags_success                          | DOUBLE    |         | stmt 成功设置 tag 的次数      |
-| taos_stmt_set_tags_fail                             | DOUBLE    |         | stmt 设置 tag 失败的次数      |
-| taos_stmt_bind_param_batch_total                    | DOUBLE    |         | stmt 批量绑定参数的总次数        |
-| taos_stmt_bind_param_batch_success                  | DOUBLE    |         | stmt 成功批量绑定参数的次数       |
-| taos_stmt_bind_param_batch_fail                     | DOUBLE    |         | stmt 批量绑定参数失败的次数       |
-| taos_stmt_add_batch_total                           | DOUBLE    |         | stmt 添加批处理的总次数         |
-| taos_stmt_add_batch_success                         | DOUBLE    |         | stmt 成功添加批处理的次数        |
-| taos_stmt_add_batch_fail                            | DOUBLE    |         | stmt 添加批处理失败的次数        |
-| taos_stmt_execute_total                             | DOUBLE    |         | stmt 执行的总次数            |
-| taos_stmt_execute_success                           | DOUBLE    |         | stmt 执行成功的次数           |
-| taos_stmt_execute_fail                              | DOUBLE    |         | stmt 执行失败的次数           |
-| taos_stmt_num_params_total                          | DOUBLE    |         | stmt 获取参数数量的总次数        |
-| taos_stmt_num_params_success                        | DOUBLE    |         | stmt 成功获取参数数量的次数       |
-| taos_stmt_num_params_fail                           | DOUBLE    |         | stmt 获取参数数量失败的次数       |
-| taos_stmt_get_param_total                           | DOUBLE    |         | stmt 获取参数的总次数          |
-| taos_stmt_get_param_success                         | DOUBLE    |         | stmt 成功获取参数的次数         |
-| taos_stmt_get_param_fail                            | DOUBLE    |         | stmt 获取参数失败的次数         |
-| taos_stmt_errstr_total                              | DOUBLE    |         | stmt 获取 stmt 错误信息的总次数  |
-| taos_stmt_errstr_success                            | DOUBLE    |         | stmt 成功获取 stmt 错误信息的次数 |
-| taos_stmt_affected_rows_once_total                  | DOUBLE    |         | stmt 获取单次影响行数的总次数      |
-| taos_stmt_affected_rows_once_success                | DOUBLE    |         | stmt 成功获取单次影响行数的次数     |
-| taos_stmt_use_result_total                          | DOUBLE    |         | stmt 使用结果集的总次数         |
-| taos_stmt_use_result_success                        | DOUBLE    |         | stmt 成功使用结果集的次数        |
-| taos_stmt_use_result_fail                           | DOUBLE    |         | stmt 使用结果集失败的次数        |
-| taos_select_db_total                                | DOUBLE    |         | 选择数据库的总次数              |
-| taos_select_db_success                              | DOUBLE    |         | 成功选择数据库的次数             |
-| taos_select_db_fail                                 | DOUBLE    |         | 选择数据库失败的次数             |
-| taos_get_tables_vgId_total                          | DOUBLE    |         | 获取表 vgroup ID 的总次数     |
-| taos_get_tables_vgId_success                        | DOUBLE    |         | 成功获取表 vgroup ID 的次数    |
-| taos_get_tables_vgId_fail                           | DOUBLE    |         | 获取表 vgroup ID 失败的次数    |
-| taos_options_connection_total                       | DOUBLE    |         | 设置连接选项的总次数             |
-| taos_options_connection_success                     | DOUBLE    |         | 成功设置连接选项的次数            |
-| taos_options_connection_fail                        | DOUBLE    |         | 设置连接选项失败的次数            |
-| taos_validate_sql_total                             | DOUBLE    |         | 验证 SQL 的总次数            |
-| taos_validate_sql_success                           | DOUBLE    |         | 成功验证 SQL 的次数           |
-| taos_validate_sql_fail                              | DOUBLE    |         | 验证 SQL 失败的次数           |
-| taos_check_server_status_total                      | DOUBLE    |         | 检查服务器状态的总次数            |
-| taos_check_server_status_success                    | DOUBLE    |         | 成功检查服务器状态的次数           |
-| taos_get_current_db_total                           | DOUBLE    |         | 获取当前数据库的总次数            |
-| taos_get_current_db_success                         | DOUBLE    |         | 成功获取当前数据库的次数           |
-| taos_get_current_db_fail                            | DOUBLE    |         | 获取当前数据库失败的次数           |
-| taos_get_server_info_total                          | DOUBLE    |         | 获取服务器信息的总次数            |
-| taos_get_server_info_success                        | DOUBLE    |         | 成功获取服务器信息的次数           |
-| taos_options_total                                  | DOUBLE    |         | 设置选项的总次数               |
-| taos_options_success                                | DOUBLE    |         | 成功设置选项的次数              |
-| taos_options_fail                                   | DOUBLE    |         | 设置选项失败的次数              |
-| taos_set_conn_mode_total                            | DOUBLE    |         | 设置连接模式的总次数             |
-| taos_set_conn_mode_success                          | DOUBLE    |         | 成功设置连接模式的次数            |
-| taos_set_conn_mode_fail                             | DOUBLE    |         | 设置连接模式失败的次数            |
-| taos_reset_current_db_total                         | DOUBLE    |         | 重置当前数据库的总次数            |
-| taos_reset_current_db_success                       | DOUBLE    |         | 成功重置当前数据库的次数           |
-| taos_set_notify_cb_total                            | DOUBLE    |         | 设置通知回调的总次数             |
-| taos_set_notify_cb_success                          | DOUBLE    |         | 成功设置通知回调的次数            |
-| taos_set_notify_cb_fail                             | DOUBLE    |         | 设置通知回调失败的次数            |
-| taos_errno_total                                    | DOUBLE    |         | 获取错误码的总次数              |
-| taos_errno_success                                  | DOUBLE    |         | 成功获取错误码的次数             |
-| taos_errstr_total                                   | DOUBLE    |         | 获取错误信息的总次数             |
-| taos_errstr_success                                 | DOUBLE    |         | 成功获取错误信息的次数            |
-| tmq_consumer_poll_total                             | DOUBLE    |         | tmq 消费者 poll 的总次数      |
-| tmq_consumer_poll_success                           | DOUBLE    |         | tmq 消费者 poll 成功的次数     |
-| tmq_consumer_poll_fail                              | DOUBLE    |         | tmq 消费者 poll 失败的次数     |
-| tmq_subscription_total                              | DOUBLE    |         | tmq 获取订阅信息的总次数         |
-| tmq_subscription_success                            | DOUBLE    |         | tmq 成功获取订阅信息的次数        |
-| tmq_subscription_fail                               | DOUBLE    |         | tmq 获取订阅信息失败的次数        |
-| tmq_list_append_total                               | DOUBLE    |         | tmq 列表追加的总次数           |
-| tmq_list_append_success                             | DOUBLE    |         | tmq 成功列表追加的次数          |
-| tmq_list_append_fail                                | DOUBLE    |         | tmq 列表追加失败的次数          |
-| tmq_list_get_size_total                             | DOUBLE    |         | tmq 获取列表大小的总次数         |
-| tmq_list_get_size_success                           | DOUBLE    |         | tmq 成功获取列表大小的次数        |
-| tmq_err2str_total                                   | DOUBLE    |         | tmq 错误码转字符串的总次数        |
-| tmq_err2str_success                                 | DOUBLE    |         | tmq 成功将错误码转为字符串的次数     |
-| tmq_conf_set_total                                  | DOUBLE    |         | tmq 设置配置的总次数           |
-| tmq_conf_set_success                                | DOUBLE    |         | tmq 成功设置配置的次数          |
-| tmq_conf_set_fail                                   | DOUBLE    |         | tmq 设置配置失败的次数          |
-| tmq_get_res_type_total                              | DOUBLE    |         | tmq 获取资源类型的总次数         |
-| tmq_get_res_type_success                            | DOUBLE    |         | tmq 成功获取资源类型的次数        |
-| tmq_get_topic_name_total                            | DOUBLE    |         | tmq 获取主题名称的总次数         |
-| tmq_get_topic_name_success                          | DOUBLE    |         | tmq 成功获取主题名称的次数        |
-| tmq_get_vgroup_id_total                             | DOUBLE    |         | tmq 获取 vgroup ID 的总次数  |
-| tmq_get_vgroup_id_success                           | DOUBLE    |         | tmq 成功获取 vgroup ID 的次数 |
-| tmq_get_vgroup_offset_total                         | DOUBLE    |         | tmq 获取 vgroup 偏移量的总次数  |
-| tmq_get_vgroup_offset_success                       | DOUBLE    |         | tmq 成功获取 vgroup 偏移量的次数 |
-| tmq_get_db_name_total                               | DOUBLE    |         | tmq 获取数据库名称的总次数        |
-| tmq_get_db_name_success                             | DOUBLE    |         | tmq 成功获取数据库名称的次数       |
-| tmq_get_table_name_total                            | DOUBLE    |         | tmq 获取表名称的总次数          |
-| tmq_get_table_name_success                          | DOUBLE    |         | tmq 成功获取表名称的次数         |
-| tmq_get_connect_total                               | DOUBLE    |         | tmq 获取连接的总次数           |
-| tmq_get_connect_success                             | DOUBLE    |         | tmq 成功获取连接的次数          |
-| tmq_commit_sync_total                               | DOUBLE    |         | tmq 同步提交的总次数           |
-| tmq_commit_sync_success                             | DOUBLE    |         | tmq 同步提交成功的次数          |
-| tmq_commit_sync_fail                                | DOUBLE    |         | tmq 同步提交失败的次数          |
-| tmq_fetch_raw_block_total                           | DOUBLE    |         | tmq 获取原始块的总次数          |
-| tmq_fetch_raw_block_success                         | DOUBLE    |         | tmq 成功获取原始块的次数         |
-| tmq_fetch_raw_block_fail                            | DOUBLE    |         | tmq 获取原始块失败的次数         |
-| tmq_get_topic_assignment_total                      | DOUBLE    |         | tmq 获取主题分配的总次数         |
-| tmq_get_topic_assignment_success                    | DOUBLE    |         | tmq 成功获取主题分配的次数        |
-| tmq_get_topic_assignment_fail                       | DOUBLE    |         | tmq 获取主题分配失败的次数        |
-| tmq_offset_seek_total                               | DOUBLE    |         | tmq 偏移量定位的总次数          |
-| tmq_offset_seek_success                             | DOUBLE    |         | tmq 成功偏移量定位的次数         |
-| tmq_offset_seek_fail                                | DOUBLE    |         | tmq 偏移量定位失败的次数         |
-| tmq_committed_total                                 | DOUBLE    |         | tmq 获取已提交偏移量的总次数       |
-| tmq_committed_success                               | DOUBLE    |         | tmq 成功获取已提交偏移量的次数      |
-| tmq_commit_offset_sync_fail                         | DOUBLE    |         | tmq 同步提交偏移量失败的次数       |
-| tmq_position_total                                  | DOUBLE    |         | tmq 获取当前位置的总次数         |
-| tmq_position_success                                | DOUBLE    |         | tmq 成功获取当前位置的次数        |
-| tmq_commit_offset_sync_total                        | DOUBLE    |         | tmq 同步提交偏移量的总次数        |
-| tmq_commit_offset_sync_success                      | DOUBLE    |         | tmq 同步提交偏移量成功的次数       |
-| endpoint                                            | NCHAR     | TAG     | 请求端点                   |
+| field                                               | type      | is\_tag | comment                   |
+|:----------------------------------------------------|:----------|:--------|:--------------------------|
+| _ts                                                 | TIMESTAMP |         | 数据采集时间戳                   |
+| taos_connect_total                                  | DOUBLE    |         | 尝试建立连接的总次数                |
+| taos_connect_success                                | DOUBLE    |         | 成功建立连接的次数                 |
+| taos_connect_fail                                   | DOUBLE    |         | 建立连接失败的次数                 |
+| taos_close_total                                    | DOUBLE    |         | 尝试关闭连接的总次数                |
+| taos_close_success                                  | DOUBLE    |         | 成功关闭连接的次数                 |
+| taos_schemaless_insert_total                        | DOUBLE    |         | schemaless 插入操作的总次数       |
+| taos_schemaless_insert_success                      | DOUBLE    |         | schemaless 插入成功的次数        |
+| taos_schemaless_insert_fail                         | DOUBLE    |         | schemaless 插入失败的次数        |
+| taos_schemaless_free_result_total                   | DOUBLE    |         | schemaless 释放结果集的总次数      |
+| taos_schemaless_free_result_success                 | DOUBLE    |         | schemaless 成功释放结果集的次数     |
+| taos_query_total                                    | DOUBLE    |         | 执行同步 SQL 的总次数             |
+| taos_query_success                                  | DOUBLE    |         | 执行同步 SQL 成功的次数            |
+| taos_query_fail                                     | DOUBLE    |         | 执行同步 SQL 失败的次数            |
+| taos_query_free_result_total                        | DOUBLE    |         | 释放同步 SQL 结果集的总次数          |
+| taos_query_free_result_success                      | DOUBLE    |         | 成功释放同步 SQL 结果集的次数         |
+| taos_query_a_with_reqid_total                       | DOUBLE    |         | 带请求 ID 的异步 SQL 总次数        |
+| taos_query_a_with_reqid_success                     | DOUBLE    |         | 带请求 ID 的异步 SQL 成功次数       |
+| taos_query_a_with_reqid_callback_total              | DOUBLE    |         | 带请求 ID 的异步 SQL 回调总次数      |
+| taos_query_a_with_reqid_callback_success            | DOUBLE    |         | 带请求 ID 的异步 SQL 回调成功次数     |
+| taos_query_a_with_reqid_callback_fail               | DOUBLE    |         | 带请求 ID 的异步 SQL 回调失败次数     |
+| taos_query_a_free_result_total                      | DOUBLE    |         | 异步 SQL 释放结果集的总次数          |
+| taos_query_a_free_result_success                    | DOUBLE    |         | 异步 SQL 成功释放结果集的次数         |
+| tmq_consumer_poll_result_total                      | DOUBLE    |         | 消费者 poll 有数据的总次数          |
+| tmq_free_result_total                               | DOUBLE    |         | 释放 TMQ 数据的总次数             |
+| tmq_free_result_success                             | DOUBLE    |         | 成功释放 TMQ 数据的次数            |
+| taos_stmt2_init_total                               | DOUBLE    |         | stmt2 初始化的总次数             |
+| taos_stmt2_init_success                             | DOUBLE    |         | stmt2 初始化成功的次数            |
+| taos_stmt2_init_fail                                | DOUBLE    |         | stmt2 初始化失败的次数            |
+| taos_stmt2_close_total                              | DOUBLE    |         | stmt2 关闭的总次数              |
+| taos_stmt2_close_success                            | DOUBLE    |         | stmt2 关闭成功的次数             |
+| taos_stmt2_close_fail                               | DOUBLE    |         | stmt2 关闭失败的次数             |
+| taos_stmt2_get_fields_total                         | DOUBLE    |         | stmt2 获取字段的总次数            |
+| taos_stmt2_get_fields_success                       | DOUBLE    |         | stmt2 成功获取字段的次数           |
+| taos_stmt2_get_fields_fail                          | DOUBLE    |         | stmt2 获取字段失败的次数           |
+| taos_stmt2_free_fields_total                        | DOUBLE    |         | stmt2 释放字段的总次数            |
+| taos_stmt2_free_fields_success                      | DOUBLE    |         | stmt2 成功释放字段的次数           |
+| taos_stmt_init_with_reqid_total                     | DOUBLE    |         | 带请求 ID 的 stmt 初始化总次数      |
+| taos_stmt_init_with_reqid_success                   | DOUBLE    |         | 带请求 ID 的 stmt 初始化成功次数     |
+| taos_stmt_init_with_reqid_fail                      | DOUBLE    |         | 带请求 ID 的 stmt 初始化失败次数     |
+| taos_stmt_close_total                               | DOUBLE    |         | stmt 关闭的总次数               |
+| taos_stmt_close_success                             | DOUBLE    |         | stmt 关闭成功的次数              |
+| taos_stmt_close_fail                                | DOUBLE    |         | stmt 关闭失败的次数              |
+| taos_stmt_get_tag_fields_total                      | DOUBLE    |         | stmt 获取 tag 字段的总次数        |
+| taos_stmt_get_tag_fields_success                    | DOUBLE    |         | stmt 成功获取 tag 字段的次数       |
+| taos_stmt_get_tag_fields_fail                       | DOUBLE    |         | stmt 获取 tag 字段失败的次数       |
+| taos_stmt_get_col_fields_total                      | DOUBLE    |         | stmt 获取列字段的总次数            |
+| taos_stmt_get_col_fields_success                    | DOUBLE    |         | stmt 成功获取列字段的次数           |
+| taos_stmt_get_col_fields_fail                       | DOUBLE    |         | stmt 获取列字段失败的次数           |
+| taos_stmt_reclaim_fields_total                      | DOUBLE    |         | stmt 释放字段的总次数             |
+| taos_stmt_reclaim_fields_success                    | DOUBLE    |         | stmt 成功释放字段的次数            |
+| tmq_get_json_meta_total                             | DOUBLE    |         | tmq 获取 JSON 元数据的总次数       |
+| tmq_get_json_meta_success                           | DOUBLE    |         | tmq 成功获取 JSON 元数据的次数      |
+| tmq_free_json_meta_total                            | DOUBLE    |         | tmq 释放 JSON 元数据的总次数       |
+| tmq_free_json_meta_success                          | DOUBLE    |         | tmq 成功释放 JSON 元数据的次数      |
+| taos_fetch_whitelist_a_total                        | DOUBLE    |         | 异步获取白名单的总次数               |
+| taos_fetch_whitelist_a_success                      | DOUBLE    |         | 异步成功获取白名单的次数              |
+| taos_fetch_whitelist_a_callback_total               | DOUBLE    |         | 异步获取白名单回调总次数              |
+| taos_fetch_whitelist_a_callback_success             | DOUBLE    |         | 异步成功获取白名单回调次数             |
+| taos_fetch_whitelist_a_callback_fail                | DOUBLE    |         | 异步获取白名单回调失败次数             |
+| taos_fetch_rows_a_total                             | DOUBLE    |         | 异步获取行的总次数                 |
+| taos_fetch_rows_a_success                           | DOUBLE    |         | 异步成功获取行的次数                |
+| taos_fetch_rows_a_callback_total                    | DOUBLE    |         | 异步获取行回调总次数                |
+| taos_fetch_rows_a_callback_success                  | DOUBLE    |         | 异步成功获取行回调次数               |
+| taos_fetch_rows_a_callback_fail                     | DOUBLE    |         | 异步获取行回调失败次数               |
+| taos_fetch_raw_block_a_total                        | DOUBLE    |         | 异步获取原始块的总次数               |
+| taos_fetch_raw_block_a_success                      | DOUBLE    |         | 异步成功获取原始块的次数              |
+| taos_fetch_raw_block_a_callback_total               | DOUBLE    |         | 异步获取原始块回调总次数              |
+| taos_fetch_raw_block_a_callback_success             | DOUBLE    |         | 异步成功获取原始块回调次数             |
+| taos_fetch_raw_block_a_callback_fail                | DOUBLE    |         | 异步获取原始块回调失败次数             |
+| tmq_get_raw_total                                   | DOUBLE    |         | 获取原始数据的总次数                |
+| tmq_get_raw_success                                 | DOUBLE    |         | 成功获取原始数据的次数               |
+| tmq_get_raw_fail                                    | DOUBLE    |         | 获取原始数据失败的次数               |
+| tmq_free_raw_total                                  | DOUBLE    |         | 释放原始数据的总次数                |
+| tmq_free_raw_success                                | DOUBLE    |         | 成功释放原始数据的次数               |
+| tmq_consumer_new_total                              | DOUBLE    |         | 创建新消费者的总次数                |
+| tmq_consumer_new_success                            | DOUBLE    |         | 成功创建新消费者的次数               |
+| tmq_consumer_new_fail                               | DOUBLE    |         | 创建新消费者失败的次数               |
+| tmq_consumer_close_total                            | DOUBLE    |         | 关闭消费者的总次数                 |
+| tmq_consumer_close_success                          | DOUBLE    |         | 成功关闭消费者的次数                |
+| tmq_consumer_close_fail                             | DOUBLE    |         | 关闭消费者失败的次数                |
+| tmq_subscribe_total                                 | DOUBLE    |         | 订阅主题的总次数                  |
+| tmq_subscribe_success                               | DOUBLE    |         | 成功订阅主题的次数                 |
+| tmq_subscribe_fail                                  | DOUBLE    |         | 订阅主题失败的次数                 |
+| tmq_unsubscribe_total                               | DOUBLE    |         | 取消订阅的总次数                  |
+| tmq_unsubscribe_success                             | DOUBLE    |         | 成功取消订阅的次数                 |
+| tmq_unsubscribe_fail                                | DOUBLE    |         | 取消订阅失败的次数                 |
+| tmq_list_new_total                                  | DOUBLE    |         | 创建新主题列表的总次数               |
+| tmq_list_new_success                                | DOUBLE    |         | 成功创建新主题列表的次数              |
+| tmq_list_new_fail                                   | DOUBLE    |         | 创建新主题列表失败的次数              |
+| tmq_list_destroy_total                              | DOUBLE    |         | 销毁主题列表的总次数                |
+| tmq_list_destroy_success                            | DOUBLE    |         | 成功销毁主题列表的次数               |
+| tmq_conf_new_total                                  | DOUBLE    |         | tmq 创建新配置的总次数             |
+| tmq_conf_new_success                                | DOUBLE    |         | tmq 成功创建新配置的次数            |
+| tmq_conf_new_fail                                   | DOUBLE    |         | tmq 创建新配置失败的次数            |
+| tmq_conf_destroy_total                              | DOUBLE    |         | tmq 销毁配置的总次数              |
+| tmq_conf_destroy_success                            | DOUBLE    |         | tmq 成功销毁配置的次数             |
+| taos_stmt2_prepare_total                            | DOUBLE    |         | stmt2 准备的总次数              |
+| taos_stmt2_prepare_success                          | DOUBLE    |         | stmt2 准备成功的次数             |
+| taos_stmt2_prepare_fail                             | DOUBLE    |         | stmt2 准备失败的次数             |
+| taos_stmt2_is_insert_total                          | DOUBLE    |         | 检查是否为插入的总次数               |
+| taos_stmt2_is_insert_success                        | DOUBLE    |         | 成功检查是否为插入的次数              |
+| taos_stmt2_is_insert_fail                           | DOUBLE    |         | 检查是否为插入失败的次数              |
+| taos_stmt2_bind_param_total                         | DOUBLE    |         | stmt2 绑定参数的总次数            |
+| taos_stmt2_bind_param_success                       | DOUBLE    |         | stmt2 成功绑定参数的次数           |
+| taos_stmt2_bind_param_fail                          | DOUBLE    |         | stmt2 绑定参数失败的次数           |
+| taos_stmt2_exec_total                               | DOUBLE    |         | stmt2 执行的总次数              |
+| taos_stmt2_exec_success                             | DOUBLE    |         | stmt2 执行成功的次数             |
+| taos_stmt2_exec_fail                                | DOUBLE    |         | stmt2 执行失败的次数             |
+| taos_stmt2_error_total                              | DOUBLE    |         | stmt2 错误检查的总次数            |
+| taos_stmt2_error_success                            | DOUBLE    |         | stmt2 成功检查错误的次数           |
+| taos_fetch_row_total                                | DOUBLE    |         | 同步获取行的总次数                 |
+| taos_fetch_row_success                              | DOUBLE    |         | 成功同步获取行的次数                |
+| taos_is_update_query_total                          | DOUBLE    |         | 检查是否为更新语句的总次数             |
+| taos_is_update_query_success                        | DOUBLE    |         | 成功检查是否为更新语句的次数            |
+| taos_affected_rows_total                            | DOUBLE    |         | SQL 获取影响行数的总次数            |
+| taos_affected_rows_success                          | DOUBLE    |         | SQL 成功获取影响行数的次数           |
+| taos_num_fields_total                               | DOUBLE    |         | 获取字段数量的总次数                |
+| taos_num_fields_success                             | DOUBLE    |         | 成功获取字段数量的次数               |
+| taos_fetch_fields_e_total                           | DOUBLE    |         | 获取字段信息的扩展总次数              |
+| taos_fetch_fields_e_success                         | DOUBLE    |         | 成功获取字段信息的扩展次数             |
+| taos_fetch_fields_e_fail                            | DOUBLE    |         | 获取字段信息的扩展失败次数             |
+| taos_result_precision_total                         | DOUBLE    |         | 获取结果精度的总次数                |
+| taos_result_precision_success                       | DOUBLE    |         | 成功获取结果精度的次数               |
+| taos_get_raw_block_total                            | DOUBLE    |         | 获取原始块的总次数                 |
+| taos_get_raw_block_success                          | DOUBLE    |         | 成功获取原始块的次数                |
+| taos_fetch_raw_block_total                          | DOUBLE    |         | 拉取原始块的总次数                 |
+| taos_fetch_raw_block_success                        | DOUBLE    |         | 成功拉取原始块的次数                |
+| taos_fetch_raw_block_fail                           | DOUBLE    |         | 拉取原始块失败的次数                |
+| taos_fetch_lengths_total                            | DOUBLE    |         | 获取字段长度的总次数                |
+| taos_fetch_lengths_success                          | DOUBLE    |         | 成功获取字段长度的次数               |
+| taos_write_raw_block_with_reqid_total               | DOUBLE    |         | 带请求 ID 写入原始块的总次数          |
+| taos_write_raw_block_with_reqid_success             | DOUBLE    |         | 带请求 ID 成功写入原始块的次数         |
+| taos_write_raw_block_with_reqid_fail                | DOUBLE    |         | 带请求 ID 写入原始块失败的次数         |
+| taos_write_raw_block_with_fields_with_reqid_total   | DOUBLE    |         | 带请求 ID 和字段写入原始块的总次数       |
+| taos_write_raw_block_with_fields_with_reqid_success | DOUBLE    |         | 带请求 ID 和字段成功写入原始块的次数      |
+| taos_write_raw_block_with_fields_with_reqid_fail    | DOUBLE    |         | 带请求 ID 和字段写入原始块失败的次数      |
+| tmq_write_raw_total                                 | DOUBLE    |         | 写入原始数据的 TMQ 总次数           |
+| tmq_write_raw_success                               | DOUBLE    |         | 成功写入原始数据的 TMQ 次数          |
+| tmq_write_raw_fail                                  | DOUBLE    |         | 写入原始数据的 TMQ 失败次数          |
+| taos_stmt_prepare_total                             | DOUBLE    |         | stmt 准备的总次数               |
+| taos_stmt_prepare_success                           | DOUBLE    |         | stmt 准备成功的次数              |
+| taos_stmt_prepare_fail                              | DOUBLE    |         | stmt 准备失败的次数              |
+| taos_stmt_is_insert_total                           | DOUBLE    |         | 检查 stmt 是否为插入的总次数         |
+| taos_stmt_is_insert_success                         | DOUBLE    |         | 成功检查 stmt 是否为插入的次数        |
+| taos_stmt_is_insert_fail                            | DOUBLE    |         | 检查 stmt 是否为插入失败的次数        |
+| taos_stmt_set_tbname_total                          | DOUBLE    |         | stmt 设置表名的总次数             |
+| taos_stmt_set_tbname_success                        | DOUBLE    |         | stmt 成功设置表名的次数            |
+| taos_stmt_set_tbname_fail                           | DOUBLE    |         | stmt 设置表名失败的次数            |
+| taos_stmt_set_tags_total                            | DOUBLE    |         | stmt 设置 tag 的总次数          |
+| taos_stmt_set_tags_success                          | DOUBLE    |         | stmt 成功设置 tag 的次数         |
+| taos_stmt_set_tags_fail                             | DOUBLE    |         | stmt 设置 tag 失败的次数         |
+| taos_stmt_bind_param_batch_total                    | DOUBLE    |         | stmt 批量绑定参数的总次数           |
+| taos_stmt_bind_param_batch_success                  | DOUBLE    |         | stmt 成功批量绑定参数的次数          |
+| taos_stmt_bind_param_batch_fail                     | DOUBLE    |         | stmt 批量绑定参数失败的次数          |
+| taos_stmt_add_batch_total                           | DOUBLE    |         | stmt 添加批处理的总次数            |
+| taos_stmt_add_batch_success                         | DOUBLE    |         | stmt 成功添加批处理的次数           |
+| taos_stmt_add_batch_fail                            | DOUBLE    |         | stmt 添加批处理失败的次数           |
+| taos_stmt_execute_total                             | DOUBLE    |         | stmt 执行的总次数               |
+| taos_stmt_execute_success                           | DOUBLE    |         | stmt 执行成功的次数              |
+| taos_stmt_execute_fail                              | DOUBLE    |         | stmt 执行失败的次数              |
+| taos_stmt_num_params_total                          | DOUBLE    |         | stmt 获取参数数量的总次数           |
+| taos_stmt_num_params_success                        | DOUBLE    |         | stmt 成功获取参数数量的次数          |
+| taos_stmt_num_params_fail                           | DOUBLE    |         | stmt 获取参数数量失败的次数          |
+| taos_stmt_get_param_total                           | DOUBLE    |         | stmt 获取参数的总次数             |
+| taos_stmt_get_param_success                         | DOUBLE    |         | stmt 成功获取参数的次数            |
+| taos_stmt_get_param_fail                            | DOUBLE    |         | stmt 获取参数失败的次数            |
+| taos_stmt_errstr_total                              | DOUBLE    |         | stmt 获取 stmt 错误信息的总次数     |
+| taos_stmt_errstr_success                            | DOUBLE    |         | stmt 成功获取 stmt 错误信息的次数    |
+| taos_stmt_affected_rows_once_total                  | DOUBLE    |         | stmt 获取单次影响行数的总次数         |
+| taos_stmt_affected_rows_once_success                | DOUBLE    |         | stmt 成功获取单次影响行数的次数        |
+| taos_stmt_use_result_total                          | DOUBLE    |         | stmt 使用结果集的总次数            |
+| taos_stmt_use_result_success                        | DOUBLE    |         | stmt 成功使用结果集的次数           |
+| taos_stmt_use_result_fail                           | DOUBLE    |         | stmt 使用结果集失败的次数           |
+| taos_select_db_total                                | DOUBLE    |         | 选择数据库的总次数                 |
+| taos_select_db_success                              | DOUBLE    |         | 成功选择数据库的次数                |
+| taos_select_db_fail                                 | DOUBLE    |         | 选择数据库失败的次数                |
+| taos_get_tables_vgId_total                          | DOUBLE    |         | 获取表 vgroup ID 的总次数        |
+| taos_get_tables_vgId_success                        | DOUBLE    |         | 成功获取表 vgroup ID 的次数       |
+| taos_get_tables_vgId_fail                           | DOUBLE    |         | 获取表 vgroup ID 失败的次数       |
+| taos_options_connection_total                       | DOUBLE    |         | 设置连接选项的总次数                |
+| taos_options_connection_success                     | DOUBLE    |         | 成功设置连接选项的次数               |
+| taos_options_connection_fail                        | DOUBLE    |         | 设置连接选项失败的次数               |
+| taos_validate_sql_total                             | DOUBLE    |         | 验证 SQL 的总次数               |
+| taos_validate_sql_success                           | DOUBLE    |         | 成功验证 SQL 的次数              |
+| taos_validate_sql_fail                              | DOUBLE    |         | 验证 SQL 失败的次数              |
+| taos_check_server_status_total                      | DOUBLE    |         | 检查服务器状态的总次数               |
+| taos_check_server_status_success                    | DOUBLE    |         | 成功检查服务器状态的次数              |
+| taos_get_current_db_total                           | DOUBLE    |         | 获取当前数据库的总次数               |
+| taos_get_current_db_success                         | DOUBLE    |         | 成功获取当前数据库的次数              |
+| taos_get_current_db_fail                            | DOUBLE    |         | 获取当前数据库失败的次数              |
+| taos_get_server_info_total                          | DOUBLE    |         | 获取服务器信息的总次数               |
+| taos_get_server_info_success                        | DOUBLE    |         | 成功获取服务器信息的次数              |
+| taos_options_total                                  | DOUBLE    |         | 设置选项的总次数                  |
+| taos_options_success                                | DOUBLE    |         | 成功设置选项的次数                 |
+| taos_options_fail                                   | DOUBLE    |         | 设置选项失败的次数                 |
+| taos_set_conn_mode_total                            | DOUBLE    |         | 设置连接模式的总次数                |
+| taos_set_conn_mode_success                          | DOUBLE    |         | 成功设置连接模式的次数               |
+| taos_set_conn_mode_fail                             | DOUBLE    |         | 设置连接模式失败的次数               |
+| taos_reset_current_db_total                         | DOUBLE    |         | 重置当前数据库的总次数               |
+| taos_reset_current_db_success                       | DOUBLE    |         | 成功重置当前数据库的次数              |
+| taos_set_notify_cb_total                            | DOUBLE    |         | 设置通知回调的总次数                |
+| taos_set_notify_cb_success                          | DOUBLE    |         | 成功设置通知回调的次数               |
+| taos_set_notify_cb_fail                             | DOUBLE    |         | 设置通知回调失败的次数               |
+| taos_errno_total                                    | DOUBLE    |         | 获取错误码的总次数                 |
+| taos_errno_success                                  | DOUBLE    |         | 成功获取错误码的次数                |
+| taos_errstr_total                                   | DOUBLE    |         | 获取错误信息的总次数                |
+| taos_errstr_success                                 | DOUBLE    |         | 成功获取错误信息的次数               |
+| tmq_consumer_poll_total                             | DOUBLE    |         | tmq 消费者 poll 的总次数         |
+| tmq_consumer_poll_success                           | DOUBLE    |         | tmq 消费者 poll 成功的次数        |
+| tmq_consumer_poll_fail                              | DOUBLE    |         | tmq 消费者 poll 失败的次数        |
+| tmq_subscription_total                              | DOUBLE    |         | tmq 获取订阅信息的总次数            |
+| tmq_subscription_success                            | DOUBLE    |         | tmq 成功获取订阅信息的次数           |
+| tmq_subscription_fail                               | DOUBLE    |         | tmq 获取订阅信息失败的次数           |
+| tmq_list_append_total                               | DOUBLE    |         | tmq 列表追加的总次数              |
+| tmq_list_append_success                             | DOUBLE    |         | tmq 成功列表追加的次数             |
+| tmq_list_append_fail                                | DOUBLE    |         | tmq 列表追加失败的次数             |
+| tmq_list_get_size_total                             | DOUBLE    |         | tmq 获取列表大小的总次数            |
+| tmq_list_get_size_success                           | DOUBLE    |         | tmq 成功获取列表大小的次数           |
+| tmq_err2str_total                                   | DOUBLE    |         | tmq 错误码转字符串的总次数           |
+| tmq_err2str_success                                 | DOUBLE    |         | tmq 成功将错误码转为字符串的次数        |
+| tmq_conf_set_total                                  | DOUBLE    |         | tmq 设置配置的总次数              |
+| tmq_conf_set_success                                | DOUBLE    |         | tmq 成功设置配置的次数             |
+| tmq_conf_set_fail                                   | DOUBLE    |         | tmq 设置配置失败的次数             |
+| tmq_get_res_type_total                              | DOUBLE    |         | tmq 获取资源类型的总次数            |
+| tmq_get_res_type_success                            | DOUBLE    |         | tmq 成功获取资源类型的次数           |
+| tmq_get_topic_name_total                            | DOUBLE    |         | tmq 获取主题名称的总次数            |
+| tmq_get_topic_name_success                          | DOUBLE    |         | tmq 成功获取主题名称的次数           |
+| tmq_get_vgroup_id_total                             | DOUBLE    |         | tmq 获取 vgroup ID 的总次数     |
+| tmq_get_vgroup_id_success                           | DOUBLE    |         | tmq 成功获取 vgroup ID 的次数    |
+| tmq_get_vgroup_offset_total                         | DOUBLE    |         | tmq 获取 vgroup 偏移量的总次数     |
+| tmq_get_vgroup_offset_success                       | DOUBLE    |         | tmq 成功获取 vgroup 偏移量的次数    |
+| tmq_get_db_name_total                               | DOUBLE    |         | tmq 获取数据库名称的总次数           |
+| tmq_get_db_name_success                             | DOUBLE    |         | tmq 成功获取数据库名称的次数          |
+| tmq_get_table_name_total                            | DOUBLE    |         | tmq 获取表名称的总次数             |
+| tmq_get_table_name_success                          | DOUBLE    |         | tmq 成功获取表名称的次数            |
+| tmq_get_connect_total                               | DOUBLE    |         | tmq 获取连接的总次数              |
+| tmq_get_connect_success                             | DOUBLE    |         | tmq 成功获取连接的次数             |
+| tmq_commit_sync_total                               | DOUBLE    |         | tmq 同步提交的总次数              |
+| tmq_commit_sync_success                             | DOUBLE    |         | tmq 同步提交成功的次数             |
+| tmq_commit_sync_fail                                | DOUBLE    |         | tmq 同步提交失败的次数             |
+| tmq_fetch_raw_block_total                           | DOUBLE    |         | tmq 获取原始块的总次数             |
+| tmq_fetch_raw_block_success                         | DOUBLE    |         | tmq 成功获取原始块的次数            |
+| tmq_fetch_raw_block_fail                            | DOUBLE    |         | tmq 获取原始块失败的次数            |
+| tmq_get_topic_assignment_total                      | DOUBLE    |         | tmq 获取主题分配的总次数            |
+| tmq_get_topic_assignment_success                    | DOUBLE    |         | tmq 成功获取主题分配的次数           |
+| tmq_get_topic_assignment_fail                       | DOUBLE    |         | tmq 获取主题分配失败的次数           |
+| tmq_offset_seek_total                               | DOUBLE    |         | tmq 偏移量定位的总次数             |
+| tmq_offset_seek_success                             | DOUBLE    |         | tmq 成功偏移量定位的次数            |
+| tmq_offset_seek_fail                                | DOUBLE    |         | tmq 偏移量定位失败的次数            |
+| tmq_committed_total                                 | DOUBLE    |         | tmq 获取已提交偏移量的总次数          |
+| tmq_committed_success                               | DOUBLE    |         | tmq 成功获取已提交偏移量的次数         |
+| tmq_commit_offset_sync_fail                         | DOUBLE    |         | tmq 同步提交偏移量失败的次数          |
+| tmq_position_total                                  | DOUBLE    |         | tmq 获取当前位置的总次数            |
+| tmq_position_success                                | DOUBLE    |         | tmq 成功获取当前位置的次数           |
+| tmq_commit_offset_sync_total                        | DOUBLE    |         | tmq 同步提交偏移量的总次数           |
+| tmq_commit_offset_sync_success                      | DOUBLE    |         | tmq 同步提交偏移量成功的次数          |
+| taos_connect_totp_total                             | DOUBLE    |         | totp 登录次数（3.4.0.0 及以上）    |
+| taos_connect_totp_success                           | DOUBLE    |         | totp 登录成功次数（3.4.0.0 及以上）  |
+| taos_connect_totp_fail                              | DOUBLE    |         | totp 登录失败次数（3.4.0.0 及以上）  |
+| taos_connect_token_total                            | DOUBLE    |         | token 登录次数（3.4.0.0 及以上）   |
+| taos_connect_token_success                          | DOUBLE    |         | token 登录成功次数（3.4.0.0 及以上） |
+| taos_connect_token_fail                             | DOUBLE    |         | token 登录失败次数（3.4.0.0 及以上） |
+| taos_get_connection_info_total                      | DOUBLE    |         | 获取连接信息次数（3.4.0.0 及以上）     |
+| taos_get_connection_info_success                    | DOUBLE    |         | 获取连接信息成功次数（3.4.0.0 及以上）   |
+| taos_get_connection_info_fail                       | DOUBLE    |         | 获取连接信息失败次数（3.4.0.0 及以上）   |
+| endpoint                                            | NCHAR     | TAG     | 请求端点                      |
 
 </details>
 

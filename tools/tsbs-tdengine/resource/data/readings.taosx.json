@@ -1,6 +1,6 @@
 {
   "global": {
-    "written_concurrent": 10
+    "written_concurrent": 1
   },  
   "parse": {
     "ts": { "as": "TIMESTAMP(ms)" },

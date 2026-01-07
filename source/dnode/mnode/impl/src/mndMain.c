@@ -40,6 +40,7 @@
 #include "mndQuery.h"
 #include "mndRetention.h"
 #include "mndRetentionDetail.h"
+#include "mndRole.h"
 #include "mndRsma.h"
 #include "mndScan.h"
 #include "mndScanDetail.h"
@@ -58,6 +59,7 @@
 #include "mndToken.h"
 #include "mndVgroup.h"
 #include "mndView.h"
+#include "mndXnode.h"
 #include "tencrypt.h"
 
 static inline int32_t mndAcquireRpc(SMnode *pMnode) {
@@ -713,9 +715,11 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-snode", mndInitSnode, mndCleanupSnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-anode", mndInitAnode, mndCleanupAnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-bnode", mndInitBnode, mndCleanupBnode));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-xnode", mndInitXnode, mndCleanupXnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-arbgroup", mndInitArbGroup, mndCleanupArbGroup));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-config", mndInitConfig, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-role", mndInitRole, mndCleanupRole));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-token", mndInitToken, mndCleanupToken));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant));
@@ -1255,6 +1259,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     code = tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
     if (code < 0) {
       mError("failed to get db name since %s", tstrerror(code));
+      sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
       TAOS_RETURN(code);
     }
