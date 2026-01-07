@@ -1018,11 +1018,9 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
 
 #ifdef TD_ENTERPRISE
 
-#ifdef TD_ALLOW_DEFAULT_PASSWORD
-  userObj.changePass = 2; // 2: allow but not force user to change password
-#else
-  userObj.changePass = 1; // 1: force user to change password
-#endif
+  // 1: force user to change password
+  // 2: allow but not force user to change password
+  userObj.changePass = tsAllowDefaultPassword ? 2 : 1;
 
   userObj.ipWhiteListVer = taosGetTimestampMs();
   userObj.timeWhiteListVer = userObj.ipWhiteListVer;
@@ -2739,10 +2737,6 @@ _OVER:
 
 
 static int32_t mndCheckPasswordFmt(const char *pwd) {
-  if (strcmp(pwd, "taosdata") == 0) {
-    return 0;
-  }
-
   if (tsEnableStrongPassword == 0) {
     for (char c = *pwd; c != 0; c = *(++pwd)) {
       if (c == ' ' || c == '\'' || c == '\"' || c == '`' || c == '\\') {
