@@ -3833,6 +3833,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
       */
       ST_SET_EVENT_RECEIVED(sStreamReaderCalcInfo, ST_EVENT_NOTIFY);
       atomic_store_64(&sStreamReaderCalcInfo->notifyTs, pScanParam->notifyTs);
+      freeOperatorParam(req.pOpParam, OP_GET_PARAM);
       goto notify_end;
     }
   }
@@ -3928,10 +3929,10 @@ end:
   STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {.msgType = TDMT_STREAM_FETCH_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
-  tDestroySResFetchReq(&req);
 
 notify_end:
   streamReleaseTask(taskAddr);
+  tDestroySResFetchReq(&req);
   return code;
 }
 

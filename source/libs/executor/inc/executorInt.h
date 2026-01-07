@@ -46,8 +46,6 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 typedef struct STsdbReader STsdbReader;
 typedef struct STqReader   STqReader;
 
-typedef enum SOperatorParamType { OP_GET_PARAM = 1, OP_NOTIFY_PARAM } SOperatorParamType;
-
 typedef enum EExtWinMode {
   EEXT_MODE_SCALAR = 1,
   EEXT_MODE_AGG,
@@ -973,7 +971,6 @@ int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, 
 int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
                                           int32_t srcOpType, TSKEY notifyTs);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
-void    freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
 int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
                                        SSDataBlock** pResBlock);

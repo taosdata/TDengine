@@ -328,6 +328,13 @@ int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pT
 */
 int32_t notifyTableScanTask(qTaskInfo_t tinfo, TSKEY notifyTs);
 
+typedef enum SOperatorParamType {
+  OP_GET_PARAM = 1,
+  OP_NOTIFY_PARAM
+} SOperatorParamType;
+
+void    freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
+
 #ifdef __cplusplus
 }
 #endif
