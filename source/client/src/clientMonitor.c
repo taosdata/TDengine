@@ -468,17 +468,37 @@ static char* readFile(TdFilePtr pFile, int64_t* offset, int64_t size) {
   }
 
   totalSize = 0;
-  while (1) {
+  while(1){
     size_t len = strlen(buf);
-    totalSize += (len + 1);
-    if (totalSize > readSize || len == 0) {
-      *(buf - 1) = ']';
+    if (len == SLOW_LOG_SEND_SIZE_MAX) {  // one item is too long
+      *offset = size;
+      *buf = ']';
+      *(buf+1) = '\0';
+      break;
+    }
+
+    totalSize += (len+1);
+    if (totalSize > readSize) {
+      *(buf-1) = ']';
       *buf = '\0';
       break;
     }
-    buf[len] = ',';  // replace '\0' with ','
+
+    if (len == 0) {   // one item is empty
+      if (*(buf - 1) == '[') {      // data is "\0"
+        // no data read
+        *buf = ']';
+        *(buf + 1) = '\0';
+      } else {                      // data is "ass\0\0"
+        *(buf - 1) = ']';
+        *buf = '\0';
+      }
+      *offset += 1;
+      break;
+    }
+    buf[len] = ','; // replace '\0' with ','
     buf += (len + 1);
-    *offset += (len + 1);
+    *offset += (len+1);
   }
 
   tscDebug("monitor readFile slow log end, data:%s, offset:%" PRId64, pCont, *offset);
