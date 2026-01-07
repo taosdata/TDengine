@@ -78,7 +78,7 @@ typedef struct STableQueryInfo {
 } STableQueryInfo;
 
 typedef struct SLimit {
-  int64_t limit;
+  int64_t limit;       // default -1, no limit
   int64_t offset;
 } SLimit;
 
