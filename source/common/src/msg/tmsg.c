@@ -2047,6 +2047,13 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->auditDB));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->auditToken));
 
+  vlen = (int32_t)taosArrayGetSize(pReq->pVloads);
+  for (int32_t i = 0; i < vlen; ++i) {
+    SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pload->snapSeq));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->syncTotalIndex));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -2201,6 +2208,19 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->clusterCfg.statusIntervalMs));
   }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < vlen; ++i) {
+      SVnodeLoad *vload = taosArrayGet(pReq->pVloads, i);
+      if (vload == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &vload->snapSeq));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &vload->syncTotalIndex));
+    }
+  }
+
 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timeWhiteVer));
