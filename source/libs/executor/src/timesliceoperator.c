@@ -952,7 +952,7 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
         /**
           Only table scan and exchange operator are supported right now.
         */
-        qError("%s, %s only table scan and exchange operator are supported "
+        qWarn("%s, %s only table scan and exchange operator are supported "
                "for notify, but got %d, skip notify step done",
                GET_TASKID(pOperator->pTaskInfo), __func__,
                pDownstream->operatorType);

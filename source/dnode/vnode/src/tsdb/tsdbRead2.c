@@ -7412,7 +7412,7 @@ void tsdbDestroyFirstLastTsIter(void* pIter) {
 */
 int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
   if (pReader == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t lino = 0;
