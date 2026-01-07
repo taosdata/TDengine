@@ -46,7 +46,7 @@ class TestViewMgmt:
 
         self.prepare_data()
         tdLog.info(f"================== start view management tests")
-        # self.privilege_basic_view()
+        self.privilege_basic_view()
         self.privilege_nested_view()
         self.create_drop_view()
         self.query_view()
@@ -371,8 +371,12 @@ class TestViewMgmt:
         tdSql.execute(
             f"create view view2 as select a.ts, a.f, b.f from testa.view1 a, view1 b where a.ts=b.ts;"
         )
-        tdSql.execute(f"grant all on testa.view2 to u3;")
-        tdSql.execute(f"grant all on testb.view2 to u3;")
+        tdSql.execute(f"grant all on view testa.view2 to u3;")
+        tdSql.execute(f"grant all on view testb.view2 to u3;")
+        tdSql.execute(f"grant use on database testa to u3;")
+        tdSql.execute(f"grant use on database testb to u3;")
+        tdSql.execute(f"grant select on view testa.view1 to u3;")
+        tdSql.execute(f"grant select on view testb.view1 to u3;")
 
         tdLog.info(f"== start to query ==")
         tdSql.connect("u3")
@@ -401,6 +405,8 @@ class TestViewMgmt:
 
         tdSql.connect("root")
         tdSql.execute(f"revoke all on testa.* from u1;")
+        tdSql.execute(f"revoke all on view testa.* from u3;")
+        tdSql.execute(f"revoke all on view testa.view1 from u3;")
 
         tdSql.connect("u3")
         tdSql.execute(f"reset query cache")
@@ -417,7 +423,7 @@ class TestViewMgmt:
 
         tdSql.connect("u3")
         tdSql.execute(f"reset query cache")
-        tdSql.query(f"select * from testa.view2;")
+        tdSql.error(f"select * from testa.view2;")
         tdSql.error(f"select * from testa.view1;")
 
         tdLog.info(f"== drop user and views ==")
