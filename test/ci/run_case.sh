@@ -100,7 +100,7 @@ fi
 if [ -f "${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log" ]; then
     cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log /home/TDinternal/sim/var_taoslog/
 fi
-if [-f "${CONTAINER_TESTDIR}/docs/examples/c/docs-c-test-out.log" ]; then
+if [ -f "${CONTAINER_TESTDIR}/docs/examples/c/docs-c-test-out.log" ]; then
     cp ${CONTAINER_TESTDIR}/docs/examples/c/docs-c-test-out.log /home/TDinternal/sim/var_taoslog/
 fi
 if [ $RET -ne 0 ]; then
