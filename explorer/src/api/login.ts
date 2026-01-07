@@ -1,110 +1,114 @@
-import { request } from "@/utils/request.ts";
+import { request } from '@/utils/request.ts';
 import pathDetector from '@/utils/pathDetector';
+import { TimeBasedXor } from '@/utils/timeBasedXor';
 
 const apiPath = pathDetector.getApiBasePath();
 
 //获取cluster的url和dashboard的url
 export function getUrls() {
-    return request({
-        baseURL: apiPath,
-        url: `/profile`,
-        method: "get",
-        headers: {
-            noAuth: true
-        }
-    });
+  return request({
+    baseURL: apiPath,
+    url: `/profile`,
+    method: 'get',
+    headers: {
+      noAuth: true
+    }
+  });
 }
-export function firstLoginWith(token: string, data: string) {
-    return request({
-        baseURL: apiPath,
-        url: `/login`,
-        method: "post",
-        headers: {
-            Authorization: token,
-            "Content-Type": "text/plain"
-        },
-        data
-    });
+export function firstLoginWith(username: string, password: string, sql: string) {
+  const xor = new TimeBasedXor(60);
+  const encrypted_password = xor.encrypt(password);
+  return request({
+    baseURL: apiPath,
+    url: `/login`,
+    method: 'post',
+    autoLogoutOn401: false,
+    data: {
+      username,
+      encrypted_password,
+      sql
+    }
+  });
 }
 export function fetchApiByCluster(token: string, data: string) {
-    return request({
-        baseURL: apiPath,
-        url: `/rest/sql`,
-        method: "post",
-        headers: {
-            Authorization: token,
-            "Content-Type": "text/plain"
-        },
-        data
-    });
+  return request({
+    baseURL: apiPath,
+    url: `/rest/sql`,
+    method: 'post',
+    headers: {
+      Authorization: token,
+      'Content-Type': 'text/plain'
+    },
+    data
+  });
 }
 // 检查是否有绑定账号
 export function fetchIsbinding() {
-    return request({
-        baseURL: apiPath,
-        url: `/isbinding`,
-        method: "get",
-        headers: {
-            noAuth: true
-        }
-    });
+  return request({
+    baseURL: apiPath,
+    url: `/isbinding`,
+    method: 'get',
+    headers: {
+      noAuth: true
+    }
+  });
 }
 // 获取图形验证码
 export function fetchCaptcha(phone_email: string, ts: number | string) {
-    return request({
-        baseURL: apiPath,
-        url: `/captcha?phone_email=${phone_email}&ts=${ts}`,
-        method: "get",
-        headers: {
-            noAuth: true
-        },
-        responseType: 'blob',
-    });
+  return request({
+    baseURL: apiPath,
+    url: `/captcha?phone_email=${phone_email}&ts=${ts}`,
+    method: 'get',
+    headers: {
+      noAuth: true
+    },
+    responseType: 'blob'
+  });
 }
 // 发送验证码
 export function fetchVerificationCode(phone_email: string, captcha: string, ts: number | undefined, lang: string) {
-    return request({
-        baseURL: apiPath,
-        url: `/verification-code?phone_email=${phone_email}&captcha=${captcha}&ts=${ts}&lang=${lang}`,
-        method: "get",
-        headers: {
-            noAuth: true
-        }
-    });
+  return request({
+    baseURL: apiPath,
+    url: `/verification-code?phone_email=${phone_email}&captcha=${captcha}&ts=${ts}&lang=${lang}`,
+    method: 'get',
+    headers: {
+      noAuth: true
+    }
+  });
 }
 // 校验验证码
 export function getVerificationResult(data: Recordable) {
-    return request({
-        baseURL: apiPath,
-        url: `/verification-code`,
-        method: "post",
-        data,
-        headers: {
-            noAuth: true
-        }
-    });
+  return request({
+    baseURL: apiPath,
+    url: `/verification-code`,
+    method: 'post',
+    data,
+    headers: {
+      noAuth: true
+    }
+  });
 }
 
 // 校验验证码
 export function reportTaosdInfo(data: Recordable) {
-    return request({
-        baseURL: apiPath,
-        url: `/taosd-info`,
-        method: "post",
-        data,
-        headers: {
-            noAuth: true
-        }
-    });
+  return request({
+    baseURL: apiPath,
+    url: `/taosd-info`,
+    method: 'post',
+    data,
+    headers: {
+      noAuth: true
+    }
+  });
 }
 
 // 导入权限
 export function importTaosInfo(data: Recordable) {
-    return request({
-        baseURL: apiPath,
-        url: `/import`,
-        method: "post",
-        data,
-        timeout: 10000,
-    })
+  return request({
+    baseURL: apiPath,
+    url: `/import`,
+    method: 'post',
+    data,
+    timeout: 10000
+  });
 }

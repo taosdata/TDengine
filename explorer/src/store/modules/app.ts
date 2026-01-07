@@ -71,6 +71,7 @@ const state = {
   configData: [],
   activeName: 'datasource',
   viaId: null, // 点击数据源列表中的agent
+  loginWithSession: false, // Login with session id cookie
   oauthEnabled: false, // OAuth is enabled on the backend
   isOAuthLogin: false, // User logged in via OAuth
   isOAuthBinded: false, // User logged in with TSDB credentials via OAuth
@@ -274,8 +275,10 @@ const mutations = {
   },
   SET_TOKEN: (state, token) => {
     state.token = token;
-    if (!token) removeToken();
     setToken(token);
+  },
+  SET_LOGIN_WITH_SESSION: (state: { loginWithSession: boolean }, loginWithSession: boolean) => {
+    state.loginWithSession = loginWithSession;
   },
 
   SET_USERINFO: (state, userInfo) => {
@@ -339,18 +342,20 @@ const actions = {
     removeAppID();
     commit('LOGIN', request);
     commit('SET_USERINFO');
+    // Clean up OAuth-related cookies
     Cookies.remove(OAuthTokenKey);
     Cookies.remove(SessionIdKey);
 
     // If the user logged in via OAuth (server-side session), call backend logout
     // to invalidate the httpOnly session cookie. Do not rely on localStorage-stored tokens.
-    if (state && state.isOAuthLogin) {
+    if (state) {
       try {
         // If the backend endpoint exists, this will clear the session cookie.
         // The request util will include credentials for OAuth mode.
         await oauthLogout();
         commit('SET_OAUTH_LOGIN', false);
         commit('SET_OAUTH_BINDED', false);
+        commit('SET_LOGIN_WITH_SESSION', false);
       } catch (e) {
         // Ignore network errors during logout; proceed with client-side cleanup.
         // eslint-disable-next-line no-console

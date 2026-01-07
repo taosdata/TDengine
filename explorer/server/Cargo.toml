@@ -81,6 +81,7 @@ cbc = { version = "0.1.2", features = ["std"] }
 aes = "0.8.4"
 hkdf = "0.12.4"
 hmac = "0.12.1"
+litcrypt = "0.4.0"
 mime_guess = "2.0.5"
 tonic.workspace = true
 flume.workspace = true
@@ -97,7 +98,6 @@ ha-rpc-client.workspace = true
 taosx-core.workspace = true
 taosx-utils.workspace = true
 futures-ext.workspace = true
-
 
 [dependencies.taos]
 workspace = true

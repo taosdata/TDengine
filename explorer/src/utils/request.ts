@@ -1,57 +1,32 @@
 import { HttpRequest, RequestConfig } from 'taos-ui/utils/axios';
 import { ElMessage } from 'element-plus';
-import { getToken, refreshTokenExpire } from '@/utils/token';
+import { getToken } from '@/utils/token';
 import router from '@/router/index';
 import store from '../store';
 import { ReLoginCode, SuccessCode } from '@/const';
 import { t } from '@/lang';
 import { $IS_OEM } from './init';
-import { getOAuthStatus } from '@/api/oauth';
-import pathDetector from '@/utils/pathDetector';
 
-const apiPath = pathDetector.getApiBasePath();
 const errorMsgDuration = 20000;
 
 const httpRequest = new HttpRequest({
   // timeout: 20000,
   baseURL: import.meta.env.VITE_APP_BASE_URL,
-  withCredentials: false
+  withCredentials: true
 });
 
 httpRequest.setRequestInterceptor(
   async (config: RequestConfig) => {
     if (config.autoLogoutOn401 === undefined) config.autoLogoutOn401 = true;
-    const hasToken = getToken();
-    // Do NOT read oauth_token from localStorage. When OAuth is used the backend
-    // manages the session via httpOnly cookies; the client should rely on the
-    // `isOAuthLogin` store flag and send credentials (cookies) with requests.
-    // Detect store OAuth login flag (if store available)
-    const isOAuthLogin =
-      (typeof store !== 'undefined' && store && store.state && store.state.app && store.state.app.isOAuthLogin) ===
-      true;
-
     // Normalize headers object and guard access to header fields to avoid TS errors
     const headers = ((config as any).headers = (config as any).headers || {});
 
     if (headers.noAuth !== true) {
-      if (isOAuthLogin) {
-        // When app is in OAuth login mode, rely on server-set httpOnly session cookie.
-        // Ensure the request sends cookies to backend (so session cookie is included).
-        try {
-          (config as any).withCredentials = true;
-        } catch (e) {
-          // ignore if config type doesn't support withCredentials
-        }
-      } else {
-        // Non-OAuth / legacy flows: use cookie-based token (from getToken).
-        // Do NOT read oauth_token from localStorage here.
-        if (hasToken) {
-          // Traditional Basic Auth token (cookie)
-          headers['Authorization'] = hasToken;
-          if (!(config as any).noRefreshToken) {
-            refreshTokenExpire();
-          }
-        }
+      // Always send credentials (session cookie) for authentication
+      try {
+        (config as any).withCredentials = true;
+      } catch (e) {
+        // ignore if config type doesn't support withCredentials
       }
     }
     return config;

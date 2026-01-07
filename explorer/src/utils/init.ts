@@ -1,37 +1,39 @@
-import { setLang } from "@/lang/index.ts";
-import { clearLoginStateWhenReopen } from '@/utils/token';
+import { setLang } from '@/lang/index.ts';
 import { setLocale, setExecuteSqlFn, setGetDbListFn } from 'taos-ui/config';
 import { sendSQLReq } from '@/api/explorer';
 import { getDBListReq } from '@/api/database';
-export const $IS_TSDBLITE = import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME === "TDengine TSDB-Lite";
-export const $IS_COMMUNITY = (import.meta.env.VITE_APP_COMMUNITY && import.meta.env.VITE_APP_COMMUNITY === "community") ? true : false;
-export const $INDUSTRY = import.meta.env.VITE_APP_INDUSTRY
-export const $SYSINFO = true // 是否开启系统信息
-const is_tdengine = import.meta.env.VITE_APP_CUS_NAME.includes("TDengine")
-export const $IS_OEM = !$IS_TSDBLITE && import.meta.env.VITE_APP_CUS_NAME && !is_tdengine
+export const $IS_TSDBLITE =
+  import.meta.env.VITE_APP_CUS_NAME && import.meta.env.VITE_APP_CUS_NAME === 'TDengine TSDB-Lite';
+export const $IS_COMMUNITY =
+  import.meta.env.VITE_APP_COMMUNITY && import.meta.env.VITE_APP_COMMUNITY === 'community' ? true : false;
+export const $INDUSTRY = import.meta.env.VITE_APP_INDUSTRY;
+export const $SYSINFO = true; // 是否开启系统信息
+const is_tdengine = import.meta.env.VITE_APP_CUS_NAME.includes('TDengine');
+export const $IS_OEM = !$IS_TSDBLITE && import.meta.env.VITE_APP_CUS_NAME && !is_tdengine;
 export const OEM_NAME =
   import.meta.env.VITE_APP_CUS_NAME && !is_tdengine
     ? import.meta.env.VITE_APP_CUS_NAME
-    : $IS_COMMUNITY ? "TDengine TSDB-OSS" : $IS_TSDBLITE ? "TDengine TSDB-Lite" : "TDengine TSDB-Enterprise";
+    : $IS_COMMUNITY
+      ? 'TDengine TSDB-OSS'
+      : $IS_TSDBLITE
+        ? 'TDengine TSDB-Lite'
+        : 'TDengine TSDB-Enterprise';
 
-export const GRAFANA_GDS =
-  import.meta.env.VITE_APP_CUS_NAME && !is_tdengine
-    ? ""
-    : "TDengine TSDB";
+export const GRAFANA_GDS = import.meta.env.VITE_APP_CUS_NAME && !is_tdengine ? '' : 'TDengine TSDB';
 
 /**
  * 是否火狐浏览器
  * @returns {boolean}
  */
 export function isFirefox(): boolean {
-  return navigator.userAgent.includes("Firefox");
+  return navigator.userAgent.includes('Firefox');
 }
 /**
  * 火狐浏览器添加类名firefox
  */
 export function setFirefoxClass(): void {
   if (isFirefox()) {
-    document.documentElement.classList.add('firefox')
+    document.documentElement.classList.add('firefox');
   }
 }
 /**
@@ -49,17 +51,16 @@ export function getBrowserLang(): string {
  * 根据打包版本修改网页标题
  */
 export function setTitle(): void {
-  const title = $IS_COMMUNITY ? "TDengine TSDB-OSS" : import.meta.env.VITE_APP_CUS_NAME || "TDengine TSDB-Enterprise"
-  document.title = title
+  const title = $IS_COMMUNITY ? 'TDengine TSDB-OSS' : import.meta.env.VITE_APP_CUS_NAME || 'TDengine TSDB-Enterprise';
+  document.title = title;
 }
 
 export function setInit() {
-  setFirefoxClass()
-  setTitle()
-  setLang(getBrowserLang())
-  clearLoginStateWhenReopen()
+  setFirefoxClass();
+  setTitle();
+  setLang(getBrowserLang());
   // taos-ui
   setExecuteSqlFn(sendSQLReq);
   setGetDbListFn(getDBListReq);
-  setLocale(getBrowserLang())
+  setLocale(getBrowserLang());
 }

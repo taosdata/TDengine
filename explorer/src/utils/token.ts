@@ -25,12 +25,9 @@ export function getOAuthBearerToken() {
 }
 
 export function setToken(token: string) {
-  setLoginSign();
-  return Cookies.set(TokenKey, token, {
-    domain: Domain,
-    expires: TokenExpire,
-    path: '/'
-  });
+  // No longer set basic auth token in cookies
+  // Session ID is used for verification instead
+  return token;
 }
 
 export function refreshTokenExpire() {
@@ -38,18 +35,10 @@ export function refreshTokenExpire() {
   if (token) {
     setToken(token);
   } else {
-    removeToken();
     router.push({
       path: '/login'
     });
   }
-}
-export function removeToken() {
-  // Ensure we remove the cookie-based token. Do not remove client-side
-  // oauth_token here — that value is managed separately by dedicated helpers.
-  return Cookies.remove(TokenKey, {
-    domain: Domain
-  });
 }
 
 /**
@@ -80,21 +69,4 @@ export function setRedirect(url) {
   return Cookies.set(RedirectKey, url, {
     domain: Domain
   });
-}
-
-const loginSignKey = 'login_TDC';
-/** 设置登陆标志位 */
-export function setLoginSign() {
-  Cookies.set(loginSignKey, 'true');
-}
-
-/** 判断是否存在登陆标志位 */
-export function isLogin() {
-  return !!Cookies.get(loginSignKey);
-}
-
-export function clearLoginStateWhenReopen() {
-  if (!isLogin()) {
-    removeToken();
-  }
 }

@@ -1,5 +1,6 @@
 pub mod aes;
 pub mod cbc;
+pub mod xor;
 
 pub fn deserialize_non_empty_string<'de, D>(
     deserializer: D,
