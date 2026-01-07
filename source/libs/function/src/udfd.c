@@ -749,6 +749,8 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       code = terrno;
     }
     handle->udf = udf;
+  } else {
+    --udf->refCount;
   }
 
 _send:
