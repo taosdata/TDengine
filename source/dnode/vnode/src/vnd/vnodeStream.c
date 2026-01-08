@@ -3905,7 +3905,12 @@ end:
   STREAM_PRINT_LOG_END(code, lino);
   SRpcMsg rsp = {.msgType = TDMT_STREAM_FETCH_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
+  freeOperatorParam(req.pOpParam, OP_GET_PARAM);
   tDestroySResFetchReq(&req);
+  if (TDB_CODE_SUCCESS != code) {
+    ST_TASK_ELOG("vgId:%d %s failed, code:%d - %s", TD_VID(pVnode), __func__,
+                 code, tstrerror(code));
+  }
   return code;
 }
 

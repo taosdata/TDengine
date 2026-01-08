@@ -321,6 +321,13 @@ bool    isTaskKilled(void* pTaskInfo);
 
 int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid);
 
+/**
+  @brief notify the table scan operator's reader that current step is done
+  @param tinfo the TableScan task info
+  @param notifyTs the notify timestamp
+*/
+int32_t notifyTableScanTask(qTaskInfo_t tinfo, TSKEY notifyTs);
+
 #ifdef __cplusplus
 }
 #endif

@@ -303,16 +303,19 @@ class TestInterpFill:
         tdStream.checkStreamStatus()
 
         # insert data into trigger_table
-        tdSql.execute("insert into trigger_table values ('2025-12-12 11:59:00', 1)")
-        tdSql.execute("insert into trigger_table values ('2025-12-12 12:01:00', 1)")
-        tdSql.execute("insert into trigger_table values ('2025-12-12 12:02:00', 2)")
-        tdSql.execute("insert into trigger_table values ('2025-12-12 12:03:00', 1)")
-        tdSql.execute("insert into trigger_table values ('2025-12-12 12:05:00', 1)")
-        tdSql.execute("insert into trigger_table values ('2025-12-12 12:06:00', 2)")
-        tdSql.execute("insert into trigger_table values ('2025-12-12 12:09:30', 2)")
-        tdSql.execute("insert into trigger_table values ('2025-12-12 12:10:00', 1)")
-        tdSql.execute("insert into trigger_table values ('2025-12-12 12:12:00', 1)")
-        tdSql.execute("insert into trigger_table values ('2025-12-12 12:12:01', 2)")
+        tdSql.execute("""
+            insert into trigger_table values 
+            ('2025-12-12 11:59:00', 1),
+            ('2025-12-12 12:01:00', 1),
+            ('2025-12-12 12:02:00', 2),
+            ('2025-12-12 12:03:00', 1),
+            ('2025-12-12 12:05:00', 1),
+            ('2025-12-12 12:06:00', 2),
+            ('2025-12-12 12:09:30', 2),
+            ('2025-12-12 12:10:00', 1),
+            ('2025-12-12 12:12:00', 1),
+            ('2025-12-12 12:12:01', 2)
+        """)
 
         # check results
         for s in streams:

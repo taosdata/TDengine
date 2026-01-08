@@ -491,6 +491,7 @@ static int32_t buildExchangeOperatorBasicParam(SExchangeOperatorBasicParam* pBas
   qDebug("buildExchangeOperatorBasicParam, srcOpType:%d, exchangeType:%d, vgId:%d, groupId:%" PRIu64 ", tableSeq:%d, "
          "isNewParam:%d, isNewDeployed:%d", srcOpType, exchangeType, vgId, groupId, tableSeq, isNewParam, isNewDeployed);
 
+  pBasic->paramType = DYN_TYPE_EXCHANGE_PARAM;
   pBasic->srcOpType = srcOpType;
   pBasic->vgId = vgId;
   pBasic->groupid = groupId;
