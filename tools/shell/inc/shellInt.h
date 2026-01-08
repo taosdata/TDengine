@@ -38,7 +38,8 @@
 #define SHELL_HISTORY_FILE                     ".taos_history"
 #define SHELL_DEFAULT_RES_SHOW_NUM             100
 #define SHELL_DEFAULT_MAX_BINARY_DISPLAY_WIDTH 30
-#define SHELL_SHOW_TOKEN_DISPLAY_WIDTH         64
+#define SHELL_SHOW_TOKEN_DISPLAY_WIDTH         (TSDB_TOKEN_LEN - 1)
+#define SHELL_SHOW_TOTP_SECRET_DISPLAY_WIDTH   ((TSDB_TOTP_SECRET_LEN * 8 + 4) / 5) // base32 encoding length
 #define SHELL_TOKEN_LEN                        256
 #define SHELL_MAX_PKG_LEN                      2 * 1024 * 1024
 #define SHELL_MIN_PKG_LEN                      1

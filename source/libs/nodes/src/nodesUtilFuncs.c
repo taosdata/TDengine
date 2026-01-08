@@ -774,6 +774,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_TOKEN_STMT:
       code = makeNode(type, sizeof(SDropTokenStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_TOTP_SECRET_STMT:
+      code = makeNode(type, sizeof(SCreateTotpSecretStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_TOTP_SECRET_STMT:
+      code = makeNode(type, sizeof(SDropTotpSecretStmt), &pNode);
+      break;
     case QUERY_NODE_MERGE_VGROUP_STMT:
       code = makeNode(type, sizeof(SMergeVgroupStmt), &pNode);
       break;
@@ -1908,6 +1914,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_TRIM_DATABASE_WAL_STMT:               // no pointer field
     case QUERY_NODE_CREATE_TOKEN_STMT:                    // no pointer field
     case QUERY_NODE_DROP_TOKEN_STMT:                      // no pointer field
+    case QUERY_NODE_CREATE_TOTP_SECRET_STMT:              // no pointer field
+    case QUERY_NODE_DROP_TOTP_SECRET_STMT:                // no pointer field
     case QUERY_NODE_MERGE_VGROUP_STMT:                    // no pointer field
       break;
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
@@ -2780,6 +2788,7 @@ SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
   }
   return NULL;
 }
+
 
 SListCell* nodesListGetCell(SNodeList* pList, int32_t index) {
   SNode* node;

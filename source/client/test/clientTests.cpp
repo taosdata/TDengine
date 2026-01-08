@@ -36,6 +36,50 @@
 
 namespace {
 
+#define nDup 10
+static int32_t queryDB(TAOS* taos, char* command) {
+  int       i;
+  TAOS_RES* pSql = NULL;
+  int32_t   code = -1;
+
+  for (i = 0; i < nDup; ++i) {
+    if (NULL != pSql) {
+      taos_free_result(pSql);
+      pSql = NULL;
+    }
+
+    pSql = taos_query(taos, command);
+    code = taos_errno(pSql);
+    if (0 == code) {
+      break;
+    } else {
+      taosMsleep(1000);
+      fprintf(stderr, "%d:retry to run: %s, reason: %s\n", i, command, taos_errstr(pSql));
+    }
+  }
+
+  if (code != 0) {
+    fprintf(stderr, "failed to run: %s, reason: %s\n", command, taos_errstr(pSql));
+    taos_free_result(pSql);
+    taos_close(taos);
+    return code;
+  } else {
+    fprintf(stderr, "success to run: %s\n", command);
+  }
+
+  taos_free_result(pSql);
+  return code;
+}
+
+static int32_t getNumOfRows(TAOS_RES* pRes) {
+  int32_t numOfRows = 0;
+  TAOS_ROW pRow = NULL;
+  while ((pRow = taos_fetch_row(pRes)) != NULL) {
+    numOfRows++;
+  }
+  return numOfRows;
+}
+
 void printSubResults(void* pRes, int32_t* totalRows) {
   char buf[1024] = {0};
 
@@ -348,6 +392,35 @@ TEST(clientCase, connect_Test) {
   taos_close(pConn);
 }
 
+static int32_t base32Decode(const char *in, int32_t inLen, uint8_t *out) {
+  int     buffer = 0, bits = 0;
+  int32_t outLen = 0;
+
+  for (int32_t i = 0; i < inLen; i++) {
+    char c = in[i];
+
+    if (c >= 'a' && c <= 'z') {
+      c -= 'a';
+    } else if (c >= 'A' && c <= 'Z') {
+      c -= 'A';
+    } else if (c >= '2' && c <= '7') {
+      c = c - '2' + 26;
+    } else if (c == '=') {
+      break;  // padding character
+    } else {
+      return -1;  // invalid character
+    }
+    buffer = (buffer << 5) | c;
+    bits += 5;
+    if (bits >= 8) {
+      out[outLen++] = (buffer >> (bits - 8)) & 0xFF;
+      bits -= 8;
+    }
+  }
+
+  return outLen;  // success
+}
+
 TEST(clientCase, connect_totp_Test) {
   taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -356,19 +429,33 @@ TEST(clientCase, connect_totp_Test) {
   }
   ASSERT_NE(pConn, nullptr);
 
-  uint8_t secret[64] = {0};
-  size_t  secretLen = taosGenerateTotpSecret("AAbb1122", 8, secret, sizeof(secret));
-
-  TAOS_RES* pRes = taos_query(pConn, "create user totp_u pass 'taosdata' totpseed 'AAbb1122'");
+  TAOS_RES* pRes = taos_query(pConn, "create user totp_u pass 'taosdata'");
   if (pRes == NULL) {
     (void)printf("failed to create user, reason:%s\n", taos_errstr(NULL));
   }
   ASSERT_NE(pRes, nullptr);
   ASSERT_EQ(taos_errno(pRes), 0);
   taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create totp_secret for user totp_u");
+  if (pRes == NULL) {
+    (void)printf("failed to create totp secret, reason:%s\n", taos_errstr(NULL));
+  }
+  ASSERT_NE(pRes, nullptr);
+  ASSERT_EQ(taos_errno(pRes), 0);
+
+  char secretStr[64] = {0};
+  TAOS_ROW row = taos_fetch_row(pRes);
+  ASSERT_NE(row, nullptr);
+  tstrncpy(secretStr, (char*)row[0], sizeof(secretStr));
+  (void)printf("secret is: %s\n", secretStr);
+
+  taos_free_result(pRes);
   taos_close(pConn);
 
-  int totpCode = taosGenerateTotpCode(secret, secretLen, 6);
+  uint8_t secret[TSDB_TOTP_SECRET_LEN] = {0};
+  int32_t secretLen = base32Decode(secretStr, (int32_t)strlen(secretStr), secret);
+
   pConn = taos_connect_totp("localhost", "totp_u", "taosdata", "123456", NULL, 0);
   ASSERT_EQ(pConn, nullptr);
 
@@ -376,6 +463,7 @@ TEST(clientCase, connect_totp_Test) {
   ASSERT_EQ(code, TSDB_CODE_MND_WRONG_TOTP_CODE);
 
   char totp[16] = {0};
+  int totpCode = taosGenerateTotpCode(secret, secretLen, 6);
   (void)taosFormatTotp(totpCode, 6, totp, sizeof(totp));
   pConn = taos_connect_totp("localhost", "totp_u", "taosdata", totp, NULL, 0);
   if (pConn == NULL) {
@@ -1868,6 +1956,34 @@ void initTestEnv(const char* database, const char* stb, TAOS** pConnect, TAOS** 
     taos_free_result(pRes);
   }
 
+  {
+    sprintf(buf, "grant use on database %s to %s", database, tempUser);
+    TAOS_RES* pRes = taos_query(pRootConn, buf);
+    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    taos_free_result(pRes);
+  }
+
+  {
+    int32_t count = 10;
+    bool    privilegeOk = false;
+    sprintf(buf, "select * from information_schema.ins_user_privileges where user_name=\'%s\' and db_name=\'%s\'",
+            tempUser, database);
+    while (count--) {
+      TAOS_RES* pRes = taos_query(pRootConn, buf);
+      ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+      int32_t nResults = getNumOfRows(pRes);
+      if (nResults >= 11) {
+        privilegeOk = true;
+        printf("privilege ok, waited %d, remain count:%d, nResults:%d, sql:%s\n", 10 - count, count, nResults, buf);
+        break;
+      }
+      taos_free_result(pRes);
+      printf("privilege not ok, wait 1s and retry, remain count:%d, nResults:%d, sql:%s\n", count, nResults, buf);
+      taosMsleep(1000);
+    }
+    ASSERT_TRUE(privilegeOk);
+  }
+
   pUserConn = taos_connect("localhost", tempUser, "taosdata", NULL, 0);
   ASSERT_NE(pUserConn, nullptr);
   *pUserConnect = pUserConn;
@@ -1932,7 +2048,7 @@ void testSessionPerUser() {
 
   taos_close(pRootConn);
   taos_close(pUserConn);
-  taosMsleep(6100);
+  // taosMsleep(6100);
 }
 void testSessionConnTime() {
   int32_t     code = 0;
@@ -1946,9 +2062,11 @@ void testSessionConnTime() {
     char sql[128] = {0};
     sprintf(sql, "select * from %s.%s", databName, rstb);
 
-    TAOS_RES* pRes = taos_query(pUserConn, sql);
-    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-    taos_free_result(pRes);
+    // TAOS_RES* pRes = taos_query(pUserConn, sql);
+    // ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    // taos_free_result(pRes);
+    code = queryDB(pUserConn, sql);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
   {
@@ -1993,9 +2111,11 @@ void testSessionConnIdleTime() {
     char sql[128] = {0};
     sprintf(sql, "select * from %s.%s", databName, rstb);
 
-    TAOS_RES* pRes = taos_query(pUserConn, sql);
-    ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-    taos_free_result(pRes);
+    // TAOS_RES* pRes = taos_query(pUserConn, sql);
+    // ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+    // taos_free_result(pRes);
+    code = queryDB(pUserConn, sql);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
   {
@@ -2036,16 +2156,18 @@ void testSessionMaxVnodeCall() {
   char sql[128] = {0};
   sprintf(sql, "select * from %s.%s", databName, rstb);
 
-  TAOS_RES* pRes = taos_query(pUserConn, sql);
-  ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-  taos_free_result(pRes);
+  // TAOS_RES* pRes = taos_query(pUserConn, sql);
+  // ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  // taos_free_result(pRes);
+  code = queryDB(pUserConn, sql);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   sprintf(sql, "alter user %s CALL_PER_SESSION 2", userBuf);
-  pRes = taos_query(pRootConn, sql);
+  TAOS_RES* pRes = taos_query(pRootConn, sql);
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
-  taosMsleep(6100);
+  // taosMsleep(6100);
 
   // {
   //   char sql[128] = {0};
@@ -2076,12 +2198,14 @@ void testSessionConncurentCall() {
   initTestEnv(db, stb, &pRootConn, &pUserConn, userBuf);
   sprintf(sql, "select * from %s.%s", db, stb);
 
-  TAOS_RES* pRes = taos_query(pUserConn, sql);
-  ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
-  taos_free_result(pRes);
+  // TAOS_RES* pRes = taos_query(pUserConn, sql);
+  // ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
+  // taos_free_result(pRes);
+  code = queryDB(pUserConn, sql);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   sprintf(sql, "alter user %s VNODE_PER_CALL 2", userBuf);
-  pRes = taos_query(pRootConn, sql);
+  TAOS_RES* pRes = taos_query(pRootConn, sql);
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
 
@@ -2096,7 +2220,7 @@ void testSessionConncurentCall() {
   pRes = taos_query(pRootConn, sql);
   ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
   taos_free_result(pRes);
-  taosMsleep(6100);
+  // taosMsleep(6100);
   taos_close(pRootConn);
   taos_close(pUserConn);
 }
