@@ -7214,7 +7214,9 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs*
     CHECK_NAME(checkDbName(pCxt, &pPrivLevel->first, false));
     CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
     pStmt->privileges = *(SPrivSetArgs*)resouces;
-    COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
+    if (TK_NK_NIL != pPrivLevel->first.type) {
+      COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
+    }
     if (TK_NK_NIL != pPrivLevel->second.type) {
       COPY_STRING_FORM_ID_TOKEN(pStmt->tabName, &pPrivLevel->second);
     }

@@ -1480,22 +1480,22 @@ static int32_t collectMetaKeyFromScanVgroups(SCollectMetaKeyCxt* pCxt, SScanVgro
   return reserveDbCfgInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
 }
 
-static int32_t collectMetaKeyFromGrant(SCollectMetaKeyCxt* pCxt, SGrantStmt* pStmt) {
+static int32_t collectMetaKeyFromGrantImpl(SCollectMetaKeyCxt* pCxt, SGrantStmt* pStmt, bool grant) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (pStmt->optrType == TSDB_ALTER_ROLE_ROLE) {
     if (pStmt->roleName[0] == 'S' && pStmt->roleName[1] == 'Y' && pStmt->roleName[2] == 'S') {
       if (strcmp(pStmt->roleName, TSDB_ROLE_SYSDBA) == 0) {
-        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_SYSDBA, 0,
-                                      pCxt->pMetaCache);
+        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL,
+                                      grant ? PRIV_GRANT_SYSDBA : PRIV_REVOKE_SYSDBA, 0, pCxt->pMetaCache);
       }
       if (strcmp(pStmt->roleName, TSDB_ROLE_SYSSEC) == 0) {
-        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_SYSSEC, 0,
-                                      pCxt->pMetaCache);
+        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL,
+                                      grant ? PRIV_GRANT_SYSSEC : PRIV_REVOKE_SYSSEC, 0, pCxt->pMetaCache);
       }
       if (strcmp(pStmt->roleName, TSDB_ROLE_SYSAUDIT) == 0) {
-        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_SYSAUDIT,
-                                      0, pCxt->pMetaCache);
+        return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL,
+                                      grant ? PRIV_GRANT_SYSAUDIT : PRIV_REVOKE_SYSAUDIT, 0, pCxt->pMetaCache);
       }
     }
   } else if (TSDB_ALTER_ROLE_PRIVILEGES == pStmt->optrType) {
@@ -1527,15 +1527,19 @@ static int32_t collectMetaKeyFromGrant(SCollectMetaKeyCxt* pCxt, SGrantStmt* pSt
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_GRANT_PRIVILEGE, 0,
-                                  pCxt->pMetaCache);
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL,
+                                  grant ? PRIV_GRANT_PRIVILEGE : PRIV_REVOKE_PRIVILEGE, 0, pCxt->pMetaCache);
   }
 
   return code;
 }
 
+static int32_t collectMetaKeyFromGrant(SCollectMetaKeyCxt* pCxt, SGrantStmt* pStmt) {
+  return collectMetaKeyFromGrantImpl(pCxt, pStmt, true);
+}
+
 static int32_t collectMetaKeyFromRevoke(SCollectMetaKeyCxt* pCxt, SRevokeStmt* pStmt) {
-  return collectMetaKeyFromGrant(pCxt, (SGrantStmt*)pStmt);
+  return collectMetaKeyFromGrantImpl(pCxt, (SGrantStmt*)pStmt, false);
 }
 
 static int32_t collectMetaKeyFromCreateViewStmt(SCollectMetaKeyCxt* pCxt, SCreateViewStmt* pStmt) {
