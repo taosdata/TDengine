@@ -214,8 +214,8 @@ static void reportSendProcess(void* param, void* tmrId) {
 
   SEpSet ep = getEpSet_s(&pInst->mgmtEp);
   generateClusterReport(pMonitor->registry, pInst->pTransporter, &ep);
-  bool reset =
-      taosTmrReset(reportSendProcess, pInst->serverCfg.monitorParas.tsMonitorInterval * 1000, param, monitorTimer, &tmrId);
+  bool reset = taosTmrReset(reportSendProcess, pInst->serverCfg.monitorParas.tsMonitorInterval * 1000, param,
+                            monitorTimer, &tmrId);
   tscDebug("reset timer, pMonitor:%p, %d", pMonitor, reset);
   taosRUnLockLatch(&monitorLock);
 }
@@ -287,8 +287,8 @@ void monitorCreateClient(int64_t clusterId) {
       pMonitor = NULL;
       goto fail;
     }
-    pMonitor->timer =
-        taosTmrStart(reportSendProcess, pInst->serverCfg.monitorParas.tsMonitorInterval * 1000, (void*)pMonitor, monitorTimer);
+    pMonitor->timer = taosTmrStart(reportSendProcess, pInst->serverCfg.monitorParas.tsMonitorInterval * 1000,
+                                   (void*)pMonitor, monitorTimer);
     if (pMonitor->timer == NULL) {
       tscError("failed to start timer");
       goto fail;
@@ -331,8 +331,7 @@ void monitorCreateClientCounter(int64_t clusterId, const char* name, const char*
     }
     goto end;
   }
-  tscInfo("clusterId:0x%" PRIx64 ", monitor:%p, create counter:%s %p", pMonitor->clusterId, pMonitor, name,
-          newCounter);
+  tscInfo("clusterId:0x%" PRIx64 ", monitor:%p, create counter:%s %p", pMonitor->clusterId, pMonitor, name, newCounter);
 
 end:
   taosWUnLockLatch(&monitorLock);
@@ -458,7 +457,7 @@ static char* readFile(TdFilePtr pFile, int64_t* offset, int64_t size) {
   }
   char* buf = pCont;
   (void)strncat(buf++, "[", totalSize - 1);
-  int64_t readSize = taosReadFile(pFile, buf, totalSize - 4); // 4 reserved for []
+  int64_t readSize = taosReadFile(pFile, buf, totalSize - 4);  // 4 reserved for []
   if (readSize <= 0) {
     if (readSize < 0) {
       tscError("failed to read len from file:%p since %s", pFile, terrstr());
@@ -470,10 +469,30 @@ static char* readFile(TdFilePtr pFile, int64_t* offset, int64_t size) {
   totalSize = 0;
   while (1) {
     size_t len = strlen(buf);
+    if (len == SLOW_LOG_SEND_SIZE_MAX) {  // one item is too long
+      *offset = size;
+      *buf = ']';
+      *(buf + 1) = '\0';
+      break;
+    }
+
     totalSize += (len + 1);
-    if (totalSize > readSize || len == 0) {
+    if (totalSize > readSize) {
       *(buf - 1) = ']';
       *buf = '\0';
+      break;
+    }
+
+    if (len == 0) {             // one item is empty
+      if (*(buf - 1) == '[') {  // data is "\0"
+        // no data read
+        *buf = ']';
+        *(buf + 1) = '\0';
+      } else {  // data is "ass\0\0"
+        *(buf - 1) = ']';
+        *buf = '\0';
+      }
+      *offset += 1;
       break;
     }
     buf[len] = ',';  // replace '\0' with ','
@@ -552,8 +571,7 @@ static void monitorSendSlowLogAtBeginning(int64_t clusterId, char** fileName, Td
     if (code == 0) {
       tscDebug("monitor send slow log succ, clusterId:0x%" PRIx64, clusterId);
     } else {
-      tscError("monitor send slow log failed, clusterId:0x%" PRIx64 ", ret:%d", clusterId,
-               code);
+      tscError("monitor send slow log failed, clusterId:0x%" PRIx64 ", ret:%d", clusterId, code);
     }
     *fileName = NULL;
   }
@@ -975,7 +993,7 @@ static void reportDeleteSql(SRequestObj* pRequest) {
     return;
   }
 
-  if(pTscObj->pAppInfo->serverCfg.enableAuditDelete == 0) {
+  if (pTscObj->pAppInfo->serverCfg.enableAuditDelete == 0) {
     tscDebug("[del report] audit delete is disabled");
     return;
   }
