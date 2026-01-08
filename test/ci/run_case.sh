@@ -40,6 +40,7 @@ if [ -z "$exec_dir" ]; then
     usage
     exit 0
 fi
+
 if [ -z "$cmd" ]; then
     usage
     exit 0
@@ -73,16 +74,18 @@ else
     ln -s /home/TDinternal/community/include/libs/function/taosudf.h /usr/include/taosudf.h 2>/dev/null
     CONTAINER_TESTDIR=/home/TDinternal/community
 fi
+
 mkdir -p /var/lib/taos/subscribe
 mkdir -p /var/log/taos
 mkdir -p /var/lib/taos
 mkdir -p /etc/taos
 
-cd $CONTAINER_TESTDIR/$target_dir || { echo "Can't enter the target dirctory: ${CONTAINER_TESTDIR}/${target_dir}"; exit 1; }
-ulimit -c unlimited
+cd $CONTAINER_TESTDIR/$target_dir || {
+    echo "Can't enter the target dirctory: ${CONTAINER_TESTDIR}/${target_dir}";
+    exit 1;
+}
 
-md5sum /usr/lib/libtaos.so.1
-md5sum /home/TDinternal/debug/build/lib/libtaos.so
+ulimit -c unlimited
 
 #get python connector and update: taospy 2.8.6 taos-ws-py 0.6.3
 pip3 install taospy==2.8.6
@@ -90,15 +93,19 @@ pip3 install taos-ws-py==0.6.3
 $TIMEOUT_CMD $cmd
 RET=$?
 echo "cmd exit code: $RET"
-md5sum /usr/lib/libtaos.so.1
-md5sum /home/TDinternal/debug/build/lib/libtaos.so
 
 if [ -d "/var/log/taos" ]; then
     cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/
 fi
 
 if [ -f "${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log" ]; then
-    cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log /home/TDinternal/sim/var_taoslog/
+    cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log \
+        /home/TDinternal/sim/var_taoslog/
+fi
+
+if [ -f "${CONTAINER_TESTDIR}/docs/examples/c/docs-c-test-out.log" ]; then
+    cp ${CONTAINER_TESTDIR}/docs/examples/c/docs-c-test-out.log \
+        /home/TDinternal/sim/var_taoslog/
 fi
 
 if [ $RET -ne 0 ]; then
@@ -106,4 +113,3 @@ if [ $RET -ne 0 ]; then
 fi
 
 exit $RET
-
