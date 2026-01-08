@@ -178,11 +178,11 @@ class TMQCom:
             tsql.execute("drop database if exists %s"%(dbName))
 
         tsql.execute("create database if not exists %s vgroups %d replica %d"%(dbName, vgroups, replica))
-        create_db_statu = self.waitTransactionZeroWithTdsql(tsql)
-        if not create_db_statu:
+        create_db_status = self.waitTransactionZeroWithTdsql(tsql)
+        if not create_db_status:
             tdLog.exit("Transaction did not reach zero, aborting test.")
         else:
-            tdLog.debug("complete to create database %s"%(dbName))
+            tdLog.debug(f"complete to create database {dbName}")
         return
 
     # self.create_stable() and self.create_ctable() and self.insert_data_interlaceByMultiTbl() : The three functions are matched
