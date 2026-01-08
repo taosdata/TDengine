@@ -4189,11 +4189,10 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
   pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
   pOptions->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
-  pOptions->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;  // not implemented yet, so use -1 instead of
-                                                                // TSDB_USER_VNODE_PER_CALL_DEFAULT;
+  pOptions->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
   pOptions->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
   pOptions->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
-  pOptions->passwordReuseTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
+  pOptions->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
   pOptions->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
   pOptions->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
   pOptions->passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
