@@ -162,6 +162,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   metaRsp.tableType = mer1.me.type;
   metaRsp.vgId = TD_VID(pVnode);
   metaRsp.tuid = mer1.me.uid;
+  metaRsp.isAudit = pVnode->config.isAudit ? 1 : 0;
 
   switch (mer1.me.type) {
     case TSDB_SUPER_TABLE: {
@@ -337,6 +338,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   cfgRsp.tableType = mer1.me.type;
+  cfgRsp.isAudit = pVnode->config.isAudit ? 1 : 0;
 
   if (mer1.me.type == TSDB_SUPER_TABLE) {
     code = TSDB_CODE_VND_HASH_MISMATCH;
@@ -348,6 +350,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     tstrncpy(cfgRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
     schema = mer2.me.stbEntry.schemaRow;
     schemaTag = mer2.me.stbEntry.schemaTag;
+    cfgRsp.ownerId = mer2.me.stbEntry.ownerId;  // child table inherits ownerId from stb
     cfgRsp.ttl = mer1.me.ctbEntry.ttlDays;
     cfgRsp.commentLen = mer1.me.ctbEntry.commentLen;
     if (mer1.me.ctbEntry.commentLen > 0) {

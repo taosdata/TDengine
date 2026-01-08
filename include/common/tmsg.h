@@ -869,7 +869,7 @@ typedef struct {
   union {
     uint8_t flag;
     struct {
-      uint8_t virtualStb : 1;
+      uint8_t virtualStb : 1;  // no compatibility problem for little-endian arch
       uint8_t isAudit : 1;
       uint8_t reserved : 6;
     };
@@ -2028,8 +2028,15 @@ typedef struct {
   int32_t     tagsLen;
   char*       pTags;
   SSchemaExt* pSchemaExt;
-  int8_t      virtualStb;
-  SColRef*    pColRefs;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t virtualStb : 1;  // no compatibility problem for little-endian arch
+      uint8_t isAudit : 1;
+      uint8_t reserve : 6;
+    };
+  };
+  SColRef* pColRefs;
 } STableCfg;
 
 typedef STableCfg STableCfgRsp;

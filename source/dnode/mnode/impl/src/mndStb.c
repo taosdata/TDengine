@@ -2248,6 +2248,7 @@ static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, 
   pRsp->tuid = pStb->uid;
   pRsp->virtualStb = pStb->virtualStb;
   pRsp->ownerId = pStb->ownerId;
+  pRsp->isAudit = pDb->cfg.isAudit ? 1 : 0;
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pRsp->pSchemas[i];

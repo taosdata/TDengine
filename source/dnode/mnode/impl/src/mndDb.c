@@ -1969,7 +1969,6 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   int32_t    code = -1;
   SDbObj    *pDb = NULL;
-  SUserObj  *pUser = NULL;
   SDropDbReq dropReq = {0};
   int64_t    tss = taosGetTimestampMs();
 
@@ -2066,7 +2065,6 @@ _OVER:
     mError("db:%s, failed to drop since %s", dropReq.db, terrstr());
   }
 
-  mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);
   tFreeSDropDbReq(&dropReq);
   TAOS_RETURN(code);
@@ -2173,7 +2171,6 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
   SDbObj   *pDb = NULL;
   SUseDbReq usedbReq = {0};
   SUseDbRsp usedbRsp = {0};
-  SUserObj *pOperUser = NULL;
 
   TAOS_CHECK_GOTO(tDeserializeSUseDbReq(pReq->pCont, pReq->contLen, &usedbReq), NULL, _OVER);
 
@@ -2204,8 +2201,7 @@ static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
       if (terrno != 0) code = terrno;
       goto _OVER;
     } else {
-      TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
-      TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, usedbReq.db, NULL), NULL, _OVER);
+      TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL, _OVER);
 
       TAOS_CHECK_GOTO(mndExtractDbInfo(pMnode, pDb, &usedbRsp, &usedbReq), NULL, _OVER);
 
@@ -2238,7 +2234,6 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  mndReleaseUser(pMnode, pOperUser);
   tFreeSUsedbRsp(&usedbRsp);
 
   TAOS_RETURN(code);

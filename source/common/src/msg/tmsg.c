@@ -6615,7 +6615,7 @@ int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) {
     }
   }
 
-  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->virtualStb));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pRsp->flag));
   if (hasRefCol(pRsp->tableType)) {
     for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
       SColRef *pColRef = &pRsp->pColRefs[i];
@@ -6711,7 +6711,7 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
   }
 
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->virtualStb));
+    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pRsp->flag));
     if (hasRefCol(pRsp->tableType) && pRsp->numOfColumns > 0) {
       pRsp->pColRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfColumns);
       if (pRsp->pColRefs == NULL) {
