@@ -258,6 +258,12 @@ int32_t mndCheckAlterUserPrivilege(SMnode* pMnode, const char *opUser, const cha
   }
 
   if (pAlter->hasPassword) {
+    if (opToken == NULL && mndMustChangePassword(pOperUser)) {
+      // if operUser must change password, only allow to change its own password
+      if (strcmp(pUser->user, pOperUser->user) != 0) {
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_PASSWORD_EXPIRED, &lino, _OVER);
+      }
+    }
     if (!canChangePassword(pOperUser, pUser)) {
       TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
     }
