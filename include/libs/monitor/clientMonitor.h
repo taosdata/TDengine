@@ -35,16 +35,17 @@ typedef enum {
 typedef enum {
   SLOW_LOG_WRITE = 0,
   SLOW_LOG_READ_RUNNING = 1,
-  SLOW_LOG_READ_BEGINNIG = 2,
+  SLOW_LOG_READ_BEGINNING = 2,
   SLOW_LOG_READ_QUIT = 3,
-  SLOW_LOG_READ_QUIT_SEND_ALL = 4,
+  SLOW_LOG_READ_ALL = 4,
 } SLOW_LOG_QUEUE_TYPE;
 
 static char* queueTypeStr[] = {
   "SLOW_LOG_WRITE",
   "SLOW_LOG_READ_RUNNING",
-  "SLOW_LOG_READ_BEGINNIG",
-  "SLOW_LOG_READ_QUIT"
+  "SLOW_LOG_READ_BEGINNING",
+  "SLOW_LOG_READ_QUIT",
+  "SLOW_LOG_READ_ALL"
 };
 
 #define SLOW_LOG_SEND_SIZE_MAX 1024*1024
@@ -58,18 +59,20 @@ typedef struct {
 } MonitorClient;
 
 typedef struct {
+  int64_t                    clusterId;
   TdFilePtr                  pFile;
-  int64_t                    lastCheckTime;
+  int64_t                    lastSendTime;
   char                       path[PATH_MAX];
-  int64_t                    offset;
+  int64_t                    sendOffset;
+  int64_t                    size;
+  SLOW_LOG_QUEUE_TYPE        type;
+  bool                       closed;
 } SlowLogClient;
 
 typedef struct {
   int64_t             clusterId;
   SLOW_LOG_QUEUE_TYPE type;
   char*               data;
-  int64_t             offset;
-  TdFilePtr           pFile;
   char*               fileName;
 } MonitorSlowLogData;
 
