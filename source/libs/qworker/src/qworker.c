@@ -1067,7 +1067,8 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   SOutputData sOutput = {0};
-  QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawDataLen, &rsp, &sOutput));
+  QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawDataLen,
+                                    &rsp, &sOutput));
 
   if (NULL == rsp) {
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
@@ -1083,8 +1084,10 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     }
   }
 
-  if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {
-    QW_TASK_DLOG("task not end and buf is %s, need to continue query", qwBufStatusStr(sOutput.bufStatus));
+  if ((!sOutput.queryEnd) &&
+      (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {
+    QW_TASK_DLOG("task not end and buf is %s, need to continue query",
+                 qwBufStatusStr(sOutput.bufStatus));
 
     QW_LOCK(QW_WRITE, &ctx->lock);
     locked = true;
@@ -1095,7 +1098,8 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     } else if (QW_QUERY_RUNNING(ctx)) {
       atomic_store_8((int8_t *)&ctx->queryContinue, 1);
     } else if (0 == atomic_load_8((int8_t *)&ctx->queryInQueue)) {
-      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXEC, ctx->dynamicTask));
+      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXEC,
+                                     ctx->dynamicTask));
       atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
 
       QW_ERR_JRET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));

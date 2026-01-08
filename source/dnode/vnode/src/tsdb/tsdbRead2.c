@@ -7404,7 +7404,7 @@ void tsdbDestroyFirstLastTsIter(void* pIter) {
   taosMemoryFree(pIter);
 }
 
-/*
+/**
   @brief Mark the current step done, so next step will be triggered.
   @param pReader the reader to mark the step done
   @param notifyTs the timestamp to notify, used to determine whether  
@@ -7412,7 +7412,7 @@ void tsdbDestroyFirstLastTsIter(void* pIter) {
 */
 int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
   if (pReader == NULL) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t lino = 0;

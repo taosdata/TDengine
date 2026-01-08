@@ -947,29 +947,46 @@ static SSDataBlock* getBlockForEmptyTable(SOperatorInfo* pOperator, const STable
   return pBlock;
 }
 
+/**
+  @brief prepare table scan, if the get param contains notify info,
+  notify the table scan operator's reader that current step is done
+*/
 static int32_t prepareTableScan(SOperatorInfo* pOperator) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
   qDebug("%s, prepareTableScan start", GET_TASKID(pOperator->pTaskInfo));
   SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
-  if (pGetParam &&
-      *(ETableScanParamType*)pGetParam->value == NOTIFY_TYPE_SCAN_PARAM) {
-    STableScanOperatorTsParam* pTsParam =
-      (STableScanOperatorTsParam*)pGetParam->value;
+  if (NULL != pGetParam && NULL != pGetParam->value &&
+      (((STableScanOperatorParam*)pGetParam->value)->paramType ==
+         NOTIFY_TYPE_SCAN_PARAM ||
+       ((STableScanOperatorParam*)pGetParam->value)->paramType ==
+         HYBRID_TYPE_SCAN_PARAM) &&
+      ((STableScanOperatorParam*)pGetParam->value)->notifyToProcess) {
+    STableScanOperatorParam* pNotify =
+      (STableScanOperatorParam*)pGetParam->value;
+    /**
+      Set getParam to NULL to avoid impacting following table scan operation.
+      The param is referenced by getParam, and it will be freed by
+      the caller of doTableScanNext.
+    */
+    if (pNotify->paramType != HYBRID_TYPE_SCAN_PARAM) {
+      pOperator->pOperatorGetParam = NULL;
+    }
 
     STableScanInfo* pTableScanInfo = pOperator->info;
     SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
     SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
     code = pAPI->tsdReader.tsdReaderStepDone(pTableScanInfo->base.dataReader,
-                                             pTsParam->notifyTs);
+                                             pNotify->notifyTs);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
   qDebug("%s, prepareTableScan end", GET_TASKID(pOperator->pTaskInfo));
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s, %s failed at line %d since %s",
+           GET_TASKID(pOperator->pTaskInfo), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -1305,8 +1322,10 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
   cleanupQueryTableDataCond(&pInfo->base.cond);
 
   SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
-  if (pGetParam && *(ETableScanParamType*)pGetParam == DYN_TYPE_SCAN_PARAM) {
-    STableScanOperatorParam* pParam = (STableScanOperatorParam*)pGetParam->value;
+  if (pGetParam &&
+      *(ETableScanGetParamType*)pGetParam->value == DYN_TYPE_SCAN_PARAM) {
+    STableScanOperatorParam* pParam =
+      (STableScanOperatorParam*)pGetParam->value;
     pInfo->pBatchColMap = pParam->pBatchTbInfo;
     pParam->pBatchTbInfo = NULL;
     pInfo->cachedTimeWindow = pParam->window;
@@ -2146,8 +2165,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   QUERY_CHECK_CODE(code, lino, _end);
 
   SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
-  if ((pGetParam && *(ETableScanParamType*)pGetParam == DYN_TYPE_SCAN_PARAM) ||
-      pInfo->pBatchColMap) {
+  if (pGetParam || pInfo->pBatchColMap) {
     ETableScanDynType type = pGetParam ?
       ((STableScanOperatorParam*)pGetParam->value)->dynType :
       DYN_TYPE_VSTB_BATCH_SCAN;
@@ -2467,8 +2485,8 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
 
   pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
 
-  pOperator->fpSet = createOperatorFpSet(prepareTableScan, doTableScanNext, NULL,
-                                         destroyTableScanOperatorInfo,
+  pOperator->fpSet = createOperatorFpSet(prepareTableScan, doTableScanNext,
+                                         NULL, destroyTableScanOperatorInfo,
                                          optrDefaultBufFn,
                                          getTableScannerExecInfo,
                                          optrDefaultGetNextExtFn, NULL);
@@ -3804,13 +3822,12 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   STagScanInfo* pInfo = pOperator->info;
-  SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
-  if (pGetParam && *(ETableScanParamType*)pGetParam == DYN_TYPE_SCAN_PARAM) {
+  if (pOperator->pOperatorGetParam) {
     pOperator->resultInfo.totalRows = 0;
     pOperator->dynamicTask = true;
     pInfo->curPos = 0;
     code = createTagScanTableListInfoFromParam(pOperator);
-    freeOperatorParam(pGetParam, OP_GET_PARAM);
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
     pOperator->pOperatorGetParam = NULL;
     QUERY_CHECK_CODE(code, lino, _end);
 

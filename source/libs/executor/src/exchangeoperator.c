@@ -65,6 +65,7 @@ static int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code)
 static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex);
 static int32_t getCompletedSources(const SArray* pArray, int32_t* pRes);
 static int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator);
+static int32_t storeNotifyInfo(SOperatorInfo* pOperator);
 static int32_t seqLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock,
@@ -959,6 +960,47 @@ _return:
   return code;
 }
 
+/**
+  @brief build the table scan operator param for notify message
+*/
+int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
+                                          int32_t srcOpType, TSKEY notifyTs) {
+  if (srcOpType != 0 && srcOpType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    qWarn("%s, invalid srcOpType:%d", __func__, srcOpType);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno);
+
+  STableScanOperatorParam* pTsParam =
+    taosMemoryCalloc(1, sizeof(STableScanOperatorParam));
+  QUERY_CHECK_NULL(pTsParam, code, lino, _return, terrno);
+
+  pTsParam->paramType = NOTIFY_TYPE_SCAN_PARAM;
+  pTsParam->notifyToProcess = true;
+  pTsParam->notifyTs = notifyTs;
+
+  (*ppRes)->opType = srcOpType != 0 ? srcOpType :
+                                      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  (*ppRes)->downstreamIdx = 0;
+  (*ppRes)->value = pTsParam;
+  (*ppRes)->pChildren = NULL;
+  (*ppRes)->reUse = false;
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at %d, failed to build scan operator msg:%s",
+           __func__, lino, tstrerror(code));
+    taosMemoryFreeClear(*ppRes);
+    if (pTsParam) {
+      taosMemoryFree(pTsParam);
+    }
+  }
+  return code;
+}
+
 int32_t buildTableScanOperatorParamBatchInfo(SOperatorParam** ppRes, uint64_t groupid, SArray* pUidList, int32_t srcOpType, SArray *pBatchMap, SArray *pTagList, bool tableSeq, STimeWindow *window, bool isNewParam) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
@@ -1268,7 +1310,11 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       case EX_SRC_TYPE_STB_JOIN_SCAN:
       default: {
         if (pDataInfo->pSrcUidList) {
-          code = buildTableScanOperatorParam(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->tableSeq);
+          code = buildTableScanOperatorParam(&req.pOpParam,
+                                             pDataInfo->pSrcUidList,
+                                             pDataInfo->srcOpType,
+                                             pDataInfo->tableSeq);
+          /* source uid list can be reused in vnode size, so only use once */
           taosArrayDestroy(pDataInfo->pSrcUidList);
           pDataInfo->pSrcUidList = NULL;
           if (TSDB_CODE_SUCCESS != code) {
@@ -1276,6 +1322,26 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
             taosMemoryFree(pWrapper);
             return pTaskInfo->code;
           }
+        }
+        if (pExchangeInfo->notifyToSend &&
+            (IS_STREAM_MODE(pTaskInfo) || pExchangeInfo->seqLoadData)) {
+          if (NULL == req.pOpParam) {
+            code = buildTableScanOperatorParamNotify(&req.pOpParam,
+                                                     pDataInfo->srcOpType,
+                                                     pExchangeInfo->notifyTs);
+            if (TSDB_CODE_SUCCESS != code) {
+              pTaskInfo->code = code;
+              taosMemoryFree(pWrapper);
+              return pTaskInfo->code;
+            }
+          } else {
+            STableScanOperatorParam* pScanParam =
+              (STableScanOperatorParam*)req.pOpParam->value;
+            pScanParam->paramType = HYBRID_TYPE_SCAN_PARAM;
+            pScanParam->notifyToProcess = true;
+            pScanParam->notifyTs = pExchangeInfo->notifyTs;
+          }
+          pExchangeInfo->notifyToSend = false;
         }
         break;
       }
@@ -1477,6 +1543,34 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
     T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+  @brief store STEP DONE notification info
+*/
+int32_t storeNotifyInfo(SOperatorInfo* pOperator) {
+  SExchangeInfo*  pExchangeInfo = pOperator->info;
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+  SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
+
+  SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pGetParam->value;
+  if (!pParam->multiParams) {
+    SExchangeOperatorBasicParam* pBasic = &pParam->basic;
+    if (pBasic->paramType != NOTIFY_TYPE_EXCHANGE_PARAM) {
+      qWarn("%s, %s found invalid exchange operator param type %d",
+             GET_TASKID(pTaskInfo), __func__, pBasic->paramType);
+      goto _end;
+    }
+
+    pExchangeInfo->notifyToSend = true;
+    pExchangeInfo->notifyTs = pBasic->notifyTs;
+  } else {
+    qWarn("%s, %s found multi params are not supported for notify msg",
+           GET_TASKID(pTaskInfo), __func__);
+  }
+
+_end:
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1717,6 +1811,12 @@ static int32_t loadTagListFromBasicParam(SSourceDataInfo* pDataInfo, SExchangeOp
   STagVal  dstTag;
   bool     needFree = false;
 
+  if (pBasicParam->paramType != DYN_TYPE_EXCHANGE_PARAM) {
+    qError("%s failed since invalid exchange operator param type %d",
+      __func__, pBasicParam->paramType);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   if (pDataInfo->tagList) {
     taosArrayClear(pDataInfo->tagList);
   }
@@ -1764,6 +1864,12 @@ int32_t loadBatchColMapFromBasicParam(SSourceDataInfo* pDataInfo, SExchangeOpera
   SOrgTbInfo  dstOrgTbInfo = {0};
   bool        needFree = false;
 
+  if (pBasicParam->paramType != DYN_TYPE_EXCHANGE_PARAM) {
+    qError("%s failed since invalid exchange operator param type %d",
+      __func__, pBasicParam->paramType);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   if (pBasicParam->batchOrgTbInfo) {
     pDataInfo->batchOrgTbInfo = taosArrayInit(1, sizeof(SOrgTbInfo));
     QUERY_CHECK_NULL(pDataInfo->batchOrgTbInfo, code, lino, _return, terrno);
@@ -1796,7 +1902,14 @@ _return:
   return code;
 }
 
-int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasicParam* pBasicParam) {
+int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
+                                SExchangeOperatorBasicParam* pBasicParam) {
+  if (pBasicParam->paramType != DYN_TYPE_EXCHANGE_PARAM) {
+    qWarn("%s, %s found invalid exchange operator param type %d",
+      GET_TASKID(pOperator->pTaskInfo), __func__, pBasicParam->paramType);
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SExchangeInfo*     pExchangeInfo = pOperator->info;
@@ -2020,9 +2133,12 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   
-  if ((OPTR_IS_OPENED(pOperator) && !pExchangeInfo->dynamicOp) ||
+  if ((OPTR_IS_OPENED(pOperator) && !pExchangeInfo->dynamicOp &&
+       NULL == pOperator->pOperatorGetParam) ||
       (pExchangeInfo->dynamicOp && NULL == pOperator->pOperatorGetParam)) {
-    qDebug("skip prepare, opened:%d, dynamicOp:%d, getParam:%p", OPTR_IS_OPENED(pOperator), pExchangeInfo->dynamicOp, pOperator->pOperatorGetParam);
+    qDebug("%s, skip prepare, opened:%d, dynamicOp:%d, getParam:%p",
+      GET_TASKID(pOperator->pTaskInfo), OPTR_IS_OPENED(pOperator),
+      pExchangeInfo->dynamicOp, pOperator->pOperatorGetParam);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2031,8 +2147,17 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (pOperator->status == OP_NOT_OPENED && (pExchangeInfo->dynamicOp && pExchangeInfo->seqLoadData) || IS_STREAM_MODE(pOperator->pTaskInfo)) {
+  if (pOperator->status == OP_NOT_OPENED &&
+      (pExchangeInfo->dynamicOp && pExchangeInfo->seqLoadData) ||
+      IS_STREAM_MODE(pOperator->pTaskInfo)) {
     pExchangeInfo->current = 0;
+  }
+
+  if (NULL != pOperator->pOperatorGetParam &&
+      (IS_STREAM_MODE(pOperator->pTaskInfo) || pExchangeInfo->seqLoadData)) {
+    code = storeNotifyInfo(pOperator);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pOperator->pOperatorGetParam = NULL;
   }
 
   int64_t st = taosGetTimestampUs();
@@ -2054,7 +2179,7 @@ _end:
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, code);
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf) {

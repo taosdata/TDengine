@@ -1280,48 +1280,34 @@ void freeInterpFuncNotifyOperatorParam(SOperatorParam* pParam) {
 }
 
 void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
-  ETableScanParamType paramType = *(ETableScanParamType*)pParam->value;
-
-  switch (paramType) {
-    case DYN_TYPE_SCAN_PARAM: {
-      STableScanOperatorParam* pTableScanParam =
-        (STableScanOperatorParam*)pParam->value;
-      taosArrayDestroy(pTableScanParam->pUidList);
-      if (pTableScanParam->pOrgTbInfo) {
-        taosArrayDestroy(pTableScanParam->pOrgTbInfo->colMap);
-        taosMemoryFreeClear(pTableScanParam->pOrgTbInfo);
-      }
-      if (pTableScanParam->pBatchTbInfo) {
-        for (int32_t i = 0;
-          i < taosArrayGetSize(pTableScanParam->pBatchTbInfo); ++i) {
-          SOrgTbInfo* pOrgTbInfo =
-            (SOrgTbInfo*)taosArrayGet(pTableScanParam->pBatchTbInfo, i);
-          taosArrayDestroy(pOrgTbInfo->colMap);
-        }
-        taosArrayDestroy(pTableScanParam->pBatchTbInfo);
-        pTableScanParam->pBatchTbInfo = NULL;
-      }
-      if (pTableScanParam->pTagList) {
-        for (int32_t i = 0;
-          i < taosArrayGetSize(pTableScanParam->pTagList); ++i) {
-          STagVal* pTagVal =
-            (STagVal*)taosArrayGet(pTableScanParam->pTagList, i);
-          if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-            taosMemoryFreeClear(pTagVal->pData);
-          }
-        }
-        taosArrayDestroy(pTableScanParam->pTagList);
-        pTableScanParam->pTagList = NULL;
-      }
-      break;
+  STableScanOperatorParam* pTableScanParam =
+    (STableScanOperatorParam*)pParam->value;
+  taosArrayDestroy(pTableScanParam->pUidList);
+  if (pTableScanParam->pOrgTbInfo) {
+    taosArrayDestroy(pTableScanParam->pOrgTbInfo->colMap);
+    taosMemoryFreeClear(pTableScanParam->pOrgTbInfo);
+  }
+  if (pTableScanParam->pBatchTbInfo) {
+    for (int32_t i = 0;
+      i < taosArrayGetSize(pTableScanParam->pBatchTbInfo); ++i) {
+      SOrgTbInfo* pOrgTbInfo =
+        (SOrgTbInfo*)taosArrayGet(pTableScanParam->pBatchTbInfo, i);
+      taosArrayDestroy(pOrgTbInfo->colMap);
     }
-    case NOTIFY_TYPE_SCAN_PARAM: {
-      break;
+    taosArrayDestroy(pTableScanParam->pBatchTbInfo);
+    pTableScanParam->pBatchTbInfo = NULL;
+  }
+  if (pTableScanParam->pTagList) {
+    for (int32_t i = 0;
+      i < taosArrayGetSize(pTableScanParam->pTagList); ++i) {
+      STagVal* pTagVal =
+        (STagVal*)taosArrayGet(pTableScanParam->pTagList, i);
+      if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+        taosMemoryFreeClear(pTagVal->pData);
+      }
     }
-    default: {
-      qError("%s invalid table scan param type %d",__func__, paramType);
-      break;
-    }
+    taosArrayDestroy(pTableScanParam->pTagList);
+    pTableScanParam->pTagList = NULL;
   }
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
