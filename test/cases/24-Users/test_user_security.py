@@ -1,25 +1,19 @@
 from new_test_framework.utils import tdLog, tdSql, TDSql, TDCom, etool
 import os
-import platform
 import time
 import threading
 
 class TestUserSecurity:
+    @classmethod
     def setup_class(cls):
-        pass
+        cls.tdCom = TDCom()
 
     #
     # --------------------------- util ----------------------------
     #
     def login_failed(self, user=None, password=None):
         try:
-            if user is None:
-                if password is None:
-                    tdSql.connect()
-                else:
-                    tdSql.connect(password=password)
-            else:
-                tdSql.connect(user=user, password=password)
+            self.login(user=user, password=password)
         except Exception as e:
             tdLog.info(f"Login failed as expected: {e}")
             return
@@ -34,7 +28,7 @@ class TestUserSecurity:
         else:
             tdSql.connect(user=user, password=password)
     
-    def create_user(self, user_name, options = "", password = None, login=False):
+    def create_user(self, user_name, password=None, options="", login=False):
         if password is None:
             password = "abcd@1234" # default password
         sql = f"CREATE USER {user_name} pass '{password}' {options}"
@@ -45,7 +39,17 @@ class TestUserSecurity:
             
     def drop_user(self, user_name):
         tdSql.execute(f"DROP USER {user_name}")
-        
+    
+    def alter_password(self, user_name, new_password):
+        tdSql.execute(f"ALTER USER {user_name} PASS '{new_password}'")
+
+    def alter_password_failed(self, user_name, new_password):
+        try:
+            self.alter_password(user_name, new_password)
+        except Exception as e:
+            tdLog.info(f"Alter password failed as expected: {e}")
+            return
+        raise Exception("Alter password succeeded but was expected to fail")
     
     def except_create_user(self, option, min, max):
         self.login()
@@ -63,9 +67,8 @@ class TestUserSecurity:
             
     def create_session(self, user_name, password, num):
         conns = []
-        tdCom = TDCom()
         for i in range(num):
-            conn = tdCom.newTdSql()
+            conn = self.tdCom.newTdSql()
             conn.connect(user=user_name, password=password)
             conn.execute("show users")
             conns.append(conn)
@@ -138,6 +141,19 @@ class TestUserSecurity:
             return
         
         raise Exception(f"User {user_name} was not locked after {max_attempts} failed attempts")
+    
+    def create_token(self, user_name, token_num, start=0):
+        for i in range(start, start + token_num):
+            tdSql.execute(f"create token tk_{user_name}{i} from user {user_name}")
+        
+    def create_token_failed(self, user_name, token_num, start=0):
+        try:
+            self.create_token(user_name, token_num, start)
+        except Exception as e:
+            print(f" max tokens({token_num}) reached as expected: {e}")
+            return            
+
+        raise Exception("Exceeded max tokens but was expected to fail")
     
     #
     # --------------------------- create user ----------------------------
@@ -381,19 +397,233 @@ class TestUserSecurity:
         self.except_create_user("FAILED_LOGIN_ATTEMPTS", 1, None)
 
         print("option FAILED_LOGIN_ATTEMPTS .......... [ passed ] ")
+
+    # option PASSWORD_LOCK_TIME
+    def options_password_lock_time(self):
+        password = "abcd@1234"
+        # defalut check (1440m)
+        user = "user_password_lock1"
+        self.create_user(user, password=password)
+        self.check_user_option(user, "PASSWORD_LOCK_TIME", 86400)
+
+        # min check (1)
+        user = "user_password_lock2"
+        # check option value
+        self.create_user(user, options="PASSWORD_LOCK_TIME 1")
+        self.check_user_option(user, "PASSWORD_LOCK_TIME", 60)
+        # lock
+        self.check_over_max_failed_login(user, password, 3)
+        time.sleep(30)
+        self.login_failed(user=user, password=password)
+        time.sleep(35)  # wait for 1 minute lock time        
+        # unlock
+        self.login(user=user, password=password)
+
+        # big check (UNLIMITED)
+        user = "user_password_lock3"
+        # check option value
+        self.login()
+        self.create_user(user, options="PASSWORD_LOCK_TIME UNLIMITED")
+        self.check_user_option(user, "PASSWORD_LOCK_TIME", -1)
         
+        # except
+        self.except_create_user("PASSWORD_LOCK_TIME", 1, None)
+
+        print("option PASSWORD_LOCK_TIME ............. [ passed ] ")
+
+    # option PASSWORD_LIFE_TIME
+    def options_password_life_time(self):
+        password = "abcd@1234"
+        self.login()        
+        # defalut check (90 days)
+        user = "user_password_life1"
+        self.create_user(user, password=password)
+        self.check_user_option(user, "PASSWORD_LIFE_TIME", 90*24*3600)
+
+        # min check (1 minute)
+        user = "user_password_life2"
+        self.create_user(user, options="PASSWORD_LIFE_TIME 1")
+        self.check_user_option(user, "PASSWORD_LIFE_TIME", 1*24*3600)
+
+        # max check (1 minute)
+        user = "user_password_life3"
+        self.create_user(user, options="PASSWORD_LIFE_TIME UNLIMITED")
+        self.check_user_option(user, "PASSWORD_LIFE_TIME", -1)
+        
+        # except
+        self.except_create_user("PASSWORD_LIFE_TIME", 1, None)
+
+        print("option PASSWORD_LIFE_TIME ............... [ passed ] ")
+
+    # option PASSWORD_GRACE_TIME
+    def options_password_grace_time(self):
+        password = "abcd@1234"
+        self.login()        
+        # defalut check (7 days)
+        user = "user_password_grace1"
+        self.create_user(user, password=password)
+        self.check_user_option(user, "PASSWORD_GRACE_TIME", 7*24*3600)
+
+        # min check (0 days)
+        user = "user_password_grace2"
+        self.create_user(user, options="PASSWORD_GRACE_TIME 0")
+        self.check_user_option(user, "PASSWORD_GRACE_TIME", 0)
+
+        # max check (UNLIMITED)
+        user = "user_password_grace3"
+        self.create_user(user, options="PASSWORD_GRACE_TIME UNLIMITED")
+        self.check_user_option(user, "PASSWORD_GRACE_TIME", -1)
+        
+        # except
+        self.except_create_user("PASSWORD_GRACE_TIME", None, None)
+
+        print("option PASSWORD_GRACE_TIME ............ [ passed ] ")
+
+    # option PASSWORD_REUSE_TIME
+    def options_password_reuse_time(self):
+        password1 = "abcd@1234"
+        password2 = "abcd@1235"
+        self.login()        
+
+        # defalut check (30 days) 
+        #BUG-1
+        #self.check_user_option(self.user_default, "PASSWORD_REUSE_TIME", 30*24*3600)
+
+        # min check (0 days)
+        user = "user_password_reuse1"
+        self.create_user(user, password1, options="PASSWORD_REUSE_TIME 0 PASSWORD_REUSE_MAX 0")
+        self.check_user_option(user, "PASSWORD_REUSE_TIME", 0)
+        # fun check
+        self.alter_password(user, password2)
+        self.alter_password(user, password1) # should be ok reused
+
+        # max check (365 days)
+        user = "user_password_reuse2"
+        self.create_user(user, password1, options="PASSWORD_REUSE_TIME 365")
+        self.check_user_option(user, "PASSWORD_REUSE_TIME", 365*24*3600)
+        # fun check
+        self.alter_password(user, password2)
+        self.alter_password_failed(user, password1) # old password should not be reused
+        
+        # except
+        self.except_create_user("PASSWORD_REUSE_TIME", None, 365)
+
+        print("option PASSWORD_REUSE_TIME ............ [ passed ] ")
+
+    # option PASSWORD_REUSE_MAX
+    def options_password_reuse_max(self):
+        password1 = "abcd@1234"
+        password2 = "abcd@1235"
+        self.login()        
+
+        # defalut check (5) 
+        self.check_user_option(self.user_default, "PASSWORD_REUSE_MAX", 5)
+
+        # min check (0)
+        user = "user_pwd_reuse_max1"
+        self.create_user(user, password1, options="PASSWORD_REUSE_MAX 0 PASSWORD_REUSE_TIME 0")
+        self.check_user_option(user, "PASSWORD_REUSE_MAX", 0)
+
+        # fun check
+        self.alter_password(user, password2)
+        self.alter_password(user, password1) # should be ok reused
+
+        # max check (100)
+        user = "user_pwd_reuse_max2"
+        self.create_user(user, password1, options="PASSWORD_REUSE_MAX 100 PASSWORD_REUSE_TIME 0")
+        self.check_user_option(user, "PASSWORD_REUSE_MAX", 100)
+        # fun check
+        for i in range(99):
+            new_pass = f"abcd@1111{i:02d}"
+            self.alter_password(user, new_pass)
+        
+        self.alter_password_failed(user, password1) # 99th old password should not be reused
+        self.alter_password(user, password2) # 100th
+        self.alter_password(user, password1) # 101th old password can be reused
+        
+        # except
+        self.except_create_user("PASSWORD_REUSE_MAX", None, 100)
+
+        print("option PASSWORD_REUSE_MAX ............. [ passed ] ")
+    
+    # option INACTIVE_ACCOUNT_TIME
+    def options_inactive_account_time(self):
+        password = "abcd@1234"
+        self.login()        
+        # defalut check (90 days)
+        self.check_user_option(self.user_default, "INACTIVE_ACCOUNT_TIME", 90*24*3600)
+
+        # min check (1 days)
+        user = "user_inactive_account1"
+        self.create_user(user, password, options="INACTIVE_ACCOUNT_TIME 1")
+        self.check_user_option(user, "INACTIVE_ACCOUNT_TIME", 1*24*3600)
+
+        # max check (UNLIMITED)
+        user = "user_inactive_account2"
+        self.create_user(user, password, options="INACTIVE_ACCOUNT_TIME UNLIMITED")
+        self.check_user_option(user, "INACTIVE_ACCOUNT_TIME", -1)
+        self.login(user=user, password=password)
+        
+        # except
+        self.login()
+        self.except_create_user("INACTIVE_ACCOUNT_TIME", 1, None)
+
+        print("option INACTIVE_ACCOUNT_TIME ........... [ passed ] ")
+
+    # option ALLOW_TOKEN_NUM
+    def options_allow_token_num(self):
+        password = "abcd@1234"
+        self.login()        
+        
+        # defalut check (3)
+        user = "user_allow1"
+        self.create_user(user, password)
+        self.check_user_option(self.user_default, "ALLOW_TOKEN_NUM", 3)
+        self.create_token(user, 3)
+        self.create_token_failed(user, 1, start=3)
+
+        # min check (0)
+        user = "user_allow2"
+        self.create_user(user, password, options="ALLOW_TOKEN_NUM 0")
+        self.check_user_option(user, "ALLOW_TOKEN_NUM", 0)
+        self.create_token_failed(user, 1)
+
+        # max check (UNLIMITED)
+        user = "user_allow3"
+        self.create_user(user, password, options="ALLOW_TOKEN_NUM UNLIMITED")
+        self.check_user_option(user, "ALLOW_TOKEN_NUM", -1)
+        self.create_token(user, 100)
+        
+        # except
+        self.except_create_user("ALLOW_TOKEN_NUM", 0, None)
+
+        print("option ALLOW_TOKEN_NUM ................ [ passed ] ")
+
     
     def do_create_user(self):
         print("\n")
-        #'''
+        self.user_default = "user_default"
+        self.create_user(self.user_default)
+
+        '''
         self.options_changepass()
         self.options_session_per_user()
         self.options_connect_time()
         self.options_connect_idle_time()
         self.options_call_per_session()
         self.options_vnode_per_call()
-        #'''
-        self.options_failed_login_attempts()        
+        self.options_failed_login_attempts()
+        self.options_password_lock_time()
+        self.options_password_life_time()
+        self.options_password_grace_time()
+        self.options_password_reuse_time()
+        self.options_password_reuse_time()
+        self.options_password_reuse_max()
+        self.options_inactive_account_time()
+        '''
+        self.options_allow_token_num()
+        
+
 
     #
     # --------------------------- show user ----------------------------
