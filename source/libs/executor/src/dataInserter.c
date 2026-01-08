@@ -665,7 +665,8 @@ static int32_t buildDbVgInfoMap(void* clientRpc, const char* dbFName, SUseDbOutp
   while (pIter) {
     if (NULL == taosArrayPush(output->dbVgroup->vgArray, pIter)) {
       taosHashCancelIterate(output->dbVgroup->vgHash, pIter);
-      return terrno;
+      code = terrno;
+      QUERY_CHECK_CODE(code, lino, _return);
     }
 
     pIter = taosHashIterate(output->dbVgroup->vgHash, pIter);

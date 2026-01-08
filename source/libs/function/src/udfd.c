@@ -747,8 +747,9 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     if (handle == NULL) {
       fnError("udfdProcessSetupRequest: malloc failed.");
       code = terrno;
+    } else {
+      handle->udf = udf;
     }
-    handle->udf = udf;
   } else {
     --udf->refCount;
   }
