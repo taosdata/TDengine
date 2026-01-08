@@ -41,6 +41,7 @@
 #undef TD_MSG_SEG_CODE_
 #define TD_MSG_RANGE_CODE_
 #include "tmsgdef.h"
+#include "tversion.h"
 
 #include "streamMsg.h"
 #include "tanalytics.h"
@@ -456,10 +457,12 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
     TAOS_CHECK_GOTO(tDecodeU32(pDecoder, &pReq->userIp), &line, _error);
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->userApp), &line, _error);
   }
+
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->sVer), &line, _error);
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->cInfo), &line, _error);
   }
+
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->user), &line, _error);
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->tokenName), &line, _error);
@@ -467,7 +470,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
 
 _error:
   if (code != 0) {
-    uError("tDeserializeSClientHbReq error, code:%d, line:%d", code, line);
+    uError("tDeserializeSClientHbReq error, code:%d, line:%d, connType:%d", code, line, pReq->connKey.connType);
     tFreeClientHbReq(pReq);
   }
   return code;
