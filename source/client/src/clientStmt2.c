@@ -1,15 +1,13 @@
 #include "clientInt.h"
 #include "clientLog.h"
-#include "tconfig.h"
 #include "tdef.h"
+#include "tglobal.h"
 
 #include "clientStmt.h"
 #include "clientStmt2.h"
 
 char* gStmt2StatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                            "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
-
-extern SConfig* tsCfg;
 
 static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void** pBuf) {
   if (pTblBuf->buffOffset < pTblBuf->buffSize) {
@@ -2695,12 +2693,7 @@ TAOS_RES* stmtUseResult2(TAOS_STMT2* stmt) {
     return NULL;
   }
 
-  SConfigItem* pItem = cfgGetItem(tsCfg, "useAdapter");
-  if (pItem == NULL) {
-    STMT2_ELOG_E("Invalid option useAdapter");
-    return NULL;
-  }
-  if (pItem->bval) {
+  if (tsUseAdapter) {
     TAOS_RES* res = (TAOS_RES*)pStmt->exec.pRequest;
     pStmt->exec.pRequest = NULL;
     return res;
