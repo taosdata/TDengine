@@ -2305,3 +2305,29 @@ end:
   tableListDestroy(pList);
   return code;
 }
+
+int32_t notifyTableScanTask(qTaskInfo_t tinfo, TSKEY notifyTs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  /* If tinfo is NULL, it means the task is killed, just return success. */
+  TSDB_CHECK_NULL(tinfo, code, lino, _end, TSDB_CODE_SUCCESS);
+
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (pTaskInfo->pRoot != NULL) {
+    SOperatorInfo* pOperator = pTaskInfo->pRoot;
+    if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+      SStorageAPI* pApi = &pOperator->pTaskInfo->storageAPI;
+      code = pApi->tsdReader.tsdReaderStepDone(
+        ((STableScanInfo*)pOperator->info)->base.dataReader, notifyTs);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+  qDebug("%s succeed to notify table scan operator", GET_TASKID(pTaskInfo));
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s, failed to notify table scan operator at line %d, since:%s",
+           GET_TASKID(pTaskInfo), lino, tstrerror(code));
+  }
+  return code;
+}
