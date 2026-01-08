@@ -1983,14 +1983,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   }
 
   if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_DB, pDb))) {
-    if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser))) {
-      goto _OVER;
-    }
-    char objFName[TSDB_PRIV_MAX_KEY_LEN] = {0};
-    (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
-    if ((code = mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_DROP, PRIV_OBJ_DB, 0, objFName, NULL))) {
-      goto _OVER;
-    }
+    goto _OVER;
   }
 
   if(pDb->cfg.isMount) {

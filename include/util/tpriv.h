@@ -56,7 +56,6 @@ typedef enum {
   PRIV_CM_MAX = 29,         // MAX COMMON PRIVILEGE
   // ==================== DB Privileges(5~49) ====================
   PRIV_DB_CREATE = 30,  // CREATE DATABASE
-  PRIV_DB_DROP_OWNED,   // DROP OWNED DATABASE
   PRIV_DB_USE,          // USE DATABASE
   PRIV_DB_FLUSH,        // FLUSH DATABASE
   PRIV_DB_COMPACT,      // COMPACT DATABASE
