@@ -141,7 +141,6 @@ void       nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* p
 void       nodesListInsertListAfterPos(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
 SNode*     nodesListGetNode(SNodeList* pList, int32_t index);
 SListCell* nodesListGetCell(SNodeList* pList, int32_t index);
-int32_t    nodesListGetSize(SNodeList* pList);
 void       nodesDestroyList(SNodeList* pList);
 bool       nodesListMatch(const SNodeList* pList, const SNodeList* pSubList);
 
