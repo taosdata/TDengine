@@ -746,7 +746,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
 
   SClientHbBatchReq batchReq = {0};
-  if (tDeserializeSClientHbBatchReq(pReq->pCont, pReq->contLen, &batchReq) != 0) {
+  if (tDeserializeSClientHbBatchReq(pReq->pCont, pReq->contLen, &batchReq, pReq->info.cliVer) != 0) {
     taosArrayDestroyEx(batchReq.reqs, tFreeClientHbReq);
     code = TSDB_CODE_INVALID_MSG;
     TAOS_RETURN(code);

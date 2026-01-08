@@ -40,6 +40,7 @@
 #undef TD_MSG_SEG_CODE_
 #define TD_MSG_RANGE_CODE_
 #include "tmsgdef.h"
+#include "tversion.h"
 
 #include "streamMsg.h"
 #include "tanalytics.h"
@@ -318,10 +319,15 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
   return 0;
 }
 
-static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) {
+static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq, int32_t clientVersion) {
   int32_t code = 0;
   int32_t line = 0;
   TAOS_CHECK_RETURN(tDecodeSClientHbKey(pDecoder, &pReq->connKey));
+
+  if (pReq->connKey.connType >= CONN_TYPE__MAX || pReq->connKey.connType < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TAOS_CHECK_GOTO(code, &line, _error);
+  }
 
   if (pReq->connKey.connType == CONN_TYPE__QUERY || pReq->connKey.connType == CONN_TYPE__TMQ) {
     TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pReq->app.appId));
@@ -343,7 +349,8 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
     if (queryNum) {
       pReq->query = taosMemoryCalloc(1, sizeof(*pReq->query));
       if (NULL == pReq->query) {
-        return terrno;
+        code = terrno;
+        TAOS_CHECK_GOTO(code, &line, _error);
       }
       code = tDecodeU32(pDecoder, &pReq->query->connId);
       TAOS_CHECK_GOTO(code, &line, _error);
@@ -355,7 +362,8 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
       if (num > 0) {
         pReq->query->queryDesc = taosArrayInit(num, sizeof(SQueryDesc));
         if (NULL == pReq->query->queryDesc) {
-          return terrno;
+          code = terrno;
+          TAOS_CHECK_GOTO(code, &line, _error);
         }
 
         for (int32_t i = 0; i < num; ++i) {
@@ -444,13 +452,18 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
     TAOS_CHECK_GOTO(tDecodeU32(pDecoder, &pReq->userIp), &line, _error);
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->userApp), &line, _error);
   }
-  if (!tDecodeIsEnd(pDecoder)) {
-    TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->sVer), &line, _error);
-    TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->cInfo), &line, _error);
+
+  // for compatibility, encode this info since 3.3.8.5, so decode since 3.3.8.5, this code only avaible for 3.3.8.x
+  if (clientVersion >= 3030805) {
+    if (!tDecodeIsEnd(pDecoder)) {
+      TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->sVer), &line, _error);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->cInfo), &line, _error);
+    }
   }
 
 _error:
   if (code != 0) {
+    uError("tDeserializeSClientHbReq error, code:%d, line:%d, connType:%d", code, line, pReq->connKey.connType);
     tFreeClientHbReq(pReq);
   }
   return code;
@@ -571,7 +584,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchReq *pBatchReq) {
+int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchReq *pBatchReq, int32_t clientVersion) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -590,7 +603,7 @@ int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchR
   }
   for (int32_t i = 0; i < reqNum; i++) {
     SClientHbReq req = {0};
-    TAOS_CHECK_EXIT(tDeserializeSClientHbReq(&decoder, &req));
+    TAOS_CHECK_EXIT(tDeserializeSClientHbReq(&decoder, &req, clientVersion));
     if (!taosArrayPush(pBatchReq->reqs, &req)) {
       TAOS_CHECK_EXIT(terrno);
     }

@@ -4214,7 +4214,7 @@ static FORCE_INLINE void tFreeClientHbReq(void* pReq) {
 }
 
 int32_t tSerializeSClientHbBatchReq(void* buf, int32_t bufLen, const SClientHbBatchReq* pReq);
-int32_t tDeserializeSClientHbBatchReq(void* buf, int32_t bufLen, SClientHbBatchReq* pReq);
+int32_t tDeserializeSClientHbBatchReq(void* buf, int32_t bufLen, SClientHbBatchReq* pReq, int32_t clientVersion);
 
 static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq) {
   if (pReq == NULL) return;
