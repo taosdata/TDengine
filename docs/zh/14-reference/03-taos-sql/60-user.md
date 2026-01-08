@@ -54,8 +54,8 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `PASSWORD_LOCK_TIME` 账户因登录失败被锁定后的解锁等待时间，单位分钟，默认 1440，最小 1，设置为 UNLIMITED 则永久锁定。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_LIFE_TIME` 密码有效期，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不过期。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_GRACE_TIME` 密码过期后的宽限期，密码过期后允许修改的缓冲时间，宽限期内禁止执行除修改密码以外的其他操作，宽限期内如未修改密码则锁定账户，单位天，默认 7，最小 0，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_REUSE_TIME` 密码重用时间，旧密码失效后不能在此期限内重复使用，单位天，默认 30，最小 0，最大 365。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_REUSE_MAX` 密码历史记录次数，需要多少次密码更改后才能重复使用旧密码。默认 5，最小 0，最大 100。新密码需同时满足 PASSWORD_REUSE_TIME 和 PASSWORD_REUSE_MAX 两项限制。从企业版 v3.4.0.0 开始支持。
+- `PASSWORD_REUSE_TIME` 密码重用时间，旧密码失效后不能在此期限内重复使用，单位天，默认 30，最小 0，最大 365。新密码需同时满足 `PASSWORD_REUSE_TIME` 和 `PASSWORD_REUSE_MAX` 两项限制。从企业版 v3.4.0.0 开始支持。
+- `PASSWORD_REUSE_MAX` 密码历史记录次数，需要多少次密码更改后才能重复使用旧密码。默认 5，最小 0，最大 100。新密码需同时满足 `PASSWORD_REUSE_TIME` 和 `PASSWORD_REUSE_MAX` 两项限制。从企业版 v3.4.0.0 开始支持。
 - `INACTIVE_ACCOUNT_TIME` 账户不活动锁定时间，长期未使用的账户自动锁定，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
 - `ALLOW_TOKEN_NUM` 支持的令牌个数，默认 3，最小 0，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `HOST` 和 `NOT_ALLOW_HOST` IP 地址白名单和黑名单，可以是单个 IP 地址，如 `192.168.1.1`，也可以是一个地址段，如 `192.168.1.1/24`。当黑白名单同时存在时，只允许在白名单中且不在黑名单中的地址访问。从企业版 v3.4.0.0 开始支持。
