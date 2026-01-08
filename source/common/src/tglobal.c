@@ -77,6 +77,7 @@ char tsTLSSvrKeyPath[PATH_MAX] = {0};
 char tsTLSCliCertPath[PATH_MAX] = {0};
 char tsTLSCliKeyPath[PATH_MAX] = {0};
 
+
 int8_t tsEnableTLS = 0;
 int8_t tsEnableSasl = 0;
 // common
@@ -3732,3 +3733,5 @@ int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len
   }
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
+
+
