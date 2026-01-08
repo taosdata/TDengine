@@ -559,7 +559,7 @@ static void sendOneClient(SlowLogClient* pClient) {
         tscError("failed to truncate file:%p code:%d", pClient->pFile, terrno);
       }
       tscDebug("monitor truncate file to 0 file:%p", pClient->pFile);
-    } else if (pClient->type == SLOW_LOG_READ_BEGINNING || pClient->type == SLOW_LOG_READ_QUIT) {
+    } else if (pClient->type == SLOW_LOG_READ_BEGINNIG || pClient->type == SLOW_LOG_READ_QUIT) {
       if (taosCloseFile(&pClient->pFile) != 0) {
         tscError("failed to close file:%s ret:%d", pClient->path, terrno);
       }
@@ -720,7 +720,7 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId) {
     pClient->sendOffset = 0;
     pClient->pFile = pFile;
     pClient->clusterId = clusterId;
-    pClient->type = SLOW_LOG_READ_BEGINNING;
+    pClient->type = SLOW_LOG_READ_BEGINNIG;
     if (taosHashPut(monitorSlowLogHashPath, filename, strlen(filename), &pClient, POINTER_BYTES) != 0) {
       tscError("failed to put clusterId:0x%" PRIx64 " to hash table", pClient->clusterId);
       int32_t ret = taosCloseFile(&pFile);
@@ -761,7 +761,7 @@ static void* monitorThreadFunc(void* param) {
 
     if (slowLogData->type == SLOW_LOG_READ_ALL) {
       monitorSendAllSlowLogFromTempDir(slowLogData->clusterId);
-    } else if (slowLogData->type == SLOW_LOG_READ_BEGINNING) {
+    } else if (slowLogData->type == SLOW_LOG_READ_BEGINNIG) {
       monitorSendSlowLogAtBeginningCb(slowLogData->fileName);
     } else if (slowLogData->type == SLOW_LOG_WRITE) {
       monitorWriteSlowLog2File(slowLogData, tmpSlowLogPath);

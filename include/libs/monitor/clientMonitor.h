@@ -35,7 +35,7 @@ typedef enum {
 typedef enum {
   SLOW_LOG_WRITE = 0,
   SLOW_LOG_READ_RUNNING = 1,
-  SLOW_LOG_READ_BEGINNING = 2,
+  SLOW_LOG_READ_BEGINNIG = 2,
   SLOW_LOG_READ_QUIT = 3,
   SLOW_LOG_READ_ALL = 4,
 } SLOW_LOG_QUEUE_TYPE;
@@ -43,7 +43,7 @@ typedef enum {
 static char* queueTypeStr[] = {
   "SLOW_LOG_WRITE",
   "SLOW_LOG_READ_RUNNING",
-  "SLOW_LOG_READ_BEGINNING",
+  "SLOW_LOG_READ_BEGINNIG",
   "SLOW_LOG_READ_QUIT",
   "SLOW_LOG_READ_ALL"
 };
