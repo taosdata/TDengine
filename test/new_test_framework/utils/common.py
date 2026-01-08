@@ -630,8 +630,9 @@ class TDCom:
                     dbParams += f'{param} "{value}" '
                 else:
                     dbParams += f"{param} {value} "
-            sqlString += f"{dbParams}"
-
+        if dbParams:
+            # must have a space before dbParams
+            sqlString += f" {dbParams.strip()}"
         tdLog.debug(f"create db sql: {sqlString}")
         td_sql.execute(sqlString)
         create_db_status = self.waitTransactionZeroWithTdsql(td_sql)
