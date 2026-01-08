@@ -1,12 +1,14 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "tdef.h"
+#include "tglobal.h"
 
 #include "clientStmt.h"
 #include "clientStmt2.h"
 
 char* gStmt2StatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                            "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
+
 
 static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void** pBuf) {
   if (pTblBuf->buffOffset < pTblBuf->buffSize) {
@@ -2689,6 +2691,12 @@ TAOS_RES* stmtUseResult2(TAOS_STMT2* stmt) {
   if (pStmt->options.asyncExecFn != NULL && !pStmt->asyncResultAvailable) {
     STMT2_ELOG_E("use result after callBackFn return");
     return NULL;
+  }
+
+  if (tsUseAdapter) {
+    TAOS_RES* res = (TAOS_RES*)pStmt->exec.pRequest;
+    pStmt->exec.pRequest = NULL;
+    return res;
   }
 
   return pStmt->exec.pRequest;
