@@ -1065,3 +1065,4 @@ void* atomic_fetch_xor_ptr(void* ptr, int64_t val) {
   return __atomic_fetch_xor((void**)(ptr), (val), __ATOMIC_SEQ_CST);
 #endif
 }
+
