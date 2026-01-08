@@ -446,9 +446,8 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq, 
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->userApp), &line, _error);
   }
 
-  int32_t ver3385 = 0;
-  TAOS_CHECK_GOTO(taosVersionStrToInt("3.3.8.5", &ver3385), &line, _error);
-  if (clientVersion >= ver3385) {
+  // for compatibility, encode this info since 3.3.8.5, so decode since 3.3.8.5, this code only avaible for 3.3.8.x
+  if (clientVersion >= 3030805) {
     if (!tDecodeIsEnd(pDecoder)) {
       TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->sVer), &line, _error);
       TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->cInfo), &line, _error);
