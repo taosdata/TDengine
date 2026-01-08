@@ -17238,11 +17238,18 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
                                        "Table name should be empty for database level privileges");
       }
       // don't validate the object when revoke
-      if (grant && (strncmp(pStmt->objName, "*", 2) != 0)) {
+      if (strncmp(pStmt->objName, "*", 2) != 0) {
         SDbCfgInfo dbCfg = {0};
-        if (0 != (code = getDBCfg(pCxt, pStmt->objName, &dbCfg))) {
+        code = getDBCfg(pCxt, pStmt->objName, &dbCfg);
+
+        if (grant && code != TSDB_CODE_SUCCESS) {
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_DB_NOT_EXIST,
                                          "Failed to get database %s since %s", pStmt->objName, tstrerror(code));
+        }
+
+        if (code == TSDB_CODE_SUCCESS && dbCfg.isAudit) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                         "Cannot grant/revoke privileges on audit database");
         }
       }
       TAOS_CHECK_EXIT(privExpandAll(&pReq->privileges.privSet, objType, objLevel));
