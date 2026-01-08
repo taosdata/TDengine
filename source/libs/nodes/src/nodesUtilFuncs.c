@@ -2789,6 +2789,7 @@ SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
   return NULL;
 }
 
+
 SListCell* nodesListGetCell(SNodeList* pList, int32_t index) {
   SNode* node;
   FOREACH(node, pList) {
