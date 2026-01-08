@@ -6997,6 +6997,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
 
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isAudit));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->allowDrop));
   tEndEncode(&encoder);
 
 _exit:
@@ -7084,6 +7085,12 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   } else {
     pReq->encryptAlgrName[0] = '\0';
     pReq->isAudit = 0;
+  }
+
+  if(!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->allowDrop));
+  } else {
+    pReq->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
 
   tEndDecode(&decoder);
@@ -9061,6 +9068,9 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
 
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeU8(decoder, &pRsp->flags));
+  } else {
+    pRsp->isMount = 0;
+    pRsp->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
   if (!tDecodeIsEnd(decoder)) {
     TAOS_CHECK_RETURN(tDecodeCStrTo(decoder, pRsp->algorithmsId));
@@ -10558,6 +10568,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssKeepLocal));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ssCompact));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->encryptAlgrName));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->flags));
 
   tEndEncode(&encoder);
 
@@ -10669,6 +10680,12 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->encryptAlgrName));
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pReq->flags));
+  } else {
+    pReq->isAudit = 0;
+    pReq->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
 
   tEndDecode(&decoder);
@@ -17520,6 +17537,7 @@ int32_t tSerializeSMountInfo(void *buf, int32_t bufLen, SMountInfo *pInfo) {
       TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->numOfCTables));
       TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pVgInfo->numOfNTables));
       TAOS_CHECK_EXIT(tEncodeU64v(&encoder, pVgInfo->dbId));
+      TAOS_CHECK_EXIT(tEncodeU8(&encoder, pVgInfo->flags));
     }
     nStb = taosArrayGetSize(pDbInfo->pStbs);
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, nStb));
@@ -17608,6 +17626,7 @@ int32_t tDeserializeSMountInfo(SDecoder *decoder, SMountInfo *pInfo, bool extrac
           TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->numOfCTables));
           TAOS_CHECK_EXIT(tDecodeI64v(decoder, &pVgInfo->numOfNTables));
           TAOS_CHECK_EXIT(tDecodeU64v(decoder, &pVgInfo->dbId));
+          TAOS_CHECK_EXIT(tDecodeU8(decoder, &pVgInfo->flags));
         }
       }
       TAOS_CHECK_EXIT(tDecodeI32v(decoder, &nStb));

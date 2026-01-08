@@ -364,6 +364,8 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   if (pDb->cfg.encryptAlgorithm > 0) {
     mndGetEncryptOsslAlgrNameById(pMnode, pDb->cfg.encryptAlgorithm, createReq.encryptAlgrName);
   }
+  createReq.isAudit = pDb->cfg.isAudit ? 1 : 0;
+  createReq.allowDrop = pDb->cfg.allowDrop;
   int32_t code = 0;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {

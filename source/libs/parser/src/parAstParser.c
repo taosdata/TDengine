@@ -327,10 +327,6 @@ static int32_t collectMetaKeyFromSelect(SCollectMetaKeyCxt* pCxt, SSelectStmt* p
 }
 
 static int32_t collectMetaKeyFromCreateDatabase(SCollectMetaKeyCxt* pCxt, SCreateDatabaseStmt* pStmt) {
-  if (pStmt->pOptions && pStmt->pOptions->isAudit) {
-    return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_AUDIT_DB_CREATE, 0,
-                                  pCxt->pMetaCache);
-  }
   return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_DB_CREATE, 0,
                                 pCxt->pMetaCache);
 }

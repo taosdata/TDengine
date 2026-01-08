@@ -2124,6 +2124,7 @@ typedef struct {
   int8_t  compactTimeOffset;  // hour
   char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
   int8_t  isAudit;
+  int8_t  allowDrop;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -2162,6 +2163,7 @@ typedef struct {
   int8_t  compactTimeOffset;
   char    encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
   int8_t  isAudit;
+  int8_t  allowDrop;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -2388,8 +2390,9 @@ typedef struct {
   union {
     uint8_t flags;
     struct {
-      uint8_t isMount : 1;  // TS-5868
-      uint8_t padding : 7;
+      uint8_t isMount : 1;    // TS-5868
+      uint8_t allowDrop : 1;  // TS-7232
+      uint8_t padding : 6;
     };
   };
   int8_t  compactTimeOffset;
@@ -2991,6 +2994,14 @@ typedef struct {
   int32_t  changeVersion;
   int8_t   encryptAlgorithm;
   char     encryptAlgrName[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isAudit : 1;
+      uint8_t allowDrop : 1;
+      uint8_t padding : 6;
+    };
+  };
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -6397,6 +6408,14 @@ typedef struct {
   int32_t ssChunkSize;
   int32_t ssKeepLocal;
   int8_t  ssCompact;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isAudit : 1;
+      uint8_t allowDrop : 1;
+      uint8_t reserved : 6;
+    };
+  };
   // walInfo
   int32_t walFsyncPeriod;      // millisecond
   int32_t walRetentionPeriod;  // secs

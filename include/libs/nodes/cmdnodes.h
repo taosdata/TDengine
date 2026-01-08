@@ -142,6 +142,8 @@ typedef struct SDatabaseOptions {
   SValueNode* ssKeepLocalStr;
   int8_t      ssCompact;
   int8_t      withArbitrator;
+  int8_t      isAudit;
+  int8_t      allowDrop;
   // for auto-compact
   int32_t     compactTimeOffset;  // hours
   int32_t     compactInterval;    // minutes
@@ -152,7 +154,6 @@ typedef struct SDatabaseOptions {
   SNodeList*  pCompactTimeRangeList;
   // for cache
   SDbCfgInfo* pDbCfg;
-  int8_t      isAudit;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {

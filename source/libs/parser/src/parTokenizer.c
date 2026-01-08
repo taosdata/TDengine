@@ -34,6 +34,7 @@ static SKeyword keywordTable[] = {
     {"ADD",                  TK_ADD},
     {"AGGREGATE",            TK_AGGREGATE},
     {"ALL",                  TK_ALL},
+    {"ALLOW_DROP",           TK_ALLOW_DROP},
     {"ALTER",                TK_ALTER},
     {"ANALYZE",              TK_ANALYZE},
     {"AND",                  TK_AND},

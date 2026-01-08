@@ -80,7 +80,7 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
-        // rewrite audit privilege for db owner
+        // rewrite privilege for audit db
         if (dbCfgInfo.isAudit && pAuthInfo->objType == PRIV_OBJ_DB) {
           if (pAuthInfo->privType == PRIV_DB_USE) {
             pAuthInfo->privType = PRIV_AUDIT_DB_USE;
@@ -697,10 +697,25 @@ static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
 }
 
 static int32_t authCreateDatabase(SAuthCxt* pCxt, SCreateDatabaseStmt* pStmt) {
-  if (pStmt->pOptions && pStmt->pOptions->isAudit) {
-    return authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_AUDIT_DB_CREATE);
-  }
   return authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_DB_CREATE);
+}
+
+static int32_t authAlterDatabase(SAuthCxt* pCxt, SAlterDatabaseStmt* pStmt) {
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_ALTER, PRIV_OBJ_DB);
+}
+
+static int32_t authDropDatabase(SAuthCxt* pCxt, SDropDatabaseStmt* pStmt) {
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  return authObjPrivileges(pCxt, ((SDropDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_DROP, PRIV_OBJ_DB);
+}
+
+static int32_t authUseDatabase(SAuthCxt* pCxt, SUseDatabaseStmt* pStmt) {
+  return authObjPrivileges(pCxt, ((SUseDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
 }
 
 static int32_t authGrant(SAuthCxt* pCxt, SGrantStmt* pStmt) {
@@ -893,11 +908,11 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_DROP_ANODE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODE_DROP);
     case QUERY_NODE_ALTER_DATABASE_STMT:
-      return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_ALTER, PRIV_OBJ_DB);
+      return authAlterDatabase(pCxt, (SAlterDatabaseStmt*)pStmt);
     case QUERY_NODE_DROP_DATABASE_STMT:
-      return authObjPrivileges(pCxt, ((SDropDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_DROP, PRIV_OBJ_DB);
+      return authDropDatabase(pCxt, (SDropDatabaseStmt*)pStmt);
     case QUERY_NODE_USE_DATABASE_STMT:
-      return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
+      return authUseDatabase(pCxt, (SUseDatabaseStmt*)pStmt);
     case QUERY_NODE_FLUSH_DATABASE_STMT:
       return authObjPrivileges(pCxt, ((SFlushDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_FLUSH, PRIV_OBJ_DB);
     case QUERY_NODE_COMPACT_DATABASE_STMT:

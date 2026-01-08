@@ -405,6 +405,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->compactStartTime = pNew->compactStartTime;
   pOld->tsmaVersion = pNew->tsmaVersion;
   pOld->cfg.isAudit = pNew->cfg.isAudit;
+  pOld->cfg.flags = pNew->cfg.flags;
   pOld->ownerId = pNew->ownerId;
   taosWUnLockLatch(&pOld->lock);
   return 0;
@@ -559,6 +560,7 @@ int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->compactTimeOffset < TSDB_MIN_COMPACT_TIME_OFFSET || pCfg->compactTimeOffset > TSDB_MAX_COMPACT_TIME_OFFSET)
     return code;
   if (pCfg->isAudit < 0 || pCfg->isAudit > 1) return code;
+  if (pCfg->allowDrop < TSDB_MIN_DB_ALLOW_DROP || pCfg->allowDrop > TSDB_MAX_DB_ALLOW_DROP) return code;
 
   code = 0;
   TAOS_RETURN(code);
@@ -641,6 +643,7 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pOldCfg, SDbCfg *pN
       pNewCfg->compactTimeOffset > TSDB_MAX_COMPACT_TIME_OFFSET)
     return code;
   if (pNewCfg->isAudit < 0 || pNewCfg->isAudit > 1) return code;
+  if (pNewCfg->allowDrop < TSDB_MIN_DB_ALLOW_DROP || pNewCfg->allowDrop > TSDB_MAX_DB_ALLOW_DROP) return code;
 
   code = 0;
   TAOS_RETURN(code);
@@ -945,6 +948,9 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       mError("db:%s, failed to create, walLevel not match for audit db, %d", pCreate->db, dbObj.cfg.walLevel);
       TAOS_RETURN(code);
     }
+    dbObj.cfg.allowDrop = TSDB_MIN_DB_ALLOW_DROP;
+  } else {
+    dbObj.cfg.allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
 
   mndSetDefaultDbCfg(&dbObj.cfg);
@@ -1664,6 +1670,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb, char *algorithmsId)
   cfgRsp->flags = pDb->cfg.flags;
   tstrncpy(cfgRsp->algorithmsId, algorithmsId, sizeof(cfgRsp->algorithmsId));
   cfgRsp->isAudit = pDb->cfg.isAudit;
+  cfgRsp->flags = pDb->cfg.flags;
 }
 
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {

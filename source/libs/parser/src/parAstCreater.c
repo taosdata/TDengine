@@ -2520,6 +2520,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->compactTimeOffset = -1;
   pOptions->encryptAlgorithmStr[0] = 0;
   pOptions->isAudit = 0;
+  pOptions->allowDrop = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2691,6 +2692,9 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       break;
     case DB_OPTION_IS_AUDIT:
       pDbOptions->isAudit = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_ALLOW_DROP:
+      pDbOptions->allowDrop = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     default:
       break;
