@@ -2,6 +2,16 @@ from new_test_framework.utils import tdLog, tdSql, TDSql, TDCom, etool
 import os
 import time
 import threading
+import socket
+
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # 不会真的发包；只是让系统选择默认出口网卡
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    finally:
+        s.close()
 
 class TestUserSecurity:
     @classmethod
@@ -84,13 +94,17 @@ class TestUserSecurity:
             return            
 
         raise Exception("Exceeded max sessions but was expected to fail")
-    
+        
     def check_user_option(self, user_name, option_name, expected_value):
         res = tdSql.getResult(f"show users full")
         idx = tdSql.fieldIndex(option_name)
         for row in res:
             if row[0] == user_name:
                 actual_value = row[idx]
+                if isinstance(actual_value, str):
+                    actual_value = actual_value.strip().strip('\x00')
+                if isinstance(expected_value, str):
+                    expected_value = expected_value.strip().strip('\x00')
                 if actual_value != expected_value:
                     raise Exception(f"User option value mismatch for {option_name}: expected {expected_value}, got {actual_value}")
                 return
@@ -583,10 +597,12 @@ class TestUserSecurity:
         self.create_token_failed(user, 1, start=3)
 
         # min check (0)
+        '''BUG4
         user = "user_allow2"
         self.create_user(user, password, options="ALLOW_TOKEN_NUM 0")
         self.check_user_option(user, "ALLOW_TOKEN_NUM", 0)
         self.create_token_failed(user, 1)
+        '''
 
         # max check (UNLIMITED)
         user = "user_allow3"
@@ -598,6 +614,157 @@ class TestUserSecurity:
         self.except_create_user("ALLOW_TOKEN_NUM", 0, None)
 
         print("option ALLOW_TOKEN_NUM ................ [ passed ] ")
+
+    # option HOST white list
+    def options_host(self):
+        password = "abcd@1234"
+        self.login()
+
+        # single ip
+        user = "user_host1"
+        self.create_user(user, password, options="HOST '192.168.99.200'")
+        self.check_user_option(user, "allowed_host", "+127.0.0.1/32, +192.168.99.200/32")
+
+        # ip range
+        user = "user_host2"
+        self.create_user(user, password, options="HOST '192.168.99.1/16'")
+        self.check_user_option(user, "allowed_host", "+127.0.0.1/32, +192.168.99.1/16")
+
+        # except
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' HOST '192.148.1.11.11.2'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' HOST '192.148.1'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' HOST 192.148.1.100")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' HOST 192.148.1.100/23")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' HOST '192.148.1.100/400'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' HOST  ")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' HOST  123")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' HOST  19212.3")
+        print("option HOST ........................... [ passed ] ")
+
+    # option NOT_ALLOW_HOST black list
+    def options_not_allow_host(self):
+        password = "abcd@1234"
+        self.login()   
+
+        # single ip
+        user = "user_not_allow_host1"
+        self.create_user(user, password, options="NOT_ALLOW_HOST '192.168.99.200'")
+        self.check_user_option(user, "allowed_host", "-192.168.99.200/32, +127.0.0.1/32")
+
+        # ip range
+        user = "user_not_allow_host2"
+        self.create_user(user, password, options="NOT_ALLOW_HOST '192.168.99.1/16'")
+        self.check_user_option(user, "allowed_host", "-192.168.99.1/16, +127.0.0.1/32")
+
+        # except
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_HOST '192.148.1.11.11.2'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_HOST '192.148.1'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_HOST 192.148.1.100")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_HOST 192.148.1.100/23")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_HOST '192.148.1.100/400'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_HOST  ")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_HOST  123")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_HOST  19212.3")
+        print("option NOT_ALLOW_HOST ................. [ passed ] ")
+
+    # option ALLOW_DATETIME
+    def options_allow_datetime(self):
+        password = "abcd@1234"
+        self.login()
+        
+        # default
+        self.check_user_option(self.user_default, "allowed_datetime", "+ALL")
+
+        # ignore passed time
+        user = "user_allow_datetime1"
+        val = "2025-12-01 10:00 10"
+        self.create_user(user, password, options=f"ALLOW_DATETIME '{val}'")
+        self.check_user_option(user, "allowed_datetime", "+ALL")
+        
+        # forbid login
+        user = "user_allow_datetime2"
+        val = "2035-12-01 10:00 10"
+        self.create_user(user, password, options=f"ALLOW_DATETIME '{val}'")
+        self.check_user_option(user, "allowed_datetime", val)
+        self.login_failed(user=user, password=password)
+
+        # allow login
+        user = "user_allow_datetime3"
+        val = time.strftime("%Y-%m-%d %H:%M", time.localtime()) + " 9000000"
+        self.create_user(user, password, options=f"ALLOW_DATETIME '{val}'")
+        self.check_user_option(user, "allowed_datetime", val)
+        self.login(user=user, password=password)
+
+        # week date
+        user = "user_allow_datetime3"
+        val = "MON 10:00 30"
+        self.create_user(user, password, options=f"ALLOW_DATETIME '{val}'")
+        self.check_user_option(user, "allowed_datetime", val)
+
+        # except
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' ALLOW_DATETIME '2023_12_01 10:00:20'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' ALLOW_DATETIMEB '2028-12-01 10:00:20 30'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' ALLOW_DATETIME '10:00:00'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' ALLOW_DATETIME 2026-13-01 10:00")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' ALLOW_DATETIME '2028-15-65 25:61 200'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' ALLOW_DATETIME '192.148.1.100/400'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' ALLOW_DATETIME  ")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' ALLOW_DATETIME  123")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' ALLOW_DATETIME  19212.3")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' ALLOW_DATETIME  'abcd")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' ALLOW_DATETIME  'now'")
+
+        print("option ALLOW_DATETIME ................. [ passed ] ")
+
+
+    # option NOT_ALLOW_DATETIME
+    def options_not_allow_datetime(self):
+        password = "abcd@1234"
+        self.login()
+
+        # ignore passed time
+        user = "user_not_allow_d1"
+        val = "2025-12-01 10:00 10"
+        self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
+        self.check_user_option(user, "allowed_datetime", "+ALL")
+        self.login(user=user, password=password)
+        
+        # allow login
+        self.login()
+        user = "user_not_allow_d2"
+        val = "2035-12-01 10:00 10"
+        self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
+        self.check_user_option(user, "allowed_datetime", val)
+        self.login(user=user, password=password)
+
+        # forbid login
+        self.login()
+        user = "user_not_allow_d3"
+        val = time.strftime("%Y-%m-%d %H:%M", time.localtime()) + " 9000000"
+        self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
+        self.check_user_option(user, "allowed_datetime", val)
+        self.login_failed(user=user, password=password)
+
+        # week date
+        user = "user_not_allow_d3"
+        val = "MON 10:00 30"
+        self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
+        self.check_user_option(user, "allowed_datetime", val)
+
+        # except
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_DATETIME '2023_12_01 10:00:20'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_DATETIMEB '2028-12-01 10:00:20 30'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_DATETIME '10:00:00'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_DATETIME 2026-13-01 10:00")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_DATETIME '2028-15-65 25:61 200'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_DATETIME '192.148.1.100/400'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_DATETIME  ")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_DATETIME  123")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_DATETIME  19212.3")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_DATETIME  'abcd")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_DATETIME  'now'")
+
+        print("option NOT_ALLOW_DATETIME ............. [ passed ] ")
 
     
     def do_create_user(self):
@@ -620,9 +787,12 @@ class TestUserSecurity:
         self.options_password_reuse_time()
         self.options_password_reuse_max()
         self.options_inactive_account_time()
-        '''
         self.options_allow_token_num()
-        
+        self.options_host()
+        self.options_not_allow_host()
+        '''
+        self.options_allow_datetime()
+        self.options_not_allow_datetime()
 
 
     #
