@@ -37,43 +37,33 @@ class TMQCom:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def waitTransactionZeroWithTdsql(self, td_sql, timeout=300):
-        count = 0
-        while count < timeout:
-            result = td_sql.query("show transactions;")
-            if result == 0 :
-                tdLog.info("transaction count became zero.")
-                return True
-            time.sleep(1)
-            count += 1
-        tdLog.exit(f"Timeout after {timeout} seconds waiting for transaction count to become zero.")
 
     def initConsumerTable(self,cdbName='cdb', replicaVar=1):
         tdLog.info("create consume database, and consume info table, and consume result table")
-        tdSql.query("create database if not exists %s vgroups 1 replica %d"%(cdbName,replicaVar))
-        tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
-        tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
-        tdSql.query("drop table if exists %s.notifyinfo "%(cdbName))
+        tdSql.query(f"create database if not exists {cdbName} vgroups 1 replica {replicaVar}")
+        tdSql.query(f"drop table if exists {cdbName}.consumeinfo ")
+        tdSql.query(f"drop table if exists {cdbName}.consumeresult ")
+        tdSql.query(f"drop table if exists {cdbName}.notifyinfo ")
 
-        tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
-        tdSql.query("create table %s.consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"%cdbName)
-        tdSql.query("create table %s.notifyinfo (ts timestamp, cmdid int, consumerid int)"%cdbName)
+        tdSql.query(f"create table {cdbName}.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)")
+        tdSql.query(f"create table {cdbName}.consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)")
+        tdSql.query(f"create table {cdbName}.notifyinfo (ts timestamp, cmdid int, consumerid int)")
 
     def initConsumerInfoTable(self,cdbName='cdb'):
         tdLog.info("drop consumeinfo table")
-        tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
-        tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
+        tdSql.query(f"drop table if exists {cdbName}.consumeinfo ")
+        tdSql.query(f"create table {cdbName}.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)")
 
     def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):
-        sql = "insert into %s.consumeinfo values "%cdbName
-        sql += "(now + %ds, %d, '%s', '%s', %d, %d, %d)"%(consumerId, consumerId, topicList, keyList, expectrowcnt, ifcheckdata, ifmanualcommit)
-        tdLog.info("consume info sql: %s"%sql)
+        sql = f"insert into {cdbName}.consumeinfo values "
+        sql += f"(now + {consumerId}s, {consumerId}, '{topicList}', '{keyList}', {expectrowcnt}, {ifcheckdata}, {ifmanualcommit})"
+        tdLog.info(f"consume info sql: {sql}")
         tdSql.query(sql)
 
     def selectConsumeResult(self,expectRows,cdbName='cdb'):
         resultList=[]
         while 1:
-            tdSql.query("select * from %s.consumeresult"%cdbName)
+            tdSql.query(f"select * from {cdbName}.consumeresult")
             #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
             if tdSql.getRows() == expectRows:
                 break
@@ -81,7 +71,7 @@ class TMQCom:
                 time.sleep(0.5)
 
         for i in range(expectRows):
-            tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
+            tdLog.info (f"consume id: {tdSql.getData(i , 1)}, consume msgs: {tdSql.getData(i , 2)}, consume rows: {tdSql.getData(i , 3)}")
             resultList.append(tdSql.getData(i , 3))
 
         return resultList
@@ -94,10 +84,10 @@ class TMQCom:
             if tdSql.getRows() == expectRows:
                 break
             else:
-                time.sleep(5)
+                time.sleep(0.5)
 
         for i in range(expectRows):
-            tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
+            tdLog.info (f"consume id: {tdSql.getData(i , 1)}, consume msgs: {tdSql.getData(i , 2)}, consume rows: {tdSql.getData(i , 3)}")
             resultList.append(tdSql.getData(i , 2))
 
         return resultList
@@ -175,10 +165,10 @@ class TMQCom:
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
         if dropFlag == 1:
-            tsql.execute("drop database if exists %s"%(dbName))
+            tsql.execute(f"drop database if exists {dbName}")
 
-        tsql.execute("create database if not exists %s vgroups %d replica %d"%(dbName, vgroups, replica))
-        create_db_status = self.waitTransactionZeroWithTdsql(tsql)
+        tsql.execute(f"create database if not exists {dbName} vgroups {vgroups} replica {replica}")
+        create_db_status = tdCom.waitTransactionZeroWithTdsql(tsql)
         if not create_db_status:
             tdLog.exit("Transaction did not reach zero, aborting test.")
         else:

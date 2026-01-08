@@ -424,11 +424,11 @@ class TDCom:
     ########################################################################################################################################
     def create_database(self,td_sql, dbName='test',dropFlag=1,**kwargs):
         if dropFlag == 1:
-            td_sql.execute("drop database if exists %s"%(dbName))
+            td_sql.execute(f"drop database if exists {dbName}")
         '''
         vgroups replica precision strict wal fsync comp cachelast single_stable buffer pagesize pages minrows maxrows duration keep retentions
         '''
-        sqlString = f'create database if not exists {dbName} '
+        sqlString = f"create database if not exists {dbName}"
 
         dbParams = ""
         if len(kwargs) > 0:
@@ -441,9 +441,8 @@ class TDCom:
 
         tdLog.debug(f"create db sql: {sqlString}")
         td_sql.execute(sqlString)
-        create_db_statu = self.waitTransactionZeroWithTdsql(td_sql)
-        if not create_db_statu:
-            # 这里可以加异常处理或日志
+        create_db_status = self.waitTransactionZeroWithTdsql(td_sql)
+        if not create_db_status:
             tdLog.exit("Transaction did not reach zero, aborting test.")
         else:
             tdLog.debug(f"complete to create database {dbName}")
