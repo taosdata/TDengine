@@ -2519,7 +2519,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->compactEndTime = -1;
   pOptions->compactTimeOffset = -1;
   pOptions->encryptAlgorithmStr[0] = 0;
-  pOptions->isAudit = 0;
+  pOptions->isAudit = -1;
   pOptions->allowDrop = -1;
   return (SNode*)pOptions;
 _err:

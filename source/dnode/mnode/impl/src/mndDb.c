@@ -1359,7 +1359,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     code = 0;
   }
 
-  if (pAlter->isAudit != pDb->cfg.isAudit) {
+  if (pAlter->isAudit > -1 && pAlter->isAudit != pDb->cfg.isAudit) {
     code = TSDB_CODE_OPS_NOT_SUPPORT;
     return code;
   }
@@ -1502,24 +1502,6 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (pDb->cfg.isAudit == 1) {
-    if (alterReq.daysToKeep2 < 2628000) {
-      code = TSDB_CODE_AUDIT_MUST_KEEPFORCE;
-      mError("db:%s, failed to alter, keep not match for audit db, %d", alterReq.db, alterReq.daysToKeep2);
-      TAOS_RETURN(code);
-    }
-    if (alterReq.walLevel != 2) {
-      code = TSDB_CODE_AUDIT_MUST_WALFORCE;
-      mError("db:%s, failed to alter, walLevel not match for audit db, %d", alterReq.db, alterReq.walLevel);
-      TAOS_RETURN(code);
-    }
-    if (alterReq.isAudit == 0) {
-      code = TSDB_CODE_AUDIT_DB_NOT_ALLOW_CHANGE;
-      mError("db:%s, failed to alter, is not allowed to change audit db, %d", alterReq.db, alterReq.isAudit);
-      TAOS_RETURN(code);
-    }
-  }
-
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_DB, pDb), NULL, _OVER);
 
   if (alterReq.replications == 2) {
@@ -1545,6 +1527,24 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   if (dbObj.cfg.pRetensions != NULL) {
     dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions, NULL);
     if (dbObj.cfg.pRetensions == NULL) goto _OVER;
+  }
+
+  if (pDb->cfg.isAudit == 1) {
+    if (alterReq.daysToKeep2 > -1 && alterReq.daysToKeep2 < 2628000) {
+      code = TSDB_CODE_AUDIT_MUST_KEEPFORCE;
+      mError("db:%s, failed to alter, keep not match for audit db, %d", alterReq.db, alterReq.daysToKeep2);
+      goto _OVER;
+    }
+    if (alterReq.walLevel > -1 && alterReq.walLevel != 2) {
+      code = TSDB_CODE_AUDIT_MUST_WALFORCE;
+      mError("db:%s, failed to alter, walLevel not match for audit db, %d", alterReq.db, alterReq.walLevel);
+      goto _OVER;
+    }
+    if (alterReq.isAudit == 0) {
+      code = TSDB_CODE_AUDIT_DB_NOT_ALLOW_CHANGE;
+      mError("db:%s, failed to alter, is not allowed to change audit db, %d", alterReq.db, alterReq.isAudit);
+      goto _OVER;
+    }
   }
 
   if (strlen(alterReq.encryptAlgrName) > 0) {
@@ -1995,6 +1995,11 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
 
   if(pDb->cfg.isMount) {
     code = TSDB_CODE_MND_MOUNT_OBJ_NOT_SUPPORT;
+    goto _OVER;
+  }
+
+  if(!pDb->cfg.allowDrop) {
+    code = TSDB_CODE_MND_DB_DROP_NOT_ALLOWED;
     goto _OVER;
   }
 
@@ -3204,6 +3209,11 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     STR_WITH_MAXSIZE_TO_VARSTR(durationVstr, durationStr, sizeof(durationVstr));
     if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
       TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)durationVstr, false), &lino, _OVER);
+    }
+
+    if ((pColInfo = taosArrayGet(pBlock->pDataBlock, cols++))) {
+      uint8_t allowDrop = pDb->cfg.allowDrop;
+      TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&allowDrop, false), &lino, _OVER);
     }
   }
 _OVER:
