@@ -27,8 +27,8 @@ class TestUserPrivilegeCreateDb:
         """
 
         tdLog.info(f"========================root user create user")
-        tdSql.execute(f'create user u1 pass "taosdata"')
-        tdSql.execute(f'create user u2 pass "taosdata"')
+        tdSql.execute(f'create user u1 pass "AAbb1122"')
+        tdSql.execute(f'create user u2 pass "AAbb1122"')
         tdSql.execute(f"alter user u1 createdb 1") # PRIV_TODO: equiv to grant create db
         tdSql.execute(f"alter user u2 createdb 1") # PRIV_TODO: equiv to grant create db
         tdSql.execute(f"grant create database to u1")
@@ -40,7 +40,7 @@ class TestUserPrivilegeCreateDb:
         tdSql.checkRows(0) # root don't have all privileges since 3.4.0.0
 
         tdLog.info(f"=============connect with u1")
-        tdSql.connect("u1")
+        tdSql.connect("u1", "AAbb1122")
         tdSql.execute(f"create database u1_d1")
         tdSql.execute(f"use u1_d1")
         tdSql.execute(f"create table u1_d1.t1(ts timestamp, c2 int)")
@@ -57,7 +57,7 @@ class TestUserPrivilegeCreateDb:
         tdSql.error(f"grant all on test.* to u1")
 
         tdLog.info(f"=============connect with u2")
-        tdSql.connect("u2")
+        tdSql.connect("u2", "AAbb1122")
         tdSql.execute(f"create database u2_d1")
         tdSql.execute(f"use u2_d1")
         tdSql.execute(f"create table u2_d1.t1(ts timestamp, c2 int)")
@@ -80,13 +80,13 @@ class TestUserPrivilegeCreateDb:
         tdSql.execute(f"grant insert on u1_d1.* to u1") # PRIV_TODO: owner has all privileges
     
         tdLog.info(f"=============connect with u1")
-        tdSql.connect("u1")
+        tdSql.connect("u1", "AAbb1122")
         tdSql.execute(f"reset query cache")
         tdSql.execute(f"insert into u1_d1.t1 values(now, 1)")
         tdSql.error(f"select * from u1_d1.t1;")
 
         tdLog.info(f"=============connect with u2")
-        tdSql.connect("u2")
+        tdSql.connect("u2", "AAbb1122")
         tdSql.error(f"select * from u2_d1.t1;")
         tdSql.error(f"insert into u2_d1.t1 values(now, 1)")
 
@@ -96,12 +96,12 @@ class TestUserPrivilegeCreateDb:
         tdSql.execute(f"grant all on u2_d1.* to u2")
 
         tdLog.info(f"=============connect with u1")
-        tdSql.connect("u1")
+        tdSql.connect("u1", "AAbb1122")
         tdSql.execute(f"reset query cache")
         tdSql.query(f"select * from u1_d1.t1;")
         tdSql.execute(f"insert into u1_d1.t1 values(now, 2)")
 
         tdLog.info(f"=============connect with u2")
-        tdSql.connect("u2")
+        tdSql.connect("u2", "AAbb1122")
         tdSql.query(f"select * from u2_d1.t1;")
         tdSql.execute(f"insert into u2_d1.t1 values(now, 2)")
