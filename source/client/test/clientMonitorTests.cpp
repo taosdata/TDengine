@@ -241,7 +241,7 @@ TEST(clientMonitorTest, ReadOneFile1) {
       break;
     }
     char* val = readFile(pFile, &offset, fileSize);
-    printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
+    // printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
     
     ASSERT(cnt < 2);
     if (cnt == 0) {
@@ -289,7 +289,7 @@ TEST(clientMonitorTest, ReadOneFile2) {
       break;
     }
     char* val = readFile(pFile, &offset, fileSize);
-    printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
+    // printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
     
     ASSERT(strcmp(val, "[]") == 0);
   }
@@ -331,7 +331,7 @@ TEST(clientMonitorTest, ReadOneFile3) {
       break;
     }
     char* val = readFile(pFile, &offset, fileSize);
-    printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
+    // printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
     
     ASSERT(strcmp(val, "[]") == 0);
   }
@@ -375,7 +375,7 @@ TEST(clientMonitorTest, ReadOneFile4) {
       break;
     }
     char* val = readFile(pFile, &offset, fileSize);
-    printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
+    // printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
     
     ASSERT(cnt < 2);
     if (cnt == 0) {
