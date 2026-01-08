@@ -317,6 +317,15 @@ int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode) {
   QW_RET(code);
 }
 
+void qwFreeFetchRspItem(void* param) {
+  if (NULL == param) {
+    return;
+  }
+
+  SQWRspItem* pItem = (SQWRspItem*)param;
+  qwFreeFetchRsp(NULL, pItem->rsp);
+}
+
 void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   if (ctx->ctrlConnInfo.handle) {
     tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER, ctx->rspCode);
@@ -334,7 +343,12 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   taosArrayDestroy(ctx->tbInfo);
 
   if (QW_IS_SUBQ(ctx)) {
-    qwFreeFetchRsp(ctx, ctx->subQRes.rsp);
+    if (QW_IS_SCALAR_SUBQ(ctx)) {
+      qwFreeFetchRsp(ctx, ctx->subQRes.scalarRsp.rsp);
+    } else {
+      taosArrayDestroy(ctx->subQRes.waitList);
+      taosArrayDestroyEx(ctx->subQRes.rspList, qwFreeFetchRspItem);
+    }
   }
   
   if (gMemPoolHandle && ctx->memPoolSession) {

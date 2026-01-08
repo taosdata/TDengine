@@ -599,7 +599,8 @@ void    qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session, bo
 int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession);
 void    qwFreeTaskHandle(SQWTaskCtx *ctx);
 void    qwFreeSinkHandle(SQWTaskCtx *ctx);
-int32_t qwChkSaveSubQueryFetchRsp(SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd);
+int32_t qwChkSaveSubQFetchRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd);
+int32_t qwCloneSubQRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppRes, int32_t* dataLen, bool* toFetch, SQWRspItem* pItem);
 
 #ifdef __cplusplus
 }

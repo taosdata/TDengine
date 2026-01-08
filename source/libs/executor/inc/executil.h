@@ -27,17 +27,18 @@
 #include "tjson.h"
 
 typedef struct STaskSubJobCtx {
-  uint64_t    queryId;
-  uint64_t    taskId;
-  char*       idStr;
-  void*       pTaskInfo;
-  void*       rpcHandle;
-  int64_t     transporterId;
-  bool        hasSubJobs;
+  uint64_t           queryId;
+  uint64_t           taskId;
+  char*              idStr;
+  void*              pTaskInfo;
+  void*              rpcHandle;
+  int64_t            transporterId;
+  bool               hasSubJobs;
   SRWLatch           lock;
   int32_t            code;
   void*              param;
   tsem_t             ready;
+  uint64_t           blockIdx;
   SArray*            subEndPoints;  // SArray<SDownstreamSourceNode*>
   SArray*            subResNodes;  // SArray<SNode*>
 } STaskSubJobCtx;

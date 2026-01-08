@@ -4318,7 +4318,7 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
     goto _exit;
   }
 
-  qDebug("%s subQIdx %d got rsp, code:%d, rsp:%p", ctx->idStr, pParam->subQIdx, code, pMsg->pData);
+  qDebug("%s subQIdx %d got rsp, blockIdx:%" PRId64 ", code:%d, rsp:%p", ctx->idStr, pParam->subQIdx, ctx->blockIdx, code, pMsg->pData);
 
   taosWLockLatch(&ctx->lock);
   ctx->param = NULL;
@@ -4345,6 +4345,11 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
     pRsp->numOfCols = htonl(pRsp->numOfCols);
     pRsp->useconds = htobe64(pRsp->useconds);
     pRsp->numOfBlocks = htonl(pRsp->numOfBlocks);
+
+    qDebug("%s subQIdx %d blockIdx:%" PRIu64 " rsp detail, numOfBlocks:%d, numOfRows:%" PRId64 ", completed:%d", 
+      ctx->idStr, pParam->subQIdx, ctx->blockIdx, pRsp->numOfBlocks, pRsp->numOfRows, pRsp->completed);
+
+    ctx->blockIdx++;
 
     switch (nodeType(pParam->pRes)) {
       case QUERY_NODE_REMOTE_VALUE:
@@ -4397,6 +4402,7 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   req.clientId = pSource->clientId;
   req.taskId = pSource->taskId;
   req.srcTaskId = ctx->taskId;
+  req.blockIdx = ctx->blockIdx;
   req.queryId = ctx->queryId;
   req.execId = pSource->execId;
 
@@ -4417,9 +4423,9 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   }
 
   qDebug("%s scl build fetch msg and send to nodeId:%d, ep:%s, clientId:0x%" PRIx64 " taskId:0x%" PRIx64
-         ", execId:%d",
+         ", execId:%d, blockIdx:%" PRId64,
          ctx->idStr, pSource->addr.nodeId, pSource->addr.epSet.eps[0].fqdn, pSource->clientId,
-         pSource->taskId, pSource->execId);
+         pSource->taskId, pSource->execId, req.blockIdx);
 
   // send the fetch remote task result reques
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
@@ -4480,6 +4486,8 @@ _end:
 int32_t fetchRemoteNodeImpl(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
+
+  ctx->blockIdx = 0;
 
   code = sendFetchRemoteNodeReq(ctx, subQIdx, pRes);
   QUERY_CHECK_CODE(code, lino, _end);
