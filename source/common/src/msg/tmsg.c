@@ -40,6 +40,7 @@
 #undef TD_MSG_SEG_CODE_
 #define TD_MSG_RANGE_CODE_
 #include "tmsgdef.h"
+#include "tversion.h"
 
 #include "streamMsg.h"
 #include "tanalytics.h"
@@ -318,7 +319,7 @@ static int32_t tSerializeSClientHbReq(SEncoder *pEncoder, const SClientHbReq *pR
   return 0;
 }
 
-static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) {
+static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq, int32_t clientVersion) {
   int32_t code = 0;
   int32_t line = 0;
   TAOS_CHECK_RETURN(tDecodeSClientHbKey(pDecoder, &pReq->connKey));
@@ -444,9 +445,13 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq) 
     TAOS_CHECK_GOTO(tDecodeU32(pDecoder, &pReq->userIp), &line, _error);
     TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->userApp), &line, _error);
   }
-  if (!tDecodeIsEnd(pDecoder)) {
-    TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->sVer), &line, _error);
-    TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->cInfo), &line, _error);
+
+  // for compatibility, encode this info since 3.3.8.5, so decode since 3.3.8.5, this code only avaible for 3.3.8.x
+  if (clientVersion >= 3030805) {
+    if (!tDecodeIsEnd(pDecoder)) {
+      TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->sVer), &line, _error);
+      TAOS_CHECK_GOTO(tDecodeCStrTo(pDecoder, pReq->cInfo), &line, _error);
+    }
   }
 
 _error:
@@ -571,7 +576,7 @@ _exit:
   return tlen;
 }
 
-int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchReq *pBatchReq) {
+int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchReq *pBatchReq, int32_t clientVersion) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -590,7 +595,7 @@ int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchR
   }
   for (int32_t i = 0; i < reqNum; i++) {
     SClientHbReq req = {0};
-    TAOS_CHECK_EXIT(tDeserializeSClientHbReq(&decoder, &req));
+    TAOS_CHECK_EXIT(tDeserializeSClientHbReq(&decoder, &req, clientVersion));
     if (!taosArrayPush(pBatchReq->reqs, &req)) {
       TAOS_CHECK_EXIT(terrno);
     }
