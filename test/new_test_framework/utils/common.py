@@ -29,62 +29,66 @@ from .server.dnodes import *
 from .common import *
 from .constant import *
 from .epath import *
-from dataclasses import dataclass,field
+from dataclasses import dataclass, field
 from typing import List
 from datetime import datetime, timedelta
 import re
 
+
 @dataclass
 class DataSet:
-    ts_data     : List[int]     = field(default_factory=list)
-    int_data    : List[int]     = field(default_factory=list)
-    bint_data   : List[int]     = field(default_factory=list)
-    sint_data   : List[int]     = field(default_factory=list)
-    tint_data   : List[int]     = field(default_factory=list)
-    uint_data   : List[int]     = field(default_factory=list)
-    ubint_data  : List[int]     = field(default_factory=list)
-    usint_data  : List[int]     = field(default_factory=list)
-    utint_data  : List[int]     = field(default_factory=list)
-    float_data  : List[float]   = field(default_factory=list)
-    double_data : List[float]   = field(default_factory=list)
-    bool_data   : List[int]     = field(default_factory=list)
-    vchar_data  : List[str]     = field(default_factory=list)
-    nchar_data  : List[str]     = field(default_factory=list)
+    ts_data: List[int] = field(default_factory=list)
+    int_data: List[int] = field(default_factory=list)
+    bint_data: List[int] = field(default_factory=list)
+    sint_data: List[int] = field(default_factory=list)
+    tint_data: List[int] = field(default_factory=list)
+    uint_data: List[int] = field(default_factory=list)
+    ubint_data: List[int] = field(default_factory=list)
+    usint_data: List[int] = field(default_factory=list)
+    utint_data: List[int] = field(default_factory=list)
+    float_data: List[float] = field(default_factory=list)
+    double_data: List[float] = field(default_factory=list)
+    bool_data: List[int] = field(default_factory=list)
+    vchar_data: List[str] = field(default_factory=list)
+    nchar_data: List[str] = field(default_factory=list)
 
-    def get_order_set(self,
+    def get_order_set(
+        self,
         rows,
-        int_step    :int    = 1,
-        bint_step   :int    = 1,
-        sint_step   :int    = 1,
-        tint_step   :int    = 1,
-        uint_step   :int    = 1,
-        ubint_step  :int    = 1,
-        usint_step  :int    = 1,
-        utint_step  :int    = 1,
-        float_step  :float  = 1,
-        double_step :float  = 1,
-        bool_start  :int    = 1,
-        vchar_prefix:str    = "vachar_",
-        vchar_step  :int    = 1,
-        nchar_prefix:str    = "nchar_测试_",
-        nchar_step  :int    = 1,
-        ts_step     :int    = 1
+        int_step: int = 1,
+        bint_step: int = 1,
+        sint_step: int = 1,
+        tint_step: int = 1,
+        uint_step: int = 1,
+        ubint_step: int = 1,
+        usint_step: int = 1,
+        utint_step: int = 1,
+        float_step: float = 1,
+        double_step: float = 1,
+        bool_start: int = 1,
+        vchar_prefix: str = "vachar_",
+        vchar_step: int = 1,
+        nchar_prefix: str = "nchar_测试_",
+        nchar_step: int = 1,
+        ts_step: int = 1,
     ):
         for i in range(rows):
-            self.int_data.append( int(i * int_step % INT_MAX ))
-            self.bint_data.append( int(i * bint_step % BIGINT_MAX ))
-            self.sint_data.append( int(i * sint_step % SMALLINT_MAX ))
-            self.tint_data.append( int(i * tint_step % TINYINT_MAX ))
-            self.uint_data.append( int(i * uint_step % INT_UN_MAX ))
-            self.ubint_data.append( int(i * ubint_step % BIGINT_UN_MAX ))
-            self.usint_data.append( int(i * usint_step % SMALLINT_UN_MAX ))
-            self.utint_data.append( int(i * utint_step % TINYINT_UN_MAX ))
-            self.float_data.append( float(i * float_step % FLOAT_MAX ))
-            self.double_data.append( float(i * double_step % DOUBLE_MAX ))
-            self.bool_data.append( bool((i + bool_start) % 2 ))
-            self.vchar_data.append( f"{vchar_prefix}{i * vchar_step}" )
-            self.nchar_data.append( f"{nchar_prefix}{i * nchar_step}")
-            self.ts_data.append( int(datetime.timestamp(datetime.now()) * 1000 - i * ts_step))
+            self.int_data.append(int(i * int_step % INT_MAX))
+            self.bint_data.append(int(i * bint_step % BIGINT_MAX))
+            self.sint_data.append(int(i * sint_step % SMALLINT_MAX))
+            self.tint_data.append(int(i * tint_step % TINYINT_MAX))
+            self.uint_data.append(int(i * uint_step % INT_UN_MAX))
+            self.ubint_data.append(int(i * ubint_step % BIGINT_UN_MAX))
+            self.usint_data.append(int(i * usint_step % SMALLINT_UN_MAX))
+            self.utint_data.append(int(i * utint_step % TINYINT_UN_MAX))
+            self.float_data.append(float(i * float_step % FLOAT_MAX))
+            self.double_data.append(float(i * double_step % DOUBLE_MAX))
+            self.bool_data.append(bool((i + bool_start) % 2))
+            self.vchar_data.append(f"{vchar_prefix}{i * vchar_step}")
+            self.nchar_data.append(f"{nchar_prefix}{i * nchar_step}")
+            self.ts_data.append(
+                int(datetime.timestamp(datetime.now()) * 1000 - i * ts_step)
+            )
 
     def get_disorder_set(self, rows, **kwargs):
         for k, v in kwargs.items():
@@ -134,10 +138,40 @@ class TDCom:
         self.ts_value = None
         self.tag_value_list = list()
         self.column_value_list = list()
-        self.full_type_list = ["tinyint", "smallint", "int", "bigint", "tinyint unsigned", "smallint unsigned", "int unsigned", "bigint unsigned", "float", "double", "binary", "nchar", "bool"]
-        self.white_list = ["statsd", "node_exporter", "collectd", "icinga2", "tcollector", "information_schema", "performance_schema"]
+        self.full_type_list = [
+            "tinyint",
+            "smallint",
+            "int",
+            "bigint",
+            "tinyint unsigned",
+            "smallint unsigned",
+            "int unsigned",
+            "bigint unsigned",
+            "float",
+            "double",
+            "binary",
+            "nchar",
+            "bool",
+        ]
+        self.white_list = [
+            "statsd",
+            "node_exporter",
+            "collectd",
+            "icinga2",
+            "tcollector",
+            "information_schema",
+            "performance_schema",
+        ]
         self.Boundary = DataBoundary()
-        self.white_list = ["statsd", "node_exporter", "collectd", "icinga2", "tcollector", "information_schema", "performance_schema"]
+        self.white_list = [
+            "statsd",
+            "node_exporter",
+            "collectd",
+            "icinga2",
+            "tcollector",
+            "information_schema",
+            "performance_schema",
+        ]
         self.case_name = str()
         self.des_table_suffix = "_output"
         self.stream_suffix = "_stream"
@@ -157,49 +191,150 @@ class TDCom:
         self.stream_suffix = "_stream"
         self.subtable_prefix = "prefix_" if self.subtable else ""
         self.subtable_suffix = "_suffix" if self.subtable else ""
-        self.downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)",
-            "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
-            "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
-        self.stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list)))
-        self.tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.downsampling_function_list[0:15])))
-        self.stb_source_select_str = ','.join(self.downsampling_function_list)
-        self.tb_source_select_str = ','.join(self.downsampling_function_list[0:15])
-        self.fill_function_list = ["min(c1)", "max(c2)", "sum(c3)", "apercentile(c6, 50)", "avg(c7)", "count(c8)", "spread(c1)",
-            "stddev(c2)", "hyperloglog(c11)", "timediff(1, 0, 1h)", "timezone()", "to_iso8601(1)", 'to_unixtimestamp("1970-01-01T08:00:00+08:00")', "min(t1)", "max(t2)", "sum(t3)",
-            "first(t4)", "last(t5)", "apercentile(t6, 50)", "avg(t7)", "count(t8)", "spread(t1)", "stddev(t2)", "hyperloglog(t11)"]
-        self.fill_stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.fill_function_list)))
-        self.fill_stb_source_select_str = ','.join(self.fill_function_list)
-        self.fill_tb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.fill_function_list[0:13])))
-        self.fill_tb_source_select_str = ','.join(self.fill_function_list[0:13])
-        self.ext_tb_source_select_str = ','.join(self.downsampling_function_list[0:13])
+        self.downsampling_function_list = [
+            "min(c1)",
+            "max(c2)",
+            "sum(c3)",
+            "first(c4)",
+            "last(c5)",
+            "apercentile(c6, 50)",
+            "avg(c7)",
+            "count(c8)",
+            "spread(c1)",
+            "stddev(c2)",
+            "hyperloglog(c11)",
+            "timediff(1, 0, 1h)",
+            "timezone()",
+            "to_iso8601(1)",
+            'to_unixtimestamp("1970-01-01T08:00:00+08:00")',
+            "min(t1)",
+            "max(t2)",
+            "sum(t3)",
+            "first(t4)",
+            "last(t5)",
+            "apercentile(t6, 50)",
+            "avg(t7)",
+            "count(t8)",
+            "spread(t1)",
+            "stddev(t2)",
+            "hyperloglog(t11)",
+        ]
+        self.stb_output_select_str = ",".join(
+            list(map(lambda x: f"`{x}`", self.downsampling_function_list))
+        )
+        self.tb_output_select_str = ",".join(
+            list(map(lambda x: f"`{x}`", self.downsampling_function_list[0:15]))
+        )
+        self.stb_source_select_str = ",".join(self.downsampling_function_list)
+        self.tb_source_select_str = ",".join(self.downsampling_function_list[0:15])
+        self.fill_function_list = [
+            "min(c1)",
+            "max(c2)",
+            "sum(c3)",
+            "apercentile(c6, 50)",
+            "avg(c7)",
+            "count(c8)",
+            "spread(c1)",
+            "stddev(c2)",
+            "hyperloglog(c11)",
+            "timediff(1, 0, 1h)",
+            "timezone()",
+            "to_iso8601(1)",
+            'to_unixtimestamp("1970-01-01T08:00:00+08:00")',
+            "min(t1)",
+            "max(t2)",
+            "sum(t3)",
+            "first(t4)",
+            "last(t5)",
+            "apercentile(t6, 50)",
+            "avg(t7)",
+            "count(t8)",
+            "spread(t1)",
+            "stddev(t2)",
+            "hyperloglog(t11)",
+        ]
+        self.fill_stb_output_select_str = ",".join(
+            list(map(lambda x: f"`{x}`", self.fill_function_list))
+        )
+        self.fill_stb_source_select_str = ",".join(self.fill_function_list)
+        self.fill_tb_output_select_str = ",".join(
+            list(map(lambda x: f"`{x}`", self.fill_function_list[0:13]))
+        )
+        self.fill_tb_source_select_str = ",".join(self.fill_function_list[0:13])
+        self.ext_tb_source_select_str = ",".join(self.downsampling_function_list[0:13])
         self.stream_case_when_tbname = "tbname"
 
         self.update = True
         self.disorder = True
         if self.disorder:
             self.update = False
-        self.partition_by_downsampling_function_list = ["min(c1)", "max(c2)", "sum(c3)", "first(c4)", "last(c5)", "count(c8)", "spread(c1)",
-        "stddev(c2)", "hyperloglog(c11)", "min(t1)", "max(t2)", "sum(t3)", "first(t4)", "last(t5)", "count(t8)", "spread(t1)", "stddev(t2)"]
+        self.partition_by_downsampling_function_list = [
+            "min(c1)",
+            "max(c2)",
+            "sum(c3)",
+            "first(c4)",
+            "last(c5)",
+            "count(c8)",
+            "spread(c1)",
+            "stddev(c2)",
+            "hyperloglog(c11)",
+            "min(t1)",
+            "max(t2)",
+            "sum(t3)",
+            "first(t4)",
+            "last(t5)",
+            "count(t8)",
+            "spread(t1)",
+            "stddev(t2)",
+        ]
 
-        self.stb_data_filter_sql = f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
+        self.stb_data_filter_sql = (
+            f'ts >= {self.date_time}+1s and c1 = 1 or c2 > 1 and c3 != 4 or c4 <= 3 and c9 <> 0 or c10 is not Null or c11 is Null or \
                 c12 between "na" and "nchar4" and c11 not between "bi" and "binary" and c12 match "nchar[19]" and c12 nmatch "nchar[25]" or c13 = True or \
                 c5 in (1, 2, 3) or c6 not in (6, 7) and c12 like "nch%" and c11 not like "bina_" and c6 < 10 or c12 is Null or c8 >= 4 and t1 = 1 or t2 > 1 \
                 and t3 != 4 or c4 <= 3 and t9 <> 0 or t10 is not Null or t11 is Null or t12 between "na" and "nchar4" and t11 not between "bi" and "binary" \
                 or t12 match "nchar[19]" or t12 nmatch "nchar[25]" or t13 = True or t5 in (1, 2, 3) or t6 not in (6, 7) and t12 like "nch%" \
                 and t11 not like "bina_" and t6 <= 10 or t12 is Null or t8 >= 4'
+        )
         self.tb_data_filter_sql = self.stb_data_filter_sql.partition(" and t1")[0]
 
         self.filter_source_select_elm = "*"
         self.stb_filter_des_select_elm = "ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13"
-        self.partitial_stb_filter_des_select_elm = ",".join(self.stb_filter_des_select_elm.split(",")[:3])
-        self.exchange_stb_filter_des_select_elm = ",".join([self.stb_filter_des_select_elm.split(",")[0], self.stb_filter_des_select_elm.split(",")[2], self.stb_filter_des_select_elm.split(",")[1]])
-        self.partitial_ext_tb_source_select_str = ','.join(self.downsampling_function_list[0:2])
-        self.tb_filter_des_select_elm = self.stb_filter_des_select_elm.partition(", t1")[0]
-        self.tag_filter_des_select_elm = self.stb_filter_des_select_elm.partition("c13, ")[2]
-        self.partition_by_stb_output_select_str = ','.join(list(map(lambda x:f'`{x}`', self.partition_by_downsampling_function_list)))
-        self.partition_by_stb_source_select_str = ','.join(self.partition_by_downsampling_function_list)
-        self.exchange_tag_filter_des_select_elm = ",".join([self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[0], self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[2], self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[1]])
-        self.partitial_tag_filter_des_select_elm = ",".join(self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[:3])
+        self.partitial_stb_filter_des_select_elm = ",".join(
+            self.stb_filter_des_select_elm.split(",")[:3]
+        )
+        self.exchange_stb_filter_des_select_elm = ",".join(
+            [
+                self.stb_filter_des_select_elm.split(",")[0],
+                self.stb_filter_des_select_elm.split(",")[2],
+                self.stb_filter_des_select_elm.split(",")[1],
+            ]
+        )
+        self.partitial_ext_tb_source_select_str = ",".join(
+            self.downsampling_function_list[0:2]
+        )
+        self.tb_filter_des_select_elm = self.stb_filter_des_select_elm.partition(
+            ", t1"
+        )[0]
+        self.tag_filter_des_select_elm = self.stb_filter_des_select_elm.partition(
+            "c13, "
+        )[2]
+        self.partition_by_stb_output_select_str = ",".join(
+            list(map(lambda x: f"`{x}`", self.partition_by_downsampling_function_list))
+        )
+        self.partition_by_stb_source_select_str = ",".join(
+            self.partition_by_downsampling_function_list
+        )
+        self.exchange_tag_filter_des_select_elm = ",".join(
+            [
+                self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[0],
+                self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[2],
+                self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[1],
+            ]
+        )
+        self.partitial_tag_filter_des_select_elm = ",".join(
+            self.stb_filter_des_select_elm.partition("c13, ")[2].split(",")[:3]
+        )
         self.partitial_tag_stb_filter_des_select_elm = "ts, c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13, t1, t3, t2, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13"
         self.cast_tag_filter_des_select_elm = "t5,t11,t13"
         self.cast_tag_stb_filter_des_select_elm = "ts, t1, t2, t3, t4, cast(t1 as TINYINT UNSIGNED), t6, t7, t8, t9, t10, cast(t2 as varchar(256)), t12, cast(t3 as bool)"
@@ -209,7 +344,15 @@ class TDCom:
         self.part_val_list = [1, 2]
         self.taos_bin_path = "/usr/bin"
         self.taos_cfg_path = "/etc/taos"
-        self.work_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "sim")
+        self.work_dir = os.path.join(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                )
+            ),
+            "sim",
+        )
+
     # def init(self, conn, logSql):
     #     # tdSql.init(conn.cursor(), logSql)
 
@@ -219,7 +362,7 @@ class TDCom:
         self.work_dir = work_dir
 
     def preDefine(self):
-        header = {'Authorization': 'Basic cm9vdDp0YW9zZGF0YQ=='}
+        header = {"Authorization": "Basic cm9vdDp0YW9zZGF0YQ=="}
         sql_url = "http://127.0.0.1:6041/rest/sql"
         sqlt_url = "http://127.0.0.1:6041/rest/sqlt"
         sqlutc_url = "http://127.0.0.1:6041/rest/sqlutc"
@@ -228,8 +371,8 @@ class TDCom:
         return header, sql_url, sqlt_url, sqlutc_url, influx_url, telnet_url
 
     def genTcpParam(self):
-        MaxBytes = 1024*1024
-        host ='127.0.0.1'
+        MaxBytes = 1024 * 1024
+        host = "127.0.0.1"
         port = 6046
         return MaxBytes, host, port
 
@@ -237,13 +380,15 @@ class TDCom:
         MaxBytes = tdCom.genTcpParam()[0]
         host = tdCom.genTcpParam()[1]
         port = tdCom.genTcpParam()[2]
-        sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((host, port))
         sock.send(input.encode())
         sock.close()
 
     def restApiPost(self, sql):
-        requests.post(self.preDefine()[1], sql.encode("utf-8"), headers = self.preDefine()[0])
+        requests.post(
+            self.preDefine()[1], sql.encode("utf-8"), headers=self.preDefine()[0]
+        )
 
     def createDb(self, dbname="test", db_update_tag=0, api_type="taosc"):
         if api_type == "taosc":
@@ -252,48 +397,63 @@ class TDCom:
                 tdSql.execute(f"create database if not exists {dbname} precision 'us'")
             else:
                 tdSql.execute(f"drop database if exists {dbname}")
-                tdSql.execute(f"create database if not exists {dbname} precision 'us' update 1")
+                tdSql.execute(
+                    f"create database if not exists {dbname} precision 'us' update 1"
+                )
         elif api_type == "restful":
             if db_update_tag == 0:
                 self.restApiPost(f"drop database if exists {dbname}")
-                self.restApiPost(f"create database if not exists {dbname} precision 'us'")
+                self.restApiPost(
+                    f"create database if not exists {dbname} precision 'us'"
+                )
             else:
                 self.restApiPost(f"drop database if exists {dbname}")
-                self.restApiPost(f"create database if not exists {dbname} precision 'us' update 1")
-        tdSql.execute(f'use {dbname}')
+                self.restApiPost(
+                    f"create database if not exists {dbname} precision 'us' update 1"
+                )
+        tdSql.execute(f"use {dbname}")
 
     def genUrl(self, url_type, dbname, precision):
         if url_type == "influxdb":
             if precision is None:
                 url = self.preDefine()[4] + "?" + "db=" + dbname
             else:
-                url = self.preDefine()[4] + "?" + "db=" + dbname + "&precision=" + precision
+                url = (
+                    self.preDefine()[4]
+                    + "?"
+                    + "db="
+                    + dbname
+                    + "&precision="
+                    + precision
+                )
         elif url_type == "telnet":
             url = self.preDefine()[5] + "/" + dbname
         else:
             url = self.preDefine()[1]
         return url
 
-    def schemalessApiPost(self, sql, url_type="influxdb", dbname="test", precision=None):
+    def schemalessApiPost(
+        self, sql, url_type="influxdb", dbname="test", precision=None
+    ):
         if url_type == "influxdb":
             url = self.genUrl(url_type, dbname, precision)
         elif url_type == "telnet":
             url = self.genUrl(url_type, dbname, precision)
-        res = requests.post(url, sql.encode("utf-8"), headers = self.preDefine()[0])
+        res = requests.post(url, sql.encode("utf-8"), headers=self.preDefine()[0])
         return res
 
     def cleanTb(self, type="taosc", dbname="db"):
-        '''
-            type is taosc or restful
-        '''
+        """
+        type is taosc or restful
+        """
         query_sql = f"show {dbname}.stables"
         res_row_list = tdSql.query(query_sql, True)
         stb_list = map(lambda x: x[0], res_row_list)
         for stb in stb_list:
             if type == "taosc":
-                tdSql.execute(f'drop table if exists {dbname}.`{stb}`')
+                tdSql.execute(f"drop table if exists {dbname}.`{stb}`")
                 if not stb[0].isdigit():
-                    tdSql.execute(f'drop table if exists {dbname}.{stb}')
+                    tdSql.execute(f"drop table if exists {dbname}.{stb}")
             elif type == "restful":
                 self.restApiPost(f"drop table if exists {dbname}.`{stb}`")
                 if not stb[0].isdigit():
@@ -316,10 +476,18 @@ class TDCom:
                 dt = ts
             else:
                 dt = datetime.fromtimestamp(ts // 1000000000)
-                dt = dt.strftime('%Y-%m-%d %H:%M:%S') + '.' + str(int(ts % 1000000000)).zfill(9)
+                dt = (
+                    dt.strftime("%Y-%m-%d %H:%M:%S")
+                    + "."
+                    + str(int(ts % 1000000000)).zfill(9)
+                )
             if protype == "restful":
                 dt = datetime.fromtimestamp(ts // 1000000000)
-                dt = dt.strftime('%Y-%m-%d %H:%M:%S') + '.' + str(int(ts % 1000000000)).zfill(9)
+                dt = (
+                    dt.strftime("%Y-%m-%d %H:%M:%S")
+                    + "."
+                    + str(int(ts % 1000000000)).zfill(9)
+                )
         else:
             if ts == "" or ts is None:
                 ts = time.time()
@@ -329,15 +497,28 @@ class TDCom:
                 ts = int(round(ts * 1000))
                 dt = datetime.fromtimestamp(ts // 1000)
                 if protype == "taosc":
-                    dt = dt.strftime('%Y-%m-%d %H:%M:%S') + '.' + str(int(ts % 1000)).zfill(3) + '000'
+                    dt = (
+                        dt.strftime("%Y-%m-%d %H:%M:%S")
+                        + "."
+                        + str(int(ts % 1000)).zfill(3)
+                        + "000"
+                    )
                 elif protype == "restful":
-                    dt = dt.strftime('%Y-%m-%d %H:%M:%S') + '.' + str(int(ts % 1000)).zfill(3)
+                    dt = (
+                        dt.strftime("%Y-%m-%d %H:%M:%S")
+                        + "."
+                        + str(int(ts % 1000)).zfill(3)
+                    )
                 else:
                     pass
             elif precision == "us":
                 ts = int(round(ts * 1000000))
                 dt = datetime.fromtimestamp(ts // 1000000)
-                dt = dt.strftime('%Y-%m-%d %H:%M:%S') + '.' + str(int(ts % 1000000)).zfill(6)
+                dt = (
+                    dt.strftime("%Y-%m-%d %H:%M:%S")
+                    + "."
+                    + str(int(ts % 1000000)).zfill(6)
+                )
         return ts, dt
 
     def get_long_name(self, length=10, mode="letters"):
@@ -355,19 +536,29 @@ class TDCom:
             population = string.ascii_letters.lower() + string.digits
         return "".join(random.choices(population, k=length))
 
-    def getLongName(self, len, mode = "mixed"):
+    def getLongName(self, len, mode="mixed"):
         """
-            generate long name
-            mode could be numbers/letters/letters_mixed/mixed
+        generate long name
+        mode could be numbers/letters/letters_mixed/mixed
         """
         if mode == "numbers":
-            chars = ''.join(random.choice(string.digits) for i in range(len))
+            chars = "".join(random.choice(string.digits) for i in range(len))
         elif mode == "letters":
-            chars = ''.join(random.choice(string.ascii_letters.lower()) for i in range(len))
+            chars = "".join(
+                random.choice(string.ascii_letters.lower()) for i in range(len)
+            )
         elif mode == "letters_mixed":
-            chars = ''.join(random.choice(string.ascii_letters.upper() + string.ascii_letters.lower()) for i in range(len))
+            chars = "".join(
+                random.choice(
+                    string.ascii_letters.upper() + string.ascii_letters.lower()
+                )
+                for i in range(len)
+            )
         else:
-            chars = ''.join(random.choice(string.ascii_letters.lower() + string.digits) for i in range(len))
+            chars = "".join(
+                random.choice(string.ascii_letters.lower() + string.digits)
+                for i in range(len)
+            )
         return chars
 
     def restartTaosd(self, index=1, db_name="db"):
@@ -376,7 +567,7 @@ class TDCom:
         tdSql.execute(f"use {db_name}")
 
     def typeof(self, variate):
-        v_type=None
+        v_type = None
         if type(variate) is int:
             v_type = "int"
         elif type(variate) is str:
@@ -408,12 +599,14 @@ class TDCom:
 
     def smlPass(self, func):
         smlChildTableName = "no"
+
         def wrapper(*args):
             # if tdSql.getVariable("smlChildTableName")[0].upper() == "ID":
             if smlChildTableName.upper() == "ID":
                 return func(*args)
             else:
                 pass
+
         return wrapper
 
     def close(self):
@@ -422,12 +615,12 @@ class TDCom:
     ########################################################################################################################################
     # new common API
     ########################################################################################################################################
-    def create_database(self,td_sql, dbName='test',dropFlag=1,**kwargs):
+    def create_database(self, td_sql, dbName="test", dropFlag=1, **kwargs):
         if dropFlag == 1:
             td_sql.execute(f"drop database if exists {dbName}")
-        '''
+        """
         vgroups replica precision strict wal fsync comp cachelast single_stable buffer pagesize pages minrows maxrows duration keep retentions
-        '''
+        """
         sqlString = f"create database if not exists {dbName}"
 
         dbParams = ""
@@ -436,8 +629,8 @@ class TDCom:
                 if param == "precision":
                     dbParams += f'{param} "{value}" '
                 else:
-                    dbParams += f'{param} {value} '
-            sqlString += f'{dbParams}'
+                    dbParams += f"{param} {value} "
+            sqlString += f"{dbParams}"
 
         tdLog.debug(f"create db sql: {sqlString}")
         td_sql.execute(sqlString)
@@ -513,71 +706,118 @@ class TDCom:
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if "community"  in selfPath:
-            projPath = selfPath[:selfPath.find("community")]
+        if "community" in selfPath:
+            projPath = selfPath[: selfPath.find("community")]
         elif "TDengine" in selfPath:
-            projPath = selfPath[:selfPath.find("TDengine")]
+            projPath = selfPath[: selfPath.find("TDengine")]
         else:
-            projPath = selfPath[:selfPath.find("test")]
+            projPath = selfPath[: selfPath.find("test")]
 
         for root, dirs, files in os.walk(projPath):
             if ".git" in root:
                 continue
-            if ("taosd" in files or "taosd.exe" in files):
+            if "taosd" in files or "taosd.exe" in files:
                 rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
+                if "packaging" not in rootRealPath:
+                    buildPath = root[: len(root) - len("/build/bin")]
                     break
         # if platform.system().lower() == 'windows':
         #    win_sep = "\\"
         #    buildPath = buildPath.replace(win_sep,'/')
 
         return buildPath
+
     def getTaosdPath(self, dnodeID="dnode1"):
         return os.path.join(self.work_dir, dnodeID)
 
     def getClientCfgPath(self):
         return os.path.join(self.work_dir, "psim", "cfg")
-        #buildPath = self.getBuildPath()
+        # buildPath = self.getBuildPath()
 
-        #if (buildPath == ""):
+        # if (buildPath == ""):
         #    tdLog.exit("taosd not found!")
-        #else:
+        # else:
         #    tdLog.info("taosd found in %s" % buildPath)
-        #cfgPath = buildPath + "/../sim/psim/cfg"
-        #tdLog.info("cfgPath: %s" % cfgPath)
-        #return cfgPath
+        # cfgPath = buildPath + "/../sim/psim/cfg"
+        # tdLog.info("cfgPath: %s" % cfgPath)
+        # return cfgPath
 
-    def newcon(self,host='localhost',port=6030,user='root',password='taosdata', database=None):
-        con=taos.connect(host=host, user=user, password=password, port=port, database=database)
+    def newcon(
+        self,
+        host="localhost",
+        port=6030,
+        user="root",
+        password="taosdata",
+        database=None,
+    ):
+        con = taos.connect(
+            host=host, user=user, password=password, port=port, database=database
+        )
         # print(con)
         return con
 
-    def newcur(self,host='localhost',port=6030,user='root',password='taosdata',database=None):
+    def newcur(
+        self,
+        host="localhost",
+        port=6030,
+        user="root",
+        password="taosdata",
+        database=None,
+    ):
         cfgPath = self.getClientCfgPath()
-        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port,database=database)
-        cur=con.cursor()
+        con = taos.connect(
+            host=host,
+            user=user,
+            password=password,
+            config=cfgPath,
+            port=port,
+            database=database,
+        )
+        cur = con.cursor()
         # print(cur)
         return cur
 
-    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata', database = None):
+    def newTdSql(
+        self,
+        host="localhost",
+        port=6030,
+        user="root",
+        password="taosdata",
+        database=None,
+    ):
         newTdSql = TDSql()
-        cur = self.newcur(host=host,port=port,user=user,password=password, database=database)
+        cur = self.newcur(
+            host=host, port=port, user=user, password=password, database=database
+        )
         newTdSql.init(cur, False)
         return newTdSql
-     
-    def newcurWithTimezone(self,  timezone, host='localhost', port=6030,  user='root', password='taosdata'):
+
+    def newcurWithTimezone(
+        self, timezone, host="localhost", port=6030, user="root", password="taosdata"
+    ):
         cfgPath = self.getClientCfgPath()
-        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port, timezone=timezone)
-        cur=con.cursor()
+        con = taos.connect(
+            host=host,
+            user=user,
+            password=password,
+            config=cfgPath,
+            port=port,
+            timezone=timezone,
+        )
+        cur = con.cursor()
         # print(cur)
         return cur
 
-    def newTdSqlWithTimezone(self, timezone, host='localhost',port=6030,user='root',password='taosdata'):
+    def newTdSqlWithTimezone(
+        self, timezone, host="localhost", port=6030, user="root", password="taosdata"
+    ):
         newTdSql = TDSql()
-        cur = self.newcurWithTimezone(host=host,port=port,user=user,password=password, timezone=timezone)
+        cur = self.newcurWithTimezone(
+            host=host, port=port, user=user, password=password, timezone=timezone
+        )
         newTdSql.init(cur, False)
         return newTdSql
+
     ################################################################################################################
     # port from the common.py of new test frame
     ################################################################################################################
@@ -608,7 +848,9 @@ class TDCom:
                 else:
                     default_column_str += f" {self.default_colname_prefix}{self.default_column_index_start_num} {col_type}({self.default_nchar_length}),"
             self.default_column_index_start_num += 1
-        default_column_str = self.default_colts_name + " timestamp," + default_column_str
+        default_column_str = (
+            self.default_colts_name + " timestamp," + default_column_str
+        )
         return default_column_str[:-1].lstrip()
 
     def gen_tag_type_str(self, tagname_prefix, tag_elm_list):
@@ -624,9 +866,13 @@ class TDCom:
                     total_count = 1
                 if total_count > 0:
                     for _ in range(total_count):
-                        tag_type_str += f'{tagname_prefix}{tag_index_start_num} {tag_elm["type"]}, '
+                        tag_type_str += (
+                            f"{tagname_prefix}{tag_index_start_num} {tag_elm['type']}, "
+                        )
                         if tag_elm["type"] in ["varchar", "binary", "nchar"]:
-                            tag_type_str = tag_type_str.rstrip()[:-1] + f'({tag_elm["len"]}), '
+                            tag_type_str = (
+                                tag_type_str.rstrip()[:-1] + f"({tag_elm['len']}), "
+                            )
                         tag_index_start_num += 1
                 else:
                     continue
@@ -647,38 +893,65 @@ class TDCom:
                     total_count = 1
                 if total_count > 0:
                     for _ in range(total_count):
-                        column_type_str += f'{colname_prefix}{column_index_start_num} {column_elm["type"]}, '
+                        column_type_str += f"{colname_prefix}{column_index_start_num} {column_elm['type']}, "
                         if column_elm["type"] in ["varchar", "binary", "nchar"]:
-                            column_type_str = column_type_str.rstrip()[:-1] + f'({column_elm["len"]}), '
+                            column_type_str = (
+                                column_type_str.rstrip()[:-1]
+                                + f"({column_elm['len']}), "
+                            )
                         column_index_start_num += 1
                 else:
                     continue
-            column_type_str = self.default_colts_name + " timestamp, " + column_type_str.rstrip()[:-1]
+            column_type_str = (
+                self.default_colts_name + " timestamp, " + column_type_str.rstrip()[:-1]
+            )
         return column_type_str
 
-    def gen_random_type_value(self, type_name, binary_length, binary_type, nchar_length, nchar_type):
+    def gen_random_type_value(
+        self, type_name, binary_length, binary_type, nchar_length, nchar_type
+    ):
         if type_name.lower() == "tinyint":
-            return random.randint(self.Boundary.TINYINT_BOUNDARY[0], self.Boundary.TINYINT_BOUNDARY[1])
+            return random.randint(
+                self.Boundary.TINYINT_BOUNDARY[0], self.Boundary.TINYINT_BOUNDARY[1]
+            )
         elif type_name.lower() == "smallint":
-            return random.randint(self.Boundary.SMALLINT_BOUNDARY[0], self.Boundary.SMALLINT_BOUNDARY[1])
+            return random.randint(
+                self.Boundary.SMALLINT_BOUNDARY[0], self.Boundary.SMALLINT_BOUNDARY[1]
+            )
         elif type_name.lower() == "int":
-            return random.randint(self.Boundary.INT_BOUNDARY[0], self.Boundary.INT_BOUNDARY[1])
+            return random.randint(
+                self.Boundary.INT_BOUNDARY[0], self.Boundary.INT_BOUNDARY[1]
+            )
         elif type_name.lower() == "bigint":
-            return random.randint(self.Boundary.BIGINT_BOUNDARY[0], self.Boundary.BIGINT_BOUNDARY[1])
+            return random.randint(
+                self.Boundary.BIGINT_BOUNDARY[0], self.Boundary.BIGINT_BOUNDARY[1]
+            )
         elif type_name.lower() == "tinyint unsigned":
-            return random.randint(self.Boundary.UTINYINT_BOUNDARY[0], self.Boundary.UTINYINT_BOUNDARY[1])
+            return random.randint(
+                self.Boundary.UTINYINT_BOUNDARY[0], self.Boundary.UTINYINT_BOUNDARY[1]
+            )
         elif type_name.lower() == "smallint unsigned":
-            return random.randint(self.Boundary.USMALLINT_BOUNDARY[0], self.Boundary.USMALLINT_BOUNDARY[1])
+            return random.randint(
+                self.Boundary.USMALLINT_BOUNDARY[0], self.Boundary.USMALLINT_BOUNDARY[1]
+            )
         elif type_name.lower() == "int unsigned":
-            return random.randint(self.Boundary.UINT_BOUNDARY[0], self.Boundary.UINT_BOUNDARY[1])
+            return random.randint(
+                self.Boundary.UINT_BOUNDARY[0], self.Boundary.UINT_BOUNDARY[1]
+            )
         elif type_name.lower() == "bigint unsigned":
-            return random.randint(self.Boundary.UBIGINT_BOUNDARY[0], self.Boundary.UBIGINT_BOUNDARY[1])
+            return random.randint(
+                self.Boundary.UBIGINT_BOUNDARY[0], self.Boundary.UBIGINT_BOUNDARY[1]
+            )
         elif type_name.lower() == "float":
-            return random.uniform(self.Boundary.FLOAT_BOUNDARY[0], self.Boundary.FLOAT_BOUNDARY[1])
+            return random.uniform(
+                self.Boundary.FLOAT_BOUNDARY[0], self.Boundary.FLOAT_BOUNDARY[1]
+            )
         elif type_name.lower() == "double":
-            return random.uniform(self.Boundary.FLOAT_BOUNDARY[0], self.Boundary.FLOAT_BOUNDARY[1])
+            return random.uniform(
+                self.Boundary.FLOAT_BOUNDARY[0], self.Boundary.FLOAT_BOUNDARY[1]
+            )
         elif type_name.lower() == "binary":
-            return f'{self.get_long_name(binary_length, binary_type)}'
+            return f"{self.get_long_name(binary_length, binary_type)}"
         elif type_name.lower() == "varchar":
             return self.get_long_name(binary_length, binary_type)
         elif type_name.lower() == "nchar":
@@ -693,7 +966,18 @@ class TDCom:
     def gen_tag_value_list(self, tag_elm_list):
         tag_value_list = list()
         if tag_elm_list is None:
-            tag_value_list = list(map(lambda i: self.gen_random_type_value(i, self.default_varchar_length, self.default_varchar_datatype, self.default_nchar_length, self.default_nchar_datatype), self.full_type_list))
+            tag_value_list = list(
+                map(
+                    lambda i: self.gen_random_type_value(
+                        i,
+                        self.default_varchar_length,
+                        self.default_varchar_datatype,
+                        self.default_nchar_length,
+                        self.default_nchar_datatype,
+                    ),
+                    self.full_type_list,
+                )
+            )
         else:
             for tag_elm in tag_elm_list:
                 if "count" in tag_elm:
@@ -703,9 +987,21 @@ class TDCom:
                 if total_count > 0:
                     for _ in range(total_count):
                         if tag_elm["type"] in ["varchar", "binary", "nchar"]:
-                            tag_value_list.append(self.gen_random_type_value(tag_elm["type"], tag_elm["len"], self.default_varchar_datatype, tag_elm["len"], self.default_nchar_datatype))
+                            tag_value_list.append(
+                                self.gen_random_type_value(
+                                    tag_elm["type"],
+                                    tag_elm["len"],
+                                    self.default_varchar_datatype,
+                                    tag_elm["len"],
+                                    self.default_nchar_datatype,
+                                )
+                            )
                         else:
-                            tag_value_list.append(self.gen_random_type_value(tag_elm["type"], "", "", "", ""))
+                            tag_value_list.append(
+                                self.gen_random_type_value(
+                                    tag_elm["type"], "", "", "", ""
+                                )
+                            )
                 else:
                     continue
         return tag_value_list
@@ -717,7 +1013,18 @@ class TDCom:
         column_value_list = list()
         column_value_list.append(ts_value)
         if column_elm_list is None:
-            column_value_list = list(map(lambda i: self.gen_random_type_value(i, self.default_varchar_length, self.default_varchar_datatype, self.default_nchar_length, self.default_nchar_datatype), self.full_type_list))
+            column_value_list = list(
+                map(
+                    lambda i: self.gen_random_type_value(
+                        i,
+                        self.default_varchar_length,
+                        self.default_varchar_datatype,
+                        self.default_nchar_length,
+                        self.default_nchar_datatype,
+                    ),
+                    self.full_type_list,
+                )
+            )
         else:
             for column_elm in column_elm_list:
                 if "count" in column_elm:
@@ -727,18 +1034,39 @@ class TDCom:
                 if total_count > 0:
                     for _ in range(total_count):
                         if column_elm["type"] in ["varchar", "binary", "nchar"]:
-                            column_value_list.append(self.gen_random_type_value(column_elm["type"], column_elm["len"], self.default_varchar_datatype, column_elm["len"], self.default_nchar_datatype))
+                            column_value_list.append(
+                                self.gen_random_type_value(
+                                    column_elm["type"],
+                                    column_elm["len"],
+                                    self.default_varchar_datatype,
+                                    column_elm["len"],
+                                    self.default_nchar_datatype,
+                                )
+                            )
                         else:
-                            column_value_list.append(self.gen_random_type_value(column_elm["type"], "", "", "", ""))
+                            column_value_list.append(
+                                self.gen_random_type_value(
+                                    column_elm["type"], "", "", "", ""
+                                )
+                            )
                 else:
                     continue
         # column_value_list = [self.ts_value] + self.column_value_list
         return column_value_list
 
-    def create_stable(self, td_sql, dbname=None, stbname="stb", column_elm_list=None, tag_elm_list=None,
-                     count=1, default_stbname_prefix="stb", **kwargs):
-        colname_prefix = 'c'
-        tagname_prefix = 't'
+    def create_stable(
+        self,
+        td_sql,
+        dbname=None,
+        stbname="stb",
+        column_elm_list=None,
+        tag_elm_list=None,
+        count=1,
+        default_stbname_prefix="stb",
+        **kwargs,
+    ):
+        colname_prefix = "c"
+        tagname_prefix = "t"
         stbname_index_start_num = 1
         stb_params = ""
         if len(kwargs) > 0:
@@ -748,16 +1076,25 @@ class TDCom:
         tag_type_str = self.gen_tag_type_str(tagname_prefix, tag_elm_list)
 
         if int(count) <= 1:
-            create_stable_sql = f'create table {dbname}.{stbname} ({column_type_str}) tags ({tag_type_str}) {stb_params};'
-            tdLog.info("create stb sql: %s"%create_stable_sql)
+            create_stable_sql = f"create table {dbname}.{stbname} ({column_type_str}) tags ({tag_type_str}) {stb_params};"
+            tdLog.info("create stb sql: %s" % create_stable_sql)
             td_sql.execute(create_stable_sql)
         else:
             for _ in range(count):
-                create_stable_sql = f'create table {dbname}.{default_stbname_prefix}{stbname_index_start_num} ({column_type_str}) tags ({tag_type_str}) {stb_params};'
+                create_stable_sql = f"create table {dbname}.{default_stbname_prefix}{stbname_index_start_num} ({column_type_str}) tags ({tag_type_str}) {stb_params};"
                 stbname_index_start_num += 1
                 td_sql.execute(create_stable_sql)
 
-    def create_ctable(self, td_sql, dbname=None, stbname=None, tag_elm_list=None, count=1, default_ctbname_prefix="ctb", **kwargs):
+    def create_ctable(
+        self,
+        td_sql,
+        dbname=None,
+        stbname=None,
+        tag_elm_list=None,
+        count=1,
+        default_ctbname_prefix="ctb",
+        **kwargs,
+    ):
         ctbname_index_start_num = 0
         ctb_params = ""
         if len(kwargs) > 0:
@@ -770,22 +1107,24 @@ class TDCom:
             if isinstance(tag_value, str):
                 tag_value_str += f'"{tag_value}", '
             else:
-                tag_value_str += f'{tag_value}, '
+                tag_value_str += f"{tag_value}, "
         tag_value_str = tag_value_str.rstrip()[:-1]
 
         if int(count) <= 1:
-            create_ctable_sql = f'create table {dbname}.{default_ctbname_prefix}{ctbname_index_start_num}  using {dbname}.{stbname} tags ({tag_value_str}) {ctb_params};'
+            create_ctable_sql = f"create table {dbname}.{default_ctbname_prefix}{ctbname_index_start_num}  using {dbname}.{stbname} tags ({tag_value_str}) {ctb_params};"
             td_sql.execute(create_ctable_sql)
         else:
             for _ in range(count):
-                create_ctable_sql = f'create table {dbname}.{default_ctbname_prefix}{ctbname_index_start_num} using {dbname}.{stbname} tags ({tag_value_str}) {ctb_params};'
+                create_ctable_sql = f"create table {dbname}.{default_ctbname_prefix}{ctbname_index_start_num} using {dbname}.{stbname} tags ({tag_value_str}) {ctb_params};"
                 ctbname_index_start_num += 1
-                tdLog.info("create ctb sql: %s"%create_ctable_sql)
+                tdLog.info("create ctb sql: %s" % create_ctable_sql)
                 td_sql.execute(create_ctable_sql)
 
-    def create_table(self, td_sql, dbname=None, tbname="ntb", column_elm_list=None, count=1, **kwargs):
+    def create_table(
+        self, td_sql, dbname=None, tbname="ntb", column_elm_list=None, count=1, **kwargs
+    ):
         tbname_index_start_num = 1
-        tbname_prefix="ntb"
+        tbname_prefix = "ntb"
 
         tb_params = ""
         if len(kwargs) > 0:
@@ -794,15 +1133,25 @@ class TDCom:
         column_type_str = self.gen_column_type_str(tbname_prefix, column_elm_list)
 
         if int(count) <= 1:
-            create_table_sql = f'create table {dbname}.{tbname} ({column_type_str}) {tb_params};'
+            create_table_sql = (
+                f"create table {dbname}.{tbname} ({column_type_str}) {tb_params};"
+            )
             td_sql.execute(create_table_sql)
         else:
             for _ in range(count):
-                create_table_sql = f'create table {dbname}.{tbname_prefix}{tbname_index_start_num} ({column_type_str}) {tb_params};'
+                create_table_sql = f"create table {dbname}.{tbname_prefix}{tbname_index_start_num} ({column_type_str}) {tb_params};"
                 tbname_index_start_num += 1
                 td_sql.execute(create_table_sql)
 
-    def insert_rows(self, td_sql, dbname=None, tbname=None, column_ele_list=None, start_ts_value=None, count=1):
+    def insert_rows(
+        self,
+        td_sql,
+        dbname=None,
+        tbname=None,
+        column_ele_list=None,
+        start_ts_value=None,
+        count=1,
+    ):
         if start_ts_value is None:
             start_ts_value = self.genTs()[0]
 
@@ -813,26 +1162,31 @@ class TDCom:
             if isinstance(column_value, str):
                 column_value_str += f'"{column_value}", '
             else:
-                column_value_str += f'{column_value}, '
+                column_value_str += f"{column_value}, "
         column_value_str = column_value_str.rstrip()[:-1]
         if int(count) <= 1:
-            insert_sql = f'insert into {self.tb_name} values ({column_value_str});'
+            insert_sql = f"insert into {self.tb_name} values ({column_value_str});"
             td_sql.execute(insert_sql)
         else:
             for num in range(count):
-                column_value_list = self.gen_column_value_list(column_ele_list, f'{start_ts_value}+{num}s')
+                column_value_list = self.gen_column_value_list(
+                    column_ele_list, f"{start_ts_value}+{num}s"
+                )
                 # column_value_str = ", ".join(str(v) for v in column_value_list)
-                column_value_str = ''
+                column_value_str = ""
                 idx = 0
                 for column_value in column_value_list:
                     if isinstance(column_value, str) and idx != 0:
                         column_value_str += f'"{column_value}", '
                     else:
-                        column_value_str += f'{column_value}, '
+                        column_value_str += f"{column_value}, "
                         idx += 1
                 column_value_str = column_value_str.rstrip()[:-1]
-                insert_sql = f'insert into {dbname}.{tbname} values ({column_value_str});'
+                insert_sql = (
+                    f"insert into {dbname}.{tbname} values ({column_value_str});"
+                )
                 td_sql.execute(insert_sql)
+
     def getOneRow(self, location, containElm):
         res_list = list()
         if 0 <= location < tdSql.queryRows:
@@ -841,31 +1195,49 @@ class TDCom:
                     res_list.append(row)
             return res_list
         else:
-            tdLog.exit(f"getOneRow out of range: row_index={location} row_count={self.query_row}")
+            tdLog.exit(
+                f"getOneRow out of range: row_index={location} row_count={self.query_row}"
+            )
 
     def killProcessor(self, processorName):
-        if (platform.system().lower() == 'windows'):
-            os.system("TASKKILL /F /IM %s.exe"%processorName)
+        if platform.system().lower() == "windows":
+            os.system("TASKKILL /F /IM %s.exe" % processorName)
         else:
             os.system("unset LD_PRELOAD; pkill %s " % processorName)
 
-    def kill_signal_process(self,  signal=15, processor_name: str = "taosd"):   
-        if (platform.system().lower() == 'windows'):
+    def kill_signal_process(self, signal=15, processor_name: str = "taosd"):
+        if platform.system().lower() == "windows":
             os.system(f"TASKKILL /F /IM {processor_name}.exe")
         else:
             command = f"unset LD_PRELOAD; sudo pkill -f -{signal} '{processor_name}'"
             tdLog.debug(f"command: {command}")
             os.system(command)
 
-
     def gen_tag_col_str(self, gen_type, data_type, count):
         """
         gen multi tags or cols by gen_type
         """
-        return ','.join(map(lambda i: f'{gen_type}{i} {data_type}', range(count)))
+        return ",".join(map(lambda i: f"{gen_type}{i} {data_type}", range(count)))
 
     # old_stream
-    def create_old_stream(self, stream_name, des_table, source_sql, trigger_mode=None, watermark=None, max_delay=None, ignore_expired=None, ignore_update=None, subtable_value=None, fill_value=None, fill_history_value=None, stb_field_name_value=None, tag_value=None, use_exist_stb=False, use_except=False):
+    def create_old_stream(
+        self,
+        stream_name,
+        des_table,
+        source_sql,
+        trigger_mode=None,
+        watermark=None,
+        max_delay=None,
+        ignore_expired=None,
+        ignore_update=None,
+        subtable_value=None,
+        fill_value=None,
+        fill_history_value=None,
+        stb_field_name_value=None,
+        tag_value=None,
+        use_exist_stb=False,
+        use_except=False,
+    ):
         """create_stream
 
         Args:
@@ -891,37 +1263,36 @@ class TDCom:
         if subtable_value is None:
             subtable = ""
         else:
-            subtable = f'subtable({subtable_value})'
+            subtable = f"subtable({subtable_value})"
 
         if fill_value is None:
             fill = ""
         else:
-            fill = f'fill({fill_value})'
+            fill = f"fill({fill_value})"
 
         if fill_history_value is None:
             fill_history = ""
         else:
-            fill_history = f'fill_history {fill_history_value}'
+            fill_history = f"fill_history {fill_history_value}"
 
         if use_exist_stb:
             if stb_field_name_value is None:
                 stb_field_name = ""
             else:
-                stb_field_name = f'({stb_field_name_value})'
+                stb_field_name = f"({stb_field_name_value})"
 
             if tag_value is None:
                 tags = ""
             else:
-                tags = f'tags({tag_value})'
+                tags = f"tags({tag_value})"
         else:
             stb_field_name = ""
             tags = ""
 
-
         if trigger_mode is None:
             stream_options = ""
             if watermark is not None:
-                stream_options = f'watermark {watermark}'
+                stream_options = f"watermark {watermark}"
             if ignore_expired:
                 stream_options += f" ignore expired {ignore_expired}"
             else:
@@ -931,22 +1302,27 @@ class TDCom:
             else:
                 stream_options += f" ignore update 0"
             if not use_except:
-                tdSql.execute(f'create stream if not exists {stream_name} trigger at_once {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};',queryTimes=3)
+                tdSql.execute(
+                    f"create stream if not exists {stream_name} trigger at_once {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};",
+                    queryTimes=3,
+                )
                 time.sleep(self.create_stream_sleep)
                 return None
             else:
-                return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};'
+                return f"create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};"
         else:
             if watermark is None:
                 if trigger_mode == "max_delay":
-                    stream_options = f'trigger {trigger_mode} {max_delay}'
+                    stream_options = f"trigger {trigger_mode} {max_delay}"
                 else:
-                    stream_options = f'trigger {trigger_mode}'
+                    stream_options = f"trigger {trigger_mode}"
             else:
                 if trigger_mode == "max_delay":
-                    stream_options = f'trigger {trigger_mode} {max_delay} watermark {watermark}'
+                    stream_options = (
+                        f"trigger {trigger_mode} {max_delay} watermark {watermark}"
+                    )
                 else:
-                    stream_options = f'trigger {trigger_mode} watermark {watermark}'
+                    stream_options = f"trigger {trigger_mode} watermark {watermark}"
             if ignore_expired:
                 stream_options += f" ignore expired {ignore_expired}"
             else:
@@ -957,16 +1333,33 @@ class TDCom:
             else:
                 stream_options += f" ignore update 0"
             if not use_except:
-                tdSql.execute(f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};',queryTimes=3)
+                tdSql.execute(
+                    f"create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};",
+                    queryTimes=3,
+                )
                 time.sleep(self.create_stream_sleep)
                 return None
             else:
-                return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};'
+                return f"create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};"
 
-    def create_stream(self, stream_name, des_table=None, source_sql=None, trigger_table=None, trigger_type=None, 
-                    from_table=None, partition_by=None, stream_options=None, notification_definition=None,
-                    output_subtable=None, columns=None, tags=None, if_not_exists=True, 
-                    db_name=None, use_except=False):
+    def create_stream(
+        self,
+        stream_name,
+        des_table=None,
+        source_sql=None,
+        trigger_table=None,
+        trigger_type=None,
+        from_table=None,
+        partition_by=None,
+        stream_options=None,
+        notification_definition=None,
+        output_subtable=None,
+        columns=None,
+        tags=None,
+        if_not_exists=True,
+        db_name=None,
+        use_except=False,
+    ):
         """create_stream with new syntax
 
         Args:
@@ -989,56 +1382,57 @@ class TDCom:
         Returns:
             str: stream SQL if use_except=True, None otherwise
         """
-        
+
         # Build stream name with database prefix if provided
         full_stream_name = f"{db_name}.{stream_name}" if db_name else stream_name
-        
+
         # Build IF NOT EXISTS clause
         if_not_exists_clause = "IF NOT EXISTS" if if_not_exists else ""
-        
+
         # Build INTO clause
         into_clause = f"INTO {des_table}" if des_table else ""
-        
+
         # Build OUTPUT_SUBTABLE clause
-        output_subtable_clause = f"OUTPUT_SUBTABLE({output_subtable})" if output_subtable else ""
-        
+        output_subtable_clause = (
+            f"OUTPUT_SUBTABLE({output_subtable})" if output_subtable else ""
+        )
+
         # Build columns clause
         columns_clause = f"({columns})" if columns else ""
-        
+
         # Build tags clause
         tags_clause = f"TAGS ({tags})" if tags else ""
-        
+
         # Add trigger_table
         trigger_table = f" from {trigger_table} " if trigger_table else ""
-            
-            
+
         # Add trigger_type
         trigger_type = f" {trigger_type} " if trigger_type else ""
-        
+
         # Build options section
         options_parts = []
-        
+
         # Add FROM clause
         if from_table:
             options_parts.append(f"FROM {from_table}")
-        
+
         # Add PARTITION BY clause
         if partition_by:
             options_parts.append(f"PARTITION BY {partition_by}")
-        
+
         # Add STREAM_OPTIONS clause
         if stream_options:
             options_parts.append(f"STREAM_OPTIONS({stream_options})")
-        
+
         # Add notification_definition
         if notification_definition:
             options_parts.append(notification_definition)
-        
+
         options_clause = " ".join(options_parts) if options_parts else ""
-        
+
         # Build AS subquery clause
         as_clause = f"AS {source_sql}" if source_sql else ""
-        
+
         # Construct the complete CREATE STREAM SQL
         sql_parts = [
             "CREATE STREAM",
@@ -1051,22 +1445,21 @@ class TDCom:
             output_subtable_clause,
             columns_clause,
             tags_clause,
-            as_clause
+            as_clause,
         ]
-        
+
         # Filter out empty parts and join
         create_stream_sql = " ".join(filter(None, sql_parts)) + ";"
-        
+
         if use_except:
             print(f"create stream sql: {create_stream_sql}")
             return create_stream_sql
-        else:           
+        else:
             print(f"create stream sql: {create_stream_sql}")
             tdSql.execute(create_stream_sql, queryTimes=3)
             time.sleep(self.create_stream_sleep)
             return None
-        
-        
+
     def pause_stream(self, stream_name, if_exist=True, if_not_exist=False):
         """pause_stream
 
@@ -1077,9 +1470,13 @@ class TDCom:
         """
         if_exist_value = "if exists" if if_exist else ""
         if_not_exist_value = "if not exists" if if_not_exist else ""
-        tdSql.execute(f'pause stream {if_exist_value} {if_not_exist_value} {stream_name}')
+        tdSql.execute(
+            f"pause stream {if_exist_value} {if_not_exist_value} {stream_name}"
+        )
 
-    def resume_stream(self, stream_name, if_exist=True, if_not_exist=False, ignore_untreated=False):
+    def resume_stream(
+        self, stream_name, if_exist=True, if_not_exist=False, ignore_untreated=False
+    ):
         """resume_stream
 
         Args:
@@ -1091,45 +1488,50 @@ class TDCom:
         if_exist_value = "if exists" if if_exist else ""
         if_not_exist_value = "if not exists" if if_not_exist else ""
         ignore_untreated_value = "ignore untreated" if ignore_untreated else ""
-        tdSql.execute(f'resume stream {if_exist_value} {if_not_exist_value} {ignore_untreated_value} {stream_name}')
-    
+        tdSql.execute(
+            f"resume stream {if_exist_value} {if_not_exist_value} {ignore_untreated_value} {stream_name}"
+        )
+
     def drop_all_streams(self):
-        """drop all streams from all user databases
-        """
+        """drop all streams from all user databases"""
         # First get all databases
         tdSql.query("show databases")
         db_list = list(map(lambda x: x[0], tdSql.queryResult))
-        
+
         # Filter out system databases
         user_db_list = []
         for db_name in db_list:
-            if db_name not in ['information_schema', 'performance_schema']:
+            if db_name not in ["information_schema", "performance_schema"]:
                 user_db_list.append(db_name)
-        
+
         # Drop streams from each user database
         for db_name in user_db_list:
             try:
                 # Show streams for this specific database
                 tdSql.query(f"show {db_name}.streams")
                 stream_name_list = list(map(lambda x: x[0], tdSql.queryResult))
-                
+
                 # Drop each stream in this database
                 for stream_name in stream_name_list:
                     # Check if stream name already includes database prefix
-                    if '.' in stream_name:
+                    if "." in stream_name:
                         # Stream name already has database prefix
-                        tdSql.execute(f'drop stream if exists {stream_name};')
+                        tdSql.execute(f"drop stream if exists {stream_name};")
                     else:
                         # Add database prefix to stream name
-                        tdSql.execute(f'drop stream if exists {db_name}.{stream_name};')
-                        
-                    tdLog.debug(f"Dropped stream: {stream_name} from database: {db_name}")
-                    
+                        tdSql.execute(f"drop stream if exists {db_name}.{stream_name};")
+
+                    tdLog.debug(
+                        f"Dropped stream: {stream_name} from database: {db_name}"
+                    )
+
             except Exception as e:
                 # If database doesn't exist or has no streams, continue with next database
-                tdLog.debug(f"No streams found in database {db_name} or database doesn't exist: {e}")
+                tdLog.debug(
+                    f"No streams found in database {db_name} or database doesn't exist: {e}"
+                )
                 continue
-        
+
         tdLog.info("All user database streams have been dropped")
 
     def check_stream_wal_info(self, wal_info):
@@ -1137,11 +1539,11 @@ class TDCom:
         # Define the regular expression pattern to match the required format
         # This pattern looks for a number followed by an optional space and then a pair of square brackets
         # containing two numbers separated by a comma.
-        pattern = r'(\d+)\s*\[(\d+),\s*(\d+)\]'
-        
+        pattern = r"(\d+)\s*\[(\d+),\s*(\d+)\]"
+
         # Use the search function from the re module to find a match in the string
         match = re.search(pattern, wal_info)
-        
+
         # Check if a match was found
         if match:
             # Extract the numbers from the matching groups
@@ -1149,17 +1551,19 @@ class TDCom:
             second_number = int(match.group(3))  # The second number inside the brackets
 
             # Compare the extracted numbers and return the result
-            if second_number >=5 :
-                if first_number >= second_number-5 and first_number <= second_number:
+            if second_number >= 5:
+                if first_number >= second_number - 5 and first_number <= second_number:
                     return True
             elif second_number < 5:
-                if first_number >= second_number-1 and first_number <= second_number:
+                if first_number >= second_number - 1 and first_number <= second_number:
                     return True
 
         # If no match was found, or the pattern does not match the expected format, return False
         return False
-    
-    def check_stream_task_status(self, stream_name, vgroups, stream_timeout=0, check_wal_info=True):
+
+    def check_stream_task_status(
+        self, stream_name, vgroups, stream_timeout=0, check_wal_info=True
+    ):
         """check stream status
 
         Args:
@@ -1170,52 +1574,74 @@ class TDCom:
         """
         timeout = self.stream_timeout if stream_timeout is None else stream_timeout
 
-        #check stream task rows
+        # check stream task rows
         sql_task_all = f"select `task_id`,node_id,stream_name,status from information_schema.ins_stream_tasks where stream_name='{stream_name}';"
         sql_task_status = f"select distinct(status) from information_schema.ins_stream_tasks where stream_name='{stream_name}'"
         tdSql.query(sql_task_all)
         tdSql.checkRows(vgroups)
-                
-        #check stream task status
+
+        # check stream task status
         checktimes = 1
         check_stream_success = 0
         vgroup_num = 0
         while checktimes <= timeout:
             tdLog.notice(f"checktimes:{checktimes}")
             try:
-                result_task_all = tdSql.query(sql_task_all,row_tag=True)
+                result_task_all = tdSql.query(sql_task_all, row_tag=True)
                 result_task_all_rows = tdSql.query(sql_task_all)
-                result_task_status = tdSql.query(sql_task_status,row_tag=True)
+                result_task_status = tdSql.query(sql_task_status, row_tag=True)
                 result_task_status_rows = tdSql.query(sql_task_status)
-                
-                tdLog.notice(f"Try to check stream status, check times: {checktimes} and stream task list[{check_stream_success}]")
-                print(f"result_task_status:{result_task_status},result_task_all:{result_task_all}")
-                if result_task_status_rows == 1 and result_task_status ==[('Running',)] :
+
+                tdLog.notice(
+                    f"Try to check stream status, check times: {checktimes} and stream task list[{check_stream_success}]"
+                )
+                print(
+                    f"result_task_status:{result_task_status},result_task_all:{result_task_all}"
+                )
+                if result_task_status_rows == 1 and result_task_status == [
+                    ("Running",)
+                ]:
                     if check_wal_info:
                         for vgroup_num in range(vgroups):
-                            if self.check_stream_wal_info(result_task_all[vgroup_num][4]) :
+                            if self.check_stream_wal_info(
+                                result_task_all[vgroup_num][4]
+                            ):
                                 check_stream_success += 1
-                                tdLog.info(f"check stream task list[{check_stream_success}] sucessfully :")
+                                tdLog.info(
+                                    f"check stream task list[{check_stream_success}] sucessfully :"
+                                )
                             else:
                                 check_stream_success = 0
                                 break
                     else:
                         check_stream_success = vgroups
-                            
+
                 if check_stream_success == vgroups:
                     break
-                time.sleep(1) 
-                checktimes += 1 
+                time.sleep(1)
+                checktimes += 1
                 vgroup_num = vgroup_num
             except Exception as e:
-                tdLog.notice(f"Try to check stream status again, check times: {checktimes}")
-                checktimes += 1 
-                tdSql.print_error_frame_info(result_task_all[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
+                tdLog.notice(
+                    f"Try to check stream status again, check times: {checktimes}"
+                )
+                checktimes += 1
+                tdSql.print_error_frame_info(
+                    result_task_all[vgroup_num],
+                    "status is ready,info is finished and history_task_id is NULL",
+                    sql_task_all,
+                )
         else:
             checktimes_end = checktimes - 1
-            tdLog.notice(f"it has spend {checktimes_end} for checking stream task status but it failed")
+            tdLog.notice(
+                f"it has spend {checktimes_end} for checking stream task status but it failed"
+            )
             if checktimes_end == timeout:
-                tdSql.print_error_frame_info(result_task_all[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
+                tdSql.print_error_frame_info(
+                    result_task_all[vgroup_num],
+                    "status is ready,info is finished and history_task_id is NULL",
+                    sql_task_all,
+                )
 
     def drop_db(self, dbname="test"):
         """drop a db
@@ -1224,18 +1650,17 @@ class TDCom:
             dbname (str, optional): Defaults to "test".
         """
         if dbname[0].isdigit():
-            tdSql.execute(f'drop database if exists `{dbname}`')
+            tdSql.execute(f"drop database if exists `{dbname}`")
         else:
-            tdSql.execute(f'drop database if exists {dbname}')
+            tdSql.execute(f"drop database if exists {dbname}")
 
     def drop_all_db(self):
-        """drop all databases
-        """
+        """drop all databases"""
         tdSql.query("show databases;")
         db_list = list(map(lambda x: x[0], tdSql.queryResult))
         for dbname in db_list:
             if dbname not in self.white_list and "telegraf" not in dbname:
-                tdSql.execute(f'drop database if exists `{dbname}`')
+                tdSql.execute(f"drop database if exists `{dbname}`")
 
     def time_cast(self, time_value, split_symbol="+"):
         """cast bigint to timestamp
@@ -1252,11 +1677,10 @@ class TDCom:
             ts_value_offset = str(time_value).split(split_symbol)[1]
         else:
             ts_value_offset = "0s"
-        return f'cast({ts_value} as timestamp){split_symbol}{ts_value_offset}'
+        return f"cast({ts_value} as timestamp){split_symbol}{ts_value_offset}"
 
     def clean_env(self):
-        """drop all streams and databases
-        """
+        """drop all streams and databases"""
         self.drop_all_streams()
         self.drop_all_db()
 
@@ -1291,10 +1715,18 @@ class TDCom:
                 dt = ts
             else:
                 dt = datetime.fromtimestamp(ts // 1000000000)
-                dt = dt.strftime('%Y-%m-%d %H:%M:%S') + '.' + str(int(ts % 1000000000)).zfill(9)
+                dt = (
+                    dt.strftime("%Y-%m-%d %H:%M:%S")
+                    + "."
+                    + str(int(ts % 1000000000)).zfill(9)
+                )
             if protype == "restful":
                 dt = datetime.fromtimestamp(ts // 1000000000)
-                dt = dt.strftime('%Y-%m-%d %H:%M:%S') + '.' + str(int(ts % 1000000000)).zfill(9)
+                dt = (
+                    dt.strftime("%Y-%m-%d %H:%M:%S")
+                    + "."
+                    + str(int(ts % 1000000000)).zfill(9)
+                )
         else:
             if ts == "" or ts is None:
                 ts = time.time()
@@ -1304,15 +1736,28 @@ class TDCom:
                 ts = int(round(ts * 1000))
                 dt = datetime.fromtimestamp(ts // 1000)
                 if protype == "taosc":
-                    dt = dt.strftime('%Y-%m-%d %H:%M:%S') + '.' + str(int(ts % 1000)).zfill(3) + '000'
+                    dt = (
+                        dt.strftime("%Y-%m-%d %H:%M:%S")
+                        + "."
+                        + str(int(ts % 1000)).zfill(3)
+                        + "000"
+                    )
                 elif protype == "restful":
-                    dt = dt.strftime('%Y-%m-%d %H:%M:%S') + '.' + str(int(ts % 1000)).zfill(3)
+                    dt = (
+                        dt.strftime("%Y-%m-%d %H:%M:%S")
+                        + "."
+                        + str(int(ts % 1000)).zfill(3)
+                    )
                 else:
                     pass
             elif precision == "us":
                 ts = int(round(ts * 1000000))
                 dt = datetime.fromtimestamp(ts // 1000000)
-                dt = dt.strftime('%Y-%m-%d %H:%M:%S') + '.' + str(int(ts % 1000000)).zfill(6)
+                dt = (
+                    dt.strftime("%Y-%m-%d %H:%M:%S")
+                    + "."
+                    + str(int(ts % 1000000)).zfill(6)
+                )
         return ts, dt
 
     def sgen_column_type_str(self, column_elm_list):
@@ -1332,13 +1777,20 @@ class TDCom:
                     total_count = 1
                 if total_count > 0:
                     for _ in range(total_count):
-                        self.column_type_str += f'{self.default_colname_prefix}{self.default_column_index_start_num} {column_elm["type"]}, '
+                        self.column_type_str += f"{self.default_colname_prefix}{self.default_column_index_start_num} {column_elm['type']}, "
                         if column_elm["type"] in ["varchar", "binary", "nchar"]:
-                            self.column_type_str = self.column_type_str.rstrip()[:-1] + f'({column_elm["len"]}), '
+                            self.column_type_str = (
+                                self.column_type_str.rstrip()[:-1]
+                                + f"({column_elm['len']}), "
+                            )
                         self.default_column_index_start_num += 1
                 else:
                     continue
-            self.column_type_str = self.default_colts_name + " timestamp, " + self.column_type_str.rstrip()[:-1]
+            self.column_type_str = (
+                self.default_colts_name
+                + " timestamp, "
+                + self.column_type_str.rstrip()[:-1]
+            )
 
     def sgen_tag_type_str(self, tag_elm_list):
         """generage tag type str
@@ -1357,15 +1809,20 @@ class TDCom:
                     total_count = 1
                 if total_count > 0:
                     for _ in range(total_count):
-                        self.tag_type_str += f'{self.default_tagname_prefix}{self.default_tag_index_start_num} {tag_elm["type"]}, '
+                        self.tag_type_str += f"{self.default_tagname_prefix}{self.default_tag_index_start_num} {tag_elm['type']}, "
                         if tag_elm["type"] in ["varchar", "binary", "nchar"]:
-                            self.tag_type_str = self.tag_type_str.rstrip()[:-1] + f'({tag_elm["len"]}), '
+                            self.tag_type_str = (
+                                self.tag_type_str.rstrip()[:-1]
+                                + f"({tag_elm['len']}), "
+                            )
                         self.default_tag_index_start_num += 1
                 else:
                     continue
             self.tag_type_str = self.tag_type_str.rstrip()[:-1]
             if self.need_tagts:
-                self.tag_type_str = self.default_tagts_name + " timestamp, " + self.tag_type_str
+                self.tag_type_str = (
+                    self.default_tagts_name + " timestamp, " + self.tag_type_str
+                )
 
     def sgen_tag_value_list(self, tag_elm_list, ts_value=None):
         """generage tag value str
@@ -1380,7 +1837,18 @@ class TDCom:
             self.ts_value = ts_value
 
         if tag_elm_list is None:
-            self.tag_value_list = list(map(lambda i: self.gen_random_type_value(i, self.default_varchar_length, self.default_varchar_datatype, self.default_nchar_length, self.default_nchar_datatype), self.full_type_list))
+            self.tag_value_list = list(
+                map(
+                    lambda i: self.gen_random_type_value(
+                        i,
+                        self.default_varchar_length,
+                        self.default_varchar_datatype,
+                        self.default_nchar_length,
+                        self.default_nchar_datatype,
+                    ),
+                    self.full_type_list,
+                )
+            )
         else:
             for tag_elm in tag_elm_list:
                 if "count" in tag_elm:
@@ -1390,9 +1858,21 @@ class TDCom:
                 if total_count > 0:
                     for _ in range(total_count):
                         if tag_elm["type"] in ["varchar", "binary", "nchar"]:
-                            self.tag_value_list.append(self.gen_random_type_value(tag_elm["type"], tag_elm["len"], self.default_varchar_datatype, tag_elm["len"], self.default_nchar_datatype))
+                            self.tag_value_list.append(
+                                self.gen_random_type_value(
+                                    tag_elm["type"],
+                                    tag_elm["len"],
+                                    self.default_varchar_datatype,
+                                    tag_elm["len"],
+                                    self.default_nchar_datatype,
+                                )
+                            )
                         else:
-                            self.tag_value_list.append(self.gen_random_type_value(tag_elm["type"], "", "", "", ""))
+                            self.tag_value_list.append(
+                                self.gen_random_type_value(
+                                    tag_elm["type"], "", "", "", ""
+                                )
+                            )
                 else:
                     continue
         # if self.need_tagts and self.ts_value is not None and len(str(self.ts_value)) > 0:
@@ -1413,15 +1893,27 @@ class TDCom:
                 if param == "precision":
                     db_params += f'{param} "{value}" '
                 else:
-                    db_params += f'{param} {value} '
+                    db_params += f"{param} {value} "
         if drop_db:
             self.drop_db(dbname)
-        tdSql.execute(f'create database if not exists {dbname} {db_params}')
-        tdSql.execute(f'use {dbname}')
+        tdSql.execute(f"create database if not exists {dbname} {db_params}")
+        tdSql.execute(f"use {dbname}")
 
-    def screate_stable(self, dbname=None, stbname="stb", use_name="table", column_elm_list=None, tag_elm_list=None,
-                     need_tagts=False, count=1, default_stbname_prefix="stb", default_stbname_index_start_num=1,
-                     default_column_index_start_num=1, default_tag_index_start_num=1, **kwargs):
+    def screate_stable(
+        self,
+        dbname=None,
+        stbname="stb",
+        use_name="table",
+        column_elm_list=None,
+        tag_elm_list=None,
+        need_tagts=False,
+        count=1,
+        default_stbname_prefix="stb",
+        default_stbname_index_start_num=1,
+        default_column_index_start_num=1,
+        default_tag_index_start_num=1,
+        **kwargs,
+    ):
         """_summary_
 
         Args:
@@ -1452,19 +1944,33 @@ class TDCom:
         self.sgen_column_type_str(column_elm_list)
         self.sgen_tag_type_str(tag_elm_list)
         if self.dbname is not None:
-            stb_name = f'{self.dbname}.{stbname}'
+            stb_name = f"{self.dbname}.{stbname}"
         else:
             stb_name = stbname
         if int(count) <= 1:
-            create_stable_sql = f'create {use_name} {stb_name} ({self.column_type_str}) tags ({self.tag_type_str}) {stb_params};'
+            create_stable_sql = f"create {use_name} {stb_name} ({self.column_type_str}) tags ({self.tag_type_str}) {stb_params};"
             tdSql.execute(create_stable_sql)
         else:
             for _ in range(count):
-                create_stable_sql = f'create {use_name} {self.dbname}.{default_stbname_prefix}{default_stbname_index_start_num} ({self.column_type_str}) tags ({self.tag_type_str}) {stb_params};'
+                create_stable_sql = f"create {use_name} {self.dbname}.{default_stbname_prefix}{default_stbname_index_start_num} ({self.column_type_str}) tags ({self.tag_type_str}) {stb_params};"
                 default_stbname_index_start_num += 1
                 tdSql.execute(create_stable_sql)
 
-    def screate_ctable(self, dbname=None, stbname=None, ctbname="ctb", use_name="table", tag_elm_list=None, ts_value=None, count=1, default_varchar_datatype="letters", default_nchar_datatype="letters", default_ctbname_prefix="ctb", default_ctbname_index_start_num=1, **kwargs):
+    def screate_ctable(
+        self,
+        dbname=None,
+        stbname=None,
+        ctbname="ctb",
+        use_name="table",
+        tag_elm_list=None,
+        ts_value=None,
+        count=1,
+        default_varchar_datatype="letters",
+        default_nchar_datatype="letters",
+        default_ctbname_prefix="ctb",
+        default_ctbname_index_start_num=1,
+        **kwargs,
+    ):
         """_summary_
 
         Args:
@@ -1496,25 +2002,34 @@ class TDCom:
             if isinstance(tag_value, str):
                 tag_value_str += f'"{tag_value}", '
             else:
-                tag_value_str += f'{tag_value}, '
+                tag_value_str += f"{tag_value}, "
         tag_value_str = tag_value_str.rstrip()[:-1]
         if dbname is not None:
             self.dbname = dbname
-            ctb_name = f'{self.dbname}.{ctbname}'
+            ctb_name = f"{self.dbname}.{ctbname}"
         else:
             ctb_name = ctbname
         if stbname is not None:
             stb_name = stbname
         if int(count) <= 1:
-            create_ctable_sql = f'create {use_name} {ctb_name} using {stb_name} tags ({tag_value_str}) {ctb_params};'
+            create_ctable_sql = f"create {use_name} {ctb_name} using {stb_name} tags ({tag_value_str}) {ctb_params};"
             tdSql.execute(create_ctable_sql)
         else:
             for _ in range(count):
-                create_stable_sql = f'create {use_name} {self.dbname}.{default_ctbname_prefix}{default_ctbname_index_start_num} using {self.stb_name} tags ({tag_value_str}) {ctb_params};'
+                create_stable_sql = f"create {use_name} {self.dbname}.{default_ctbname_prefix}{default_ctbname_index_start_num} using {self.stb_name} tags ({tag_value_str}) {ctb_params};"
                 default_ctbname_index_start_num += 1
                 tdSql.execute(create_stable_sql)
 
-    def sgen_column_value_list(self, column_elm_list, need_null, ts_value=None, additional_ts=None, custom_col_index=None, col_value_type=None, force_pk_val=None):
+    def sgen_column_value_list(
+        self,
+        column_elm_list,
+        need_null,
+        ts_value=None,
+        additional_ts=None,
+        custom_col_index=None,
+        col_value_type=None,
+        force_pk_val=None,
+    ):
         """_summary_
 
         Args:
@@ -1530,7 +2045,18 @@ class TDCom:
             self.ts_value = ts_value
 
         if column_elm_list is None:
-            self.column_value_list = list(map(lambda i: self.gen_random_type_value(i, self.default_varchar_length, self.default_varchar_datatype, self.default_nchar_length, self.default_nchar_datatype), self.full_type_list))
+            self.column_value_list = list(
+                map(
+                    lambda i: self.gen_random_type_value(
+                        i,
+                        self.default_varchar_length,
+                        self.default_varchar_datatype,
+                        self.default_nchar_length,
+                        self.default_nchar_datatype,
+                    ),
+                    self.full_type_list,
+                )
+            )
         else:
             for column_elm in column_elm_list:
                 if "count" in column_elm:
@@ -1540,14 +2066,26 @@ class TDCom:
                 if total_count > 0:
                     for _ in range(total_count):
                         if column_elm["type"] in ["varchar", "binary", "nchar"]:
-                            self.column_value_list.append(self.gen_random_type_value(column_elm["type"], column_elm["len"], self.default_varchar_datatype, column_elm["len"], self.default_nchar_datatype))
+                            self.column_value_list.append(
+                                self.gen_random_type_value(
+                                    column_elm["type"],
+                                    column_elm["len"],
+                                    self.default_varchar_datatype,
+                                    column_elm["len"],
+                                    self.default_nchar_datatype,
+                                )
+                            )
                         else:
-                            self.column_value_list.append(self.gen_random_type_value(column_elm["type"], "", "", "", ""))
+                            self.column_value_list.append(
+                                self.gen_random_type_value(
+                                    column_elm["type"], "", "", "", ""
+                                )
+                            )
                 else:
                     continue
         if need_null:
-            for i in range(int(len(self.column_value_list)/2)):
-                index_num = random.randint(0, len(self.column_value_list)-1)
+            for i in range(int(len(self.column_value_list) / 2)):
+                index_num = random.randint(0, len(self.column_value_list) - 1)
                 self.column_value_list[index_num] = None
         if custom_col_index is not None:
             if col_value_type == "Random":
@@ -1556,17 +2094,38 @@ class TDCom:
                 self.column_value_list[custom_col_index] = self.custom_col_val
                 self.custom_col_val += 1
             elif col_value_type == "Part_equal":
-                self.column_value_list[custom_col_index] = random.choice(self.part_val_list)
+                self.column_value_list[custom_col_index] = random.choice(
+                    self.part_val_list
+                )
 
-        self.column_value_list = [self.ts_value] + [self.additional_ts] + self.column_value_list if additional_ts is not None else [self.ts_value] + self.column_value_list
-        if col_value_type == "Incremental" and custom_col_index==1:
-            self.column_value_list[custom_col_index] = self.custom_col_val if force_pk_val is None else force_pk_val
-        if col_value_type == "Part_equal" and custom_col_index==1:
-            self.column_value_list[custom_col_index] = random.randint(0, self.custom_col_val) if force_pk_val is None else force_pk_val
+        self.column_value_list = (
+            [self.ts_value] + [self.additional_ts] + self.column_value_list
+            if additional_ts is not None
+            else [self.ts_value] + self.column_value_list
+        )
+        if col_value_type == "Incremental" and custom_col_index == 1:
+            self.column_value_list[custom_col_index] = (
+                self.custom_col_val if force_pk_val is None else force_pk_val
+            )
+        if col_value_type == "Part_equal" and custom_col_index == 1:
+            self.column_value_list[custom_col_index] = (
+                random.randint(0, self.custom_col_val)
+                if force_pk_val is None
+                else force_pk_val
+            )
 
-    def screate_table(self, dbname=None, tbname="tb", use_name="table", column_elm_list=None,
-                    count=1, default_tbname_prefix="tb", default_tbname_index_start_num=1,
-                    default_column_index_start_num=1, **kwargs):
+    def screate_table(
+        self,
+        dbname=None,
+        tbname="tb",
+        use_name="table",
+        column_elm_list=None,
+        count=1,
+        default_tbname_prefix="tb",
+        default_tbname_index_start_num=1,
+        default_column_index_start_num=1,
+        **kwargs,
+    ):
         """create ctable
 
         Args:
@@ -1591,19 +2150,31 @@ class TDCom:
                 tb_params += f'{param} "{value}" '
         self.sgen_column_type_str(column_elm_list)
         if self.dbname is not None:
-            tb_name = f'{self.dbname}.{tbname}'
+            tb_name = f"{self.dbname}.{tbname}"
         else:
             tb_name = tbname
         if int(count) <= 1:
-            create_table_sql = f'create {use_name} {tb_name} ({self.column_type_str}) {tb_params};'
+            create_table_sql = (
+                f"create {use_name} {tb_name} ({self.column_type_str}) {tb_params};"
+            )
             tdSql.execute(create_table_sql)
         else:
             for _ in range(count):
-                create_table_sql = f'create {use_name} {self.dbname}.{default_tbname_prefix}{default_tbname_index_start_num} ({self.column_type_str}) {tb_params};'
+                create_table_sql = f"create {use_name} {self.dbname}.{default_tbname_prefix}{default_tbname_index_start_num} ({self.column_type_str}) {tb_params};"
                 default_tbname_index_start_num += 1
                 tdSql.execute(create_table_sql)
 
-    def sinsert_rows(self, dbname=None, tbname=None, column_ele_list=None, ts_value=None, count=1, need_null=False, custom_col_index=None, col_value_type="random"):
+    def sinsert_rows(
+        self,
+        dbname=None,
+        tbname=None,
+        column_ele_list=None,
+        ts_value=None,
+        count=1,
+        need_null=False,
+        custom_col_index=None,
+        col_value_type="random",
+    ):
         """insert rows
 
         Args:
@@ -1618,42 +2189,60 @@ class TDCom:
         if dbname is not None:
             self.dbname = dbname
             if tbname is not None:
-                self.tbname = f'{self.dbname}.{tbname}'
+                self.tbname = f"{self.dbname}.{tbname}"
         else:
             if tbname is not None:
                 self.tbname = tbname
 
-        self.sgen_column_value_list(column_ele_list, need_null, ts_value, custom_col_index=custom_col_index, col_value_type=col_value_type)
+        self.sgen_column_value_list(
+            column_ele_list,
+            need_null,
+            ts_value,
+            custom_col_index=custom_col_index,
+            col_value_type=col_value_type,
+        )
         # column_value_str = ", ".join(str(v) for v in self.column_value_list)
         column_value_str = ""
         for column_value in self.column_value_list:
             if column_value is None:
-                column_value_str += 'Null, '
-            elif isinstance(column_value, str) and "+" not in column_value and "-" not in column_value:
+                column_value_str += "Null, "
+            elif (
+                isinstance(column_value, str)
+                and "+" not in column_value
+                and "-" not in column_value
+            ):
                 column_value_str += f'"{column_value}", '
             else:
-                column_value_str += f'{column_value}, '
+                column_value_str += f"{column_value}, "
         column_value_str = column_value_str.rstrip()[:-1]
         if int(count) <= 1:
-            insert_sql = f'insert into {self.tbname} values ({column_value_str});'
+            insert_sql = f"insert into {self.tbname} values ({column_value_str});"
             tdSql.execute(insert_sql)
         else:
             for num in range(count):
                 ts_value = self.genTs()[0]
-                self.sgen_column_value_list(column_ele_list, need_null, f'{ts_value}+{num}s', custom_col_index=custom_col_index, col_value_type=col_value_type)
+                self.sgen_column_value_list(
+                    column_ele_list,
+                    need_null,
+                    f"{ts_value}+{num}s",
+                    custom_col_index=custom_col_index,
+                    col_value_type=col_value_type,
+                )
                 column_value_str = ""
                 for column_value in self.column_value_list:
                     if column_value is None:
-                        column_value_str += 'Null, '
+                        column_value_str += "Null, "
                     elif isinstance(column_value, str) and "+" not in column_value:
                         column_value_str += f'"{column_value}", '
                     else:
-                        column_value_str += f'{column_value}, '
+                        column_value_str += f"{column_value}, "
                 column_value_str = column_value_str.rstrip()[:-1]
-                insert_sql = f'insert into {self.tbname} values ({column_value_str});'
+                insert_sql = f"insert into {self.tbname} values ({column_value_str});"
                 tdSql.execute(insert_sql)
 
-    def sdelete_rows(self, dbname=None, tbname=None, start_ts=None, end_ts=None, ts_key=None):
+    def sdelete_rows(
+        self, dbname=None, tbname=None, start_ts=None, end_ts=None, ts_key=None
+    ):
         """delete rows
 
         Args:
@@ -1666,7 +2255,7 @@ class TDCom:
         if dbname is not None:
             self.dbname = dbname
             if tbname is not None:
-                self.tbname = f'{self.dbname}.{tbname}'
+                self.tbname = f"{self.dbname}.{tbname}"
         else:
             if tbname is not None:
                 self.tbname = tbname
@@ -1675,18 +2264,18 @@ class TDCom:
         else:
             ts_col_name = ts_key
 
-        base_del_sql = f'delete from {self.tbname} '
+        base_del_sql = f"delete from {self.tbname} "
         if end_ts is not None:
             if ":" in start_ts and "-" in start_ts:
                 start_ts = f"{start_ts}"
             if ":" in end_ts and "-" in end_ts:
                 end_ts = f"{end_ts}"
-            base_del_sql += f'where {ts_col_name} between {start_ts} and {end_ts};'
+            base_del_sql += f"where {ts_col_name} between {start_ts} and {end_ts};"
         else:
             if start_ts is not None:
                 if ":" in start_ts and "-" in start_ts:
                     start_ts = f"{start_ts}"
-                base_del_sql += f'where {ts_col_name} = {start_ts};'
+                base_del_sql += f"where {ts_col_name} = {start_ts};"
         tdSql.execute(base_del_sql)
 
     def check_stream_field_type(self, sql, input_function):
@@ -1698,7 +2287,17 @@ class TDCom:
         """
         tdSql.query(sql)
         res = tdSql.queryResult
-        if input_function in ["acos", "asin", "atan", "cos", "log", "pow", "sin", "sqrt", "tan"]:
+        if input_function in [
+            "acos",
+            "asin",
+            "atan",
+            "cos",
+            "log",
+            "pow",
+            "sin",
+            "sqrt",
+            "tan",
+        ]:
             tdSql.checkEqual(res[1][1], "DOUBLE")
             tdSql.checkEqual(res[2][1], "DOUBLE")
         elif input_function in ["lower", "ltrim", "rtrim", "upper"]:
@@ -1757,8 +2356,13 @@ class TDCom:
         final_list = list()
         for i in input_list:
             tmpl = list()
-            for j_i,j_v in enumerate(i):
-                if type(j_v) != datetime and j_v is not None and str(j_v).isdigit() and j_i <= 12:
+            for j_i, j_v in enumerate(i):
+                if (
+                    type(j_v) != datetime
+                    and j_v is not None
+                    and str(j_v).isdigit()
+                    and j_i <= 12
+                ):
                     tmpl.append(float(j_v))
                 else:
                     tmpl.append(j_v)
@@ -1774,7 +2378,7 @@ class TDCom:
         Returns:
             bigint: bigint-ts
         """
-        tdSql.query(f'select cast({str_ts} as bigint)')
+        tdSql.query(f"select cast({str_ts} as bigint)")
         return tdSql.queryResult[0][0]
 
     def cast_query_data(self, query_data):
@@ -1787,18 +2391,23 @@ class TDCom:
             list: new list after cast
         """
         tdLog.info("cast query data ...")
-        col_type_list = self.column_type_str.split(',')
-        tag_type_list = self.tag_type_str.split(',')
+        col_type_list = self.column_type_str.split(",")
+        tag_type_list = self.tag_type_str.split(",")
         col_tag_type_list = col_type_list + tag_type_list
         nl = list()
         for query_data_t in query_data:
             query_data_l = list(query_data_t)
-            for i,v in enumerate(query_data_l):
+            for i, v in enumerate(query_data_l):
                 if v is not None:
-                    if " ".join(col_tag_type_list[i].strip().split(" ")[1:]) == "nchar(6)":
+                    if (
+                        " ".join(col_tag_type_list[i].strip().split(" ")[1:])
+                        == "nchar(6)"
+                    ):
                         tdSql.query(f'select cast("{v}" as binary(6))')
                     else:
-                        tdSql.query(f'select cast("{v}" as {" ".join(col_tag_type_list[i].strip().split(" ")[1:])})')
+                        tdSql.query(
+                            f'select cast("{v}" as {" ".join(col_tag_type_list[i].strip().split(" ")[1:])})'
+                        )
                     query_data_l[i] = tdSql.queryResult[0][0]
                 else:
                     query_data_l[i] = v
@@ -1829,7 +2438,19 @@ class TDCom:
             s_num = 60
         return int(s_num)
 
-    def check_query_data(self, sql1, sql2, sorted=False, fill_value=None, tag_value_list=None, defined_tag_count=None, partition=True, use_exist_stb=False, subtable=None, reverse_check=False):
+    def check_query_data(
+        self,
+        sql1,
+        sql2,
+        sorted=False,
+        fill_value=None,
+        tag_value_list=None,
+        defined_tag_count=None,
+        partition=True,
+        use_exist_stb=False,
+        subtable=None,
+        reverse_check=False,
+    ):
         """confirm query result
 
         Args:
@@ -1849,29 +2470,48 @@ class TDCom:
         """
         tdLog.info("checking query data ...")
         if tag_value_list:
-            dvalue = len(self.tag_type_str.split(',')) - defined_tag_count
+            dvalue = len(self.tag_type_str.split(",")) - defined_tag_count
         tdSql.query(sql1)
         res1 = tdSql.queryResult
         tdSql.query(sql2)
-        res2 = self.cast_query_data(tdSql.queryResult) if tag_value_list or use_exist_stb else tdSql.queryResult
+        res2 = (
+            self.cast_query_data(tdSql.queryResult)
+            if tag_value_list or use_exist_stb
+            else tdSql.queryResult
+        )
         tdSql.sql = sql1
         new_list = list()
         if tag_value_list:
             res1 = self.float_handle(res1)
             res2 = self.float_handle(res2)
-            for i,v in enumerate(res2):
+            for i, v in enumerate(res2):
                 if i < len(tag_value_list):
                     if partition:
-                        new_list.append(tuple(list(v)[:-(dvalue+defined_tag_count)] + list(tag_value_list[i]) + [None]*dvalue))
+                        new_list.append(
+                            tuple(
+                                list(v)[: -(dvalue + defined_tag_count)]
+                                + list(tag_value_list[i])
+                                + [None] * dvalue
+                            )
+                        )
                     else:
-                        new_list.append(tuple(list(v)[:-(dvalue+defined_tag_count)] + [None]*len(self.tag_type_str.split(','))))
+                        new_list.append(
+                            tuple(
+                                list(v)[: -(dvalue + defined_tag_count)]
+                                + [None] * len(self.tag_type_str.split(","))
+                            )
+                        )
                     res2 = new_list
         else:
             if use_exist_stb:
                 res1 = self.float_handle(res1)
                 res2 = self.float_handle(res2)
-                for i,v in enumerate(res2):
-                    new_list.append(tuple(list(v)[:-(13)] + [None]*len(self.tag_type_str.split(','))))
+                for i, v in enumerate(res2):
+                    new_list.append(
+                        tuple(
+                            list(v)[:-(13)] + [None] * len(self.tag_type_str.split(","))
+                        )
+                    )
                 res2 = new_list
 
         latency = 0
@@ -1889,25 +2529,45 @@ class TDCom:
                 res1 = tdSql.queryResult
                 tdSql.query(sql2)
                 # res2 = tdSql.queryResult
-                res2 = self.cast_query_data(tdSql.queryResult) if tag_value_list or use_exist_stb else tdSql.queryResult
+                res2 = (
+                    self.cast_query_data(tdSql.queryResult)
+                    if tag_value_list or use_exist_stb
+                    else tdSql.queryResult
+                )
                 tdSql.sql = sql1
 
                 if tag_value_list:
                     res1 = self.float_handle(res1)
                     res2 = self.float_handle(res2)
-                    for i,v in enumerate(res2):
+                    for i, v in enumerate(res2):
                         if i < len(tag_value_list):
                             if partition:
-                                new_list.append(tuple(list(v)[:-(dvalue+defined_tag_count)] + list(tag_value_list[i]) + [None]*dvalue))
+                                new_list.append(
+                                    tuple(
+                                        list(v)[: -(dvalue + defined_tag_count)]
+                                        + list(tag_value_list[i])
+                                        + [None] * dvalue
+                                    )
+                                )
                             else:
-                                new_list.append(tuple(list(v)[:-(dvalue+defined_tag_count)] + [None]*len(self.tag_type_str.split(','))))
+                                new_list.append(
+                                    tuple(
+                                        list(v)[: -(dvalue + defined_tag_count)]
+                                        + [None] * len(self.tag_type_str.split(","))
+                                    )
+                                )
                             res2 = new_list
                 else:
                     if use_exist_stb:
                         res1 = self.float_handle(res1)
                         res2 = self.float_handle(res2)
-                        for i,v in enumerate(res2):
-                            new_list.append(tuple(list(v)[:-(13)] + [None]*len(self.tag_type_str.split(','))))
+                        for i, v in enumerate(res2):
+                            new_list.append(
+                                tuple(
+                                    list(v)[:-(13)]
+                                    + [None] * len(self.tag_type_str.split(","))
+                                )
+                            )
                         res2 = new_list
                 if sorted or tag_value_list:
                     res1.sort()
@@ -1931,25 +2591,45 @@ class TDCom:
                 res1 = tdSql.queryResult
                 tdSql.query(sql2)
                 # res2 = tdSql.queryResult
-                res2 = self.cast_query_data(tdSql.queryResult) if tag_value_list or use_exist_stb else tdSql.queryResult
+                res2 = (
+                    self.cast_query_data(tdSql.queryResult)
+                    if tag_value_list or use_exist_stb
+                    else tdSql.queryResult
+                )
                 tdSql.sql = sql1
 
                 if tag_value_list:
                     res1 = self.float_handle(res1)
                     res2 = self.float_handle(res2)
-                    for i,v in enumerate(res2):
+                    for i, v in enumerate(res2):
                         if i < len(tag_value_list):
                             if partition:
-                                new_list.append(tuple(list(v)[:-(dvalue+defined_tag_count)] + list(tag_value_list[i]) + [None]*dvalue))
+                                new_list.append(
+                                    tuple(
+                                        list(v)[: -(dvalue + defined_tag_count)]
+                                        + list(tag_value_list[i])
+                                        + [None] * dvalue
+                                    )
+                                )
                             else:
-                                new_list.append(tuple(list(v)[:-(dvalue+defined_tag_count)] + [None]*len(self.tag_type_str.split(','))))
+                                new_list.append(
+                                    tuple(
+                                        list(v)[: -(dvalue + defined_tag_count)]
+                                        + [None] * len(self.tag_type_str.split(","))
+                                    )
+                                )
                             res2 = new_list
                 else:
                     if use_exist_stb:
                         res1 = self.float_handle(res1)
                         res2 = self.float_handle(res2)
-                        for i,v in enumerate(res2):
-                            new_list.append(tuple(list(v)[:-(13)] + [None]*len(self.tag_type_str.split(','))))
+                        for i, v in enumerate(res2):
+                            new_list.append(
+                                tuple(
+                                    list(v)[:-(13)]
+                                    + [None] * len(self.tag_type_str.split(","))
+                                )
+                            )
                         res2 = new_list
                 if sorted or tag_value_list:
                     res1.sort()
@@ -2003,7 +2683,9 @@ class TDCom:
         self.check_stream_res(sql1, expected_count, max_delay)
         self.check_query_data(sql1, sql2)
 
-    def cal_watermark_window_close_session_endts(self, start_ts, watermark=None, session=None):
+    def cal_watermark_window_close_session_endts(
+        self, start_ts, watermark=None, session=None
+    ):
         """cal endts for close window
 
         Args:
@@ -2015,11 +2697,13 @@ class TDCom:
             int: as followed
         """
         if watermark is not None:
-            return start_ts + watermark*self.offset + 1
+            return start_ts + watermark * self.offset + 1
         else:
-            return start_ts + session*self.offset + 1
+            return start_ts + session * self.offset + 1
 
-    def cal_watermark_window_close_interval_endts(self, start_ts, interval, watermark=None):
+    def cal_watermark_window_close_interval_endts(
+        self, start_ts, interval, watermark=None
+    ):
         """cal endts for close window
 
         Args:
@@ -2031,9 +2715,16 @@ class TDCom:
             _type_: _description_
         """
         if watermark is not None:
-            return int(start_ts/self.offset)*self.offset + (interval - (int(start_ts/self.offset))%interval)*self.offset + watermark*self.offset
+            return (
+                int(start_ts / self.offset) * self.offset
+                + (interval - (int(start_ts / self.offset)) % interval) * self.offset
+                + watermark * self.offset
+            )
         else:
-            return int(start_ts/self.offset)*self.offset + (interval - (int(start_ts/self.offset))%interval)*self.offset
+            return (
+                int(start_ts / self.offset) * self.offset
+                + (interval - (int(start_ts / self.offset)) % interval) * self.offset
+            )
 
     def update_delete_history_data(self, delete):
         """update and delete history data
@@ -2044,8 +2735,14 @@ class TDCom:
         self.sinsert_rows(tbname=self.ctb_name, ts_value=self.record_history_ts)
         self.sinsert_rows(tbname=self.tb_name, ts_value=self.record_history_ts)
         if delete:
-            self.sdelete_rows(tbname=self.ctb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
-            self.sdelete_rows(tbname=self.tb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
+            self.sdelete_rows(
+                tbname=self.ctb_name,
+                start_ts=self.time_cast(self.record_history_ts, "-"),
+            )
+            self.sdelete_rows(
+                tbname=self.tb_name,
+                start_ts=self.time_cast(self.record_history_ts, "-"),
+            )
 
     def get_timestamp_n_days_later(self, n=30):
         """
@@ -2060,14 +2757,14 @@ class TDCom:
         now = datetime.now()
         thirty_days_later = now + timedelta(days=n)
         timestamp_thirty_days_later = thirty_days_later.timestamp()
-        return int(timestamp_thirty_days_later*1000)
-    
+        return int(timestamp_thirty_days_later * 1000)
+
     def create_snode_if_not_exists(self, dnode_id=1):
         """Create snode if not exists
-        
+
         Args:
             dnode_id (int, optional): The dnode ID to create snode on. Defaults to 1.
-        
+
         Returns:
             bool: True if snode exists or created successfully, False if creation failed
         """
@@ -2075,15 +2772,15 @@ class TDCom:
             # Check if snode already exists
             tdSql.query("show snodes")
             snode_count = tdSql.queryRows
-            
+
             if snode_count > 0:
                 tdLog.info(f"Snode already exists, found {snode_count} snode(s)")
                 return True
-            
+
             # No snode exists, create one
             tdLog.info(f"No snode found, creating snode on dnode {dnode_id}")
             tdSql.execute(f"create snode on dnode {dnode_id}")
-            
+
             # Verify snode creation
             tdSql.query("show snodes")
             if tdSql.queryRows > 0:
@@ -2092,18 +2789,18 @@ class TDCom:
             else:
                 tdLog.error(f"Failed to create snode on dnode {dnode_id}")
                 return False
-                
+
         except Exception as e:
             tdLog.error(f"Error creating snode: {e}")
             return False
 
     def ensure_snode_ready(self, dnode_id=1, timeout=30):
         """Ensure snode is created and ready
-        
+
         Args:
             dnode_id (int, optional): The dnode ID to create snode on. Defaults to 1.
             timeout (int, optional): Maximum wait time in seconds. Defaults to 30.
-        
+
         Returns:
             bool: True if snode is ready, False if timeout or creation failed
         """
@@ -2111,7 +2808,7 @@ class TDCom:
             # First try to create snode if not exists
             if not self.create_snode_if_not_exists(dnode_id):
                 return False
-            
+
             # Wait for snode to be ready
             wait_time = 0
             while wait_time < timeout:
@@ -2120,28 +2817,28 @@ class TDCom:
                     # Check if snode status is ready (if status column exists)
                     snode_info = tdSql.queryResult
                     # tdLog.info(f"Snode info: {snode_info}")
-                    
+
                     # Assuming snode is ready if it appears in show snodes
                     # You might need to adjust this based on actual snode status checking
                     tdLog.info(f"Snode is ready after {wait_time} seconds")
                     return True
-                
+
                 time.sleep(1)
                 wait_time += 1
-            
+
             tdLog.error(f"Snode not ready after {timeout} seconds")
             return False
-            
+
         except Exception as e:
             tdLog.error(f"Error ensuring snode ready: {e}")
             return False
 
     def drop_snode(self, snode_id=None):
         """Drop snode
-        
+
         Args:
             snode_id (int, optional): Specific snode ID to drop. If None, drops all snodes.
-        
+
         Returns:
             bool: True if successful, False otherwise
         """
@@ -2150,7 +2847,7 @@ class TDCom:
             if tdSql.queryRows == 0:
                 tdLog.info("No snode exists to drop")
                 return True
-            
+
             if snode_id is not None:
                 # Drop specific snode
                 tdSql.execute(f"drop snode {snode_id}")
@@ -2161,14 +2858,28 @@ class TDCom:
                 for snode in snode_list:
                     tdSql.execute(f"drop snode {snode}")
                     tdLog.info(f"Dropped snode {snode}")
-            
+
             return True
-            
+
         except Exception as e:
             tdLog.error(f"Error dropping snode: {e}")
             return False
 
-    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ext_stb=None, custom_col_index=None, col_value_type="random"):
+    def prepare_data(
+        self,
+        interval=None,
+        watermark=None,
+        session=None,
+        state_window=None,
+        state_window_max=127,
+        interation=3,
+        range_count=None,
+        precision="ms",
+        fill_history_value=0,
+        ext_stb=None,
+        custom_col_index=None,
+        col_value_type="random",
+    ):
         """prepare stream data
 
         Args:
@@ -2185,13 +2896,13 @@ class TDCom:
         """
         self.clean_env()
         self.dataDict = {
-            "stb_name" : f"{self.case_name}_stb",
-            "ctb_name" : f"{self.case_name}_ct1",
-            "tb_name" : f"{self.case_name}_tb1",
-            "ext_stb_name" : f"ext_{self.case_name}_stb",
-            "ext_ctb_name" : f"ext_{self.case_name}_ct1",
-            "ext_tb_name" : f"ext_{self.case_name}_tb1",
-            "interval" : interval,
+            "stb_name": f"{self.case_name}_stb",
+            "ctb_name": f"{self.case_name}_ct1",
+            "tb_name": f"{self.case_name}_tb1",
+            "ext_stb_name": f"ext_{self.case_name}_stb",
+            "ext_ctb_name": f"ext_{self.case_name}_ct1",
+            "ext_tb_name": f"ext_{self.case_name}_tb1",
+            "interval": interval,
             "watermark": watermark,
             "session": session,
             "state_window": state_window,
@@ -2212,27 +2923,45 @@ class TDCom:
         self.ext_stb_name = self.dataDict["ext_stb_name"]
         self.ext_ctb_name = self.dataDict["ext_ctb_name"]
         self.ext_tb_name = self.dataDict["ext_tb_name"]
-        self.stb_stream_des_table = f'{self.stb_name}{self.des_table_suffix}'
-        self.ctb_stream_des_table = f'{self.ctb_name}{self.des_table_suffix}'
-        self.tb_stream_des_table = f'{self.tb_name}{self.des_table_suffix}'
-        self.ext_stb_stream_des_table = f'{self.ext_stb_name}{self.des_table_suffix}'
-        self.ext_ctb_stream_des_table = f'{self.ext_ctb_name}{self.des_table_suffix}'
-        self.ext_tb_stream_des_table = f'{self.ext_tb_name}{self.des_table_suffix}'
+        self.stb_stream_des_table = f"{self.stb_name}{self.des_table_suffix}"
+        self.ctb_stream_des_table = f"{self.ctb_name}{self.des_table_suffix}"
+        self.tb_stream_des_table = f"{self.tb_name}{self.des_table_suffix}"
+        self.ext_stb_stream_des_table = f"{self.ext_stb_name}{self.des_table_suffix}"
+        self.ext_ctb_stream_des_table = f"{self.ext_ctb_name}{self.des_table_suffix}"
+        self.ext_tb_stream_des_table = f"{self.ext_tb_name}{self.des_table_suffix}"
         self.date_time = self.genTs(precision=self.precision)[0]
 
         self.screateDb(dbname=self.dbname, precision=self.precision)
         if ext_stb:
-            self.screate_stable(dbname=self.dbname, stbname=self.ext_stb_stream_des_table)
-            self.screate_ctable(dbname=self.dbname, stbname=self.ext_stb_stream_des_table, ctbname=self.ext_ctb_stream_des_table)
+            self.screate_stable(
+                dbname=self.dbname, stbname=self.ext_stb_stream_des_table
+            )
+            self.screate_ctable(
+                dbname=self.dbname,
+                stbname=self.ext_stb_stream_des_table,
+                ctbname=self.ext_ctb_stream_des_table,
+            )
             self.screate_table(dbname=self.dbname, tbname=self.ext_tb_stream_des_table)
         self.screate_stable(dbname=self.dbname, stbname=self.stb_name)
-        self.screate_ctable(dbname=self.dbname, stbname=self.stb_name, ctbname=self.ctb_name)
+        self.screate_ctable(
+            dbname=self.dbname, stbname=self.stb_name, ctbname=self.ctb_name
+        )
         self.screate_table(dbname=self.dbname, tbname=self.tb_name)
         if fill_history_value == 1:
             for i in range(self.range_count):
-                ts_value = str(self.date_time)+f'-{self.default_interval*(i+1)}s'
-                self.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value, custom_col_index=custom_col_index, col_value_type=col_value_type)
-                self.sinsert_rows(tbname=self.tb_name, ts_value=ts_value, custom_col_index=custom_col_index, col_value_type=col_value_type)
+                ts_value = str(self.date_time) + f"-{self.default_interval * (i + 1)}s"
+                self.sinsert_rows(
+                    tbname=self.ctb_name,
+                    ts_value=ts_value,
+                    custom_col_index=custom_col_index,
+                    col_value_type=col_value_type,
+                )
+                self.sinsert_rows(
+                    tbname=self.tb_name,
+                    ts_value=ts_value,
+                    custom_col_index=custom_col_index,
+                    col_value_type=col_value_type,
+                )
                 if i == 1:
                     self.record_history_ts = ts_value
 
@@ -2240,7 +2969,7 @@ class TDCom:
         self.query_result_file = f"./{test_case}.{idx}.csv"
         cfgPath = self.getClientCfgPath()
         taosCmd = f"taos -c {cfgPath} -s '{sql}' | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}  "
-        #print(f"taosCmd:{taosCmd}, currentPath:{os.getcwd()}")
+        # print(f"taosCmd:{taosCmd}, currentPath:{os.getcwd()}")
         os.system(taosCmd)
         return self.query_result_file
 
@@ -2250,7 +2979,7 @@ class TDCom:
         else:
             cfgPath = self.getClientCfgPath()
             tdLog.info(f"Executing query file: {inputfile}")
-            if platform.system().lower() == 'windows':
+            if platform.system().lower() == "windows":
                 os.system(f"taos -c {cfgPath} -f {inputfile} > nul 2>&1")
             else:
                 os.system(f"taos -c {cfgPath} -f {inputfile} > /dev/null 2>&1")
@@ -2261,16 +2990,23 @@ class TDCom:
         else:
             self.query_result_file = f"./temp_{test_case}.result"
             cfgPath = self.getClientCfgPath()
-            tdLog.info(f"Generating query result file: {self.query_result_file} using input file: {inputfile}")
-            if platform.system().lower() == 'windows':
+            tdLog.info(
+                f"Generating query result file: {self.query_result_file} using input file: {inputfile}"
+            )
+            if platform.system().lower() == "windows":
                 # 过滤 taos> 行
-                os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}.raw ")
+                os.system(
+                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}.raw "
+                )
                 time.sleep(1)
-                with open(f"{self.query_result_file}.raw", "r", encoding="utf-8") as fin, open(self.query_result_file, "w", encoding="utf-8") as fout:
+                with (
+                    open(f"{self.query_result_file}.raw", "r", encoding="utf-8") as fin,
+                    open(self.query_result_file, "w", encoding="utf-8") as fout,
+                ):
                     for line in fin:
                         stripped = line.rstrip()
                         # 跳过整行是 taos> 或 taos> 后全是空白的行
-                        if re.match(r'^taos>\s*$', stripped):
+                        if re.match(r"^taos>\s*$", stripped):
                             continue
                         # taos> 开头的行去除行尾空白
                         if stripped.startswith("taos>"):
@@ -2279,25 +3015,34 @@ class TDCom:
                             fout.write(line)
                 os.system(f"rm -f {self.query_result_file}.raw")
             else:
-                os.system(f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\.[0-9]\+s)//g' | sed 's/cost=[0-9]\+\.[0-9]\+\.\.[0-9]\+\.[0-9]\+//g' | sed 's/Planning Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/Execution Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/max_row_task=[0-9]\+, //g' > {self.query_result_file}")
+                os.system(
+                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\.[0-9]\+s)//g' | sed 's/cost=[0-9]\+\.[0-9]\+\.\.[0-9]\+\.[0-9]\+//g' | sed 's/Planning Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/Execution Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/max_row_task=[0-9]\+, //g' > {self.query_result_file}"
+                )
             return self.query_result_file
 
     def compare_result_files(self, file1, file2):
-
         try:
             # use subprocess.run to execute  diff/fc commands
-            #print(file1, file2)
-            if platform.system().lower() != 'windows':
-                cmd='diff'
+            # print(file1, file2)
+            if platform.system().lower() != "windows":
+                cmd = "diff"
                 tdLog.info(f"cmd: {cmd} -u --color {file1} {file2}")
-                result = subprocess.run([cmd, "-u", "--color", file1, file2], text=True, capture_output=True)
+                result = subprocess.run(
+                    [cmd, "-u", "--color", file1, file2], text=True, capture_output=True
+                )
                 tdLog.info(f"result: {result}")
             else:
-                cmd='fc'
+                cmd = "fc"
                 file1 = os.path.abspath(os.path.normpath(file1))
                 file2 = os.path.abspath(os.path.normpath(file2))
                 # /W 参数忽略结尾空格和空白字符
-                result = subprocess.run([cmd, "/W", file1, file2], text=True, capture_output=True, encoding="utf-8", errors="ignore")
+                result = subprocess.run(
+                    [cmd, "/W", file1, file2],
+                    text=True,
+                    capture_output=True,
+                    encoding="utf-8",
+                    errors="ignore",
+                )
                 # Windows: 只要 returncode==0 就认为一致
                 if result.returncode == 0:
                     return True
@@ -2317,7 +3062,9 @@ class TDCom:
             else:
                 return True
         except FileNotFoundError:
-            tdLog.debug("The 'diff' command is not found. Please make sure it's installed and available in your PATH.")
+            tdLog.debug(
+                "The 'diff' command is not found. Please make sure it's installed and available in your PATH."
+            )
         except Exception as e:
             tdLog.debug(f"An error occurred: {e}")
 
@@ -2325,27 +3072,30 @@ class TDCom:
         self.generate_query_result_file(test_case, idx, sql)
         if self.compare_result_files(resultFile, self.query_result_file):
             tdLog.info("Test passed: Result files are identical.")
-            #os.system(f"rm -f {self.query_result_file}")
+            # os.system(f"rm -f {self.query_result_file}")
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            tdLog.exit(f"{caller.lineno}(line:{caller.lineno}) failed: expect_file:{resultFile}  != reult_file:{self.query_result_file} ")
+            tdLog.exit(
+                f"{caller.lineno}(line:{caller.lineno}) failed: expect_file:{resultFile}  != reult_file:{self.query_result_file} "
+            )
 
+    def compare_testcase_result(self, inputfile, expected_file, test_case):
+        test_reulst_file = self.generate_query_result(inputfile, test_case)
 
-    def compare_testcase_result(self, inputfile,expected_file,test_case):
-        test_reulst_file = self.generate_query_result(inputfile,test_case)
-
-        if self.compare_result_files(expected_file, test_reulst_file ):
+        if self.compare_result_files(expected_file, test_reulst_file):
             tdLog.info("Test passed: Result files are identical.")
             os.system(f"rm -f {test_reulst_file}")
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            tdLog.exit(f"{caller.lineno}(line:{caller.lineno}) failed: sqlfile is {inputfile}, expect_file:{expected_file}  != reult_file:{test_reulst_file} ")
+            tdLog.exit(
+                f"{caller.lineno}(line:{caller.lineno}) failed: sqlfile is {inputfile}, expect_file:{expected_file}  != reult_file:{test_reulst_file} "
+            )
 
             tdLog.exit("Test failed: Result files are different.")
 
     def get_subtable(self, tbname_pre):
-        tdSql.query(f'show tables')
-        tbname_list = list(map(lambda x:x[0], tdSql.queryResult))
+        tdSql.query(f"show tables")
+        tbname_list = list(map(lambda x: x[0], tdSql.queryResult))
         for tbname in tbname_list:
             if tbname_pre in tbname:
                 return tbname
@@ -2363,10 +3113,10 @@ class TDCom:
         return tbname
 
     def get_group_id_from_stb(self, stbname):
-        tdSql.query(f'select distinct group_id from {stbname}')
+        tdSql.query(f"select distinct group_id from {stbname}")
         cnt = 0
         while len(tdSql.queryResult) == 0:
-            tdSql.query(f'select distinct group_id from {stbname}')
+            tdSql.query(f"select distinct group_id from {stbname}")
             if cnt < self.default_interval:
                 cnt += 1
                 time.sleep(1)
@@ -2374,7 +3124,9 @@ class TDCom:
                 return False
         return tdSql.queryResult[0][0]
 
-    def update_json_file_replica(self, json_file_path, new_replica_value, output_file_path=None):
+    def update_json_file_replica(
+        self, json_file_path, new_replica_value, output_file_path=None
+    ):
         """
         Read a JSON file, update the 'replica' value, and write the result back to a file.
 
@@ -2389,13 +3141,13 @@ class TDCom:
         """
         try:
             # Read the JSON file and load its content into a Python dictionary
-            with open(json_file_path, 'r', encoding='utf-8') as file:
+            with open(json_file_path, "r", encoding="utf-8") as file:
                 data = json.load(file)
 
             # Iterate over each item in the 'databases' list to find 'dbinfo' and update 'replica'
-            for db in data['databases']:
-                if 'dbinfo' in db:
-                    db['dbinfo']['replica'] = new_replica_value
+            for db in data["databases"]:
+                if "dbinfo" in db:
+                    db["dbinfo"]["replica"] = new_replica_value
 
             # Convert the updated dictionary back into a JSON string with indentation for readability
             updated_json_str = json.dumps(data, indent=4, ensure_ascii=False)
@@ -2403,11 +3155,11 @@ class TDCom:
             # Write the updated JSON string to a file
             if output_file_path:
                 # If an output file path is provided, write to the new file
-                with open(output_file_path, 'w', encoding='utf-8') as output_file:
+                with open(output_file_path, "w", encoding="utf-8") as output_file:
                     output_file.write(updated_json_str)
             else:
                 # Otherwise, overwrite the original file with the updated content
-                with open(json_file_path, 'w', encoding='utf-8') as file:
+                with open(json_file_path, "w", encoding="utf-8") as file:
                     file.write(updated_json_str)
 
         except json.JSONDecodeError as e:
@@ -2427,12 +3179,15 @@ class TDCom:
         count = 0
         while count < timeout:
             result = td_sql.query("show transactions;")
-            if result == 0 :
+            if result == 0:
                 tdLog.info("transaction count became zero.")
                 return True
             time.sleep(1)
             count += 1
-        tdLog.exit(f"Timeout after {timeout} seconds waiting for transaction count to become zero.")
+        tdLog.exit(
+            f"Timeout after {timeout} seconds waiting for transaction count to become zero."
+        )
+
 
 def is_json(msg):
     if isinstance(msg, str):
@@ -2444,30 +3199,33 @@ def is_json(msg):
     else:
         return False
 
+
 def get_path(tool="taosd"):
     return binFile(tool)
-    #selfPath = os.path.dirname(os.path.realpath(__file__))
-    #if ("community" in selfPath):
+    # selfPath = os.path.dirname(os.path.realpath(__file__))
+    # if ("community" in selfPath):
     #    projPath = selfPath[:selfPath.find("community")]
-    #else:
+    # else:
     #    projPath = selfPath[:selfPath.find("tests")]
 
-    #paths = []
-    #for root, dirs, files in os.walk(projPath):
+    # paths = []
+    # for root, dirs, files in os.walk(projPath):
     #    if ((tool) in files or ("%s.exe"%tool) in files):
     #        rootRealPath = os.path.dirname(os.path.realpath(root))
     #        if ("packaging" not in rootRealPath):
     #            paths.append(os.path.join(root, tool))
     #            break
-    #if (len(paths) == 0):
+    # if (len(paths) == 0):
     #        return ""
-    #return paths[0]
+    # return paths[0]
 
-def dict2toml(in_dict: dict, file:str):
+
+def dict2toml(in_dict: dict, file: str):
     if not isinstance(in_dict, dict):
         return ""
-    with open(file, 'w') as f:
+    with open(file, "w") as f:
         toml.dump(in_dict, f)
+
 
 def is_json(msg):
     if isinstance(msg, str):
@@ -2478,5 +3236,6 @@ def is_json(msg):
             return False
     else:
         return False
+
 
 tdCom = TDCom()
