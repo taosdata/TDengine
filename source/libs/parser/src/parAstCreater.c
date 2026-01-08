@@ -4592,7 +4592,7 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
     return false;
   }
 
-  if (opts->hasAllowTokenNum && (opts->allowTokenNum < -1 || opts->allowTokenNum == 0)) {
+  if (opts->hasAllowTokenNum && opts->allowTokenNum < -1) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "ALLOW_TOKEN_NUM");
     return false;
   }
