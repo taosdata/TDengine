@@ -400,6 +400,11 @@ class TestJoinFull:
         )
         tdSql.checkRows(4)
 
+        tdSql.query(
+            f"SELECT * FROM (SELECT TODAY() AS ts ) as a join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b on a.ts = b.ts;"
+        )
+        tdSql.checkRows(0)
+
     def left_join(self):
         tdSql.execute(f"use test0;")
 
@@ -526,6 +531,11 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2)
 
+        tdSql.query(
+            f"SELECT * FROM (SELECT TODAY() AS ts ) as a left join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b on a.ts = b.ts;"
+        )
+        tdSql.checkRows(1)
+
     def right_join(self):
         tdSql.execute(f"use test0;")
 
@@ -609,6 +619,11 @@ class TestJoinFull:
         tdSql.query(f"select count(b.*) from tba1 a right join tba2 b on a.ts=b.ts;")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 4)
+
+        tdSql.query(
+            f"SELECT * FROM (SELECT TODAY() AS ts ) as a right join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b on a.ts = b.ts;"
+        )
+        tdSql.checkRows(0)
 
     def full_join(self):
         tdSql.execute(f"use test0;")
@@ -729,6 +744,11 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 4)
 
+        tdSql.query(
+            f"SELECT * FROM (SELECT TODAY() AS ts ) as a full join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b on a.ts = b.ts;"
+        )
+        tdSql.checkRows(1)
+
     def left_semi_join(self):
         tdSql.execute(f"use test0;")
 
@@ -819,6 +839,11 @@ class TestJoinFull:
             f"select a.ts, b.ts from sta a left semi join sta b on a.ts > 1 where a.ts = b.ts;"
         )
 
+        tdSql.query(
+            f"SELECT * FROM (SELECT TODAY() AS ts ) as a left semi join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b on a.ts = b.ts;"
+        )
+        tdSql.checkRows(0)
+
     def right_semi_join(self):
         tdSql.execute(f"use test0;")
 
@@ -862,6 +887,11 @@ class TestJoinFull:
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(1, 0, 5)
         tdSql.checkData(1, 1, 4)
+
+        tdSql.query(
+            f"SELECT * FROM (SELECT TODAY() AS ts ) as a right semi join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b on a.ts = b.ts;"
+        )
+        tdSql.checkRows(0)
 
     def left_anti_join(self):
         tdSql.execute(f"use test0;")
@@ -959,6 +989,11 @@ class TestJoinFull:
         tdSql.checkData(3, 0, "2023-11-17 16:29:03")
         tdSql.checkData(3, 1, None)
 
+        tdSql.query(
+            f"SELECT * FROM (SELECT TODAY() AS ts ) as a left anti join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b on a.ts = b.ts;"
+        )
+        tdSql.checkRows(1)
+
     def right_anti_join(self):
         tdSql.execute(f"use test0;")
 
@@ -1011,6 +1046,11 @@ class TestJoinFull:
         tdSql.checkData(0, 1, 3)
         tdSql.checkData(1, 0, None)
         tdSql.checkData(1, 1, 5)
+
+        tdSql.query(
+            f"SELECT * FROM (SELECT TODAY() AS ts ) as a right anti join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b on a.ts = b.ts;"
+        )
+        tdSql.checkRows(0)
 
     def left_asof_join(self):
         tdSql.execute(f"use test0;")
@@ -1636,6 +1676,10 @@ class TestJoinFull:
         )
         tdSql.error(f"select a.ts, b.ts from tba1 a left asof join tba2 b jlimit 1025;")
 
+        tdSql.error(
+            f"SELECT * FROM (SELECT TODAY() AS ts ) as a left asof join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b on a.ts = b.ts;"
+        )
+
     def right_asof_join(self):
         tdSql.execute(f"use test0;")
 
@@ -1857,6 +1901,10 @@ class TestJoinFull:
         tdSql.checkData(4, 1, "2023-11-17 16:29:03")
         tdSql.checkData(5, 0, None)
         tdSql.checkData(5, 1, "2023-11-17 16:29:05")
+
+        tdSql.error(
+            f"SELECT * FROM (SELECT TODAY() AS ts ) as a right asof join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b on a.ts = b.ts;"
+        )
 
     def left_win_join(self):
         tdSql.execute(f"use test0;")
@@ -2388,6 +2436,9 @@ class TestJoinFull:
         tdSql.error(
             f"select a.ts, b.ts from tba1 a left window join tba2 b window_offset(-10a, 1a) jlimit 1025;"
         )
+        tdSql.error(
+            f"SELECT * FROM (SELECT TODAY() AS ts ) as a left window join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b window_offset(-1s, 1s);"
+        )
 
     def right_win_join(self):
         tdSql.execute(f"use test0;")
@@ -2535,6 +2586,9 @@ class TestJoinFull:
             f"select a.ts, b.ts from tba1 a right window join tba2 b window_offset(1a, -1h);"
         )
         tdSql.checkRows(9)
+        tdSql.error(
+            f"SELECT * FROM (SELECT TODAY() AS ts ) as a right window join (SELECT TODAY() AS ts FROM test0.tba1 WHERE ts >= TODAY() AND ts < TODAY() + 1d ) as b window_offset(-1s, 1s);"
+        )
 
     def join_scalar1(self):
         tdSql.execute(f"use test0;")
