@@ -5,10 +5,12 @@ import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
+import com.taosdata.config.TaskConfig;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.netty.client.NettyClient;
 import com.taosdata.utils.DateUtils;
+import com.taosdata.utils.TableNameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +49,8 @@ public class PushPrepareThread implements Runnable {
      * 连接等待次数
      */
     private int connectWaitCount = 0;
+
+    private TaskConfig taskConfig = ApplicationContextProvider.getBean(TaskConfig.class);
 
     @Override
     public void run() {
@@ -202,7 +206,8 @@ public class PushPrepareThread implements Runnable {
 
     /**
      * 根据Measurement与Tags生成表名并替换
-     *
+     * 支持通过 tableNamePattern 配置来自定义子表名称格式
+     * 例如：tableNamePattern = "tb_${cpu.util}_${test1}"
      * @param influxdbBucketDataEntity
      */
     private void generateTableName(InfluxdbBucketDataEntity influxdbBucketDataEntity) {
@@ -210,18 +215,11 @@ public class PushPrepareThread implements Runnable {
         String measurement = influxdbBucketDataEntity.getMeasurement();
         // Tags
         Map<String, Object> tags = influxdbBucketDataEntity.getTags();
-        // 判断tags是否存在
-        if (tags == null || tags.isEmpty()) {
-            // 仅拼接下划线
-            influxdbBucketDataEntity.setTable(measurement + "_");
-        } else {
-            // 拼接Measurement
-            String tableName = measurement;
-            // 遍历拼接
-            for (Object tag : tags.values()) {
-                tableName += "_" + tag;
-            }
-            influxdbBucketDataEntity.setTable(tableName);
-        }
+        // 获取表名模板
+        String tableNamePattern = taskConfig.getTableNamePattern();
+        // 使用工具类生成表名
+        String tableName = TableNameUtils.generateTableName(tableNamePattern, measurement, tags);
+        // 设置表名
+        influxdbBucketDataEntity.setTable(tableName);
     }
 }

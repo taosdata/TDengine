@@ -4,7 +4,10 @@ use itertools::Itertools;
 use serde::Serialize;
 use taos::Dsn;
 
-use taosx_core::{runners::config::PerformanceConfig, utils::dsn::parse_simple_params};
+use taosx_core::{
+    runners::config::PerformanceConfig,
+    utils::{dsn::parse_simple_params, parse_key_in_dsn},
+};
 
 pub const INFLUXDB_V1: [&str; 2] = ["1.7", "1.8"];
 pub const INFLUXDB_V2: [&str; 8] = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7"];
@@ -211,6 +214,8 @@ struct TaskConfig {
     log_level: Option<String>,
     #[serde(rename = "assignmentType")]
     read_concurrency_type: ReadConcurrencyType,
+    #[serde(rename = "tableNamePattern")]
+    table_name_pattern: Option<String>,
 }
 
 impl TaskConfig {
@@ -233,6 +238,7 @@ impl TaskConfig {
             log_level: parse_simple_params(dsn, "log_level")?,
             read_concurrency_type: parse_simple_params(dsn, "read_concurrency_type")?
                 .unwrap_or(ReadConcurrencyType::Sequence),
+            table_name_pattern: parse_key_in_dsn(dsn, "tableNamePattern")?,
         })
     }
 }
