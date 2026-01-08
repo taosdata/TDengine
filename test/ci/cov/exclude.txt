@@ -24,8 +24,6 @@
 /home/TDinternal/community/source/common/src/msg/tmsg.c
 /home/TDinternal/community/source/common/src/tglobal.c
 /home/TDinternal/community/source/dnode/vnode/src/tsdb/tsdbRead2.c
-
-
 /home/TDinternal/community/source/dnode/vnode/src/vnd/vnodeStream.c
 /home/TDinternal/community/source/libs/new-stream/src/streamTriggerTask.c
 /home/TDinternal/community/source/libs/nodes/src/nodesMsgFuncs.c

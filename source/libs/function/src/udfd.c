@@ -740,12 +740,19 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     }
     uv_mutex_unlock(&udf->lock);
   }
-  SUdfcFuncHandle *handle = taosMemoryMalloc(sizeof(SUdfcFuncHandle));
-  if(handle == NULL) {
-    fnError("udfdProcessSetupRequest: malloc failed.");
-    code = terrno;
+
+  SUdfcFuncHandle *handle = NULL;
+  if (!code) {
+    handle = taosMemoryMalloc(sizeof(SUdfcFuncHandle));
+    if (handle == NULL) {
+      fnError("udfdProcessSetupRequest: malloc failed.");
+      code = terrno;
+    } else {
+      handle->udf = udf;
+    }
+  } else {
+    --udf->refCount;
   }
-  handle->udf = udf;
 
 _send:
   ;
