@@ -1222,7 +1222,8 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   }
 
   // TDengine IDMP params
-  GRANT_VALUE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_BASIC], gStatus.idmpBasicExpireSec, 86400, taDftExpireSec);
+  GRANT_EXPIRE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_BASIC], gStatus.idmpBasicExpireSec, 86400, taDftExpireSec,
+                       grantHandle.showIdmpOpts[GRANT_OPT_IDMP_BASIC]);
   GRANT_VALUE_CONVERT(grantObj.idmpLimitTsAttributes, gStatus.idmpLimitTsAttributes, 1,
                       GRANT_UNIQ_DFT_IDMP_TS_ATTRIBUTES);
   GRANT_VALUE_CONVERT(grantObj.idmpLimitNonTsAttributes, gStatus.idmpLimitNonTsAttributes, 1,
@@ -1231,16 +1232,16 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
   GRANT_VALUE_CONVERT(grantObj.idmpLimitServers, gStatus.idmpLimitServers, 1, GRANT_UNIQ_DFT_IDMP_SERVERS);
   GRANT_VALUE_CONVERT(grantObj.idmpLimitCpuCores, gStatus.idmpLimitCpuCores, 1, GRANT_UNIQ_DFT_IDMP_CPU_CORES);
   GRANT_VALUE_CONVERT(grantObj.idmpLimitUsers, gStatus.idmpLimitUsers, 1, GRANT_UNIQ_DFT_IDMP_USERS);
-  GRANT_VALUE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_VERSION_CTRL], gStatus.idmpVersionCtrlExpireSec, 86400,
-                      verCtrlDftExpireSec);
-  GRANT_VALUE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_DATA_FORECAST], gStatus.idmpDataForecastExpireSec, 86400,
-                      forecastDftExpireSec);
-  GRANT_VALUE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_DATA_DETECT], gStatus.idmpDataDetectExpireSec, 86400,
-                      detectDftExpireSec);
-  GRANT_VALUE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_DATA_QUALITY], gStatus.idmpDataQualityExpireSec, 86400,
-                      qualityDftExpireSec);
-  GRANT_VALUE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_AI_CHAT_GEN], gStatus.idmpAiChatGenExpireSec, 86400,
-                      aiChatGenDftExpireSec);
+  GRANT_EXPIRE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_VERSION_CTRL], gStatus.idmpVersionCtrlExpireSec, 86400,
+                       verCtrlDftExpireSec, grantHandle.showIdmpOpts[GRANT_OPT_IDMP_VERSION_CTRL]);
+  GRANT_EXPIRE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_DATA_FORECAST], gStatus.idmpDataForecastExpireSec, 86400,
+                       forecastDftExpireSec, grantHandle.showIdmpOpts[GRANT_OPT_IDMP_DATA_FORECAST]);
+  GRANT_EXPIRE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_DATA_DETECT], gStatus.idmpDataDetectExpireSec, 86400,
+                       detectDftExpireSec, grantHandle.showIdmpOpts[GRANT_OPT_IDMP_DATA_DETECT]);
+  GRANT_EXPIRE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_DATA_QUALITY], gStatus.idmpDataQualityExpireSec, 86400,
+                       qualityDftExpireSec, grantHandle.showIdmpOpts[GRANT_OPT_IDMP_DATA_QUALITY]);
+  GRANT_EXPIRE_CONVERT(grantObj.idmpExpireDays[GRANT_OPT_IDMP_AI_CHAT_GEN], gStatus.idmpAiChatGenExpireSec, 86400,
+                       aiChatGenDftExpireSec, grantHandle.showIdmpOpts[GRANT_OPT_IDMP_AI_CHAT_GEN]);
 
   // add rwlock since retrieve would access simultaneously
   taosWLockLatch(&grantHandle.rwLock);
@@ -2042,7 +2043,8 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
 
     // TDengine IDMP grant items
     {
-      gStatus.idmpBasicExpireSec = grantSecFromExpireDay(baseSeconds, GRANT_UNIQ_DFT_IDMP_BASIC_EXPIRE_DAY);
+      GRANT_IDMP_OPT_EXPIRE_ASSIGN(gStatus.idmpBasicExpireSec, GRANT_OPT_IDMP_BASIC,
+                                   grantSecFromExpireDay(baseSeconds, GRANT_UNIQ_DFT_IDMP_BASIC_EXPIRE_DAY));
       GRANT_IDMP_OPT_EXPIRE_ASSIGN(gStatus.idmpVersionCtrlExpireSec, GRANT_OPT_IDMP_VERSION_CTRL,
                                    grantSecFromExpireDay(baseSeconds, GRANT_UNIQ_DFT_IDMP_VERSION_CTRL_EXPIRE));
       GRANT_IDMP_OPT_EXPIRE_ASSIGN(gStatus.idmpDataForecastExpireSec, GRANT_OPT_IDMP_DATA_FORECAST,
