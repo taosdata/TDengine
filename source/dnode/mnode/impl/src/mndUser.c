@@ -31,6 +31,7 @@
 #include "mndToken.h"
 #include "tbase64.h"
 #include "totp.h"
+#include "mndDnode.h"
 
 // clang-format on
 
@@ -2946,6 +2947,43 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail), duration, 0);
   }
 
+  SVAuditRecordReq req = {0};
+  req.data = "test";
+  req.dataLen = strlen("test");
+
+  int32_t reqLen = tSerializeSVAuditRecordReq(NULL, 0, &req);
+  int32_t contLen = reqLen + sizeof(SMsgHead);
+
+  if (contLen <= 0) goto _OVER;
+  SMsgHead *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) goto _OVER;
+
+  pHead->contLen = htonl(contLen);
+  int32_t vgId = 2;  // TODO dmchen
+  pHead->vgId = htonl(vgId);
+  if (tSerializeSVAuditRecordReq((char *)pHead + sizeof(SMsgHead), contLen, &req) <= 0) {
+    rpcFreeCont(pHead);
+    code = -1;
+    goto _OVER;
+  }
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_VND_AUDIT_RECORD, .pCont = pHead, .contLen = contLen};
+
+  int32_t dnodeId = 1;
+  SEpSet  epSet = mndGetDnodeEpsetById(pMnode, dnodeId);  // TODO dmchen
+  if (epSet.numOfEps == 0) {
+    mError("arbgroup:%d, failed to send arb-set-assigned request to dnode:%d since no epSet found", vgId, dnodeId);
+    rpcFreeCont(pHead);
+    code = -1;
+    if (terrno != 0) code = terrno;
+    goto _OVER;
+  }
+  code = tmsgSendReq(&epSet, &rpcMsg);
+  if (code != 0) {
+    mError("arbgroup:%d, failed to send arb-set-assigned request to dnode:%d since 0x%x", vgId, dnodeId, code);
+  } else {
+    mInfo("arbgroup:%d, send arb-set-assigned request to dnode:%d", vgId, dnodeId);
+  }
 _OVER:
   if (code == TSDB_CODE_MND_USER_ALREADY_EXIST && createReq.ignoreExists) {
     code = 0;
