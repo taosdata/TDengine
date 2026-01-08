@@ -8532,13 +8532,17 @@ static int32_t isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pO
   char* tbname = NULL;
   if (pValueNode->placeholderNo != 0) {
     if (NULL == pValueNode->datum.p) {
-      return TSDB_CODE_SUCCESS;
+      taosArrayDestroy(pTabNames);
+      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
     }
     if (IS_VAR_DATA_TYPE(pValueNode->node.resType.type)) {
       tbname = varDataVal(pValueNode->datum.p);
     } else {
-      tbname = pValueNode->literal;
+      taosArrayDestroy(pTabNames);
+      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
     }
+  } else {
+    tbname = pValueNode->literal;
   }
 
   if (NULL == taosArrayPush(pTabNames, &tbname)) {
