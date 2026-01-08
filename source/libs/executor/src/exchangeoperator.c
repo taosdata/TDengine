@@ -1071,6 +1071,8 @@ int32_t buildTableScanOperatorParamBatchInfo(SOperatorParam** ppRes, uint64_t gr
   pScan->window.skey = window->skey;
   pScan->window.ekey = window->ekey;
   pScan->isNewParam = isNewParam;
+  pScan->notifyToProcess = false;
+  pScan->notifyTs = 0;
   (*ppRes)->opType = srcOpType;
   (*ppRes)->downstreamIdx = 0;
   (*ppRes)->value = pScan;
