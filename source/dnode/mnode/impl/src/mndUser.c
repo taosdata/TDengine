@@ -1909,15 +1909,16 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     pUser->sessionPerUser = pUser->superUser ? -1 : TSDB_USER_SESSION_PER_USER_DEFAULT;
     pUser->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
     pUser->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
-    pUser->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
-    pUser->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
-    pUser->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
+    pUser->callPerSession = pUser->superUser ? -1 : TSDB_USER_CALL_PER_SESSION_DEFAULT;
+    pUser->vnodePerCall = pUser->superUser ? -1 : TSDB_USER_VNODE_PER_CALL_DEFAULT;
+    pUser->failedLoginAttempts = pUser->superUser ? -1 : TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
     pUser->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
     pUser->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
+    pUser->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
     pUser->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
     pUser->passwordGraceTime = pUser->superUser ? -1 : TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
     pUser->inactiveAccountTime = pUser->superUser ? -1 : TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
-    pUser->allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+    pUser->allowTokenNum = pUser->superUser ? -1 : TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
     pUser->tokenNum = 0;
     pUser->pTimeWhiteList = taosMemCalloc(1, sizeof(SDateTimeWhiteList));
     if (pUser->pTimeWhiteList == NULL) {
@@ -1965,6 +1966,25 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     SDB_GET_BINARY(pRaw, dataPos, key, extLen, _OVER);
     TAOS_CHECK_GOTO(tDeserializeUserObjExt(key, extLen, pUser), &lino, _OVER);
   }
+
+#ifndef TD_ENTERPRISE
+  // community users cannot modify these fields, and the default values may prevent
+  // the user from logging in, so we set them to different values here.
+  pUser->sessionPerUser = -1;
+  pUser->connectTime = -1;
+  pUser->connectIdleTime = -1;
+  pUser->callPerSession = -1;
+  pUser->vnodePerCall = -1;
+  pUser->failedLoginAttempts = -1;
+  pUser->passwordLifeTime = -1;
+  pUser->passwordReuseTime = 0;
+  pUser->passwordReuseMax = 0;
+  pUser->passwordLockTime = -1;
+  pUser->passwordGraceTime = -1;
+  pUser->inactiveAccountTime = -1;
+  pUser->allowTokenNum = -1;
+  pUser->tokenNum = 0;
+#endif // TD_ENTERPRISE
 
   SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
 
