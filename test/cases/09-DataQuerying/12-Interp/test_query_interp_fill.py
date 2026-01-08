@@ -182,7 +182,7 @@ class TestInterpFill:
         Catalog:
             - Query:Interp
 
-        Since: v3.4.0.0
+        Since: v3.4.1.0
 
         Labels: common,ci
 
@@ -198,16 +198,93 @@ class TestInterpFill:
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
-    def test_interp_fill_ignore_null_stream(self):
+    def test_interp_fill_ignore_null_scan(self):
+        """Interp query fill with non-null values in scan
+
+        1. testing interp query filling nulls with non-null values
+        2. testing PREV and NEXT scan stop at non-null values
+
+        Catalog:
+            - Scan:Interp
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-12-22 Tony Zhang created
+
+        """
+        tdSql.execute("alter dnode 1 'qDebugFlag 141'")
+        tdSql.execute("use test")
+        tdSql.execute("create table test.ntb1(ts timestamp, c1 int)")
+        start = 1_766_000_000_000  # 2025-12-18 03:33:20
+        step = 1000                # 1 second
+        size = 10000               # 10000 rows
+        # insert enough rows into ntb1
+        for ts in range(start, start + size * step, 1 * step):
+            tdSql.execute(f"insert into ntb1 values ({ts}, {ts % 10000})")
+        
+        mid = start + size / 2 * step  # 1_766_005_000_000, 2025-12-18 04:56:40
+        end = start + size * step      # 1_766_010_000_000, 2025-12-18 06:20:00
+        # this query will generate only 1 NEXT scan datablock
+        tdSql.execute(f"select _irowts, interp(c1, 1) from ntb1 range({start} - 500a) fill(linear)")
+        # this query will generate 1 PREV scan and 1 NEXT scan datablock
+        tdSql.execute(f"select _irowts, interp(c1, 1) from ntb1 range({mid} + 500a) fill(linear)")
+        # this query will generate only 1 PREV scan datablock
+        tdSql.execute(f"select _irowts, interp(c1, 1) from ntb1 range({end} + 500a) fill(linear)")
+
+        tdSql.execute("alter dnode 1 'qDebugFlag 135'")
+        assert findTaosdLog("DEBUG.*doTimesliceNext") == 1+2+1, "should have 4 doTimesliceNext logs"
+
+        # insert more null rows into ntb1
+        start = end  # 1_766_010_000_000, 2025-12-18 06:20:00
+        for ts in range(start, start + size * step, 1 * step):
+            tdSql.execute(f"insert into ntb1 values ({ts}, NULL)")
+        
+        mid = start + size / 2 * step  # 1_766_015_000_000, 2025-12-18 07:43:20
+        end = start + size * step      # 1_766_020_000_000, 2025-12-18 09:06:40
+        tdSql.execute(f"insert into ntb1 values ({start}, 77777)")
+        tdSql.execute(f"insert into ntb1 values ({end}, 88888)")
+
+        tdSql.query(f"""select cast(_irowts as bigint), interp(c1, 1),
+                cast(_irowts_origin as bigint), _isfilled
+                from ntb1 range({mid}) fill(prev)""")
+        tdSql.checkData(0, 0, mid)
+        tdSql.checkData(0, 1, 77777)
+        tdSql.checkData(0, 2, start)
+        tdSql.checkData(0, 3, True)
+        tdSql.query(f"""select cast(_irowts as bigint), interp(c1, 1),
+                cast(_irowts_origin as bigint), _isfilled
+                from ntb1 range({mid}) fill(next)""")
+        tdSql.checkData(0, 0, mid)
+        tdSql.checkData(0, 1, 88888)
+        tdSql.checkData(0, 2, end)
+        tdSql.checkData(0, 3, True)
+        tdSql.query(f"""select cast(_irowts as bigint), interp(c1, 1),
+                cast(_irowts_origin as bigint), _isfilled
+                from ntb1 range({mid}) fill(near)""")
+        tdSql.checkData(0, 0, mid)
+        tdSql.checkData(0, 1, 77777)
+        tdSql.checkData(0, 2, start)
+        tdSql.checkData(0, 3, True)
+        tdSql.query(f"""select cast(_irowts as bigint), interp(c1, 1)
+                from ntb1 range({mid}) fill(linear)""")
+        tdSql.checkData(0, 0, mid)
+        tdSql.checkData(0, 1, 83332)
+
+    def test_interp_fill_ignore_null_stream_basic(self):
         """Interp query fill with non-null values in stream
 
-        1. testing fill(prev/next/near/linear) filling nulls
-           with non-null values in stream
+        - testing fill(prev/next/near/linear) filling nulls
+          with non-null values in stream
+        - using simple data in ntb table to test computing results. ntb
+          just has 8 rows of data
 
         Catalog:
             - Stream:Interp
 
-        Since: v3.4.0.0
+        Since: v3.4.1.0
 
         Labels: common,ci
 
@@ -320,81 +397,6 @@ class TestInterpFill:
         # check results
         for s in streams:
             s.checkResults()
-
-    def test_interp_fill_ignore_null_scan(self):
-        """Interp query fill with non-null values in scan
-
-        1. testing interp query filling nulls with non-null values
-        2. testing PREV and NEXT scan stop at non-null values
-
-        Catalog:
-            - Scan:Interp
-
-        Since: v3.4.0.0
-
-        Labels: common,ci
-
-        History:
-            - 2025-12-22 Tony Zhang created
-
-        """
-        tdSql.execute("alter dnode 1 'qDebugFlag 141'")
-        tdSql.execute("use test")
-        tdSql.execute("create table ntb1(ts timestamp, c1 int)")
-        start = 1766_000_000_000
-        step = 1000
-        size = 10000
-        # insert enough rows into ntb1
-        for ts in range(start, start + size * step, 1 * step):
-            tdSql.execute(f"insert into ntb1 values ({ts}, {ts % 10000})")
-        
-        mid = start + size / 2 * step
-        end = start + size * step
-        # this query will generate only 1 next scan datablock
-        tdSql.execute(f"select _irowts, interp(c1, 1) from ntb1 range({start} - 500a) fill(linear)")
-        # this query will generate 1 prev scan and 1 next scan datablock
-        tdSql.execute(f"select _irowts, interp(c1, 1) from ntb1 range({mid} + 500a) fill(linear)")
-        # this query will generate only 1 prev scan datablock
-        tdSql.execute(f"select _irowts, interp(c1, 1) from ntb1 range({end} + 500a) fill(linear)")
-
-        tdSql.execute("alter dnode 1 'qDebugFlag 135'")
-        assert findTaosdLog("DEBUG.*doTimesliceNext") == 1+2+1, "should have 4 doTimesliceNext logs"
-
-        # insert more null rows into ntb1
-        start = end
-        for ts in range(start, start + size * step, 1 * step):
-            tdSql.execute(f"insert into ntb1 values ({ts}, NULL)")
-        
-        mid = start + size / 2 * step
-        end = start + size * step
-        tdSql.execute(f"insert into ntb1 values ({start}, 77777)")
-        tdSql.execute(f"insert into ntb1 values ({end}, 88888)")
-
-        tdSql.query(f"""select cast(_irowts as bigint), interp(c1, 1),
-                cast(_irowts_origin as bigint), _isfilled
-                from ntb1 range({mid}) fill(prev)""")
-        tdSql.checkData(0, 0, mid)
-        tdSql.checkData(0, 1, 77777)
-        tdSql.checkData(0, 2, start)
-        tdSql.checkData(0, 3, True)
-        tdSql.query(f"""select cast(_irowts as bigint), interp(c1, 1),
-                cast(_irowts_origin as bigint), _isfilled
-                from ntb1 range({mid}) fill(next)""")
-        tdSql.checkData(0, 0, mid)
-        tdSql.checkData(0, 1, 88888)
-        tdSql.checkData(0, 2, end)
-        tdSql.checkData(0, 3, True)
-        tdSql.query(f"""select cast(_irowts as bigint), interp(c1, 1),
-                cast(_irowts_origin as bigint), _isfilled
-                from ntb1 range({mid}) fill(near)""")
-        tdSql.checkData(0, 0, mid)
-        tdSql.checkData(0, 1, 77777)
-        tdSql.checkData(0, 2, start)
-        tdSql.checkData(0, 3, True)
-        tdSql.query(f"""select cast(_irowts as bigint), interp(c1, 1)
-                from ntb1 range({mid}) fill(linear)""")
-        tdSql.checkData(0, 0, mid)
-        tdSql.checkData(0, 1, 83332)
 
     def check_s0(self):
         tdSql.checkResultsByFunc(
@@ -862,6 +864,372 @@ class TestInterpFill:
             and tdSql.compareData(22, 1, 3)
         )
 
+    def test_interp_fill_ignore_null_stream_advanced(self):
+        """Interp query fill with non-null values in stream
+
+        - testing fill(prev/next/near/linear) filling nulls
+          with non-null values in stream
+        - using advanced data in table ntb1 to test computing results. ntb1
+          has 20000 rows of data and last 10000 rows are null, thus notify
+          message is needed to notify the scan operator in stream runner
+
+        Catalog:
+            - Stream:Interp
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-01-08 Tony Zhang created
+
+        """
+        tdSql.execute("use test")
+        tdSql.execute("create table trigger_table1(ts timestamp, c1 int)")
+
+        streams: list[StreamItem] = []
+
+        stream: StreamItem = StreamItem(
+            id=8,
+            stream="""create stream s8 state_window(c1, 1) from trigger_table1
+                into r8 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1, 1) from ntb1 range(_twstart+1s) fill(prev)""",
+            check_func=self.check_s8
+        )
+        streams.append(stream)
+
+        stream: StreamItem = StreamItem(
+            id=9,
+            stream="""create stream s9 state_window(c1, 1) from trigger_table1
+                into r9 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1, 1) from ntb1 range(_twstart+1s) fill(next)""",
+            check_func=self.check_s9
+        )
+        streams.append(stream)
+
+        stream: StreamItem = StreamItem(
+            id=10,
+            stream="""create stream s10 state_window(c1, 0) from trigger_table1
+                into r10 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1, 1) from ntb1 range(_twstart, _twend) every(30s)
+                fill(prev)""",
+            check_func=self.check_s10
+        )
+        streams.append(stream)
+
+        stream: StreamItem = StreamItem(
+            id=11,
+            stream="""create stream s11 state_window(c1, 0) from trigger_table1
+                into r11 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1, 1) from ntb1 range(_twstart, _twend) every(30s)
+                fill(next)""",
+            check_func=self.check_s11
+        )
+        streams.append(stream)
+
+        stream: StreamItem = StreamItem(
+            id=12,
+            stream="""create stream s12 state_window(c1, 0) from trigger_table1
+                into r12 as select _irowts, _isfilled, _irowts_origin,
+                interp(c1, 1) from %%trows range(_twstart, _twend) every(30s)
+                fill(next)""",
+            check_func=self.check_s12
+        )
+        streams.append(stream)
+
+        stream: StreamItem = StreamItem(
+            id=13,
+            stream="""create stream s13 state_window(c1, 0) from trigger_table1
+                into r13 as select _twstart, _irowts, _isfilled, _irowts_origin,
+                interp(c1, 1) from stb range("2025-12-12 12:12:00")
+                fill(near)""",
+            check_func=self.check_s13
+        )
+        streams.append(stream)
+
+        # start streams
+        for s in streams:
+            s.createStream()
+        tdStream.checkStreamStatus()
+
+        start_ts =          1766000000000  # 2025-12-18 03:33:20
+        end_ts_valid_data = 1766010000000  # 2025-12-18 06:20:00
+        end_ts =            1766020000000  # 2025-12-18 09:06:40
+        step = 1000
+        # insert data into trigger_table
+        tdSql.execute(f"""
+            insert into trigger_table1 values 
+            ({start_ts-1*step},          1),
+            ({start_ts},                 1),
+
+            ({start_ts+1*step},          3),
+            ({start_ts+2*step},          3),
+
+            ({end_ts_valid_data-2*step}, 2),
+            ({end_ts_valid_data-1*step}, 2),
+
+            ({end_ts_valid_data},        1),
+            ({end_ts_valid_data+1*step}, 1),
+
+            ({end_ts_valid_data+3*step}, 2),
+            ({end_ts_valid_data+5*step}, 2),
+
+            ({end_ts - 3*step},          1),
+            ({end_ts - 2*step},          1),
+            ({end_ts},                   1),
+
+            ({end_ts+1*step},            2),
+            ({end_ts+2*step},            2),
+
+            ({end_ts+3*step},            1),
+        """)
+
+        # check results
+        for s in streams:
+            s.checkResults()
+
+    def check_s8(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r8",
+            func=lambda: tdSql.getRows() == 7
+            # Row 0: 2025-12-18 03:33:20.000
+            and tdSql.compareData(0, 0, '2025-12-18 03:33:20.000')
+            and tdSql.compareData(0, 1, False)
+            and tdSql.compareData(0, 2, '2025-12-18 03:33:20.000')
+            and tdSql.compareData(0, 3, 0)
+            # Row 1: 2025-12-18 03:33:22.000
+            and tdSql.compareData(1, 0, '2025-12-18 03:33:22.000')
+            and tdSql.compareData(1, 1, False)
+            and tdSql.compareData(1, 2, '2025-12-18 03:33:22.000')
+            and tdSql.compareData(1, 3, 2000)
+            # Row 2: 2025-12-18 06:19:59.000
+            and tdSql.compareData(2, 0, '2025-12-18 06:19:59.000')
+            and tdSql.compareData(2, 1, False)
+            and tdSql.compareData(2, 2, '2025-12-18 06:19:59.000')
+            and tdSql.compareData(2, 3, 9000)
+            # Row 3: 2025-12-18 06:20:01.000
+            and tdSql.compareData(3, 0, '2025-12-18 06:20:01.000')
+            and tdSql.compareData(3, 1, True)
+            and tdSql.compareData(3, 2, '2025-12-18 06:20:00.000')
+            and tdSql.compareData(3, 3, 77777)
+            # Row 4: 2025-12-18 06:20:04.000
+            and tdSql.compareData(4, 0, '2025-12-18 06:20:04.000')
+            and tdSql.compareData(4, 1, True)
+            and tdSql.compareData(4, 2, '2025-12-18 06:20:00.000')
+            and tdSql.compareData(4, 3, 77777)
+            # Row 5: 2025-12-18 09:06:38.000
+            and tdSql.compareData(5, 0, '2025-12-18 09:06:38.000')
+            and tdSql.compareData(5, 1, True)
+            and tdSql.compareData(5, 2, '2025-12-18 06:20:00.000')
+            and tdSql.compareData(5, 3, 77777)
+            # Row 6: 2025-12-18 09:06:42.000
+            and tdSql.compareData(6, 0, '2025-12-18 09:06:42.000')
+            and tdSql.compareData(6, 1, True)
+            and tdSql.compareData(6, 2, '2025-12-18 09:06:40.000')
+            and tdSql.compareData(6, 3, 88888)
+        )
+    
+    def check_s9(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r9",
+            func=lambda: tdSql.getRows() == 6
+            # Row 0
+            and tdSql.compareData(0, 0, '2025-12-18 03:33:20.000')
+            and tdSql.compareData(0, 1, False)
+            and tdSql.compareData(0, 2, '2025-12-18 03:33:20.000')
+            and tdSql.compareData(0, 3, 0)
+            # Row 1
+            and tdSql.compareData(1, 0, '2025-12-18 03:33:22.000')
+            and tdSql.compareData(1, 1, False)
+            and tdSql.compareData(1, 2, '2025-12-18 03:33:22.000')
+            and tdSql.compareData(1, 3, 2000)
+            # Row 2
+            and tdSql.compareData(2, 0, '2025-12-18 06:19:59.000')
+            and tdSql.compareData(2, 1, False)
+            and tdSql.compareData(2, 2, '2025-12-18 06:19:59.000')
+            and tdSql.compareData(2, 3, 9000)
+            # Row 3
+            and tdSql.compareData(3, 0, '2025-12-18 06:20:01.000')
+            and tdSql.compareData(3, 1, True)
+            and tdSql.compareData(3, 2, '2025-12-18 09:06:40.000')
+            and tdSql.compareData(3, 3, 88888)
+            # Row 4
+            and tdSql.compareData(4, 0, '2025-12-18 06:20:04.000')
+            and tdSql.compareData(4, 1, True)
+            and tdSql.compareData(4, 2, '2025-12-18 09:06:40.000')
+            and tdSql.compareData(4, 3, 88888)
+            # Row 5
+            and tdSql.compareData(5, 0, '2025-12-18 09:06:38.000')
+            and tdSql.compareData(5, 1, True)
+            and tdSql.compareData(5, 2, '2025-12-18 09:06:40.000')
+            and tdSql.compareData(5, 3, 88888)
+        )
+
+    def check_s10(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r10",
+            func=lambda: tdSql.getRows() == 6
+            # Row 0: 2025-12-18 03:33:21.000
+            and tdSql.compareData(0, 0, '2025-12-18 03:33:21.000')
+            and tdSql.compareData(0, 1, False)
+            and tdSql.compareData(0, 2, '2025-12-18 03:33:21.000')
+            and tdSql.compareData(0, 3, 1000)
+            # Row 1: 2025-12-18 06:19:58.000
+            and tdSql.compareData(1, 0, '2025-12-18 06:19:58.000')
+            and tdSql.compareData(1, 1, False)
+            and tdSql.compareData(1, 2, '2025-12-18 06:19:58.000')
+            and tdSql.compareData(1, 3, 8000)
+            # Row 2: 2025-12-18 06:20:00.000
+            and tdSql.compareData(2, 0, '2025-12-18 06:20:00.000')
+            and tdSql.compareData(2, 1, False)
+            and tdSql.compareData(2, 2, '2025-12-18 06:20:00.000')
+            and tdSql.compareData(2, 3, 77777)
+            # Row 3: 2025-12-18 06:20:03.000
+            and tdSql.compareData(3, 0, '2025-12-18 06:20:03.000')
+            and tdSql.compareData(3, 1, True)
+            and tdSql.compareData(3, 2, '2025-12-18 06:20:00.000')
+            and tdSql.compareData(3, 3, 77777)
+            # Row 4: 2025-12-18 09:06:37.000
+            and tdSql.compareData(4, 0, '2025-12-18 09:06:37.000')
+            and tdSql.compareData(4, 1, True)
+            and tdSql.compareData(4, 2, '2025-12-18 06:20:00.000')
+            and tdSql.compareData(4, 3, 77777)
+            # Row 5: 2025-12-18 09:06:41.000
+            and tdSql.compareData(5, 0, '2025-12-18 09:06:41.000')
+            and tdSql.compareData(5, 1, True)
+            and tdSql.compareData(5, 2, '2025-12-18 09:06:40.000')
+            and tdSql.compareData(5, 3, 88888)
+        )
+
+    def check_s11(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r11",
+            func=lambda: tdSql.getRows() == 6
+            # Row 0: 2025-12-18 03:33:19.000
+            and tdSql.compareData(0, 0, '2025-12-18 03:33:19.000')
+            and tdSql.compareData(0, 1, True)
+            and tdSql.compareData(0, 2, '2025-12-18 03:33:20.000')
+            and tdSql.compareData(0, 3, 0)
+            # Row 1: 2025-12-18 03:33:21.000
+            and tdSql.compareData(1, 0, '2025-12-18 03:33:21.000')
+            and tdSql.compareData(1, 1, False)
+            and tdSql.compareData(1, 2, '2025-12-18 03:33:21.000')
+            and tdSql.compareData(1, 3, 1000)
+            # Row 2: 2025-12-18 06:19:58.000
+            and tdSql.compareData(2, 0, '2025-12-18 06:19:58.000')
+            and tdSql.compareData(2, 1, False)
+            and tdSql.compareData(2, 2, '2025-12-18 06:19:58.000')
+            and tdSql.compareData(2, 3, 8000)
+            # Row 3: 2025-12-18 06:20:00.000
+            and tdSql.compareData(3, 0, '2025-12-18 06:20:00.000')
+            and tdSql.compareData(3, 1, False)
+            and tdSql.compareData(3, 2, '2025-12-18 06:20:00.000')
+            and tdSql.compareData(3, 3, 77777)
+            # Row 4: 2025-12-18 06:20:03.000
+            and tdSql.compareData(4, 0, '2025-12-18 06:20:03.000')
+            and tdSql.compareData(4, 1, True)
+            and tdSql.compareData(4, 2, '2025-12-18 09:06:40.000')
+            and tdSql.compareData(4, 3, 88888)
+            # Row 5: 2025-12-18 09:06:37.000
+            and tdSql.compareData(5, 0, '2025-12-18 09:06:37.000')
+            and tdSql.compareData(5, 1, True)
+            and tdSql.compareData(5, 2, '2025-12-18 09:06:40.000')
+            and tdSql.compareData(5, 3, 88888)
+        )
+
+    def check_s12(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r12",
+            func=lambda: (
+                tdSql.getRows() == 7
+                # Row 0: 2025-12-18 03:33:19.000
+                and tdSql.compareData(0, 0, '2025-12-18 03:33:19.000')
+                and tdSql.compareData(0, 1, False)
+                and tdSql.compareData(0, 2, '2025-12-18 03:33:19.000')
+                and tdSql.compareData(0, 3, 1)
+                # Row 1: 2025-12-18 03:33:21.000
+                and tdSql.compareData(1, 0, '2025-12-18 03:33:21.000')
+                and tdSql.compareData(1, 1, False)
+                and tdSql.compareData(1, 2, '2025-12-18 03:33:21.000')
+                and tdSql.compareData(1, 3, 3)
+                # Row 2: 2025-12-18 06:19:58.000
+                and tdSql.compareData(2, 0, '2025-12-18 06:19:58.000')
+                and tdSql.compareData(2, 1, False)
+                and tdSql.compareData(2, 2, '2025-12-18 06:19:58.000')
+                and tdSql.compareData(2, 3, 2)
+                # Row 3: 2025-12-18 06:20:00.000
+                and tdSql.compareData(3, 0, '2025-12-18 06:20:00.000')
+                and tdSql.compareData(3, 1, False)
+                and tdSql.compareData(3, 2, '2025-12-18 06:20:00.000')
+                and tdSql.compareData(3, 3, 1)
+                # Row 4: 2025-12-18 06:20:03.000
+                and tdSql.compareData(4, 0, '2025-12-18 06:20:03.000')
+                and tdSql.compareData(4, 1, False)
+                and tdSql.compareData(4, 2, '2025-12-18 06:20:03.000')
+                and tdSql.compareData(4, 3, 2)
+                # Row 5: 2025-12-18 09:06:37.000
+                and tdSql.compareData(5, 0, '2025-12-18 09:06:37.000')
+                and tdSql.compareData(5, 1, False)
+                and tdSql.compareData(5, 2, '2025-12-18 09:06:37.000')
+                and tdSql.compareData(5, 3, 1)
+                # Row 6: 2025-12-18 09:06:41.000
+                and tdSql.compareData(6, 0, '2025-12-18 09:06:41.000')
+                and tdSql.compareData(6, 1, False)
+                and tdSql.compareData(6, 2, '2025-12-18 09:06:41.000')
+                and tdSql.compareData(6, 3, 2)
+            )
+        )
+
+    def check_s13(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from r13",
+            func=lambda: (
+                tdSql.getRows() == 7
+                # Row 0: 2025-12-18 03:33:19.000 | 2025-12-12 12:12:00.000 | true | 2025-12-12 12:11:00.000 | 3
+                and tdSql.compareData(0, 0, '2025-12-18 03:33:19.000')
+                and tdSql.compareData(0, 1, '2025-12-12 12:12:00.000')
+                and tdSql.compareData(0, 2, True)
+                and tdSql.compareData(0, 3, '2025-12-12 12:11:00.000')
+                and tdSql.compareData(0, 4, 3)
+                # Row 1: 2025-12-18 03:33:21.000 | 2025-12-12 12:12:00.000 | true | 2025-12-12 12:11:00.000 | 3
+                and tdSql.compareData(1, 0, '2025-12-18 03:33:21.000')
+                and tdSql.compareData(1, 1, '2025-12-12 12:12:00.000')
+                and tdSql.compareData(1, 2, True)
+                and tdSql.compareData(1, 3, '2025-12-12 12:11:00.000')
+                and tdSql.compareData(1, 4, 3)
+                # Row 2: 2025-12-18 06:19:58.000 | 2025-12-12 12:12:00.000 | true | 2025-12-12 12:11:00.000 | 3
+                and tdSql.compareData(2, 0, '2025-12-18 06:19:58.000')
+                and tdSql.compareData(2, 1, '2025-12-12 12:12:00.000')
+                and tdSql.compareData(2, 2, True)
+                and tdSql.compareData(2, 3, '2025-12-12 12:11:00.000')
+                and tdSql.compareData(2, 4, 3)
+                # Row 3: 2025-12-18 06:20:00.000 | 2025-12-12 12:12:00.000 | true | 2025-12-12 12:11:00.000 | 3
+                and tdSql.compareData(3, 0, '2025-12-18 06:20:00.000')
+                and tdSql.compareData(3, 1, '2025-12-12 12:12:00.000')
+                and tdSql.compareData(3, 2, True)
+                and tdSql.compareData(3, 3, '2025-12-12 12:11:00.000')
+                and tdSql.compareData(3, 4, 3)
+                # Row 4: 2025-12-18 06:20:03.000 | 2025-12-12 12:12:00.000 | true | 2025-12-12 12:11:00.000 | 3
+                and tdSql.compareData(4, 0, '2025-12-18 06:20:03.000')
+                and tdSql.compareData(4, 1, '2025-12-12 12:12:00.000')
+                and tdSql.compareData(4, 2, True)
+                and tdSql.compareData(4, 3, '2025-12-12 12:11:00.000')
+                and tdSql.compareData(4, 4, 3)
+                # Row 5: 2025-12-18 09:06:37.000 | 2025-12-12 12:12:00.000 | true | 2025-12-12 12:11:00.000 | 3
+                and tdSql.compareData(5, 0, '2025-12-18 09:06:37.000')
+                and tdSql.compareData(5, 1, '2025-12-12 12:12:00.000')
+                and tdSql.compareData(5, 2, True)
+                and tdSql.compareData(5, 3, '2025-12-12 12:11:00.000')
+                and tdSql.compareData(5, 4, 3)
+                # Row 6: 2025-12-18 09:06:41.000 | 2025-12-12 12:12:00.000 | true | 2025-12-12 12:11:00.000 | 3
+                and tdSql.compareData(6, 0, '2025-12-18 09:06:41.000')
+                and tdSql.compareData(6, 1, '2025-12-12 12:12:00.000')
+                and tdSql.compareData(6, 2, True)
+                and tdSql.compareData(6, 3, '2025-12-12 12:11:00.000')
+                and tdSql.compareData(6, 4, 3)
+            )
+        )
+
     #
     # ------------------- extend ----------------
     #
@@ -872,6 +1240,7 @@ class TestInterpFill:
         tsql.execute("create database if not exists %s vgroups %d replica %d duration %s" % (
             dbName, vgroups, replica, duration))
         tdLog.debug("complete to create database %s" % (dbName))
+        tsql.execute("use %s" % (dbName))
         return
 
     def create_stable(self, tsql, paraDict):

@@ -65,7 +65,7 @@ static int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code)
 static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex);
 static int32_t getCompletedSources(const SArray* pArray, int32_t* pRes);
 static int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator);
-static int32_t storeNotifyInfo(SOperatorInfo* pOperator);
+static void    storeNotifyInfo(SOperatorInfo* pOperator);
 static int32_t seqLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator);
 static int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock,
@@ -81,8 +81,9 @@ static bool isVstbTagScan(SSourceDataInfo* pDataInfo) { return pDataInfo->type =
 static bool isStbJoinScan(SSourceDataInfo* pDataInfo) { return pDataInfo->type == EX_SRC_TYPE_STB_JOIN_SCAN; }
 
 
-static void streamConcurrentlyLoadRemoteData(SOperatorInfo* pOperator, SExchangeInfo* pExchangeInfo,
-                                           SExecTaskInfo* pTaskInfo) {
+static void streamSequenciallyLoadRemoteData(SOperatorInfo* pOperator,
+                                             SExchangeInfo* pExchangeInfo,
+                                             SExecTaskInfo* pTaskInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   int64_t startTs = taosGetTimestampUs();  
@@ -410,7 +411,7 @@ static SSDataBlock* doLoadRemoteDataImpl(SOperatorInfo* pOperator) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
     } else if (IS_STREAM_MODE(pOperator->pTaskInfo))   {
-      streamConcurrentlyLoadRemoteData(pOperator, pExchangeInfo, pTaskInfo);
+      streamSequenciallyLoadRemoteData(pOperator, pExchangeInfo, pTaskInfo);
     } else {
       concurrentlyLoadRemoteDataImpl(pOperator, pExchangeInfo, pTaskInfo);
     }
@@ -987,6 +988,7 @@ int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
   (*ppRes)->downstreamIdx = 0;
   (*ppRes)->value = pTsParam;
   (*ppRes)->pChildren = NULL;
+  /* param is not reusable when it is transferred by message */
   (*ppRes)->reUse = false;
 
 _return:
@@ -1335,11 +1337,14 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
               return pTaskInfo->code;
             }
           } else {
-            STableScanOperatorParam* pScanParam =
-              (STableScanOperatorParam*)req.pOpParam->value;
-            pScanParam->paramType = HYBRID_TYPE_SCAN_PARAM;
-            pScanParam->notifyToProcess = true;
-            pScanParam->notifyTs = pExchangeInfo->notifyTs;
+            /**
+              Currently don't support use the same param for multiple times!
+            */
+            qError("%s, %s failed, currently don't support use the same param "
+                   "for multiple times!", GET_TASKID(pTaskInfo), __func__);
+            pTaskInfo->code = TSDB_CODE_INVALID_PARA;
+            taosMemoryFree(pWrapper);
+            return pTaskInfo->code;
           }
           pExchangeInfo->notifyToSend = false;
         }
@@ -1549,7 +1554,7 @@ int32_t prepareConcurrentlyLoad(SOperatorInfo* pOperator) {
 /**
   @brief store STEP DONE notification info
 */
-int32_t storeNotifyInfo(SOperatorInfo* pOperator) {
+void storeNotifyInfo(SOperatorInfo* pOperator) {
   SExchangeInfo*  pExchangeInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
@@ -1560,7 +1565,7 @@ int32_t storeNotifyInfo(SOperatorInfo* pOperator) {
     if (pBasic->paramType != NOTIFY_TYPE_EXCHANGE_PARAM) {
       qWarn("%s, %s found invalid exchange operator param type %d",
              GET_TASKID(pTaskInfo), __func__, pBasic->paramType);
-      goto _end;
+      return;
     }
 
     pExchangeInfo->notifyToSend = true;
@@ -1569,9 +1574,6 @@ int32_t storeNotifyInfo(SOperatorInfo* pOperator) {
     qWarn("%s, %s found multi params are not supported for notify msg",
            GET_TASKID(pTaskInfo), __func__);
   }
-
-_end:
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDataInfo) {
@@ -2153,10 +2155,15 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
     pExchangeInfo->current = 0;
   }
 
-  if (NULL != pOperator->pOperatorGetParam &&
-      (IS_STREAM_MODE(pOperator->pTaskInfo) || pExchangeInfo->seqLoadData)) {
-    code = storeNotifyInfo(pOperator);
-    QUERY_CHECK_CODE(code, lino, _end);
+  if (NULL != pOperator->pOperatorGetParam) {
+    if (IS_STREAM_MODE(pOperator->pTaskInfo) || pExchangeInfo->seqLoadData) {
+      storeNotifyInfo(pOperator);
+    }
+    /**
+      The param is referenced by getParam, and it will be freed by
+      the parent operator after getting next block.
+    */
+    pOperator->pOperatorGetParam->reUse = false;
     pOperator->pOperatorGetParam = NULL;
   }
 

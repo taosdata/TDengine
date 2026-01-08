@@ -925,28 +925,55 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
 
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SOperatorInfo* pDownstream = pOperator->pDownstream[i];
+    if (pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
+        pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+      /**
+        Only table scan and exchange operator are supported right now.
+      */
+      qWarn("%s, %s only table scan and exchange operators are supported "
+             "for notify right now, but got %d, skip notify step done",
+             GET_TASKID(pOperator->pTaskInfo), __func__,
+             pDownstream->operatorType);
+      continue;
+    }
     SOperatorParam* pParam = pOperator->pDownstreamGetParams[i];
-    if (pParam != NULL) {
-      freeOperatorParam(pParam, OP_GET_PARAM);
+    if (pParam == NULL) {
+      pParam = (SOperatorParam*)taosMemoryCalloc(1, sizeof(SOperatorParam));
+      QUERY_CHECK_NULL(pParam, code, lino, _end, terrno);
     }
 
-    void* tsParam = NULL;
+    if (pParam->value == NULL) {
+      void* tsParam = NULL;
+      switch (pDownstream->operatorType) {
+        case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
+          tsParam = taosMemoryCalloc(1, sizeof(STableScanOperatorParam));
+          QUERY_CHECK_NULL(tsParam, code, lino, _end, terrno);
+          break;
+        }
+        case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
+          tsParam = taosMemoryCalloc(1, sizeof(SExchangeOperatorParam));
+          QUERY_CHECK_NULL(tsParam, code, lino, _end, terrno);
+          break;
+        }
+        default:
+          break;
+      }
+      pParam->value = tsParam;
+    }
+
     switch (pDownstream->operatorType) {
       case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
-        tsParam = taosMemoryCalloc(1, sizeof(STableScanOperatorParam));
-        QUERY_CHECK_NULL(tsParam, code, lino, _end, terrno);
-        ((STableScanOperatorParam*)tsParam)->paramType = NOTIFY_TYPE_SCAN_PARAM;
-        ((STableScanOperatorParam*)tsParam)->notifyToProcess = true;
-        ((STableScanOperatorParam*)tsParam)->notifyTs = notifyTs;
+        STableScanOperatorParam* p = (STableScanOperatorParam*)pParam->value;
+        p->paramType = NOTIFY_TYPE_SCAN_PARAM;
+        p->notifyToProcess = true;
+        p->notifyTs = notifyTs;
         break;
       }
       case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
-        tsParam = taosMemoryCalloc(1, sizeof(SExchangeOperatorParam));
-        QUERY_CHECK_NULL(tsParam, code, lino, _end, terrno);
-        ((SExchangeOperatorParam*)tsParam)->multiParams = false;
-        ((SExchangeOperatorParam*)tsParam)->basic.paramType =
-          NOTIFY_TYPE_EXCHANGE_PARAM;
-        ((SExchangeOperatorParam*)tsParam)->basic.notifyTs = notifyTs;
+        SExchangeOperatorParam* p = (SExchangeOperatorParam*)pParam->value;
+        p->multiParams = false;
+        p->basic.paramType = NOTIFY_TYPE_EXCHANGE_PARAM;
+        p->basic.notifyTs = notifyTs;
         break;
       }
       default: {
@@ -961,18 +988,10 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
       }
     }
 
-    pParam = (SOperatorParam*)taosMemoryCalloc(1, sizeof(SOperatorParam));
-    if (pParam == NULL) {
-      code = terrno;
-      lino = __LINE__;
-      taosMemoryFree(tsParam);
-      goto _end;
-    }
     pParam->opType = pDownstream->operatorType;
     pParam->downstreamIdx = i;
-    pParam->value = tsParam;
     pParam->pChildren = NULL;
-    pParam->reUse = false;
+    pParam->reUse = true;
     pOperator->pDownstreamGetParams[i] = pParam;
   }
 
