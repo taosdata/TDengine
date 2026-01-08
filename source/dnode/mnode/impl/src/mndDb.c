@@ -1364,6 +1364,11 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
     return code;
   }
 
+  if(pAlter->allowDrop > -1 && pAlter->allowDrop != pDb->cfg.allowDrop) {
+    pDb->cfg.allowDrop = pAlter->allowDrop;
+    code = 0;
+  }
+
   TAOS_RETURN(code);
 }
 
