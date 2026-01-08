@@ -324,6 +324,11 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq, 
   int32_t line = 0;
   TAOS_CHECK_RETURN(tDecodeSClientHbKey(pDecoder, &pReq->connKey));
 
+  if (pReq->connKey.connType >= CONN_TYPE__MAX || pReq->connKey.connType < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TAOS_CHECK_GOTO(code, &line, _error);
+  }
+
   if (pReq->connKey.connType == CONN_TYPE__QUERY || pReq->connKey.connType == CONN_TYPE__TMQ) {
     TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pReq->app.appId));
     TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pReq->app.pid));
@@ -344,7 +349,8 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq, 
     if (queryNum) {
       pReq->query = taosMemoryCalloc(1, sizeof(*pReq->query));
       if (NULL == pReq->query) {
-        return terrno;
+        code = terrno;
+        TAOS_CHECK_GOTO(code, &line, _error);
       }
       code = tDecodeU32(pDecoder, &pReq->query->connId);
       TAOS_CHECK_GOTO(code, &line, _error);
@@ -356,7 +362,8 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq, 
       if (num > 0) {
         pReq->query->queryDesc = taosArrayInit(num, sizeof(SQueryDesc));
         if (NULL == pReq->query->queryDesc) {
-          return terrno;
+          code = terrno;
+          TAOS_CHECK_GOTO(code, &line, _error);
         }
 
         for (int32_t i = 0; i < num; ++i) {
@@ -456,6 +463,7 @@ static int32_t tDeserializeSClientHbReq(SDecoder *pDecoder, SClientHbReq *pReq, 
 
 _error:
   if (code != 0) {
+    uError("tDeserializeSClientHbReq error, code:%d, line:%d, connType:%d", code, line, pReq->connKey.connType);
     tFreeClientHbReq(pReq);
   }
   return code;
