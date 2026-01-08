@@ -1621,6 +1621,12 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         if (0 == mndBuildSMCreateTokenResp(pTrans, &pCont, &contLen)) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
+      } else if (pTrans->originRpcType == TDMT_MND_CREATE_TOTP_SECRET) {
+        void   *pCont = NULL;
+        int32_t contLen = 0;
+        if (0 == mndBuildSMCreateTotpSecretResp(pTrans, &pCont, &contLen)) {
+          mndTransSetRpcRsp(pTrans, pCont, contLen);
+        }
       }
 
       if (pTrans->rpcRspLen != 0) {

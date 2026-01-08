@@ -11037,6 +11037,15 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       break;
     }
 
+    case TDMT_MND_CREATE_TOTP_SECRET: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateTotpSecretReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_TOTP_SECRET: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropTotpSecretReq, pReq);
+      break;
+    }
+
     default: {
       break;
     }
@@ -11260,6 +11269,21 @@ static int32_t translateDropToken(STranslateContext* pCxt, SDropTokenStmt* pStmt
   return code;
 }
 
+static int32_t translateCreateTotpSecret(STranslateContext* pCxt, SCreateTotpSecretStmt* pStmt) {
+  SCreateTotpSecretReq req = {0};
+  tstrncpy(req.user, pStmt->user, sizeof(req.user));
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TOTP_SECRET, (FSerializeFunc)tSerializeSCreateTotpSecretReq, &req);
+  tFreeSCreateTotpSecretReq(&req);
+  return code;
+}
+
+static int32_t translateDropTotpSecret(STranslateContext* pCxt, SDropTotpSecretStmt* pStmt) {
+  SDropTotpSecretReq req = {0};
+  tstrncpy(req.user, pStmt->user, sizeof(req.user));
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_TOTP_SECRET, (FSerializeFunc)tSerializeSDropTotpSecretReq, &req);
+  tFreeSDropTotpSecretReq(&req);
+  return code;
+}
 
 static int32_t checkColumnOptions(SNodeList* pList, bool virtual) {
   SNode* pNode;
@@ -18867,6 +18891,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_DROP_TOKEN_STMT:
       code = translateDropToken(pCxt, (SDropTokenStmt*)pNode);
       break;
+    case QUERY_NODE_CREATE_TOTP_SECRET_STMT:
+      code = translateCreateTotpSecret(pCxt, (SCreateTotpSecretStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_TOTP_SECRET_STMT:
+      code = translateDropTotpSecret(pCxt, (SDropTotpSecretStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       code = translateCreateSuperTable(pCxt, (SCreateTableStmt*)pNode);
       break;
@@ -19608,15 +19638,29 @@ static int32_t extractScanDbResultSchema(int32_t* numOfCols, SSchema** pSchema) 
 }
 
 static int32_t extractCreateTokenResultSchema(int32_t* numOfCols, SSchema** pSchema) {
-  *numOfCols = CREATE_USER_TOKEN_RESULT_COLS;
+  *numOfCols = CREATE_TOKEN_RESULT_COLS;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return terrno;
   }
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[0].bytes = SCAN_DB_RESULT_FIELD1_LEN;
+  (*pSchema)[0].bytes = CREATE_TOKEN_RESULT_FIELD1_LEN;
   tstrncpy((*pSchema)[0].name, "token", TSDB_COL_NAME_LEN);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extractCreateTotpSecretResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = CREATE_TOTP_SECRET_RESULT_COLS;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return terrno;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[0].bytes = CREATE_TOTP_SECRET_RESULT_FIELD1_LEN;
+  tstrncpy((*pSchema)[0].name, "totp_secret", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -19661,6 +19705,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
       return extractScanDbResultSchema(numOfCols, pSchema);
     case QUERY_NODE_CREATE_TOKEN_STMT:
       return extractCreateTokenResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_CREATE_TOTP_SECRET_STMT:
+      return extractCreateTotpSecretResultSchema(numOfCols, pSchema);
     default:
       break;
   }
@@ -24006,6 +24052,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
     case QUERY_NODE_CREATE_TOKEN_STMT:
+    case QUERY_NODE_CREATE_TOTP_SECRET_STMT:
       pQuery->haveResultSet = true;
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {

@@ -435,6 +435,8 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_ROLE_STMT,
   QUERY_NODE_DROP_ROLE_STMT,
   QUERY_NODE_ALTER_ROLE_STMT,
+  QUERY_NODE_CREATE_TOTP_SECRET_STMT,
+  QUERY_NODE_DROP_TOTP_SECRET_STMT,
 
   // placeholder for [155, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -1775,6 +1777,29 @@ typedef struct {
 int32_t tSerializeSDropTokenReq(void* buf, int32_t bufLen, SDropTokenReq* pReq);
 int32_t tDeserializeSDropTokenReq(void* buf, int32_t bufLen, SDropTokenReq* pReq);
 void    tFreeSDropTokenReq(SDropTokenReq* pReq);
+
+typedef struct {
+  char    user[TSDB_USER_LEN];
+  int32_t sqlLen;
+  char*   sql;
+} SCreateTotpSecretReq;
+
+int32_t tSerializeSCreateTotpSecretReq(void* buf, int32_t bufLen, SCreateTotpSecretReq* pReq);
+int32_t tDeserializeSCreateTotpSecretReq(void* buf, int32_t bufLen, SCreateTotpSecretReq* pReq);
+void    tFreeSCreateTotpSecretReq(SCreateTotpSecretReq* pReq);
+
+typedef struct {
+  char user[TSDB_USER_LEN];
+  char totpSecret[(TSDB_TOTP_SECRET_LEN * 8 + 4) / 5 + 1];  // base32 encoded totp secret + null terminator
+} SCreateTotpSecretRsp;
+
+int32_t tSerializeSCreateTotpSecretRsp(void* buf, int32_t bufLen, SCreateTotpSecretRsp* pRsp);
+int32_t tDeserializeSCreateTotpSecretRsp(void* buf, int32_t bufLen, SCreateTotpSecretRsp* pRsp);
+
+typedef SCreateTotpSecretReq SDropTotpSecretReq;
+#define tSerializeSDropTotpSecretReq tSerializeSCreateTotpSecretReq
+#define tDeserializeSDropTotpSecretReq tDeserializeSCreateTotpSecretReq
+#define tFreeSDropTotpSecretReq tFreeSCreateTotpSecretReq
 
 typedef struct {
   char user[TSDB_USER_LEN];

@@ -136,6 +136,8 @@ static int32_t  mndProcessGetUserIpWhiteListReq(SRpcMsg *pReq);
 static int32_t  mndProcessRetrieveIpWhiteListReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetUserDateTimeWhiteListReq(SRpcMsg *pReq);
 static int32_t  mndProcessRetrieveDateTimeWhiteListReq(SRpcMsg *pReq);
+static int32_t mndProcessCreateTotpSecretReq(SRpcMsg *pReq);
+static int32_t mndProcessDropTotpSecretReq(SRpcMsg *pReq);
 
 static int32_t createIpWhiteListFromOldVer(void *buf, int32_t len, SIpWhiteList **ppList);
 static int32_t tDerializeIpWhileListFromOldVer(void *buf, int32_t len, SIpWhiteList *pList);
@@ -567,6 +569,9 @@ int32_t mndInitUser(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL, mndProcessRetrieveIpWhiteListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_DATETIME_WHITELIST, mndProcessGetUserDateTimeWhiteListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_DATETIME_WHITELIST, mndProcessRetrieveDateTimeWhiteListReq);
+
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_TOTP_SECRET, mndProcessCreateTotpSecretReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_TOTP_SECRET, mndProcessDropTotpSecretReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_USER, mndRetrieveUsers);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_USER, mndCancelGetNextUser);
@@ -4076,6 +4081,168 @@ _exit:
 
   TAOS_RETURN(code);
 }
+
+
+
+static void base32Encode(const uint8_t *in, int32_t inLen, char *out) {
+  int buffer = 0, bits = 0;
+  int outLen = 0;
+
+  // process all input bytes
+  for (int i = 0; i < inLen; i++) {
+    buffer = (buffer << 8) | in[i];
+    bits += 8;
+
+    while (bits >= 5) {
+      int v = (buffer >> (bits - 5)) & 0x1F;
+      out[outLen++] = (v >= 26) ? (v - 26 + '2') : (v + 'A');
+      bits -= 5;
+    }
+  }
+
+  // process remaining bits
+  if (bits > 0) {
+    int v = (buffer << (5 - bits)) & 0x1F;
+    out[outLen++] = (v >= 26) ? (v - 26 + '2') : (v + 'A');
+  }
+
+  out[outLen] = '\0';
+}
+
+
+static int32_t mndCreateTotpSecret(SMnode *pMnode, SUserObj *pUser, SRpcMsg *pReq) {
+  SCreateTotpSecretRsp rsp = {0};
+
+  base32Encode((uint8_t *)pUser->totpsecret, sizeof(pUser->totpsecret), rsp.totpSecret);
+  tstrncpy(rsp.user, pUser->user, sizeof(rsp.user));
+
+  int32_t len = tSerializeSCreateTotpSecretRsp(NULL, 0, &rsp);
+  if (len < 0) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  void *pData = taosMemoryMalloc(len);
+  if (pData == NULL) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  if (tSerializeSCreateTotpSecretRsp(pData, len, &rsp) != len) {
+    taosMemoryFree(pData);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ROLE, pReq, "create-totp-secret");
+  if (pTrans == NULL) {
+    mError("user:%s, failed to create totp secret since %s", pUser->user, terrstr());
+    taosMemoryFree(pData);
+    TAOS_RETURN(terrno);
+  }
+  mInfo("trans:%d, used to create totp secret for user:%s", pTrans->id, pUser->user);
+
+  mndTransSetUserData(pTrans, pData, len);
+
+  SSdbRaw *pCommitRaw = mndUserActionEncode(pUser);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    TAOS_RETURN(terrno);
+  }
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) < 0) {
+    mndTransDrop(pTrans);
+    TAOS_RETURN(terrno);
+  }
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    TAOS_RETURN(terrno);
+  }
+
+  mndTransDrop(pTrans);
+  TAOS_RETURN(0);
+}
+
+
+static int32_t mndProcessCreateTotpSecretReq(SRpcMsg *pReq) {
+  SMnode              *pMnode = pReq->info.node;
+  int32_t              code = 0;
+  int32_t              lino = 0;
+  SUserObj            *pUser = NULL;
+  SUserObj             newUser = {0};
+  SCreateTotpSecretReq req = {0};
+  int64_t              tss = taosGetTimestampMs();
+
+  TAOS_CHECK_GOTO(tDeserializeSCreateTotpSecretReq(pReq->pCont, pReq->contLen, &req), &lino, _OVER);
+  mTrace("user:%s, start to create/update totp secret", req.user);
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, req.user, &pUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckTotpSecretPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
+  taosSafeRandBytes((uint8_t *)newUser.totpsecret, sizeof(newUser.totpsecret));
+  TAOS_CHECK_GOTO(mndCreateTotpSecret(pMnode, &newUser, pReq), &lino, _OVER); 
+
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    double  duration = (double)(taosGetTimestampMs()- tss) / 1000.0;
+    auditRecord(pReq, pMnode->clusterId, "createTotpSecret", "", req.user, req.sql, req.sqlLen, duration, 0);
+  }
+
+_OVER:
+  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("user:%s, failed to create totp secret at line %d since %s", req.user, lino, tstrerror(code));
+  }
+  mndReleaseUser(pMnode, pUser);
+  mndUserFreeObj(&newUser);
+  tFreeSCreateTotpSecretReq(&req);
+  TAOS_RETURN(code);
+}
+
+
+
+int32_t mndBuildSMCreateTotpSecretResp(STrans *pTrans, void **ppResp, int32_t *pRespLen) {
+  // user data is the response
+  *ppResp = pTrans->userData;
+  *pRespLen = pTrans->userDataLen;
+  pTrans->userData = NULL;
+  pTrans->userDataLen = 0;
+  return 0;
+}
+
+
+
+static int32_t mndProcessDropTotpSecretReq(SRpcMsg *pReq) {
+  SMnode            *pMnode = pReq->info.node;
+  int32_t            code = 0;
+  int32_t            lino = 0;
+  SUserObj          *pUser = NULL;
+  SDropTotpSecretReq req = {0};
+  int64_t            tss = taosGetTimestampMs();
+
+  TAOS_CHECK_GOTO(tDeserializeSDropTotpSecretReq(pReq->pCont, pReq->contLen, &req), &lino, _OVER);
+  mTrace("user:%s, start to drop totp secret", req.user);
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, req.user, &pUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckTotpSecretPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pUser), &lino, _OVER);
+
+  SUserObj newUser = {0};
+  TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
+  (void)memset(newUser.totpsecret, 0, sizeof(newUser.totpsecret));
+  TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq), &lino, _OVER); 
+
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    double  duration = (double)(taosGetTimestampMs()- tss) / 1000.0;
+    auditRecord(pReq, pMnode->clusterId, "dropTotpSecret", "", req.user, req.sql, req.sqlLen, duration, 0);
+  }
+
+_OVER:
+  if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("user:%s, failed to drop totp secret at line %d since %s", req.user, lino, tstrerror(code));
+  }
+  mndReleaseUser(pMnode, pUser);
+  mndUserFreeObj(&newUser);
+  tFreeSDropTotpSecretReq(&req);
+  TAOS_RETURN(code);
+}
+
 
 
 bool mndIsTotpEnabledUser(SUserObj *pUser) {
