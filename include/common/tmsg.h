@@ -4225,7 +4225,6 @@ typedef enum {
 typedef enum {
   DYN_TYPE_SCAN_PARAM = 1,
   NOTIFY_TYPE_SCAN_PARAM,
-  HYBRID_TYPE_SCAN_PARAM,
 } ETableScanGetParamType;
 
 typedef struct STableScanOperatorParam {

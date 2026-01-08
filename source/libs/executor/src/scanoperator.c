@@ -958,21 +958,11 @@ static int32_t prepareTableScan(SOperatorInfo* pOperator) {
   qDebug("%s, prepareTableScan start", GET_TASKID(pOperator->pTaskInfo));
   SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
   if (NULL != pGetParam && NULL != pGetParam->value &&
-      (((STableScanOperatorParam*)pGetParam->value)->paramType ==
-         NOTIFY_TYPE_SCAN_PARAM ||
-       ((STableScanOperatorParam*)pGetParam->value)->paramType ==
-         HYBRID_TYPE_SCAN_PARAM) &&
+      ((STableScanOperatorParam*)pGetParam->value)->paramType ==
+         NOTIFY_TYPE_SCAN_PARAM &&
       ((STableScanOperatorParam*)pGetParam->value)->notifyToProcess) {
     STableScanOperatorParam* pNotify =
       (STableScanOperatorParam*)pGetParam->value;
-    /**
-      Set getParam to NULL to avoid impacting following table scan operation.
-      The param is referenced by getParam, and it will be freed by
-      the caller of doTableScanNext.
-    */
-    if (pNotify->paramType != HYBRID_TYPE_SCAN_PARAM) {
-      pOperator->pOperatorGetParam = NULL;
-    }
 
     STableScanInfo* pTableScanInfo = pOperator->info;
     SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
@@ -980,6 +970,20 @@ static int32_t prepareTableScan(SOperatorInfo* pOperator) {
     code = pAPI->tsdReader.tsdReaderStepDone(pTableScanInfo->base.dataReader,
                                              pNotify->notifyTs);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    if (!pGetParam->reUse) {
+      freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    } else {
+      /**
+        The param is referenced by getParam, and it will be freed by
+        the parent operator after getting next block.
+      */
+      pGetParam->reUse = false;
+    }
+    /**
+      Set getParam to NULL to avoid impacting following table scan operation.
+    */
+    pOperator->pOperatorGetParam = NULL;
   }
 
   qDebug("%s, prepareTableScan end", GET_TASKID(pOperator->pTaskInfo));
