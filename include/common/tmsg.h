@@ -3782,9 +3782,8 @@ void    tFreeSMUpdateXnodeTaskReq(SMUpdateXnodeTaskReq* pReq);
 typedef struct {
   int32_t id;
   bool    force;
-  int32_t nameLen;
+  CowStr  name;
   int32_t sqlLen;
-  char*   name;
   char*   sql;
 } SMDropXnodeTaskReq;
 int32_t tSerializeSMDropXnodeTaskReq(void* buf, int32_t bufLen, SMDropXnodeTaskReq* pReq);
@@ -3810,11 +3809,9 @@ typedef struct {
   int32_t via;
   int32_t xnodeId;
   CowStr  status;
-  int32_t configLen;
-  int32_t reasonLen;
+  CowStr  config;
+  CowStr  reason;
   int32_t sqlLen;
-  char*   config;
-  char*   reason;
   char*   sql;
 } SMCreateXnodeJobReq;
 int32_t tSerializeSMCreateXnodeJobReq(void* buf, int32_t bufLen, SMCreateXnodeJobReq* pReq);

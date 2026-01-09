@@ -13296,20 +13296,21 @@ static int32_t covertXNodeTaskOptions(SXnodeTaskOptions* pOptions, xTaskOptions*
 
   pOpts->via = pOptions->via;
   if (pOptions->triggerLen > 0) {
-    pOpts->trigger = xCreateCowStr(strlen(pOptions->trigger) + 1, pOptions->trigger, true);
+    pOpts->trigger = xCreateCowStr(strlen(pOptions->trigger), pOptions->trigger, true);
   }
+
   if (pOptions->healthLen > 0) {
-    pOpts->health = xCreateCowStr(strlen(pOptions->health) + 1, pOptions->health, true);
+    pOpts->health = xCreateCowStr(strlen(pOptions->health), pOptions->health, true);
   }
   if (pOptions->parserLen > 0) {
-    pOpts->parser = xCreateCowStr(strlen(pOptions->parser) + 1, pOptions->parser, true);
+    pOpts->parser = xCreateCowStr(strlen(pOptions->parser), pOptions->parser, true);
   }
 
   pOpts->optionsNum = pOptions->optionsNum;
   for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
     const char* option = pOptions->options[i];
     if (option != NULL) {
-      xSetCowStr(pOpts->options + i, strlen(option) + 1, option, true);
+      xSetCowStr(pOpts->options + i, strlen(option), option, true);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -13318,7 +13319,7 @@ static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTas
   int32_t              code = 0;
   SMCreateXnodeTaskReq createReq = {0};
 
-  createReq.name = xCreateCowStr(strlen(pStmt->name) + 1, pStmt->name, false);
+  createReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
   createReq.source = xCloneTaskSourceRef(&pStmt->source->source);
   createReq.sink = xCloneTaskSinkRef(&pStmt->sink->sink);
 
@@ -13370,8 +13371,7 @@ static int32_t translateDropXnodeTask(STranslateContext* pCxt, SDropXnodeTaskStm
   dropReq.id = pStmt->id;
   dropReq.force = pStmt->force;
   if (pStmt->name != NULL) {
-    dropReq.nameLen = strlen(pStmt->name) + 1;
-    dropReq.name = pStmt->name;
+    dropReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
   }
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE_TASK, (FSerializeFunc)tSerializeSMDropXnodeTaskReq, &dropReq);
@@ -13397,7 +13397,7 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
     updateReq.via = pStmt->options->via;
     const char* name = getXnodeTaskOptionByName(pStmt->options, "name");
     if (name != NULL) {
-      updateReq.updateName = xCreateCowStr(strlen(name) + 1, name, false);
+      updateReq.updateName = xCreateCowStr(strlen(name), name, false);
     }
     const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
     if (xnodeId != NULL) {
@@ -13409,15 +13409,14 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
                                        "Invalid option: status too long");
       }
-      updateReq.status = xCreateCowStr(strlen(status) + 1, status, false);
+      updateReq.status = xCreateCowStr(strlen(status), status, false);
     }
-    const char* parser = getXnodeTaskOptionByName(pStmt->options, "parser");
-    if (parser != NULL) {
-      updateReq.parser = xCreateCowStr(strlen(parser) + 1, parser, false);
+    if (pStmt->options->parserLen > 0) {
+      updateReq.parser = xCreateCowStr(pStmt->options->parserLen, pStmt->options->parser, false);
     }
     const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
     if (reason != NULL) {
-      updateReq.reason = xCreateCowStr(strlen(reason) + 1, reason, false);
+      updateReq.reason = xCreateCowStr(strlen(reason), reason, false);
     }
   }
 
@@ -13445,30 +13444,17 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
     if (strlen(status) > TSDB_XNODE_STATUS_LEN) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Invalid option: status too long");
     }
-    createReq.status = xCreateCowStr(strlen(status) + 1, status, false);
+    createReq.status = xCreateCowStr(strlen(status), status, false);
   }
 
-  createReq.configLen = strlen(config) + 1;
-  if (createReq.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
+  createReq.config = xCreateCowStr(strlen(config), config, false);
+  if (createReq.config.len > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
     return TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
   }
-  createReq.config = taosMemoryCalloc(createReq.configLen, 1);
-  if (createReq.config == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tstrncpy(createReq.config, config, createReq.configLen);
 
   const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
   if (reason != NULL) {
-    createReq.reasonLen = strlen(reason) + 1;
-    if (createReq.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
-      return TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
-    }
-    createReq.reason = taosMemoryCalloc(createReq.reasonLen, 1);
-    if (createReq.reason == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    tstrncpy(createReq.reason, reason, createReq.reasonLen);
+    createReq.reason = xCreateCowStr(strlen(status), status, false);
   }
 
   int32_t code =
@@ -13493,33 +13479,33 @@ static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStm
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
                                      "Invalid option: status too long");
     }
-    updateReq.status = xCreateCowStr(strlen(status) + 1, status, false);
+    updateReq.status = xCreateCowStr(strlen(status), status, false);
   }
 
   const char* config = getXnodeTaskOptionByName(pStmt->options, "config");
   if (NULL != config) {
-    updateReq.configLen = strlen(config) + 1;
+    updateReq.configLen = strlen(config);
     if (updateReq.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
       return TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
     }
-    updateReq.config = taosMemoryCalloc(updateReq.configLen, 1);
+    updateReq.config = taosMemoryCalloc(1, updateReq.configLen + 1);
     if (updateReq.config == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    tstrncpy(updateReq.config, config, updateReq.configLen);
+    (void)memcpy(updateReq.config, config, updateReq.configLen);
   }
 
   const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
   if (reason != NULL) {
-    updateReq.reasonLen = strlen(reason) + 1;
+    updateReq.reasonLen = strlen(reason);
     if (updateReq.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
       return TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
     }
-    updateReq.reason = taosMemoryCalloc(updateReq.reasonLen, 1);
+    updateReq.reason = taosMemoryCalloc(1, updateReq.reasonLen + 1);
     if (updateReq.reason == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    tstrncpy(updateReq.reason, reason, updateReq.reasonLen);
+    (void)memcpy(updateReq.reason, reason, updateReq.reasonLen);
   }
 
   int32_t code =
@@ -13584,7 +13570,7 @@ static int32_t translateRebalanceXnodeJobWhere(STranslateContext* pCxt, SRebalan
     }
 
     if (pAst != NULL) {
-      rebalanceReq.ast = xCreateCowStr(strlen(pAst) + 1, pAst, false);
+      rebalanceReq.ast = xCreateCowStr(strlen(pAst), pAst, false);
     }
   }
   code = buildCmdMsg(pCxt, TDMT_MND_REBALANCE_XNODE_JOBS_WHERE, (FSerializeFunc)tSerializeSMRebalanceXnodeJobsWhereReq,
@@ -13612,7 +13598,7 @@ static int32_t translateCreateXnodeAgent(STranslateContext* pCxt, SCreateXnodeAg
   int32_t               code = 0;
   SMCreateXnodeAgentReq createReq = {0};
 
-  createReq.name = xCreateCowStr(strlen(pStmt->name) + 1, pStmt->name, false);
+  createReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
 
   const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
   if (status != NULL && strlen(status) > TSDB_XNODE_AGENT_STATUS_LEN) {
@@ -13663,9 +13649,7 @@ static int32_t translateDropXnodeAgent(STranslateContext* pCxt, SDropXnodeAgentS
   dropReq.id = pStmt->id;
   dropReq.force = pStmt->force;
   if (pStmt->name != NULL) {
-    dropReq.nameLen = strlen(pStmt->name) + 1;
-    dropReq.name = taosMemoryCalloc(1, dropReq.nameLen);
-    (void)memcpy(dropReq.name, pStmt->name, dropReq.nameLen);
+    dropReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, true);
   }
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE_AGENT, (FSerializeFunc)tSerializeSMDropXnodeAgentReq, &dropReq);

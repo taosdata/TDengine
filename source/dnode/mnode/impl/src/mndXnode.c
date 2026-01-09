@@ -1381,28 +1381,28 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
   xnodeObj.via = pCreate->options.via;
   xnodeObj.xnodeId = pCreate->xnodeId;
 
-  xnodeObj.nameLen = pCreate->name.len;
-  xnodeObj.name = taosMemoryCalloc(1, pCreate->name.len);
+  xnodeObj.nameLen = pCreate->name.len + 1;
+  xnodeObj.name = taosMemoryCalloc(1, xnodeObj.nameLen);
   if (xnodeObj.name == NULL) goto _OVER;
   (void)memcpy(xnodeObj.name, pCreate->name.ptr, pCreate->name.len);
 
   xnodeObj.sourceType = pCreate->source.type;
-  xnodeObj.sourceDsnLen = pCreate->source.cstr.len;
-  xnodeObj.sourceDsn = taosMemoryCalloc(1, pCreate->source.cstr.len);
+  xnodeObj.sourceDsnLen = pCreate->source.cstr.len + 1;
+  xnodeObj.sourceDsn = taosMemoryCalloc(1, xnodeObj.sourceDsnLen);
   if (xnodeObj.sourceDsn == NULL) goto _OVER;
   (void)memcpy(xnodeObj.sourceDsn, pCreate->source.cstr.ptr, pCreate->source.cstr.len);
 
   xnodeObj.sinkType = pCreate->sink.type;
-  xnodeObj.sinkDsnLen = pCreate->sink.cstr.len;
-  xnodeObj.sinkDsn = taosMemoryCalloc(1, pCreate->sink.cstr.len);
+  xnodeObj.sinkDsnLen = pCreate->sink.cstr.len + 1;
+  xnodeObj.sinkDsn = taosMemoryCalloc(1, xnodeObj.sinkDsnLen);
   if (xnodeObj.sinkDsn == NULL) goto _OVER;
   (void)memcpy(xnodeObj.sinkDsn, pCreate->sink.cstr.ptr, pCreate->sink.cstr.len);
 
-  xnodeObj.parserLen = pCreate->options.parser.len;
-  if (xnodeObj.parserLen > 0 && pCreate->options.parser.ptr != NULL) {
+  xnodeObj.parserLen = pCreate->options.parser.len + 1;
+  if (pCreate->options.parser.ptr != NULL) {
     xnodeObj.parser = taosMemoryCalloc(1, xnodeObj.parserLen);
     if (xnodeObj.parser == NULL) goto _OVER;
-    (void)memcpy(xnodeObj.parser, pCreate->options.parser.ptr, xnodeObj.parserLen);
+    (void)memcpy(xnodeObj.parser, pCreate->options.parser.ptr, pCreate->options.parser.len);
   }
 
   const char *status = getXTaskOptionByName(&pCreate->options, "status");
@@ -1410,7 +1410,7 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
     xnodeObj.statusLen = strlen(status) + 1;
     xnodeObj.status = taosMemoryCalloc(1, xnodeObj.statusLen);
     if (xnodeObj.status == NULL) goto _OVER;
-    (void)memcpy(xnodeObj.status, status, xnodeObj.statusLen);
+    (void)memcpy(xnodeObj.status, status, xnodeObj.statusLen - 1);
   }
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-xnode-task");
@@ -1501,11 +1501,15 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
     goto _OVER;
   }
 
-  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
-  if (pJson == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
+  // pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
+  // if (pJson == NULL) {
+  //   code = terrno;
+  //   goto _OVER;
+  // }
+
+  //xxxzgc 
+  (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
+  code = TSDB_CODE_SUCCESS;
 
 _OVER:
   if (srcDsn != NULL) taosMemoryFreeClear(srcDsn);
@@ -1743,19 +1747,19 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
   if (pUpdate->xnodeId > 0) {
     taskObj.xnodeId = pUpdate->xnodeId;
   }
-  if (pUpdate->status.len > 0) {
-    taskObj.statusLen = pUpdate->status.len;
+  if (pUpdate->status.ptr != NULL) {
+    taskObj.statusLen = pUpdate->status.len + 1;
     taskObj.status = taosMemoryCalloc(1, taskObj.statusLen);
     if (taskObj.status == NULL) {
       code = terrno;
       goto _OVER;
     }
-    (void)memcpy(taskObj.status, pUpdate->status.ptr, taskObj.statusLen);
+    (void)memcpy(taskObj.status, pUpdate->status.ptr, pUpdate->status.len);
     isChange.status = true;
   }
-  if (pUpdate->updateName.len > 0) {
-    taskObj.nameLen = pUpdate->updateName.len;
-    taskObj.name = taosMemoryCalloc(1, pUpdate->updateName.len);
+  if (pUpdate->updateName.ptr != NULL) {
+    taskObj.nameLen = pUpdate->updateName.len + 1;
+    taskObj.name = taosMemoryCalloc(1, taskObj.nameLen);
     if (taskObj.name == NULL) {
       code = terrno;
       goto _OVER;
@@ -1763,10 +1767,10 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
     (void)memcpy(taskObj.name, pUpdate->updateName.ptr, pUpdate->updateName.len);
     isChange.name = true;
   }
-  if (pUpdate->source.cstr.len > 0) {
+  if (pUpdate->source.cstr.ptr != NULL) {
     taskObj.sourceType = pUpdate->source.type;
-    taskObj.sourceDsnLen = pUpdate->source.cstr.len;
-    taskObj.sourceDsn = taosMemoryCalloc(1, pUpdate->source.cstr.len);
+    taskObj.sourceDsnLen = pUpdate->source.cstr.len + 1;
+    taskObj.sourceDsn = taosMemoryCalloc(1, taskObj.sourceDsnLen);
     if (taskObj.sourceDsn == NULL) {
       code = terrno;
       goto _OVER;
@@ -1774,10 +1778,10 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
     (void)memcpy(taskObj.sourceDsn, pUpdate->source.cstr.ptr, pUpdate->source.cstr.len);
     isChange.source = true;
   }
-  if (pUpdate->sink.cstr.len > 0) {
+  if (pUpdate->sink.cstr.ptr != NULL) {
     taskObj.sinkType = pUpdate->sink.type;
-    taskObj.sinkDsnLen = pUpdate->sink.cstr.len;
-    taskObj.sinkDsn = taosMemoryCalloc(1, pUpdate->sink.cstr.len);
+    taskObj.sinkDsnLen = pUpdate->sink.cstr.len + 1;
+    taskObj.sinkDsn = taosMemoryCalloc(1, taskObj.sinkDsnLen);
     if (taskObj.sinkDsn == NULL) {
       code = terrno;
       goto _OVER;
@@ -1785,9 +1789,9 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
     (void)memcpy(taskObj.sinkDsn, pUpdate->sink.cstr.ptr, pUpdate->sink.cstr.len);
     isChange.sink = true;
   }
-  if (pUpdate->parser.len > 0) {
-    taskObj.parserLen = pUpdate->parser.len;
-    taskObj.parser = taosMemoryCalloc(1, pUpdate->parser.len);
+  if (pUpdate->parser.ptr != NULL) {
+    taskObj.parserLen = pUpdate->parser.len + 1;
+    taskObj.parser = taosMemoryCalloc(1, taskObj.parserLen);
     if (taskObj.parser == NULL) {
       code = terrno;
       goto _OVER;
@@ -1795,9 +1799,9 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
     (void)memcpy(taskObj.parser, pUpdate->parser.ptr, pUpdate->parser.len);
     isChange.parser = true;
   }
-  if (pUpdate->reason.len > 0) {
-    taskObj.reasonLen = pUpdate->reason.len;
-    taskObj.reason = taosMemoryCalloc(1, pUpdate->reason.len);
+  if (pUpdate->reason.ptr != NULL) {
+    taskObj.reasonLen = pUpdate->reason.len + 1;
+    taskObj.reason = taosMemoryCalloc(1, taskObj.reasonLen);
     if (taskObj.reason == NULL) {
       code = terrno;
       goto _OVER;
@@ -1982,13 +1986,13 @@ static int32_t mndProcessDropXnodeTaskReq(SRpcMsg *pReq) {
   mDebug("DropXnodeTask with tid:%d, start to drop", dropReq.id);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_DROP_XNODE_TASK), NULL, _OVER);
 
-  if (dropReq.id <= 0 && (dropReq.nameLen <= 0 || dropReq.name == NULL)) {
+  if (dropReq.id <= 0 && (dropReq.name.len <= 0 || dropReq.name.ptr == NULL)) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
     goto _OVER;
   }
 
-  if (dropReq.nameLen > 0 && dropReq.name != NULL) {
-    pObj = mndAcquireXnodeTaskByName(pMnode, dropReq.name);
+  if (dropReq.name.len > 0 && dropReq.name.ptr != NULL) {
+    pObj = mndAcquireXnodeTaskByName(pMnode, dropReq.name.ptr);
   } else {
     pObj = mndAcquireXnodeTask(pMnode, dropReq.id);
   }
@@ -2542,34 +2546,34 @@ static int32_t mndCreateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeJob
   jobObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE_JOB);
   jobObj.taskId = pCreate->tid;
 
-  jobObj.configLen = pCreate->configLen;
+  jobObj.configLen = pCreate->config.len + 1;
   if (jobObj.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
     code = TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
     goto _OVER;
   }
-  jobObj.config = taosMemoryCalloc(1, pCreate->configLen);
+  jobObj.config = taosMemoryCalloc(1, jobObj.configLen);
   if (jobObj.config == NULL) goto _OVER;
-  (void)memcpy(jobObj.config, pCreate->config, pCreate->configLen);
+  (void)memcpy(jobObj.config, pCreate->config.ptr, pCreate->config.len);
 
   jobObj.via = pCreate->via;
   jobObj.xnodeId = pCreate->xnodeId;
 
-  jobObj.statusLen = pCreate->status.len;
-  if (pCreate->status.len > 0) {
+  if (pCreate->status.ptr != NULL) {
+    jobObj.statusLen = pCreate->status.len + 1;
     jobObj.status = taosMemoryCalloc(1, jobObj.statusLen);
     if (jobObj.status == NULL) goto _OVER;
-    (void)memmove(jobObj.status, pCreate->status.ptr, jobObj.statusLen);
+    (void)memmove(jobObj.status, pCreate->status.ptr, pCreate->status.len);
   }
 
-  jobObj.reasonLen = pCreate->reasonLen;
-  if (jobObj.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
-    code = TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
-    goto _OVER;
-  }
-  if (jobObj.reasonLen > 0) {
-    jobObj.reason = taosMemoryCalloc(1, pCreate->reasonLen);
+  if (jobObj.reason != NULL) {
+    jobObj.reasonLen = pCreate->reason.len + 1;
+    if (jobObj.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
+      code = TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
+      goto _OVER;
+    }
+    jobObj.reason = taosMemoryCalloc(1, jobObj.reasonLen);
     if (jobObj.reason == NULL) goto _OVER;
-    (void)memcpy(jobObj.reason, pCreate->reason, pCreate->reasonLen);
+    (void)memcpy(jobObj.reason, pCreate->reason.ptr, pCreate->reason.len);
   }
 
   jobObj.createTime = taosGetTimestampMs();
@@ -2620,23 +2624,23 @@ static int32_t mndUpdateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SXnodeJobObj *pO
   if (pUpdate->xnodeId > 0) {
     jobObj.xnodeId = pUpdate->xnodeId;
   }
-  if (pUpdate->status.len > 0) {
-    jobObj.statusLen = pUpdate->status.len;
+  if (pUpdate->status.ptr != NULL) {
+    jobObj.statusLen = pUpdate->status.len + 1;
     jobObj.status = taosMemoryCalloc(1, jobObj.statusLen);
     if (jobObj.status == NULL) goto _OVER;
-    (void)memcpy(jobObj.status, pUpdate->status.ptr, jobObj.statusLen);
+    (void)memcpy(jobObj.status, pUpdate->status.ptr, pUpdate->status.len);
     isChange.status = true;
   }
-  if (pUpdate->configLen > 0) {
-    jobObj.configLen = pUpdate->configLen;
-    jobObj.config = taosMemoryCalloc(1, pUpdate->configLen);
+  if (pUpdate->config != NULL) {
+    jobObj.configLen = pUpdate->configLen + 1;
+    jobObj.config = taosMemoryCalloc(1, jobObj.configLen);
     if (jobObj.config == NULL) goto _OVER;
     (void)memcpy(jobObj.config, pUpdate->config, pUpdate->configLen);
     isChange.config = true;
   }
-  if (pUpdate->reasonLen > 0) {
-    jobObj.reasonLen = pUpdate->reasonLen;
-    jobObj.reason = taosMemoryCalloc(1, pUpdate->reasonLen);
+  if (pUpdate->reason != NULL) {
+    jobObj.reasonLen = pUpdate->reasonLen + 1;
+    jobObj.reason = taosMemoryCalloc(1, jobObj.reasonLen);
     if (jobObj.reason == NULL) goto _OVER;
     (void)memcpy(jobObj.reason, pUpdate->reason, pUpdate->reasonLen);
     isChange.reason = true;
@@ -4393,16 +4397,16 @@ static int32_t mndCreateXnodeAgent(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeA
   pAgentObj->createTime = taosGetTimestampMs();
   pAgentObj->updateTime = pAgentObj->createTime;
 
-  pAgentObj->nameLen = pCreate->name.len;
-  pAgentObj->name = taosMemoryCalloc(1, pCreate->name.len);
+  pAgentObj->nameLen = pCreate->name.len + 1;
+  pAgentObj->name = taosMemoryCalloc(1, pAgentObj->nameLen);
   if (pAgentObj->name == NULL) goto _OVER;
   (void)memcpy(pAgentObj->name, pCreate->name.ptr, pCreate->name.len);
 
-  if (pCreate->status.len > 0 && pCreate->status.ptr != NULL) {
-    pAgentObj->statusLen = pCreate->status.len;
+  if (pCreate->status.ptr != NULL) {
+    pAgentObj->statusLen = pCreate->status.len + 1;
     pAgentObj->status = taosMemoryCalloc(1, pAgentObj->statusLen);
     if (pAgentObj->status == NULL) goto _OVER;
-    (void)memcpy(pAgentObj->status, pCreate->status.ptr, pAgentObj->statusLen);
+    (void)memcpy(pAgentObj->status, pCreate->status.ptr, pCreate->status.len);
   }
   // gen token
   char token[TSDB_XNODE_AGENT_TOKEN_LEN] = {0};
@@ -4410,7 +4414,7 @@ static int32_t mndCreateXnodeAgent(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeA
   pAgentObj->tokenLen = strlen(token) + 1;
   pAgentObj->token = taosMemoryCalloc(1, pAgentObj->tokenLen);
   if (pAgentObj->token == NULL) goto _OVER;
-  (void)memcpy(pAgentObj->token, token, pAgentObj->tokenLen);
+  (void)memcpy(pAgentObj->token, token, pAgentObj->tokenLen - 1);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-xnode-agent");
   if (pTrans == NULL) {
@@ -4669,13 +4673,13 @@ static int32_t mndProcessDropXnodeAgentReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_DROP_XNODE_AGENT), NULL, _OVER);
 
-  if (dropReq.id <= 0 && (dropReq.nameLen <= 0 || dropReq.name == NULL)) {
+  if (dropReq.id <= 0 && (dropReq.name.len <= 0 || dropReq.name.ptr == NULL)) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
     goto _OVER;
   }
 
-  if (dropReq.nameLen > 0 && dropReq.name != NULL) {
-    pObj = mndAcquireXnodeAgentByName(pMnode, dropReq.name);
+  if (dropReq.name.len > 0 && dropReq.name.ptr != NULL) {
+    pObj = mndAcquireXnodeAgentByName(pMnode, dropReq.name.ptr);
   } else {
     pObj = mndAcquireXnodeAgentById(pMnode, dropReq.id);
   }

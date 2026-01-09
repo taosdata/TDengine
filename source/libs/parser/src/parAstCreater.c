@@ -5616,7 +5616,7 @@ SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceTyp
     }
     char buf[TSDB_XNODE_RESOURCE_NAME_LEN + 1] = {0};
     COPY_STRING_FORM_STR_TOKEN(buf, pIdOrName);
-    pTaskStmt->name = xCreateCowStr(strlen(buf) + 1, buf, true);
+    pTaskStmt->name = xCreateCowStr(strlen(buf), buf, true);
   }
 
   return (SNode*)pTaskStmt;
@@ -5659,7 +5659,7 @@ SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType
     }
     char buf[TSDB_XNODE_RESOURCE_NAME_LEN + 1] = {0};
     COPY_STRING_FORM_STR_TOKEN(buf, pIdOrName);
-    pTaskStmt->name = xCreateCowStr(strlen(buf) + 1, buf, true);
+    pTaskStmt->name = xCreateCowStr(strlen(buf), buf, true);
   }
 
   return (SNode*)pTaskStmt;
@@ -5784,7 +5784,7 @@ SNode* updateXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
     }
     char buf[TSDB_XNODE_TASK_NAME_LEN] = {0};
     COPY_STRING_FORM_STR_TOKEN(buf, pResIdOrName);
-    pTaskStmt->name = xCreateCowStr(strlen(buf) + 1, buf, true);
+    pTaskStmt->name = xCreateCowStr(strlen(buf), buf, true);
   }
 
   if (pSource != NULL) {
@@ -5867,7 +5867,7 @@ SNode* alterXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
     }
     char buf[TSDB_XNODE_AGENT_NAME_LEN] = {0};
     COPY_STRING_FORM_STR_TOKEN(buf, pResIdOrName);
-    pAgentStmt->name = xCreateCowStr(strlen(buf) + 1, buf, true);
+    pAgentStmt->name = xCreateCowStr(strlen(buf), buf, true);
   }
 
   if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {

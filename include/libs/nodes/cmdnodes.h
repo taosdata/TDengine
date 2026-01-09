@@ -774,7 +774,6 @@ typedef struct {
 
 typedef struct {
   ENodeType          type;
-  char               nameLen;
   char               name[TSDB_XNODE_TASK_NAME_LEN + 3];
   SXnodeTaskOptions* options;
 } SCreateXnodeAgentStmt;
