@@ -4636,6 +4636,7 @@ int32_t tSerializeSGetUserAuthReq(void *buf, int32_t bufLen, SGetUserAuthReq *pR
   tEncoderInit(&encoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->user));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->token));
   tEndEncode(&encoder);
 
 _exit:
@@ -4656,6 +4657,13 @@ int32_t tDeserializeSGetUserAuthReq(void *buf, int32_t bufLen, SGetUserAuthReq *
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
+
+  if (tDecodeIsEnd(&decoder)) {
+    pReq->token[0] = 0;
+  } else {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->token));
+  }
+
   tEndDecode(&decoder);
 
 _exit:
@@ -4838,6 +4846,11 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->selectTbs));
   TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->insertTbs));
   TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->deleteTbs));
+  TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pRsp->tokenName));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRsp->tokenStatus.dropped));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRsp->tokenStatus.enable));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRsp->tokenStatus.expireTime));
+  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->tokenStatus.ver));
 
   return 0;
 }
@@ -4881,6 +4894,21 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->selectTbs));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->insertTbs));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->deleteTbs));
+
+  if (tDecodeIsEnd(pDecoder)) {
+    pRsp->tokenName[0] = 0;
+    pRsp->tokenStatus.dropped = 0;
+    pRsp->tokenStatus.enable = 0;
+    pRsp->tokenStatus.expireTime = 0;
+    pRsp->tokenStatus.ver = 0;
+  } else {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pRsp->tokenName));
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pRsp->tokenStatus.dropped));
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pRsp->tokenStatus.enable));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->tokenStatus.expireTime));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pRsp->tokenStatus.ver));
+  }
+
 _exit:
   if (code < 0) {
     uError("tDeserializeSGetUserAuthRsp failed at line %d since: %s", lino, tstrerror(code));

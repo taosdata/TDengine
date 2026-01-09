@@ -24,10 +24,11 @@ extern "C" {
 #endif
 
 typedef struct {
-  char name[TSDB_TOKEN_NAME_LEN];
-  char user[TSDB_USER_LEN];
-  int32_t expireTime; // in seconds
-  int8_t enabled;
+  char    name[TSDB_TOKEN_NAME_LEN];
+  char    user[TSDB_USER_LEN];
+  int32_t expireTime;  // in seconds
+  int8_t  enabled;
+  int64_t version;
 } SCachedTokenInfo;
 
 

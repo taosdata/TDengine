@@ -159,6 +159,12 @@ typedef struct {
   int64_t            ver;
   void*              param;
   __taos_notify_fn_t fp;
+} STokenNotifyInfo;
+
+typedef struct {
+  int64_t            ver;
+  void*              param;
+  __taos_notify_fn_t fp;
 } SWhiteListInfo;
 
 typedef struct {
@@ -201,6 +207,7 @@ typedef struct STscObj {
   SWhiteListInfo whiteListInfo;          // ip white list info
   SWhiteListInfo dateTimeWhiteListInfo;  // date time white list info
   STscNotifyInfo userDroppedInfo;
+  STokenNotifyInfo tokenNotifyInfo;
   SOptionInfo    optionInfo;
 
   SConnAccessInfo sessInfo;

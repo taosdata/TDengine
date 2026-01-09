@@ -440,6 +440,7 @@ typedef struct {
   int8_t     enabled;
   int32_t    expireTime;  // in seconds
   int32_t    createdTime; // in seconds
+  int64_t    version;
   SRWLatch   lock;
 } STokenObj;
 

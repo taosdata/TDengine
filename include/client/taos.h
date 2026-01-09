@@ -158,10 +158,23 @@ typedef enum {
 } SET_CONF_RET_CODE;
 
 typedef enum {
+  TSDB_TOKEN_EVENT_MODIFIED = 0,
+  TSDB_TOKEN_EVENT_DROPPED,
+  TSDB_TOKEN_EVENT_DISABLED,
+  TSDB_TOKEN_EVENT_EXPIRED,
+} TOKEN_EVENT_TYPE;
+
+typedef struct {
+  int8_t  type;
+  int32_t expireTime; // seconds since epoch
+} STokenEvent;
+
+typedef enum {
   TAOS_NOTIFY_PASSVER = 0,
   TAOS_NOTIFY_WHITELIST_VER = 1,
   TAOS_NOTIFY_USER_DROPPED = 2,
   TAOS_NOTIFY_DATETIME_WHITELIST_VER = 3,
+  TAOS_NOTIFY_TOKEN = 4, // notify token event, in the callback function, [ext] is 'const STokenEvent*'
 } TAOS_NOTIFY_TYPE;
 
 /* -- implemented in the native interface, for internal component only, the API may change -- */

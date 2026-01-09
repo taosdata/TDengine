@@ -1796,13 +1796,22 @@ typedef SCreateTotpSecretReq SDropTotpSecretReq;
 
 typedef struct {
   char user[TSDB_USER_LEN];
+  char token[TSDB_TOKEN_NAME_LEN];
 } SGetUserAuthReq;
 
 int32_t tSerializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* pReq);
 int32_t tDeserializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* pReq);
 
 typedef struct {
+  int8_t  dropped;
+  int8_t  enable;
+  int32_t expireTime;
+  int64_t ver;
+} STokenStatus;
+
+typedef struct {
   char      user[TSDB_USER_LEN];
+  char      tokenName[TSDB_TOKEN_NAME_LEN];
   int64_t   userId;
   int32_t   version;
   int32_t   passVer;
@@ -1824,6 +1833,7 @@ typedef struct {
 
   SUserSessCfg sessCfg;
   int64_t      timeWhiteListVer;
+  STokenStatus tokenStatus;
 } SGetUserAuthRsp;
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
