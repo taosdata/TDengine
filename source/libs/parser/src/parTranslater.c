@@ -7238,6 +7238,7 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pStart, startNode));
           PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pEnd, endNode));
           PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
+          nodesDestroyNode(*pNode);
           *pNode = (SNode*)pVal;
           return DEAL_RES_IGNORE_CHILD;
         } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft, &pCxt->onlyTsConst)) {
@@ -7253,6 +7254,7 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pStart, startNode));
           PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pEnd, endNode));
           PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
+          nodesDestroyNode(*pNode);
           *pNode = (SNode*)pVal;
           return DEAL_RES_IGNORE_CHILD;
         } else {

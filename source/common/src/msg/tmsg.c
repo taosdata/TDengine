@@ -12946,8 +12946,10 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
-      STableScanOperatorParam *pScan = (STableScanOperatorParam *)pOpParam->value;
+      STableScanOperatorParam *pScan =
+        (STableScanOperatorParam *)pOpParam->value;
 
+      TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pScan->paramType));
       TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pScan->tableSeq));
 
       // uid list
@@ -13019,7 +13021,11 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
       }
 
       // scan type
-      TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pScan->type));
+      TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pScan->dynType));
+      
+      // notify info
+      TAOS_CHECK_RETURN(tEncodeBool(pEncoder, pScan->notifyToProcess));
+      TAOS_CHECK_RETURN(tEncodeI64(pEncoder, (int64_t)(pScan->notifyTs)));
       break;
     }
     default:
@@ -13037,7 +13043,7 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
 }
 
 int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam) {
-  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pOpParam->opType));
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, (int32_t*)&pOpParam->opType));
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pOpParam->downstreamIdx));
   TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pOpParam->reUse));
 
@@ -13056,12 +13062,13 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
-      pOpParam->value = taosMemoryMalloc(sizeof(STableScanOperatorParam));
+      pOpParam->value = taosMemoryCalloc(1, sizeof(STableScanOperatorParam));
       if (NULL == pOpParam->value) {
         TAOS_CHECK_RETURN(terrno);
       }
       STableScanOperatorParam *pScan = pOpParam->value;
 
+      TAOS_CHECK_RETURN(tDecodeI32(pDecoder, (int32_t *)&pScan->paramType));
       TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&pScan->tableSeq));
 
       // uid list
@@ -13174,11 +13181,16 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
       }
 
       // scan type
-      TAOS_CHECK_RETURN(tDecodeI32(pDecoder, (int32_t *)&pScan->type));
+      TAOS_CHECK_RETURN(tDecodeI32(pDecoder, (int32_t *)&pScan->dynType));
+
+      // notify info
+      TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pScan->notifyToProcess));
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pScan->notifyTs));
       break;
     }
-    default:
+    default: {
       return TSDB_CODE_INVALID_PARA;
+    }
   }
 
   int32_t childrenNum = 0;
