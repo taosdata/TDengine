@@ -9,6 +9,7 @@
 char* gStmt2StatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                            "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
 
+
 static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void** pBuf) {
   if (pTblBuf->buffOffset < pTblBuf->buffSize) {
     *pBuf = (char*)pTblBuf->pCurBuff + pTblBuf->buffOffset;
