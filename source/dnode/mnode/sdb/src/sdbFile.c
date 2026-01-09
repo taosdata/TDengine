@@ -596,7 +596,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           break;
         }
 
-        if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_SDB) == DND_CS_SDB) {
+        if (tsMetaKey[0] != '\0') {
           taosMemoryFree(newData);
         }
 

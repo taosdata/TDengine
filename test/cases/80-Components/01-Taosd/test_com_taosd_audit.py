@@ -116,6 +116,16 @@ class TestTaosdAudit:
     updatecfgDict["auditLevel"]            = '4'
     updatecfgDict["auditHttps"]            = '0'
 
+    encryptConfig = {
+        "svrKey": "sdfsadfasdfasfas",
+        "dbKey": "sdfsadfasdfasfas",
+        "dataKey": "sdfsadfasdfasfas",
+        "generateConfig": True,
+        "generateMeta": True,
+        "generateData": True
+
+    }
+
     print ("===================: ", updatecfgDict)
 
     def init(self, conn, logSql, replicaVar=1):
@@ -148,10 +158,6 @@ class TestTaosdAudit:
         """
         tdSql.prepare()
         # time.sleep(2)
-
-        tdLog.info("create encrypt key")
-        sql = "create encrypt_key 'sdfsadfasdfasfas'"
-        tdSql.query(sql)
 
         tdLog.info("create audit database")
         sql = "create database audit is_audit 1 wal_level 2 ENCRYPT_ALGORITHM 'SM4-CBC';"
