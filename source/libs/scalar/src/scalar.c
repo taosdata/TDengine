@@ -466,13 +466,18 @@ void sclDowngradeValueType(SValueNode *valueNode) {
 int32_t scalarBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData* pCol, int64_t rows) {
   int32_t  code = 0;
   int32_t  type = (pRemote->targetType != pRemote->node.resType.type) ? vectorGetConvertType(pRemote->targetType, pRemote->node.resType.type) : pRemote->targetType;
+  if (type < 0) {
+    sclError("%s not supported convertion between %d and %d", __func__, pRemote->targetType, pRemote->node.resType.type);
+    return TSDB_CODE_SCALAR_CONVERT_ERROR;
+  }
+          
   STypeMod typeMod = 0;
 
   if (IS_DECIMAL_TYPE(type)) {
     typeMod = decimalCalcTypeMod(TSDB_DECIMAL_MAX_PRECISION, getScaleFromTypeMod(type, pRemote->targetTypeMod));
   }
 
-  if (rows > 0) {
+  if (rows > 0 && TSDB_DATA_TYPE_NULL != type) {
     if (IS_VAR_DATA_TYPE(pRemote->targetType) && IS_NUMERIC_TYPE(type)) {
       SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 1, rows));
     } else if (IS_INTEGER_TYPE(pRemote->targetType) && IS_FLOAT_TYPE(type)) {
@@ -559,16 +564,18 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
       
       type = ctx->type.peerType;
-      if (IS_VAR_DATA_TYPE(ctx->type.selfType) && IS_NUMERIC_TYPE(type)) {
-        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->hashParam.pHashFilter, node, type, typeMod, 1));
-        SCL_ERR_RET(
-            scalarGenerateSetFromList((void **)&param->hashParam.pHashFilterOthers, node, ctx->type.selfType, typeMod, 2));
-      } else if (IS_INTEGER_TYPE(ctx->type.selfType) && IS_FLOAT_TYPE(type)) {
-        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->hashParam.pHashFilter, node, type, typeMod, 2));
-        SCL_ERR_RET(
-            scalarGenerateSetFromList((void **)&param->hashParam.pHashFilterOthers, node, ctx->type.selfType, typeMod, 4));
-      } else {
-        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->hashParam.pHashFilter, node, type, typeMod, 0));
+      if (TSDB_DATA_TYPE_NULL != type) {
+        if (IS_VAR_DATA_TYPE(ctx->type.selfType) && IS_NUMERIC_TYPE(type)) {
+          SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->hashParam.pHashFilter, node, type, typeMod, 1));
+          SCL_ERR_RET(
+              scalarGenerateSetFromList((void **)&param->hashParam.pHashFilterOthers, node, ctx->type.selfType, typeMod, 2));
+        } else if (IS_INTEGER_TYPE(ctx->type.selfType) && IS_FLOAT_TYPE(type)) {
+          SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->hashParam.pHashFilter, node, type, typeMod, 2));
+          SCL_ERR_RET(
+              scalarGenerateSetFromList((void **)&param->hashParam.pHashFilterOthers, node, ctx->type.selfType, typeMod, 4));
+        } else {
+          SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->hashParam.pHashFilter, node, type, typeMod, 0));
+        }
       }
 
       param->hashParam.filterValueTypeMod = typeMod;
@@ -655,11 +662,12 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     case QUERY_NODE_REMOTE_VALUE_LIST: {
       SRemoteValueListNode* pRemote = (SRemoteValueListNode*)node;
       if (!(pRemote->flag & VALUELIST_FLAG_VAL_UNSET)) {
-        sclDebug("remoteValueList already got res, node:%p, pHashFilter:%p,%d, pHashFilterOthers:%p,%d",
-          node, pRemote->pHashFilter, pRemote->pHashFilter ? taosHashGetSize(pRemote->pHashFilter) : 0,
+        sclDebug("remoteValueList already got res, node:%p, hasValue:%d, pHashFilter:%p,%d, pHashFilterOthers:%p,%d",
+          node, pRemote->hasValue, pRemote->pHashFilter, pRemote->pHashFilter ? taosHashGetSize(pRemote->pHashFilter) : 0,
           pRemote->pHashFilterOthers, pRemote->pHashFilterOthers ? taosHashGetSize(pRemote->pHashFilterOthers) : 0);
 
         param->hashParam.hasHashParam = true;
+        param->hashParam.hasValue = pRemote->hasValue;
         param->hashParam.pHashFilter = pRemote->pHashFilter;
         param->hashParam.pHashFilterOthers = pRemote->pHashFilterOthers;
         param->hashParam.filterValueType = pRemote->filterValueType;
@@ -679,14 +687,15 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
 
       param->hashParam.hasHashParam = true;
+      param->hashParam.hasValue = pRemote->hasValue;
       param->hashParam.pHashFilter = pRemote->pHashFilter;
       param->hashParam.pHashFilterOthers = pRemote->pHashFilterOthers;
       param->hashParam.filterValueType = pRemote->filterValueType;
       param->hashParam.filterValueTypeMod = pRemote->filterValueTypeMod;
       param->colAlloced = false;
 
-      sclDebug("remoteValueList got res, node:%p, pHashFilter:%p,%d, pHashFilterOthers:%p,%d",
-        node, pRemote->pHashFilter, pRemote->pHashFilter ? taosHashGetSize(pRemote->pHashFilter) : 0,
+      sclDebug("remoteValueList got res, node:%p, hasValue:%d, pHashFilter:%p,%d, pHashFilterOthers:%p,%d",
+        node, pRemote->hasValue, pRemote->pHashFilter, pRemote->pHashFilter ? taosHashGetSize(pRemote->pHashFilter) : 0,
         pRemote->pHashFilterOthers, pRemote->pHashFilterOthers ? taosHashGetSize(pRemote->pHashFilterOthers) : 0);
 
       break;
@@ -1555,6 +1564,8 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
       SCL_ERR_JRET(code);
     }
   }
+
+//  output->nullResExpected = ctx->nullResExpected;
   
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(node->opType);
 
@@ -1693,7 +1704,8 @@ _return:
 
 
 EDealRes sclRewriteNullInOptr(SNode **pNode, SScalarCtx *ctx, EOperatorType opType) {
-  if (opType <= OP_TYPE_CALC_MAX) {
+/*
+  if (opType <= OP_TYPE_CALC_MAX || ctx->nullResExpected) {
     SValueNode *res = NULL;
     ctx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode **)&res);
     if (NULL == res) {
@@ -1707,6 +1719,7 @@ EDealRes sclRewriteNullInOptr(SNode **pNode, SScalarCtx *ctx, EOperatorType opTy
     nodesDestroyNode(*pNode);
     *pNode = (SNode *)res;
   } else {
+*/
     SValueNode *res = NULL;
     ctx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode **)&res);
     if (NULL == res) {
@@ -1716,11 +1729,12 @@ EDealRes sclRewriteNullInOptr(SNode **pNode, SScalarCtx *ctx, EOperatorType opTy
 
     res->node.resType.type = TSDB_DATA_TYPE_BOOL;
     res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+    res->isNull = true;
     res->datum.b = false;
 
     nodesDestroyNode(*pNode);
     *pNode = (SNode *)res;
-  }
+//  }
 
   return DEAL_RES_CONTINUE;
 }
@@ -1795,7 +1809,7 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
   if (node->pLeft && (QUERY_NODE_VALUE == nodeType(node->pLeft))) {
     SValueNode *valueNode = (SValueNode *)node->pLeft;
     if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL) &&
-        (!sclContainsAggFuncNode(node->pRight))) {
+        (!sclContainsAggFuncNode(node->pRight)) && !SCL_IS_REMOTE_NODE(node->pRight)) {
       return sclRewriteNullInOptr(pNode, ctx, node->opType);
     }
 
@@ -1807,7 +1821,7 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
   if (node->pRight && (QUERY_NODE_VALUE == nodeType(node->pRight))) {
     SValueNode *valueNode = (SValueNode *)node->pRight;
     if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL) &&
-        (!sclContainsAggFuncNode(node->pLeft))) {
+        (!sclContainsAggFuncNode(node->pLeft)) && !SCL_IS_REMOTE_NODE(node->pLeft)) {
       return sclRewriteNullInOptr(pNode, ctx, node->opType);
     }
 
@@ -2423,7 +2437,7 @@ EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
   return DEAL_RES_ERROR;
 }
 
-int32_t sclCalcConstants(SNode *pNode, bool dual, bool remoteIncluded, SNode **pRes, SScalarExtraInfo* pExtra) {
+int32_t sclCalcConstants(SNode *pNode, bool dual, bool remoteIncluded, bool nullResExpected, SNode **pRes, SScalarExtraInfo* pExtra) {
   if (NULL == pNode) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -2432,6 +2446,7 @@ int32_t sclCalcConstants(SNode *pNode, bool dual, bool remoteIncluded, SNode **p
   SScalarCtx ctx = {0};
   ctx.dual = dual;
   ctx.remoteIncluded = remoteIncluded;
+  ctx.nullResExpected = nullResExpected;
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
     sclError("taosHashInit failed, num:%d", SCL_DEFAULT_OP_NUM);
@@ -2594,14 +2609,18 @@ int32_t scalarConvertOpValueNodeTs(SOperatorNode *node) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, false, false, pRes, NULL); }
+int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, false, false, false, pRes, NULL); }
 
-int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, true, false, pRes, NULL); }
+int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, true, false, false, pRes, NULL); }
+
+int32_t scalarCalculateProjectionConstants(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, false, false, true, pRes, NULL); }
+
+int32_t scalarCalculateProjectionConstantsFromDual(SNode *pNode, SNode **pRes) { return sclCalcConstants(pNode, true, false, true, pRes, NULL); }
 
 int32_t scalarCalculateRemoteConstants(SNode *pNode, SNode **pRes) { 
   gTaskScalarExtra.pStreamInfo = NULL;
   gTaskScalarExtra.pStreamRange = NULL;
-  return sclCalcConstants(pNode, false, true, pRes, &gTaskScalarExtra); 
+  return sclCalcConstants(pNode, false, true, false, pRes, &gTaskScalarExtra); 
 }
 
 int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, SScalarExtraInfo* pExtra) {

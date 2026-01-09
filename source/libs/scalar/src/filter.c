@@ -369,6 +369,7 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
       break;
     default:
       *comparFn = 0;
+      code = TSDB_CODE_SCALAR_CONVERT_ERROR;
       break;
   }
 
@@ -3625,6 +3626,7 @@ int32_t filterExecuteImplRange(void *pinfo, int32_t numOfRows, SColumnInfoData *
     if (colDataIsNull_s(pData, i)) {
       *all = false;
       p[i] = 0;
+      colDataSetNULL(pRes, i);
       continue;
     }
 
@@ -3658,6 +3660,7 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
     uint32_t uidx = info->groups[0].unitIdxs[0];
     if (colDataIsNull_s((SColumnInfoData *)info->cunits[uidx].colData, i)) {
       p[i] = 0;
+      colDataSetNULL(pRes, i);
       *all = false;
       continue;
     }
@@ -3729,7 +3732,14 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
         }
 
         if (colData == NULL || isNull) {
-          p[i] = optr == OP_TYPE_IS_NULL ? true : false;
+          if (optr == OP_TYPE_IS_NULL) {
+            p[i] = true;
+          } else {
+            p[i] = false;
+            if (optr != OP_TYPE_IS_NOT_NULL) {
+              colDataSetNULL(pRes, i);
+            }
+          }
         } else {
           if (optr == OP_TYPE_IS_NOT_NULL) {
             p[i] = 1;

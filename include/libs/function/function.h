@@ -321,6 +321,7 @@ typedef struct SHashParam {
 
 struct SScalarParam {
   bool             colAlloced;
+//  bool             nullResExpected;  // for compare operations where null value result is expected
   SColumnInfoData *columnData;
   SHashParam       hashParam;
   void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value

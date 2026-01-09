@@ -86,7 +86,7 @@ int32_t qwSaveSubQueryFetchRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWRspItem* pIte
   pItem->dataLen = dataLen;
 
   SRetrieveTableRsp* pRsp = NULL;
-  if (rsp && dataLen > 0) {
+  if (rsp && dataLen >= 0) {
     int32_t tcode = qwMallocFetchRsp(!ctx->localExec, dataLen, &pRsp);
     if (tcode) {
       QW_TASK_ELOG("qwMallocFetchRsp size %d, localExec:%d failed, error:%s", dataLen, ctx->localExec, tstrerror(tcode));
@@ -139,6 +139,8 @@ int32_t qwSaveAndHandleWailtList(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWRspItem* ne
       code = qwBuildAndSendFetchRsp(ctx, pWaitItem->reqMsgType + 1, &pWaitItem->connInfo, NULL, 0, ctx->subQRes.code);
     }
 
+    taosArrayClear(ctx->subQRes.waitList);
+
     taosWUnLockLatch(&ctx->subQRes.lock);
 
     return ctx->subQRes.code;
@@ -172,13 +174,15 @@ int32_t qwSaveAndHandleWailtList(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWRspItem* ne
     }
   }
 
+  taosArrayClear(ctx->subQRes.waitList);
+
   taosWUnLockLatch(&ctx->subQRes.lock);
 
   return ctx->subQRes.code;
 }
 
 int32_t qwChkSaveNonScalarSubQRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd) {
-  if (NULL == rsp || dataLen <= 0) {
+  if (NULL == rsp || TSDB_CODE_SUCCESS != code) {
     ctx->subQRes.code = code;
     return code;
   }

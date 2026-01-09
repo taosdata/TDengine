@@ -43,6 +43,8 @@ pNode will be freed in API;
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
 int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes);
 int32_t scalarCalculateRemoteConstants(SNode *pNode, SNode **pRes);
+int32_t scalarCalculateProjectionConstants(SNode *pNode, SNode **pRes);
+int32_t scalarCalculateProjectionConstantsFromDual(SNode *pNode, SNode **pRes);
 
 int32_t scalarConvertOpValueNodeTs(SOperatorNode *node);
 
