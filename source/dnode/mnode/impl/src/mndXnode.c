@@ -20,12 +20,12 @@
 #include "types.h"
 #ifndef WINDOWS
 #include <curl/curl.h>
-#endif
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
+#endif
 #include "audit.h"
 #include "mndDnode.h"
 #include "mndPrivilege.h"
@@ -4052,6 +4052,7 @@ static int32_t mndCheckXnodeAgentExists(SMnode *pMnode, const char *name) {
   return TSDB_CODE_SUCCESS;
 }
 
+#ifndef WINDOWS
 typedef struct {
   int64_t sub;  // agent ID
   int64_t iat;  // issued at time
@@ -4352,10 +4353,11 @@ _exit:
 
   return token;
 }
+#endif
 
 int32_t mndXnodeGenAgentToken(const SXnodeAgentObj *pAgent, char *pTokenBuf) {
   int32_t code = 0, lino = 0;
-
+  #ifndef WINDOWS
   // char *token =
   //     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3Njc1OTc3NzIsInN1YiI6MTIzNDV9.i7HvYf_S-yWGEExDzQESPUwVX23Ok_"
   //     "7Fxo93aqgKrtw";
@@ -4376,6 +4378,7 @@ _exit:
     mError("xnode agent line: %d failed gen token since %s", lino, tstrerror(code));
   }
   taosMemoryFree(token);
+  #endif
   TAOS_RETURN(code);
 }
 

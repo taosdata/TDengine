@@ -34,7 +34,9 @@ const unsigned char MNDXNODE_DEFAULT_SECRET[] = {126, 222, 130, 137, 43,  122, 4
 SSdbRaw* mndXnodeAgentActionEncode(SXnodeAgentObj* pObj);
 SSdbRow* mndXnodeAgentActionDecode(SSdbRaw* pRaw);
 
+#ifndef WINDOWS
 char *mndXnodeCreateAgentToken(const agentTokenField *claims, const unsigned char *secret, size_t secret_len);
+#endif
 }
 
 class XnodeAgentTest : public ::testing::Test {
@@ -66,6 +68,7 @@ TEST_F(XnodeAgentTest, xnode_agent_agent_jwt_token) {
   obj.createTime = 1767615162;
   obj.updateTime = 1767615162;
 
+  #ifndef WINDOWS
   // create agent token
   agentTokenField claims = {
       .sub = obj.id,
@@ -74,6 +77,7 @@ TEST_F(XnodeAgentTest, xnode_agent_agent_jwt_token) {
   obj.token = mndXnodeCreateAgentToken(&claims, MNDXNODE_DEFAULT_SECRET, sizeof(MNDXNODE_DEFAULT_SECRET));
   ASSERT_STREQ(obj.token, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3Njc2MTUxNjIsInN1YiI6MTIzNDV9.wFyF2ydHRxuzb4yDJnMbiIX2Q2d6NlJTPi9YutkS1GI");
   obj.tokenLen = strlen(obj.token) + 1;
+  #endif
 
   // Use REAL production encode function
   SSdbRaw* pRaw = mndXnodeAgentActionEncode(&obj);
@@ -117,6 +121,7 @@ TEST_F(XnodeAgentTest, xnode_agent_null_test) {
   obj.createTime = 1234567890;
   obj.updateTime = 1767615162;
 
+  #ifndef WINDOWS
   // create agent token
   agentTokenField claims = {
       .sub = obj.id,
@@ -125,6 +130,7 @@ TEST_F(XnodeAgentTest, xnode_agent_null_test) {
   obj.token = mndXnodeCreateAgentToken(&claims, MNDXNODE_DEFAULT_SECRET, sizeof(MNDXNODE_DEFAULT_SECRET));
   ASSERT_STREQ(obj.token, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjEyMzQ1Njc4OTAsInN1YiI6N30.Ig7yhv-EBSlKavSVOQQ-jrVTNhFcn3k7f-bglpWZCHo");
   obj.tokenLen = strlen(obj.token) + 1;
+  #endif
 
   // Use REAL production encode function
   SSdbRaw* pRaw = mndXnodeAgentActionEncode(&obj);
