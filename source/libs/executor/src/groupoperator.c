@@ -419,18 +419,19 @@ static int32_t doGroupResultSlimit(SSDataBlock* pRes, SLimitInfo* pLimitInfo) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pLimitInfo && pLimitInfo->remainGroupOffset > 0) {
+  if (pLimitInfo->remainGroupOffset > 0) {
     if (pRes->info.rows <= pLimitInfo->remainGroupOffset) {
       pLimitInfo->remainGroupOffset -= pRes->info.rows;
       blockDataCleanup(pRes);
+      return TSDB_CODE_SUCCESS;
     } else {
       code = blockDataTrimFirstRows(pRes, pLimitInfo->remainGroupOffset);
       QUERY_CHECK_CODE(code, lino, _end);
+      pLimitInfo->remainGroupOffset = 0;
     }
   }
 
-  pLimitInfo->remainGroupOffset = 0;
-  if (pLimitInfo && pLimitInfo->slimit.limit >= 0 && pRes->info.rows > 0) {
+  if (pLimitInfo->slimit.limit >= 0 && pRes->info.rows > 0) {
     int32_t remainRows = pLimitInfo->slimit.limit - pLimitInfo->numOfOutputGroups;
     if (pRes->info.rows > remainRows) {
       blockDataKeepFirstNRows(pRes, remainRows);
