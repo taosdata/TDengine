@@ -81,8 +81,9 @@ int32_t CBC_EncryptImpl(SCryptOpts *opts) {
     terrno = TSDB_CODE_UTIL_CIPHER_NOT_EXIST;
     goto out;
   }
-
-  if (!EVP_EncryptInit(ctx, cipher, (unsigned char *)opts->key, (unsigned char *)opts->key)) {
+  unsigned char iv[ENCRYPT_KEY_LEN];
+  memcpy(iv, opts->key, ENCRYPT_KEY_LEN);
+  if (!EVP_EncryptInit(ctx, cipher, (unsigned char *)opts->key, iv)) {
     uError("Failed EVP_EncryptInit!");
     terrno = TSDB_CODE_UTIL_CRYPT_FAIL_INIT;
     goto out;
