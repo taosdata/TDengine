@@ -690,22 +690,28 @@ class TDDnode:
             tdLog.info("dnode:%d is stopped by kill -INT" % (self.index))
             
             # check process still running
-            still_running = False
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                try:
-                    # Windows 下进程名可能是 taosd.exe，Linux 下是 taosd
-                    name_match = proc.info['name'] and ('taosd' in proc.info['name'])
-                    if self.valgrind and proc.info['name']:
-                        name_match = 'valgrind' in proc.info['name']
-                    if name_match:
-                        # 检查命令行参数里有 dnode{self.index}
-                        if proc.info['cmdline'] and any(f'dnode{self.index}' in str(arg) for arg in proc.info['cmdline']):
-                            still_running = True
-                            tdLog.error(f"taosd process (pid={proc.info['pid']}) for dnode{self.index} still running after stop!")
-                except Exception:
-                    continue
+            timeout = 30  # 最多等待10秒
+            interval = 0.2
+            waited = 0
+            while waited < timeout:
+                still_running = False
+                for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                    try:
+                        name_match = proc.info['name'] and ('taosd' in proc.info['name'])
+                        if self.valgrind and proc.info['name']:
+                            name_match = 'valgrind' in proc.info['name']
+                        if name_match:
+                            if proc.info['cmdline'] and any(f'dnode{self.index}' in str(arg) for arg in proc.info['cmdline']):
+                                still_running = True
+                                tdLog.error(f"taosd process (pid={proc.info['pid']}) for dnode{self.index} still running after stop!")
+                    except Exception:
+                        continue
+                if not still_running:
+                    break
+                sleep(interval)
+                waited += interval
             if still_running:
-                raise RuntimeError(f"taosd for dnode{self.index} stop failed: process still running.")            
+                raise RuntimeError(f"taosd for dnode{self.index} stop failed: process still running after {timeout}s.")
 
     def forcestop(self):
         tdLog.info(f"start to force stop taosd on dnode:{self.index}")
