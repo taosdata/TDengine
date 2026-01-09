@@ -62,18 +62,4 @@ target_link_libraries(taosk_bin
 # Rename the binary to 'taosk' for installation
 set_target_properties(taosk_bin PROPERTIES OUTPUT_NAME taosk)
 
-# Install target
-if(${TD_LINUX})
-    install(TARGETS taosk_bin
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-    )
-elseif(${TD_WINDOWS})
-    install(TARGETS taosk_bin RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-elseif(${TD_DARWIN})
-    install(TARGETS taosk_bin
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-    )
-endif()
 
