@@ -273,20 +273,20 @@ To better operate the above data structures, some convenience functions are prov
 
 Create table:
 
-```shell
-create table battery(ts timestamp, vol1 float, vol2 float, vol3 float, deviceId varchar(16));
+```sql
+CREATE TABLE battery(ts TIMESTAMP, vol1 FLOAT, vol2 FLOAT, vol3 FLOAT, deviceId VARCHAR(16));
 ```
 
 Create custom function:
 
-```shell
-create aggregate function max_vol as '/root/udf/libmaxvol.so' outputtype binary(64) bufsize 10240 language 'C'; 
+```sql
+CREATE AGGREGATE FUNCTION max_vol AS '/root/udf/libmaxvol.so' OUTPUTTYPE BINARY(64) BUFSIZE 10240 LANGUAGE 'C'; 
 ```
 
 Use custom function:
 
-```shell
-select max_vol(vol1, vol2, vol3, deviceid) from battery;
+```sql
+SELECT max_vol(vol1, vol2, vol3, deviceid) FROM battery;
 ```
 
 <details>
@@ -308,26 +308,26 @@ The `extract_avg` function converts a comma-separated string sequence into a set
 
 Create table:
 
-```shell
-create table scores(ts timestamp, varStr varchar(128));
+```sql
+CREATE TABLE scores(ts TIMESTAMP, varStr VARCHAR(128));
 ```
 
 Create custom function:
 
-```shell
-create aggregate function extract_avg as '/root/udf/libextract_avg.so' outputtype double bufsize 16 language 'C'; 
+```sql
+CREATE AGGREGATE FUNCTION extract_avg AS '/root/udf/libextract_avg.so' OUTPUTTYPE DOUBLE BUFSIZE 16 LANGUAGE 'C'; 
 ```
 
 Use custom function:
 
-```shell
-select extract_avg(valStr) from scores;
+```sql
+SELECT extract_avg(valStr) FROM scores;
 ```
 
 Generate `.so` file
 
 ```bash
-gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
+gcc -g -O0 -fPIC -shared extract_avg.c -o libextract_avg.so
 ```
 
 <details>
@@ -504,10 +504,10 @@ The scalar function's `process` method must return as many rows of data as there
 Next, create the corresponding UDF function, execute the following statement in the TDengine CLI.
 
 ```sql
-create function myfun as '/root/udf/myfun.py' outputtype double language 'Python'
+CREATE FUNCTION myfun AS '/root/udf/myfun.py' OUTPUTTYPE DOUBLE LANGUAGE 'Python';
 ```
 
-```shell
+```text
 taos> create function myfun as '/root/udf/myfun.py' outputtype double language 'Python';
 Create OK, 0 row(s) affected (0.005202s)
 ```
@@ -525,16 +525,16 @@ Query OK, 1 row(s) in set (0.005767s)
 Generate test data, you can execute the following commands in the TDengine CLI.
 
 ```sql
-create database test;
-create table t(ts timestamp, v1 int, v2 int, v3 int);
-insert into t values('2023-05-01 12:13:14', 1, 2, 3);
-insert into t values('2023-05-03 08:09:10', 2, 3, 4);
-insert into t values('2023-05-10 07:06:05', 3, 4, 5);
+CREATE DATABASE test;
+CREATE TABLE t(ts TIMESTAMP, v1 INT, v2 INT, v3 INT);
+INSERT INTO t VALUES('2023-05-01 12:13:14', 1, 2, 3);
+INSERT INTO t VALUES('2023-05-03 08:09:10', 2, 3, 4);
+INSERT INTO t VALUES('2023-05-10 07:06:05', 3, 4, 5);
 ```
 
 Test the myfun function.
 
-```sql
+```text
 taos> select myfun(v1, v2) from t;
 
 DB error: udf function execution failure (0.011088s)
@@ -557,7 +557,7 @@ The error is clear: the Python plugin `libtaospyudf.so` was not loaded. If you e
 
 After fixing the environment error, execute again as follows.
 
-```sql
+```text
 taos> select myfun(v1) from t;
          myfun(v1)         |
 ============================
@@ -574,7 +574,7 @@ Although the myfun function passed the test, it has two drawbacks.
 
 1. This scalar function only accepts 1 column of data as input, and it will not throw an exception if multiple columns are passed.
 
-```sql
+```text
 taos> select myfun(v1, v2) from t;
        myfun(v1, v2)       |
 ============================
@@ -596,12 +596,12 @@ def process(block):
 Execute the following statement to update the existing UDF.
 
 ```sql
-create or replace function myfun as '/root/udf/myfun.py' outputtype double language 'Python';
+CREATE OR REPLACE FUNCTION myfun AS '/root/udf/myfun.py' OUTPUTTYPE DOUBLE LANGUAGE 'Python';
 ```
 
 Passing two arguments to myfun will result in a failure.
 
-```sql
+```text
 taos> select myfun(v1, v2) from t;
 
 DB error: udf function execution failure (0.014643s)
@@ -614,7 +614,6 @@ Custom exception messages are logged in the plugin log file `/var/log/taos/taosp
 
 At:
   /var/lib/taos//.udf/myfun_3_1884e1281d9.py(12): process
-
 ```
 
 Thus, we have learned how to update UDFs and view the error logs output by UDFs.
@@ -651,12 +650,12 @@ def process(block):
 Create the UDF.
 
 ```sql
-create function nsum as '/root/udf/nsum.py' outputtype double language 'Python';
+CREATE FUNCTION nsum AS '/root/udf/nsum.py' OUTPUTTYPE DOUBLE LANGUAGE 'Python';
 ```
 
 Test the UDF.
 
-```sql
+```text
 taos> insert into t values('2023-05-25 09:09:15', 6, null, 8);
 Insert OK, 1 row(s) affected (0.003675s)
 
@@ -703,12 +702,12 @@ def process(block):
 The UDF framework maps TDengine's timestamp type to Python's int type, so this function only accepts an integer representing milliseconds. The process method first checks the parameters, then uses the moment package to replace the day of the week with Sunday, and finally formats the output. The output string length is fixed at 10 characters long, so you can create the UDF function like this.
 
 ```sql
-create function nextsunday as '/root/udf/nextsunday.py' outputtype binary(10) language 'Python';
+CREATE FUNCTION nextsunday AS '/root/udf/nextsunday.py' OUTPUTTYPE BINARY(10) LANGUAGE 'Python';
 ```
 
 At this point, test the function. If you started taosd with systemctl, you will definitely encounter an error.
 
-```sql
+```text
 taos> select ts, nextsunday(ts) from t;
 
 DB error: udf function execution failure (1.123615s)
@@ -742,13 +741,13 @@ First, open the python3 command line and check the current sys.path.
 
 Copy the output string from the script above, then edit `/var/taos/taos.cfg` and add the following configuration.
 
-```shell
+```text
 UdfdLdLibPath /usr/lib/python3.8:/usr/lib/python3.8/lib-dynload:/usr/local/lib/python3.8/dist-packages:/usr/lib/python3/dist-packages
 ```
 
 After saving, execute `systemctl restart taosd`, then test again and there will be no errors.
 
-```sql
+```text
 taos> select ts, nextsunday(ts) from t;
            ts            | nextsunday(ts) |
 ===========================================
@@ -817,7 +816,7 @@ In this example, we not only defined an aggregate function but also added the fu
 Execute the following SQL statement to create the corresponding UDF.
 
 ```sql
-create or replace aggregate function myspread as '/root/udf/myspread.py' outputtype double bufsize 128 language 'Python';
+CREATE OR REPLACE AGGREGATE FUNCTION myspread AS '/root/udf/myspread.py' OUTPUTTYPE DOUBLE BUFSIZE 128 LANGUAGE 'Python';
 ```
 
 This SQL statement has two important differences from the SQL statement used to create scalar functions.
@@ -832,7 +831,7 @@ This SQL statement has two important differences from the SQL statement used to 
 
 To test this function, you can see that the output of `myspread` is consistent with that of the built-in `spread` function.
 
-```sql
+```text
 taos> select myspread(v1) from t;
        myspread(v1)        |
 ============================
@@ -848,7 +847,7 @@ Query OK, 1 row(s) in set (0.005501s)
 
 Finally, by checking the execution log, you can see that the reduce function was executed 3 times, during which the max value was updated 4 times, and the min value was updated only once.
 
-```shell
+```text
 root@server11 /var/log/taos $ cat spread.log
 init function myspead success
 initial max_number=-inf, min_number=inf
@@ -895,6 +894,7 @@ Through this example, we learned how to define aggregate functions and print cus
 #### Aggregate Function Example [pycumsum](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/pycumsum.py)
 
 `pycumsum` uses numpy to calculate the cumulative sum of all data in the input column.
+
 <details>
 <summary>pycumsum.py</summary>
 
@@ -922,11 +922,11 @@ CREATE [OR REPLACE] FUNCTION function_name AS library_path OUTPUTTYPE output_typ
 
 The parameters are explained as follows.
 
-- or replace: If the function already exists, it modifies the existing function properties.
-- function_name: The name of the scalar function when called in SQL.
-- language: Supports C and Python languages (version 3.7 and above), default is C.
-- library_path: If the programming language is C, the path is the absolute path to the library file containing the UDF implementation dynamic link library, usually pointing to a .so file. If the programming language is Python, the path is the path to the Python file containing the UDF implementation. The path needs to be enclosed in single or double quotes in English.
-- output_type: The data type name of the function computation result.
+- `OR REPLACE`: If the function already exists, it modifies the existing function properties.
+- `function_name`: The name of the scalar function when called in SQL.
+- `LANGUAGE`: Supports C and Python languages (version 3.7 and above), default is C.
+- `library_path`: If the programming language is C, the path is the absolute path to the library file containing the UDF implementation dynamic link library, usually pointing to a .so file. If the programming language is Python, the path is the path to the Python file containing the UDF implementation. The path needs to be enclosed in single or double quotes in English.
+- `output_type`: The data type name of the function computation result.
 
 ### Creating Aggregate Functions
 
@@ -957,7 +957,7 @@ DROP FUNCTION function_name;
 The SQL to display all currently available UDFs in the cluster is as follows.
 
 ```sql
-show functions;
+SHOW FUNCTIONS;
 ```
 
 ### Viewing Function Information
@@ -965,5 +965,5 @@ show functions;
 Each update of a UDF with the same name increases the version number by 1.
 
 ```sql
-select * from ins_functions \G;     
+SELECT * FROM ins_functions \G;     
 ```

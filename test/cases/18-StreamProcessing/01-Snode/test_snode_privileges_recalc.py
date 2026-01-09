@@ -60,7 +60,7 @@ class TestStreamPrivilegesRecalc:
         self.createOneStream()
 
         # check normal user no write privilege to recalc stream
-        tdSql.connect(self.username1)
+        tdSql.connect(self.username1, "AAbb1122")
         tdLog.info(f"connect user {self.username1} ")
 
         # check normal user no query/write privilege to recalc stream
@@ -68,13 +68,13 @@ class TestStreamPrivilegesRecalc:
 
         # check normal user no write privilege to recalc stream
         self.grantRead()
-        tdSql.connect(self.username1)
+        tdSql.connect(self.username1, "AAbb1122")
         tdLog.info(f"connect user {self.username1} ")
         self.recalcStream()
 
         # check normal user have write privilege to recalc stream
         self.grantWrite()
-        tdSql.connect(self.username1)
+        tdSql.connect(self.username1, "AAbb1122")
         tdLog.info(f"connect user {self.username1} ")
         self.recalcStream()
 
@@ -99,8 +99,8 @@ class TestStreamPrivilegesRecalc:
 
     def createUser(self):
         tdLog.info(f"create user")
-        tdSql.execute(f'create user {self.username1} pass "taosdata"')
-        tdSql.execute(f'create user {self.username2} pass "taosdata"')
+        tdSql.execute(f'create user {self.username1} pass "AAbb1122"')
+        tdSql.execute(f'create user {self.username2} pass "AAbb1122"')
         self.checkResultRows(2)
 
     def noSysInfo(self):
@@ -177,7 +177,7 @@ class TestStreamPrivilegesRecalc:
 
     def userCreateStream(self):
         tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
+        tdSql.connect(self.username2, "AAbb1122")
         sql = (
             f"create stream {self.dbname2}.`s100` sliding(1s) from {self.dbname}.st1  partition by tbname "
             "stream_options(fill_history('2025-01-01 00:00:00')) "
@@ -196,7 +196,7 @@ class TestStreamPrivilegesRecalc:
 
     def userStopStream(self):
         tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
+        tdSql.connect(self.username2, "AAbb1122")
         tdSql.query(f"show {self.dbname}.streams;")
         numOfStreams = tdSql.getRows()
         if numOfStreams > 0:
@@ -218,7 +218,7 @@ class TestStreamPrivilegesRecalc:
 
     def userStartStream(self):
         tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
+        tdSql.connect(self.username2, "AAbb1122")
         tdSql.query(f"show {self.dbname}.streams;")
         numOfStreams = tdSql.getRows()
         if numOfStreams > 0:

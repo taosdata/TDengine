@@ -55,7 +55,7 @@ SELECT _wstart, _wend, SUM(i32)
 FROM foo
 ANOMALY_WINDOW(i32, "algo=ksigma,k=2");
 
-taos> SELECT _wstart, _wend, count(*) FROM foo ANOMAYL_WINDOW(i32);
+taos> SELECT _wstart, _wend, count(*) FROM foo ANOMALY_WINDOW(i32);
          _wstart         |          _wend          |   count(*)    |
 ====================================================================
  2020-01-01 00:00:16.000 | 2020-01-01 00:00:17.000 |             2 |
