@@ -253,11 +253,11 @@ static int32_t rewriteAppendStableTagCond(SNode** pWhere, SNode* pTagCond, STabl
 }
 
 static int32_t authSelectTblCols(SSelectStmt* pSelect, STableNode* pTable, SArray* pPrivCols) {
-  int32_t    code = TSDB_CODE_PAR_INTERNAL_ERROR;
+  int32_t    code = 0;
   SNodeList* pRetrievedCols = NULL;
+  int32_t    nCols = taosArrayGetSize(pPrivCols);
 
-  int32_t numOfCols = taosArrayGetSize(pPrivCols);
-  if (numOfCols <= 0) {
+  if (nCols <= 0) {
     goto _return;
   }
 
@@ -267,8 +267,8 @@ static int32_t authSelectTblCols(SSelectStmt* pSelect, STableNode* pTable, SArra
   FOREACH(pNode, pRetrievedCols) {
     SColumnNode* pColNode = (SColumnNode*)pNode;
     bool         found = false;
-    for (int32_t colPos = 0; colPos < numOfCols; ++colPos) {
-      SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, colPos);
+    for (int32_t c = 0; c < nCols; ++c) {
+      SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, c);
       if (strcmp(pColNode->colName, pColNameFlag->colName) == 0) {
         found = true;
         break;
