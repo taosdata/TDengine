@@ -443,7 +443,7 @@ class TestUserSecurity:
         # lock
         self.check_over_max_failed_login(user, password, 3)
         time.sleep(30)
-        self.login(user, password)
+        self.login_failed(user, password)
         time.sleep(35)  # wait for 1 minute lock time        
         # unlock
         self.login(user, password)
@@ -885,6 +885,7 @@ class TestUserSecurity:
     #
     def do_drop_user(self):
         # normal
+        self.login()
         self.drop_user("user_session1")
         tdSql.checkFirstValue("select count(*) from information_schema.ins_users where name='user_session1'", 0)
         
@@ -1025,18 +1026,6 @@ class TestUserSecurity:
     def do_alter_user(self):
         self.check_alter_option_value()
         self.check_alter_fun_work()
-
-    #
-    # --------------------------- totp ----------------------------
-    #
-    def do_totp(self):
-        pass
-
-    #
-    # --------------------------- token ----------------------------
-    #
-    def do_token(self):
-        pass
     
     # prepare data
     def prepare_data(self):
@@ -1049,12 +1038,34 @@ class TestUserSecurity:
     def test_user_security(self):
         """User security
 
-        1. create user
+        1. create user with variant options
+            - SESSION_PER_USER
+            - CONNECT_TIME
+            - CONNECT_IDLE_TIME
+            - CALL_PER_SESSION
+            - VNODE_PER_CALL
+            - FAILED_LOGIN_ATTEMPTS
+            - PASSWORD_LOCK_TIME
+            - PASSWORD_LIFE_TIME
+            - PASSWORD_GRACE_TIME
+            - PASSWORD_REUSE_TIME
+            - PASSWORD_REUSE_MAX
+            - INACTIVE_ACCOUNT_TIME
+            - ALLOW_TOKEN_NUM
+            - HOST white list
+            - NOT_ALLOW_HOST black list
+            - ALLOW_DATETIME
+            - NOT_ALLOW_DATETIME
+            - combine options
+            - check created options work fine
         2. show user
-        3. alter user
+            - show user command
+            - query information_schema.ins_users
+        3. alter user options
+            - alter user to change options
+            - check altered options work fine
         4. drop user
-        5. TOTP management
-        6. Token management
+        5. exception on create/alter/drop user
         
         Since: v3.4.0.0
 
@@ -1064,6 +1075,7 @@ class TestUserSecurity:
 
         History:
             - 2026-01-06 Alex Duan created
+            - 2026-01-09 Alex Duan finished
 
         """
         self.prepare_data()
@@ -1071,5 +1083,3 @@ class TestUserSecurity:
         self.do_show_user()
         self.do_alter_user()
         self.do_drop_user()
-        self.do_totp()
-        self.do_token()
