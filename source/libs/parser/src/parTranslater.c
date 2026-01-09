@@ -464,16 +464,16 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  { .showType = QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT,
-    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
-    .pTableName = TSDB_INS_TABLE_ENCRYPT_STATUS,
-    .numOfShowCols = 1,
-    .pShowCols = {"*"}
-  },
   {
     .showType = QUERY_NODE_SHOW_TOKENS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_TOKENS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { .showType = QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_ENCRYPT_STATUS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },

@@ -98,7 +98,7 @@ class TestUserPrivilegeDb:
         tdSql.execute(f"REVOKE select,insert ON *.* from user1;")
 
         tdLog.info(f"=============== create users")
-        tdSql.execute(f"create user u1 PASS 'taosdata'")
+        tdSql.execute(f"create user u1 PASS 'AAbb1122'")
         tdSql.query(f"select * from information_schema.ins_users")
         tdSql.checkRows(4)
 
@@ -125,7 +125,7 @@ class TestUserPrivilegeDb:
 
         tdLog.info(f"=============== re connect")
         tdLog.info(f"user u1 login")
-        tdSql.connect("u1")
+        tdSql.connect("u1", "AAbb1122")
 
         tdSql.error(f"drop database d1;")
         tdSql.error(f"drop database d2;")

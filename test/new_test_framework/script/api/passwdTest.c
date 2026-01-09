@@ -248,10 +248,10 @@ void createUsers(TAOS *taos, const char *host, char *qstr) {
   // users
   for (int i = 0; i < nUser; ++i) {
     sprintf(users[i], "user%d", i);
-    sprintf(qstr, "CREATE USER %s PASS 'taosdata' PASSWORD_REUSE_MAX 0 PASSWORD_REUSE_TIME 0", users[i]);
+    sprintf(qstr, "CREATE USER %s PASS 'AAbb1122' PASSWORD_REUSE_MAX 0 PASSWORD_REUSE_TIME 0", users[i]);
     queryDB(taos, qstr);
 
-    taosu[i] = taos_connect(host, users[i], "taosdata", NULL, 0);
+    taosu[i] = taos_connect(host, users[i], "AAbb1122", NULL, 0);
     if (taosu[i] == NULL) {
       printf("failed to connect to server, user:%s, reason:%s\n", users[i], "null taos" /*taos_errstr(taos)*/);
       exit(1);
