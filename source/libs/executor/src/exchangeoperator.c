@@ -890,6 +890,8 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
   pScan->isNewParam = false;
   pScan->window.skey = INT64_MAX;
   pScan->window.ekey = INT64_MIN;
+  pScan->notifyToProcess = false;
+  pScan->notifyTs = 0;
 
   (*ppRes)->opType = srcOpType;
   (*ppRes)->downstreamIdx = 0;
@@ -940,6 +942,8 @@ int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, 
   pScan->window.skey = window->skey;
   pScan->window.ekey = window->ekey;
   pScan->isNewParam = isNewParam;
+  pScan->notifyToProcess = false;
+  pScan->notifyTs = 0;
   (*ppRes)->opType = srcOpType;
   (*ppRes)->downstreamIdx = 0;
   (*ppRes)->value = pScan;
