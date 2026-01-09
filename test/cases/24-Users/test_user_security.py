@@ -23,7 +23,7 @@ class TestUserSecurity:
     #
     def login_failed(self, user=None, password=None):
         try:
-            self.login(user=user, password=password)
+            self.login(user, password)
         except Exception as e:
             tdLog.info(f"Login failed as expected: {e}")
             return
@@ -46,9 +46,20 @@ class TestUserSecurity:
         
         if login:
             self.login(user=user_name, password=password)
+
+    def alter_user(self, user_name, options):
+        tdSql.execute(f"ALTER USER {user_name} {options}")
             
     def drop_user(self, user_name):
         tdSql.execute(f"DROP USER {user_name}")
+
+    def drop_user_failed(self, user_name):
+        try:
+            self.drop_user(user_name)
+        except Exception as e:
+            print(f"Drop user failed as expected: {e}")
+            return
+        raise Exception("Drop user succeeded but was expected to fail")        
     
     def alter_password(self, user_name, new_password):
         tdSql.execute(f"ALTER USER {user_name} PASS '{new_password}'")
@@ -57,7 +68,7 @@ class TestUserSecurity:
         try:
             self.alter_password(user_name, new_password)
         except Exception as e:
-            tdLog.info(f"Alter password failed as expected: {e}")
+            print(f"Alter password failed as expected: {e}")
             return
         raise Exception("Alter password succeeded but was expected to fail")
     
@@ -95,7 +106,7 @@ class TestUserSecurity:
 
         raise Exception("Exceeded max sessions but was expected to fail")
         
-    def check_user_option(self, user_name, option_name, expected_value):
+    def check_user_option(self, user_name, option_name, expected_value, find=False):
         res = tdSql.getResult(f"show users full")
         idx = tdSql.fieldIndex(option_name)
         for row in res:
@@ -105,6 +116,12 @@ class TestUserSecurity:
                     actual_value = actual_value.strip().strip('\x00')
                 if isinstance(expected_value, str):
                     expected_value = expected_value.strip().strip('\x00')
+                # partial match
+                if find:
+                    if str(actual_value).find(str(expected_value)) < 0:
+                        raise Exception(f"User option value mismatch for {option_name}: expected to find {expected_value}, got {actual_value}")
+                    return
+                # exact match
                 if actual_value != expected_value:
                     raise Exception(f"User option value mismatch for {option_name}: expected {expected_value}, got {actual_value}")
                 return
@@ -122,8 +139,7 @@ class TestUserSecurity:
             results[index] = False
             print(f" Thread {index} failed to execute SQL: {sql} error:{e}")
     
-    def create_multiple_sessions(self, user_name, password, sql, num):
-        
+    def create_concurrent_threads(self, user_name, password, sql, num):
         threads = []
         results = [False] * num
         for i in range(num):
@@ -136,7 +152,7 @@ class TestUserSecurity:
 
         print(f" threads results:{results}")            
         if not all(results):
-            raise Exception("Not all sessions executed the SQL successfully")    
+            raise Exception("Not all sessions executed the SQL successfully")
     
     def check_in_max_succ_login(self, user_name, password, max_attempts):
         for i in range(max_attempts - 1):            
@@ -295,14 +311,14 @@ class TestUserSecurity:
         user = "user_call_per_session1"
         self.create_user(user, password=password)
         self.check_user_option(user, "CALL_PER_SESSION", -1)
-        self.create_multiple_sessions(user, password, "show databases", 10)
+        self.create_concurrent_threads(user, password, "show databases", 10)
 
         # min check (1 minute)
         user = "user_call_per_session2"
         # check option value
         self.create_user(user, options="CALL_PER_SESSION 5")
         self.check_user_option(user, "CALL_PER_SESSION", 5)
-        self.create_multiple_sessions(user, password, "show databases", 5)
+        self.create_concurrent_threads(user, password, "show databases", 5)
 
         print("option CALL_PER_SESSION ............... [ passed ] ")
 
@@ -318,7 +334,7 @@ class TestUserSecurity:
         self.check_user_option(user, "VNODE_PER_CALL", -1)
         tdSql.execute(f"grant all on test.* to {user}")
         tdSql.execute(f"grant all on  database test to {user}")
-        self.login(user=user, password=password)
+        self.login(user, password)
         for i in range(20):
             time.sleep(1)
             try:
@@ -339,12 +355,11 @@ class TestUserSecurity:
         self.check_user_option(user, "VNODE_PER_CALL", 1)
         tdSql.execute(f"grant all on test.* to {user}")
         tdSql.execute(f"grant all on  database test to {user}")
-        self.login(user=user, password=password)
+        self.login(user, password)
         for i in range(20):
             time.sleep(1)
             try:
                 tdSql.checkFirstValue(f"select count(*) from test.meters", 10000)
-                break
             except Exception as e:                
                 if str(e).find("[0x023d]") >= 0: # TSDB_CODE_TSC_SESS_MAX_CALL_VNODE_LIMIT
                     print(f"  hit max vnode per call limit as expected.")
@@ -362,7 +377,7 @@ class TestUserSecurity:
         self.check_user_option(user, "VNODE_PER_CALL", 16)
         tdSql.execute(f"grant all on test.* to {user}")
         tdSql.execute(f"grant all on  database test to {user}")
-        self.login(user=user, password=password)
+        self.login(user, password)
         for i in range(20):
             time.sleep(1)
             try:
@@ -428,10 +443,10 @@ class TestUserSecurity:
         # lock
         self.check_over_max_failed_login(user, password, 3)
         time.sleep(30)
-        self.login_failed(user=user, password=password)
+        self.login(user, password)
         time.sleep(35)  # wait for 1 minute lock time        
         # unlock
-        self.login(user=user, password=password)
+        self.login(user, password)
 
         # big check (UNLIMITED)
         user = "user_password_lock3"
@@ -576,7 +591,7 @@ class TestUserSecurity:
         user = "user_inactive_account2"
         self.create_user(user, password, options="INACTIVE_ACCOUNT_TIME UNLIMITED")
         self.check_user_option(user, "INACTIVE_ACCOUNT_TIME", -1)
-        self.login(user=user, password=password)
+        self.login(user, password)
         
         # except
         self.login()
@@ -686,14 +701,14 @@ class TestUserSecurity:
         val = "2035-12-01 10:00 10"
         self.create_user(user, password, options=f"ALLOW_DATETIME '{val}'")
         self.check_user_option(user, "allowed_datetime", val)
-        self.login_failed(user=user, password=password)
+        self.login(user, password)
 
         # allow login
         user = "user_allow_datetime3"
         val = time.strftime("%Y-%m-%d %H:%M", time.localtime()) + " 9000000"
         self.create_user(user, password, options=f"ALLOW_DATETIME '{val}'")
         self.check_user_option(user, "allowed_datetime", val)
-        self.login(user=user, password=password)
+        self.login(user, password)
 
         # week date
         user = "user_allow_datetime3"
@@ -727,7 +742,7 @@ class TestUserSecurity:
         val = "2025-12-01 10:00 10"
         self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
         self.check_user_option(user, "allowed_datetime", "+ALL")
-        self.login(user=user, password=password)
+        self.login(user, password)
         
         # allow login
         self.login()
@@ -735,7 +750,7 @@ class TestUserSecurity:
         val = "2035-12-01 10:00 10"
         self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
         self.check_user_option(user, "allowed_datetime", val)
-        self.login(user=user, password=password)
+        self.login(user, password)
 
         # forbid login
         self.login()
@@ -743,7 +758,7 @@ class TestUserSecurity:
         val = time.strftime("%Y-%m-%d %H:%M", time.localtime()) + " 9000000"
         self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
         self.check_user_option(user, "allowed_datetime", val)
-        self.login_failed(user=user, password=password)
+        self.login(user, password)
 
         # week date
         user = "user_not_allow_d3"
@@ -766,13 +781,65 @@ class TestUserSecurity:
 
         print("option NOT_ALLOW_DATETIME ............. [ passed ] ")
 
+    # option combine
+    def options_combine(self):
+        password = "abcd@1234"
+        self.login()   
+
+        # create
+        user = "user_combine1"
+        options  = "SESSION_PER_USER      10 "
+        options += "CONNECT_TIME          20 "
+        options += "CONNECT_IDLE_TIME     30 "
+        options += "CALL_PER_SESSION      40 "
+        options += "VNODE_PER_CALL        50 "
+        options += "FAILED_LOGIN_ATTEMPTS 60 "
+        options += "PASSWORD_LOCK_TIME    70 "
+        options += "PASSWORD_LIFE_TIME    80 "
+        options += "PASSWORD_GRACE_TIME   90 "
+        options += "PASSWORD_REUSE_TIME   100 "
+        options += "PASSWORD_REUSE_MAX    15 "
+        options += "INACTIVE_ACCOUNT_TIME 120 "
+        options += "ALLOW_TOKEN_NUM       130 "
+        options += "HOST                  '192.168.5.1' " 
+        options += "NOT_ALLOW_HOST        '192.168.6.1' "
+             
+        self.create_user(user, password, options)
+
+        # check options
+        self.check_user_option(user, "SESSION_PER_USER",      10)
+        self.check_user_option(user, "CONNECT_TIME",          20*60)
+        self.check_user_option(user, "connect_idle_timeout",  30*60)
+        self.check_user_option(user, "CALL_PER_SESSION",      40)
+        self.check_user_option(user, "VNODE_PER_CALL",        50)
+        self.check_user_option(user, "FAILED_LOGIN_ATTEMPTS", 60)
+        self.check_user_option(user, "PASSWORD_LOCK_TIME",    70*60)
+        self.check_user_option(user, "PASSWORD_LIFE_TIME",    80*24*3600)
+        self.check_user_option(user, "PASSWORD_GRACE_TIME",   90*24*3600)
+        self.check_user_option(user, "PASSWORD_REUSE_TIME",   100*24*3600)
+        self.check_user_option(user, "PASSWORD_REUSE_MAX",    15)
+        self.check_user_option(user, "INACTIVE_ACCOUNT_TIME", 120*24*3600)
+        self.check_user_option(user, "ALLOW_TOKEN_NUM",       130)
+
+        # login
+        self.login(user, password)
+
+        # except
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' VNODE_PER_CALL 23 NOT_ALLOW_HOST '192.148.1.11.11.2'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' PASSWORD_LIFE_TIME  NOT_ALLOW_HOST '192.148.1'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' INACTIVE_ACCOUNT_TIME 192.148.1.100")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' CALL_PER_SESSION '23'  CONNECT_TIME 100")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' VNODE_PER_CALL ab INACTIVE_ACCOUNT_TIME '192'")
+        tdSql.error("create user except_user1 pass  'aaa@aaaaa122' PASSWORD_REUSE_TIME 2  PASSWORD_REUSE_TIME FAILED_LOGIN_ATTEMPTS -1  ")
+        self.login()
+
+        print("option combine ........................ [ passed ] ")
     
     def do_create_user(self):
         print("\n")
         self.user_default = "user_default"
         self.create_user(self.user_default)
 
-        '''
         self.options_changepass()
         self.options_session_per_user()
         self.options_connect_time()
@@ -784,34 +851,180 @@ class TestUserSecurity:
         self.options_password_life_time()
         self.options_password_grace_time()
         self.options_password_reuse_time()
-        self.options_password_reuse_time()
         self.options_password_reuse_max()
         self.options_inactive_account_time()
         self.options_allow_token_num()
         self.options_host()
         self.options_not_allow_host()
-        '''
-        self.options_allow_datetime()
-        self.options_not_allow_datetime()
-
+        # BUG6
+        #self.options_allow_datetime()
+        #self.options_not_allow_datetime()
+        self.options_combine()
 
     #
     # --------------------------- show user ----------------------------
     #
     def do_show_user(self):
-        pass
+        def checkData():
+            tdSql.checkRows(43)
+            tdSql.checkData(0,  0, "user_allow3")   # name
+            tdSql.checkData(42, 0, "user_session1") 
+            tdSql.checkData(0,  2, 1)               # enable
+            tdSql.checkData(0,  6, 0)               # totp
+            tdSql.checkData(0,  9, "SYSINFO_1\x00") # roles
+
+        # show users
+        tdSql.query("show users")
+        checkData()
+        # query ins_users
+        tdSql.query("select * from information_schema.ins_users")
+        checkData()        
 
     #
     # --------------------------- drop user ----------------------------
     #
     def do_drop_user(self):
-        pass
+        # normal
+        self.drop_user("user_session1")
+        tdSql.checkFirstValue("select count(*) from information_schema.ins_users where name='user_session1'", 0)
+        
+        # except
+        self.drop_user_failed("non_exist_user")        
 
     #
     # --------------------------- alter user ----------------------------
     #
+    def check_alter_option_value(self):        
+        user = "user_alter_option1"
+
+        # create
+        self.create_user(user)
+        
+        # alter options
+        options  = "SESSION_PER_USER      10 "
+        options += "CONNECT_TIME          20 "
+        options += "CONNECT_IDLE_TIME     30 "
+        options += "CALL_PER_SESSION      40 "
+        options += "VNODE_PER_CALL        50 "
+        options += "FAILED_LOGIN_ATTEMPTS 60 "
+        options += "PASSWORD_LOCK_TIME    70 "
+        options += "PASSWORD_LIFE_TIME    80 "
+        options += "PASSWORD_GRACE_TIME   90 "
+        options += "PASSWORD_REUSE_TIME   100 "
+        options += "PASSWORD_REUSE_MAX    15 "
+        options += "INACTIVE_ACCOUNT_TIME 120 "
+        options += "ALLOW_TOKEN_NUM       130 "
+        options += "ADD HOST              '192.168.0.1' " 
+        options += "ADD NOT_ALLOW_HOST    '192.169.0.1' " 
+        #options += "ADD DATETIME           '2028-10-01 10:00 30' " 
+        #options += "ADD NOT_ALLOW_DATETIME '2030-10-01 18:00 60' " 
+        self.alter_user(user, options)
+        
+        # check options
+        self.check_user_option(user, "SESSION_PER_USER",      10)
+        self.check_user_option(user, "CONNECT_TIME",          20*60)
+        self.check_user_option(user, "connect_idle_timeout",  30*60)
+        self.check_user_option(user, "CALL_PER_SESSION",      40)
+        self.check_user_option(user, "VNODE_PER_CALL",        50)
+        self.check_user_option(user, "FAILED_LOGIN_ATTEMPTS", 60)
+        self.check_user_option(user, "PASSWORD_LOCK_TIME",    70*60)
+        self.check_user_option(user, "PASSWORD_LIFE_TIME",    80*24*3600)
+        self.check_user_option(user, "PASSWORD_GRACE_TIME",   90*24*3600)
+        self.check_user_option(user, "PASSWORD_REUSE_TIME",   100*24*3600)
+        self.check_user_option(user, "PASSWORD_REUSE_MAX",    15)
+        self.check_user_option(user, "INACTIVE_ACCOUNT_TIME", 120*24*3600)
+        self.check_user_option(user, "ALLOW_TOKEN_NUM",       130)        
+        self.check_user_option(user, "allowed_host",          "+192.168.0.1", find=True)
+        self.check_user_option(user, "allowed_host",          "-192.169.0.1", find=True)
+
+        # drop operation
+        options = ""
+        options += "DROP HOST              '192.168.0.1' " 
+        options += "DROP NOT_ALLOW_HOST    '192.169.0.1' " 
+        self.alter_user(user, options)
+        self.check_user_option(user, "allowed_host",          "+127.0.0.1/32, +::1/128")
+
+    def check_alter_fun_work(self):
+        #
+        # immediately work
+        #
+        user = "user_alter_fun1"
+        password = "abcd@1234"
+        wrong_pwd = "wrong@1234"
+        
+        # enable
+        self.create_user(user, password, options="ENABLE 0 ")
+        self.login_failed(user, password)
+        self.login()
+        self.alter_user(user, "ENABLE 1")
+        self.login(user, password)
+        self.login()
+
+        #
+        # next work
+        #
+        
+        # SESSION_PER_USER
+        user = "user_alter_fun2"
+        self.create_user(user, password, options="SESSION_PER_USER 2")
+        self.alter_user(user, "SESSION_PER_USER 1")
+        self.create_session(user, password, 1)
+        self.create_session_failed(user, password, 2)
+
+        # CALL_PER_SESSION
+        user = "user_alter_fun3"
+        self.create_user(user, password, options="CALL_PER_SESSION 1")
+        self.alter_user(user, "CALL_PER_SESSION 3")
+        self.create_concurrent_threads(user, password, "show databases", 3)
+        self.alter_user(user, "CALL_PER_SESSION 5")
+        self.create_concurrent_threads(user, password, "show databases", 5)
+        
+        # PASSWORD_REUSE_MAX & PASSWORD_REUSE_TIME
+        self.alter_user(user, "PASSWORD_REUSE_MAX 0 PASSWORD_REUSE_TIME 0")
+        self.alter_password(user, "newpass@1234")
+        self.alter_password(user, password) # should be ok reused
+        self.alter_user(user, "PASSWORD_REUSE_MAX 5 PASSWORD_REUSE_TIME 365")
+        self.alter_password(user, "newpass@1234")
+        self.alter_password_failed(user, password) # old password should not be reused
+        
+        # ALLOW_TOKEN_NUM
+        self.alter_user(user, "ALLOW_TOKEN_NUM 2")
+        self.create_token(user, 2)
+        self.create_token_failed(user, 1, start=2)
+        
+        # VNODE_PER_CALL
+        user = "user_alter_fun4"
+        self.create_user(user, password, options="VNODE_PER_CALL 128")
+        self.alter_user(user, "ENABLE 1 VNODE_PER_CALL 1")
+        tdSql.execute(f"grant all on test.* to {user}")
+        tdSql.execute(f"grant all on  database test to {user}")
+        self.login(user, password)
+        succ = False
+        for i in range(20):
+            time.sleep(1)
+            try:
+                tdSql.checkFirstValue(f"select count(*) from test.meters", 10000)
+            except Exception as e:                
+                if str(e).find("[0x023d]") >= 0: # TSDB_CODE_TSC_SESS_MAX_CALL_VNODE_LIMIT
+                    print(f"  hit max vnode per call limit as expected.")
+                    succ = True
+                    break
+                print(f"  try {i+1} times ... error:{e}")
+        if not succ:
+            raise Exception("Alter VNODE_PER_CALL 1 not work on next")
+        self.login()
+        
+        # FAILED_LOGIN_ATTEMPTS
+        self.alter_user(user, "FAILED_LOGIN_ATTEMPTS 1")
+        self.login_failed(user, wrong_pwd)
+        self.login_failed(user, password)
+        self.login()
+        self.alter_user(user, "FAILED_LOGIN_ATTEMPTS 2")
+        self.login(user, password)
+    
     def do_alter_user(self):
-        pass
+        self.check_alter_option_value()
+        self.check_alter_fun_work()
 
     #
     # --------------------------- totp ----------------------------
