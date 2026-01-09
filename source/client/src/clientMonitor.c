@@ -640,7 +640,7 @@ static void monitorSendAllSlowLog() {
     if (atomic_load_32(&monitorFlag) == 1) {  // change type to quit
       pClient->type = SLOW_LOG_READ_QUIT;
     }
-    tscDebug("monitor send slow log for clusterId:0x%" PRIx64 ", file:%s, type:%d", *clusterId, pClient->path);
+    tscDebug("monitor send slow log for clusterId:0x%" PRIx64 ", file:%s, type:%d", *clusterId, pClient->path, pClient->type);
     if (pClient->sendOffset > 0) {  // already in sending process
       continue;
     }
