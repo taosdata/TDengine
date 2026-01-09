@@ -1501,15 +1501,15 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
     goto _OVER;
   }
 
-  // pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
-  // if (pJson == NULL) {
-  //   code = terrno;
-  //   goto _OVER;
-  // }
+  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
+  if (pJson == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
 
-  //xxxzgc 
-  (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
-  code = TSDB_CODE_SUCCESS;
+  // todo: only4test
+  // (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
+  // code = TSDB_CODE_SUCCESS;
 
 _OVER:
   if (srcDsn != NULL) taosMemoryFreeClear(srcDsn);
@@ -4507,6 +4507,7 @@ _OVER:
   }
   if (pObj != NULL) {
     mndFreeXnodeAgent(pObj);
+    taosMemoryFree(pObj);
   }
   tFreeSMCreateXnodeAgentReq(&createReq);
   TAOS_RETURN(code);

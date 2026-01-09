@@ -511,7 +511,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pTableName = TSDB_INS_TABLE_XNODE_TASKS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  }, 
+  },
   {
     .showType = QUERY_NODE_SHOW_XNODE_AGENTS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -1934,13 +1934,13 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
       }
     }
-    
+
     if (!foundTable) {
       if (pCxt->isExprSubQ) {
         currLevel--;
         continue;
       }
-      
+
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_TABLE_NOT_EXIST, (*pCol)->tableAlias);
     }
 
@@ -1950,7 +1950,7 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
   if (pCxt->isExprSubQ && currLevel != pCxt->currLevel) {
     pCxt->isCorrelatedSubQ = true;
   }
-  
+
   return DEAL_RES_CONTINUE;
 }
 
@@ -3974,7 +3974,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
 
 static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode* pSubQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   switch (pCxt->expSubQueryType) {
     case E_SUB_QUERY_SCALAR: {
       code = validateScalarSubQuery(pSubQuery);
@@ -13649,7 +13649,7 @@ static int32_t translateDropXnodeAgent(STranslateContext* pCxt, SDropXnodeAgentS
   dropReq.id = pStmt->id;
   dropReq.force = pStmt->force;
   if (pStmt->name != NULL) {
-    dropReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, true);
+    dropReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
   }
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE_AGENT, (FSerializeFunc)tSerializeSMDropXnodeAgentReq, &dropReq);
@@ -17881,7 +17881,7 @@ _return:
   return code;
 }
 
-static int32_t buildCreateTSMAReqBuildStreamQueryCondition(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, 
+static int32_t buildCreateTSMAReqBuildStreamQueryCondition(STranslateContext* pCxt, SCreateTSMAStmt* pStmt,
                                                            int32_t numOfTags, SNode** pCondition) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pCond = NULL;
@@ -19311,7 +19311,7 @@ void updateContextFromSubQ(STranslateContext* pCxt, SNode* pNode, STranslateCont
       pCxt->hasLocalSubQ = true;
     }
   }
-  
+
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
@@ -19335,7 +19335,7 @@ void updateContextFromSubQ(STranslateContext* pCxt, SNode* pNode, STranslateCont
 
 static int32_t mergeTranslateContextMetas(STranslateContext* pCxt, STranslateContext* pSrc) {
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   if (NULL != pSrc->pDbs) {
     SFullDatabaseName* pDb = taosHashIterate(pSrc->pDbs, NULL);
     while (NULL != pDb) {
@@ -19389,7 +19389,7 @@ static int32_t mergeTranslateContextMetas(STranslateContext* pCxt, STranslateCon
 
 static int32_t translateTableSubquery(STranslateContext* pCxt, SNode* pNode) {
   int32_t    code = TSDB_CODE_SUCCESS;
-  
+
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
   int32_t    currLevel = pCxt->currLevel;
@@ -19406,7 +19406,7 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
   int32_t    code = TSDB_CODE_SUCCESS;
   STranslateContext cxt = {0};
   cxt.isExprSubQ = true;
-  
+
   code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, true, &cxt);
   if (TSDB_CODE_SUCCESS == code) {
     cxt.pSubQueries = pCxt->pSubQueries;
@@ -19422,7 +19422,7 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
   if (TSDB_CODE_SUCCESS == code) {
     code = tmpCode;
   }
-  
+
   cxt.pSubQueries = NULL;
   destroyTranslateContext(&cxt);
 
@@ -19437,7 +19437,7 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
     parserError("Only query with FROM supported now");
     code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
   }
-    
+
   return code;
 }
 
@@ -24150,7 +24150,7 @@ static void transferSubQueries(STranslateContext* pCxt, SNode* pNode) {
   if (NULL == pNode) {
     return;
   }
-  
+
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
