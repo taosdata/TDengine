@@ -2332,10 +2332,14 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       SPrivTblPolicy* tblPolicy =
           privGetConstraintTblPrivileges(req->tbPrivs, pSName->acctId, pSName->dbname, tbName, privInfo);
       if (tblPolicy) {
-        if (strlen(tblPolicy->cond) > 0) {
+        if (tblPolicy->condLen > 0) {
           CTG_ERR_JRET(nodesStringToNode(tblPolicy->cond, &res->pRawRes->pCond[AUTH_RES_BASIC]));
         }
-        // TODO: check the columns
+        if (taosArrayGetSize(tblPolicy->cols) > 0) {
+          if (!(res->pRawRes->pCols = taosArrayDup(tblPolicy->cols, NULL))) {
+            CTG_ERR_JRET(terrno);
+          }
+        }
         res->pRawRes->pass[AUTH_RES_BASIC] = true;
         goto _return;
       }

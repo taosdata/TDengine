@@ -2041,8 +2041,8 @@ static void setUserAuthInfo(SParseContext* pCxt, SName* pTbName, SUserAuthInfo* 
   pInfo->useDb = 1;
 }
 
-static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache, bool* pWithInsertCond,
-                         SNode** pTagCond) {
+static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache, bool* pWithInsertCond, SNode** pTagCond,
+                         SArray** pPrivCols) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SUserAuthInfo authInfo = {0};
   setUserAuthInfo(pCxt, pTbName, &authInfo);
@@ -2062,8 +2062,13 @@ static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache, 
       *pMissCache = true;
     } else if (!authRes.pass[AUTH_RES_BASIC]) {
       code = TSDB_CODE_PAR_PERMISSION_DENIED;
-    } else if (NULL != authRes.pCond[AUTH_RES_BASIC]) {
-      *pTagCond = authRes.pCond[AUTH_RES_BASIC];
+    } else {
+      if (NULL != authRes.pCond[AUTH_RES_BASIC]) {
+        *pTagCond = authRes.pCond[AUTH_RES_BASIC];
+      }
+      if (authRes.pCols) {
+        *pPrivCols = authRes.pCols;
+      }
     }
     if (pWithInsertCond) {
       *pWithInsertCond = (authRsp.withInsertCond == 1);
@@ -2185,8 +2190,9 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
     return TSDB_CODE_SUCCESS;
   }
   SNode*  pTagCond = NULL;
+  SArray* pPrivCols = NULL;
   bool    withInsertCond = false;
-  int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache, &withInsertCond, &pTagCond);
+  int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache, &withInsertCond, &pTagCond, &pPrivCols);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTargetTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
   }
@@ -2198,8 +2204,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
         pCxt->needTableTagVal = (NULL != pTagCond);
         pCxt->missCache = (NULL != pTagCond);
       } else {
-        pStmt->pTagCond = NULL;
-        code = nodesCloneNode(pTagCond, &pStmt->pTagCond);
+        pStmt->pTagCond = pTagCond;
       }
     } else if (withInsertCond && !pCxt->pComCxt->isSuperUser) {
       // If miss cache, always request tag value and reserved for permission check later if pTagCond exists. This may
@@ -2210,8 +2215,8 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
 #else
     pStmt->pTagCond = NULL;
 #endif
+    pStmt->pPrivCols = pPrivCols;
   }
-  nodesDestroyNode(pTagCond);
 
   if (TSDB_CODE_SUCCESS == code && !pCxt->pComCxt->async) {
     code = collectUseDatabase(&pStmt->targetTableName, pStmt->pDbFNameHashObj);
@@ -3960,8 +3965,9 @@ static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
   insDestroyBoundColInfo(&pCxt->tags);
   clearInsertParseContext(pCxt);
   taosMemoryFreeClear(pStmt->pTableMeta);
-  nodesDestroyNode(pStmt->pTagCond);
-  taosArrayDestroy(pStmt->pTableTag);
+  if (pStmt->pTagCond) nodesDestroyNode(pStmt->pTagCond);
+  if (pStmt->pPrivCols) taosArrayDestroy(pStmt->pPrivCols);
+  if (pStmt->pTableTag) taosArrayDestroy(pStmt->pTableTag);
   tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
   taosMemoryFreeClear(pStmt->pCreateTblReq);
   pCxt->missCache = false;
