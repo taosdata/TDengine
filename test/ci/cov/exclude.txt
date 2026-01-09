@@ -23,7 +23,10 @@
 /home/TDinternal/community/tools/taos-tools/src/benchUtil.c
 /home/TDinternal/community/source/common/src/msg/tmsg.c
 /home/TDinternal/community/source/common/src/tglobal.c
+/home/TDinternal/community/source/dnode/mnode/impl/src/mndTrans.c
 /home/TDinternal/community/source/dnode/vnode/src/tsdb/tsdbRead2.c
+/home/TDinternal/community/source/dnode/vnode/src/tsdb/tsdbDataFileRW.c
+/home/TDinternal/community/source/dnode/vnode/src/tsdb/tsdbReadUtil.c
 /home/TDinternal/community/source/dnode/vnode/src/vnd/vnodeStream.c
 /home/TDinternal/community/source/libs/new-stream/src/streamTriggerTask.c
 /home/TDinternal/community/source/libs/nodes/src/nodesMsgFuncs.c
@@ -33,3 +36,4 @@
 /home/TDinternal/community/source/libs/planner/src/planLogicCreater.c
 /home/TDinternal/community/source/libs/scalar/src/sclfunc.c
 /home/TDinternal/community/source/common/src/msg/streamMsg.c
+/home/TDinternal/community/source/client/src/clientTmq.c
