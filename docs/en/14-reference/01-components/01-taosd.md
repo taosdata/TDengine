@@ -65,7 +65,7 @@ Additional Notes:
 
 | Parameter Name     | Supported Version | Dynamic Modification               | Description                                                  |
 | ------------------ | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
-| monitor            |                   | Supported, effective immediately   | Whether to collect and report monitoring data, 0: off; 1: on; default value 0 |
+| monitor            |                   | Supported, effective immediately   | Whether to collect and report monitoring data, 0: off; 1: on; default value 1 |
 | monitorFqdn        |                   | Supported, effective after restart | The FQDN of the server where the taosKeeper service is located, default value none |
 | monitorPort        |                   | Supported, effective after restart | The port number listened to by the taosKeeper service, default value 6043 |
 | monitorInterval    |                   | Supported, effective immediately   | The time interval for recording system parameters (CPU/memory) in the monitoring database, in seconds, range 1-200000, default value 30 |
@@ -323,10 +323,10 @@ The effective value of charset is UTF-8.
 | numOfLogLines    |                   | Supported, effective immediately | Maximum number of lines allowed in a single log file, default value 10,000,000 |
 | asyncLog         |                   | Supported, effective immediately | Log writing mode, 0: synchronous, 1: asynchronous, default value 1 |
 | logKeepDays      |                   | Supported, effective immediately | Maximum retention time for log files, unit: days, default value 0, which means unlimited retention, log files will not be renamed, nor will new log files be rolled out, but the content of the log files may continue to roll depending on the log file size setting; when set to a value greater than 0, when the log file size reaches the set limit, it will be renamed to taosdlog.yyy, where yyy is the timestamp of the last modification of the log file, and a new log file will be rolled out, and log files whose creation time exceeds logKeepDays will be removed; Considering the usage habits of users of TDengine 2.0, starting from TDengine 3.3.6.6, when the value is set to less than 0, except that log files whose creation time exceeds -logKeepDays will be removed, other behaviors are the same as those when the value is greater than 0(For TDengine versions between 3.0.0.0 and 3.3.6.5, it is not recommended to set the value to less than 0) |
-| slowLogThreshold | 3.3.3.0 onwards   | Supported, effective immediately | Slow query threshold, queries taking longer than or equal to this threshold are considered slow, unit seconds, default value 3 |
+| slowLogThreshold | 3.3.3.0 onwards   | Supported, effective immediately | Slow query threshold, queries taking longer than or equal to this threshold are considered slow, unit seconds, default value 10 |
 | slowLogMaxLen    | 3.3.3.0 onwards   | Supported, effective immediately | Maximum length of slow query logs, range 1-16384, default value 4096 |
 | slowLogScope     | 3.3.3.0 onwards   | Supported, effective immediately | Type of slow query records, range ALL/QUERY/INSERT/OTHERS/NONE, default value QUERY |
-| slowLogExceptDb  | 3.3.3.0 onwards   | Supported, effective immediately | Specifies the database that does not report slow queries, only supports configuring one database |
+| slowLogExceptDb  | 3.3.3.0 onwards   | Supported, effective immediately | Specifies the database that does not report slow queries, only supports configuring one database, default value empty |
 | debugFlag        |                   | Supported, effective immediately | Log switch for running logs, 131 (outputs error and warning logs), 135 (outputs error, warning, and debug logs), 143 (outputs error, warning, debug, and trace logs); default value 131 or 135 (depending on the module) |
 | tmrDebugFlag     |                   | Supported, effective immediately | Log switch for the timer module, range as above              |
 | uDebugFlag       |                   | Supported, effective immediately | Log switch for the utility module, range as above            |

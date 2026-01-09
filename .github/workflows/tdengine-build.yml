@@ -5,8 +5,7 @@ on:
     branches:
       - 'main'
       - '3.0'
-      - '3.1'
-      - '3.3.6'
+      - '3.3.8'
 
     paths-ignore:
       - 'docs/**'
@@ -158,7 +157,7 @@ jobs:
         name: Build externals on Linux and macOS
         continue-on-error: false
         run: |
-          ./build.sh gen
+          ./build.sh gen -DTAOSADAPTER_GIT_TAG:STRING=3.3.8
           ./build.sh bld --target build_externals 
 
       - if: ${{ steps.cache-ext.outputs.cache-hit != 'true' && runner.os == 'Windows' }}
@@ -169,13 +168,13 @@ jobs:
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
           set TD_CONFIG=Release
-          call .\build.bat gen -G "NMake Makefiles JOM"
+          call .\build.bat gen -G "NMake Makefiles JOM"  -DTAOSADAPTER_GIT_TAG:STRING=3.3.8
           call .\build.bat bld --target build_externals 
 
       - name: Build TDengine on Linux and macOS
         if: runner.os != 'Windows'
         run: |
-          ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON
+          ./build.sh gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -DTAOSADAPTER_GIT_TAG:STRING=3.3.8
           ./build.sh bld 
           ./build.sh install
           which taosd
@@ -192,7 +191,7 @@ jobs:
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
           set TD_CONFIG=Release
-          call .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM"
+          call .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM" -DTAOSADAPTER_GIT_TAG:STRING=3.3.8
           call .\build.bat bld 
           call .\build.bat install
           echo %PATH%

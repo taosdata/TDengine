@@ -39,11 +39,11 @@ class TestUserPassword:
         tdSql.checkData(0, 1, "loaded")
 
         tdLog.info(f"============= step2")
-        tdSql.execute(f"create user u_test pass 'taosdata'", queryTimes = 1, show = True)
+        tdSql.execute(f"create user u_test pass 'AAbb1122'", queryTimes = 1, show = True)
 
         tdSql.query(f"show users")
         tdSql.checkRows(2, True)
 
         tdLog.info(f"============= step3")
         tdLog.info(f"user u_test login")
-        tdSql.connect("u_test")
+        tdSql.connect("u_test", "AAbb1122")

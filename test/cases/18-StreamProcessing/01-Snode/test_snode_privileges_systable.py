@@ -60,14 +60,14 @@ class TestStreamPrivilegesSysTable:
         # check normal user no sysinfo\createdb to query  ins_streams
         self.noSysInfo()
         self.noCreateDB()
-        tdSql.connect(f"{self.username1}")
+        tdSql.connect(self.username1, "AAbb1122")
         tdLog.info(f"connect user {self.username1} ")
         # self.queryInsStreams()
         # self.queryInsStreamTasks()
         # self.queryInsStreamRecalculates()
 
         self.SysInfo()
-        tdSql.connect(f"{self.username1}")
+        tdSql.connect(self.username1, "AAbb1122")
         tdLog.info(f"connect user {self.username1} ")
         self.queryInsStreamsAfterGrant()
         self.queryInsStreamTasksAfterGrant()
@@ -183,8 +183,8 @@ class TestStreamPrivilegesSysTable:
 
     def createUser(self):
         tdLog.info(f"create user")
-        tdSql.execute(f'create user {self.username1} pass "taosdata"')
-        tdSql.execute(f'create user {self.username2} pass "taosdata"')
+        tdSql.execute(f'create user {self.username1} pass "AAbb1122"')
+        tdSql.execute(f'create user {self.username2} pass "AAbb1122"')
         self.checkResultRows(2)
 
     def noSysInfo(self):
