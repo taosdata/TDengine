@@ -44,6 +44,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
                                      SRpcMsg *pOriginRpc);
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg);
+static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, void *pReq, int32_t len);
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -650,6 +651,9 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       code = vnodePreProcessSsMigrateFileSetReq(pVnode, pMsg);
     } break;
 #endif
+    case TDMT_VND_AUDIT_RECORD: {
+      vInfo("vgId:%d, pre process TDMT_VND_AUDIT_RECORD", TD_VID(pVnode));
+    } break;
     default:
       break;
   }
@@ -972,6 +976,10 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     /* ARB */
     case TDMT_VND_ARB_CHECK_SYNC:
       vnodeProcessArbCheckSyncReq(pVnode, pReq, len, pRsp);
+      break;
+    case TDMT_VND_AUDIT_RECORD:
+      vInfo("vgId:%d, processed audit msg", TD_VID(pVnode));
+      vnodeProcessAuditRecordReq(pVnode, pReq, len);
       break;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
@@ -2643,6 +2651,158 @@ static int32_t vnodeScanSubmitReq(SVnode *pVnode, int64_t version, SSubmitReq2 *
     }
   }
 
+  return code;
+}
+
+static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, void *pReq, int32_t len) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  terrno = 0;
+
+  SVAuditRecordReq req = {0};
+  if (tDeserializeSVAuditRecordReq(pReq, len, &req) != 0) {
+    vError("vgId:%d, failed to deserialize SVAuditRecordReq", TD_VID(pVnode));
+    code = TSDB_CODE_INVALID_MSG;
+    return code;
+  }
+
+  vInfo("vgId:%d, vnodeProcessAuditRecordReq data:%s, dataLen:%d", TD_VID(pVnode), req.data, req.dataLen);
+
+  SMetaReader mer1 = {0};
+  metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
+  // SStoreMeta* pAPI = taosMalloc
+  // initStorageAPI(mer1.pAPI);
+  TAOS_CHECK_GOTO(metaGetTableEntryByName(&mer1, "d0"), &lino, _exit);
+
+  vInfo("vgId:%d, meta reader uid:%" PRId64 ", suid:% " PRId64 ", version:%" PRId64 ", api:%p", TD_VID(pVnode),
+        mer1.me.uid, mer1.me.ctbEntry.suid, mer1.me.version, mer1.pAPI);
+
+  STSchema       *pSchema = NULL;
+  int64_t         suid = 0;
+  SSchemaWrapper *pTagSchema = NULL;
+  // TAOS_CHECK_GOTO(mer1.pAPI->getTableSchema(pVnode, mer1.me.uid, &pSchema, &suid, &pTagSchema), &lino, _exit);
+  TAOS_CHECK_GOTO(vnodeGetTableSchema(pVnode, mer1.me.uid, &pSchema, &suid, &pTagSchema), &lino, _exit);
+
+  vInfo("vgId:%d, TSchema version:%d", TD_VID(pVnode), pSchema->version);
+
+  SSubmitReq2 *pSubmitReq = &(SSubmitReq2){0};
+  if (!(pSubmitReq = taosMemoryCalloc(1, sizeof(SSubmitReq2)))) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  SSubmitRsp2 *pSubmitRsp = &(SSubmitRsp2){0};
+  if (!(pSubmitReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData)))) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  SSubmitTbData tbData = {0};
+  if (!(tbData.aRowP = taosArrayInit(1, sizeof(SRow *)))) {
+    goto _exit;
+  }
+  tbData.suid = mer1.me.ctbEntry.suid;
+  tbData.uid = mer1.me.uid;
+  tbData.sver = pSchema->version;
+
+  SArray *pVals = NULL;
+  if (!pVals && !(pVals = taosArrayInit(1, sizeof(SColVal)))) {
+    taosArrayDestroy(tbData.aRowP);
+    goto _exit;
+  }
+
+  for (int32_t k = 0; k < pSchema->numOfCols; ++k) {
+    int16_t         colIdx = k;
+    const STColumn *pCol = &pSchema->columns[k];
+    vInfo("vgId:%d, schema column id:%d, type:%d", TD_VID(pVnode), pCol->colId, pCol->type);
+
+    switch (pCol->type) {
+      case TSDB_DATA_TYPE_NCHAR:
+      case TSDB_DATA_TYPE_VARBINARY:
+      case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
+                                      // if (colDataIsNull_s(pColInfoData, j)) {
+        //   SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);
+        //   if (NULL == taosArrayPush(pVals, &cv)) {
+        //     goto _end;
+        //   }
+        // } else {
+        TSKEY  now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
+        void  *data = &now;
+        SValue sv = (SValue){
+            .type = pCol->type, .nData = varDataLen(data), .pData = varDataVal(data)};  // address copy, no value
+        SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
+        if (NULL == taosArrayPush(pVals, &cv)) {
+          code = terrno;
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+        //}
+        break;
+      }
+      case TSDB_DATA_TYPE_BLOB:
+      case TSDB_DATA_TYPE_MEDIUMBLOB:
+      case TSDB_DATA_TYPE_JSON:
+        vError("the column type %" PRIi16 " is defined but not implemented yet", pCol->type);
+        terrno = TSDB_CODE_APP_ERROR;
+        TSDB_CHECK_CODE(code, lino, _exit);
+        break;
+      default:
+        /*
+          if (colDataIsNull_s(pColInfoData, j)) {
+            if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
+              qError("Primary timestamp column should not be null");
+              terrno = TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL;
+              goto _end;
+            }
+
+            SColVal cv = COL_VAL_NULL(pCol->colId, pCol->type);  // should use pCol->type
+            if (NULL == taosArrayPush(pVals, &cv)) {
+              goto _end;
+            }
+          } else {
+           */
+        SValue sv = {.type = pCol->type};
+        TSKEY  now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
+        void  *var = &now;
+        valueSetDatum(&sv, sv.type, var, pCol->bytes);
+        SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
+        if (NULL == taosArrayPush(pVals, &cv)) {
+          code = terrno;
+          TSDB_CHECK_CODE(code, lino, _exit);
+        }
+        //}
+        break;
+    }
+  }
+
+  SRow             *pRow = NULL;
+  SRowBuildScanInfo sinfo = {0};
+  if ((code = tRowBuild(pVals, pSchema, &pRow, &sinfo)) < 0) {
+    tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  if (NULL == taosArrayPush(tbData.aRowP, &pRow)) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  if (NULL == taosArrayPush(pSubmitReq->aSubmitTbData, &tbData)) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  int64_t ver = 1;
+  code = vnodeHandleDataWrite(pVnode, ver, pSubmitReq, pSubmitRsp);
+  if (code) {
+    vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pVnode), __func__, __FILE__, __LINE__,
+           tstrerror(code), ver);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  vInfo("vgId:%d, affectedRow:%d", TD_VID(pVnode), pSubmitRsp->affectedRows);
+
+  return 0;
+_exit:
+  if (code != 0)
+    vError("vgId:%d, vnodeProcessAuditRecordReq failed at line:%d, since %s", TD_VID(pVnode), lino, tstrerror(code));
+  tFreeSVAuditRecordReq(&req);
   return code;
 }
 
