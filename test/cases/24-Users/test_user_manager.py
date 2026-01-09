@@ -292,7 +292,7 @@ class TestUserSecurity:
         # check option value
         self.login()
         self.create_user(user, options="CONNECT_IDLE_TIME 1", login=True)
-        time.sleep(65)
+        time.sleep(61)
         tdSql.error("show databases")
         print(f" user {user} disconnected as expected after CONNECT_IDLE_TIME 1 minute")
 
@@ -444,7 +444,7 @@ class TestUserSecurity:
         self.check_over_max_failed_login(user, password, 3)
         time.sleep(30)
         self.login_failed(user, password)
-        time.sleep(35)  # wait for 1 minute lock time        
+        time.sleep(31)  # wait for 1 minute lock time        
         # unlock
         self.login(user, password)
 
@@ -515,8 +515,7 @@ class TestUserSecurity:
         self.login()        
 
         # defalut check (30 days) 
-        #BUG-1
-        #self.check_user_option(self.user_default, "PASSWORD_REUSE_TIME", 30*24*3600)
+        self.check_user_option(self.user_default, "PASSWORD_REUSE_TIME", 30*24*3600)
 
         # min check (0 days)
         user = "user_password_reuse1"
@@ -700,21 +699,25 @@ class TestUserSecurity:
         user = "user_allow_datetime2"
         val = "2035-12-01 10:00 10"
         self.create_user(user, password, options=f"ALLOW_DATETIME '{val}'")
-        self.check_user_option(user, "allowed_datetime", val)
-        self.login(user, password)
+        self.check_user_option(user, "allowed_datetime", "+" + val, find=True)
+        self.login_failed(user, password)
+        self.login()
 
-        # allow login
+        # allow login current time
         user = "user_allow_datetime3"
         val = time.strftime("%Y-%m-%d %H:%M", time.localtime()) + " 9000000"
         self.create_user(user, password, options=f"ALLOW_DATETIME '{val}'")
-        self.check_user_option(user, "allowed_datetime", val)
+        self.check_user_option(user, "allowed_datetime", "+" + val, find=True)
         self.login(user, password)
+        self.login()
 
         # week date
-        user = "user_allow_datetime3"
-        val = "MON 10:00 30"
+        user = "user_allow_datetime4"
+        val = "MON 02:00 11"
         self.create_user(user, password, options=f"ALLOW_DATETIME '{val}'")
-        self.check_user_option(user, "allowed_datetime", val)
+        self.check_user_option(user, "allowed_datetime", "+" + val, find=True)
+        self.login_failed(user, password)
+        self.login()
 
         # except
         tdSql.error("create user except_user1 pass  'aaa@aaaaa122' ALLOW_DATETIME '2023_12_01 10:00:20'")
@@ -743,28 +746,31 @@ class TestUserSecurity:
         self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
         self.check_user_option(user, "allowed_datetime", "+ALL")
         self.login(user, password)
+        self.login()
         
         # allow login
-        self.login()
         user = "user_not_allow_d2"
         val = "2035-12-01 10:00 10"
         self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
-        self.check_user_option(user, "allowed_datetime", val)
+        self.check_user_option(user, "allowed_datetime", "-" + val, find=True)
         self.login(user, password)
+        self.login()
 
         # forbid login
-        self.login()
         user = "user_not_allow_d3"
-        val = time.strftime("%Y-%m-%d %H:%M", time.localtime()) + " 9000000"
+        val = time.strftime("%Y-%m-%d %H:%M", time.localtime()) + " 120"
         self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
-        self.check_user_option(user, "allowed_datetime", val)
-        self.login(user, password)
+        self.check_user_option(user, "allowed_datetime", "-" + val, find=True)
+        self.login_failed(user, password)
+        self.login()
 
         # week date
-        user = "user_not_allow_d3"
-        val = "MON 10:00 30"
+        user = "user_not_allow_d4"
+        val = "MON 02:00 15"
         self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
-        self.check_user_option(user, "allowed_datetime", val)
+        self.check_user_option(user, "allowed_datetime", "-" + val, find=True)
+        self.login(user, password)
+        self.login()
 
         # except
         tdSql.error("create user except_user1 pass  'aaa@aaaaa122' NOT_ALLOW_DATETIME '2023_12_01 10:00:20'")
@@ -856,9 +862,8 @@ class TestUserSecurity:
         self.options_allow_token_num()
         self.options_host()
         self.options_not_allow_host()
-        # BUG6
-        #self.options_allow_datetime()
-        #self.options_not_allow_datetime()
+        self.options_allow_datetime()
+        self.options_not_allow_datetime()
         self.options_combine()
 
     #
@@ -866,9 +871,9 @@ class TestUserSecurity:
     #
     def do_show_user(self):
         def checkData():
-            tdSql.checkRows(43)
-            tdSql.checkData(0,  0, "user_allow3")   # name
-            tdSql.checkData(42, 0, "user_session1") 
+            tdSql.checkRows(51)
+            tdSql.checkData(0,  0, "user_not_allow_d2")   # name
+            tdSql.checkData(1,  0, "user_allow3") 
             tdSql.checkData(0,  2, 1)               # enable
             tdSql.checkData(0,  6, 0)               # totp
             tdSql.checkData(0,  9, "SYSINFO_1\x00") # roles
@@ -917,8 +922,8 @@ class TestUserSecurity:
         options += "ALLOW_TOKEN_NUM       130 "
         options += "ADD HOST              '192.168.0.1' " 
         options += "ADD NOT_ALLOW_HOST    '192.169.0.1' " 
-        #options += "ADD DATETIME           '2028-10-01 10:00 30' " 
-        #options += "ADD NOT_ALLOW_DATETIME '2030-10-01 18:00 60' " 
+        options += "ADD ALLOW_DATETIME     '2028-10-01 10:00 30' " 
+        options += "ADD NOT_ALLOW_DATETIME '2030-10-01 18:00 60' " 
         self.alter_user(user, options)
         
         # check options
@@ -937,13 +942,23 @@ class TestUserSecurity:
         self.check_user_option(user, "ALLOW_TOKEN_NUM",       130)        
         self.check_user_option(user, "allowed_host",          "+192.168.0.1", find=True)
         self.check_user_option(user, "allowed_host",          "-192.169.0.1", find=True)
+        self.check_user_option(user, "allowed_datetime",      "+2028-10-01 10:00 30", find=True)
+        self.check_user_option(user, "allowed_datetime",      "-2030-10-01 18:00 60", find=True)
 
         # drop operation
+        
+        # HOST
         options = ""
         options += "DROP HOST              '192.168.0.1' " 
         options += "DROP NOT_ALLOW_HOST    '192.169.0.1' " 
         self.alter_user(user, options)
         self.check_user_option(user, "allowed_host",          "+127.0.0.1/32, +::1/128")
+        # DATETIME
+        options = ""
+        options += "DROP ALLOW_DATETIME           '2028-10-01 10:00 30' " 
+        options += "DROP NOT_ALLOW_DATETIME '2030-10-01 18:00 60' " 
+        self.alter_user(user, options)
+        self.check_user_option(user, "allowed_datetime",      "+ALL")
 
     def check_alter_fun_work(self):
         #
