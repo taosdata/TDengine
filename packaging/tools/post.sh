@@ -243,6 +243,7 @@ function install_bin() {
     log_print "start install bin from ${bin_dir} to ${bin_link_dir}"
     ${csudo}rm -f ${bin_link_dir}/taos     || :
     ${csudo}rm -f ${bin_link_dir}/taosd    || :
+    ${csudo}rm -f ${bin_link_dir}/taosk    || :
     ${csudo}rm -f ${bin_link_dir}/taosudf  || :
     ${csudo}rm -f ${bin_link_dir}/taosmqtt || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter     || :
@@ -266,6 +267,9 @@ function install_bin() {
     fi
     if [ -x ${bin_dir}/taosd ]; then
       ${csudo}ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd                   2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/taosk ]; then
+      ${csudo}ln -s ${bin_dir}/taosk ${bin_link_dir}/taosk                   2>>${install_log_path} || return 1
     fi
     if [ -x ${bin_dir}/taosudf ]; then
       ${csudo}ln -s ${bin_dir}/taosudf ${bin_link_dir}/taosudf                     2>>${install_log_path} || return 1

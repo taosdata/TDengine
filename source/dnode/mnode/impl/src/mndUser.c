@@ -2635,7 +2635,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     }
     int32_t dummpy = 0;
     
-    for (int i = 0; i < pCreate->numIpRanges; i++) {
+    for (int i = 0; i < pCreate->numTimeRanges; i++) {
       SDateTimeRange* src = pCreate->pTimeRanges + i;
       SDateTimeWhiteListItem range = {0};
       DateTimeRangeToWhiteListItem(&range, src);

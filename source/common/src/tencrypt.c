@@ -441,8 +441,8 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
     }
 
     // Decrypt data (reference: sdbFile.c decrypt implementation)
-    // Allocate buffer for plaintext (same size as encrypted data for CBC padding)
-    plainContent = taosMemoryMalloc(encryptedDataLen);
+    // Allocate buffer for plaintext (same size as encrypted data + 1 for null terminator)
+    plainContent = taosMemoryMalloc(encryptedDataLen + 1);
     if (plainContent == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -466,8 +466,10 @@ int32_t taosReadCfgFile(const char *filepath, char **data, int32_t *dataLen) {
     taosMemoryFree(fileContent);
     fileContent = NULL;
 
-    // Return decrypted data (JSON parser will handle the content)
-    // Note: plainContent already has padding zeros from decryption, which is fine for JSON
+    // Add null terminator for JSON parser (cJSON_Parse requires null-terminated string)
+    plainContent[encryptedDataLen] = '\0';
+
+    // Return decrypted data
     *data = plainContent;
     *dataLen = encryptedDataLen;
     plainContent = NULL;  // Transfer ownership to caller
