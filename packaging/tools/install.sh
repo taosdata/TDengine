@@ -252,7 +252,7 @@ function setup_env() {
     while true; do
       echo -ne "${GREEN_DARK}Do you want to install TDengine to the default directory?${NC}" \
                "${default_dir}" \
-               "${GREEN_DARK}(Y/n)${NC}"
+               "${GREEN_DARK}[Y/n]${NC}"
 
       read -e -r -p " : " use_default_dir
       if [[ -z "$use_default_dir" || "$use_default_dir" =~ ^[Yy]$ ]]; then
@@ -371,27 +371,30 @@ function setup_env() {
       services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
     fi
   fi
-  taosd_path=$(command -v taosd 2>/dev/null || true)
-  if [ -n "$taosd_path" ]; then
-    taosd_ver=$($taosd_path -V 2>/dev/null | grep version | awk '{print $3}' || true)
-    echo "Detected taosd is already installed at: $taosd_path"
-    echo "Current version: $taosd_ver"
-    if [ $user_mode -ne 0 ] && [[ "$taosd_path" == /usr/* || "$taosd_path" == /opt/* ]]; then
-      echo "Taosd is installed by root. You are not root and cannot overwrite the system installation."
-      echo "Please run the installer as root, or uninstall the existing version first."
-    fi
-    # Silent mode handling
-    if [ "$silent_mode" = "1" ] ; then
-      echo "It will overwrite/update the existing installation."
-      confirm="Y"
-    else
-      read -p "Do you want to overwrite/update the installation? [Y/n]: " confirm
-      confirm=${confirm:-Y}
-    fi
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-      echo "Installation cancelled."
-      exit 0
-    fi
+  
+  taosd_bin=$(command -v taosd 2>/dev/null || true)
+  if [ -n "${taosd_bin}" ]; then
+      taosd_link_dir=$(dirname "${taosd_bin}")
+      real_taosd_bin=$(readlink -f "${taosd_bin}")
+      taosd_bin_dir=$(dirname "${real_taosd_bin}")
+      taosd_parent_dir="$(cd "${taosd_bin_dir}/.." && pwd)"
+      if [ "${taosd_bin_dir}" != "${bin_dir}" ] || [ "${taosd_link_dir}" != "${bin_link_dir}" ]; then
+          taosd_ver=$(${real_taosd_bin} -V 2>/dev/null | grep version | awk '{print $3}' || echo "unknown")
+          log warn_bold "Detected taosd is already installed at: ${taosd_parent_dir} with version: ${taosd_ver}"
+          log warn_bold "You are about to install TDengine to a different location: ${install_main_dir}"
+          # Silent mode handling
+          if [ "$silent_mode" = "1" ]; then
+              echo "Continue to installation TDengine."
+              confirm="Y"
+          else
+              read -p "Do you want to continue the installation? [Y/n]: " confirm
+              confirm=${confirm:-Y}
+          fi
+          if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+              echo "Installation cancelled."
+              exit 0
+          fi
+      fi
   fi
   log info "Detected install mode: $mode_desc"
   log info "TDengine installation path: ${installDir}"
@@ -564,7 +567,7 @@ function install_lib() {
     rm -f ${lib64_link_dir}/libtaosws.* || :
   fi
   #rm -rf ${v15_java_app_dir}              || :
-  cp -rf ${script_dir}/driver/* ${driver_dir}/ && chmod 777 ${driver_dir}/*
+  cp -rf ${script_dir}/driver/* ${driver_dir}/ && chmod 755 ${driver_dir}/*
 
   # Link libraries based on OS type
   if [ "$osType" != "Darwin" ]; then
