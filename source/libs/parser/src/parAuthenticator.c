@@ -263,15 +263,29 @@ static int32_t authSelectTblCols(SSelectStmt* pSelect, STableNode* pTable, SArra
 
   PAR_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pRetrievedCols));
 
-  SNode* pNode = NULL;
+  int32_t i = 0, j = 0, k = 0;
+  SNode*  pNode = NULL;
   FOREACH(pNode, pRetrievedCols) {
     SColumnNode* pColNode = (SColumnNode*)pNode;
-    bool         found = false;
-    for (int32_t c = 0; c < nCols; ++c) {
-      SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, c);
+
+    j = i;
+
+    // search in the remaining columns first for better performance if ordered
+    bool found = false;
+    for (; i < nCols; ++i) {
+      SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, i);
       if (strcmp(pColNode->colName, pColNameFlag->colName) == 0) {
         found = true;
         break;
+      }
+    }
+    if (!found) {
+      for (k = 0; k < j; ++k) {
+        SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, k);
+        if (strcmp(pColNode->colName, pColNameFlag->colName) == 0) {
+          found = true;
+          break;
+        }
       }
     }
     if (!found) {
