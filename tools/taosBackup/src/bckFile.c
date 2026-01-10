@@ -160,6 +160,23 @@ int queryWriteJson(const char *sql, const char *pathFile, char ** selectTags) {
 
 
 // query result write to file with columnar storage
-int queryWriteBinary(const char *sql, StorageFormat format, const char *pathFile) {
-    return TSDB_CODE_SUCCESS;
+int queryWriteBinary(TAOS* conn, const char *sql, StorageFormat format, const char *pathFile) {
+    int code = TSDB_CODE_FAILED;
+    TAOS_RES* res = taos_query(conn, sql);
+    if (res == NULL) {
+        logError("query failed(%s): %s", taos_errstr(res), sql);
+        return taos_errno(res);
+    }
+
+    if (format == BINARY_PARQUET) {
+        // parquet
+        code = resultToFileParquet(res, pathFile);
+    } else {
+        // taos
+        code = resultToFileTaos(res, pathFile);
+    }
+
+    // free
+    taos_free_result(res);    
+    return code;
 }

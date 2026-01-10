@@ -15,25 +15,25 @@
 //
 // compress block
 //
-CompressData* compressBlock(void *block, int blockRows, TAOS_FIELD* fields, int numFields, int *code) {
-    CompressData* compressData = (CompressData*)calloc(1, sizeof(CompressData));
+CompressBlock* compressBlock(void *block, int blockRows, TAOS_FIELD* fields, int numFields, int *code) {
+    CompressBlock* compressBlock = (CompressBlock*)calloc(1, sizeof(CompressBlock));
 
     // one stage encode
 
     // two stage compress
 
-    return compressData;
+    return compressBlock;
 }
 
 // free compress data
-void freeCompressData(CompressData* compressData) {
-    if (compressData == NULL) {
+void freeCompressData(CompressBlock* compressBlock) {
+    if (compressBlock == NULL) {
         return;
     }
 
-    if (compressData->data) {
-        free(compressData->data);
+    if (compressBlock->data) {
+        free(compressBlock->data);
     }
 
-    free(compressData);
+    free(compressBlock);
 }   

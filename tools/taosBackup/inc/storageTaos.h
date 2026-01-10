@@ -21,12 +21,23 @@
 //
 // ---------------- struct ----------------
 //
+
+typedef struct {
+    char magic[4];
+    uint16_t version;
+    uint32_t nBlocks;
+    uint32_t numRows;
+    char reserved[50];
+} TaosFileHeader;
+
 typedef struct {
     char *fileName;
     FILE *fp;
-    
-    int nBlocks;
+    TaosFileHeader header;
 } TaosFile;
+
+// header 64 bytes
+
 
 
 // ---------------- interface ----------------

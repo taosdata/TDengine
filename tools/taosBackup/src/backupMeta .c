@@ -106,7 +106,7 @@ static void* backTagThread(void *arg) {
     }
     freePtr(sql);
 
-    code = queryWriteBinary(sql, format, fileName);
+    code = queryWriteBinary(thread->conn, sql, format, fileName);
     if (code != TSDB_CODE_SUCCESS) {
         logError("query write binary failed. sql=%s, format=%d file=%s", sql, format, fileName);
         return NULL;

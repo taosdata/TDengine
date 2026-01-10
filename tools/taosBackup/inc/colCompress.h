@@ -17,20 +17,34 @@
 //
 // ---------------- define ----------------
 //
+#define TAOSFILE_MAGIC   "TAOS"
+#define TAOSBODY_MAGIC   "BLOC"
+#define TAOSFILE_VERSION 1
+
 
 //
 // ---------------- struct ----------------
 //
-typedef struct {
-    void * data;
-    int    len;
-} CompressData;
 
+// body block 20 bytes
+typedef struct {
+    char magic[4];
+    uint32_t dataLen;
+    uint32_t numRows;
+    uint16_t numCols;
+    char  encode;
+    char  compress;
+    char reserved[4];
+    char data[];
+} CompressBlock;
 
 
 // ---------------- interface ----------------
-CompressData* compressBlock(void *block, int blockRows, TAOS_FIELD* fields, int numFields, int *code);
 
-void freeCompressData(CompressData* compressData);
+// create
+CompressBlock* compressBlock(void *block, int blockRows, TAOS_FIELD* fields, int numFields, int *code);
+
+// free
+void freeCompressData(CompressBlock* compressBlock);
 
 #endif  // INC_COLCOMPRESS_H_

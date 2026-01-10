@@ -12,8 +12,24 @@
 #include "storageTaos.h"
 #include "colCompress.h"
 
-TaosFile* createTaosFile(const char *fileName) {
+int writeTaosFile(TaosFile* taosFile, void *data, int len) {
+    if (taosFile == NULL || taosFile->fp == NULL) {
+        logError("invalid TaosFile");
+        return TSDB_CODE_BCK_WRITE_FILE_FAILED;
+    }
+
+    size_t writeLen = fwrite(data, 1, len, taosFile->fp);
+    if (writeLen != (size_t)len) {
+        logError("write to file failed, writeLen: %zu, expectLen: %d", writeLen, len);
+        return TSDB_CODE_BCK_WRITE_FILE_FAILED;
+    }
+
+    return TSDB_CODE_SUCCESS;
+}
+
+TaosFile* createTaosFile(const char *fileName, int *code) {
     TaosFile* taosFile = (TaosFile*)malloc(sizeof(TaosFile));
+    memset(taosFile, 0, sizeof(TaosFile));
     if (taosFile == NULL) {
         logError("malloc TaosFile failed");
         return NULL;
@@ -34,25 +50,43 @@ TaosFile* createTaosFile(const char *fileName) {
         return NULL;
     }
 
-    // write header TODO
+    // write header
+    memcpy(taosFile->header.magic, TAOSFILE_MAGIC, 4);
+    taosFile->header.version = TAOSFILE_VERSION;
+
+    *code = writeTaosFile(taosFile, &taosFile->header, sizeof(TaosFileHeader));
+    if (*code != TSDB_CODE_SUCCESS) {
+        closeTaosFile(taosFile);
+        return NULL;
+    }
 
     return taosFile;
 }
 
-void closeTaosFile(TaosFile* taosFile) {
+int closeTaosFile(TaosFile* taosFile) {
     if (taosFile == NULL) {
-        return;
+        return TSDB_CODE_BCK_INVALID_PARAM;
     }
 
-    // write footer TODO
-
     if (taosFile->fp) {
+        // update header
+        fseek(taosFile->fp, 0, SEEK_SET);
+        int code = writeTaosFile(taosFile, &taosFile->header, sizeof(TaosFileHeader));
+        if (code != TSDB_CODE_SUCCESS) {
+            fclose(taosFile->fp);
+            free(taosFile);
+            logError("update taos file header failed: %s", taosFile->fileName);
+            return code;
+        }
+        // close file
         fclose(taosFile->fp);
     }
 
+    // free memory
     free(taosFile);
-}
 
+    return TSDB_CODE_SUCCESS;
+}
 
 //
 // write block to taos file
@@ -60,24 +94,22 @@ void closeTaosFile(TaosFile* taosFile) {
 int writeBlockToTaosFile(TaosFile* taosFile, void *block, int blockRows, TAOS_FIELD* fields, int numFields) {
     int code = TSDB_CODE_FAILED;
     // compress block
-    CompressData* compressData = compressBlock(block, blockRows, fields, numFields, &code);
+    CompressBlock* compBlock = compressBlock(block, blockRows, fields, numFields, &code);
     if (code != TSDB_CODE_SUCCESS) {
         logError("compress block failed: %d", code);
         return code;
     }
 
     // write to file
-    size_t writeLen = fwrite(compressData->data, 1, compressData->len, taosFile->fp);
-    if (writeLen != (size_t)compressData->len) {
-        logError("write to file failed, writeLen: %zu, expectLen: %d", writeLen, compressData->len);
-        code = TSDB_CODE_BCK_WRITE_FILE_FAILED;
+    code = writeTaosFile(taosFile, compBlock, sizeof(CompressBlock) + compBlock->dataLen);
+    if (code != TSDB_CODE_SUCCESS) {
         // free
-        freeCompressData(compressData);
+        freeCompressData(compBlock);
         return code;
     }
 
     // free
-    freeCompressData(compressData);
+    freeCompressData(compBlock);
 
     return TSDB_CODE_SUCCESS;
 }
@@ -101,15 +133,13 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName) {
     }
 
     // create file
-    TaosFile* taosFile = createTaosFile(fileName);
+    TaosFile* taosFile = createTaosFile(fileName, &code);
     if (taosFile == NULL) {
         logError("create Taos file failed: %s", fileName);
-        return TSDB_CODE_BCK_CREATE_FILE_FAILED;
+        return code;
     }
 
     // while fetch data
-    int numRows = 0;
-    int nBlocks = 0;
     int blockRows = 0;
     void *block = NULL;
     while (taos_fetch_raw_block(res, &blockRows, &block) == TSDB_CODE_SUCCESS) {
@@ -117,19 +147,31 @@ int resultToFileTaos(TAOS_RES *res, const char *fileName) {
             continue;
         }
         // write block to file
-        code = writeBlockToTaosFile(taosFile, block, blockRows, fields, numFields);
-        
+        code = writeBlockToTaosFile(taosFile, block, blockRows, fields, numFields);        
         if (code != TSDB_CODE_SUCCESS) {
+            // TODO ignore or failed
             logError("write data block to file failed(%d): %s", code, fileName);
             taos_free_result(res);
+            code = closeTaosFile(taosFile);
+            if (code != TSDB_CODE_SUCCESS) {
+                logError("close Taos file failed(%d): %s", code, fileName);
+                return code;
+            }
             return code;
         }
-        numRows += blockRows;
-        nBlocks++;
+
+        taosFile->header.nBlocks ++;
+        taosFile->header.numRows += blockRows;
+    }
+    // free result
+    taos_free_result(res);
+
+    // close file
+    code = closeTaosFile(taosFile);
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("close Taos file failed(%d): %s", code, fileName);
+        return code;
     }
 
-    taosFile->nBlocks = nBlocks;
-    closeTaosFile(taosFile);
-
-    return code;
+    return TSDB_CODE_SUCCESS;
 }

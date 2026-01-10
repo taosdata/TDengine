@@ -64,22 +64,7 @@ int backChildTableData(DataThread* thread, const char *childTableName) {
         return code;
     }
 
-    TAOS_RES* res = taos_query(thread->conn, sql);
-    if (res == NULL) {
-        logError("query child table data failed(%s): %s", taos_errstr(res), sql);
-        return taos_errno(res);
-    }
-
-    if (format == BINARY_PARQUET) {
-        // parquet
-        code = resultToFileParquet(res, fileName);
-    } else {
-        // taos
-        code = resultToFileTaos(res, fileName);
-    }
-
-    // free
-    taos_free_result(res);
+    code = queryWriteBinary(thread->conn, sql, format, fileName);
 
     return code;
 }
@@ -239,7 +224,7 @@ int backStbData(StbInfo *stbInfo) {
         if(pthread_create(&threads[i].pid, NULL, backDataThread, (void *)&threads[i]) != 0) {
             logError("create backup thread failed(%s) for stb: %s.%s", strerror(errno), stbInfo->dbInfo->dbName, stbInfo->stbName);
             free(threads);
-            return TSDB_CODE_BACKUP_CREATE_THREAD_FAILED;
+            return TSDB_CODE_BCK_CREATE_THREAD_FAILED;
         }
     }
 

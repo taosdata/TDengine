@@ -24,6 +24,6 @@ int queryWriteJson(const char *sql, const char *pathFile, char ** selectTags);
 int queryWriteTxt(const char *sql, const char *pathFile);
 
 // query result write to file with columnar storage
-int queryWriteBinary(const char *sql, StorageFormat format, const char *pathFile);
+int queryWriteBinary(TAOS* conn, const char *sql, StorageFormat format, const char *pathFile);
 
 #endif  // INC_BCKFILE_H_
