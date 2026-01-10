@@ -2436,43 +2436,41 @@ static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   return insGetTableDataCxt(pStmt->pTableBlockHashObj, tbFName, strlen(tbFName), pStmt->pTableMeta,
                             &pStmt->pCreateTblReq, pTableCxt, NULL != pCxt->pComCxt->pStmtCb, false);
 }
-
-static int32_t parseCheckColPrivNoBound(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+#ifdef TD_ENTERPRISE
+static int32_t parseCheckNoBoundColPriv(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   int32_t nPrivs = taosArrayGetSize(pStmt->pPrivCols);
   if (nPrivs <= 0) {
     return TSDB_CODE_SUCCESS;
   }
   int32_t nCols = pStmt->pTableMeta->tableInfo.numOfColumns;
-  if (nPrivs < nCols) return TSDB_CODE_PAR_COL_PERMISSION_DENIED;
+  // It cann't provide the specific missing column info although with better performance. In order to provide better
+  // user experience, we check each column one by one. if (nPrivs < nCols) return TSDB_CODE_PAR_COL_PERMISSION_DENIED;
 
-  int32_t lastColIdx = 0, j = 0, k = 0;
+  // both the schema and privCols are ordered by colId asc
+  SSchema* pSchemas = pStmt->pTableMeta->schema;
+  int32_t  j = 0;
   for (int32_t i = 0; i < nCols; ++i) {
-    SSchema* pSchema = &pStmt->pTableMeta->schema[i];
+    SSchema* pSchema = &pSchemas[i];
     bool     found = false;
-    j = lastColIdx;
-    for (; lastColIdx < nPrivs; ++lastColIdx) {
-      SColNameFlag* pColPriv = (SColNameFlag*)TARRAY_GET_ELEM(pStmt->pPrivCols, lastColIdx);
-      if (pSchema->colId == pColPriv->colId) {
+    for (; j < nPrivs; ++j) {
+      SColNameFlag* pColFlag = (SColNameFlag*)TARRAY_GET_ELEM(pStmt->pPrivCols, j);
+      if (pColFlag->colId == pSchema->colId) {
         found = true;
+        ++j;
+        break;
+      } else if (pColFlag->colId > pSchema->colId) {
         break;
       }
     }
+
     if (!found) {
-      for (k = 0; k < j; ++k) {
-        SColNameFlag* pColPriv = (SColNameFlag*)TARRAY_GET_ELEM(pStmt->pPrivCols, k);
-        if (pSchema->colId == pColPriv->colId) {
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
-      return TSDB_CODE_PAR_COL_PERMISSION_DENIED;
+      return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_COL_PERMISSION_DENIED, pSchema->name);
     }
   }
 
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, STableDataCxt* pTableCxt) {
   SToken  token;
@@ -2491,11 +2489,12 @@ static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifyOp
     return parseBoundColumns(pCxt, pStmt, &pStmt->pBoundCols, BOUND_COLUMNS, pStmt->pTableMeta,
                              &pTableCxt->boundColsInfo);
   } else if (pTableCxt->boundColsInfo.hasBoundCols) {
-    if (pStmt->pPrivCols != NULL) {
-      PAR_ERR_RET(parseCheckColPrivNoBound(pCxt, pStmt));
-    }
     insResetBoundColsInfo(&pTableCxt->boundColsInfo);
+#ifdef TD_ENTERPRISE
+  } else if (NULL != pStmt->pPrivCols) {
+    PAR_ERR_RET(parseCheckNoBoundColPriv(pCxt, pStmt));
   }
+#endif
 
   return TSDB_CODE_SUCCESS;
 }
@@ -4042,6 +4041,7 @@ static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
   pCxt->missCache = false;
   pCxt->usingDuplicateTable = false;
   pStmt->pBoundCols = NULL;
+  pStmt->pPrivCols = NULL;
   pStmt->usingTableProcessing = false;
   pStmt->fileProcessing = false;
   pStmt->usingTableName.type = 0;
@@ -4288,7 +4288,7 @@ static int32_t createInsertQuery(SInsertParseContext* pCxt, SQuery** pOutput) {
   return code;
 }
 
-static int32_t checkAuthFromMetaData(const SArray* pUsers, SNode** pTagCond) {
+static int32_t checkAuthFromMetaData(const SArray* pUsers, SNode** pTagCond, SArray** pPrivCols) {
   if (1 != taosArrayGetSize(pUsers)) {
     return TSDB_CODE_FAILED;
   }
@@ -4297,6 +4297,11 @@ static int32_t checkAuthFromMetaData(const SArray* pUsers, SNode** pTagCond) {
   if (TSDB_CODE_SUCCESS == pRes->code) {
     SUserAuthRes* pAuth = pRes->pRes;
     pRes->code = nodesCloneNode(pAuth->pCond[AUTH_RES_BASIC], pTagCond);
+    if (pAuth->pCols && (TSDB_CODE_SUCCESS == pRes->code)) {
+      if (!(*pPrivCols = taosArrayDup(pAuth->pCols, NULL))) {
+        pRes->code = terrno;
+      }
+    }
     if (TSDB_CODE_SUCCESS == pRes->code) {
       return pAuth->pass[AUTH_RES_BASIC] ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED;
     }
@@ -4421,7 +4426,7 @@ static void clearCatalogReq(SCatalogReq* pCatalogReq) {
 static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
                                    SVnodeModifyOpStmt* pStmt) {
   clearCatalogReq(pCatalogReq);
-  int32_t code = checkAuthFromMetaData(pMetaData->pUser, &pStmt->pTagCond);
+  int32_t code = checkAuthFromMetaData(pMetaData->pUser, &pStmt->pTagCond, &pStmt->pPrivCols);
   if (code == TSDB_CODE_SUCCESS) {
     code = getTableMetaFromMetaData(pMetaData->pTableMeta, &pStmt->pTableMeta);
   }
