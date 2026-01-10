@@ -9,8 +9,8 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef INC_STORAGE_TAOS_H_
-#define INC_STORAGE_TAOS_H_
+#ifndef INC_COLCOMPRESS_H_
+#define INC_COLCOMPRESS_H_
 
 #include "bck.h"
 
@@ -22,14 +22,15 @@
 // ---------------- struct ----------------
 //
 typedef struct {
-    char *fileName;
-    FILE *fp;
-    
-    int nBlocks;
-} TaosFile;
+    void * data;
+    int    len;
+} CompressData;
+
 
 
 // ---------------- interface ----------------
-int resultToFileTaos(TAOS_RES *res, const char *fileName);
+CompressData* compressBlock(void *block, int blockRows, TAOS_FIELD* fields, int numFields, int *code);
 
-#endif  // INC_STORAGE_TAOS_H_
+void freeCompressData(CompressData* compressData);
+
+#endif  // INC_COLCOMPRESS_H_
