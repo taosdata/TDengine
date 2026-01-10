@@ -782,6 +782,9 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
         for (int32_t i = 0; i < AUTH_RES_MAX_VALUE; ++i) {
           nodesDestroyNode(pAuth->pCond[i]);
         }
+        if(pAuth->pCols) {
+          taosArrayDestroy(pAuth->pCols);
+        }
         taosMemoryFreeClear(*pRes);
       }
       break;

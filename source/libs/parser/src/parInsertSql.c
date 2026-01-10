@@ -2443,8 +2443,11 @@ static int32_t parseCheckNoBoundColPriv(SInsertParseContext* pCxt, SVnodeModifyO
     return TSDB_CODE_SUCCESS;
   }
   int32_t nCols = pStmt->pTableMeta->tableInfo.numOfColumns;
-  // It cann't provide the specific missing column info although with better performance. In order to provide better
-  // user experience, we check each column one by one. if (nPrivs < nCols) return TSDB_CODE_PAR_COL_PERMISSION_DENIED;
+  /**
+   * It cann't provide the specific missing column info although with better performance. For better UE, we check each
+   * column one by one.
+   */
+  // if (nPrivs < nCols) return TSDB_CODE_PAR_COL_PERMISSION_DENIED;
 
   // both the schema and privCols are ordered by colId asc
   SSchema* pSchemas = pStmt->pTableMeta->schema;
@@ -4042,6 +4045,7 @@ static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
   pCxt->usingDuplicateTable = false;
   pStmt->pBoundCols = NULL;
   pStmt->pPrivCols = NULL;
+  pStmt->pTagCond = NULL;
   pStmt->usingTableProcessing = false;
   pStmt->fileProcessing = false;
   pStmt->usingTableName.type = 0;
@@ -4423,11 +4427,14 @@ static void clearCatalogReq(SCatalogReq* pCatalogReq) {
   pCatalogReq->pTableTag = NULL;
 }
 
+extern void* pGTagCond;
+
 static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
                                    SVnodeModifyOpStmt* pStmt) {
   clearCatalogReq(pCatalogReq);
   int32_t code = checkAuthFromMetaData(pMetaData->pUser, &pStmt->pTagCond, &pStmt->pPrivCols);
   if (code == TSDB_CODE_SUCCESS) {
+    pGTagCond = pStmt->pTagCond;
     code = getTableMetaFromMetaData(pMetaData->pTableMeta, &pStmt->pTableMeta);
   }
   if (code == TSDB_CODE_SUCCESS) {
