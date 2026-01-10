@@ -17099,7 +17099,7 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
       if ((pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) || (pSchema->flags & COL_IS_KEY)) {
         bool found = false;
         for (j = 0; j < taosArrayGetSize(*ppReqCols); ++j) {
-          SColNameFlag* pColNameFlag = (SColNameFlag*)taosArrayGetItem(*ppReqCols, j);
+          SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(*ppReqCols, j);
           if (pColNameFlag->colId == pSchema->colId) {
             found = true;
             break;

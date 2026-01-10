@@ -227,8 +227,8 @@ static int32_t getTbnameSchemaIndex(STableMeta* pTableMeta) {
 }
 
 // pStmt->pSql -> field1_name, ...)
-static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, EBoundColumnsType boundColsType,
-                                 STableMeta* pTableMeta, SBoundColInfo* pBoundInfo) {
+static int32_t parseBoundColumns(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, const char** pSql,
+                                 EBoundColumnsType boundColsType, STableMeta* pTableMeta, SBoundColInfo* pBoundInfo) {
   SSchema* pSchema = NULL;
   if (boundColsType == BOUND_TAGS) {
     pSchema = getTableTagSchema(pTableMeta);
@@ -253,6 +253,8 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
   bool    hasPK = pTableMeta->tableInfo.numOfPKs;
   int16_t numOfBoundPKs = 0;
   int16_t lastColIdx = -1;  // last column found
+  SArray* pPrivCols = pStmt->pPrivCols;
+  int32_t lastPrivColIdx = 0, nPrivCols = taosArrayGetSize(pPrivCols);
   int32_t code = TSDB_CODE_SUCCESS;
   while (TSDB_CODE_SUCCESS == code) {
     SToken token;
@@ -277,6 +279,32 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
       ++pBoundInfo->numOfBound;
       continue;
     }
+
+    if (pPrivCols) {  // check column-level privileges
+      int32_t j = lastPrivColIdx;
+      bool    found = false;
+      for (; lastPrivColIdx < nPrivCols; ++lastPrivColIdx) {
+        SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, lastPrivColIdx);
+        if (strcmp(token.z, pColNameFlag->colName) == 0) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        for (int32_t k = 0; k < j; ++k) {
+          SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, k);
+          if (strcmp(token.z, pColNameFlag->colName) == 0) {
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found) {
+        taosMemoryFree(pUseCols);
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_COL_PERMISSION_DENIED, token.z);
+      }
+    }
+
     int16_t t = lastColIdx + 1;
     int16_t end = (boundColsType == BOUND_ALL_AND_TBNAME) ? (pBoundInfo->numOfCols - 1) : pBoundInfo->numOfCols;
     int16_t index = insFindCol(&token, t, end, pSchema);
@@ -1604,7 +1632,7 @@ static int32_t parseBoundTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStm
   }
 
   pStmt->pSql += index;
-  return parseBoundColumns(pCxt, &pStmt->pSql, BOUND_TAGS, pStmt->pTableMeta, &pCxt->tags);
+  return parseBoundColumns(pCxt, pStmt, &pStmt->pSql, BOUND_TAGS, pStmt->pTableMeta, &pCxt->tags);
 }
 
 int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SSchema* pTagSchema, SToken* pToken,
@@ -2419,11 +2447,12 @@ static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifyOp
       return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is expected", token.z);
     }
     // pStmt->pSql -> field1_name, ...)
-    return parseBoundColumns(pCxt, &pStmt->pSql, BOUND_COLUMNS, pStmt->pTableMeta, &pTableCxt->boundColsInfo);
+    return parseBoundColumns(pCxt, pStmt, &pStmt->pSql, BOUND_COLUMNS, pStmt->pTableMeta, &pTableCxt->boundColsInfo);
   }
 
   if (NULL != pStmt->pBoundCols) {
-    return parseBoundColumns(pCxt, &pStmt->pBoundCols, BOUND_COLUMNS, pStmt->pTableMeta, &pTableCxt->boundColsInfo);
+    return parseBoundColumns(pCxt, pStmt, &pStmt->pBoundCols, BOUND_COLUMNS, pStmt->pTableMeta,
+                             &pTableCxt->boundColsInfo);
   } else if (pTableCxt->boundColsInfo.hasBoundCols) {
     insResetBoundColsInfo(&pTableCxt->boundColsInfo);
   }
@@ -3916,7 +3945,7 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
   code = constructStbRowsDataContext(pStmt, &pStbRowsCxt);
 
   if (code == TSDB_CODE_SUCCESS) {
-    code = parseBoundColumns(pCxt, &pStmt->pBoundCols, BOUND_ALL_AND_TBNAME, pStmt->pTableMeta,
+    code = parseBoundColumns(pCxt, pStmt, &pStmt->pBoundCols, BOUND_ALL_AND_TBNAME, pStmt->pTableMeta,
                              &pStbRowsCxt->boundColsInfo);
     pStbRowsCxt->hasTimestampTag = false;
     for (int32_t i = 0; i < pStbRowsCxt->boundColsInfo.numOfBound; ++i) {
