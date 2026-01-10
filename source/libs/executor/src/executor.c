@@ -2316,6 +2316,7 @@ int32_t notifyTableScanTask(qTaskInfo_t tinfo, TSKEY notifyTs) {
   if (pTaskInfo->pRoot != NULL) {
     SOperatorInfo* pOperator = pTaskInfo->pRoot;
     if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+      /* Only support notify table scan operator right now. */
       SStorageAPI* pApi = &pOperator->pTaskInfo->storageAPI;
       code = pApi->tsdReader.tsdReaderStepDone(
         ((STableScanInfo*)pOperator->info)->base.dataReader, notifyTs);

@@ -123,6 +123,13 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
     if (taskHandle) {
       qwDbgSimulateSleep();
 
+      if (QW_EVENT_RECEIVED(ctx, QW_EVENT_NOTIFY)) {
+        QW_TASK_DLOG("notify event to be processed, notifyTs:%" PRId64,
+                     ctx->notifyTs);
+        notifyTableScanTask(taskHandle, ctx->notifyTs);
+        QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_NOTIFY);
+      }
+
       setTaskScalarExtraInfo(taskHandle);
       taosEnableMemPoolUsage(ctx->memPoolSession);
       code = qExecTaskOpt(taskHandle, pResList, &useconds, &hasMore, &localFetch, processOneBlock);
@@ -1053,9 +1060,22 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   ctx->dataConnInfo = qwMsg->connInfo;
 
   if (qwMsg->msg) {
-    code = qwStartDynamicTaskNewExec(QW_FPARAMS(), ctx, qwMsg);
-    qwMsg->msg = NULL;
-    goto _return;
+    if (ctx->dynamicTask) {
+      code = qwStartDynamicTaskNewExec(QW_FPARAMS(), ctx, qwMsg);
+      qwMsg->msg = NULL;
+      goto _return;
+    } else {
+      /**
+        Must be STEP DONE notify msg in Fetch request. But here we don't know
+        whether the taskHandle is valid or not, so we keep the notifyTs in the
+        ctx, and notify later in the query thread.
+      */
+      STableScanOperatorParam *pParam = (STableScanOperatorParam *)qwMsg->msg;
+      atomic_store_64(&ctx->notifyTs, pParam->notifyTs);
+      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_NOTIFY);
+      freeOperatorParam((SOperatorParam*)qwMsg->msg, OP_GET_PARAM);
+      qwMsg->msg = NULL;
+    }
   }
 
   if (ctx->subQuery) {
