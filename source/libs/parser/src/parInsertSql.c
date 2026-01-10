@@ -2437,6 +2437,43 @@ static int32_t getTableDataCxt(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
                             &pStmt->pCreateTblReq, pTableCxt, NULL != pCxt->pComCxt->pStmtCb, false);
 }
 
+static int32_t parseCheckColPrivNoBound(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  int32_t nPrivs = taosArrayGetSize(pStmt->pPrivCols);
+  if (nPrivs <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t nCols = pStmt->pTableMeta->tableInfo.numOfColumns;
+  if (nPrivs < nCols) return TSDB_CODE_PAR_COL_PERMISSION_DENIED;
+
+  int32_t lastColIdx = 0, j = 0, k = 0;
+  for (int32_t i = 0; i < nCols; ++i) {
+    SSchema* pSchema = &pStmt->pTableMeta->schema[i];
+    bool     found = false;
+    j = lastColIdx;
+    for (; lastColIdx < nPrivs; ++lastColIdx) {
+      SColNameFlag* pColPriv = (SColNameFlag*)TARRAY_GET_ELEM(pStmt->pPrivCols, lastColIdx);
+      if (pSchema->colId == pColPriv->colId) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      for (k = 0; k < j; ++k) {
+        SColNameFlag* pColPriv = (SColNameFlag*)TARRAY_GET_ELEM(pStmt->pPrivCols, k);
+        if (pSchema->colId == pColPriv->colId) {
+          found = true;
+          break;
+        }
+      }
+    }
+    if (!found) {
+      return TSDB_CODE_PAR_COL_PERMISSION_DENIED;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, STableDataCxt* pTableCxt) {
   SToken  token;
   int32_t index = 0;
@@ -2454,6 +2491,9 @@ static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifyOp
     return parseBoundColumns(pCxt, pStmt, &pStmt->pBoundCols, BOUND_COLUMNS, pStmt->pTableMeta,
                              &pTableCxt->boundColsInfo);
   } else if (pTableCxt->boundColsInfo.hasBoundCols) {
+    if (pStmt->pPrivCols != NULL) {
+      PAR_ERR_RET(parseCheckColPrivNoBound(pCxt, pStmt));
+    }
     insResetBoundColsInfo(&pTableCxt->boundColsInfo);
   }
 
