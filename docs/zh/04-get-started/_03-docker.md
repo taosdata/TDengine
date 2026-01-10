@@ -24,6 +24,7 @@ docker pull tdengine/tdengine:3.3.0.0
 
 ```shell
 docker run -d \
+  --name tdengine \
   -p 6030:6030 \
   -p 6041:6041 \
   -p 6043-6049:6043-6049 \
@@ -37,6 +38,7 @@ docker run -d \
 
 ```shell
 docker run -d \
+  --name tdengine \
   -v ~/data/taos/dnode/data:/var/lib/taos \
   -v ~/data/taos/dnode/log:/var/log/taos \
   -p 6030:6030 \
@@ -55,10 +57,18 @@ docker ps
 4. 进入该容器并执行 bash
 
 ```shell
-docker exec -it <container name bash
+docker exec -it tdengine bash
 ```
 
 然后就可以执行相关的 Linux 命令操作和访问 TDengine。
+
+5. 停止并清理：
+
+   当您使用完容器后，可以运行以下命令来停止容器并删除相关数据卷。
+
+   ```shell
+   docker stop tdengine
+   docker rm -v tdengine
 
 ## 故障排查
 
