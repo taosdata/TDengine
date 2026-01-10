@@ -17027,9 +17027,9 @@ _tagCond:
   return code;
 }
 
-
 static int32_t comparePrivColWithColId(SNode* pNode1, SNode* pNode2) { return compareTsmaColWithColId(pNode1, pNode2); }
-static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, STableMeta* pTableMeta, SNodeList* pCols) {
+static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, STableMeta* pTableMeta, SNodeList* pCols,
+                                  bool needPrimaryKey) {
   int32_t code = 0, lino = 0;
   int32_t nCols = LIST_LENGTH(pCols);
 
@@ -17042,7 +17042,6 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
   SNode*         pNode = NULL;
   SColumnNode*   pCol = NULL;
   const SSchema* pSchema = NULL;
-  col_id_t*      buf = NULL;
   int32_t        i = 0, j = 0, k = 0;
   FOREACH(pNode, pCols) {
     pCol = (SColumnNode*)pNode;
@@ -17081,19 +17080,42 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
   col_id_t lastColId = -1;
   FOREACH(pNode, pCols) {
     SColumnNode* pColNode = (SColumnNode*)pNode;
-    if (pColNode->colId == lastColId) { // skip duplicate columns
+    if (pColNode->colId == lastColId) {  // skip duplicate columns
       continue;
     }
     SColNameFlag colNameFlag = {.colId = pColNode->colId};
-    if(pColNode->hasMask) COL_SET_MASK_ON(&colNameFlag);
+    if (pColNode->hasMask) COL_SET_MASK_ON(&colNameFlag);
     (void)snprintf(colNameFlag.colName, sizeof(colNameFlag.colName), "%s", pColNode->colName);
     if (!taosArrayPush(*ppReqCols, &colNameFlag)) {
       TAOS_CHECK_EXIT(terrno);
     }
     lastColId = pColNode->colId;
   }
+
+  if (needPrimaryKey) {
+    // ensure primary key columns are included
+    for (int32_t c = 0; c < columnNum; ++c) {
+      pSchema = pSchemaCols + c;
+      if ((pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) || (pSchema->flags & COL_IS_KEY)) {
+        bool found = false;
+        for (j = 0; j < taosArrayGetSize(*ppReqCols); ++j) {
+          SColNameFlag* pColNameFlag = (SColNameFlag*)taosArrayGetItem(*ppReqCols, j);
+          if (pColNameFlag->colId == pSchema->colId) {
+            found = true;
+            break;
+          } else if (pColNameFlag->colId > pSchema->colId) {
+            break;
+          }
+        }
+        if (!found) {
+          return TSDB_CODE_PAR_LACK_OF_PRIMARY_KEY_COL;
+        }
+      } else {
+        break;
+      }
+    }
+  }
 _exit:
-  taosMemoryFree(buf);
   return code;
 }
 
@@ -17172,9 +17194,9 @@ static int32_t translateGrantFillColPrivileges(STranslateContext* pCxt, SGrantSt
           "Only ALTER, DROP, SHOW or SHOW CREATE table privilege can be granted on child table"));
     }
 
-    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->selectCols, pTableMeta, (SNodeList*)pPrivSetArgs->selectCols));
-    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->insertCols, pTableMeta, (SNodeList*)pPrivSetArgs->insertCols));
-    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->updateCols, pTableMeta, (SNodeList*)pPrivSetArgs->updateCols));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->selectCols, pTableMeta, (SNodeList*)pPrivSetArgs->selectCols, false));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->insertCols, pTableMeta, (SNodeList*)pPrivSetArgs->insertCols, true));
+    TAOS_CHECK_EXIT(fillPrivSetRowCols(pCxt, &pReqArgs->updateCols, pTableMeta, (SNodeList*)pPrivSetArgs->updateCols, true));
   }
 
 _exit:
