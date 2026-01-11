@@ -4297,8 +4297,10 @@ static int32_t checkUseDb(SParseContext* pCxt, SName* pTbName, SDbCfgInfo* pDbCf
   }
   int32_t       code = TSDB_CODE_SUCCESS;
   SUserAuthInfo authInfo = {.userId = pCxt->userId};
-  snprintf(authInfo.user, sizeof(authInfo.user), "%s", pCxt->pUser);
-  memcpy(&authInfo.tbName, pTbName, sizeof(SName));
+  (void)snprintf(authInfo.user, sizeof(authInfo.user), "%s", pCxt->pUser);
+  (void)snprintf(authInfo.tbName.dbname, sizeof(authInfo.tbName.dbname), "%s", pTbName->dbname);
+  authInfo.tbName.acctId = pTbName->acctId;
+  authInfo.tbName.type = TSDB_DB_NAME_T;
   if (!pDbCfg->isAudit) {
     authInfo.privType = PRIV_DB_USE;
     authInfo.objType = PRIV_OBJ_DB;
@@ -4308,9 +4310,8 @@ static int32_t checkUseDb(SParseContext* pCxt, SName* pTbName, SDbCfgInfo* pDbCf
   }
 
   SUserAuthRes authRes = {0};
-  SUserAuthRsp authRsp = {0};
   if (pCxt->async) {
-    code = catalogChkAuthFromCache(pCxt->pCatalog, &authInfo, &authRes, &authRsp);
+    code = catalogChkAuthFromCache(pCxt->pCatalog, &authInfo, &authRes, NULL);
   } else {
     SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
                              .requestId = pCxt->requestId,
@@ -4337,7 +4338,7 @@ static int32_t checkAuthFromMetaData(SInsertParseContext* pCxt, const SMetaData*
   if (TSDB_CODE_SUCCESS != pDbRes->code) {
     return pDbRes->code;
   }
-  PAR_ERR_RET(checkUseDb(pCxt->pComCxt, &pStmt->usingTableName, pDbRes->pRes));
+  PAR_ERR_RET(checkUseDb(pCxt->pComCxt, &pStmt->targetTableName, pDbRes->pRes));
 
   // check conditional and columns privilege
   SMetaRes* pRes = TARRAY_GET_ELEM(pMetaData->pUser, 0);
