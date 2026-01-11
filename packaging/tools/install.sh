@@ -166,7 +166,7 @@ initType=systemd    # [systemd | service | ...]
 
 function show_help() {
   cat << EOF
-TDengine TSDB Installer.
+${productName} Installer.
 
 Usage: $(basename $0) [OPTIONS]
 
@@ -250,7 +250,7 @@ function setup_env() {
   # 3. Install directory setting
   if [[ $silent_mode -eq 0 && $taos_dir_set -eq 0 ]]; then
     while true; do
-      echo -ne "${GREEN_DARK}Do you want to install TDengine to the default directory?${NC}" \
+      echo -ne "${GREEN_DARK}Do you want to install ${productName} to the default directory?${NC}" \
                "${default_dir}" \
                "${GREEN_DARK}[Y/n]${NC}"
 
@@ -380,11 +380,12 @@ function setup_env() {
       taosd_parent_dir="$(cd "${taosd_bin_dir}/.." && pwd)"
       if [ "${taosd_bin_dir}" != "${bin_dir}" ] || [ "${taosd_link_dir}" != "${bin_link_dir}" ]; then
           taosd_ver=$(${real_taosd_bin} -V 2>/dev/null | grep version | awk '{print $3}' || echo "unknown")
-          log warn_bold "Detected taosd is already installed at: ${taosd_parent_dir} with version: ${taosd_ver}"
-          log warn_bold "You are about to install TDengine to a different location: ${install_main_dir}"
+          log info "Detected install mode: $mode_desc"
+          log warn_bold "${productName} ${taosd_ver} was detected at ${taosd_parent_dir}"
+          log warn_bold "You are about to install ${productName} to a different location: ${install_main_dir}"
           # Silent mode handling
           if [ "$silent_mode" = "1" ]; then
-              echo "Continue to installation TDengine."
+              # echo "Continue to installation TDengine."
               confirm="Y"
           else
               read -p "Do you want to continue the installation? [Y/n]: " confirm
@@ -396,11 +397,7 @@ function setup_env() {
           fi
       fi
   fi
-  log info "Detected install mode: $mode_desc"
-  log info "TDengine installation path: ${installDir}"
-  log info "Data directory: ${dataDir}"
-  log info "Log directory: ${logDir}"
-  log info "Config directory: ${configDir}"
+  
 }
 
 function get_config_file() {
@@ -539,15 +536,15 @@ function install_bin() {
 
     # Add PATH
     if ! grep -q "${bin_link_dir}" "$env_file" 2>/dev/null; then
-      echo -e "\n# TDengine install path" >> "$env_file"
+      echo -e "\n# ${productName} install path" >> "$env_file"
       echo "export PATH=\"${bin_link_dir}:\$PATH\"" >> "$env_file"
-      log info "Added TDengine bin to PATH (${env_file})"
+      log info "Added ${productName} bin to PATH (${env_file})"
     fi
 
     # Add LD_LIBRARY_PATH
     if ! grep -q "${lib_link_dir}" "$env_file" 2>/dev/null; then
       echo "export LD_LIBRARY_PATH=\"${lib_link_dir}:\$LD_LIBRARY_PATH\"" >> "$env_file"
-      log info "Added TDengine lib to LD_LIBRARY_PATH (${env_file})"
+      log info "Added ${productName} lib to LD_LIBRARY_PATH (${env_file})"
     fi
 
   fi
@@ -1264,7 +1261,7 @@ function is_version_compatible() {
 function deb_erase() {
   confirm=""
   while [ "" == "${confirm}" ]; do
-    echo -e -n "${RED}Existing TDengine deb is detected, do you want to remove it? [yes|no] ${NC}:"
+    echo -e -n "${RED}Existing ${productName} deb is detected, do you want to remove it? [yes|no] ${NC}:"
     read confirm
     if [ "yes" == "$confirm" ]; then
       dpkg --remove tdengine || :
@@ -1278,7 +1275,7 @@ function deb_erase() {
 function rpm_erase() {
   confirm=""
   while [ "" == "${confirm}" ]; do
-    echo -e -n "${RED}Existing TDengine rpm is detected, do you want to remove it? [yes|no] ${NC}:"
+    echo -e -n "${RED}Existing ${productName} rpm is detected, do you want to remove it? [yes|no] ${NC}:"
     read confirm
     if [ "yes" == "$confirm" ]; then
       rpm -e tdengine || :
@@ -1342,9 +1339,13 @@ function finished_install_info(){
 
       if [ "${verMode}" == "cluster" ]; then
         entries+=("To read the user manual:|http://$serverFqdn:6060/docs-en")
-        entries+=("To manage, analyze and visualize data:|https://tdengine.com/idmp/")
+        if [ "${PREFIX}" == "taos" ]; then
+          entries+=("To manage, analyze and visualize data:|https://tdengine.com/idmp/")
+        fi
       else
-        entries+=("To read the user manual:|https://docs.tdengine.com")
+        if [ "${PREFIX}" == "taos" ]; then
+          entries+=("To read the user manual:|https://docs.tdengine.com")
+        fi
       fi
       entries+=("|")
 
@@ -1380,7 +1381,7 @@ function finished_install_info(){
       log info_color "$(printf "%-${max}s %s" "$label" "$value")"
     done
     if [ "$(id -u)" -ne 0 ]; then
-      log info_color "Environment variables for TDengine have been added to $HOME/.bashrc."
+      log info_color "Environment variables for ${productName} have been added to $HOME/.bashrc."
       log info_color "To make them effective, please run: source \$HOME/.bashrc"
       log info_color "Or simply open a new terminal window."
     fi
@@ -1408,7 +1409,9 @@ function updateProduct() {
 
   tar -zxf ${tarName}
 
-  echo "Start to update ${productName}..."
+  echo "Welcome to ${productName} Update ..."
+  log info "Data directory: ${dataDir}"
+  log info "Log directory: ${logDir}"
   # Stop the service if running
   if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
@@ -1470,8 +1473,9 @@ function installProduct() {
   fi
   tar -zxf ${tarName}
 
-  echo "Start to install ${productName}..."
-
+  echo "Welcome to ${productName} Installation ..."
+  log info "Data directory: ${dataDir}"
+  log info "Log directory: ${logDir}"
   install_main_path
 
   if [ -z $1 ]; then
