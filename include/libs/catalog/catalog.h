@@ -56,13 +56,6 @@ typedef struct SUserAuthInfo {
   int64_t userId;
   SName   tbName;
   bool    isView;
-  union {
-    uint8_t flag;
-    struct {
-      uint8_t useDb : 1; // check use db firstly
-      uint8_t reserve : 7;
-    };
-  };
   EPrivType    privType;
   EPrivObjType objType;
 } SUserAuthInfo;

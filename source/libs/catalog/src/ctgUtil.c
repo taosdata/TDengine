@@ -2514,19 +2514,6 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
         return TSDB_CODE_SUCCESS;
       }
       return TSDB_CODE_SUCCESS;
-    } else if (pReq->useDb) {
-      const SPrivInfo* dbPrivInfo = privInfoGet(PRIV_DB_USE);
-      if (!dbPrivInfo) {
-        return TSDB_CODE_CTG_INTERNAL_ERROR;
-      }
-      if (!privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, dbPrivInfo, true)) {
-        SDbCfgInfo dbCfg = {0};
-        char       dbFName[TSDB_DB_FNAME_LEN];
-        (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
-        if (!taosHashGet(pInfo->ownedDbs, dbFName, strlen(dbFName) + 1)) {
-          return TSDB_CODE_SUCCESS;
-        }
-      }
     }
     if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
       req->singleType = pReq->privType;
