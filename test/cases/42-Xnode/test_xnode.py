@@ -112,7 +112,7 @@ class TestXnode:
         3. Create xnode with id only
         4. Drop xnode by endpoint and id
         5. Drain xnode by id
-        
+
         Since: v3.3.8.8
 
         Labels: common,ci
@@ -181,9 +181,10 @@ class TestXnode:
              "WITH group_id 'g1' AND client_id 'c1'",
             # create task without FROM/TO but with options only
             f"CREATE XNODE TASK '{t_opts}' WITH retry 5 AND TRIGGER 'cron_5m'",
+
             # alter with new source/sink/options
             f"ALTER XNODE TASK {task_id_1} FROM DATABASE {dbname} TO 'influxdb://remote' "
-            "WITH parser 'parser_line', concurrency 4",
+             "WITH parser 'parser_line', concurrency 4",
             # alter task with options only
             f"ALTER XNODE TASK {task_id_2} WITH batch 2048 AND timeout 30",
             # start/stop task
@@ -192,12 +193,13 @@ class TestXnode:
             # rebalance by id with options
             f"REBALANCE XNODE JOB {self.rand_ids[4]} WITH xnode_id 3",
             # rebalance by where clause
-            "REBALANCE XNODE JOB WHERE id > 0",
+            f"REBALANCE XNODE JOB WHERE id > 0",
             # drop variations
             f"DROP XNODE TASK '{t_ingest}'",
             f"DROP XNODE TASK {task_id_2}",
-            # f"DROP XNODE TASK WHERE name = '{t_export}'",
-            # f"DROP XNODE TASK ON 1 WHERE id = {task_id_1}",
+
+            #f"DROP XNODE TASK WHERE name = '{t_export}'",
+            #f"DROP XNODE TASK ON 1 WHERE id = {task_id_1}",
         ]
         for sql in task_sqls:
             tdLog.debug(f"exec: {sql}")
@@ -261,9 +263,9 @@ class TestXnode:
         job_sqls = [
             f"DROP XNODE JOB {job_id}",
             f"CREATE XNODE JOB ON {job_on} WITH config '{{\"json\":true}}'",
-            # f"ALTER XNODE JOB {job_id} WITH TRIGGER 'manual', priority 10",
+            #f"ALTER XNODE JOB {job_id} WITH TRIGGER 'manual', priority 10",
             f"REBALANCE XNODE JOB {job_id} WITH xnode_id {job_on}",
-            "REBALANCE XNODE JOB WHERE jid >= 1",
+            f"REBALANCE XNODE JOB WHERE jid >= 1",
             #f"DROP XNODE JOB ON {job_on} WHERE jid = {job_id}",
             #"DROP XNODE JOB WHERE jid > 1",
         ]
@@ -327,7 +329,7 @@ class TestXnode:
         History:
             - 2025-12-30 GuiChuan Zhang Created
         """
-        
+
         show_sqls = [
             "SHOW XNODES",
             "SHOW XNODE TASKS",

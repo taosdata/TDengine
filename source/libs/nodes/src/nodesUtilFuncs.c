@@ -2587,6 +2587,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->options);
       break;
     }
+    case QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT: {
+      SRebalanceXnodeJobWhereStmt* pStmt = (SRebalanceXnodeJobWhereStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->pWhere);
+      break;
+    }
     case QUERY_NODE_CREATE_XNODE_AGENT_STMT: {
       SCreateXnodeAgentStmt* pStmt = (SCreateXnodeAgentStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->options);

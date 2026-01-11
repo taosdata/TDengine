@@ -5530,6 +5530,9 @@ _err:
   if (pStmt != NULL) {
     nodesDestroyNode(pStmt);
   }
+  if (pNode != NULL) {
+    nodesDestroyNode(pNode);
+  }
   return NULL;
 }
 
