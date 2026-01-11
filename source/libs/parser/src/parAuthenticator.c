@@ -82,7 +82,10 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
         }
         // rewrite privilege for audit db
         if (dbCfgInfo.isAudit && pAuthInfo->objType == PRIV_OBJ_DB) {
-          if (pAuthInfo->privType == PRIV_CM_ALTER) {
+          if (pAuthInfo->privType == PRIV_DB_USE) {
+            pAuthInfo->useDb = AUTH_OWNED_MASK;
+            if (recheck) *recheck = true;  // recheck since the cached key is changed
+          } else if (pAuthInfo->privType == PRIV_CM_ALTER) {
             pAuthInfo->privType = PRIV_AUDIT_DB_ALTER;
             pAuthInfo->objType = PRIV_OBJ_CLUSTER;
             if (recheck) *recheck = true;  // recheck since the cached key is changed

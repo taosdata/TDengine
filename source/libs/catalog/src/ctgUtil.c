@@ -2508,17 +2508,15 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       privInfo.objType = pReq->objType;
       privInfo.objLevel = privObjGetLevel(privInfo.objType);
     }
-    if (pReq->tbName.type == TSDB_DB_NAME_T) {
-      if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, &privInfo, true)) {
-        pRes->pass[AUTH_RES_BASIC] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-      return TSDB_CODE_SUCCESS;
 
-    } else if (pReq->useDb) {
+    if (pReq->useDb) {
       if ((pReq->useDb & AUTH_AUTHORIZED_MASK)) {
         const SPrivInfo* dbPrivInfo = privInfoGet(PRIV_DB_USE);
         if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, dbPrivInfo, true)) {
+          if (pReq->tbName.type == TSDB_DB_NAME_T) {
+            pRes->pass[AUTH_RES_BASIC] = true;
+            return TSDB_CODE_SUCCESS;
+          }
           goto _next;
         }
       }
@@ -2526,8 +2524,18 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
         char dbFName[TSDB_DB_FNAME_LEN];
         (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
         if (taosHashGet(pInfo->ownedDbs, dbFName, strlen(dbFName) + 1)) {
+          if (pReq->tbName.type == TSDB_DB_NAME_T) {
+            pRes->pass[AUTH_RES_BASIC] = true;
+            return TSDB_CODE_SUCCESS;
+          }
           goto _next;
         }
+      }
+      return TSDB_CODE_SUCCESS;
+    } else if (pReq->tbName.type == TSDB_DB_NAME_T) {
+      if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, &privInfo, true)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
       }
       return TSDB_CODE_SUCCESS;
     }
