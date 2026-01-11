@@ -321,12 +321,12 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     int32_t code = getTargetMetaImpl(pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, &name, &pTableMeta, true);
     if (TSDB_CODE_SUCCESS == code) {
-      if(pTableMeta->ownerId == pAuthCxt->pParseCxt->userId) {
-        // owner has all privileges
+      if (!pTableMeta->isAudit && (pTableMeta->ownerId == pAuthCxt->pParseCxt->userId)) {
+        // owner has all privileges on the table he owns except audit table
         taosMemoryFree(pTableMeta);
         return DEAL_RES_CONTINUE;
       }
-      if(TSDB_VIEW_TABLE == pTableMeta->tableType) {
+      if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
         isView = true;
       }
     }
@@ -340,7 +340,7 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
             checkEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL);
       }
       if (TSDB_CODE_SUCCESS == pAuthCxt->errCode && NULL != pPrivCols) {
-         pAuthCxt->errCode = authSelectTblCols(pCxt->pSelect, pTable, pPrivCols);
+        pAuthCxt->errCode = authSelectTblCols(pCxt->pSelect, pTable, pPrivCols);
       }
       if (TSDB_CODE_SUCCESS == pAuthCxt->errCode && NULL != pTagCond) {
         pAuthCxt->errCode = rewriteAppendStableTagCond(&pCxt->pSelect->pWhere, pTagCond, pTable);

@@ -141,6 +141,7 @@ static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint3
       privAddType(&pObj->sysPrivs, pPrivInfo->privType);
     } else if (pPrivInfo->category == PRIV_CATEGORY_OBJECT) {  // object privileges
       switch (pPrivInfo->privType) {
+#if 0
         case PRIV_TBL_SELECT: {  // SELECT TABLE
           TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->selectTbs));
           break;
@@ -157,6 +158,7 @@ static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint3
           TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->deleteTbs));
           break;
         }
+#endif
         default: {
           int32_t keyLen = privObjKeyF(pPrivInfo, "1.*", "*", objKey, sizeof(objKey));
           if (!pObj->objPrivs && !(pObj->objPrivs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
