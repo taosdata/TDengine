@@ -772,7 +772,7 @@ static int32_t mndSetCreateDbUndoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
 }
 
 static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups,
-                                        SUserObj *pUserDuped) {
+                                        SUserObj *pUserDuped, SArray *pAuditOwnedDbs) {
   int32_t  code = 0;
   SSdbRaw *pDbRaw = mndDbActionEncode(pDb);
   if (pDbRaw == NULL) {
@@ -814,6 +814,19 @@ static int32_t mndSetCreateDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
     TAOS_CHECK_RETURN(sdbSetRawStatus(pUserRaw, SDB_STATUS_READY));
   }
 
+  if(pAuditOwnedDbs) {
+    int32_t auditOwnedDbSize = taosArrayGetSize(pAuditOwnedDbs);
+    for (int32_t i = 0; i < auditOwnedDbSize; ++i) {
+      SUserObj *pAuditUser = (SUserObj *)TARRAY_GET_ELEM(pAuditOwnedDbs, i);
+      SSdbRaw  *pAuditUserRaw = mndUserActionEncode(pAuditUser);
+      if (pAuditUserRaw == NULL) {
+        TAOS_RETURN(terrno ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
+      }
+      TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pAuditUserRaw));
+      TAOS_CHECK_RETURN(sdbSetRawStatus(pAuditUserRaw, SDB_STATUS_READY));
+    }
+  }
+
   TAOS_RETURN(code);
 }
 
@@ -845,8 +858,54 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   TAOS_RETURN(code);
 }
 
+static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SDbObj *pDb, SArray **pAuditOwnedDbs) {
+  int32_t   code = 0, lino = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  SArray   *auditOwnedDbs = NULL;
+  SUserObj *pUser = NULL;
+  SUserObj  newUserObj = {0};
+  int32_t   sysAuditLen = strlen(TSDB_ROLE_SYSAUDIT) + 1;
+  int32_t   sysAuditLogLen = strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1;
+
+  void *pIter = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
+    if (taosHashGetSize(pUser->roles) <= 0) {
+      continue;
+    }
+    if (!taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sysAuditLen) &&
+        !taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, sysAuditLogLen)) {
+      continue;
+    }
+    memset(&newUserObj, 0, sizeof(SUserObj));
+    TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUserObj));
+
+    TAOS_CHECK_EXIT(taosHashPut(newUserObj.ownedDbs, pDb->name, strlen(pDb->name) + 1, NULL, 0));
+    if (auditOwnedDbs == NULL) {
+      auditOwnedDbs = taosArrayInit(1, sizeof(SUserObj));
+      if (auditOwnedDbs == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+    }
+    if (!taosArrayPush(auditOwnedDbs, &newUserObj)) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    sdbRelease(pSdb, pUser);
+  }
+  *pAuditOwnedDbs = auditOwnedDbs;
+  auditOwnedDbs = NULL;
+_exit:
+  if (auditOwnedDbs != NULL) taosArrayDestroyEx(auditOwnedDbs, (FDelete)mndUserFreeObj);
+  if (pIter) {
+    sdbRelease(pSdb, pUser);
+    sdbCancelFetch(pSdb, pIter);
+  }
+  mndUserFreeObj(&newUserObj);
+  TAOS_RETURN(code);
+}
+
 static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser, SArray *dnodeList) {
   int32_t  code = 0;
+  SArray  *auditOwnedDbs = NULL;
   SUserObj newUserObj = {0};
   SDbObj   dbObj = {0};
   (void)memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
@@ -996,7 +1055,9 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
 #else
   // Considering the efficiency of use db privileges in some scenarios like insert operation, owned DBs is stored.
-  if (!pUser->superUser) {
+  if (dbObj.cfg.isAudit == 1) {
+    TAOS_CHECK_GOTO(mndSetAuditOwnedDbs(pMnode, &dbObj, &auditOwnedDbs), NULL, _OVER);
+  } else {
     TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUserObj), NULL, _OVER);
     TAOS_CHECK_GOTO(taosHashPut(newUserObj.ownedDbs, dbObj.name, strlen(dbObj.name) + 1, NULL, 0), NULL, _OVER);
     pNewUserDuped = &newUserObj;
@@ -1040,13 +1101,14 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   TAOS_CHECK_GOTO(mndSetCreateDbRedoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetNewVgPrepareActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped, auditOwnedDbs), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
 _OVER:
   taosMemoryFree(pVgroups);
   mndUserFreeObj(&newUserObj);
+  taosArrayDestroyEx(auditOwnedDbs, (FDelete)mndUserFreeObj);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
