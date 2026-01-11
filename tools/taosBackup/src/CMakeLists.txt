@@ -87,7 +87,7 @@ INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
 INCLUDE_DIRECTORIES(../inc)
 
 # src
-ADD_EXECUTABLE(taosBackup taosBackup.c)
+ADD_EXECUTABLE(taosBackup main.c)
 
 # link libs
 TARGET_LINK_LIBRARIES(taosBackup PRIVATE taos)

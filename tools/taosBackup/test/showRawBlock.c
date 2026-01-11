@@ -239,7 +239,7 @@ void printRawBlock(void* block, int numOfRows) {
     printf("Total bytes parsed: %ld (expected: %d)\n", pStart - blockStart, dataLen);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     TAOS* conn = taos_connect("localhost", "root", "taosdata", NULL, 0);
     if (conn == NULL) {
         printf("Failed to connect: %s\n", taos_errstr(NULL));
