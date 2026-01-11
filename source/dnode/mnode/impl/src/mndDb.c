@@ -858,7 +858,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   TAOS_RETURN(code);
 }
 
-static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SDbObj *pDb, SArray **pAuditOwnedDbs) {
+static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SUserObj *pOperUser, SDbObj *pDb, SArray **pAuditOwnedDbs) {
   int32_t   code = 0, lino = 0;
   SSdb     *pSdb = pMnode->pSdb;
   SArray   *auditOwnedDbs = NULL;
@@ -870,6 +870,9 @@ static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SDbObj *pDb, SArray **pAuditO
   void *pIter = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
     if (taosHashGetSize(pUser->roles) <= 0) {
+      continue;
+    }
+    if(strncmp(pUser->name, pOperUser->name, TSDB_USER_LEN) == 0) {
       continue;
     }
     if (!taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sysAuditLen) &&
@@ -1055,9 +1058,17 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   }
 #else
   // Considering the efficiency of use db privileges in some scenarios like insert operation, owned DBs is stored.
+  bool addOwned = false;
   if (dbObj.cfg.isAudit == 1) {
-    TAOS_CHECK_GOTO(mndSetAuditOwnedDbs(pMnode, &dbObj, &auditOwnedDbs), NULL, _OVER);
+    if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, strlen(TSDB_ROLE_SYSAUDIT) + 1) ||
+        taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1)) {
+      addOwned = true;
+    }
+    TAOS_CHECK_GOTO(mndSetAuditOwnedDbs(pMnode, pUser, &dbObj, &auditOwnedDbs), NULL, _OVER);
   } else {
+    addOwned = true;
+  }
+  if (addOwned) {
     TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUserObj), NULL, _OVER);
     TAOS_CHECK_GOTO(taosHashPut(newUserObj.ownedDbs, dbObj.name, strlen(dbObj.name) + 1, NULL, 0), NULL, _OVER);
     pNewUserDuped = &newUserObj;

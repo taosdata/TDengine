@@ -134,7 +134,7 @@ typedef enum {
   // audit management
   PRIV_AUDIT_DB_DROP = 141,  // DROP AUDIT DATABASE
   PRIV_AUDIT_DB_ALTER,       // ALTER AUDIT DATABASE
-  PRIV_AUDIT_DB_USE,         // USE AUDIT DATABASE
+  PRIV_AUDIT_DB_USE,         // USE AUDIT DATABASE(reserved for future use)
 
   // token management
   PRIV_TOKEN_CREATE = 150,  // CREATE TOKEN
