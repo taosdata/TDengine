@@ -2514,7 +2514,24 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
         return TSDB_CODE_SUCCESS;
       }
       return TSDB_CODE_SUCCESS;
+
+    } else if (pReq->useDb) {
+      if ((pReq->useDb & AUTH_AUTHORIZED_MASK)) {
+        const SPrivInfo* dbPrivInfo = privInfoGet(PRIV_DB_USE);
+        if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, NULL, dbPrivInfo, true)) {
+          goto _next;
+        }
+      }
+      if ((pReq->useDb & AUTH_OWNED_MASK)) {
+        char dbFName[TSDB_DB_FNAME_LEN];
+        (void)tNameGetFullDbName(&req->pRawReq->tbName, dbFName);
+        if (taosHashGet(pInfo->ownedDbs, dbFName, strlen(dbFName) + 1)) {
+          goto _next;
+        }
+      }
+      return TSDB_CODE_SUCCESS;
     }
+_next:
     if (pReq->tbName.type == TSDB_TABLE_NAME_T) {
       req->singleType = pReq->privType;
       req->privInfo = &privInfo;
@@ -2576,7 +2593,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     }
     ctgError("%s:%d invalid priv category %d for %s", __func__, __LINE__, privInfo.category, privInfo.name);
     return TSDB_CODE_CTG_INTERNAL_ERROR;
-  }
+}
 
 #ifdef PRIV_TODO
   switch (pReq->type) {

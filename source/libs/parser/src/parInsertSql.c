@@ -4291,56 +4291,14 @@ static int32_t createInsertQuery(SInsertParseContext* pCxt, SQuery** pOutput) {
   return code;
 }
 
-static int32_t checkUseDb(SParseContext* pCxt, SName* pTbName, SDbCfgInfo* pDbCfg) {
-  if ((pDbCfg->ownerId == pCxt->userId) && !pDbCfg->isAudit) {
-    return TSDB_CODE_SUCCESS;
-  }
-  int32_t       code = TSDB_CODE_SUCCESS;
-  SUserAuthInfo authInfo = {.userId = pCxt->userId};
-  (void)snprintf(authInfo.user, sizeof(authInfo.user), "%s", pCxt->pUser);
-  (void)snprintf(authInfo.tbName.dbname, sizeof(authInfo.tbName.dbname), "%s", pTbName->dbname);
-  authInfo.tbName.acctId = pTbName->acctId;
-  authInfo.tbName.type = TSDB_DB_NAME_T;
-  if (!pDbCfg->isAudit) {
-    authInfo.privType = PRIV_DB_USE;
-    authInfo.objType = PRIV_OBJ_DB;
-  } else {
-    authInfo.privType = PRIV_AUDIT_DB_USE;
-    authInfo.objType = PRIV_OBJ_CLUSTER;
-  }
-
-  SUserAuthRes authRes = {0};
-  if (pCxt->async) {
-    code = catalogChkAuthFromCache(pCxt->pCatalog, &authInfo, &authRes, NULL);
-  } else {
-    SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
-                             .requestId = pCxt->requestId,
-                             .requestObjRefId = pCxt->requestRid,
-                             .mgmtEps = pCxt->mgmtEpSet};
-    code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);
-  }
-  if (TSDB_CODE_SUCCESS == code && !authRes.pass[AUTH_RES_BASIC]) {
-    code = TSDB_CODE_PAR_PERMISSION_DENIED;
-  }
-  return code;
-}
-
 static int32_t checkAuthFromMetaData(SInsertParseContext* pCxt, const SMetaData* pMetaData, SVnodeModifyOpStmt* pStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (1 != taosArrayGetSize(pMetaData->pDbCfg) || 1 != taosArrayGetSize(pMetaData->pUser)) {
+  if (1 != taosArrayGetSize(pMetaData->pUser)) {
     code = TSDB_CODE_INTERNAL_ERROR;
-    uError("unexpected meta data size: dbCfg %d, user %d since %s", taosArrayGetSize(pMetaData->pDbCfg),
-           taosArrayGetSize(pMetaData->pUser), tstrerror(code));
+    uError("unexpected meta data size: %d since %s", taosArrayGetSize(pMetaData->pUser), tstrerror(code));
     return code;
   }
-  // check use db privilege
-  SMetaRes* pDbRes = TARRAY_GET_ELEM(pMetaData->pDbCfg, 0);
-  if (TSDB_CODE_SUCCESS != pDbRes->code) {
-    return pDbRes->code;
-  }
-  PAR_ERR_RET(checkUseDb(pCxt->pComCxt, &pStmt->targetTableName, pDbRes->pRes));
 
-  // check conditional and columns privilege
   SMetaRes* pRes = TARRAY_GET_ELEM(pMetaData->pUser, 0);
   if (TSDB_CODE_SUCCESS == pRes->code) {
     SUserAuthRes* pAuth = pRes->pRes;
@@ -4358,17 +4316,6 @@ static int32_t checkAuthFromMetaData(SInsertParseContext* pCxt, const SMetaData*
 }
 
 static int32_t getTableMetaFromMetaData(const SArray* pTables, STableMeta** pMeta) {
-  int32_t numOfTables = taosArrayGetSize(pTables);
-  for (int i = 0; i < numOfTables; i++) {
-    SMetaRes* pRes = taosArrayGet(pTables, i);
-    if (TSDB_CODE_SUCCESS != pRes->code) {
-      return pRes->code;
-    }
-    STableMeta* pTableMeta = (STableMeta*)pRes->pRes;
-    printf("[%d-%d]getTableMetaFromMetaData table type:%d uid:%" PRId64 " suid:%" PRId64 "\n", numOfTables, i, pTableMeta->tableType,
-           pTableMeta->uid, pTableMeta->suid);
-  }
-
   if (1 != taosArrayGetSize(pTables) && 2 != taosArrayGetSize(pTables)) {
     return TSDB_CODE_FAILED;
   }
@@ -4382,6 +4329,31 @@ static int32_t getTableMetaFromMetaData(const SArray* pTables, STableMeta** pMet
     }
   }
   return pRes->code;
+}
+
+static int32_t checkAuthUseDb(SParseContext* pCxt, SName* pTbName, bool isAudit) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  SUserAuthInfo authInfo = {.userId = pCxt->userId, .privType = PRIV_DB_USE, .objType = PRIV_OBJ_DB};
+  (void)snprintf(authInfo.user, sizeof(authInfo.user), "%s", pCxt->pUser);
+  (void)snprintf(authInfo.tbName.dbname, sizeof(authInfo.tbName.dbname), "%s", pTbName->dbname);
+  authInfo.tbName.acctId = pTbName->acctId;
+  authInfo.tbName.type = TSDB_DB_NAME_T;
+  authInfo.useDb = isAudit ? AUTH_OWNED_MASK : (AUTH_AUTHORIZED_MASK | AUTH_OWNED_MASK);
+
+  SUserAuthRes authRes = {0};
+  if (pCxt->async) {
+    code = catalogChkAuthFromCache(pCxt->pCatalog, &authInfo, &authRes, NULL);
+  } else {
+    SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
+                             .requestId = pCxt->requestId,
+                             .requestObjRefId = pCxt->requestRid,
+                             .mgmtEps = pCxt->mgmtEpSet};
+    code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);
+  }
+  if (TSDB_CODE_SUCCESS == code && !authRes.pass[AUTH_RES_BASIC]) {
+    code = TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  return code;
 }
 
 static int32_t addTableVgroupFromMetaData(const SArray* pTables, SVnodeModifyOpStmt* pStmt, bool isStb) {
@@ -4480,8 +4452,6 @@ static void clearCatalogReq(SCatalogReq* pCatalogReq) {
   pCatalogReq->pUser = NULL;
   taosArrayDestroy(pCatalogReq->pTableTag);
   pCatalogReq->pTableTag = NULL;
-  taosArrayDestroy(pCatalogReq->pDbCfg);
-  pCatalogReq->pDbCfg = NULL;
 }
 
 static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
@@ -4492,6 +4462,9 @@ static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCata
 
   if (code == TSDB_CODE_SUCCESS) {
     code = getTableMetaFromMetaData(pMetaData->pTableMeta, &pStmt->pTableMeta);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = checkAuthUseDb(pCxt->pComCxt, &pStmt->targetTableName, pStmt->pTableMeta->isAudit);
   }
   if (code == TSDB_CODE_SUCCESS) {
     if (pStmt->pTableMeta->tableType == TSDB_SUPER_TABLE && !pStmt->usingTableProcessing) {
@@ -4712,46 +4685,18 @@ static int32_t buildInsertUsingDbReq(SName* pSName, SName* pCName, SArray** pDbs
   return code;
 }
 
-static int32_t buildInsertDbReq(SName* pName, SArray** pDbs, SArray** pDbCfg) {
-  bool printTblMeta = pDbCfg == NULL;
-  bool printDbCfg = pDbCfg != NULL;
-
+static int32_t buildInsertDbReq(SName* pName, SArray** pDbs) {
   if (NULL == *pDbs) {
     *pDbs = taosArrayInit(1, sizeof(STablesReq));
     if (NULL == *pDbs) {
       return terrno;
     }
-    if (printTblMeta) {
-      printf("%s:%d buildInsertDbReq: init pDbs for table meta since pDbs is NULL, dbname:%s, tname:%s\n", __FILE__,
-             __LINE__, pName->dbname, pName->tname);
-    }
-  } else {
-    if (printTblMeta) {
-      printf("%s:%d buildInsertDbReq: pDbs is not NULL, size:%d, dbname:%s, tname:%s\n", __FILE__, __LINE__,
-             taosArrayGetSize(*pDbs), pName->dbname, pName->tname);
-    }
-  }
-
-  if (pDbCfg && (NULL == *pDbCfg)) {
-    *pDbCfg = taosArrayInit(1, TSDB_DB_FNAME_LEN);
-    if (NULL == *pDbCfg) {
-      return terrno;
-    }
-    printf("%s:%d buildInsertDbReq: init pDbCfg since pDbCfg is NULL, dbname:%s, tname:%s\n", __FILE__, __LINE__,
-           pName->dbname, pName->tname);
-  }
-  if (pDbCfg && NULL != *pDbCfg) {
-    printf("%s:%d buildInsertDbReq: pDbCfg is not NULL, size:%d, dbname:%s, tname:%s\n", __FILE__, __LINE__,
-           taosArrayGetSize(*pDbCfg), pName->dbname, pName->tname);
   }
 
   STablesReq req = {0};
   (void)tNameGetFullDbName(pName, req.dbFName);
   int32_t code = buildInsertTableReq(pName, &req.pTables);
   if (TSDB_CODE_SUCCESS == code && NULL == taosArrayPush(*pDbs, &req)) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-  }
-  if (pDbCfg && (TSDB_CODE_SUCCESS == code) && (NULL == taosArrayPush(*pDbCfg, req.dbFName))) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -4787,13 +4732,13 @@ static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifyOpSt
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (0 == pStmt->usingTableName.type) {
-      code = buildInsertDbReq(&pStmt->targetTableName, &pCatalogReq->pTableMeta, NULL);
+      code = buildInsertDbReq(&pStmt->targetTableName, &pCatalogReq->pTableMeta);
     } else {
       code = buildInsertUsingDbReq(&pStmt->usingTableName, &pStmt->targetTableName, &pCatalogReq->pTableMeta);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildInsertDbReq(&pStmt->targetTableName, &pCatalogReq->pTableHash, &pCatalogReq->pDbCfg);
+    code = buildInsertDbReq(&pStmt->targetTableName, &pCatalogReq->pTableHash);
   }
   return code;
 }

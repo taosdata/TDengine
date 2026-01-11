@@ -51,11 +51,21 @@ typedef enum {
   AUTH_TYPE_READ_OR_WRITE,
 } AUTH_TYPE;
 
+#define AUTH_OWNED_MASK 0x1
+#define AUTH_AUTHORIZED_MASK 0x2
+
 typedef struct SUserAuthInfo {
   char    user[TSDB_USER_LEN];
   int64_t userId;
   SName   tbName;
   bool    isView;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t useDb : 2;  // check use db firstly: 0x1 owned db, 0x2 authorized db
+      uint8_t reserve : 6;
+    };
+  };
   EPrivType    privType;
   EPrivObjType objType;
 } SUserAuthInfo;
