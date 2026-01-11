@@ -2370,19 +2370,24 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       assert(0);
     }
 
-    // compatible with old version without ownerId
-    if (req->authInfo.userId == pMeta->ownerId || pMeta->ownerId == 0) {
+    /**
+     *  1. skip owner check for audit table
+     *  2. compatible with old version where ownerId is 0
+     */
+    if (!pMeta->isAudit && (req->authInfo.userId == pMeta->ownerId || pMeta->ownerId == 0)) {
       res->pRawRes->pass[AUTH_RES_BASIC] = true;
       goto _return;
     }
 
     if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType ||
         TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
+      // check specific table for normal/super table privilege, and then check recursively to wildcard table
       if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
         res->pRawRes->pass[AUTH_RES_BASIC] = true;
       }
-      goto _return; // return directly for normal/super table
+      goto _return;  // return directly for normal/super table
     } else {
+      // check the specific child table privileges, don't check wildcard child table privileges here
       if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, false)) {
         res->pRawRes->pass[AUTH_RES_BASIC] = true;
         goto _return;
