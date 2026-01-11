@@ -403,7 +403,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   if (pDb) {
     // already checked in parser, just check db use privilege here
     MND_TMQ_RETURN_CHECK(
-        mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL));
+        mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_TOPIC, pDb));
   }
 
   topicObj.createTime = taosGetTimestampMs();
@@ -808,7 +808,8 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   // MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_DROP_TOPIC, pTopic));
   // MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), MND_OPER_READ_DB, pTopic->db));
-  MND_TMQ_RETURN_CHECK(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pTopic->db, NULL));
+  MND_TMQ_RETURN_CHECK(
+      mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pTopic->db));
   MND_TMQ_RETURN_CHECK(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TOPIC, pTopic->ownerId,
                                                 pTopic->db, mndGetDbStr(pTopic->name)));
   MND_TMQ_RETURN_CHECK(mndCheckConsumerByTopic(pMnode, pTrans, dropReq.name, dropReq.force));

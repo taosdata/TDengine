@@ -1832,7 +1832,7 @@ _return:
 int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, SUserAuthRsp *pRsp) {
   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == pAuth || NULL == pRes || NULL == pRsp) {
+  if (NULL == pCtg || NULL == pAuth || NULL == pRes) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 

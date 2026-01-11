@@ -514,8 +514,7 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
   // already check select table/create index privileges in parser
-  TAOS_CHECK_GOTO(mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, pDb->name, NULL),
-                  NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL, _OVER);
   // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb), NULL, _OVER);
 
   code = mndAddIndex(pMnode, pReq, &createReq, pDb, pStb, pOperUser);

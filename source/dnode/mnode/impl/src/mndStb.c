@@ -1470,12 +1470,10 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb)) != 0) {
-  //   goto _OVER;
-  // }
-  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL))) {
+  if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb))) {
     goto _OVER;
   }
+
   if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_TBL_CREATE, PRIV_OBJ_DB, pDb->name, NULL))) {
     goto _OVER;
   }
@@ -2795,7 +2793,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   //   goto _OVER;
   // }
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL), NULL,
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL,
                   _OVER);
   TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_ALTER, PRIV_OBJ_TBL, pDb->name, name.tname),
                   NULL, _OVER);
@@ -3014,7 +3012,7 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   //   goto _OVER;
   // }
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->name, NULL), NULL,
+  TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL,
                   _OVER);
   TAOS_CHECK_GOTO(mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_CM_DROP, PRIV_OBJ_TBL, pDb->name, name.tname),
                   NULL, _OVER);

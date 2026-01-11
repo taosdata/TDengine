@@ -85,15 +85,15 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
           if (pAuthInfo->privType == PRIV_DB_USE) {
             pAuthInfo->privType = PRIV_AUDIT_DB_USE;
             pAuthInfo->objType = PRIV_OBJ_CLUSTER;
-            if (recheck) *recheck = true;
+            if (recheck) *recheck = true;  // recheck since the cached key is changed
           } else if (pAuthInfo->privType == PRIV_CM_ALTER) {
             pAuthInfo->privType = PRIV_AUDIT_DB_ALTER;
             pAuthInfo->objType = PRIV_OBJ_CLUSTER;
-            if (recheck) *recheck = true;
+            if (recheck) *recheck = true;  // recheck since the cached key is changed
           } else if (pAuthInfo->privType == PRIV_CM_DROP) {
             pAuthInfo->privType = PRIV_AUDIT_DB_DROP;
             pAuthInfo->objType = PRIV_OBJ_CLUSTER;
-            if (recheck) *recheck = true;
+            if (recheck) *recheck = true;  // recheck since the cached key is changed
           }
           return TSDB_CODE_SUCCESS;
         }
@@ -137,9 +137,9 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
     }
 #endif
   } else {
-    recheck = true;
+    recheck = true;  // recheck since the cached key is changed
   }
-  if (recheck) {
+  if (recheck) {  // the priv type of view and audit may be rewritten, need to recheck from catalog
     SRequestConnInfo conn = {.pTrans = pParseCxt->pTransporter,
                              .requestId = pParseCxt->requestId,
                              .requestObjRefId = pParseCxt->requestRid,
@@ -149,8 +149,8 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
 
 _exit:
   if (TSDB_CODE_SUCCESS == code) {
-    if(pCond) *pCond = authRes.pCond[auth_res_type];
-    if(pPrivCols) *pPrivCols = authRes.pCols;
+    if (pCond) *pCond = authRes.pCond[auth_res_type];
+    if (pPrivCols) *pPrivCols = authRes.pCols;
   }
   return TSDB_CODE_SUCCESS == code ? (authRes.pass[auth_res_type] ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED)
                                    : code;

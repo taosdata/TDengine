@@ -764,8 +764,7 @@ static int32_t mndProcessCreateRsmaReq(SRpcMsg *pReq) {
   // TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb));
 
   // already check select table/insert table/create rsma privileges in parser
-  TAOS_CHECK_EXIT(
-      mndCheckObjPrivilegeRec(pMnode, pUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, name.acctId, name.dbname, NULL));
+  TAOS_CHECK_EXIT(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb));
 
   pStb = mndAcquireStb(pMnode, createReq.tbFName);
   if (pStb == NULL) {
