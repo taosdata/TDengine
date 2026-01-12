@@ -125,10 +125,12 @@ typedef struct SSTriggerHistoryGroup {
     };
   };
 
-  SObjList pPendingParWinCalcParams;  // SObjList<SSTriggerCalcParam>
-  SObjList pPendingCalcParams;        // SObjList<SSTriggerCalcParam>
-  int64_t  prevParentWinStart;        // for event window trigger with parent windows
-  HeapNode heapNode;
+  SObjList           pPendingParWinCalcParams;  // SObjList<SSTriggerCalcParam>
+  SObjList           pPendingCalcParams;        // SObjList<SSTriggerCalcParam>
+  int64_t            prevParentWinStart;        // for event window trigger with parent windows
+  bool               pendingWinOpen;            // for event window trigger and state window trigger
+  SSTriggerCalcParam pendingWinParam;           // for event window trigger and state window trigger
+  HeapNode           heapNode;
 } SSTriggerHistoryGroup;
 
 typedef enum ESTriggerContextStatus {
