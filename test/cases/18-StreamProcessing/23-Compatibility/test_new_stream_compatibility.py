@@ -2,8 +2,6 @@ import os, platform, subprocess, time, re, importlib
 from pathlib import Path
 from new_test_framework.utils import (
     tdLog,
-    tdSql,
-    tdStream,
     StreamItem,
     tdCb,
     tdCom
@@ -89,6 +87,7 @@ class TestNewStreamCompatibility:
         tdLog.info(f"bPath:{bPath}, cPath:{cPath}")
 
         for base_version in BASE_VERSIONS:
+            tdCb.killAllDnodes()
 
             tdLog.printNoPrefix(f"========== Start testing compatibility with base version {base_version} ==========")
 
@@ -96,9 +95,12 @@ class TestNewStreamCompatibility:
 
             self.prepareDataOnOldVersion(base_version)
 
-            tdCb.killAllDnodes()
+            os.system(f"pkill taosd")  # Graceful shutdown to avoid data corruption
+            tdCb.checkProcessPid("taosd")
 
-            tdCb.updateNewVersion(bPath, cPaths=[cPath], upgrade=2)
+            os.system(f"nohup {bPath}/build/bin/taosd -c {cPath} > /dev/null 2>&1 &")
+            self.checkstatus(library_path=f"{bPath}/build/lib")
+            # tdCb.updateNewVersion(bPath, cPaths=[cPath], upgrade=2)
 
             self.verifyDataOnCurrentVersion()
 
@@ -167,9 +169,9 @@ class TestNewStreamCompatibility:
         time.sleep(10)
         
         # check results
-        assert self.checkStreamResults("res_count", 3)
-        assert self.checkStreamResults("res_state", 3)
-        assert self.checkStreamResults("res_inter", 3)
+        assert self.checkStreamResultRows("res_count", 3)
+        assert self.checkStreamResultRows("res_state", 3)
+        assert self.checkStreamResultRows("res_inter", 3)
 
     def verifyDataOnCurrentVersion(self):
         """
@@ -177,6 +179,7 @@ class TestNewStreamCompatibility:
         2. Verify stream processing functionality
         3. Validate aggregation results accuracy
         """
+        lib_path = f"{tdCom.getBuildPath()}/build/lib"
         streams: list[StreamItem] = []
         stream = StreamItem(
             id=0,
@@ -187,7 +190,7 @@ class TestNewStreamCompatibility:
                 avg_v2 from %%tbname where ts >= _twstart and ts <= _twend""",
             res_query="""select ts, te, sum_v1, avg_v2 from 
                 test_stream_compatibility.res_count;""",
-            exp_query="""select _wstart, _wend, sum(v1) as sum_v1, avg(v2) as 
+            exp_query="""select _wstart ts, _wend te, sum(v1) sum_v1, avg(v2) 
                 avg_v2 from test_stream_compatibility.ctb1 count_window(3) 
                 limit 3;""",
         )
@@ -225,15 +228,14 @@ class TestNewStreamCompatibility:
         streams.append(stream)
 
         # check status
-        tdStream.checkStreamStatus()
+        self.checkStreamStatus(library_path=lib_path)
 
         # check results
         for stream in streams:
-            stream.checkResults()
+            self.checkStreamResults(stream, library_path=lib_path)
 
     # copied from download_enterprise_package.py
     def installTaosd(self, cPath, base_version):
-        packagePath = "/usr/local/src/"
         dataPath = cPath + "/../data/"
 
         # Use enterprise package downloader
@@ -245,25 +247,12 @@ class TestNewStreamCompatibility:
         os.system(f"pkill -9 taosd")
         tdCb.checkProcessPid("taosd")
 
-        print(f"start taosd: rm -rf {dataPath}/* && nohup /usr/bin/taosd -c {cPath} &")
+        tdLog.info(f"start taosd: rm -rf {dataPath}/* && nohup /usr/bin/taosd -c {cPath} &")
         os.system(f"rm -rf {dataPath}/* && nohup /usr/bin/taosd -c {cPath} &")
-        os.system(f"killall taosadapter")
-        tdCb.checkProcessPid("taosadapter")
-        
-        os.system(f"cp /etc/taos/taosadapter.toml {cPath}/taosadapter.toml")
-        taosadapter_cfg = cPath + "/taosadapter.toml"
-        taosadapter_log_path = cPath + "/../log/"
-        print(f"taosadapter_cfg:{taosadapter_cfg}, taosadapter_log_path:{taosadapter_log_path}")
-        tdCb.alter_string_in_file(taosadapter_cfg,"#path = \"/var/log/taos\"",f"path = \"{taosadapter_log_path}\"")
-        tdCb.alter_string_in_file(taosadapter_cfg,"taosConfigDir = \"\"",f"taosConfigDir = \"{cPath}\"")
-        print("/usr/bin/taosadapter --version")
-        os.system(f"/usr/bin/taosadapter --version")
-        print(f"LD_LIBRARY_PATH=/usr/lib -c {taosadapter_cfg} 2>&1 &")
-        os.system(f"LD_LIBRARY_PATH=/usr/lib /usr/bin/taosadapter -c {taosadapter_cfg} 2>&1 &")
         time.sleep(5)
     
-    def checkStreamStatus(self, retry_times=300):
-        command = "LD_LIBRARY_PATH=/usr/lib taos -s 'select status from information_schema.ins_streams'"
+    def checkStreamStatus(self, library_path="/usr/lib", retry_times=300):
+        command = f"LD_LIBRARY_PATH={library_path} taos -s 'select status from information_schema.ins_streams'"
         for i in range(retry_times):
             result = subprocess.run(command, shell=True, text=True, capture_output=True)
             if result.returncode == 0:
@@ -280,14 +269,14 @@ class TestNewStreamCompatibility:
             time.sleep(1)
         return False
 
-    def checkStreamResults(self, res_table, expect_row_num, retry_times=300):
+    def checkStreamResultRows(self, res_table, expect_row_num, library_path="/usr/lib", retry_times=300):
         def get_row_count(command_output) -> int:
             match = re.search(r"Query OK, (\d+) row\(s\) in set", command_output)
             if match:
                 return int(match.group(1))
             return 0
 
-        command = f"LD_LIBRARY_PATH=/usr/lib taos -s 'select * from test_stream_compatibility.{res_table};'"
+        command = f"LD_LIBRARY_PATH={library_path} taos -s 'select * from test_stream_compatibility.{res_table};'"
         for _ in range(retry_times):
             result = subprocess.run(command, shell=True, text=True, capture_output=True)
             if result.returncode == 0:
@@ -302,3 +291,91 @@ class TestNewStreamCompatibility:
                 raise Exception("Stream result check failed.")
             time.sleep(1)
         return False
+    
+    def checkStreamResults(self, stream: StreamItem, library_path="/usr/lib", retry_times=300):
+        command1 = f"LD_LIBRARY_PATH={library_path} taos -s '{stream.res_query}'"
+        command2 = f"LD_LIBRARY_PATH={library_path} taos -s '{stream.exp_query}'"
+        
+        def extract_data(output):
+            lines = output.strip().split('\n')
+            data_lines = []
+            start_collecting = False
+            for line in lines:
+                if line.startswith('=' * 10):  # Separator line
+                    start_collecting = True
+                    continue
+                if start_collecting:
+                    if line.startswith('Query OK'):
+                        break
+                    data_lines.append(line.strip())
+            return data_lines
+
+        for _ in range(retry_times):
+            result1 = subprocess.run(command1, shell=True, text=True, capture_output=True)
+            result2 = subprocess.run(command2, shell=True, text=True, capture_output=True)
+            if result1.returncode == 0 and result2.returncode == 0:
+                res_data = extract_data(result1.stdout)
+                exp_data = extract_data(result2.stdout)
+
+                tdLog.info(f"Stream {stream.id} result data: {res_data}")
+                tdLog.info(f"Stream {stream.id} expect data: {exp_data}")
+
+                if res_data == exp_data:
+                    tdLog.info(f"Stream {stream.id} result matches expected data.")
+                    return
+            time.sleep(1)
+
+        if result1.returncode != 0 or result2.returncode != 0:
+            tdLog.error("Stream result retrieval failed.")
+            tdLog.error(f"Error1:\n{result1.stderr}")
+            tdLog.error(f"Error2:\n{result2.stderr}")
+            raise Exception("Stream result retrieval failed.")
+
+        res_data = extract_data(result1.stdout)
+        exp_data = extract_data(result2.stdout)
+
+        tdLog.info(f"Stream {stream.id} result data: {res_data}")
+        tdLog.info(f"Stream {stream.id} expect data: {exp_data}")
+
+        assert res_data == exp_data, f"Stream {stream.id} result mismatch! \nResult: {res_data}\nExpect: {exp_data}"
+
+    def checkstatus(self,library_path, retry_times=100):
+        # sleep before check status to avoid dnodes not ready issue
+        time.sleep(10)
+        dnodes_ready = False
+        for i in range(retry_times):
+            result = subprocess.run(f"LD_LIBRARY_PATH={library_path} taos -s 'show dnodes;'", shell=True, text=True, capture_output=True)
+            if 'ready' in result.stdout:
+                dnodes_ready = True
+                break
+
+            time.sleep(1)
+
+        if not dnodes_ready:
+            tdLog.exit(f"dnodes are not ready in {retry_times}s")
+        tdLog.info(f"dnodes are ready in {retry_times}s")
+
+        modes_ready = False
+        for i in range(retry_times):
+            result = subprocess.run(f"LD_LIBRARY_PATH={library_path} taos -s 'show mnodes;'", shell=True, text=True, capture_output=True)
+            if 'ready' in result.stdout:
+                modes_ready = True
+                break
+
+            time.sleep(1)
+
+        if not modes_ready:
+            tdLog.exit(f"mnodes are not ready in {retry_times}s")
+        tdLog.info(f"mnodes are ready in {retry_times}s")
+
+        vnodes_ready = False
+        for i in range(retry_times):
+            result = subprocess.run(f"LD_LIBRARY_PATH={library_path} taos -s 'show vnodes;'", shell=True, text=True, capture_output=True)
+            if result.stdout.count('true') == 2:
+                vnodes_ready = True
+                break
+            time.sleep(1)
+
+        if not vnodes_ready:
+            tdLog.exit(f"vnodes are not ready in {retry_times}s")
+        tdLog.info(f"vnodes are ready in {retry_times}s")
