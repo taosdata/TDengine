@@ -237,7 +237,7 @@ class TestCase:
         tdDnodes.stop(1)
         tmqCom.stopTmqSimProcess("tmq_sim")
         
-        time.sleep(5)
+        time.sleep(20)
         dataPath = buildPath + "/../sim/dnode1/data/*"
         shellCmd = 'rm -rf ' + dataPath
         tdLog.info(shellCmd)
