@@ -12,6 +12,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "rateLimitMgr.h"
 #include "transComm.h"
 #include "transLog.h"
 #include "transSasl.h"
@@ -842,11 +843,11 @@ static void uvSetConnInfo(SSvrConn* pConn, SRpcConnInfo* pInfo) {
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
-   
+
   STransMsgHead* pHead = NULL;
-  int8_t resetBuf = 0;
-  int32_t msgLen = 0;
-  int32_t code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
+  int8_t         resetBuf = 0;
+  int32_t        msgLen = 0;
+  int32_t        code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
   if (code != 0) {
     tError("%s conn:%p, read invalid packet since %s", transLabel(pInst), pConn, tstrerror(code));
     return false;
@@ -2861,7 +2862,7 @@ int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 
 
 void *transInitServer(SIpAddr *pAddr, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
 void  transCloseServer(void *arg) {
-  // impl later
+   // impl later
   return;
 }
 
