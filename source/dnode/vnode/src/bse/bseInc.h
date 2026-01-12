@@ -94,6 +94,7 @@ typedef struct {
   uint8_t *kvBuffer;  // meta handle, used for table reader
   int32_t  kvSize;
   int32_t  kvCap;
+  void    *pBse;  // pointer to SBse for accessing encryption config
 } SBlockWrapper;
 
 int32_t blockWrapperInit(SBlockWrapper *p, int32_t cap);

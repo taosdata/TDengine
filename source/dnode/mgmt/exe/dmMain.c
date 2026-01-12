@@ -525,9 +525,29 @@ int mainWindows(int argc, char **argv) {
   }
 
   dmPrintArgs(argc, argv);
+  if ((code = taosPreLoadCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
+    dError("failed to start since pre load config error");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  }
 
-  if ((code = taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
-    dError("failed to start since read config error");
+  if ((code = dmGetEncryptKey()) != 0) {
+    dError("failed to start since failed to get encrypt key");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  };
+
+  if ((code = tryLoadCfgFromDataDir(tsCfg)) != 0) {
+    dError("failed to start since try load config from data dir error");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  }
+
+  if ((code = taosApplyCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
+    dError("failed to start since apply config error");
     taosCloseLog();
     taosCleanupArgs();
     return code;
@@ -615,13 +635,6 @@ int mainWindows(int argc, char **argv) {
 
   osSetProcPath(argc, (char **)argv);
   taosCleanupArgs();
-
-  if ((code = dmGetEncryptKey()) != 0) {
-    dError("failed to start since failed to get encrypt key");
-    taosCloseLog();
-    taosCleanupArgs();
-    return code;
-  };
 
   if (tsEncryptExtDir[0] != '\0') {
 #if defined(TD_ENTERPRISE) && defined(LINUX)
