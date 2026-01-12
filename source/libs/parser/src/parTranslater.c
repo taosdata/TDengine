@@ -7046,6 +7046,7 @@ static int32_t translatePartitionByList(STranslateContext* pCxt, SSelectStmt* pS
   return pCxt->errCode;
 }
 
+#ifdef TD_ENTERPRISE
 typedef struct {
   SName   tbName;
   SArray* cols;  // SColIdNameKV
@@ -7147,13 +7148,14 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
           }
         }
         if (!hasPriv) {
-          code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, "`%s`.`%s`",
-                                      tblCol->tbName.tname, pColIdNameKV->colName);
+          code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, pColIdNameKV->colName);
           taosArrayDestroy(authRes.pCols);
+          nodesDestroyNode(authRes.pCond[AUTH_RES_BASIC]);
           goto _exit;
         }
       }
       taosArrayDestroy(authRes.pCols);
+      nodesDestroyNode(authRes.pCond[AUTH_RES_BASIC]);
     }
   }
 _exit:
@@ -7164,6 +7166,7 @@ _exit:
   tSimpleHashCleanup(pTblColHash);
   return code;
 }
+#endif
 
 static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_SELECT;
@@ -7174,9 +7177,11 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = translateStar(pCxt, pSelect);
   }
+#ifdef TD_ENTERPRISE
   if(TSDB_CODE_SUCCESS == code) {
     code = translateCheckPrivCols(pCxt, pSelect);
   }
+#endif
   if (TSDB_CODE_SUCCESS == code) {
     code = translateProjectionList(pCxt, pSelect);
   }
