@@ -3206,6 +3206,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#24-Users.test_user_manager.TestUserSecurity.test_user_security" class="md-nav__link">
+        User security 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#24-Users.test_user_basic.TestUserBasic.test_user_basic" class="md-nav__link">
         User: basic test 
       </a>
@@ -4067,6 +4078,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#24-Users.test_user_manager.TestUserSecurity.test_user_security" class="md-nav__link">
+        User security 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#24-Users.test_user_basic.TestUserBasic.test_user_basic" class="md-nav__link">
         User: basic test 
       </a>
@@ -4205,6 +4227,62 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/24-Users/test_user_crypted_pass.py" target="_blank">
                       cases/24-Users/test_user_crypted_pass.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="24-Users.test_user_manager.TestUserSecurity.test_user_security" class="doc doc-heading">
+
+<a href="#24-Users.test_user_manager.TestUserSecurity.test_user_security" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>User security</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. create user with variant options</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - SESSION_PER_USER</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - CONNECT_TIME</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - CONNECT_IDLE_TIME</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - CALL_PER_SESSION</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - VNODE_PER_CALL</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - FAILED_LOGIN_ATTEMPTS</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - PASSWORD_LOCK_TIME</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - PASSWORD_LIFE_TIME</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - PASSWORD_GRACE_TIME</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - PASSWORD_REUSE_TIME</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - PASSWORD_REUSE_MAX</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - INACTIVE_ACCOUNT_TIME</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - ALLOW_TOKEN_NUM</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - HOST white list</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - NOT_ALLOW_HOST black list</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - ALLOW_DATETIME</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - NOT_ALLOW_DATETIME</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - combine options</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - check created options work fine</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. show user</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - show user command</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - query information_schema.ins_users</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. alter user options</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - alter user to change options</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - check altered options work fine</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. drop user</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. exception on create/alter/drop user</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/24-Users/test_user_manager.py" target="_blank">
+                      cases/24-Users/test_user_manager.py
                     </a>
                   </div>
         </div>
