@@ -7089,12 +7089,13 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
 
   TAOS_CHECK_EXIT(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pRetrievedCols));
 
-  SNode* pNode = NULL;
+  pNode = NULL;
   FOREACH(pNode, pRetrievedCols) {
     if (QUERY_NODE_COLUMN == nodeType(pNode)) {
       SColumnNode* pCol = (SColumnNode*)pNode;
 
-      printf("the cols is: %s,%d, tbName:%s, dbName:%s\n", pCol->colName, pCol->colId, pCol->tableName, pCol->dbName);
+      // printf("the cols is: %s,%d, tbName:%s, dbName:%s\n", pCol->colName, pCol->colId, pCol->tableName,
+      // pCol->dbName);
       SColIdNameKV colIdNameKV = {.colId = pCol->colId};
       snprintf(colIdNameKV.colName, TSDB_COL_NAME_LEN, "%s", pCol->colName);
       STableCols* pTblCols = tSimpleHashGet(pTblColHash, (const void*)&pCol->tableId, sizeof(pCol->tableId));
@@ -7140,7 +7141,7 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
     TAOS_CHECK_EXIT(catalogChkAuth(pCatalog, &conn, &authInfo, &authRes));
     if (authRes.pCols) {
       int32_t j = 0;
-      int32_t nPrivCols = taosArrayGetSize(authRes.pCols),  nCols = taosArrayGetSize(tblCol->cols);
+      int32_t nPrivCols = taosArrayGetSize(authRes.pCols), nCols = taosArrayGetSize(tblCol->cols);
       for (int32_t i = 0; i < nCols; ++i) {
         SColIdNameKV* pColIdNameKV = (SColIdNameKV*)TARRAY_GET_ELEM(tblCol->cols, i);
         bool          hasPriv = false;
@@ -7176,63 +7177,64 @@ _exit:
 
   return code;
 }
-#endif
+
+typedef struct {
+  int32_t errCode;
+} SCheckMaskNodeCxt;
+
+static EDealRes checkMaskNode(SNode* pNode, void* pContext) {
+  SCheckMaskNodeCxt* pCxt = (SCheckMaskNodeCxt*)pContext;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN: {
+      break;
+    }
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      nodesWalkExprs(pFunc->pParameterList, checkMaskNode, pContext);
+      break;
+    }
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOp = (SOperatorNode*)pNode;
+      nodesWalkExpr(pOp->pLeft, checkMaskNode, pContext);
+      nodesWalkExpr(pOp->pRight, checkMaskNode, pContext);
+      break;
+    }
+    default:
+      break;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t nodesCheckMaskNode(SSelectStmt* pSelect, SNode* pNode) {
+  SCheckMaskNodeCxt cxt = {0};
+
+  nodesWalkCheckMaskStmt(pSelect, pNode, checkMaskNode, (void*)&cxt);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t rewriteMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect, SNode** ppNode) {
+  nodesCheckMaskNode(pSelect, *ppNode);
+
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pCxt->pParseCxt->hasMaskCols == 0) {
     return TSDB_CODE_SUCCESS;
   }
+  return TSDB_CODE_SUCCESS;  // PRIV_TODO
 
   int32_t        code = 0, lino = 0;
   SParseContext* pParseCxt = pCxt->pParseCxt;
   SCatalog*      pCatalog = pParseCxt->pCatalog;
   SNode*         pNode = NULL;
 
-
-  FOREACH(pNode, pSelect->pProjectionList) {
-    if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
-      printf("process mask col func: %s\n", ((SFunctionNode*)pNode)->functionName);
-    } else if (nodeType(pNode) == QUERY_NODE_COLUMN) {
-      printf("process mask col func: %s\n", ((SColumnNode*)pNode)->colName);
-    } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
-      printf("process mask col func: value node\n");
-    } else {
-      printf("process mask col func: other node:%d\n", nodeType(pNode));
-    }
-#if 0
-    if ((funcType == FUNCTION_TYPE_FORECAST_ROWTS || funcType == FUNCTION_TYPE_FORECAST_HIGH ||
-         funcType == FUNCTION_TYPE_FORECAST_LOW) &&
-        strcasecmp(((SFunctionNode*)pNode)->functionName, "forecast") == 0) {
-      bFound = true;
-      break;
-    }
-
-    if ((funcType == FUNCTION_TYPE_IMPUTATION_ROWTS || funcType == FUNCTION_TYPE_IMPUTATION_MARK) &&
-        strcasecmp(((SFunctionNode*)pNode)->functionName, "imputation") == 0) {
-      bFound = true;
-      break;
-    }
-
-    if (funcType == FUNCTION_TYPE_ANOMALY_MARK && pSelect->pWindow->type == QUERY_NODE_ANOMALY_WINDOW) {
-      bFound = true;
-      break;
-    }
-#endif
-  }
-
-  // if (!bFound) {
-  //   *pRewriteToColumn = true;
-  //   int32_t code = replacePsedudoColumnFuncWithColumn(pCxt, ppNode);
-  //   if (code != TSDB_CODE_SUCCESS) {
-  //     return code;
-  //   }
-
-  //   (void)translateColumn(pCxt, (SColumnNode**)ppNode);
-  //   return pCxt->errCode;
-  // }
+  FOREACH(pNode, pSelect->pProjectionList) { rewriteMaskColFunc(pCxt, pSelect, &pNode); }
 
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_SELECT;
