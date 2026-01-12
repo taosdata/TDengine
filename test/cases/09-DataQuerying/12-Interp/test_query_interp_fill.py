@@ -243,7 +243,12 @@ class TestInterpFill:
         tdSql.execute(f"select _irowts, interp(c1, 1) from ntb1 range({end} + 500a) fill(linear)")
 
         tdSql.execute("alter dnode 1 'qDebugFlag 135'")
-        assert findTaosdLog("DEBUG.*doTimesliceNext") == 1+2+1, "should have 4 doTimesliceNext logs"
+        tdSql.query("show local variables like 'queryPolicy'")
+        if tdSql.getData(0, 0) == 1:
+            # queryPolicy is 1, should have 4 doTimesliceNext logs
+            # for other queryPolicy, it is random, so we cannot check the logs
+            assert findTaosdLog("DEBUG.*doTimesliceNext") == 1+2+1, \
+                "should have 4 doTimesliceNext logs"
 
         # insert more null rows into ntb1
         start = end  # 1_766_010_000_000, 2025-12-18 06:20:00
