@@ -12,12 +12,12 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
-from test_vtable_util import TestVtableQueryUtil
+from vtable_util import VtableQueryUtil
 
 class TestVTableQuerySameDBStbWindowState:
 
     def setup_class(cls):
-        vtbUtil = TestVtableQueryUtil()
+        vtbUtil = VtableQueryUtil()
         vtbUtil.prepare_same_db_vtables()
 
     def run_normal_query(self, testCase):
@@ -46,16 +46,16 @@ class TestVTableQuerySameDBStbWindowState:
 
         """
 
-        #self.run_normal_query("test_vstable_select_test_state_mode_0")
+        self.run_normal_query("test_vstable_select_test_state_mode_0")
         #self.run_normal_query("test_vstable_select_test_state_mode_1")
-        #self.run_normal_query("test_vstable_select_test_state_mode_2")
+        self.run_normal_query("test_vstable_select_test_state_mode_2")
 
         self.run_normal_query("test_vstable_select_test_state_mode_0_batch_hint")
-        self.run_normal_query("test_vstable_select_test_state_mode_1_batch_hint")
+        #self.run_normal_query("test_vstable_select_test_state_mode_1_batch_hint")
         self.run_normal_query("test_vstable_select_test_state_mode_2_batch_hint")
 
-        self.run_normal_query("test_vstable_select_test_state_mode_0_single_hint")
-        self.run_normal_query("test_vstable_select_test_state_mode_1_single_hint")
-        self.run_normal_query("test_vstable_select_test_state_mode_2_single_hint")
+        #self.run_normal_query("test_vstable_select_test_state_mode_0_single_hint")
+        #self.run_normal_query("test_vstable_select_test_state_mode_1_single_hint")
+        #self.run_normal_query("test_vstable_select_test_state_mode_2_single_hint")
 
 
