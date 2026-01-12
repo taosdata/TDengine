@@ -13,11 +13,8 @@
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
 from vtable_util import VtableQueryUtil
+class TestVTableQuerySameDBCtbWindowState:
 
-class TestVtableQueryCrossDbStbWindow:
-    updatecfgDict = {
-        "supportVnodes":"1000",
-    }
     def setup_class(cls):
         vtbUtil = VtableQueryUtil()
         vtbUtil.prepare_same_db_vtables()
@@ -30,28 +27,27 @@ class TestVtableQueryCrossDbStbWindow:
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
-    def test_select_virtual_super_table(self):
-        """Query: v-stable crossdb window query
+    def test_select_virtual_child_table_window_state(self):
+        """Query: virtual child table
 
-        1. test vstable select super table cross db interval
-        2. test vstable select super table cross db session
-        3. test vstable select super table cross db event
-        4. test vstable select super table cross db count
+        1. test vctable select child table state mode 0
+        2. test vctable select child table state mode 1
+        3. test vctable select child table state mode 2
 
-        Since: v3.3.6.0
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
 
         Labels: virtual
 
         Jira: None
 
         History:
-            - 2025-3-15 Jing Sima Created
-            - 2025-5-6 Huo Hong Migrated to new test framework
-            - 2025-11-21 Jing Sima Remove state test case, split to test_vtable_query_cross_db_stb_window_state.py
+            - 2026-1-6 Jing Sima Split Add state different mode test
 
         """
+        self.run_normal_query("test_vctable_select_test_state_mode_0")
+        self.run_normal_query("test_vctable_select_test_state_mode_1")
+        self.run_normal_query("test_vctable_select_test_state_mode_2")
 
-        self.run_normal_query("test_vstable_select_test_interval")
-        self.run_normal_query("test_vstable_select_test_session")
-        self.run_normal_query("test_vstable_select_test_event")
-        self.run_normal_query("test_vstable_select_test_count")
