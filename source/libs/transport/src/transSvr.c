@@ -1579,6 +1579,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   taosMemoryFree(buf->base);
 
   SWorkThrd* pThrd = q->data;
+  STrans *pInst = pThrd->pInst;
 
   uv_pipe_t* pipe = (uv_pipe_t*)q;
   if (!uv_pipe_pending_count(pipe)) {
@@ -1656,6 +1657,9 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     if (code != 0) {
       tWarn("conn:%p, failed to start to read since %s", pConn, uv_err_name(code));
       transUnrefSrvHandle(pConn);
+      return;
+    }
+    if (!pInst->enableSSL || !pInst->enableSasl) {
       return;
     }
 
