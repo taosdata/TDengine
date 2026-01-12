@@ -1133,13 +1133,23 @@ static int32_t collectMetaKeyFromShowTopics(SCollectMetaKeyCxt* pCxt, SShowStmt*
 }
 
 static int32_t collectMetaKeyFromShowConsumers(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
-  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_CONSUMERS,
-                                 pCxt->pMetaCache);
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB,
+                                         TSDB_PERFS_TABLE_CONSUMERS, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_CONSUMER_SHOW, 0,
+                                  pCxt->pMetaCache);
+  }
+  return code;
 }
 
 static int32_t collectMetaKeyFromShowConnections(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
-  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_CONNECTIONS,
-                                 pCxt->pMetaCache);
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB,
+                                         TSDB_PERFS_TABLE_CONNECTIONS, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_CONN_SHOW, 0,
+                                  pCxt->pMetaCache);
+  }
+  return code;
 }
 
 static int32_t collectMetaKeyFromShowQueries(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
@@ -2044,6 +2054,12 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_DROP_BNODE_STMT:
     case QUERY_NODE_DROP_ANODE_STMT:
       return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_NODE_DROP);
+    case QUERY_NODE_KILL_TRANSACTION_STMT:
+      return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_TRANS_KILL);
+    case QUERY_NODE_KILL_QUERY_STMT:
+      return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_QUERY_KILL);
+    case QUERY_NODE_KILL_CONNECTION_STMT:
+      return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_CONN_KILL);
     default:
       break;
   }

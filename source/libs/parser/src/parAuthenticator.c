@@ -902,7 +902,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW);
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
-    case QUERY_NODE_SHOW_LICENCES_STMT:
+    // case QUERY_NODE_SHOW_LICENCES_STMT: // do not check auth for basic licence info since it's used for taos logon
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_GRANTS_SHOW);
@@ -980,8 +980,14 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_TRANS_SHOW);
+    case QUERY_NODE_KILL_TRANSACTION_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_TRANS_KILL);
     case QUERY_NODE_SHOW_QUERIES_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_QUERY_SHOW);
+    case QUERY_NODE_KILL_QUERY_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_QUERY_KILL);
+    case QUERY_NODE_KILL_CONNECTION_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_CONN_KILL);
     case QUERY_NODE_ALTER_DATABASE_STMT:
       return authAlterDatabase(pCxt, (SAlterDatabaseStmt*)pStmt);
     case QUERY_NODE_DROP_DATABASE_STMT:
