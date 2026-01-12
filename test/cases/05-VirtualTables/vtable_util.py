@@ -13,27 +13,7 @@
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
 
-class TestVtableQueryUtil:
-    def test_virtual_table_util(self):
-        """Query: virtual table util
-
-        1. virtual table data prepare util
-
-        Catalog:
-            - VirtualTable
-
-        Since: v3.3.8.0
-
-        Labels: virtual
-
-        Jira: None
-
-        History:
-            - 2025-11-20 Jing Sima Added
-
-        """
-        tdLog.info(f"do nothing here.")
-
+class VtableQueryUtil:
     def clean_up_cross_db_vtables(self):
         tdLog.info(f"clean up cross db vtables.")
 

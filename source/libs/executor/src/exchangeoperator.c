@@ -897,7 +897,7 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam) {
+int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam, ETableScanDynType type) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   STableScanOperatorParam* pScan = NULL;
@@ -931,7 +931,7 @@ int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, 
   pScan->pBatchTbInfo = NULL;
 
 
-  pScan->type = DYN_TYPE_VSTB_SINGLE_SCAN;
+  pScan->type = type;
   pScan->tableSeq = tableSeq;
   pScan->window.skey = window->skey;
   pScan->window.ekey = window->ekey;
@@ -1193,7 +1193,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
     switch (pDataInfo->type) {
       case EX_SRC_TYPE_VSTB_SCAN: {
-        code = buildTableScanOperatorParamEx(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->orgTbInfo, pDataInfo->tableSeq, &pDataInfo->window, pDataInfo->isNewParam);
+        code = buildTableScanOperatorParamEx(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, pDataInfo->orgTbInfo, pDataInfo->tableSeq, &pDataInfo->window, pDataInfo->isNewParam, DYN_TYPE_VSTB_SINGLE_SCAN);
         taosArrayDestroy(pDataInfo->orgTbInfo->colMap);
         taosMemoryFreeClear(pDataInfo->orgTbInfo);
         taosArrayDestroy(pDataInfo->pSrcUidList);
@@ -1207,7 +1207,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       }
       case EX_SRC_TYPE_VSTB_WIN_SCAN: {
         if (pDataInfo->pSrcUidList) {
-          code = buildTableScanOperatorParamEx(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, NULL, pDataInfo->tableSeq, &pDataInfo->window, false);
+          code = buildTableScanOperatorParamEx(&req.pOpParam, pDataInfo->pSrcUidList, pDataInfo->srcOpType, NULL, pDataInfo->tableSeq, &pDataInfo->window, false, DYN_TYPE_VSTB_WIN_SCAN);
           taosArrayDestroy(pDataInfo->pSrcUidList);
           pDataInfo->pSrcUidList = NULL;
           if (TSDB_CODE_SUCCESS != code) {
@@ -1834,9 +1834,6 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
         dataInfo.groupid = pBasicParam->groupid;
         dataInfo.window = pBasicParam->window;
         dataInfo.isNewParam = pBasicParam->isNewParam;
-        dataInfo.batchOrgTbInfo = taosArrayInit(1, sizeof(SOrgTbInfo));
-        QUERY_CHECK_NULL(dataInfo.batchOrgTbInfo, code, lino, _return, terrno);
-
         code = loadTagListFromBasicParam(&dataInfo, pBasicParam);
         QUERY_CHECK_CODE(code, lino, _return);
 

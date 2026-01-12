@@ -4215,6 +4215,7 @@ typedef enum {
   DYN_TYPE_STB_JOIN = 1,
   DYN_TYPE_VSTB_SINGLE_SCAN,
   DYN_TYPE_VSTB_BATCH_SCAN,
+  DYN_TYPE_VSTB_WIN_SCAN,
 } ETableScanDynType;
 
 typedef struct STableScanOperatorParam {

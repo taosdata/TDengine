@@ -8744,6 +8744,7 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pWindow, (SLogicNode*)pDynWindowNode));
 
   nodesDestroyNode((SNode*)pWindow);
+  nodesDestroyNode((SNode*)pVirtualScan);
   OPTIMIZE_FLAG_SET_MASK(pNewWindow->node.optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW);
   OPTIMIZE_FLAG_SET_MASK(pDynWindowNode->node.optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW);
 
@@ -9124,6 +9125,9 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
 
   SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
 
+  if (pAgg->pGroupKeys) {
+    return false;
+  }
   if (LIST_LENGTH(pAgg->node.pChildren) == 1) {
     if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
       if (((SDynQueryCtrlLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->qType != DYN_QTYPE_VTB_SCAN) {
@@ -9328,6 +9332,12 @@ static int32_t vstableAggOptimizeWithoutPartition(SOptimizeContext* pCxt, SLogic
   if (batchProcessChild) {
     pTableScan = (SScanLogicNode*)nodesListGetNode(pVirtualScanNode->node.pChildren, LIST_LENGTH(pVirtualScanNode->node.pChildren) - 1);
     QUERY_CHECK_NULL(pTableScan, code, lino, _return, terrno)
+    if (LIST_LENGTH(pVirtualScanNode->node.pChildren) == 2) {
+      pTagScan = (SScanLogicNode*)nodesListGetNode(pVirtualScanNode->node.pChildren, 0);
+      QUERY_CHECK_NULL(pTagScan, code, lino, _return, terrno)
+      nodesDestroyNode((SNode*)pTagScan);
+      pTagScan = NULL;
+    }
   } else {
     pTagScan = (SScanLogicNode*)nodesListGetNode(pVirtualScanNode->node.pChildren, 0);
     pTableScan = (SScanLogicNode*)nodesListGetNode(pVirtualScanNode->node.pChildren, 1);
@@ -9380,6 +9390,7 @@ static int32_t vstableAggOptimizeWithoutPartition(SOptimizeContext* pCxt, SLogic
     PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pAgg, (SLogicNode*)pNewAgg));
   }
 
+  nodesDestroyNode((SNode*)pVirtualScanNode);
   nodesDestroyNode((SNode*)pAgg);
 
   return code;

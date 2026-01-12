@@ -9,8 +9,8 @@ select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, count(bool_col), avg(u_tinyin
 select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
-select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
-select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
+select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), round(stddev_pop(smallint_col)) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
+select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), round(stddev_pop(smallint_col)), round(avg(tinyint_col)) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 
 select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
@@ -18,8 +18,8 @@ select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, count(bool_col), avg(u_tinyint_col),
 select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
-select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
-select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
+select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), round(stddev_pop(smallint_col)) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
+select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), round(stddev_pop(smallint_col)), round(avg(tinyint_col)) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 
 select /*+ WIN_OPTIMIZE_BATCH() */ _wend, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wend, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
@@ -27,8 +27,8 @@ select /*+ WIN_OPTIMIZE_BATCH() */ _wend, count(bool_col), avg(u_tinyint_col), s
 select /*+ WIN_OPTIMIZE_BATCH() */ _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
-select /*+ WIN_OPTIMIZE_BATCH() */ _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
-select /*+ WIN_OPTIMIZE_BATCH() */ _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
+select /*+ WIN_OPTIMIZE_BATCH() */ _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), round(stddev_pop(smallint_col)) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
+select /*+ WIN_OPTIMIZE_BATCH() */ _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), round(stddev_pop(smallint_col)), round(avg(tinyint_col)) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 
 select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
@@ -36,8 +36,8 @@ select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, count(bool_col), 
 select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
-select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
-select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
+select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), round(stddev_pop(smallint_col)) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
+select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), round(stddev_pop(smallint_col)), round(avg(tinyint_col)) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 
 select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, count(bool_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, count(bool_col), avg(u_tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
@@ -45,7 +45,7 @@ select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, count(bool_col), avg(u_tinyint_co
 select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
-select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
-select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
+select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), round(stddev_pop(smallint_col)) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
+select /*+ WIN_OPTIMIZE_BATCH() */ _wduration, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), round(stddev_pop(smallint_col)), round(avg(tinyint_col)) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2) limit 100 ;
 
-select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), stddev_pop(smallint_col), var_pop(tinyint_col) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2);
+select /*+ WIN_OPTIMIZE_BATCH() */ _wstart, _wduration, _wend, bool_col, count(bool_col), avg(u_tinyint_col), sum(u_smallint_col), max(u_int_col), min(int_col), round(stddev_pop(smallint_col)), round(avg(tinyint_col)) from test_vtable_select.vtb_virtual_stb state_window(bool_col, 2);

@@ -2168,6 +2168,12 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     return code;
   }
 
+  if (pOperator->pOperatorGetParam) {
+    if (pOperator->status == OP_EXEC_DONE) {
+      pOperator->status = OP_NOT_OPENED;
+    }
+  }
+
   extWinRecycleBlkNode(pExtW, &pExtW->pLastBlkNode);
 
   if (pOperator->status == OP_NOT_OPENED) {

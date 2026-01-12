@@ -960,7 +960,7 @@ void*   decodeSTimeWindowAggSupp(void* buf, STimeWindowAggSupp* pTwAggSup);
 void    destroyOperatorParamValue(void* pValues);
 int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
-int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam);
+int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam, ETableScanDynType type);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
 void    freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
