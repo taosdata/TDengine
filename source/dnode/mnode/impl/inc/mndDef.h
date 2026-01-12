@@ -120,7 +120,10 @@ typedef enum {
   MND_OPER_UPDATE_XNODE_JOB,
   MND_OPER_REBALANCE_XNODE_JOB,
   MND_OPER_DROP_XNODE_JOB,
-  MND_OPER_MAX // the max operation type
+  MND_OPER_CREATE_XNODE_AGENT,
+  MND_OPER_UPDATE_XNODE_AGENT,
+  MND_OPER_DROP_XNODE_AGENT,
+  MND_OPER_MAX  // the max operation type
 } EOperType;
 
 typedef enum {
@@ -374,6 +377,19 @@ typedef struct {
   int64_t  updateTime;
   SRWLatch lock;
 } SXnodeJobObj;
+
+typedef struct {
+  int32_t  id;
+  int64_t  createTime;
+  int64_t  updateTime;
+  int32_t  nameLen;
+  int32_t  tokenLen;
+  int32_t  statusLen;
+  char*    name;
+  char*    token;
+  char*    status;
+  SRWLatch lock;
+} SXnodeAgentObj;
 
 typedef struct {
   int32_t  id;

@@ -682,7 +682,7 @@ TEST_F(XnodeSdbTest, XnodeTaskObj_BasicEncodeDecode) {
   obj.sourceDsn = (char*)taosMemMalloc(obj.sourceDsnLen);
   strcpy(obj.sourceDsn, "kafka://source");
   obj.sinkType = 2;
-  obj.sinkDsnLen = 13;
+  obj.sinkDsnLen = 14;
   obj.sinkDsn = (char*)taosMemMalloc(obj.sinkDsnLen);
   strcpy(obj.sinkDsn, "tdengine://db");
   obj.via = 1;

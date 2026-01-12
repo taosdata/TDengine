@@ -116,6 +116,8 @@ void killPreXnoded() {
     (void)taosCloseFile(&pFile);
     return;
   }
+  (void)taosCloseFile(&pFile);
+
   int32_t pid = taosStr2Int32(buf, NULL, 10);
   int result = uv_kill((uv_pid_t)pid, SIGTERM);
   if (result != 0) {
@@ -204,6 +206,9 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
 
   char xnodePipeSocket[PATH_MAX + 64] = {0};
   snprintf(xnodePipeSocket, PATH_MAX + 64, "%s=%s", "XNODED_LISTEN", xnodedPipeSocket);
+
+  xndDebug("txnode env: leader ep: %s, user pass:%s, pipe socket:%s", dnodeIdEnvItem, xnodedUserPass, xnodePipeSocket);
+  xndInfo("txnode env: leader ep: %s, user pass:%s, pipe socket:%s", dnodeIdEnvItem, xnodedUserPass, xnodePipeSocket);
 
   char *envXnoded[] = {xnodedCfgDir,    xnodedLogDir, dnodeIdEnvItem, xnodedUserPass, xnodeClusterId,
                        xnodePipeSocket, NULL};

@@ -685,13 +685,17 @@ xnode_task_options(A) ::= NK_ID(C) xnode_task_opt_v(D).                         
 xnode_task_options(A) ::= NK_ID(C) NK_EQ xnode_task_opt_v(D).                     { A = setXnodeTaskOption(pCxt, NULL, &C, &D); }
 xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) xnode_task_opt_v(D).     { A = setXnodeTaskOption(pCxt, B, &C, &D); }
 xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) NK_EQ xnode_task_opt_v(D).          { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C) xnode_task_opt_v(D). { A = setXnodeTaskOption(pCxt, B, &C, &D); }
 xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C) NK_EQ xnode_task_opt_v(D). { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C) xnode_task_opt_v(D).      { A = setXnodeTaskOption(pCxt, B, &C, &D); }
 xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C) NK_EQ xnode_task_opt_v(D).      { A = setXnodeTaskOption(pCxt, B, &C, &D); }
-xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C).                { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
-xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C).                     { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
+//xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C).                { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
+//xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C).                     { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
 xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_STRING(D).             { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
 xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_EQ NK_STRING(D).       { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA TRIGGER NK_STRING(D).         { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
 xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA TRIGGER NK_EQ NK_STRING(D).         { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND TRIGGER NK_STRING(D).          { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
 xnode_task_options(A) ::= xnode_task_options(B) AND TRIGGER NK_EQ NK_STRING(D).    { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
 
 with_task_options_opt(A) ::= .                                                    { A = NULL; }

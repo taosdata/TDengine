@@ -734,6 +734,9 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80008017 | Xnode where clause column not exist                   | Xnode where 子句列不存在                              | 检查 where 条件                                  |
 | 0x80008018 | Xnode where clause column type diff                   | Xnode where 子句列类型不匹配                          | 检查 where 条件                                  |
 | 0x80008019 | Xnode where clause operator not support               | Xnode where 子句不支持 NOT                            | 检查 where 条件                                  |
+| 0x80008020 | Xnode agent not exist                                 | 查询的 Xnode agent 不存在                             | 检查 agent ID 或 name                            |
+| 0x80008021 | Xnode agent already exist                             | 查询的 Xnode agent 已存在                             | 检查 agent ID 或 name                            |
+| 0x80008022 | Xnode name duplicate                                  | 更新的 name 重复                                      | 检查需要更新的 name 是否与存量数据重复           |
 
 ## 连接器
 
