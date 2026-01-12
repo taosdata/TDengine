@@ -383,7 +383,7 @@ end:
     uError("%s failed at %d since %s", __func__, lino, tstrerror(ret));
     ret = buildInvalidOperationMsg(&pBuf, tstrerror(ret));
   }
-  insDestroyBoundColInfo(&bindTags);
+  qDestroyBoundColInfo(&bindTags);
   tdDestroySVCreateTbReq(pCreateTblReq);
   taosMemoryFree(pCreateTblReq);
   taosArrayDestroy(tagName);
