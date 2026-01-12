@@ -164,7 +164,7 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
 
   return code;
 }
-#if 0
+#if 0 // converted to static inline function in parInsertUtil.h
 int16_t insFindCol(SToken* pColname, int16_t start, int16_t end, SSchema* pSchema) {
   while (start < end) {
     if (strncmp(pColname->z, pSchema[start].name, pColname->n) == 0) {
