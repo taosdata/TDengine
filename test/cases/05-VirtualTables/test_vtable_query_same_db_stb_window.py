@@ -12,15 +12,15 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
-from test_vtable_util import TestVtableQueryUtil
+from vtable_util import VtableQueryUtil
 
 class TestVTableQuerySameDBStbWindow:
 
     def setup_class(cls):
-        vtbUtil = TestVtableQueryUtil()
+        vtbUtil = VtableQueryUtil()
         vtbUtil.prepare_same_db_vtables()
     def teardown_class(cls):
-        vtbUtil = TestVtableQueryUtil()
+        vtbUtil = VtableQueryUtil()
         vtbUtil.clean_up_same_db_vtables()
 
     def run_normal_query(self, testCase):
