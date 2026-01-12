@@ -1271,24 +1271,37 @@ void freeDynQueryCtrlGetOperatorParam(SOperatorParam* pParam) { freeOperatorPara
 
 void freeDynQueryCtrlNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
+void freeInterpFuncGetOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeInterpFuncNotifyOperatorParam(SOperatorParam* pParam) {
+  freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM);
+}
+
 void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
-  STableScanOperatorParam* pTableScanParam = (STableScanOperatorParam*)pParam->value;
+  STableScanOperatorParam* pTableScanParam =
+    (STableScanOperatorParam*)pParam->value;
   taosArrayDestroy(pTableScanParam->pUidList);
   if (pTableScanParam->pOrgTbInfo) {
     taosArrayDestroy(pTableScanParam->pOrgTbInfo->colMap);
     taosMemoryFreeClear(pTableScanParam->pOrgTbInfo);
   }
   if (pTableScanParam->pBatchTbInfo) {
-    for (int32_t i = 0; i < taosArrayGetSize(pTableScanParam->pBatchTbInfo); i++) {
-      SOrgTbInfo* pOrgTbInfo = (SOrgTbInfo*)taosArrayGet(pTableScanParam->pBatchTbInfo, i);
+    for (int32_t i = 0;
+      i < taosArrayGetSize(pTableScanParam->pBatchTbInfo); ++i) {
+      SOrgTbInfo* pOrgTbInfo =
+        (SOrgTbInfo*)taosArrayGet(pTableScanParam->pBatchTbInfo, i);
       taosArrayDestroy(pOrgTbInfo->colMap);
     }
     taosArrayDestroy(pTableScanParam->pBatchTbInfo);
     pTableScanParam->pBatchTbInfo = NULL;
   }
   if (pTableScanParam->pTagList) {
-    for (int32_t i = 0; i < taosArrayGetSize(pTableScanParam->pTagList); i++) {
-      STagVal* pTagVal = (STagVal*)taosArrayGet(pTableScanParam->pTagList, i);
+    for (int32_t i = 0;
+      i < taosArrayGetSize(pTableScanParam->pTagList); ++i) {
+      STagVal* pTagVal =
+        (STagVal*)taosArrayGet(pTableScanParam->pTagList, i);
       if (IS_VAR_DATA_TYPE(pTagVal->type)) {
         taosMemoryFreeClear(pTagVal->pData);
       }
@@ -1366,8 +1379,12 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
       type == OP_GET_PARAM ? freeDynQueryCtrlGetOperatorParam(pParam) : freeDynQueryCtrlNotifyOperatorParam(pParam);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
+      type == OP_GET_PARAM ? freeInterpFuncGetOperatorParam(pParam) : freeInterpFuncNotifyOperatorParam(pParam);
+      break;
     default:
-      qError("unsupported op %d param, type %d", pParam->opType, type);
+      qError("%s unsupported op %d param, param type %d",
+             __func__, pParam->opType, type);
       break;
   }
 }

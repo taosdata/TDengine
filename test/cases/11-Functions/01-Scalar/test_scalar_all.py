@@ -238,7 +238,7 @@ class TestScalarFunction:
         res1 = tdSql.getData(0, 1)
         if res0 != res1:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, 1, self.queryRows)
+            args = (caller.filename, caller.lineno, tdSql.sql, 1, tdSql.queryRows)
             tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
 
         tdSql.error("select rand(3.14);")
@@ -249,7 +249,7 @@ class TestScalarFunction:
     def check_rand_data_range(self, data, row):
         if data < 0 or data >= 1:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            args = (caller.filename, caller.lineno, self.sql, row+1, self.queryRows)
+            args = (caller.filename, caller.lineno, tdSql.sql, row+1, tdSql.queryRows)
             tdLog.exit("%s(%d) failed: sql:%s, row:%d is larger than queryRows:%d" % args)
 
     def run_max(self):

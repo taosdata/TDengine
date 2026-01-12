@@ -123,6 +123,14 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
     if (taskHandle) {
       qwDbgSimulateSleep();
 
+      if (QW_EVENT_RECEIVED(ctx, QW_EVENT_NOTIFY)) {
+        QW_TASK_DLOG("notify event to be processed, notifyTs:%" PRId64,
+                     ctx->notifyTs);
+        code = notifyTableScanTask(taskHandle, ctx->notifyTs);
+        QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_NOTIFY);
+        QW_ERR_JRET(code);
+      }
+
       setTaskScalarExtraInfo(taskHandle);
       taosEnableMemPoolUsage(ctx->memPoolSession);
       code = qExecTaskOpt(taskHandle, pResList, &useconds, &hasMore, &localFetch, processOneBlock);
@@ -1053,9 +1061,30 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   ctx->dataConnInfo = qwMsg->connInfo;
 
   if (qwMsg->msg) {
-    code = qwStartDynamicTaskNewExec(QW_FPARAMS(), ctx, qwMsg);
-    qwMsg->msg = NULL;
-    goto _return;
+    if (ctx->dynamicTask) {
+      code = qwStartDynamicTaskNewExec(QW_FPARAMS(), ctx, qwMsg);
+      qwMsg->msg = NULL;
+      goto _return;
+    } else {
+      /**
+        Must be STEP DONE notify msg in Fetch request. But here we don't know
+        whether the taskHandle is valid or not, so we keep the notifyTs in the
+        ctx, and notify later in the query thread.
+      */
+      SOperatorParam *pGetParam = (SOperatorParam *)qwMsg->msg;
+      if (pGetParam->value != NULL &&
+          pGetParam->opType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+        STableScanOperatorParam *pScanParam =
+          (STableScanOperatorParam*)pGetParam->value;
+        if (pScanParam->paramType == NOTIFY_TYPE_SCAN_PARAM &&
+            pScanParam->notifyToProcess) {
+          atomic_store_64(&ctx->notifyTs, pScanParam->notifyTs);
+          QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_NOTIFY);
+        }
+      }
+      freeOperatorParam((SOperatorParam*)qwMsg->msg, OP_GET_PARAM);
+      qwMsg->msg = NULL;
+    }
   }
 
   if (ctx->subQuery) {
@@ -1067,7 +1096,8 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   SOutputData sOutput = {0};
-  QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawDataLen, &rsp, &sOutput));
+  QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawDataLen,
+                                    &rsp, &sOutput));
 
   if (NULL == rsp) {
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
@@ -1083,8 +1113,10 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     }
   }
 
-  if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {
-    QW_TASK_DLOG("task not end and buf is %s, need to continue query", qwBufStatusStr(sOutput.bufStatus));
+  if ((!sOutput.queryEnd) &&
+      (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {
+    QW_TASK_DLOG("task not end and buf is %s, need to continue query",
+                 qwBufStatusStr(sOutput.bufStatus));
 
     QW_LOCK(QW_WRITE, &ctx->lock);
     locked = true;
@@ -1095,7 +1127,8 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     } else if (QW_QUERY_RUNNING(ctx)) {
       atomic_store_8((int8_t *)&ctx->queryContinue, 1);
     } else if (0 == atomic_load_8((int8_t *)&ctx->queryInQueue)) {
-      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXEC, ctx->dynamicTask));
+      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXEC,
+                                     ctx->dynamicTask));
       atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
 
       QW_ERR_JRET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
