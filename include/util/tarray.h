@@ -64,8 +64,6 @@ void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles);
 /**
  *
  * @brief Add nEles zero-initialized elements to the array.
- * @details Use with caution. This function requires that the memory of the existing capacity in pArray has been initialized to zero, 
- *          that is, both the resized and the expanded memory after initialization have been zero-initialized. 
  * @param pArray The array to add elements to.
  * @param nEles The number of elements to add.
  * @return 0 on success, or an error code otherwise.
