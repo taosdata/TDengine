@@ -138,7 +138,7 @@ class TMQCom:
                 onlyKillOnceWindows = 1
             time.sleep(0.2)
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
-        tdLog.debug("%s is stopped by kill -INT" % (processorName))
+        tdLog.info("%s is stopped by kill -INT" % (processorName))
 
     def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb',rows=1):
         loopFlag = 1
