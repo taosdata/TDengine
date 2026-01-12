@@ -157,6 +157,8 @@ CREATE TOTP_SECRET FOR USER user_name
 
 If the user has not yet created a TOTP secret, this command will create a TOTP secret for the user. If the user has already created a TOTP secret, this command will update the secret for the user. In either case, this command will return the newly created secret, which will only be displayed once, please save it promptly. The system will automatically enable TOTP two-factor authentication for users who have a TOTP secret.
 
+After enabling TOTP two-factor authentication, TDengine TSDB requires the OTP to be 6 digits long and updated every 30 seconds. Please ensure to configure your TOTP generator according to these parameters; otherwise, clients may fail to log in.
+
 For example, we can use the following command to create a TOTP secret for user test.
 
 ```sql
