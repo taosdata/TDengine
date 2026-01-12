@@ -19,21 +19,58 @@ serverPort = '6030'
 hostname = "localhost" #socket.gethostname()
 threadisExit = False
 
+createTableReceived = False
+insertReceived = False
+selectReceived = False
+deleteReceived = False
 class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
     hostPort = hostname + ":" + serverPort
 
     def telemetryInfoCheck(self, infoDict=''):
+        global createthreadisExit
+        global createTableReceived
+        global insertReceived
+        global selectReceived
+        global deleteReceived
+        
         if  "records" not in infoDict or len(infoDict["records"]) == 0:
             tdLog.exit("records is null!")
 
-        if "operation" not in infoDict["records"][0]:
-            tdLog.exit("operation is null!")
-        else:
-            if infoDict["records"][0]["operation"] != "delete":
-                tdLog.info("operation is %s!"%infoDict["records"][0]["operation"])
+        count = 0
+        while count < len(infoDict["records"]):
+
+            if "operation" not in infoDict["records"][count]:
+                tdLog.exit("operation is null!")
             else:
-                if "details" not in infoDict["records"][0] or infoDict["records"][0]["details"] != "delete from db3.tb":
-                    tdLog.exit("details is null!")
+                if infoDict["records"][count]["operation"] == "createTable":
+                    tdLog.info("operation is %s!"%infoDict["records"][count]["operation"])
+                    createTableReceived = True
+                elif infoDict["records"][count]["operation"] == "insert":
+                    tdLog.info("operation is %s!"%infoDict["records"][count]["operation"])
+                    insertReceived = True
+                elif infoDict["records"][count]["operation"] == "select":
+                    tdLog.info("operation is %s!"%infoDict["records"][count]["operation"])
+                    selectReceived = True
+                elif infoDict["records"][count]["operation"] == "delete":
+                    tdLog.info("operation is %s!"%infoDict["records"][count]["operation"])
+                    deleteReceived = True
+                else:
+                    if "details" not in infoDict["records"][count] or infoDict["records"][count]["details"] != "delete from db3.tb":
+                        tdLog.exit("details is null!")
+                    else:
+                        tdLog.info("details is %s!"%infoDict["records"][count]["details"])
+            count = count + 1
+
+        if createTableReceived and insertReceived and deleteReceived and selectReceived:
+            tdLog.info("set createthreadisExit to True")
+            createthreadisExit = True 
+            # shutdown the server and exit case
+            assassin = threading.Thread(target=self.server.shutdown)
+            assassin.daemon = True
+            assassin.start()
+            print ("==== shutdown http server ====")           
+        else:
+            tdLog.info("waiting for all telemetry info received %d, %d, %d, %d"%(createTableReceived, insertReceived, selectReceived, deleteReceived))
 
     def do_GET(self):
         """
@@ -41,7 +78,6 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         """
 
     def do_POST(self):
-        global threadisExit
         """
         process POST request
         """
@@ -69,15 +105,6 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         # print(infoDict)
         
         self.telemetryInfoCheck(infoDict)
-
-        print ("set threadisExit to True")
-        threadisExit = True
-
-        # 4. shutdown the server and exit case
-        assassin = threading.Thread(target=self.server.shutdown)
-        assassin.daemon = True
-        assassin.start()
-        print ("==== shutdown http server ====")
 
 class TestTaosdAudit:
     global hostname
@@ -113,7 +140,7 @@ class TestTaosdAudit:
 
     updatecfgDict["audit"]            = '1'
     updatecfgDict["uDebugFlag"]            = '143'
-    updatecfgDict["auditLevel"]            = '4'
+    updatecfgDict["auditLevel"]            = '5'
     updatecfgDict["auditHttps"]            = '0'
 
     encryptConfig = {
@@ -195,7 +222,10 @@ class TestTaosdAudit:
         else:
             serverAddress = ("", int(telemetryPort))
             http.server.HTTPServer(serverAddress, RequestHandlerImpl).serve_forever()
-            tdLog.info("started http server")
+            tdLog.info("exit http server")
+        
+        tdLog.success(f"{__file__} successfully executed")
+
 
     def createTbThread(self, sql, newTdSql):
         # wait for http server ready
@@ -204,18 +234,29 @@ class TestTaosdAudit:
         sql = "create table db3.tb using db3.stb tags (1)"
         tdSql.execute(sql, queryTimes = 1)
 
+        time.sleep(2)
+        tdLog.info("insert tb")
+        sql = "INSERT INTO db3.tb USING db3.stb TAGS (1) VALUES (NOW, 2);"
+        tdSql.execute(sql, queryTimes = 1)
+
+        time.sleep(2)
+        tdLog.info("select tb")
+        sql = "SELECT * FROM db3.stb;"
+        tdSql.query(sql)
+
+        time.sleep(2)
         tdLog.info("delete tb")
         sql = "delete from db3.tb"
         tdSql.execute(sql, queryTimes = 1)
         
-        global threadisExit
-        while True:
-                
-            tdLog.info("threadisExit = %s"%threadisExit)
-            if threadisExit == True:
+        global createThreadisExit
+        while True:               
+            tdLog.info("createThreadisExit = %s"%createThreadisExit)
+            if createThreadisExit == True:
+
                 break
 
             time.sleep(5)
-
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.info("exit createTbThread")
+        
 
