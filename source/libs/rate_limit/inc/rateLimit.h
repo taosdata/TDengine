@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
-#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "../../../../include/os/os.h"
 
 #define RL_MAX_BUCKETS   60
 #define RL_MIN_RATE      1
@@ -37,38 +37,38 @@ typedef enum {
 } ERateLimitType;
 
 typedef struct {
-  int64_t          capacity;
-  int64_t          tokens;
-  int64_t          rate;
-  int64_t          lastRefillTime;
-  pthread_rwlock_t lock;
+  int64_t        capacity;
+  int64_t        tokens;
+  int64_t        rate;
+  int64_t        lastRefillTime;
+  TdThreadRwlock lock;
 } STokenBucket;
 
 typedef struct {
-  int64_t          capacity;
-  int64_t          waterLevel;
-  int64_t          leakRate;
-  int64_t          lastLeakTime;
-  pthread_rwlock_t lock;
+  int64_t        capacity;
+  int64_t        waterLevel;
+  int64_t        leakRate;
+  int64_t        lastLeakTime;
+  TdThreadRwlock lock;
 } SLeakyBucket;
 
 typedef struct {
-  int64_t          windowSizeMs;
-  int64_t          maxCount;
-  int64_t          buckets[RL_MAX_BUCKETS];
-  int64_t          bucketSizeMs;
-  int64_t          lastBucketTime;
-  int32_t          currentBucket;
-  pthread_rwlock_t lock;
+  int64_t        windowSizeMs;
+  int64_t        maxCount;
+  int64_t        buckets[RL_MAX_BUCKETS];
+  int64_t        bucketSizeMs;
+  int64_t        lastBucketTime;
+  int32_t        currentBucket;
+  TdThreadRwlock lock;
 } SSlidingWindow;
 
 typedef struct {
-  ERateLimitType   type;
-  void*            impl;
-  char             name[RL_NAME_LEN];
-  int64_t          totalAllowed;
-  int64_t          totalRejected;
-  pthread_rwlock_t statsLock;
+  ERateLimitType type;
+  void*          impl;
+  char           name[RL_NAME_LEN];
+  int64_t        totalAllowed;
+  int64_t        totalRejected;
+  TdThreadRwlock statsLock;
 } SRateLimiter;
 
 STokenBucket* rlCreateTokenBucket(int64_t capacity, int64_t rate);

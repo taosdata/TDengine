@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../../../../include/os/osMemory.h"
 
 #define DEFAULT_MAX_IP_ENTRIES 1000
 #define DEFAULT_CONN_RATE      10000
@@ -32,23 +33,23 @@ static SIpLimiter* findOrCreateIpLimiter(const char* ip) {
     return NULL;
   }
 
-  pthread_rwlock_wrlock(&gRateLimitMgr->lock);
+  taosThreadRwlockWrlock(&gRateLimitMgr->lock);
 
   SIpLimiter* pLimiter = gRateLimitMgr->ipLimiters;
   SIpLimiter* pPrev = NULL;
 
   while (pLimiter != NULL) {
     if (strcmp(pLimiter->ip, ip) == 0) {
-      pthread_rwlock_unlock(&gRateLimitMgr->lock);
+      taosThreadRwlockUnlock(&gRateLimitMgr->lock);
       return pLimiter;
     }
     pPrev = pLimiter;
     pLimiter = pLimiter->next;
   }
 
-  pLimiter = (SIpLimiter*)calloc(1, sizeof(SIpLimiter));
+  pLimiter = (SIpLimiter*)taosMemoryCalloc(1, sizeof(SIpLimiter));
   if (pLimiter == NULL) {
-    pthread_rwlock_unlock(&gRateLimitMgr->lock);
+    taosThreadRwlockUnlock(&gRateLimitMgr->lock);
     return NULL;
   }
 
@@ -62,7 +63,7 @@ static SIpLimiter* findOrCreateIpLimiter(const char* ip) {
   pLimiter->next = gRateLimitMgr->ipLimiters;
   gRateLimitMgr->ipLimiters = pLimiter;
 
-  pthread_rwlock_unlock(&gRateLimitMgr->lock);
+  taosThreadRwlockUnlock(&gRateLimitMgr->lock);
   return pLimiter;
 }
 
@@ -71,23 +72,23 @@ static SUserLimiter* findOrCreateUserLimiter(const char* user) {
     return NULL;
   }
 
-  pthread_rwlock_wrlock(&gRateLimitMgr->lock);
+  taosThreadRwlockWrlock(&gRateLimitMgr->lock);
 
   SUserLimiter* pLimiter = gRateLimitMgr->userLimiters;
   SUserLimiter* pPrev = NULL;
 
   while (pLimiter != NULL) {
     if (strcmp(pLimiter->user, user) == 0) {
-      pthread_rwlock_unlock(&gRateLimitMgr->lock);
+      taosThreadRwlockUnlock(&gRateLimitMgr->lock);
       return pLimiter;
     }
     pPrev = pLimiter;
     pLimiter = pLimiter->next;
   }
 
-  pLimiter = (SUserLimiter*)calloc(1, sizeof(SUserLimiter));
+  pLimiter = (SUserLimiter*)taosMemoryCalloc(1, sizeof(SUserLimiter));
   if (pLimiter == NULL) {
-    pthread_rwlock_unlock(&gRateLimitMgr->lock);
+    taosThreadRwlockUnlock(&gRateLimitMgr->lock);
     return NULL;
   }
 
@@ -101,7 +102,7 @@ static SUserLimiter* findOrCreateUserLimiter(const char* user) {
   pLimiter->next = gRateLimitMgr->userLimiters;
   gRateLimitMgr->userLimiters = pLimiter;
 
-  pthread_rwlock_unlock(&gRateLimitMgr->lock);
+  taosThreadRwlockUnlock(&gRateLimitMgr->lock);
   return pLimiter;
 }
 
@@ -112,15 +113,15 @@ int32_t rlmInit(int64_t globalConnRate, int64_t globalQueryRate, int64_t globalW
     return 0;
   }
 
-  gRateLimitMgr = (SRateLimitMgr*)calloc(1, sizeof(SRateLimitMgr));
+  gRateLimitMgr = (SRateLimitMgr*)taosMemoryCalloc(1, sizeof(SRateLimitMgr));
   if (gRateLimitMgr == NULL) {
     pthread_mutex_unlock(&gInitMutex);
     return -1;
   }
 
-  gRateLimitMgr->global = (SGlobalLimiters*)calloc(1, sizeof(SGlobalLimiters));
+  gRateLimitMgr->global = (SGlobalLimiters*)taosMemoryCalloc(1, sizeof(SGlobalLimiters));
   if (gRateLimitMgr->global == NULL) {
-    free(gRateLimitMgr);
+    taosMemoryFree(gRateLimitMgr);
     gRateLimitMgr = NULL;
     pthread_mutex_unlock(&gInitMutex);
     return -1;
@@ -139,7 +140,7 @@ int32_t rlmInit(int64_t globalConnRate, int64_t globalQueryRate, int64_t globalW
   gRateLimitMgr->global->maxConnections = 50000;
   gRateLimitMgr->global->currentConnections = 0;
 
-  pthread_rwlock_init(&gRateLimitMgr->lock, NULL);
+  taosThreadRwlockInit(&gRateLimitMgr->lock, NULL);
   gInitialized = 1;
 
   pthread_mutex_unlock(&gInitMutex);
@@ -153,14 +154,14 @@ void rlmCleanup() {
     return;
   }
 
-  pthread_rwlock_wrlock(&gRateLimitMgr->lock);
+  taosThreadRwlockWrlock(&gRateLimitMgr->lock);
 
   SIpLimiter* ipLimiter = gRateLimitMgr->ipLimiters;
   while (ipLimiter != NULL) {
     SIpLimiter* next = ipLimiter->next;
     rlDestroyLimiter(ipLimiter->connLimiter);
     rlDestroyLimiter(ipLimiter->queryLimiter);
-    free(ipLimiter);
+    taosMemoryFree(ipLimiter);
     ipLimiter = next;
   }
 
@@ -169,7 +170,7 @@ void rlmCleanup() {
     SUserLimiter* next = userLimiter->next;
     rlDestroyLimiter(userLimiter->queryLimiter);
     rlDestroyLimiter(userLimiter->writeLimiter);
-    free(userLimiter);
+    taosMemoryFree(userLimiter);
     userLimiter = next;
   }
 
@@ -178,7 +179,7 @@ void rlmCleanup() {
     SDbLimiter* next = dbLimiter->next;
     rlDestroyLimiter(dbLimiter->queryLimiter);
     rlDestroyLimiter(dbLimiter->writeLimiter);
-    free(dbLimiter);
+    taosMemoryFree(dbLimiter);
     dbLimiter = next;
   }
 
@@ -186,12 +187,12 @@ void rlmCleanup() {
     rlDestroyLimiter(gRateLimitMgr->global->connLimiter);
     rlDestroyLimiter(gRateLimitMgr->global->queryLimiter);
     rlDestroyLimiter(gRateLimitMgr->global->writeLimiter);
-    free(gRateLimitMgr->global);
+    taosMemoryFree(gRateLimitMgr->global);
   }
 
-  pthread_rwlock_unlock(&gRateLimitMgr->lock);
-  pthread_rwlock_destroy(&gRateLimitMgr->lock);
-  free(gRateLimitMgr);
+  taosThreadRwlockUnlock(&gRateLimitMgr->lock);
+  taosThreadRwlockDestroy(&gRateLimitMgr->lock);
+  taosMemoryFree(gRateLimitMgr);
   gRateLimitMgr = NULL;
   gInitialized = 0;
 
@@ -207,12 +208,12 @@ int32_t rlmAllowConnection(const char* ip) {
     return -1;
   }
 
-  pthread_rwlock_wrlock(&gRateLimitMgr->lock);
+  taosThreadRwlockWrlock(&gRateLimitMgr->lock);
   if (gRateLimitMgr->global->currentConnections >= gRateLimitMgr->global->maxConnections) {
-    pthread_rwlock_unlock(&gRateLimitMgr->lock);
+    taosThreadRwlockUnlock(&gRateLimitMgr->lock);
     return -2;
   }
-  pthread_rwlock_unlock(&gRateLimitMgr->lock);
+  taosThreadRwlockUnlock(&gRateLimitMgr->lock);
 
   SIpLimiter* ipLimiter = findOrCreateIpLimiter(ip);
   if (ipLimiter == NULL) {
@@ -223,10 +224,10 @@ int32_t rlmAllowConnection(const char* ip) {
     return -4;
   }
 
-  pthread_rwlock_wrlock(&gRateLimitMgr->lock);
+  taosThreadRwlockWrlock(&gRateLimitMgr->lock);
   gRateLimitMgr->global->currentConnections++;
   ipLimiter->activeConnections++;
-  pthread_rwlock_unlock(&gRateLimitMgr->lock);
+  taosThreadRwlockUnlock(&gRateLimitMgr->lock);
 
   return 0;
 }
@@ -236,7 +237,7 @@ void rlmConnectionClosed(const char* ip) {
     return;
   }
 
-  pthread_rwlock_wrlock(&gRateLimitMgr->lock);
+  taosThreadRwlockWrlock(&gRateLimitMgr->lock);
   gRateLimitMgr->global->currentConnections--;
 
   SIpLimiter* pLimiter = gRateLimitMgr->ipLimiters;
@@ -248,7 +249,7 @@ void rlmConnectionClosed(const char* ip) {
     pLimiter = pLimiter->next;
   }
 
-  pthread_rwlock_unlock(&gRateLimitMgr->lock);
+  taosThreadRwlockUnlock(&gRateLimitMgr->lock);
 }
 
 int32_t rlmAllowQuery(const char* user, const char* db, const char* ip) {
@@ -309,7 +310,7 @@ void rlmResetLimiter(ERLimitTarget target, const char* identifier) {
       break;
     case RLM_TARGET_IP:
       if (identifier != NULL) {
-        pthread_rwlock_rdlock(&gRateLimitMgr->lock);
+        taosThreadRwlockRdlock(&gRateLimitMgr->lock);
         SIpLimiter* pLimiter = gRateLimitMgr->ipLimiters;
         while (pLimiter != NULL) {
           if (strcmp(pLimiter->ip, identifier) == 0) {
@@ -319,12 +320,12 @@ void rlmResetLimiter(ERLimitTarget target, const char* identifier) {
           }
           pLimiter = pLimiter->next;
         }
-        pthread_rwlock_unlock(&gRateLimitMgr->lock);
+        taosThreadRwlockUnlock(&gRateLimitMgr->lock);
       }
       break;
     case RLM_TARGET_USER:
       if (identifier != NULL) {
-        pthread_rwlock_rdlock(&gRateLimitMgr->lock);
+        taosThreadRwlockRdlock(&gRateLimitMgr->lock);
         SUserLimiter* pLimiter = gRateLimitMgr->userLimiters;
         while (pLimiter != NULL) {
           if (strcmp(pLimiter->user, identifier) == 0) {
@@ -334,7 +335,7 @@ void rlmResetLimiter(ERLimitTarget target, const char* identifier) {
           }
           pLimiter = pLimiter->next;
         }
-        pthread_rwlock_unlock(&gRateLimitMgr->lock);
+        taosThreadRwlockUnlock(&gRateLimitMgr->lock);
       }
       break;
     case RLM_TARGET_DB:
@@ -358,7 +359,7 @@ void rlmGetStats(ERLimitTarget target, const char* identifier, int64_t* allowed,
       break;
     case RLM_TARGET_IP:
       if (identifier != NULL) {
-        pthread_rwlock_rdlock(&gRateLimitMgr->lock);
+        taosThreadRwlockRdlock(&gRateLimitMgr->lock);
         SIpLimiter* pLimiter = gRateLimitMgr->ipLimiters;
         while (pLimiter != NULL) {
           if (strcmp(pLimiter->ip, identifier) == 0) {
@@ -367,12 +368,12 @@ void rlmGetStats(ERLimitTarget target, const char* identifier, int64_t* allowed,
           }
           pLimiter = pLimiter->next;
         }
-        pthread_rwlock_unlock(&gRateLimitMgr->lock);
+        taosThreadRwlockUnlock(&gRateLimitMgr->lock);
       }
       break;
     case RLM_TARGET_USER:
       if (identifier != NULL) {
-        pthread_rwlock_rdlock(&gRateLimitMgr->lock);
+        taosThreadRwlockRdlock(&gRateLimitMgr->lock);
         SUserLimiter* pLimiter = gRateLimitMgr->userLimiters;
         while (pLimiter != NULL) {
           if (strcmp(pLimiter->user, identifier) == 0) {
@@ -381,7 +382,7 @@ void rlmGetStats(ERLimitTarget target, const char* identifier, int64_t* allowed,
           }
           pLimiter = pLimiter->next;
         }
-        pthread_rwlock_unlock(&gRateLimitMgr->lock);
+        taosThreadRwlockUnlock(&gRateLimitMgr->lock);
       }
       break;
     case RLM_TARGET_DB:

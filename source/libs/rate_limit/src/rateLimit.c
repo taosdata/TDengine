@@ -15,17 +15,15 @@
 
 #include "../inc/rateLimit.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <time.h>
-
-#define MILLISECOND_PER_SECOND 1000LL
+#include "osMemory.h"
 
 static int64_t getCurrentTimeMs() {
   struct timespec ts;
   clock_gettime(CLOCK_REALTIME, &ts);
-  return (int64_t)ts.tv_sec * MILLISECOND_PER_SECOND + ts.tv_nsec / 1000000;
+  return (int64_t)ts.tv_sec * 1000LL + ts.tv_nsec / 1000000;
 }
 
 STokenBucket* rlCreateTokenBucket(int64_t capacity, int64_t rate) {
@@ -33,7 +31,7 @@ STokenBucket* rlCreateTokenBucket(int64_t capacity, int64_t rate) {
     return NULL;
   }
 
-  STokenBucket* pBucket = (STokenBucket*)calloc(1, sizeof(STokenBucket));
+  STokenBucket* pBucket = (STokenBucket*)taosMemCalloc(1, sizeof(STokenBucket));
   if (pBucket == NULL) {
     return NULL;
   }
@@ -42,7 +40,7 @@ STokenBucket* rlCreateTokenBucket(int64_t capacity, int64_t rate) {
   pBucket->tokens = capacity;
   pBucket->rate = rate;
   pBucket->lastRefillTime = getCurrentTimeMs();
-  pthread_rwlock_init(&pBucket->lock, NULL);
+  taosThreadRwlockInit(&pBucket->lock, NULL);
 
   return pBucket;
 }
@@ -52,8 +50,8 @@ void rlDestroyTokenBucket(STokenBucket* pBucket) {
     return;
   }
 
-  pthread_rwlock_destroy(&pBucket->lock);
-  free(pBucket);
+  taosThreadRwlockDestroy(&pBucket->lock);
+  taosMemFree(pBucket);
 }
 
 bool rlTokenBucketAllow(STokenBucket* pBucket, int64_t count) {
@@ -61,13 +59,13 @@ bool rlTokenBucketAllow(STokenBucket* pBucket, int64_t count) {
     return false;
   }
 
-  pthread_rwlock_wrlock(&pBucket->lock);
+  taosThreadRwlockWrlock(&pBucket->lock);
 
   int64_t now = getCurrentTimeMs();
   int64_t elapsedMs = now - pBucket->lastRefillTime;
 
   if (elapsedMs > 0) {
-    int64_t tokensToAdd = (pBucket->rate * elapsedMs) / MILLISECOND_PER_SECOND;
+    int64_t tokensToAdd = (pBucket->rate * elapsedMs) / 1000;
     pBucket->tokens += tokensToAdd;
     if (pBucket->tokens > pBucket->capacity) {
       pBucket->tokens = pBucket->capacity;
@@ -80,7 +78,7 @@ bool rlTokenBucketAllow(STokenBucket* pBucket, int64_t count) {
     pBucket->tokens -= count;
   }
 
-  pthread_rwlock_unlock(&pBucket->lock);
+  taosThreadRwlockUnlock(&pBucket->lock);
   return allowed;
 }
 
@@ -89,10 +87,10 @@ void rlTokenBucketReset(STokenBucket* pBucket) {
     return;
   }
 
-  pthread_rwlock_wrlock(&pBucket->lock);
+  taosThreadRwlockWrlock(&pBucket->lock);
   pBucket->tokens = pBucket->capacity;
   pBucket->lastRefillTime = getCurrentTimeMs();
-  pthread_rwlock_unlock(&pBucket->lock);
+  taosThreadRwlockUnlock(&pBucket->lock);
 }
 
 void rlTokenBucketUpdateRate(STokenBucket* pBucket, int64_t newRate) {
@@ -100,9 +98,9 @@ void rlTokenBucketUpdateRate(STokenBucket* pBucket, int64_t newRate) {
     return;
   }
 
-  pthread_rwlock_wrlock(&pBucket->lock);
+  taosThreadRwlockWrlock(&pBucket->lock);
   pBucket->rate = newRate;
-  pthread_rwlock_unlock(&pBucket->lock);
+  taosThreadRwlockUnlock(&pBucket->lock);
 }
 
 SLeakyBucket* rlCreateLeakyBucket(int64_t capacity, int64_t leakRate) {
@@ -110,7 +108,7 @@ SLeakyBucket* rlCreateLeakyBucket(int64_t capacity, int64_t leakRate) {
     return NULL;
   }
 
-  SLeakyBucket* pBucket = (SLeakyBucket*)calloc(1, sizeof(SLeakyBucket));
+  SLeakyBucket* pBucket = (SLeakyBucket*)taosMemCalloc(1, sizeof(SLeakyBucket));
   if (pBucket == NULL) {
     return NULL;
   }
@@ -119,7 +117,7 @@ SLeakyBucket* rlCreateLeakyBucket(int64_t capacity, int64_t leakRate) {
   pBucket->waterLevel = 0;
   pBucket->leakRate = leakRate;
   pBucket->lastLeakTime = getCurrentTimeMs();
-  pthread_rwlock_init(&pBucket->lock, NULL);
+  taosThreadRwlockInit(&pBucket->lock, NULL);
 
   return pBucket;
 }
@@ -129,8 +127,8 @@ void rlDestroyLeakyBucket(SLeakyBucket* pBucket) {
     return;
   }
 
-  pthread_rwlock_destroy(&pBucket->lock);
-  free(pBucket);
+  taosThreadRwlockDestroy(&pBucket->lock);
+  taosMemFree(pBucket);
 }
 
 bool rlLeakyBucketAllow(SLeakyBucket* pBucket, int64_t count) {
@@ -138,13 +136,13 @@ bool rlLeakyBucketAllow(SLeakyBucket* pBucket, int64_t count) {
     return false;
   }
 
-  pthread_rwlock_wrlock(&pBucket->lock);
+  taosThreadRwlockWrlock(&pBucket->lock);
 
   int64_t now = getCurrentTimeMs();
   int64_t elapsedMs = now - pBucket->lastLeakTime;
 
   if (elapsedMs > 0) {
-    int64_t leaked = (pBucket->leakRate * elapsedMs) / MILLISECOND_PER_SECOND;
+    int64_t leaked = (pBucket->leakRate * elapsedMs) / 1000;
     pBucket->waterLevel -= leaked;
     if (pBucket->waterLevel < 0) {
       pBucket->waterLevel = 0;
@@ -157,7 +155,7 @@ bool rlLeakyBucketAllow(SLeakyBucket* pBucket, int64_t count) {
     pBucket->waterLevel += count;
   }
 
-  pthread_rwlock_unlock(&pBucket->lock);
+  taosThreadRwlockUnlock(&pBucket->lock);
   return allowed;
 }
 
@@ -166,10 +164,10 @@ void rlLeakyBucketReset(SLeakyBucket* pBucket) {
     return;
   }
 
-  pthread_rwlock_wrlock(&pBucket->lock);
+  taosThreadRwlockWrlock(&pBucket->lock);
   pBucket->waterLevel = 0;
   pBucket->lastLeakTime = getCurrentTimeMs();
-  pthread_rwlock_unlock(&pBucket->lock);
+  taosThreadRwlockUnlock(&pBucket->lock);
 }
 
 SSlidingWindow* rlCreateSlidingWindow(int64_t windowSizeMs, int32_t numBuckets, int64_t maxCount) {
@@ -177,7 +175,7 @@ SSlidingWindow* rlCreateSlidingWindow(int64_t windowSizeMs, int32_t numBuckets, 
     return NULL;
   }
 
-  SSlidingWindow* pWindow = (SSlidingWindow*)calloc(1, sizeof(SSlidingWindow));
+  SSlidingWindow* pWindow = (SSlidingWindow*)taosMemCalloc(1, sizeof(SSlidingWindow));
   if (pWindow == NULL) {
     return NULL;
   }
@@ -187,7 +185,7 @@ SSlidingWindow* rlCreateSlidingWindow(int64_t windowSizeMs, int32_t numBuckets, 
   pWindow->bucketSizeMs = windowSizeMs / numBuckets;
   pWindow->currentBucket = 0;
   pWindow->lastBucketTime = getCurrentTimeMs();
-  pthread_rwlock_init(&pWindow->lock, NULL);
+  taosThreadRwlockInit(&pWindow->lock, NULL);
 
   return pWindow;
 }
@@ -197,8 +195,8 @@ void rlDestroySlidingWindow(SSlidingWindow* pWindow) {
     return;
   }
 
-  pthread_rwlock_destroy(&pWindow->lock);
-  free(pWindow);
+  taosThreadRwlockDestroy(&pWindow->lock);
+  taosMemFree(pWindow);
 }
 
 static void rotateBuckets(SSlidingWindow* pWindow) {
@@ -225,7 +223,7 @@ bool rlSlidingWindowAllow(SSlidingWindow* pWindow, int64_t count) {
     return false;
   }
 
-  pthread_rwlock_wrlock(&pWindow->lock);
+  taosThreadRwlockWrlock(&pWindow->lock);
 
   rotateBuckets(pWindow);
 
@@ -240,7 +238,7 @@ bool rlSlidingWindowAllow(SSlidingWindow* pWindow, int64_t count) {
     pWindow->buckets[pWindow->currentBucket] += count;
   }
 
-  pthread_rwlock_unlock(&pWindow->lock);
+  taosThreadRwlockUnlock(&pWindow->lock);
   return allowed;
 }
 
@@ -249,11 +247,11 @@ void rlSlidingWindowReset(SSlidingWindow* pWindow) {
     return;
   }
 
-  pthread_rwlock_wrlock(&pWindow->lock);
-  memset(pWindow->buckets, 0, sizeof(pWindow->buckets));
+  taosThreadRwlockWrlock(&pWindow->lock);
+  TAOS_MEMSET(pWindow->buckets, 0, sizeof(pWindow->buckets));
   pWindow->currentBucket = 0;
   pWindow->lastBucketTime = getCurrentTimeMs();
-  pthread_rwlock_unlock(&pWindow->lock);
+  taosThreadRwlockUnlock(&pWindow->lock);
 }
 
 SRateLimiter* rlCreateLimiter(const char* name, ERateLimitType type, void* impl) {
@@ -261,7 +259,7 @@ SRateLimiter* rlCreateLimiter(const char* name, ERateLimitType type, void* impl)
     return NULL;
   }
 
-  SRateLimiter* pLimiter = (SRateLimiter*)calloc(1, sizeof(SRateLimiter));
+  SRateLimiter* pLimiter = (SRateLimiter*)taosMemCalloc(1, sizeof(SRateLimiter));
   if (pLimiter == NULL) {
     return NULL;
   }
@@ -272,7 +270,7 @@ SRateLimiter* rlCreateLimiter(const char* name, ERateLimitType type, void* impl)
   pLimiter->name[RL_NAME_LEN - 1] = '\0';
   pLimiter->totalAllowed = 0;
   pLimiter->totalRejected = 0;
-  pthread_rwlock_init(&pLimiter->statsLock, NULL);
+  taosThreadRwlockInit(&pLimiter->statsLock, NULL);
 
   return pLimiter;
 }
@@ -293,12 +291,12 @@ void rlDestroyLimiter(SRateLimiter* pLimiter) {
       rlDestroySlidingWindow((SSlidingWindow*)pLimiter->impl);
       break;
     default:
-      free(pLimiter->impl);
+      taosMemFree(pLimiter->impl);
       break;
   }
 
-  pthread_rwlock_destroy(&pLimiter->statsLock);
-  free(pLimiter);
+  taosThreadRwlockDestroy(&pLimiter->statsLock);
+  taosMemFree(pLimiter);
 }
 
 bool rlAllowRequest(SRateLimiter* pLimiter, int64_t count) {
@@ -323,13 +321,14 @@ bool rlAllowRequest(SRateLimiter* pLimiter, int64_t count) {
       break;
   }
 
-  pthread_rwlock_wrlock(&pLimiter->statsLock);
+  taosThreadRwlockWrlock(&pLimiter->statsLock);
   if (allowed) {
     pLimiter->totalAllowed++;
   } else {
     pLimiter->totalRejected++;
   }
-  pthread_rwlock_unlock(&pLimiter->statsLock);
+
+  taosThreadRwlockUnlock(&pLimiter->statsLock);
 
   return allowed;
 }
@@ -341,10 +340,10 @@ void rlGetLimiterStats(SRateLimiter* pLimiter, int64_t* totalAllowed, int64_t* t
     return;
   }
 
-  pthread_rwlock_rdlock(&pLimiter->statsLock);
+  taosThreadRwlockRdlock(&pLimiter->statsLock);
   if (totalAllowed) *totalAllowed = pLimiter->totalAllowed;
   if (totalRejected) *totalRejected = pLimiter->totalRejected;
-  pthread_rwlock_unlock(&pLimiter->statsLock);
+  taosThreadRwlockUnlock(&pLimiter->statsLock);
 }
 
 void rlResetLimiter(SRateLimiter* pLimiter) {
@@ -366,8 +365,8 @@ void rlResetLimiter(SRateLimiter* pLimiter) {
       break;
   }
 
-  pthread_rwlock_wrlock(&pLimiter->statsLock);
+  taosThreadRwlockWrlock(&pLimiter->statsLock);
   pLimiter->totalAllowed = 0;
   pLimiter->totalRejected = 0;
-  pthread_rwlock_unlock(&pLimiter->statsLock);
+  taosThreadRwlockUnlock(&pLimiter->statsLock);
 }

@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "../inc/rateLimit.h"
+#include "os.h"
 
 #define RLM_MAX_IP_LEN     46
 #define RLM_MAX_USER_LEN   64
@@ -74,7 +75,7 @@ typedef struct {
   SIpLimiter*      ipLimiters;
   SUserLimiter*    userLimiters;
   SDbLimiter*      dbLimiters;
-  pthread_rwlock_t lock;
+  TdThreadRwlock   lock;
 } SRateLimitMgr;
 
 int32_t rlmInit(int64_t globalConnRate, int64_t globalQueryRate, int64_t globalWriteRate);
