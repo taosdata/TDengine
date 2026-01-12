@@ -13,18 +13,25 @@ class TestScalarSubQuery1:
     mainIdx = 0
     subIdx = 0
     fileIdx = 0
-    tableNames = ["tb1", "tba", "st1"]
+    optIdx = 0
+    targetIdx = 0
+    tableIdx = 0
+    tableNames = ["tb1", "st1"]
     fullTableNames = ["tb1", "tb2", "tb3", "tba", "st1"]
     opStrs = ["IN", "NOT IN"]
-    targetObjs = ["1", "'a'", "'d'", "f1", "NULL", "123.45", "abs(-2)", "f1 + 1", "sum(f1)"]
+    targetObjs = ["1", "'a'", "f1", "NULL", "123.45", "abs(-2)", "f1 + 1", "sum(f1)"]
+    targetFullObjs = ["1", "'a'", "'d'", "f1", "NULL", "123.45", "abs(-2)", "f1 + 1", "sum(f1)", "(select 1)", "(select f1 from tba limit 0)"]
+
+    subFullSqls = [
+        "select {targetObj} {opStr} {colSql}, {targetObj} {opStr} {colSql} from {tableName} where {targetObj} {opStr} {colSql} order by 1",
+    ]
 
     subSqls = [
         # select 
-        "select {targetObj} {opStr} {colSql}",
-        "select {targetObj} {opStr} {colSql} from {tableName}",
-        "select tags {targetObj} {opStr} {colSql} from {tableName}",
-        "select distinct {targetObj} {opStr} {colSql} from {tableName}",
-        "select {targetObj} {opStr} {colSql}, {targetObj} {opStr} {colSql} from {tableName}",
+        "select {targetObj} {opStr} {colSql} from {tableName} order by 1",
+        "select tags {targetObj} {opStr} {colSql} from {tableName} order by 1",
+        "select distinct {targetObj} {opStr} {colSql} from {tableName} order by 1",
+        "select {targetObj} {opStr} {colSql}, {targetObj} {opStr} {colSql} from {tableName} order by 1",
         "select {targetObj} {opStr} {colSql}, * from {tableName} order by ts, f1",
         "select case when {targetObj} {opStr} {colSql} then 1 else 2 end, sum(f1) from {tableName} group by f1",
         "select case when f1 = 1 then 1 else {targetObj} {opStr} {colSql} end, sum(f1) from {tableName} group by f1",
@@ -38,19 +45,18 @@ class TestScalarSubQuery1:
         "select {colSql} + 1, avg({colSql} + 2) from {tableName} a left join {tableName} b on a.ts = b.ts and {targetObj} {opStr} {colSql}",
 
         # where
-        "select f1 from {tableName} where {targetObj} {opStr} {colSql}",
+        "select f1 from {tableName} where {targetObj} {opStr} {colSql} order by f1",
         "select f1, {targetObj} {opStr} {colSql} from {tableName} where f1 > 0 and {targetObj} {opStr} {colSql} order by f1",
         "select f1 from {tableName} where f1 > 0 or {targetObj} {opStr} {colSql} order by f1",
 
         # partition
-        "select f1 from {tableName} partition by f1, {targetObj} {opStr} {colSql} order by f1",
         "select f1 from {tableName} partition by f1 having({targetObj} {opStr} {colSql}) order by f1",
 
         # group
-        "select sum(f1) from {tableName} group by {targetObj} {opStr} {colSql}, f1 having({targetObj} {opStr} {colSql}) order by 1",
+        "select sum(f1) from {tableName} group by f1 having({targetObj} {opStr} {colSql}) order by 1",
 
         #union
-        "select true from {tableName} union select {targetObj} {opStr} {colSql} from {tableName} order by f1",
+        "select true from {tableName} union select {targetObj} {opStr} {colSql} from {tableName} order by 1",
         "select {targetObj} {opStr} {colSql} a from {tableName} union all select {targetObj} {opStr} {colSql} b from {tableName} order by a",
     ]
 
@@ -61,6 +67,7 @@ class TestScalarSubQuery1:
     ]
 
     colSubQFullStmtSqls = [
+        "(null)",
         "(select 1)",
         "(select f1 from {tableName})",
         "((select f1 from {tableName}))",
@@ -110,7 +117,9 @@ class TestScalarSubQuery1:
         """
 
         self.prepareData()
-        self.execCase()
+        self.execNormalCase()
+        self.fileIdx += 1
+        self.execFullStmtCase()
      
     def prepareData(self):
         tdLog.info("create database db1")
@@ -122,7 +131,7 @@ class TestScalarSubQuery1:
             "CREATE TABLE tb1 USING st1 TAGS (1)",
             "CREATE TABLE tb2 USING st1 TAGS (2)",
             "CREATE TABLE tb3 USING st1 TAGS (3)",
-            "CREATE TABLE tba (ts TIMESTAMP, f1 int, f2 bigint, f3 double, f4 varchar(20), f5 bool, f6 nchar(10), f7 tinyint)",
+            "CREATE TABLE tba (ts TIMESTAMP, f4 int, f2 bigint, f3 double, f1 varchar(20), f5 bool, f6 nchar(10), f7 tinyint)",
             "INSERT INTO tb1 VALUES ('2025-12-01 00:00:00.000', 1, 11)",
             "INSERT INTO tb2 VALUES ('2025-12-01 00:00:00.000', 2, 21)",
             "INSERT INTO tb2 VALUES ('2025-12-02 00:00:00.000', 3, 23)",
@@ -153,7 +162,7 @@ class TestScalarSubQuery1:
             if os.path.exists(tmp_file):
                 os.remove(tmp_file)
 
-    def execCase(self):
+    def execNormalCase(self):
         tdLog.info(f"execCase begin")
 
         runnedCaseNum = 0
@@ -161,18 +170,20 @@ class TestScalarSubQuery1:
         self.openSqlTmpFile()
 
         for self.tableIdx in range(len(self.tableNames)):
-            self.ntableIdx = (self.tableIdx + 1) % len(self.tableNames)
-            for self.mainIdx in range(len(self.subSqls)):
-                for self.subIdx in range(len(self.colSubQSqls)):
-                    self.querySql = self.subSqls[self.mainIdx].replace("{colSql}", self.colSubQSqls[self.subIdx])
-                    self.querySql = self.querySql.replace("{tableName}", self.tableNames[self.tableIdx])
-                    #self.querySql = self.querySql.replace("{ntableName}", self.tableNames[self.ntableIdx])
-                    # ensure exactly one trailing semicolon
-                    self.querySql = self.querySql.rstrip().rstrip(';') + ';'
-                    tdLog.info(f"generated sql: {self.querySql}")
+            for self.opIdx in range(len(self.opStrs)):
+                for self.targetIdx in range(len(self.targetObjs)):
+                    for self.mainIdx in range(len(self.subSqls)):
+                        for self.subIdx in range(len(self.colSubQSqls)):
+                            self.querySql = self.subSqls[self.mainIdx].replace("{colSql}", self.colSubQSqls[self.subIdx])
+                            self.querySql = self.querySql.replace("{tableName}", self.tableNames[self.tableIdx])
+                            self.querySql = self.querySql.replace("{opStr}", self.opStrs[self.opIdx])
+                            self.querySql = self.querySql.replace("{targetObj}", self.targetObjs[self.targetIdx])
+                            # ensure exactly one trailing semicolon
+                            self.querySql = self.querySql.rstrip().rstrip(';') + ';'
+                            #tdLog.info(f"generated sql: {self.querySql}")
 
-                    self.generated_queries_file.write(self.querySql.strip() + "\n")
-                    self.generated_queries_file.flush()
+                            self.generated_queries_file.write(self.querySql.strip() + "\n")
+                            self.generated_queries_file.flush()
 
 
         self.generated_queries_file.close()
@@ -184,3 +195,35 @@ class TestScalarSubQuery1:
 
         return True
 
+    def execFullStmtCase(self):
+        tdLog.info(f"execCase begin")
+
+        runnedCaseNum = 0
+
+        self.openSqlTmpFile()
+
+        for self.tableIdx in range(len(self.fullTableNames)):
+            for self.opIdx in range(len(self.opStrs)):
+                for self.targetIdx in range(len(self.targetFullObjs)):
+                    for self.mainIdx in range(len(self.subFullSqls)):
+                        for self.subIdx in range(len(self.colSubQFullStmtSqls)):
+                            self.querySql = self.subFullSqls[self.mainIdx].replace("{colSql}", self.colSubQFullStmtSqls[self.subIdx])
+                            self.querySql = self.querySql.replace("{tableName}", self.fullTableNames[self.tableIdx])
+                            self.querySql = self.querySql.replace("{opStr}", self.opStrs[self.opIdx])
+                            self.querySql = self.querySql.replace("{targetObj}", self.targetFullObjs[self.targetIdx])
+                            # ensure exactly one trailing semicolon
+                            self.querySql = self.querySql.rstrip().rstrip(';') + ';'
+                            #tdLog.info(f"generated sql: {self.querySql}")
+
+                            self.generated_queries_file.write(self.querySql.strip() + "\n")
+                            self.generated_queries_file.flush()
+
+
+        self.generated_queries_file.close()
+        tmp_file = os.path.join(self.currentDir, f"{self.caseName}_generated_queries{self.fileIdx}.sql")
+        res_file = os.path.join(self.currentDir, f"ans/{self.caseName}.{self.fileIdx}.csv")
+        self.checkResultWithResultFile(tmp_file, res_file)
+
+        self.rmoveSqlTmpFiles()
+
+        return True

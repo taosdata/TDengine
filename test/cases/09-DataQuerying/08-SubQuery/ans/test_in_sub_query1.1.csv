@@ -1,0 +1,6 @@
+
+taos> use db1;
+Database changed.
+
+taos> select 1 IN (null), 1 IN (null) from tb1 where 1 IN (null) order by 1;
+

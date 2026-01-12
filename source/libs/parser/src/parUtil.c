@@ -37,7 +37,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_GET_META_ERROR:
       return "Fail to get table info, error: %s";
     case TSDB_CODE_PAR_AMBIGUOUS_COLUMN:
-      return "Column ambiguously defined: %s";
+      return "Column is ambiguous: %s";
     case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
       return "Invalid value type: %s";
     case TSDB_CODE_PAR_INVALID_VARBINARY:

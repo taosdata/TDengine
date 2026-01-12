@@ -4519,7 +4519,12 @@ int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst) {
       TAOS_CHECK_EXIT(valueNodeCopy((SValueNode*)pSrc, &((SRemoteValueNode*)pDst)->val));
       ((SRemoteValueNode*)pDst)->val.node.type = QUERY_NODE_VALUE;
       break;
-    case QUERY_NODE_REMOTE_VALUE_LIST:
+    case QUERY_NODE_REMOTE_VALUE_LIST: {
+      SRemoteValueListNode* pDstNode = (SRemoteValueListNode*)pDst;
+      memcpy(pDst, pSrc, sizeof(SRemoteValueListNode));
+      pDstNode->hashAllocated = false;      
+      break;
+    } 
     default:
       break;
   }

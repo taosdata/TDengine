@@ -489,6 +489,7 @@ int32_t scalarBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData
     }
   }
 
+  pRemote->hashAllocated = true;
   pRemote->filterValueTypeMod = typeMod;
   pRemote->filterValueType = type;
 
