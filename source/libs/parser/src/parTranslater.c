@@ -7089,7 +7089,7 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
 
   TAOS_CHECK_EXIT(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pRetrievedCols));
 
-  pNode = NULL;
+  SNode* pNode = NULL;
   FOREACH(pNode, pRetrievedCols) {
     if (QUERY_NODE_COLUMN == nodeType(pNode)) {
       SColumnNode* pCol = (SColumnNode*)pNode;
@@ -7208,9 +7208,9 @@ static EDealRes checkMaskNode(SNode* pNode, void* pContext) {
 static int32_t nodesCheckMaskNode(SSelectStmt* pSelect, SNode* pNode) {
   SCheckMaskNodeCxt cxt = {0};
 
-  nodesWalkCheckMaskStmt(pSelect, pNode, checkMaskNode, (void*)&cxt);
+  nodesWalkExpr(pNode, checkMaskNode, (void*)&cxt);
 
-  return TSDB_CODE_SUCCESS;
+  return cxt.errCode;
 }
 
 static int32_t rewriteMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect, SNode** ppNode) {
