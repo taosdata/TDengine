@@ -158,7 +158,6 @@ class TestWriteInsertSelect:
         tdLog.info(f"======== tbname isn't in first field")
         tdSql.error(f"INSERT INTO dst_smeters(tbname, current, voltage,location) select concat(tbname,'_', to_char(ts, 'SS')) as sub_table_name, current, voltage, to_char(ts+10000, 'SS') as location from meters partition by tbname;")
 
-
     def Test3(self):
         tdLog.info(f"======== https://project.feishu.cn/taosdata_td/defect/detail/6570627479")
         tdSql.execute(f"drop database if exists db3;")

@@ -61,6 +61,13 @@ EEncryptScope tsiEncryptScope = 0;
 // char     tsEncryptKey[17] = {0};
 char          tsEncryptKey[17] = {0};
 int8_t        tsEnableStrongPassword = 1;
+
+#ifdef TD_ALLOW_DEFAULT_PASSWORD
+int8_t        tsAllowDefaultPassword = 1;
+#else
+int8_t        tsAllowDefaultPassword = 0;
+#endif
+
 char          tsEncryptPassAlgorithm[16] = {0};
 EEncryptAlgor tsiEncryptPassAlgorithm = 0;
 
@@ -911,6 +918,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptScope", tsEncryptScope, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "encryptExtDir", tsEncryptExtDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableStrongPassword", tsEnableStrongPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "allowDefaultPassword", tsAllowDefaultPassword, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptPassAlgorithm", tsEncryptPassAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1679,6 +1687,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableStrongPassword");
   tsEnableStrongPassword = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "allowDefaultPassword");
+  tsAllowDefaultPassword = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "encryptPassAlgorithm");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, 16));
