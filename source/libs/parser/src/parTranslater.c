@@ -7063,11 +7063,12 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
     return TSDB_CODE_SUCCESS;
   }
 
+  int32_t        code = 0, lino = 0;
   SParseContext* pParseCxt = pCxt->pParseCxt;
   SSHashObj*     pTblColHash = NULL;
   SCatalog*      pCatalog = pParseCxt->pCatalog;
+  SNodeList*     pRetrievedCols = NULL;
   STableCols*    tblCol = NULL;
-  int32_t        code = 0, lino = 0;
   int32_t        nProjCols = LIST_LENGTH(pSelect->pProjectionList);
 
   if (nProjCols <= 0) {
@@ -7086,10 +7087,14 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
     TAOS_CHECK_EXIT(terrno);
   }
 
+  TAOS_CHECK_EXIT(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pRetrievedCols));
+
   SNode* pNode = NULL;
-  FOREACH(pNode, pSelect->pProjectionList) {
+  FOREACH(pNode, pRetrievedCols) {
     if (QUERY_NODE_COLUMN == nodeType(pNode)) {
       SColumnNode* pCol = (SColumnNode*)pNode;
+
+      printf("the cols is: %s,%d, tbName:%s, dbName:%s\n", pCol->colName, pCol->colId, pCol->tableName, pCol->dbName);
       SColIdNameKV colIdNameKV = {.colId = pCol->colId};
       snprintf(colIdNameKV.colName, TSDB_COL_NAME_LEN, "%s", pCol->colName);
       STableCols* pTblCols = tSimpleHashGet(pTblColHash, (const void*)&pCol->tableId, sizeof(pCol->tableId));
@@ -7135,13 +7140,16 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
     TAOS_CHECK_EXIT(catalogChkAuth(pCatalog, &conn, &authInfo, &authRes));
     if (authRes.pCols) {
       int32_t j = 0;
-      int32_t nCols = taosArrayGetSize(authRes.pCols), nPrivCols = taosArrayGetSize(tblCol->cols);
-      for (int32_t i = 0; i < taosArrayGetSize(tblCol->cols); ++i) {
+      int32_t nPrivCols = taosArrayGetSize(authRes.pCols),  nCols = taosArrayGetSize(tblCol->cols);
+      for (int32_t i = 0; i < nCols; ++i) {
         SColIdNameKV* pColIdNameKV = (SColIdNameKV*)TARRAY_GET_ELEM(tblCol->cols, i);
         bool          hasPriv = false;
         for (; j < nPrivCols; ++j) {
           SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(authRes.pCols, j);
           if (pColIdNameKV->colId == pColNameFlag->colId) {
+            if (IS_MASK_ON(pColNameFlag) && (pParseCxt->hasMaskCols == 0)) {
+              pParseCxt->hasMaskCols = 1;
+            }
             hasPriv = true;
             ++j;
             break;
@@ -7164,9 +7172,67 @@ _exit:
     taosArrayDestroy(tblCol->cols);
   }
   tSimpleHashCleanup(pTblColHash);
+  nodesDestroyList(pRetrievedCols);
+
   return code;
 }
 #endif
+
+static int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (pCxt->pParseCxt->hasMaskCols == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t        code = 0, lino = 0;
+  SParseContext* pParseCxt = pCxt->pParseCxt;
+  SCatalog*      pCatalog = pParseCxt->pCatalog;
+  SNode*         pNode = NULL;
+
+
+  FOREACH(pNode, pSelect->pProjectionList) {
+    if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
+      printf("process mask col func: %s\n", ((SFunctionNode*)pNode)->functionName);
+    } else if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+      printf("process mask col func: %s\n", ((SColumnNode*)pNode)->colName);
+    } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
+      printf("process mask col func: value node\n");
+    } else {
+      printf("process mask col func: other node:%d\n", nodeType(pNode));
+    }
+#if 0
+    if ((funcType == FUNCTION_TYPE_FORECAST_ROWTS || funcType == FUNCTION_TYPE_FORECAST_HIGH ||
+         funcType == FUNCTION_TYPE_FORECAST_LOW) &&
+        strcasecmp(((SFunctionNode*)pNode)->functionName, "forecast") == 0) {
+      bFound = true;
+      break;
+    }
+
+    if ((funcType == FUNCTION_TYPE_IMPUTATION_ROWTS || funcType == FUNCTION_TYPE_IMPUTATION_MARK) &&
+        strcasecmp(((SFunctionNode*)pNode)->functionName, "imputation") == 0) {
+      bFound = true;
+      break;
+    }
+
+    if (funcType == FUNCTION_TYPE_ANOMALY_MARK && pSelect->pWindow->type == QUERY_NODE_ANOMALY_WINDOW) {
+      bFound = true;
+      break;
+    }
+#endif
+  }
+
+  // if (!bFound) {
+  //   *pRewriteToColumn = true;
+  //   int32_t code = replacePsedudoColumnFuncWithColumn(pCxt, ppNode);
+  //   if (code != TSDB_CODE_SUCCESS) {
+  //     return code;
+  //   }
+
+  //   (void)translateColumn(pCxt, (SColumnNode**)ppNode);
+  //   return pCxt->errCode;
+  // }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_SELECT;
@@ -7178,7 +7244,7 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateStar(pCxt, pSelect);
   }
 #ifdef TD_ENTERPRISE
-  if(TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code) {
     code = translateCheckPrivCols(pCxt, pSelect);
   }
 #endif
@@ -7198,6 +7264,11 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
       code = TSDB_CODE_PAR_INVALID_SELECTED_EXPR;
     }
   }
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateProcessMaskColFunc(pCxt, pSelect);
+  }
+#endif
   return code;
 }
 
@@ -17211,7 +17282,15 @@ static int32_t fillPrivSetRowCols(STranslateContext* pCxt, SArray** ppReqCols, S
       continue;
     }
     SColNameFlag colNameFlag = {.colId = pColNode->colId};
-    if (pColNode->hasMask) COL_SET_MASK_ON(&colNameFlag);
+    if (pColNode->hasMask) {
+      uint8_t colType = pColNode->node.resType.type;
+      if (!(colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_VARBINARY ||
+            colType == TSDB_DATA_TYPE_NCHAR || colType == TSDB_DATA_TYPE_JSON || colType == TSDB_DATA_TYPE_GEOMETRY)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "Not support mask for data type:%" PRIu8, colType);
+      }
+      COL_SET_MASK_ON(&colNameFlag);
+    }
     (void)snprintf(colNameFlag.colName, sizeof(colNameFlag.colName), "%s", pColNode->colName);
     if (!taosArrayPush(*ppReqCols, &colNameFlag)) {
       TAOS_CHECK_EXIT(terrno);

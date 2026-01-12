@@ -130,7 +130,8 @@ typedef struct SParseContext {
     uint8_t flag;
     struct {
       uint8_t hasPrivCols : 1;
-      uint8_t reserved : 7;
+      uint8_t hasMaskCols : 1;
+      uint8_t reserved    : 6;
     };
   };
   uint8_t     stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
