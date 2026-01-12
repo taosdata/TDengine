@@ -58,7 +58,7 @@ extern "C" {
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;
   int32_t (*getTbNameFn)(TAOS_STMT*, char**);
-  int32_t (*setInfoFn)(TAOS_STMT*, STableMeta*, void*, SArray*, SName*, bool, SHashObj*, SHashObj*, const char*,
+  int32_t (*setInfoFn)(TAOS_STMT*, STableMeta*, void*, SSHashObj**, SName*, bool, SHashObj*, SHashObj*, const char*,
                        uint8_t);
   int32_t (*getExecInfoFn)(TAOS_STMT*, SHashObj**, SHashObj**);
 } SStmtCallback;
@@ -228,8 +228,6 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
                      int32_t msgBufLen);
 int32_t qCreateSName2(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                       int32_t msgBufLen);
-
-void qDestroyBoundColInfo(void* pInfo);
 
 int32_t smlInitHandle(SQuery** query);
 int32_t smlBuildRow(STableDataCxt* pTableCxt);

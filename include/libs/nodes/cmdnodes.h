@@ -761,24 +761,10 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
-  int32_t   tid;      // Short for XNode task id.
-  int32_t   nameLen;  // length of name
+  int32_t   id;  // Short for XNode task id.
   char*     name;
   bool      force;  // DROP XNODE TASK FORCE 'name'
 } SDropXnodeTaskStmt;
-
-typedef struct {
-  ENodeType          type;
-  char               name[TSDB_TABLE_NAME_LEN + 3];
-  SXnodeTaskOptions* options;
-} SXnodeAgentCreateStmt;
-
-// typedef struct {
-//   ENodeType type;
-//   char      name[TSDB_TABLE_NAME_LEN + 3];
-//   bool      force;  // DROP XNODE TASK FORCE 'name'
-// } SXnodeTaskDropStmt;
-// typedef SXnodeTaskDropStmt SXnodeAgentDropStmt;
 
 typedef struct {
   ENodeType          type;
@@ -800,6 +786,21 @@ typedef struct {
   ENodeType type;
   SNode*    pWhere;
 } SRebalanceXnodeJobWhereStmt;
+
+typedef struct {
+  ENodeType          type;
+  char               name[TSDB_XNODE_TASK_NAME_LEN + 3];
+  SXnodeTaskOptions* options;
+} SCreateXnodeAgentStmt;
+
+typedef struct {
+  ENodeType          type;
+  int32_t            id;
+  CowStr             name;
+  SXnodeTaskOptions* options;
+} SAlterXnodeAgentStmt;
+
+typedef SDropXnodeTaskStmt SDropXnodeAgentStmt;
 
 typedef struct SShowStmt {
   ENodeType     type;

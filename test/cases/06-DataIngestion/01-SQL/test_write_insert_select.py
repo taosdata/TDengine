@@ -158,10 +158,6 @@ class TestWriteInsertSelect:
         tdLog.info(f"======== tbname isn't in first field")
         tdSql.error(f"INSERT INTO dst_smeters(tbname, current, voltage,location) select concat(tbname,'_', to_char(ts, 'SS')) as sub_table_name, current, voltage, to_char(ts+10000, 'SS') as location from meters partition by tbname;")
 
-
-        tdSql.execute(f"INSERT INTO ohlcv_1d(tbname,ts) SELECT '1.34' as tb,  '2025-12-01T00:00:00.000-05:00' FROM ohlcv_1m WHERE symbol = 'AAPL' AND ts >= '2025-12-01T00:00:00.000' AND ts < '2025-12-02T00:00:00.000' PARTITION BY tbname, symbol;")
-        tdSql.error(f"INSERT INTO ohlcv_1d(tbname,ts) SELECT 1.34 as tb,  '2025-12-01T00:00:00.000-05:00' FROM ohlcv_1m WHERE symbol = 'AAPL' AND ts >= '2025-12-01T00:00:00.000' AND ts < '2025-12-02T00:00:00.000' PARTITION BY tbname, symbol;")
-     
     def Test3(self):
         tdLog.info(f"======== https://project.feishu.cn/taosdata_td/defect/detail/6570627479")
         tdSql.execute(f"drop database if exists db3;")

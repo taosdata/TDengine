@@ -989,7 +989,6 @@ static void dropOldPasswords(SUserObj *pUser) {
 
 
 
-
 static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -1016,8 +1015,15 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
   userObj.sysInfo = 1;
   userObj.enable = 1;
-  userObj.changePass = 2;
+
+#ifdef TD_ENTERPRISE
+
+  // 1: force user to change password
+  // 2: allow but not force user to change password
+  userObj.changePass = tsAllowDefaultPassword ? 2 : 1;
+
   userObj.ipWhiteListVer = taosGetTimestampMs();
+  userObj.timeWhiteListVer = userObj.ipWhiteListVer;
   userObj.connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
   userObj.connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
   userObj.callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
@@ -1025,14 +1031,35 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   userObj.passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
   userObj.passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
   userObj.passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
-  // this is the root user, set some fields to -1 to allow the user login without restriction
+  userObj.sessionPerUser = TSDB_USER_SESSION_PER_USER_DEFAULT;
+  userObj.failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
+  userObj.passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
+  userObj.passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
+  userObj.inactiveAccountTime = TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
+  userObj.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+  userObj.tokenNum = 0;
+
+#else // TD_ENTERPRISE
+
+  userObj.ipWhiteListVer = 0;
+  userObj.timeWhiteListVer = 0;
+  userObj.changePass = 2; // 2: allow but not force user to change password
+  userObj.connectTime = -1;
+  userObj.connectIdleTime = -1;
+  userObj.callPerSession = -1;
+  userObj.vnodePerCall = -1;
+  userObj.passwordReuseTime = 0;
+  userObj.passwordReuseMax = 0;
+  userObj.passwordLockTime = -1;
   userObj.sessionPerUser = -1;
   userObj.failedLoginAttempts = -1;
   userObj.passwordLifeTime = -1;
   userObj.passwordGraceTime = -1;
   userObj.inactiveAccountTime = -1;
-  userObj.allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+  userObj.allowTokenNum = -1;
   userObj.tokenNum = 0;
+
+#endif // TD_ENTERPRISE
 
   userObj.pTimeWhiteList = taosMemoryCalloc(1, sizeof(SDateTimeWhiteList));
   if (userObj.pTimeWhiteList == NULL) {
@@ -1040,6 +1067,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   }
   
   TAOS_CHECK_GOTO(createDefaultIpWhiteList(&userObj.pIpWhiteListDual), &lino, _ERROR);
+  // if this is the root user, change the value of some fields to allow the user login without restriction
   if (strcmp(user, TSDB_DEFAULT_USER) == 0) {
     userObj.superUser = 1;
     userObj.createdb = 1;
@@ -1047,11 +1075,9 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     userObj.callPerSession = -1;
     userObj.vnodePerCall = -1;
     userObj.failedLoginAttempts = -1;
-    userObj.passwordLifeTime = -1;
-    userObj.passwordLockTime = 1;
+    userObj.passwordGraceTime = -1;
     userObj.inactiveAccountTime = -1;
     userObj.allowTokenNum = -1;
-    userObj.tokenNum = 0;
   }
 
   userObj.roles = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
@@ -1935,15 +1961,16 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     pUser->sessionPerUser = pUser->superUser ? -1 : TSDB_USER_SESSION_PER_USER_DEFAULT;
     pUser->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
     pUser->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
-    pUser->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
-    pUser->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
-    pUser->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
+    pUser->callPerSession = pUser->superUser ? -1 : TSDB_USER_CALL_PER_SESSION_DEFAULT;
+    pUser->vnodePerCall = pUser->superUser ? -1 : TSDB_USER_VNODE_PER_CALL_DEFAULT;
+    pUser->failedLoginAttempts = pUser->superUser ? -1 : TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
     pUser->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
     pUser->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
+    pUser->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
     pUser->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
     pUser->passwordGraceTime = pUser->superUser ? -1 : TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
     pUser->inactiveAccountTime = pUser->superUser ? -1 : TSDB_USER_INACTIVE_ACCOUNT_TIME_DEFAULT;
-    pUser->allowTokenNum = TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
+    pUser->allowTokenNum = pUser->superUser ? -1 : TSDB_USER_ALLOW_TOKEN_NUM_DEFAULT;
     pUser->tokenNum = 0;
     pUser->pTimeWhiteList = taosMemCalloc(1, sizeof(SDateTimeWhiteList));
     if (pUser->pTimeWhiteList == NULL) {
@@ -1991,6 +2018,25 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     SDB_GET_BINARY(pRaw, dataPos, key, extLen, _OVER);
     TAOS_CHECK_GOTO(tDeserializeUserObjExt(key, extLen, pUser), &lino, _OVER);
   }
+
+#ifndef TD_ENTERPRISE
+  // community users cannot modify these fields, and the default values may prevent
+  // the user from logging in, so we set them to different values here.
+  pUser->sessionPerUser = -1;
+  pUser->connectTime = -1;
+  pUser->connectIdleTime = -1;
+  pUser->callPerSession = -1;
+  pUser->vnodePerCall = -1;
+  pUser->failedLoginAttempts = -1;
+  pUser->passwordLifeTime = -1;
+  pUser->passwordReuseTime = 0;
+  pUser->passwordReuseMax = 0;
+  pUser->passwordLockTime = -1;
+  pUser->passwordGraceTime = -1;
+  pUser->inactiveAccountTime = -1;
+  pUser->allowTokenNum = -1;
+  pUser->tokenNum = 0;
+#endif // TD_ENTERPRISE
 
   SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
 
@@ -2537,6 +2583,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.createdb = pCreate->createDb;
   userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
 
+#ifdef TD_ENTERPRISE
+
   userObj.changePass = pCreate->changepass;
   userObj.sessionPerUser = pCreate->sessionPerUser;
   userObj.connectTime = pCreate->connectTime;
@@ -2615,7 +2663,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     }
     int32_t dummpy = 0;
     
-    for (int i = 0; i < pCreate->numIpRanges; i++) {
+    for (int i = 0; i < pCreate->numTimeRanges; i++) {
       SDateTimeRange* src = pCreate->pTimeRanges + i;
       SDateTimeWhiteListItem range = {0};
       DateTimeRangeToWhiteListItem(&range, src);
@@ -2659,6 +2707,35 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
 
   userObj.ipWhiteListVer = taosGetTimestampMs();
   userObj.timeWhiteListVer = userObj.ipWhiteListVer;
+
+#else // TD_ENTERPRISE
+
+  userObj.changePass = 1;
+  userObj.sessionPerUser = -1;
+  userObj.connectTime = -1;
+  userObj.connectIdleTime = -1;
+  userObj.callPerSession = -1;
+  userObj.vnodePerCall = -1;
+  userObj.failedLoginAttempts = -1;
+  userObj.passwordLifeTime = -1;
+  userObj.passwordReuseTime = 0;
+  userObj.passwordReuseMax = 0;
+  userObj.passwordLockTime = -1;
+  userObj.passwordGraceTime = -1;
+  userObj.inactiveAccountTime = -1;
+  userObj.allowTokenNum = -1;
+  userObj.tokenNum = 0;
+
+  TAOS_CHECK_GOTO(createDefaultIpWhiteList(&userObj.pIpWhiteListDual), &lino, _OVER);
+  userObj.pTimeWhiteList = (SDateTimeWhiteList*)taosMemoryCalloc(1, sizeof(SDateTimeWhiteList));
+  if (userObj.pTimeWhiteList == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  }
+
+  userObj.ipWhiteListVer = 0;
+  userObj.timeWhiteListVer = 0;
+
+#endif // TD_ENTERPRISE
 
   userObj.roles = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (userObj.roles == NULL) {
@@ -2704,10 +2781,6 @@ _OVER:
 
 
 static int32_t mndCheckPasswordFmt(const char *pwd) {
-  if (strcmp(pwd, "taosdata") == 0) {
-    return 0;
-  }
-
   if (tsEnableStrongPassword == 0) {
     for (char c = *pwd; c != 0; c = *(++pwd)) {
       if (c == ' ' || c == '\'' || c == '\"' || c == '`' || c == '\\') {
@@ -3640,6 +3713,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     newUser.createdb = pAlterReq->createdb;
   }
 
+#ifdef TD_ENTERPRISE
   if (pAlterReq->hasChangepass) {
     auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "changepass:%d,", pAlterReq->changepass);
     newUser.changePass = pAlterReq->changepass;
@@ -3887,6 +3961,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     newUser.pTimeWhiteList = p;
     newUser.timeWhiteListVer++;
   }
+#endif // TD_ENTERPRISE
 
   TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq), &lino, _OVER);
   code = TSDB_CODE_ACTION_IN_PROGRESS;

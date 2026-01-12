@@ -464,16 +464,16 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  { .showType = QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT,
-    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
-    .pTableName = TSDB_INS_TABLE_ENCRYPT_STATUS,
-    .numOfShowCols = 1,
-    .pShowCols = {"*"}
-  },
   {
     .showType = QUERY_NODE_SHOW_TOKENS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_TOKENS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { .showType = QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_ENCRYPT_STATUS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
@@ -511,7 +511,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pTableName = TSDB_INS_TABLE_XNODE_TASKS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  }, 
+  },
   {
     .showType = QUERY_NODE_SHOW_XNODE_AGENTS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -1934,13 +1934,13 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
       }
     }
-    
+
     if (!foundTable) {
       if (pCxt->isExprSubQ) {
         currLevel--;
         continue;
       }
-      
+
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_TABLE_NOT_EXIST, (*pCol)->tableAlias);
     }
 
@@ -1950,7 +1950,7 @@ static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode**
   if (pCxt->isExprSubQ && currLevel != pCxt->currLevel) {
     pCxt->isCorrelatedSubQ = true;
   }
-  
+
   return DEAL_RES_CONTINUE;
 }
 
@@ -2012,9 +2012,9 @@ static EDealRes translateColumnUseAlias(STranslateContext* pCxt, SColumnNode** p
   }
   if (*pFound) {
     if (nodeType(pFoundNode) == QUERY_NODE_FUNCTION && fmIsPlaceHolderFunc(((SFunctionNode*)pFoundNode)->funcId)) {
-      if (pCxt->currClause != SQL_CLAUSE_WHERE && pCxt->currClause != SQL_CLAUSE_SELECT) {
+      if (pCxt->currClause != SQL_CLAUSE_WHERE && pCxt->currClause != SQL_CLAUSE_SELECT && pCxt->currClause != SQL_CLAUSE_ORDER_BY) {
         pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-                                                "stream placeholder should only appear in select and where clause");
+                                                "stream placeholder should only appear in select, where and order by clause");
         return DEAL_RES_ERROR;
       }
     }
@@ -3249,9 +3249,9 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
                                          "stream placeholder should only appear in create stream's query part"));
   }
 
-  if (pCxt->currClause != SQL_CLAUSE_SELECT && pCxt->currClause != SQL_CLAUSE_WHERE) {
+  if (pCxt->currClause != SQL_CLAUSE_SELECT && pCxt->currClause != SQL_CLAUSE_WHERE && pCxt->currClause != SQL_CLAUSE_ORDER_BY) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-                                         "stream placeholder should only appear in select and where clause"));
+                                         "stream placeholder should only appear in select, where and order by clause"));
   }
 
   switch (pFuncNode->funcType) {
@@ -3974,7 +3974,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
 
 static int32_t rewriteExpSubQuery(STranslateContext* pCxt, SNode** pNode, SNode* pSubQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   switch (pCxt->expSubQueryType) {
     case E_SUB_QUERY_SCALAR: {
       code = validateScalarSubQuery(pSubQuery);
@@ -11172,6 +11172,10 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateXnodeReq, pReq);
       break;
     }
+    case TDMT_MND_UPDATE_XNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMUpdateXnodeReq, pReq);
+      break;
+    }
     case TDMT_MND_DROP_XNODE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropXnodeReq, pReq);
       break;
@@ -11180,12 +11184,56 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDrainXnodeReq, pReq);
       break;
     }
-    case TDMT_MND_UPDATE_XNODE: {
-      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMUpdateXnodeReq, pReq);
+    case TDMT_MND_CREATE_XNODE_TASK: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateXnodeTaskReq, pReq);
+      break;
+    }
+    case TDMT_MND_START_XNODE_TASK: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMStartXnodeTaskReq, pReq);
+      break;
+    }
+    case TDMT_MND_STOP_XNODE_TASK: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMStopXnodeTaskReq, pReq);
+      break;
+    }
+    case TDMT_MND_UPDATE_XNODE_TASK: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMUpdateXnodeTaskReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_XNODE_TASK: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropXnodeTaskReq, pReq);
+      break;
+    }
+    case TDMT_MND_CREATE_XNODE_JOB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateXnodeJobReq, pReq);
+      break;
+    }
+    case TDMT_MND_UPDATE_XNODE_JOB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMUpdateXnodeJobReq, pReq);
+      break;
+    }
+    case TDMT_MND_REBALANCE_XNODE_JOB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMRebalanceXnodeJobReq, pReq);
       break;
     }
     case TDMT_MND_REBALANCE_XNODE_JOBS_WHERE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMRebalanceXnodeJobsWhereReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_XNODE_JOB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropXnodeJobReq, pReq);
+      break;
+    }
+    case TDMT_MND_CREATE_XNODE_AGENT: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateXnodeAgentReq, pReq);
+      break;
+    }
+    case TDMT_MND_UPDATE_XNODE_AGENT: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMUpdateXnodeAgentReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_XNODE_AGENT: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropXnodeAgentReq, pReq);
       break;
     }
     case TDMT_MND_CREATE_MNODE: {
@@ -11196,7 +11244,6 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropMnodeReq, pReq);
       break;
     }
-
     case TDMT_MND_CREATE_DNODE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateDnodeReq, pReq);
       break;
@@ -13477,20 +13524,21 @@ static int32_t covertXNodeTaskOptions(SXnodeTaskOptions* pOptions, xTaskOptions*
 
   pOpts->via = pOptions->via;
   if (pOptions->triggerLen > 0) {
-    pOpts->trigger = xCreateCowStr(strlen(pOptions->trigger) + 1, pOptions->trigger, true);
+    pOpts->trigger = xCreateCowStr(strlen(pOptions->trigger), pOptions->trigger, true);
   }
+
   if (pOptions->healthLen > 0) {
-    pOpts->health = xCreateCowStr(strlen(pOptions->health) + 1, pOptions->health, true);
+    pOpts->health = xCreateCowStr(strlen(pOptions->health), pOptions->health, true);
   }
   if (pOptions->parserLen > 0) {
-    pOpts->parser = xCreateCowStr(strlen(pOptions->parser) + 1, pOptions->parser, true);
+    pOpts->parser = xCreateCowStr(strlen(pOptions->parser), pOptions->parser, true);
   }
 
   pOpts->optionsNum = pOptions->optionsNum;
   for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
     const char* option = pOptions->options[i];
     if (option != NULL) {
-      xSetCowStr(pOpts->options + i, strlen(option) + 1, option, true);
+      xSetCowStr(pOpts->options + i, strlen(option), option, true);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -13499,7 +13547,7 @@ static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTas
   int32_t              code = 0;
   SMCreateXnodeTaskReq createReq = {0};
 
-  createReq.name = xCreateCowStr(strlen(pStmt->name) + 1, pStmt->name, false);
+  createReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
   createReq.source = xCloneTaskSourceRef(&pStmt->source->source);
   createReq.sink = xCloneTaskSinkRef(&pStmt->sink->sink);
 
@@ -13548,11 +13596,10 @@ static int32_t translateStopXnodeTask(STranslateContext* pCxt, SStopXnodeTaskStm
 
 static int32_t translateDropXnodeTask(STranslateContext* pCxt, SDropXnodeTaskStmt* pStmt) {
   SMDropXnodeTaskReq dropReq = {0};
-  dropReq.tid = pStmt->tid;
+  dropReq.id = pStmt->id;
   dropReq.force = pStmt->force;
   if (pStmt->name != NULL) {
-    dropReq.nameLen = strlen(pStmt->name) + 1;
-    dropReq.name = pStmt->name;
+    dropReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
   }
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE_TASK, (FSerializeFunc)tSerializeSMDropXnodeTaskReq, &dropReq);
@@ -13578,7 +13625,7 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
     updateReq.via = pStmt->options->via;
     const char* name = getXnodeTaskOptionByName(pStmt->options, "name");
     if (name != NULL) {
-      updateReq.updateName = xCreateCowStr(strlen(name) + 1, name, false);
+      updateReq.updateName = xCreateCowStr(strlen(name), name, false);
     }
     const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
     if (xnodeId != NULL) {
@@ -13590,15 +13637,14 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
                                        "Invalid option: status too long");
       }
-      updateReq.status = xCreateCowStr(strlen(status) + 1, status, false);
+      updateReq.status = xCreateCowStr(strlen(status), status, false);
     }
-    const char* parser = getXnodeTaskOptionByName(pStmt->options, "parser");
-    if (parser != NULL) {
-      updateReq.parser = xCreateCowStr(strlen(parser) + 1, parser, false);
+    if (pStmt->options->parserLen > 0) {
+      updateReq.parser = xCreateCowStr(pStmt->options->parserLen, pStmt->options->parser, false);
     }
     const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
     if (reason != NULL) {
-      updateReq.reason = xCreateCowStr(strlen(reason) + 1, reason, false);
+      updateReq.reason = xCreateCowStr(strlen(reason), reason, false);
     }
   }
 
@@ -13626,30 +13672,17 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
     if (strlen(status) > TSDB_XNODE_STATUS_LEN) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Invalid option: status too long");
     }
-    createReq.status = xCreateCowStr(strlen(status) + 1, status, false);
+    createReq.status = xCreateCowStr(strlen(status), status, false);
   }
 
-  createReq.configLen = strlen(config) + 1;
-  if (createReq.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
+  createReq.config = xCreateCowStr(strlen(config), config, false);
+  if (createReq.config.len > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
     return TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
   }
-  createReq.config = taosMemoryCalloc(createReq.configLen, 1);
-  if (createReq.config == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  tstrncpy(createReq.config, config, createReq.configLen);
 
   const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
   if (reason != NULL) {
-    createReq.reasonLen = strlen(reason) + 1;
-    if (createReq.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
-      return TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
-    }
-    createReq.reason = taosMemoryCalloc(createReq.reasonLen, 1);
-    if (createReq.reason == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    tstrncpy(createReq.reason, reason, createReq.reasonLen);
+    createReq.reason = xCreateCowStr(strlen(status), status, false);
   }
 
   int32_t code =
@@ -13674,33 +13707,33 @@ static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStm
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
                                      "Invalid option: status too long");
     }
-    updateReq.status = xCreateCowStr(strlen(status) + 1, status, false);
+    updateReq.status = xCreateCowStr(strlen(status), status, false);
   }
 
   const char* config = getXnodeTaskOptionByName(pStmt->options, "config");
   if (NULL != config) {
-    updateReq.configLen = strlen(config) + 1;
+    updateReq.configLen = strlen(config);
     if (updateReq.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
       return TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
     }
-    updateReq.config = taosMemoryCalloc(updateReq.configLen, 1);
+    updateReq.config = taosMemoryCalloc(1, updateReq.configLen + 1);
     if (updateReq.config == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    tstrncpy(updateReq.config, config, updateReq.configLen);
+    (void)memcpy(updateReq.config, config, updateReq.configLen);
   }
 
   const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
   if (reason != NULL) {
-    updateReq.reasonLen = strlen(reason) + 1;
+    updateReq.reasonLen = strlen(reason);
     if (updateReq.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
       return TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
     }
-    updateReq.reason = taosMemoryCalloc(updateReq.reasonLen, 1);
+    updateReq.reason = taosMemoryCalloc(1, updateReq.reasonLen + 1);
     if (updateReq.reason == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    tstrncpy(updateReq.reason, reason, updateReq.reasonLen);
+    (void)memcpy(updateReq.reason, reason, updateReq.reasonLen);
   }
 
   int32_t code =
@@ -13765,7 +13798,7 @@ static int32_t translateRebalanceXnodeJobWhere(STranslateContext* pCxt, SRebalan
     }
 
     if (pAst != NULL) {
-      rebalanceReq.ast = xCreateCowStr(strlen(pAst) + 1, pAst, false);
+      rebalanceReq.ast = xCreateCowStr(strlen(pAst), pAst, false);
     }
   }
   code = buildCmdMsg(pCxt, TDMT_MND_REBALANCE_XNODE_JOBS_WHERE, (FSerializeFunc)tSerializeSMRebalanceXnodeJobsWhereReq,
@@ -13786,6 +13819,69 @@ static int32_t translateDropXnodeJob(STranslateContext* pCxt, SDropXnodeJobStmt*
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE_JOB, (FSerializeFunc)tSerializeSMDropXnodeJobReq, &dropReq);
   tFreeSMDropXnodeJobReq(&dropReq);
+  return code;
+}
+
+static int32_t translateCreateXnodeAgent(STranslateContext* pCxt, SCreateXnodeAgentStmt* pStmt) {
+  int32_t               code = 0;
+  SMCreateXnodeAgentReq createReq = {0};
+
+  createReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
+
+  const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
+  if (status != NULL && strlen(status) > TSDB_XNODE_AGENT_STATUS_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                   "Invalid option: status too long");
+  }
+  if (pStmt->options != NULL) {
+    code = covertXNodeTaskOptions(pStmt->options, &createReq.options);
+    if (code != 0) {
+      goto _OVER;
+    }
+  }
+  code = buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE_AGENT, (FSerializeFunc)tSerializeSMCreateXnodeAgentReq, &createReq);
+
+_OVER:
+  tFreeSMCreateXnodeAgentReq(&createReq);
+  return code;
+}
+
+static int32_t translateAlterXnodeAgent(STranslateContext* pCxt, SAlterXnodeAgentStmt* pStmt) {
+  int32_t               code = 0;
+  SMUpdateXnodeAgentReq updateReq = {0};
+
+  const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
+  if (status != NULL && strlen(status) > TSDB_XNODE_AGENT_STATUS_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                   "Invalid option: status too long");
+  }
+
+  updateReq.id = pStmt->id;
+  updateReq.name = xCloneRefCowStr(&pStmt->name);
+
+  if (pStmt->options != NULL) {
+    code = covertXNodeTaskOptions(pStmt->options, &updateReq.options);
+    if (code != 0) {
+      goto _OVER;
+    }
+  }
+  code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE_AGENT, (FSerializeFunc)tSerializeSMUpdateXnodeAgentReq, &updateReq);
+
+_OVER:
+  tFreeSMUpdateXnodeAgentReq(&updateReq);
+  return code;
+}
+
+static int32_t translateDropXnodeAgent(STranslateContext* pCxt, SDropXnodeAgentStmt* pStmt) {
+  SMDropXnodeAgentReq dropReq = {0};
+  dropReq.id = pStmt->id;
+  dropReq.force = pStmt->force;
+  if (pStmt->name != NULL) {
+    dropReq.name = xCreateCowStr(strlen(pStmt->name), pStmt->name, false);
+  }
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE_AGENT, (FSerializeFunc)tSerializeSMDropXnodeAgentReq, &dropReq);
+  tFreeSMDropXnodeAgentReq(&dropReq);
   return code;
 }
 
@@ -16704,6 +16800,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .mgmtEpSet = pCxt->pParseCxt->mgmtEpSet,
                           .pAstRoot = pStmt->pQuery,
                           .streamCalcQuery = true,
+                          .streamForceOutput = taosArrayGetSize(pReq->forceOutCols) > 0,
                           .streamTriggerWinType = nodeType(pTriggerWindow),
                           .streamCalcScanPlanArray = pScanPlanArray,
                           .streamTriggerScanList = NULL};
@@ -18050,7 +18147,7 @@ _return:
   return code;
 }
 
-static int32_t buildCreateTSMAReqBuildStreamQueryCondition(STranslateContext* pCxt, SCreateTSMAStmt* pStmt, 
+static int32_t buildCreateTSMAReqBuildStreamQueryCondition(STranslateContext* pCxt, SCreateTSMAStmt* pStmt,
                                                            int32_t numOfTags, SNode** pCondition) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pCond = NULL;
@@ -19430,6 +19527,16 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_DROP_XNODE_JOB_STMT:
       code = translateDropXnodeJob(pCxt, (SDropXnodeJobStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_XNODE_AGENT_STMT:
+      code = translateCreateXnodeAgent(pCxt, (SCreateXnodeAgentStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_XNODE_AGENT_STMT:
+      code = translateAlterXnodeAgent(pCxt, (SAlterXnodeAgentStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_XNODE_AGENT_STMT:
+      code = translateDropXnodeAgent(pCxt, (SDropXnodeAgentStmt*)pNode);
+      break;
     default:
       break;
   }
@@ -19476,7 +19583,7 @@ void updateContextFromSubQ(STranslateContext* pCxt, SNode* pNode, STranslateCont
       pCxt->hasLocalSubQ = true;
     }
   }
-  
+
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
@@ -19500,7 +19607,7 @@ void updateContextFromSubQ(STranslateContext* pCxt, SNode* pNode, STranslateCont
 
 static int32_t mergeTranslateContextMetas(STranslateContext* pCxt, STranslateContext* pSrc) {
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   if (NULL != pSrc->pDbs) {
     SFullDatabaseName* pDb = taosHashIterate(pSrc->pDbs, NULL);
     while (NULL != pDb) {
@@ -19554,7 +19661,7 @@ static int32_t mergeTranslateContextMetas(STranslateContext* pCxt, STranslateCon
 
 static int32_t translateTableSubquery(STranslateContext* pCxt, SNode* pNode) {
   int32_t    code = TSDB_CODE_SUCCESS;
-  
+
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
   int32_t    currLevel = pCxt->currLevel;
@@ -19571,7 +19678,7 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
   int32_t    code = TSDB_CODE_SUCCESS;
   STranslateContext cxt = {0};
   cxt.isExprSubQ = true;
-  
+
   code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, true, &cxt);
   if (TSDB_CODE_SUCCESS == code) {
     cxt.pSubQueries = pCxt->pSubQueries;
@@ -19587,7 +19694,7 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
   if (TSDB_CODE_SUCCESS == code) {
     code = tmpCode;
   }
-  
+
   cxt.pSubQueries = NULL;
   destroyTranslateContext(&cxt);
 
@@ -19602,7 +19709,7 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
     parserError("Only query with FROM supported now");
     code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
   }
-    
+
   return code;
 }
 
@@ -24335,7 +24442,7 @@ static void transferSubQueries(STranslateContext* pCxt, SNode* pNode) {
   if (NULL == pNode) {
     return;
   }
-  
+
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;

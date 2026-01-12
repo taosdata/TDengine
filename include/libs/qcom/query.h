@@ -438,6 +438,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
 int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst);
 void    freeVgInfo(SDBVgInfo* vgInfo);
 void    freeDbCfgInfo(SDbCfgInfo* pInfo);
+void    qDestroyBoundColInfo(void* pInfo);
 
 void tFreeStreamVtbOtbInfo(void* param);
 void tFreeStreamVtbVtbInfo(void* param);

@@ -736,6 +736,9 @@ Below are the business error codes for each module.
 | 0x80008017 | Xnode where clause column not exist                   | Xnode where clause column not exist                         | Check the where condition                    |
 | 0x80008018 | Xnode where clause column type diff                   | Xnode where clause column type is not expected              | Check the where condition                    |
 | 0x80008019 | Xnode where clause operator not support               | Xnode where clause does not support NOT                     | Check the where condition                    |
+| 0x80008020 | Xnode agent not exist                                 | The queried Xnode agent does not exist                      | Check queried agent ID or name               |
+| 0x80008021 | Xnode agent already exist                             | The queried Xnode agent already exist                       | Check queried agent ID or name               |
+| 0x80008022 | Xnode name duplicate                                  | The updated name is duplicate                               | Check whether the name to be updated is a duplicate of the existing data |
 
 ## Connectors
 

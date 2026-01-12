@@ -3060,7 +3060,23 @@ class TDSql:
         if where:
             sql += f" WHERE {where}"
         self.execute(sql, show=True) 
+        
+    def fieldIndex(self, fieldName):
+        """
+        Retrieves the index of the specified field name in the last query result.
 
+        Args:
+            fieldName (str): The name of the field whose index is to be retrieved.
+        Returns:
+            int: The index of the specified field name.
+        Raises:
+            SystemExit: If the field name does not exist in the last query result.
+        """
+        for idx, col in enumerate(self.cursor.description):
+            if col[0].lower() == fieldName.lower():
+                return idx
+        filename, lineno = _fast_caller(1)
+        tdLog.exit(f"{filename}({lineno}) failed: field name {fieldName} not exist")   
 
 # global
 tdSql = TDSql()

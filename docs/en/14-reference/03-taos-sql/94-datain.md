@@ -324,3 +324,101 @@ Query OK, 0 row(s) affected (0.007237s)
 taos> REBALANCE XNODE JOBS;
 Query OK, 0 row(s) affected (0.023245s)
 ```
+
+## Agent Management
+
+The Agent node serves as the data collection and forwarding unit in the data synchronization service, responsible for collecting data and forwarding it to Xnode nodes.
+
+### Create Agent
+
+#### Syntax
+
+```sql
+CREATE XNODE AGENT 'name' [WITH agent_options]
+
+agent_options:
+  [STATUS 'status']
+```
+
+#### Parameters
+
+- **name**: Name of the Agent node
+- **status**: Specifies the initial status using the `WITH`clause
+
+#### Example
+
+```sql
+taos> create xnode agent 'a1';
+Create OK, 0 row(s) affected (0.013910s)
+
+taos> create xnode agent 'a2' with status 'running';
+Create OK, 0 row(s) affected (0.013414s)
+```
+
+### Query Agent
+
+#### Syntax
+
+```sql
+SHOW XNODE AGENTS
+```
+
+#### Example
+
+```sql
+taos> show xnode agents\G;
+*************************** 1.row ***************************
+         id: 1
+       name: a1
+      token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjgxODI3MDEzNjQsInN1YiI6MX0.FP5rfzQplBrJrbV7Dj_R8fCpiN5uLaADegcnqExwepg
+     status: NULL
+create_time: 2026-01-12 09:51:41.364
+update_time: 2026-01-12 09:51:41.364
+```
+
+### Update Agent
+
+#### Syntax
+
+```sql
+ALTER XNODE AGENT agent_id WITH alter_options
+
+alter_options {
+  STATUS 'status'
+  | NAME 'name'
+}
+```
+
+#### Parameters
+
+- **name**: New name for the Agent node
+- **status**: New status using the `WITH`clause
+
+#### Example
+
+```sql
+taos> alter xnode agent 1 with name 'test1';
+Query OK, 0 row(s) affected (0.008387s)
+
+taos> alter xnode agent 'a2' with name 'test2' status 'online';
+Query OK, 0 row(s) affected (0.008685s)
+```
+
+### Delete Agent
+
+#### Syntax
+
+```sql
+DROP XNODE AGENT agent_id
+```
+
+#### Parameters
+
+- **agent_id**: ID of the Agent node
+
+#### Example
+
+```sql
+taos> drop xnode agent 1;
+Drop OK, 0 row(s) affected (0.012281s)
+```

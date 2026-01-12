@@ -27,16 +27,6 @@
 #include "tmisce.h"
 #include "ttypes.h"
 
-void qDestroyBoundColInfo(void* pInfo) {
-  if (NULL == pInfo) {
-    return;
-  }
-
-  SBoundColInfo* pBoundInfo = (SBoundColInfo*)pInfo;
-
-  taosMemoryFreeClear(pBoundInfo->pColIndex);
-}
-
 static char* tableNameGetPosition(SToken* pToken, char target) {
   bool inEscape = false;
   bool inQuote = false;
@@ -270,8 +260,6 @@ void insCheckTableDataOrder(STableDataCxt* pTableCxt, SRowKey* rowKey) {
   return;
 }
 
-void insDestroyBoundColInfo(SBoundColInfo* pInfo) { taosMemoryFreeClear(pInfo->pColIndex); }
-
 static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreateTbReq, STableDataCxt** pOutput,
                                   bool colMode, bool ignoreColVals) {
   STableDataCxt* pTableCxt = taosMemoryCalloc(1, sizeof(STableDataCxt));
@@ -428,8 +416,11 @@ int32_t insGetTableDataCxt(SHashObj* pHash, void* id, int32_t idLen, STableMeta*
   return code;
 }
 
-static void destroyColVal(void* p) {
-  SColVal* pVal = p;
+void destroyColVal(void* p) {
+  if (!p) return;
+
+  SColVal* pVal = (SColVal*)p;
+
   if (TSDB_DATA_TYPE_NCHAR == pVal->value.type || TSDB_DATA_TYPE_GEOMETRY == pVal->value.type ||
       TSDB_DATA_TYPE_VARBINARY == pVal->value.type || TSDB_DATA_TYPE_DECIMAL == pVal->value.type) {
     taosMemoryFreeClear(pVal->value.pData);
@@ -443,7 +434,7 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
 
   taosMemoryFreeClear(pTableCxt->pMeta);
   tDestroyTSchema(pTableCxt->pSchema);
-  insDestroyBoundColInfo(&pTableCxt->boundColsInfo);
+  qDestroyBoundColInfo(&pTableCxt->boundColsInfo);
   taosArrayDestroyEx(pTableCxt->pValues, destroyColVal);
   if (pTableCxt->pData) {
     tDestroySubmitTbData(pTableCxt->pData, TSDB_MSG_FLG_ENCODE);
@@ -721,6 +712,7 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
 
     parserDebug("merge same uid data: %" PRId64 ", vgId:%d", pTbCtx->pData->uid, pVgCxt->vgId);
 
+    taosArrayDestroy(pTbCtx->pData->aRowP);
     if (pTbCtx->pData->pCreateTbReq != NULL) {
       tdDestroySVCreateTbReq(pTbCtx->pData->pCreateTbReq);
       taosMemoryFree(pTbCtx->pData->pCreateTbReq);

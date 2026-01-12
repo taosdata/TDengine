@@ -58,7 +58,6 @@ void    insDestroyVgroupDataCxt(SVgroupDataCxt *pVgCxt);
 void    insDestroyVgroupDataCxtList(SArray *pVgCxtList);
 void    insDestroyVgroupDataCxtHashMap(SHashObj *pVgCxtHash);
 void    insDestroyTableDataCxt(STableDataCxt *pTableCxt);
-void    insDestroyBoundColInfo(SBoundColInfo *pInfo);
 
 static FORCE_INLINE int16_t insFindCol(struct SToken *pColname, int16_t start, int16_t end, SSchema *pSchema) {
   while (start < end) {
