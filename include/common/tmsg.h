@@ -666,8 +666,8 @@ typedef enum ENodeType {
   QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT,  // XNode job
   QUERY_NODE_DROP_XNODE_JOB_STMT,             // XNode job
   QUERY_NODE_CREATE_XNODE_AGENT_STMT,         // XNode agent
-  QUERY_NODE_ALTER_XNODE_AGENT_STMT,          // XNode agent
   QUERY_NODE_DROP_XNODE_AGENT_STMT,           // XNode agent
+  QUERY_NODE_ALTER_XNODE_AGENT_STMT,          // XNode agent
 } ENodeType;
 
 typedef struct {
