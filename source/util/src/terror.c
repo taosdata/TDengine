@@ -1117,6 +1117,33 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_TBNAME_CALC_FAILED,  "Stream output table
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY,    "Stream vtable calculate need redeploy")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INVALID_JSON,        "Stream mnd invalid json message")
 
+// Xnode
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,            "Xnode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_ALREADY_DEPLOYED,             "Xnode already deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NOT_EXIST,                "Xnode not there")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TOO_LONG_URL,             "Xnode too long url")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_INVALID_PROTOCOL,         "Xnode invalid protocol")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_INVALID_MSG,              "Xnode invalid message content")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_FOUND,                    "Xnode nod found")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_UV_EXEC_FAILURE,              "Xnode xnoded exec failure")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_CANT_ACCESS,          "Xnode xnoded url can't access")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RESP_IS_NULL,         "Xnode xnoded response is null")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR,          "Xnode request action response not success code")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NEED_USER_PASS,           "Xnode first-time setup requires username and password")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_USER_PASS_NOT_EXIST,      "Xnode username or password error when setup")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_ALREADY_EXIST,       "Xnode task already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_NOT_EXIST,           "Xnode task not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_NAME_TOO_LONG,       "Xnode task name too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,         "Xnode task job syntax error")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG, "Xnode task job config too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_JOB_NOT_EXIST,            "Xnode job not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG,     "Xnode task/job reason too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT,         "Xnode xnoded response timeout")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_COL_NOT_EXIST,      "Xnode where clause column not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_COL_TYPE_DIFF,      "Xnode where clause column type diff")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_OP_NOT_SUPPORT,     "Xnode where clause operator not support")
+
+
 #ifdef TAOS_ERROR_C
 };
 #endif

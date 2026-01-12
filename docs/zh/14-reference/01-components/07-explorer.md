@@ -33,13 +33,13 @@ addr = "0.0.0.0"
 # ipv6 = "::1"
 
 # explorer server instance id
-# 
+#
 # The instanceId of each instance is unique on the host
 # instanceId = 1
 
 # Explorer server log level.
 # Default is "info"
-# 
+#
 # Deprecated: use log.level instead
 log_level = "info"
 
@@ -49,7 +49,7 @@ log_level = "info"
 
 # REST API endpoint to connect to the cluster.
 # This configuration is also the target for data migration tasks.
-# 
+#
 # Default is "http://localhost:6041" - the default endpoint for REST API.
 #
 cluster = "http://localhost:6041"
@@ -57,6 +57,7 @@ cluster = "http://localhost:6041"
 # native endpoint to connect to the cluster.
 # Default is disabled. To enable it, set it to the native API URL like "taos://localhost:6030" and uncomment it.
 # If you enable it, you will get more performance for data migration tasks.
+# If modify this config item, you must relogin to clear the cache in browser local storage.
 #
 # cluster_native = "taos://localhost:6030"
 
@@ -65,15 +66,15 @@ cluster = "http://localhost:6041"
 #
 x_api = "http://localhost:6050"
 
-# GRPC endpoint for "Agent"s.
-#   Default is "http://localhost:6055" - the default endpoint for taosX grpc API.
-#   You should set it to public IP or FQDN name like:
-#   "http://192.168.111.111:6055" or "http://node1.company.domain:6055" and
-#   ensure to add the port to the exception list of the firewall if it enabled.
+# Please set it to same as the "grpc" parameter used by taosX Service;
+# If "grpc" parameter is not set explicitly in taosX service, please set it to the default grpc address of taosX
 grpc = "http://localhost:6055"
 
 # CORS configuration switch, it allows cross-origin access
 cors = true
+
+# cloud open api.
+# cloud_open_api = "https://cloud.taosdata.com/openapi"
 
 # Enable ssl
 # If the following two files exist, enable ssl protocol
@@ -93,7 +94,7 @@ cors = true
 # log configuration
 [log]
 # All log files are stored in this directory
-# 
+#
 # path = "/var/log/taos" # on linux/macOS
 # path = "C:\\TDengine\\log" # on windows
 
@@ -102,26 +103,37 @@ cors = true
 # level = "info"
 
 # Compress archived log files or not
-# 
+#
 # compress = false
 
 # The number of log files retained by the current explorer server instance in the `path` directory
-# 
+#
 # rotationCount = 30
 
 # Rotate when the log file reaches this size
-# 
+#
 # rotationSize = "1GB"
 
 # Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
-# 
+#
 # reservedDiskSize = "1GB"
 
 # The number of days log files are retained
 #
 # keepDays = 30
-# Configuration for monitoring with taosKeeper service
 
+# integrated with Grafana
+[grafana]
+# The token of the Grafana server, which is used to access the Grafana server.
+#token = ""
+
+# The URL of the Grafana dashboard, which is used to display the monitoring data of the TDengine cluster.
+# You can configure multiple Grafana dashboards.
+[grafana.dashboards]
+#TDengine3 = "http://localhost:3000/d/000000001/tdengine3"
+#taosX = "http://localhost:3000/d/000000002/taosx"
+
+# Configuration for monitoring with taosKeeper service
 [monitor]
 # FQDN of taosKeeper service
 #fqdn = "localhost"
@@ -129,6 +141,57 @@ cors = true
 #port = 6043
 # Monitor interval in seconds, minimum is 1, maximum is 10
 #interval = 10
+
+# Security configurations
+#
+#[security]
+# Encryption key for sensitive data, must be 32 bytes in base64 format
+#
+#encryption_key = "your-base64-encoded-32-bytes-key"
+
+# OAuth 2.0 SSO configuration
+#
+#[oauth]
+# Enable OAuth 2.0 SSO
+#enabled = true
+# OAuth 2.0 provider type
+#provider = "oidc" # choices: oidc/plain
+
+# OAuth 2.0 provider display name
+#
+#[oauth.provider_display_name]
+#zh = "统一认证平台"
+#en = "OAuth 2.0"
+
+# OIDC Standard Provider Example
+#
+#[oauth.oidc]
+#client_id = "your-client-id"
+#client_secret = "your-client-secret"
+#issuer_url = "http://localhost:8080/realms/taosdata"
+#scopes = ["openid", "profile", "email"]
+
+# Redirect URI - adjust based on your test environment
+#redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+
+# Example Plain OAuth 2.0 SSO with GitHub
+#
+#[oauth.plain]
+#client_id = "github client id"
+#client_secret = "github client secret"
+
+#authorize_url = "https://github.com/login/oauth/authorize"
+#token_url = "https://github.com/login/oauth/access_token"
+#profile_url = "https://api.github.com/user"
+
+# Redirect URI - adjust based on your test environment
+#redirect_uri = "http://localhost:6060/api/-/oauth/callback"
+
+# User attribute mapping
+#
+#[oauth.user_mapping]
+#username = "username"
+#email = "email"
 ```
 
 说明：
@@ -143,6 +206,18 @@ cors = true
 - `x_api`：taosX 的 gRPC 地址。
 - `grpc`：taosX 代理向 taosX 建立连接的 gRPC 地址。
 - `cors`：CORS 配置开关，默认为 `false`。当为 `true` 时，允许跨域访问。
+- `security.encryption_key`：用于加密存储在本地的数据的加密密钥，必须是经过 Base64 编码的 32 字节字符串。key 的生成可以使用如下命令：
+
+  ```bash
+  openssl rand -base64 32
+  ```
+
+- `oauth.enabled`：是否启用 OAuth 2.0 单点登录功能，默认为 `false`。
+- `oauth.provider`：OAuth 2.0 提供商类型，可选值为 `oidc` 和 `plain`。
+- `oauth.provider_display_name`：OAuth 2.0 提供商显示名称，支持多语言。
+- `oauth.oidc`：OpenID Connect (OIDC) 提供商的相关配置参数。
+- `oauth.plain`：普通 OAuth 2.0 提供商的相关配置参数。
+- `oauth.user_mapping`：OAuth 2.0 用户属性映射配置。
 - `ssl.certificate`：SSL 证书（如果同时设置了 certificate 与 certificate_key 两个参数，则启用 HTTPS 服务，否则不启用）。
 - `ssl.certificate_key`：SSL 证书密钥。
 - `log.path`：日志文件存放的目录。
@@ -155,6 +230,72 @@ cors = true
 - `monitor.fqdn`：上报指标的 taosKeeper 服务地址。
 - `monitor.port`：上报指标的 taosKeeper 服务端口，类型为整数。默认为：`6043`。
 - `monitor.interval`：上报指标的时间间隔，类型为整数，单位为秒（s）。默认为：`10`。
+
+### OAuth 2.0 单点登录配置说明
+
+taosExplorer 支持通过 OAuth 2.0 协议与第三方身份认证系统集成，实现单点登录（SSO）功能。支持的 OAuth 2.0 提供商类型包括 OpenID Connect (OIDC) 和普通 OAuth 2.0。
+
+**OAuth 2.0 从 3.3.8.11 版本开始支持**。
+
+- 对于 OIDC 提供商，需要配置 `client_id`、`client_secret`、`issuer_url`、`scopes` 和 `redirect_uri` 等参数。
+
+  - `client_id`：在 OIDC 提供商端注册的客户端 ID。
+  - `client_secret`：在 OIDC 提供商端注册的客户端密钥。
+  - `issuer_url`：OIDC 提供商的发行者 URL，taosExplorer 会通过该 URL 获取 OIDC 配置和公钥。
+  - `scopes`：请求的权限范围，通常包括 `openid`、`profile` 和 `email` 等。
+  - `redirect_uri`：OAuth 2.0 授权码回调地址，必须与在提供商端注册的回调地址一致。
+
+- 对于普通 OAuth 2.0 提供商，需要配置 `client_id`、`client_secret`、`authorize_url`、`token_url`、`profile_url` 和 `redirect_uri` 等参数。
+
+  - `client_id`：在 OAuth 2.0 提供商端注册的客户端 ID。
+  - `client_secret`：在 OAuth 2.0 提供商端注册的客户端密钥。
+  - `authorize_url`：OAuth 2.0 授权端点 URL。
+  - `token_url`：OAuth 2.0 令牌端点 URL。
+  - `profile_url`：用于获取用户信息的 API URL。
+  - `redirect_uri`：OAuth 2.0 授权码回调地址，通常要求必须与在提供商端注册的回调地址一致。
+
+### OAuth 2.0 单点登录配置示例
+
+#### OIDC 提供商示例
+
+以下是使用 Keycloak 作为 OIDC 提供商的配置示例：
+
+```toml
+[oauth]
+enabled = true
+provider = "oidc"
+[oauth.oidc]
+client_id = "taos-explorer-client"
+client_secret = "your-client-secret"
+issuer_url = "http://keycloak.example.com/realms/taosdata"
+scopes = ["openid", "profile", "email"]
+redirect_uri = "http://explorer.example.com:6060/api/-/oauth/callback"
+# User attribute mapping
+[oauth.user_mapping]
+username = "preferred_username"
+email = "email"
+```
+
+#### 普通 OAuth 2.0 提供商示例
+
+以下是使用 GitHub 作为普通 OAuth 2.0 提供商的配置示例：
+
+```toml
+[oauth]
+enabled = true
+provider = "plain"
+[oauth.plain]
+client_id = "your-github-client-id"
+client_secret = "your-github-client-secret"
+authorize_url = "https://github.com/login/oauth/authorize"
+token_url = "https://github.com/login/oauth/access_token"
+profile_url = "https://api.github.com/user"
+redirect_uri = "http://explorer.example.com:6060/api/-/oauth/callback"
+# User attribute mapping
+[oauth.user_mapping]
+username = "login"
+email = "email"
+```
 
 ## 启动停止
 
@@ -229,6 +370,8 @@ sc.exe stop taos-explorer # Windows
         }
     }
     ```
+
+4. 如果在使用 OAuth 2.0 单点登录功能时遇到问题，请检查配置文件中的相关参数是否正确，确保 `redirect_uri` 与在提供商端注册的回调地址一致，并检查网络连接是否正常。
 
 ## 注册登录
 

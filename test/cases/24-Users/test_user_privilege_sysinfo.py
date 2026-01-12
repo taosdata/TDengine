@@ -12,8 +12,8 @@ class TestUserPrivilegeSysinfo:
     #
     def do_user_privilege_sysinfo(self):
         tdLog.info(f"=============== create user and login")
-        tdSql.execute(f"create user sysinfo0 pass 'taosdata'")
-        tdSql.execute(f"create user sysinfo1 pass 'taosdata'")
+        tdSql.execute(f"create user sysinfo0 pass 'AAbb1122'")
+        tdSql.execute(f"create user sysinfo1 pass 'AAbb1122'")
         tdSql.execute(f"alter user sysinfo0 sysinfo 0")
         tdSql.execute(f"alter user sysinfo1 sysinfo 1")
         tdSql.execute(f"revoke role `SYSINFO_1` from sysinfo0;")
@@ -36,7 +36,7 @@ class TestUserPrivilegeSysinfo:
         tdSql.execute(f"GRANT show nodes to sysinfo0;")
 
         tdLog.info(f"user sysinfo0 login")
-        tdSql.connect("sysinfo0")
+        tdSql.connect("sysinfo0", "AAbb1122")
 
         tdLog.info(f"=============== check oper")
         tdSql.error(f"create user u1 pass 'u1'")
@@ -308,14 +308,14 @@ class TestUserPrivilegeSysinfo:
                 tdSql.execute("alter user sysinfo0 sysinfo 1")
                 tdSql.execute("grant role `SYSINFO_1` to sysinfo0;")
                 tdSql.execute("revoke role `SYSINFO_0` from sysinfo0;")
-                tdSql.connect("sysinfo0")
+                tdSql.connect("sysinfo0", "AAbb1122")
                 loop_check_sysinfo_1()
             else:
                 loop_flag = 0
                 tdSql.execute("alter user sysinfo0 sysinfo 0")
                 tdSql.execute("grant role `SYSINFO_0` to sysinfo0;")
                 tdSql.execute("revoke role `SYSINFO_1` from sysinfo0;")
-                tdSql.connect("sysinfo0")
+                tdSql.connect("sysinfo0", "AAbb1122")
                 loop_check_sysinfo_0()
 
     #

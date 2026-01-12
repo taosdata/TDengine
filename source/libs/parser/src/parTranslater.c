@@ -380,20 +380,20 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  { 
+  {
     .showType = QUERY_NODE_SHOW_FILESETS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_FILESETS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  }, 
-  { 
+  },
+  {
     .showType = QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_TRANSACTION_DETAILS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  }, 
+  },
   {
     .showType = QUERY_NODE_SHOW_VTABLES_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
@@ -452,8 +452,7 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  {
-    .showType = QUERY_NODE_SHOW_INSTANCES_STMT,
+  { .showType = QUERY_NODE_SHOW_INSTANCES_STMT,
     .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
     .pTableName = TSDB_PERFS_TABLE_INSTANCES,
     .numOfShowCols = 1,
@@ -465,16 +464,16 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
-  { .showType = QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT,
-    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
-    .pTableName = TSDB_INS_TABLE_ENCRYPT_STATUS,
-    .numOfShowCols = 1,
-    .pShowCols = {"*"}
-  },
   {
     .showType = QUERY_NODE_SHOW_TOKENS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_TOKENS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { .showType = QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_ENCRYPT_STATUS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
@@ -498,7 +497,35 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pTableName = TSDB_INS_TABLE_ROLE_COL_PRIVILEGES,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  }
+  },
+  {
+    .showType = QUERY_NODE_SHOW_XNODES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_XNODES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_XNODE_TASKS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_XNODE_TASKS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  }, 
+  {
+    .showType = QUERY_NODE_SHOW_XNODE_AGENTS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_XNODE_AGENTS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_XNODE_JOBS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_XNODE_JOBS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -9987,6 +10014,12 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
   int16_t numOfTargetPKs = 0;
   int16_t numOfBoundPKs = 0;
   FORBOTH(pBoundCol, pInsert->pCols, pProj, pProjects) {
+    if (QUERY_NODE_FUNCTION == nodeType(pBoundCol)) {
+      if(!IS_STR_DATA_TYPE(((SExprNode*)pProj)->resType.type)){
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TBNAME, "tbname must be a string type");
+      }
+      continue;
+    }
     SColumnNode* pCol = (SColumnNode*)pBoundCol;
     SExprNode*   pExpr = (SExprNode*)pProj;
     if (!dataTypeEqual(&pCol->node.resType, &pExpr->resType)) {
@@ -10948,6 +10981,26 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       break;
     }
 
+    case TDMT_MND_CREATE_XNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateXnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_XNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropXnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_DRAIN_XNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDrainXnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_UPDATE_XNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMUpdateXnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_REBALANCE_XNODE_JOBS_WHERE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMRebalanceXnodeJobsWhereReq, pReq);
+      break;
+    }
     case TDMT_MND_CREATE_MNODE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateMnodeReq, pReq);
       break;
@@ -10997,6 +11050,15 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
     }
     case TDMT_MND_DROP_TOKEN: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropTokenReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_CREATE_TOTP_SECRET: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateTotpSecretReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_TOTP_SECRET: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropTotpSecretReq, pReq);
       break;
     }
 
@@ -11223,6 +11285,21 @@ static int32_t translateDropToken(STranslateContext* pCxt, SDropTokenStmt* pStmt
   return code;
 }
 
+static int32_t translateCreateTotpSecret(STranslateContext* pCxt, SCreateTotpSecretStmt* pStmt) {
+  SCreateTotpSecretReq req = {0};
+  tstrncpy(req.user, pStmt->user, sizeof(req.user));
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_TOTP_SECRET, (FSerializeFunc)tSerializeSCreateTotpSecretReq, &req);
+  tFreeSCreateTotpSecretReq(&req);
+  return code;
+}
+
+static int32_t translateDropTotpSecret(STranslateContext* pCxt, SDropTotpSecretStmt* pStmt) {
+  SDropTotpSecretReq req = {0};
+  tstrncpy(req.user, pStmt->user, sizeof(req.user));
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_TOTP_SECRET, (FSerializeFunc)tSerializeSDropTotpSecretReq, &req);
+  tFreeSDropTotpSecretReq(&req);
+  return code;
+}
 
 static int32_t checkColumnOptions(SNodeList* pList, bool virtual) {
   SNode* pNode;
@@ -13092,6 +13169,438 @@ static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* p
   return code;
 }
 
+static const char* getXnodeTaskOptionByName(SXnodeTaskOptions* pOptions, const char* name) {
+  if (pOptions == NULL || name == NULL) return NULL;
+  parserDebug("optionsNum: %d\n", pOptions->optionsNum);
+  for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
+    const char* option = pOptions->options[i];
+    if (option != NULL && strncasecmp(option, name, strlen(name)) == 0 && option[strlen(name)] == '=') {
+      return option + strlen(name) + 1;
+    }
+  }
+  return NULL;
+}
+
+// static int32_t xnodeTaskStatusStrToNum(const char* status) {
+//   if (status == NULL) {
+//     return -1;
+//   }
+
+//   static const struct {
+//     const char* str;
+//     int         value;
+//   } map[] = {{"Stopped", 0}, {"Stop", 0},      {"Running", 1}, {"Run", 1},    {"Failed", 2},
+//              {"Fail", 2},    {"Succeeded", 3}, {"Succeed", 3}, {"Success", 3}};
+
+//   for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++) {
+//     if (strcasecmp(status, map[i].str) == 0) {
+//       return map[i].value;
+//     }
+//   }
+//   return -1;
+// }
+
+static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
+  SMCreateXnodeReq createReq = {0};
+
+  createReq.urlLen = strlen(pStmt->url) + 1;
+  if (createReq.urlLen > TSDB_XNODE_URL_LEN) {
+    return TSDB_CODE_MND_ANODE_TOO_LONG_URL;
+  }
+  createReq.url = taosMemoryCalloc(createReq.urlLen, 1);
+  if (createReq.url == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tstrncpy(createReq.url, pStmt->url, createReq.urlLen);
+
+  createReq.userLen = strlen(pStmt->user) + 1;
+  if (createReq.userLen > TSDB_USER_LEN) {
+    return TSDB_CODE_MND_USER_NOT_AVAILABLE;
+  }
+  createReq.user = taosMemoryCalloc(createReq.userLen, 1);
+  if (createReq.user == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tstrncpy(createReq.user, pStmt->user, createReq.userLen);
+
+  createReq.passLen = strlen(pStmt->pass) + 1;
+  if (createReq.urlLen > TSDB_USER_PASSWORD_LONGLEN) {
+    return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+  }
+  createReq.pass = taosMemoryCalloc(createReq.passLen, 1);
+  if (createReq.pass == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tstrncpy(createReq.pass, pStmt->pass, createReq.passLen);
+  // taosEncryptPass_c((uint8_t*)pStmt->pass, strlen(pStmt->pass), createReq.pass);
+  createReq.passIsMd5 = 0;
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE, (FSerializeFunc)tSerializeSMCreateXnodeReq, &createReq);
+  tFreeSMCreateXnodeReq(&createReq);
+  return code;
+}
+
+static int32_t translateDropXnode(STranslateContext* pCxt, SDropXnodeStmt* pStmt) {
+  SMDropXnodeReq dropReq = {0};
+  dropReq.xnodeId = pStmt->xnodeId;
+  dropReq.force = pStmt->force;
+  if (strlen(pStmt->url) > 0) {
+    dropReq.urlLen = strlen(pStmt->url) + 1;
+    if (dropReq.urlLen > TSDB_XNODE_URL_LEN) {
+      return TSDB_CODE_MND_ANODE_TOO_LONG_URL;
+    }
+    dropReq.url = taosMemoryCalloc(dropReq.urlLen, 1);
+    if (dropReq.url == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(dropReq.url, pStmt->url, dropReq.urlLen);
+  }
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE, (FSerializeFunc)tSerializeSMDropXnodeReq, &dropReq);
+  tFreeSMDropXnodeReq(&dropReq);
+  return code;
+}
+
+static int32_t translateDrainXnode(STranslateContext* pCxt, SDrainXnodeStmt* pStmt) {
+  SMDrainXnodeReq drainReq = {0};
+  drainReq.xnodeId = pStmt->xnodeId;
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DRAIN_XNODE, (FSerializeFunc)tSerializeSMDrainXnodeReq, &drainReq);
+  tFreeSMDrainXnodeReq(&drainReq);
+  return code;
+}
+
+static int32_t translateUpdateXnode(STranslateContext* pCxt, SUpdateXnodeStmt* pStmt) {
+  SMUpdateXnodeReq updateReq = {0};
+  updateReq.xnodeId = pStmt->xnodeId;
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE, (FSerializeFunc)tSerializeSMUpdateXnodeReq, &updateReq);
+  tFreeSMUpdateXnodeReq(&updateReq);
+  return code;
+}
+
+static int32_t covertXNodeTaskOptions(SXnodeTaskOptions* pOptions, xTaskOptions* pOpts) {
+  if (pOptions == NULL) return TSDB_CODE_INVALID_OPTION;
+  if (pOpts == NULL) {
+    xTaskOptions* pNewOpts = taosMemoryCalloc(1, sizeof(xTaskOptions));
+    if (pNewOpts == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pOpts = pNewOpts;
+  }
+
+  pOpts->via = pOptions->via;
+  if (pOptions->triggerLen > 0) {
+    pOpts->trigger = xCreateCowStr(strlen(pOptions->trigger) + 1, pOptions->trigger, true);
+  }
+  if (pOptions->healthLen > 0) {
+    pOpts->health = xCreateCowStr(strlen(pOptions->health) + 1, pOptions->health, true);
+  }
+  if (pOptions->parserLen > 0) {
+    pOpts->parser = xCreateCowStr(strlen(pOptions->parser) + 1, pOptions->parser, true);
+  }
+
+  pOpts->optionsNum = pOptions->optionsNum;
+  for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
+    const char* option = pOptions->options[i];
+    if (option != NULL) {
+      xSetCowStr(pOpts->options + i, strlen(option) + 1, option, true);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t translateCreateXnodeTask(STranslateContext* pCxt, SCreateXnodeTaskStmt* pStmt) {
+  int32_t              code = 0;
+  SMCreateXnodeTaskReq createReq = {0};
+
+  createReq.name = xCreateCowStr(strlen(pStmt->name) + 1, pStmt->name, false);
+  createReq.source = xCloneTaskSourceRef(&pStmt->source->source);
+  createReq.sink = xCloneTaskSinkRef(&pStmt->sink->sink);
+
+  const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
+  if (status != NULL && strlen(status) > TSDB_XNODE_STATUS_LEN) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                   "Invalid option: status too long");
+  }
+  const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
+  if (xnodeId != NULL && strlen(xnodeId) > 0) {
+    createReq.xnodeId = atoi(xnodeId);
+  }
+  if (pStmt->options != NULL) {
+    code = covertXNodeTaskOptions(pStmt->options, &createReq.options);
+    if (code != 0) {
+      tFreeSMCreateXnodeTaskReq(&createReq);
+      return code;
+    }
+  }
+
+  code =
+      buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE_TASK, (FSerializeFunc)tSerializeSMCreateXnodeTaskReq, &createReq);
+  tFreeSMCreateXnodeTaskReq(&createReq);
+  return code;
+}
+
+static int32_t translateStartXnodeTask(STranslateContext* pCxt, SStartXnodeTaskStmt* pStmt) {
+  SMStartXnodeTaskReq startReq = {0};
+  startReq.tid = pStmt->tid;
+  startReq.name = xCloneRefCowStr(&pStmt->name);
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_START_XNODE_TASK, (FSerializeFunc)tSerializeSMStartXnodeTaskReq, &startReq);
+  tFreeSMStartXnodeTaskReq(&startReq);
+  return code;
+}
+
+static int32_t translateStopXnodeTask(STranslateContext* pCxt, SStopXnodeTaskStmt* pStmt) {
+  SMStopXnodeTaskReq stopReq = {0};
+  stopReq.tid = pStmt->tid;
+  stopReq.name = xCloneRefCowStr(&pStmt->name);
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_STOP_XNODE_TASK, (FSerializeFunc)tSerializeSMStopXnodeTaskReq, &stopReq);
+  tFreeSMStopXnodeTaskReq(&stopReq);
+  return code;
+}
+
+static int32_t translateDropXnodeTask(STranslateContext* pCxt, SDropXnodeTaskStmt* pStmt) {
+  SMDropXnodeTaskReq dropReq = {0};
+  dropReq.tid = pStmt->tid;
+  dropReq.force = pStmt->force;
+  if (pStmt->name != NULL) {
+    dropReq.nameLen = strlen(pStmt->name) + 1;
+    dropReq.name = pStmt->name;
+  }
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE_TASK, (FSerializeFunc)tSerializeSMDropXnodeTaskReq, &dropReq);
+  tFreeSMDropXnodeTaskReq(&dropReq);
+  return code;
+}
+
+static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTaskStmt* pStmt) {
+  SMUpdateXnodeTaskReq updateReq = {0};
+  updateReq.tid = pStmt->tid;
+
+  if (pStmt->name.len > 0) {
+    updateReq.name = xCloneRefCowStr(&pStmt->name);
+  }
+  if (pStmt->source != NULL) {
+    updateReq.source = xCloneTaskSourceRef(&pStmt->source->source);
+  }
+  if (pStmt->sink != NULL) {
+    updateReq.sink = xCloneTaskSinkRef(&pStmt->sink->sink);
+  }
+
+  if (pStmt->options != NULL) {
+    updateReq.via = pStmt->options->via;
+    const char* name = getXnodeTaskOptionByName(pStmt->options, "name");
+    if (name != NULL) {
+      updateReq.updateName = xCreateCowStr(strlen(name) + 1, name, false);
+    }
+    const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
+    if (xnodeId != NULL) {
+      updateReq.xnodeId = atoi(xnodeId);
+    }
+    const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
+    if (status != NULL) {
+      if (strlen(status) > TSDB_XNODE_STATUS_LEN) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                       "Invalid option: status too long");
+      }
+      updateReq.status = xCreateCowStr(strlen(status) + 1, status, false);
+    }
+    const char* parser = getXnodeTaskOptionByName(pStmt->options, "parser");
+    if (parser != NULL) {
+      updateReq.parser = xCreateCowStr(strlen(parser) + 1, parser, false);
+    }
+    const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
+    if (reason != NULL) {
+      updateReq.reason = xCreateCowStr(strlen(reason) + 1, reason, false);
+    }
+  }
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE_TASK, (FSerializeFunc)tSerializeSMUpdateXnodeTaskReq, &updateReq);
+  tFreeSMUpdateXnodeTaskReq(&updateReq);
+  return code;
+}
+
+static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobStmt* pStmt) {
+  SMCreateXnodeJobReq createReq = {0};
+  const char* config = getXnodeTaskOptionByName(pStmt->options, "config");
+  if (config == NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: config");
+  }
+  createReq.tid = pStmt->tid;
+  createReq.via = pStmt->options->via;
+
+  const char* xnode_id = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
+  if (xnode_id != NULL) {
+    createReq.xnodeId = atoi(xnode_id);
+  }
+
+  const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
+  if (status != NULL) {
+    if (strlen(status) > TSDB_XNODE_STATUS_LEN) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Invalid option: status too long");
+    }
+    createReq.status = xCreateCowStr(strlen(status) + 1, status, false);
+  }
+
+  createReq.configLen = strlen(config) + 1;
+  if (createReq.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
+    return TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
+  }
+  createReq.config = taosMemoryCalloc(createReq.configLen, 1);
+  if (createReq.config == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tstrncpy(createReq.config, config, createReq.configLen);
+
+  const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
+  if (reason != NULL) {
+    createReq.reasonLen = strlen(reason) + 1;
+    if (createReq.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
+      return TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
+    }
+    createReq.reason = taosMemoryCalloc(createReq.reasonLen, 1);
+    if (createReq.reason == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(createReq.reason, reason, createReq.reasonLen);
+  }
+
+  int32_t code =
+      buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE_JOB, (FSerializeFunc)tSerializeSMCreateXnodeJobReq, &createReq);
+  tFreeSMCreateXnodeJobReq(&createReq);
+  return code;
+}
+
+static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStmt* pStmt) {
+  SMUpdateXnodeJobReq updateReq = {0};
+  updateReq.jid = pStmt->jid;
+  updateReq.via = pStmt->options->via;
+
+  const char* xnode_id = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
+  if (xnode_id != NULL) {
+    updateReq.xnodeId = atoi(xnode_id);
+  }
+
+  const char* status = getXnodeTaskOptionByName(pStmt->options, "status");
+  if (status != NULL) {
+    if (strlen(status) > TSDB_XNODE_STATUS_LEN) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                     "Invalid option: status too long");
+    }
+    updateReq.status = xCreateCowStr(strlen(status) + 1, status, false);
+  }
+
+  const char* config = getXnodeTaskOptionByName(pStmt->options, "config");
+  if (NULL != config) {
+    updateReq.configLen = strlen(config) + 1;
+    if (updateReq.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
+      return TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
+    }
+    updateReq.config = taosMemoryCalloc(updateReq.configLen, 1);
+    if (updateReq.config == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(updateReq.config, config, updateReq.configLen);
+  }
+
+  const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
+  if (reason != NULL) {
+    updateReq.reasonLen = strlen(reason) + 1;
+    if (updateReq.reasonLen > TSDB_XNODE_TASK_REASON_LEN) {
+      return TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
+    }
+    updateReq.reason = taosMemoryCalloc(updateReq.reasonLen, 1);
+    if (updateReq.reason == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(updateReq.reason, reason, updateReq.reasonLen);
+  }
+
+  int32_t code =
+      buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE_JOB, (FSerializeFunc)tSerializeSMUpdateXnodeJobReq, &updateReq);
+  tFreeSMUpdateXnodeJobReq(&updateReq);
+  return code;
+}
+
+static int32_t translateRebalanceXnodeJob(STranslateContext* pCxt, SRebalanceXnodeJobStmt* pStmt) {
+  SMRebalanceXnodeJobReq rebalanceReq = {0};
+  rebalanceReq.jid = pStmt->jid;
+
+  const char* xnodeId = getXnodeTaskOptionByName(pStmt->options, "xnode_id");
+  if (xnodeId == NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: xnode_id");
+  }
+  rebalanceReq.xnodeId = atoi(xnodeId);
+
+  int32_t code =
+      buildCmdMsg(pCxt, TDMT_MND_REBALANCE_XNODE_JOB, (FSerializeFunc)tSerializeSMRebalanceXnodeJobReq, &rebalanceReq);
+  tFreeSMRebalanceXnodeJobReq(&rebalanceReq);
+  return code;
+}
+
+typedef struct SXnodeSupportFieldContext {
+  bool res;
+} SXnodeSupportFieldContext;
+
+static EDealRes supportNodeType(SNode* pNode, void* pContext) {
+  if (nodeType(pNode) != QUERY_NODE_COLUMN && nodeType(pNode) != QUERY_NODE_VALUE &&
+      nodeType(pNode) != QUERY_NODE_OPERATOR && nodeType(pNode) != QUERY_NODE_LOGIC_CONDITION) {
+    goto _exit;
+  }
+  return DEAL_RES_CONTINUE;
+
+_exit:
+  ((SXnodeSupportFieldContext*)pContext)->res = false;
+  return DEAL_RES_END;
+}
+
+bool isXnodeSupportNodeType(SNode* pWhere) {
+  if (nodeType(pWhere) != QUERY_NODE_OPERATOR && nodeType(pWhere) != QUERY_NODE_LOGIC_CONDITION) {
+    return false;
+  }
+  SXnodeSupportFieldContext ctx = {.res = true};
+  nodesWalkExpr(pWhere, supportNodeType, &ctx);
+  return ctx.res;
+}
+
+static int32_t translateRebalanceXnodeJobWhere(STranslateContext* pCxt, SRebalanceXnodeJobWhereStmt* pStmt) {
+  int32_t                     code = 0;
+  SMRebalanceXnodeJobsWhereReq rebalanceReq = {0};
+  char*                        pAst = NULL;
+  int32_t astLen = 0;
+
+  if (pStmt->pWhere != NULL) {
+    TAOS_CHECK_GOTO(nodesNodeToString(pStmt->pWhere, true, &pAst, &astLen), NULL, _exit);
+
+    if (!isXnodeSupportNodeType(pStmt->pWhere)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                     "WHERE condition is not valid");
+    }
+
+    if (pAst != NULL) {
+      rebalanceReq.ast = xCreateCowStr(strlen(pAst) + 1, pAst, false);
+    }
+  }
+  code = buildCmdMsg(pCxt, TDMT_MND_REBALANCE_XNODE_JOBS_WHERE, (FSerializeFunc)tSerializeSMRebalanceXnodeJobsWhereReq,
+                     &rebalanceReq);
+  tFreeSMRebalanceXnodeJobsWhereReq(&rebalanceReq);
+_exit:
+  if (pAst != NULL) {
+    taosMemoryFree(pAst);
+    pAst = NULL;
+  }
+  return code;
+}
+
+static int32_t translateDropXnodeJob(STranslateContext* pCxt, SDropXnodeJobStmt* pStmt) {
+  SMDropXnodeJobReq dropReq = {0};
+  dropReq.tid = pStmt->tid;
+  dropReq.jid = pStmt->jid;
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE_JOB, (FSerializeFunc)tSerializeSMDropXnodeJobReq, &dropReq);
+  tFreeSMDropXnodeJobReq(&dropReq);
+  return code;
+}
+
 static int32_t checkCreateBnode(STranslateContext* pCxt, SCreateBnodeStmt* pStmt) {
   SBnodeOptions* pOptions = pStmt->pOptions;
 
@@ -14831,7 +15340,8 @@ _return:
   return code;
 }
 
-static int32_t createStreamReqBuildTriggerTableInfo(STranslateContext* pCxt, SRealTableNode* pTriggerTable, STableMeta* pMeta, SCMCreateStreamReq* pReq) {
+static int32_t createStreamReqBuildTriggerTableInfo(STranslateContext* pCxt, SRealTableNode* pTriggerTable,
+                                                    STableMeta* pMeta, SCMCreateStreamReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   switch (pMeta->tableType) {
@@ -15265,7 +15775,8 @@ static EDealRes placeHolderNeedFill(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t createStreamReqBuildForceOutput(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
+static int32_t createStreamReqBuildForceOutput(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
+                                               SCMCreateStreamReq* pReq) {
   int32_t                code = TSDB_CODE_SUCCESS;
   SNode*                 pNode = NULL;
   SValueNode*            pVal = NULL;
@@ -15385,7 +15896,8 @@ static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealT
   // only collect columns appeared in trigger and tags in pre-filter
   PAR_ERR_JRET(nodesCollectColumnsFromNode(pStmt->pTrigger, NULL, COLLECT_COL_TYPE_COL, &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
   if (pPreFilter) {
-    PAR_ERR_JRET(nodesCollectColumnsFromNode(pPreFilter, NULL, COLLECT_COL_TYPE_TAG, &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
+    PAR_ERR_JRET(nodesCollectColumnsFromNode(pPreFilter, NULL, COLLECT_COL_TYPE_TAG,
+                                             &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
   }
   // TODO(smj) : maybe we can remove tbname function from trigger select list, but some case will fail.
   PAR_ERR_JRET(createTbnameFunction(&pFunc));
@@ -15396,7 +15908,7 @@ _return:
   nodesDestroyNode((SNode*)pFunc);
   parserError("%s failed, code:%d", __func__, code);
   return code;
-  
+
 }
 
 // Do the translation of trigger select statement in create stream request
@@ -15486,10 +15998,8 @@ static int32_t createStreamReqBuildTriggerCheckPartition(STranslateContext* pCxt
   nodesWalkExprs(pTriggerPartition, createStreamReqBuildTriggerCheckPartitionWalker, &cxt);
   PAR_ERR_JRET(cxt.code);
 
-  if (pTriggerTableMeta->tableType == TSDB_SUPER_TABLE &&
-      nodeType(pTriggerWindow) != QUERY_NODE_INTERVAL_WINDOW &&
-      nodeType(pTriggerWindow) != QUERY_NODE_SESSION_WINDOW &&
-      nodeType(pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW &&
+  if (pTriggerTableMeta->tableType == TSDB_SUPER_TABLE && nodeType(pTriggerWindow) != QUERY_NODE_INTERVAL_WINDOW &&
+      nodeType(pTriggerWindow) != QUERY_NODE_SESSION_WINDOW && nodeType(pTriggerWindow) != QUERY_NODE_PERIOD_WINDOW &&
       (LIST_LENGTH(pTriggerPartition) == 0 || !hasTbnameFunction(pTriggerPartition))) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(
         &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
@@ -18397,6 +18907,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_DROP_TOKEN_STMT:
       code = translateDropToken(pCxt, (SDropTokenStmt*)pNode);
       break;
+    case QUERY_NODE_CREATE_TOTP_SECRET_STMT:
+      code = translateCreateTotpSecret(pCxt, (SCreateTotpSecretStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_TOTP_SECRET_STMT:
+      code = translateDropTotpSecret(pCxt, (SDropTotpSecretStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_TABLE_STMT:
       code = translateCreateSuperTable(pCxt, (SCreateTableStmt*)pNode);
       break;
@@ -18650,6 +19166,45 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_ALTER_RSMA_STMT:
       code = translateAlterRsma(pCxt, (SAlterRsmaStmt*)pNode);
       break;
+    /** XNode part */
+    case QUERY_NODE_CREATE_XNODE_STMT:
+      code = translateCreateXnode(pCxt, (SCreateXnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_XNODE_STMT:
+      code = translateDropXnode(pCxt, (SDropXnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_DRAIN_XNODE_STMT:
+      code = translateDrainXnode(pCxt, (SDrainXnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_XNODE_TASK_STMT:
+      code = translateCreateXnodeTask(pCxt, (SCreateXnodeTaskStmt*)pNode);
+      break;
+    case QUERY_NODE_START_XNODE_TASK_STMT:
+      code = translateStartXnodeTask(pCxt, (SStartXnodeTaskStmt*)pNode);
+      break;
+    case QUERY_NODE_STOP_XNODE_TASK_STMT:
+      code = translateStopXnodeTask(pCxt, (SStopXnodeTaskStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_XNODE_TASK_STMT:
+      code = translateDropXnodeTask(pCxt, (SDropXnodeTaskStmt*)pNode);
+      break;
+    case QUERY_NODE_UPDATE_XNODE_TASK_STMT:
+      code = translateUpdateXnodeTask(pCxt, (SUpdateXnodeTaskStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_XNODE_JOB_STMT:
+      code = translateCreateXnodeJob(pCxt, (SCreateXnodeJobStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_XNODE_JOB_STMT:
+      code = translateAlterXnodeJob(pCxt, (SAlterXnodeJobStmt*)pNode);
+      break;
+    case QUERY_NODE_REBALANCE_XNODE_JOB_STMT:
+      code = translateRebalanceXnodeJob(pCxt, (SRebalanceXnodeJobStmt*)pNode);
+      break;
+    case QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT:
+      code = translateRebalanceXnodeJobWhere(pCxt, (SRebalanceXnodeJobWhereStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_XNODE_JOB_STMT:
+      code = translateDropXnodeJob(pCxt, (SDropXnodeJobStmt*)pNode);
     default:
       break;
   }
@@ -18778,11 +19333,13 @@ static int32_t translateTableSubquery(STranslateContext* pCxt, SNode* pNode) {
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
   int32_t    currLevel = pCxt->currLevel;
+  bool       dual = pCxt->dual;
   pCxt->currLevel = ++(pCxt->levelNo);
   code = translateQuery(pCxt, pNode);
   pCxt->currClause = currClause;
   pCxt->pCurrStmt = pCurrStmt;
   pCxt->currLevel = currLevel;
+  pCxt->dual = dual;
 
   return code;
 }
@@ -18818,11 +19375,13 @@ static int32_t translateExprSubqueryImpl(STranslateContext* pCxt, SNode* pNode) 
     parserError("Correlated subQuery not supported now");
     code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
   }
+/*  
   if (pCxt->hasLocalSubQ) {
     parserError("Only query with FROM supported now");
     code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
   }
-    
+*/
+
   return code;
 }
 
@@ -19099,15 +19658,29 @@ static int32_t extractScanDbResultSchema(int32_t* numOfCols, SSchema** pSchema) 
 }
 
 static int32_t extractCreateTokenResultSchema(int32_t* numOfCols, SSchema** pSchema) {
-  *numOfCols = CREATE_USER_TOKEN_RESULT_COLS;
+  *numOfCols = CREATE_TOKEN_RESULT_COLS;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return terrno;
   }
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[0].bytes = SCAN_DB_RESULT_FIELD1_LEN;
+  (*pSchema)[0].bytes = CREATE_TOKEN_RESULT_FIELD1_LEN;
   tstrncpy((*pSchema)[0].name, "token", TSDB_COL_NAME_LEN);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extractCreateTotpSecretResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = CREATE_TOTP_SECRET_RESULT_COLS;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return terrno;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[0].bytes = CREATE_TOTP_SECRET_RESULT_FIELD1_LEN;
+  tstrncpy((*pSchema)[0].name, "totp_secret", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -19152,6 +19725,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
       return extractScanDbResultSchema(numOfCols, pSchema);
     case QUERY_NODE_CREATE_TOKEN_STMT:
       return extractCreateTokenResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_CREATE_TOTP_SECRET_STMT:
+      return extractCreateTotpSecretResultSchema(numOfCols, pSchema);
     default:
       break;
   }
@@ -23240,6 +23815,10 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
+    case QUERY_NODE_SHOW_XNODES_STMT:
+    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
+    case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
+    case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
@@ -23490,6 +24069,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_ROLLUP_VGROUPS_STMT:
     case QUERY_NODE_SCAN_VGROUPS_STMT:
     case QUERY_NODE_CREATE_TOKEN_STMT:
+    case QUERY_NODE_CREATE_TOTP_SECRET_STMT:
       pQuery->haveResultSet = true;
       pQuery->execMode = QUERY_EXEC_MODE_RPC;
       if (NULL != pCxt->pCmdMsg) {

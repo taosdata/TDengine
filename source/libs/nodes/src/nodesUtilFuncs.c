@@ -17,6 +17,7 @@
 #include "functionMgt.h"
 #include "nodes.h"
 #include "nodesUtil.h"
+#include "osMemory.h"
 #include "plannodes.h"
 #include "querynodes.h"
 #include "taos.h"
@@ -776,6 +777,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_TOKEN_STMT:
       code = makeNode(type, sizeof(SDropTokenStmt), &pNode);
       break;
+    case QUERY_NODE_CREATE_TOTP_SECRET_STMT:
+      code = makeNode(type, sizeof(SCreateTotpSecretStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_TOTP_SECRET_STMT:
+      code = makeNode(type, sizeof(SDropTotpSecretStmt), &pNode);
+      break;
     case QUERY_NODE_MERGE_VGROUP_STMT:
       code = makeNode(type, sizeof(SMergeVgroupStmt), &pNode);
       break;
@@ -803,6 +810,10 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_XNODES_STMT:
+    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
+    case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
+    case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
@@ -891,7 +902,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SShowScanDetailsStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
-      code = makeNode(type, sizeof(SShowTransactionDetailsStmt), &pNode); 
+      code = makeNode(type, sizeof(SShowTransactionDetailsStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_SSMIGRATES_STMT:
       code = makeNode(type, sizeof(SShowSsMigratesStmt), &pNode);
@@ -1128,6 +1139,56 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_SCORES_STMT:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
+    case QUERY_NODE_XNODE_TASK_OPTIONS:
+      code = makeNode(type, sizeof(SXnodeTaskOptions), &pNode);
+      break;
+    case QUERY_NODE_XNODE_TASK_SOURCE_OPT:
+      code = makeNode(type, sizeof(SXTaskSource), &pNode);
+      break;
+    case QUERY_NODE_XNODE_TASK_SINK_OPT:
+      code = makeNode(type, sizeof(SXTaskSink), &pNode);
+      break;
+    case QUERY_NODE_CREATE_XNODE_STMT:
+      code = makeNode(type, sizeof(SCreateXnodeStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_XNODE_STMT:
+      code = makeNode(type, sizeof(SDropXnodeStmt), &pNode);
+      break;
+    case QUERY_NODE_DRAIN_XNODE_STMT:
+      code = makeNode(type, sizeof(SDrainXnodeStmt), &pNode);
+      break;
+    // case QUERY_NODE_UPDATE_XNODE_STMT:
+    //   code = makeNode(type, sizeof(SUpdateXnodeStmt), &pNode);
+    //   break;
+    case QUERY_NODE_CREATE_XNODE_TASK_STMT:
+      code = makeNode(type, sizeof(SCreateXnodeTaskStmt), &pNode);
+      break;
+    case QUERY_NODE_START_XNODE_TASK_STMT:
+      code = makeNode(type, sizeof(SStartXnodeTaskStmt), &pNode);
+      break;
+    case QUERY_NODE_STOP_XNODE_TASK_STMT:
+      code = makeNode(type, sizeof(SStopXnodeTaskStmt), &pNode);
+      break;
+    case QUERY_NODE_UPDATE_XNODE_TASK_STMT:
+      code = makeNode(type, sizeof(SUpdateXnodeTaskStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_XNODE_TASK_STMT:
+      code = makeNode(type, sizeof(SDropXnodeTaskStmt), &pNode);
+      break;
+    case QUERY_NODE_CREATE_XNODE_JOB_STMT:
+      code = makeNode(type, sizeof(SCreateXnodeJobStmt), &pNode);
+      break;
+    case QUERY_NODE_ALTER_XNODE_JOB_STMT:
+      code = makeNode(type, sizeof(SAlterXnodeJobStmt), &pNode);
+      break;
+    case QUERY_NODE_REBALANCE_XNODE_JOB_STMT:
+      code = makeNode(type, sizeof(SRebalanceXnodeJobStmt), &pNode);
+      break;
+    case QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT:
+      code = makeNode(type, sizeof(SRebalanceXnodeJobWhereStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_XNODE_JOB_STMT:
+      code = makeNode(type, sizeof(SDropXnodeJobStmt), &pNode);
     case QUERY_NODE_ALTER_DNODES_RELOAD_TLS_STMT:
       code = makeNode(type, sizeof(SAlterDnodeStmt), &pNode);
       break;
@@ -1140,8 +1201,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
   }
   if (TSDB_CODE_SUCCESS != code) {
     nodesError("nodesMakeNode unknown node = %s", nodesNodeName(type));
-  }
-  else
+  } else
     *ppNodeOut = pNode;
   return code;
 }
@@ -1278,7 +1338,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_VIRTUAL_TABLE: {
-      SVirtualTableNode *pVirtual = (SVirtualTableNode*)pNode;
+      SVirtualTableNode* pVirtual = (SVirtualTableNode*)pNode;
       taosMemoryFreeClear(pVirtual->pMeta);
       taosMemoryFreeClear(pVirtual->pVgroupList);
       nodesDestroyList(pVirtual->refTables);
@@ -1288,7 +1348,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(((STempTableNode*)pNode)->pSubquery);
       break;
     case QUERY_NODE_PLACE_HOLDER_TABLE: {
-      SPlaceHolderTableNode *pPlaceHolder = (SPlaceHolderTableNode*)pNode;
+      SPlaceHolderTableNode* pPlaceHolder = (SPlaceHolderTableNode*)pNode;
       taosMemoryFreeClear(pPlaceHolder->pMeta);
       taosMemoryFreeClear(pPlaceHolder->pVgroupList);
       break;
@@ -1676,7 +1736,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(((SDropTableStmt*)pNode)->pTables);
       break;
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
-    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT: // no pointer field
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:  // no pointer field
       break;
     case QUERY_NODE_ALTER_TABLE_STMT:
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
@@ -1769,15 +1829,15 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pCols);
       break;
     }
-    case QUERY_NODE_DROP_INDEX_STMT:    // no pointer field
-    case QUERY_NODE_CREATE_QNODE_STMT:  // no pointer field
-    case QUERY_NODE_DROP_QNODE_STMT:    // no pointer field
+    case QUERY_NODE_DROP_INDEX_STMT:          // no pointer field
+    case QUERY_NODE_CREATE_QNODE_STMT:        // no pointer field
+    case QUERY_NODE_DROP_QNODE_STMT:          // no pointer field
     case QUERY_NODE_CREATE_BACKUP_NODE_STMT:  // no pointer field
     case QUERY_NODE_DROP_BACKUP_NODE_STMT:    // no pointer field
-    case QUERY_NODE_CREATE_SNODE_STMT:  // no pointer field
-    case QUERY_NODE_DROP_SNODE_STMT:    // no pointer field
-    case QUERY_NODE_CREATE_MNODE_STMT:  // no pointer field
-    case QUERY_NODE_DROP_MNODE_STMT:    // no pointer field
+    case QUERY_NODE_CREATE_SNODE_STMT:        // no pointer field
+    case QUERY_NODE_DROP_SNODE_STMT:          // no pointer field
+    case QUERY_NODE_CREATE_MNODE_STMT:        // no pointer field
+    case QUERY_NODE_DROP_MNODE_STMT:          // no pointer field
       break;
     case QUERY_NODE_CREATE_TOPIC_STMT:
       nodesDestroyNode(((SCreateTopicStmt*)pNode)->pQuery);
@@ -1844,7 +1904,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_DROP_FUNCTION_STMT:    // no pointer field
       break;
     case QUERY_NODE_CREATE_STREAM_STMT: {
-      SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pNode;;
+      SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pNode;
+      ;
       nodesDestroyNode(pStmt->pQuery);
       nodesDestroyList(pStmt->pTags);
       nodesDestroyList(pStmt->pCols);
@@ -1865,6 +1926,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_TRIM_DATABASE_WAL_STMT:               // no pointer field
     case QUERY_NODE_CREATE_TOKEN_STMT:                    // no pointer field
     case QUERY_NODE_DROP_TOKEN_STMT:                      // no pointer field
+    case QUERY_NODE_CREATE_TOTP_SECRET_STMT:              // no pointer field
+    case QUERY_NODE_DROP_TOTP_SECRET_STMT:                // no pointer field
     case QUERY_NODE_MERGE_VGROUP_STMT:                    // no pointer field
       break;
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
@@ -1887,6 +1950,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
+    case QUERY_NODE_SHOW_XNODES_STMT:
+    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
+    case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
+    case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
@@ -2095,7 +2162,7 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN: {
-      SVirtualScanLogicNode * pLogicNode = (SVirtualScanLogicNode*)pNode;
+      SVirtualScanLogicNode* pLogicNode = (SVirtualScanLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pScanCols);
       nodesDestroyList(pLogicNode->pScanPseudoCols);
@@ -2464,7 +2531,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_SUBPLAN: {
       SSubplan* pSubplan = (SSubplan*)pNode;
-      SNode* pTmp = NULL;
+      SNode*    pTmp = NULL;
       WHERE_EACH(pTmp, pSubplan->pChildren) {
         if (QUERY_NODE_VALUE == nodeType(pTmp)) {
           ERASE_NODE(pSubplan->pChildren);
@@ -2485,6 +2552,47 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
       nodesDestroyList(((SQueryPlan*)pNode)->pChildren);
       break;
+    case QUERY_NODE_XNODE_TASK_SOURCE_OPT:
+      xFreeTaskSource(&((SXTaskSource*)pNode)->source);
+      break;
+    case QUERY_NODE_XNODE_TASK_SINK_OPT:
+      xFreeTaskSink(&((SXTaskSink*)pNode)->sink);
+      break;
+    case QUERY_NODE_XNODE_TASK_OPTIONS: {
+      // xFreeTaskOptions(&((SXnodeTaskOptions*)pNode)->opts);
+      SXnodeTaskOptions* pOptions = (SXnodeTaskOptions*)pNode;
+      // printf("Destroying Xnode task options with %d options\n", pOptions->optionsNum);
+      for (int32_t i = 0; i < pOptions->optionsNum; ++i) {
+        taosMemFreeClear(pOptions->options[i]);
+      }
+      break;
+    }
+    case QUERY_NODE_CREATE_XNODE_TASK_STMT: {
+      SCreateXnodeTaskStmt* pStmt = (SCreateXnodeTaskStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->source);
+      nodesDestroyNode((SNode*)pStmt->sink);
+      nodesDestroyNode((SNode*)pStmt->options);
+      break;
+    }
+    case QUERY_NODE_CREATE_XNODE_JOB_STMT: {
+      SCreateXnodeJobStmt* pStmt = (SCreateXnodeJobStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->options);
+      break;
+    }
+    case QUERY_NODE_UPDATE_XNODE_TASK_STMT: {
+      SUpdateXnodeTaskStmt* pStmt = (SUpdateXnodeTaskStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->source);
+      nodesDestroyNode((SNode*)pStmt->sink);
+      nodesDestroyNode((SNode*)pStmt->options);
+      xFreeCowStr(&pStmt->name);
+      break;
+    }
+    case QUERY_NODE_REBALANCE_XNODE_JOB_STMT: {
+      SRebalanceXnodeJobStmt* pStmt = (SRebalanceXnodeJobStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->options);
+      break;
+    }
+
     default:
       break;
   }
@@ -2692,6 +2800,7 @@ SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
   }
   return NULL;
 }
+
 
 SListCell* nodesListGetCell(SNodeList* pList, int32_t index) {
   SNode* node;
@@ -3888,12 +3997,10 @@ void rewriteExprAliasName(SExprNode* pNode, int64_t num) {
   return;
 }
 
-bool isRelatedToOtherExpr(SExprNode* pExpr) {
-  return pExpr->relatedTo != 0;
-}
+bool isRelatedToOtherExpr(SExprNode* pExpr) { return pExpr->relatedTo != 0; }
 
 typedef struct SContainsColCxt {
-  bool       containsCol;
+  bool containsCol;
 } SContainsColCxt;
 
 static EDealRes nodeContainsCol(SNode* pNode, void* pContext) {
@@ -3913,7 +4020,7 @@ bool nodesContainsColumn(SNode* pNode) {
 
   SContainsColCxt cxt = {0};
   nodesWalkExpr(pNode, nodeContainsCol, &cxt);
-  
+
   return cxt.containsCol;
 }
 
@@ -3939,7 +4046,6 @@ int32_t mergeNodeToLogic(SNode** pDst, SNode** pSrc) {
   return code;
 }
 
-
 int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond) {
   if (NULL == *pCond) {
     TSWAP(*pCond, *pAdditionalCond);
@@ -3956,7 +4062,7 @@ int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond) {
   } else {
     code = mergeNodeToLogic(pCond, pAdditionalCond);
   }
-  
+
   return code;
 }
 
@@ -3979,7 +4085,6 @@ void tFreeStreamVtbOtbInfo(void* param) {
   taosArrayDestroyEx(*ppArray, tFreeStreamVtbColName);
 }
 
-
 void tFreeStreamVtbVtbInfo(void* param) {
   SSHashObj** ppHash = (SSHashObj**)param;
   if (NULL == param || NULL == *ppHash) {
@@ -3988,7 +4093,6 @@ void tFreeStreamVtbVtbInfo(void* param) {
 
   tSimpleHashCleanup(*ppHash);
 }
-
 
 void tFreeStreamVtbDbVgInfo(void* param) {
   SSHashObj** ppHash = (SSHashObj**)param;

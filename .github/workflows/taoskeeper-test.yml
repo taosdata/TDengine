@@ -1,19 +1,22 @@
-name: taosKeeper Build
+name: taosKeeper Test
 
 on:
   pull_request:
     branches:
       - "main"
       - "3.0"
-      - "3.3.6"
+      - "3.3.8"
     paths:
       - "tools/keeper/**"
+      - ".github/workflows/taoskeeper*.yml"
   push:
     branches:
       - "main"
       - "3.0"
+      - "3.3.6"
     paths:
       - "tools/keeper/**"
+      - ".github/workflows/taoskeeper*.yml"
 
 jobs:
   build:
@@ -75,9 +78,3 @@ jobs:
           fail_ci_if_error: true
           verbose: true
           slug: taosdata/taoskeeper
-
-      - name: Clean up
-        if: always()
-        run: |
-          if pgrep taosd; then sudo pkill taosd; fi
-          if pgrep taosadapter; then sudo pkill taosadapter; fi

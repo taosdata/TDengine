@@ -350,7 +350,8 @@ bool qNeedReset(qTaskInfo_t pInfo) {
   int32_t node = nodeType(pOperator->pPhyNode);
   return (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == node || 
           QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == node ||
-          QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == node);
+          QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == node ||
+          QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == node);
 }
 
 static void setReadHandle(SReadHandle* pHandle, STableScanBase* pScanBaseInfo) {

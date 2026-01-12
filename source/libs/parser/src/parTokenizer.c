@@ -138,7 +138,7 @@ static SKeyword keywordTable[] = {
     {"LOGS",                 TK_LOGS},
     {"MACHINES",             TK_MACHINES},
     {"GROUP",                TK_GROUP},
-    {"HASH_JOIN",            TK_HASH_JOIN},    
+    {"HASH_JOIN",            TK_HASH_JOIN},
     {"HAVING",               TK_HAVING},
     {"HOST",                 TK_HOST},
     {"IF",                   TK_IF},
@@ -323,6 +323,7 @@ static SKeyword keywordTable[] = {
     {"TOPIC",                TK_TOPIC},
     {"TOPICS",               TK_TOPICS},
     {"TOTPSEED",             TK_TOTPSEED},
+    {"TOTP_SECRET",          TK_TOTP_SECRET},
     {"TRAILING",             TK_TRAILING},
     {"TRANSACTION",          TK_TRANSACTION},
     {"TRANSACTIONS",         TK_TRANSACTIONS},
@@ -368,7 +369,7 @@ static SKeyword keywordTable[] = {
     {"WATERMARK",            TK_WATERMARK},
     {"WHEN",                 TK_WHEN},
     {"WHERE",                TK_WHERE},
-    {"WINDOW",               TK_WINDOW},    
+    {"WINDOW",               TK_WINDOW},
     {"WINDOW_OPEN",          TK_WINDOW_OPEN},
     {"WINDOW_CLOSE",         TK_WINDOW_CLOSE},
     {"WINDOW_OFFSET",        TK_WINDOW_OFFSET},
@@ -460,6 +461,10 @@ static SKeyword keywordTable[] = {
     {"TOKENS",               TK_TOKENS},
     {"IS_AUDIT",             TK_IS_AUDIT},
     {"VNODE_PER_CALL",       TK_VNODE_PER_CALL},
+    {"XNODE",                TK_XNODE},
+    {"XNODES",               TK_XNODES},
+    {"DRAIN",                TK_DRAIN},
+    {"REBALANCE",            TK_REBALANCE},
 };
 // clang-format on
 

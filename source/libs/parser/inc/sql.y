@@ -111,6 +111,7 @@ user_enabled(A) ::= ACCOUNT UNLOCK.                                             
 user_enabled(A) ::= ENABLE NK_INTEGER(B).                                         { A = taosStr2Int8(B.z, NULL, 10); }
 
 %type user_option                                                                 { SUserOptions* }
+// NOTE: TOTPSEED is deprecated, please use CREATE/DROP TOTP_SECRET.
 user_option(A) ::= TOTPSEED NK_STRING(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsTotpseed(pCxt, A, &B); }
 user_option(A) ::= TOTPSEED NULL.                                                 { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsTotpseed(pCxt, A, NULL); }
 user_option(A) ::= user_enabled(B).                                               { A = mergeUserOptions(pCxt, NULL, NULL); A->enable = B; A->hasEnable = true; }
@@ -360,7 +361,6 @@ cmd ::= CREATE USER not_exists_opt(A) user_name(B) PASS NK_STRING(C) create_user
   }
 cmd ::= ALTER USER user_name(A) alter_user_options(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, B); }
 cmd ::= DROP USER exists_opt(A) user_name(B).                                    { pCxt->pRootNode = createDropUserStmt(pCxt, &B, A); }
-cmd ::= ALTER DNODES RELOAD general_name(A).                                     { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
 
 
 /************************************************ create/alter/drop token **********************************************/
@@ -391,6 +391,13 @@ cmd ::= DROP TOKEN exists_opt(A) NK_ID(B). {
   }
 
 
+/************************************************ create/drop totpsecret **********************************************/
+cmd ::= CREATE TOTP_SECRET FOR USER user_name(A). {
+    pCxt->pRootNode = createCreateTotpSecretStmt(pCxt, &A);
+  }
+cmd ::= DROP TOTP_SECRET FROM USER user_name(A). {
+    pCxt->pRootNode = createDropTotpSecretStmt(pCxt, &A);
+  }
 
 /************************************************ create/drop role **********************************************/
 cmd ::= CREATE ROLE not_exists_opt(A) role_name(B).                               { pCxt->pRootNode = createCreateRoleStmt(pCxt, A, &B); }
@@ -655,6 +662,103 @@ cmd ::= UPDATE ANODE NK_INTEGER(A).                                             
 cmd ::= UPDATE ALL ANODES.                                                        { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, NULL, true); }
 cmd ::= DROP ANODE NK_INTEGER(A).                                                 { pCxt->pRootNode = createDropAnodeStmt(pCxt, &A); }
 
+/************************************************ create drop update xnode ***************************************/
+
+%type xnode_endpoint                                                              { SToken }
+%destructor xnode_endpoint                                                        { }
+xnode_endpoint(A) ::= NK_STRING(B).                                               { A = B; }
+xnode_endpoint(A) ::= NK_INTEGER(B).                                              { A = B; }
+
+%destructor xnode_task_source                                                     { }
+xnode_task_source(A) ::= NK_STRING(B).                                            { A = createXnodeSourceAsDsn(pCxt, &B); }
+xnode_task_source(A) ::= DATABASE db_name(B).                                     { A = createXnodeSourceAsDatabase(pCxt, &B); }
+xnode_task_source(A) ::= TOPIC topic_name(B).                                     { A = createXnodeSourceAsTopic(pCxt, &B); }
+
+xnode_task_sink(A) ::= NK_STRING(B).                                              { A = createXnodeSinkAsDsn(pCxt, &B); }
+xnode_task_sink(A) ::= DATABASE db_name(B).                                       { A = createXnodeSinkAsDatabase(pCxt, &B); }
+
+%type xnode_task_opt_v                                                            { SToken }
+%destructor xnode_task_opt_v                                                      { }
+xnode_task_opt_v(A) ::=  NK_STRING(B).                                            { A = B; }
+xnode_task_opt_v(A) ::=  NK_INTEGER(B).                                           { A = B; }
+xnode_task_options(A) ::= NK_ID(C) xnode_task_opt_v(D).                           { A = setXnodeTaskOption(pCxt, NULL, &C, &D); }
+xnode_task_options(A) ::= NK_ID(C) NK_EQ xnode_task_opt_v(D).                     { A = setXnodeTaskOption(pCxt, NULL, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) xnode_task_opt_v(D).     { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) NK_EQ xnode_task_opt_v(D).          { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C) NK_EQ xnode_task_opt_v(D). { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C) NK_EQ xnode_task_opt_v(D).      { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C).                { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
+xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C).                     { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
+xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_STRING(D).             { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_EQ NK_STRING(D).       { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA TRIGGER NK_EQ NK_STRING(D).         { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND TRIGGER NK_EQ NK_STRING(D).    { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+
+with_task_options_opt(A) ::= .                                                    { A = NULL; }
+with_task_options_opt(A) ::= WITH xnode_task_options(B).                          { A = B; }
+
+xnode_task_from_opt(A) ::= .                                                      { A = NULL; }
+xnode_task_from_opt(A) ::= FROM xnode_task_source(B).                             { A = B; }
+
+xnode_task_to_opt(A) ::= .                                                        { A = NULL; }
+xnode_task_to_opt(A) ::= TO xnode_task_sink(B).                                   { A = B; }
+
+cmd ::= CREATE XNODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateXnodeStmt(pCxt, &A); }
+cmd ::= CREATE XNODE NK_STRING(A) USER user_name(B) PASS NK_STRING(C).            { pCxt->pRootNode = createCreateXnodeWithUserPassStmt(pCxt, &A, &B, &C); }
+cmd ::= DROP XNODE xnode_endpoint(A) force_opt(B).                                { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A, B); }
+cmd ::= DROP XNODE FORCE xnode_endpoint(A).                                       { pCxt->pRootNode = createDropXnodeStmt(pCxt, &A, true); }
+
+cmd ::= DRAIN XNODE NK_INTEGER(A).                                                { pCxt->pRootNode = createDrainXnodeStmt(pCxt, &A); }
+
+%type xnode_resource_type                                                         { EXnodeResourceType }
+%destructor xnode_resource_type                                                   { }
+xnode_resource_type(A) ::= NK_ID(B).                                              { A = setXnodeResourceType(pCxt, &B); }
+
+/* create xnode agent 'a1' */
+cmd ::= CREATE XNODE xnode_resource_type(A) NK_STRING(B) with_task_options_opt(E).
+                                                                                  { pCxt->pRootNode = createXnodeTaskWithOptions(pCxt, A, &B, NULL, NULL, E); }
+
+/* create xnode task 't1' from 'mqtt://xxx' to database s1 with parser '{...}' */
+cmd ::= CREATE XNODE xnode_resource_type(A) NK_STRING(B) FROM xnode_task_source(C) TO xnode_task_sink(D) with_task_options_opt(E).
+                                                                                  { pCxt->pRootNode = createXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
+
+/* create xnode job on 1 with config '{"json":true}' */
+cmd ::= CREATE XNODE xnode_resource_type(A) ON NK_INTEGER(B) with_task_options_opt(C).
+                                                                                  { pCxt->pRootNode = createXnodeTaskJobWithOptions(pCxt, A, &B, C); }
+
+/*start xnode task 1; stop xnode task 1;*/
+cmd ::= START XNODE xnode_resource_type(A) NK_INTEGER(B).                          { pCxt->pRootNode = createStartXnodeTaskStmt(pCxt, A, &B); }
+cmd ::= START XNODE xnode_resource_type(A) NK_STRING(B).                          { pCxt->pRootNode = createStartXnodeTaskStmt(pCxt, A, &B); }
+cmd ::= STOP XNODE xnode_resource_type(A) NK_INTEGER(B).                           { pCxt->pRootNode = createStopXnodeTaskStmt(pCxt, A, &B); }
+cmd ::= STOP XNODE xnode_resource_type(A) NK_STRING(B).                            { pCxt->pRootNode = createStopXnodeTaskStmt(pCxt, A, &B); }
+
+/* rebalance xnode job 1 with xnode_id 3;*/
+cmd ::= REBALANCE XNODE xnode_resource_type(A) NK_INTEGER(B) with_task_options_opt(C).
+                                                                                   { pCxt->pRootNode = createRebalanceXnodeJobStmt(pCxt, A, &B, C); }
+cmd ::= REBALANCE XNODE xnode_resource_type(A) where_clause_opt(B).
+                                                                                   { pCxt->pRootNode = createRebalanceXnodeJobWhereStmt(pCxt, A, B); }
+                                                                                   
+//cmd ::= SHOW XNODE xnode_resource_type(A) where_clause_opt(B).                    { pCxt->pRootNode = createShowXNodeResourcesWhereStmt(pCxt, A, B); }
+
+/* alter xnode task 't1' from 'mqtt://xxx' to database s1 with parser '{...}' */
+cmd ::= ALTER XNODE xnode_resource_type(A) NK_INTEGER(B) xnode_task_from_opt(C) xnode_task_to_opt(D) with_task_options_opt(E).
+                                                                                  { pCxt->pRootNode = alterXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
+cmd ::= ALTER XNODE xnode_resource_type(A) NK_STRING(B) xnode_task_from_opt(C) xnode_task_to_opt(D) with_task_options_opt(E).
+                                                                                  { pCxt->pRootNode = alterXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
+
+/* drop xnode agent 'a1'; drop xnode task 't1'; drop xnode job 1; drop xnode task 1; */
+cmd ::= DROP XNODE xnode_resource_type(A) NK_STRING(B).                           { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }
+cmd ::= DROP XNODE xnode_resource_type(A) NK_INTEGER(B).                          { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }
+//cmd ::= DROP XNODE xnode_resource_type(A) where_clause_opt(C).                    { pCxt->pRootNode = dropXnodeResourceWhere(pCxt, A, C); }
+//cmd ::= DROP XNODE xnode_resource_type(A) ON NK_INTEGER(B) where_clause_opt(C).   { pCxt->pRootNode = dropXnodeResourceOn(pCxt, A, &B, C); }
+
+
+cmd ::= SHOW XNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_XNODES_STMT); }
+/* show xnode tasks */
+/* show xnode agents */
+/* show xnode jobs */
+cmd ::= SHOW XNODE xnode_resource_type(A).                                        { pCxt->pRootNode = createShowXNodeResourcesStmt(pCxt, A); }
+
 /************************************************ create/drop/alter/restore dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }
 cmd ::= CREATE DNODE dnode_endpoint(A) PORT NK_INTEGER(B).                        { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, &B); }
@@ -664,6 +768,7 @@ cmd ::= DROP DNODE NK_INTEGER(A) unsafe_opt(B).                                 
 cmd ::= DROP DNODE dnode_endpoint(A) unsafe_opt(B).                               { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, false, B); }
 cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B).                                   { pCxt->pRootNode = createAlterDnodeStmt(pCxt, &A, &B, NULL); }
 cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B) NK_STRING(C).                      { pCxt->pRootNode = createAlterDnodeStmt(pCxt, &A, &B, &C); }
+cmd ::= ALTER DNODES RELOAD general_name(A).                                      { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
 cmd ::= ALTER ALL DNODES NK_STRING(A).                                            { pCxt->pRootNode = createAlterDnodeStmt(pCxt, NULL, &A, NULL); }
 cmd ::= ALTER ALL DNODES NK_STRING(A) NK_STRING(B).                               { pCxt->pRootNode = createAlterDnodeStmt(pCxt, NULL, &A, &B); }
 cmd ::= RESTORE DNODE NK_INTEGER(A).                                              { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_DNODE_STMT, &A); }
@@ -1831,10 +1936,10 @@ duration_literal(A) ::= NK_VARIABLE(B).                                         
 
 signed_variable(A) ::= NK_VARIABLE(B).                                            { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 signed_variable(A) ::= NK_PLUS NK_VARIABLE(B).                                    { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
-signed_variable(A) ::= NK_MINUS(B) NK_VARIABLE(C).                                { 
+signed_variable(A) ::= NK_MINUS(B) NK_VARIABLE(C).                                {
                                                                                     SToken t = B;
                                                                                     t.n = (C.z + C.n) - B.z;
-                                                                                    A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &t)); 
+                                                                                    A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &t));
                                                                                   }
 
 signed_integer(A) ::= NK_INTEGER(B).                                              { A = createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B); }
@@ -2531,7 +2636,7 @@ having_clause_opt(A) ::= HAVING search_condition(B).                            
 
 range_opt(A) ::= .                                                                { A = NULL; }
 range_opt(A) ::=
-  RANGE NK_LP expr_or_subquery(B) NK_COMMA expr_or_subquery(C) NK_COMMA expr_or_subquery(D) NK_RP.              { 
+  RANGE NK_LP expr_or_subquery(B) NK_COMMA expr_or_subquery(C) NK_COMMA expr_or_subquery(D) NK_RP.              {
                                                                                     A = createInterpTimeRange(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D)); }
 range_opt(A) ::=
   RANGE NK_LP expr_or_subquery(B) NK_COMMA expr_or_subquery(C) NK_RP.             { A = createInterpTimeRange(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C), NULL); }

@@ -1,13 +1,4 @@
-from sqlite3 import ProgrammingError
-import time
-import socket
-import os
-import threading
-import math
-import subprocess
-from datetime import datetime
-
-from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils import tdLog, tdSql
 
 COMPARE_DATA = 0
 COMPARE_LEN = 1
@@ -944,4 +935,53 @@ class TestFuncLast:
 
         self.prepare_data()
         self.basic_query()
-    
+
+    def test_cache_read_plan(self):
+        """ cache read plan check
+        
+        1. Create databases with different cache models and create tables
+        2. Check the explain plan with different cache models. Pay attention to
+           the column width of the scan columns.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2025-12-29 Tony Zhang Created
+        """
+        # create databases
+        tdSql.execute(f"create database test_none")
+        tdSql.execute(f"create database test_last_value cachemodel 'last_value'")
+        tdSql.execute(f"create database test_last_row cachemodel 'last_row'")
+        tdSql.execute(f"create database test_both cachemodel 'both'")
+
+        # create tables
+        tdSql.execute(f"create table test_none.tt (ts timestamp, c1 int, c2 bigint)")
+        tdSql.execute(f"create table test_last_value.tt (ts timestamp, c1 int, c2 bigint)")
+        tdSql.execute(f"create table test_last_row.tt (ts timestamp, c1 int, c2 bigint)")
+        tdSql.execute(f"create table test_both.tt (ts timestamp, c1 int, c2 bigint)")
+
+        # 'none'
+        tdSql.query("explain select last(c1), last_row(c2) from test_none.tt;")
+        tdSql.checkData(0, 0, "-> Aggregate (functions=2 width=12 input_order=desc )")
+        tdSql.checkData(1, 0, "   -> Table Scan on tt (columns=3 width=20 order=[asc|0 desc|1] mode=ts_order data_load=data)")
+
+        # 'both'
+        tdSql.query("explain select last(c1), last_row(c2) from test_both.tt;")
+        tdSql.checkData(0, 0, "-> Aggregate (functions=2 width=12 input_order=desc )")
+        tdSql.checkData(1, 0, "   -> Last Row Scan on tt (columns=3 width=20 )")
+
+        # 'last_value'
+        tdSql.query("explain select last(c1), last_row(c2) from test_last_value.tt;")
+        tdSql.checkData(1, 0, "   -> Aggregate (functions=1 width=8 input_order=desc )")
+        tdSql.checkData(3, 0, "         -> Table Scan on tt (columns=2 width=16 order=[asc|0 desc|1] mode=ts_order data_load=data)")
+        tdSql.checkData(4, 0, "   -> Aggregate (functions=1 width=4 input_order=desc )")
+        tdSql.checkData(6, 0, "         -> Last Row Scan on tt (columns=2 width=12 )")
+
+        # 'last_row'
+        tdSql.query("explain select last(c1), last_row(c2) from test_last_row.tt;")
+        tdSql.checkData(1, 0, "   -> Aggregate (functions=1 width=4 input_order=desc )")
+        tdSql.checkData(3, 0, "         -> Table Scan on tt (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)")
+        tdSql.checkData(4, 0, "   -> Aggregate (functions=1 width=8 input_order=desc )")
+        tdSql.checkData(6, 0, "         -> Last Row Scan on tt (columns=2 width=16 )")

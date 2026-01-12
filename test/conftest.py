@@ -247,6 +247,10 @@ def before_test_class(request):
     if hasattr(request.cls, "updatecfgDict"):
         tdLog.info(f"update cfg: {request.cls.updatecfgDict}")
         request.session.before_test.update_cfg(request.cls.updatecfgDict)
+    
+    if hasattr(request.cls, "encryptConfig"):
+        tdLog.info(f"encrypt config: {request.cls.encryptConfig}")
+        request.session.before_test.update_encrypt_config(request.cls.encryptConfig)
 
     # 部署taosd，包括启动dnode，mnode，adapter
     if not request.session.skip_deploy:
