@@ -1,4 +1,5 @@
 use std::time::Duration;
+use tokio::sync::oneshot;
 
 use anyhow::Context;
 use arrow::ipc::writer::StreamWriter;
@@ -31,7 +32,11 @@ impl Consumer {
         }
     }
 
-    pub async fn consume(&mut self, receiver: Receiver<MySqlConfig>) -> anyhow::Result<()> {
+    pub async fn consume(
+        &mut self,
+        receiver: Receiver<MySqlConfig>,
+        ready: Option<oneshot::Sender<()>>,
+    ) -> anyhow::Result<()> {
         // IPC Tcp stream
         let socket = format!("127.0.0.1:{}", &self.config.ipc_port.unwrap_or(0));
         let stream = std::net::TcpStream::connect(socket)?;
@@ -112,6 +117,12 @@ impl Consumer {
         });
 
         // query database and send to writer
+        // signal ready to producer (if provided) AFTER writer and ack handlers are spawned
+        if let Some(ready_tx) = ready {
+            let _ = ready_tx.send(());
+            tracing::debug!("consumer signaled ready");
+        }
+
         let mut batch_count: u64 = 0;
         while let Ok(mut config) = receiver.recv_async().await {
             let end = config.task.end.unwrap_or_else(Utc::now);
@@ -313,7 +324,7 @@ mod tests {
         let config_clone = config.clone();
         let consumer = tokio::spawn(async move {
             Consumer::new(config_clone, schema, query.clone())
-                .consume(rx)
+                .consume(rx, None)
                 .await
         });
 

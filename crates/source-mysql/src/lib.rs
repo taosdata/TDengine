@@ -171,7 +171,7 @@ pub async fn mysql_to_taos(
     // set task_id
     config.task_id = task_id;
     tracing::info!(
-        "{MYSQL_NAME} task start, id: {:?}, configuration: {:?}",
+        "{MYSQL_NAME} task start, id: {:?}, configuration: {:#?}",
         task_id,
         config
     );
