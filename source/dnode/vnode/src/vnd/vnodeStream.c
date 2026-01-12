@@ -1287,7 +1287,7 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
     goto end;
   } else {
     tagCache = *(SArray**)uidData;
-    ST_TASK_DLOG("%s numOfExpr:%d,tagCache size:%"PRIu32, __func__, numOfExpr, taosArrayGetSize(tagCache));
+    ST_TASK_DLOG("%s numOfExpr:%d,tagCache size:%zu", __func__, numOfExpr, taosArrayGetSize(tagCache));
     STREAM_CHECK_CONDITION_GOTO(taosArrayGetSize(tagCache) != numOfExpr, TSDB_CODE_INVALID_PARA);
   }
   
