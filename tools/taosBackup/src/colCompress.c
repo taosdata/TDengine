@@ -10,12 +10,18 @@
  */
     
 #include "colCompress.h"
+#include "blockReader.h"
 
 
 //
 // compress block
 //
 CompressBlock* compressBlock(void *block, int blockRows, TAOS_FIELD* fields, int numFields, int *code) {
+
+    // read block
+    BlockReader reader;
+    int32_t code = initBlockReader(&reader, block);
+
     CompressBlock* compressBlock = (CompressBlock*)calloc(1, sizeof(CompressBlock));
 
     // one stage encode

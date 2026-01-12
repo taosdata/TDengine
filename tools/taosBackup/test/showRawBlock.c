@@ -17,6 +17,8 @@
 #include "taos.h"
 #include "taoserror.h"
 
+size_t blockDataGetSerialMetaSize(uint32_t numOfCols); // tdatablock.h
+
 // 辅助函数：获取位图中的 null 标记
 static bool isNull(char* nullbitmap, int32_t row) {
     return (nullbitmap[row / 8] & (1 << (7 - (row % 8)))) != 0;
@@ -148,8 +150,11 @@ void printRawBlock(void* block, int numOfRows) {
                           fields[col].type == TSDB_DATA_TYPE_VARBINARY ||
                           fields[col].type == TSDB_DATA_TYPE_GEOMETRY);
         
+        // 对于变长类型，len 是数据部分长度，总长度 = offsets数组 + 数据部分
+        int32_t totalLen = isVarType ? (rows * sizeof(int32_t) + len) : len;
+        
         // Hex dump这一列的数据
-        hexDump("  Column data", pStart, len > 64 ? 64 : len);
+        hexDump("  Column data", pStart, totalLen > 64 ? 64 : totalLen);
         
         if (isVarType) {
             // 变长类型：offset 数组 + 数据
@@ -174,6 +179,19 @@ void printRawBlock(void* block, int numOfRows) {
                         fields[col].type == TSDB_DATA_TYPE_VARCHAR) {
                         printf("  Row[%d]: '%.*s' (len=%d, offset=%d)\n", 
                                row, varLen, varData, varLen, offsets[row]);
+                    } else if (fields[col].type == TSDB_DATA_TYPE_NCHAR) {
+                        // NCHAR 是 UTF-32LE 编码，每个字符4字节
+                        printf("  Row[%d]: '", row);
+                        int32_t* wchars = (int32_t*)varData;
+                        int numChars = varLen / 4;
+                        for (int i = 0; i < numChars; i++) {
+                            if (wchars[i] < 128) {
+                                printf("%c", (char)wchars[i]);
+                            } else {
+                                printf("\\u%04X", wchars[i]);
+                            }
+                        }
+                        printf("' (len=%d bytes, offset=%d)\n", varLen, offsets[row]);
                     } else {
                         printf("  Row[%d]: <data len=%d>\n", row, varLen);
                     }
@@ -185,8 +203,8 @@ void printRawBlock(void* block, int numOfRows) {
             int32_t bitmapLen = (rows + 7) / 8;
             char* colData = pStart + bitmapLen;
 
-            // 更新列数据总长度
-            len += bitmapLen;
+            // 更新列数据总长度（定长类型的 colLength 不包括 nullbitmap）
+            totalLen = len + bitmapLen;
             
             printf("  Nullbitmap (%d bytes): 0x", bitmapLen);
             for (int i = 0; i < bitmapLen; i++) {
@@ -230,7 +248,7 @@ void printRawBlock(void* block, int numOfRows) {
             }
         }
         
-        pStart += len;
+        pStart += totalLen;
         printf("\n");
     }
     
@@ -245,10 +263,13 @@ int main(int argc, char *argv[]) {
         printf("Failed to connect: %s\n", taos_errstr(NULL));
         return -1;
     }
+
+    int size = blockDataGetSerialMetaSize(5);
+    printf("Serial meta size for 5 columns: %d\n", size);
     
     printf("Connected to TDengine successfully!\n\n");
     
-    TAOS_RES* res = taos_query(conn, "SELECT * FROM test.meters");
+    TAOS_RES* res = taos_query(conn, "SELECT * FROM mix.meters");
     if (taos_errno(res) != 0) {
         printf("Query failed: %s\n", taos_errstr(res));
         taos_free_result(res);
