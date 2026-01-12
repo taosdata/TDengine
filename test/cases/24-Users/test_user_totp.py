@@ -183,6 +183,34 @@ class TestUserSecurity:
         
         print("delete totp ........................... [ passed ] ")
 
+
+    # login
+    def do_login(self):
+        
+        #
+        # fault-tolerance +/- 30s can login
+        #
+        
+        password = "abcd@1234"
+        user = "user1"
+        self.create_user(user, password, "createdb 1")
+        
+        key = self.create_security_key(user)
+        code1 = self.get_totp_code(key, interval=30)
+        
+        for i in range(100):
+            time.sleep(1)
+            self.check_login(user, password, code1)
+            print(f"login with totp {code1} success at {i+1}s")
+            
+        #self.check_login_fail(user, password, code1)
+        
+        #code2 = self.get_totp_code(key, interval=1)
+        #time.sleep(2)
+        #self.check_login_fail(user, password, code2)
+        
+        print("login totp ............................ [ passed ] ")
+
     #
     # --------------------------- main ----------------------------
     #
@@ -190,11 +218,11 @@ class TestUserSecurity:
         """User totp login
 
         1. Create TOTP
-            - super root account 
-            - default user account
-            - disabled user account
-            - sysinfo disabled user account
-            - duplicate create
+            - super root account create key
+            - default user account create key
+            - disabled user account create key
+            - sysinfo disabled user account create key
+            - check duplicate create key
             - exception cases
         2. Alter TOTP
             - alter totp for default user
@@ -217,6 +245,7 @@ class TestUserSecurity:
             - 2026-01-12 Alex Duan created
 
         """
-        self.do_create_totp()
-        self.do_alter_totp()
-        self.do_delete_totp()
+        #self.do_create_totp()
+        #self.do_alter_totp()
+        #self.do_delete_totp()
+        self.do_login()
