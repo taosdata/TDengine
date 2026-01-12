@@ -275,6 +275,7 @@ static int32_t authSelectTblCols(SSelectStmt* pSelect, STableNode* pTable, SArra
       SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, i);
       if (strcmp(pColNode->colName, pColNameFlag->colName) == 0) {
         found = true;
+        ++i;
         break;
       }
     }

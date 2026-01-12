@@ -738,7 +738,7 @@ typedef struct SVnodeModifyOpStmt {
   const char*           pBoundCols;
   struct STableMeta*    pTableMeta;
   SNode*                pTagCond;
-  SArray*               pPrivCols;  // SArray<SColumnNameFlag*> for column-level privileges check
+  SArray*               pPrivCols;  // SArray<SColNameFlag*> for column-level privileges check
   SArray*               pTableTag;
   SHashObj*             pVgroupsHashObj;     // SHashObj<vgId, SVgInfo>
   SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>

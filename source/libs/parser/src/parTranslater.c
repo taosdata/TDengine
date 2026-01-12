@@ -7046,6 +7046,115 @@ static int32_t translatePartitionByList(STranslateContext* pCxt, SSelectStmt* pS
   return pCxt->errCode;
 }
 
+typedef struct {
+  SName   tbName;
+  SArray* cols;  // SColIdNameKV
+} STableCols;
+
+static int32_t colIdNameKVComp(const void* pLeft, const void* pRight) {
+  SColIdNameKV* lhs = (SColIdNameKV*)pLeft;
+  SColIdNameKV* rhs = (SColIdNameKV*)pRight;
+  return lhs->colId < rhs->colId ? -1 : (lhs->colId == rhs->colId ? 0 : 1);
+}
+
+static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SParseContext* pParseCxt = pCxt->pParseCxt;
+  SSHashObj*     pTblColHash = NULL;
+  SCatalog*      pCatalog = pParseCxt->pCatalog;
+  STableCols*    tblCol = NULL;
+  int32_t        code = 0, lino = 0;
+  int32_t        nProjCols = LIST_LENGTH(pSelect->pProjectionList);
+
+  if (nProjCols <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pTblColHash = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
+  if (pTblColHash == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pSelect->pProjectionList) {
+    if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+      SColumnNode* pCol = (SColumnNode*)pNode;
+      SColIdNameKV colIdNameKV = {.colId = pCol->colId};
+      snprintf(colIdNameKV.colName, TSDB_COL_NAME_LEN, "%s", pCol->colName);
+      STableCols* pTblCols = tSimpleHashGet(pTblColHash, (const void*)&pCol->tableId, sizeof(pCol->tableId));
+      if (pTblCols == NULL) {
+        STableCols tblCols = {0};
+        strncpy(tblCols.tbName.dbname, pCol->dbName, sizeof(tblCols.tbName.dbname));
+        strncpy(tblCols.tbName.tname, pCol->tableName, sizeof(tblCols.tbName.tname));
+        tblCols.tbName.acctId = pParseCxt->acctId;
+        tblCols.tbName.type = TSDB_TABLE_NAME_T;
+        tblCols.cols = taosArrayInit(nProjCols, sizeof(SColIdNameKV));
+        if (tblCols.cols == NULL) {
+          code = terrno;
+          goto _exit;
+        }
+        if (!taosArrayPush(tblCols.cols, &colIdNameKV)) {
+          code = terrno;
+          goto _exit;
+        }
+        TAOS_CHECK_EXIT(tSimpleHashPut(pTblColHash, (const void*)&pCol->tableId, sizeof(pCol->tableId),
+                                       (const void*)&tblCols, sizeof(tblCols)));
+      } else if (!taosArrayPush(pTblCols->cols, &colIdNameKV)) {
+        code = terrno;
+        goto _exit;
+      }
+    }
+  }
+
+  SRequestConnInfo conn = {.pTrans = pParseCxt->pTransporter,
+                           .requestId = pParseCxt->requestId,
+                           .requestObjRefId = pParseCxt->requestRid,
+                           .mgmtEps = pParseCxt->mgmtEpSet};
+
+  int32_t iter = 0;
+  tblCol = NULL;
+  SUserAuthInfo authInfo = {.userId = pParseCxt->userId, .privType = PRIV_TBL_SELECT, .objType = PRIV_OBJ_TBL};
+  (void)snprintf(authInfo.user, TSDB_USER_LEN, "%s", pParseCxt->pUser);
+  while ((tblCol = tSimpleHashIterate(pTblColHash, tblCol, &iter))) {
+    taosArraySort(tblCol->cols, colIdNameKVComp);
+    taosArrayRemoveDuplicate(tblCol->cols, colIdNameKVComp, NULL);
+
+    SUserAuthRes authRes = {0};
+    memcpy(&authInfo.tbName, &tblCol->tbName, sizeof(SName));
+    TAOS_CHECK_EXIT(catalogChkAuth(pCatalog, &conn, &authInfo, &authRes));
+    if (authRes.pCols) {
+      int32_t j = 0;
+      int32_t nCols = taosArrayGetSize(authRes.pCols), nPrivCols = taosArrayGetSize(tblCol->cols);
+      for (int32_t i = 0; i < taosArrayGetSize(tblCol->cols); ++i) {
+        SColIdNameKV* pColIdNameKV = (SColIdNameKV*)TARRAY_GET_ELEM(tblCol->cols, i);
+        bool          hasPriv = false;
+        for (; j < nPrivCols; ++j) {
+          SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(authRes.pCols, j);
+          if (pColIdNameKV->colId == pColNameFlag->colId) {
+            hasPriv = true;
+            ++j;
+            break;
+          }
+        }
+        if (!hasPriv) {
+          code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED,
+                                         "No SELECT privilege for column '%s.%s'", authInfo.tbName.tname,
+                                         pColIdNameKV->colName);
+          taosArrayDestroy(authRes.pCols);
+          goto _exit;
+        }
+      }
+      taosArrayDestroy(authRes.pCols);
+    }
+  }
+_exit:
+  tblCol = NULL;
+  while ((tblCol = tSimpleHashIterate(pTblColHash, tblCol, &iter))) {
+    taosArrayDestroy(tblCol->cols);
+  }
+  tSimpleHashCleanup(pTblColHash);
+  return code;
+}
+
 static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_SELECT;
   int32_t code = prepareColumnExpansion(pCxt, SQL_CLAUSE_SELECT, pSelect);
@@ -7054,6 +7163,9 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateStar(pCxt, pSelect);
+  }
+  if(TSDB_CODE_SUCCESS == code) {
+    code = translateCheckPrivCols(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateProjectionList(pCxt, pSelect);
