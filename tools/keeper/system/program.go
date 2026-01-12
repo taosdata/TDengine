@@ -2,7 +2,6 @@ package system
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -124,7 +123,11 @@ func (p *program) Start(s service.Service) error {
 	server := p.server
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(fmt.Errorf("taoskeeper start up fail! %v", err))
+			logger.Errorf("taoskeeper start up fail: %v", err)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			log.Close(ctx)
+			cancel()
+			os.Exit(1)
 		}
 	}()
 	return nil
