@@ -551,6 +551,9 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
       .retention = pVnode->config.tsdbCfg.retentions[0],
       .precision = pVnode->config.tsdbCfg.precision,
   };
+  tstrncpy(cfg.encryptAlgrName, pVnode->config.walCfg.encryptData.encryptAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(cfg.encryptKey, pVnode->config.walCfg.encryptData.encryptKey, ENCRYPT_KEY_LEN + 1);
+
   ret = bseOpen(tdir, &cfg, &pVnode->pBse);
   if (ret != 0) {
     vError("vgId:%d, failed to open blob store engine since %s", TD_VID(pVnode), tstrerror(ret));
