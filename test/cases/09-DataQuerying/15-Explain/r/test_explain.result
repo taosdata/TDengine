@@ -1322,7 +1322,7 @@ QUERY_PLAN:             Output: columns=3 width=24
 *************************** 11.row ***************************
 QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 12.row ***************************
-QUERY_PLAN:             Merge ResBlocks: False
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 13.row ***************************
 QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
 *************************** 14.row ***************************
@@ -1406,7 +1406,7 @@ QUERY_PLAN:             Output: columns=3 width=24
 *************************** 11.row ***************************
 QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 12.row ***************************
-QUERY_PLAN:             Merge ResBlocks: False
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 13.row ***************************
 QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=desc output_order=desc)
 *************************** 14.row ***************************
@@ -1490,7 +1490,7 @@ QUERY_PLAN:             Output: columns=2 width=16
 *************************** 11.row ***************************
 QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 12.row ***************************
-QUERY_PLAN:             Merge ResBlocks: False
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 13.row ***************************
 QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=2 width=16 input_order=desc output_order=desc)
 *************************** 14.row ***************************
@@ -1574,7 +1574,7 @@ QUERY_PLAN:             Output: columns=2 width=16
 *************************** 11.row ***************************
 QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 12.row ***************************
-QUERY_PLAN:             Merge ResBlocks: False
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 13.row ***************************
 QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=2 width=16 input_order=desc output_order=desc)
 *************************** 14.row ***************************
@@ -1877,7 +1877,7 @@ QUERY_PLAN:             Output: columns=3 width=24
 *************************** 11.row ***************************
 QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 12.row ***************************
-QUERY_PLAN:             Merge ResBlocks: False
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 13.row ***************************
 QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=desc output_order=desc)
 *************************** 14.row ***************************
@@ -1961,7 +1961,7 @@ QUERY_PLAN:             Output: columns=3 width=24
 *************************** 11.row ***************************
 QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 12.row ***************************
-QUERY_PLAN:             Merge ResBlocks: False
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 13.row ***************************
 QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
 *************************** 14.row ***************************
