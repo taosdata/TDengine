@@ -569,8 +569,8 @@ priv_type(A) ::= CREATE STREAM.                                                 
 
 priv_type(A) ::= SHOW TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_SHOW); }
 priv_type(A) ::= KILL TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_KILL); }
-priv_type(A) ::= SHOW CONNECTIONS.                                                { A = PRIV_SET_TYPE(PRIV_CONNECTION_SHOW); }
-priv_type(A) ::= KILL CONNECTION.                                                 { A = PRIV_SET_TYPE(PRIV_CONNECTION_KILL); }
+priv_type(A) ::= SHOW CONNECTIONS.                                                { A = PRIV_SET_TYPE(PRIV_CONN_SHOW); }
+priv_type(A) ::= KILL CONNECTION.                                                 { A = PRIV_SET_TYPE(PRIV_CONN_KILL); }
 priv_type(A) ::= SHOW QUERIES.                                                    { A = PRIV_SET_TYPE(PRIV_QUERY_SHOW); }
 priv_type(A) ::= KILL QUERY.                                                      { A = PRIV_SET_TYPE(PRIV_QUERY_KILL); }
 

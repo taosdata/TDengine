@@ -867,7 +867,6 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authAlterVTable(pCxt, (SAlterTableStmt*)pStmt);
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     // case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
@@ -1008,6 +1007,10 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authObjPrivileges(pCxt, ((SSsMigrateDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_SSMIGRATE, PRIV_OBJ_DB);
     case QUERY_NODE_SHOW_USAGE_STMT:  // disk info
       return authShowUsage(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_APPS_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_APPS_SHOW);
+    case QUERY_NODE_SHOW_CLUSTER_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_CLUSTER_SHOW);
       // check in mnode
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:
