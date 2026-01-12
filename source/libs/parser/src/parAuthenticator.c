@@ -149,11 +149,9 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
 _exit:
   if (TSDB_CODE_SUCCESS == code) {
     if (pCond) *pCond = authRes.pCond[auth_res_type];
-    if (pPrivCols) {
-      *pPrivCols = authRes.pCols;
-      if (taosArrayGetSize(authRes.pCols) > 0) {
-        pCxt->pParseCxt->hasPrivCols = 1;
-      }
+    if (pPrivCols) *pPrivCols = authRes.pCols;
+    if (taosArrayGetSize(authRes.pCols) > 0) {
+      pCxt->pParseCxt->hasPrivCols = 1; // used later in translateCheckPrivCols for select *
     }
   }
   return TSDB_CODE_SUCCESS == code ? (authRes.pass[auth_res_type] ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED)
@@ -255,7 +253,10 @@ static int32_t rewriteAppendStableTagCond(SNode** pWhere, SNode* pTagCond, STabl
 
   return mergeStableTagCond(pWhere, pTagCondCopy);
 }
-
+#if 0  
+/**
+ * @brief Fast fail path if no star(*) specified in select clause
+ */
 static int32_t authSelectTblCols(SSelectStmt* pSelect, STableNode* pTable, SArray* pPrivCols) {
   int32_t    code = 0;
   SNodeList* pRetrievedCols = NULL;
@@ -302,6 +303,7 @@ _return:
   nodesDestroyList(pRetrievedCols);
   return code;
 }
+#endif
 
 static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   SSelectAuthCxt* pCxt = pContext;
@@ -309,7 +311,7 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   bool            isView = false;
   if (QUERY_NODE_REAL_TABLE == nodeType(pNode)) {
     SNode*      pTagCond = NULL;
-    SArray*     pPrivCols = NULL;
+    // SArray*     pPrivCols = NULL;
     STableNode* pTable = (STableNode*)pNode;
     if ((pAuthCxt->pParseCxt->enableSysInfo == 0) && IS_INFORMATION_SCHEMA_DB(pTable->dbName) &&
         (strcmp(pTable->tableName, TSDB_INS_TABLE_VGROUPS) == 0)) {
@@ -340,14 +342,16 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
 #endif
     if (!isView) {
       pAuthCxt->errCode =
-          checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, &pTagCond, &pPrivCols);
+          checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, &pTagCond, NULL); //&pPrivCols);
       if (TSDB_CODE_SUCCESS != pAuthCxt->errCode && NULL != pAuthCxt->pParseCxt->pEffectiveUser) {
         pAuthCxt->errCode =
             checkEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL);
       }
+#if 0
       if (TSDB_CODE_SUCCESS == pAuthCxt->errCode && NULL != pPrivCols) {
         pAuthCxt->errCode = authSelectTblCols(pCxt->pSelect, pTable, pPrivCols);
       }
+#endif
       if (TSDB_CODE_SUCCESS == pAuthCxt->errCode && NULL != pTagCond) {
         pAuthCxt->errCode = rewriteAppendStableTagCond(&pCxt->pSelect->pWhere, pTagCond, pTable);
       }
