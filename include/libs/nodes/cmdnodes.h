@@ -68,8 +68,11 @@ extern "C" {
 
 #define SHOW_ALIVE_RESULT_COLS 1
 
-#define CREATE_USER_TOKEN_RESULT_COLS       1
-#define CREATE_USER_TOKEN_RESULT_FIELD1_LEN (TSDB_TOKEN_LEN + VARSTR_HEADER_SIZE)
+#define CREATE_TOKEN_RESULT_COLS       1
+#define CREATE_TOKEN_RESULT_FIELD1_LEN (TSDB_TOKEN_LEN + VARSTR_HEADER_SIZE)
+
+#define CREATE_TOTP_SECRET_RESULT_COLS       1
+#define CREATE_TOTP_SECRET_RESULT_FIELD1_LEN ((TSDB_TOTP_SECRET_LEN * 8 + 4) / 5 + 1 + VARSTR_HEADER_SIZE)
 
 #define BIT_FLAG_MASK(n)               (1 << n)
 #define BIT_FLAG_SET_MASK(val, mask)   ((val) |= (mask))
@@ -600,6 +603,17 @@ typedef struct SDropTokenStmt {
   bool      ignoreNotExists;
 } SDropTokenStmt;
 
+typedef struct SCreateTotpSecretStmt {
+  ENodeType type;
+
+  char      user[TSDB_USER_LEN];
+} SCreateTotpSecretStmt;
+
+typedef struct SDropTotpSecretStmt {
+  ENodeType type;
+
+  char      user[TSDB_USER_LEN];
+} SDropTotpSecretStmt;
 
 typedef struct SDropEncryptAlgrStmt {
   ENodeType type;

@@ -40,7 +40,7 @@ class TestRedistributeVgroupReplica3V3:
         sc.dnodeStop(8)
         clusterComCheck.checkDnodes(4)
 
-        tdSql.execute(f"create user u1 pass 'taosdata'")
+        tdSql.execute(f"create user u1 pass 'AAbb1122'")
 
         tdLog.info(f"=============== step1 create dnode2")
 

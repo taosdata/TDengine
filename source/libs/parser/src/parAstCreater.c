@@ -160,22 +160,13 @@ static bool isValidSimplePassword(const char* password) {
 
 
 
-static bool isValidStrongPassword(const char* password) {
-  if (strcmp(password, "taosdata") == 0) {
-    return true;
-  }
-  return taosIsComplexString(password);
-}
-
-
-
 static bool isValidPassword(SAstCreateContext* pCxt, const char* password, bool imported) {
   if (imported) {
     return strlen(password) == TSDB_PASSWORD_LEN;
   }
 
   if (tsEnableStrongPassword) {
-    return isValidStrongPassword(password);
+    return taosIsComplexString(password);
   }
 
   return isValidSimplePassword(password);
@@ -659,8 +650,7 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   }
   copyValueTrimEscape(val->literal, pLiteral->n + 1, pLiteral,
                       pCxt->pQueryCxt->hasDupQuoteChar && (TK_NK_ID == pLiteral->type));
-  if (TK_NK_ID != pLiteral->type && TK_TIMEZONE != pLiteral->type &&
-      (IS_VAR_DATA_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType)) {
+  if (TK_NK_STRING == pLiteral->type) {
     (void)trimString(pLiteral->z, pLiteral->n, val->literal, pLiteral->n);
   }
   val->node.resType.type = dataType;
@@ -4190,11 +4180,10 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   pOptions->connectTime = TSDB_USER_CONNECT_TIME_DEFAULT;
   pOptions->connectIdleTime = TSDB_USER_CONNECT_IDLE_TIME_DEFAULT;
   pOptions->callPerSession = TSDB_USER_CALL_PER_SESSION_DEFAULT;
-  pOptions->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;  // not implemented yet, so use -1 instead of
-                                                                // TSDB_USER_VNODE_PER_CALL_DEFAULT;
+  pOptions->vnodePerCall = TSDB_USER_VNODE_PER_CALL_DEFAULT;
   pOptions->failedLoginAttempts = TSDB_USER_FAILED_LOGIN_ATTEMPTS_DEFAULT;
   pOptions->passwordLifeTime = TSDB_USER_PASSWORD_LIFE_TIME_DEFAULT;
-  pOptions->passwordReuseTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
+  pOptions->passwordReuseTime = TSDB_USER_PASSWORD_REUSE_TIME_DEFAULT;
   pOptions->passwordReuseMax = TSDB_USER_PASSWORD_REUSE_MAX_DEFAULT;
   pOptions->passwordLockTime = TSDB_USER_PASSWORD_LOCK_TIME_DEFAULT;
   pOptions->passwordGraceTime = TSDB_USER_PASSWORD_GRACE_TIME_DEFAULT;
@@ -4593,7 +4582,7 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
     return false;
   }
 
-  if (opts->hasAllowTokenNum && (opts->allowTokenNum < -1 || opts->allowTokenNum == 0)) {
+  if (opts->hasAllowTokenNum && opts->allowTokenNum < -1) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "ALLOW_TOKEN_NUM");
     return false;
   }
@@ -5000,6 +4989,42 @@ _err:
   nodesDestroyNode((SNode*)pStmt);
   return NULL;
 }
+
+SNode* createCreateTotpSecretStmt(SAstCreateContext* pCxt, SToken* pUserName) {
+  SCreateTotpSecretStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkUserName(pCxt, pUserName));
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_TOTP_SECRET_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  COPY_STRING_FORM_ID_TOKEN(pStmt->user, pUserName);
+  return (SNode*)pStmt;
+
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+
+SNode* createDropTotpSecretStmt(SAstCreateContext* pCxt, SToken* pUserName) {
+  SDropTotpSecretStmt* pStmt = NULL;
+
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkUserName(pCxt, pUserName));
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_TOTP_SECRET_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  COPY_STRING_FORM_ID_TOKEN(pStmt->user, pUserName);
+  return (SNode*)pStmt;
+
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
 
 SNode* createDropEncryptAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId) {
   CHECK_PARSER_STATUS(pCxt);

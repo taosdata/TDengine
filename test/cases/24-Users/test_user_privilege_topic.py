@@ -38,12 +38,12 @@ class TestUserPrivilegeTopic:
         # tdSql.checkKeyData("root", 2, "all")
 
         tdLog.info(f"=============== create users")
-        tdSql.execute(f"create user user1 PASS 'taosdata'")
-        tdSql.execute(f"create user user2 PASS 'taosdata'")
-        tdSql.execute(f"create user user3 PASS 'taosdata'")
-        tdSql.execute(f"create user user4 PASS 'taosdata'")
-        tdSql.execute(f"create user user5 PASS 'taosdata'")
-        tdSql.execute(f"create user user6 PASS 'taosdata'")
+        tdSql.execute(f"create user user1 PASS 'AAbb1122'")
+        tdSql.execute(f"create user user2 PASS 'AAbb1122'")
+        tdSql.execute(f"create user user3 PASS 'AAbb1122'")
+        tdSql.execute(f"create user user4 PASS 'AAbb1122'")
+        tdSql.execute(f"create user user5 PASS 'AAbb1122'")
+        tdSql.execute(f"create user user6 PASS 'AAbb1122'")
         tdSql.execute(f"alter user user1 sysinfo 0")
 
         tdSql.query(f"select * from information_schema.ins_users")
@@ -125,6 +125,6 @@ class TestUserPrivilegeTopic:
 
         tdLog.info(f"=============== re connect")
         tdLog.info(f"user u1 login")
-        tdSql.connect("user1")
+        tdSql.connect("user1", "AAbb1122")
 
         tdSql.error(f"show user privileges")
