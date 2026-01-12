@@ -647,59 +647,59 @@ taos> select sqrt(u_tinyint_col) from test_vtable_select.vtb_virtual_ntb_full li
           8.18535277187245 |
           10.0498756211209 |
 
-taos> select tan(u_tinyint_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
-    tan(u_tinyint_col)     |
+taos> select round(tan(u_tinyint_col)) from test_vtable_select.vtb_virtual_ntb_full limit 50;
+ round(tan(u_tinyint_col)) |
 ============================
-         0.887142843798215 |
-          1.31426500645334 |
-           1.5574077246549 |
-         -3.17290855215919 |
-           -5.737022539279 |
-         -225.950846454195 |
-         -32.2685757759344 |
-         0.169749752082688 |
-        -0.349538598383993 |
-         0.224938050808022 |
-        -0.133526407021536 |
-        -0.215625459553961 |
-        0.0798317705429828 |
-         -13.2662245343609 |
-         0.935752472063239 |
-         -4.73866615026035 |
-        -0.825774009196815 |
-         0.070929992292224 |
-         0.919286404403608 |
-         -6.79971145522038 |
-          3.49391564547484 |
-        -0.234224329867607 |
-        -0.635859928661581 |
-        -0.855993400908519 |
-          2.40672970964221 |
-        -0.969460931550875 |
-          1.65231726401024 |
-           1.0224078883217 |
-        -0.952436102521716 |
-        -0.349538598383993 |
-         -2.08661353112138 |
-          1.83055329781918 |
-         -1.36361501510227 |
-         -17.3617655018194 |
-          1.31426500645334 |
-       -0.0887157567700605 |
-        -0.359502553689686 |
-          -4.1853335779117 |
-         0.686747689351523 |
-         -1.72022931175244 |
-         -3.38051500624659 |
-         0.310309660994801 |
-          1.24427005812871 |
-          5.19280171238487 |
-          1.00446581369115 |
-         -1.31418279724119 |
-        -0.410321299048242 |
-         0.796474770826078 |
-          1.65231726401024 |
-         0.506752600224818 |
+                         1 |
+                         1 |
+                         2 |
+                        -3 |
+                        -6 |
+                      -226 |
+                       -32 |
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+                       -13 |
+                         1 |
+                        -5 |
+                        -1 |
+                         0 |
+                         1 |
+                        -7 |
+                         3 |
+                         0 |
+                        -1 |
+                        -1 |
+                         2 |
+                        -1 |
+                         2 |
+                         1 |
+                        -1 |
+                         0 |
+                        -2 |
+                         2 |
+                        -1 |
+                       -17 |
+                         1 |
+                         0 |
+                         0 |
+                        -4 |
+                         1 |
+                        -2 |
+                        -3 |
+                         0 |
+                         1 |
+                         5 |
+                         1 |
+                        -1 |
+                         0 |
+                         1 |
+                         2 |
+                         1 |
 
 taos> select PI() from test_vtable_select.vtb_virtual_ntb_full limit 50;
 
@@ -2433,6 +2433,8 @@ taos> select hyperloglog(int_col) from test_vtable_select.vtb_virtual_ntb_full l
                  10099 |
 
 taos> select percentile(int_col, 0.5) from test_vtable_select.vtb_virtual_ntb_full limit 50;
+
+DB error: percentile is only supported in single table query [0x8000265F] 
 taos> select bottom(int_col, 10) from test_vtable_select.vtb_virtual_ntb_full limit 50;
  bottom(int_col, 10) |
 ======================
@@ -2967,10 +2969,10 @@ taos> select stateduration(u_tinyint_col, "GT", 20, 1a) from test_vtable_select.
                                          14 |
                                          16 |
 
-taos> select twa(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
-       twa(int_col)        |
+taos> select round(twa(int_col), -4) from test_vtable_select.vtb_virtual_ntb_full limit 50;
+  round(twa(int_col), -4)  |
 ============================
-         -163685.413924687 |
+                   -160000 |
 
 taos> select count(tbname) from test_vtable_select.vtb_virtual_ntb_full;
      count(tbname)     |

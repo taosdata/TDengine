@@ -632,7 +632,13 @@ int32_t   virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock)
   SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
 
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
-    pResBlock = NULL;
+    *pResBlock = NULL;
+    return code;
+  }
+
+  if (taosArrayGetSize(pInfo->binfo.pRes->pDataBlock) == 0) {
+    // scan no cols
+    *pResBlock = NULL;
     return code;
   }
 
