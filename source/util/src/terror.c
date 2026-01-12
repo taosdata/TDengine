@@ -1142,6 +1142,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT,         "Xnode xnoded re
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_COL_NOT_EXIST,      "Xnode where clause column not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_COL_TYPE_DIFF,      "Xnode where clause column type diff")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_OP_NOT_SUPPORT,     "Xnode where clause operator not support")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_AGENT_NOT_EXIST,          "Xnode agent not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_AGENT_ALREADY_EXIST,      "Xnode agent already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NAME_DUPLICATE,           "Xnode name duplicate")
 
 
 #ifdef TAOS_ERROR_C

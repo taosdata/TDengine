@@ -406,7 +406,6 @@ typedef enum ELogicConditionType {
 
 #define TSDB_XNODE_OPT_PROTO            1
 #define TSDB_XNODE_URL_LEN              256
-#define TSDB_XNODE_NAME_LEN             64
 #define TSDB_XNODE_STATUS_LEN           16
 #define TSDB_XNODE_TASK_NAME_LEN        64
 #define TSDB_XNODE_TASK_PARSER_LEN      4096
@@ -418,6 +417,9 @@ typedef enum ELogicConditionType {
 #define TSDB_XNODE_TASK_REASON_LEN      1024
 #define TSDB_XNODE_TASK_OPTIONS_MAX_NUM 64
 #define TSDB_XNODE_TASK_JOB_CONFIG_LEN  4096
+#define TSDB_XNODE_AGENT_NAME_LEN       TSDB_XNODE_TASK_NAME_LEN
+#define TSDB_XNODE_AGENT_STATUS_LEN     TSDB_XNODE_STATUS_LEN
+#define TSDB_XNODE_AGENT_TOKEN_LEN      512
 
 #define TSDB_MAX_EP_NUM 10
 

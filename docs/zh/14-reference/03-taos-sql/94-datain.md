@@ -324,3 +324,101 @@ Query OK, 0 row(s) affected (0.007237s)
 taos> REBALANCE XNODE JOBS;
 Query OK, 0 row(s) affected (0.023245s)
 ```
+
+## Agent 管理
+
+Agent 节点是数据同步服务中的采集与转发单元，负责采集数据，并将采集到的数据转发至 Xnode 节点。
+
+### 创建 Agent
+
+#### 语法
+
+```sql
+CREATE XNODE AGENT 'name' [WITH agent_options]
+
+agent_options:
+  [STATUS 'status']
+```
+
+#### 参数说明
+
+- **name**: Agent 节点的名称
+- **status**: 使用 with 语句指定创建时的状态
+
+#### 示例
+
+```sql
+taos> create xnode agent 'a1';
+Create OK, 0 row(s) affected (0.013910s)
+
+taos> create xnode agent 'a2' with status 'running';
+Create OK, 0 row(s) affected (0.013414s)
+```
+
+### 查询 Agent
+
+#### 语法
+
+```sql
+SHOW XNODE AGENTS
+```
+
+#### 示例
+
+```sql
+taos> show xnode agents\G;
+*************************** 1.row ***************************
+         id: 1
+       name: a1
+      token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjgxODI3MDEzNjQsInN1YiI6MX0.FP5rfzQplBrJrbV7Dj_R8fCpiN5uLaADegcnqExwepg
+     status: NULL
+create_time: 2026-01-12 09:51:41.364
+update_time: 2026-01-12 09:51:41.364
+```
+
+### 更新 Agent
+
+#### 语法
+
+```sql
+ALTER XNODE AGENT agent_id WITH alter_options
+
+alter_options {
+  STATUS 'status'
+  | NAME 'name'
+}
+```
+
+#### 参数说明
+
+- **name**: Agent 节点的名称
+- **status**: 可以使用 with 语句指定创建时的状态
+
+#### 示例
+
+```sql
+taos> alter xnode agent 1 with name 'test1';
+Query OK, 0 row(s) affected (0.008387s)
+
+taos> alter xnode agent 'a2' with name 'test2' status 'online';
+Query OK, 0 row(s) affected (0.008685s)
+```
+
+### 删除 Agent
+
+#### 语法
+
+```sql
+DROP XNODE AGENT agent_id
+```
+
+#### 参数说明
+
+- **agent_id**: Agent 节点的 ID
+
+#### 示例
+
+```sql
+taos> drop xnode agent 1;
+Drop OK, 0 row(s) affected (0.012281s)
+```
