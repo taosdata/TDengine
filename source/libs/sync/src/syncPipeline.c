@@ -1119,11 +1119,13 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
     if (pMsg->fsmState == SYNC_FSM_STATE_INCOMPLETE || (!pMsg->success && pMsg->matchIndex >= pMsg->lastSendIndex)) {
       char* msg1 = " rollback match index failure";
       char* msg2 = " incomplete fsm state";
-      sInfo("vgId:%d, snapshot replication progress:1/8:leader:1/4 to dnode:%d, reason:%s, match index:%" PRId64
-            ", last sent:%" PRId64,
-            pNode->vgId, DID(&destId), (pMsg->fsmState == SYNC_FSM_STATE_INCOMPLETE ? msg2 : msg1), pMsg->matchIndex,
-            pMsg->lastSendIndex);
-      if ((code = syncNodeStartSnapshot(pNode, &destId)) < 0) {
+      sTrace("vgId:%d, is going to trigger snapshot to dnode:%d by append reply, reason:%s, match index:%" PRId64
+             ", last sent:%" PRId64,
+             pNode->vgId, DID(&destId), (pMsg->fsmState == SYNC_FSM_STATE_INCOMPLETE ? msg2 : msg1), pMsg->matchIndex,
+             pMsg->lastSendIndex);
+      pNode->snapSeq = -1;
+      if ((code = syncNodeStartSnapshot(pNode, &destId, (pMsg->fsmState == SYNC_FSM_STATE_INCOMPLETE ? msg2 : msg1))) <
+          0) {
         sError("vgId:%d, failed to start snapshot for peer dnode:%d", pNode->vgId, DID(&destId));
         TAOS_RETURN(code);
       }
@@ -1157,11 +1159,21 @@ int32_t syncLogReplRecover(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendEn
     if ((index + 1 < firstVer) || (term < 0) ||
         (term != pMsg->lastMatchTerm && (index + 1 == firstVer || index == firstVer))) {
       if (!(term >= 0 || terrno == TSDB_CODE_WAL_LOG_NOT_EXIST)) return TSDB_CODE_SYN_INTERNAL_ERROR;
-      if ((code = syncNodeStartSnapshot(pNode, &destId)) < 0) {
+      sTrace("vgId:%d, is going to trigger snapshot to dnode:%d by append reply, index:%" PRId64 ", firstVer:%" PRId64
+             ", term:%" PRId64 ", lastMatchTerm:%" PRId64,
+             pNode->vgId, DID(&destId), index, firstVer, term, pMsg->lastMatchTerm);
+      char reason[100] = {0};
+      if (index + 1 < firstVer)
+        tsnprintf(reason, 100, "matched entry not in log range, index:%" PRId64 ", firstVer:%" PRId64, index, firstVer);
+      else if (term < 0)
+        tsnprintf(reason, 100, "failed to get prev log term");
+      else
+        tsnprintf(reason, 100, "log term mismatch");
+      pNode->snapSeq = -1;
+      if ((code = syncNodeStartSnapshot(pNode, &destId, reason)) < 0) {
         sError("vgId:%d, failed to start snapshot for peer dnode:%d", pNode->vgId, DID(&destId));
         TAOS_RETURN(code);
       }
-      sInfo("vgId:%d, snapshot replication to peer dnode:%d", pNode->vgId, DID(&destId));
       return 0;
     }
 

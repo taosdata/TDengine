@@ -686,7 +686,8 @@ SSyncState syncGetState(int64_t rid) {
     } else {
       state.canRead = state.restored;
     }
-    /*
+    state.totalIndex = pSyncNode->pLogBuf->totalIndex;
+
     double progress = 0;
     if(pSyncNode->pLogBuf->totalIndex > 0 && pSyncNode->pLogBuf->commitIndex > 0){
       progress = (double)pSyncNode->pLogBuf->commitIndex/(double)pSyncNode->pLogBuf->totalIndex;
@@ -695,12 +696,15 @@ SSyncState syncGetState(int64_t rid) {
     else{
       state.progress = -1;
     }
-    sDebug("vgId:%d, learner progress state, commitIndex:%" PRId64 " totalIndex:%" PRId64 ", "
+    if (pSyncNode->state == TAOS_SYNC_STATE_LEARNER) {
+      sInfo("vgId:%d, learner progress state, commitIndex:%" PRId64 " totalIndex:%" PRId64
+            ", "
             "progress:%lf, progress:%d",
-          pSyncNode->vgId,
-         pSyncNode->pLogBuf->commitIndex, pSyncNode->pLogBuf->totalIndex, progress, state.progress);
-    */
+            pSyncNode->vgId, pSyncNode->pLogBuf->commitIndex, pSyncNode->pLogBuf->totalIndex, progress, state.progress);
+    }
+
     state.term = raftStoreGetTerm(pSyncNode);
+    state.snapSeq = pSyncNode->snapSeq;
     syncNodeRelease(pSyncNode);
   }
 
@@ -1513,6 +1517,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion, int32_t elec
   pSyncNode->hbSlowNum = 0;
   pSyncNode->hbrSlowNum = 0;
   pSyncNode->tmrRoutineNum = 0;
+
+  pSyncNode->snapSeq = -1;
 
   sNInfo(pSyncNode, "sync node opened, node:%p electBaseLine:%d hbBaseLine:%d heartbeatTimeout:%d", pSyncNode,
          pSyncNode->electBaseLine, pSyncNode->hbBaseLine, tsHeartbeatTimeout);
