@@ -2060,6 +2060,7 @@ static int32_t doDynamicTableScanNext(SOperatorInfo* pOperator, ETableScanDynTyp
   pOperator->dynamicTask = true;
 
   switch (type) {
+    case DYN_TYPE_VSTB_WIN_SCAN:
     case DYN_TYPE_STB_JOIN: {
       code = doStbJoinDynamicTableScanNext(pOperator, ppRes);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -2101,7 +2102,7 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     code = doDynamicTableScanNext(pOperator, type, ppRes);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    if (type != DYN_TYPE_STB_JOIN) {
+    if (*ppRes != NULL || (type != DYN_TYPE_STB_JOIN && type != DYN_TYPE_VSTB_WIN_SCAN)) {
       return code;
     }
   }

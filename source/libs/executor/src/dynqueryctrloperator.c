@@ -3261,6 +3261,7 @@ int32_t vtbWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     SSDataBlock* pExtWinBlock = NULL;
     code = extWinOp->fpSet.getNextExtFn(extWinOp, pExtWinParam, &pExtWinBlock);
     QUERY_CHECK_CODE(code, lino, _return);
+    setOperatorCompleted(extWinOp);
 
     blockDataCleanup(pRes);
     code = blockDataEnsureCapacity(pRes, numOfWins);
