@@ -7058,6 +7058,10 @@ static int32_t colIdNameKVComp(const void* pLeft, const void* pRight) {
 }
 
 static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (pCxt->pParseCxt->hasPrivCols == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SParseContext* pParseCxt = pCxt->pParseCxt;
   SSHashObj*     pTblColHash = NULL;
   SCatalog*      pCatalog = pParseCxt->pCatalog;
@@ -7067,6 +7071,13 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
 
   if (nProjCols <= 0) {
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (pSelect->pFromTable && (QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable))) {
+    STableNode* pTable = (STableNode*)pSelect->pFromTable;
+    if (IS_SYS_DBNAME(pTable->dbName)) {
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   pTblColHash = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
@@ -7136,9 +7147,8 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
           }
         }
         if (!hasPriv) {
-          code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED,
-                                         "No SELECT privilege for column '%s.%s'", authInfo.tbName.tname,
-                                         pColIdNameKV->colName);
+          code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, "`%s`.`%s`",
+                                      tblCol->tbName.tname, pColIdNameKV->colName);
           taosArrayDestroy(authRes.pCols);
           goto _exit;
         }
@@ -7147,7 +7157,7 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
     }
   }
 _exit:
-  tblCol = NULL;
+  tblCol = NULL, iter = 0;
   while ((tblCol = tSimpleHashIterate(pTblColHash, tblCol, &iter))) {
     taosArrayDestroy(tblCol->cols);
   }

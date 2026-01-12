@@ -126,18 +126,25 @@ typedef struct SParseContext {
   bool             isView;
   bool             isAudit;
   bool             nodeOffline;
-  uint8_t          stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
-  const char*      svrVer;
-  SArray*          pTableMetaPos;    // sql table pos => catalog data pos
-  SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
-  int64_t          allocatorId;
-  parseSqlFn       parseSqlFp;
-  void*            parseSqlParam;
-  int8_t           biMode;
-  SArray*          pSubMetaList;
-  setQueryFn       setQueryFp;
-  timezone_t       timezone;
-  void            *charsetCxt;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t hasPrivCols : 1;
+      uint8_t reserved : 7;
+    };
+  };
+  uint8_t     stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
+  const char* svrVer;
+  SArray*     pTableMetaPos;    // sql table pos => catalog data pos
+  SArray*     pTableVgroupPos;  // sql table pos => catalog data pos
+  int64_t     allocatorId;
+  parseSqlFn  parseSqlFp;
+  void*       parseSqlParam;
+  int8_t      biMode;
+  SArray*     pSubMetaList;
+  setQueryFn  setQueryFp;
+  timezone_t  timezone;
+  void*       charsetCxt;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

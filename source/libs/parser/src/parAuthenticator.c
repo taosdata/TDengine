@@ -149,7 +149,12 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
 _exit:
   if (TSDB_CODE_SUCCESS == code) {
     if (pCond) *pCond = authRes.pCond[auth_res_type];
-    if (pPrivCols) *pPrivCols = authRes.pCols;
+    if (pPrivCols) {
+      *pPrivCols = authRes.pCols;
+      if (taosArrayGetSize(authRes.pCols) > 0) {
+        pCxt->pParseCxt->hasPrivCols = 1;
+      }
+    }
   }
   return TSDB_CODE_SUCCESS == code ? (authRes.pass[auth_res_type] ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED)
                                    : code;
