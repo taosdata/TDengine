@@ -345,14 +345,12 @@ typedef struct {
 #define DATUM_MAX_SIZE 16
 
 struct SValue {
-  int8_t type;
   union {
-    int64_t val;
-    struct {
-      uint8_t *pData;
-      uint32_t nData;
-    };
+    int64_t  val;
+    uint8_t *pData;
   };
+  uint32_t nData;
+  int8_t   type;
 };
 
 struct SBlobValOffset {
