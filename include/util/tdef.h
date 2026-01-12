@@ -492,6 +492,9 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_DB_CACHE_SIZE          1  // MB
 #define TSDB_MAX_DB_CACHE_SIZE          65536
 #define TSDB_DEFAULT_CACHE_SIZE         1
+#define TSDB_DEFAULT_MECACHE_SIZE       (1024 * 128)
+#define TSDB_MIN_MECACHE_SIZE           (1024 * 4)
+#define TSDB_MAX_MECACHE_SIZE           (4ll * 1024 * 1024 * 1024)
 #define TSDB_DB_STREAM_MODE_OFF         0
 #define TSDB_DB_STREAM_MODE_ON          1
 #define TSDB_DEFAULT_DB_STREAM_MODE     0
@@ -586,7 +589,7 @@ typedef enum ELogicConditionType {
 #ifdef WINDOWS
 #define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
 #else
-#define TSDB_MAX_RPC_THREADS 100 
+#define TSDB_MAX_RPC_THREADS 100
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE 0x00u  // none type
@@ -709,7 +712,7 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define MONITOR_METRIC_NAME_LEN 100
 
 #define AUDIT_OPERATION_LEN 20
-#define CONNECTOR_INFO_LEN 256
+#define CONNECTOR_INFO_LEN  256
 
 typedef enum {
   ANALY_ALGO_TYPE_ANOMALY_DETECT = 0,
