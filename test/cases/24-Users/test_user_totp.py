@@ -101,12 +101,17 @@ class TestUserSecurity:
                 raise Exception(f"duplicate totp key found: {key} at {i} time")
             keys.append(key)
     
+    #prepare
+    def prepare(self):
+        user = "user1"
+        self.create_user(user, "abcd@1234", "createdb 1")
+        key = self.create_security_key(user)
+        self.user1_code = self.get_totp_code(key)
+        self.start_time = time.monotonic()
+    
     # create
     def do_create_totp(self):
         password = "abcd@1234"
-        
-        # root
-        self.login_with_user("root", "taosdata")
         
         # default user
         user = "user_default"
@@ -186,28 +191,32 @@ class TestUserSecurity:
 
     # login
     def do_login(self):
+        #
+        # normal login
+        #
+        self.login_with_user("root", "taosdata")
         
         #
-        # fault-tolerance +/- 30s can login
+        # except
         #
+        self.check_login_fail("non_exist_user", "abcd@1234", "123456")    # non-exist user
+        self.check_login_fail("user1", "wrong_password", self.user1_code) # wrong password
+        self.check_login_fail("", "abcd@1234", "123456")                  # empty user
+        self.check_login_fail("user1", "", self.user1_code)               # empty password
+        self.check_login_fail("user1", "abcd@1234", "")                   # empty totp
+        self.check_login_fail("user1", "abcd@1234", "123456")             # wrong totp
         
-        password = "abcd@1234"
-        user = "user1"
-        self.create_user(user, password, "createdb 1")
-        
-        key = self.create_security_key(user)
-        code1 = self.get_totp_code(key, interval=30)
-        
-        for i in range(100):
-            time.sleep(1)
-            self.check_login(user, password, code1)
-            print(f"login with totp {code1} success at {i+1}s")
-            
-        #self.check_login_fail(user, password, code1)
-        
-        #code2 = self.get_totp_code(key, interval=1)
-        #time.sleep(2)
-        #self.check_login_fail(user, password, code2)
+        #
+        # totp code expired (30s)
+        #
+        elapsed = time.monotonic() - self.start_time
+        if elapsed < 40:
+            time_to_wait = 40 - elapsed
+            print(f"wait {time_to_wait:.1f}s to cross interval boundary")
+            time.sleep(time_to_wait)
+        else:
+            print(f"already cross interval boundary")
+        self.check_login_fail("user1", "abcd@1234", self.user1_code)  # old code fail
         
         print("login totp ............................ [ passed ] ")
 
@@ -234,6 +243,15 @@ class TestUserSecurity:
             - duplicate drop totp
             - login fail after drop totp
             - exception cases
+        4. Login with TOTP
+            - exception cases: 
+                - non-exist user
+                - wrong password
+                - empty user
+                - empty password
+                - empty totp code
+                - wrong totp code
+            - totp code expired (30s)
         
         Since: v3.4.0.0
 
@@ -245,7 +263,8 @@ class TestUserSecurity:
             - 2026-01-12 Alex Duan created
 
         """
-        #self.do_create_totp()
-        #self.do_alter_totp()
-        #self.do_delete_totp()
+        self.prepare()
+        self.do_create_totp()
+        self.do_alter_totp()
+        self.do_delete_totp()
         self.do_login()
