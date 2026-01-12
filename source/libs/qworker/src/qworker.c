@@ -126,8 +126,9 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
       if (QW_EVENT_RECEIVED(ctx, QW_EVENT_NOTIFY)) {
         QW_TASK_DLOG("notify event to be processed, notifyTs:%" PRId64,
                      ctx->notifyTs);
-        notifyTableScanTask(taskHandle, ctx->notifyTs);
+        code = notifyTableScanTask(taskHandle, ctx->notifyTs);
         QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_NOTIFY);
+        QW_ERR_JRET(code);
       }
 
       setTaskScalarExtraInfo(taskHandle);
