@@ -236,7 +236,7 @@ QUERY_PLAN:                   Time Range: [-9223372036854775808, 922337203685477
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s)) order by d\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
@@ -312,7 +312,7 @@ QUERY_PLAN:                            Time Range: [-9223372036854775808, 922337
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s)) order by d desc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
@@ -388,7 +388,7 @@ QUERY_PLAN:                            Time Range: [-9223372036854775808, 922337
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by a) order by d\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
@@ -464,7 +464,7 @@ QUERY_PLAN:                            Time Range: [-9223372036854775808, 922337
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by a desc) order by d\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
@@ -540,7 +540,7 @@ QUERY_PLAN:                            Time Range: [-9223372036854775808, 922337
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by a) order by d desc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
@@ -616,7 +616,7 @@ QUERY_PLAN:                            Time Range: [-9223372036854775808, 922337
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by a desc) order by d desc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
@@ -692,17 +692,17 @@ QUERY_PLAN:                            Time Range: [-9223372036854775808, 922337
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by b) order by d\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=unknown )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=asc )
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=unknown )
+QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=asc )
 *************************** 7.row ***************************
 QUERY_PLAN:             Output: columns=3 width=24
 *************************** 8.row ***************************
@@ -710,79 +710,75 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=unknown output_order=unknown  (columns=3 width=24)
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
-QUERY_PLAN:             -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 13.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=24
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 14.row ***************************
-QUERY_PLAN:                   Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
 *************************** 15.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 16.row ***************************
-QUERY_PLAN:                -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 17.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=164
+QUERY_PLAN:                   Merge Key: _group_id asc,  asc
 *************************** 18.row ***************************
-QUERY_PLAN:                      Output: Ignore Group Id: false
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 19.row ***************************
-QUERY_PLAN:                      Merge Key: _group_id asc,  asc
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
 *************************** 21.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 22.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 23.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 24.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 25.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 26.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 27.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 28.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 29.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 30.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
 *************************** 31.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 32.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 33.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 34.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 35.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 36.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 37.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 38.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
-*************************** 39.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by b desc) order by d\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=unknown )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=desc )
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=unknown )
+QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=desc )
 *************************** 7.row ***************************
 QUERY_PLAN:             Output: columns=3 width=24
 *************************** 8.row ***************************
@@ -790,79 +786,75 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=unknown output_order=unknown  (columns=3 width=24)
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=desc output_order=desc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
-QUERY_PLAN:             -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 13.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=24
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 14.row ***************************
-QUERY_PLAN:                   Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=desc output_order=desc mode=sort)
 *************************** 15.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 16.row ***************************
-QUERY_PLAN:                -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 17.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=164
+QUERY_PLAN:                   Merge Key: _group_id asc,  desc
 *************************** 18.row ***************************
-QUERY_PLAN:                      Output: Ignore Group Id: false
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 19.row ***************************
-QUERY_PLAN:                      Merge Key: _group_id asc,  asc
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 21.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 22.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 23.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 24.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 25.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 26.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 27.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 28.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 29.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 30.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 31.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 32.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 33.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 34.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 35.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 36.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 37.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 38.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
-*************************** 39.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by b) order by d desc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=unknown )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=asc )
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=unknown )
+QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=asc )
 *************************** 7.row ***************************
 QUERY_PLAN:             Output: columns=3 width=24
 *************************** 8.row ***************************
@@ -870,79 +862,75 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=unknown output_order=unknown  (columns=3 width=24)
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
-QUERY_PLAN:             -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 13.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=24
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 14.row ***************************
-QUERY_PLAN:                   Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
 *************************** 15.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 16.row ***************************
-QUERY_PLAN:                -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 17.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=164
+QUERY_PLAN:                   Merge Key: _group_id asc,  asc
 *************************** 18.row ***************************
-QUERY_PLAN:                      Output: Ignore Group Id: false
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 19.row ***************************
-QUERY_PLAN:                      Merge Key: _group_id asc,  asc
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
 *************************** 21.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 22.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 23.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 24.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 25.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 26.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 27.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 28.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 29.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 30.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
 *************************** 31.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 32.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 33.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 34.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 35.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 36.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 37.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 38.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
-*************************** 39.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by b desc) order by d desc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=unknown )
+QUERY_PLAN:    -> Aggregate (functions=1 width=8 input_order=desc )
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=unknown )
+QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=desc )
 *************************** 7.row ***************************
 QUERY_PLAN:             Output: columns=3 width=24
 *************************** 8.row ***************************
@@ -950,79 +938,75 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=unknown output_order=unknown  (columns=3 width=24)
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=desc output_order=desc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
-QUERY_PLAN:             -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 13.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=24
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 14.row ***************************
-QUERY_PLAN:                   Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=desc output_order=desc mode=sort)
 *************************** 15.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 16.row ***************************
-QUERY_PLAN:                -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 17.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=164
+QUERY_PLAN:                   Merge Key: _group_id asc,  desc
 *************************** 18.row ***************************
-QUERY_PLAN:                      Output: Ignore Group Id: false
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 19.row ***************************
-QUERY_PLAN:                      Merge Key: _group_id asc,  asc
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 21.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 22.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 23.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 24.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 25.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 26.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 27.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 28.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 29.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 30.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 31.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 32.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 33.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 34.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 35.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 36.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 37.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 38.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
-*************************** 39.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by b) group by c order by d\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=unknown )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc )
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=unknown )
+QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=asc )
 *************************** 7.row ***************************
 QUERY_PLAN:             Output: columns=3 width=24
 *************************** 8.row ***************************
@@ -1030,79 +1014,75 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=unknown output_order=unknown  (columns=3 width=24)
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
-QUERY_PLAN:             -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 13.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=24
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 14.row ***************************
-QUERY_PLAN:                   Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
 *************************** 15.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 16.row ***************************
-QUERY_PLAN:                -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 17.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=164
+QUERY_PLAN:                   Merge Key: _group_id asc,  asc
 *************************** 18.row ***************************
-QUERY_PLAN:                      Output: Ignore Group Id: false
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 19.row ***************************
-QUERY_PLAN:                      Merge Key: _group_id asc,  asc
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
 *************************** 21.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 22.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 23.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 24.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 25.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 26.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 27.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 28.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 29.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 30.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
 *************************** 31.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 32.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 33.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 34.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 35.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 36.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 37.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 38.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
-*************************** 39.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by b desc) group by c order by d\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=asc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=unknown )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=desc )
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=unknown )
+QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=desc )
 *************************** 7.row ***************************
 QUERY_PLAN:             Output: columns=3 width=24
 *************************** 8.row ***************************
@@ -1110,79 +1090,75 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=unknown output_order=unknown  (columns=3 width=24)
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=desc output_order=desc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
-QUERY_PLAN:             -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 13.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=24
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 14.row ***************************
-QUERY_PLAN:                   Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=desc output_order=desc mode=sort)
 *************************** 15.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 16.row ***************************
-QUERY_PLAN:                -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 17.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=164
+QUERY_PLAN:                   Merge Key: _group_id asc,  desc
 *************************** 18.row ***************************
-QUERY_PLAN:                      Output: Ignore Group Id: false
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 19.row ***************************
-QUERY_PLAN:                      Merge Key: _group_id asc,  asc
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 21.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 22.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 23.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 24.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 25.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 26.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 27.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 28.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 29.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 30.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 31.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 32.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 33.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 34.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 35.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 36.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 37.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 38.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
-*************************** 39.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by b) group by c order by d desc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=unknown )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=asc )
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=unknown )
+QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=asc )
 *************************** 7.row ***************************
 QUERY_PLAN:             Output: columns=3 width=24
 *************************** 8.row ***************************
@@ -1190,79 +1166,75 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=unknown output_order=unknown  (columns=3 width=24)
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
-QUERY_PLAN:             -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 13.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=24
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 14.row ***************************
-QUERY_PLAN:                   Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
 *************************** 15.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 16.row ***************************
-QUERY_PLAN:                -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 17.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=164
+QUERY_PLAN:                   Merge Key: _group_id asc,  asc
 *************************** 18.row ***************************
-QUERY_PLAN:                      Output: Ignore Group Id: false
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 19.row ***************************
-QUERY_PLAN:                      Merge Key: _group_id asc,  asc
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
 *************************** 21.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 22.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 23.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 24.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 25.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 26.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 27.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 28.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 29.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 30.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
 *************************** 31.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 32.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 33.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 34.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 35.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 36.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 37.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 38.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
-*************************** 39.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by b desc) group by c order by d desc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Sort input_order=unknown output_order=desc  (columns=1 width=8)
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=unknown )
+QUERY_PLAN:    -> GroupAggregate (functions=1 width=16 groups=1 input_order=desc )
 *************************** 4.row ***************************
 QUERY_PLAN:          Output: columns=1 width=8 blocking=1
 *************************** 5.row ***************************
 QUERY_PLAN:          Merge ResBlocks: True
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=unknown )
+QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=desc )
 *************************** 7.row ***************************
 QUERY_PLAN:             Output: columns=3 width=24
 *************************** 8.row ***************************
@@ -1270,429 +1242,397 @@ QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 9.row ***************************
 QUERY_PLAN:             Merge ResBlocks: True
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Sort input_order=unknown output_order=unknown  (columns=3 width=24)
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=desc output_order=desc)
 *************************** 11.row ***************************
 QUERY_PLAN:                Output: columns=3 width=24
 *************************** 12.row ***************************
-QUERY_PLAN:             -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 13.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=24
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 14.row ***************************
-QUERY_PLAN:                   Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=desc output_order=desc mode=sort)
 *************************** 15.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 16.row ***************************
-QUERY_PLAN:                -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 17.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=164
+QUERY_PLAN:                   Merge Key: _group_id asc,  desc
 *************************** 18.row ***************************
-QUERY_PLAN:                      Output: Ignore Group Id: false
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 19.row ***************************
-QUERY_PLAN:                      Merge Key: _group_id asc,  asc
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 21.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 22.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 23.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 24.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 25.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 26.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 27.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 28.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 29.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 30.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 31.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 32.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 33.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 34.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 35.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 36.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 37.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 38.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
-*************************** 39.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by b) where a > 10000 and a < 20000 interval(10s) fill(NULL) order by d\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Fill (mode=null width=16 input_order=asc )
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Fill (mode=null width=16 input_order=asc )
+QUERY_PLAN:       Time Range: [10001, 19999]
 *************************** 4.row ***************************
-QUERY_PLAN:          Output: columns=1 width=8
+QUERY_PLAN:    -> Interval on Column a (functions=2 width=16 input_order=asc output_order=asc )
 *************************** 5.row ***************************
-QUERY_PLAN:          Time Range: [10001, 19999]
+QUERY_PLAN:          Output: columns=2 width=16
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Interval on Column a (functions=2 width=16 input_order=unknown output_order=asc )
+QUERY_PLAN:          Time Range: [10001, 19999]
 *************************** 7.row ***************************
-QUERY_PLAN:             Output: columns=2 width=16
+QUERY_PLAN:          Time Window: interval=10s offset=0a sliding=10s
 *************************** 8.row ***************************
-QUERY_PLAN:             Time Range: [10001, 19999]
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 9.row ***************************
-QUERY_PLAN:             Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=asc )
 *************************** 10.row ***************************
-QUERY_PLAN:             Merge ResBlocks: False
+QUERY_PLAN:             Output: columns=3 width=24
 *************************** 11.row ***************************
-QUERY_PLAN:          -> Projection (columns=3 width=24 input_order=unknown )
+QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 12.row ***************************
-QUERY_PLAN:                Output: columns=3 width=24
+QUERY_PLAN:             Merge ResBlocks: False
 *************************** 13.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
 *************************** 14.row ***************************
-QUERY_PLAN:                Merge ResBlocks: False
+QUERY_PLAN:                Output: columns=3 width=24
 *************************** 15.row ***************************
-QUERY_PLAN:             -> Sort input_order=unknown output_order=unknown  (columns=3 width=24)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 16.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=24
+QUERY_PLAN:                Filter: ((a > 10000) AND (a < 20000))
 *************************** 17.row ***************************
-QUERY_PLAN:                -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 18.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=24
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
 *************************** 19.row ***************************
-QUERY_PLAN:                      Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                      Filter: ((a > 10000) AND (a < 20000))
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 21.row ***************************
-QUERY_PLAN:                      Merge ResBlocks: True
+QUERY_PLAN:                   Merge Key: _group_id asc,  asc
 *************************** 22.row ***************************
-QUERY_PLAN:                   -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 23.row ***************************
-QUERY_PLAN:                         Output: columns=3 width=164
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 24.row ***************************
-QUERY_PLAN:                         Output: Ignore Group Id: false
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
 *************************** 25.row ***************************
-QUERY_PLAN:                         Merge Key: _group_id asc,  asc
+QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 26.row ***************************
-QUERY_PLAN:                      -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 27.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 28.row ***************************
-QUERY_PLAN:                         -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 29.row ***************************
-QUERY_PLAN:                               Output: columns=3 width=164
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 30.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 31.row ***************************
-QUERY_PLAN:                               Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 32.row ***************************
-QUERY_PLAN:                               Merge ResBlocks: False
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 33.row ***************************
-QUERY_PLAN:                            -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 34.row ***************************
-QUERY_PLAN:                                  Output: columns=2 width=12
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
 *************************** 35.row ***************************
-QUERY_PLAN:                                  Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 36.row ***************************
-QUERY_PLAN:                      -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 37.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 38.row ***************************
-QUERY_PLAN:                         -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 39.row ***************************
-QUERY_PLAN:                               Output: columns=3 width=164
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 40.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 41.row ***************************
-QUERY_PLAN:                               Time Window: interval=10s offset=0a sliding=10s
-*************************** 42.row ***************************
-QUERY_PLAN:                               Merge ResBlocks: False
-*************************** 43.row ***************************
-QUERY_PLAN:                            -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 44.row ***************************
-QUERY_PLAN:                                  Output: columns=2 width=12
-*************************** 45.row ***************************
-QUERY_PLAN:                                  Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain verbose true select last(a) as d from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by a desc) where a > 10000 and a < 20000 interval(10s) fill(NULL) order by d\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Fill (mode=null width=16 input_order=asc )
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Fill (mode=null width=16 input_order=asc )
+QUERY_PLAN:       Time Range: [10001, 19999]
 *************************** 4.row ***************************
-QUERY_PLAN:          Output: columns=1 width=8
+QUERY_PLAN:    -> Interval on Column a (functions=2 width=16 input_order=desc output_order=asc )
 *************************** 5.row ***************************
-QUERY_PLAN:          Time Range: [10001, 19999]
+QUERY_PLAN:          Output: columns=2 width=16
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Interval on Column a (functions=2 width=16 input_order=desc output_order=asc )
+QUERY_PLAN:          Time Range: [10001, 19999]
 *************************** 7.row ***************************
-QUERY_PLAN:             Output: columns=2 width=16
+QUERY_PLAN:          Time Window: interval=10s offset=0a sliding=10s
 *************************** 8.row ***************************
-QUERY_PLAN:             Time Range: [10001, 19999]
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 9.row ***************************
-QUERY_PLAN:             Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=desc )
 *************************** 10.row ***************************
-QUERY_PLAN:             Merge ResBlocks: False
+QUERY_PLAN:             Output: columns=3 width=24
 *************************** 11.row ***************************
-QUERY_PLAN:          -> Projection (columns=3 width=24 input_order=desc )
+QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 12.row ***************************
-QUERY_PLAN:                Output: columns=3 width=24
+QUERY_PLAN:             Merge ResBlocks: False
 *************************** 13.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=desc output_order=desc)
 *************************** 14.row ***************************
-QUERY_PLAN:                Merge ResBlocks: False
+QUERY_PLAN:                Output: columns=3 width=24
 *************************** 15.row ***************************
-QUERY_PLAN:             -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=desc output_order=desc)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 16.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=24
+QUERY_PLAN:                Filter: ((a > 10000) AND (a < 20000))
 *************************** 17.row ***************************
-QUERY_PLAN:                   Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 18.row ***************************
-QUERY_PLAN:                   Filter: ((a > 10000) AND (a < 20000))
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=desc output_order=desc mode=sort)
 *************************** 19.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                -> Merge (columns=3 width=164 input_order=desc output_order=desc mode=sort)
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 21.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=164
+QUERY_PLAN:                   Merge Key: _group_id asc,  desc
 *************************** 22.row ***************************
-QUERY_PLAN:                      Output: Ignore Group Id: false
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 23.row ***************************
-QUERY_PLAN:                      Merge Key: _group_id asc,  desc
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 24.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 25.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 26.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 27.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 28.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 29.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 30.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 31.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 32.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 33.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 34.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 35.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 36.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 37.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 38.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 39.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 40.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 41.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 42.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
-*************************** 43.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain verbose true select last(b) as d from (select last(ts) as b, avg(c2) as c from meters interval(10s) order by b desc) where b > 10000 and b < 20000 interval(10s) fill(NULL) order by d\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Fill (mode=null width=16 input_order=asc )
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Fill (mode=null width=16 input_order=asc )
+QUERY_PLAN:       Time Range: [10001, 19999]
 *************************** 4.row ***************************
-QUERY_PLAN:          Output: columns=1 width=8
+QUERY_PLAN:    -> Interval on Column b (functions=2 width=16 input_order=desc output_order=asc )
 *************************** 5.row ***************************
-QUERY_PLAN:          Time Range: [10001, 19999]
+QUERY_PLAN:          Output: columns=2 width=16
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Interval on Column b (functions=2 width=16 input_order=unknown output_order=asc )
+QUERY_PLAN:          Time Range: [10001, 19999]
 *************************** 7.row ***************************
-QUERY_PLAN:             Output: columns=2 width=16
+QUERY_PLAN:          Time Window: interval=10s offset=0a sliding=10s
 *************************** 8.row ***************************
-QUERY_PLAN:             Time Range: [10001, 19999]
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 9.row ***************************
-QUERY_PLAN:             Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=desc )
 *************************** 10.row ***************************
-QUERY_PLAN:             Merge ResBlocks: False
+QUERY_PLAN:             Output: columns=2 width=16
 *************************** 11.row ***************************
-QUERY_PLAN:          -> Projection (columns=2 width=16 input_order=unknown )
+QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 12.row ***************************
-QUERY_PLAN:                Output: columns=2 width=16
+QUERY_PLAN:             Merge ResBlocks: False
 *************************** 13.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=2 width=16 input_order=desc output_order=desc)
 *************************** 14.row ***************************
-QUERY_PLAN:                Merge ResBlocks: False
+QUERY_PLAN:                Output: columns=2 width=16
 *************************** 15.row ***************************
-QUERY_PLAN:             -> Sort input_order=unknown output_order=unknown  (columns=2 width=16)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 16.row ***************************
-QUERY_PLAN:                   Output: columns=2 width=16
+QUERY_PLAN:                Filter: ((b > 10000) AND (b < 20000))
 *************************** 17.row ***************************
-QUERY_PLAN:                -> Merge Aligned Interval on Column  (functions=2 width=16 input_order=asc output_order=asc)
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 18.row ***************************
-QUERY_PLAN:                      Output: columns=2 width=16
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=desc output_order=desc mode=sort)
 *************************** 19.row ***************************
-QUERY_PLAN:                      Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                      Filter: ((b > 10000) AND (b < 20000))
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 21.row ***************************
-QUERY_PLAN:                      Merge ResBlocks: True
+QUERY_PLAN:                   Merge Key: _group_id asc,  desc
 *************************** 22.row ***************************
-QUERY_PLAN:                   -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 23.row ***************************
-QUERY_PLAN:                         Output: columns=3 width=164
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 24.row ***************************
-QUERY_PLAN:                         Output: Ignore Group Id: false
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 25.row ***************************
-QUERY_PLAN:                         Merge Key: _group_id asc,  asc
+QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 26.row ***************************
-QUERY_PLAN:                      -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 27.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 28.row ***************************
-QUERY_PLAN:                         -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 29.row ***************************
-QUERY_PLAN:                               Output: columns=3 width=164
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 30.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 31.row ***************************
-QUERY_PLAN:                               Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 32.row ***************************
-QUERY_PLAN:                               Merge ResBlocks: False
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 33.row ***************************
-QUERY_PLAN:                            -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 34.row ***************************
-QUERY_PLAN:                                  Output: columns=2 width=12
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 35.row ***************************
-QUERY_PLAN:                                  Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 36.row ***************************
-QUERY_PLAN:                      -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 37.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 38.row ***************************
-QUERY_PLAN:                         -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 39.row ***************************
-QUERY_PLAN:                               Output: columns=3 width=164
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 40.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 41.row ***************************
-QUERY_PLAN:                               Time Window: interval=10s offset=0a sliding=10s
-*************************** 42.row ***************************
-QUERY_PLAN:                               Merge ResBlocks: False
-*************************** 43.row ***************************
-QUERY_PLAN:                            -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 44.row ***************************
-QUERY_PLAN:                                  Output: columns=2 width=12
-*************************** 45.row ***************************
-QUERY_PLAN:                                  Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain verbose true select last(b) as d from (select last(ts) as b, avg(c2) as c from meters interval(10s) order by b desc) where b > 10000 and b < 20000 interval(10s) fill(NULL) order by d desc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=1 width=8)
+QUERY_PLAN: -> Fill (mode=null width=16 input_order=desc )
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=1 width=8
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Fill (mode=null width=16 input_order=asc )
+QUERY_PLAN:       Time Range: [10001, 19999]
 *************************** 4.row ***************************
-QUERY_PLAN:          Output: columns=1 width=8
+QUERY_PLAN:    -> Interval on Column b (functions=2 width=16 input_order=desc output_order=desc )
 *************************** 5.row ***************************
-QUERY_PLAN:          Time Range: [10001, 19999]
+QUERY_PLAN:          Output: columns=2 width=16
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Interval on Column b (functions=2 width=16 input_order=unknown output_order=asc )
+QUERY_PLAN:          Time Range: [10001, 19999]
 *************************** 7.row ***************************
-QUERY_PLAN:             Output: columns=2 width=16
+QUERY_PLAN:          Time Window: interval=10s offset=0a sliding=10s
 *************************** 8.row ***************************
-QUERY_PLAN:             Time Range: [10001, 19999]
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 9.row ***************************
-QUERY_PLAN:             Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:       -> Projection (columns=2 width=16 input_order=desc )
 *************************** 10.row ***************************
-QUERY_PLAN:             Merge ResBlocks: False
+QUERY_PLAN:             Output: columns=2 width=16
 *************************** 11.row ***************************
-QUERY_PLAN:          -> Projection (columns=2 width=16 input_order=unknown )
+QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 12.row ***************************
-QUERY_PLAN:                Output: columns=2 width=16
+QUERY_PLAN:             Merge ResBlocks: False
 *************************** 13.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=2 width=16 input_order=desc output_order=desc)
 *************************** 14.row ***************************
-QUERY_PLAN:                Merge ResBlocks: False
+QUERY_PLAN:                Output: columns=2 width=16
 *************************** 15.row ***************************
-QUERY_PLAN:             -> Sort input_order=unknown output_order=unknown  (columns=2 width=16)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 16.row ***************************
-QUERY_PLAN:                   Output: columns=2 width=16
+QUERY_PLAN:                Filter: ((b > 10000) AND (b < 20000))
 *************************** 17.row ***************************
-QUERY_PLAN:                -> Merge Aligned Interval on Column  (functions=2 width=16 input_order=asc output_order=asc)
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 18.row ***************************
-QUERY_PLAN:                      Output: columns=2 width=16
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=desc output_order=desc mode=sort)
 *************************** 19.row ***************************
-QUERY_PLAN:                      Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                      Filter: ((b > 10000) AND (b < 20000))
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 21.row ***************************
-QUERY_PLAN:                      Merge ResBlocks: True
+QUERY_PLAN:                   Merge Key: _group_id asc,  desc
 *************************** 22.row ***************************
-QUERY_PLAN:                   -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 23.row ***************************
-QUERY_PLAN:                         Output: columns=3 width=164
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 24.row ***************************
-QUERY_PLAN:                         Output: Ignore Group Id: false
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 25.row ***************************
-QUERY_PLAN:                         Merge Key: _group_id asc,  asc
+QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 26.row ***************************
-QUERY_PLAN:                      -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 27.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 28.row ***************************
-QUERY_PLAN:                         -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 29.row ***************************
-QUERY_PLAN:                               Output: columns=3 width=164
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 30.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 31.row ***************************
-QUERY_PLAN:                               Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 32.row ***************************
-QUERY_PLAN:                               Merge ResBlocks: False
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 33.row ***************************
-QUERY_PLAN:                            -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 34.row ***************************
-QUERY_PLAN:                                  Output: columns=2 width=12
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 35.row ***************************
-QUERY_PLAN:                                  Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 36.row ***************************
-QUERY_PLAN:                      -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 37.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 38.row ***************************
-QUERY_PLAN:                         -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 39.row ***************************
-QUERY_PLAN:                               Output: columns=3 width=164
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 40.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 41.row ***************************
-QUERY_PLAN:                               Time Window: interval=10s offset=0a sliding=10s
-*************************** 42.row ***************************
-QUERY_PLAN:                               Merge ResBlocks: False
-*************************** 43.row ***************************
-QUERY_PLAN:                            -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 44.row ***************************
-QUERY_PLAN:                                  Output: columns=2 width=12
-*************************** 45.row ***************************
-QUERY_PLAN:                                  Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> select _wstart, last(ts), avg(c2) from meters interval(10s) order by _wstart desc;
          _wstart         |        last(ts)         |          avg(c2)          |
@@ -1915,179 +1855,171 @@ taos> select _wstart, first(a) as d, avg(c) from (select _wstart as a, last(ts) 
 
 taos> explain verbose true select _wstart, first(a) as d, avg(c) from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by a desc) where a > '2022-05-15 00:01:00.000' and a < '2022-05-21 00:01:08.000' interval(5h) fill(linear) order by d desc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=3 width=24)
+QUERY_PLAN: -> Fill (mode=linear width=24 input_order=desc )
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=3 width=24
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Fill (mode=linear width=24 input_order=asc )
+QUERY_PLAN:       Time Range: [1652544060001, 1653062467999]
 *************************** 4.row ***************************
-QUERY_PLAN:          Output: columns=3 width=24
+QUERY_PLAN:    -> Interval on Column a (functions=3 width=24 input_order=desc output_order=desc )
 *************************** 5.row ***************************
-QUERY_PLAN:          Time Range: [1652544060001, 1653062467999]
+QUERY_PLAN:          Output: columns=3 width=24
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Interval on Column a (functions=3 width=24 input_order=desc output_order=asc )
+QUERY_PLAN:          Time Range: [1652544060001, 1653062467999]
 *************************** 7.row ***************************
-QUERY_PLAN:             Output: columns=3 width=24
+QUERY_PLAN:          Time Window: interval=5h offset=0a sliding=5h
 *************************** 8.row ***************************
-QUERY_PLAN:             Time Range: [1652544060001, 1653062467999]
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 9.row ***************************
-QUERY_PLAN:             Time Window: interval=5h offset=0a sliding=5h
+QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=desc )
 *************************** 10.row ***************************
-QUERY_PLAN:             Merge ResBlocks: False
+QUERY_PLAN:             Output: columns=3 width=24
 *************************** 11.row ***************************
-QUERY_PLAN:          -> Projection (columns=3 width=24 input_order=desc )
+QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 12.row ***************************
-QUERY_PLAN:                Output: columns=3 width=24
+QUERY_PLAN:             Merge ResBlocks: False
 *************************** 13.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=desc output_order=desc)
 *************************** 14.row ***************************
-QUERY_PLAN:                Merge ResBlocks: False
+QUERY_PLAN:                Output: columns=3 width=24
 *************************** 15.row ***************************
-QUERY_PLAN:             -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=desc output_order=desc)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 16.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=24
+QUERY_PLAN:                Filter: ((a > 1652544060000) AND (a < 1653062468000))
 *************************** 17.row ***************************
-QUERY_PLAN:                   Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 18.row ***************************
-QUERY_PLAN:                   Filter: ((a > 1652544060000) AND (a < 1653062468000))
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=desc output_order=desc mode=sort)
 *************************** 19.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                -> Merge (columns=3 width=164 input_order=desc output_order=desc mode=sort)
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 21.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=164
+QUERY_PLAN:                   Merge Key: _group_id asc,  desc
 *************************** 22.row ***************************
-QUERY_PLAN:                      Output: Ignore Group Id: false
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 23.row ***************************
-QUERY_PLAN:                      Merge Key: _group_id asc,  desc
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 24.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 25.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 26.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 27.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 28.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 29.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 30.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 31.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 32.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 33.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 34.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
 *************************** 35.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 36.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=desc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 37.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 38.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 39.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 40.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 41.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 42.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
-*************************** 43.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain verbose true select _wstart, first(a) as d, avg(c) from (select _wstart as a, last(ts) as b, avg(c2) as c from meters interval(10s) order by a asc) where a > '2022-05-15 00:01:00.000' and a < '2022-05-21 00:01:08.000' interval(5h) fill(linear) order by d desc\G;
 *************************** 1.row ***************************
-QUERY_PLAN: -> Sort input_order=unknown output_order=unknown  (columns=3 width=24)
+QUERY_PLAN: -> Fill (mode=linear width=24 input_order=desc )
 *************************** 2.row ***************************
 QUERY_PLAN:       Output: columns=3 width=24
 *************************** 3.row ***************************
-QUERY_PLAN:    -> Fill (mode=linear width=24 input_order=asc )
+QUERY_PLAN:       Time Range: [1652544060001, 1653062467999]
 *************************** 4.row ***************************
-QUERY_PLAN:          Output: columns=3 width=24
+QUERY_PLAN:    -> Interval on Column a (functions=3 width=24 input_order=asc output_order=desc )
 *************************** 5.row ***************************
-QUERY_PLAN:          Time Range: [1652544060001, 1653062467999]
+QUERY_PLAN:          Output: columns=3 width=24
 *************************** 6.row ***************************
-QUERY_PLAN:       -> Interval on Column a (functions=3 width=24 input_order=asc output_order=asc )
+QUERY_PLAN:          Time Range: [1652544060001, 1653062467999]
 *************************** 7.row ***************************
-QUERY_PLAN:             Output: columns=3 width=24
+QUERY_PLAN:          Time Window: interval=5h offset=0a sliding=5h
 *************************** 8.row ***************************
-QUERY_PLAN:             Time Range: [1652544060001, 1653062467999]
+QUERY_PLAN:          Merge ResBlocks: False
 *************************** 9.row ***************************
-QUERY_PLAN:             Time Window: interval=5h offset=0a sliding=5h
+QUERY_PLAN:       -> Projection (columns=3 width=24 input_order=asc )
 *************************** 10.row ***************************
-QUERY_PLAN:             Merge ResBlocks: False
+QUERY_PLAN:             Output: columns=3 width=24
 *************************** 11.row ***************************
-QUERY_PLAN:          -> Projection (columns=3 width=24 input_order=asc )
+QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 12.row ***************************
-QUERY_PLAN:                Output: columns=3 width=24
+QUERY_PLAN:             Merge ResBlocks: False
 *************************** 13.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
+QUERY_PLAN:          -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
 *************************** 14.row ***************************
-QUERY_PLAN:                Merge ResBlocks: False
+QUERY_PLAN:                Output: columns=3 width=24
 *************************** 15.row ***************************
-QUERY_PLAN:             -> Merge Aligned Interval on Column  (functions=3 width=24 input_order=asc output_order=asc)
+QUERY_PLAN:                Time Window: interval=10s offset=0a sliding=10s
 *************************** 16.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=24
+QUERY_PLAN:                Filter: ((a > 1652544060000) AND (a < 1653062468000))
 *************************** 17.row ***************************
-QUERY_PLAN:                   Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                Merge ResBlocks: True
 *************************** 18.row ***************************
-QUERY_PLAN:                   Filter: ((a > 1652544060000) AND (a < 1653062468000))
+QUERY_PLAN:             -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
 *************************** 19.row ***************************
-QUERY_PLAN:                   Merge ResBlocks: True
+QUERY_PLAN:                   Output: columns=3 width=164
 *************************** 20.row ***************************
-QUERY_PLAN:                -> Merge (columns=3 width=164 input_order=asc output_order=asc mode=sort)
+QUERY_PLAN:                   Output: Ignore Group Id: false
 *************************** 21.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=164
+QUERY_PLAN:                   Merge Key: _group_id asc,  asc
 *************************** 22.row ***************************
-QUERY_PLAN:                      Output: Ignore Group Id: false
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 23.row ***************************
-QUERY_PLAN:                      Merge Key: _group_id asc,  asc
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 24.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
 *************************** 25.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 26.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 27.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 28.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 29.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 30.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 31.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 32.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
+QUERY_PLAN:                -> Data Exchange 1:1 (width=164)
 *************************** 33.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                      Output: columns=3 width=164
 *************************** 34.row ***************************
-QUERY_PLAN:                   -> Data Exchange 1:1 (width=164)
+QUERY_PLAN:                   -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
 *************************** 35.row ***************************
 QUERY_PLAN:                         Output: columns=3 width=164
 *************************** 36.row ***************************
-QUERY_PLAN:                      -> Interval on Column ts (functions=3 width=164 input_order=desc output_order=asc )
+QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 37.row ***************************
-QUERY_PLAN:                            Output: columns=3 width=164
+QUERY_PLAN:                         Time Window: interval=10s offset=0a sliding=10s
 *************************** 38.row ***************************
-QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                         Merge ResBlocks: False
 *************************** 39.row ***************************
-QUERY_PLAN:                            Time Window: interval=10s offset=0a sliding=10s
+QUERY_PLAN:                      -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
 *************************** 40.row ***************************
-QUERY_PLAN:                            Merge ResBlocks: False
+QUERY_PLAN:                            Output: columns=2 width=12
 *************************** 41.row ***************************
-QUERY_PLAN:                         -> Table Scan on meters (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)
-*************************** 42.row ***************************
-QUERY_PLAN:                               Output: columns=2 width=12
-*************************** 43.row ***************************
-QUERY_PLAN:                               Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                            Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain verbose true select * from (select ts as a, c2 as b from meters order by c2 desc)\G;
 *************************** 1.row ***************************
