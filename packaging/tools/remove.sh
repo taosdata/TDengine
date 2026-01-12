@@ -36,7 +36,7 @@ function usage() {
   echo "-e: silent mode, specify whether to remove all the data, log and configuration files."
   echo "  yes: remove the data, log, and configuration files."
   echo "  no:  don't remove the data, log, and configuration files."
-  echo "-d: custom install directory (parent of ${PREFIX} install dir)"
+  echo "-d: (optional) custom install directory, e.g. /usr/local/${PREFIX} (only needed if auto-detect fails)"
 }
 
 # main
@@ -405,6 +405,8 @@ function remove_data_and_config() {
       "${data_dir:?}/dnode"
       "${data_dir:?}/mnode"
       "${data_dir:?}/vnode"
+      "${data_dir:?}/snode"
+      "${data_dir:?}/xnode"
       "${data_dir:?}/.udf"
       "${data_dir:?}/.running"*
       "${data_dir:?}/.taosudf"*
