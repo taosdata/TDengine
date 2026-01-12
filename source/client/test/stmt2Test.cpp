@@ -1955,8 +1955,6 @@ TEST(stmt2Case, query) {
     AsyncArgs* aa = (AsyncArgs*)taosMemoryMalloc(sizeof(AsyncArgs));
     aa->async_affected_rows = 0;
     ASSERT_EQ(tsem_init(&aa->sem, 0, 0), TSDB_CODE_SUCCESS);
-    // int code = taos_stmt2_prepare(stmt, "select tbname,t2,b from stmt2_testdb_7.stb where ts = ? and tbname = ?", 0);
-    // checkError(stmt, code, __FILE__, __LINE__);
 
     TAOS_STMT2_OPTION option = {0, true, true, stmtAsyncQueryCb, (void*)aa};
 
@@ -2000,34 +1998,57 @@ TEST(stmt2Case, query) {
     ASSERT_EQ(strncmp((char*)row[2], "stb", 3), 0);
     taos_stmt2_close(stmt);
   }
-  // int code = taos_stmt2_prepare(stmt, "select tbname,t2,b from stmt2_testdb_7.stb where ts = ? and tbname = ?", 0);
-  // checkError(stmt, code, __FILE__, __LINE__);
+  {
+    TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+    TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
 
-  // code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
-  // checkError(stmt, code, __FILE__, __LINE__);
-  // ASSERT_EQ(fieldNum, 2);
+    int code = taos_stmt2_prepare(stmt, "select tbname,t2,b from stmt2_testdb_7.stb where ts = ? and tbname = ?", 0);
+    checkError(stmt, code, __FILE__, __LINE__);
 
-  // int32_t b_len = 3;
+    int32_t b_len = 3;
+    int32_t t64_len = sizeof(int64_t);
+    int64_t ts = 1591060628000;
 
-  // TAOS_STMT2_BIND  params2[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, 1},
-  //                                {TSDB_DATA_TYPE_BINARY, (void*)"tb1", &b_len, NULL, 1}};
-  // TAOS_STMT2_BIND* paramv2[] = {&params2[0], &params2[1]};
-  // TAOS_STMT2_BINDV bindv2 = {1, NULL, NULL, &paramv2[0]};
+    TAOS_STMT2_BIND  params2[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, 1},
+                                   {TSDB_DATA_TYPE_BINARY, (void*)"tb1", &b_len, NULL, 1}};
+    TAOS_STMT2_BIND* paramv2[2] = {&params2[0], &params2[1]};
+    TAOS_STMT2_BINDV bindv2 = {1, NULL, NULL, &paramv2[0]};
 
-  // code = taos_stmt2_bind_param(stmt, &bindv2, -1);
-  // checkError(stmt, code, __FILE__, __LINE__);
+    code = taos_stmt2_bind_param(stmt, &bindv2, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
 
-  // taos_stmt2_exec(stmt, NULL);
-  // checkError(stmt, code, __FILE__, __LINE__);
+    taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
 
-  // TAOS_RES* pRes = taos_stmt2_result(stmt);
-  // ASSERT_NE(pRes, nullptr);
+    TAOS_RES* pRes = taos_stmt2_result(stmt);
+    ASSERT_NE(pRes, nullptr);
 
-  // TAOS_ROW row = taos_fetch_row(pRes);
-  // ASSERT_NE(row, nullptr);
-  // ASSERT_EQ(strncmp((char*)row[0], "tb1", 3), 0);
-  // ASSERT_EQ(strncmp((char*)row[1], "abc", 3), 0);
-  // ASSERT_EQ(strncmp((char*)row[2], "abc", 3), 0);
+    TAOS_ROW row = taos_fetch_row(pRes);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(strncmp((char*)row[0], "tb1", 3), 0);
+    ASSERT_EQ(strncmp((char*)row[1], "abc", 3), 0);
+    ASSERT_EQ(strncmp((char*)row[2], "abc", 3), 0);
+
+    code = taos_stmt2_prepare(stmt, "select tbname,t2,b from stmt2_testdb_7.stb where ts = ? and tbname = 'tb2'", 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    TAOS_STMT2_BIND  params3 = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, 1};
+    TAOS_STMT2_BIND* paramv3 = &params3;
+    TAOS_STMT2_BINDV bindv3 = {1, NULL, NULL, &paramv3};
+    code = taos_stmt2_bind_param(stmt, &bindv3, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+    pRes = taos_stmt2_result(stmt);
+    ASSERT_NE(pRes, nullptr);
+    row = taos_fetch_row(pRes);
+    ASSERT_NE(row, nullptr);
+    ASSERT_EQ(strncmp((char*)row[0], "tb2", 3), 0);
+    ASSERT_EQ(strncmp((char*)row[1], "xyz", 3), 0);
+    ASSERT_EQ(strncmp((char*)row[2], "abc", 3), 0);
+  }
 
   do_query(taos, "drop database if exists stmt2_testdb_7");
   taos_close(taos);
