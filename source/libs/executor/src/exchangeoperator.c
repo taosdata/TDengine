@@ -1331,8 +1331,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
             return pTaskInfo->code;
           }
         }
-        if (pExchangeInfo->notifyToSend &&
-            (IS_STREAM_MODE(pTaskInfo) || pExchangeInfo->seqLoadData)) {
+        if (pExchangeInfo->notifyToSend) {
           if (NULL == req.pOpParam) {
             code = buildTableScanOperatorParamNotify(&req.pOpParam,
                                                      pDataInfo->srcOpType,
@@ -2159,9 +2158,7 @@ int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   }
 
   if (NULL != pOperator->pOperatorGetParam) {
-    if (IS_STREAM_MODE(pOperator->pTaskInfo) || pExchangeInfo->seqLoadData) {
-      storeNotifyInfo(pOperator);
-    }
+    storeNotifyInfo(pOperator);
     /**
       The param is referenced by getParam, and it will be freed by
       the parent operator after getting next block.

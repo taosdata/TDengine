@@ -14,7 +14,9 @@ from new_test_framework.utils.eutil import findTaosdLog
 from new_test_framework.utils.streamUtil import StreamItem, tdStream
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 from new_test_framework.utils.common import TDCom, tdCom
+import os
 from random import randrange
+import subprocess
 from tzlocal import get_localzone
 
 import random
@@ -110,6 +112,12 @@ class TestInterpFill:
             ("2025-12-12 12:18:00", 2)
             ("2025-12-12 12:19:00", null)
             ("2025-12-12 12:20:00", 3)""")
+
+        cmd = f"taosBenchmark -f {os.path.dirname(os.path.realpath(__file__))}/in/insert_config.json"
+        tdLog.info(f"Running command: {cmd}")
+        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        _, err = process.communicate()
+        assert process.returncode == 0, f"taosBenchmark failed: {err.decode()}"
 
     def test_normal_query_new(self):
         """Interp fill and psedo column
@@ -1230,6 +1238,54 @@ class TestInterpFill:
             )
         )
 
+    def test_notify_table_merge_scan(self):
+        """Interp query on super table
+
+        1. testing interp query on super table. It will use merge scan instead
+        of table scan. Test the functionality and guarantee the correctness and
+        memory safety.
+
+        Catalog:
+            - Query:Interp
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-01-12 Tony Zhang created
+
+        """
+        tdSql.execute("use fill_interp_test")  
+
+        # start from 1767196800000 = 2026-01-01 00:00:00.000
+        # end at 1767696799000 = 2026-01-06 18:53:19
+        # 500,000 rows per child table
+        # from super table
+        tdSql.query("""select _irowts, interp(v, 1), _irowts_origin, _isfilled
+                    from stb range ("2025-12-31 23:59:59") fill(next)""")
+        tdSql.checkData(0, 0, "2025-12-31 23:59:59.000")
+        tdSql.checkData(0, 2, "2026-01-01 00:00:00.000")
+        tdSql.checkData(0, 3, True)
+
+        # partition by tbname
+        tdSql.query("""select _irowts, interp(v, 1), _irowts_origin, _isfilled
+                    , tbname from stb partition by tbname
+                    range ("2026-01-07 00:00:00") fill(prev) order by tbname""")
+        tdSql.checkData(0, 0, "2026-01-07 00:00:00.000")
+        tdSql.checkData(0, 2, "2026-01-06 18:53:19.000")
+        tdSql.checkData(0, 3, True)
+        tdSql.checkData(1, 0, "2026-01-07 00:00:00.000")
+        tdSql.checkData(1, 2, "2026-01-06 18:53:19.000")
+        tdSql.checkData(1, 3, True)
+
+        # partition by tag
+        tdSql.query("""select _irowts, interp(v, 1), _irowts_origin, _isfilled
+                    from stb partition by zone
+                    range ("2026-01-07 00:00:00") fill(prev)""")
+        tdSql.checkData(0, 0, "2026-01-07 00:00:00.000")
+        tdSql.checkData(0, 2, "2026-01-06 18:53:19.000")
+        tdSql.checkData(0, 3, True)
     #
     # ------------------- extend ----------------
     #

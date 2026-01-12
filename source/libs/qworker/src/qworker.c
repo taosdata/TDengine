@@ -1071,9 +1071,17 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
         whether the taskHandle is valid or not, so we keep the notifyTs in the
         ctx, and notify later in the query thread.
       */
-      STableScanOperatorParam *pParam = (STableScanOperatorParam *)qwMsg->msg;
-      atomic_store_64(&ctx->notifyTs, pParam->notifyTs);
-      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_NOTIFY);
+      SOperatorParam *pGetParam = (SOperatorParam *)qwMsg->msg;
+      if (pGetParam->value != NULL &&
+          pGetParam->opType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+        STableScanOperatorParam *pScanParam =
+          (STableScanOperatorParam*)pGetParam->value;
+        if (pScanParam->paramType == NOTIFY_TYPE_SCAN_PARAM &&
+            pScanParam->notifyToProcess) {
+          atomic_store_64(&ctx->notifyTs, pScanParam->notifyTs);
+          QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_NOTIFY);
+        }
+      }
       freeOperatorParam((SOperatorParam*)qwMsg->msg, OP_GET_PARAM);
       qwMsg->msg = NULL;
     }
