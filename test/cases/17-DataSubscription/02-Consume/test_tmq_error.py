@@ -237,11 +237,7 @@ class TestCase:
         tdLog.info("================= stop dnode, and remove data file, then start dnode ===========================")
         tdDnodes.stop(1)
         
-<<<<<<< HEAD
-        time.sleep(5)
-=======
         time.sleep(15)
->>>>>>> 7569fa71b49 (fix(case): case error in sometimes)
         dataPath = buildPath + "/../sim/dnode1/data/*"
         shellCmd = 'rm -rf ' + dataPath
         tdLog.info(shellCmd)
