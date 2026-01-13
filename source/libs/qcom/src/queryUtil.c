@@ -778,3 +778,30 @@ void* getTaskPoolWorkerCb() { return taskQueue.wrokrerPool.pCb; }
 void tFreeStreamVtbOtbInfo(void* param);
 void tFreeStreamVtbVtbInfo(void* param);
 void tFreeStreamVtbDbVgInfo(void* param);
+
+void destroySTagsInfo(STagsInfo* pInfo) {
+  if (NULL == pInfo) {
+    return;
+  }
+  taosArrayDestroy(pInfo->STagNames);
+
+  for (int i = 0; i < taosArrayGetSize(pInfo->pTagVals); ++i) {
+    STagVal* p = (STagVal*)taosArrayGet(pInfo->pTagVals, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
+  taosArrayDestroy(pInfo->pTagVals);
+  taosMemoryFreeClear(pInfo->pTagIndex);
+  taosMemoryFreeClear(pInfo);
+}
+
+void qDestroyBoundColInfo(void* pInfo) {
+  if (NULL == pInfo) {
+    return;
+  }
+  SBoundColInfo* pBoundInfo = (SBoundColInfo*)pInfo;
+
+  taosMemoryFreeClear(pBoundInfo->pColIndex);
+  destroySTagsInfo(pBoundInfo->parseredTags);
+}

@@ -1913,7 +1913,7 @@ SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd
     pCxt->errCode = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE;
     CHECK_PARSER_STATUS(pCxt);
   }
-  
+
   if (NULL == pInterval) {
     if (pEnd && nodeType(pEnd) == QUERY_NODE_VALUE && ((SValueNode*)pEnd)->flag & VALUE_FLAG_IS_DURATION) {
       return createInterpTimeAround(pCxt, pStart, NULL, pEnd);
@@ -1937,7 +1937,7 @@ SNode* createInterpTimePoint(SAstCreateContext* pCxt, SNode* pPoint) {
     pCxt->errCode = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_USAGE;
     CHECK_PARSER_STATUS(pCxt);
   }
-  
+
   return createOperatorNode(pCxt, OP_TYPE_EQUAL, createPrimaryKeyCol(pCxt, NULL), pPoint);
 _err:
   nodesDestroyNode(pPoint);
@@ -5555,20 +5555,34 @@ _err:
   if (pStmt != NULL) {
     nodesDestroyNode(pStmt);
   }
+  if (pNode != NULL) {
+    nodesDestroyNode(pNode);
+  }
   return NULL;
 }
 
-SNode* createXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceName, SNode* pSource,
-                                           SNode* pSink, SNode* pNode) {
+SNode* createXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResourceName, SNode* pOptions) {
   SNode* pStmt = NULL;
-  if (pSource != NULL || pSink != NULL) {
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_AGENT_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  SCreateXnodeAgentStmt* pAgentStmt = (SCreateXnodeAgentStmt*)pStmt;
+
+  if (pOptions != NULL) {
+    if (nodeType(pOptions) == QUERY_NODE_XNODE_TASK_OPTIONS) {
+      SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pOptions);
+      pAgentStmt->options = options;
+    }
+  }
+
+  if (pResourceName->type == TK_NK_STRING && pResourceName->n > 2) {
+    COPY_STRING_FORM_STR_TOKEN(pAgentStmt->name, pResourceName);
+  } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "Xnode agent should not have source or sink");
+                                            "Invalid xnode agent name type: %d", pResourceName->type);
     goto _err;
   }
 
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODES_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
+  return (SNode*)pAgentStmt;
 _err:
   if (pStmt != NULL) {
     nodesDestroyNode(pStmt);
@@ -5585,7 +5599,7 @@ SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType re
       return createXnodeTaskWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pNode);
     }
     case XNODE_AGENT: {
-      return createXnodeAgentWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pNode);
+      return createXnodeAgentWithOptionsDirectly(pCxt, pResourceName, pNode);
       break;
     }
     default:
@@ -5630,7 +5644,7 @@ SNode* createStartXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceTyp
     }
     char buf[TSDB_XNODE_RESOURCE_NAME_LEN + 1] = {0};
     COPY_STRING_FORM_STR_TOKEN(buf, pIdOrName);
-    pTaskStmt->name = xCreateCowStr(strlen(buf) + 1, buf, true);
+    pTaskStmt->name = xCreateCowStr(strlen(buf), buf, true);
   }
 
   return (SNode*)pTaskStmt;
@@ -5673,7 +5687,7 @@ SNode* createStopXnodeTaskStmt(SAstCreateContext* pCxt, const EXnodeResourceType
     }
     char buf[TSDB_XNODE_RESOURCE_NAME_LEN + 1] = {0};
     COPY_STRING_FORM_STR_TOKEN(buf, pIdOrName);
-    pTaskStmt->name = xCreateCowStr(strlen(buf) + 1, buf, true);
+    pTaskStmt->name = xCreateCowStr(strlen(buf), buf, true);
   }
 
   return (SNode*)pTaskStmt;
@@ -5793,12 +5807,12 @@ SNode* updateXnodeTaskWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
   } else {
     if (pResIdOrName->n <= 2) {
       pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task name be empty string");
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode task name can't be empty string");
       goto _err;
     }
-    char buf[TSDB_XNODE_NAME_LEN];
+    char buf[TSDB_XNODE_TASK_NAME_LEN] = {0};
     COPY_STRING_FORM_STR_TOKEN(buf, pResIdOrName);
-    pTaskStmt->name = xCreateCowStr(strlen(buf) + 1, buf, true);
+    pTaskStmt->name = xCreateCowStr(strlen(buf), buf, true);
   }
 
   if (pSource != NULL) {
@@ -5860,20 +5874,56 @@ _err:
   return NULL;
 }
 
-SNode* alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceId,
+SNode* alterXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken* pResIdOrName, SNode* pNode) {
+  SNode* pStmt = NULL;
+  if (NULL == pNode) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode alter agent options can't be null");
+    goto _err;
+  }
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_XNODE_AGENT_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  SAlterXnodeAgentStmt* pAgentStmt = (SAlterXnodeAgentStmt*)pStmt;
+  if (pResIdOrName->type == TK_NK_INTEGER) {
+    pAgentStmt->id = taosStr2Int32(pResIdOrName->z, NULL, 10);
+  } else {
+    if (pResIdOrName->n <= 2) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode alter agent name can't be empty string");
+      goto _err;
+    }
+    char buf[TSDB_XNODE_AGENT_NAME_LEN] = {0};
+    COPY_STRING_FORM_STR_TOKEN(buf, pResIdOrName);
+    pAgentStmt->name = xCreateCowStr(strlen(buf), buf, true);
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_XNODE_TASK_OPTIONS) {
+    SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pNode);
+    pAgentStmt->options = options;
+  }
+
+  return (SNode*)pAgentStmt;
+_err:
+  if (pStmt != NULL) {
+    nodesDestroyNode(pStmt);
+  }
+  return NULL;
+}
+
+SNode* alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResIdOrName,
                                  SNode* pSource, SNode* pSink, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
 
   switch (resourceType) {
     case XNODE_TASK: {
-      return updateXnodeTaskWithOptionsDirectly(pCxt, pResourceId, pSource, pSink, pNode);
+      return updateXnodeTaskWithOptionsDirectly(pCxt, pResIdOrName, pSource, pSink, pNode);
     }
     case XNODE_AGENT: {
-      return createXnodeAgentWithOptionsDirectly(pCxt, pResourceId, pSource, pSink, pNode);
-      break;
+      return alterXnodeAgentWithOptionsDirectly(pCxt, pResIdOrName, pNode);
     }
     case XNODE_JOB: {
-      return alterXnodeJobWithOptionsDirectly(pCxt, pResourceId, pNode);
+      return alterXnodeJobWithOptionsDirectly(pCxt, pResIdOrName, pNode);
     }
     default:
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -5886,7 +5936,7 @@ _err:
 
 SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResourceName) {
   SNode* pStmt = NULL;
-  char   buf[TSDB_XNODE_TASK_NAME_LEN + 1];
+  char   buf[TSDB_XNODE_TASK_NAME_LEN + 1] = {0};
 
   CHECK_PARSER_STATUS(pCxt);
   if (pResourceName == NULL || pResourceName->n <= 0) {
@@ -5919,7 +5969,7 @@ SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceTyp
         COPY_STRING_FORM_ID_TOKEN(buf, pResourceName);
         pTaskStmt->name = taosStrndupi(buf, sizeof(buf));
       } else if (pResourceName->type == TK_NK_INTEGER) {
-        pTaskStmt->tid = taosStr2Int32(pResourceName->z, NULL, 10);
+        pTaskStmt->id = taosStr2Int32(pResourceName->z, NULL, 10);
       } else {
         pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                                 "Invalid xnode job id type: %d", pResourceName->type);
@@ -5929,9 +5979,27 @@ SNode* dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceTyp
     case XNODE_AGENT:
       pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_AGENT_STMT, (SNode**)&pStmt);
       CHECK_MAKE_NODE(pStmt);
-      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                              "Unimplemented drop xnode agent with: %s", pResourceName->z);
-      goto _err;
+      SDropXnodeAgentStmt* pDropAgent = (SDropXnodeAgentStmt*)pStmt;
+
+      if (pResourceName->type == TK_NK_STRING) {
+        if (pResourceName->n > TSDB_XNODE_TASK_NAME_LEN + 2) {
+          pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                  "Invalid xnode task name length: %d, max length: %d",
+                                                  pResourceName->n, TSDB_XNODE_TASK_NAME_LEN);
+          goto _err;
+        }
+        COPY_STRING_FORM_STR_TOKEN(buf, pResourceName);
+        pDropAgent->name = taosStrndupi(buf, sizeof(buf));
+      } else if (pResourceName->type == TK_NK_ID) {
+        COPY_STRING_FORM_ID_TOKEN(buf, pResourceName);
+        pDropAgent->name = taosStrndupi(buf, sizeof(buf));
+      } else if (pResourceName->type == TK_NK_INTEGER) {
+        pDropAgent->id = taosStr2Int32(pResourceName->z, NULL, 10);
+      } else {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                                "Invalid xnode agent id type: %d", pResourceName->type);
+        goto _err;
+      }
       break;
     case XNODE_JOB:
       pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_JOB_STMT, (SNode**)&pStmt);
@@ -5981,8 +6049,7 @@ SNode* dropXnodeResourceOn(SAstCreateContext* pCxt, EXnodeResourceType resourceT
       CHECK_MAKE_NODE(pStmt);
       break;
     case XNODE_AGENT:
-      // pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_AGENT_STMT, (SNode**)&pStmt);
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_AGENTS_STMT, (SNode**)&pStmt);
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_AGENT_STMT, (SNode**)&pStmt);
       CHECK_MAKE_NODE(pStmt);
       break;
     case XNODE_JOB:

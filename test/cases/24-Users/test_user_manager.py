@@ -256,9 +256,14 @@ class TestUserSecurity:
         # check option value
         self.login()
         self.create_user(user, options="CONNECT_TIME 1", login=True)
-        for i in range(60):
+        target_seconds = 57
+        start_time = time.monotonic()
+        while True:
             tdSql.execute("show databases")
-            time.sleep(1)
+            elapsed = time.monotonic() - start_time
+            if elapsed >= target_seconds:
+                break
+            time.sleep(min(1.0, target_seconds - elapsed))
 
         time.sleep(5)
         tdSql.error("show databases")
