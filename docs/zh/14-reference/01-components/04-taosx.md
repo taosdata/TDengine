@@ -255,7 +255,7 @@ parquet:<file_path>[,<file_path2>,...]?[batch_size=<size>][&projection=<columns>
 | --- | --- | --- | --- | --- |
 | file_path | string | 是 | - | Parquet 文件路径，支持多个文件用逗号分隔 |
 | batch_size | integer | 否 | 1000 | 每批读取的行数 |
-| projection | string | 否 | all | 列投影，可以是列名或列索引（从0开始） |
+| projection | string | 否 | all | 列投影，可以是列名或列索引（从 0 开始） |
 | unprocessed_batches | integer | 否 | 64 | 允许的最大未处理批次数，用于背压控制 |
 
 **使用示例：**
