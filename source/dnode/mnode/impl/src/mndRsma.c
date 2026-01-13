@@ -1215,8 +1215,9 @@ static int32_t mndRetrieveRsma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     TAOS_CHECK_EXIT(mndAcquireUser(pMnode, (RPC_MSG_USER(pReq)), &pUser));
     (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
     int32_t objLevel = privObjGetLevel(PRIV_OBJ_RSMA);
-    showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_RSMA, 0, objFName,
-                                            objLevel == 0 ? NULL : "*"));  // 1.*.*
+    showAll =
+        (0 == mndCheckSysObjPrivilege(pMnode, pUser, RPC_MSG_TOKEN(pReq), PRIV_CM_SHOW, PRIV_OBJ_RSMA, 0, objFName,
+                                      objLevel == 0 ? NULL : "*"));  // 1.*.*
 
     SRsmaObj *pObj = NULL;
     int32_t   index = 0;

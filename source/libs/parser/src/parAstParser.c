@@ -24,6 +24,8 @@
 typedef void* (*FMalloc)(size_t);
 typedef void (*FFree)(void*);
 
+extern SConfig* tsCfg;
+
 extern void* ParseAlloc(FMalloc);
 extern void  Parse(void*, int, SToken, void*);
 extern void  ParseFree(void*, FFree);
@@ -1782,6 +1784,22 @@ static int32_t collectMetaKeyFromShowAlive(SCollectMetaKeyCxt* pCxt, SShowAliveS
   return code;
 }
 
+static int32_t collectMetaKeyFromAlterLocalStmt(SCollectMetaKeyCxt* pCxt, SAlterLocalStmt* pStmt) {
+  if ('\0' == pStmt->value[0]) {
+    char* p = strchr(pStmt->config, ' ');
+    if (NULL != p) {
+      *p = 0;
+      tstrncpy(pStmt->value, p + 1, sizeof(pStmt->value));
+    }
+  }
+  int32_t privType = cfgGetPrivType(tsCfg, pStmt->config);
+  if (privType != PRIV_TYPE_UNKNOWN) {
+    return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, privType, 0,
+                                  pCxt->pMetaCache);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t collectMetaKeyFromSysPrivStmt(SCollectMetaKeyCxt* pCxt, EPrivType privType) {
   return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, privType, 0,
                                 pCxt->pMetaCache);
@@ -2047,6 +2065,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_USER_CREATE);
     case QUERY_NODE_DROP_USER_STMT:
       return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_USER_DROP);
+    case QUERY_NODE_ALTER_LOCAL_STMT:
+      return collectMetaKeyFromAlterLocalStmt(pCxt, (SAlterLocalStmt*)pStmt);
     case QUERY_NODE_CREATE_DNODE_STMT:
     case QUERY_NODE_CREATE_MNODE_STMT:
     case QUERY_NODE_CREATE_QNODE_STMT:

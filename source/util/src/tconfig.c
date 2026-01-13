@@ -620,6 +620,27 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName) {
   return NULL;
 }
 
+int32_t cfgGetPrivType(SConfig *pCfg, const char *pName) {
+  SConfigItem *pItem = cfgGetItem(pCfg, pName);
+  if (pItem == NULL) {
+    return PRIV_TYPE_UNKNOWN;
+  }
+  switch (pItem->privType) {
+    case CFG_PRIV_SYSTEM:
+      return PRIV_VAR_SYSTEM_ALTER;
+    case CFG_PRIV_SECURITY:
+      return PRIV_VAR_SECURITY_ALTER;
+    case CFG_PRIV_AUDIT:
+      return PRIV_VAR_AUDIT_ALTER;
+    case CFG_PRIV_DEBUG:
+      return PRIV_VAR_DEBUG_ALTER;
+    default:
+      break;
+  }
+
+  return PRIV_TYPE_UNKNOWN;
+}
+
 void cfgLock(SConfig *pCfg) {
   if (pCfg == NULL) return;
   (void)taosThreadMutexLock(&pCfg->lock);

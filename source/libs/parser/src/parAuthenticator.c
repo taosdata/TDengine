@@ -781,27 +781,11 @@ static int32_t authAlterDatabase(SAuthCxt* pCxt, SAlterDatabaseStmt* pStmt) {
 }
 
 static int32_t authAlterLocal(SAuthCxt* pCxt, SAlterLocalStmt* pStmt) {
-  SConfigItem* pItem = cfgGetItem(tsCfg, pStmt->config);
-  if (pItem == NULL) return TSDB_CODE_SUCCESS;
-  EPrivType privType = MAX_PRIV_TYPE;
-  switch (pItem->privType) {
-    case CFG_PRIV_SYSTEM:
-      privType = PRIV_VAR_SYSTEM_ALTER;
-      break;
-    case CFG_PRIV_SECURITY:
-      privType = PRIV_VAR_SECURITY_ALTER;
-      break;
-    case CFG_PRIV_AUDIT:
-      privType = PRIV_VAR_AUDIT_ALTER;
-      break;
-    case CFG_PRIV_DEBUG:
-      privType = PRIV_VAR_DEBUG_ALTER;
-      break;
-    default:
-      parserError("unknown priv type %d for config item %s", pItem->privType, pStmt->config);
-      return TSDB_CODE_PAR_INTERNAL_ERROR;
+  int32_t privType = cfgGetPrivType(tsCfg, pStmt->config);
+  if (privType != PRIV_TYPE_UNKNOWN) {
+    return authSysPrivileges(pCxt, (void*)pStmt, privType);
   }
-  return authSysPrivileges(pCxt, (void*)pStmt, privType);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t authDropDatabase(SAuthCxt* pCxt, SDropDatabaseStmt* pStmt) {

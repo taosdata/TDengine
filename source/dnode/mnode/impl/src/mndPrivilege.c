@@ -47,8 +47,8 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
-                                int64_t ownerId, const char *objFName, const char *tbName) {
+int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, const char *token, EPrivType privType,
+                                EPrivObjType objType, int64_t ownerId, const char *objFName, const char *tbName) {
   return 0;
 }
 int32_t mndCheckObjPrivilegeRec(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,

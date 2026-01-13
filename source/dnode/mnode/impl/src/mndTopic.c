@@ -1030,8 +1030,9 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
   int32_t objLevel = privObjGetLevel(PRIV_OBJ_TOPIC);
-  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_TOPIC, 0, objFName,
-                                          objLevel == 0 ? NULL : "*"));  // 1.*.*
+  showAll =
+      (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_CM_SHOW, PRIV_OBJ_TOPIC, 0, objFName,
+                                    objLevel == 0 ? NULL : "*"));  // 1.*.*
 
   PRINT_LOG_START
 

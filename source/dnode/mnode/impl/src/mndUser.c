@@ -2995,7 +2995,8 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   if (createReq.isImport != 1) {
     // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_CREATE_USER), &lino, _OVER);
-    TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_CREATE, 0, 0, NULL, NULL), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_USER_CREATE, 0, 0, NULL, NULL),
+                    &lino, _OVER);
   } else if (strcmp(RPC_MSG_USER(pReq), "root") != 0) {
     mError("The operation is not permitted to create user:%s", RPC_MSG_USER(pReq));
     TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
@@ -3581,8 +3582,8 @@ _OVER:
 #endif
 
 #ifdef TD_ENTERPRISE
-extern int32_t mndAlterUserPrivInfo(SMnode *pMnode, SUserObj *pOperUser, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
-extern int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pOperUser, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
+extern int32_t mndAlterUserPrivInfo(SMnode *pMnode, SUserObj *pOperUser, const char *token, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
+extern int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pOperUser, const char *token, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
 #endif
 
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *pAlterReq) {
@@ -3602,14 +3603,16 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
 #ifdef TD_ENTERPRISE
     TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
-    if ((code = mndAlterUserPrivInfo(pMnode, pOperUser, pUser, &newUser, pAlterReq)) == TSDB_CODE_QRY_DUPLICATED_OPERATION) {
+    if ((code = mndAlterUserPrivInfo(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), pUser, &newUser, pAlterReq)) ==
+        TSDB_CODE_QRY_DUPLICATED_OPERATION) {
       code = 0;
       goto _exit;
     } else {
       TAOS_CHECK_EXIT(code);
     }
   } else if (pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) {
-    if ((code = mndAlterUserRoleInfo(pMnode, pOperUser, pUser, &newUser, pAlterReq)) == TSDB_CODE_QRY_DUPLICATED_OPERATION) {
+    if ((code = mndAlterUserRoleInfo(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), pUser, &newUser, pAlterReq)) ==
+        TSDB_CODE_QRY_DUPLICATED_OPERATION) {
       code = 0;
       goto _exit;
     } else {
@@ -4085,7 +4088,8 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
   }
 
   // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_DROP_USER), &lino, _OVER);
-  TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_USER_DROP, 0, 0, NULL, NULL), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_USER_DROP, 0, 0, NULL, NULL),
+                  &lino, _OVER);
 
   TAOS_CHECK_GOTO(mndDropUser(pMnode, pReq, pUser), &lino, _OVER);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;

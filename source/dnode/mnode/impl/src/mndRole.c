@@ -611,7 +611,7 @@ static int32_t mndProcessCreateRoleReq(SRpcMsg *pReq) {
   mInfo("role:%s, start to create by %s", createReq.name, pOperUser->user);
 
   // TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_CREATE_ROLE));
-  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_ROLE_CREATE, 0, 0, NULL, NULL));
+  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_ROLE_CREATE, 0, 0, NULL, NULL));
 
   if (createReq.name[0] == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_INVALID_FORMAT);
@@ -689,7 +689,7 @@ static int32_t mndProcessDropRoleReq(SRpcMsg *pReq) {
   }
   mInfo("role:%s, start to drop", dropReq.name);
   // TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_DROP_ROLE));
-  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_ROLE_CREATE, 0, 0, NULL, NULL));
+  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_ROLE_CREATE, 0, 0, NULL, NULL));
 
   if (dropReq.name[0] == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_INVALID_FORMAT);
@@ -782,7 +782,7 @@ static bool mndIsRoleChanged(SRoleObj *pOld, SAlterRoleReq *pAlterReq) {
 }
 
 #ifdef TD_ENTERPRISE
-extern int32_t mndAlterRoleInfo(SMnode *pMnode, SUserObj *pOperUser, SRoleObj *pOld, SRoleObj *pNew,
+extern int32_t mndAlterRoleInfo(SMnode *pMnode, SUserObj *pOperUser, const char *token, SRoleObj *pOld, SRoleObj *pNew,
                                 SAlterRoleReq *pAlterReq);
 #endif
 
@@ -824,7 +824,7 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
   } else if (mndIsRoleChanged(pObj, &alterReq)) {
     TAOS_CHECK_EXIT(mndRoleDupObj(pObj, &newObj));
 #ifdef TD_ENTERPRISE
-    TAOS_CHECK_EXIT(mndAlterRoleInfo(pMnode, pOperUser, pObj, &newObj, &alterReq));
+    TAOS_CHECK_EXIT(mndAlterRoleInfo(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), pObj, &newObj, &alterReq));
 #endif
     TAOS_CHECK_EXIT(mndAlterRole(pMnode, pReq, &newObj));
     if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
