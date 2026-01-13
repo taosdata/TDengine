@@ -790,7 +790,11 @@ static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     goto _err_out;
   }
 
-  EPrivType privType = cfgGetPrivType(tsCfg, cfgReq.config);
+  char configName[TSDB_DNODE_CONFIG_LEN] = {0};
+  strncpy(configName, cfgReq.config, sizeof(configName) - 1);
+  const char *p = strstr(configName, " ");
+  if (p) *(char *)p = 0;
+  EPrivType privType = cfgGetPrivType(tsCfg, configName);
   if (privType != PRIV_TYPE_UNKNOWN) {
     if ((code = mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), privType, 0, 0, NULL, NULL))) {
       goto _err_out;
