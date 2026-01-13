@@ -61,7 +61,7 @@ void    insDestroyTableDataCxt(STableDataCxt *pTableCxt);
 
 static FORCE_INLINE int16_t insFindCol(struct SToken *pColname, int16_t start, int16_t end, SSchema *pSchema) {
   while (start < end) {
-    if (strncmp(pColname->z, pSchema[start].name, pColname->n) == 0) {
+    if (strncmp(pColname->z, pSchema[start].name, pColname->n) == 0 && pSchema[start].name[pColname->n] == '\0') {
       return start;
     }
     ++start;

@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, tdCom, TDSetSql, TDSql, sleep
+from new_test_framework.utils import tdLog, tdSql, tdCom, TDSetSql, TDSql
 import taos
 import os
 import sys
@@ -448,7 +448,7 @@ class TestViewBasic:
         except Exception as ex:
             assert("[0x2644]: Permission denied or target object not exist" in str(ex))
         # view query permission
-        res = testSql.query("show views;")
+        testSql.query("show views;")
         testSql.checkRows(2)
         # time.sleep(2)
         testSql.query("select * from v1")

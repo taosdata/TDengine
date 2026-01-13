@@ -88,7 +88,7 @@ typedef struct SUserAuthRsp {
     struct {
       uint8_t exists : 1;
       uint8_t withInsertCond : 1;
-      uint8_t reserve : 7;
+      uint8_t reserve : 6;
     };
   };
 } SUserAuthRsp;

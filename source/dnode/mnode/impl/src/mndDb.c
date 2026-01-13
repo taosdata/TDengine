@@ -1748,7 +1748,6 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb, char *algorithmsId)
   cfgRsp->flags = pDb->cfg.flags;
   tstrncpy(cfgRsp->algorithmsId, algorithmsId, sizeof(cfgRsp->algorithmsId));
   cfgRsp->isAudit = pDb->cfg.isAudit;
-  cfgRsp->flags = pDb->cfg.flags;
 }
 
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
