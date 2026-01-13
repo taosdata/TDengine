@@ -139,7 +139,7 @@ int32_t vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
 int32_t vnodeCommitInfo(const char* dir);
 int32_t vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
 int32_t vnodeSyncCommit(SVnode* pVnode);
-int32_t vnodeAsyncCommit(SVnode* pVnode);
+int32_t vnodeAsyncCommit(SVnode* pVnode, bool forceTrimWal);
 int32_t vnodeAsyncCommitEx(SVnode* pVnode, bool forceTrim);
 bool    vnodeShouldRollback(SVnode* pVnode);
 
