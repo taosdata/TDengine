@@ -246,7 +246,7 @@ taosx run -f parquet:/data/sensors.parquet -t taos:///iot_db -v
 Parquet 数据源使用以下 DSN 格式：
 
 ```
-parquet:<file_path>[,<file_path2>,...]?[batch_size=<size>][&projection=<columns>][&unprocessed_batches=<count>]
+parquet:<file_path1>[,<file_path2>...]?[batch_size=<size>][&projection=<columns>][&unprocessed_batches=<count>]
 ```
 
 支持的参数：
