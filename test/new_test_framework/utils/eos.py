@@ -100,8 +100,9 @@ def run(command, timeout = 20, ret_code=False, show = True):
 def runRetList(command, timeout=10, checkRun=False, retFail=False, show = True):
     output, error, code = run(command, ret_code=True, show=show)
     if checkRun and code != 0:
-        print(f"eos.runRetList checkRun return code failed. code={code} error={error}")
-        assert code == 0
+        print(f"eos.runRetList checkRun return code failed. code={code} error={error} output={output}")
+        if code != 0:
+            raise Exception(f"run command failed. code={code} error={error}")
     
     rList = output.splitlines()
     if retFail and error != "":
