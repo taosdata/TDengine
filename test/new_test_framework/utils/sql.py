@@ -767,13 +767,14 @@ class TDSql:
                 % (filename, lineno, sql)
             )
         else:
+            filename, lineno = _fast_caller(1)
             self.queryRows = 0
             self.queryCols = 0
             self.queryResult = None
             if fullMatched:
                 if expectedErrno != None:
                     expectedErrno_rest = expectedErrno & 0x0000FFFF
-                    if expectedErrno == self.errno or expectedErrno_rest == self.errno:
+                    if expectedErrno == self.errno or expectedErrno_rest == (self.errno & 0x0000FFFF):
                         tdLog.info(
                             "sql:%s, expected errno %s occured" % (sql, expectedErrno)
                         )

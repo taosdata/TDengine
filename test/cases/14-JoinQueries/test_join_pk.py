@@ -353,4 +353,39 @@ class TestJoinPk:
             f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
         tdSql.checkRows(4)
+        
+        tdSql.query(
+            f"select b.*, a.ats from (select now ats, 2 from sst order by ts desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
+        )
+        tdSql.checkRows(0)
+        
+        tdSql.error(
+            f"select b.*, a.ats from (select ts ats, mode(f) from sst) as a inner join (select * from sst order by ts desc) b on timetruncate(now+1s, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a",
+            expectedErrno = int(0x2664) # TSDB_CODE_PAR_NOT_SUPPORT_JOIN
+        )
+
+        tdSql.error(
+            f"select b.*, a.ats from (select _rowts ats, first(f) from sst) as a full join sst b on timetruncate(now+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a",
+            expectedErrno = int(0x2664) # TSDB_CODE_PAR_NOT_SUPPORT_JOIN
+        )
+        
+        tdSql.error(
+            f"select b.*, a.ats from (select _rowts ats, first(f) from sst) as a full join (select * from sst order by ts desc) b on timetruncate(now+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a",
+            expectedErrno = int(0x2664) # TSDB_CODE_PAR_NOT_SUPPORT_JOIN
+        )
+        
+        tdSql.error(
+            f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(now, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a",
+            expectedErrno = int(0x2664) # TSDB_CODE_PAR_NOT_SUPPORT_JOIN
+        )
+                
+        tdSql.error(
+            f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats+1a, 1s) = timetruncate(b.ts+1a, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a",
+            expectedErrno = int(0x2664) # TSDB_CODE_PAR_NOT_SUPPORT_JOIN
+        )
+
+        tdSql.error(
+            f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a",
+            expectedErrno = int(0x2664) # TSDB_CODE_PAR_NOT_SUPPORT_JOIN
+        ) 
    
