@@ -399,11 +399,11 @@ _exit:
   return code;
 }
 
-int vnodeAsyncCommit(SVnode *pVnode) { return vnodeAsyncCommitEx(pVnode, false); }
+int vnodeAsyncCommit(SVnode *pVnode, bool forceTrimWal) { return vnodeAsyncCommitEx(pVnode, forceTrimWal); }
 
 int32_t vnodeSyncCommit(SVnode *pVnode) {
   int32_t lino;
-  int32_t code = vnodeAsyncCommit(pVnode);
+  int32_t code = vnodeAsyncCommit(pVnode, false);
   TSDB_CHECK_CODE(code, lino, _exit);
   vnodeAWait(&pVnode->commitTask);
 
