@@ -87,8 +87,8 @@ cd $CONTAINER_TESTDIR/$target_dir || {
 
 ulimit -c unlimited
 
-# get python connector and update: taospy 2.8.6 taos-ws-py 0.6.5
-pip3 install taospy==2.8.6
+# get python connector and update: taospy 2.8.8 taos-ws-py 0.6.5
+pip3 install taospy==2.8.8
 pip3 install taos-ws-py==0.6.5
 pip3 install pyotp
 
