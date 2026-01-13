@@ -1283,12 +1283,12 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
   void* uidData = taosHashGet(metaCache, &uid, LONG_BYTES);
   if (uidData == NULL) {
     ST_TASK_ELOG("%s error uidData is null,uid:%"PRIu64, __func__, uid);
-    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
-    goto end;
   } else {
     tagCache = *(SArray**)uidData;
-    ST_TASK_DLOG("%s numOfExpr:%d,tagCache size:%zu", __func__, numOfExpr, taosArrayGetSize(tagCache));
-    STREAM_CHECK_CONDITION_GOTO(taosArrayGetSize(tagCache) != numOfExpr, TSDB_CODE_INVALID_PARA);
+    if(taosArrayGetSize(tagCache) != numOfExpr) {
+      ST_TASK_DLOG("%s numOfExpr:%d,tagCache size:%zu", __func__, numOfExpr, taosArrayGetSize(tagCache));
+      tagCache = NULL;
+    }
   }
   
   for (int32_t j = 0; j < numOfExpr; ++j) {
