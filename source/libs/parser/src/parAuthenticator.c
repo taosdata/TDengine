@@ -16,6 +16,7 @@
 #include "catalog.h"
 #include "cmdnodes.h"
 #include "parInt.h"
+#include "tconfig.h"
 
 typedef struct SAuthCxt {
   SParseContext*   pParseCxt;
@@ -31,6 +32,8 @@ typedef struct SSelectAuthCxt {
 typedef struct SAuthRewriteCxt {
   STableNode* pTarget;
 } SAuthRewriteCxt;
+
+extern SConfig* tsCfg;
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt);
 
@@ -777,6 +780,30 @@ static int32_t authAlterDatabase(SAuthCxt* pCxt, SAlterDatabaseStmt* pStmt) {
   return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_ALTER, PRIV_OBJ_DB);
 }
 
+static int32_t authAlterLocal(SAuthCxt* pCxt, SAlterLocalStmt* pStmt) {
+  SConfigItem* pItem = cfgGetItem(tsCfg, pStmt->config);
+  if (pItem == NULL) return TSDB_CODE_SUCCESS;
+  EPrivType privType = MAX_PRIV_TYPE;
+  switch (pItem->privType) {
+    case CFG_PRIV_SYSTEM:
+      privType = PRIV_VAR_SYSTEM_ALTER;
+      break;
+    case CFG_PRIV_SECURITY:
+      privType = PRIV_VAR_SECURITY_ALTER;
+      break;
+    case CFG_PRIV_AUDIT:
+      privType = PRIV_VAR_AUDIT_ALTER;
+      break;
+    case CFG_PRIV_DEBUG:
+      privType = PRIV_VAR_DEBUG_ALTER;
+      break;
+    default:
+      parserError("unknown priv type %d for config item %s", pItem->privType, pStmt->config);
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  return authSysPrivileges(pCxt, (void*)pStmt, privType);
+}
+
 static int32_t authDropDatabase(SAuthCxt* pCxt, SDropDatabaseStmt* pStmt) {
   if (IS_SYS_DBNAME(pStmt->dbName)) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
@@ -989,6 +1016,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authSysPrivileges(pCxt, pStmt, PRIV_CONN_KILL);
     case QUERY_NODE_ALTER_DATABASE_STMT:
       return authAlterDatabase(pCxt, (SAlterDatabaseStmt*)pStmt);
+    case QUERY_NODE_ALTER_LOCAL_STMT:
+      return authAlterLocal(pCxt, (SAlterLocalStmt*)pStmt);
     case QUERY_NODE_DROP_DATABASE_STMT:
       return authDropDatabase(pCxt, (SDropDatabaseStmt*)pStmt);
     case QUERY_NODE_USE_DATABASE_STMT:
