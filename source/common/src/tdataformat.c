@@ -5074,6 +5074,7 @@ int32_t tColDataAddValueByBind2WithDecimal(SColData *pColData, TAOS_STMT2_BIND *
         if (!pV) return terrno;
         memcpy(pV, &dec, DECIMAL_WORD_NUM(Decimal128) * sizeof(DecimalWord));
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pV, TYPE_BYTES[pColData->type]);
+        taosMemoryFree(pV);
       }
     }
   }
@@ -5267,6 +5268,15 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
     if ((taosArrayPush(rowArray, &row)) == NULL) {
       code = terrno;
       goto _exit;
+    }
+
+    // fix decimal memory leak
+    int32_t num = taosArrayGetSize(colValArray);
+    for (int32_t i = 0; i < num; ++i) {
+      SColVal *pCol = taosArrayGet(colValArray, i);
+      if (pCol->value.type == TSDB_DATA_TYPE_DECIMAL) {
+        taosMemoryFreeClear(pCol->value.pData);
+      }
     }
 
     if (pOrdered && pDupTs) {
