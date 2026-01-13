@@ -7214,7 +7214,7 @@ static int32_t nodesCheckMaskNode(SSelectStmt* pSelect, SNode* pNode) {
 }
 
 static int32_t rewriteMaskColFunc(STranslateContext* pCxt, SSelectStmt* pSelect, SNode** ppNode) {
-  nodesCheckMaskNode(pSelect, *ppNode);
+  (void)nodesCheckMaskNode(pSelect, *ppNode);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -7230,7 +7230,9 @@ static int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt*
   SCatalog*      pCatalog = pParseCxt->pCatalog;
   SNode*         pNode = NULL;
 
-  FOREACH(pNode, pSelect->pProjectionList) { rewriteMaskColFunc(pCxt, pSelect, &pNode); }
+  FOREACH(pNode, pSelect->pProjectionList) { 
+    (void)rewriteMaskColFunc(pCxt, pSelect, &pNode); 
+  }
 
   return TSDB_CODE_SUCCESS;
 }
