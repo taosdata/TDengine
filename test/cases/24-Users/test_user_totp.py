@@ -119,7 +119,7 @@ class TestUserSecurity:
         key = self.create_security_key(user)
         self.login_with_key(user, password, key)
 
-        # enalbe 0
+        # enable 0
         user = "user_enable_0"
         self.create_user(user, password, "enable 0")
         key = self.create_security_key(user)
