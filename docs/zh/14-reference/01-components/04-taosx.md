@@ -50,6 +50,7 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 - kafka：启用 Kafka 连接器从 Kafka Topics 中订阅消息写入
 - influxdb：启用 influxdb 连接器从 InfluxDB 获取数据
 - csv：从 CSV 文件解析数据
+- parquet：从 Parquet 文件读取数据
 
 2. +protocol 包含如下选项：
 
@@ -231,6 +232,89 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 ```
 
 它将从 `./meters/meters.csv.gz`（一个 gzip 压缩的 CSV 文件）导入数据到超级表 `meters`，每一行都插入到指定的表名 - `${tbname}` 使用 CSV 内容中的 `tbname` 列作为表名（即在 JSON 解析器中的 `.model.name`）。
+
+#### 导入 Parquet 文件数据
+
+基本用法如下：
+
+```shell
+taosx run -f parquet:/data/sensors.parquet -t taos:///iot_db -v
+```
+
+**DSN 参数说明：**
+
+Parquet 数据源使用以下 DSN 格式：
+
+```
+parquet:<file_path>[,<file_path2>,...]?[batch_size=<size>][&projection=<columns>][&unprocessed_batches=<count>]
+```
+
+支持的参数：
+
+| 参数名称 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| file_path | string | 是 | - | Parquet 文件路径，支持多个文件用逗号分隔 |
+| batch_size | integer | 否 | 1000 | 每批读取的行数 |
+| projection | string | 否 | all | 列投影，可以是列名或列索引（从0开始） |
+| unprocessed_batches | integer | 否 | 64 | 允许的最大未处理批次数，用于背压控制 |
+
+**使用示例：**
+
+1. 读取单个 Parquet 文件：
+
+```shell
+taosx run -f parquet:/data/sensors.parquet -t taos:///iot_db -v
+```
+
+2. 读取多个 Parquet 文件：
+
+```shell
+taosx run -f 'parquet:/data/sensors_2024_01.parquet,/data/sensors_2024_02.parquet' \
+  -t taos:///iot_db -v
+```
+
+3. 使用列投影（按列名）：
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?projection=ts,temperature,humidity' \
+  -t taos:///iot_db -v
+```
+
+4. 使用列投影（按索引）：
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?projection=0,2,5' \
+  -t taos:///iot_db -v
+```
+
+5. 自定义批量大小：
+
+```shell
+taosx run -f 'parquet:/data/large_file.parquet?batch_size=5000' \
+  -t taos:///iot_db -v
+```
+
+6. 完整配置示例：
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?batch_size=2000&projection=ts,device_id,temperature&unprocessed_batches=100' \
+  -t taos:///iot_db -v
+```
+
+**数据类型映射：**
+
+Parquet 数据类型会自动映射到 TDengine 数据类型：
+
+| Parquet 类型 | TDengine 类型 |
+| --- | --- |
+| BOOLEAN | BOOL |
+| INT32 | INT |
+| INT64 | BIGINT |
+| FLOAT | FLOAT |
+| DOUBLE | DOUBLE |
+| BYTE_ARRAY (UTF8) | NCHAR |
+| BYTE_ARRAY (Binary) | BINARY |
+| INT96 (Timestamp) | TIMESTAMP |
 
 ## 服务模式
 
