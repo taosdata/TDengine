@@ -10,7 +10,7 @@ from new_test_framework.utils import (
     tdCom
 )
 # Define the list of base versions to test
-BASE_VERSIONS = ["3.8.0.0"]  # Part 1: Test versions 3.2.0.0 and 3.3.3.0
+BASE_VERSIONS = ["3.3.8.0"]  # Part 1: Test versions 3.3.8.0
 
 class TestStreamCompatibility:
 
@@ -18,41 +18,31 @@ class TestStreamCompatibility:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_stream_compatibility(self):
-        """Comp: stream backward and forward (Part 1/3)
+        """Comp: stream backward and forward (Part 4/4)
 
-        Test compatibility across baseline versions 3.2.0.0 and 3.3.3.0 with stream processing validation:
+        Test compatibility across baseline versions 3.3.8.0 with stream processing validation:
 
-        1. Test [v3.2.0.0 Base Version Compatibility]
-            1.1 Install v3.2.0.0 and prepare data using tdCb.prepareDataOnOldVersion()
+        1. Test [v3.3.8.0 Base Version Compatibility]
+            1.1 Install v3.3.8.0 and prepare data using tdCb.prepareDataOnOldVersion()
                 1.1.1 Create test databases and tables with taosBenchmark
                 1.1.2 Insert sample data and create streams
                 1.1.3 Setup TMQ topics and consumers
-                1.1.4 Verify stream functionality on v3.2.0.0
-            1.2 Upgrade to new version with mode 2 (no upgrade mode)
-                1.2.1 Kill all dnodes and update to new version
-                1.2.2 Start new version with existing data
-                1.2.3 Verify cross-major version compatibility (corss_major_version=True)
-            1.3 Verify data and functionality using tdCb.verifyData()
-                1.3.1 Check table counts and row counts consistency
-                1.3.2 Verify stream processing functionality
-                1.3.3 Test TMQ consumer operations
-                1.3.4 Validate aggregation results accuracy
+                1.1.4 Verify stream functionality on v3.3.8.0
 
-        2. Test [v3.3.3.0 Base Version Compatibility]
-            2.1 Install v3.3.3.0 and prepare data using tdCb.prepareDataOnOldVersion()
+        2. Test [v3.3.8.0 Base Version Compatibility]
+            2.1 Install v3.3.8.0 and prepare data using tdCb.prepareDataOnOldVersion()
                 2.1.1 Create test databases and tables with taosBenchmark
                 2.1.2 Insert sample data and create streams
                 2.1.3 Setup TMQ topics and consumers
-                2.1.4 Verify stream functionality on v3.3.3.0
+                2.1.4 Verify stream functionality on v3.3.8.0
             2.2 Upgrade to new version with mode 2 (no upgrade mode)
                 2.2.1 Kill all dnodes and update to new version
                 2.2.2 Start new version with existing data
-                2.2.3 Verify compatibility (corss_major_version=False as final version)
+                2.2.3 Verify compatibility (corss_major_version=True)
             2.3 Verify data and functionality using tdCb.verifyData()
                 2.3.1 Check table counts and row counts consistency
                 2.3.2 Verify stream processing functionality
                 2.3.3 Test TMQ consumer operations
-                2.3.4 Validate aggregation results accuracy
 
         3. Test [SQL Syntax Compatibility Verification]
             3.1 Test backticks in SQL using tdCb.verifyBackticksInTaosSql()
@@ -62,9 +52,9 @@ class TestStreamCompatibility:
                 3.1.4 Verify error handling for invalid backtick usage
 
         Catalog:
-            - Streams:Compatibility:BackwardForward:Part1
+            - Streams:Compatibility:BackwardForward:Part4
 
-        Since: v3.3.7.0
+        Since: v3.3.8.0
 
         Labels: common, ci
 
@@ -72,7 +62,7 @@ class TestStreamCompatibility:
 
         History:
             - 2025-07-23 Beryl migrated from system-test/0-others/compatibility.py
-            - 2026-01-13 Split into part 1 of 3 (versions 3.2.0.0 and 3.3.3.0)
+            - 2026-01-13 Split into part 4 of 4 (versions 3.3.8.0)
             - Note: Focused on stream-related compatibility, removed cluster upgrade tests
 
         """
