@@ -2476,10 +2476,34 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     return TSDB_CODE_SUCCESS;
   }
 
-  if (IS_SYS_DBNAME(pReq->tbName.dbname)) {
-    pRes->pass[AUTH_RES_BASIC] = true;
-    ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
-    return TSDB_CODE_SUCCESS;
+  const SPrivInfo* pPrivInfo = privInfoGet(pReq->privType);
+  if (!pPrivInfo) {
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
+  }
+  SPrivInfo privInfo = *pPrivInfo;
+
+  if (IS_INFORMATION_SCHEMA_DB(pReq->tbName.dbname)) {
+    if (PRIV_DB_USE == privInfo.privType) {
+      if (PRIV_HAS(&pInfo->sysPrivs, PRIV_INFO_SCHEMA_USE)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+    } else {
+      pRes->pass[AUTH_RES_BASIC] = true;
+      ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
+      return TSDB_CODE_SUCCESS;
+    }
+  } else if (IS_PERFORMANCE_SCHEMA_DB(pReq->tbName.dbname)) {
+    if (PRIV_DB_USE == privInfo.privType) {
+      if (PRIV_HAS(&pInfo->sysPrivs, PRIV_PERF_SCHEMA_USE)) {
+        pRes->pass[AUTH_RES_BASIC] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+    } else {
+      pRes->pass[AUTH_RES_BASIC] = true;
+      ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   if (req->tbNotExists) {
@@ -2496,11 +2520,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
   }
 #endif
 
-  const SPrivInfo* pPrivInfo = privInfoGet(pReq->privType);
-  if (!pPrivInfo) {
-    return TSDB_CODE_CTG_INTERNAL_ERROR;
-  }
-  SPrivInfo privInfo = *pPrivInfo;
+
   if (privInfo.category == PRIV_CATEGORY_SYSTEM) {
     if (PRIV_HAS(&pInfo->sysPrivs, pReq->privType)) {
       pRes->pass[AUTH_RES_BASIC] = true;
@@ -2521,7 +2541,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
             pRes->pass[AUTH_RES_BASIC] = true;
             return TSDB_CODE_SUCCESS;
           }
-          goto _next;
+          goto _next; // pass for db level, check table level
         }
       }
       if ((pReq->useDb & AUTH_OWNED_MASK)) {
@@ -2532,7 +2552,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
             pRes->pass[AUTH_RES_BASIC] = true;
             return TSDB_CODE_SUCCESS;
           }
-          goto _next;
+          goto _next; // pass for db level, check table level
         }
       }
       return TSDB_CODE_SUCCESS;

@@ -1759,7 +1759,13 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSDbCfgReq(pReq->pCont, pReq->contLen, &cfgReq), NULL, _OVER);
 
-  if (strcasecmp(cfgReq.db, TSDB_INFORMATION_SCHEMA_DB) && strcasecmp(cfgReq.db, TSDB_PERFORMANCE_SCHEMA_DB)) {
+  const char *pRealDb = strstr(cfgReq.db, ".");
+  if (pRealDb) {
+    ++pRealDb;
+  } else {
+    pRealDb = &cfgReq.db[0];
+  }
+  if (!IS_SYS_DBNAME(pRealDb)) {
     pDb = mndAcquireDb(pMnode, cfgReq.db);
     if (pDb == NULL) {
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;

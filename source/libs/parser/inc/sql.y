@@ -552,10 +552,10 @@ priv_type(A) ::= CREATE NODE.                                                   
 priv_type(A) ::= DROP NODE.                                                       { A = PRIV_SET_TYPE(PRIV_NODE_DROP); }
 priv_type(A) ::= SHOW NODES.                                                      { A = PRIV_SET_TYPE(PRIV_NODES_SHOW); }
 
-priv_type(A) ::= ALTER SECURITY VARIABLE.                                         { A = PRIV_SET_TYPE(PRIV_VAR_SECURITY_ALTER); }
-priv_type(A) ::= ALTER AUDIT VARIABLE.                                            { A = PRIV_SET_TYPE(PRIV_VAR_AUDIT_ALTER); }
-priv_type(A) ::= ALTER SYSTEM VARIABLE.                                           { A = PRIV_SET_TYPE(PRIV_VAR_SYSTEM_ALTER); }
-priv_type(A) ::= ALTER DEBUG VARIABLE.                                            { A = PRIV_SET_TYPE(PRIV_VAR_DEBUG_ALTER); }
+priv_type(A) ::= ALTER SECURITY VARIABLES.                                        { A = PRIV_SET_TYPE(PRIV_VAR_SECURITY_ALTER); }
+priv_type(A) ::= ALTER AUDIT VARIABLES.                                           { A = PRIV_SET_TYPE(PRIV_VAR_AUDIT_ALTER); }
+priv_type(A) ::= ALTER SYSTEM VARIABLES.                                          { A = PRIV_SET_TYPE(PRIV_VAR_SYSTEM_ALTER); }
+priv_type(A) ::= ALTER DEBUG VARIABLES.                                           { A = PRIV_SET_TYPE(PRIV_VAR_DEBUG_ALTER); }
 priv_type(A) ::= SHOW SECURITY VARIABLES.                                         { A = PRIV_SET_TYPE(PRIV_VAR_SECURITY_SHOW); }
 priv_type(A) ::= SHOW AUDIT VARIABLES.                                            { A = PRIV_SET_TYPE(PRIV_VAR_AUDIT_SHOW); }
 priv_type(A) ::= SHOW SYSTEM VARIABLES.                                           { A = PRIV_SET_TYPE(PRIV_VAR_SYSTEM_SHOW); }
@@ -567,21 +567,21 @@ priv_type(A) ::= SHOW SUBSCRIPTIONS.                                            
 
 priv_type(A) ::= CREATE STREAM.                                                   { A = PRIV_SET_TYPE(PRIV_STREAM_CREATE); }
 
-priv_type(A) ::= SHOW TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_SHOW); }
-priv_type(A) ::= KILL TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_KILL); }
+priv_type(A) ::= SHOW TRANSACTIONS.                                               { A = PRIV_SET_TYPE(PRIV_TRANS_SHOW); }
+priv_type(A) ::= KILL TRANSACTION.                                                { A = PRIV_SET_TYPE(PRIV_TRANS_KILL); }
 priv_type(A) ::= SHOW CONNECTIONS.                                                { A = PRIV_SET_TYPE(PRIV_CONN_SHOW); }
 priv_type(A) ::= KILL CONNECTION.                                                 { A = PRIV_SET_TYPE(PRIV_CONN_KILL); }
 priv_type(A) ::= SHOW QUERIES.                                                    { A = PRIV_SET_TYPE(PRIV_QUERY_SHOW); }
 priv_type(A) ::= KILL QUERY.                                                      { A = PRIV_SET_TYPE(PRIV_QUERY_KILL); }
 
-priv_type(A) ::= USE INFORMATION_SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_USE); }
-priv_type(A) ::= USE PERFORMANCE_SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_USE); }
-priv_type(A) ::= READ INFORMATION_SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_LIMIT); }
-priv_type(A) ::= READ INFORMATION_SCHEMA SECURITY.                                { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_SEC); }
-priv_type(A) ::= READ INFORMATION_SCHEMA AUDIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_AUDIT); }
-priv_type(A) ::= READ INFORMATION_SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC); }
-priv_type(A) ::= READ PERFORMANCE_SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_LIMIT); }
-priv_type(A) ::= READ PERFORMANCE_SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_BASIC); }
+priv_type(A) ::= USE INFORMATION SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_USE); }
+priv_type(A) ::= USE PERFORMANCE SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_USE); }
+priv_type(A) ::= READ INFORMATION SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_LIMIT); }
+priv_type(A) ::= READ INFORMATION SCHEMA SECURITY.                                { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_SEC); }
+priv_type(A) ::= READ INFORMATION SCHEMA AUDIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_AUDIT); }
+priv_type(A) ::= READ INFORMATION SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC); }
+priv_type(A) ::= READ PERFORMANCE SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_LIMIT); }
+priv_type(A) ::= READ PERFORMANCE SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_BASIC); }
 priv_type(A) ::= SHOW GRANTS.                                                     { A = PRIV_SET_TYPE(PRIV_GRANTS_SHOW); }
 priv_type(A) ::= SHOW CLUSTER.                                                    { A = PRIV_SET_TYPE(PRIV_CLUSTER_SHOW); }
 priv_type(A) ::= SHOW APPS.                                                       { A = PRIV_SET_TYPE(PRIV_APPS_SHOW); }
