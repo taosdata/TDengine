@@ -241,11 +241,11 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 taosx run -f parquet:/data/sensors.parquet -t taos:///iot_db -v
 ```
 
-**DSN 参数说明：**
+DSN 参数说明：
 
 Parquet 数据源使用以下 DSN 格式：
 
-```
+```text
 parquet:<file_path1>[,<file_path2>...]?[batch_size=<size>][&projection=<columns>][&unprocessed_batches=<count>]
 ```
 
@@ -258,7 +258,7 @@ parquet:<file_path1>[,<file_path2>...]?[batch_size=<size>][&projection=<columns>
 | projection | string | 否 | all | 列投影，可以是列名或列索引（从 0 开始） |
 | unprocessed_batches | integer | 否 | 64 | 允许的最大未处理批次数，用于背压控制 |
 
-**使用示例：**
+使用示例：
 
 1. 读取单个 Parquet 文件：
 
@@ -301,7 +301,7 @@ taosx run -f 'parquet:/data/sensors.parquet?batch_size=2000&projection=ts,device
   -t taos:///iot_db -v
 ```
 
-**数据类型映射：**
+数据类型映射：
 
 Parquet 数据类型会自动映射到 TDengine 数据类型：
 

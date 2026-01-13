@@ -249,11 +249,11 @@ Basic usage is as follows:
 taosx run -f parquet:/data/sensors.parquet -t taos:///iot_db -v
 ```
 
-**DSN Parameter Description:**
+DSN Parameter Description:
 
 Parquet data source uses the following DSN format:
 
-```
+```text
 parquet:<file_path1>[,<file_path2>...]?[batch_size=<size>][&projection=<columns>][&unprocessed_batches=<count>]
 ```
 
@@ -266,7 +266,7 @@ Supported parameters:
 | projection | string | No | all | Column projection, can be column names or indices (starting from 0) |
 | unprocessed_batches | integer | No | 64 | Maximum number of unprocessed batches for backpressure control |
 
-**Usage Examples:**
+Usage Examples:
 
 1. Read a single Parquet file:
 
@@ -309,7 +309,7 @@ taosx run -f 'parquet:/data/sensors.parquet?batch_size=2000&projection=ts,device
   -t taos:///iot_db -v
 ```
 
-**Data Type Mapping:**
+Data Type Mapping:
 
 Parquet data types are automatically mapped to TDengine data types:
 
