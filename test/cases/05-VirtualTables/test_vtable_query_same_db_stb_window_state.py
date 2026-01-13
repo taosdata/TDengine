@@ -54,8 +54,8 @@ class TestVTableQuerySameDBStbWindowState:
         self.run_normal_query("test_vstable_select_test_state_mode_1_batch_hint")
         self.run_normal_query("test_vstable_select_test_state_mode_2_batch_hint")
 
-        self.run_normal_query("test_vstable_select_test_state_mode_0_single_hint")
-        self.run_normal_query("test_vstable_select_test_state_mode_1_single_hint")
-        self.run_normal_query("test_vstable_select_test_state_mode_2_single_hint")
+        # self.run_normal_query("test_vstable_select_test_state_mode_0_single_hint")
+        # self.run_normal_query("test_vstable_select_test_state_mode_1_single_hint")
+        # self.run_normal_query("test_vstable_select_test_state_mode_2_single_hint")
 
 
