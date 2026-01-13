@@ -1285,12 +1285,13 @@ int32_t fillTag(SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr,
 
   void* uidData = taosHashGet(metaCache, &uid, LONG_BYTES);
   if (uidData == NULL) {
-    stDebug("%s error uidData is null,uid:%"PRIu64, __func__, uid);
-    code = TSDB_CODE_STREAM_INTERNAL_ERROR;
-    goto end;
+    stError("%s error uidData is null,uid:%"PRIu64, __func__, uid);
   } else {
     tagCache = *(SArray**)uidData;
-    STREAM_CHECK_CONDITION_GOTO(taosArrayGetSize(tagCache) != numOfExpr, TSDB_CODE_INVALID_PARA);
+    if(taosArrayGetSize(tagCache) != numOfExpr) {
+      stError("%s numOfExpr:%d,tagCache size:%zu", __func__, numOfExpr, taosArrayGetSize(tagCache));
+      tagCache = NULL;
+    }
   }
   
   for (int32_t j = 0; j < numOfExpr; ++j) {
@@ -1308,7 +1309,7 @@ int32_t fillTag(SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr,
         pColInfoData->info.colId = -1;
       }
     } 
-    char* data = taosArrayGetP(tagCache, j);
+    char* data = tagCache == NULL ? NULL : taosArrayGetP(tagCache, j);
 
     bool isNullVal = (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data));
     if (isNullVal) {
