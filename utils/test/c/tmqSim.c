@@ -360,7 +360,7 @@ int queryDB(TAOS* taos, char* command) {
     code = taos_errno(pRes);
     if (code != 0) {
       taosSsleep(1);
-      taosFprintfFile(g_fp, "queryDB continue, command:%s: code:%d", command,code);
+      taosFprintfFile(g_fp, "queryDB continue, command:%s, code:%d", command, code);
       taos_free_result(pRes);
       pRes = NULL;
       continue;
@@ -587,7 +587,7 @@ static int32_t data_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
   const char* dbName = tmq_get_db_name(msg);
 
   char timestring[128] = {0};
-  taosFprintfFile(g_fp, "consumerId: %d, msg index:%d\n", pInfo->consumerId, msgIndex, getCurrentTimeString(timestring));
+  taosFprintfFile(g_fp, "%s consumerId: %d, msg index:%d\n", getCurrentTimeString(timestring), pInfo->consumerId, msgIndex);
   int32_t index = 0;
   for (index = 0; index < pInfo->numOfVgroups; index++) {
     if (vgroupId == pInfo->rowsOfPerVgroups[index][0]) {
@@ -645,9 +645,9 @@ static int32_t meta_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
   int32_t     vgroupId = tmq_get_vgroup_id(msg);
   const char* dbName = tmq_get_db_name(msg);
 
-  taosFprintfFile(g_fp, "%s consumerId: %d, msg index:%d\n", pInfo->consumerId, msgIndex, getCurrentTimeString(buf));
-  taosFprintfFile(g_fp, "%s dbName: %s, topic: %s, vgroupId: %d\n", dbName != NULL ? dbName : "invalid table",
-                  tmq_get_topic_name(msg), vgroupId, getCurrentTimeString(buf));
+  taosFprintfFile(g_fp, "%s consumerId: %d, msg index:%d\n", getCurrentTimeString(buf), pInfo->consumerId, msgIndex);
+  taosFprintfFile(g_fp, "%s dbName: %s, topic: %s, vgroupId: %d\n", getCurrentTimeString(buf),dbName != NULL ? dbName : "invalid table",
+                  tmq_get_topic_name(msg), vgroupId);
 
   {
     tmq_raw_data raw = {0};
@@ -812,7 +812,6 @@ void loop_consume(SThreadInfo* pInfo) {
   uint64_t startTs = taosGetTimestampMs();
 
   int32_t consumeDelay = g_stConfInfo.consumeDelay == -1 ? -1 : (g_stConfInfo.consumeDelay * 1000);
-  printf("consumeDelay=%d ms\n", consumeDelay);
   while (running) {
     TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, consumeDelay);
     if (tmqMsg) {
