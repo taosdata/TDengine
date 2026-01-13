@@ -38,6 +38,7 @@ typedef struct SMnodeMgmt {
   SSingleWorker  arbWorker;
   SSingleWorker  syncWorker;
   SSingleWorker  syncRdWorker;
+  SSingleWorker       auditWorker;
   bool           stopped;
   int32_t        refCount;
   TdThreadRwlock lock;
@@ -69,6 +70,7 @@ int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc);
 int32_t mmPutMsgToStreamMgmtQueue(SMnodeMgmt* pMgmt, SRpcMsg* pMsg);
 int32_t mmPutMsgToStreamReaderQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutMsgToAuditQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 int32_t mndProcessStreamHb(SRpcMsg *pReq);
 

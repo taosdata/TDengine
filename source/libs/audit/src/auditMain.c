@@ -55,6 +55,19 @@ int32_t auditInit(const SAuditCfg *pCfg) {
 
 void auditSetDnodeId(int32_t dnodeId) { tsAudit.dnodeId = dnodeId; }
 
+void auditSetMnode(mndGetDnodeEpsetByIdFn fn, void *pMnode) {
+  tsAudit.fn = fn;
+  tsAudit.pMnode = pMnode;
+}
+
+SEpSet auditGetDnodeEpset() {
+  SEpSet epset = {0};
+  if (tsAudit.fn != NULL) {
+    epset = tsAudit.fn(tsAudit.pMnode, tsAudit.dnodeId);
+  }
+  return epset;
+}
+
 void auditCleanup() {
   tsLogFp = NULL;
   (void)taosThreadMutexLock(&tsAudit.recordLock);
