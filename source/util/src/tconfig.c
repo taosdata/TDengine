@@ -830,12 +830,13 @@ int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t
 }
 
 int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope,
-                    int8_t dynScope, int8_t category) {
+                    int8_t dynScope, int8_t category, ECfgPrivType privType) {
   if (defaultVal < minval || defaultVal > maxval) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
   SConfigItem item = {.dtype = CFG_DTYPE_FLOAT,
+                      .privType = privType,
                       .fval = defaultVal,
                       .fmin = minval,
                       .fmax = maxval,
