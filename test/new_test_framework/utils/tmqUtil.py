@@ -128,6 +128,7 @@ class TMQCom:
             psCmd = "ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         onlyKillOnceWindows = 0
+        tdLog.info("processID: %s" % processID)
         while(processID):
             if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
                 if platform.system().lower() == 'windows':
@@ -135,9 +136,11 @@ class TMQCom:
                 else:
                     killCmd = "unset LD_PRELOAD; kill -INT %s > /dev/null 2>&1" % processID
                 os.system(killCmd)
+                tdLog.info("execute command: %s" % killCmd)
                 onlyKillOnceWindows = 1
-            time.sleep(0.2)
+            time.sleep(1)
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+            tdLog.info("processID: %s" % processID)
         tdLog.info("%s is stopped by kill -INT" % (processorName))
 
     def getStartConsumeNotifyFromTmqsim(self,cdbName='cdb',rows=1):
