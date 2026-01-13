@@ -202,12 +202,13 @@ CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL 
 - `PROVIDER` 令牌提供者的名称，最长 63 个字节。
 - `EXTRA_INFO` 由应用管理的附加信息，最长 1023 字节。
 
-在下面的示例中，我们为用户 test 创建了一个名为 `test_token` 的令牌。注意，由于令牌值比较长，且仅在创建时展示一次，后续无法查询，所以请在 SQL 命令的最后使用 `\G` 以便完整显示。
+在下面的示例中，我们为用户 test 创建了一个名为 `test_token` 的令牌。注意，令牌值仅在创建时展示一次，后续无法查询，请及时保存。
 
 ```sql
-taos> create token test_token from user test \G;
-*************************** 1.row ***************************
-token: BsyjYKxhCMntZ3pHgweCd2uV2C8HoGKn8Mvd49dRRCtzusX0P1mgqRMrG7SzUca
+taos> create token test_token from user test;
+                             token                               |
+==================================================================
+ BsyjYKxhCMntZ3pHgweCd2uV2C8HoGKn8Mvd49dRRCtzusX0P1mgqRMrG7SzUca |
 Query OK, 1 row(s) in set (0.003018s)
 ```
 
