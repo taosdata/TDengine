@@ -60,6 +60,7 @@ Python Connector 历史版本（建议使用最新版本的 `taospy`）：
 
 | Python Connector 版本 | 主要变化                                                                                                                                                         |   TDengine TSDB 版本    |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+|         2.8.8         | 支持 TOTP 身份验证和令牌身份验证                                                                                                                                    | - |
 |         2.8.6         | 支持 pandas 的 read_sql_table，to_sql 和 read_sql 接口                                                                                                | - |
 |         2.8.5         | 支持 taos-ws-py 的 sqlalchemy 功能                                                                                                                                  | - |
 |         2.8.4         | 支持 DBUtils 连接池                                                                                                                                   | - |
@@ -453,6 +454,8 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
       - `port`：端口号
       - `database`：数据库名称
       - `timezone`：时区
+      - `totp_code`：用于基于时间的一次性密码（TOTP）身份验证
+      - `bearer_token`：用于令牌身份验证
   - **返回值**：`TaosConnection` 连接对象。
   - **异常**：操作失败抛出 `AttributeError` 或 `ConnectionError` 异常。
 - `def cursor(self)`
