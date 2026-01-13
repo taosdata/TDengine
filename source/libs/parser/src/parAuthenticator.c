@@ -590,8 +590,7 @@ static int32_t authDropTable(SAuthCxt* pCxt, SDropTableStmt* pStmt) {
 
     if (!pStmt->withOpt) {
       // for child table, check privileges of its super table later
-      if (checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL, NULL) ==
-          TSDB_CODE_SUCCESS) {
+      if (checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL, NULL)) {
         code = TSDB_CODE_PAR_PERMISSION_DENIED;
         break;
       }

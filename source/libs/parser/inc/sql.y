@@ -576,12 +576,12 @@ priv_type(A) ::= KILL QUERY.                                                    
 
 priv_type(A) ::= USE INFORMATION SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_USE); }
 priv_type(A) ::= USE PERFORMANCE SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_USE); }
-priv_type(A) ::= READ INFORMATION SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_LIMIT); }
+priv_type(A) ::= READ INFORMATION SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC); }
 priv_type(A) ::= READ INFORMATION SCHEMA SECURITY.                                { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_SEC); }
 priv_type(A) ::= READ INFORMATION SCHEMA AUDIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_AUDIT); }
-priv_type(A) ::= READ INFORMATION SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC); }
-priv_type(A) ::= READ PERFORMANCE SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_LIMIT); }
+priv_type(A) ::= READ INFORMATION SCHEMA PRIVILEGED.                              { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_PRIVILEGED); }
 priv_type(A) ::= READ PERFORMANCE SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_BASIC); }
+priv_type(A) ::= READ PERFORMANCE SCHEMA PRIVILEGED.                              { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_PRIVILEGED); }
 priv_type(A) ::= SHOW GRANTS.                                                     { A = PRIV_SET_TYPE(PRIV_GRANTS_SHOW); }
 priv_type(A) ::= SHOW CLUSTER.                                                    { A = PRIV_SET_TYPE(PRIV_CLUSTER_SHOW); }
 priv_type(A) ::= SHOW APPS.                                                       { A = PRIV_SET_TYPE(PRIV_APPS_SHOW); }

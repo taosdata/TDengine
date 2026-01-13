@@ -4298,7 +4298,7 @@ static int32_t checkAuthFromMetaData(SInsertParseContext* pCxt, const SMetaData*
   int32_t code = TSDB_CODE_SUCCESS;
   if (1 != taosArrayGetSize(pMetaData->pUser)) {
     code = TSDB_CODE_INTERNAL_ERROR;
-    uError("unexpected meta data size: %d since %s", taosArrayGetSize(pMetaData->pUser), tstrerror(code));
+    uError("unexpected meta data size: %d since %s", (int32_t)taosArrayGetSize(pMetaData->pUser), tstrerror(code));
     return code;
   }
 

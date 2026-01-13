@@ -151,7 +151,9 @@ int32_t mndBuildInsTableCfg(SMnode *pMnode, const char *dbFName, const char *tbN
 }
 
 int32_t mndInitInfos(SMnode *pMnode) {
-  pMnode->infosMeta = taosHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
+  size_t size = 0;
+  getInfosDbMeta(NULL, &size);
+  pMnode->infosMeta = taosHashInit(size, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
   if (pMnode->infosMeta == NULL) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
