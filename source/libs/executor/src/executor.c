@@ -687,6 +687,15 @@ void qDestroyOperatorParam(SOperatorParam* pParam) {
 }
 
 void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
+  SExecTaskInfo* pTask = (SExecTaskInfo*)tinfo;
+  SOperatorParam* pNewParam = (SOperatorParam*)pParam;
+  if (pTask->pRoot && pTask->pRoot->operatorType != pNewParam->opType) {
+    qError("%s, %s operator type mismatch, task operator type:%d, "
+           "new param operator type:%d", GET_TASKID(pTask), __func__,
+           pTask->pRoot->operatorType,
+           pNewParam->opType);
+    return;
+  }
   TSWAP(pParam, ((SExecTaskInfo*)tinfo)->pOpParam);
   ((SExecTaskInfo*)tinfo)->paramSet = false;
 }
