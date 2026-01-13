@@ -205,7 +205,7 @@ kill_service_of() {
   # grep -v -x "$$" : exclude the current script's own PID
   # ps -o pid=,comm= -p ... : get pid and command name
   # awk '$2 != "rmtaos" && $2 != "uninstall.sh" {print $1}' : exclude rmtaos and uninstall.sh processes
-  pids=$(pgrep -x "$svc" | grep -v -x "$$" || true)
+  pids=$(ps -eo pid=,comm= | awk -v svc="$svc" '$2 == svc {print $1}' || true)
   if [ -n "$pids" ]; then
     echo "$pids" | xargs -r ps -o pid=,comm= -p 2>/dev/null \
       | awk '$2 != "rmtaos" && $2 != "uninstall.sh" {print $1}' \
