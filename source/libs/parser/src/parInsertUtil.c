@@ -421,7 +421,8 @@ void destroyColVal(void* p) {
   SColVal* pVal = (SColVal*)p;
 
   if (TSDB_DATA_TYPE_NCHAR == pVal->value.type || TSDB_DATA_TYPE_GEOMETRY == pVal->value.type ||
-      TSDB_DATA_TYPE_VARBINARY == pVal->value.type || TSDB_DATA_TYPE_DECIMAL == pVal->value.type) {
+      TSDB_DATA_TYPE_VARBINARY == pVal->value.type || TSDB_DATA_TYPE_DECIMAL == pVal->value.type ||
+      TSDB_DATA_TYPE_VARCHAR == pVal->value.type) {
     taosMemoryFreeClear(pVal->value.pData);
   }
 }
