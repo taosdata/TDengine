@@ -313,6 +313,7 @@ typedef struct tExprNode {
 typedef struct SHashParam {
   bool             hasHashParam;
   bool             hasValue;
+  bool             hasNull;
   SHashObj        *pHashFilter;
   SHashObj        *pHashFilterOthers;
   int32_t          filterValueType;

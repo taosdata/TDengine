@@ -135,7 +135,7 @@ int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockL
 }
 
 // processType = 0 means all type. 1 means number, 2 means var, 3 means float, 4 means var&integer
-int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t type, STypeMod typeMod, int8_t processType, uint32_t rows) {
+int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t type, STypeMod typeMod, int8_t processType, uint32_t rows, bool* hasNull) {
   if ((IS_VAR_DATA_TYPE(pCol->info.type) && (processType == 1 || processType == 3)) ||
       (IS_INTEGER_TYPE(pCol->info.type) && (processType == 2 || processType == 3)) ||
       (IS_FLOAT_TYPE(pCol->info.type) && (processType == 2 || processType == 4))) {
@@ -195,6 +195,11 @@ int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t ty
 
   for (uint32_t i = 0; i < rows; ++i) {
     if (overflow && overflow[i]) {
+      continue;
+    }
+
+    if (colDataIsNull(pRes, rows, i, NULL)) {
+      *hasNull = true;
       continue;
     }
     
@@ -477,19 +482,22 @@ int32_t scalarBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData
     typeMod = decimalCalcTypeMod(TSDB_DECIMAL_MAX_PRECISION, getScaleFromTypeMod(type, pRemote->targetTypeMod));
   }
 
+  bool hasNull1 = false, hasNull2 = false;
+  
   if (rows > 0 && TSDB_DATA_TYPE_NULL != type) {
     if (IS_VAR_DATA_TYPE(pRemote->targetType) && IS_NUMERIC_TYPE(type)) {
-      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 1, rows));
+      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 1, rows, &hasNull1));
     } else if (IS_INTEGER_TYPE(pRemote->targetType) && IS_FLOAT_TYPE(type)) {
-      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 2, rows));
+      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 2, rows, &hasNull1));
       SCL_ERR_RET(
-          scalarGenerateSetFromCol((void **)&pRemote->pHashFilterOthers, pCol, pRemote->targetType, typeMod, 4, rows));
+          scalarGenerateSetFromCol((void **)&pRemote->pHashFilterOthers, pCol, pRemote->targetType, typeMod, 4, rows, &hasNull2));
     } else {
-      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 0, rows));
+      SCL_ERR_RET(scalarGenerateSetFromCol((void **)&pRemote->pHashFilter, pCol, type, typeMod, 0, rows, &hasNull1));
     }
   }
 
   pRemote->hashAllocated = true;
+  pRemote->hasNull = hasNull1 || hasNull2;
   pRemote->filterValueTypeMod = typeMod;
   pRemote->filterValueType = type;
 
@@ -565,6 +573,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
       
       type = ctx->type.peerType;
+      
       if (TSDB_DATA_TYPE_NULL != type) {
         if (IS_VAR_DATA_TYPE(ctx->type.selfType) && IS_NUMERIC_TYPE(type)) {
           SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->hashParam.pHashFilter, node, type, typeMod, 1));
@@ -579,6 +588,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         }
       }
 
+      param->hashParam.hasNull = nodeList->node.hasNull;
       param->hashParam.filterValueTypeMod = typeMod;
       param->hashParam.filterValueType = type;
       param->colAlloced = true;
@@ -663,12 +673,13 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     case QUERY_NODE_REMOTE_VALUE_LIST: {
       SRemoteValueListNode* pRemote = (SRemoteValueListNode*)node;
       if (!(pRemote->flag & VALUELIST_FLAG_VAL_UNSET)) {
-        sclDebug("remoteValueList already got res, node:%p, hasValue:%d, pHashFilter:%p,%d, pHashFilterOthers:%p,%d",
-          node, pRemote->hasValue, pRemote->pHashFilter, pRemote->pHashFilter ? taosHashGetSize(pRemote->pHashFilter) : 0,
+        sclDebug("remoteValueList already got res, node:%p, hasValue:%d, hasNull:%d, pHashFilter:%p,%d, pHashFilterOthers:%p,%d",
+          node, pRemote->hasValue, pRemote->hasNull, pRemote->pHashFilter, pRemote->pHashFilter ? taosHashGetSize(pRemote->pHashFilter) : 0,
           pRemote->pHashFilterOthers, pRemote->pHashFilterOthers ? taosHashGetSize(pRemote->pHashFilterOthers) : 0);
 
         param->hashParam.hasHashParam = true;
         param->hashParam.hasValue = pRemote->hasValue;
+        param->hashParam.hasNull = pRemote->hasNull;
         param->hashParam.pHashFilter = pRemote->pHashFilter;
         param->hashParam.pHashFilterOthers = pRemote->pHashFilterOthers;
         param->hashParam.filterValueType = pRemote->filterValueType;
@@ -689,14 +700,15 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
       param->hashParam.hasHashParam = true;
       param->hashParam.hasValue = pRemote->hasValue;
+      param->hashParam.hasNull = pRemote->hasNull;
       param->hashParam.pHashFilter = pRemote->pHashFilter;
       param->hashParam.pHashFilterOthers = pRemote->pHashFilterOthers;
       param->hashParam.filterValueType = pRemote->filterValueType;
       param->hashParam.filterValueTypeMod = pRemote->filterValueTypeMod;
       param->colAlloced = false;
 
-      sclDebug("remoteValueList got res, node:%p, hasValue:%d, pHashFilter:%p,%d, pHashFilterOthers:%p,%d",
-        node, pRemote->hasValue, pRemote->pHashFilter, pRemote->pHashFilter ? taosHashGetSize(pRemote->pHashFilter) : 0,
+      sclDebug("remoteValueList got res, node:%p, hasValue:%d, hasNull:%d, pHashFilter:%p,%d, pHashFilterOthers:%p,%d",
+        node, pRemote->hasValue, pRemote->hasNull, pRemote->pHashFilter, pRemote->pHashFilter ? taosHashGetSize(pRemote->pHashFilter) : 0,
         pRemote->pHashFilterOthers, pRemote->pHashFilterOthers ? taosHashGetSize(pRemote->pHashFilterOthers) : 0);
 
       break;
@@ -2033,14 +2045,12 @@ EDealRes sclRewriteOperator(SNode **pNode, SScalarCtx *ctx) {
   if (node->pRight && (QUERY_NODE_NODE_LIST == nodeType(node->pRight))) {
     SNodeListNode *listNode = (SNodeListNode *)node->pRight;
     SNode         *tnode = NULL;
+    bool           firstNull = true;
     WHERE_EACH(tnode, listNode->pNodeList) {
       if (SCL_IS_NULL_VALUE_NODE(tnode)) {
-        if (node->opType == OP_TYPE_IN) {
-          ERASE_NODE(listNode->pNodeList);
-          continue;
-        } else {  // OP_TYPE_NOT_IN
-          return sclRewriteNullInOptr(pNode, ctx, node->opType);
-        }
+        listNode->node.hasNull = true;        
+        ERASE_NODE(listNode->pNodeList);
+        continue;
       }
 
       WHERE_NEXT;

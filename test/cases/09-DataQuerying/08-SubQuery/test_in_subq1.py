@@ -17,7 +17,7 @@ class TestScalarSubQuery1:
     targetIdx = 0
     tableIdx = 0
     tableNames = ["tb1", "st1"]
-    fullTableNames = ["tb1", "tb2", "tb3", "tba", "st1"]
+    fullTableNames = ["tb1", "tb2", "tb3", "tba", "tbb", "st1"]
     opStrs = ["IN", "NOT IN"]
     targetObjs = ["1", "'a'", "f1", "NULL", "123.45", "abs(-2)", "f1 + 1", "sum(f1)"]
     targetFullObjs = ["1", "'a'", "'d'", "f1", "NULL", "123.45", "abs(-2)", "f1 + 1", "sum(f1)", "(select 1)", "(select f1 from tba limit 0)"]
@@ -64,6 +64,8 @@ class TestScalarSubQuery1:
         "(select f1 from {tableName})",
         "(select f1 from {tableName} limit 0)",
         "(select null from {tableName})",
+        "(1, null)",
+        "(select f1 from tbb)"
     ]
 
     colSubQFullStmtSqls = [
@@ -82,6 +84,9 @@ class TestScalarSubQuery1:
         "(select sum(f1) from {tableName} interval(1d))",
         "(select f1 from {tableName} union select f1 from {tableName})",
         "(select f1 from {tableName} union all select f1 from {tableName})",
+        "(select (select f1 from {tableName}) from {tableName})",
+        "(select diff(f1) from {tableName})",
+        "(select * from (select f1 from {tableName} where f1 > (select 1 from {tableName})) as subq)",
     ]
 
     colSubQFullTypeSqls = [
@@ -132,6 +137,7 @@ class TestScalarSubQuery1:
             "CREATE TABLE tb2 USING st1 TAGS (2)",
             "CREATE TABLE tb3 USING st1 TAGS (3)",
             "CREATE TABLE tba (ts TIMESTAMP, f4 int, f2 bigint, f3 double, f1 varchar(20), f5 bool, f6 nchar(10), f7 tinyint)",
+            "CREATE TABLE tbb (ts TIMESTAMP, f1 int)",
             "INSERT INTO tb1 VALUES ('2025-12-01 00:00:00.000', 1, 11)",
             "INSERT INTO tb2 VALUES ('2025-12-01 00:00:00.000', 2, 21)",
             "INSERT INTO tb2 VALUES ('2025-12-02 00:00:00.000', 3, 23)",
@@ -141,6 +147,10 @@ class TestScalarSubQuery1:
             "INSERT INTO tba VALUES ('2025-12-01 00:00:00.000', 0, 0, 0.0, 'a', false, 'a', 0)",
             "INSERT INTO tba VALUES ('2025-12-02 00:00:00.000', 1, 1, 1.0, 'b', true, 'b', 1)",
             "INSERT INTO tba VALUES ('2025-12-03 00:00:00.000', 2, 2, 2.0, 'c', false, 'c', 2)",
+            "INSERT INTO tbb VALUES ('2025-12-04 00:00:00.000', 1)",
+            "INSERT INTO tbb VALUES ('2025-12-05 00:00:00.000', null)",
+            "INSERT INTO tbb VALUES ('2025-12-06 00:00:00.000', 3)",
+
         ]
         tdSql.executes(sqls)
 

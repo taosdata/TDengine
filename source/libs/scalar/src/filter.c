@@ -5081,7 +5081,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
         }
       } else {
         SNodeListNode *listNode = (SNodeListNode *)node->pRight;
-        if (LIST_LENGTH(listNode->pNodeList) > 10 || OP_TYPE_NOT_IN == node->opType) {
+        if (LIST_LENGTH(listNode->pNodeList) > 10 || OP_TYPE_NOT_IN == node->opType || listNode->node.hasNull) {
           stat->scalarMode = true;
         }
         int32_t type = refNode->node.resType.type;

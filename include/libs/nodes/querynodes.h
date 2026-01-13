@@ -59,6 +59,7 @@ typedef struct SExprNode {
   bool      asPosition;
   bool      joinSrc;
   bool      asList;
+  bool      hasNull;
   //bool      constValue;
   int32_t   projIdx;
   int32_t   relatedTo;
@@ -170,6 +171,7 @@ typedef struct SRemoteValueListNode {
   int32_t    targetType;
   STypeMod   targetTypeMod;
   bool       hasValue;
+  bool       hasNull;
   bool       hashAllocated;
   SHashObj  *pHashFilter;
   SHashObj  *pHashFilterOthers;

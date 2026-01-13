@@ -669,11 +669,14 @@ static int32_t msgToDataType(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { EXPR_CODE_RES_TYPE = 1, EXPR_CODE_BIND_TUPLE_FUNC_IDX, EXPR_CODE_TUPLE_FUNC_IDX };
+enum { EXPR_CODE_RES_TYPE = 1, EXPR_CODE_BIND_TUPLE_FUNC_IDX, EXPR_CODE_TUPLE_FUNC_IDX, EXPR_CODE_HAS_NULL };
 
 static int32_t exprNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SExprNode* pNode = (const SExprNode*)pObj;
   int32_t          code = tlvEncodeObj(pEncoder, EXPR_CODE_RES_TYPE, dataTypeToMsg, &pNode->resType);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, EXPR_CODE_HAS_NULL, pNode->hasNull);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, EXPR_CODE_BIND_TUPLE_FUNC_IDX, pNode->relatedTo);
   }
@@ -698,6 +701,9 @@ static int32_t msgToExprNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case EXPR_CODE_TUPLE_FUNC_IDX:
         code = tlvDecodeI32(pTlv, &pNode->bindExprID);
+        break;
+      case EXPR_CODE_HAS_NULL:
+        code = tlvDecodeBool(pTlv, &pNode->hasNull);
         break;
       default:
         break;
@@ -1556,12 +1562,12 @@ static int32_t msgToTimeWindow(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { NODE_LIST_CODE_DATA_TYPE = 1, NODE_LIST_CODE_NODE_LIST };
+enum { NODE_LIST_CODE_EXPR_BASE = 1, NODE_LIST_CODE_NODE_LIST };
 
 static int32_t nodeListNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SNodeListNode* pNode = (const SNodeListNode*)pObj;
 
-  int32_t code = tlvEncodeObj(pEncoder, NODE_LIST_CODE_DATA_TYPE, dataTypeInlineToMsg, &pNode->node.resType);
+  int32_t code = tlvEncodeObj(pEncoder, NODE_LIST_CODE_EXPR_BASE, exprNodeToMsg, pNode);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, NODE_LIST_CODE_NODE_LIST, nodeListToMsg, pNode->pNodeList);
   }
@@ -1576,8 +1582,8 @@ static int32_t msgToNodeListNode(STlvDecoder* pDecoder, void* pObj) {
   STlv*   pTlv = NULL;
   tlvForEach(pDecoder, pTlv, code) {
     switch (pTlv->type) {
-      case NODE_LIST_CODE_DATA_TYPE:
-        code = tlvDecodeObjFromTlv(pTlv, msgToDataTypeInline, &pNode->node.resType);
+      case NODE_LIST_CODE_EXPR_BASE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToExprNode, &pNode->node);
         break;
       case NODE_LIST_CODE_NODE_LIST:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pNodeList);

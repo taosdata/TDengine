@@ -2016,6 +2016,11 @@ int32_t doVectorCompareWithHashParam(SScalarParam *pLeft, SScalarParam *pLeftVar
                                            pHParam->filterValueType, pHParam->filterValueTypeMod);
       }
     }
+
+    if (pHParam->hasNull && !((optr == OP_TYPE_IN && res) || (optr == OP_TYPE_NOT_IN && !res))) {
+      res = false;
+      colDataSetNULL(pOut->columnData, i);
+    }
     
     colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
     if (res) {

@@ -107,6 +107,7 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_SCALAR_FIELD(asParam);
   COPY_SCALAR_FIELD(asPosition);
   COPY_SCALAR_FIELD(joinSrc);
+  COPY_SCALAR_FIELD(hasNull);
   COPY_SCALAR_FIELD(projIdx);
   COPY_SCALAR_FIELD(relatedTo);
   COPY_SCALAR_FIELD(bindExprID);
@@ -437,7 +438,7 @@ static int32_t intervalWindowNodeCopy(const SIntervalWindowNode* pSrc, SInterval
 }
 
 static int32_t nodeListNodeCopy(const SNodeListNode* pSrc, SNodeListNode* pDst) {
-  COPY_OBJECT_FIELD(node.resType, sizeof(SDataType));
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   CLONE_NODE_LIST_FIELD(pNodeList);
   return TSDB_CODE_SUCCESS;
 }

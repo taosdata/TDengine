@@ -5059,6 +5059,7 @@ static const char* jkExprAliasName = "AliasName";
 static const char* jkExprUserAlias = "UserAlias";
 static const char* jkExprRelateTo = "RelatedTo";
 static const char* jkExprBindExprID = "BindExprID";
+static const char* jkExprHasNull = "HasNull";
 
 static int32_t exprNodeToJson(const void* pObj, SJson* pJson) {
   const SExprNode* pNode = (const SExprNode*)pObj;
@@ -5069,6 +5070,9 @@ static int32_t exprNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkExprUserAlias, pNode->userAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkExprHasNull, pNode->hasNull);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkExprRelateTo, pNode->relatedTo);
@@ -5089,6 +5093,9 @@ static int32_t jsonToExprNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue(pJson, jkExprUserAlias, pNode->userAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkExprHasNull, &pNode->hasNull);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkExprRelateTo, &pNode->relatedTo);
@@ -6590,7 +6597,7 @@ static const char* jkNodeListNodeList = "NodeList";
 static int32_t nodeListNodeToJson(const void* pObj, SJson* pJson) {
   const SNodeListNode* pNode = (const SNodeListNode*)pObj;
 
-  int32_t code = tjsonAddObject(pJson, jkNodeListDataType, dataTypeToJson, &pNode->node.resType);
+  int32_t code = exprNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkNodeListNodeList, pNode->pNodeList);
   }
@@ -6601,7 +6608,7 @@ static int32_t nodeListNodeToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToNodeListNode(const SJson* pJson, void* pObj) {
   SNodeListNode* pNode = (SNodeListNode*)pObj;
 
-  int32_t code = tjsonToObject(pJson, jkNodeListDataType, jsonToDataType, &pNode->node.resType);
+  int32_t code = jsonToExprNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkNodeListNodeList, &pNode->pNodeList);
   }
