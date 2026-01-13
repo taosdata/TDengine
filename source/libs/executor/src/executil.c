@@ -2504,7 +2504,7 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
       QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
     }
   }
-
+  ASSERT(taosArrayGetSize(pList) > 0);
   // set the output flag for each column in SColMatchInfo, according to the
   *numOfOutputCols = 0;
   int32_t num = LIST_LENGTH(pOutputNodeList->pSlots);

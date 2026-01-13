@@ -43,7 +43,7 @@
 #include "vnodeInt.h"
 #include "executor.h"
 
-static int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr, SStorageAPI* api, uint64_t uid);
+int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr, SStorageAPI* api, uint64_t uid);
 
 #define BUILD_OPTION(options, _suid, _ver, _order, startTime, endTime, _schemas, _isSchema, _pSlotList)      \
   SStreamOptions                       options = {.suid = _suid,                                                   \
@@ -1192,7 +1192,7 @@ end:
   return code;
 }
 
-static int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr, SStorageAPI* api, uint64_t uid) {
+int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr, SStorageAPI* api, uint64_t uid) {
   int32_t     code = 0;
   int32_t     lino = 0;
   SMetaReader mr = {0};
@@ -1212,6 +1212,7 @@ static int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInf
     }
   } else {
     tagCache = *(SArray**)uidData;
+    stDebug("%s found tagCache, size:%zu %d, uid:%"PRIu64, __func__, taosArrayGetSize(tagCache), numOfExpr, uid);
     STREAM_CHECK_CONDITION_GOTO(taosArrayGetSize(tagCache) != numOfExpr, TSDB_CODE_INVALID_PARA);
   }
   
@@ -1273,25 +1274,18 @@ end:
   return code;
 }
 
-static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool isCalc, 
-  uint64_t uid, SSDataBlock* pBlock, uint32_t currentRow, uint32_t numOfRows, uint32_t numOfBlocks) {
+int32_t fillTag(SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr,
+                uint64_t uid, SSDataBlock* pBlock, uint32_t currentRow, uint32_t numOfRows, uint32_t numOfBlocks) {
   int32_t     code = 0;
   int32_t     lino = 0;
   SArray* tagCache = NULL;
-
-  void* pTask = info->pTask;
-  ST_TASK_DLOG("%s start. rows:%" PRIu32 ",uid:%"PRIu64, __func__,  numOfRows, uid);
-  
-  SHashObj* metaCache = isCalc ? info->pTableMetaCacheCalc : info->pTableMetaCacheTrigger;
-  SExprInfo*   pExprInfo = isCalc ? info->pExprInfoCalcTag : info->pExprInfoTriggerTag; 
-  int32_t      numOfExpr = isCalc ? info->numOfExprCalcTag : info->numOfExprTriggerTag;
   if (numOfExpr == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
   void* uidData = taosHashGet(metaCache, &uid, LONG_BYTES);
   if (uidData == NULL) {
-    ST_TASK_ELOG("%s error uidData is null,uid:%"PRIu64, __func__, uid);
+    stDebug("%s error uidData is null,uid:%"PRIu64, __func__, uid);
     code = TSDB_CODE_STREAM_INTERNAL_ERROR;
     goto end;
   } else {
@@ -1329,6 +1323,24 @@ static int32_t processTag(SVnode* pVnode, SStreamTriggerReaderInfo* info, bool i
       STREAM_CHECK_RET_GOTO(code);
     }
   }
+end:
+  return code;
+}
+
+static int32_t processTag(SStreamTriggerReaderInfo* info, bool isCalc, 
+  uint64_t uid, SSDataBlock* pBlock, uint32_t currentRow, uint32_t numOfRows, uint32_t numOfBlocks) {
+  int32_t     code = 0;
+  int32_t     lino = 0;
+
+  void* pTask = info->pTask;
+  ST_TASK_DLOG("%s start. rows:%" PRIu32 ",uid:%"PRIu64, __func__,  numOfRows, uid);
+  
+  SHashObj* metaCache = isCalc ? info->pTableMetaCacheCalc : info->pTableMetaCacheTrigger;
+  SExprInfo*   pExprInfo = isCalc ? info->pExprInfoCalcTag : info->pExprInfoTriggerTag; 
+  int32_t      numOfExpr = isCalc ? info->numOfExprCalcTag : info->numOfExprTriggerTag;
+  
+  code = fillTag(metaCache, pExprInfo, numOfExpr, uid, pBlock, currentRow, numOfRows, numOfBlocks);
+  STREAM_CHECK_RET_GOTO(code);
 
 end:
   return code;
@@ -1671,7 +1683,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder *pCoder, SStreamTrigger
 
   if (numOfRows > 0) {
     if (!sStreamReaderInfo->isVtableStream) {
-      STREAM_CHECK_RET_GOTO(processTag(pVnode, sStreamReaderInfo, rsp->isCalc, submitTbData.uid, pBlock, blockStart, numOfRows, 1));
+      STREAM_CHECK_RET_GOTO(processTag(sStreamReaderInfo, rsp->isCalc, submitTbData.uid, pBlock, blockStart, numOfRows, 1));
     }
     
     SColumnInfoData* pColData = taosArrayGetLast(pBlock->pDataBlock);
@@ -2885,7 +2897,7 @@ static int32_t vnodeProcessStreamTsdbTsDataReqNonVTable(SVnode* pVnode, SRpcMsg*
     SSDataBlock* pBlock = NULL;
     STREAM_CHECK_RET_GOTO(getTableData(pTaskInner, &pBlock));
     if (pBlock != NULL && pBlock->info.rows > 0) {
-      STREAM_CHECK_RET_GOTO(processTag(pVnode, sStreamReaderInfo, false, pBlock->info.id.uid, pBlock,
+      STREAM_CHECK_RET_GOTO(processTag(sStreamReaderInfo, false, pBlock->info.id.uid, pBlock,
           0, pBlock->info.rows, 1));
     }
     
@@ -3009,7 +3021,7 @@ static int32_t vnodeProcessStreamTsdbTriggerDataReq(SVnode* pVnode, SRpcMsg* pMs
     STREAM_CHECK_RET_GOTO(getTableData(pTaskInner, &pBlock));
     if (pBlock != NULL && pBlock->info.rows > 0) {
       STREAM_CHECK_RET_GOTO(
-        processTag(pVnode, sStreamReaderInfo, false, pBlock->info.id.uid, pBlock, 0, pBlock->info.rows, 1));
+        processTag(sStreamReaderInfo, false, pBlock->info.id.uid, pBlock, 0, pBlock->info.rows, 1));
     }
     STREAM_CHECK_RET_GOTO(qStreamFilter(pBlock, sStreamReaderInfo->pFilterInfo, NULL));
     // STREAM_CHECK_RET_GOTO(blockDataMerge(pTaskInner->pResBlockDst, pBlock));

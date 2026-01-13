@@ -2467,8 +2467,15 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
   SMqClientVg* pVg = NULL;
   getVgInfo(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId, &pVg);
   if (pVg) {
-    pVg->emptyBlockReceiveTs = taosGetTimestampMs();
-    atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
+    if (code == TSDB_CODE_TMQ_FETCH_TIMEOUT) {
+      pVg->emptyBlockReceiveTs = 0;
+      updateVgInfo(pVg, &pollRspWrapper->dataRsp.reqOffset, &pollRspWrapper->dataRsp.rspOffset, pollRspWrapper->head.walsver, pollRspWrapper->head.walever,
+                 tmq->consumerId, false);
+    } else {
+      pVg->emptyBlockReceiveTs = taosGetTimestampMs();
+      atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
+    }
+    
   }
   taosWUnLockLatch(&tmq->lock);
 
@@ -2501,6 +2508,14 @@ static int32_t processWrapperData(SMqRspWrapper* pRspWrapper){
   }
   END:
   return code;
+}
+
+static void setEmptyTs(SMqClientVg* pVg, bool timeout) {
+  if (timeout) {
+    pVg->emptyBlockReceiveTs = 0;
+  } else {
+    pVg->emptyBlockReceiveTs = taosGetTimestampMs();
+  }
 }
 
 static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
@@ -2543,10 +2558,10 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
     char buf[TSDB_OFFSET_LEN] = {0};
     tFormatOffset(buf, TSDB_OFFSET_LEN, &pollRspWrapper->rspOffset);
     if (pollRspWrapper->dataRsp.blockNum == 0) {
-      pVg->emptyBlockReceiveTs = taosGetTimestampMs();
-      tqDebugC("consumer:0x%" PRIx64 " empty block received, vgId:%d, offset:%s, vg total:%" PRId64
+      setEmptyTs(pVg, pollRspWrapper->dataRsp.timeout);
+      tqDebugC("consumer:0x%" PRIx64 " empty block received, timeout:%d, vgId:%d, offset:%s, vg total:%" PRId64
                    ", total:%" PRId64 ", QID:0x%" PRIx64,
-               tmq->consumerId, pVg->vgId, buf, pVg->numOfRows, tmq->totalRows, pollRspWrapper->reqId);
+               tmq->consumerId, pollRspWrapper->dataRsp.timeout, pVg->vgId, buf, pVg->numOfRows, tmq->totalRows, pollRspWrapper->reqId);
     } else {
       pRspObj = buildRsp(pollRspWrapper);
       if (pRspObj == NULL) {

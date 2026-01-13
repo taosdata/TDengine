@@ -123,7 +123,6 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 void initTqAPI(SStoreTqReader* pTq) {
 #ifdef USE_TQ
   pTq->tqReaderOpen = tqReaderOpen;
-  pTq->tqReaderSetColIdList = tqReaderSetColIdList;
 
   pTq->tqReaderClose = tqReaderClose;
   pTq->tqReaderSeek = tqReaderSeek;
@@ -131,8 +130,6 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqGetTablePrimaryKey = tqGetTablePrimaryKey;
   pTq->tqSetTablePrimaryKey = tqSetTablePrimaryKey;
   pTq->tqReaderNextBlockInWal = tqNextBlockInWal;
-
-  pTq->tqNextBlockImpl = tqNextBlockImpl;  // todo remove it
 
   pTq->tqReaderAddTables = tqReaderAddTbUidList;
   pTq->tqReaderSetQueryTableList = tqReaderSetTbUidList;
@@ -145,7 +142,6 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqReaderGetWalReader = tqGetWalReader;  // todo remove it
 
   pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg;  // todo remove it
-  pTq->tqGetResultBlock = tqGetResultBlock;
 
   pTq->tqGetResultBlockTime = tqGetResultBlockTime;
 #endif

@@ -1282,9 +1282,11 @@ void qStreamSetOpen(qTaskInfo_t tinfo) {
   pOperator->status = OP_NOT_OPENED;
 }
 
-void qStreamSetSourceExcluded(qTaskInfo_t tinfo, int8_t sourceExcluded) {
+void qStreamSetParams(qTaskInfo_t tinfo, int8_t sourceExcluded, int32_t minPollRows, int64_t timeout) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   pTaskInfo->streamInfo.sourceExcluded = sourceExcluded;
+  pTaskInfo->streamInfo.minPollRows = minPollRows;
+  pTaskInfo->streamInfo.timeout = timeout;
 }
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {

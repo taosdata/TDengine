@@ -1020,6 +1020,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_NEED_REBALANCE,          "No need rebalance")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_STATUS,             "Invalid status, please subscribe topic first")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_DATA,               "Invalid data use here")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_RAW_DATA_SPLIT,             "Split submit data for rawdata")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_FETCH_TIMEOUT,              "Fetch data timeout, continue fetch data")
 
 // stream
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_NOT_EXIST,          "Stream task not exist")

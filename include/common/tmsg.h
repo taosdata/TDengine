@@ -5772,6 +5772,7 @@ typedef struct {
   int16_t      resMsgType;
   int32_t      metaRspLen;
   void*        metaRsp;
+  bool         timeout;
 } SMqMetaRsp;
 
 int32_t tEncodeMqMetaRsp(SEncoder* pEncoder, const SMqMetaRsp* pRsp);
@@ -5808,6 +5809,7 @@ typedef struct {
   };
   void* data;                  // for free in client, only effected if type is data or metadata. raw data not effected
   bool  blockDataElementFree;  // if true, free blockDataElement in blockData,(true in server, false in client)
+  bool  timeout;
 } SMqDataRsp;
 
 int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pObj);
@@ -5827,6 +5829,7 @@ typedef struct SMqBatchMetaRsp {
   SArray*      batchMetaReq;
   void*        pMetaBuff;    // not serialize
   uint32_t     metaBuffLen;  // not serialize
+  bool         timeout;
 } SMqBatchMetaRsp;
 
 int32_t tEncodeMqBatchMetaRsp(SEncoder* pEncoder, const SMqBatchMetaRsp* pRsp);
