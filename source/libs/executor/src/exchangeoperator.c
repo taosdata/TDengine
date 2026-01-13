@@ -937,7 +937,7 @@ int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, 
   pScan->pBatchTbInfo = NULL;
 
 
-  pScan->dynType = DYN_TYPE_VSTB_SINGLE_SCAN;
+  pScan->dynType = type;
   pScan->tableSeq = tableSeq;
   pScan->window.skey = window->skey;
   pScan->window.ekey = window->ekey;
