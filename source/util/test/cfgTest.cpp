@@ -190,12 +190,12 @@ TEST_F(CfgTest, initWithArray) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   ASSERT_NE(pConfig, nullptr);
 
-  EXPECT_EQ(cfgAddBool(pConfig, "test_bool", 0, 0, 0, 0), 0);
-  EXPECT_EQ(cfgAddInt32(pConfig, "test_int32", 1, 0, 16, 0, 0, 0), 0);
-  EXPECT_EQ(cfgAddInt64(pConfig, "test_int64", 2, 0, 16, 0, 0, 0), 0);
-  EXPECT_EQ(cfgAddFloat(pConfig, "test_float", 3, 0, 16, 0, 0, 0), 0);
-  EXPECT_EQ(cfgAddString(pConfig, "test_string", "4", 0, 0, 0), 0);
-  EXPECT_EQ(cfgAddDir(pConfig, "test_dir", TD_TMP_DIR_PATH, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddBool(pConfig, "test_bool", 0, 0, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddInt32(pConfig, "test_int32", 1, 0, 16, 0, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddInt64(pConfig, "test_int64", 2, 0, 16, 0, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddFloat(pConfig, "test_float", 3, 0, 16, 0, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddString(pConfig, "test_string", "4", 0, 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddDir(pConfig, "test_dir", TD_TMP_DIR_PATH, 0, 0, 0, 0), 0);
 
   SArray      *pArgs = taosArrayInit(6, sizeof(SConfigPair));
   SConfigPair *pPair = (SConfigPair *)taosMemoryMalloc(sizeof(SConfigPair));
@@ -233,7 +233,7 @@ TEST_F(CfgTest, cfgDumpItemCategory) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   ASSERT_NE(pConfig, nullptr);
 
-  EXPECT_EQ(cfgAddBool(pConfig, "test_bool", 0, 0, 6, 100), 0);
+  EXPECT_EQ(cfgAddBool(pConfig, "test_bool", 0, 0, 6, 100, 0), 0);
 
   SConfigItem *pItem = NULL;
   pItem = cfgGetItem(pConfig, "test_bool");
@@ -373,7 +373,7 @@ TEST_F(CfgTest, configSyncAddDelete) {
   EXPECT_EQ(cfgAddBool(pSdbConfig, "sdbBool", false, 0, 0, 0, 0), 0);
   EXPECT_EQ(cfgAddInt64(pSdbConfig, "sdbInt64", 200, 0, 2000, 0, 0, 0, 0), 0);
   EXPECT_EQ(cfgAddString(pSdbConfig, "sdbString", "sdb", 0, 0, 0, 0), 0);
-  EXPECT_EQ(cfgAddString(pSdbConfig, "sharedConfig", "shared", 0, 0, 0), 0);
+  EXPECT_EQ(cfgAddString(pSdbConfig, "sharedConfig", "shared", 0, 0, 0, 0), 0);
 
   // Simulate the sync logic: find items to add (in global but not in SDB)
   SArray *itemsToAdd = taosArrayInit(4, sizeof(char*));
