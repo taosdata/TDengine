@@ -2367,7 +2367,6 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
     if (req->authInfo.userId == 0) {
       // userId is 0, skip owner check
       ctgWarn("%s:%d userId is 0 for %s, skip owner check for  %s.%s", __func__, __LINE__, pReq->user, dbFName, tbName);
-      // assert(0);
     }
 
     /**
