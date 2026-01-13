@@ -53,6 +53,7 @@ class TestWindowTrueFor:
                 "CREATE STREAM s_event_5 EVENT_WINDOW(start with c1 > 0 end with c1 < 0) TRUE_FOR(3001a) FROM ct_0 STREAM_OPTIONS(IGNORE_DISORDER) INTO d_event_5 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
                 "CREATE STREAM s_event_6 EVENT_WINDOW(start with c1 > 0 end with c1 < 0) TRUE_FOR(3001a) FROM ct_0                                 INTO d_event_6 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
                 "CREATE STREAM s_event_7 EVENT_WINDOW(start with c1 > 0 end with c1 < 0) TRUE_FOR(3s)    FROM ct_0 STREAM_OPTIONS(IGNORE_DISORDER | EVENT_TYPE(WINDOW_OPEN)) INTO d_event_7 AS SELECT _twstart, _twend, count(*) FROM ct_0 where _c0 >= _twstart and _c0 <= _twend;",
+                "CREATE STREAM s_event_8 EVENT_WINDOW(start with c1 > 0 end with c1 < 0) TRUE_FOR(3s)    FROM ct_0 STREAM_OPTIONS(EVENT_TYPE(WINDOW_OPEN))                   INTO d_event_8 AS SELECT _twstart, _twend, count(*) FROM ct_0 where _c0 >= _twstart and _c0 <= _twend;",
                 "CREATE STREAM s_state_1 STATE_WINDOW(c1) TRUE_FOR(3s)    FROM ct_1 STREAM_OPTIONS(IGNORE_DISORDER) INTO d_state_1 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
                 "CREATE STREAM s_state_2 STATE_WINDOW(c1) TRUE_FOR(3s)    FROM ct_1                                 INTO d_state_2 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
                 "CREATE STREAM s_state_3 STATE_WINDOW(c1) TRUE_FOR(2999)  FROM ct_1 STREAM_OPTIONS(IGNORE_DISORDER) INTO d_state_3 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
@@ -60,6 +61,7 @@ class TestWindowTrueFor:
                 "CREATE STREAM s_state_5 STATE_WINDOW(c1) TRUE_FOR(3001a) FROM ct_1 STREAM_OPTIONS(IGNORE_DISORDER) INTO d_state_5 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
                 "CREATE STREAM s_state_6 STATE_WINDOW(c1) TRUE_FOR(3001a) FROM ct_1                                 INTO d_state_6 AS SELECT _twstart, _twend, count(*) FROM %%trows;",
                 "CREATE STREAM s_state_7 STATE_WINDOW(c1) TRUE_FOR(3s)    FROM ct_1 STREAM_OPTIONS(IGNORE_DISORDER | EVENT_TYPE(WINDOW_OPEN)) INTO d_state_7 AS SELECT _twstart, _twend, count(*) FROM ct_1 where _c0 >= _twstart and _c0 <= _twend;",
+                "CREATE STREAM s_state_8 STATE_WINDOW(c1) TRUE_FOR(3s)    FROM ct_1 STREAM_OPTIONS(EVENT_TYPE(WINDOW_OPEN))                   INTO d_state_8 AS SELECT _twstart, _twend, count(*) FROM ct_1 where _c0 >= _twstart and _c0 <= _twend;",
             ],
             queryTimes=1,
         )
@@ -148,6 +150,8 @@ class TestWindowTrueFor:
         tdSql.executes(
             [
                 "INSERT INTO ct_0 VALUES('2025-01-01 00:00:00.000', 1);",
+                "INSERT INTO ct_0 VALUES('2025-01-01 00:00:01.000', -1);",
+                "INSERT INTO ct_0 VALUES('2025-01-01 00:00:02.000', 1);",
                 "INSERT INTO ct_0 VALUES('2025-01-01 00:00:22.000', 1);",
                 "INSERT INTO ct_0 VALUES('2025-01-01 00:00:28.000', -1);",
             ],
@@ -156,6 +160,8 @@ class TestWindowTrueFor:
         tdSql.executes(
             [
                 "INSERT INTO ct_1 VALUES('2025-01-01 00:00:00.000', 1);",
+                "INSERT INTO ct_1 VALUES('2025-01-01 00:00:01.000', 2);",
+                "INSERT INTO ct_1 VALUES('2025-01-01 00:00:02.000', 2);",
                 "INSERT INTO ct_1 VALUES('2025-01-01 00:00:23.000', 6);",
                 "INSERT INTO ct_1 VALUES('2025-01-01 00:00:29.000', 8);",
                 "INSERT INTO ct_1 VALUES('2025-01-01 00:00:30.000', 8);",
@@ -183,36 +189,42 @@ class TestWindowTrueFor:
 
         tdSql.checkResultsByFunc(
             sql="SELECT * FROM d_event_2;",
-            func=lambda: tdSql.getRows() == 4
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:10.000")
-            and tdSql.compareData(0, 1, "2025-01-01 00:00:13.000")
+            func=lambda: tdSql.getRows() == 5
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:02.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:05.000")
             and tdSql.compareData(0, 2, 4)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:14.000")
-            and tdSql.compareData(1, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:13.000")
             and tdSql.compareData(1, 2, 4)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:18.000")
-            and tdSql.compareData(2, 1, "2025-01-01 00:00:23.000")
-            and tdSql.compareData(2, 2, 6)
-            and tdSql.compareData(3, 0, "2025-01-01 00:00:24.000")
-            and tdSql.compareData(3, 1, "2025-01-01 00:00:28.000")
-            and tdSql.compareData(3, 2, 5),
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(2, 2, 4)
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:23.000")
+            and tdSql.compareData(3, 2, 6)
+            and tdSql.compareData(4, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(4, 1, "2025-01-01 00:00:28.000")
+            and tdSql.compareData(4, 2, 5),
         )
 
         tdSql.checkResultsByFunc(
             sql="select _wstart, _wend, count(*) from ct_0 event_window start with c1 > 0 end with c1 < 0 true_for(3s);",
-            func=lambda: tdSql.getRows() == 4
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:10.000")
-            and tdSql.compareData(0, 1, "2025-01-01 00:00:13.000")
+            func=lambda: tdSql.getRows() == 5
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:02.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:05.000")
             and tdSql.compareData(0, 2, 4)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:14.000")
-            and tdSql.compareData(1, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:13.000")
             and tdSql.compareData(1, 2, 4)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:18.000")
-            and tdSql.compareData(2, 1, "2025-01-01 00:00:23.000")
-            and tdSql.compareData(2, 2, 6)
-            and tdSql.compareData(3, 0, "2025-01-01 00:00:24.000")
-            and tdSql.compareData(3, 1, "2025-01-01 00:00:28.000")
-            and tdSql.compareData(3, 2, 5),
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(2, 2, 4)
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:23.000")
+            and tdSql.compareData(3, 2, 6)
+            and tdSql.compareData(4, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(4, 1, "2025-01-01 00:00:28.000")
+            and tdSql.compareData(4, 2, 5),
         )
 
         tdSql.checkResultsByFunc(
@@ -237,42 +249,48 @@ class TestWindowTrueFor:
 
         tdSql.checkResultsByFunc(
             sql="SELECT * FROM d_event_4;",
-            func=lambda: tdSql.getRows() == 5
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:06.000")
-            and tdSql.compareData(0, 1, "2025-01-01 00:00:08.999")
+            func=lambda: tdSql.getRows() == 6
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:02.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:05.000")
             and tdSql.compareData(0, 2, 4)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:10.000")
-            and tdSql.compareData(1, 1, "2025-01-01 00:00:13.000")
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:06.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:08.999")
             and tdSql.compareData(1, 2, 4)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:14.000")
-            and tdSql.compareData(2, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:13.000")
             and tdSql.compareData(2, 2, 4)
-            and tdSql.compareData(3, 0, "2025-01-01 00:00:18.000")
-            and tdSql.compareData(3, 1, "2025-01-01 00:00:23.000")
-            and tdSql.compareData(3, 2, 6)
-            and tdSql.compareData(4, 0, "2025-01-01 00:00:24.000")
-            and tdSql.compareData(4, 1, "2025-01-01 00:00:28.000")
-            and tdSql.compareData(4, 2, 5),
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(3, 2, 4)
+            and tdSql.compareData(4, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(4, 1, "2025-01-01 00:00:23.000")
+            and tdSql.compareData(4, 2, 6)
+            and tdSql.compareData(5, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(5, 1, "2025-01-01 00:00:28.000")
+            and tdSql.compareData(5, 2, 5),
         )
 
         tdSql.checkResultsByFunc(
             sql="select _wstart, _wend, count(*) from ct_0 event_window start with c1 > 0 end with c1 < 0 true_for(2999);",
-            func=lambda: tdSql.getRows() == 5
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:06.000")
-            and tdSql.compareData(0, 1, "2025-01-01 00:00:08.999")
+            func=lambda: tdSql.getRows() == 6
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:02.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:05.000")
             and tdSql.compareData(0, 2, 4)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:10.000")
-            and tdSql.compareData(1, 1, "2025-01-01 00:00:13.000")
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:06.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:08.999")
             and tdSql.compareData(1, 2, 4)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:14.000")
-            and tdSql.compareData(2, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:13.000")
             and tdSql.compareData(2, 2, 4)
-            and tdSql.compareData(3, 0, "2025-01-01 00:00:18.000")
-            and tdSql.compareData(3, 1, "2025-01-01 00:00:23.000")
-            and tdSql.compareData(3, 2, 6)
-            and tdSql.compareData(4, 0, "2025-01-01 00:00:24.000")
-            and tdSql.compareData(4, 1, "2025-01-01 00:00:28.000")
-            and tdSql.compareData(4, 2, 5),
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(3, 2, 4)
+            and tdSql.compareData(4, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(4, 1, "2025-01-01 00:00:23.000")
+            and tdSql.compareData(4, 2, 6)
+            and tdSql.compareData(5, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(5, 1, "2025-01-01 00:00:28.000")
+            and tdSql.compareData(5, 2, 5),
         )
 
         tdSql.checkResultsByFunc(
@@ -335,6 +353,26 @@ class TestWindowTrueFor:
         )
 
         tdSql.checkResultsByFunc(
+            sql="SELECT * FROM d_event_8;",
+            func=lambda: tdSql.getRows() == 5
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:02.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:02.000")
+            and tdSql.compareData(0, 2, 1)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(1, 2, 1)
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(2, 2, 1)
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(3, 2, 1)
+            and tdSql.compareData(4, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(4, 1, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(4, 2, 1),
+        )
+
+        tdSql.checkResultsByFunc(
             sql="SELECT * FROM d_state_1;",
             func=lambda: tdSql.getRows() == 4
             and tdSql.compareData(0, 0, "2025-01-01 00:00:10.000")
@@ -353,36 +391,42 @@ class TestWindowTrueFor:
 
         tdSql.checkResultsByFunc(
             sql="SELECT * FROM d_state_2;",
-            func=lambda: tdSql.getRows() == 4
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:10.000")
-            and tdSql.compareData(0, 1, "2025-01-01 00:00:13.000")
-            and tdSql.compareData(0, 2, 4)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:14.000")
-            and tdSql.compareData(1, 1, "2025-01-01 00:00:17.001")
+            func=lambda: tdSql.getRows() == 5
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:05.000")
+            and tdSql.compareData(0, 2, 5)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:13.000")
             and tdSql.compareData(1, 2, 4)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:18.000")
-            and tdSql.compareData(2, 1, "2025-01-01 00:00:23.000")
-            and tdSql.compareData(2, 2, 6)
-            and tdSql.compareData(3, 0, "2025-01-01 00:00:24.000")
-            and tdSql.compareData(3, 1, "2025-01-01 00:00:28.000")
-            and tdSql.compareData(3, 2, 5),
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(2, 2, 4)
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:23.000")
+            and tdSql.compareData(3, 2, 6)
+            and tdSql.compareData(4, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(4, 1, "2025-01-01 00:00:28.000")
+            and tdSql.compareData(4, 2, 5),
         )
 
         tdSql.checkResultsByFunc(
             sql="select _wstart, _wend, count(*) from ct_1 state_window(c1) true_for(3s);",
-            func=lambda: tdSql.getRows() == 4
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:10.000")
-            and tdSql.compareData(0, 1, "2025-01-01 00:00:13.000")
-            and tdSql.compareData(0, 2, 4)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:14.000")
-            and tdSql.compareData(1, 1, "2025-01-01 00:00:17.001")
+            func=lambda: tdSql.getRows() == 5
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:05.000")
+            and tdSql.compareData(0, 2, 5)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:13.000")
             and tdSql.compareData(1, 2, 4)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:18.000")
-            and tdSql.compareData(2, 1, "2025-01-01 00:00:23.000")
-            and tdSql.compareData(2, 2, 6)
-            and tdSql.compareData(3, 0, "2025-01-01 00:00:24.000")
-            and tdSql.compareData(3, 1, "2025-01-01 00:00:28.000")
-            and tdSql.compareData(3, 2, 5),
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(2, 2, 4)
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:23.000")
+            and tdSql.compareData(3, 2, 6)
+            and tdSql.compareData(4, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(4, 1, "2025-01-01 00:00:28.000")
+            and tdSql.compareData(4, 2, 5),
         )
 
         tdSql.checkResultsByFunc(
@@ -407,42 +451,48 @@ class TestWindowTrueFor:
 
         tdSql.checkResultsByFunc(
             sql="SELECT * FROM d_state_4;",
-            func=lambda: tdSql.getRows() == 5
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:06.000")
-            and tdSql.compareData(0, 1, "2025-01-01 00:00:08.999")
-            and tdSql.compareData(0, 2, 4)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:10.000")
-            and tdSql.compareData(1, 1, "2025-01-01 00:00:13.000")
+            func=lambda: tdSql.getRows() == 6
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:05.000")
+            and tdSql.compareData(0, 2, 5)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:06.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:08.999")
             and tdSql.compareData(1, 2, 4)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:14.000")
-            and tdSql.compareData(2, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:13.000")
             and tdSql.compareData(2, 2, 4)
-            and tdSql.compareData(3, 0, "2025-01-01 00:00:18.000")
-            and tdSql.compareData(3, 1, "2025-01-01 00:00:23.000")
-            and tdSql.compareData(3, 2, 6)
-            and tdSql.compareData(4, 0, "2025-01-01 00:00:24.000")
-            and tdSql.compareData(4, 1, "2025-01-01 00:00:28.000")
-            and tdSql.compareData(4, 2, 5),
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(3, 2, 4)
+            and tdSql.compareData(4, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(4, 1, "2025-01-01 00:00:23.000")
+            and tdSql.compareData(4, 2, 6)
+            and tdSql.compareData(5, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(5, 1, "2025-01-01 00:00:28.000")
+            and tdSql.compareData(5, 2, 5),
         )
 
         tdSql.checkResultsByFunc(
             sql="select _wstart, _wend, count(*) from ct_1 state_window(c1) true_for(2999);",
-            func=lambda: tdSql.getRows() == 5
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:06.000")
-            and tdSql.compareData(0, 1, "2025-01-01 00:00:08.999")
-            and tdSql.compareData(0, 2, 4)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:10.000")
-            and tdSql.compareData(1, 1, "2025-01-01 00:00:13.000")
+            func=lambda: tdSql.getRows() == 6
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:05.000")
+            and tdSql.compareData(0, 2, 5)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:06.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:08.999")
             and tdSql.compareData(1, 2, 4)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:14.000")
-            and tdSql.compareData(2, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:13.000")
             and tdSql.compareData(2, 2, 4)
-            and tdSql.compareData(3, 0, "2025-01-01 00:00:18.000")
-            and tdSql.compareData(3, 1, "2025-01-01 00:00:23.000")
-            and tdSql.compareData(3, 2, 6)
-            and tdSql.compareData(4, 0, "2025-01-01 00:00:24.000")
-            and tdSql.compareData(4, 1, "2025-01-01 00:00:28.000")
-            and tdSql.compareData(4, 2, 5),
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(3, 2, 4)
+            and tdSql.compareData(4, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(4, 1, "2025-01-01 00:00:23.000")
+            and tdSql.compareData(4, 2, 6)
+            and tdSql.compareData(5, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(5, 1, "2025-01-01 00:00:28.000")
+            and tdSql.compareData(5, 2, 5),
         )
 
         tdSql.checkResultsByFunc(
@@ -461,30 +511,36 @@ class TestWindowTrueFor:
 
         tdSql.checkResultsByFunc(
             sql="SELECT * FROM d_state_6;",
-            func=lambda: tdSql.getRows() == 3
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:14.000")
-            and tdSql.compareData(0, 1, "2025-01-01 00:00:17.001")
-            and tdSql.compareData(0, 2, 4)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:18.000")
-            and tdSql.compareData(1, 1, "2025-01-01 00:00:23.000")
-            and tdSql.compareData(1, 2, 6)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:24.000")
-            and tdSql.compareData(2, 1, "2025-01-01 00:00:28.000")
-            and tdSql.compareData(2, 2, 5),
+            func=lambda: tdSql.getRows() == 4
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:05.000")
+            and tdSql.compareData(0, 2, 5)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(1, 2, 4)
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:23.000")
+            and tdSql.compareData(2, 2, 6)
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:28.000")
+            and tdSql.compareData(3, 2, 5),
         )
 
         tdSql.checkResultsByFunc(
             sql="select _wstart, _wend, count(*) from ct_1 state_window(c1) true_for(3001a);",
-            func=lambda: tdSql.getRows() == 3
-            and tdSql.compareData(0, 0, "2025-01-01 00:00:14.000")
-            and tdSql.compareData(0, 1, "2025-01-01 00:00:17.001")
-            and tdSql.compareData(0, 2, 4)
-            and tdSql.compareData(1, 0, "2025-01-01 00:00:18.000")
-            and tdSql.compareData(1, 1, "2025-01-01 00:00:23.000")
-            and tdSql.compareData(1, 2, 6)
-            and tdSql.compareData(2, 0, "2025-01-01 00:00:24.000")
-            and tdSql.compareData(2, 1, "2025-01-01 00:00:28.000")
-            and tdSql.compareData(2, 2, 5),
+            func=lambda: tdSql.getRows() == 4
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:05.000")
+            and tdSql.compareData(0, 2, 5)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:17.001")
+            and tdSql.compareData(1, 2, 4)
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:23.000")
+            and tdSql.compareData(2, 2, 6)
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:28.000")
+            and tdSql.compareData(3, 2, 5),
         )
 
         tdSql.checkResultsByFunc(
@@ -502,6 +558,26 @@ class TestWindowTrueFor:
             and tdSql.compareData(3, 0, "2025-01-01 00:00:24.000")
             and tdSql.compareData(3, 1, "2025-01-01 00:00:24.000")
             and tdSql.compareData(3, 2, 1),
+        )
+
+        tdSql.checkResultsByFunc(
+            sql="SELECT * FROM d_state_8;",
+            func=lambda: tdSql.getRows() == 5
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(0, 1, "2025-01-01 00:00:01.000")
+            and tdSql.compareData(0, 2, 1)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(1, 1, "2025-01-01 00:00:10.000")
+            and tdSql.compareData(1, 2, 1)
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(2, 1, "2025-01-01 00:00:14.000")
+            and tdSql.compareData(2, 2, 1)
+            and tdSql.compareData(3, 0, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(3, 1, "2025-01-01 00:00:18.000")
+            and tdSql.compareData(3, 2, 1)
+            and tdSql.compareData(4, 0, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(4, 1, "2025-01-01 00:00:24.000")
+            and tdSql.compareData(4, 2, 1),
         )
 
         # test abnormal

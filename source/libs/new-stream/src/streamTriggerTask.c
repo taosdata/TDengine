@@ -4939,7 +4939,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
         code = TSDB_CODE_INTERNAL_ERROR;
         QUERY_CHECK_CODE(code, lino, _end);
       }
-      void   *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
+      void *pGroup = tSimpleHashGet(pContext->pGroups, &gid, sizeof(int64_t));
       if (pGroup == NULL) {
         pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
         QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
@@ -9445,6 +9445,7 @@ static void stHistoryGroupDestroy(void *ptr) {
   }
   taosObjListClearEx(&pGroup->pPendingParWinCalcParams, tDestroySSTriggerCalcParam);
   taosObjListClearEx(&pGroup->pPendingCalcParams, tDestroySSTriggerCalcParam);
+  tDestroySSTriggerCalcParam(&pGroup->pendingWinParam);
 
   taosMemFreeClear(*ppGroup);
 }
@@ -9664,7 +9665,10 @@ static int32_t stHistoryGroupOpenWindow(SSTriggerHistoryGroup *pGroup, int64_t t
   if (needCalc || needNotify) {
     param.triggerTime = now;
     param.notifyType = needNotify ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE;
-    param.extraNotifyContent = ppExtraNotifyContent ? *ppExtraNotifyContent : NULL;
+  }
+  if (ppExtraNotifyContent != NULL) {
+    param.extraNotifyContent = *ppExtraNotifyContent;
+    *ppExtraNotifyContent = NULL;
   }
   newWindow.prevProcTime = now;
   newWindow.wrownum = hasStartData ? 1 : 0;
@@ -9725,24 +9729,34 @@ static int32_t stHistoryGroupOpenWindow(SSTriggerHistoryGroup *pGroup, int64_t t
   code = TRINGBUF_APPEND(&pGroup->winBuf, newWindow);
   QUERY_CHECK_CODE(code, lino, _end);
 
+  int64_t trueFor = 0;
+  if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+    trueFor = pTask->stateTrueFor;
+  } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+    trueFor = pTask->eventTrueFor;
+  }
+
   if (saveWindow) {
     // only save window when close window
+  } else if (trueFor > 0) {
+    pGroup->pendingWinOpen = true;
+    pGroup->pendingWinParam = param;
+    param.extraNotifyContent = NULL;
   } else if (needCalc) {
     code = stHistoryGroupAddCalcParam(pGroup, &param, isParent);
     QUERY_CHECK_CODE(code, lino, _end);
+    param.extraNotifyContent = NULL;
   } else if (needNotify) {
     void *px = taosArrayPush(pContext->pNotifyParams, &param);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-  } else {
-    QUERY_CHECK_CONDITION(ppExtraNotifyContent == NULL || *ppExtraNotifyContent == NULL, code, lino, _end,
-                          TSDB_CODE_INVALID_PARA);
-  }
-
-  if (ppExtraNotifyContent) {
-    *ppExtraNotifyContent = NULL;
+    param.extraNotifyContent = NULL;
   }
 
 _end:
+  tDestroySSTriggerCalcParam(&param);
+  if (ppExtraNotifyContent) {
+    taosMemoryFreeClear(*ppExtraNotifyContent);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -9773,7 +9787,6 @@ static int32_t stHistoryGroupCloseWindow(SSTriggerHistoryGroup *pGroup, char **p
   }
   if (needCalc || needNotify) {
     param.triggerTime = taosGetTimestampNs();
-    param.extraNotifyContent = ppExtraNotifyContent ? *ppExtraNotifyContent : NULL;
     if (needNotify) {
       if ((pTask->triggerType == STREAM_TRIGGER_PERIOD) ||
           (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval == 0)) {
@@ -9783,16 +9796,12 @@ static int32_t stHistoryGroupCloseWindow(SSTriggerHistoryGroup *pGroup, char **p
       }
     }
   }
+  if (ppExtraNotifyContent != NULL) {
+    param.extraNotifyContent = *ppExtraNotifyContent;
+    *ppExtraNotifyContent = NULL;
+  }
 
   pCurWindow = TRINGBUF_HEAD(&pGroup->winBuf);
-
-  if ((pTask->triggerType == STREAM_TRIGGER_STATE &&
-       pCurWindow->range.ekey - pCurWindow->range.skey < pTask->stateTrueFor) ||
-      (pTask->triggerType == STREAM_TRIGGER_EVENT &&
-       pCurWindow->range.ekey - pCurWindow->range.skey < pTask->eventTrueFor)) {
-    // check TRUE FOR condition
-    needCalc = needNotify = false;
-  }
 
   switch (pTask->triggerType) {
     case STREAM_TRIGGER_PERIOD: {
@@ -9847,25 +9856,52 @@ static int32_t stHistoryGroupCloseWindow(SSTriggerHistoryGroup *pGroup, char **p
     pHead->wrownum = pCurWindow->wrownum - bias;
   }
 
+  bool    ignore = false;
+  int64_t trueFor = 0;
+  if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+    trueFor = pTask->stateTrueFor;
+  } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+    trueFor = pTask->eventTrueFor;
+  }
+  if (trueFor > 0) {
+    ignore = pCurWindow->range.ekey - pCurWindow->range.skey < trueFor;
+  }
+
+  if (pGroup->pendingWinOpen) {
+    bool calcOpen = (pTask->calcEventType & STRIGGER_EVENT_WINDOW_OPEN);
+    bool notifyOpen = pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN);
+    if (calcOpen && !ignore) {
+      code = stHistoryGroupAddCalcParam(pGroup, &pGroup->pendingWinParam, isParent);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pGroup->pendingWinParam.extraNotifyContent = NULL;
+    } else if (notifyOpen && !ignore) {
+      void *px = taosArrayPush(pContext->pNotifyParams, &pGroup->pendingWinParam);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      pGroup->pendingWinParam.extraNotifyContent = NULL;
+    }
+    pGroup->pendingWinOpen = false;
+    tDestroySSTriggerCalcParam(&pGroup->pendingWinParam);
+  }
+
   if (saveWindow) {
     // skip add window for session trigger, since it will be merged after processing all tables
     void *px = taosArrayPush(pContext->pSavedWindows, pCurWindow);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-  } else if (needCalc) {
+  } else if (needCalc && !ignore) {
     code = stHistoryGroupAddCalcParam(pGroup, &param, isParent);
     QUERY_CHECK_CODE(code, lino, _end);
-  } else if (needNotify) {
+    param.extraNotifyContent = NULL;
+  } else if (needNotify && !ignore) {
     void *px = taosArrayPush(pContext->pNotifyParams, &param);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-  } else if (ppExtraNotifyContent != NULL && *ppExtraNotifyContent != NULL) {
-    taosMemoryFreeClear(*ppExtraNotifyContent);
-  }
-
-  if (ppExtraNotifyContent) {
-    *ppExtraNotifyContent = NULL;
+    param.extraNotifyContent = NULL;
   }
 
 _end:
+  tDestroySSTriggerCalcParam(&param);
+  if (ppExtraNotifyContent) {
+    taosMemoryFreeClear(*ppExtraNotifyContent);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
