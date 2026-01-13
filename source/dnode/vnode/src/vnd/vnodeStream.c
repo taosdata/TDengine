@@ -3277,7 +3277,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
 
     ST_TASK_DLOG("vgId:%d %s put vtable uid:%"PRId64, TD_VID(pVnode), __func__, pKeyInfo->uid);
 
-    code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(&metaReader, sStreamReaderInfo->tableList.version, pKeyInfo->uid);
+    code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByUid(&metaReader, pKeyInfo->uid);
     if (code != 0) {
       ST_TASK_WLOG("vgId:%d %s get table entry by uid:%"PRId64" failed, msg:%s", TD_VID(pVnode), __func__, pKeyInfo->uid, tstrerror(code));
       continue;
