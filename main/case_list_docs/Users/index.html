@@ -3217,6 +3217,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#24-Users.test_user_totp.TestUserSecurity.test_user_totp" class="md-nav__link">
+        User totp login 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#24-Users.test_user_basic.TestUserBasic.test_user_basic" class="md-nav__link">
         User: basic test 
       </a>
@@ -4089,6 +4100,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#24-Users.test_user_totp.TestUserSecurity.test_user_totp" class="md-nav__link">
+        User totp login 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#24-Users.test_user_basic.TestUserBasic.test_user_basic" class="md-nav__link">
         User: basic test 
       </a>
@@ -4525,6 +4547,60 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/24-Users/test_user_privilege_topic.py" target="_blank">
                       cases/24-Users/test_user_privilege_topic.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="24-Users.test_user_totp.TestUserSecurity.test_user_totp" class="doc doc-heading">
+
+<a href="#24-Users.test_user_totp.TestUserSecurity.test_user_totp" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>User totp login</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create TOTP</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - super root account create key</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - default user account create key</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - disabled user account create key</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - sysinfo disabled user account create key</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - check duplicate create key</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - exception cases</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Alter TOTP</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - alter totp for default user</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - login with new totp</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - login with old totp fail</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Delete TOTP</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - drop totp for super root account</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - drop totp for disabled user account</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - duplicate drop totp</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - login fail after drop totp</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - exception cases</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Login with TOTP</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - exception cases: </div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        - non-exist user</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        - wrong password</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        - empty user</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        - empty password</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        - empty totp code</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        - wrong totp code</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - totp code expired (30s)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/24-Users/test_user_totp.py" target="_blank">
+                      cases/24-Users/test_user_totp.py
                     </a>
                   </div>
         </div>
