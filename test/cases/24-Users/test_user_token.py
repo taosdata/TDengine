@@ -44,9 +44,13 @@ class TestUserSecurity:
                     tdSql.checkData(0, 5, "1970-01-01 08:00:00.000")
                 else:
                     # TTL: create_time + days
-                    create_time = tdSql.queryResult[0][4]
-                    expected_expire_time = create_time + datetime.timedelta(days=v)
-                    tdSql.checkData(0, 5, expected_expire_time)
+                    create_time = tdSql.getData(0, 4)
+                    expire_time = tdSql.getData(0, 5)
+                    expected_days = (expire_time - create_time).days
+                    if expected_days != v:
+                        raise Exception(f"TTL days not match: expected {v}, got {expected_days}")
+                    else:
+                        print(f"TTL days: expected {v}, got {expected_days}")                    
                 continue
             elif k == "PROVIDER":
                 col = 2
@@ -65,7 +69,8 @@ class TestUserSecurity:
         token = tdSql.getFirstValue(sql)
         if len(token) != 63:
             raise Exception(f"token length error: {token} len={len(token)}")
-        sql = f"select * from information_schema.ins_tokens where name='{tokenName}' and `user`='{userName}' "
+        name = tokenName.replace("`", "")
+        sql = f"select * from information_schema.ins_tokens where name='{name}' and `user`='{userName}' "
         tdSql.query(sql)
         tdSql.checkRows(1)
         self.checkOptions(option2)
@@ -100,6 +105,32 @@ class TestUserSecurity:
     def drop_token_fail(self, tokenName, option1=""):
         tdSql.error(f"DROP TOKEN {option1} {tokenName}")
 
+    # login
+    def login_token(self, token, options=""):
+        # login with token
+        taosFile = etool.taosFile()
+        success = [
+            "Connect with token ...... [ OK ]",
+            "Query OK"
+        ]
+        failed = "Connect with token ...... [ FAILED ]"
+        
+        # arg
+        command = f"{taosFile} -q{token} {options} -s 'show tokens;' "
+        rlist = etool.runRetList(command, checkRun=True, show= True)
+        self.checkManyString(rlist, success)
+
+    def login_token_fail(self, token, options=""):
+        # login with token
+        taosFile = etool.taosFile()
+        failed = "Connect with token ...... [ FAILED ]"
+        
+        # arg
+        command = f"{taosFile} -q{token} {options} -s 'show tokens;' "
+        rlist = etool.runRetList(command, checkRun=False, show= True)
+        self.checkManyString(rlist, failed)
+
+    # user
     def create_user(self, user, password=None, options=""):
         if password is None:
             password = "abcd@1234"
@@ -139,7 +170,10 @@ class TestUserSecurity:
         token22 = self.create_token("token22", "test_user2", "IF NOT EXISTS")
         #BUG-1
         #token22_again = self.create_token("token22", "test_user2", "IF NOT EXISTS")
-        token23 = self.create_token("t" * 31, "test_user2") # max length token name        
+        token23 = self.create_token("t" * 31, "test_user2") # max length token name
+        
+        # language support
+        token31 = self.create_token("`我的TOKEN_31`", "test_user3", "", {"EXTRA_INFO": "'测试信息'"})  
         
         # except
         self.create_token_fail("token11", "test_user1")          # duplicate token name
@@ -230,14 +264,41 @@ class TestUserSecurity:
 
 
     def do_login(self):
-        # Create token for login
-        token = self.create_token("login_token", "test_user1", "", {"ENABLE": 1})
+        # normal
+        token1 = self.create_token("login_token1", "test_user1")
+        self.login_token(token1)
         
-        # TODO: test token login
-        # Requires client connector support
+        # disabled token
+        token2 = self.create_token("login_token2", "test_user1", "", {"ENABLE": 0})
+        self.login_token_fail(token2)
+        
+        # alter to enable
+        self.alter_token("login_token2", "", {"ENABLE": 1})
+        self.login_token(token2)
+        
+        # alter to disable
+        self.alter_token("login_token2", "", {"ENABLE": 0})
+        self.login_token_fail(token2)
+        
+        # delete token login
+        self.drop_token("login_token1")
+        self.login_token_fail(token1)
+
+        # recreate token with same name
+        token1 = self.create_token("login_token1", "test_user1", option2={"TTL": 1})
+        self.login_token(token1)
+        self.alter_token("login_token1", "", {"TTL": 365, "PROVIDER": "'big_provider'"}) # big TTL
+        self.login_token(token1)
+
+        # except
+        self.login_token_fail("invalid_token_string") # invalid token string
+        self.login_token_fail("s")                    # too short token string
+        self.login_token_fail("longtoken" * 100)      # too long token string
+        self.login_token_fail("'``!@#$%^&*()_+'")       # invalid characters in token string
         
         # Cleanup
-        self.drop_token("login_token")
+        self.drop_token("login_token1")
+        self.drop_token("login_token2")
         self.drop_user("test_user1", "IF EXISTS")
         self.drop_user("test_user2", "IF EXISTS")
         
