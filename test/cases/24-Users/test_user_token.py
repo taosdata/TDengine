@@ -4,12 +4,13 @@ from new_test_framework.utils import tdLog, tdSql, TDSql, TDCom, etool
 import datetime
 import os
 import pyotp
-import time
+
+EXPECTED_TOKEN_LENGTH = 63
 
 class TestUserSecurity:
     @classmethod
     def setup_class(cls):
-        cls.tdCom = TDCom()
+        pass
 
     #
     # --------------------------- util ----------------------------
@@ -25,6 +26,8 @@ class TestUserSecurity:
             raise Exception(f"not equal: {a} != {b}")
     
     def options(self, options: dict):
+        if options is None:
+            return ""
         opts = ""
         for k, v in options.items():
             if v is None or v == "":
@@ -34,6 +37,8 @@ class TestUserSecurity:
         return opts
     
     def checkOptions(self, options: dict):
+        if options is None:
+            return
         for k, v in options.items():
             k = k.upper()
             col = 0
@@ -49,8 +54,6 @@ class TestUserSecurity:
                     expected_days = (expire_time - create_time).days
                     if expected_days != v:
                         raise Exception(f"TTL days not match: expected {v}, got {expected_days}")
-                    else:
-                        print(f"TTL days: expected {v}, got {expected_days}")                    
                 continue
             elif k == "PROVIDER":
                 col = 2
@@ -64,10 +67,10 @@ class TestUserSecurity:
             self.checkEquals(data, v)
     
     # create
-    def create_token(self, tokenName, userName, option1="", option2:dict={}):        
+    def create_token(self, tokenName, userName, option1="", option2:dict=None):        
         sql = f"CREATE TOKEN {option1} {tokenName} FROM USER {userName} {self.options(option2)}"
         token = tdSql.getFirstValue(sql)
-        if len(token) != 63:
+        if len(token) != EXPECTED_TOKEN_LENGTH:
             raise Exception(f"token length error: {token} len={len(token)}")
         name = tokenName.replace("`", "")
         sql = f"select * from information_schema.ins_tokens where name='{name}' and `user`='{userName}' "
@@ -139,6 +142,15 @@ class TestUserSecurity:
     
     def drop_user(self, user, option1=""):
         tdSql.execute(f"DROP USER {option1} {user}")
+        
+    def login(self, user=None, password=None):
+        if user is None:
+            if password is None:
+                tdSql.connect()
+            else:
+                tdSql.connect(password=password)
+        else:
+            tdSql.connect(user=user, password=password)        
 
     #
     # --------------------------- token ----------------------------
@@ -155,35 +167,35 @@ class TestUserSecurity:
     
     def do_create_token(self):
         # Basic token creation
-        token11 = self.create_token("token11", "test_user1")
+        self.create_token("token11", "test_user1")
         # Token with all options
-        token12 = self.create_token("token12", "test_user1", "", {"ENABLE": 1, "TTL": 0, "PROVIDER": "'test_provider'", "EXTRA_INFO": "'test info'"})
+        self.create_token("token12", "test_user1", "", {"ENABLE": 1, "TTL": 0, "PROVIDER": "'test_provider'", "EXTRA_INFO": "'test info'"})
         # Token with TTL
-        token13 = self.create_token("token13", "test_user1", "", {"TTL": 7})
+        self.create_token("token13", "test_user1", "", {"TTL": 7})
         # except max 3 tokens limit
         self.create_token_fail("token_fail", "test_user1", "", {"TTL": 8})
            
         # Disabled token
-        token21 = self.create_token("token21", "test_user2", "", {"ENABLE": 0})
+        self.create_token("token21", "test_user2", "", {"ENABLE": 0})
         
         # IF NOT EXISTS
-        token22 = self.create_token("token22", "test_user2", "IF NOT EXISTS")
+        self.create_token("token22", "test_user2", "IF NOT EXISTS")
         #BUG-1
         #token22_again = self.create_token("token22", "test_user2", "IF NOT EXISTS")
-        token23 = self.create_token("t" * 31, "test_user2") # max length token name
+        self.create_token("t" * 31, "test_user2") # max length token name
         
         # language support
-        token31 = self.create_token("`我的TOKEN_31`", "test_user3", "", {"EXTRA_INFO": "'测试信息'"})  
+        self.create_token("`我的TOKEN_31`", "test_user3", "", {"EXTRA_INFO": "'测试信息'"})  
         
         # except
         self.create_token_fail("token11", "test_user1")          # duplicate token name
         self.create_token_fail("token_fail", "nonexistent_user") # nonexistent user
         self.create_token_fail("t" * 32, "test_user3")           # over max length
         self.create_token_fail("token_with_very_long_name_exceeding_31_bytes_limit_here", "test_user3")
-        self.create_token_fail("", "test_user")                  # empty token name
+        self.create_token_fail("", "test_user1")                  # empty token name
         self.create_token_fail("token31", "")                    # empty user name
-        self.create_token_fail("token_invalid_ttl", "test_user", "", {"TTL": -1})      # Exception: invalid TTL
-        self.create_token_fail("token_invalid_enable", "test_user", "", {"ENABLE": 2}) # Exception: invalid ENABLE
+        self.create_token_fail("token_invalid_ttl", "test_user1", "", {"TTL": -1})      # Exception: invalid TTL
+        self.create_token_fail("token_invalid_enable", "test_user1", "", {"ENABLE": 2}) # Exception: invalid ENABLE
         
         print("create token .......................... [ passed ] ")
         
@@ -191,8 +203,8 @@ class TestUserSecurity:
         # SHOW TOKENS command
         tdSql.query("SHOW TOKENS")
         rows = tdSql.queryRows
-        if rows < 5:
-            raise Exception(f"Expected at least 5 tokens, got {rows}")
+        if rows != 7:
+            raise Exception(f"Expected at least 7 tokens, got {rows}")
         
         # Query from system table
         tdSql.query("SELECT * FROM information_schema.ins_tokens")
@@ -264,6 +276,11 @@ class TestUserSecurity:
 
 
     def do_login(self):
+        # root
+        token_root = self.create_token("login_token_root", "root")
+        self.login_token(token_root)
+        self.drop_token("login_token_root")
+        
         # normal
         token1 = self.create_token("login_token1", "test_user1")
         self.login_token(token1)
@@ -294,13 +311,28 @@ class TestUserSecurity:
         self.login_token_fail("invalid_token_string") # invalid token string
         self.login_token_fail("s")                    # too short token string
         self.login_token_fail("longtoken" * 100)      # too long token string
-        self.login_token_fail("'``!@#$%^&*()_+'")       # invalid characters in token string
+        self.login_token_fail("'``!@#$%^&*()_+'")     # invalid characters in token string
         
-        # Cleanup
-        self.drop_token("login_token1")
-        self.drop_token("login_token2")
-        self.drop_user("test_user1", "IF EXISTS")
-        self.drop_user("test_user2", "IF EXISTS")
+        
+        # login with no root privilege
+        user = "no_privilege_user"
+        password = "abcd@1234"
+        self.create_user(user, password, options="CREATEDB 0 SYSINFO 0")
+        self.login(user, password)
+        # can create
+        token3 = self.create_token("login_token3", user)
+        # can login
+        self.login_token(token3)
+        # can show
+        tdSql.query("SHOW TOKENS")
+        tdSql.checkRows(1)
+        
+        self.drop_token("login_token3")
+        tdSql.query("SHOW TOKENS")
+        tdSql.checkRows(0)
+
+        # root login again
+        self.login()
         
         print("login token ........................... [ passed ] ")
 
@@ -310,12 +342,35 @@ class TestUserSecurity:
     def test_user_token(self):
         """User token login
 
-        Test token management including:
-        1. Create token with various options (ENABLE, TTL, PROVIDER, EXTRA_INFO)
-        2. Show tokens using SHOW TOKENS and system table
-        3. Alter token to modify its properties
-        4. Delete token with IF EXISTS option
-        5. Login with token (TODO: requires client connector support)
+        1. Create token
+            - Basic creation
+            - With options (ENABLE, TTL, PROVIDER, EXTRA_INFO)
+            - IF NOT EXISTS clause
+            - Max length token name (31 characters)
+            - Multi-language support
+            - Exception cases: duplicate name, non-existent user, over-length name, invalid parameters    
+        2. Show tokens
+            - SHOW TOKENS command
+            - Query from system table ins_tokens
+            - Query specific token with filters
+            - Verify row counts consistency
+        3. Alter token
+            - Modify single property (ENABLE, TTL, PROVIDER, EXTRA_INFO)
+            - Modify multiple properties at once
+            - Exception cases: non-existent token, empty name, invalid parameter values
+        4. Delete token
+            - Normal drop operation
+            - IF EXISTS option
+            - Verify deletion from system table
+            - Exception cases: non-existent token, empty name, duplicate deletion
+        5. Token login
+            - Normal token login
+            - Disabled token login failure
+            - Enable/disable toggling
+            - Login failure after deletion
+            - Recreate same-name token
+            - Modify TTL and login
+            - Exception cases: invalid token string, too short/long, special characters
         
         Since: v3.4.0.0
 
