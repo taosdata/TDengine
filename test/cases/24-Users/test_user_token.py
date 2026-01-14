@@ -1,9 +1,5 @@
 
-from new_test_framework.utils import tdLog, tdSql, TDSql, TDCom, etool
-
-import datetime
-import os
-import pyotp
+from new_test_framework.utils import tdLog, tdSql, etool
 
 EXPECTED_TOKEN_LENGTH = 63
 
@@ -116,7 +112,6 @@ class TestUserSecurity:
             "Connect with token ...... [ OK ]",
             "Query OK"
         ]
-        failed = "Connect with token ...... [ FAILED ]"
         
         # arg
         command = f"{taosFile} -q{token} {options} -s 'show tokens;' "
