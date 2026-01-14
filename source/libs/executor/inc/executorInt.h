@@ -696,12 +696,12 @@ typedef struct SDataGroupInfo {
 
 typedef struct SWindowRowsSup {
   STimeWindow win;
-  TSKEY       prevTs;  // previous timestamp
+  TSKEY       prevTs;  // previous timestamp, used for window aggregation
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
   uint32_t    numNullRows;  // number of continuous rows with null state col
-  TSKEY       lastTs; // this ts is used to record the last timestamp, so that we can know whether the new row's ts is duplicated
+  TSKEY       lastTs;  // last row's timestamp, used for checking duplicated ts
 } SWindowRowsSup;
 
 // return true if there are continuous rows with null state col
@@ -749,7 +749,7 @@ typedef struct SStateWindowOperatorInfo {
   SGroupResInfo         groupResInfo;
   SWindowRowsSup        winSup;
   SColumn               stateCol;
-  bool                  hasKey;
+  bool                  hasKey;    // has key means the state window has started
   SStateKeys            stateKey;
   int32_t               tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp    twAggSup;
