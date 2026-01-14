@@ -3797,6 +3797,7 @@ typedef struct {
   CowStr      parser;
   CowStr      reason;
   CowStr      updateName;
+  CowStr      labels;
   int32_t     sqlLen;
   char*       sql;
 } SMUpdateXnodeTaskReq;

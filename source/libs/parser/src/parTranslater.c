@@ -13459,6 +13459,10 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
     if (reason != NULL) {
       updateReq.reason = xCreateCowStr(strlen(reason), reason, false);
     }
+    const char* labels = getXnodeTaskOptionByName(pStmt->options, "labels");
+    if (labels != NULL) {
+      updateReq.labels = xCreateCowStr(strlen(labels), labels, false);
+    }
   }
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_XNODE_TASK, (FSerializeFunc)tSerializeSMUpdateXnodeTaskReq, &updateReq);
@@ -13645,6 +13649,9 @@ static int32_t translateCreateXnodeAgent(STranslateContext* pCxt, SCreateXnodeAg
   if (status != NULL && strlen(status) > TSDB_XNODE_AGENT_STATUS_LEN) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
                                    "Invalid option: status too long");
+  }
+  if (NULL != status) {
+    createReq.status = xCreateCowStr(strlen(status), status, false);
   }
   if (pStmt->options != NULL) {
     code = covertXNodeTaskOptions(pStmt->options, &createReq.options);
