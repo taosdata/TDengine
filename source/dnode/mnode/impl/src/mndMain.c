@@ -499,10 +499,14 @@ static void *mndThreadSecFp(void *param) {
     if (mndGetStop(pMnode)) break;
 
     int64_t nowSec = taosGetTimestampMs() / 1000;
-    if (nowSec == lastSec) continue;
+    if (nowSec == lastSec) {
+      taosMsleep(100);
+      continue;
+    }
     lastSec = nowSec;
 
     if (mnodeIsNotLeader(pMnode)) {
+      taosMsleep(100);
       mTrace("timer not process since mnode is not leader");
       continue;
     }
