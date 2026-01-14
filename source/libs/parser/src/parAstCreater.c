@@ -1222,6 +1222,7 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
   if ((OP_TYPE_IN == type || OP_TYPE_NOT_IN == type) && pRight) {
     SExprNode* pExpr = (SExprNode*)pRight;
     pExpr->asList = true;
+    parserDebug("operator IN/NOT IN created, rightType:%d,%p", nodeType(pRight), pRight);
   }
   if (pLeft && QUERY_NODE_VALUE == nodeType(pLeft)) {
     SValueNode* pVal = (SValueNode*)pLeft;

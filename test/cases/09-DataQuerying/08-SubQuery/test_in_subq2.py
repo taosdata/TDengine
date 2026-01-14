@@ -147,7 +147,7 @@ class TestInSubQuery2:
         "select f1 from {tableName} where f1 > {scalarSql} or f1 < {scalarSql} order by 1",
         "select f1 from {tableName} where f1 between {scalarSql} and {scalarSql} + 1 order by 1",
         "select f1 from {tableName} where {scalarSql} > 0 and f1 > {scalarSql} order by 1",
-        "select f1 from {tableName} where tg1 = {scalarSql} order by 1",
+        "select f1 from {tableName} where tg1 in {scalarSql} order by 1",
         "select f1 from {tableName} where tbname = cast({scalarSql} as varchar) order by 1",
         "select f1 from {tableName} where ts >= {scalarSql} and ts <= {scalarSql} order by 1",
         "select f1 from {tableName} where _c0 between {scalarSql} and {scalarSql} order by 1",
@@ -231,10 +231,10 @@ class TestInSubQuery2:
         "explain analyze verbose true select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
 
         # view
-        "select f1 from {tableName} where f1 = (select * from v1) order by 1",
-        "select f1 from v2 where f1 > {scalarSql} order by 1",
-        "select f1 from v3 where f1 > {scalarSql} order by 1",
-        "select f1 from v4 where f1 > {scalarSql} order by 1",
+        "select f1 from {tableName} where f1 in (select * from v1) order by 1",
+        "select f1 from v2 where {scalarSql} order by 1",
+        "select f1 from v3 where {scalarSql} order by 1",
+        "select f1 from v4 where {scalarSql} order by 1",
 
         # insert
         "insert into tbb select now, {scalarSql} from tb1",  

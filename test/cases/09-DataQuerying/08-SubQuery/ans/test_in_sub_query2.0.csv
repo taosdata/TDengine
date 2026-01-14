@@ -1065,23 +1065,27 @@ DB error: syntax error near "> 0 and f1 > 1 in (select 1 from st1) order by 1;" 
 taos> select f1 from st1 where 1 not in (select 1 from st1) > 0 and f1 > 1 not in (select 1 from st1) order by 1;
 
 DB error: syntax error near "> 0 and f1 > 1 not in (select 1 from st1) order by 1;" [0x80002600] 
-taos> select f1 from st1 where tg1 = (select 0 from st1) order by 1;
+taos> select f1 from st1 where tg1 in (select 0 from st1) order by 1;
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 from st1 where tg1 = (select 1 from st1) order by 1;
+taos> select f1 from st1 where tg1 in (select 1 from st1) order by 1;
+     f1      |
+==============
+           1 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 from st1 where tg1 = (select 2 from st1) order by 1;
+taos> select f1 from st1 where tg1 in (select 2 from st1) order by 1;
+     f1      |
+==============
+           2 |
+           3 |
 
-DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 from st1 where tg1 = (select f1 from db2.tba) order by 1;
+taos> select f1 from st1 where tg1 in (select f1 from db2.tba) order by 1;
 
-taos> select f1 from st1 where tg1 = 1 in (select 1 from st1) order by 1;
+taos> select f1 from st1 where tg1 in 1 in (select 1 from st1) order by 1;
 
-DB error: syntax error near "in (select 1 from st1) order by 1;" [0x80002600] 
-taos> select f1 from st1 where tg1 = 1 not in (select 1 from st1) order by 1;
+DB error: syntax error near "1 in (select 1 from st1) order by 1;" [0x80002600] 
+taos> select f1 from st1 where tg1 in 1 not in (select 1 from st1) order by 1;
 
-DB error: syntax error near "not in (select 1 from st1) order by 1;" [0x80002600] 
+DB error: syntax error near "1 not in (select 1 from st1) order by 1;" [0x80002600] 
 taos> select f1 from st1 where tbname = cast((select 0 from st1) as varchar) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -3155,96 +3159,90 @@ DB error: syntax error near "in (select 1 from st1) having avg(f1) > 1 in (selec
 taos> explain analyze verbose true select avg(f1), 1 not in (select 1 from st1) from st1 group by f1, 1 not in (select 1 from st1) having avg(f1) > 1 not in (select 1 from st1)\G;
 
 DB error: syntax error near "not in (select 1 from st1) having avg(f1) > 1 not in (select 1 from st1)" [0x80002600] 
-taos> select f1 from st1 where f1 = (select * from v1) order by 1;
+taos> select f1 from st1 where f1 in (select * from v1) order by 1;
      f1      |
 ==============
            1 |
 
-taos> select f1 from st1 where f1 = (select * from v1) order by 1;
+taos> select f1 from st1 where f1 in (select * from v1) order by 1;
      f1      |
 ==============
            1 |
 
-taos> select f1 from st1 where f1 = (select * from v1) order by 1;
+taos> select f1 from st1 where f1 in (select * from v1) order by 1;
      f1      |
 ==============
            1 |
 
-taos> select f1 from st1 where f1 = (select * from v1) order by 1;
+taos> select f1 from st1 where f1 in (select * from v1) order by 1;
      f1      |
 ==============
            1 |
 
-taos> select f1 from st1 where f1 = (select * from v1) order by 1;
+taos> select f1 from st1 where f1 in (select * from v1) order by 1;
      f1      |
 ==============
            1 |
 
-taos> select f1 from st1 where f1 = (select * from v1) order by 1;
+taos> select f1 from st1 where f1 in (select * from v1) order by 1;
      f1      |
 ==============
            1 |
 
-taos> select f1 from v2 where f1 > (select 0 from st1) order by 1;
+taos> select f1 from v2 where (select 0 from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 from v2 where f1 > (select 1 from st1) order by 1;
+taos> select f1 from v2 where (select 1 from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 from v2 where f1 > (select 2 from st1) order by 1;
+taos> select f1 from v2 where (select 2 from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 from v2 where f1 > (select f1 from db2.tba) order by 1;
+taos> select f1 from v2 where (select f1 from db2.tba) order by 1;
+
+taos> select f1 from v2 where 1 in (select 1 from st1) order by 1;
      f1      |
 ==============
            1 |
 
-taos> select f1 from v2 where f1 > 1 in (select 1 from st1) order by 1;
+taos> select f1 from v2 where 1 not in (select 1 from st1) order by 1;
 
-DB error: syntax error near "in (select 1 from st1) order by 1;" [0x80002600] 
-taos> select f1 from v2 where f1 > 1 not in (select 1 from st1) order by 1;
-
-DB error: syntax error near "not in (select 1 from st1) order by 1;" [0x80002600] 
-taos> select f1 from v3 where f1 > (select 0 from st1) order by 1;
+taos> select f1 from v3 where (select 0 from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 from v3 where f1 > (select 1 from st1) order by 1;
+taos> select f1 from v3 where (select 1 from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 from v3 where f1 > (select 2 from st1) order by 1;
+taos> select f1 from v3 where (select 2 from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 from v3 where f1 > (select f1 from db2.tba) order by 1;
+taos> select f1 from v3 where (select f1 from db2.tba) order by 1;
+
+taos> select f1 from v3 where 1 in (select 1 from st1) order by 1;
      f1      |
 ==============
            2 |
 
-taos> select f1 from v3 where f1 > 1 in (select 1 from st1) order by 1;
+taos> select f1 from v3 where 1 not in (select 1 from st1) order by 1;
 
-DB error: syntax error near "in (select 1 from st1) order by 1;" [0x80002600] 
-taos> select f1 from v3 where f1 > 1 not in (select 1 from st1) order by 1;
-
-DB error: syntax error near "not in (select 1 from st1) order by 1;" [0x80002600] 
-taos> select f1 from v4 where f1 > (select 0 from st1) order by 1;
+taos> select f1 from v4 where (select 0 from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 from v4 where f1 > (select 1 from st1) order by 1;
+taos> select f1 from v4 where (select 1 from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 from v4 where f1 > (select 2 from st1) order by 1;
+taos> select f1 from v4 where (select 2 from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 from v4 where f1 > (select f1 from db2.tba) order by 1;
+taos> select f1 from v4 where (select f1 from db2.tba) order by 1;
+
+taos> select f1 from v4 where 1 in (select 1 from st1) order by 1;
      f1      |
 ==============
            4 |
 
-taos> select f1 from v4 where f1 > 1 in (select 1 from st1) order by 1;
+taos> select f1 from v4 where 1 not in (select 1 from st1) order by 1;
 
-DB error: syntax error near "in (select 1 from st1) order by 1;" [0x80002600] 
-taos> select f1 from v4 where f1 > 1 not in (select 1 from st1) order by 1;
-
-DB error: syntax error near "not in (select 1 from st1) order by 1;" [0x80002600] 
 taos> insert into tbb select now, (select 0 from st1) from tb1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
