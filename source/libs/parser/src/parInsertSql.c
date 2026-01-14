@@ -2074,7 +2074,7 @@ static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache, 
   SUserAuthInfo authInfo = {0};
   setUserAuthInfo(pCxt, pTbName, &authInfo);
   SUserAuthRes authRes = {0};
-  SUserAuthRsp authRsp = {0};
+  SUserAuthRsp authRsp = {.exists = 1};
   if (pCxt->async) {
     code = catalogChkAuthFromCache(pCxt->pCatalog, &authInfo, &authRes, &authRsp);
   } else {
