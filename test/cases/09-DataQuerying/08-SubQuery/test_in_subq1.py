@@ -4,7 +4,7 @@ import os
 from new_test_framework.utils import tdLog, tdSql, tdCom
 import datetime
 
-class TestScalarSubQuery1:
+class TestInSubQuery1:
     updatecfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
     clientCfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
     updatecfgDict["clientCfg"] = clientCfgDict    
@@ -21,11 +21,15 @@ class TestScalarSubQuery1:
     opStrs = ["IN", "NOT IN"]
     targetObjs = ["1", "'a'", "f1", "NULL", "123.45", "abs(-2)", "f1 + 1", "sum(f1)"]
     targetFullObjs = ["1", "'a'", "'d'", "f1", "NULL", "123.45", "abs(-2)", "f1 + 1", "sum(f1)", "(select 1)", "(select f1 from tba limit 0)"]
+    targetFullTypeObjs = ["1", "1.0", "'a'", "'0'", "false", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "NULL"]
 
     subFullSqls = [
         "select {targetObj} {opStr} {colSql}, {targetObj} {opStr} {colSql} from {tableName} where {targetObj} {opStr} {colSql} order by 1",
     ]
 
+    subFullTypeSqls = [
+        "select {targetObj} {opStr} {colSql} from tba order by 1",
+    ]
     subSqls = [
         # select 
         "select {targetObj} {opStr} {colSql} from {tableName} order by 1",
@@ -125,8 +129,11 @@ class TestScalarSubQuery1:
         self.execNormalCase()
         self.fileIdx += 1
         self.execFullStmtCase()
+        self.fileIdx += 1
+        self.execFullTypeCase()
      
     def prepareData(self):
+        tdLog.info("start to prepare data for in sub query test case")
         tdLog.info("create database db1")
         tdSql.execute(f"drop database if exists db1")
         tdSql.execute(f"create database db1")
@@ -227,6 +234,37 @@ class TestScalarSubQuery1:
 
                             self.generated_queries_file.write(self.querySql.strip() + "\n")
                             self.generated_queries_file.flush()
+
+
+        self.generated_queries_file.close()
+        tmp_file = os.path.join(self.currentDir, f"{self.caseName}_generated_queries{self.fileIdx}.sql")
+        res_file = os.path.join(self.currentDir, f"ans/{self.caseName}.{self.fileIdx}.csv")
+        self.checkResultWithResultFile(tmp_file, res_file)
+
+        self.rmoveSqlTmpFiles()
+
+        return True
+
+    def execFullTypeCase(self):
+        tdLog.info(f"execCase begin")
+
+        runnedCaseNum = 0
+
+        self.openSqlTmpFile()
+
+        for self.opIdx in range(len(self.opStrs)):
+            for self.targetIdx in range(len(self.targetFullTypeObjs)):
+                for self.mainIdx in range(len(self.subFullTypeSqls)):
+                    for self.subIdx in range(len(self.colSubQFullTypeSqls)):
+                        self.querySql = self.subFullTypeSqls[self.mainIdx].replace("{colSql}", self.colSubQFullTypeSqls[self.subIdx])
+                        self.querySql = self.querySql.replace("{opStr}", self.opStrs[self.opIdx])
+                        self.querySql = self.querySql.replace("{targetObj}", self.targetFullTypeObjs[self.targetIdx])
+                        # ensure exactly one trailing semicolon
+                        self.querySql = self.querySql.rstrip().rstrip(';') + ';'
+                        #tdLog.info(f"generated sql: {self.querySql}")
+
+                        self.generated_queries_file.write(self.querySql.strip() + "\n")
+                        self.generated_queries_file.flush()
 
 
         self.generated_queries_file.close()

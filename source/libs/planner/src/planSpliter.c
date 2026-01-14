@@ -2291,7 +2291,7 @@ static int32_t dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) 
 
 static int32_t applySplitRule(SPlanContext* pCxt, SLogicSubplan* pSubplan) {
   SSplitContext cxt = {
-      .pPlanCxt = pCxt, .queryId = pSubplan->id.queryId, .groupId = pSubplan->id.groupId + 1, .split = false};
+      .pPlanCxt = pCxt, .queryId = pSubplan->id.queryId, .groupId = pCxt->groupId + 1, .split = false};
   bool    split = false;
   int32_t code =TSDB_CODE_SUCCESS;
   PLAN_ERR_RET(dumpLogicSubplan(NULL, pSubplan));
@@ -2308,7 +2308,11 @@ static int32_t applySplitRule(SPlanContext* pCxt, SLogicSubplan* pSubplan) {
   } while (split);
 
   PLAN_ERR_RET(streamScanSplit(&cxt, pSubplan));
-  PLAN_RET(qnodeSplit(&cxt, pSubplan));
+  PLAN_ERR_RET(qnodeSplit(&cxt, pSubplan));
+
+  pCxt->groupId = cxt.groupId + 1;
+  
+  PLAN_RET(code);
 }
 
 static void setVgroupsInfo(SLogicNode* pNode, SLogicSubplan* pSubplan) {

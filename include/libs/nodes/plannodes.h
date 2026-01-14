@@ -733,7 +733,8 @@ typedef struct SExchangePhysiNode {
   // groups are consecutive
   int32_t    srcStartGroupId;
   int32_t    srcEndGroupId;
-  bool       singleChannel;
+  bool       grpSingleChannel;
+  bool       singleSrc;
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
   bool       seqRecvData;
   bool       dynTbname;

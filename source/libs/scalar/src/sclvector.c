@@ -1255,7 +1255,7 @@ int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
 
   // always convert least data
   if (IS_VAR_DATA_TYPE(leftType) && IS_VAR_DATA_TYPE(rightType) && (pLeft->numOfRows != pRight->numOfRows) &&
-      leftType != TSDB_DATA_TYPE_JSON && rightType != TSDB_DATA_TYPE_JSON) {
+      leftType != TSDB_DATA_TYPE_JSON && rightType != TSDB_DATA_TYPE_JSON && !pRight->hashParam.hasHashParam) {
     if (pLeft->numOfRows > pRight->numOfRows) {
       type = leftType;
     } else {

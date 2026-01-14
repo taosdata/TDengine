@@ -3107,7 +3107,8 @@ static const char* jkExchangePhysiPlanSrcEndGroupId = "SrcEndGroupId";
 static const char* jkExchangePhysiPlanSrcEndPoints = "SrcEndPoints";
 static const char* jkExchangePhysiPlanSeqRecvData = "SeqRecvData";
 static const char* jkExchangePhysiPlanDynTbname = "DynTbname";
-static const char* jkExchangePhysiPlanSingleChannel = "SingleChannel";
+static const char* jkExchangePhysiPlanSingleChannel = "GrpSingleChannel";
+static const char* jkExchangePhysiPlanSingleSrc = "SingleSource";
 
 static int32_t physiExchangeNodeToJson(const void* pObj, SJson* pJson) {
   const SExchangePhysiNode* pNode = (const SExchangePhysiNode*)pObj;
@@ -3129,7 +3130,10 @@ static int32_t physiExchangeNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddBoolToObject(pJson, jkExchangePhysiPlanDynTbname, pNode->dynTbname);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkExchangePhysiPlanSingleChannel, pNode->singleChannel);
+    code = tjsonAddBoolToObject(pJson, jkExchangePhysiPlanSingleChannel, pNode->grpSingleChannel);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkExchangePhysiPlanSingleSrc, pNode->singleSrc);
   }
 
   return code;
@@ -3155,7 +3159,10 @@ static int32_t jsonToPhysiExchangeNode(const SJson* pJson, void* pObj) {
     code = tjsonGetBoolValue(pJson, jkExchangePhysiPlanDynTbname, &pNode->dynTbname);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkExchangePhysiPlanSingleChannel, &pNode->singleChannel);
+    code = tjsonGetBoolValue(pJson, jkExchangePhysiPlanSingleChannel, &pNode->grpSingleChannel);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkExchangePhysiPlanSingleSrc, &pNode->singleSrc);
   }
 
   return code;

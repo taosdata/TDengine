@@ -76,6 +76,7 @@ static void dumpLogicPlan(SLogicSubplan* pLogicSubplan, int32_t level) {
 static void initSubQueryPlanContext(SPlanContext* pDst, SPlanContext* pSrc, SNode* pRoot) {
   memcpy(pDst, pSrc, sizeof(*pSrc));
 
+  pDst->groupId++;
   pDst->withExtWindow = false;
   pDst->hasScan = false;
   
@@ -124,6 +125,7 @@ static int32_t createSubQueryPlans(SPlanContext* pSrc, SQueryPlan* pParent, SArr
     pParent->numOfSubplans += pPlan->numOfSubplans;
     pPlan->subSql = nodesGetSubSql(pNode);
     nodesGetSubQType(pNode, (int32_t*)&pPlan->subQType);
+    pSrc->groupId = ++ctx.groupId;
   }
 
 _exit:
@@ -154,15 +156,15 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   if (TSDB_CODE_SUCCESS == code) {
     code = validateQueryPlan(pCxt, *pPlan);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = dumpQueryPlan(*pPlan);
-  }
   (void)nodesReleaseAllocator(pCxt->allocatorId);
-  
+
   if (TSDB_CODE_SUCCESS == code) {
     code = createSubQueryPlans(pCxt, *pPlan, pExecNodeList);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = dumpQueryPlan(*pPlan);
+  }
+  
   nodesDestroyNode((SNode*)pLogicSubplan);
   nodesDestroyNode((SNode*)pLogicPlan);
   
