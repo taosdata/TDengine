@@ -170,16 +170,14 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
           status = taosHashGet(pRsp->tokens, pTscObj->tokenName, strlen(pTscObj->tokenName) + 1);
         }
 
-        STokenEvent event = {0};
+        STokenEvent event = {.type = TSDB_TOKEN_EVENT_MODIFIED, .expireTime = status->expireTime};
+        tstrncpy(event.tokenName, pTscObj->tokenName, sizeof(event.tokenName));
         if (status == NULL) {
           event.type = TSDB_TOKEN_EVENT_DROPPED;
         } else if (status->enabled == 0) {
           event.type = TSDB_TOKEN_EVENT_DISABLED;
         } else if (status->expireTime > 0 && status->expireTime < taosGetTimestampSec()) {
           event.type = TSDB_TOKEN_EVENT_EXPIRED;
-        } else {
-          event.type = TSDB_TOKEN_EVENT_MODIFIED;
-          event.expireTime = status->expireTime;
         }
 
         STokenNotifyInfo *tni = &pTscObj->tokenNotifyInfo;

@@ -164,9 +164,11 @@ typedef enum {
   TSDB_TOKEN_EVENT_EXPIRED,
 } TOKEN_EVENT_TYPE;
 
+#define TSDB_TOKEN_NAME_LEN 32
 typedef struct {
-  int8_t  type;
-  int32_t expireTime; // seconds since epoch
+  int8_t      type;
+  int32_t     expireTime;  // seconds since epoch
+  char        tokenName[TSDB_TOKEN_NAME_LEN];
 } STokenEvent;
 
 typedef enum {
