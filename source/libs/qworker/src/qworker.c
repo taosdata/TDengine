@@ -6,6 +6,7 @@
 #include "query.h"
 #include "qwInt.h"
 #include "qwMsg.h"
+#include "taoserror.h"
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "tglobal.h"
@@ -123,14 +124,6 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
     if (taskHandle) {
       qwDbgSimulateSleep();
 
-      if (QW_EVENT_RECEIVED(ctx, QW_EVENT_NOTIFY)) {
-        QW_TASK_DLOG("notify event to be processed, notifyTs:%" PRId64,
-                     ctx->notifyTs);
-        code = notifyTableScanTask(taskHandle, ctx->notifyTs);
-        QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_NOTIFY);
-        QW_ERR_JRET(code);
-      }
-
       setTaskScalarExtraInfo(taskHandle);
       taosEnableMemPoolUsage(ctx->memPoolSession);
       code = qExecTaskOpt(taskHandle, pResList, &useconds, &hasMore, &localFetch, processOneBlock);
@@ -176,7 +169,10 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
           QW_TASK_DLOG("qExecTask done, useconds:%" PRIu64, useconds);
         }
 
-        QW_ERR_JRET(qwHandleTaskComplete(QW_FPARAMS(), ctx));
+        QW_LOCK(QW_WRITE, &ctx->lock);
+        code = qwHandleTaskComplete(QW_FPARAMS(), ctx);
+        QW_UNLOCK(QW_WRITE, &ctx->lock);
+        QW_ERR_JRET(code);
       } else {
         if (numOfResBlock == 0) {
           QW_TASK_DLOG("dyn task qExecTask end with empty res, useconds:%" PRIu64, useconds);
@@ -540,7 +536,7 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
   dsReset(ctx->sinkHandle);
   QW_SINK_DISABLE_MEMPOOL();
 
-  qUpdateOperatorParam(ctx->taskHandle, qwMsg->msg);
+  qUpdateOperatorParam(ctx->taskHandle, (void**)&qwMsg->msg);
 
   QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
 
@@ -552,6 +548,26 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
     QW_TASK_DLOG("the %dth dynamic task exec started", ctx->dynExecId++);
     QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+  @brief update the operator param from the notify msg
+  NOTE: to avoid use-after-free error, we need to lock the ctx
+        before updating the operator param
+*/
+int32_t qwUpdateTaskOperatorParamFromMsg(QW_FPARAMS_DEF, SQWTaskCtx* ctx,
+                                         SQWMsg* qwMsg) {
+  QW_LOCK(QW_WRITE, &ctx->lock);
+
+  if (!ctx->queryEnd && ctx->taskHandle != NULL) {
+    qUpdateOperatorParam(ctx->taskHandle, (void**)&qwMsg->msg);
+  } else {
+    qDestroyOperatorParam(qwMsg->msg);
+  }
+
+  QW_UNLOCK(QW_WRITE, &ctx->lock);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1066,23 +1082,11 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       qwMsg->msg = NULL;
       goto _return;
     } else {
-      /**
-        Must be STEP DONE notify msg in Fetch request. But here we don't know
-        whether the taskHandle is valid or not, so we keep the notifyTs in the
-        ctx, and notify later in the query thread.
+      /*
+        It should be a fetch request with STEP_DONE notify msg,
+        update the operator param to notify the table scan operator.
       */
-      SOperatorParam *pGetParam = (SOperatorParam *)qwMsg->msg;
-      if (pGetParam->value != NULL &&
-          pGetParam->opType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
-        STableScanOperatorParam *pScanParam =
-          (STableScanOperatorParam*)pGetParam->value;
-        if (pScanParam->paramType == NOTIFY_TYPE_SCAN_PARAM &&
-            pScanParam->notifyToProcess) {
-          atomic_store_64(&ctx->notifyTs, pScanParam->notifyTs);
-          QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_NOTIFY);
-        }
-      }
-      freeOperatorParam((SOperatorParam*)qwMsg->msg, OP_GET_PARAM);
+      code = qwUpdateTaskOperatorParamFromMsg(QW_FPARAMS(), ctx, qwMsg);
       qwMsg->msg = NULL;
     }
   }

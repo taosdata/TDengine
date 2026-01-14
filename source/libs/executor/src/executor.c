@@ -686,17 +686,19 @@ void qDestroyOperatorParam(SOperatorParam* pParam) {
   freeOperatorParam(pParam, OP_GET_PARAM);
 }
 
-void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
+void qUpdateOperatorParam(qTaskInfo_t tinfo, void** ppParam) {
   SExecTaskInfo* pTask = (SExecTaskInfo*)tinfo;
-  SOperatorParam* pNewParam = (SOperatorParam*)pParam;
+  SOperatorParam* pNewParam = (SOperatorParam*)*ppParam;
   if (pTask->pRoot && pTask->pRoot->operatorType != pNewParam->opType) {
     qError("%s, %s operator type mismatch, task operator type:%d, "
            "new param operator type:%d", GET_TASKID(pTask), __func__,
            pTask->pRoot->operatorType,
            pNewParam->opType);
+    qDestroyOperatorParam(pNewParam);
+    *ppParam = NULL;
     return;
   }
-  TSWAP(pParam, ((SExecTaskInfo*)tinfo)->pOpParam);
+  TSWAP(*ppParam, pTask->pOpParam);
   ((SExecTaskInfo*)tinfo)->paramSet = false;
 }
 
@@ -2312,32 +2314,5 @@ int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pT
 end:
   // taosArrayDestroy(uidListCopy);
   tableListDestroy(pList);
-  return code;
-}
-
-int32_t notifyTableScanTask(qTaskInfo_t tinfo, TSKEY notifyTs) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  /* If tinfo is NULL, it means the task is killed, just return success. */
-  TSDB_CHECK_NULL(tinfo, code, lino, _end, TSDB_CODE_SUCCESS);
-
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  if (pTaskInfo->pRoot != NULL) {
-    SOperatorInfo* pOperator = pTaskInfo->pRoot;
-    if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
-      /* Only support notify table scan operator right now. */
-      SStorageAPI* pApi = &pOperator->pTaskInfo->storageAPI;
-      code = pApi->tsdReader.tsdReaderStepDone(
-        ((STableScanInfo*)pOperator->info)->base.dataReader, notifyTs);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-  }
-  qDebug("%s succeed to notify table scan operator", GET_TASKID(pTaskInfo));
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s, failed to notify table scan operator at line %d, since:%s",
-           GET_TASKID(pTaskInfo), lino, tstrerror(code));
-  }
   return code;
 }
