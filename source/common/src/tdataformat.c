@@ -5108,6 +5108,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
   SColVal colVal;
   int32_t numOfFixedValue = 0;
   int32_t lino = 0;
+  bool    hasDecimal128 = false;
 
   if ((colValArray = taosArrayInit(numOfInfos, sizeof(SColVal))) == NULL) {
     return terrno;
@@ -5146,9 +5147,6 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
           colVal = *pParsedVal;
 
           if (taosArrayPush(colValArray, &colVal) == NULL) {
-            if (IS_VAR_DATA_TYPE(pParsedVal->value.type)) {
-              taosMemoryFree(colVal.value.pData);
-            }
             code = terrno;
             TAOS_CHECK_GOTO(code, &lino, _exit);
           }
@@ -5211,6 +5209,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             int32_t    length = infos[iInfo].bind->length[iRow];
             code = decimal128FromStr(*(char **)data, length, precision, scale, &dec);
             *data += length;
+            hasDecimal128 = true;
             TAOS_CHECK_GOTO(code, &lino, _exit);
 
             // precision check
@@ -5271,12 +5270,15 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
     }
 
     // fix decimal memory leak
-    int32_t num = taosArrayGetSize(colValArray);
-    for (int32_t i = 0; i < num; ++i) {
-      SColVal *pCol = taosArrayGet(colValArray, i);
-      if (pCol->value.type == TSDB_DATA_TYPE_DECIMAL) {
-        taosMemoryFreeClear(pCol->value.pData);
+    if (hasDecimal128) {
+      int32_t num = taosArrayGetSize(colValArray);
+      for (int32_t i = 0; i < num; ++i) {
+        SColVal *pCol = taosArrayGet(colValArray, i);
+        if (pCol->value.type == TSDB_DATA_TYPE_DECIMAL) {
+          taosMemoryFreeClear(pCol->value.pData);
+        }
       }
+      hasDecimal128 = false;
     }
 
     if (pOrdered && pDupTs) {
@@ -5298,6 +5300,15 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
   }
 _exit:
   if (code != 0) {
+    if (hasDecimal128) {
+      int32_t num = taosArrayGetSize(colValArray);
+      for (int32_t i = 0; i < num; ++i) {
+        SColVal *pCol = taosArrayGet(colValArray, i);
+        if (pCol->value.type == TSDB_DATA_TYPE_DECIMAL) {
+          taosMemoryFreeClear(pCol->value.pData);
+        }
+      }
+    }
     uError("tRowBuildFromBind2 failed at line %d, ErrCode=0x%x", lino, code);
   }
   taosArrayDestroy(colValArray);
