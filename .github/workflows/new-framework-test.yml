@@ -18,6 +18,10 @@ on:
       - 'tests/parallel/tdgpt_cases.task'
       - 'tests/script/tsim/analytics/**'
       - '**/*.md'
+      - "tools/keeper/**"
+      - '.github/workflows/**'
+      - '!.github/workflows/new-framework-test.yml'
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-TDengineNewFramework
