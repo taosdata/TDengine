@@ -302,6 +302,11 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Option:%s value too small, should be %d or greater";
     case TSDB_CODE_PAR_ORDERBY_INVALID_EXPR:
       return "Aggregate functions cannot be used for sorting in non-aggregate queries";
+    case TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE:
+      return "FILL NEAR mode is not supported in window query";
+    case TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES:
+      return "fill values can only be used with fill VALUE/VALUE_F "
+             "and SURROUND mode";
     default:
       return "Unknown error";
   }

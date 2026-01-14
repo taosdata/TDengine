@@ -7654,6 +7654,20 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
     }
   }
 
+  if (NULL != pInterval->pFill) {
+    SFillNode* pFill = (SFillNode*)pInterval->pFill;
+    if (pFill->mode == FILL_MODE_NEAR) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf,
+                                  TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE);
+    }
+    if (pFill->pValues != NULL &&
+        !(pFill->mode == FILL_MODE_VALUE || pFill->mode == FILL_MODE_VALUE_F) &&
+        pFill->pSurroundingTime == NULL) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf,
+                                  TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES);
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8360,6 +8374,27 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   nodesWalkExprs(pSelect->pProjectionList, hasRowTsOriginFuncWalkNode, &hasRowTsOriginFunc);
   if (TSDB_CODE_SUCCESS == code) {
     SFillNode* pFill = (SFillNode*)pSelect->pFill;
+    /*
+      Validate that surrounding_time and fill_value can only be used
+      with PREV/NEXT/NEAR mode of FILL clause.
+    */
+    if (pFill->pSurroundingTime != NULL) {
+      if (pFill->mode != FILL_MODE_PREV &&
+          pFill->mode != FILL_MODE_NEXT &&
+          pFill->mode != FILL_MODE_NEAR) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf,
+                                       TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
+                                       "surrounding_time and fill_value can"
+                                       "only be used with fill PREV/NEXT/NEAR");
+      }
+      // surrounding_time and fill_value must appear together
+      if (pFill->pValues == NULL) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf,
+                                       TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "surrounding_time and fill_value must "
+                                       "be provided together");
+      }
+    }
     if (pSelect->pRangeAround) {
       if (pFill->mode != FILL_MODE_PREV && pFill->mode != FILL_MODE_NEXT && pFill->mode != FILL_MODE_NEAR) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
@@ -8368,8 +8403,15 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
       if (TSDB_CODE_SUCCESS == code) code = doCheckFillValues(pCxt, pFill, pSelect->pProjectionList);
     } else {
       if (FILL_MODE_PREV == pFill->mode || FILL_MODE_NEXT == pFill->mode || FILL_MODE_NEAR == pFill->mode) {
-        if (pFill->pValues) {
-          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Can't specify fill values");
+        /*
+          For PREV/NEXT/NEAR, if surrounding_time is provided,
+          fill_value must also be provided
+        */
+        if (pFill->pSurroundingTime != NULL && pFill->pValues == NULL) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf,
+                                         TSDB_CODE_PAR_SYNTAX_ERROR,
+                                         "surrounding_time and fill_value must "
+                                         "appear together");
         }
       } else {
         if (hasRowTsOriginFunc)

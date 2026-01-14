@@ -1657,6 +1657,12 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesCloneNode(pFill->pValues, &pInterpFunc->pFillValues);
     }
+    if (TSDB_CODE_SUCCESS == code && NULL != pFill->pSurroundingTime) {
+      if (nodeType(pFill->pSurroundingTime) == QUERY_NODE_VALUE) {
+        SValueNode* pSurroundingTime = (SValueNode*)pFill->pSurroundingTime;
+        pInterpFunc->surroundingTime = pSurroundingTime->datum.i;
+      }
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pEvery) {
@@ -1670,10 +1676,10 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
     if (!pRangeInterval || nodeType(pRangeInterval) != QUERY_NODE_VALUE) {
       code = TSDB_CODE_PAR_INTERNAL_ERROR;
     } else {
-      pInterpFunc->rangeInterval = ((SValueNode*)pRangeInterval)->datum.i;
-      pInterpFunc->rangeIntervalUnit = ((SValueNode*)pRangeInterval)->unit;
+      pInterpFunc->surroundingTime = ((SValueNode*)pRangeInterval)->datum.i;
     }
   }
+
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
@@ -2524,6 +2530,10 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   code = nodesCloneNode(pFillNode->pValues, &pFill->pValues);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCloneNode(pFillNode->pWStartTs, &pFill->pWStartTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCloneNode(pFillNode->pSurroundingTime,
+                          &pFill->pSurroundingTime);
   }
 
   if (TSDB_CODE_SUCCESS == code && 0 == LIST_LENGTH(pFill->node.pTargets)) {
