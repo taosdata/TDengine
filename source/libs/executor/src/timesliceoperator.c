@@ -49,9 +49,9 @@ typedef struct STimeSliceOperatorInfo {
   int32_t              remainIndex;  // the remaining index in the block to be processed
   bool                 hasPk;
   SColumn              pkCol;
-  int64_t              rangeInterval;
   bool                 prevNotified;
   bool                 nextNotified;
+  int64_t              surroundingTime;
 } STimeSliceOperatorInfo;
 
 static void destroyTimeSliceOperatorInfo(void* param);
@@ -325,10 +325,12 @@ static int32_t interpColSetKey(SColumnInfoData* pDst, int32_t rowNum, SGroupKeys
   return code;
 }
 
-static bool interpSetFillRowWithRangeIntervalCheck(STimeSliceOperatorInfo* pSliceInfo, SArray** ppFillRow,
+static bool interpSetFillRowWithSurroundingTimeCheck(STimeSliceOperatorInfo* pSliceInfo, SArray** ppFillRow,
                                                    SArray* pFillRefRow, int64_t fillRefRowTs) {
   *ppFillRow = NULL;
-  if (pSliceInfo->rangeInterval <= 0 || llabs(fillRefRowTs - pSliceInfo->current) <= pSliceInfo->rangeInterval) {
+  if (pSliceInfo->surroundingTime <= 0 ||
+      llabs(fillRefRowTs - pSliceInfo->current) <= pSliceInfo->surroundingTime)
+  {
     *ppFillRow = pFillRefRow;
     return true;
   }
@@ -352,16 +354,16 @@ static bool interpDetermineNearFillRow(STimeSliceOperatorInfo* pSliceInfo, SArra
   }
   if (!pPrevTsKey) {
     *ppNearRow = pSliceInfo->pNextRow;
-    (void)interpSetFillRowWithRangeIntervalCheck(pSliceInfo, ppNearRow, pSliceInfo->pNextRow, *pNextTs);
+    (void)interpSetFillRowWithSurroundingTimeCheck(pSliceInfo, ppNearRow, pSliceInfo->pNextRow, *pNextTs);
   } else if (!pNextTsKey) {
     *ppNearRow = pSliceInfo->pPrevRow;
-    (void)interpSetFillRowWithRangeIntervalCheck(pSliceInfo, ppNearRow, pSliceInfo->pPrevRow, *pPrevTs);
+    (void)interpSetFillRowWithSurroundingTimeCheck(pSliceInfo, ppNearRow, pSliceInfo->pPrevRow, *pPrevTs);
   } else {
     if (llabs(pSliceInfo->current - *pPrevTs) <= llabs(*pNextTs - pSliceInfo->current)) {
       // take prev if euqal
-      (void)interpSetFillRowWithRangeIntervalCheck(pSliceInfo, ppNearRow, pSliceInfo->pPrevRow, *pPrevTs);
+      (void)interpSetFillRowWithSurroundingTimeCheck(pSliceInfo, ppNearRow, pSliceInfo->pPrevRow, *pPrevTs);
     } else {
-      (void)interpSetFillRowWithRangeIntervalCheck(pSliceInfo, ppNearRow, pSliceInfo->pNextRow, *pNextTs);
+      (void)interpSetFillRowWithSurroundingTimeCheck(pSliceInfo, ppNearRow, pSliceInfo->pNextRow, *pNextTs);
     }
   }
   return true;
@@ -372,14 +374,14 @@ static bool interpDetermineFillRefRow(STimeSliceOperatorInfo* pSliceInfo, SArray
   if (pSliceInfo->fillType == TSDB_FILL_PREV) {
     if (pSliceInfo->isPrevRowSet) {
       SGroupKeys* pTsCol = taosArrayGet(pSliceInfo->pPrevRow, pSliceInfo->tsCol.slotId);
-      (void)interpSetFillRowWithRangeIntervalCheck(pSliceInfo, ppOutRow, pSliceInfo->pPrevRow,
+      (void)interpSetFillRowWithSurroundingTimeCheck(pSliceInfo, ppOutRow, pSliceInfo->pPrevRow,
                                                    *(int64_t*)pTsCol->pData);
       needFill = true;
     }
   } else if (pSliceInfo->fillType == TSDB_FILL_NEXT) {
     if (pSliceInfo->isNextRowSet) {
       SGroupKeys* pTsCol = taosArrayGet(pSliceInfo->pNextRow, pSliceInfo->tsCol.slotId);
-      (void)interpSetFillRowWithRangeIntervalCheck(pSliceInfo, ppOutRow, pSliceInfo->pNextRow,
+      (void)interpSetFillRowWithSurroundingTimeCheck(pSliceInfo, ppOutRow, pSliceInfo->pNextRow,
                                                    *(int64_t*)pTsCol->pData);
       needFill = true;
     }
@@ -1498,7 +1500,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream,
   pInfo->pNextGroupRes = NULL;
   pInfo->pRemainRes = NULL;
   pInfo->remainIndex = 0;
-  pInfo->rangeInterval = pInterpPhyNode->rangeInterval;
+  pInfo->surroundingTime = pInterpPhyNode->surroundingTime;
 
   if (pInfo->hasPk) {
     pInfo->prevKey.numOfPKs = 1;
