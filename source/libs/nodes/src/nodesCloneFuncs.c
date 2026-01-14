@@ -449,6 +449,8 @@ static int32_t fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
   CLONE_NODE_FIELD(pValues);
   CLONE_NODE_FIELD(pWStartTs);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
+  CLONE_NODE_FIELD(pTimeRange);
+  CLONE_NODE_FIELD(pSurroundingTime);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -768,6 +770,7 @@ static int32_t logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   CLONE_NODE_FIELD(pTimeRange);
   CLONE_NODE_LIST_FIELD(pFillNullExprs);
+  CLONE_NODE_FIELD(pSurroundingTime);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -809,8 +812,7 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
   COPY_SCALAR_FIELD(fillMode);
   CLONE_NODE_FIELD(pFillValues);
   CLONE_NODE_FIELD(pTimeSeries);
-  COPY_SCALAR_FIELD(rangeInterval);
-  COPY_SCALAR_FIELD(rangeIntervalUnit);
+  COPY_SCALAR_FIELD(surroundingTime);
   return TSDB_CODE_SUCCESS;
 }
 

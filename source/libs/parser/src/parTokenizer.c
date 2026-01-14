@@ -299,6 +299,7 @@ static SKeyword keywordTable[] = {
     {"STREAMS",              TK_STREAMS},
     {"STREAM_OPTIONS",       TK_STREAM_OPTIONS},
     {"STRICT",               TK_STRICT},
+    {"SURROUND",             TK_SURROUND},
     {"STT_TRIGGER",          TK_STT_TRIGGER},
     {"SUBSCRIBE",            TK_SUBSCRIBE},
     {"SUBSCRIPTIONS",        TK_SUBSCRIPTIONS},
