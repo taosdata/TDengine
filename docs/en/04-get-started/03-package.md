@@ -6,7 +6,7 @@ slug: /get-started/deploy-from-package
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import PkgListV37 from "/src/components/PkgList";
+import PkgList from "/src/components/PkgList";
 import Getstarted from './_get_started.mdx';
 
 You can install TDengine TSDB Enterprise on Linux and Windows. To install TDengine TSDB in a Docker container instead of on your machine, see [Get Started with TDengine in Docker](../deploy-in-docker/).
