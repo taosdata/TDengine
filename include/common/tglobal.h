@@ -207,11 +207,11 @@ enum {
 
 extern bool     tsUseTaoskEncryption;      // Flag: using taosk encrypt.bin format
 extern bool     tsSkipKeyCheckMode;        // Flag: skip key check mode
-extern char     tsSvrKey[129];             // SVR_KEY (server master key)
-extern char     tsDbKey[129];              // DB_KEY (database master key)
-extern char     tsCfgKey[129];             // CFG_KEY (config encryption key)
-extern char     tsMetaKey[129];            // META_KEY (metadata encryption key)
-extern char     tsDataKey[129];            // DATA_KEY (data encryption key)
+extern char     tsSvrKey[ENCRYPT_KEY_LEN + 1];   // SVR_KEY: exactly 16 bytes (128 bits)
+extern char     tsDbKey[ENCRYPT_KEY_LEN + 1];    // DB_KEY: exactly 16 bytes (128 bits)
+extern char     tsCfgKey[ENCRYPT_KEY_LEN + 1];   // CFG_KEY: exactly 16 bytes (128 bits)
+extern char     tsMetaKey[ENCRYPT_KEY_LEN + 1];  // META_KEY: exactly 16 bytes (128 bits)
+extern char     tsDataKey[ENCRYPT_KEY_LEN + 1];  // DATA_KEY: exactly 16 bytes (128 bits)
 extern int32_t  tsEncryptAlgorithmType;    // Algorithm type for master keys (SVR_KEY, DB_KEY)
 extern int32_t  tsCfgAlgorithm;            // Algorithm type for CFG_KEY
 extern int32_t  tsMetaAlgorithm;           // Algorithm type for META_KEY

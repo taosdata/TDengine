@@ -2409,11 +2409,11 @@ int32_t tSerializeSKeySyncRsp(void *buf, int32_t bufLen, SKeySyncRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->needUpdate));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->encryptionKeyStatus));
   if (pRsp->needUpdate) {
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->svrKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dbKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->cfgKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->metaKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dataKey, 129));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->svrKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dbKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->cfgKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->metaKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dataKey, ENCRYPT_KEY_LEN + 1));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->algorithm));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->cfgAlgorithm));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->metaAlgorithm));
