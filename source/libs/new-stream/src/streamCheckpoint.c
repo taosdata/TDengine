@@ -93,7 +93,7 @@ static int32_t writeFile(char* filepath, void* data, int64_t dataLen) {
 end:
   taosMemoryFree(encryptedData);
   if (pFile != NULL) {
-    taosCloseFile(&pFile);
+    (void)taosCloseFile(&pFile);
   }
   STREAM_PRINT_LOG_END(code, lino);
   return code;
