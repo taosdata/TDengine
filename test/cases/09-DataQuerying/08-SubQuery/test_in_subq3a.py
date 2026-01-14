@@ -106,6 +106,7 @@ class TestInSubQuery3a:
         
         1. Prepare data.
         2. Explain execute various nested queries with different kind of in sub queries.
+
         Since: v3.4.1.0
 
         Labels: common,ci
