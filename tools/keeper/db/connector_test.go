@@ -3,7 +3,9 @@ package db
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,11 +13,15 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
+	"github.com/taosdata/taoskeeper/util"
 )
 
-func TestIPv6(t *testing.T) {
+func TestMain(m *testing.M) {
 	config.InitConfig()
+	os.Exit(m.Run())
+}
 
+func TestIPv6(t *testing.T) {
 	conn, err := NewConnector("root", "taosdata", "[::1]", 6041, false)
 	assert.NoError(t, err)
 
@@ -175,5 +181,39 @@ func TestExecuteWithRetry(t *testing.T) {
 				t.Errorf("execution time %v is shorter than expected minimum %v", elapsed, minExpectedTime)
 			}
 		})
+	}
+}
+
+func TestConnectorWithSpecialChars(t *testing.T) {
+	conn, err := NewConnector("root", "taosdata", "localhost", 6041, false)
+	assert.NoError(t, err)
+	defer conn.Close()
+
+	testCases := []string{
+		"Cm}ZyHuZFd8_Y2+B+6F<wn;h;;j83.eBb.f#",
+		"AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.",
+	}
+
+	for _, pass := range testCases {
+		conn.Exec(context.Background(), "drop user user_1768377310", util.GetQidOwn(config.Conf.InstanceID))
+		_, err = conn.Exec(context.Background(), fmt.Sprintf("create user user_1768377310 pass '%s'", pass), util.GetQidOwn(config.Conf.InstanceID))
+		assert.NoError(t, err)
+
+		conn1, err := NewConnector("user_1768377310", pass, "localhost", 6041, false)
+		assert.NoError(t, err)
+
+		_, err = conn1.Query(context.Background(), "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
+		assert.NoError(t, err)
+		conn1.Close()
+
+		conn2, err := NewConnectorWithDb("user_1768377310", pass, "localhost", 6041, "", false)
+		assert.NoError(t, err)
+
+		_, err = conn2.Query(context.Background(), "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
+		assert.NoError(t, err)
+		conn2.Close()
+
+		_, err = conn.Exec(context.Background(), "drop user user_1768377310", util.GetQidOwn(config.Conf.InstanceID))
+		assert.NoError(t, err)
 	}
 }
