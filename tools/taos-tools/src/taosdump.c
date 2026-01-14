@@ -297,6 +297,9 @@ static char *typeToStr(int type) {
             return "varbinary";
         case TSDB_DATA_TYPE_GEOMETRY:
             return "geometry";
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
+            return "decimal";
         default:
             break;
     }
@@ -344,6 +347,8 @@ int typeStrToType(const char *type_str) {
         return TSDB_DATA_TYPE_VARBINARY;
     } else if (0 == strcasecmp(type_str, "geometry")) {
         return TSDB_DATA_TYPE_GEOMETRY;
+    } else if (0 == strcasecmp(type_str, "decimal")) {
+        return TSDB_DATA_TYPE_DECIMAL;
     } else {
         errorPrint("%s() LN%d Unknown type: %s\n",
                 __func__, __LINE__, type_str);
@@ -1335,6 +1340,8 @@ int processFieldsValueV3(
 
         case TSDB_DATA_TYPE_FLOAT:
         case TSDB_DATA_TYPE_DOUBLE:
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
             memset(tableDes->cols[index].value, 0,
                     sizeof(tableDes->cols[index].value));
 
@@ -2717,6 +2724,13 @@ static int convertTbDesToJsonImplMore(
                     colOrTag, i-adjust, "double");
             break;
 
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
+            ret = sprintf(pstr,
+                    "{\"name\":\"%s%d\",\"type\":[\"null\",\"%s\"]",
+                    colOrTag, i-adjust, "string");
+            break;
+
         case TSDB_DATA_TYPE_TIMESTAMP:
             ret = sprintf(pstr,
                     "{\"name\":\"%s%d\",\"type\":[\"null\",\"%s\"]",
@@ -3281,12 +3295,14 @@ int processValueToAvro(
             }
             break;
         case TSDB_DATA_TYPE_BINARY:
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
             if (NULL == value) {
                 avro_value_set_branch(&avro_value, 0, &branch);
                 avro_value_set_null(&branch);
             } else {
                 avro_value_set_branch(&avro_value, 1, &branch);
-                char *binTemp = calloc(1, 1+bytes);
+                char *binTemp = calloc(1, 1+len);
                 TOOLS_ASSERT(binTemp);
                 strncpy(binTemp, (char*)value, len);
                 avro_value_set_string(&branch, binTemp);
@@ -3480,7 +3496,10 @@ static void freeBindArray(char *bindArray, int elements) {
                 && (TSDB_DATA_TYPE_VARBINARY != bind->buffer_type)
                 && (TSDB_DATA_TYPE_GEOMETRY  != bind->buffer_type)
                 && (TSDB_DATA_TYPE_NCHAR     != bind->buffer_type)
-                && (TSDB_DATA_TYPE_JSON      != bind->buffer_type)) {
+                && (TSDB_DATA_TYPE_JSON      != bind->buffer_type)
+                && (TSDB_DATA_TYPE_DECIMAL   != bind->buffer_type)
+                && (TSDB_DATA_TYPE_DECIMAL64 != bind->buffer_type)
+            ) {
             tfree(bind->buffer);
         }
     }
@@ -4341,6 +4360,8 @@ static int64_t dumpInAvroTbTagsImpl(
                                            curr_sqlstr_len);
                             break;
                         case TSDB_DATA_TYPE_BINARY:
+                        case TSDB_DATA_TYPE_DECIMAL:
+                        case TSDB_DATA_TYPE_DECIMAL64:
                             curr_sqlstr_len = dumpInAvroTagBinary(
                                          field, &field_value, sqlstr,
                                            curr_sqlstr_len);
@@ -5490,12 +5511,15 @@ static int64_t dumpInAvroDataImpl(
                         }
                         break;
                     case TSDB_DATA_TYPE_BINARY:
-                        if (field->type != TSDB_DATA_TYPE_BINARY) {
-                            warnPrint("field[%d] type is not binary!\n", i);
-                            bind->is_null = &is_null;
+                        if (field->type == TSDB_DATA_TYPE_BINARY
+                            || field->type == TSDB_DATA_TYPE_DECIMAL
+                            || field->type == TSDB_DATA_TYPE_DECIMAL64
+                        ) {
+                            dumpInAvroDataBinary(field, &field_value, bind, &is_null);
+;
                         } else {
-                            dumpInAvroDataBinary(field, &field_value,
-                                    bind, &is_null);
+                            warnPrint("field[%d] type is not binary/decimal! field->type=%d\n", i, field->type);
+                            bind->is_null = &is_null;
                         }
                         break;
                     case TSDB_DATA_TYPE_JSON:
@@ -6150,6 +6174,8 @@ int processResultValue(
         case TSDB_DATA_TYPE_BINARY:
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_GEOMETRY:
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
             {
                 char *bbuf = calloc(1, TSDB_MAX_ALLOWED_SQL_LEN);
                 if (NULL == bbuf) {
@@ -7019,6 +7045,8 @@ static int createMTableAvroHeadImp(
                 break;
 
             case TSDB_DATA_TYPE_BINARY:
+            case TSDB_DATA_TYPE_DECIMAL:
+            case TSDB_DATA_TYPE_DECIMAL64:
                 if (0 == strncmp(
                             subTableDes->cols[subTableDes->columns+tag].note,
                             "NUL", 3)) {
@@ -7555,6 +7583,8 @@ static int writeTagsToAvro(
                 break;
 
             case TSDB_DATA_TYPE_BINARY:
+            case TSDB_DATA_TYPE_DECIMAL:
+            case TSDB_DATA_TYPE_DECIMAL64:
                 if (0 == strncmp(
                             tbDes->cols[tbDes->columns+tag].note,
                             "NUL", 3)) {
