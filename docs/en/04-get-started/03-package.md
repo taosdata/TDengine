@@ -28,7 +28,7 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    <TabItem label=".deb" value="debinst">
 
    1. Download the .deb installation package:
-      <PkgList productName="TDengine TSDB-OSS" version="3.3.6.13" platform="Linux-Ubuntu"/>
+      <PkgList productName="TDengine TSDB-OSS" platform="Linux-Ubuntu"/>
    2. Run the following command to install TDengine:
 
       ```bash
@@ -42,7 +42,7 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    <TabItem label=".rpm" value="rpminst">
 
    1. Download the .rpm installation package:
-      <PkgList productName="TDengine TSDB-OSS" version="3.3.6.13" platform="Linux-Red Hat"/>
+      <PkgList productName="TDengine TSDB-OSS" platform="Linux-Red Hat"/>
    2. Run the following command to install TDengine:
 
       ```bash
@@ -56,7 +56,7 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    <TabItem label=".tar.gz" value="tarinst">
 
    1. Download the desired .tar.gz package from the following list:
-      <PkgList productName="TDengine TSDB-OSS" version="3.3.6.13" platform="Linux-Generic"/>
+      <PkgList productName="TDengine TSDB-OSS" platform="Linux-Generic"/>
    2. Run the following command to decompress the package:
 
       ```bash
@@ -106,7 +106,7 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    :::
 
    1. Download the Windows installation package:
-      <PkgList productName="TDengine TSDB-OSS Client" version="3.3.6.13" platform="Windows"/>
+      <PkgList productName="TDengine TSDB-OSS Client" platform="Windows"/>
    2. Run the installation package to install TDengine.
 
    </TabItem>
@@ -114,7 +114,7 @@ The TDengine OSS installation package is provided for Linux users in .deb, .rpm,
    <TabItem label="macOS" value="macos">
 
    1. Download the desired installation package from the following list:
-      <PkgList productName="TDengine TSDB-OSS" version="3.3.6.13" platform="macOS"/>
+      <PkgList productName="TDengine TSDB-OSS" platform="macOS"/>
    2. Run the installation package to install TDengine.
 
       :::note
