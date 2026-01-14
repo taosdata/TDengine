@@ -581,6 +581,8 @@ typedef struct SFillNode {
   SNode*      pWStartTs;  // _wstart pseudo column
   STimeWindow timeRange;
   SNode*      pTimeRange; // STimeRangeNode for create stream
+  // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
+  SNode*      pSurroundingTime;
 } SFillNode;
 
 typedef struct SWhenThenNode {

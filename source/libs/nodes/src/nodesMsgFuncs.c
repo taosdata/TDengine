@@ -4236,8 +4236,7 @@ enum {
   PHY_INERP_FUNC_CODE_FILL_MODE,
   PHY_INERP_FUNC_CODE_FILL_VALUES,
   PHY_INERP_FUNC_CODE_TIME_SERIES,
-  PHY_INTERP_FUNC_CODE_RANGE_INTERVAL,
-  PHY_INTERP_FUNC_CODE_RANGE_INTERVAL_UNIT,
+  PHY_INTERP_FUNC_CODE_SURROUNDING_TIME,
   PHY_INERP_FUNC_CODE_TIME_RANGE_EXPR,
 };
 
@@ -4273,10 +4272,7 @@ static int32_t physiInterpFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder)
     code = tlvEncodeObj(pEncoder, PHY_INERP_FUNC_CODE_TIME_SERIES, nodeToMsg, pNode->pTimeSeries);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI64(pEncoder, PHY_INTERP_FUNC_CODE_RANGE_INTERVAL, pNode->rangeInterval);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI8(pEncoder, PHY_INTERP_FUNC_CODE_RANGE_INTERVAL_UNIT, pNode->rangeIntervalUnit);
+    code = tlvEncodeI64(pEncoder, PHY_INTERP_FUNC_CODE_SURROUNDING_TIME, pNode->surroundingTime);
   }
 
   return code;
@@ -4319,11 +4315,8 @@ static int32_t msgToPhysiInterpFuncNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_INERP_FUNC_CODE_TIME_SERIES:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTimeSeries);
         break;
-      case PHY_INTERP_FUNC_CODE_RANGE_INTERVAL:
-        code = tlvDecodeI64(pTlv, &pNode->rangeInterval);
-        break;
-      case PHY_INTERP_FUNC_CODE_RANGE_INTERVAL_UNIT:
-        code = tlvDecodeI8(pTlv, &pNode->rangeIntervalUnit);
+      case PHY_INTERP_FUNC_CODE_SURROUNDING_TIME:
+        code = tlvDecodeI64(pTlv, &pNode->surroundingTime);
         break;
       default:
         break;

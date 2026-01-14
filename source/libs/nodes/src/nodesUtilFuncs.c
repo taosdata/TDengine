@@ -1455,6 +1455,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pFill->pValues);
       nodesDestroyNode(pFill->pWStartTs);
       nodesDestroyNode(pFill->pTimeRange);
+      nodesDestroyNode(pFill->pSurroundingTime);
       break;
     }
     case QUERY_NODE_RAW_EXPR:
@@ -2247,6 +2248,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pWStartTs);
       nodesDestroyNode(pLogicNode->pValues);
       nodesDestroyNode(pLogicNode->pTimeRange);
+      nodesDestroyNode(pLogicNode->pSurroundingTime);
       nodesDestroyList(pLogicNode->pFillExprs);
       nodesDestroyList(pLogicNode->pNotFillExprs);
       nodesDestroyList(pLogicNode->pFillNullExprs);
@@ -2455,6 +2457,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pValues);
       nodesDestroyList(pPhyNode->pFillNullExprs);
       nodesDestroyNode(pPhyNode->pTimeRange);
+      nodesDestroyNode(pPhyNode->pSurroundingTime);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:

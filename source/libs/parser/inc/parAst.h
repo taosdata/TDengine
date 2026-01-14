@@ -236,6 +236,9 @@ SNode*     createSlidingWindowNode(SAstCreateContext* pCxt, SNode* pSlidingVal, 
 SNode*     createPeriodWindowNode(SAstCreateContext* pCxt, SNode* pPeriodTime, SNode* pOffset);
 SNode*     createWindowOffsetNode(SAstCreateContext* pCxt, SNode* pStartOffset, SNode* pEndOffset);
 SNode*     createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);
+SNode*     createFillNodeWithSurroundingTime(SAstCreateContext* pCxt,
+                                             EFillMode mode, SNode* pValues,
+                                             SNode* pSurroundingTime);
 SNode*     createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode);
 SNode*     createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval);
 SNode*     createInterpTimePoint(SAstCreateContext* pCxt, SNode* pPoint);
