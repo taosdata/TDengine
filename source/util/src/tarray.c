@@ -125,25 +125,6 @@ void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
   return dst;
 }
 
-int32_t taosArrayAddZeroData(SArray* pArray, int32_t nEles) {
-  int32_t code = 0;
-  if (pArray == NULL || nEles < 0) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return terrno;
-  }
-  if (pArray->size + nEles > pArray->capacity) {
-    code = taosArrayEnsureCap(pArray, pArray->size + nEles);
-    if (code) {
-      terrno = code;
-      return code;
-    }
-  }
-  void* dst = TARRAY_GET_ELEM(pArray, pArray->size);
-  memset(dst, 0, nEles * pArray->elemSize);
-  pArray->size += nEles;
-  return 0;
-}
-
 void taosArrayRemoveDuplicate(SArray* pArray, __compar_fn_t comparFn, void (*fp)(void*)) {
   size_t size = pArray->size;
   if (size <= 1) {
@@ -193,7 +174,12 @@ void* taosArrayAddAll(SArray* pArray, const SArray* pInput) {
 }
 
 void* taosArrayReserve(SArray* pArray, int32_t num) {
-  int32_t code = taosArrayEnsureCap(pArray, pArray->size + num);
+  int32_t code = 0;
+  if (pArray == NULL || num < 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  code = taosArrayEnsureCap(pArray, pArray->size + num);
   if (code) {
     terrno = code;
     return NULL;
