@@ -141,7 +141,7 @@ sudo apt install build-essential
 
 1. Download the tar.gz package from the list:
 
-   <PkgList productName="TDengine TDgpt-OSS" version="3.3.8.8" platform="Linux-Generic"/>
+   <PkgList productName="TDengine TDgpt-OSS" platform="Linux-Generic" />
 
    This package contains the TDtsfm and Time-MoE foundation models for time series. Ensure that you have 16 GB of disk space available to store the models.
   
