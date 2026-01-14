@@ -196,7 +196,7 @@ Below are the business error codes for each module.
 | 0x80000357 | Authentication failure                                       | Incorrect password                                           | Confirm if the operation is correct                          |
 | 0x80000358 | User not available                                           | User does not exist                                          | Confirm if the operation is correct                          |
 | 0x8000035B | Wrong TOTP code                                              | TOTP code not provided or wrong TOTP code                    | Check and enter the correct TOTP code                        |
-| 0x8000035E | TOTP secret not exists                                       | TOTP is not enabled and TOTP secret is not exists            | Confirm if the operation is correct                          |
+| 0x8000035E | TOTP secret not exists                                       | TOTP secret does not exist for the user                      | Confirm if the operation is correct                          |
 | 0x80000360 | STable already exists                                        | Internal error                                               | Report issue                                                 |
 | 0x80000361 | STable not exist                                             | Internal error                                               | Report issue                                                 |
 | 0x80000364 | Too many tags                                                | Too many tags                                                | Cannot be modified, code-level restriction                   |
