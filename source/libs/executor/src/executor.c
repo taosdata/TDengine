@@ -686,19 +686,23 @@ void qDestroyOperatorParam(SOperatorParam* pParam) {
   freeOperatorParam(pParam, OP_GET_PARAM);
 }
 
-void qUpdateOperatorParam(qTaskInfo_t tinfo, void** ppParam) {
+/**
+  @brief Update the operator param for the task.
+  @note  Unlike setOperatorParam, this function will destroy the new param when
+         operator type mismatch.
+*/
+void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
   SExecTaskInfo* pTask = (SExecTaskInfo*)tinfo;
-  SOperatorParam* pNewParam = (SOperatorParam*)*ppParam;
+  SOperatorParam* pNewParam = (SOperatorParam*)pParam;
   if (pTask->pRoot && pTask->pRoot->operatorType != pNewParam->opType) {
     qError("%s, %s operator type mismatch, task operator type:%d, "
            "new param operator type:%d", GET_TASKID(pTask), __func__,
            pTask->pRoot->operatorType,
            pNewParam->opType);
-    qDestroyOperatorParam(pNewParam);
-    *ppParam = NULL;
+    qDestroyOperatorParam((SOperatorParam*)pParam);
     return;
   }
-  TSWAP(*ppParam, pTask->pOpParam);
+  TSWAP(pParam, pTask->pOpParam);
   ((SExecTaskInfo*)tinfo)->paramSet = false;
 }
 

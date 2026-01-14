@@ -169,7 +169,7 @@ bool qIsDynamicExecTask(qTaskInfo_t tinfo);
 
 void qDestroyOperatorParam(SOperatorParam* pParam);
 
-void qUpdateOperatorParam(qTaskInfo_t tinfo, void** pParam);
+void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
 
 /**
  * Create the exec task object according to task json

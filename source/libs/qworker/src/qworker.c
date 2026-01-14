@@ -6,7 +6,6 @@
 #include "query.h"
 #include "qwInt.h"
 #include "qwMsg.h"
-#include "taoserror.h"
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "tglobal.h"
@@ -536,7 +535,7 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
   dsReset(ctx->sinkHandle);
   QW_SINK_DISABLE_MEMPOOL();
 
-  qUpdateOperatorParam(ctx->taskHandle, (void**)&qwMsg->msg);
+  qUpdateOperatorParam(ctx->taskHandle, (void*)qwMsg->msg);
 
   QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
 
@@ -553,16 +552,16 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
 }
 
 /**
-  @brief update the operator param from the notify msg
-  NOTE: to avoid use-after-free error, we need to lock the ctx
-        before updating the operator param
+  @brief Update the operator param from the notify msg.
+  @note  To avoid use-after-free error, we need to lock the ctx
+         before updating the operator param.
 */
 int32_t qwUpdateTaskOperatorParamFromMsg(QW_FPARAMS_DEF, SQWTaskCtx* ctx,
                                          SQWMsg* qwMsg) {
   QW_LOCK(QW_WRITE, &ctx->lock);
 
   if (!ctx->queryEnd && ctx->taskHandle != NULL) {
-    qUpdateOperatorParam(ctx->taskHandle, (void**)&qwMsg->msg);
+    qUpdateOperatorParam(ctx->taskHandle, (void*)qwMsg->msg);
   } else {
     qDestroyOperatorParam(qwMsg->msg);
   }

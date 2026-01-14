@@ -3874,8 +3874,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   }
 
   if (req.pOpParam != NULL) {
-    qUpdateOperatorParam(sStreamReaderCalcInfo->pTaskInfo,
-                         (void**)&req.pOpParam);
+    qUpdateOperatorParam(sStreamReaderCalcInfo->pTaskInfo, (void*)req.pOpParam);
   }
 
   pResList = taosArrayInit(4, POINTER_BYTES);
