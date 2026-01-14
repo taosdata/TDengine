@@ -3,7 +3,7 @@ title: Installation
 sidebar_label: Installation
 ---
 
-import PkgListV3 from "/components/PkgListV3";
+import PkgList from "/src/components/PkgList";
 
 This section describes how to use TDgpt in Docker
 
@@ -31,7 +31,7 @@ docker pull tdengine/tdgpt:latest
 You can specify a version if desired:
 
 ```shell
-docker pull tdengine/tdgpt:3.3.7.0
+docker pull tdengine/tdgpt:3.3.8.0
 ```
 
 Start the container:
@@ -40,7 +40,7 @@ Start the container:
 docker run -d \
   -p 6035:6035 \
   -p 6036:6036 \
-  tdengine/tdgpt:3.3.7.0
+  tdengine/tdgpt:3.3.8.0
 ```
 
 :::note
@@ -60,13 +60,13 @@ docker pull tdengine/tdgpt-full:latest
 You can specify a version if desired:
 
 ```shell
-docker pull tdengine/tdgpt-full:3.3.7.0
+docker pull tdengine/tdgpt-full:3.3.8.0
 ```
 
 Start the container:
 
 ```shell
-docker run -d -p 6035:6035 -p 6036:6036 -p 6037:6037 tdengine/tdgpt-full:3.3.7.0
+docker run -d -p 6035:6035 -p 6036:6036 -p 6037:6037 tdengine/tdgpt-full:3.3.8.0
 ```
 
 Note: TDgpt runs on TCP port 6035. The standard image also uses port 6036, and the full image uses port 6037.
@@ -141,7 +141,7 @@ sudo apt install build-essential
 
 1. Download the tar.gz package from the list:
 
-   <PkgListV3 type={9}/>
+   <PkgListV3 productName="TDengine TDgpt-OSS" version="3.3.8.8" platform="Linux-Generic"/>
 
    This package contains the TDtsfm and Time-MoE foundation models for time series. Ensure that you have 16 GB of disk space available to store the models.
   
