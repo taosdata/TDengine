@@ -1891,20 +1891,30 @@ _err:
 }
 
 SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues) {
+  return createFillNodeWithSurroundingTime(pCxt, mode, pValues, NULL);
+}
+
+SNode* createFillNodeWithSurroundingTime(SAstCreateContext* pCxt,
+                                         EFillMode mode, SNode* pValues,
+                                         SNode* pSurroundingTime) {
   SFillNode* fill = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FILL, (SNode**)&fill);
   CHECK_MAKE_NODE(fill);
   fill->mode = mode;
   fill->pValues = pValues;
+  fill->pSurroundingTime = pSurroundingTime;
   fill->pWStartTs = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&(fill->pWStartTs));
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION,
+                                (SNode**)&(fill->pWStartTs));
   CHECK_MAKE_NODE(fill->pWStartTs);
-  tstrncpy(((SFunctionNode*)fill->pWStartTs)->functionName, "_wstart", TSDB_FUNC_NAME_LEN);
+  tstrncpy(((SFunctionNode*)fill->pWStartTs)->functionName, "_wstart",
+           TSDB_FUNC_NAME_LEN);
   return (SNode*)fill;
 _err:
   nodesDestroyNode((SNode*)fill);
   nodesDestroyNode(pValues);
+  nodesDestroyNode(pSurroundingTime);
   return NULL;
 }
 
