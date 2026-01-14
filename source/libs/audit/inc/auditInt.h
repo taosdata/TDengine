@@ -27,6 +27,8 @@ typedef struct {
   TdThreadRwlock  infoLock;
   char            auditDB[TSDB_DB_FNAME_LEN];
   char            auditToken[TSDB_TOKEN_LEN];
+  mndGetDnodeEpsetByIdFn fn;
+  void *pMnode;
 } SAudit;
 
 #endif /*_TD_AUDIT_INT_H_*/

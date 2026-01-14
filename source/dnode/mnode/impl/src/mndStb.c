@@ -757,6 +757,7 @@ int32_t mndSetCreateStbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, S
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
+  mInfo("trans:%d, add stb to commit log", pTrans->id);
   if ((code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
     sdbFreeRaw(pCommitRaw);
     TAOS_RETURN(code);
@@ -798,6 +799,7 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     action.msgType = TDMT_VND_CREATE_STB;
     action.acceptableCode = TSDB_CODE_TDB_STB_ALREADY_EXIST;
     action.retryCode = TSDB_CODE_TDB_STB_NOT_EXIST;
+    mInfo("trans:%d, add create stb to redo action", pTrans->id);
     if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
       taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
@@ -868,6 +870,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     action.contLen = contLen;
     action.msgType = TDMT_VND_DROP_STB;
     action.acceptableCode = TSDB_CODE_TDB_STB_NOT_EXIST;
+    mInfo("trans:%d, add drop stb to undo action", pTrans->id);
     if ((code = mndTransAppendUndoAction(pTrans, &action)) != 0) {
       taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
@@ -1038,6 +1041,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
 
   SSchema *pSchema = &(stbObj.pTags[0]);
   if (mndGenIdxNameForFirstTag(fullIdxName, pDb->name, stbObj.name, pSchema->name) < 0) {
+    code = terrno;
     goto _OVER;
   }
   SSIdx idx = {0};
@@ -1067,7 +1071,223 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
 
 _OVER:
   mndTransDrop(pTrans);
-  if (mndStbActionDelete(pMnode->pSdb, &stbObj) != 0) mError("failed to mndStbActionDelete");
+  TAOS_RETURN(code);
+}
+
+int32_t mndBuildAuditStb(SMnode *pMnode, SStbObj *pDst, SDbObj *pDb) {
+  int32_t code = 0;
+  bool    hasTypeMods = false;
+  char   *name = "operations";  // TODO dmchen "operations"
+  (void)tsnprintf(pDst->name, TSDB_TABLE_FNAME_LEN, "%s.%s", pDb->name, name);
+  memcpy(pDst->db, pDb->name, TSDB_DB_FNAME_LEN);
+  pDst->createdTime = taosGetTimestampMs();
+  pDst->updateTime = pDst->createdTime;
+  pDst->uid = mndGenerateUid(name, TSDB_TABLE_FNAME_LEN);
+  pDst->dbUid = pDb->uid;
+  pDst->tagVer = 1;
+  pDst->colVer = 1;
+  pDst->smaVer = 1;
+  pDst->nextColId = 1;
+  /*
+  pDst->maxdelay[0] = pCreate->delay1;
+  pDst->maxdelay[1] = pCreate->delay2;
+  pDst->watermark[0] = pCreate->watermark1;
+  pDst->watermark[1] = pCreate->watermark2;
+  pDst->ttl = pCreate->ttl;
+  pDst->keep = pCreate->keep;
+  pDst->source = pCreate->source;
+  pDst->virtualStb = pCreate->virtualStb;
+  */ //TODO dmchen
+  pDst->numOfColumns = 8;
+  pDst->numOfTags = 1;
+  pDst->numOfFuncs = 0;
+  pDst->commentLen = 0;
+  pDst->pFuncs = NULL;
+
+  pDst->ast1Len = 0;
+  pDst->ast2Len = 0;
+
+  pDst->pColumns = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SSchema));
+  pDst->pTags = taosMemoryCalloc(1, pDst->numOfTags * sizeof(SSchema));
+  if (pDst->pColumns == NULL || pDst->pTags == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  if (pDst->nextColId < 0 || pDst->nextColId >= 0x7fff - pDst->numOfColumns - pDst->numOfTags) {
+    code = TSDB_CODE_OUT_OF_RANGE;
+    TAOS_RETURN(code);
+  }
+
+  SSchema *pSchema = &pDst->pColumns[0];
+  pSchema->type = TSDB_DATA_TYPE_TIMESTAMP;
+  pSchema->bytes = 8;
+  // pSchema->flags = pField->flags;
+  memcpy(pSchema->name, "ts", TSDB_COL_NAME_LEN);
+  pSchema->colId = pDst->nextColId;
+  pDst->nextColId++;
+  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
+
+  pSchema = &pDst->pColumns[1];
+  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
+  pSchema->bytes = 100;
+  // pSchema->flags = pField->flags;
+  memcpy(pSchema->name, "details", TSDB_COL_NAME_LEN);
+  pSchema->colId = pDst->nextColId;
+  pDst->nextColId++;
+  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
+
+  pSchema = &pDst->pColumns[2];
+  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
+  pSchema->bytes = 25;
+  // pSchema->flags = pField->flags;
+  memcpy(pSchema->name, "user", TSDB_COL_NAME_LEN);
+  pSchema->colId = pDst->nextColId;
+  pDst->nextColId++;
+  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
+
+  pSchema = &pDst->pColumns[3];
+  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
+  pSchema->bytes = 20;
+  // pSchema->flags = pField->flags;
+  memcpy(pSchema->name, "Operation", TSDB_COL_NAME_LEN);
+  pSchema->colId = pDst->nextColId;
+  pDst->nextColId++;
+  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
+
+  pSchema = &pDst->pColumns[4];
+  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
+  pSchema->bytes = 65;
+  // pSchema->flags = pField->flags;
+  memcpy(pSchema->name, "db", TSDB_COL_NAME_LEN);
+  pSchema->colId = pDst->nextColId;
+  pDst->nextColId++;
+  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
+
+  pSchema = &pDst->pColumns[5];
+  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
+  pSchema->bytes = 193;
+  // pSchema->flags = pField->flags;
+  memcpy(pSchema->name, "resource", TSDB_COL_NAME_LEN);
+  pSchema->colId = pDst->nextColId;
+  pDst->nextColId++;
+  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
+
+  pSchema = &pDst->pColumns[6];
+  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
+  pSchema->bytes = 193;
+  // pSchema->flags = pField->flags;
+  memcpy(pSchema->name, "resource", TSDB_COL_NAME_LEN);
+  pSchema->colId = pDst->nextColId;
+  pDst->nextColId++;
+  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
+
+  pSchema = &pDst->pColumns[7];
+  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
+  pSchema->bytes = 25;
+  // pSchema->flags = pField->flags;
+  memcpy(pSchema->name, "client_address", TSDB_COL_NAME_LEN);
+  pSchema->colId = pDst->nextColId;
+  pDst->nextColId++;
+  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
+
+  pSchema = &pDst->pColumns[8];
+  pSchema->type = TSDB_DATA_TYPE_DOUBLE;
+  pSchema->bytes = 25;
+  // pSchema->flags = pField->flags;
+  memcpy(pSchema->name, "duration", TSDB_COL_NAME_LEN);
+  pSchema->colId = pDst->nextColId;
+  pDst->nextColId++;
+  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
+
+  pSchema = &pDst->pColumns[9];
+  pSchema->type = TSDB_DATA_TYPE_BIGINT;
+  pSchema->bytes = 25;
+  // pSchema->flags = pField->flags;
+  memcpy(pSchema->name, "affected_rows", TSDB_COL_NAME_LEN);
+  pSchema->colId = pDst->nextColId;
+  pDst->nextColId++;
+  // hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
+
+  pSchema = &pDst->pTags[0];
+  pSchema->type = TSDB_DATA_TYPE_VARCHAR;
+  pSchema->bytes = 64;
+  SSCHMEA_SET_IDX_ON(pSchema);
+  memcpy(pSchema->name, "clusterID", TSDB_COL_NAME_LEN);
+  pSchema->colId = pDst->nextColId;
+  pDst->nextColId++;
+
+  /*
+  // set col compress
+  pDst->pCmpr = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SCmprObj));
+  for (int32_t i = 0; i < pDst->numOfColumns; i++) {
+    SFieldWithOptions *pField = taosArrayGet(pCreate->pColumns, i);
+    SSchema           *pSchema = &pDst->pColumns[i];
+
+    SColCmpr *pColCmpr = &pDst->pCmpr[i];
+    pColCmpr->id = pSchema->colId;
+    pColCmpr->alg = pField->compress;
+  }
+
+  if (hasTypeMods) {
+    pDst->pExtSchemas = taosMemoryCalloc(pDst->numOfColumns, sizeof(SExtSchema));
+    if (!pDst->pExtSchemas) {
+      code = terrno;
+      TAOS_RETURN(code);
+    }
+    for (int32_t i = 0; i < pDst->numOfColumns; ++i) {
+      SFieldWithOptions *pField = taosArrayGet(pCreate->pColumns, i);
+      pDst->pExtSchemas[i].typeMod = pField->typeMod;
+    }
+  }
+    */
+  TAOS_RETURN(code);
+}
+
+int32_t mndCreateAuditStb(SMnode *pMnode, SDbObj *pDb, SUserObj *pOperUser, STrans *pTrans) {
+  SStbObj stbObj = {0};
+  int32_t code = -1;
+
+  char fullIdxName[TSDB_INDEX_FNAME_LEN * 2] = {0};
+
+  // TAOS_CHECK_GOTO(mndBuildAuditStb(pMnode, &stbObj, pDb), NULL, _OVER);
+  memcpy(stbObj.createUser, pOperUser->name, TSDB_USER_LEN);
+  stbObj.ownerId = pOperUser->uid;
+
+  /*
+  SSchema *pSchema = &(stbObj.pTags[0]);
+  if (mndGenIdxNameForFirstTag(fullIdxName, pDb->name, stbObj.name, pSchema->name) < 0) {
+    code = terrno;
+    goto _OVER;
+  }
+
+
+  SSIdx idx = {0};
+  if (mndAcquireGlobalIdx(pMnode, fullIdxName, SDB_IDX, &idx) == 0 && idx.pIdx != NULL) {
+    code = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
+    mndReleaseIdx(pMnode, idx.pIdx);
+    goto _OVER;
+  }
+
+  SIdxObj idxObj = {0};
+  memcpy(idxObj.name, fullIdxName, TSDB_INDEX_FNAME_LEN);
+  memcpy(idxObj.stb, stbObj.name, TSDB_TABLE_FNAME_LEN);
+  memcpy(idxObj.db, stbObj.db, TSDB_DB_FNAME_LEN);
+  memcpy(idxObj.colName, pSchema->name, TSDB_COL_NAME_LEN);
+  memcpy(idxObj.createUser, pOperUser->name, TSDB_USER_LEN);
+  idxObj.ownerId = pOperUser->uid;
+  idxObj.createdTime = taosGetTimestampMs();
+  idxObj.uid = mndGenerateUid(fullIdxName, strlen(fullIdxName));
+  idxObj.stbUid = stbObj.uid;
+  idxObj.dbUid = stbObj.dbUid;
+
+  TAOS_CHECK_GOTO(mndSetCreateIdxCommitLogs(pMnode, pTrans, &idxObj), NULL, _OVER);
+*/
+  TAOS_CHECK_GOTO(mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj), NULL, _OVER);
+
+  code = 0;
+
+_OVER:
   TAOS_RETURN(code);
 }
 
