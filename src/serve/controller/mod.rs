@@ -3586,9 +3586,14 @@ impl std::ops::DerefMut for Labels {
 
 impl Task {
     fn contains_label(&self, label: &str) -> bool {
+        let root_query = label == "user::root";
         self.labels
             .as_deref()
-            .map(|labels| labels.iter().any(|e| e == label))
+            .map(|labels| {
+                labels
+                    .iter()
+                    .any(|e| (e.starts_with("user::") && root_query) || e == label)
+            })
             .unwrap_or(false)
     }
 
