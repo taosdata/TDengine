@@ -160,15 +160,15 @@ class TestTaosdAudit:
         # time.sleep(2)
 
         tdLog.info("create audit database")
-        sql = "create database audit is_audit 1 wal_level 2 ENCRYPT_ALGORITHM 'SM4-CBC';"
+        sql = "create database `audit` is_audit 1 wal_level 2 ENCRYPT_ALGORITHM 'SM4-CBC';"
         tdSql.query(sql)
 
-        tdLog.info("create user audit pass '123456Ab@' sysinfo 0;")
-        sql = "create user audit pass '123456Ab@' sysinfo 0;"
+        tdLog.info("create user `audit` pass '123456Ab@' sysinfo 0;")
+        sql = "create user `audit` pass '123456Ab@' sysinfo 0;"
         tdSql.query(sql)
 
-        tdLog.info("create token audit_token from user audit;")
-        sql = "create token audit_token from user audit;"
+        tdLog.info("create token audit_token from user `audit`;")
+        sql = "create token audit_token from user `audit`;"
         tdSql.query(sql)
 
         time.sleep(3)

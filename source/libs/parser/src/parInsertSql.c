@@ -4707,6 +4707,10 @@ static int32_t buildInsertDbReq(SName* pName, SArray** pDbs) {
 }
 
 static int32_t buildInsertUserAuthReq(SParseContext* pCxt, SName* pName, SArray** pUserAuth) {
+  if(pUserAuth == NULL) {
+    assert(0);
+    return TSDB_CODE_INVALID_PARA;
+  } 
   *pUserAuth = taosArrayInit(1, sizeof(SUserAuthInfo));
   if (NULL == *pUserAuth) {
     return terrno;
