@@ -1029,6 +1029,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   TAOS_CHECK_GOTO(mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups, pNewUserDuped), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateDbUndoActions(pMnode, pTrans, &dbObj, pVgroups), NULL, _OVER);
+
+  // if (dbObj.cfg.isAudit) {
+  if (tsAuditSaveInSelf) {
+    TAOS_CHECK_GOTO(mndCreateAuditStb(pMnode, &dbObj, pUser, pTrans, pVgroups), NULL, _OVER);
+  }
+  //}
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
 _OVER:
