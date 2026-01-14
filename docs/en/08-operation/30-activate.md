@@ -16,9 +16,9 @@ This document describes how to activate a TDengine TSDB-Enterprise license.
    ```sql
    SHOW CLUSTER MACHINES;
    ```
-   
+
    Sample output is displayed as follows:
-   
+
    ```text
             id         | dnode_num |          machine         | version  |
    =======================================================================
@@ -33,7 +33,7 @@ This document describes how to activate a TDengine TSDB-Enterprise license.
    - The desired term of the license
 
    Your account representative or reseller will send you an activation code that you use to activate your TDengine TSDB-Enterprise deployment.
-   
+
 1. Once you receive your activation code, log in to TDengine TSDB Explorer. The default URL is `http://127.0.0.1:6060`.
 
 1. From the main menu on the left, select **Management**. Open the **License** tab and click **Activate License**.
