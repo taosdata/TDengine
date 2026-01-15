@@ -205,7 +205,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window_state.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_ctb.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_ctb_window_state.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_ntb.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_ntb_window_state.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_group.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_project.py
@@ -766,7 +768,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py
 ,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py
 ,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
-,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
 ## 31-OldCases
 ,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py
 ,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py
@@ -818,12 +820,14 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_basic.py
 #,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_control.py # PRIV_TODO
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_crypted_pass.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_manager.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_password.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_create_db.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_db.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_sysinfo.py
 #,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_table.py # PRIV_TODO
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_topic.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py
 ,,n,.,pytest cases/24-Users/test_user_passwd.py
 
@@ -879,6 +883,7 @@
 # 42-xnode
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_systables.py
+,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_lifecycle.py
 
 # 70-Cluster
 

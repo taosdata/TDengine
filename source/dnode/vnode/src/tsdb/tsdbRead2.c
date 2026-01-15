@@ -4152,6 +4152,13 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
     if (notOverlapWithFiles(pBlockInfo, pScanInfo, asc)) {
       int64_t keyInStt = pScanInfo->sttKeyInfo.nextProcKey.ts;
 
+      // make sure the pSttBlock match the current data block
+      // actually the pSttBlockReader may not fit current data block, but 
+      // it's OK since we only need the clean datablock or clean stt block.
+      initSttBlockReader(pSttBlockReader, pScanInfo, pReader);
+      code = pReader->code;
+      TSDB_CHECK_CODE(code, lino, _end);
+
       if ((!hasDataInSttBlock(pScanInfo)) || (asc && pBlockInfo->lastKey < keyInStt) ||
           (!asc && pBlockInfo->firstKey > keyInStt)) {
         // the stt blocks may located in the gap of different data block, but the whole sttRange may overlap with the
