@@ -560,6 +560,12 @@ typedef enum EShowKind {
   SHOW_KIND_DATABASES_SYSTEM
 } EShowKind;
 
+typedef struct SSurroundNode {
+  ENodeType  type;       // QUERY_NODE_SURROUND
+  SNode*     pSurroundingTime;
+  SNode* pValues;
+} SSurroundNode;
+
 typedef struct SFillNode {
   ENodeType   type;  // QUERY_NODE_FILL
   EFillMode   mode;
