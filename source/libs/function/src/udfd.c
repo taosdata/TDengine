@@ -649,8 +649,7 @@ int32_t udfdNewUdf(SUdf **pUdf, const char *udfName) {
   }
   *pUdf = udfNew;
 
-  fnInfo("udf new succeeded. name %s(%p) type %d context %p", udfNew->name, udfNew, udfNew->scriptType,
-         (void *)udfNew->scriptUdfCtx);
+  fnInfo("udf new succeeded. name %s(%p)", udfNew->name, udfNew);
   return 0;
 }
 
@@ -668,8 +667,7 @@ void udfdFreeUdf(void *pData) {
 
   uv_mutex_destroy(&pSudf->lock);
   uv_cond_destroy(&pSudf->condReady);
-  fnInfo("udf free succeeded. name %s(%p) type %d context %p", pSudf->name, pSudf, pSudf->scriptType,
-         (void *)pSudf->scriptUdfCtx);
+  fnInfo("udf free succeeded. name %s(%p)", pSudf->name, pSudf);
   taosMemoryFree(pSudf);
 }
 
@@ -1007,6 +1005,7 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
     fnDebug("udfd destroy function returns %d", code);
     taosMemoryFree(udf);
+    fnInfo("udf free succeeded. name %s(%p)", pSudf->name, pSudf);
   }
 
 _send:
