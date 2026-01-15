@@ -2,6 +2,7 @@ import { sendSQLReq } from '@/api/explorer';
 import { DBFILED, HIDEDB, DBCustomedFiled } from '@/const.ts';
 import { request } from '@/utils/request.ts';
 import { executeDBOperations } from '@/api/explorer';
+import { trimEnd, trimStart } from 'lodash-es';
 
 /**
  * 先使用show databases获取列表
@@ -46,10 +47,31 @@ export async function getDatabaseVariables(key?: string) {
   }
 }
 
-export function getDBStruct(dbName: string) {
-  return executeDBOperations(`SELECT * FROM information_schema.ins_databases where name='${dbName}';`)
-    .then(data => data[0] || {})
-    .catch(() => ({}));
+function parseUsage(usage: string) {
+  if (!usage) return 'n/a';
+  const parts = usage.split('=');
+  if (parts.length !== 2) return usage;
+  return trimEnd(trimStart(parts[1], '['), ']');
+}
+export async function getDBStruct(dbName: string) {
+  const fields: Recordable = {};
+  try {
+    const disk_info = await executeDBOperations(`SHOW \`${dbName}\`.disk_info;`);
+    if (disk_info && disk_info.length >= 2) {
+      const compress_ratio = parseUsage(disk_info[0]._db_usage);
+      if (compress_ratio === "NULL") {
+        fields.compress_ratio = 'NULL (not flushed or no data)';
+      } else {
+        fields.compress_ratio = compress_ratio;
+      }
+      fields.disk_occupied = parseUsage(disk_info[1]._db_usage);
+    }
+  } catch (error) {
+    console.log('No disk_info table or error occurred:', error);
+  }
+  const data = await executeDBOperations(`SELECT * FROM information_schema.ins_databases where name='${dbName}';`);
+  Object.assign(fields, data[0] || {});
+  return fields;
 }
 
 export function deleteDBReq(dbName: string) {
