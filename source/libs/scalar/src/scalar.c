@@ -572,7 +572,7 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         typeMod = decimalCalcTypeMod(TSDB_DECIMAL_MAX_PRECISION, getScaleFromTypeMod(type, ctx->type.selfTypeMod));
       }
       
-      type = ctx->type.peerType;
+      //type = ctx->type.peerType;
       
       if (TSDB_DATA_TYPE_NULL != type) {
         if (IS_VAR_DATA_TYPE(ctx->type.selfType) && IS_NUMERIC_TYPE(type)) {
