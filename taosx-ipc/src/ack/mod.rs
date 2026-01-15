@@ -261,14 +261,12 @@ impl<W: Write> AckWriter<W> {
                     schema,
                     vec![
                         Arc::new(Int32Array::from(vec![ack.code])),
-                        Arc::new(BinaryArray::from(vec![ack
-                            .message
-                            .as_ref()
-                            .map(|s| s.as_bytes())])),
-                        Arc::new(BinaryArray::from(vec![ack
-                            .context
-                            .as_ref()
-                            .map(|s| s.as_bytes())])),
+                        Arc::new(BinaryArray::from(vec![
+                            ack.message.as_ref().map(|s| s.as_bytes()),
+                        ])),
+                        Arc::new(BinaryArray::from(vec![
+                            ack.context.as_ref().map(|s| s.as_bytes()),
+                        ])),
                     ],
                 )?;
                 writer.write(&batch)?;

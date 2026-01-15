@@ -1,6 +1,6 @@
-use anyhow::{anyhow, bail, Context};
+use anyhow::{Context, anyhow, bail};
 use archive::utils::files::read_parquet_file;
-use archive::{get_rewrite_files, Archive, ArchiveConsumer, ArchiveType, Cache};
+use archive::{Archive, ArchiveConsumer, ArchiveType, Cache, get_rewrite_files};
 use arrow::array::{Array, StringArray};
 use arrow::{datatypes::Schema, record_batch::RecordBatch};
 use arrow_compute_ext::RecordBatchExt;
@@ -14,12 +14,12 @@ use flume::Sender;
 use futures::future::Either;
 use futures_ext::OptionFuture;
 use futures_util::{Sink, Stream, StreamExt};
-use persist::{get_stream, PersistComponent, PersistComponents};
+use persist::{PersistComponent, PersistComponents, get_stream};
 use serde_json::json;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::path::PathBuf;
-use std::sync::atomic::AtomicU64;
 use std::sync::LazyLock;
+use std::sync::atomic::AtomicU64;
 use std::{
     any::Any,
     collections::{HashMap, HashSet},
@@ -32,23 +32,23 @@ use std::{
 };
 use taos::Precision;
 use taos::{
-    taos_query::{common::Describe, Manager},
     Itertools, Taos, TaosPool, Value,
+    taos_query::{Manager, common::Describe},
 };
-use taoslog::utils::QidMetadataGetter;
 use taoslog::QidManager;
+use taoslog::utils::QidMetadataGetter;
 use taosx_ipc::{prelude::*, stream::point::PointMessage};
 use tokio::sync::{Mutex, Notify, OnceCell};
 use tracing::{debug, error, info, instrument};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
-use crate::core_metrics::{get_metrics_arc_from_i64, get_metrics_arc_or};
 use crate::core_metrics::{CoreMetrics, TaskMetrics};
+use crate::core_metrics::{get_metrics_arc_from_i64, get_metrics_arc_or};
 use crate::plugins::runners::opc::config::OPCConfig;
 use crate::plugins::sink::point::model::PointModelConfig;
+use crate::plugins::transform::WrittenMethod;
 use crate::plugins::transform::archive_records;
 use crate::plugins::transform::handling_strategy::{HandlingResult, ProcessOnAbnormalEnum};
-use crate::plugins::transform::WrittenMethod;
 use crate::plugins::*;
 use crate::sink::flat::handle_sql_too_long;
 use crate::utils::breakpoints::BreakpointDb;
@@ -412,7 +412,9 @@ async fn consume_lush_record(
                                     .in_current_span()
                                     .await
                                 {
-                                    tracing::info!("Try to alter table {table_name} tag `{tagname}` error: {err:#}");
+                                    tracing::info!(
+                                        "Try to alter table {table_name} tag `{tagname}` error: {err:#}"
+                                    );
                                 }
                             }
                         }
@@ -666,8 +668,8 @@ async fn consume_lush_record(
                                             let stable_name = record.stable_name();
                                             if stable_name.is_none() {
                                                 tracing::error!(
-                                        "record should contains init message for stable name"
-                                    );
+                                                    "record should contains init message for stable name"
+                                                );
                                                 break;
                                             }
                                             let stable_name = stable_name.unwrap();
@@ -1072,10 +1074,10 @@ async fn consume_lush_record_with_transform(
 fn get_ts_from_sql(sql: &str) -> Option<String> {
     let re = regex::Regex::new(r"(?U)VALUES \((\d+),").unwrap();
 
-    if let Some(caps) = re.captures(sql) {
-        if let Some(value) = caps.get(1) {
-            return Some(value.as_str().to_string());
-        }
+    if let Some(caps) = re.captures(sql)
+        && let Some(value) = caps.get(1)
+    {
+        return Some(value.as_str().to_string());
     }
 
     None
@@ -1291,7 +1293,9 @@ async fn consume_point_record(
                                 for (child_table_name, child_table_create_sql) in
                                     child_table_create_sql_map
                                 {
-                                    let suffix_sql = format!(" `{child_table_name}` USING `{stable_name}` {child_table_create_sql}");
+                                    let suffix_sql = format!(
+                                        " `{child_table_name}` USING `{stable_name}` {child_table_create_sql}"
+                                    );
                                     if sql_prefix.len() + suffix_sql.len() > 1024 * 1024 {
                                         child_table_create_sqls.push(sql_prefix);
                                         sql_prefix = "CREATE TABLE".to_string();
@@ -1390,7 +1394,10 @@ async fn consume_point_record(
                                     if need_add {
                                         if column_config.r#type.is_none() {
                                             // shouldn't happen if normal, encounter when rename value column
-                                            tracing::error!("column {} column_type is error, maybe stable set error", column_real_name);
+                                            tracing::error!(
+                                                "column {} column_type is error, maybe stable set error",
+                                                column_real_name
+                                            );
                                             break 'outer;
                                         }
                                         let add_column_sql = format!(
@@ -2315,7 +2322,7 @@ async fn ipc_flat_stream_worker(
                 cancel,
                 archive_tx,
             )
-            .await
+            .await;
         }
         WrittenMethod::VgroupSequential => {
             return ipc_flat_stream_worker_vgroup_sequential(
@@ -2331,7 +2338,7 @@ async fn ipc_flat_stream_worker(
                 cancel,
                 archive_tx,
             )
-            .await
+            .await;
         }
         WrittenMethod::Sequential => {
             return ipc_flat_stream_worker_vgroup_sequential(
@@ -2347,7 +2354,7 @@ async fn ipc_flat_stream_worker(
                 cancel,
                 archive_tx,
             )
-            .await
+            .await;
         }
     }
 }
@@ -2640,11 +2647,11 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     let metrics_arc = get_metrics_arc_from_i64(task_id).await;
     let metrics = metrics_arc.ipc();
     // handle lush message init
-    if lush_model_config.is_none() {
-        if let Some(sql) = metadata.init_sql_string() {
-            let init = metadata.init().unwrap();
-            handle_lush_message_init(init, &taos, &sql, metrics).await?;
-        }
+    if lush_model_config.is_none()
+        && let Some(sql) = metadata.init_sql_string()
+    {
+        let init = metadata.init().unwrap();
+        handle_lush_message_init(init, &taos, &sql, metrics).await?;
     }
     // handle point message init
     if let Some(opc_model_config) = opc_model_config {

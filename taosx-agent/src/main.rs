@@ -20,27 +20,27 @@ use tokio::task::JoinHandle;
 use tonic::transport::Certificate;
 
 use tracing_subscriber::{
-    prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt, Layer as _,
+    Layer as _, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
 };
-use twelf::{config, Layer};
+use twelf::{Layer, config};
 
 use taosx_core::global::GLOBAL_LOG_OPTS;
 use taosx_core::{
+    AGENT_COMPRESSION, Activity, RespAction, get_log_dir, get_log_keep_days, set_env_data_dir,
+    set_env_log_home_dir, set_env_log_keep_days, set_env_plugins_home_dir,
+};
+use taosx_core::{
     get_data_dir,
     runners::{
-        get_plugins_home_dir, ENV_LOGS_HOME, ENV_PLUGINS_HOME, ENV_TAOSX_DATA_DIR,
-        ENV_TAOSX_LOGS_HOME, ENV_TAOSX_PLUGINS_HOME,
+        ENV_LOGS_HOME, ENV_PLUGINS_HOME, ENV_TAOSX_DATA_DIR, ENV_TAOSX_LOGS_HOME,
+        ENV_TAOSX_PLUGINS_HOME, get_plugins_home_dir,
     },
     utils::{
         monitor::update_sub_connector_process_metrics,
-        trace::{self, Qid, INSTANCE_ID},
+        trace::{self, INSTANCE_ID, Qid},
     },
 };
-use taosx_core::{
-    get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
-    set_env_plugins_home_dir, Activity, RespAction, AGENT_COMPRESSION,
-};
-use tracing::{log::LevelFilter, Instrument};
+use tracing::{Instrument, log::LevelFilter};
 
 const LOG_FILE: &str = "agent.log";
 
@@ -694,10 +694,10 @@ fn get_monitor_interval(monitor_config: Option<&HashMap<String, String>>) -> u64
     if monitor_config.is_none() {
         30
     } else {
-        if let Some(interval) = monitor_config.and_then(|c| c.get("interval")) {
-            if let Ok(interval) = interval.parse::<u64>() {
-                return interval;
-            }
+        if let Some(interval) = monitor_config.and_then(|c| c.get("interval"))
+            && let Ok(interval) = interval.parse::<u64>()
+        {
+            return interval;
         }
         30
     }

@@ -1,4 +1,4 @@
-use rhai::{Dynamic, ImmutableString, FLOAT, INT};
+use rhai::{Dynamic, FLOAT, INT, ImmutableString};
 use std::any::TypeId;
 
 #[allow(dead_code)]

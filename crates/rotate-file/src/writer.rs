@@ -1,6 +1,6 @@
 use crate::{
+    RequestMsg, RotateFileError, SEP, SNAPSHOT_PREFIX, SinkFn, SinkGenFn,
     utils::{self, scan_files_with},
-    RequestMsg, RotateFileError, SinkFn, SinkGenFn, SEP, SNAPSHOT_PREFIX,
 };
 use chrono::{Local, TimeZone};
 use faststr::FastStr;
@@ -468,10 +468,10 @@ where
                         let msg = if let Ok(v) = msg {
                             v
                         } else {
-                            if self.is_fail_time_limit() {
-                                if let Err(e) = self.rotate_by_time() {
-                                    tracing::error!("Rotate {id} failed to rotate by time: {e:?}");
-                                }
+                            if self.is_fail_time_limit()
+                                && let Err(e) = self.rotate_by_time()
+                            {
+                                tracing::error!("Rotate {id} failed to rotate by time: {e:?}");
                             }
                             continue;
                         };

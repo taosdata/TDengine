@@ -4,8 +4,8 @@ pub use std::time::Duration;
 pub use crate::core_metrics::CoreMetrics;
 pub use crate::plugins::transform::sample::DsSampleIn;
 pub use tracing::{
-    self, debug, debug_span, error, error_span, info, info_span, trace, trace_span, warn,
-    warn_span, Span,
+    self, Span, debug, debug_span, error, error_span, info, info_span, trace, trace_span, warn,
+    warn_span,
 };
 
 pub use super::{
@@ -13,6 +13,6 @@ pub use super::{
 };
 
 pub use super::health::{
-    health_checker, EventLevel, EventSource, HealthNotify, HealthOpts, State as HealthState,
-    TaskNotify,
+    EventLevel, EventSource, HealthNotify, HealthOpts, State as HealthState, TaskNotify,
+    health_checker,
 };

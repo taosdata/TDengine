@@ -410,7 +410,7 @@ pub enum RotateFileError {
 
 #[cfg(test)]
 mod tests {
-    use crate::{utils::time_unit_dt_fmt, writer::FileName, RotateWriterBuilder, SinkFn};
+    use crate::{RotateWriterBuilder, SinkFn, utils::time_unit_dt_fmt, writer::FileName};
     use faststr::FastStr;
     use futures::sink;
     use std::{

@@ -17,14 +17,14 @@ use std::{borrow::Cow, sync::Arc};
 use arrow::{
     array::{
         Array, ArrayRef, BinaryArray, BinaryBuilder, BooleanArray, BooleanBuilder, Float32Array,
-        Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, ListArray, ListBuilder,
+        Float64Array, Int8Array, Int16Array, Int32Array, Int64Array, ListArray, ListBuilder,
         NullArray, StringArray, StringBuilder, TimestampMicrosecondArray,
-        TimestampMillisecondArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
-        UInt8Array,
+        TimestampMillisecondArray, TimestampNanosecondArray, UInt8Array, UInt16Array, UInt32Array,
+        UInt64Array,
     },
     datatypes::{
-        DataType, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type, Int8Type, Schema,
-        TimeUnit, UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+        DataType, Float32Type, Float64Type, Int8Type, Int16Type, Int32Type, Int64Type, Schema,
+        TimeUnit, UInt8Type, UInt16Type, UInt32Type, UInt64Type,
     },
     record_batch::RecordBatch,
 };

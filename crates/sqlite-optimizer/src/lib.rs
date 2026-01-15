@@ -3,7 +3,7 @@ use std::{
     path::Path,
 };
 
-use sqlx::{sqlite::SqlitePool, Row};
+use sqlx::{Row, sqlite::SqlitePool};
 use tokio::fs;
 
 pub struct SqliteOptimizer {
@@ -295,20 +295,20 @@ impl Display for OptimizationReport {
             Ok(())
         } else {
             write!(
-	            f,
-	            "Integrate check: {}, before: {:.2}+{:.2}+{:.2}={:.2} MB, after: {:.2}+{:.2}+{:.2}={:.2} MB, saved: {:.2} MB ({:.1}%)",
-	            self.integrity_check,
-	            self.size_before.db_size as f64 / 1024.0 / 1024.0,
-	            self.size_before.wal_size as f64 / 1024.0 / 1024.0,
-	            self.size_before.shm_size as f64 / 1024.0 / 1024.0,
-							self.size_before.total_size as f64 / 1024.0 / 1024.0,
-	            self.size_after.db_size as f64 / 1024.0 / 1024.0,
-	            self.size_after.wal_size as f64 / 1024.0 / 1024.0,
-	            self.size_after.shm_size as f64 / 1024.0 / 1024.0,
-	            self.size_after.total_size as f64 / 1024.0 / 1024.0,
-	            self.space_saved as f64 / 1024.0 / 1024.0,
-	            self.space_saved_percentage
-	        )
+                f,
+                "Integrate check: {}, before: {:.2}+{:.2}+{:.2}={:.2} MB, after: {:.2}+{:.2}+{:.2}={:.2} MB, saved: {:.2} MB ({:.1}%)",
+                self.integrity_check,
+                self.size_before.db_size as f64 / 1024.0 / 1024.0,
+                self.size_before.wal_size as f64 / 1024.0 / 1024.0,
+                self.size_before.shm_size as f64 / 1024.0 / 1024.0,
+                self.size_before.total_size as f64 / 1024.0 / 1024.0,
+                self.size_after.db_size as f64 / 1024.0 / 1024.0,
+                self.size_after.wal_size as f64 / 1024.0 / 1024.0,
+                self.size_after.shm_size as f64 / 1024.0 / 1024.0,
+                self.size_after.total_size as f64 / 1024.0 / 1024.0,
+                self.space_saved as f64 / 1024.0 / 1024.0,
+                self.space_saved_percentage
+            )
         }
     }
 }

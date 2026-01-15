@@ -1,5 +1,5 @@
-use std::sync::atomic::{self, AtomicI64};
 use std::sync::Arc;
+use std::sync::atomic::{self, AtomicI64};
 use std::time::SystemTime;
 
 use arrow::array::{

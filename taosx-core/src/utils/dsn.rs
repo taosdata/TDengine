@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use taos::{Address, Dsn, Itertools};
 
 pub trait DsnParamGetter {
@@ -671,9 +671,11 @@ mod tests {
         );
 
         let dsn = Dsn::from_str("taos://?timeout=").unwrap();
-        assert!(parse_simple_params::<u32>(&dsn, "timeout")
-            .unwrap()
-            .is_none());
+        assert!(
+            parse_simple_params::<u32>(&dsn, "timeout")
+                .unwrap()
+                .is_none()
+        );
 
         let dsn = Dsn::from_str("taos://?timeout=abc").unwrap();
         let err = parse_simple_params::<u32>(&dsn, "timeout").unwrap_err();
@@ -701,9 +703,11 @@ mod tests {
         );
 
         let dsn = Dsn::from_str("taos://").unwrap();
-        assert!(parse_multiple_value::<u32>(&dsn, "numbers")
-            .unwrap()
-            .is_none());
+        assert!(
+            parse_multiple_value::<u32>(&dsn, "numbers")
+                .unwrap()
+                .is_none()
+        );
 
         let dsn = Dsn::from_str("taos://?numbers=1,a").unwrap();
         let err = parse_multiple_value::<u32>(&dsn, "numbers").unwrap_err();

@@ -3,8 +3,8 @@ use std::{
     ops::Deref,
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, LazyLock,
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
 };
@@ -15,9 +15,8 @@ use arrow_compute_ext::RecordBatchExt;
 use arrow_schema::{ArrowError, Schema};
 use faststr::FastStr;
 use futures::{
-    pin_mut,
+    FutureExt, pin_mut,
     stream::{FuturesOrdered, StreamExt},
-    FutureExt,
 };
 use parking_lot::Mutex;
 use persist_queue::fs::EntryPosition;
@@ -27,7 +26,7 @@ use tokio::{sync::oneshot, task::JoinSet};
 use tokio_util::sync::CancellationToken;
 
 use taosx_ipc::ack::LushAck;
-use tracing::{info_span, Instrument};
+use tracing::{Instrument, info_span};
 
 use crate::{
     core_metrics::CoreMetrics,

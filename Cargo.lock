@@ -6612,7 +6612,6 @@ dependencies = [
  "clap",
  "crc32fast",
  "flume",
- "fs2",
  "futures",
  "notify",
  "parking_lot 0.12.4",

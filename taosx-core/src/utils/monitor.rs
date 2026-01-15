@@ -7,8 +7,8 @@
 
 use flume::{Receiver, Sender};
 use lazy_static::lazy_static;
-use metrics::gauge;
 use metrics::IntoLabels;
+use metrics::gauge;
 use sysinfo::Pid;
 
 lazy_static! {

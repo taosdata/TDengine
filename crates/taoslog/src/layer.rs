@@ -2,16 +2,16 @@ use std::{collections::BTreeMap, marker::PhantomData};
 
 use chrono::{DateTime, Local};
 use tracing::{
-    field::{self, Visit},
     Event,
+    field::{self, Visit},
 };
 use tracing_subscriber::{
+    Registry,
     fmt::MakeWriter,
     registry::{LookupSpan, Scope},
-    Registry,
 };
 
-use crate::{writer::RollingFileAppender, QidManager};
+use crate::{QidManager, writer::RollingFileAppender};
 
 #[derive(Clone)]
 struct RecordFields(BTreeMap<String, String>, Option<String>);
@@ -367,10 +367,10 @@ mod tests {
     use tracing_subscriber::fmt::MakeWriter;
 
     use crate::{
+        QidManager,
         fake::Qid,
         layer::TaosLayer,
         utils::{QidMetadataGetter, QidMetadataSetter, Span},
-        QidManager,
     };
 
     struct TestWriter(std::sync::mpsc::Sender<String>);

@@ -1,16 +1,16 @@
 use anyhow::Context;
 use arrow::array::{
-    ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array, Int16Array,
-    Int32Array, Int64Array, Int8Array, RecordBatch, StringArray, TimestampMicrosecondArray,
-    TimestampMillisecondArray, TimestampNanosecondArray, UInt16Array, UInt32Array, UInt64Array,
-    UInt8Array,
+    ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array, Int8Array,
+    Int16Array, Int32Array, Int64Array, RecordBatch, StringArray, TimestampMicrosecondArray,
+    TimestampMillisecondArray, TimestampNanosecondArray, UInt8Array, UInt16Array, UInt32Array,
+    UInt64Array,
 };
 use arrow_schema::{DataType, Field, Schema, TimeUnit};
 use model::ColumnConfig;
 use model::PointModelConfig;
 use model::TableConfig;
 use model::TagConfig;
-use rhai::{Dynamic, Scope, AST};
+use rhai::{AST, Dynamic, Scope};
 use serde::Deserialize;
 use serde::Serialize;
 use std::borrow::Borrow;
@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Instant;
-use taosx_ipc::prelude::{record_batch_to_column_view, IpcDataType};
+use taosx_ipc::prelude::{IpcDataType, record_batch_to_column_view};
 use taosx_ipc::stream::point::{RecordMessage, RecordTransform};
 
 use crate::utils::sql::sql_value_escaped_fmt;
@@ -1185,7 +1185,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_point_records_to_sql() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         // CSV 不包含 request_ts ，RecordBatch 不包含 request
         let message = mock_point_message();
@@ -1247,13 +1249,18 @@ mod tests {
         let opc_int = s.get("opc_int").unwrap();
         assert_eq!(opc_int.len(), 1);
         let sql = opc_int[0].sql.clone();
-        assert_eq!(sql, "insert into `t_3_\"数据块_1\"_\"Tag101\"` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1600000000000,11,1,1600000000000,1600000000000) `t_3_\"数据块_1\"_\"Tag101\"` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1700000000000,22,1,1700000000000,1700000000000)  `t_3_\"数据块_1\"_\"Tag101\"` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1800000000000,33,1,1800000000000,1800000000000) ");
+        assert_eq!(
+            sql,
+            "insert into `t_3_\"数据块_1\"_\"Tag101\"` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1600000000000,11,1,1600000000000,1600000000000) `t_3_\"数据块_1\"_\"Tag101\"` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1700000000000,22,1,1700000000000,1700000000000)  `t_3_\"数据块_1\"_\"Tag101\"` (`ts`,`val`,`quality`,`qts`,`rts`) VALUES (1800000000000,33,1,1800000000000,1800000000000) "
+        );
     }
 
     #[tokio::test]
     async fn test_point_records_to_sql_empty_value_to_null() {
         // Ensure data dir for temporary files used by some helpers
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         // Build a message whose value column is Utf8 empty strings ""
         let message = mock_point_message_empty_value();
@@ -1283,7 +1290,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_transform() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
         let message = mock_point_message();
 
         let start = Instant::now();

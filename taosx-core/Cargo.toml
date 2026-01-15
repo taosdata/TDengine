@@ -1,7 +1,7 @@
 [package]
 name = "taosx-core"
 version = { workspace = true }
-edition = "2021"
+edition.workspace = true
 homepage = "https://taosdata.com"
 publish = false
 description = "taosX - TDengine data integration tool"

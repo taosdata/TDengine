@@ -1,7 +1,7 @@
 use clap::Parser;
 use gethostname::gethostname;
-use metrics::gauge;
 use metrics::Label;
+use metrics::gauge;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
@@ -11,8 +11,8 @@ use sysinfo::ProcessRefreshKind;
 use sysinfo::ProcessesToUpdate;
 use taosx_metrics::TaosXRecorder;
 use taosx_metrics::TaosXRecorderHandle;
-use tracing::instrument;
 use tracing::Instrument;
+use tracing::instrument;
 
 #[derive(Parser, Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
@@ -396,17 +396,29 @@ mod tests {
         assert_eq!(args.monitor_interval, 10);
         assert_eq!(args.interval(), 10);
 
-        std::env::set_var("MONITOR_FQDN", "fake1");
-        std::env::set_var("MONITOR_PORT", "6044");
-        std::env::set_var("MONITOR_INTERVAL", "5");
+        unsafe {
+            std::env::set_var("MONITOR_FQDN", "fake1");
+        }
+        unsafe {
+            std::env::set_var("MONITOR_PORT", "6044");
+        }
+        unsafe {
+            std::env::set_var("MONITOR_INTERVAL", "5");
+        }
         let args = MonitorCfg::parse_from(["explorer"]);
         assert_eq!(args.monitor_fqdn, Some("fake1".to_string()));
         assert_eq!(args.monitor_port, 6044);
         assert_eq!(args.monitor_interval, 5);
         assert_eq!(args.interval(), 5);
-        std::env::remove_var("MONITOR_FQDN");
-        std::env::remove_var("MONITOR_PORT");
-        std::env::remove_var("MONITOR_INTERVAL");
+        unsafe {
+            std::env::remove_var("MONITOR_FQDN");
+        }
+        unsafe {
+            std::env::remove_var("MONITOR_PORT");
+        }
+        unsafe {
+            std::env::remove_var("MONITOR_INTERVAL");
+        }
 
         let args: MonitorCfg = serde_json::from_str(
             r#"{

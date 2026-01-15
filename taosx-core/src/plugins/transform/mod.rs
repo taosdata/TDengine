@@ -22,10 +22,10 @@ use archive::ArchiveType;
 use arrow::{
     array::{
         Array, ArrayRef, AsArray, BinaryArray, BinaryViewArray, BooleanArray, Decimal128Array,
-        Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
+        Float32Array, Float64Array, Int8Array, Int16Array, Int32Array, Int64Array,
         LargeBinaryArray, LargeStringArray, StringArray, StringViewArray,
         TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
-        TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        TimestampSecondArray, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
     },
     compute::{and, concat_batches},
     datatypes::{DataType, Field, Schema},
@@ -45,11 +45,11 @@ use itertools::Itertools;
 use modeler::stable::STableModel;
 use serde::{Deserialize, Serialize};
 use taos::{
+    JsonMeta, RawBlock, Ty, Value,
     taos_query::{
         common::Describe,
         helpers::{ColumnMeta, Described},
     },
-    JsonMeta, RawBlock, Ty, Value,
 };
 use thiserror::Error;
 use tinytemplate::TinyTemplate;
@@ -1479,15 +1479,15 @@ impl Parser {
                     let ts = ts.unwrap();
                     let ts = ts / 1_000_000;
                     let mut primary_timestamp_overflow_flag = false;
-                    if let Some(max_ts) = self.global.maximum_timestamp {
-                        if ts > max_ts.timestamp_millis() {
-                            primary_timestamp_overflow_flag = true;
-                        }
+                    if let Some(max_ts) = self.global.maximum_timestamp
+                        && ts > max_ts.timestamp_millis()
+                    {
+                        primary_timestamp_overflow_flag = true;
                     }
-                    if let Some(min_ts) = self.global.minimum_timestamp {
-                        if ts < min_ts.timestamp_millis() {
-                            primary_timestamp_overflow_flag = true;
-                        }
+                    if let Some(min_ts) = self.global.minimum_timestamp
+                        && ts < min_ts.timestamp_millis()
+                    {
+                        primary_timestamp_overflow_flag = true;
                     }
                     if primary_timestamp_overflow_flag {
                         match self
@@ -3304,8 +3304,8 @@ mod parser_tests {
 
     use super::*;
     use crate::plugins::transform::{
-        modeler::Modeler, mutate::Mutate, parse::ParserImpl, Message, ProcessOnAbnormal, STable,
-        TableOptions,
+        Message, ProcessOnAbnormal, STable, TableOptions, modeler::Modeler, mutate::Mutate,
+        parse::ParserImpl,
     };
     use crate::sink::ipc_metric::IpcMetrics;
 
@@ -4450,7 +4450,10 @@ mod parser_tests {
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
-                assert_eq!(vec[0].table_name(), "table_123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456");
+                assert_eq!(
+                    vec[0].table_name(),
+                    "table_123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456"
+                );
             }
             _ => unreachable!(),
         }
@@ -4473,7 +4476,10 @@ mod parser_tests {
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
-                assert_eq!(vec[0].table_name(), "table_123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456");
+                assert_eq!(
+                    vec[0].table_name(),
+                    "table_123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456"
+                );
             }
             _ => unreachable!(),
         }
@@ -4608,10 +4614,12 @@ mod parser_tests {
         .unwrap();
         let result = template.render("name", &map);
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Failed to find value 'var1' from path 'var1'"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to find value 'var1' from path 'var1'")
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 [package]
 name = "sink-mqtt"
-edition = "2024"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 

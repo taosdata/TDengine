@@ -10,10 +10,10 @@ use std::io::{self, BufRead, Write};
 use std::path::Path;
 use std::sync::Mutex;
 use std::time::Duration;
-use taoslog::utils::{QidMetadataGetter, Span};
 use taoslog::QidManager;
+use taoslog::utils::{QidMetadataGetter, Span};
 
-use crate::qid::{headers_with_qid, Qid};
+use crate::qid::{Qid, headers_with_qid};
 
 pub fn sign_string(input: &str) -> String {
     let mut hasher = Sha1::new();
@@ -53,10 +53,9 @@ pub fn check_phone_email_verified(filename: &Path, current_server: &str) -> io::
 
             if let (Some(phone_email), Some(sign), true) =
                 (phone_email, sign, server == current_server)
+                && verify_string(phone_email, sign)
             {
-                if verify_string(phone_email, sign) {
-                    return Ok(());
-                }
+                return Ok(());
             }
         }
     }

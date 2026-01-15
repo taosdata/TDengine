@@ -1,5 +1,5 @@
 use crate::utils::{self, dsn::DsnParamGetter};
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use std::str::FromStr;
 use taos::Dsn;
 use toml::value::Datetime;
@@ -368,10 +368,10 @@ impl PiConfig {
                 })
                 .transpose()?;
         }
-        if let Some(mwl) = max_wait_len {
-            if !(1..=10000).contains(&mwl) {
-                return Err(anyhow!("MaxWaitLen should be in range 1..10000"));
-            }
+        if let Some(mwl) = max_wait_len
+            && !(1..=10000).contains(&mwl)
+        {
+            return Err(anyhow!("MaxWaitLen should be in range 1..10000"));
         }
         Ok(max_wait_len)
     }
@@ -396,10 +396,10 @@ impl PiConfig {
                 })
                 .transpose()?;
         }
-        if let Some(ui) = update_interval {
-            if !(100..=60000).contains(&ui) {
-                return Err(anyhow!("UpdateInterval should be in range 100..60000 ms"));
-            }
+        if let Some(ui) = update_interval
+            && !(100..=60000).contains(&ui)
+        {
+            return Err(anyhow!("UpdateInterval should be in range 100..60000 ms"));
         }
         Ok(update_interval)
     }
@@ -767,7 +767,10 @@ mod tests {
         let dsn = Dsn::from_str("pi:///?BackfillStartTime=2021-01-01 00:00:00.000").unwrap();
         let config = PiConfig::parse_backfill_start_time(&dsn);
         assert!(config.is_err());
-        assert_eq!("invalid BackfillStartTime, cause: failed to parse date time: 2021-01-01 00:00:00.000, cause: trailing input", config.unwrap_err().to_string());
+        assert_eq!(
+            "invalid BackfillStartTime, cause: failed to parse date time: 2021-01-01 00:00:00.000, cause: trailing input",
+            config.unwrap_err().to_string()
+        );
 
         let dsn = Dsn::from_str("pi:///?BackfillStartTime=auto").unwrap();
         let config = PiConfig::parse_backfill_start_time(&dsn).unwrap();
@@ -790,7 +793,10 @@ mod tests {
         let dsn = Dsn::from_str("pi:///?BackfillEndTime=2021-01-01 00:00:00.000").unwrap();
         let config = PiConfig::parse_backfill_end_time(&dsn);
         assert!(config.is_err());
-        assert_eq!("invalid BackfillEndTime, cause: failed to parse date time: 2021-01-01 00:00:00.000, cause: trailing input", config.unwrap_err().to_string());
+        assert_eq!(
+            "invalid BackfillEndTime, cause: failed to parse date time: 2021-01-01 00:00:00.000, cause: trailing input",
+            config.unwrap_err().to_string()
+        );
 
         let dsn = Dsn::from_str("pi:///?BackfillEndTime=auto").unwrap();
         let config = PiConfig::parse_backfill_end_time(&dsn).unwrap();

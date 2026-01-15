@@ -1,6 +1,6 @@
 use crate::get_data_dir;
 use anyhow::Context;
-use flate2::{write::GzEncoder, Compression};
+use flate2::{Compression, write::GzEncoder};
 use std::{
     io::Write,
     path::{Path, PathBuf},
@@ -248,7 +248,9 @@ mod tests {
         // assert_eq!(path, "./data/1/breakpoints");
 
         // set env
-        std::env::set_var("TAOSX_DATA_DIR", "/tmp/data");
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", "/tmp/data");
+        }
         let path = breakpoints_db_dir(task_id);
         assert_eq!(
             "/tmp/data/tasks/1/breakpoints",
@@ -259,7 +261,9 @@ mod tests {
     #[test]
     fn test_breakpoints_remove() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", tmp.path());
+        }
         let task_id = "1";
         let sub_task = "t0001";
         let breakpoints = "2023-01-01 20:00:00";
@@ -276,7 +280,9 @@ mod tests {
     #[test]
     fn test_breakpoints_clear() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", tmp.path());
+        }
         let task_id = "2";
         let sub_task = "t0001";
         let breakpoints = "2023-01-01 20:00:00";
@@ -297,7 +303,9 @@ mod tests {
     #[test]
     fn test_breakpoints_full_routine() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", tmp.path());
+        }
         let res_not_exist = breakpoints_get("20", "t0001").unwrap();
         assert_eq!(res_not_exist, None);
 
@@ -313,7 +321,9 @@ mod tests {
     #[test]
     fn test_breakpoints_get_all() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", tmp.path());
+        }
         let task_id = "1";
         let sub_task = "t0001";
         let breakpoints = "2023-01-01 20:00:00";
@@ -338,7 +348,9 @@ mod tests {
     #[test]
     fn test_breakpoints_set_multi_thread() {
         let tmp = tempfile::TempDir::new().unwrap();
-        std::env::set_var("TAOSX_DATA_DIR", tmp.path());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", tmp.path());
+        }
         use std::thread;
         let mut handles = vec![];
         let n = 10;
@@ -382,7 +394,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_export() {
-        std::env::set_var("TAOSX_DATA_DIR", "/var/lib/taos/taosx");
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", "/var/lib/taos/taosx");
+        }
         let task_id = "1000000";
         let breakpoint_db = BreakpointDb::new_with_task(task_id).await.unwrap();
         breakpoint_db

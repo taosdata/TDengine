@@ -5,8 +5,8 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
-use taos::sync::*;
 use taos::AsyncQueryable;
+use taos::sync::*;
 use taosx_ipc::{
     ack::{AckWriter, AckWriterBuilder},
     stream::{flat::FlatMessage, point::PointMessage},

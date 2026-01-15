@@ -676,15 +676,15 @@ impl PointModelConfig {
             let col_name = table_config
                 .column_config(col)
                 .and_then(|v| v.alias.as_ref());
-            if let Some(col_name) = col_name {
-                if !querier.is_stable_col_exist(stable_meta.tbname.as_str(), col_name)? {
-                    bail!(
-                        "column: {} not exist in table: {}, point_id: {}",
-                        col,
-                        stable_meta.tbname.as_str(),
-                        point_id
-                    );
-                }
+            if let Some(col_name) = col_name
+                && !querier.is_stable_col_exist(stable_meta.tbname.as_str(), col_name)?
+            {
+                bail!(
+                    "column: {} not exist in table: {}, point_id: {}",
+                    col,
+                    stable_meta.tbname.as_str(),
+                    point_id
+                );
             }
         }
         Ok(())
@@ -898,10 +898,10 @@ impl PointModelConfig {
         let stable = point_config.stable.as_ref();
         let tbname = point_config.code.as_str();
 
-        if let Some(stable) = stable {
-            if stable.contains("{type}") {
-                return Ok(());
-            }
+        if let Some(stable) = stable
+            && stable.contains("{type}")
+        {
+            return Ok(());
         }
         if tbname.contains("{id}") || tbname.contains("{ns}") || tbname.contains("{tag_name}") {
             return Ok(());
@@ -913,20 +913,19 @@ impl PointModelConfig {
 
         // 遍历 self.point_config_map 和 self.table_config_map，当 stable 和 tbname 时，value_col 应该不同，否则报错
         for (id, p_config) in point_config_map {
-            if let Some(t_config) = table_config_map.get(id) {
-                if p_config.stable.as_ref() == stable && p_config.code.as_str() == tbname {
-                    if let Some(v_col) = t_config.column_config(ColumnConfig::VALUE) {
-                        if v_col.alias.as_ref() == value_col {
-                            bail!(
-                                "point_id: {} and point_id: {} have same stable: {} and tbname: {}, value_col should be different",
-                                id,
-                                point_id,
-                                stable.unwrap(),
-                                tbname,
-                            );
-                        }
-                    }
-                }
+            if let Some(t_config) = table_config_map.get(id)
+                && p_config.stable.as_ref() == stable
+                && p_config.code.as_str() == tbname
+                && let Some(v_col) = t_config.column_config(ColumnConfig::VALUE)
+                && v_col.alias.as_ref() == value_col
+            {
+                bail!(
+                    "point_id: {} and point_id: {} have same stable: {} and tbname: {}, value_col should be different",
+                    id,
+                    point_id,
+                    stable.unwrap(),
+                    tbname,
+                );
             }
         }
 
@@ -1336,11 +1335,7 @@ fn parse_tag_values(header: &CsvHeader, row: &StringRecord) -> Option<HashMap<St
         map.insert(tag_name, tag_value);
     }
 
-    if map.is_empty() {
-        None
-    } else {
-        Some(map)
-    }
+    if map.is_empty() { None } else { Some(map) }
 }
 
 /// 更高效的 tag_value 解析，复用已经获取的 point_id，避免再次调用 CsvParser::parse_point_id。
@@ -1390,11 +1385,7 @@ fn parse_tag_values_fast(
 
         map.insert(tag_name, tag_value);
     }
-    if map.is_empty() {
-        None
-    } else {
-        Some(map)
-    }
+    if map.is_empty() { None } else { Some(map) }
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize)]

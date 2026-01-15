@@ -304,10 +304,12 @@ impl Expr {
 }
 
 pub fn array_from_rhai_dynamics(values: Vec<Dynamic>) -> Option<ArrayRef> {
-    debug_assert!(values
-        .iter()
-        .filter_map(|v| if v.is_unit() { None } else { Some(v.type_id()) })
-        .all_equal());
+    debug_assert!(
+        values
+            .iter()
+            .filter_map(|v| if v.is_unit() { None } else { Some(v.type_id()) })
+            .all_equal()
+    );
 
     if values.is_empty() {
         return None;

@@ -232,6 +232,7 @@ features = ["ws", "optin", "deadpool"]
 [workspace.package]
 version = "1.11.0"
 rust-version = "1.90.0"
+edition = "2024"
 
 [workspace.lints.clippy]
 too_many_arguments = "allow"
@@ -240,7 +241,7 @@ too_many_arguments = "allow"
 name = "taosx"
 version.workspace = true
 build = "build.rs"
-edition = "2024"
+edition.workspace = true
 exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 homepage = "https://taosdata.com"
 rust-version = { workspace = true }

@@ -4,10 +4,10 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use taos::Dsn;
 
+use crate::runners::opc::config::OpcType;
 use crate::runners::opc::config::collect::da::DaCollectConfig;
 use crate::runners::opc::config::collect::dump::DumpConfig;
 use crate::runners::opc::config::collect::ua::UaCollectConfig;
-use crate::runners::opc::config::OpcType;
 use crate::utils;
 
 pub mod da;

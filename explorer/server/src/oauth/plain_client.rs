@@ -377,9 +377,11 @@ mod tests {
         let client = PlainOAuthClient::new(config).unwrap();
         let auth_req = client.generate_auth_url();
 
-        assert!(auth_req
-            .auth_url
-            .starts_with("https://example.com/oauth/authorize"));
+        assert!(
+            auth_req
+                .auth_url
+                .starts_with("https://example.com/oauth/authorize")
+        );
         assert!(auth_req.auth_url.contains("response_type=code"));
         assert!(auth_req.auth_url.contains("client_id="));
         assert!(auth_req.auth_url.contains("redirect_uri="));
@@ -432,9 +434,11 @@ mod tests {
         let auth_req = client.generate_auth_url();
 
         // URL should be properly encoded
-        assert!(auth_req
-            .auth_url
-            .contains("client_id=test%20client%20with%20spaces"));
+        assert!(
+            auth_req
+                .auth_url
+                .contains("client_id=test%20client%20with%20spaces")
+        );
     }
 
     #[test]
@@ -457,10 +461,12 @@ mod tests {
         let auth_req = client.generate_auth_url();
 
         // CSRF token should only contain alphanumeric characters
-        assert!(auth_req
-            .csrf_token
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric()));
+        assert!(
+            auth_req
+                .csrf_token
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric())
+        );
     }
 
     #[test]

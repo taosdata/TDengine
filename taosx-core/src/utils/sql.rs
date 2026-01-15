@@ -7,9 +7,9 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::{fmt::Write, io::Write as _, time::Duration};
 use taos::{
-    taos_query::{common::Describe, Manager},
     AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Error as TaosError, RawBlock, Taos,
     TaosBuilder, TaosPool,
+    taos_query::{Manager, common::Describe},
 };
 use taos::{Precision, ResultSet};
 use tokio_util::sync::CancellationToken;
@@ -1522,11 +1522,11 @@ impl BlockPartitionBy for RawBlock {
             .iter()
             .enumerate()
             .fold(rle, |mut acc, (idx, v)| {
-                if let Some((state, _start, _end)) = acc.last_mut() {
-                    if *state == *v {
-                        *_end = idx;
-                        return acc;
-                    }
+                if let Some((state, _start, _end)) = acc.last_mut()
+                    && *state == *v
+                {
+                    *_end = idx;
+                    return acc;
                 }
                 acc.push((*v, idx, idx));
                 acc

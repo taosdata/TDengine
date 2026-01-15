@@ -1,4 +1,4 @@
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::{io::prelude::*, path::PathBuf};
@@ -312,7 +312,9 @@ mod tests {
 
     #[test]
     fn test_get_temp_file() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         let dsn = Dsn::from_str("opcua://").unwrap();
         let file = get_temp_file(&dsn, "certificate");

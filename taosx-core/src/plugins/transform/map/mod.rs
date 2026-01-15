@@ -13,7 +13,7 @@ use serde_json::Value as JsonValue;
 use taosx_ipc::prelude::IpcDataType;
 use thiserror::Error;
 
-use super::{constants::META_FIELD_TYPE, TransformExt};
+use super::{TransformExt, constants::META_FIELD_TYPE};
 
 mod cast;
 mod constant;

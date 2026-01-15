@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeMap,
+    fs::TryLockError,
     future::Future,
     io::SeekFrom,
     path::{Path, PathBuf},
@@ -7,7 +8,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use fs2::{lock_contended_error, FileExt};
 use futures::StreamExt;
 use notify::Watcher;
 use parking_lot::Mutex;
@@ -16,12 +16,11 @@ use tokio::{io::AsyncSeekExt, time::timeout_at};
 use tokio_util::{codec::FramedRead, sync::CancellationToken};
 
 use crate::{
-    fs::format_segment_id, AddWatchSnafu, DelWatchSnafu, Entry, ExclusiveLockFileSnafu,
-    FileLockedSnafu, OpenFileSnafu, RawReader, RemoveFileSnafu, Result, SeekFileSnafu,
-    SharedLockFileSnafu,
+    AddWatchSnafu, DelWatchSnafu, Entry, ExclusiveLockFileSnafu, FileLockedSnafu, OpenFileSnafu,
+    RawReader, RemoveFileSnafu, Result, SeekFileSnafu, SharedLockFileSnafu, fs::format_segment_id,
 };
 
-use super::{codec::ReadCodec, EntryPosition, ReadFrom, LOCK_FILE_EXTENSION};
+use super::{EntryPosition, LOCK_FILE_EXTENSION, ReadFrom, codec::ReadCodec};
 
 enum ReadState {
     Position(ReadFrom),
@@ -128,7 +127,7 @@ impl ReadState {
                     let segments = segments.lock();
                     segments
                         .iter()
-                        .find(|(&id, _)| id >= segment_id)
+                        .find(|(id, _)| **id >= segment_id)
                         .map(|(id, path)| (*id, path.clone()))
                 };
                 match entry {
@@ -194,17 +193,15 @@ async fn open_file_with_lock(
     let lock_file = std::fs::File::create(&lock_file_path).context(OpenFileSnafu {
         path: &lock_file_path,
     })?;
-    // TODO: use std file lock instead after stable
-    #[allow(unstable_name_collisions)]
     match lock_file.try_lock_shared() {
         Ok(_) => {}
-        Err(e) if e.to_string() == lock_contended_error().to_string() => {
+        Err(TryLockError::WouldBlock) => {
             return FileLockedSnafu {
                 path: &lock_file_path,
             }
-            .fail()
+            .fail();
         }
-        Err(e) => Err(e).context(SharedLockFileSnafu {
+        Err(TryLockError::Error(e)) => Err(e).context(SharedLockFileSnafu {
             path: lock_file_path,
         })?,
     }
@@ -559,13 +556,13 @@ impl RawReader for Reader {
             let lock_file = std::fs::File::create(&lock_file_path).context(OpenFileSnafu {
                 path: &lock_file_path,
             })?;
-            match lock_file.try_lock_exclusive() {
+            match lock_file.try_lock() {
                 Ok(_) => {}
-                Err(e) if e.to_string() == lock_contended_error().to_string() => {
+                Err(TryLockError::WouldBlock) => {
                     tracing::warn!("vacuum {} failed, file is locked, ignore", path.display());
                     continue;
                 }
-                Err(e) => Err(e).context(ExclusiveLockFileSnafu {
+                Err(TryLockError::Error(e)) => Err(e).context(ExclusiveLockFileSnafu {
                     path: &lock_file_path,
                 })?,
             }

@@ -1,13 +1,13 @@
-use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
-use std::sync::{atomic::Ordering, OnceLock};
+use std::sync::atomic::AtomicU32;
+use std::sync::{OnceLock, atomic::Ordering};
 use std::time::Duration;
 
 use anyhow::Context;
 use bitfield::bitfield;
 use parking_lot::RwLock;
-use taoslog::utils::QidMetadataSetter;
 use taoslog::QidManager;
+use taoslog::utils::QidMetadataSetter;
 use tokio_util::sync::{CancellationToken, DropGuard};
 
 use crate::get_data_dir;
@@ -99,11 +99,7 @@ impl IdCounter {
                     let array: [u8; 4] = bytes.try_into().expect("valid number");
                     let number = u32::from_be_bytes(array);
                     let (number, overflow) = number.overflowing_add(step);
-                    if overflow {
-                        step
-                    } else {
-                        number
-                    }
+                    if overflow { step } else { number }
                 }
                 None => step,
             };
@@ -261,8 +257,8 @@ impl From<u64> for Qid {
 #[cfg(test)]
 mod tests {
     use std::sync::{
-        atomic::{AtomicU32, Ordering},
         Arc,
+        atomic::{AtomicU32, Ordering},
     };
 
     use parquet::data_type::AsBytes;

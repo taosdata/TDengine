@@ -5,9 +5,9 @@ use std::{
 
 use arrow::{
     array::{
-        make_builder, ArrayBuilder, BinaryBuilder, StringBuilder, StructArray, StructBuilder,
+        ArrayBuilder, BinaryBuilder, StringBuilder, StructArray, StructBuilder,
         TimestampMicrosecondBuilder, TimestampMillisecondBuilder, TimestampNanosecondBuilder,
-        TimestampSecondBuilder,
+        TimestampSecondBuilder, make_builder,
     },
     datatypes::{Field, TimeUnit},
     error::ArrowError,
@@ -263,7 +263,7 @@ impl StructArrayBuilder {
             _ => {
                 return Err(ArrowError::NotYetImplemented(format!(
                     "Unsupported data type to append: {dt:?}"
-                )))
+                )));
             }
         };
         if let Some(v) = self.index.as_mut() {
@@ -394,7 +394,9 @@ impl StructArrayBuilder {
                     t if t == TypeId::of::<Vec<&Vec<u8>>>() => append_bytes!(Vec<&Vec<u8>>),
                     t if t == TypeId::of::<&&[&str]>() => append!(&&[&str]),
                     t if t == TypeId::of::<Vec<Cow<str>>>() => append!(Vec<Cow<str>>),
-                    t => panic!("Unsupported binary input type: {t:?}, {value:?}, use &Vec<String>, &Vec<&str>, &[&str] or &[&[u8]]"),
+                    t => panic!(
+                        "Unsupported binary input type: {t:?}, {value:?}, use &Vec<String>, &Vec<&str>, &[&str] or &[&[u8]]"
+                    ),
                 }
             }
             _ => {

@@ -1,4 +1,4 @@
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use async_compression::tokio::write::ZstdEncoder;
 use async_compression::zstd::CParameter;
 use chrono::{DateTime, Utc};
@@ -1096,9 +1096,11 @@ mod tests {
         }
         let files = ZFile::list_in_dir(tmp.path()).await.unwrap();
         assert_eq!(files.len(), 3);
-        assert!(files
-            .iter()
-            .all(|f| f.raw_path.as_ref().unwrap().extension().unwrap() == "z"));
+        assert!(
+            files
+                .iter()
+                .all(|f| f.raw_path.as_ref().unwrap().extension().unwrap() == "z")
+        );
     }
 
     #[tokio::test]

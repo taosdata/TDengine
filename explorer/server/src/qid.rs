@@ -1,13 +1,13 @@
 use std::sync::{
-    atomic::{self, AtomicU64},
     OnceLock,
+    atomic::{self, AtomicU64},
 };
 
 use bitfield::bitfield;
 use http::HeaderMap;
 use taoslog::{
-    utils::{QidMetadataSetter, Span},
     QidManager,
+    utils::{QidMetadataSetter, Span},
 };
 
 pub(crate) static INSTANCE_ID: OnceLock<u8> = OnceLock::new();

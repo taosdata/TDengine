@@ -6,15 +6,15 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
-use tracing::instrument;
 use tracing::Instrument;
+use tracing::instrument;
 
+use crate::Transferred;
 use crate::plugins::sink::point::model::PointModelConfig;
 use crate::runners::influxdb::influxdb_datasets;
 use crate::runners::opentsdb::opentsdb_datasets;
 use crate::utils::dsn::json_to_dsn;
 use crate::utils::mask_dsn;
-use crate::Transferred;
 use runners::opc::opc_datasets;
 
 pub use runners::{
@@ -76,8 +76,8 @@ impl std::ops::DerefMut for Parser {
     }
 }
 
-use self::sink::lush::LushModelConfig;
 use self::sink::IpcHandler;
+use self::sink::lush::LushModelConfig;
 
 pub mod config;
 pub mod expr;

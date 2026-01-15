@@ -1,3 +1,4 @@
+use anyhow::bail;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -48,24 +49,25 @@ impl DataSourceValidation {
     }
 
     pub fn ok(&self) -> anyhow::Result<()> {
-        match (self.valid, self.support) {
-            (true, true) => Ok(()),
-            (false, _) => {
+        match (self.valid, self.support, self.message.as_ref()) {
+            (true, true, _) => Ok(()),
+            (false, _, Some(message)) => {
                 debug_assert!(self.message.is_some());
                 Err(anyhow::anyhow!(
                     "Data source {} is invalid since {}",
                     self.data_source,
-                    self.message.as_ref().unwrap()
+                    message
                 ))
             }
-            (_, false) => {
+            (_, false, Some(message)) => {
                 debug_assert!(self.message.is_some());
                 Err(anyhow::anyhow!(
                     "Data source {} connection is valid but not supported, since {}",
                     self.data_source,
-                    self.message.as_ref().unwrap()
+                    message
                 ))
             }
+            _ => bail!("unknown error"),
         }
     }
 }

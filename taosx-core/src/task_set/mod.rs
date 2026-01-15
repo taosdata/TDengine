@@ -4,25 +4,25 @@ use std::{
     ops::{ControlFlow, Deref},
     path::PathBuf,
     sync::{
-        atomic::{AtomicU8, Ordering},
         Arc,
+        atomic::{AtomicU8, Ordering},
     },
     time::Duration,
 };
 
 use crate::{
+    Action, Parser, TaskNotify, TaskNotifySender,
     core_metrics::CoreMetrics,
     plugins::transform::sample::DsSampleIn,
-    utils::breakpoints::{breakpoints_db_dir, BreakpointDb},
-    Action, Parser, TaskNotify, TaskNotifySender,
+    utils::breakpoints::{BreakpointDb, breakpoints_db_dir},
 };
 use anyhow::bail;
 use bon::Builder;
 use faststr::FastStr;
 use serde::{Deserialize, Serialize};
-use taos::{tokio::task::JoinSet, Dsn};
+use taos::{Dsn, tokio::task::JoinSet};
 use tokio::{
-    sync::{broadcast, Mutex},
+    sync::{Mutex, broadcast},
     task::AbortHandle,
 };
 use tokio_util::sync::{CancellationToken, DropGuard};
@@ -1219,8 +1219,8 @@ mod tests {
             parser: None,
         };
         let task = set.get_or_build_executor(opts, env).await;
-        assert!(task
-            .inspect_err(|err| {
+        assert!(
+            task.inspect_err(|err| {
                 dbg!(err);
                 assert_eq!(
                     err.to_string(),
@@ -1228,6 +1228,7 @@ mod tests {
                     "Error: {err:#}"
                 );
             })
-            .is_err());
+            .is_err()
+        );
     }
 }

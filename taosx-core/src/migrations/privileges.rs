@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, skip_serializing_none, NoneAsEmptyString};
+use serde_with::{NoneAsEmptyString, serde_as, skip_serializing_none};
 use taos::{AsyncFetchable, AsyncQueryable, TryStreamExt};
 
 #[skip_serializing_none]

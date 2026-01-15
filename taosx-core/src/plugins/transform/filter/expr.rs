@@ -38,8 +38,8 @@ impl RecordFilter for ExprRecordFilter {
 mod tests {
     use super::*;
     use arrow::array::{
-        Float16Array, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array,
-        RecordBatch, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+        Float16Array, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array, Int64Array,
+        RecordBatch, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
     };
     use arrow::datatypes::{DataType, Field, Schema};
     use std::sync::Arc;

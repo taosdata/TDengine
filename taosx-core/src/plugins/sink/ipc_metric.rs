@@ -2,7 +2,7 @@ use crate::core_metrics::{CommonMetrics, CoreMetrics, TaskMetrics};
 use faststr::FastStr;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
-use std::sync::{atomic::Ordering::SeqCst, OnceLock};
+use std::sync::{OnceLock, atomic::Ordering::SeqCst};
 use taosx_ipc::types::{TaskMetricItem, TaskMetricsVariant};
 
 /// Metrics sender for agent.

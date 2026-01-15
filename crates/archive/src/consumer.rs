@@ -7,11 +7,11 @@ use parquet::{
     errors::ParquetError,
     file::properties::WriterProperties,
 };
-use rotate_file::{utils::time_unit_dt_fmt, RotateFileError, RotateWriterBuilder, SinkFn};
+use rotate_file::{RotateFileError, RotateWriterBuilder, SinkFn, utils::time_unit_dt_fmt};
 use std::{fs::OpenOptions, marker::PhantomData, path::PathBuf};
 use tokio::sync::oneshot;
 
-use crate::{Archive, Cache, ARCHIVE_PREFIX, CACHE_PREFIX};
+use crate::{ARCHIVE_PREFIX, Archive, CACHE_PREFIX, Cache};
 
 #[derive(Debug)]
 pub struct RewriteMsg {
@@ -249,7 +249,7 @@ pub enum ArchiveError {
 
 #[cfg(test)]
 mod tests {
-    use crate::{get_rewrite_files, Archive, ArchiveConsumer, ArchiveType, Cache};
+    use crate::{Archive, ArchiveConsumer, ArchiveType, Cache, get_rewrite_files};
     use arrow::{
         array::{Int64Array, RecordBatch},
         datatypes::{DataType, Field},

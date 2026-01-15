@@ -1,7 +1,7 @@
 [package]
 name = "taos-explorer"
 version = "1.10.0"
-edition = "2021"
+edition.workspace = true
 description = "TDengine Explorer UI"
 
 [dependencies]

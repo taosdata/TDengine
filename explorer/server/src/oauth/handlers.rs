@@ -1,4 +1,5 @@
 use crate::{
+    R, RestErrResponse,
     oauth::{
         custom_client::FetchUsersCredentials, middleware::extract_session_id_from_request,
         session::TsdbSyncOptions,
@@ -7,7 +8,6 @@ use crate::{
         cbc::{decrypt_cbc_mac_b64, encrypt_cbc_mac_b64},
         deserialize_non_empty_string,
     },
-    RestErrResponse, R,
 };
 
 use super::{
@@ -16,8 +16,9 @@ use super::{
     session::{OAuthSyncSummary, SessionManager},
 };
 use actix_web::{
+    HttpRequest, HttpResponse, Responder,
     cookie::{Cookie, SameSite},
-    web, HttpRequest, HttpResponse, Responder,
+    web,
 };
 use awc::cookie::CookieBuilder;
 use chrono::{DateTime, Utc};
@@ -669,10 +670,9 @@ pub async fn oauth_me(
             {
                 Ok(key) => key,
                 Err(err) => {
-                    return HttpResponse::InternalServerError().json(RestErrResponse::new(format!(
-                        "Error deriving client encrypt key: {}",
-                        err
-                    )))
+                    return HttpResponse::InternalServerError().json(RestErrResponse::new(
+                        format!("Error deriving client encrypt key: {}", err),
+                    ));
                 }
             };
             let password = user.tsdb_password.as_deref().and_then(|password| {
@@ -750,7 +750,9 @@ async fn fetch_users_from_provider(
     let session = match session_manager.verify_session(&session_id).await {
         Ok(Some(session)) => session,
         Ok(None) => {
-            return Err(HttpResponse::Unauthorized().json(RestErrResponse::new("Session not found")))
+            return Err(
+                HttpResponse::Unauthorized().json(RestErrResponse::new("Session not found"))
+            );
         }
         Err(e) => {
             tracing::error!("Failed to verify session for sync: {:#}", e);
@@ -782,7 +784,7 @@ async fn fetch_users_from_provider(
         _ => {
             return Err(HttpResponse::BadRequest().json(RestErrResponse::new(
                 "User sync not supported for this provider",
-            )))
+            )));
         }
     };
 
@@ -813,7 +815,7 @@ pub async fn oauth_fetch_users(
     let session = match session_manager.verify_session(&session_id).await {
         Ok(Some(session)) => session,
         Ok(None) => {
-            return HttpResponse::Unauthorized().json(RestErrResponse::new("Session not found"))
+            return HttpResponse::Unauthorized().json(RestErrResponse::new("Session not found"));
         }
         Err(e) => {
             tracing::error!("Failed to verify session for sync: {:#}", e);
@@ -852,7 +854,7 @@ pub async fn oauth_sync_users(
     let session = match session_manager.verify_session(&session_id).await {
         Ok(Some(session)) => session,
         Ok(None) => {
-            return HttpResponse::Unauthorized().json(RestErrResponse::new("Session not found"))
+            return HttpResponse::Unauthorized().json(RestErrResponse::new("Session not found"));
         }
         Err(e) => {
             tracing::error!("Failed to verify session for sync: {:#}", e);
@@ -942,7 +944,7 @@ pub async fn oauth_exist_users(
     let _session = match session_manager.verify_session(&session_id).await {
         Ok(Some(session)) => session,
         Ok(None) => {
-            return HttpResponse::Unauthorized().json(RestErrResponse::new("Session not found"))
+            return HttpResponse::Unauthorized().json(RestErrResponse::new("Session not found"));
         }
         Err(e) => {
             tracing::error!("Failed to verify session for list users: {:#}", e);
@@ -994,7 +996,7 @@ pub async fn oauth_revoke(
     let _session = match session_manager.verify_session(&session_id).await {
         Ok(Some(session)) => session,
         Ok(None) => {
-            return HttpResponse::Unauthorized().json(RestErrResponse::new("Session not found"))
+            return HttpResponse::Unauthorized().json(RestErrResponse::new("Session not found"));
         }
         Err(e) => {
             tracing::error!("Failed to verify session for list users: {:#}", e);

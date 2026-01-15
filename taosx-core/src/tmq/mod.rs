@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use taos::*;
@@ -270,10 +270,10 @@ pub async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic
     }
     let current_version = parse_server_version(version);
 
-    if let Some((a, b, c, d)) = current_version {
-        if need_remove_wal_marker(a, b, c, d) {
-            from.remove("enable.wal.marker");
-        }
+    if let Some((a, b, c, d)) = current_version
+        && need_remove_wal_marker(a, b, c, d)
+    {
+        from.remove("enable.wal.marker");
     }
 
     let source = builder.build().await?;
@@ -1186,10 +1186,11 @@ mod tests {
             .await;
 
         assert!(res.is_err());
-        assert!(res
-            .unwrap_err()
-            .to_string()
-            .contains("WAL retention period is zero"));
+        assert!(
+            res.unwrap_err()
+                .to_string()
+                .contains("WAL retention period is zero")
+        );
 
         // clean
         drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;
@@ -1239,10 +1240,12 @@ mod tests {
 
         // assert the result
         assert!(alter_database_res.is_err());
-        assert!(alter_database_res
-            .unwrap_err()
-            .to_string()
-            .contains("WAL retention period is zero"));
+        assert!(
+            alter_database_res
+                .unwrap_err()
+                .to_string()
+                .contains("WAL retention period is zero")
+        );
 
         // clear the test data
         drop_topic_and_database(&taos, DB_NAME, DB_NAME).await;

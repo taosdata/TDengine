@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use bytes::Bytes;
 use clap::Parser;
 use futures::{StreamExt, TryStreamExt};
-use persist_queue::{fs::FsQueue, RawWriter};
+use persist_queue::{RawWriter, fs::FsQueue};
 use rand::distributions::{Alphanumeric, DistString};
 use tempfile::tempdir;
 use tokio_stream::wrappers::ReadDirStream;

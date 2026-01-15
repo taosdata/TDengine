@@ -1,8 +1,8 @@
 use std::{
     fmt::Display,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -12,8 +12,8 @@ use chrono::Utc;
 use dashmap::DashMap;
 use serde_json::json;
 use taosx_core::{
-    task_set::prelude::EventLevel, utils::dsn::json_to_dsn, Activity, LevelFilter, RespAction,
-    TaskNotify,
+    Activity, LevelFilter, RespAction, TaskNotify, task_set::prelude::EventLevel,
+    utils::dsn::json_to_dsn,
 };
 use taosx_task::TaskOpts;
 use tokio::task::JoinHandle;

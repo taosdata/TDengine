@@ -9,10 +9,10 @@ use arrow::{
 use arrow_schema::Fields;
 use faststr::FastStr;
 use lazy_static::lazy_static;
-use rhai::{Dynamic, EvalAltResult, LexError, ParseError, ParseErrorType, Scope, AST};
+use rhai::{AST, Dynamic, EvalAltResult, LexError, ParseError, ParseErrorType, Scope};
 use rhai_dylib::module_resolvers::libloading::DylibModuleResolver;
-use rhai_dylib::rhai::{config::hashing::set_hashing_seed, Engine};
-use serde::{de::Visitor, Deserialize, Deserializer, Serialize};
+use rhai_dylib::rhai::{Engine, config::hashing::set_hashing_seed};
+use serde::{Deserialize, Deserializer, Serialize, de::Visitor};
 use serde_json::Value;
 use std::fmt;
 use std::{collections::HashMap, sync::Arc};
@@ -545,10 +545,12 @@ mod tests {
         assert_eq!(udt1, udt2);
         let udt_err = serde_json::from_str::<Udt>(r#"{"udt": 8.8}"#);
         assert!(udt_err.is_err());
-        assert!(udt_err
-            .unwrap_err()
-            .to_string()
-            .contains("expected a string to parse into UdtAST"));
+        assert!(
+            udt_err
+                .unwrap_err()
+                .to_string()
+                .contains("expected a string to parse into UdtAST")
+        );
     }
     #[test]
     fn eval_with_udt_nested_array() {

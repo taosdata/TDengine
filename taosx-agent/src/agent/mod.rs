@@ -3,8 +3,8 @@ use std::fmt::Display;
 use std::future::Future;
 use std::ops::RangeInclusive;
 use std::pin::Pin;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 use std::task::Poll;
 use std::time::Duration;
 
@@ -12,9 +12,9 @@ use anyhow::{Context, Result};
 use arrow::array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
-use arrow_flight::flight_service_client::FlightServiceClient;
 use arrow_flight::FlightClient;
-use arrow_flight::{encode::FlightDataEncoderBuilder, Action as FlightAction};
+use arrow_flight::flight_service_client::FlightServiceClient;
+use arrow_flight::{Action as FlightAction, encode::FlightDataEncoderBuilder};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
@@ -33,9 +33,9 @@ use tower::{BoxError, Service};
 use tracing::{info, instrument};
 
 use taosx_core::{
-    get_data_dir, list_datasets_from, plugins, Activity, CheckResponse, DataSetsReq, Fail,
-    HeartbeatResponse, ListResponse, PutFileReq, PutFileResp, QueryDataSourceReq,
-    QueryDataSourceResp, RespAction, Response, SampleResponse,
+    Activity, CheckResponse, DataSetsReq, Fail, HeartbeatResponse, ListResponse, PutFileReq,
+    PutFileResp, QueryDataSourceReq, QueryDataSourceResp, RespAction, Response, SampleResponse,
+    get_data_dir, list_datasets_from, plugins,
 };
 
 use crate::runner::Action;
@@ -819,12 +819,12 @@ async fn do_put_file(req: PutFileReq, req_id: u64, resp_tx: Sender<RespAction>) 
         tracing::info!("[put-file] Write file to {}", path.display());
     }
     // If parent folders not exists, try to create them
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            match tokio::fs::create_dir_all(&parent).await {
-                Ok(_) => tracing::info!("[put-file] Directory created successfully"),
-                Err(e) => tracing::error!("[put-file] Failed to create directory: {}", e),
-            }
+    if let Some(parent) = path.parent()
+        && !parent.exists()
+    {
+        match tokio::fs::create_dir_all(&parent).await {
+            Ok(_) => tracing::info!("[put-file] Directory created successfully"),
+            Err(e) => tracing::error!("[put-file] Failed to create directory: {}", e),
         }
     }
     let result = if decompress {

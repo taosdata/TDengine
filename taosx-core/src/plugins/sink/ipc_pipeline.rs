@@ -7,26 +7,26 @@ use arrow::record_batch::RecordBatch;
 use arrow_schema::ArrowError;
 use bytes::Bytes;
 use flume;
-use futures::future::Either;
 use futures::StreamExt;
-use ring_channel::{ring_channel, RingReceiver};
+use futures::future::Either;
+use ring_channel::{RingReceiver, ring_channel};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, instrument, trace, warn, Span as TracingSpan};
+use tracing::{Span as TracingSpan, debug, info, instrument, trace, warn};
 use zerocopy::FromBytes;
 
 use arrow_flight::{
-    encode::FlightDataEncoderBuilder, error::FlightError,
-    flight_service_client::FlightServiceClient, FlightClient,
+    FlightClient, encode::FlightDataEncoderBuilder, error::FlightError,
+    flight_service_client::FlightServiceClient,
 };
 use taosx_ipc::prelude::*;
 
+use crate::AGENT_COMPRESSION;
 use crate::core_metrics::get_metrics;
 use crate::utils::trace::BatchCounter;
-use crate::AGENT_COMPRESSION;
 
-use super::ipc_transport::{retry_connect, DefaultChannelFactory, RetryConfig};
-use super::persist::PersistComponent;
 use super::MessageMetadata;
+use super::ipc_transport::{DefaultChannelFactory, RetryConfig, retry_connect};
+use super::persist::PersistComponent;
 use crate::plugins::sink::persist::get_stream;
 use crate::utils::trace::Qid;
 
@@ -302,8 +302,8 @@ impl IpcSinkPipeline {
                 tracing::error!(error = ?cause_error, retries = last_retries, "Retry connections");
             }
 
-            use taoslog::utils::QidMetadataGetter;
             use taoslog::QidManager;
+            use taoslog::utils::QidMetadataGetter;
 
             let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
             qid.set_task_id(task_id as _);
@@ -491,7 +491,10 @@ impl IpcSinkPipeline {
                                 if err_msg.contains("os error 10054")
                                     || err_msg.contains("os error 10053")
                                 {
-                                    warn!("ConnectionReset or ConnectionAborted, consider as success: {}", err_msg);
+                                    warn!(
+                                        "ConnectionReset or ConnectionAborted, consider as success: {}",
+                                        err_msg
+                                    );
                                     break 'start;
                                 }
                                 tracing::error!(alive = ?alive.elapsed(), "Arrow error: {arrow:#}");

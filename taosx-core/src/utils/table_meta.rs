@@ -164,10 +164,10 @@ impl TableMetaQuerier {
             bail!("querier is not loaded");
         }
 
-        if let Some(stables) = self.super_table_meta(stable)? {
-            if let Some(columns) = stables.columns.as_ref() {
-                return Ok(columns.iter().any(|c| c.field == col_name));
-            }
+        if let Some(stables) = self.super_table_meta(stable)?
+            && let Some(columns) = stables.columns.as_ref()
+        {
+            return Ok(columns.iter().any(|c| c.field == col_name));
         }
 
         Ok(false)
@@ -184,13 +184,12 @@ impl TableMetaQuerier {
             bail!("querier is not loaded");
         }
 
-        if let Some(stable) = self.super_table_meta(stable)? {
-            if let Some(tags) = stable.tags.as_ref() {
-                return Ok(tags.iter().any(|t| {
-                    t.field.eq_ignore_ascii_case(tag_name)
-                        && t.r#type.eq_ignore_ascii_case(tag_type)
-                }));
-            }
+        if let Some(stable) = self.super_table_meta(stable)?
+            && let Some(tags) = stable.tags.as_ref()
+        {
+            return Ok(tags.iter().any(|t| {
+                t.field.eq_ignore_ascii_case(tag_name) && t.r#type.eq_ignore_ascii_case(tag_type)
+            }));
         }
 
         Ok(false)
@@ -327,11 +326,7 @@ impl TableMetaQuerier {
     async fn load_columns(&self, dbname: &str, tbname: &str) -> anyhow::Result<Vec<ColumnMeta>> {
         let sql = format!(
             "select {},{},{} from information_schema.ins_columns where db_name = '{}' and table_name = '{}'",
-            "col_name as `field`",
-            "col_type as `type`",
-            "col_length as `length`",
-            dbname,
-            tbname,
+            "col_name as `field`", "col_type as `type`", "col_length as `length`", dbname, tbname,
         );
         tracing::debug!("sql: {}", sql);
 
@@ -380,11 +375,7 @@ impl TableMetaQuerier {
     async fn load_tags_of_table(&self, dbname: &str, tbname: &str) -> anyhow::Result<Vec<TagMeta>> {
         let sql = format!(
             "select {},{},{} from information_schema.ins_tags where db_name = '{}' and table_name = '{}'",
-            "tag_name as `field`",
-            "tag_type as `type`",
-            "tag_value as `value`",
-            dbname,
-            tbname
+            "tag_name as `field`", "tag_type as `type`", "tag_value as `value`", dbname, tbname
         );
         tracing::debug!("sql: {}", sql);
 

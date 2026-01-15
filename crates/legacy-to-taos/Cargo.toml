@@ -1,6 +1,6 @@
 [package]
 name = "legacy-to-taos"
-edition = "2024"
+edition.workspace = true
 version.workspace = true
 rust-version.workspace = true
 

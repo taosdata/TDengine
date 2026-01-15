@@ -4,21 +4,21 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     sync::{
-        atomic::{self, AtomicBool, AtomicU64},
         Arc, OnceLock,
+        atomic::{self, AtomicBool, AtomicU64},
     },
     thread,
 };
 
 use chrono::{
-    format::{DelayedFormat, StrftimeItems},
     DateTime, Local, NaiveDateTime, NaiveTime, TimeDelta, TimeZone,
+    format::{DelayedFormat, StrftimeItems},
 };
 use flate2::write::GzEncoder;
 use parking_lot::{RwLock, RwLockReadGuard};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use regex::Regex;
-use snafu::{ensure, OptionExt, ResultExt};
+use snafu::{OptionExt, ResultExt, ensure};
 use sysinfo::Disks;
 use tracing::Level;
 

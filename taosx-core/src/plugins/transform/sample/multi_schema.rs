@@ -6,7 +6,7 @@ use itertools::Itertools;
 use serde_arrow::schema::SerdeArrowSchema;
 
 use crate::plugins::transform::{
-    modeler::{stable::STableModel, ModeledJsonOutput},
+    modeler::{ModeledJsonOutput, stable::STableModel},
     to_json_valid_batches,
 };
 

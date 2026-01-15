@@ -8,10 +8,10 @@ impl MetricsStore {
     pub fn new(task_id: &str) -> Self {
         let data_dir = get_data_dir();
         let path = data_dir.join("tasks").join(task_id);
-        if !path.exists() {
-            if let Err(err) = std::fs::create_dir_all(&path) {
-                tracing::error!("failed to create dir {:?}: {}", path, err);
-            }
+        if !path.exists()
+            && let Err(err) = std::fs::create_dir_all(&path)
+        {
+            tracing::error!("failed to create dir {:?}: {}", path, err);
         }
         let path = path.join("metrics.json");
         Self { path }

@@ -3,14 +3,14 @@ use std::{
     sync::OnceLock,
 };
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use arrow::array::RecordBatch;
 use faststr::FastStr;
 use taos::Itertools;
 
 use crate::{
     expr::Expr,
-    plugins::transform::{modeler::template_to_expr, TableOptions},
+    plugins::transform::{TableOptions, modeler::template_to_expr},
 };
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

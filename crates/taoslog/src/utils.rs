@@ -1,4 +1,4 @@
-use tracing_subscriber::{registry::LookupSpan, Registry};
+use tracing_subscriber::{Registry, registry::LookupSpan};
 
 use crate::QidManager;
 

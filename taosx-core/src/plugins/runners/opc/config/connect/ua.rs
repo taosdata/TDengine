@@ -39,7 +39,10 @@ impl UaConnectConfig {
         let auth_method = if username.is_some() || password.is_some() {
             match username.as_ref().zip(password.as_ref()) {
                 Some(_) => AuthMethod::UserName,
-                None => Err(anyhow::anyhow!("Username and password are both required for UserName authentication method in {}", dsn.clone().to_string()))?,
+                None => Err(anyhow::anyhow!(
+                    "Username and password are both required for UserName authentication method in {}",
+                    dsn.clone().to_string()
+                ))?,
             }
         } else if auth_certificate.is_some() || auth_private_key.is_some() {
             AuthMethod::Certificate
@@ -171,7 +174,9 @@ mod tests {
 
     #[test]
     fn test_parse_file_path() {
-        std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        unsafe {
+            std::env::set_var("TAOSX_DATA_DIR", std::env::current_dir().unwrap());
+        }
 
         let dsn = Dsn::from_str("opcua://").unwrap();
         let param = UaConnectConfig::parse_file_path(&dsn, "certificate").unwrap();
@@ -194,10 +199,12 @@ mod tests {
         dbg!(&dsn);
         let content = UaConnectConfig::parse_file_path(&dsn, "certificate");
         assert!(content.is_err());
-        assert!(content
-            .unwrap_err()
-            .to_string()
-            .contains("certificate: abc not found"));
+        assert!(
+            content
+                .unwrap_err()
+                .to_string()
+                .contains("certificate: abc not found")
+        );
 
         // 不以@开头，文件内容
         let dsn = Dsn::from_str("opcua://?certificate=abc").unwrap();

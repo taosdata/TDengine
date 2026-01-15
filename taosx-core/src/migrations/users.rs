@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, skip_serializing_none, NoneAsEmptyString};
+use serde_with::{NoneAsEmptyString, serde_as, skip_serializing_none};
 use taos::{AsyncFetchable, AsyncQueryable, Itertools, TryStreamExt};
 
 #[skip_serializing_none]
@@ -27,16 +27,14 @@ impl User {
             self.name, self.encrypted_pass, self.sysinfo, self.createdb
         );
 
-        if with_whitelist {
-            if let Some(allowed_host) = &self.allowed_host {
-                create.push_str(" HOST ");
-                create.push_str(
-                    &allowed_host
-                        .split(',')
-                        .map(|host| format!("'{}'", host))
-                        .join(","),
-                );
-            }
+        if with_whitelist && let Some(allowed_host) = &self.allowed_host {
+            create.push_str(" HOST ");
+            create.push_str(
+                &allowed_host
+                    .split(',')
+                    .map(|host| format!("'{}'", host))
+                    .join(","),
+            );
         }
         let cap = match (self.is_super, self.enable) {
             (1, 0) => 3,
