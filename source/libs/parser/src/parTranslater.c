@@ -4020,7 +4020,7 @@ static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
 }
 
 static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
-  if (pCxt->dual) {
+  if (pCxt->dual && !pCxt->isExprSubQ) {
     parserError("scalar subq not supported in query without FROM");
     pCxt->errCode = TSDB_CODE_PAR_STMT_NOT_SUPPORT_SCALAR_SUBQ;
   }
@@ -19221,8 +19221,8 @@ static int32_t setCurrLevelNsFromParent(STranslateContext* pSrc, STranslateConte
 
   for (int32_t i = 0; i < pSrc->currLevel + 1; ++i) {
     SArray* pLevel = taosArrayGetP(pSrc->pNsLevel, i);
-    SArray* pNew = taosArrayDup(pLevel, NULL);
-    if (NULL == pNew) {
+    SArray* pNew = pLevel ? taosArrayDup(pLevel, NULL) : NULL;
+    if (pLevel && NULL == pNew) {
       parserError("taosArrayDup %d level %p NS failed", i, pLevel);
       return terrno;
     }

@@ -266,6 +266,8 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
+    case TSDB_DATA_TYPE_JSON: 
+      // ignore types
       *comparFn = 0;
       break;
     case TSDB_DATA_TYPE_BOOL:

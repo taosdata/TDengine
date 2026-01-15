@@ -497,7 +497,7 @@ int32_t scalarBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData
   }
 
   pRemote->hashAllocated = true;
-  pRemote->hasNull = hasNull1 || hasNull2;
+  pRemote->hasNull = hasNull1 || hasNull2 || (rows > 0 && TSDB_DATA_TYPE_NULL == type);
   pRemote->filterValueTypeMod = typeMod;
   pRemote->filterValueType = type;
 

@@ -118,17 +118,17 @@ taos> select distinct (select f1 from db2.tba), f1 from st1;
 =========================================
                         0 |           2 |
                         0 |           5 |
-                        0 |           6 |
-                        0 |           1 |
                         0 |           3 |
+                        0 |           6 |
                         0 |           4 |
+                        0 |           1 |
 
 taos> select distinct 1 in (select 1 from st1), f1 from st1;
  1 in (select 1 from st1) |     f1      |
 =========================================
  true                     |           1 |
- true                     |           4 |
  true                     |           5 |
+ true                     |           4 |
  true                     |           3 |
  true                     |           6 |
  true                     |           2 |
@@ -137,9 +137,9 @@ taos> select distinct 1 not in (select 1 from st1), f1 from st1;
  1 not in (select 1 from st1) |     f1      |
 =============================================
  false                        |           3 |
- false                        |           4 |
  false                        |           6 |
  false                        |           5 |
+ false                        |           4 |
  false                        |           1 |
  false                        |           2 |
 
@@ -287,9 +287,9 @@ taos> select case when (select f1 from db2.tba) > 0 then 1 else 2 end, sum(f1) f
                                                         2 |                     5 |
                                                         2 |                     1 |
                                                         2 |                     3 |
+                                                        2 |                     4 |
                                                         2 |                     6 |
                                                         2 |                     2 |
-                                                        2 |                     4 |
 
 taos> select case when 1 in (select 1 from st1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
 
@@ -312,9 +312,9 @@ taos> select case when 1 = 1 then 2 / (select f1 from db2.tba) else 2 end, sum(f
  NULL                                                         |                     5 |
  NULL                                                         |                     1 |
  NULL                                                         |                     3 |
+ NULL                                                         |                     4 |
  NULL                                                         |                     6 |
  NULL                                                         |                     2 |
- NULL                                                         |                     4 |
 
 taos> select case when 1 = 1 then 2 / 1 in (select 1 from st1) else 2 end, sum(f1) from st1 group by f1;
  case when 1 = 1 then 2 / 1 in (select 1 from st1) else 2 end |        sum(f1)        |
@@ -322,9 +322,9 @@ taos> select case when 1 = 1 then 2 / 1 in (select 1 from st1) else 2 end, sum(f
                                                             0 |                     5 |
                                                             0 |                     1 |
                                                             0 |                     3 |
+                                                            0 |                     4 |
                                                             0 |                     6 |
                                                             0 |                     2 |
-                                                            0 |                     4 |
 
 taos> select case when 1 = 1 then 2 / 1 not in (select 1 from st1) else 2 end, sum(f1) from st1 group by f1;
  case when 1 = 1 then 2 / 1 not in (select 1 from st1) else 2 end |        sum(f1)        |
@@ -332,9 +332,9 @@ taos> select case when 1 = 1 then 2 / 1 not in (select 1 from st1) else 2 end, s
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when 0 = 1 then 1 else (select 0 from st1) is null end, sum(f1) from st1 group by f1;
 
@@ -351,9 +351,9 @@ taos> select case when 0 = 1 then 1 else (select f1 from db2.tba) is null end, s
                                                                 0 |                     5 |
                                                                 0 |                     1 |
                                                                 0 |                     3 |
+                                                                0 |                     4 |
                                                                 0 |                     6 |
                                                                 0 |                     2 |
-                                                                0 |                     4 |
 
 taos> select case when 0 = 1 then 1 else 1 in (select 1 from st1) is null end, sum(f1) from st1 group by f1;
 
@@ -1656,12 +1656,12 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select avg(f1) from st1 group by f1, (select f1 from db2.tba);
           avg(f1)          |
 ============================
-                         4 |
-                         6 |
                          2 |
                          3 |
                          5 |
                          1 |
+                         4 |
+                         6 |
 
 taos> select avg(f1) from st1 group by f1, 1 in (select 1 from st1);
 
@@ -1738,9 +1738,9 @@ taos> select avg(f1) from st1 group by f1 having avg((select f1 from db2.tba) + 
                          5 |
                          1 |
                          3 |
+                         4 |
                          6 |
                          2 |
-                         4 |
 
 taos> select avg(f1) from st1 group by f1 having avg(1 in (select 1 from st1) + 1) > 0;
 
