@@ -10,6 +10,36 @@ module.exports = [
         return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       }
 
+      const punctuationRegex = /[：:；;,\.]$/;
+
+      function reportIfMissingSpace(lineContent, boldContent, lineNumber) {
+        if (!boldContent || !lineContent) return false;
+        const pattern = new RegExp("\\*\\*" + escapeRegExp(boldContent) + "\\*\\*", "g");
+        let m;
+        while ((m = pattern.exec(lineContent)) !== null) {
+          const afterBold = lineContent.slice(m.index + m[0].length);
+          if (!afterBold || afterBold.trim().length === 0 || afterBold.startsWith("**")) {
+            continue;
+          }
+          if (!afterBold.startsWith(" ")) {
+            const columnNumber = m.index + m[0].length + 1;
+            onError({
+              lineNumber: lineNumber,
+              detail: `Add a space after the closing emphasis markers (**), if the emphasis ends with punctuation. (Column: ${columnNumber})`,
+              context: lineContent.trim(),
+              fixInfo: {
+                editColumn: columnNumber,
+                deleteCount: 0,
+                insertText: " ",
+              },
+            });
+            return true;
+          }
+          return false;
+        }
+        return false;
+      }
+
       params.tokens.forEach((token) => {
         if (token.type === "inline" && token.children) {
           token.children.forEach((child, childIndex) => {
@@ -20,31 +50,11 @@ module.exports = [
 
               if (precedingToken && precedingToken.type === "text") {
                 const boldContent = precedingToken.content.trim();
-                const punctuationRegex = /[：:；;,\.]$/; // Match full-width and half-width punctuation at the end
 
                 if (punctuationRegex.test(boldContent)) {
                   if (!nextToken || nextToken.type !== "text" || !nextToken.content.startsWith(" ")) {
                     const lineContent = params.lines[child.lineNumber - 1] || "";
-                    const boldPattern = new RegExp("\\*\\*" + escapeRegExp(boldContent) + "\\*\\*");
-                    const m = lineContent.match(boldPattern);
-                    const afterBold = m ? lineContent.slice(lineContent.indexOf(m[0]) + m[0].length) : "";
-
-                    // skip if afterBold is end of line/only whitespace, or followed by another emphasis marker (**)
-                    if (!afterBold || afterBold.trim().length === 0 || afterBold.startsWith("**")) {
-                      // skip
-                    } else if (!afterBold.startsWith(" ")) {
-                      const columnNumber = (m ? lineContent.indexOf(m[0]) : 0) + (m ? m[0].length : (`**${boldContent}**`.length)) + 1;
-                      onError({
-                        lineNumber: child.lineNumber || token.lineNumber,
-                        detail: `Add a space after the closing emphasis markers (**), if the emphasis ends with punctuation. (Column: ${columnNumber})`,
-                        context: lineContent.trim(),
-                        fixInfo: {
-                          editColumn: columnNumber,
-                          deleteCount: 0,
-                          insertText: " ",
-                        },
-                      });
-                    }
+                    reportIfMissingSpace(lineContent, boldContent, child.lineNumber);
                   }
                 }
               }
@@ -57,32 +67,10 @@ module.exports = [
               const lineContent = params.lines[child.lineNumber - 1] || "";
               while ((match = regex.exec(child.content)) !== null) {
                 const boldContent = match[1]; // Extract content inside ** **
-                const punctuationRegex = /[：:；;,\.]$/; // Match full-width and half-width punctuation at the end
-
+                if (!boldContent) continue;
                 if (punctuationRegex.test(boldContent)) {
-                  const remainingContent = child.content.slice(match.index + match[0].length);
-                  // remainingContent may be empty if bold is at end of this token
-                  // locate the actual bold in the full line to get correct afterBold
-                  const boldPattern = new RegExp("\\*\\*" + escapeRegExp(boldContent) + "\\*\\*");
-                  const m = lineContent.match(boldPattern);
-                  const afterBold = m ? lineContent.slice(lineContent.indexOf(m[0]) + m[0].length) : "";
-
-                  // skip if afterBold is end of line/only whitespace, or followed by another emphasis marker (**)
-                  if (!afterBold || afterBold.trim().length === 0 || afterBold.startsWith("**")) {
-                    // skip
-                  } else if (!afterBold.startsWith(" ")) {
-                    const columnNumber = (m ? lineContent.indexOf(m[0]) : 0) + (m ? m[0].length : (`**${boldContent}**`.length)) + 1;
-                    onError({
-                      lineNumber: child.lineNumber || token.lineNumber,
-                      detail: `Add a space after the closing emphasis markers (**), if the emphasis ends with punctuation. (Column: ${columnNumber})`,
-                      context: lineContent.trim(),
-                      fixInfo: {
-                        editColumn: columnNumber,
-                        deleteCount: 0,
-                        insertText: " ",
-                      },
-                    });
-                  }
+                  // try to locate an applicable bold occurrence in the full line
+                  reportIfMissingSpace(lineContent, boldContent, child.lineNumber);
                 }
               }
             }
