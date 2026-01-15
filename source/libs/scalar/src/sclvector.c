@@ -1157,7 +1157,7 @@ int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
 
 int8_t gDisplyTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
     /*NULL BOOL TINY SMAL INT  BIGI FLOA DOUB VARC TIM NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM DEC64*/
-    /*NULL*/ 0,  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, -1, -1, 20, 21,
+    /*NULL*/ 0,  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
     /*BOOL*/ 0,  1, 2, 3, 4, 5, 6, 7, 8, 5, 10, 11, 12, 13, 14, -1, -1, 17, -1, -1, -1, 17,
     /*TINY*/ 0,  0, 2, 3, 4, 5, 8, 8, 8, 5, 10, 3,  4,  5,  8,  -1, -1, 17, -1, -1, -1, 17,
     /*SMAL*/ 0,  0, 0, 3, 4, 5, 8, 8, 8, 5, 10, 3,  4,  5,  8,  -1, -1, 17, -1, -1, -1, 17,

@@ -265,6 +265,9 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
   //  }
 
   switch (type) {
+    case TSDB_DATA_TYPE_NULL:
+      *comparFn = 0;
+      break;
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
       *comparFn = 1;
