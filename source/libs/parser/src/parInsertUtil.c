@@ -420,7 +420,7 @@ void destroyColVal(void* p) {
 
   SColVal* pVal = (SColVal*)p;
 
-  if (IS_VAR_DATA_TYPE(pVal->value.type)) {
+  if (IS_VAR_DATA_TYPE(pVal->value.type) || TSDB_DATA_TYPE_DECIMAL == pVal->value.type) {
     taosMemoryFreeClear(pVal->value.pData);
   }
 }
