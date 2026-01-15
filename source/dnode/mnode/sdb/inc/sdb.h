@@ -212,6 +212,7 @@ typedef struct SSdb {
   int64_t            sync;
   char              *currDir;
   char              *tmpDir;
+  char               mnodePath[PATH_MAX];  // Path to mnode directory for persisting mnode.json
   int64_t            commitIndex;
   int64_t            commitTerm;
   int64_t            commitConfig;
@@ -233,6 +234,7 @@ typedef struct SSdb {
   SdbValidateFp      validateFps[SDB_MAX];
   SdbUpgradeFp       upgradeFps[SDB_MAX];
   TdThreadMutex      filelock;
+  bool               encrypted;
 } SSdb;
 
 typedef struct SSdbIter {

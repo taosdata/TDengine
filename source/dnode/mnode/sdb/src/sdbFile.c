@@ -22,12 +22,18 @@
 #include "tglobal.h"
 #include "wal.h"
 
+// Forward declaration for mndSetEncryptedFlag
+int32_t mndSetEncryptedFlag(SSdb *pSdb);
+
 #define SDB_TABLE_SIZE   24
 #define SDB_RESERVE_SIZE 512
 #define SDB_FILE_VER     1
 
 #define SDB_TABLE_SIZE_EXTRA   SDB_MAX
 #define SDB_RESERVE_SIZE_EXTRA (512 - (SDB_TABLE_SIZE_EXTRA - SDB_TABLE_SIZE) * 2 * sizeof(int64_t))
+
+// Forward declaration
+static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type);
 
 static int32_t sdbDeployData(SSdb *pSdb) {
   int32_t code = 0;
@@ -316,9 +322,26 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   int64_t ret = 0;
   char    file[PATH_MAX] = {0};
   int32_t bufLen = TSDB_MAX_MSG_SIZE;
+  bool    needMigration = false;
 
   snprintf(file, sizeof(file), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
-  mInfo("start to read sdb file:%s", file);
+
+  // Wait for encryption keys to be loaded
+  code = taosWaitCfgKeyLoaded();
+  if (code != 0) {
+    mError("failed to wait for encryption keys since %s", tstrerror(code));
+    return code;
+  }
+
+  // Check if sdb.data needs encryption migration
+  // This info is stored in mnode.json encrypted flag
+  bool isEncrypted = pSdb->encrypted;
+  if (!isEncrypted && tsMetaKey[0] != '\0') {
+    mInfo("sdb.data not encrypted but tsMetaKey available, will migrate after reading");
+    needMigration = true;
+  }
+
+  mInfo("start to read sdb file:%s, encrypted:%d, needMigration:%d", file, isEncrypted, needMigration);
 
   SSdbRaw *pRaw = taosMemoryMalloc(bufLen + 100);
   if (pRaw == NULL) {
@@ -367,7 +390,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     }
 
     readLen = pRaw->dataLen + sizeof(int32_t);
-    if (tsMetaKey[0] != '\0') {
+    if (tsMetaKey[0] != '\0' && !needMigration) {
       readLen = ENCRYPTED_LEN(pRaw->dataLen) + sizeof(int32_t);
     }
     if (readLen >= bufLen) {
@@ -402,7 +425,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       goto _OVER;
     }
 
-    if (tsMetaKey[0] != '\0') {
+    if (tsMetaKey[0] != '\0' && !needMigration) {
       int32_t count = 0;
 
       char *plantContent = taosMemoryMalloc(ENCRYPTED_LEN(pRaw->dataLen));
@@ -476,13 +499,35 @@ int32_t sdbReadFile(SSdb *pSdb) {
   if (code != 0) {
     mError("failed to read sdb file since %s", tstrerror(code));
     sdbResetData(pSdb);
+    return code;
+  }
+
+  // Check if sdb.data needs encryption migration
+  bool isEncrypted = pSdb->encrypted;
+  if (!isEncrypted && tsMetaKey[0] != '\0') {
+    mInfo("sdb.data read successfully, now migrating to encrypted format");
+
+    // Rewrite sdb.data with encryption (atomic operation)
+    code = sdbWriteFileImp(pSdb, -1);
+    if (code != 0) {
+      mError("failed to migrate sdb.data to encrypted format since %s", tstrerror(code));
+      // Don't fail the read, continue
+      (void)taosThreadMutexUnlock(&pSdb->filelock);
+      return code;
+    }
+
+    // Update encrypted flag and persist to mnode.json immediately (atomic operation)
+    code = mndSetEncryptedFlag(pSdb);
+    if (code == 0) {
+      mInfo("sdb.data migrated to encrypted format and persisted encrypted flag to mnode.json successfully");
+    }
   }
 
   (void)taosThreadMutexUnlock(&pSdb->filelock);
   return code;
 }
 
-static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
+int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
   int32_t code = 0;
 
   char tmpfile[PATH_MAX] = {0};

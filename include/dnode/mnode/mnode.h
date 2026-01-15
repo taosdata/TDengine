@@ -20,8 +20,8 @@
 #include "sync.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
-#include "trpc.h"
 #include "tqueue.h"
+#include "trpc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,6 +41,7 @@ typedef struct {
   int32_t  nodeRoles[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   SMsgCb   msgCb;
   int64_t  lastIndex;
+  bool     encrypted;  // Whether json file should be encrypted with tsMetaKey
 } SMnodeOpt;
 
 /* ------------------------ SMnode ------------------------ */

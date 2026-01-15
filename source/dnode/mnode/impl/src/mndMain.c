@@ -675,6 +675,9 @@ static int32_t mndInitSdb(SMnode *pMnode) {
 
 static int32_t mndOpenSdb(SMnode *pMnode) {
   int32_t code = 0;
+  
+  pMnode->pSdb->encrypted = pMnode->encrypted;
+
   if (!pMnode->deploy) {
     code = sdbReadFile(pMnode->pSdb);
   }
@@ -810,6 +813,7 @@ static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->syncMgmt.lastIndex = pOption->lastIndex;
   (void)memcpy(pMnode->syncMgmt.replicas, pOption->replicas, sizeof(pOption->replicas));
   (void)memcpy(pMnode->syncMgmt.nodeRoles, pOption->nodeRoles, sizeof(pOption->nodeRoles));
+  pMnode->encrypted = pOption->encrypted;
 }
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {

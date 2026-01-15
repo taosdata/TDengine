@@ -1895,11 +1895,11 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
 
   if (tsEncryptKeysStatus == TSDB_ENCRYPT_KEY_STAT_LOADED) {
     keyVersion = tsEncryptKeyVersion;
-    tstrncpy(svrKey, tsSvrKey, 128);
-    tstrncpy(dbKey, tsDbKey, 128);
-    tstrncpy(cfgKey, tsCfgKey, 128);
-    tstrncpy(metaKey, tsMetaKey, 128);
-    tstrncpy(dataKey, tsDataKey, 128);
+    tstrncpy(svrKey, tsSvrKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(dbKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(cfgKey, tsCfgKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(metaKey, tsMetaKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(dataKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
     algorithm = tsEncryptAlgorithmType;
     cfgAlgorithm = tsCfgAlgorithm;
     metaAlgorithm = tsMetaAlgorithm;
