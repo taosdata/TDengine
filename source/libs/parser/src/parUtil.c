@@ -311,6 +311,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES:
       return "fill values can only be used with fill VALUE/VALUE_F "
              "and SURROUND mode";
+    case TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES:
+      return "surrounding time value cannot be less than interval value";
     default:
       return "Unknown error";
   }

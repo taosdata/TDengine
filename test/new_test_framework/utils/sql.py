@@ -743,6 +743,7 @@ class TDSql:
         Raises:
             SystemExit: If the expected error does not occur or if the error information does not match the expected information.
         """
+        filename, lineno = _fast_caller(1)
         expectErrNotOccured = True
         if show:
             tdLog.info(sql)
@@ -761,7 +762,6 @@ class TDSql:
             ).replace("'", "")
             # self.error_info = (','.join(error_info.split(",")[:-1]).split("(",1)[1:][0]).replace("'","")
         if expectErrNotOccured:
-            filename, lineno = _fast_caller(1)
             tdLog.exit(
                 "%s(%d) failed: sql:%s, expect error not occured"
                 % (filename, lineno, sql)

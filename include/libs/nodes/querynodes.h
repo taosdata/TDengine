@@ -577,7 +577,7 @@ typedef enum EShowKind {
 typedef struct SSurroundNode {
   ENodeType  type;       // QUERY_NODE_SURROUND
   SNode*     pSurroundingTime;
-  SNode* pValues;
+  SNode*     pValues;
 } SSurroundNode;
 
 typedef struct SFillNode {
