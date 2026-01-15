@@ -1,10 +1,11 @@
-name: taosKeeper Build
+name: taosKeeper Test
 
 on:
   pull_request:
     branches:
       - "main"
       - "3.0"
+      - "3.3.6"
       - "3.3.8"
     paths:
       - "tools/keeper/**"
@@ -12,6 +13,8 @@ on:
     branches:
       - "main"
       - "3.0"
+      - "3.3.6"
+      - "3.3.8"
     paths:
       - "tools/keeper/**"
 
@@ -39,9 +42,24 @@ jobs:
         with:
           cmakeVersion: 3.31.6
 
+      - name: Determine taosadapter git tag
+        id: taosadapter_tag
+        run: |
+          branch="${{ github.base_ref }}"
+          if [ -z "$branch" ]; then
+            branch="${{ github.ref_name }}"
+          fi
+          case "$branch" in
+            3.0) tag="3.0" ;;
+            3.3.6) tag="3.3.6" ;;
+            3.3.8) tag="3.3.8" ;;
+            *) tag="main" ;;
+          esac
+          echo "value=$tag" >> "$GITHUB_OUTPUT"
+
       - name: Install TDengine
         env:
-          TAOSADAPTER_FLAG: ${{ github.base_ref == '3.0' && '-DTAOSADAPTER_GIT_TAG:STRING=3.0' || '' }}
+          TAOSADAPTER_FLAG: -DTAOSADAPTER_GIT_TAG:STRING=${{ steps.taosadapter_tag.outputs.value }}
         run: |
           mkdir debug
           cd debug
