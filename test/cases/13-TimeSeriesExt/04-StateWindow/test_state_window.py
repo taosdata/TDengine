@@ -367,5 +367,56 @@ class TestStateWindow:
         
         sql = "select _wstart, _wduration, _wend, v from ntb state_window(s, 2)"
         tdSql.error(sql, show=True)
+    
+    def test_state_window_group(self):
+        """summary: test state window on multiple groups
+
+        description: calc state window on multiple groups
+
+        Since: v3.4.0.0
+
+        Labels: state window
+
+        Catalog:
+            - Function:aggregation
+
+        History:
+            - 2026-01-12: Tony Zhang created
+        """
+        tdSql.execute("create database test_group", show=True)
+        tdSql.execute("use test_group", show=True)
+        tdSql.execute("create table stb (ts timestamp, vb bool, vi int) tags (tg int)", show=True)
+        tdSql.execute("create table ctb1 using stb tags(1);")
+        tdSql.execute("create table ctb2 using stb tags(2);")
+        tdSql.execute("create table ctb3 using stb tags(3);")
+
+        tdSql.execute("insert into ctb1 values('2026-01-12 12:00:00', NULL, 1);")
+        tdSql.execute("insert into ctb1 values('2026-01-12 12:00:01', NULL, 1);")
+        tdSql.execute("insert into ctb1 values('2026-01-12 12:00:02', NULL, 1);")
+        tdSql.execute("insert into ctb1 values('2026-01-12 12:00:03', NULL, 1);")
+        tdSql.execute("insert into ctb2 values('2026-01-12 12:00:04', false, 1);")
+        tdSql.execute("insert into ctb2 values('2026-01-12 12:00:05', true, 1);")
+        tdSql.execute("insert into ctb2 values('2026-01-12 12:00:06', true, 1);")
+        tdSql.execute("insert into ctb2 values('2026-01-12 12:00:07', false, 1);")
+        tdSql.execute("insert into ctb3 values('2026-01-12 12:00:08', NULL, 1);")
+        tdSql.execute("insert into ctb3 values('2026-01-12 12:00:09', NULL, 1);")
+        tdSql.execute("insert into ctb3 values('2026-01-12 12:00:10', NULL, 1);")
+        tdSql.execute("insert into ctb3 values('2026-01-12 12:00:11', NULL, 1);")
+        tdSql.execute("insert into ctb3 values('2026-01-12 12:00:12', NULL, 1);")
+
+        tdSql.query("select _wstart, _wend, _wduration, count(*) from stb partition by tbname state_window(vb, 1);")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "2026-01-12 12:00:04.000")
+        tdSql.checkData(0, 1, "2026-01-12 12:00:04.999")
+        tdSql.checkData(0, 2, 999)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(1, 0, "2026-01-12 12:00:05.000")
+        tdSql.checkData(1, 1, "2026-01-12 12:00:06.999")
+        tdSql.checkData(1, 2, 1999)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(2, 0, "2026-01-12 12:00:07.000")
+        tdSql.checkData(2, 1, "2026-01-12 12:00:07.000")
+        tdSql.checkData(2, 2, 0)
+        tdSql.checkData(2, 3, 1)
 
 event = threading.Event()

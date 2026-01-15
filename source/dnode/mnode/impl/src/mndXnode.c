@@ -1132,6 +1132,8 @@ static void mndFreeXnodeTask(SXnodeTaskObj *pObj) {
   taosMemoryFreeClear(pObj->parser);
   taosMemoryFreeClear(pObj->reason);
   taosMemoryFreeClear(pObj->status);
+  taosMemoryFreeClear(pObj->createdBy);
+  taosMemoryFreeClear(pObj->labels);
 }
 
 SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
@@ -1170,6 +1172,10 @@ SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
   SDB_SET_BINARY(pRaw, dataPos, pObj->parser, pObj->parserLen, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->reasonLen, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pObj->reason, pObj->reasonLen, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pObj->createdByLen, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pObj->createdBy, pObj->createdByLen, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pObj->labelsLen, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pObj->labels, pObj->labelsLen, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_XNODE_RESERVE_SIZE, _OVER)
 
@@ -1263,6 +1269,20 @@ SSdbRow *mndXnodeTaskActionDecode(SSdbRaw *pRaw) {
     SDB_GET_BINARY(pRaw, dataPos, pObj->reason, pObj->reasonLen, _OVER)
   }
 
+  SDB_GET_INT32(pRaw, dataPos, &pObj->createdByLen, _OVER)
+  if (pObj->createdByLen > 0) {
+    pObj->createdBy = taosMemoryCalloc(pObj->createdByLen + 1, 1);
+    if (pObj->createdBy == NULL) goto _OVER;
+    SDB_GET_BINARY(pRaw, dataPos, pObj->createdBy, pObj->createdByLen, _OVER)
+  }
+
+  SDB_GET_INT32(pRaw, dataPos, &pObj->labelsLen, _OVER)
+  if (pObj->labelsLen > 0) {
+    pObj->labels = taosMemoryCalloc(pObj->labelsLen + 1, 1);
+    if (pObj->labels == NULL) goto _OVER;
+    SDB_GET_BINARY(pRaw, dataPos, pObj->labels, pObj->labelsLen, _OVER)
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_XNODE_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -1309,6 +1329,7 @@ int32_t mndXnodeTaskActionUpdate(SSdb *pSdb, SXnodeTaskObj *pOld, SXnodeTaskObj 
   swapFields(&pNew->sinkDsnLen, &pNew->sinkDsn, &pOld->sinkDsnLen, &pOld->sinkDsn);
   swapFields(&pNew->parserLen, &pNew->parser, &pOld->parserLen, &pOld->parser);
   swapFields(&pNew->reasonLen, &pNew->reason, &pOld->reasonLen, &pOld->reason);
+  swapFields(&pNew->labelsLen, &pNew->labels, &pOld->labelsLen, &pOld->labels);
   if (pNew->updateTime > pOld->updateTime) {
     pOld->updateTime = pNew->updateTime;
   }
@@ -1413,6 +1434,19 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
     (void)memcpy(xnodeObj.status, status, xnodeObj.statusLen - 1);
   }
 
+  xnodeObj.createdByLen = strlen(pReq->info.conn.user) + 1;
+  xnodeObj.createdBy = taosMemoryCalloc(1, xnodeObj.createdByLen);
+  if (xnodeObj.createdBy == NULL) goto _OVER;
+  (void)memcpy(xnodeObj.createdBy, pReq->info.conn.user, xnodeObj.createdByLen - 1);
+
+  const char *labels = getXTaskOptionByName(&pCreate->options, "labels");
+  if (labels != NULL) {
+    xnodeObj.labelsLen = strlen(labels) + 1;
+    xnodeObj.labels = taosMemoryCalloc(1, xnodeObj.labelsLen);
+    if (xnodeObj.labels == NULL) goto _OVER;
+    (void)memcpy(xnodeObj.labels, labels, xnodeObj.labelsLen - 1);
+  }
+
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-xnode-task");
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -1492,7 +1526,7 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
   }
 
   if (pCreateReq->xnodeId > 0) {
-    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "xnodeId", (double)pCreateReq->xnodeId), NULL, _OVER);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "xnode_id", (double)pCreateReq->xnodeId), NULL, _OVER);
   }
 
   pContStr = tjsonToUnformattedString(postContent);
@@ -1620,7 +1654,19 @@ static int32_t httpStartXnodeTask(SXnodeTaskObj *pObj) {
   }
 
   if (pObj->xnodeId > 0) {
-    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(req.postContent, "xnodeId", (double)pObj->xnodeId), NULL, _OVER);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(req.postContent, "xnode_id", (double)pObj->xnodeId), NULL, _OVER);
+  }
+
+  if (pObj->via > 0) {
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(req.postContent, "via", (double)pObj->via), NULL, _OVER);
+  }
+
+  if (pObj->createdBy != NULL) {
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "created_by", pObj->createdBy), NULL, _OVER);
+  }
+
+  if (pObj->labels != NULL) {
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "labels", pObj->labels), NULL, _OVER);
   }
 
   req.pContStr = tjsonToUnformattedString(req.postContent);
@@ -1739,6 +1785,7 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
     bool sink;
     bool parser;
     bool reason;
+    bool labels;
   } isChange = {0};
 
   if (pUpdate->via > 0) {
@@ -1809,6 +1856,16 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
     (void)memcpy(taskObj.reason, pUpdate->reason.ptr, pUpdate->reason.len);
     isChange.reason = true;
   }
+  if (pUpdate->labels.ptr != NULL) {
+    taskObj.labelsLen = pUpdate->labels.len + 1;
+    taskObj.labels = taosMemoryCalloc(1, taskObj.labelsLen);
+    if (taskObj.labels == NULL) {
+      code = terrno;
+      goto _OVER;
+    }
+    (void)memcpy(taskObj.labels, pUpdate->labels.ptr, pUpdate->labels.len);
+    isChange.labels = true;
+  }
   taskObj.updateTime = taosGetTimestampMs();
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-xnode-task");
@@ -1841,6 +1898,9 @@ _OVER:
   }
   if (NULL != taskObj.reason && isChange.reason) {
     taosMemoryFree(taskObj.reason);
+  }
+  if (NULL != taskObj.labels && isChange.labels) {
+    taosMemoryFree(taskObj.labels);
   }
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
@@ -2112,6 +2172,30 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     if (pObj->reasonLen > 0) {
       buf[0] = 0;
       STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->reason, pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+      if (code != 0) goto _end;
+    } else {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetNULL(pColInfo, numOfRows);
+    }
+
+    // create_by
+    if (pObj->createdByLen > 0) {
+      buf[0] = 0;
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->createdBy, pShow->pMeta->pSchemas[cols].bytes);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+      if (code != 0) goto _end;
+    } else {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataSetNULL(pColInfo, numOfRows);
+    }
+
+    // labels
+    if (pObj->labelsLen > 0) {
+      buf[0] = 0;
+      STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->labels, pShow->pMeta->pSchemas[cols].bytes);
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
       if (code != 0) goto _end;
