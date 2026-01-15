@@ -360,7 +360,7 @@ int queryDB(TAOS* taos, char* command) {
     code = taos_errno(pRes);
     if (code != 0) {
       taosSsleep(1);
-      taosFprintfFile(g_fp, "queryDB continue, command:%s, code:%d", command, code);
+      taosFprintfFile(g_fp, "queryDB continue, command:%s, code:%d\n", command, code);
       taos_free_result(pRes);
       pRes = NULL;
       continue;
