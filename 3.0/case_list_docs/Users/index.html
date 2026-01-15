@@ -3206,8 +3206,30 @@
         
   
     <li class="md-nav__item">
-      <a href="#24-Users.test_user_manager.TestUserSecurity.test_user_security" class="md-nav__link">
-        User security 
+      <a href="#24-Users.test_user_manager.TestUserSecurity.test_user_manager" class="md-nav__link">
+        User manager 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#24-Users.test_user_token.TestUserSecurity.test_user_token" class="md-nav__link">
+        User token login 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#24-Users.test_user_totp.TestUserSecurity.test_user_totp" class="md-nav__link">
+        User totp login 
       </a>
       
     </li>
@@ -4078,8 +4100,30 @@
         
   
     <li class="md-nav__item">
-      <a href="#24-Users.test_user_manager.TestUserSecurity.test_user_security" class="md-nav__link">
-        User security 
+      <a href="#24-Users.test_user_manager.TestUserSecurity.test_user_manager" class="md-nav__link">
+        User manager 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#24-Users.test_user_token.TestUserSecurity.test_user_token" class="md-nav__link">
+        User token login 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#24-Users.test_user_totp.TestUserSecurity.test_user_totp" class="md-nav__link">
+        User totp login 
       </a>
       
     </li>
@@ -4238,13 +4282,13 @@
   
   
   
-<h2 id="24-Users.test_user_manager.TestUserSecurity.test_user_security" class="doc doc-heading">
+<h2 id="24-Users.test_user_manager.TestUserSecurity.test_user_manager" class="doc doc-heading">
 
-<a href="#24-Users.test_user_manager.TestUserSecurity.test_user_security" class="headerlink" title="Permanent link">&para;</a></h2>  
+<a href="#24-Users.test_user_manager.TestUserSecurity.test_user_manager" class="headerlink" title="Permanent link">&para;</a></h2>  
         <div class="doc doc-contents first">
 
                   <div class="doc doc-docstring doc-summary">
-                    <strong>User security</strong> 
+                    <strong>User manager</strong> 
                   </div>
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
@@ -4525,6 +4569,117 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/24-Users/test_user_privilege_topic.py" target="_blank">
                       cases/24-Users/test_user_privilege_topic.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="24-Users.test_user_token.TestUserSecurity.test_user_token" class="doc doc-heading">
+
+<a href="#24-Users.test_user_token.TestUserSecurity.test_user_token" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>User token login</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create token</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Basic creation</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - With options (ENABLE, TTL, PROVIDER, EXTRA_INFO)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - IF NOT EXISTS clause</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Max length token name (31 characters)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Multi-language support</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Exception cases: duplicate name, non-existent user, over-length name, invalid parameters    </div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Show tokens</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - SHOW TOKENS command</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Query from system table ins_tokens</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Query specific token with filters</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Verify row counts consistency</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Alter token</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Modify single property (ENABLE, TTL, PROVIDER, EXTRA_INFO)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Modify multiple properties at once</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Exception cases: non-existent token, empty name, invalid parameter values</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Delete token</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Normal drop operation</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - IF EXISTS option</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Verify deletion from system table</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Exception cases: non-existent token, empty name, duplicate deletion</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Token login</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Normal token login</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Disabled token login failure</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Enable/disable toggling</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Login failure after deletion</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Recreate same-name token</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Modify TTL and login</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - Exception cases: invalid token string, too short/long, special characters</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/24-Users/test_user_token.py" target="_blank">
+                      cases/24-Users/test_user_token.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="24-Users.test_user_totp.TestUserSecurity.test_user_totp" class="doc doc-heading">
+
+<a href="#24-Users.test_user_totp.TestUserSecurity.test_user_totp" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>User totp login</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create TOTP</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - super root account create key</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - default user account create key</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - disabled user account create key</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - sysinfo disabled user account create key</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - check duplicate create key</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - exception cases</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Alter TOTP</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - alter totp for default user</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - login with new totp</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - login with old totp fail</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Delete TOTP</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - drop totp for super root account</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - drop totp for disabled user account</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - duplicate drop totp</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - login fail after drop totp</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - exception cases</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Login with TOTP</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - exception cases: </div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        - non-exist user</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        - wrong password</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        - empty user</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        - empty password</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        - empty totp code</div>
+                          <div style="margin-left: 6.4em; white-space: pre-wrap;">        - wrong totp code</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    - totp code expired (30s)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/3.0/test/cases/24-Users/test_user_totp.py" target="_blank">
+                      cases/24-Users/test_user_totp.py
                     </a>
                   </div>
         </div>
