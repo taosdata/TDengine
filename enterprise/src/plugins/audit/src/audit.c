@@ -39,6 +39,18 @@ void getAuditDbNameToken(char *pDb, char *pToken) {
 }
 
 void setAuditDbNameToken(char *pDb, char *pToken) {
+  if (pDb == NULL || pToken == NULL) {
+    return;
+  }
+  (void)taosThreadRwlockRdlock(&tsAudit.infoLock);
+  if (strncmp(pDb, tsAudit.auditDB, TSDB_DB_FNAME_LEN) == 0 &&
+      strncmp(pToken, tsAudit.auditToken, TSDB_TOKEN_LEN) == 0) {
+    (void)taosThreadRwlockUnlock(&tsAudit.infoLock);
+    return;
+  }
+  (void)taosThreadRwlockUnlock(&tsAudit.infoLock);
+
+  uInfo("set auditDB:%s, token:%s in status rsp received from mnode", pDb, pToken);
   (void)taosThreadRwlockWrlock(&tsAudit.infoLock);
   tstrncpy(tsAudit.auditDB, pDb, TSDB_DB_FNAME_LEN);
   tstrncpy(tsAudit.auditToken, pToken, TSDB_TOKEN_LEN);
