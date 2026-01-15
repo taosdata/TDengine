@@ -6,7 +6,7 @@ slug: /get-started/deploy-from-package
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import PkgListV37 from "/components/PkgListV37";
+import PkgList from "/src/components/PkgList";
 import Getstarted from './_get_started.mdx';
 
 You can install TDengine TSDB Enterprise on Linux and Windows. To install TDengine TSDB in a Docker container instead of on your machine, see [Get Started with TDengine in Docker](../deploy-in-docker/).
@@ -22,7 +22,11 @@ You can install TDengine TSDB Enterprise on Linux and Windows. To install TDengi
 <TabItem label="Linux" value="linux">
 
 1. Download the tar.gz installation package from the list below:  
+<<<<<<< HEAD
    <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.4.0.0" platform="Linux-Generic" pkgType="Server" />
+=======
+   <PkgList productName="TDengine TSDB-Enterprise" platform="Linux-Generic" />
+>>>>>>> 3.3.8
 2. Navigate to the directory where the package is located and extract it using `tar`. For example, on an x64 architecture:  
 
    ```bash
@@ -40,7 +44,11 @@ You can install TDengine TSDB Enterprise on Linux and Windows. To install TDengi
 <TabItem label="Windows" value="windows">
 
 1. Download the Windows installation package from the list below:  
+<<<<<<< HEAD
    <PkgListV37 productName="TDengine TSDB-Enterprise" version="3.4.0.0" platform="Windows" pkgType="Server" />
+=======
+   <PkgList productName="TDengine TSDB-Enterprise" platform="Windows" />
+>>>>>>> 3.3.8
 2. Run the installation package and follow the on-screen instructions to complete the installation of TDengine TSDB.
 
 </TabItem>
