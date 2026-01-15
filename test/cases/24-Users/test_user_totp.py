@@ -204,8 +204,12 @@ class TestUserSecurity:
         self.check_login_fail("user1", "abcd@1234", "")                   # empty totp
         self.check_login_fail("user1", "abcd@1234", "123456")             # wrong totp
         
+        #
+        # fault tolerance test
+        #
         # if we are at the last 10 second of the current interval , wait until we are into
-        # the new interval,  otherwise, the following tests may be flaky.
+        # the new interval, otherwise, the following tests may be flaky.
+        #
         if (time.time() % totp.interval) > (totp.interval - 10):
             time_to_wait = totp.interval - time.time() % totp.interval + 1
             print(f"wait {time_to_wait:.1f}s to cross interval boundary")
@@ -219,7 +223,7 @@ class TestUserSecurity:
         code = totp.at(int(time.time()) - totp.interval)
         self.check_login(user, "abcd@1234", code)
 
-        # ttop code before the previous interval should fail
+        # totp code before the previous interval should fail
         code = totp.at(int(time.time()) - 2 * totp.interval)
         self.check_login_fail(user, "abcd@1234", code)
 
