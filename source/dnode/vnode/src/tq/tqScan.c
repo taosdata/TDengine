@@ -209,6 +209,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
     SSDataBlock* pDataBlock = NULL;
     code = getDataBlock(task, pHandle, vgId, &pDataBlock);
     if (code == TSDB_CODE_TMQ_FETCH_TIMEOUT) {
+      pRsp->timeout = true;
       code = 0; 
       break;
     }
@@ -247,6 +248,8 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
   qTaskInfo_t          task = pExec->task;
   code = qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
   TSDB_CHECK_CODE(code, lino, END);
+
+  qStreamSetParams(task, pRequest->sourceExcluded, pRequest->minPollRows, pRequest->timeout);
 
   int32_t rowCnt = 0;
   int64_t st = taosGetTimestampMs();

@@ -15295,7 +15295,6 @@ int32_t tEncodeMqMetaRsp(SEncoder *pEncoder, const SMqMetaRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeSTqOffsetVal(pEncoder, &pRsp->rspOffset));
   TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pRsp->resMsgType));
   TAOS_CHECK_RETURN(tEncodeBinary(pEncoder, pRsp->metaRsp, pRsp->metaRspLen));
-  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRsp->timeout));
 
   return 0;
 }
@@ -15304,9 +15303,6 @@ int32_t tDecodeMqMetaRsp(SDecoder *pDecoder, SMqMetaRsp *pRsp) {
   TAOS_CHECK_RETURN(tDecodeSTqOffsetVal(pDecoder, &pRsp->rspOffset));
   TAOS_CHECK_RETURN(tDecodeI16(pDecoder, &pRsp->resMsgType));
   TAOS_CHECK_RETURN(tDecodeBinaryAlloc(pDecoder, &pRsp->metaRsp, (uint64_t *)&pRsp->metaRspLen));
-  if (!tDecodeIsEnd(pDecoder)) {
-    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t*)(&pRsp->timeout)));
-  }
   return 0;
 }
 
@@ -17032,7 +17028,6 @@ int32_t tEncodeMqBatchMetaRsp(SEncoder *pEncoder, const SMqBatchMetaRsp *pRsp) {
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pMetaReq, metaLen));
     }
   }
-  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->timeout));
 
 _exit:
   return code;
@@ -17067,9 +17062,6 @@ int32_t tDecodeMqBatchMetaRsp(SDecoder *pDecoder, SMqBatchMetaRsp *pRsp) {
     }
   }
 
-  if (!tDecodeIsEnd(pDecoder)) {
-    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t*)(&pRsp->timeout)));
-  }
 _exit:
   return code;
 }

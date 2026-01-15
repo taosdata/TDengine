@@ -22,6 +22,7 @@
 #include "querynodes.h"
 #include "streamexecutorInt.h"
 #include "systable.h"
+#include "taoserror.h"
 #include "tarray.h"
 #include "tdef.h"
 #include "tname.h"
@@ -2631,6 +2632,9 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     return pTaskInfo->code;
   }
 
+  blockDataCleanup(pInfo->pRes);
+  int64_t st = taosGetTimestampMs();
+  
   if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     while (1) {
       SSDataBlock* pResult = NULL;
@@ -2643,12 +2647,25 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         QUERY_CHECK_CODE(code, lino, _end);
         qDebug("tmqsnap doQueueScanNext get data uid:%" PRId64, pResult->info.id.uid);
         if (pResult->info.rows > 0) {
-          (*ppRes) = pResult;
-          return code;
+          code = blockDataMerge(pInfo->pRes, pResult);
+          QUERY_CHECK_CODE(code, lino, _end);
         }
       } else {
         break;
       }
+
+      if (pInfo->pRes->info.rows >= pTaskInfo->streamInfo.minPollRows){
+        (*ppRes) = pInfo->pRes;
+        return code;
+      }
+      int64_t elapsed = taosGetTimestampMs() - st;
+      if (elapsed > pTaskInfo->streamInfo.timeout || elapsed < 0) {
+        if (pInfo->pRes->info.rows == 0) {
+          code = TSDB_CODE_TMQ_FETCH_TIMEOUT ;
+        }
+        (*ppRes) = pInfo->pRes;
+        return code;
+      }   
     }
 
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
@@ -2663,7 +2680,6 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, validVer);
   }
 
-  blockDataCleanup(pInfo->pRes);
   while (1) {
     code = pAPI->tqReaderFn.tqReaderNextBlockInWal(pInfo->tqReader, pInfo->pRes, 
                                                               pInfo->pCol2SlotId,
@@ -2683,10 +2699,6 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     // use ts to pass time when replay, because ts not used if type is log
     pTaskInfo->streamInfo.currentOffset.ts = pAPI->tqReaderFn.tqGetResultBlockTime(pInfo->tqReader);
 
-    if (pInfo->pRes->info.rows == 0) {
-      qDebug("doQueueScanNext get none from log, return, version:%" PRId64, pTaskInfo->streamInfo.currentOffset.version);
-      goto _end;
-    }
     qDebug("doQueueScanNext before filter get data from log %" PRId64 " rows, version:%" PRId64, pInfo->pRes->info.rows,
             pTaskInfo->streamInfo.currentOffset.version);
     int32_t ret = processBlock(pInfo);
@@ -2694,12 +2706,18 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       code = ret;
       goto _end;
     }
-    qDebug("doQueueScanNext after filter get data from log %" PRId64 " rows, version:%" PRId64, pInfo->pRes->info.rows,
-            pTaskInfo->streamInfo.currentOffset.version);
-    if (pInfo->pRes->info.rows >= pTaskInfo->streamInfo.minPollRows || code == TSDB_CODE_TMQ_FETCH_TIMEOUT) {
-      (*ppRes) = pInfo->pRes;
+    qDebug("doQueueScanNext after filter get data from log %" PRId64 " rows, version:%" PRId64",msg:%s", pInfo->pRes->info.rows,
+            pTaskInfo->streamInfo.currentOffset.version, tstrerror(code));
+    
+    if (code == TSDB_CODE_TMQ_FETCH_TIMEOUT && pInfo->pRes->info.rows == 0) {
+      qDebug("doQueueScanNext get data timeout");
       return code;
     }
+    if (pInfo->pRes->info.rows >= pTaskInfo->streamInfo.minPollRows || code != 0) {
+      (*ppRes) = pInfo->pRes;
+      return 0;
+    }
+    
   }
 
 _end:
@@ -2802,7 +2820,8 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     return code;
   } else if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_META) {
     SSnapContext* sContext = pInfo->sContext;
-    for (int32_t i = 0; i < tmqRowSize; i++) {
+    int64_t st = taosGetTimestampMs();
+    for (int32_t i = 0; i < pTaskInfo->streamInfo.minPollRows; i++) {
       void*   data = NULL;
       int32_t dataLen = 0;
       int16_t type = 0;
@@ -2863,6 +2882,11 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
         tmp = taosArrayPush(pTaskInfo->streamInfo.btMetaRsp.batchMetaLen, &tLen);
         QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+
+        int64_t elapsed = taosGetTimestampMs() - st;
+        if (elapsed > pTaskInfo->streamInfo.timeout || elapsed < 0) {
+          break;
+        }
       }
     }
 

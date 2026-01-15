@@ -396,7 +396,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           goto END;
         }
         totalMetaRows++;
-        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= tmqRowSize) || (taosGetTimestampMs() - st > pRequest->timeout)) {
+        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= pRequest->minPollRows) || (taosGetTimestampMs() - st > pRequest->timeout)) {
           SEND_BATCH_META_RSP
         }
         continue;
@@ -437,7 +437,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           goto END;
         }
         totalMetaRows++;
-        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= tmqRowSize) ||
+        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= pRequest->minPollRows) ||
             (taosGetTimestampMs() - st > pRequest->timeout) ||
             (!pRequest->enableBatchMeta && !pRequest->useSnapshot)) {
           SEND_BATCH_META_RSP

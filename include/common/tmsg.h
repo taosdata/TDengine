@@ -5772,7 +5772,6 @@ typedef struct {
   int16_t      resMsgType;
   int32_t      metaRspLen;
   void*        metaRsp;
-  bool         timeout;
 } SMqMetaRsp;
 
 int32_t tEncodeMqMetaRsp(SEncoder* pEncoder, const SMqMetaRsp* pRsp);
@@ -5829,7 +5828,6 @@ typedef struct SMqBatchMetaRsp {
   SArray*      batchMetaReq;
   void*        pMetaBuff;    // not serialize
   uint32_t     metaBuffLen;  // not serialize
-  bool         timeout;
 } SMqBatchMetaRsp;
 
 int32_t tEncodeMqBatchMetaRsp(SEncoder* pEncoder, const SMqBatchMetaRsp* pRsp);

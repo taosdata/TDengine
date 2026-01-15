@@ -1235,11 +1235,6 @@ int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   tOffsetCopy(pOffset, &pTaskInfo->streamInfo.currentOffset);
   return 0;
-  /*if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    pTaskInfo->code = code;
-    T_LONG_JMP(pTaskInfo->env, code);
-  }*/
 }
 
 int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* sContext, SMetaTableInfo* pMtInfo) {

@@ -15,7 +15,6 @@
 #ifndef TDENGINE_EXECUTORINT_H
 #define TDENGINE_EXECUTORINT_H
 
-#include <bits/stdint-intn.h>
 #ifdef __cplusplus
 extern "C" {
 #endif

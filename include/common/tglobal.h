@@ -333,7 +333,6 @@ extern char tsSmlTsDefaultName[];
 // extern int32_t tsSmlBatchSize;
 
 extern int32_t tmqMaxTopicNum;
-extern int32_t tmqRowSize;
 extern int32_t tsMaxTsmaNum;
 extern int32_t tsMaxTsmaCalcDelay;
 extern int64_t tsmaDataDeleteMark;
