@@ -167,20 +167,18 @@ class TestUserSecurity:
         print(f"delete totp key: {key}")
         
         # drop basic
-        self.drop_security_key("root")
+        self.drop_security_key_failed("root")
         self.drop_security_key("user_enable_0")
         # duplicate drop
         self.drop_security_key("user_default")
-        #BUG-1
-        #self.drop_security_key_failed("user_default")
+        self.drop_security_key_failed("user_default")
        
         # login fail after drop key TODO after add connect_with_totp api support 
         #self.login_with_key_fail("user_default", "abcd@1234", key)
         
         # except
         print(f"delete totp except")
-        #BUG-2
-        #self.drop_security_key_failed("non_exist_user") # non-exist user
+        self.drop_security_key_failed("non_exist_user") # non-exist user
         self.drop_security_key_failed("")               # empty
         self.drop_security_key_failed("`root`")         # with quotes
         self.drop_security_key_failed("select")         # keyword

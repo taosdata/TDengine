@@ -247,7 +247,7 @@ This section discusses how to deploy `taosX` in service mode. When running taosX
 :::tip
 
 1. Starting from version 3.4.0.0, taosX uses TSDB as the metadata storage medium and no longer uses SQLite to store metadata. It is not compatible with earlier versions.
-2. Starting from version 3.4.0.0, taosX requires creating an XNODE before creating tasks. Refer to [Creating XNODE](../03-taos-sql/94-datain.md#create-node).
+2. Starting from version 3.4.0.0, taosX requires creating an XNODE before creating tasks. Refer to [Creating XNODE](../03-taos-sql/94-datain.md#create-xnode).
 
 :::
 

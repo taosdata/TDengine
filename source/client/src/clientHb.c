@@ -163,6 +163,50 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         continue;
       }
 
+      // update token status
+      if (pTscObj->tokenName[0] != 0) {
+        STokenStatus *status = NULL;
+        if (pRsp->tokens != NULL) {
+          status = taosHashGet(pRsp->tokens, pTscObj->tokenName, strlen(pTscObj->tokenName) + 1);
+        }
+
+        STokenEvent event = {.type = TSDB_TOKEN_EVENT_MODIFIED, .expireTime = status->expireTime};
+        tstrncpy(event.tokenName, pTscObj->tokenName, sizeof(event.tokenName));
+        if (status == NULL) {
+          event.type = TSDB_TOKEN_EVENT_DROPPED;
+        } else if (status->enabled == 0) {
+          event.type = TSDB_TOKEN_EVENT_DISABLED;
+        } else if (status->expireTime > 0 && status->expireTime < taosGetTimestampSec()) {
+          event.type = TSDB_TOKEN_EVENT_EXPIRED;
+        }
+
+        STokenNotifyInfo *tni = &pTscObj->tokenNotifyInfo;
+        if (event.type == TSDB_TOKEN_EVENT_MODIFIED) {
+          int32_t oldExpireTime;
+          do {
+            oldExpireTime = atomic_load_32(&pTscObj->tokenExpireTime);
+            if (oldExpireTime == status->expireTime) {
+              break;
+            }
+          } while (atomic_val_compare_exchange_32(&pTscObj->tokenExpireTime, oldExpireTime, status->expireTime) != oldExpireTime);
+
+          if (oldExpireTime != status->expireTime && tni->fp) {
+            (*tni->fp)(tni->param, &event, TAOS_NOTIFY_TOKEN);
+          }
+          tscDebug("update token %s of user %s: expire time from %d to %d, conn:%" PRIi64, pTscObj->tokenName,
+                   pRsp->user, pTscObj->tokenExpireTime, status->expireTime, pTscObj->id);
+        } else {
+          if (atomic_val_compare_exchange_8(&pTscObj->dropped, 0, 1) == 0) {
+            if (tni->fp) {
+              (*tni->fp)(tni->param, &event, TAOS_NOTIFY_TOKEN);
+            }
+          }
+
+          releaseTscObj(pReq->connKey.tscRid);
+          continue;
+        }
+      }
+
       pTscObj->authVer = pRsp->version;
       if (hbUpdateUserSessMertric(pTscObj->user, &pRsp->sessCfg) != 0) {
         tscError("failed to update user session metric, user:%s", pTscObj->user);
@@ -174,58 +218,64 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         pTscObj->sysInfo = pRsp->sysInfo;
       }
 
+      // update password version
       if (pTscObj->passInfo.fp) {
         SPassInfo *passInfo = &pTscObj->passInfo;
-        int32_t    oldVer = atomic_load_32(&passInfo->ver);
-        if (oldVer < pRsp->passVer) {
-          atomic_store_32(&passInfo->ver, pRsp->passVer);
-          if (passInfo->fp) {
-            (*passInfo->fp)(passInfo->param, &pRsp->passVer, TAOS_NOTIFY_PASSVER);
+        int32_t    oldVer = 0;
+        do {
+          oldVer = atomic_load_32(&passInfo->ver);
+          if (oldVer >= pRsp->passVer) {
+            break;
           }
+        } while (atomic_val_compare_exchange_32(&passInfo->ver, oldVer, pRsp->passVer) != oldVer);
+        if (oldVer < pRsp->passVer) {
+          (*passInfo->fp)(passInfo->param, &pRsp->passVer, TAOS_NOTIFY_PASSVER);
           tscDebug("update passVer of user %s from %d to %d, conn:%" PRIi64, pRsp->user, oldVer,
                    atomic_load_32(&passInfo->ver), pTscObj->id);
         }
       }
 
-      if (pTscObj->whiteListInfo.fp) {
+      // update ip white list version
+      {
         SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
-        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        if (oldVer != pRsp->whiteListVer) {
-          atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
+        int64_t oldVer = 0, newVer = pRsp->whiteListVer;
+        do {
+          oldVer = atomic_load_64(&whiteListInfo->ver);
+          if (oldVer >= newVer) {
+            break;
+          }
+        } while (atomic_val_compare_exchange_64(&whiteListInfo->ver, oldVer, newVer) != oldVer);
+
+        if (oldVer < newVer) {
           if (whiteListInfo->fp) {
-            (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->whiteListVer, TAOS_NOTIFY_WHITELIST_VER);
+            (*whiteListInfo->fp)(whiteListInfo->param, &newVer, TAOS_NOTIFY_WHITELIST_VER);
           }
           tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
-                   oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
+                   oldVer, newVer, pTscObj->id);
         }
-      } else {
-        // Need to update version information to prevent frequent fetching of authentication
-        // information.
-        SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
-        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
-        tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
-                 oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
       }
 
-      if (pTscObj->dateTimeWhiteListInfo.fp) {
+      // update date time whitelist version
+      {
         SWhiteListInfo *whiteListInfo = &pTscObj->dateTimeWhiteListInfo;
-        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        if (oldVer != pRsp->timeWhiteListVer) {
-          atomic_store_64(&whiteListInfo->ver, pRsp->timeWhiteListVer);
+
+        int64_t oldVer = 0, newVer = pRsp->timeWhiteListVer;
+        do {
+          oldVer = atomic_load_64(&whiteListInfo->ver);
+          if (oldVer >= newVer) {
+            break;
+          }
+        } while (atomic_val_compare_exchange_64(&whiteListInfo->ver, oldVer, newVer) != oldVer);
+
+        if (oldVer < newVer) {
           if (whiteListInfo->fp) {
-            (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->timeWhiteListVer, TAOS_NOTIFY_DATETIME_WHITELIST_VER);
+            (*whiteListInfo->fp)(whiteListInfo->param, &newVer, TAOS_NOTIFY_DATETIME_WHITELIST_VER);
           }
           tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
-                   oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
+                   oldVer, newVer, pTscObj->id);
         }
-      } else {
-        SWhiteListInfo *whiteListInfo = &pTscObj->dateTimeWhiteListInfo;
-        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        atomic_store_64(&whiteListInfo->ver, pRsp->timeWhiteListVer);
-        tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
-                 oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
       }
+      
       releaseTscObj(pReq->connKey.tscRid);
     }
   }
