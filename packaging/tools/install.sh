@@ -246,8 +246,39 @@ function setup_env() {
     user="$(whoami)"
     mode_desc="user ($user)"
   fi
+  
+  # 3. check existing taosd installation
 
-  # 3. Install directory setting
+  taosd_bin=$(command -v taosd 2>/dev/null || true)
+  if [ -n "${taosd_bin}" ]; then
+      # mac will skip this check
+      echo "Welcome to ${productName} Update ..."
+      echo
+      real_taosd_bin=$(readlink -f "${taosd_bin}")
+      taosd_bin_dir=$(dirname "${real_taosd_bin}")
+      taosd_parent_dir=$(readlink -f "${taosd_bin_dir}/..")
+      taosd_ver=$(${real_taosd_bin} -V 2>/dev/null | grep version | awk '{print $3}' || echo "unknown")
+      log warn_bold "${productName} ${taosd_ver} was detected at ${taosd_parent_dir}"
+      # Silent mode handling
+      if [ "$silent_mode" = "1" ]; then
+          # echo "Continue to installation TDengine."
+          confirm="Y"
+      else
+          read -p "Do you want to continue the installation? [Y/n]: " confirm
+          confirm=${confirm:-Y}
+      fi
+      if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+          echo "Installation cancelled."
+          exit 0
+      fi
+  else
+      echo "Welcome to ${productName} Installation ..."
+      echo
+  fi
+  
+
+  # 4. Install directory setting
+  log info "Detected install mode: $mode_desc"
   if [[ $silent_mode -eq 0 && $taos_dir_set -eq 0 ]]; then
     while true; do
       echo -ne "${GREEN_DARK}Do you want to install ${productName} to the default directory?${NC}" \
@@ -277,7 +308,7 @@ function setup_env() {
     fi
   fi
 
-  # 4. Set directories based on user mode and OS type
+  # 5. Set directories based on user mode and OS type
   if [[ $user_mode -eq 0 ]]; then
     # Root user directories
     installDir="${taos_dir}"
@@ -380,7 +411,6 @@ function setup_env() {
       taosd_parent_dir="$(cd "${taosd_bin_dir}/.." && pwd)"
       if [ "${taosd_bin_dir}" != "${bin_dir}" ] || [ "${taosd_link_dir}" != "${bin_link_dir}" ]; then
           taosd_ver=$(${real_taosd_bin} -V 2>/dev/null | grep version | awk '{print $3}' || echo "unknown")
-          log info "Detected install mode: $mode_desc"
           log warn_bold "${productName} ${taosd_ver} was detected at ${taosd_parent_dir}"
           log warn_bold "You are about to install ${productName} to a different location: ${install_main_dir}"
           # Silent mode handling
@@ -1337,18 +1367,16 @@ function finished_install_info(){
       entries+=("To access ${productName} GUI:|http://$serverFqdn:6060")
       entries+=("|")
 
-      if [ "${verMode}" == "cluster" ]; then
-        entries+=("To read the user manual:|http://$serverFqdn:6060/docs-en")
-        if [ "${PREFIX}" == "taos" ]; then
-          entries+=("To manage, analyze and visualize data:|https://tdengine.com/idmp/")
-        fi
-      else
-        if [ "${PREFIX}" == "taos" ]; then
-          entries+=("To read the user manual:|https://docs.tdengine.com")
-        fi
-      fi
+      entries+=("To view ${productName} data directory:|ls -la ${dataDir}")
+      entries+=("To view ${productName} log directory:|ls -la ${logDir}")
       entries+=("|")
 
+      if [ "${PREFIX}" == "taos" ]; then
+        entries+=("To read the Chinese user manual:|https://docs.taosdata.com/")
+        entries+=("To read the English user manual:|https://docs.tdengine.com/")
+        entries+=("To manage, analyze and visualize data:|https://tdengine.com/idmp/")
+        entries+=("|")
+      fi
     else
       entries+=("To configure ${PREFIX}d:|edit ${configDir}/${configFile}")
       entries+=("To start ${PREFIX}d:|${sysctl_cmd} start ${serverName}")
@@ -1384,8 +1412,9 @@ function finished_install_info(){
       log info_color "Environment variables for ${productName} have been added to $HOME/.bashrc."
       log info_color "To make them effective, please run: source \$HOME/.bashrc"
       log info_color "Or simply open a new terminal window."
+      echo
     fi
-    echo
+    
 }
 
 function updateProduct() {
@@ -1409,9 +1438,6 @@ function updateProduct() {
 
   tar -zxf ${tarName}
 
-  echo "Welcome to ${productName} Update ..."
-  log info "Data directory: ${dataDir}"
-  log info "Log directory: ${logDir}"
   # Stop the service if running
   if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
@@ -1473,9 +1499,6 @@ function installProduct() {
   fi
   tar -zxf ${tarName}
 
-  echo "Welcome to ${productName} Installation ..."
-  log info "Data directory: ${dataDir}"
-  log info "Log directory: ${logDir}"
   install_main_path
 
   if [ -z $1 ]; then
@@ -1543,8 +1566,10 @@ check_java_env() {
   fi
 
   if $java_version_ok; then
+    echo
     echo -e "\033[32mJava ${java_version} has been found.\033[0m"
   else
+    echo
     echo -e "\033[31mWarning: Java Version 1.8+ is required, but version ${java_version} has been found.\033[0m"
   fi
 }
