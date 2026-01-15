@@ -492,25 +492,30 @@ void mndDoTimerCheckSync(SMnode *pMnode, int64_t sec) {
 
 static void *mndThreadSecFp(void *param) {
   SMnode *pMnode = param;
-  int64_t lastTime = 0;
+  int64_t lastSec = 0;
   setThreadName("mnode-timer");
 
   while (1) {
-    lastTime++;
-    taosMsleep(100);
-
     if (mndGetStop(pMnode)) break;
-    if (lastTime % 10 != 0) continue;
+
+    int64_t nowSec = taosGetTimestampMs() / 1000;
+    if (nowSec == lastSec) {
+      taosMsleep(100);
+      continue;
+    }
+    lastSec = nowSec;
 
     if (mnodeIsNotLeader(pMnode)) {
+      taosMsleep(100);
       mTrace("timer not process since mnode is not leader");
       continue;
     }
 
-    int64_t sec = lastTime / 10;
-    mndDoTimerCheckSync(pMnode, sec);
+    mndDoTimerCheckSync(pMnode, nowSec);
 
-    mndDoTimerPullupTask(pMnode, sec);
+    mndDoTimerPullupTask(pMnode, nowSec);
+
+    taosMsleep(100);
   }
 
   return NULL;
