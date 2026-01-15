@@ -161,7 +161,7 @@ pub async fn pulsar_to_taos(
             };
             channel_based_transformer(
                 pool,
-                cancel.child_token(),
+                &cancel,
                 parser,
                 Some(connector),
                 task_id,

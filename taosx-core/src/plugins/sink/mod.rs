@@ -3548,7 +3548,7 @@ async fn bind_tcp(
 #[allow(clippy::type_complexity)]
 pub async fn channel_based_transformer(
     target: TaosPool,
-    cancel: CancellationToken,
+    cancel: &CancellationToken,
     parser: Option<Parser>,
     connector: Option<&'static str>,
     task_id: Option<i64>,
@@ -3568,7 +3568,7 @@ pub async fn channel_based_transformer(
 
     // clone the configurations
     let parser_clone = parser.clone();
-    let cancel_clone = cancel.clone();
+    let cancel_clone = cancel.child_token();
     // spawn a thread to write data to files
     let process_archive = archive_rx.map(|archive_rx| {
         tokio::spawn(async move {
@@ -3605,7 +3605,7 @@ pub async fn channel_based_transformer(
     // spawn a thread to rewrite cache data to files
     let pool_clone = target.clone();
     let parser_clone = parser.clone();
-    let cancel_clone = cancel.clone();
+    let cancel_clone = cancel.child_token();
     let archive_tx_clone = archive_tx.clone();
     let process_cache = tokio::spawn(async move {
         let _a = crate::utils::defer::defer(|| {
@@ -3648,6 +3648,7 @@ pub async fn channel_based_transformer(
     })
     .await;
     let abort_handle_process_archive = process_archive.as_ref().map(|f| f.abort_handle());
+    let cancel = cancel.child_token();
     tokio::spawn(
         async move {
             tokio::select! {

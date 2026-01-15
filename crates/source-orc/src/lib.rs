@@ -33,7 +33,7 @@ pub async fn orc_to_taos(
         .context("get taos pool error")?;
     let (sender, ack) = channel_based_transformer(
         pool,
-        task_cancel.child_token(),
+        &task_cancel,
         parser,
         Some("orc"),
         task_id,
@@ -105,7 +105,10 @@ pub async fn orc_to_taos(
     let mut has_error = false;
     while let Some(task) = tasks.join_next().await {
         match task {
-            Ok(Ok(_)) => {}
+            Ok(Ok(_)) => {
+                tracing::info!("orc task completed successfully");
+                continue;
+            }
             Ok(Err(e)) => {
                 tracing::error!("orc task exit with error: {e:#}");
                 has_error = true;

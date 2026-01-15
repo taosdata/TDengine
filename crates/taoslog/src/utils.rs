@@ -107,9 +107,7 @@ impl QidMetadataGetter for Span {
         Q: QidManager,
     {
         tracing::dispatcher::get_default(|dispatch| {
-            let registry = dispatch
-                .downcast_ref::<Registry>()
-                .expect("no global default dispatcher found");
+            let registry = dispatch.downcast_ref::<Registry>()?;
             dispatch.current_span().into_inner().and_then(|(id, _)| {
                 let span = registry.span(&id).unwrap();
                 let ext = span.extensions();
@@ -125,14 +123,13 @@ impl QidMetadataSetter for Span {
         Q: QidManager,
     {
         tracing::dispatcher::get_default(|dispatch| {
-            let registry = dispatch
-                .downcast_ref::<Registry>()
-                .expect("no global default dispatcher found");
-            if let Some((id, _meta)) = dispatch.current_span().into_inner() {
-                let span = registry.span(&id).unwrap();
-                let mut ext = span.extensions_mut();
-                ext.replace(qid.clone());
-            }
+            dispatch.downcast_ref::<Registry>().and_then(|registry| {
+                dispatch.current_span().into_inner().map(|(id, _meta)| {
+                    let span = registry.span(&id).unwrap();
+                    let mut ext = span.extensions_mut();
+                    ext.replace(qid.clone());
+                })
+            });
         })
     }
 }

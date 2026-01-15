@@ -11,6 +11,7 @@ use source_mqtt::mqtt_to_taos;
 use source_opc::opc_to_taos;
 use source_opentsdb::opentsdb_to_taos;
 use source_orc::orc_to_taos;
+use source_parquet::parquet_to_taos;
 use source_pi::pi_to_taos;
 use source_pulsar::pulsar_to_taos;
 use taos::Dsn;
@@ -419,6 +420,17 @@ impl TaskOpts {
                 }
                 ("orc", "taos") => {
                     orc_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        to.clone(),
+                        task_id_number,
+                        cancel.clone(),
+                        notify.clone(),
+                    )
+                    .await?
+                }
+                ("parquet", "taos") => {
+                    parquet_to_taos(
                         from.clone(),
                         parser.clone(),
                         to.clone(),

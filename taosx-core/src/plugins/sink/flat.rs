@@ -3048,7 +3048,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
             writer_set.abort_all();
             return Ok(());
         }
-        let cancel = cancel.clone();
+        let cancel = cancel.child_token();
         let archive_tx = archive_tx.cloned();
         writer_set.spawn(
             async move {

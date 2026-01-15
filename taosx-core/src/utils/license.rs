@@ -605,7 +605,7 @@ pub async fn validate_enterprise_license(from: &Dsn, to: &Dsn) -> Result<License
                 "oracle" => "oracle",
                 "mssql" => "mssql",
                 "mongodb" => "mongodb",
-                "csv" => "csv",
+                "csv" | "parquet" | "parq" => "csv",
                 "orc" => "orc",
                 "pulsar" | "pulsarTuya" => "pulsar",
                 "kinghist" | "kingHistorian" => "kinghist",
