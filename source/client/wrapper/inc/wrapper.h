@@ -244,6 +244,8 @@ extern char *(*fp_getBuildInfo)();
 
 extern int32_t (*fp_taos_connect_is_alive)(TAOS *taos);
 
+extern int32_t (*fp_taos_connect_is_valid)(TAOS *taos, char *str, int32_t *len);
+
 #ifdef __cplusplus
 }
 #endif

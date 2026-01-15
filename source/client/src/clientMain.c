@@ -2981,6 +2981,28 @@ _error:
 
   return code != 0 ? 0 : 1;
 }
+
+int32_t taos_connect_is_valid(TAOS *taos, char *str, int32_t *len) {
+  int32_t code = 0;
+  if (taos == NULL || str == NULL || len <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    return TSDB_CODE_TSC_DISCONNECTED;
+  }
+
+  code = tscCheckConnSessionMetric(pObj);
+  releaseTscObj(*(int64_t *)taos);
+
+  if (code != 0) {
+    tscError("taos conn failed to check valid, code:%d - %s", code, tstrerror(code));
+  }
+
+  return code;
+}
+
 static int32_t buildInstanceRegisterSql(const SInstanceRegisterReq *req, char **ppSql, uint32_t *pLen) {
   const char *action = (req->expire < 0) ? "UNREGISTER" : "REGISTER";
   int32_t     len = 0;

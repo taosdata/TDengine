@@ -487,6 +487,23 @@ DLL_EXPORT char *tmq_get_json_meta(TAOS_RES *res);
 DLL_EXPORT void  tmq_free_json_meta(char *jsonMeta);
 
 DLL_EXPORT int32_t taos_connect_is_alive(TAOS *taos);
+
+/*
+ * input:
+ *   taos: connection handle
+ *   str: buffer to store err msg  string 0-terminated
+ *   len: length of the buffer
+ * return: 0 if valid connection,
+   else: 1
+    retry later
+    and err msg stored in str
+   else: 2
+    cannot retry
+    and err msg stored in str
+ */
+
+DLL_EXPORT int32_t taos_connect_is_valid(TAOS *taos, char *str, int32_t *len);
+
 /* ---- end ---- */
 
 /* -- implemented in the native interface, for internal component only, the API may change -- */
