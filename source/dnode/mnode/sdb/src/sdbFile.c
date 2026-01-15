@@ -22,9 +22,6 @@
 #include "tglobal.h"
 #include "wal.h"
 
-// Forward declaration for mndSetEncryptedFlag
-int32_t mndSetEncryptedFlag(SSdb *pSdb);
-
 #define SDB_TABLE_SIZE   24
 #define SDB_RESERVE_SIZE 512
 #define SDB_FILE_VER     1
@@ -517,9 +514,19 @@ int32_t sdbReadFile(SSdb *pSdb) {
     }
 
     // Update encrypted flag and persist to mnode.json immediately (atomic operation)
-    code = mndSetEncryptedFlag(pSdb);
-    if (code == 0) {
-      mInfo("sdb.data migrated to encrypted format and persisted encrypted flag to mnode.json successfully");
+    pSdb->encrypted = true;
+
+    if (pSdb->persistEncryptedFlagFp != NULL && pSdb->pMnodeForCallback != NULL) {
+      code = pSdb->persistEncryptedFlagFp(pSdb->pMnodeForCallback);
+      if (code == 0) {
+        mInfo("sdb.data migrated to encrypted format and persisted encrypted flag to mnode.json successfully");
+      } else {
+        mError("failed to persist encrypted flag to mnode.json since %s", tstrerror(code));
+        // Rollback encrypted flag
+        pSdb->encrypted = false;
+      }
+    } else {
+      mWarn("sdb.data migrated to encrypted format but no callback to persist flag");
     }
   }
 

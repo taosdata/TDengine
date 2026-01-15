@@ -213,6 +213,8 @@ typedef struct SSdb {
   char              *currDir;
   char              *tmpDir;
   char               mnodePath[PATH_MAX];  // Path to mnode directory for persisting mnode.json
+  int32_t          (*persistEncryptedFlagFp)(void *pMnode);  // Callback to persist encrypted flag
+  void              *pMnodeForCallback;  // Pointer to SMnode for callback
   int64_t            commitIndex;
   int64_t            commitTerm;
   int64_t            commitConfig;
