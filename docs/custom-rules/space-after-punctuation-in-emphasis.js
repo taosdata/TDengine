@@ -6,6 +6,10 @@ module.exports = [
     description: "Ensure there is a space after emphasis markers (**bold:** text) if the emphasized text ends with punctuation (e.g., :, ：, ;, ；, etc.) and is immediately followed by non-whitespace content.",
     tags: ["emphasis", "formatting"],
     function: function spaceAfterPunctuationInEmphasis(params, onError) {
+      function escapeRegExp(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      }
+
       params.tokens.forEach((token) => {
         if (token.type === "inline" && token.children) {
           token.children.forEach((child, childIndex) => {
@@ -20,20 +24,24 @@ module.exports = [
 
                 if (punctuationRegex.test(boldContent)) {
                   if (!nextToken || nextToken.type !== "text" || !nextToken.content.startsWith(" ")) {
-                    const lineContent = params.lines[child.lineNumber - 1];
-                    const boldStartIndex = lineContent.indexOf(`**${boldContent}**`);
-                    const columnNumber = boldStartIndex + `**${boldContent}**`.length + 1;
-                    const afterBold = lineContent.slice(boldStartIndex + `**${boldContent}**`.length);
+                    const lineContent = params.lines[child.lineNumber - 1] || "";
+                    const boldPattern = new RegExp("\\*\\*" + escapeRegExp(boldContent) + "\\*\\*");
+                    const m = lineContent.match(boldPattern);
+                    const afterBold = m ? lineContent.slice(lineContent.indexOf(m[0]) + m[0].length) : "";
 
-                    if (afterBold && afterBold.trim().length > 0 && !afterBold.startsWith(" ")) {
-                      const columnNumber = boldStartIndex + `**${boldContent}**`.length + 1;
+                    // 如果后面是行尾/仅空白，或紧跟另一个强调标记（**），则跳过
+                    if (!afterBold || afterBold.trim().length === 0 || afterBold.startsWith("**")) {
+                      // skip
+                    } else if (!afterBold.startsWith(" ")) {
+                      const columnNumber = (m ? lineContent.indexOf(m[0]) : 0) + (m ? m[0].length : (`**${boldContent}**`.length)) + 1;
                       onError({
                         lineNumber: child.lineNumber || token.lineNumber,
                         detail: `Add a space after the closing emphasis markers (**), if the emphasis ends with punctuation. (Column: ${columnNumber})`,
                         context: lineContent.trim(),
                         fixInfo: {
-                          editColumn: columnNumber, // Correctly specify the column for the edit
-                          insertText: " ", // Suggest inserting a space
+                          editColumn: columnNumber,
+                          deleteCount: 0,
+                          insertText: " ",
                         },
                       });
                     }
@@ -46,30 +54,34 @@ module.exports = [
             if (child.type === "text" && child.content.includes("**")) {
               const regex = /\*\*(.*?)\*\*/g; // Match **bold** and extract content
               let match;
+              const lineContent = params.lines[child.lineNumber - 1] || "";
               while ((match = regex.exec(child.content)) !== null) {
                 const boldContent = match[1]; // Extract content inside ** **
                 const punctuationRegex = /[：:；;,\.]$/; // Match full-width and half-width punctuation at the end
 
                 if (punctuationRegex.test(boldContent)) {
                   const remainingContent = child.content.slice(match.index + match[0].length);
-                  if (!remainingContent.startsWith(" ")) {
-                    const lineContent = params.lines[child.lineNumber - 1];
-                    const boldStartIndex = lineContent.indexOf(match[0]);
-                    const columnNumber = boldStartIndex + match[0].length + 1;
-                    const afterBold = lineContent.slice(boldStartIndex + `**${boldContent}**`.length);
+                  // remainingContent may be empty if bold is at end of this token
+                  // locate the actual bold in the full line to get correct afterBold
+                  const boldPattern = new RegExp("\\*\\*" + escapeRegExp(boldContent) + "\\*\\*");
+                  const m = lineContent.match(boldPattern);
+                  const afterBold = m ? lineContent.slice(lineContent.indexOf(m[0]) + m[0].length) : "";
 
-                    if (afterBold && afterBold.trim().length > 0 && !afterBold.startsWith(" ")) {
-                      const columnNumber = boldStartIndex + `**${boldContent}**`.length + 1;
-                      onError({
-                        lineNumber: child.lineNumber || token.lineNumber,
-                        detail: `Add a space after the closing emphasis markers (**), if the emphasis ends with punctuation. (Column: ${columnNumber})`,
-                        context: lineContent.trim(),
-                        fixInfo: {
-                          editColumn: columnNumber, // Correctly specify the column for the edit
-                          insertText: " ", // Suggest inserting a space
-                        },
-                      });
-                    }
+                  // 如果后面是行尾/仅空白，或紧跟另一个强调标记（**），则跳过
+                  if (!afterBold || afterBold.trim().length === 0 || afterBold.startsWith("**")) {
+                    // skip
+                  } else if (!afterBold.startsWith(" ")) {
+                    const columnNumber = (m ? lineContent.indexOf(m[0]) : 0) + (m ? m[0].length : (`**${boldContent}**`.length)) + 1;
+                    onError({
+                      lineNumber: child.lineNumber || token.lineNumber,
+                      detail: `Add a space after the closing emphasis markers (**), if the emphasis ends with punctuation. (Column: ${columnNumber})`,
+                      context: lineContent.trim(),
+                      fixInfo: {
+                        editColumn: columnNumber,
+                        deleteCount: 0,
+                        insertText: " ",
+                      },
+                    });
                   }
                 }
               }
