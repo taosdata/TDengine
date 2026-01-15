@@ -216,7 +216,23 @@ int32_t tjsonGetStringValue2(const SJson* pJson, const char* pName, char* pVal, 
   if (len >= maxLen - 1) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  strcpy(pVal, p);
+  if (pVal != NULL) strcpy(pVal, p);
+  return TSDB_CODE_SUCCESS;
+}
+
+char* tjsonGetStringPointer(const SJson* pJson, const char* pName) {
+  return cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
+}
+
+int32_t tjsonGetStringValueLen(const SJson* pJson, const char* pName, char* pVal, int32_t* pLen) {
+  char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
+  if (NULL == p) {
+    if (pLen != NULL) *pLen = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t len = strlen(p);
+  if (pLen != NULL) *pLen = len;
+  if (pVal != NULL) strcpy(pVal, p);
   return TSDB_CODE_SUCCESS;
 }
 

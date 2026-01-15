@@ -160,7 +160,7 @@ class TestTaosdAudit:
         # time.sleep(2)
 
         tdLog.info("create audit database")
-        sql = "create database audit is_audit 1 wal_level 2 ENCRYPT_ALGORITHM 'SM4-CBC';"
+        sql = "create database audit is_audit 1 wal_level 2 vgroups 1 ENCRYPT_ALGORITHM 'SM4-CBC';"
         tdSql.query(sql)
 
         tdLog.info("create user audit pass '123456Ab@' sysinfo 0;")
