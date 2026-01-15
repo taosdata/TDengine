@@ -2261,6 +2261,15 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   }
 
   if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timeWhiteVer));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->auditDB));
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->auditToken));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
     for (int32_t i = 0; i < vlen; ++i) {
       SVnodeLoad *vload = taosArrayGet(pReq->pVloads, i);
       if (vload == NULL) {
@@ -2270,16 +2279,6 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
       TAOS_CHECK_EXIT(tDecodeI32(&decoder, &vload->snapSeq));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &vload->syncTotalIndex));
     }
-  }
-
-
-  if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timeWhiteVer));
-  }
-
-  if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->auditDB));
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->auditToken));
   }
 
   tEndDecode(&decoder);
