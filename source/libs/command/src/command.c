@@ -245,12 +245,19 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     } else if (hasRefCol(pMeta->tableType) && pMeta->colRef) {
       if (i < pMeta->numOfColRefs) {
         if (pMeta->colRef[i].hasRef) {
-          char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
-          strcat(refColName, pMeta->colRef[i].refDbName);
-          strcat(refColName, ".");
-          strcat(refColName, pMeta->colRef[i].refTableName);
-          strcat(refColName, ".");
-          strcat(refColName, pMeta->colRef[i].refColName);
+          char    refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
+          int32_t pos = 0;
+          tstrncpy(refColName + pos, pMeta->colRef[i].refDbName, sizeof(refColName) - pos);
+          pos += strlen(pMeta->colRef[i].refDbName);
+          if (pos < sizeof(refColName) - 1) {
+            refColName[pos++] = '.';
+          }
+          tstrncpy(refColName + pos, pMeta->colRef[i].refTableName, sizeof(refColName) - pos);
+          pos += strlen(pMeta->colRef[i].refTableName);
+          if (pos < sizeof(refColName) - 1) {
+            refColName[pos++] = '.';
+          }
+          tstrncpy(refColName + pos, pMeta->colRef[i].refColName, sizeof(refColName) - pos);
           STR_TO_VARSTR(buf, refColName);
         } else {
           STR_TO_VARSTR(buf, "");
@@ -661,16 +668,17 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
     if (hasRefCol(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
       typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "FROM `%s`", pRef->refDbName);
       typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, ".");
-      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", expandIdentifier(pRef->refTableName, expandName));
+      typeLen +=
+          tsnprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", expandIdentifier(pRef->refTableName, expandName));
       typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, ".");
-      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", expandIdentifier(pRef->refColName, expandName));
+      typeLen +=
+          tsnprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", expandIdentifier(pRef->refColName, expandName));
     } else {
       continue;
     }
 
     *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
                       "%s`%s` %s", ((i > 1) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
-
   }
 }
 
@@ -997,51 +1005,51 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
 }
 
 extern const char* fmGetFuncName(int32_t funcId);
-static int32_t setCreateRsmaResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateRsmaStmt* pStmt) {
-  int32_t       code = 0, lino = 0;
-  char*         buf2 = NULL;
-  SRsmaInfoRsp* pMeta = pStmt->pRsmaMeta;
+static int32_t     setCreateRsmaResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateRsmaStmt* pStmt) {
+      int32_t       code = 0, lino = 0;
+      char*         buf2 = NULL;
+      SRsmaInfoRsp* pMeta = pStmt->pRsmaMeta;
 
-  if (pMeta->nFuncs != pMeta->nColNames) {
-    qError("exception: rsma meta is invalid, nFuncs:%d != nColNames:%d", pMeta->nFuncs, pMeta->nColNames);
-    return TSDB_CODE_APP_ERROR;
+      if (pMeta->nFuncs != pMeta->nColNames) {
+        qError("exception: rsma meta is invalid, nFuncs:%d != nColNames:%d", pMeta->nFuncs, pMeta->nColNames);
+        return TSDB_CODE_APP_ERROR;
   }
 
-  TAOS_CHECK_EXIT(blockDataEnsureCapacity(pBlock, 1));
-  pBlock->info.rows = 1;
+      TAOS_CHECK_EXIT(blockDataEnsureCapacity(pBlock, 1));
+      pBlock->info.rows = 1;
 
-  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
-  char             buf1[SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1] = {0};
-  snprintf(varDataVal(buf1), TSDB_TABLE_FNAME_LEN + 4, "`%s`", expandIdentifier(pStmt->rsmaName, buf1));
-  varDataSetLen(buf1, strlen(varDataVal(buf1)));
-  TAOS_CHECK_EXIT(colDataSetVal(pCol1, 0, buf1, false));
+      SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+      char             buf1[SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1] = {0};
+      snprintf(varDataVal(buf1), TSDB_TABLE_FNAME_LEN + 4, "`%s`", expandIdentifier(pStmt->rsmaName, buf1));
+      varDataSetLen(buf1, strlen(varDataVal(buf1)));
+      TAOS_CHECK_EXIT(colDataSetVal(pCol1, 0, buf1, false));
 
-  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
-  if (!(buf2 = taosMemoryMalloc(SHOW_CREATE_TB_RESULT_FIELD2_LEN))) {
-    return terrno;
+      SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
+      if (!(buf2 = taosMemoryMalloc(SHOW_CREATE_TB_RESULT_FIELD2_LEN))) {
+        return terrno;
   }
 
-  SName name = {0};
-  TAOS_CHECK_EXIT(tNameFromString(&name, pMeta->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+      SName name = {0};
+      TAOS_CHECK_EXIT(tNameFromString(&name, pMeta->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
 
-  int32_t len = 0;
-  len += tsnprintf(varDataVal(buf2), SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
+      int32_t len = 0;
+      len += tsnprintf(varDataVal(buf2), SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
                        "CREATE RSMA `%s` ON `%s`.`%s` FUNCTION(", expandIdentifier(pStmt->rsmaName, buf1),
                        expandIdentifier(name.dbname, buf1), expandIdentifier(name.tname, buf1));
-  for (int32_t i = 0; i < pMeta->nFuncs; ++i) {
-    len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+      for (int32_t i = 0; i < pMeta->nFuncs; ++i) {
+        len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
                          "%s%s(`%s`)", (i > 0) ? "," : "", fmGetFuncName(pMeta->funcIds[i]),
                          expandIdentifier(*(char**)TARRAY_GET_ELEM(pMeta->colNames, i), buf1));
   }
-  len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+      len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
                        ") INTERVAL(%d%c", pMeta->interval[0], pMeta->intervalUnit);
-  if (pMeta->interval[1] > 0) {
-    len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                         ",%d%c", pMeta->interval[1], pMeta->intervalUnit);
+      if (pMeta->interval[1] > 0) {
+        len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ",%d%c",
+                         pMeta->interval[1], pMeta->intervalUnit);
   }
-  len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
-  varDataLen(buf2) = len;
-  code = colDataSetVal(pCol2, 0, buf2, false);
+      len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+      varDataLen(buf2) = len;
+      code = colDataSetVal(pCol2, 0, buf2, false);
 _exit:
   taosMemoryFree(buf2);
   return code;

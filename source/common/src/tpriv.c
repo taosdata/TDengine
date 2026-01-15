@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "taoserror.h"
 #define _DEFAULT_SOURCE
 #include "tpriv.h"
 #include "tmsg.h"
@@ -430,7 +431,12 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
     db[dbLength] = '\0';
     strncpy(tb, qNext + 1, tbLen);
   } else {
-    strcpy(db, fullDb ? (p + 1) : (pNext + 1));
+    const char* src = fullDb ? (p + 1) : (pNext + 1);
+    int32_t      srcLen = strlen(src);
+    if (srcLen >= (int32_t)dbLen) {
+      return TSDB_CODE_OUT_OF_BUFFER;
+    }
+    tstrncpy(db, src, dbLen);
     tb[0] = '\0';
   }
   return TSDB_CODE_SUCCESS;
