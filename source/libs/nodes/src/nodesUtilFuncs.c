@@ -441,6 +441,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_NODE_LIST:
       code = makeNode(type, sizeof(SNodeListNode), &pNode);
       break;
+    case QUERY_NODE_SURROUND:
+      code = makeNode(type, sizeof(SSurroundNode), &pNode);
+      break;
     case QUERY_NODE_FILL:
       code = makeNode(type, sizeof(SFillNode), &pNode);
       break;
@@ -1450,6 +1453,12 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_NODE_LIST:
       nodesDestroyList(((SNodeListNode*)pNode)->pNodeList);
       break;
+    case QUERY_NODE_SURROUND: {
+      SSurroundNode* pSurround = (SSurroundNode*)pNode;
+      nodesDestroyNode(pSurround->pSurroundingTime);
+      nodesDestroyNode(pSurround->pValues);
+      break;
+    }
     case QUERY_NODE_FILL: {
       SFillNode* pFill = (SFillNode*)pNode;
       nodesDestroyNode(pFill->pValues);

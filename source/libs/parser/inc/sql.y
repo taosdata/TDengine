@@ -2599,11 +2599,10 @@ interval_sliding_duration_literal(A) ::= NK_QUESTION(B).                        
 fill_opt(A) ::= .                                                                 { A = NULL; }
 fill_opt(A) ::= fill_value(B).                                                    { A = B; }
 fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                                    { A = createFillNode(pCxt, B, NULL); }
-fill_opt(A) ::= 
-  FILL NK_LP fill_position_mode(B) NK_COMMA expression_list(C) NK_RP.             { A = createFillNode(pCxt, B, createNodeListNode(pCxt, C))}
 fill_opt(A) ::=
-  FILL NK_LP fill_position_mode(B) NK_COMMA SURROUND NK_COMMA
-  duration_literal(C) NK_COMMA expression_list(D) NK_RP.                          { A = createFillNodeWithSurroundingTime(pCxt, B, createNodeListNode(pCxt, D), releaseRawExprNode(pCxt, C)); }
+  FILL NK_LP fill_position_mode(B) NK_RP surround_opt(C).                         { A = createFillNodeWithSurroundNode(pCxt, B, C); }
+fill_opt(A) ::= 
+  FILL NK_LP fill_position_mode(B) NK_COMMA expression_list(C) NK_RP.             { A = createFillNode(pCxt, B, createNodeListNode(pCxt, C)); }
 
 fill_value(A) ::= FILL NK_LP VALUE NK_COMMA expression_list(B) NK_RP.             { A = createFillNode(pCxt, FILL_MODE_VALUE, createNodeListNode(pCxt, B)); }
 fill_value(A) ::= FILL NK_LP VALUE_F NK_COMMA expression_list(B) NK_RP.           { A = createFillNode(pCxt, FILL_MODE_VALUE_F, createNodeListNode(pCxt, B)); }
@@ -2614,13 +2613,18 @@ fill_mode(A) ::= NONE.                                                          
 fill_mode(A) ::= NULL.                                                            { A = FILL_MODE_NULL; }
 fill_mode(A) ::= NULL_F.                                                          { A = FILL_MODE_NULL_F; }
 fill_mode(A) ::= LINEAR.                                                          { A = FILL_MODE_LINEAR; }
-fill_mode(A) ::= fill_position_mode(B).                                           { A = B; }
 
 %type fill_position_mode                                                          { EFillMode }
 %destructor fill_position_mode                                                    { }
 fill_position_mode(A) ::= PREV.                                                   { A = FILL_MODE_PREV; }
 fill_position_mode(A) ::= NEXT.                                                   { A = FILL_MODE_NEXT; }
 fill_position_mode(A) ::= NEAR.                                                   { A = FILL_MODE_NEAR; }
+
+%type surround_opt                                                                  { SNode* }
+%destructor surround_opt                                                            { nodesDestroyNode($$); }
+surround_opt(A) ::= .                                                               { A = NULL; }
+surround_opt(A) ::=
+  SURROUND NK_LP duration_literal(B) NK_COMMA expression_list(C) NK_RP.             { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), createNodeListNode(pCxt, C)); }
 
 count_window_args(A) ::= NK_INTEGER(B).                                           { A = createCountWindowArgs(pCxt, &B, NULL, NULL); }
 count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C).                    { A = createCountWindowArgs(pCxt, &B, &C, NULL); }
