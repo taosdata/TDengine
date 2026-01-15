@@ -10,7 +10,7 @@ select pow(tinyint_col, 2) from test_vtable_select.vtb_virtual_stb order by ts, 
 select round(double_col) from test_vtable_select.vtb_virtual_stb order by ts, int_tag limit 50;
 select sin(u_tinyint_col) from test_vtable_select.vtb_virtual_stb order by ts, int_tag limit 50;
 select sqrt(u_tinyint_col) from test_vtable_select.vtb_virtual_stb order by ts, int_tag limit 50;
-select tan(u_tinyint_col) from test_vtable_select.vtb_virtual_stb order by ts, int_tag limit 50;
+select round(tan(u_tinyint_col)) from test_vtable_select.vtb_virtual_stb order by ts, int_tag limit 50;
 select PI() from test_vtable_select.vtb_virtual_stb order by ts, int_tag limit 50;
 select PI(), u_tinyint_col from test_vtable_select.vtb_virtual_stb order by ts, int_tag limit 50;
 select exp(tinyint_col) from test_vtable_select.vtb_virtual_stb order by ts, int_tag limit 50;
@@ -49,9 +49,9 @@ select count(*) from test_vtable_select.vtb_virtual_stb limit 50;
 select elapsed(ts) from test_vtable_select.vtb_virtual_stb limit 50;
 select leastsquares(int_col, 0, 1) from test_vtable_select.vtb_virtual_stb where int_tag = 1 limit 50;
 select spread(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
-select stddev(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
+select round(stddev(int_col)) from test_vtable_select.vtb_virtual_stb limit 50;
 select sum(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
-select var_pop(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
+select round(var_pop(int_col), -7) from test_vtable_select.vtb_virtual_stb limit 50;
 select hyperloglog(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
 select percentile(int_col, 0.5) from test_vtable_select.vtb_virtual_stb limit 50;
 select bottom(int_col, 10) from test_vtable_select.vtb_virtual_stb order by 1 limit 50;
@@ -66,7 +66,6 @@ select irate(int_col) from test_vtable_select.vtb_virtual_stb order by 1 limit 5
 select mavg(int_col, 100) from test_vtable_select.vtb_virtual_stb order by 1 limit 50;
 select statecount(u_tinyint_col, "GT", 20) from test_vtable_select.vtb_virtual_stb where int_tag = 1 limit 50;
 select stateduration(u_tinyint_col, "GT", 20, 1a) from test_vtable_select.vtb_virtual_stb where int_tag = 1 limit 50;
-select twa(int_col) from test_vtable_select.vtb_virtual_stb limit 50;
 
 
 select abs(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;

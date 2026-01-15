@@ -552,10 +552,12 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   }
 
   SStreamScanInfo* pScanInfo = pInfo->info;
-  if (pInfo->pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {  // clear meta cache for subscription if tag is changed
+  STableScanInfo*  pTableScanInfo = pScanInfo->pTableScanOp->info;
+  if (pInfo->pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE &&
+      pTableScanInfo->base.metaCache.pTableMetaEntryCache) {  // clear meta cache for subscription if tag is changed
     for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
-      int64_t*        uid = (int64_t*)taosArrayGet(tableIdList, i);
-      STableScanInfo* pTableScanInfo = pScanInfo->pTableScanOp->info;
+      int64_t* uid = (int64_t*)taosArrayGet(tableIdList, i);
+
       taosLRUCacheErase(pTableScanInfo->base.metaCache.pTableMetaEntryCache, uid, LONG_BYTES);
     }
   }
@@ -2265,7 +2267,7 @@ int32_t dropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequ
 }
 
 int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t         code = TSDB_CODE_SUCCESS;
   STableListInfo* pList = tableListCreate();
   if (pList == NULL) {
     code = terrno;
@@ -2283,7 +2285,7 @@ int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pT
   code = doFilterTableByTagCond(pVnode, pList, uidList, pTagCond, &((SExecTaskInfo*)pTaskInfo)->storageAPI);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
-  }                                              
+  }
   // taosArrayClear(uidList);
   // for (int32_t i = 0; i < taosArrayGetSize(uidListCopy); i++){
   //   void* tmp = taosArrayGet(uidListCopy, i);
