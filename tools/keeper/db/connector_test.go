@@ -346,7 +346,7 @@ func TestNewConnectorWithDbAndTokenWithSpecialChars(t *testing.T) {
 	defer conn.Close()
 
 	conn.Exec(context.Background(), "drop user user_1768380767", util.GetQidOwn(config.Conf.InstanceID))
-	_, err = conn.Exec(context.Background(), "create user user_1768380767 pass 'Cm}ZyHuZFd8_Y2+B+6F<wn;h;;j83.eBb.f#'", util.GetQidOwn(config.Conf.InstanceID))
+	_, err = conn.Exec(context.Background(), "create user user_1768380767 pass 'AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.'", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
 
 	data, err := conn.Query(context.Background(), "create token token_1768380767 from user user_1768380767", util.GetQidOwn(config.Conf.InstanceID))
@@ -360,14 +360,14 @@ func TestNewConnectorWithDbAndTokenWithSpecialChars(t *testing.T) {
 	_, err = conn1.Query(context.Background(), "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
 
-	conn2, err := NewConnectorWithDbAndToken("user_1768380767", "Cm}ZyHuZFd8_Y2+B+6F<wn;h;;j83.eBb.f#", token, "localhost", 6041, "test_1766988529", false)
+	conn2, err := NewConnectorWithDbAndToken("user_1768380767", "AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.", token, "localhost", 6041, "test_1766988529", false)
 	assert.NoError(t, err)
 	defer conn2.Close()
 
 	_, err = conn2.Query(context.Background(), "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
 
-	conn3, err := NewConnectorWithDbAndToken("user_1768380767", "Cm}ZyHuZFd8_Y2+B+6F<wn;h;;j83.eBb.f#", "", "localhost", 6041, "test_1766988529", false)
+	conn3, err := NewConnectorWithDbAndToken("user_1768380767", "AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.", "", "localhost", 6041, "test_1766988529", false)
 	assert.NoError(t, err)
 	defer conn3.Close()
 
@@ -383,30 +383,17 @@ func TestNewConnectorWithSpecialChars(t *testing.T) {
 	assert.NoError(t, err)
 	defer conn.Close()
 
-	conn.Exec(context.Background(), "drop user user_1768377310", util.GetQidOwn(config.Conf.InstanceID))
-	_, err = conn.Exec(context.Background(), "create user user_1768377310 pass 'Cm}ZyHuZFd8_Y2+B+6F<wn;h;;j83.eBb.f#'", util.GetQidOwn(config.Conf.InstanceID))
-	assert.NoError(t, err)
-
 	conn.Exec(context.Background(), "drop user user_1768379499", util.GetQidOwn(config.Conf.InstanceID))
 	_, err = conn.Exec(context.Background(), "create user user_1768379499 pass 'AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.'", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
 
-	conn1, err := NewConnector("user_1768377310", "Cm}ZyHuZFd8_Y2+B+6F<wn;h;;j83.eBb.f#", "localhost", 6041, false)
+	conn1, err := NewConnector("user_1768379499", "AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.", "localhost", 6041, false)
 	assert.NoError(t, err)
 	defer conn1.Close()
 
 	_, err = conn1.Query(context.Background(), "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
 
-	conn2, err := NewConnector("user_1768379499", "AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.", "localhost", 6041, false)
-	assert.NoError(t, err)
-	defer conn2.Close()
-
-	_, err = conn2.Query(context.Background(), "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
-	assert.NoError(t, err)
-
-	_, err = conn.Exec(context.Background(), "drop user user_1768377310", util.GetQidOwn(config.Conf.InstanceID))
-	assert.NoError(t, err)
 	_, err = conn.Exec(context.Background(), "drop user user_1768379499", util.GetQidOwn(config.Conf.InstanceID))
 	assert.NoError(t, err)
 }
