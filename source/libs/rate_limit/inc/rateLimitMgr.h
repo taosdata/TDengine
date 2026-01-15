@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "../../../../include/util/thash.h"
 #include "../inc/rateLimit.h"
 #include "os.h"
 
@@ -74,6 +75,7 @@ typedef struct {
   SGlobalLimiters* global;
   SIpLimiter*      ipLimiters;
   SUserLimiter*    userLimiters;
+  SHashObj*        userLimiterHash;
   SDbLimiter*      dbLimiters;
   TdThreadRwlock   lock;
 } SRateLimitMgr;

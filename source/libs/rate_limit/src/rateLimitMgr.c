@@ -17,16 +17,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "../../../../include/os/osMemPool.h"
 #include "../../../../include/os/osMemory.h"
+#include "taosdef.h"
 
 #define DEFAULT_MAX_IP_ENTRIES 1000
 #define DEFAULT_CONN_RATE      10000
 #define DEFAULT_QUERY_RATE     10000
 #define DEFAULT_WRITE_RATE     10000
 
-static SRateLimitMgr*  gRateLimitMgr = NULL;
-static int32_t         gInitialized = 0;
-static pthread_mutex_t gInitMutex = PTHREAD_MUTEX_INITIALIZER;
+static SRateLimitMgr* gRateLimitMgr = NULL;
+static int32_t        gInitialized = 0;
+static TdThreadMutex  gInitMutex;
 
 static SIpLimiter* findOrCreateIpLimiter(const char* ip) {
   if (gRateLimitMgr == NULL || ip == NULL) {
@@ -74,18 +76,14 @@ static SUserLimiter* findOrCreateUserLimiter(const char* user) {
 
   taosThreadRwlockWrlock(&gRateLimitMgr->lock);
 
-  SUserLimiter* pLimiter = gRateLimitMgr->userLimiters;
-  SUserLimiter* pPrev = NULL;
-
-  while (pLimiter != NULL) {
-    if (strcmp(pLimiter->user, user) == 0) {
-      taosThreadRwlockUnlock(&gRateLimitMgr->lock);
-      return pLimiter;
-    }
-    pPrev = pLimiter;
-    pLimiter = pLimiter->next;
+  // Try to find existing user limiter in hash table
+  SUserLimiter* pLimiter = (SUserLimiter*)taosHashGet(gRateLimitMgr->userLimiterHash, user, strlen(user));
+  if (pLimiter != NULL) {
+    taosThreadRwlockUnlock(&gRateLimitMgr->lock);
+    return pLimiter;
   }
 
+  // Create new user limiter if not found
   pLimiter = (SUserLimiter*)taosMemoryCalloc(1, sizeof(SUserLimiter));
   if (pLimiter == NULL) {
     taosThreadRwlockUnlock(&gRateLimitMgr->lock);
@@ -102,20 +100,28 @@ static SUserLimiter* findOrCreateUserLimiter(const char* user) {
   pLimiter->next = gRateLimitMgr->userLimiters;
   gRateLimitMgr->userLimiters = pLimiter;
 
+  // Add to hash table
+  int32_t code = taosHashPut(gRateLimitMgr->userLimiterHash, user, strlen(user), pLimiter, sizeof(SUserLimiter*));
+  if (code != 0) {
+    taosMemoryFree(pLimiter);
+    taosThreadRwlockUnlock(&gRateLimitMgr->lock);
+    return NULL;
+  }
+
   taosThreadRwlockUnlock(&gRateLimitMgr->lock);
   return pLimiter;
 }
 
 int32_t rlmInit(int64_t globalConnRate, int64_t globalQueryRate, int64_t globalWriteRate) {
-  pthread_mutex_lock(&gInitMutex);
+  taosThreadMutexLock(&gInitMutex);
   if (gInitialized) {
-    pthread_mutex_unlock(&gInitMutex);
+    taosThreadMutexUnlock(&gInitMutex);
     return 0;
   }
 
   gRateLimitMgr = (SRateLimitMgr*)taosMemoryCalloc(1, sizeof(SRateLimitMgr));
   if (gRateLimitMgr == NULL) {
-    pthread_mutex_unlock(&gInitMutex);
+    taosThreadMutexUnlock(&gInitMutex);
     return -1;
   }
 
@@ -123,7 +129,7 @@ int32_t rlmInit(int64_t globalConnRate, int64_t globalQueryRate, int64_t globalW
   if (gRateLimitMgr->global == NULL) {
     taosMemoryFree(gRateLimitMgr);
     gRateLimitMgr = NULL;
-    pthread_mutex_unlock(&gInitMutex);
+    taosThreadMutexUnlock(&gInitMutex);
     return -1;
   }
 
@@ -141,16 +147,29 @@ int32_t rlmInit(int64_t globalConnRate, int64_t globalQueryRate, int64_t globalW
   gRateLimitMgr->global->currentConnections = 0;
 
   taosThreadRwlockInit(&gRateLimitMgr->lock, NULL);
+
+  gRateLimitMgr->userLimiterHash =
+      taosHashInit(RLM_MAX_IP_ENTRIES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (gRateLimitMgr->userLimiterHash == NULL) {
+    taosThreadRwlockDestroy(&gRateLimitMgr->lock);
+    taosMemoryFree(gRateLimitMgr->global);
+    taosMemoryFree(gRateLimitMgr);
+    gRateLimitMgr = NULL;
+    taosThreadMutexUnlock(&gInitMutex);
+    return -1;
+  }
+  taosHashSetFreeFp(gRateLimitMgr->userLimiterHash, NULL);
+
   gInitialized = 1;
 
-  pthread_mutex_unlock(&gInitMutex);
+  taosThreadMutexUnlock(&gInitMutex);
   return 0;
 }
 
 void rlmCleanup() {
-  pthread_mutex_lock(&gInitMutex);
+  taosThreadMutexLock(&gInitMutex);
   if (!gInitialized) {
-    pthread_mutex_unlock(&gInitMutex);
+    taosThreadMutexUnlock(&gInitMutex);
     return;
   }
 
@@ -183,6 +202,10 @@ void rlmCleanup() {
     dbLimiter = next;
   }
 
+  if (gRateLimitMgr->userLimiterHash != NULL) {
+    taosHashCleanup(gRateLimitMgr->userLimiterHash);
+  }
+
   if (gRateLimitMgr->global != NULL) {
     rlDestroyLimiter(gRateLimitMgr->global->connLimiter);
     rlDestroyLimiter(gRateLimitMgr->global->queryLimiter);
@@ -196,7 +219,7 @@ void rlmCleanup() {
   gRateLimitMgr = NULL;
   gInitialized = 0;
 
-  pthread_mutex_unlock(&gInitMutex);
+  taosThreadMutexUnlock(&gInitMutex);
 }
 
 int32_t rlmAllowConnection(const char* ip) {
@@ -326,14 +349,12 @@ void rlmResetLimiter(ERLimitTarget target, const char* identifier) {
     case RLM_TARGET_USER:
       if (identifier != NULL) {
         taosThreadRwlockRdlock(&gRateLimitMgr->lock);
-        SUserLimiter* pLimiter = gRateLimitMgr->userLimiters;
-        while (pLimiter != NULL) {
-          if (strcmp(pLimiter->user, identifier) == 0) {
-            rlResetLimiter(pLimiter->queryLimiter);
-            rlResetLimiter(pLimiter->writeLimiter);
-            break;
-          }
-          pLimiter = pLimiter->next;
+        // Find user limiter in hash table
+        SUserLimiter* pLimiter =
+            (SUserLimiter*)taosHashGet(gRateLimitMgr->userLimiterHash, identifier, strlen(identifier));
+        if (pLimiter != NULL) {
+          rlResetLimiter(pLimiter->queryLimiter);
+          rlResetLimiter(pLimiter->writeLimiter);
         }
         taosThreadRwlockUnlock(&gRateLimitMgr->lock);
       }
@@ -374,13 +395,11 @@ void rlmGetStats(ERLimitTarget target, const char* identifier, int64_t* allowed,
     case RLM_TARGET_USER:
       if (identifier != NULL) {
         taosThreadRwlockRdlock(&gRateLimitMgr->lock);
-        SUserLimiter* pLimiter = gRateLimitMgr->userLimiters;
-        while (pLimiter != NULL) {
-          if (strcmp(pLimiter->user, identifier) == 0) {
-            rlGetLimiterStats(pLimiter->queryLimiter, allowed, rejected);
-            break;
-          }
-          pLimiter = pLimiter->next;
+        // Find user limiter in hash table
+        SUserLimiter* pLimiter =
+            (SUserLimiter*)taosHashGet(gRateLimitMgr->userLimiterHash, identifier, strlen(identifier));
+        if (pLimiter != NULL) {
+          rlGetLimiterStats(pLimiter->queryLimiter, allowed, rejected);
         }
         taosThreadRwlockUnlock(&gRateLimitMgr->lock);
       }
