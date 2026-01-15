@@ -2,6 +2,7 @@
 #include "cJSON.h"
 #include "clientInt.h"
 #include "clientLog.h"
+#include "osEnv.h"
 #include "query.h"
 #include "taos.h"
 #include "taoserror.h"
@@ -29,7 +30,11 @@ TdThread    monitorThread;
 extern bool tsEnableAuditDelete;
 
 static int32_t getSlowLogTmpDir(char* tmpPath, int32_t size) {
-  int ret = tsnprintf(tmpPath, size, "%stdengine_slow_log/", tsTempDir);
+  if (strlen(tsTempDir) == 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  bool hasDelim = (tsTempDir[strlen(tsTempDir) - 1] == TD_DIRSEP_CHAR) ? true : false;
+  int ret = tsnprintf(tmpPath, size, "%s%stdengine_slow_log%s", tsTempDir, hasDelim ? "" : TD_DIRSEP, TD_DIRSEP);
   if (ret < 0) {
     tscError("failed to get tmp path ret:%d", ret);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
