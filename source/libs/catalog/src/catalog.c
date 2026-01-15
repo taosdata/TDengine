@@ -1844,6 +1844,40 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+static int32_t ctgGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* pRsp) {
+  bool    inCache = false;
+  int32_t code = 0;
+
+  CTG_ERR_RET(ctgGetUserAuthFromCache(pCtg, user, &inCache, pRsp));
+
+  if (inCache) {
+    return code;
+  }
+
+  CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pConn, user, pRsp, NULL));
+
+  (void)ctgUpdateUserEnqueue(pCtg, pRsp, false);  // cache update not fatal error
+
+  CTG_RET(code);
+}
+
+/**
+ * @brief shallow copy
+ */
+int32_t catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* pRes) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pConn || NULL == user || NULL == pRes) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgGetUserAuth(pCtg, pConn, user, pRes));
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
 
 int32_t catalogGetServerVersion(SCatalog* pCtg, SRequestConnInfo* pConn, char** pVersion) {
   CTG_API_ENTER();

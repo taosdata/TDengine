@@ -9642,7 +9642,7 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
     }
   }
 
-  TAOS_CHECK_RETURN(tEncodeU8(pEncoder, pRsp->flag));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRsp->virtualStb));
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRsp->numOfColRefs));
   if (hasRefCol(pRsp->tableType)) {
     for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
@@ -9652,6 +9652,7 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
   }
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRsp->rversion));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->ownerId));
+  TAOS_CHECK_RETURN(tEncodeU8(pEncoder, pRsp->flag));
 
   return 0;
 }
@@ -9702,7 +9703,7 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
     }
   }
   if (!tDecodeIsEnd(pDecoder)) {
-    TAOS_CHECK_RETURN(tDecodeU8(pDecoder, &pRsp->flag));
+    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pRsp->virtualStb));
     TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->numOfColRefs));
     if (hasRefCol(pRsp->tableType) && pRsp->numOfColRefs > 0) {
       pRsp->pColRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfColRefs);
@@ -9723,6 +9724,9 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   }
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pRsp->ownerId));
+  }
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_RETURN(tDecodeU8(pDecoder, &pRsp->flag));
   }
 
   return 0;

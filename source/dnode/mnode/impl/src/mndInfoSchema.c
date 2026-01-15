@@ -58,6 +58,7 @@ static int32_t mndInsInitMeta(SHashObj *hash) {
     tstrncpy(meta.tbName, pInfosTableMeta[i].name, sizeof(meta.tbName));
     meta.numOfColumns = pInfosTableMeta[i].colNum;
     meta.sysInfo = pInfosTableMeta[i].sysInfo;
+    meta.privCat = pInfosTableMeta[i].privCat;
 
     TAOS_CHECK_RETURN(mndInitInfosTableSchema(pInfosTableMeta[i].schema, pInfosTableMeta[i].colNum, &meta.pSchemas));
 
@@ -91,15 +92,15 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
     TAOS_RETURN(code);
   }
 
-  bool isShowAnodes = (strcmp(tbName, TSDB_INS_TABLE_ANODES) == 0 || strcmp(tbName, TSDB_INS_TABLE_ANODES_FULL) == 0);
-  bool isShowXnodes = (strcmp(tbName, TSDB_INS_TABLE_XNODES) == 0 || strcmp(tbName, TSDB_INS_TABLE_XNODES_FULL) == 0);
-
-  if (!isShowAnodes && !isShowXnodes && !sysinfo && pMeta->sysInfo) {
-    mError("no permission to get schema of table name:%s", tbName);
-    code = TSDB_CODE_PAR_PERMISSION_DENIED;
-    TAOS_RETURN(code);
+  if (!sysinfo && pMeta->sysInfo) {
+    if (!(strcmp(tbName, TSDB_INS_TABLE_ANODES) == 0 || strcmp(tbName, TSDB_INS_TABLE_ANODES_FULL) == 0 ||
+          strcmp(tbName, TSDB_INS_TABLE_XNODES) == 0 || strcmp(tbName, TSDB_INS_TABLE_XNODES_FULL) == 0 ||
+          strcmp(tbName, TSDB_INS_TABLE_LICENCES) == 0)) {
+      mError("no permission to get schema of table name:%s", tbName);
+      code = TSDB_CODE_PAR_PERMISSION_DENIED;
+      TAOS_RETURN(code);
+    }
   }
-
 
   *pRsp = *pMeta;
 

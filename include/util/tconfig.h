@@ -129,7 +129,7 @@ int32_t      cfgLoadFromArray(SConfig *pCfg, SArray *pArgs);    // SConfigPair
 int32_t      cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs);  // SConfigItem
 void         cfgCleanup(SConfig *pCfg);
 int32_t      cfgGetSize(SConfig *pCfg);
-int32_t      cfgGetPrivType(SConfig *pCfg, const char *pName);
+int32_t      cfgGetPrivType(SConfig *pCfg, const char *pName, int8_t opType);
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
 int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem **ppItem, const char *name, const char *value, ECfgSrcType stype,

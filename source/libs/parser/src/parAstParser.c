@@ -1792,11 +1792,9 @@ static int32_t collectMetaKeyFromAlterLocalStmt(SCollectMetaKeyCxt* pCxt, SAlter
       tstrncpy(pStmt->value, p + 1, sizeof(pStmt->value));
     }
   }
-  int32_t privType = cfgGetPrivType(tsCfg, pStmt->config);
-  if (privType != PRIV_TYPE_UNKNOWN) {
-    return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, privType, 0,
-                                  pCxt->pMetaCache);
-  }
+  int32_t privType = cfgGetPrivType(tsCfg, pStmt->config, 0);
+  return reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, privType, 0,
+                                pCxt->pMetaCache);
   return TSDB_CODE_SUCCESS;
 }
 

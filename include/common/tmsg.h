@@ -862,21 +862,21 @@ typedef struct {
   uint64_t    suid;
   uint64_t    tuid;
   int32_t     vgId;
-  int8_t      sysInfo;
-  int64_t     ownerId;
-  SSchema*    pSchemas;
-  SSchemaExt* pSchemaExt;
   union {
     uint8_t flag;
     struct {
-      uint8_t virtualStb : 1;  // no compatibility problem for little-endian arch
+      uint8_t sysInfo : 1;
       uint8_t isAudit : 1;
       uint8_t privCat : 3;  // ESysTblPrivCat
       uint8_t reserved : 3;
     };
   };
-  int32_t  numOfColRefs;
-  SColRef* pColRefs;
+  int64_t     ownerId;
+  SSchema*    pSchemas;
+  SSchemaExt* pSchemaExt;
+  int8_t      virtualStb;
+  int32_t     numOfColRefs;
+  SColRef*    pColRefs;
 } STableMetaRsp;
 
 typedef struct {
@@ -1821,8 +1821,9 @@ typedef struct {
   union {
     uint8_t flags;
     struct {
+      uint8_t privLevel : 3;
       uint8_t withInsertCond : 1;
-      uint8_t reserve : 7;
+      uint8_t reserve : 4;
     };
   };
   SPrivSet  sysPrivs;

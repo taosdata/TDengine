@@ -218,6 +218,13 @@ typedef struct {
 
 #define PRIV_HAS(privSet, type) (((privSet)->set[PRIV_GROUP(type)] & (1ULL << PRIV_OFFSET(type))) != 0)
 
+#define PRIV_SET(privSet, type, val)   \
+  do {                                 \
+    if (PRIV_HAS((privSet), (type))) { \
+      (val) = 1;                       \
+    }                                  \
+  } while (0)
+
 typedef struct {
   SPrivSet privSet;
   int32_t  nPrivArgs;

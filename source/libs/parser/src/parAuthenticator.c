@@ -780,8 +780,7 @@ static int32_t authAlterDatabase(SAuthCxt* pCxt, SAlterDatabaseStmt* pStmt) {
 }
 
 static int32_t authAlterLocal(SAuthCxt* pCxt, SAlterLocalStmt* pStmt) {
-  int32_t privType = cfgGetPrivType(tsCfg, pStmt->config);
-  // if (privType == PRIV_TYPE_UNKNOWN) privType = PRIV_TYPE_SYSTEM;
+  int32_t privType = cfgGetPrivType(tsCfg, pStmt->config, 0);
   return authSysPrivileges(pCxt, (void*)pStmt, privType);
 
   return TSDB_CODE_SUCCESS;

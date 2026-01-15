@@ -620,25 +620,31 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName) {
   return NULL;
 }
 
-int32_t cfgGetPrivType(SConfig *pCfg, const char *pName) {
+/**
+ * @brief cfgGetPrivType
+ *
+ * @param opType 0: alter, 1: show
+ * @return int32_t
+ */
+int32_t cfgGetPrivType(SConfig *pCfg, const char *pName, int8_t opType) {
   SConfigItem *pItem = cfgGetItem(pCfg, pName);
   if (pItem == NULL) {
     return PRIV_TYPE_UNKNOWN;
   }
   switch (pItem->privType) {
     case CFG_PRIV_SYSTEM:
-      return PRIV_VAR_SYSTEM_ALTER;
+      return opType == 0 ? PRIV_VAR_SYSTEM_ALTER : PRIV_VAR_SYSTEM_SHOW;
     case CFG_PRIV_SECURITY:
-      return PRIV_VAR_SECURITY_ALTER;
+      return opType == 0 ? PRIV_VAR_SECURITY_ALTER : PRIV_VAR_SECURITY_SHOW;
     case CFG_PRIV_AUDIT:
-      return PRIV_VAR_AUDIT_ALTER;
+      return opType == 0 ? PRIV_VAR_AUDIT_ALTER : PRIV_VAR_AUDIT_SHOW;
     case CFG_PRIV_DEBUG:
-      return PRIV_VAR_DEBUG_ALTER;
+      return opType == 0 ? PRIV_VAR_DEBUG_ALTER : PRIV_VAR_DEBUG_SHOW;
     default:
       break;
   }
 
-  return PRIV_TYPE_UNKNOWN;
+  return opType == 0 ? PRIV_VAR_SYSTEM_ALTER : PRIV_VAR_SYSTEM_SHOW;  // default system priv
 }
 
 void cfgLock(SConfig *pCfg) {

@@ -933,6 +933,32 @@ _return:
   return code;
 }
 
+int32_t ctgGetUserAuthFromCache(SCatalog *pCtg, const char *user, bool *inCache, SGetUserAuthRsp *pRes) {
+  int32_t code = 0;
+
+  SCtgUserAuth *pUser = (SCtgUserAuth *)taosHashGet(pCtg->userCache, user, strlen(user));
+  if (NULL == pUser) {
+    goto _return;
+  }
+
+  *inCache = true;
+
+  CTG_CACHE_HIT_INC(CTG_CI_USER, 1);
+
+  CTG_LOCK(CTG_READ, &pUser->lock);
+  TAOS_MEMCPY(pRes, &pUser->userAuth, sizeof(pUser->userAuth));
+  CTG_UNLOCK(CTG_READ, &pUser->lock);
+
+  CTG_RET(code);
+
+_return:
+
+  *inCache = false;
+  CTG_CACHE_NHIT_INC(CTG_CI_USER, 1);
+
+  return code;
+}
+
 void ctgDequeue(SCtgCacheOperation **op) {
   SCtgQNode *orig = gCtgMgmt.queue.head;
 

@@ -2745,7 +2745,8 @@ enum {
   PHY_SYSTABLE_SCAN_CODE_MGMT_EP_SET,
   PHY_SYSTABLE_SCAN_CODE_SHOW_REWRITE,
   PHY_SYSTABLE_SCAN_CODE_ACCOUNT_ID,
-  PHY_SYSTABLE_SCAN_CODE_SYS_INFO
+  PHY_SYSTABLE_SCAN_CODE_SYS_INFO,
+  PHY_SYSTABLE_SCAN_CODE_PRIV_INFO,
 };
 
 static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2763,6 +2764,9 @@ static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncode
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_SYSTABLE_SCAN_CODE_SYS_INFO, pNode->sysInfo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeU16(pEncoder, PHY_SYSTABLE_SCAN_CODE_PRIV_INFO, pNode->flags);
   }
 
   return code;
@@ -2790,6 +2794,8 @@ static int32_t msgToPhysiSysTableScanNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_SYSTABLE_SCAN_CODE_SYS_INFO:
         code = tlvDecodeBool(pTlv, &pNode->sysInfo);
         break;
+      case PHY_SYSTABLE_SCAN_CODE_PRIV_INFO:
+        code = tlvDecodeU16(pTlv, &pNode->flags);
       default:
         break;
     }
