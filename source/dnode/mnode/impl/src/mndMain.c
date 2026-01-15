@@ -1072,7 +1072,7 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo) {
   int32_t         code = TSDB_CODE_SUCCESS;
 
 #ifdef TD_ENTERPRISE
-  if (pMsg->info.conn.isToken) {
+  if (pMsg->msgType != TDMT_MND_HEARTBEAT && pMsg->info.conn.isToken) {
     SCachedTokenInfo ti = {0};
     if (mndGetCachedTokenInfo(pMsg->info.conn.identifier, &ti) == NULL) {
       mGError("msg:%p, failed to get token info, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
