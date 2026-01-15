@@ -3,7 +3,7 @@ title: Installation
 sidebar_label: Installation
 ---
 
-import PkgListV3 from "/components/PkgListV3";
+import PkgList from "/src/components/PkgList";
 
 This section describes how to use TDgpt in Docker
 
@@ -131,7 +131,7 @@ sudo apt install build-essential
 
 1. Download the tar.gz package from the list:
 
-   <PkgListV3 type={9}/>
+   <PkgList productName="TDengine TDgpt-OSS" platform="Linux-Generic"/>
 
    This package contains the TDtsfm and Time-MoE foundation models for time series. Ensure that you have 16 GB of disk space available to store the models.
   
