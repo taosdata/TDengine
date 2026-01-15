@@ -742,8 +742,6 @@ cmd ::= REBALANCE XNODE xnode_resource_type(A) NK_INTEGER(B) with_task_options_o
 cmd ::= REBALANCE XNODE xnode_resource_type(A) where_clause_opt(B).
                                                                                    { pCxt->pRootNode = createRebalanceXnodeJobWhereStmt(pCxt, A, B); }
                                                                                    
-//cmd ::= SHOW XNODE xnode_resource_type(A) where_clause_opt(B).                    { pCxt->pRootNode = createShowXNodeResourcesWhereStmt(pCxt, A, B); }
-
 /* alter xnode task 't1' from 'mqtt://xxx' to database s1 with parser '{...}' */
 cmd ::= ALTER XNODE xnode_resource_type(A) NK_INTEGER(B) xnode_task_from_opt(C) xnode_task_to_opt(D) with_task_options_opt(E).
                                                                                   { pCxt->pRootNode = alterXnodeTaskWithOptions(pCxt, A, &B, C, D, E); }
@@ -756,12 +754,12 @@ cmd ::= DROP XNODE xnode_resource_type(A) NK_INTEGER(B).                        
 //cmd ::= DROP XNODE xnode_resource_type(A) where_clause_opt(C).                    { pCxt->pRootNode = dropXnodeResourceWhere(pCxt, A, C); }
 //cmd ::= DROP XNODE xnode_resource_type(A) ON NK_INTEGER(B) where_clause_opt(C).   { pCxt->pRootNode = dropXnodeResourceOn(pCxt, A, &B, C); }
 
-
-cmd ::= SHOW XNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_XNODES_STMT); }
-/* show xnode tasks */
-/* show xnode agents */
-/* show xnode jobs */
-cmd ::= SHOW XNODE xnode_resource_type(A).                                        { pCxt->pRootNode = createShowXNodeResourcesStmt(pCxt, A); }
+/* show xnodes; or show xnodes where ...*/
+cmd ::= SHOW XNODES where_clause_opt(B).                                          { pCxt->pRootNode = createShowXnodeStmtWithCond(pCxt, QUERY_NODE_SHOW_XNODES_STMT, B); }
+/* show xnode tasks; or show xnode tasks where ...*/
+/* show xnode agents; show xnode agents where ... */
+/* show xnode jobs; show xnode jobs where ... */
+cmd ::= SHOW XNODE xnode_resource_type(A) where_clause_opt(B).                    { pCxt->pRootNode = createShowXNodeResourcesWhereStmt(pCxt, A, B); }
 
 /************************************************ create/drop/alter/restore dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }

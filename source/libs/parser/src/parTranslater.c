@@ -23911,6 +23911,27 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t rewriteShowXnodeStmt(STranslateContext* pCxt, SQuery* pQuery) {
+  SShowStmt*   pShow = (SShowStmt*)(pQuery->pRoot);
+  SSelectStmt* pSelect = NULL;
+  int32_t      code = 0;
+  code = createSelectStmtForShow(nodeType(pShow), &pSelect);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCloneNode(pShow->pWhere, &pSelect->pWhere);
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pSelect);
+      return code;
+    }
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pSelect;
+  } else {
+    nodesDestroyNode((SNode*)pSelect);
+  }
+  return code;
+}
+
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
@@ -23926,10 +23947,6 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
-    case QUERY_NODE_SHOW_XNODES_STMT:
-    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
-    case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
-    case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
@@ -24053,6 +24070,12 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
       code = rewriteShowAliveStmt(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_XNODES_STMT:
+    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
+    case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
+    case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
+      code = rewriteShowXnodeStmt(pCxt, pQuery);
       break;
     default:
       break;

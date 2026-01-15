@@ -3658,26 +3658,40 @@ _err:
   return NULL;
 }
 
-SNode* createShowXNodeResourcesStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType) {
+SNode* createShowXnodeStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pWhere) {
   CHECK_PARSER_STATUS(pCxt);
   SShowStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->pWhere = pWhere;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createShowXNodeResourcesWhereStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowStmt* pStmt = NULL;
+  ENodeType  type;
   switch (resourceType) {
     case XNODE_TASK:
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_TASKS_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
-      break;
-    case XNODE_AGENT:
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_AGENTS_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
+      type = QUERY_NODE_SHOW_XNODE_TASKS_STMT;
       break;
     case XNODE_JOB:
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_JOBS_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
+      type = QUERY_NODE_SHOW_XNODE_JOBS_STMT;
+      break;
+    case XNODE_AGENT:
+      type = QUERY_NODE_SHOW_XNODE_AGENTS_STMT;
       break;
     default:
-      pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "Xnode not support show xnode resource type");
       goto _err;
   }
+
+  pStmt = (SShowStmt*)createShowXnodeStmtWithCond(pCxt, type, pWhere);
+  CHECK_MAKE_NODE(pStmt);
+
   return (SNode*)pStmt;
 _err:
   return NULL;

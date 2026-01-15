@@ -1999,6 +1999,7 @@ void nodesDestroyNode(SNode* pNode) {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
+      nodesDestroyNode(pStmt->pWhere);
       break;
     }
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT: {
