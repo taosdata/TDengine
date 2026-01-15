@@ -282,7 +282,7 @@ int32_t taosDriverInit(EDriverType driverType) {
 
   LOAD_FUNC(fp_taos_connect_is_alive, "taos_connect_is_alive");
 
-  LOAD_FUNC(fp_taos_connect_is_valid, "taos_connect_is_valid");
+  LOAD_FUNC(fp_taos_validate_connection, "taos_validate_connection");
 
   code = 0;
 

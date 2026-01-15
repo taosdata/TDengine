@@ -2982,7 +2982,7 @@ _error:
   return code != 0 ? 0 : 1;
 }
 
-int32_t taos_connect_is_valid(TAOS *taos, char *str, int32_t *len) {
+int32_t taos_validate_connection(TAOS *taos, char *str, int32_t *len) {
   int32_t code = 0;
   if (taos == NULL || str == NULL || len <= 0) {
     return TSDB_CODE_INVALID_PARA;

@@ -973,7 +973,7 @@ int32_t taos_connect_is_alive(TAOS *taos) {
   return (*fp_taos_connect_is_alive)(taos);
 }
 
-int32_t taos_connect_is_valid(TAOS *taos, char *str, int32_t *len) {
-  CHECK_INT(fp_taos_connect_is_valid);
-  return (*fp_taos_connect_is_valid)(taos, str, len);
+int32_t taos_validate_connection(TAOS *taos, char *str, int32_t *len) {
+  CHECK_INT(fp_taos_validate_connection);
+  return (*fp_taos_validate_connection)(taos, str, len);
 }

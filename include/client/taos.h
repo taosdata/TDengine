@@ -502,7 +502,7 @@ DLL_EXPORT int32_t taos_connect_is_alive(TAOS *taos);
     and err msg stored in str
  */
 
-DLL_EXPORT int32_t taos_connect_is_valid(TAOS *taos, char *str, int32_t *len);
+DLL_EXPORT int32_t taos_validate_connection(TAOS *taos, char *str, int32_t *len);
 
 /* ---- end ---- */
 
