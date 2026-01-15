@@ -1,4 +1,5 @@
 add_subdirectory(tdb)
+add_subdirectory(rate_limit)
 add_subdirectory(transport)
 add_subdirectory(wal)
 add_subdirectory(monitor)

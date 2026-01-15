@@ -37,7 +37,7 @@ SClientHbMgr clientHbMgr = {0};
 
 static int32_t hbCreateThread();
 static void    hbStopThread();
-static int32_t hbUpdateUserSessMertric(const char *user, SUserSessCfg *pCfg);
+static int32_t hbUpdateUserSessMetric(const char *user, const SUserSessCfg *pCfg);
 static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *batchRsp);
 
 static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog,
@@ -59,7 +59,6 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
     tscDebug("hb to update user auth, user:%s, version:%d", rsp->user, rsp->version);
 
     TSC_ERR_JRET(catalogUpdateUserAuthInfo(pCatalog, rsp));
-
   }
 
   if (numOfBatchs > 0) {
@@ -73,9 +72,104 @@ _return:
   return code;
 }
 
-static int32_t hbUpdateUserSessMertric(const char *user, SUserSessCfg *pCfg) {
+static int32_t hbUpdateUserSessionLimit(const char *user, int32_t limitType, int32_t value) {
+  int32_t code = sessMgtUpdataLimit((char *)user, limitType, value);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("failed to update user session limit, user:%s, type:%d, value:%d", user, limitType, value);
+  }
+  return code;
+}
+
+static int32_t hbHandleUserDropped(STscObj *pTscObj) {
+  if (atomic_val_compare_exchange_8(&pTscObj->dropped, 0, 1) == 0) {
+    if (pTscObj->userDroppedInfo.fp) {
+      SPassInfo *dropInfo = &pTscObj->userDroppedInfo;
+      if (dropInfo->fp) {
+        (*dropInfo->fp)(dropInfo->param, NULL, TAOS_NOTIFY_USER_DROPPED);
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t hbUpdatePasswordVersion(STscObj *pTscObj, const SGetUserAuthRsp *pRsp) {
+  if (!pTscObj->passInfo.fp) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SPassInfo *passInfo = &pTscObj->passInfo;
+  int32_t    oldVer = atomic_load_32(&passInfo->ver);
+
+  if (oldVer < pRsp->passVer) {
+    int32_t passVer = pRsp->passVer;
+    atomic_store_32(&passInfo->ver, passVer);
+    if (passInfo->fp) {
+      (*passInfo->fp)(passInfo->param, &passVer, TAOS_NOTIFY_PASSVER);
+    }
+    tscDebug("update passVer of user %s from %d to %d, conn:%" PRIi64, pRsp->user, oldVer,
+             atomic_load_32(&passInfo->ver), pTscObj->id);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t hbUpdateWhitelistVersion(STscObj *pTscObj, const SGetUserAuthRsp *pRsp, bool isDateTime) {
+  SWhiteListInfo *whiteListInfo = isDateTime ? &pTscObj->dateTimeWhiteListInfo : &pTscObj->whiteListInfo;
+  int64_t         newVer = isDateTime ? pRsp->timeWhiteListVer : pRsp->whiteListVer;
+  int32_t         notifyType = isDateTime ? TAOS_NOTIFY_DATETIME_WHITELIST_VER : TAOS_NOTIFY_WHITELIST_VER;
+
+  int64_t oldVer = atomic_load_64(&whiteListInfo->ver);
+  if (oldVer != newVer) {
+    atomic_store_64(&whiteListInfo->ver, newVer);
+
+    if (whiteListInfo->fp) {
+      (*whiteListInfo->fp)(whiteListInfo->param, &newVer, notifyType);
+    }
+
+    const char *listType = isDateTime ? "date time whitelist" : "whitelist";
+    tscDebug("update %s version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, listType, pRsp->user,
+             oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t hbUpdateUserInfo(STscObj *pTscObj, const SGetUserAuthRsp *pRsp) {
+  pTscObj->authVer = pRsp->version;
+
+  if (hbUpdateUserSessMetric(pTscObj->user, &pRsp->sessCfg) != 0) {
+    tscError("failed to update user session metric, user:%s", pTscObj->user);
+  }
+
+  if (pTscObj->sysInfo != pRsp->sysInfo) {
+    tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", conn:%" PRIi64, pRsp->user, pTscObj->sysInfo,
+             pRsp->sysInfo, pTscObj->id);
+    pTscObj->sysInfo = pRsp->sysInfo;
+  }
+
+  hbUpdatePasswordVersion(pTscObj, pRsp);
+  hbUpdateWhitelistVersion(pTscObj, pRsp, false);
+  hbUpdateWhitelistVersion(pTscObj, pRsp, true);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t hbFindUserAuthRsp(const SUserAuthBatchRsp *batchRsp, const char *user, SGetUserAuthRsp **pRsp) {
+  int32_t numOfUsers = TARRAY_SIZE(batchRsp->pArray);
+  for (int32_t i = 0; i < numOfUsers; ++i) {
+    SGetUserAuthRsp *rsp = TARRAY_GET_ELEM(batchRsp->pArray, i);
+    if (0 == strncmp(rsp->user, user, TSDB_USER_LEN)) {
+      *pRsp = rsp;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return TSDB_CODE_NOT_FOUND;
+}
+
+static int32_t hbUpdateUserSessMetric(const char *user, const SUserSessCfg *pCfg) {
   int32_t code = 0;
   int32_t lino = 0;
+
   if (user == NULL || pCfg == NULL) {
     return code;
   }
@@ -92,28 +186,24 @@ static int32_t hbUpdateUserSessMertric(const char *user, SUserSessCfg *pCfg) {
       pCfg->sessMaxCallVnodeNum);
 
   if (pCfg->sessPerUser != 0) {
-    code = sessMgtUpdataLimit((char *)user, SESSION_PER_USER, pCfg->sessPerUser);
-    TAOS_CHECK_GOTO(code, &lino, _error);
+    TAOS_CHECK_GOTO(hbUpdateUserSessionLimit(user, SESSION_PER_USER, pCfg->sessPerUser), &lino, _error);
   }
 
   if (pCfg->sessConnTime != 0) {
-    code = sessMgtUpdataLimit((char *)user, SESSION_CONN_TIME, pCfg->sessConnTime);
-    TAOS_CHECK_GOTO(code, &lino, _error);
+    TAOS_CHECK_GOTO(hbUpdateUserSessionLimit(user, SESSION_CONN_TIME, pCfg->sessConnTime), &lino, _error);
   }
 
   if (pCfg->sessConnIdleTime != 0) {
-    code = sessMgtUpdataLimit((char *)user, SESSION_CONN_IDLE_TIME, pCfg->sessConnIdleTime);
-    TAOS_CHECK_GOTO(code, &lino, _error);
+    TAOS_CHECK_GOTO(hbUpdateUserSessionLimit(user, SESSION_CONN_IDLE_TIME, pCfg->sessConnIdleTime), &lino, _error);
   }
 
   if (pCfg->sessMaxConcurrency != 0) {
-    code = sessMgtUpdataLimit((char *)user, SESSION_MAX_CONCURRENCY, pCfg->sessMaxConcurrency);
-    TAOS_CHECK_GOTO(code, &lino, _error);
+    TAOS_CHECK_GOTO(hbUpdateUserSessionLimit(user, SESSION_MAX_CONCURRENCY, pCfg->sessMaxConcurrency), &lino, _error);
   }
 
   if (pCfg->sessMaxCallVnodeNum != 0) {
-    code = sessMgtUpdataLimit((char *)user, SESSION_MAX_CALL_VNODE_NUM, pCfg->sessMaxCallVnodeNum);
-    TAOS_CHECK_GOTO(code, &lino, _error);
+    TAOS_CHECK_GOTO(hbUpdateUserSessionLimit(user, SESSION_MAX_CALL_VNODE_NUM, pCfg->sessMaxCallVnodeNum), &lino,
+                    _error);
   }
 _error:
   return code;
@@ -121,6 +211,7 @@ _error:
 static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *batchRsp) {
   int32_t code = 0;
   int64_t clusterId = pAppHbMgr->pAppInstInfo->clusterId;
+
   for (int i = 0; i < TARRAY_SIZE(clientHbMgr.appHbMgrs); ++i) {
     SAppHbMgr *hbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
     if (!hbMgr || hbMgr->pAppInstInfo->clusterId != clusterId) {
@@ -136,96 +227,22 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       }
 
       if (!pRsp) {
-        for (int32_t j = 0; j < TARRAY_SIZE(batchRsp->pArray); ++j) {
-          SGetUserAuthRsp *rsp = TARRAY_GET_ELEM(batchRsp->pArray, j);
-          if (0 == strncmp(rsp->user, pTscObj->user, TSDB_USER_LEN)) {
-            pRsp = rsp;
-            break;
-          }
-        }
-        if (!pRsp) {
+        code = hbFindUserAuthRsp(batchRsp, pTscObj->user, &pRsp);
+        if (code != TSDB_CODE_SUCCESS) {
           releaseTscObj(pReq->connKey.tscRid);
+          taosHashRelease(hbMgr->activeInfo, pReq);
           taosHashCancelIterate(hbMgr->activeInfo, pReq);
           break;
         }
       }
 
       if (pRsp->dropped == 1) {
-        if (atomic_val_compare_exchange_8(&pTscObj->dropped, 0, 1) == 0) {
-          if (pTscObj->userDroppedInfo.fp) {
-            SPassInfo *dropInfo = &pTscObj->userDroppedInfo;
-            if (dropInfo->fp) {
-              (*dropInfo->fp)(dropInfo->param, NULL, TAOS_NOTIFY_USER_DROPPED);
-            }
-          }
-        }
+        hbHandleUserDropped(pTscObj);
         releaseTscObj(pReq->connKey.tscRid);
         continue;
       }
 
-      pTscObj->authVer = pRsp->version;
-      if (hbUpdateUserSessMertric(pTscObj->user, &pRsp->sessCfg) != 0) {
-        tscError("failed to update user session metric, user:%s", pTscObj->user);
-      }
-
-      if (pTscObj->sysInfo != pRsp->sysInfo) {
-        tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", conn:%" PRIi64, pRsp->user,
-                 pTscObj->sysInfo, pRsp->sysInfo, pTscObj->id);
-        pTscObj->sysInfo = pRsp->sysInfo;
-      }
-
-      if (pTscObj->passInfo.fp) {
-        SPassInfo *passInfo = &pTscObj->passInfo;
-        int32_t    oldVer = atomic_load_32(&passInfo->ver);
-        if (oldVer < pRsp->passVer) {
-          atomic_store_32(&passInfo->ver, pRsp->passVer);
-          if (passInfo->fp) {
-            (*passInfo->fp)(passInfo->param, &pRsp->passVer, TAOS_NOTIFY_PASSVER);
-          }
-          tscDebug("update passVer of user %s from %d to %d, conn:%" PRIi64, pRsp->user, oldVer,
-                   atomic_load_32(&passInfo->ver), pTscObj->id);
-        }
-      }
-
-      if (pTscObj->whiteListInfo.fp) {
-        SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
-        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        if (oldVer != pRsp->whiteListVer) {
-          atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
-          if (whiteListInfo->fp) {
-            (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->whiteListVer, TAOS_NOTIFY_WHITELIST_VER);
-          }
-          tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
-                   oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
-        }
-      } else {
-        // Need to update version information to prevent frequent fetching of authentication
-        // information.
-        SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
-        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
-        tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
-                 oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
-      }
-
-      if (pTscObj->dateTimeWhiteListInfo.fp) {
-        SWhiteListInfo *whiteListInfo = &pTscObj->dateTimeWhiteListInfo;
-        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        if (oldVer != pRsp->timeWhiteListVer) {
-          atomic_store_64(&whiteListInfo->ver, pRsp->timeWhiteListVer);
-          if (whiteListInfo->fp) {
-            (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->timeWhiteListVer, TAOS_NOTIFY_DATETIME_WHITELIST_VER);
-          }
-          tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
-                   oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
-        }
-      } else {
-        SWhiteListInfo *whiteListInfo = &pTscObj->dateTimeWhiteListInfo;
-        int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
-        atomic_store_64(&whiteListInfo->ver, pRsp->timeWhiteListVer);
-        tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
-                 oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
-      }
+      hbUpdateUserInfo(pTscObj, pRsp);
       releaseTscObj(pReq->connKey.tscRid);
     }
   }
@@ -472,6 +489,58 @@ _return:
   return code;
 }
 
+static bool hbValidateKv(const SKv *kv, const char *keyName) {
+  if (kv->valueLen <= 0 || NULL == kv->value) {
+    tscError("invalid hb %s, len:%d, value:%p", keyName, kv->valueLen, kv->value);
+    return false;
+  }
+  return true;
+}
+
+static int32_t hbProcessUserAuthKv(const SKv *kv, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr) {
+  if (!hbValidateKv(kv, "user auth info")) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t code = hbProcessUserAuthInfoRsp(kv->value, kv->valueLen, pCatalog, pAppHbMgr);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("process user auth info response failed, len:%d, value:%p", kv->valueLen, kv->value);
+  }
+  return code;
+}
+
+static int32_t hbProcessDbInfoKv(const SKv *kv, struct SCatalog *pCatalog) {
+  if (!hbValidateKv(kv, "db info")) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t code = hbProcessDBInfoRsp(kv->value, kv->valueLen, pCatalog);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("process db info response failed, len:%d, value:%p", kv->valueLen, kv->value);
+  }
+  return code;
+}
+
+static int32_t hbProcessStbInfoKv(const SKv *kv, struct SCatalog *pCatalog) {
+  if (!hbValidateKv(kv, "stb info")) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t code = hbProcessStbInfoRsp(kv->value, kv->valueLen, pCatalog);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("process stb info response failed, len:%d, value:%p", kv->valueLen, kv->value);
+  }
+  return code;
+}
+
+static int32_t hbProcessTsmaKv(const SKv *kv, struct SCatalog *pCatalog) {
+  if (!hbValidateKv(kv, "tsma info")) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t code = hbprocessTSMARsp(kv->value, kv->valueLen, pCatalog);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("process tsma info response failed, len:%d, value:%p", kv->valueLen, kv->value);
+  }
+  return code;
+}
+
 static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr) {
   for (int32_t i = 0; i < kvNum; ++i) {
     SKv *kv = taosArrayGet(pKvs, i);
@@ -480,72 +549,36 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
       continue;
     }
     switch (kv->key) {
-      case HEARTBEAT_KEY_USER_AUTHINFO: {
-        if (kv->valueLen <= 0 || NULL == kv->value) {
-          tscError("invalid hb user auth info, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
-        }
-        if (TSDB_CODE_SUCCESS != hbProcessUserAuthInfoRsp(kv->value, kv->valueLen, pCatalog, pAppHbMgr)) {
-          tscError("process user auth info response faild, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
-        }
+      case HEARTBEAT_KEY_USER_AUTHINFO:
+        hbProcessUserAuthKv(kv, pCatalog, pAppHbMgr);
         break;
-      }
-      case HEARTBEAT_KEY_DBINFO: {
-        if (kv->valueLen <= 0 || NULL == kv->value) {
-          tscError("invalid hb db info, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
-        }
-        if (TSDB_CODE_SUCCESS != hbProcessDBInfoRsp(kv->value, kv->valueLen, pCatalog)) {
-          tscError("process db info response faild, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
-        }
+      case HEARTBEAT_KEY_DBINFO:
+        hbProcessDbInfoKv(kv, pCatalog);
         break;
-      }
-      case HEARTBEAT_KEY_STBINFO: {
-        if (kv->valueLen <= 0 || NULL == kv->value) {
-          tscError("invalid hb stb info, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
-        }
-        if (TSDB_CODE_SUCCESS != hbProcessStbInfoRsp(kv->value, kv->valueLen, pCatalog)) {
-          tscError("process stb info response faild, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
-        }
+      case HEARTBEAT_KEY_STBINFO:
+        hbProcessStbInfoKv(kv, pCatalog);
         break;
-      }
 #ifdef TD_ENTERPRISE
-      case HEARTBEAT_KEY_DYN_VIEW: {
-        if (kv->valueLen <= 0 || NULL == kv->value) {
-          tscError("invalid dyn view info, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
-        }
-        if (TSDB_CODE_SUCCESS != hbProcessDynViewRsp(kv->value, kv->valueLen, pCatalog)) {
-          tscError("Process dyn view response failed, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
+      case HEARTBEAT_KEY_DYN_VIEW:
+        if (hbValidateKv(kv, "dyn view info")) {
+          int32_t code = hbProcessDynViewRsp(kv->value, kv->valueLen, pCatalog);
+          if (code != TSDB_CODE_SUCCESS) {
+            tscError("process dyn view response failed, len:%d, value:%p", kv->valueLen, kv->value);
+          }
         }
         break;
-      }
-      case HEARTBEAT_KEY_VIEWINFO: {
-        if (kv->valueLen <= 0 || NULL == kv->value) {
-          tscError("invalid view info, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
-        }
-        if (TSDB_CODE_SUCCESS != hbProcessViewInfoRsp(kv->value, kv->valueLen, pCatalog)) {
-          tscError("Process view info response failed, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
+      case HEARTBEAT_KEY_VIEWINFO:
+        if (hbValidateKv(kv, "view info")) {
+          int32_t code = hbProcessViewInfoRsp(kv->value, kv->valueLen, pCatalog);
+          if (code != TSDB_CODE_SUCCESS) {
+            tscError("process view info response failed, len:%d, value:%p", kv->valueLen, kv->value);
+          }
         }
         break;
-      }
 #endif
-      case HEARTBEAT_KEY_TSMA: {
-        if (kv->valueLen <= 0 || !kv->value) {
-          tscError("Invalid tsma info, len:%d, value:%p", kv->valueLen, kv->value);
-        }
-        if (TSDB_CODE_SUCCESS != hbprocessTSMARsp(kv->value, kv->valueLen, pCatalog)) {
-          tscError("Process tsma info response failed, len:%d, value:%p", kv->valueLen, kv->value);
-        }
+      case HEARTBEAT_KEY_TSMA:
+        hbProcessTsmaKv(kv, pCatalog);
         break;
-      }
       default:
         tscError("invalid hb key type:%d", kv->key);
         break;
@@ -567,7 +600,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       tscDebug("tscObj rid %" PRIx64 " not exist", pRsp->connKey.tscRid);
     } else {
       if (pRsp->query->totalDnodes > 1) {
-        SEpSet  originEpset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+        SEpSet originEpset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
         if (!isEpsetEqual(&originEpset, &pRsp->query->epSet)) {
           SEpSet *pOrig = &originEpset;
           SEp    *pOrigEp = &pOrig->eps[pOrig->inUse];
@@ -630,28 +663,79 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
-  if (0 == atomic_load_8(&clientHbMgr.inited)) {
-    goto _return;
+static int32_t hbCheckTimestampSync(int32_t svrTimestamp) {
+  int32_t now = taosGetTimestampSec();
+  int32_t delta = abs(now - svrTimestamp);
+  if (delta > tsTimestampDeltaLimit) {
+    tscError("time diff:%ds is too big", delta);
+    return TSDB_CODE_TIME_UNSYNCED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t hbUpdateServerConfig(SAppInstInfo *pInst, const SClientHbBatchRsp *pRsp) {
+  pInst->serverCfg.monitorParas = pRsp->monitorParas;
+  pInst->serverCfg.enableAuditDelete = pRsp->enableAuditDelete;
+  pInst->serverCfg.enableAuditSelect = pRsp->enableAuditSelect;
+  pInst->serverCfg.enableAuditInsert = pRsp->enableAuditInsert;
+  pInst->serverCfg.auditLevel = pRsp->auditLevel;
+  pInst->serverCfg.enableStrongPass = pRsp->enableStrongPass;
+  tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
+  tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
+           pRsp->monitorParas.tsSlowLogThreshold, pRsp->monitorParas.tsSlowLogScope);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t hbProcessResponses(SAppHbMgr *pAppHbMgr, const SClientHbBatchRsp *pRsp) {
+  static int32_t emptyRspNum = 0;
+  int32_t        rspNum = taosArrayGetSize(pRsp->rsps);
+
+  if (rspNum) {
+    tscDebug("hb got %d rsp, %d empty rsp received before", rspNum,
+             atomic_val_compare_exchange_32(&emptyRspNum, emptyRspNum, 0));
+  } else {
+    (void)atomic_add_fetch_32(&emptyRspNum, 1);
   }
 
-  static int32_t    emptyRspNum = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < rspNum; ++i) {
+    SClientHbRsp *rsp = taosArrayGet(pRsp->rsps, i);
+    code = (*clientHbMgr.rspHandle[rsp->connKey.connType])(pAppHbMgr, rsp);
+    if (code) {
+      break;
+    }
+  }
+  return code;
+}
+
+static void hbCleanupMsgBuf(SDataBuf *pMsg, SClientHbBatchRsp *pRsp) {
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+  tFreeClientHbBatchRsp(pRsp);
+}
+
+static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
+  if (0 == atomic_load_8(&clientHbMgr.inited)) {
+    hbCleanupMsgBuf(pMsg, &(SClientHbBatchRsp){0});
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t           idx = *(int32_t *)param;
   SClientHbBatchRsp pRsp = {0};
+
   if (TSDB_CODE_SUCCESS == code) {
     code = tDeserializeSClientHbBatchRsp(pMsg->pData, pMsg->len, &pRsp);
     if (TSDB_CODE_SUCCESS != code) {
       tscError("deserialize hb rsp failed");
+      hbCleanupMsgBuf(pMsg, &pRsp);
+      return code;
     }
-    int32_t now = taosGetTimestampSec();
-    int32_t delta = abs(now - pRsp.svrTimestamp);
-    if (delta > tsTimestampDeltaLimit) {
-      code = TSDB_CODE_TIME_UNSYNCED;
-      tscError("time diff:%ds is too big", delta);
+    code = hbCheckTimestampSync(pRsp.svrTimestamp);
+    if (TSDB_CODE_SUCCESS != code) {
+      hbCleanupMsgBuf(pMsg, &pRsp);
+      return code;
     }
   }
-
-  int32_t rspNum = taosArrayGetSize(pRsp.rsps);
 
   (void)taosThreadMutexLock(&clientHbMgr.lock);
 
@@ -659,9 +743,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   if (pAppHbMgr == NULL) {
     (void)taosThreadMutexUnlock(&clientHbMgr.lock);
     tscError("appHbMgr not exist, idx:%d", idx);
-    taosMemoryFree(pMsg->pData);
-    taosMemoryFree(pMsg->pEpSet);
-    tFreeClientHbBatchRsp(&pRsp);
+    hbCleanupMsgBuf(pMsg, &pRsp);
     return TSDB_CODE_OUT_OF_RANGE;
   }
 
@@ -671,45 +753,19 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
     pInst->onlineDnodes = pInst->totalDnodes ? 0 : -1;
     tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), pInst->onlineDnodes, pInst->totalDnodes);
     (void)taosThreadMutexUnlock(&clientHbMgr.lock);
-    taosMemoryFree(pMsg->pData);
-    taosMemoryFree(pMsg->pEpSet);
-    tFreeClientHbBatchRsp(&pRsp);
+    hbCleanupMsgBuf(pMsg, &pRsp);
     return code;
   }
 
-  pInst->serverCfg.monitorParas = pRsp.monitorParas;
-  pInst->serverCfg.enableAuditDelete = pRsp.enableAuditDelete;
-  pInst->serverCfg.enableAuditSelect = pRsp.enableAuditSelect;
-  pInst->serverCfg.enableAuditInsert = pRsp.enableAuditInsert;
-  pInst->serverCfg.auditLevel = pRsp.auditLevel;
-  pInst->serverCfg.enableStrongPass = pRsp.enableStrongPass;
-  tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
-  tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
-           pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
-
-  if (rspNum) {
-    tscDebug("hb got %d rsp, %d empty rsp received before", rspNum,
-             atomic_val_compare_exchange_32(&emptyRspNum, emptyRspNum, 0));
-  } else {
-    (void)atomic_add_fetch_32(&emptyRspNum, 1);
-  }
-
-  for (int32_t i = 0; i < rspNum; ++i) {
-    SClientHbRsp *rsp = taosArrayGet(pRsp.rsps, i);
-    code = (*clientHbMgr.rspHandle[rsp->connKey.connType])(pAppHbMgr, rsp);
-    if (code) {
-      break;
-    }
-  }
+  hbUpdateServerConfig(pInst, &pRsp);
+  hbProcessResponses(pAppHbMgr, &pRsp);
 
   (void)taosThreadMutexUnlock(&clientHbMgr.lock);
-
   tFreeClientHbBatchRsp(&pRsp);
 
-_return:
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
@@ -825,6 +881,41 @@ int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t hbFindUserAuth(const SUserAuthVersion *userAuths, int32_t userNum, const char *user) {
+  for (int32_t i = 0; i < userNum; ++i) {
+    if (strncmp(userAuths[i].user, user, TSDB_USER_LEN) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+static int32_t hbAddUserToKv(SKv *pKv, const char *user) {
+  int32_t           userNum = pKv->valueLen / sizeof(SUserAuthVersion);
+  SUserAuthVersion *userAuths = (SUserAuthVersion *)pKv->value;
+
+  SUserAuthVersion *newUserAuths =
+      (SUserAuthVersion *)taosMemoryRealloc(pKv->value, (userNum + 1) * sizeof(SUserAuthVersion));
+  if (newUserAuths) {
+    tstrncpy((newUserAuths + userNum)->user, user, TSDB_USER_LEN);
+    (newUserAuths + userNum)->version = htonl(-1);
+    pKv->value = newUserAuths;
+    pKv->valueLen += sizeof(SUserAuthVersion);
+    return TSDB_CODE_SUCCESS;
+  }
+  return terrno;
+}
+
+static int32_t hbInitUserInfoHash(SClientHbReq *req) {
+  if (!req->info) {
+    req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+    if (NULL == req->info) {
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClientHbReq *req) {
   STscObj *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
   if (!pTscObj) {
@@ -839,54 +930,39 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
   if ((pKv = taosHashGet(req->info, &kv.key, sizeof(kv.key)))) {
     int32_t           userNum = pKv->valueLen / sizeof(SUserAuthVersion);
     SUserAuthVersion *userAuths = (SUserAuthVersion *)pKv->value;
-    for (int32_t i = 0; i < userNum; ++i) {
-      SUserAuthVersion *pUserAuth = userAuths + i;
-      // both key and user exist, update version
-      if (strncmp(pUserAuth->user, pTscObj->user, TSDB_USER_LEN) == 0) {
-        pUserAuth->version = htonl(-1);  // force get userAuthInfo
-        goto _return;
-      }
+    int32_t           userIdx = hbFindUserAuth(userAuths, userNum, pTscObj->user);
+
+    if (userIdx >= 0) {
+      userAuths[userIdx].version = htonl(-1);
+      goto _return;
     }
-    // key exists, user not exist, append user
-    SUserAuthVersion *qUserAuth =
-        (SUserAuthVersion *)taosMemoryRealloc(pKv->value, (userNum + 1) * sizeof(SUserAuthVersion));
-    if (qUserAuth) {
-      tstrncpy((qUserAuth + userNum)->user, pTscObj->user, TSDB_USER_LEN);
-      (qUserAuth + userNum)->version = htonl(-1);  // force get userAuthInfo
-      pKv->value = qUserAuth;
-      pKv->valueLen += sizeof(SUserAuthVersion);
-    } else {
-      code = terrno;
-    }
+
+    code = hbAddUserToKv(pKv, pTscObj->user);
     goto _return;
   }
 
-  // key/user not exist, add user
   SUserAuthVersion *user = taosMemoryMalloc(sizeof(SUserAuthVersion));
   if (!user) {
     code = terrno;
     goto _return;
   }
   tstrncpy(user->user, pTscObj->user, TSDB_USER_LEN);
-  user->version = htonl(-1);  // force get userAuthInfo
+  user->version = htonl(-1);
   kv.valueLen = sizeof(SUserAuthVersion);
   kv.value = user;
 
   tscDebug("hb got user auth info, valueLen:%d, user:%s, authVer:%d, tscRid:%" PRIi64, kv.valueLen, user->user,
            pTscObj->authVer, connKey->tscRid);
 
-  if (!req->info) {
-    req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
-    if (NULL == req->info) {
-      code = terrno;
-      goto _return;
-    }
+  code = hbInitUserInfoHash(req);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(user);
+    goto _return;
   }
 
   if (taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv)) != 0) {
     taosMemoryFree(user);
     code = terrno ? terrno : TSDB_CODE_APP_ERROR;
-    goto _return;
   }
 
 _return:
@@ -894,7 +970,6 @@ _return:
   if (code) {
     tscError("hb got user auth info failed since %s", tstrerror(code));
   }
-
   return code;
 }
 
@@ -960,8 +1035,7 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
 
   for (int32_t i = 0; i < dbNum; ++i) {
     SDbCacheInfo *db = &dbs[i];
-    tscDebug("the %dth expired db:%s, dbId:%" PRId64
-             ", vgVersion:%d, cfgVersion:%d, numOfTable:%d, startTs:%" PRId64,
+    tscDebug("the %dth expired db:%s, dbId:%" PRId64 ", vgVersion:%d, cfgVersion:%d, numOfTable:%d, startTs:%" PRId64,
              i, db->dbFName, db->dbId, db->vgVersion, db->cfgVersion, db->numOfTable, db->stateTs);
 
     db->dbId = htobe64(db->dbId);
@@ -1247,6 +1321,35 @@ static FORCE_INLINE void hbMgrInitHandle() {
   clientHbMgr.rspHandle[CONN_TYPE__TMQ] = hbQueryHbRspHandle;
 }
 
+static int32_t hbInitRequestInfo(SClientHbReq *pOneReq, STscObj *pTscObj) {
+  tstrncpy(pOneReq->userApp, pTscObj->optionInfo.userApp, sizeof(pOneReq->userApp));
+  tstrncpy(pOneReq->cInfo, pTscObj->optionInfo.cInfo, sizeof(pOneReq->cInfo));
+  pOneReq->userIp = pTscObj->optionInfo.userIp;
+  pOneReq->userDualIp = pTscObj->optionInfo.userDualIp;
+  tstrncpy(pOneReq->sVer, td_version, TSDB_VERSION_LEN);
+  return TSDB_CODE_SUCCESS;
+}
+
+static void hbInitHbParam(SHbParam *param, SClientHbReq *pOneReq, SAppHbMgr *pAppHbMgr) {
+  if (param->clusterId == 0) {
+    param->clusterId = pOneReq->clusterId;
+    param->pAppHbMgr = pAppHbMgr;
+    param->connHbFlag = atomic_load_8(&pAppHbMgr->connHbFlag);
+  }
+}
+
+static bool hbProcessRequest(SAppHbMgr *pAppHbMgr, SClientHbReq *pOneReq, SClientHbKey *connKey, SHbParam *param) {
+  if (clientHbMgr.reqHandle[connKey->connType]) {
+    int32_t code = (*clientHbMgr.reqHandle[connKey->connType])(connKey, param, pOneReq);
+    if (code) {
+      tscWarn("hbGatherAllInfo failed since %s, tscRid:%" PRIi64 ", connType:%" PRIi8, tstrerror(code), connKey->tscRid,
+              connKey->connType);
+      return false;
+    }
+  }
+  return true;
+}
+
 int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
   *pBatchReq = taosMemoryCalloc(1, sizeof(SClientHbBatchReq));
   if (pBatchReq == NULL) {
@@ -1272,11 +1375,7 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
       continue;
     }
 
-    tstrncpy(pOneReq->userApp, pTscObj->optionInfo.userApp, sizeof(pOneReq->userApp));
-    tstrncpy(pOneReq->cInfo, pTscObj->optionInfo.cInfo, sizeof(pOneReq->cInfo));
-    pOneReq->userIp = pTscObj->optionInfo.userIp;
-    pOneReq->userDualIp = pTscObj->optionInfo.userDualIp;
-    tstrncpy(pOneReq->sVer, td_version, TSDB_VERSION_LEN);
+    hbInitRequestInfo(pOneReq, pTscObj);
 
     pOneReq = taosArrayPush((*pBatchReq)->reqs, pOneReq);
     if (NULL == pOneReq) {
@@ -1286,25 +1385,14 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
 
     switch (connKey->connType) {
       case CONN_TYPE__QUERY:
-      case CONN_TYPE__TMQ: {
-        if (param.clusterId == 0) {
-          // init
-          param.clusterId = pOneReq->clusterId;
-          param.pAppHbMgr = pAppHbMgr;
-          param.connHbFlag = atomic_load_8(&pAppHbMgr->connHbFlag);
-        }
+      case CONN_TYPE__TMQ:
+        hbInitHbParam(&param, pOneReq, pAppHbMgr);
         break;
-      }
       default:
         break;
     }
-    if (clientHbMgr.reqHandle[connKey->connType]) {
-      int32_t code = (*clientHbMgr.reqHandle[connKey->connType])(connKey, &param, pOneReq);
-      if (code) {
-        tscWarn("hbGatherAllInfo failed since %s, tscRid:%" PRIi64 ", connType:%" PRIi8, tstrerror(code),
-                connKey->tscRid, connKey->connType);
-      }
-    }
+
+    hbProcessRequest(pAppHbMgr, pOneReq, connKey, &param);
 
     int64_t ver = atomic_load_64(&pTscObj->whiteListInfo.ver);
     maxIpWhiteVer = TMAX(maxIpWhiteVer, ver);
@@ -1443,7 +1531,7 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgInfo.len = tlen;
       pInfo->msgType = TDMT_MND_HEARTBEAT;
       pInfo->param = taosMemoryMalloc(sizeof(int32_t));
-      if (pInfo->param  == NULL) {
+      if (pInfo->param == NULL) {
         tFreeClientHbBatchReq(pReq);
         // hbClearReqInfo(pAppHbMgr);
         taosMemoryFree(buf);
@@ -1615,54 +1703,78 @@ void appHbMgrCleanup(void) {
   }
 }
 
+static int32_t hbInitMutexAttr(TdThreadMutexAttr *attr) {
+  int ret = taosThreadMutexAttrInit(attr);
+  if (ret != 0) {
+    uError("hbMgrInit:taosThreadMutexAttrInit error");
+    return ret;
+  }
+
+  ret = taosThreadMutexAttrSetType(attr, PTHREAD_MUTEX_RECURSIVE);
+  if (ret != 0) {
+    uError("hbMgrInit:taosThreadMutexAttrSetType error");
+    taosThreadMutexAttrDestroy(attr);
+    return ret;
+  }
+
+  ret = taosThreadMutexInit(&clientHbMgr.lock, attr);
+  if (ret != 0) {
+    uError("hbMgrInit:taosThreadMutexInit error");
+    taosThreadMutexAttrDestroy(attr);
+    return ret;
+  }
+
+  return taosThreadMutexAttrDestroy(attr);
+}
+
+static int32_t hbInitDataStructures(void) {
+  clientHbMgr.appSummary = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  if (NULL == clientHbMgr.appSummary) {
+    uError("hbMgrInit:taosHashInit error");
+    return terrno;
+  }
+
+  clientHbMgr.appHbMgrs = taosArrayInit(0, sizeof(void *));
+  if (NULL == clientHbMgr.appHbMgrs) {
+    uError("hbMgrInit:taosArrayInit error");
+    taosHashCleanup(clientHbMgr.appSummary);
+    clientHbMgr.appSummary = NULL;
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t hbMgrInit() {
-  // init once
   int8_t old = atomic_val_compare_exchange_8(&clientHbMgr.inited, 0, 1);
   if (old == 1) return 0;
 
   clientHbMgr.appId = tGenIdPI64();
   tscInfo("app initialized, appId:0x%" PRIx64, clientHbMgr.appId);
 
-  clientHbMgr.appSummary = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-  if (NULL == clientHbMgr.appSummary) {
-    uError("hbMgrInit:taosHashInit error") return terrno;
+  int32_t code = hbInitDataStructures();
+  if (code != TSDB_CODE_SUCCESS) {
+    atomic_val_compare_exchange_8(&clientHbMgr.inited, 1, 0);
+    return code;
   }
-  clientHbMgr.appHbMgrs = taosArrayInit(0, sizeof(void *));
-  if (NULL == clientHbMgr.appHbMgrs) {
-    uError("hbMgrInit:taosArrayInit error") return terrno;
-  }
+
   TdThreadMutexAttr attr = {0};
-
-  int ret = taosThreadMutexAttrInit(&attr);
-  if (ret != 0) {
-    uError("hbMgrInit:taosThreadMutexAttrInit error") return ret;
+  code = hbInitMutexAttr(&attr);
+  if (code != TSDB_CODE_SUCCESS) {
+    atomic_val_compare_exchange_8(&clientHbMgr.inited, 1, 0);
+    return code;
   }
 
-  ret = taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE);
-  if (ret != 0) {
-    uError("hbMgrInit:taosThreadMutexAttrSetType error") return ret;
-  }
-
-  ret = taosThreadMutexInit(&clientHbMgr.lock, &attr);
-  if (ret != 0) {
-    uError("hbMgrInit:taosThreadMutexInit error") return ret;
-  }
-
-  ret = taosThreadMutexAttrDestroy(&attr);
-  if (ret != 0) {
-    uError("hbMgrInit:taosThreadMutexAttrDestroy error") return ret;
-  }
-
-  // init handle funcs
   hbMgrInitHandle();
 
-  // init backgroud thread
-  ret = hbCreateThread();
-  if (ret != 0) {
-    uError("hbMgrInit:hbCreateThread error") return ret;
+  code = hbCreateThread();
+  if (code != 0) {
+    uError("hbMgrInit:hbCreateThread error");
+    atomic_val_compare_exchange_8(&clientHbMgr.inited, 1, 0);
+    return code;
   }
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 void hbMgrCleanUp() {
@@ -1685,7 +1797,8 @@ void hbMgrCleanUp() {
   }
 }
 
-int32_t hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, const char* user, const char* tokenName, int64_t clusterId) {
+int32_t hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, const char *user, const char *tokenName,
+                           int64_t clusterId) {
   // init hash in activeinfo
   void *data = taosHashGet(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   if (data != NULL) {
@@ -1704,7 +1817,8 @@ int32_t hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, const cha
   return 0;
 }
 
-int32_t hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, const char* user, const char* tokenName, int64_t clusterId, int8_t connType) {
+int32_t hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, const char *user, const char *tokenName,
+                       int64_t clusterId, int8_t connType) {
   SClientHbKey connKey = {
       .tscRid = tscRefId,
       .connType = connType,

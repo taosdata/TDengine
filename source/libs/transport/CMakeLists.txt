@@ -2,15 +2,24 @@ aux_source_directory(src TRANSPORT_SRC)
 
 IF(TD_ENTERPRISE)
 	LIST(APPEND TRANSPORT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/trans/src/transTLSImpl.c)
-    #LIST(APPEND TRANSPORT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/trans/src/transSaslImpl.c) 
+    #LIST(APPEND TRANSPORT_SRC ${TD_ENTERPRISE_DIR}/src/plugins/trans/src/transSaslImpl.c)
 ENDIF()
 
 add_library(transport STATIC ${TRANSPORT_SRC})
 target_include_directories(
-  transport
-  PUBLIC "${TD_SOURCE_DIR}/include/libs/transport"
-  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+   transport
+   PUBLIC "${TD_SOURCE_DIR}/include/libs/transport"
+   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+   PRIVATE "${TD_SOURCE_DIR}/source/libs/rate_limit/inc"
 )
+
+target_link_libraries(
+   transport
+   PUBLIC os
+   PUBLIC util
+   PUBLIC common
+   PRIVATE rate_limit
+   )
 
 
 target_link_libraries(
