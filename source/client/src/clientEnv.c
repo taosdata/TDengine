@@ -199,7 +199,7 @@ static int32_t generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int
 
   char *value = cJSON_PrintUnformatted(json);
   if (value == NULL || strlen(value) == 0) {
-    tscError("failed to print json, data:%s", value);
+    tscError("failed to print json, data:%s", value == NULL ? "null" : value);
     code = TSDB_CODE_FAILED;
     goto _end;
   }

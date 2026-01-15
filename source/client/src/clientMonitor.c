@@ -901,7 +901,7 @@ int32_t monitorPutData2MonitorQueue(MonitorSlowLogData data) {
   }
   *slowLogData = data;
   tscDebug("monitor write slow log to queue, clusterId:0x%" PRIx64 " type:%s, data:%s", slowLogData->clusterId,
-           queueTypeStr[slowLogData->type], slowLogData->data);
+           queueTypeStr[slowLogData->type], slowLogData->data == NULL ? "null" : slowLogData->data);
   taosWLockLatch(&monitorQueueLock);
   if (monitorQueue == NULL) {
     tscError("monitor queue is null");
