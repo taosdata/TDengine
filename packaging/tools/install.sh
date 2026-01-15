@@ -252,7 +252,7 @@ function setup_env() {
   taosd_bin=$(command -v taosd 2>/dev/null || true)
   if [ -n "${taosd_bin}" ]; then
       # mac will skip this check
-      echo "Welcome to ${productName} Update ..."
+      echo "Welcome to ${productName} Installation ..."
       echo
       real_taosd_bin=$(readlink -f "${taosd_bin}")
       taosd_bin_dir=$(dirname "${real_taosd_bin}")
@@ -402,32 +402,6 @@ function setup_env() {
       services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
     fi
   fi
-  
-  taosd_bin=$(command -v taosd 2>/dev/null || true)
-  if [ -n "${taosd_bin}" ]; then
-      taosd_link_dir=$(dirname "${taosd_bin}")
-      real_taosd_bin=$(readlink -f "${taosd_bin}")
-      taosd_bin_dir=$(dirname "${real_taosd_bin}")
-      taosd_parent_dir="$(cd "${taosd_bin_dir}/.." && pwd)"
-      if [ "${taosd_bin_dir}" != "${bin_dir}" ] || [ "${taosd_link_dir}" != "${bin_link_dir}" ]; then
-          taosd_ver=$(${real_taosd_bin} -V 2>/dev/null | grep version | awk '{print $3}' || echo "unknown")
-          log warn_bold "${productName} ${taosd_ver} was detected at ${taosd_parent_dir}"
-          log warn_bold "You are about to install ${productName} to a different location: ${install_main_dir}"
-          # Silent mode handling
-          if [ "$silent_mode" = "1" ]; then
-              # echo "Continue to installation TDengine."
-              confirm="Y"
-          else
-              read -p "Do you want to continue the installation? [Y/n]: " confirm
-              confirm=${confirm:-Y}
-          fi
-          if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-              echo "Installation cancelled."
-              exit 0
-          fi
-      fi
-  fi
-  
 }
 
 function get_config_file() {
