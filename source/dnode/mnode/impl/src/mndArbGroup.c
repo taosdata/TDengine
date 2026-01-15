@@ -55,6 +55,21 @@ static int32_t mndArbCheckToken(const char *token1, const char *token2) {
   return strncmp(token1, token2, TSDB_ARB_TOKEN_SIZE);
 }
 
+// TODO dmchen
+static int32_t mndProcessAuditRecordRsp(SRpcMsg *pRsp) {
+  int32_t code = -1;
+
+  SMnode *pMnode = pRsp->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  mDebug("mndProcessAuditRecordRsp");
+
+  code = 0;
+
+_OVER:
+  return code;
+}
+
 int32_t mndInitArbGroup(SMnode *pMnode) {
   int32_t   code = 0;
   SSdbTable table = {
@@ -74,6 +89,7 @@ int32_t mndInitArbGroup(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_ARB_CHECK_SYNC_RSP, mndProcessArbCheckSyncRsp);
   mndSetMsgHandle(pMnode, TDMT_SYNC_SET_ASSIGNED_LEADER_RSP, mndProcessArbSetAssignedLeaderRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_ARB_ASSIGN_LEADER, mndProcessAssignLeaderMsg);
+  mndSetMsgHandle(pMnode, TDMT_VND_AUDIT_RECORD_RSP, mndProcessAuditRecordRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ARBGROUP, mndRetrieveArbGroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ARBGROUP, mndCancelGetNextArbGroup);
@@ -579,7 +595,8 @@ static int32_t mndSendArbSetAssignedLeaderReq(SMnode *pMnode, int32_t dnodeId, i
                                               int64_t term, char *memberToken, bool force) {
   int32_t code = 0;
   int32_t contLen = 0;
-  void   *pHead = mndBuildArbSetAssignedLeaderReq(&contLen, vgId, arbToken, term, memberToken, force);
+  void   *pHead = mndBuildArbSetAssignedLeaderReq(&contLen, vgId, arbToken, term, memberToken,
+                                                  force);  // TDMT_SYNC_SET_ASSIGNED_LEADER
   if (!pHead) {
     mError("arbgroup:%d, failed to build set-assigned request", vgId);
     code = -1;

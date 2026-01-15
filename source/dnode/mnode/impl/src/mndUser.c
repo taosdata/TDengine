@@ -31,6 +31,8 @@
 #include "mndToken.h"
 #include "tbase64.h"
 #include "totp.h"
+#include "mndDnode.h"
+#include "mndVgroup.h"
 
 // clang-format on
 
@@ -3016,6 +3018,26 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;
+
+    SDbObj *db = mndAcquireAuditDb(pMnode);
+    if (db != NULL) {
+      void   *pIter = NULL;
+      SVgObj *pVgroup = NULL;
+      while (1) {
+        pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+        if (pIter == NULL) break;
+
+        if (mndVgroupInDb(pVgroup, db->uid)) {
+          auditSetMnode((mndGetDnodeEpsetByIdFn)mndGetDnodeEpsetById, pMnode, pVgroup->vgId);  // mndGetVgroupEpset
+          sdbCancelFetch(pMnode->pSdb, pIter);
+          sdbRelease(pMnode->pSdb, pVgroup);
+          break;
+        }
+        sdbRelease(pMnode->pSdb, pVgroup);
+      }
+      mndReleaseDb(pMnode, db);
+    }
+
     auditRecord(pReq, pMnode->clusterId, operation, "", createReq.user, detail, strlen(detail), duration, 0);
   }
 
