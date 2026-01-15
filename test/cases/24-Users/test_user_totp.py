@@ -193,8 +193,8 @@ class TestUserSecurity:
         #
         user = "user1"
         self.create_user(user, "abcd@1234", "createdb 1")
-        securit_key = self.create_security_key(user)
-        totp = pyotp.TOTP(securit_key, interval=30)
+        security_key = self.create_security_key(user)
+        totp = pyotp.TOTP(security_key, interval=30)
 
         code = totp.now()
         self.check_login_fail("non_exist_user", "abcd@1234", "123456")    # non-exist user
