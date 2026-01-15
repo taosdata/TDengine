@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,11 +12,15 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
+	"github.com/taosdata/taoskeeper/util"
 )
 
-func TestIPv6(t *testing.T) {
+func TestMain(m *testing.M) {
 	config.InitConfig()
+	os.Exit(m.Run())
+}
 
+func TestIPv6(t *testing.T) {
 	conn, err := NewConnector("root", "taosdata", "[::1]", 6041, false)
 	assert.NoError(t, err)
 
@@ -176,4 +181,31 @@ func TestExecuteWithRetry(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConnectorWithSpecialChars(t *testing.T) {
+	conn, err := NewConnector("root", "taosdata", "localhost", 6041, false)
+	assert.NoError(t, err)
+	defer conn.Close()
+
+	conn.Exec(context.Background(), "drop user user_1768377310", util.GetQidOwn(config.Conf.InstanceID))
+	_, err = conn.Exec(context.Background(), "create user user_1768377310 pass 'AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.'", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	conn1, err := NewConnector("user_1768377310", "AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.", "localhost", 6041, false)
+	assert.NoError(t, err)
+	defer conn1.Close()
+
+	_, err = conn1.Query(context.Background(), "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	conn2, err := NewConnectorWithDb("user_1768377310", "AaZz01234!@#$%^&*()-_+=[]{}:;><?|~,.", "localhost", 6041, "", false)
+	assert.NoError(t, err)
+	defer conn2.Close()
+
+	_, err = conn2.Query(context.Background(), "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
+
+	_, err = conn.Exec(context.Background(), "drop user user_1768377310", util.GetQidOwn(config.Conf.InstanceID))
+	assert.NoError(t, err)
 }
