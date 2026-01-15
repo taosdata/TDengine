@@ -1005,7 +1005,7 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
     fnDebug("udfd destroy function returns %d", code);
     taosMemoryFree(udf);
-    fnInfo("udf free succeeded. name %s(%p)", pSudf->name, pSudf);
+    fnInfo("udf free succeeded. name %s(%p)", udf->name, udf);
   }
 
 _send:
