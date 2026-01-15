@@ -196,6 +196,7 @@ Below are the business error codes for each module.
 | 0x80000357 | Authentication failure                                       | Incorrect password                                           | Confirm if the operation is correct                          |
 | 0x80000358 | User not available                                           | User does not exist                                          | Confirm if the operation is correct                          |
 | 0x8000035B | Wrong TOTP code                                              | TOTP code not provided or wrong TOTP code                    | Check and enter the correct TOTP code                        |
+| 0x8000035E | TOTP secret not exists                                       | TOTP secret does not exist for the user                      | Confirm if the operation is correct                          |
 | 0x80000360 | STable already exists                                        | Internal error                                               | Report issue                                                 |
 | 0x80000361 | STable not exist                                             | Internal error                                               | Report issue                                                 |
 | 0x80000364 | Too many tags                                                | Too many tags                                                | Cannot be modified, code-level restriction                   |
@@ -736,6 +737,9 @@ Below are the business error codes for each module.
 | 0x80008017 | Xnode where clause column not exist                   | Xnode where clause column not exist                         | Check the where condition                    |
 | 0x80008018 | Xnode where clause column type diff                   | Xnode where clause column type is not expected              | Check the where condition                    |
 | 0x80008019 | Xnode where clause operator not support               | Xnode where clause does not support NOT                     | Check the where condition                    |
+| 0x80008020 | Xnode agent not exist                                 | The queried Xnode agent does not exist                      | Check queried agent ID or name               |
+| 0x80008021 | Xnode agent already exist                             | The queried Xnode agent already exist                       | Check queried agent ID or name               |
+| 0x80008022 | Xnode name duplicate                                  | The updated name is duplicate                               | Check whether the name to be updated is a duplicate of the existing data |
 
 ## Connectors
 

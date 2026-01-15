@@ -417,7 +417,7 @@ class TestTaosCli:
         tdSql.execute(f"create user totp_user1 pass 'totp_user1@password'")
         
         # gen totp encrypt string()
-        totpSecret = tdSql.getFirstValue("create totp_secret for user totp_user1");
+        totpSecret = tdSql.getFirstValue("create totp_secret for user totp_user1")
         tdLog.info(f"totpSecret: {totpSecret}")
         
         # get totpCode
