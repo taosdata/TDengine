@@ -4693,4 +4693,117 @@ TEST(stmt2Case, bool_bind) {
   taos_close(taos);
 }
 
+TEST(stmt2Case, mixed_literal) {
+  // to demonstrate potential `use after free` issue,
+  // when literal varchar is mixed in the parameterized insert statement,
+  // such as:
+  // insert into db.tbl (ts, name, ...) values (?, 'hello', ?, ...)
+  // to reproduce:
+  // step1: build TDengine
+  // step2: install and restart TDengine services
+  // step3: ./debug/build/bin/stmt2Test --gtest_filter=*.mixed_literal
+  // step4: taos -s 'select to_base64(name) from stmt2_testdb_30.ntb'
+  // step5: ./debug/build/bin/stmt2Test --gtest_filter=*.mixed_literal
+  // step6: taos -s 'select to_base64(name) from stmt2_testdb_30.ntb'
+  // step7: manually check output from step4 and step6, they shall be identical but not for the moment
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+
+  // Drop database if exists
+  do_query(taos, "drop database if exists stmt2_testdb_30");
+
+  // Create database
+  do_query(taos, "create database stmt2_testdb_30");
+  do_query(taos, "use stmt2_testdb_30");
+
+  // Create normal table
+  do_query(taos, "create table ntb(ts timestamp, name varchar(20), i32 int)");
+
+#define TABLES 1
+#define ROWS   1
+  if (0) {
+    TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+
+    const char* sql = "insert into ntb (ts, name, i32) values (?, ?, ?)";
+    int         code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    time_t tm;
+    taosTime(&tm);
+
+    int64_t          ts       = ((int64_t)tm) * 1000;
+    int32_t          t64_len  = (int32_t)sizeof(ts);
+    TAOS_STMT2_BIND  ts_param = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, ROWS};
+
+    char             name[]   = "hello";
+    int32_t          name_len = (int32_t)sizeof(name);
+    TAOS_STMT2_BIND  name_param = {TSDB_DATA_TYPE_VARCHAR, &name[0], &name_len, NULL, ROWS};
+
+    int32_t          i32       = 70;
+    int32_t          i32_len   = sizeof(i32);
+    TAOS_STMT2_BIND  i32_param = {TSDB_DATA_TYPE_INT, &i32, &i32_len, NULL, ROWS};
+
+    TAOS_STMT2_BIND params_for_this_table[] = {
+      ts_param, name_param, i32_param,
+    };
+
+    TAOS_STMT2_BIND* binds_for_all_tables[TABLES] = {
+      params_for_this_table,
+    };
+
+    TAOS_STMT2_BINDV bindv = {TABLES, NULL, NULL, binds_for_all_tables};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    code = taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    taos_stmt2_close(stmt);
+  } else {
+    TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+
+    const char* sql = "insert into ntb (ts, name, i32) values (?, 'world', ?)";
+    int         code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    time_t tm;
+    taosTime(&tm);
+
+    int64_t          ts       = ((int64_t)tm) * 1000;
+    int32_t          t64_len  = (int32_t)sizeof(ts);
+    TAOS_STMT2_BIND  ts_param = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len, NULL, ROWS};
+
+    int32_t          i32       = 70;
+    int32_t          i32_len   = sizeof(i32);
+    TAOS_STMT2_BIND  i32_param = {TSDB_DATA_TYPE_INT, &i32, &i32_len, NULL, ROWS};
+
+    TAOS_STMT2_BIND params_for_this_table[] = {
+      ts_param, i32_param,
+    };
+
+    TAOS_STMT2_BIND* binds_for_all_tables[TABLES] = {
+      params_for_this_table,
+    };
+
+    TAOS_STMT2_BINDV bindv = {TABLES, NULL, NULL, binds_for_all_tables};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    code = taos_stmt2_exec(stmt, NULL);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    taos_stmt2_close(stmt);
+  }
+
+  // leave it there for the moment, so that you can query the table `ntb` later
+  // do_query(taos, "drop database if exists stmt2_testdb_30");
+  taos_close(taos);
+}
+
 #pragma GCC diagnostic pop
