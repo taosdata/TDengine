@@ -35,3 +35,6 @@ types/components.d.ts
 .pnpm-store
 vite.config.ts.*
 .env.dev
+taos-connector-node/typescript-rest/package-lock.json
+taos-connector-node/WebSocket/pnpm-lock.yaml
+taos-connector-node/WebSocket/package-lock.json

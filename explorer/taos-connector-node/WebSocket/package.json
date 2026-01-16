@@ -42,14 +42,14 @@
     "websocket": "^1.0.35"
   },
   "devDependencies": {
-    "@parcel/packager-ts": "^2.14.4",
-    "@parcel/transformer-typescript-types": "^2.14.4",
+    "@parcel/packager-ts": "^2.16.3",
+    "@parcel/transformer-typescript-types": "^2.16.3",
     "@types/jest": "^29.5.14",
     "@types/json-bigint": "^1.0.4",
     "@types/node": "^18.19.97",
     "@types/websocket": "^1.0.10",
     "jest": "^29.7.0",
-    "parcel": "^2.14.4",
+    "parcel": "^2.16.3",
     "ts-jest": "^29.3.2",
     "typescript": "^4.9.5"
   }
