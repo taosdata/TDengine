@@ -18,7 +18,7 @@ XNODE 节点是数据同步服务的基本执行单元，负责具体的数据�
 
 ```sql
 CREATE XNODE 'url'
-CREATE XNODE 'url' USER name PASS 'password';
+CREATE XNODE 'url' USER name PASS 'password'
 ```
 
 #### 参数说明
@@ -124,6 +124,7 @@ task_options:
   [ VIA viaId ]
   [ XNODE_ID xnodeId ]
   [ REASON 'reason' ]
+  [ LABELS 'labels' ]
 ```
 
 语法说明：task_options 各选项可同时使用，空格分隔，顺序无关
@@ -142,6 +143,7 @@ task_options:
 | **xnodeId**  | 任务所在的 xnode 节点 ID            |
 | **viaId**    | 任务所在的 agent 的 ID              |
 | **reason**   | 任务最近执行失败原因                |
+| **labels**   | 任务标签，使用 JSON 字符串          |
 
 #### 示例
 
@@ -155,7 +157,7 @@ Create OK, 0 row(s) affected (0.038959s)
 #### 语法
 
 ```sql
-SHOW XNODE TASKS;
+SHOW XNODE TASKS
 ```
 
 #### 示例
@@ -178,9 +180,12 @@ taos> SHOW XNODE TASKS \G;
    xnode_id: NULL
      status: NULL
      reason: NULL
-create_time: 2025-12-29 13:48:21.058
-update_time: 2025-12-29 13:48:21.058
-Query OK, 1 row(s) in set (0.005281s)
+ created_by: root
+     labels: NULL
+create_time: 2026-01-13 07:56:18.076
+update_time: 2026-01-13 07:56:18.076
+Query OK, 2 row(s) in set (0.019692s)
+
 ```
 
 ### 启动任务
@@ -188,7 +193,7 @@ Query OK, 1 row(s) in set (0.005281s)
 #### 语法
 
 ```sql
-START XNODE TASK id | 'name';
+START XNODE TASK id | 'name'
 ```
 
 #### 示例
@@ -203,7 +208,7 @@ DB error: Xnode url response http code not 200 error [0x8000800C] (0.002160s)
 #### 语法
 
 ```sql
-STOP XNODE TASK id | 'name';
+STOP XNODE TASK id | 'name'
 ```
 
 #### 示例
@@ -230,6 +235,7 @@ alter_options:
   [ VIA viaId ]
   [ XNODE_ID xnodeId ]
   [ REASON 'reason' ]
+  [ LABELS 'labels' ]
 ```
 
 语法说明：task_options 各选项含义与创建任务相同
@@ -246,7 +252,7 @@ Query OK, 0 row(s) affected (0.036077s)
 #### 语法
 
 ```sql
-DROP XNODE TASK id | 'name';
+DROP XNODE TASK id | 'name'
 ```
 
 #### 示例
@@ -265,7 +271,7 @@ JOB 是 TASK 任务的执行分片，支持手动和自动负载均衡。
 #### 语法
 
 ```sql
-SHOW XNODE JOBS;
+SHOW XNODE JOBS
 ```
 
 #### 示例
@@ -323,4 +329,102 @@ Query OK, 0 row(s) affected (0.007237s)
 
 taos> REBALANCE XNODE JOBS;
 Query OK, 0 row(s) affected (0.023245s)
+```
+
+## Agent 管理
+
+Agent 节点是数据同步服务中的采集与转发单元，负责采集数据，并将采集到的数据转发至 Xnode 节点。
+
+### 创建 Agent
+
+#### 语法
+
+```sql
+CREATE XNODE AGENT 'name' [WITH agent_options]
+
+agent_options:
+  [STATUS 'status']
+```
+
+#### 参数说明
+
+- **name**: Agent 节点的名称
+- **status**: 使用 with 语句指定创建时的状态
+
+#### 示例
+
+```sql
+taos> create xnode agent 'a1';
+Create OK, 0 row(s) affected (0.013910s)
+
+taos> create xnode agent 'a2' with status 'running';
+Create OK, 0 row(s) affected (0.013414s)
+```
+
+### 查询 Agent
+
+#### 语法
+
+```sql
+SHOW XNODE AGENTS
+```
+
+#### 示例
+
+```sql
+taos> show xnode agents\G;
+*************************** 1.row ***************************
+         id: 1
+       name: a1
+      token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjgxODI3MDEzNjQsInN1YiI6MX0.FP5rfzQplBrJrbV7Dj_R8fCpiN5uLaADegcnqExwepg
+     status: NULL
+create_time: 2026-01-12 09:51:41.364
+update_time: 2026-01-12 09:51:41.364
+```
+
+### 更新 Agent
+
+#### 语法
+
+```sql
+ALTER XNODE AGENT agent_id WITH alter_options
+
+alter_options {
+  STATUS 'status'
+  | NAME 'name'
+}
+```
+
+#### 参数说明
+
+- **name**: Agent 节点的名称
+- **status**: 可以使用 with 语句指定创建时的状态
+
+#### 示例
+
+```sql
+taos> alter xnode agent 1 with name 'test1';
+Query OK, 0 row(s) affected (0.008387s)
+
+taos> alter xnode agent 'a2' with name 'test2' status 'online';
+Query OK, 0 row(s) affected (0.008685s)
+```
+
+### 删除 Agent
+
+#### 语法
+
+```sql
+DROP XNODE AGENT agent_id
+```
+
+#### 参数说明
+
+- **agent_id**: Agent 节点的 ID
+
+#### 示例
+
+```sql
+taos> drop xnode agent 1;
+Drop OK, 0 row(s) affected (0.012281s)
 ```

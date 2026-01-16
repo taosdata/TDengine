@@ -36,27 +36,27 @@ add_test(
 )
 
 # Memory management tests
-# add_executable(xnodeMemoryTest "xnodeMemoryTest.cpp")
-# DEP_ext_gtest(xnodeMemoryTest)
-# target_include_directories(
-#   xnodeMemoryTest
-#   PUBLIC
-#   "${TD_SOURCE_DIR}/include/dnode/mnode"
-#   "${TD_SOURCE_DIR}/include/dnode/mgmt"
-#   "${TD_SOURCE_DIR}/include/dnode/xnode"
-#   "${TD_SOURCE_DIR}/include/dnode/impl/inc"
-#   "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
-# )
-# target_link_libraries(
-#   xnodeMemoryTest
-#   PUBLIC
-#   mnode xnode mgmt_xnode os util
-# )
+add_executable(xnodeMemoryTest "xnodeMemoryTest.cpp")
+DEP_ext_gtest(xnodeMemoryTest)
+target_include_directories(
+  xnodeMemoryTest
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/dnode/mnode"
+  "${TD_SOURCE_DIR}/include/dnode/mgmt"
+  "${TD_SOURCE_DIR}/include/dnode/xnode"
+  "${TD_SOURCE_DIR}/include/dnode/impl/inc"
+  "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
+)
+target_link_libraries(
+  xnodeMemoryTest
+  PUBLIC
+  mnode xnode mgmt_xnode os util
+)
 
-# add_test(
-#   NAME xnodeMemoryTest
-#   COMMAND xnodeMemoryTest
-# )
+add_test(
+  NAME xnodeMemoryTest
+  COMMAND xnodeMemoryTest
+)
 
 # Test real XNode utility functions (completely independent, no TDengine headers)
 add_executable(xnodeRealFunctionsTest "xnodeRealFunctionsTest.cpp")
@@ -118,4 +118,30 @@ target_link_libraries(xnodeProductionTest
 add_test(
   NAME xnodeProductionTest
   COMMAND xnodeProductionTest
+)
+
+# Agent code tests - uses REAL agent functions from mndXnode.c
+add_executable(xnodeAgentTest "xnodeAgentTest.cpp")
+DEP_ext_gtest(xnodeAgentTest)
+target_include_directories(
+  xnodeAgentTest
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/common"
+  "${TD_SOURCE_DIR}/include/dnode/mnode"
+  "${TD_SOURCE_DIR}/include/dnode/mgmt"
+  "${TD_SOURCE_DIR}/include/dnode/xnode"
+  "${TD_SOURCE_DIR}/include/dnode/impl/inc"
+  "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
+)
+
+target_link_libraries(xnodeAgentTest
+  PUBLIC
+  mnode
+  xnode
+  mgmt_xnode
+)
+
+add_test(
+  NAME xnodeAgentTest
+  COMMAND xnodeAgentTest
 )

@@ -2478,20 +2478,55 @@ static int32_t pdcTrivialPushDown(SOptimizeContext* pCxt, SLogicNode* pLogicNode
 }
 
 static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode* pVScan) {
-  // TODO: remove it after full implementation of pushing down to child
-  if (1 != LIST_LENGTH(pVScan->node.pChildren) || 0 != LIST_LENGTH(pVScan->pScanPseudoCols) ||
+  if (NULL == pVScan->node.pConditions || OPTIMIZE_FLAG_TEST_MASK(pVScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE) ||
       pVScan->tableType == TSDB_SUPER_TABLE ||
       (pVScan->node.pParent && nodeType(pVScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SCpdIsVtableTsCondCxt cxt = {.condHasTs = false};
-  nodesWalkExpr(pVScan->node.pConditions, pdcCheckVirtualTableCond, &cxt);
-  if (cxt.condHasTs) {
+  if (pCxt->pPlanCxt->streamCalcQuery) {
     return TSDB_CODE_SUCCESS;
   }
 
-  return pdcTrivialPushDown(pCxt, (SLogicNode*)pVScan);
+  SNode*  pTempPrimaryKeyCond = NULL;
+  SNode*  pPrimaryKeyCond = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pCond = NULL;
+
+  PLAN_ERR_JRET(nodesCloneNode(pVScan->node.pConditions, &pCond));
+  PLAN_ERR_JRET(filterPartitionCond(&pCond, &pPrimaryKeyCond, NULL, NULL, NULL));
+
+  if (NULL == pPrimaryKeyCond) {
+    goto _return;
+  }
+
+  for (int32_t i = 0; i < LIST_LENGTH(pVScan->node.pChildren); ++i) {
+    SScanLogicNode* pOrgScan = (SScanLogicNode*)nodesListGetNode(pVScan->node.pChildren, i);
+    if (NULL == pOrgScan || QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pOrgScan)) {
+      PLAN_ERR_JRET(
+          generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
+                              "pdcDealVirtualTable get invalid org scan logic node from vtable scan node"));
+    }
+
+    if (pOrgScan->scanType != SCAN_TYPE_TABLE) {
+      continue;
+    }
+    PLAN_ERR_JRET(nodesCloneNode(pPrimaryKeyCond, &pTempPrimaryKeyCond));
+
+    SNode* pOtherCond = NULL;
+    // just get timerange here
+    PLAN_ERR_JRET(pushDownCondOptCalcTimeRange(pCxt, pOrgScan, &pTempPrimaryKeyCond, &pOtherCond));
+    nodesDestroyNode(pOtherCond);
+  }
+
+  OPTIMIZE_FLAG_SET_MASK(pVScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+  pCxt->optimized = true;
+
+_return:
+  nodesDestroyNode(pTempPrimaryKeyCond);
+  nodesDestroyNode(pPrimaryKeyCond);
+  nodesDestroyNode(pCond);
+  return code;
 }
 
 static int32_t pdcDealInterp(SOptimizeContext* pCxt, SInterpFuncLogicNode* pInterp) {
@@ -8744,6 +8779,7 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pWindow, (SLogicNode*)pDynWindowNode));
 
   nodesDestroyNode((SNode*)pWindow);
+  nodesDestroyNode((SNode*)pVirtualScan);
   OPTIMIZE_FLAG_SET_MASK(pNewWindow->node.optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW);
   OPTIMIZE_FLAG_SET_MASK(pDynWindowNode->node.optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW);
 
@@ -9124,6 +9160,9 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
 
   SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
 
+  if (pAgg->pGroupKeys) {
+    return false;
+  }
   if (LIST_LENGTH(pAgg->node.pChildren) == 1) {
     if (nodeType(nodesListGetNode(pAgg->node.pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
       if (((SDynQueryCtrlLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0))->qType != DYN_QTYPE_VTB_SCAN) {
@@ -9328,6 +9367,12 @@ static int32_t vstableAggOptimizeWithoutPartition(SOptimizeContext* pCxt, SLogic
   if (batchProcessChild) {
     pTableScan = (SScanLogicNode*)nodesListGetNode(pVirtualScanNode->node.pChildren, LIST_LENGTH(pVirtualScanNode->node.pChildren) - 1);
     QUERY_CHECK_NULL(pTableScan, code, lino, _return, terrno)
+    if (LIST_LENGTH(pVirtualScanNode->node.pChildren) == 2) {
+      pTagScan = (SScanLogicNode*)nodesListGetNode(pVirtualScanNode->node.pChildren, 0);
+      QUERY_CHECK_NULL(pTagScan, code, lino, _return, terrno)
+      nodesDestroyNode((SNode*)pTagScan);
+      pTagScan = NULL;
+    }
   } else {
     pTagScan = (SScanLogicNode*)nodesListGetNode(pVirtualScanNode->node.pChildren, 0);
     pTableScan = (SScanLogicNode*)nodesListGetNode(pVirtualScanNode->node.pChildren, 1);
@@ -9380,6 +9425,7 @@ static int32_t vstableAggOptimizeWithoutPartition(SOptimizeContext* pCxt, SLogic
     PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pAgg, (SLogicNode*)pNewAgg));
   }
 
+  nodesDestroyNode((SNode*)pVirtualScanNode);
   nodesDestroyNode((SNode*)pAgg);
 
   return code;

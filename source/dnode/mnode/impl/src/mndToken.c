@@ -118,4 +118,11 @@ int32_t mndBuildSMCreateTokenResp(STrans *pTrans, void **ppResp, int32_t *pRespL
   return 0;
 }
 
+
+
+int32_t mndGetUserTokenStatuses(const char* user, SHashObj** pHash) {
+  *pHash = NULL;
+  return 0;
+}
+
 #endif // TD_ENTERPRISE
