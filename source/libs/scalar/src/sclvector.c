@@ -41,8 +41,8 @@
 #define IS_HELPER_NULL(col, i) colDataIsNull_s(col, i) || IS_JSON_NULL(col->info.type, colDataGetVarData(col, i))
 
 bool noConvertBeforeCompare(int32_t leftType, int32_t rightType, int32_t optr) {
-  return !IS_DECIMAL_TYPE(leftType) && !IS_DECIMAL_TYPE(rightType) && IS_NUMERIC_TYPE(leftType) &&
-         IS_NUMERIC_TYPE(rightType) && (optr >= OP_TYPE_GREATER_THAN && optr <= OP_TYPE_NOT_EQUAL);
+  return (TSDB_DATA_TYPE_NULL == leftType || TSDB_DATA_TYPE_NULL == rightType) || (!IS_DECIMAL_TYPE(leftType) && !IS_DECIMAL_TYPE(rightType) && IS_NUMERIC_TYPE(leftType) &&
+         IS_NUMERIC_TYPE(rightType) && (optr >= OP_TYPE_GREATER_THAN && optr <= OP_TYPE_NOT_EQUAL));
 }
 
 bool compareForType(__compar_fn_t fp, int32_t optr, SColumnInfoData *pColL, int32_t idxL, SColumnInfoData *pColR,

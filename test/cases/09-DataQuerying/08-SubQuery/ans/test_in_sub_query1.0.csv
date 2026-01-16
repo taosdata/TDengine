@@ -7233,9 +7233,9 @@ taos> select case when 1 IN (select f1 from st1) then 1 else 2 end, sum(f1) from
                                                      1 |                     5 |
                                                      1 |                     1 |
                                                      1 |                     3 |
+                                                     1 |                     4 |
                                                      1 |                     6 |
                                                      1 |                     2 |
-                                                     1 |                     4 |
 
 taos> select case when 1 IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 1 in (select f1 from st1 limit 0) then 1 else 2 end |        sum(f1)        |
@@ -7243,9 +7243,9 @@ taos> select case when 1 IN (select f1 from st1 limit 0) then 1 else 2 end, sum(
                                                              2 |                     5 |
                                                              2 |                     1 |
                                                              2 |                     3 |
+                                                             2 |                     4 |
                                                              2 |                     6 |
                                                              2 |                     2 |
-                                                             2 |                     4 |
 
 taos> select case when 1 IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 1 in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -7253,9 +7253,9 @@ taos> select case when 1 IN (select null from st1) then 1 else 2 end, sum(f1) fr
                                                        2 |                     5 |
                                                        2 |                     1 |
                                                        2 |                     3 |
+                                                       2 |                     4 |
                                                        2 |                     6 |
                                                        2 |                     2 |
-                                                       2 |                     4 |
 
 taos> select case when 1 IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 1 in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -7263,9 +7263,9 @@ taos> select case when 1 IN (1, null) then 1 else 2 end, sum(f1) from st1 group 
                                           1 |                     5 |
                                           1 |                     1 |
                                           1 |                     3 |
+                                          1 |                     4 |
                                           1 |                     6 |
                                           1 |                     2 |
-                                          1 |                     4 |
 
 taos> select case when 1 IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 1 in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -7273,9 +7273,9 @@ taos> select case when 1 IN (select f1 from tbb) then 1 else 2 end, sum(f1) from
                                                      1 |                     5 |
                                                      1 |                     1 |
                                                      1 |                     3 |
+                                                     1 |                     4 |
                                                      1 |                     6 |
                                                      1 |                     2 |
-                                                     1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 1 IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 1 in (select f1 from st1) end |        sum(f1)        |
@@ -7283,9 +7283,9 @@ taos> select case when f1 = 1 then 1 else 1 IN (select f1 from st1) end, sum(f1)
                                                           1 |                     5 |
                                                           1 |                     1 |
                                                           1 |                     3 |
+                                                          1 |                     4 |
                                                           1 |                     6 |
                                                           1 |                     2 |
-                                                          1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 1 IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 1 in (select f1 from st1 limit 0) e |        sum(f1)        |
@@ -7293,9 +7293,9 @@ taos> select case when f1 = 1 then 1 else 1 IN (select f1 from st1 limit 0) end,
                                                                 0 |                     5 |
                                                                 1 |                     1 |
                                                                 0 |                     3 |
+                                                                0 |                     4 |
                                                                 0 |                     6 |
                                                                 0 |                     2 |
-                                                                0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 1 IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 1 in (select null from st1) end |        sum(f1)        |
@@ -7303,9 +7303,9 @@ taos> select case when f1 = 1 then 1 else 1 IN (select null from st1) end, sum(f
  NULL                                                         |                     5 |
                                                             1 |                     1 |
  NULL                                                         |                     3 |
+ NULL                                                         |                     4 |
  NULL                                                         |                     6 |
  NULL                                                         |                     2 |
- NULL                                                         |                     4 |
 
 taos> select case when f1 = 1 then 1 else 1 IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 1 in (1, null) end |        sum(f1)        |
@@ -7313,9 +7313,9 @@ taos> select case when f1 = 1 then 1 else 1 IN (1, null) end, sum(f1) from st1 g
                                                1 |                     5 |
                                                1 |                     1 |
                                                1 |                     3 |
+                                               1 |                     4 |
                                                1 |                     6 |
                                                1 |                     2 |
-                                               1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 1 IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 1 in (select f1 from tbb) end |        sum(f1)        |
@@ -7323,9 +7323,9 @@ taos> select case when f1 = 1 then 1 else 1 IN (select f1 from tbb) end, sum(f1)
                                                           1 |                     5 |
                                                           1 |                     1 |
                                                           1 |                     3 |
+                                                          1 |                     4 |
                                                           1 |                     6 |
                                                           1 |                     2 |
-                                                          1 |                     4 |
 
 taos> select _wstart, 1 IN (select f1 from st1), avg(f1) from st1 interval(1d);
          _wstart         | 1 in (select f1 from st1) |          avg(f1)          |
@@ -7418,9 +7418,9 @@ taos> select f1, 1 IN (select f1 from st1) from st1 group by f1;
            5 | true                      |
            1 | true                      |
            3 | true                      |
+           4 | true                      |
            6 | true                      |
            2 | true                      |
-           4 | true                      |
 
 taos> select f1, 1 IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | 1 in (select f1 from st1 limit 0) |
@@ -7428,9 +7428,9 @@ taos> select f1, 1 IN (select f1 from st1 limit 0) from st1 group by f1;
            5 | false                             |
            1 | false                             |
            3 | false                             |
+           4 | false                             |
            6 | false                             |
            2 | false                             |
-           4 | false                             |
 
 taos> select f1, 1 IN (select null from st1) from st1 group by f1;
      f1      | 1 in (select null from st1) |
@@ -7438,9 +7438,9 @@ taos> select f1, 1 IN (select null from st1) from st1 group by f1;
            5 | NULL                        |
            1 | NULL                        |
            3 | NULL                        |
+           4 | NULL                        |
            6 | NULL                        |
            2 | NULL                        |
-           4 | NULL                        |
 
 taos> select f1, 1 IN (1, null) from st1 group by f1;
      f1      | 1 in (1, null) |
@@ -7448,9 +7448,9 @@ taos> select f1, 1 IN (1, null) from st1 group by f1;
            5 | true           |
            1 | true           |
            3 | true           |
+           4 | true           |
            6 | true           |
            2 | true           |
-           4 | true           |
 
 taos> select f1, 1 IN (select f1 from tbb) from st1 group by f1;
      f1      | 1 in (select f1 from tbb) |
@@ -7458,9 +7458,9 @@ taos> select f1, 1 IN (select f1 from tbb) from st1 group by f1;
            5 | true                      |
            1 | true                      |
            3 | true                      |
+           4 | true                      |
            6 | true                      |
            2 | true                      |
-           4 | true                      |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and 1 IN (select f1 from st1) order by b.f1;
 
@@ -8001,9 +8001,9 @@ taos> select case when 'a' IN (select f1 from st1) then 1 else 2 end, sum(f1) fr
                                                        2 |                     5 |
                                                        2 |                     1 |
                                                        2 |                     3 |
+                                                       2 |                     4 |
                                                        2 |                     6 |
                                                        2 |                     2 |
-                                                       2 |                     4 |
 
 taos> select case when 'a' IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 'a' in (select f1 from st1 limit 0) then 1 else 2 end |        sum(f1)        |
@@ -8011,9 +8011,9 @@ taos> select case when 'a' IN (select f1 from st1 limit 0) then 1 else 2 end, su
                                                                2 |                     5 |
                                                                2 |                     1 |
                                                                2 |                     3 |
+                                                               2 |                     4 |
                                                                2 |                     6 |
                                                                2 |                     2 |
-                                                               2 |                     4 |
 
 taos> select case when 'a' IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 'a' in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -8021,9 +8021,9 @@ taos> select case when 'a' IN (select null from st1) then 1 else 2 end, sum(f1) 
                                                          2 |                     5 |
                                                          2 |                     1 |
                                                          2 |                     3 |
+                                                         2 |                     4 |
                                                          2 |                     6 |
                                                          2 |                     2 |
-                                                         2 |                     4 |
 
 taos> select case when 'a' IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 'a' in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -8031,9 +8031,9 @@ taos> select case when 'a' IN (1, null) then 1 else 2 end, sum(f1) from st1 grou
                                             2 |                     5 |
                                             2 |                     1 |
                                             2 |                     3 |
+                                            2 |                     4 |
                                             2 |                     6 |
                                             2 |                     2 |
-                                            2 |                     4 |
 
 taos> select case when 'a' IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 'a' in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -8041,9 +8041,9 @@ taos> select case when 'a' IN (select f1 from tbb) then 1 else 2 end, sum(f1) fr
                                                        2 |                     5 |
                                                        2 |                     1 |
                                                        2 |                     3 |
+                                                       2 |                     4 |
                                                        2 |                     6 |
                                                        2 |                     2 |
-                                                       2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 'a' IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 'a' in (select f1 from st1) end |        sum(f1)        |
@@ -8051,9 +8051,9 @@ taos> select case when f1 = 1 then 1 else 'a' IN (select f1 from st1) end, sum(f
                                                             0 |                     5 |
                                                             1 |                     1 |
                                                             0 |                     3 |
+                                                            0 |                     4 |
                                                             0 |                     6 |
                                                             0 |                     2 |
-                                                            0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 'a' IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 'a' in (select f1 from st1 limit 0) |        sum(f1)        |
@@ -8061,9 +8061,9 @@ taos> select case when f1 = 1 then 1 else 'a' IN (select f1 from st1 limit 0) en
                                                                 0 |                     5 |
                                                                 1 |                     1 |
                                                                 0 |                     3 |
+                                                                0 |                     4 |
                                                                 0 |                     6 |
                                                                 0 |                     2 |
-                                                                0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 'a' IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 'a' in (select null from st1) end |        sum(f1)        |
@@ -8071,9 +8071,9 @@ taos> select case when f1 = 1 then 1 else 'a' IN (select null from st1) end, sum
  NULL                                                           |                     5 |
                                                               1 |                     1 |
  NULL                                                           |                     3 |
+ NULL                                                           |                     4 |
  NULL                                                           |                     6 |
  NULL                                                           |                     2 |
- NULL                                                           |                     4 |
 
 taos> select case when f1 = 1 then 1 else 'a' IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 'a' in (1, null) end |        sum(f1)        |
@@ -8081,9 +8081,9 @@ taos> select case when f1 = 1 then 1 else 'a' IN (1, null) end, sum(f1) from st1
  NULL                                              |                     5 |
                                                  1 |                     1 |
  NULL                                              |                     3 |
+ NULL                                              |                     4 |
  NULL                                              |                     6 |
  NULL                                              |                     2 |
- NULL                                              |                     4 |
 
 taos> select case when f1 = 1 then 1 else 'a' IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 'a' in (select f1 from tbb) end |        sum(f1)        |
@@ -8091,9 +8091,9 @@ taos> select case when f1 = 1 then 1 else 'a' IN (select f1 from tbb) end, sum(f
  NULL                                                         |                     5 |
                                                             1 |                     1 |
  NULL                                                         |                     3 |
+ NULL                                                         |                     4 |
  NULL                                                         |                     6 |
  NULL                                                         |                     2 |
- NULL                                                         |                     4 |
 
 taos> select _wstart, 'a' IN (select f1 from st1), avg(f1) from st1 interval(1d);
          _wstart         | 'a' in (select f1 from st1) |          avg(f1)          |
@@ -8186,9 +8186,9 @@ taos> select f1, 'a' IN (select f1 from st1) from st1 group by f1;
            5 | false                       |
            1 | false                       |
            3 | false                       |
+           4 | false                       |
            6 | false                       |
            2 | false                       |
-           4 | false                       |
 
 taos> select f1, 'a' IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | 'a' in (select f1 from st1 limit 0) |
@@ -8196,9 +8196,9 @@ taos> select f1, 'a' IN (select f1 from st1 limit 0) from st1 group by f1;
            5 | false                               |
            1 | false                               |
            3 | false                               |
+           4 | false                               |
            6 | false                               |
            2 | false                               |
-           4 | false                               |
 
 taos> select f1, 'a' IN (select null from st1) from st1 group by f1;
      f1      | 'a' in (select null from st1) |
@@ -8206,9 +8206,9 @@ taos> select f1, 'a' IN (select null from st1) from st1 group by f1;
            5 | NULL                          |
            1 | NULL                          |
            3 | NULL                          |
+           4 | NULL                          |
            6 | NULL                          |
            2 | NULL                          |
-           4 | NULL                          |
 
 taos> select f1, 'a' IN (1, null) from st1 group by f1;
      f1      | 'a' in (1, null) |
@@ -8216,9 +8216,9 @@ taos> select f1, 'a' IN (1, null) from st1 group by f1;
            5 | NULL             |
            1 | NULL             |
            3 | NULL             |
+           4 | NULL             |
            6 | NULL             |
            2 | NULL             |
-           4 | NULL             |
 
 taos> select f1, 'a' IN (select f1 from tbb) from st1 group by f1;
      f1      | 'a' in (select f1 from tbb) |
@@ -8226,9 +8226,9 @@ taos> select f1, 'a' IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                        |
            1 | NULL                        |
            3 | NULL                        |
+           4 | NULL                        |
            6 | NULL                        |
            2 | NULL                        |
-           4 | NULL                        |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and 'a' IN (select f1 from st1) order by b.f1;
 
@@ -8691,9 +8691,9 @@ taos> select case when f1 IN (select f1 from st1) then 1 else 2 end, sum(f1) fro
                                                       1 |                     5 |
                                                       1 |                     1 |
                                                       1 |                     3 |
+                                                      1 |                     4 |
                                                       1 |                     6 |
                                                       1 |                     2 |
-                                                      1 |                     4 |
 
 taos> select case when f1 IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 in (select f1 from st1 limit 0) then 1 else 2 end |        sum(f1)        |
@@ -8701,9 +8701,9 @@ taos> select case when f1 IN (select f1 from st1 limit 0) then 1 else 2 end, sum
                                                               2 |                     5 |
                                                               2 |                     1 |
                                                               2 |                     3 |
+                                                              2 |                     4 |
                                                               2 |                     6 |
                                                               2 |                     2 |
-                                                              2 |                     4 |
 
 taos> select case when f1 IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -8711,9 +8711,9 @@ taos> select case when f1 IN (select null from st1) then 1 else 2 end, sum(f1) f
                                                         2 |                     5 |
                                                         2 |                     1 |
                                                         2 |                     3 |
+                                                        2 |                     4 |
                                                         2 |                     6 |
                                                         2 |                     2 |
-                                                        2 |                     4 |
 
 taos> select case when f1 IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -8721,9 +8721,9 @@ taos> select case when f1 IN (1, null) then 1 else 2 end, sum(f1) from st1 group
                                            2 |                     5 |
                                            1 |                     1 |
                                            2 |                     3 |
+                                           2 |                     4 |
                                            2 |                     6 |
                                            2 |                     2 |
-                                           2 |                     4 |
 
 taos> select case when f1 IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -8731,9 +8731,9 @@ taos> select case when f1 IN (select f1 from tbb) then 1 else 2 end, sum(f1) fro
                                                       2 |                     5 |
                                                       1 |                     1 |
                                                       1 |                     3 |
+                                                      2 |                     4 |
                                                       2 |                     6 |
                                                       2 |                     2 |
-                                                      2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 in (select f1 from st1) end |        sum(f1)        |
@@ -8741,9 +8741,9 @@ taos> select case when f1 = 1 then 1 else f1 IN (select f1 from st1) end, sum(f1
                                                            1 |                     5 |
                                                            1 |                     1 |
                                                            1 |                     3 |
+                                                           1 |                     4 |
                                                            1 |                     6 |
                                                            1 |                     2 |
-                                                           1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 in (select f1 from st1 limit 0)  |        sum(f1)        |
@@ -8751,9 +8751,9 @@ taos> select case when f1 = 1 then 1 else f1 IN (select f1 from st1 limit 0) end
                                                                 0 |                     5 |
                                                                 1 |                     1 |
                                                                 0 |                     3 |
+                                                                0 |                     4 |
                                                                 0 |                     6 |
                                                                 0 |                     2 |
-                                                                0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 in (select null from st1) end |        sum(f1)        |
@@ -8761,9 +8761,9 @@ taos> select case when f1 = 1 then 1 else f1 IN (select null from st1) end, sum(
  NULL                                                          |                     5 |
                                                              1 |                     1 |
  NULL                                                          |                     3 |
+ NULL                                                          |                     4 |
  NULL                                                          |                     6 |
  NULL                                                          |                     2 |
- NULL                                                          |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 in (1, null) end |        sum(f1)        |
@@ -8771,9 +8771,9 @@ taos> select case when f1 = 1 then 1 else f1 IN (1, null) end, sum(f1) from st1 
  NULL                                             |                     5 |
                                                 1 |                     1 |
  NULL                                             |                     3 |
+ NULL                                             |                     4 |
  NULL                                             |                     6 |
  NULL                                             |                     2 |
- NULL                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 in (select f1 from tbb) end |        sum(f1)        |
@@ -8781,9 +8781,9 @@ taos> select case when f1 = 1 then 1 else f1 IN (select f1 from tbb) end, sum(f1
  NULL                                                        |                     5 |
                                                            1 |                     1 |
                                                            1 |                     3 |
+ NULL                                                        |                     4 |
  NULL                                                        |                     6 |
  NULL                                                        |                     2 |
- NULL                                                        |                     4 |
 
 taos> select _wstart, f1 IN (select f1 from st1), avg(f1) from st1 interval(1d);
 
@@ -8836,9 +8836,9 @@ taos> select f1, f1 IN (select f1 from st1) from st1 group by f1;
            5 | true                       |
            1 | true                       |
            3 | true                       |
+           4 | true                       |
            6 | true                       |
            2 | true                       |
-           4 | true                       |
 
 taos> select f1, f1 IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | f1 in (select f1 from st1 limit 0) |
@@ -8846,9 +8846,9 @@ taos> select f1, f1 IN (select f1 from st1 limit 0) from st1 group by f1;
            5 | false                              |
            1 | false                              |
            3 | false                              |
+           4 | false                              |
            6 | false                              |
            2 | false                              |
-           4 | false                              |
 
 taos> select f1, f1 IN (select null from st1) from st1 group by f1;
      f1      | f1 in (select null from st1) |
@@ -8856,9 +8856,9 @@ taos> select f1, f1 IN (select null from st1) from st1 group by f1;
            5 | NULL                         |
            1 | NULL                         |
            3 | NULL                         |
+           4 | NULL                         |
            6 | NULL                         |
            2 | NULL                         |
-           4 | NULL                         |
 
 taos> select f1, f1 IN (1, null) from st1 group by f1;
      f1      | f1 in (1, null) |
@@ -8866,9 +8866,9 @@ taos> select f1, f1 IN (1, null) from st1 group by f1;
            5 | NULL            |
            1 | true            |
            3 | NULL            |
+           4 | NULL            |
            6 | NULL            |
            2 | NULL            |
-           4 | NULL            |
 
 taos> select f1, f1 IN (select f1 from tbb) from st1 group by f1;
      f1      | f1 in (select f1 from tbb) |
@@ -8876,9 +8876,9 @@ taos> select f1, f1 IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                       |
            1 | true                       |
            3 | true                       |
+           4 | NULL                       |
            6 | NULL                       |
            2 | NULL                       |
-           4 | NULL                       |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and f1 IN (select f1 from st1) order by b.f1;
 
@@ -9385,9 +9385,9 @@ taos> select case when NULL IN (select f1 from st1) then 1 else 2 end, sum(f1) f
                                                         2 |                     5 |
                                                         2 |                     1 |
                                                         2 |                     3 |
+                                                        2 |                     4 |
                                                         2 |                     6 |
                                                         2 |                     2 |
-                                                        2 |                     4 |
 
 taos> select case when NULL IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when null in (select f1 from st1 limit 0) then 1 else 2 end |        sum(f1)        |
@@ -9395,9 +9395,9 @@ taos> select case when NULL IN (select f1 from st1 limit 0) then 1 else 2 end, s
                                                                 2 |                     5 |
                                                                 2 |                     1 |
                                                                 2 |                     3 |
+                                                                2 |                     4 |
                                                                 2 |                     6 |
                                                                 2 |                     2 |
-                                                                2 |                     4 |
 
 taos> select case when NULL IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when null in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -9405,9 +9405,9 @@ taos> select case when NULL IN (select null from st1) then 1 else 2 end, sum(f1)
                                                           2 |                     5 |
                                                           2 |                     1 |
                                                           2 |                     3 |
+                                                          2 |                     4 |
                                                           2 |                     6 |
                                                           2 |                     2 |
-                                                          2 |                     4 |
 
 taos> select case when NULL IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when null in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -9415,9 +9415,9 @@ taos> select case when NULL IN (1, null) then 1 else 2 end, sum(f1) from st1 gro
                                              2 |                     5 |
                                              2 |                     1 |
                                              2 |                     3 |
+                                             2 |                     4 |
                                              2 |                     6 |
                                              2 |                     2 |
-                                             2 |                     4 |
 
 taos> select case when NULL IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when null in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -9425,9 +9425,9 @@ taos> select case when NULL IN (select f1 from tbb) then 1 else 2 end, sum(f1) f
                                                         2 |                     5 |
                                                         2 |                     1 |
                                                         2 |                     3 |
+                                                        2 |                     4 |
                                                         2 |                     6 |
                                                         2 |                     2 |
-                                                        2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else NULL IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else null in (select f1 from st1) end |        sum(f1)        |
@@ -9435,9 +9435,9 @@ taos> select case when f1 = 1 then 1 else NULL IN (select f1 from st1) end, sum(
  NULL                                                          |                     5 |
                                                              1 |                     1 |
  NULL                                                          |                     3 |
+ NULL                                                          |                     4 |
  NULL                                                          |                     6 |
  NULL                                                          |                     2 |
- NULL                                                          |                     4 |
 
 taos> select case when f1 = 1 then 1 else NULL IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else null in (select f1 from st1 limit 0 |        sum(f1)        |
@@ -9445,9 +9445,9 @@ taos> select case when f1 = 1 then 1 else NULL IN (select f1 from st1 limit 0) e
                                                                 0 |                     5 |
                                                                 1 |                     1 |
                                                                 0 |                     3 |
+                                                                0 |                     4 |
                                                                 0 |                     6 |
                                                                 0 |                     2 |
-                                                                0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else NULL IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else null in (select null from st1) end |        sum(f1)        |
@@ -9455,9 +9455,9 @@ taos> select case when f1 = 1 then 1 else NULL IN (select null from st1) end, su
  NULL                                                            |                     5 |
                                                                1 |                     1 |
  NULL                                                            |                     3 |
+ NULL                                                            |                     4 |
  NULL                                                            |                     6 |
  NULL                                                            |                     2 |
- NULL                                                            |                     4 |
 
 taos> select case when f1 = 1 then 1 else NULL IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else null in (1, null) end |        sum(f1)        |
@@ -9465,9 +9465,9 @@ taos> select case when f1 = 1 then 1 else NULL IN (1, null) end, sum(f1) from st
  NULL                                               |                     5 |
                                                   1 |                     1 |
  NULL                                               |                     3 |
+ NULL                                               |                     4 |
  NULL                                               |                     6 |
  NULL                                               |                     2 |
- NULL                                               |                     4 |
 
 taos> select case when f1 = 1 then 1 else NULL IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else null in (select f1 from tbb) end |        sum(f1)        |
@@ -9475,9 +9475,9 @@ taos> select case when f1 = 1 then 1 else NULL IN (select f1 from tbb) end, sum(
  NULL                                                          |                     5 |
                                                              1 |                     1 |
  NULL                                                          |                     3 |
+ NULL                                                          |                     4 |
  NULL                                                          |                     6 |
  NULL                                                          |                     2 |
- NULL                                                          |                     4 |
 
 taos> select _wstart, NULL IN (select f1 from st1), avg(f1) from st1 interval(1d);
          _wstart         | null in (select f1 from st1) |          avg(f1)          |
@@ -9570,9 +9570,9 @@ taos> select f1, NULL IN (select f1 from st1) from st1 group by f1;
            5 | NULL                         |
            1 | NULL                         |
            3 | NULL                         |
+           4 | NULL                         |
            6 | NULL                         |
            2 | NULL                         |
-           4 | NULL                         |
 
 taos> select f1, NULL IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | null in (select f1 from st1 limit 0) |
@@ -9580,9 +9580,9 @@ taos> select f1, NULL IN (select f1 from st1 limit 0) from st1 group by f1;
            5 | false                                |
            1 | false                                |
            3 | false                                |
+           4 | false                                |
            6 | false                                |
            2 | false                                |
-           4 | false                                |
 
 taos> select f1, NULL IN (select null from st1) from st1 group by f1;
      f1      | null in (select null from st1) |
@@ -9590,9 +9590,9 @@ taos> select f1, NULL IN (select null from st1) from st1 group by f1;
            5 | NULL                           |
            1 | NULL                           |
            3 | NULL                           |
+           4 | NULL                           |
            6 | NULL                           |
            2 | NULL                           |
-           4 | NULL                           |
 
 taos> select f1, NULL IN (1, null) from st1 group by f1;
      f1      | null in (1, null) |
@@ -9600,9 +9600,9 @@ taos> select f1, NULL IN (1, null) from st1 group by f1;
            5 | NULL              |
            1 | NULL              |
            3 | NULL              |
+           4 | NULL              |
            6 | NULL              |
            2 | NULL              |
-           4 | NULL              |
 
 taos> select f1, NULL IN (select f1 from tbb) from st1 group by f1;
      f1      | null in (select f1 from tbb) |
@@ -9610,9 +9610,9 @@ taos> select f1, NULL IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                         |
            1 | NULL                         |
            3 | NULL                         |
+           4 | NULL                         |
            6 | NULL                         |
            2 | NULL                         |
-           4 | NULL                         |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and NULL IN (select f1 from st1) order by b.f1;
 
@@ -10058,9 +10058,9 @@ taos> select case when 123.45 IN (select f1 from st1) then 1 else 2 end, sum(f1)
                                                           2 |                     5 |
                                                           2 |                     1 |
                                                           2 |                     3 |
+                                                          2 |                     4 |
                                                           2 |                     6 |
                                                           2 |                     2 |
-                                                          2 |                     4 |
 
 taos> select case when 123.45 IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 123.45 in (select f1 from st1 limit 0) then 1 else 2 e |        sum(f1)        |
@@ -10068,9 +10068,9 @@ taos> select case when 123.45 IN (select f1 from st1 limit 0) then 1 else 2 end,
                                                                 2 |                     5 |
                                                                 2 |                     1 |
                                                                 2 |                     3 |
+                                                                2 |                     4 |
                                                                 2 |                     6 |
                                                                 2 |                     2 |
-                                                                2 |                     4 |
 
 taos> select case when 123.45 IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 123.45 in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -10078,9 +10078,9 @@ taos> select case when 123.45 IN (select null from st1) then 1 else 2 end, sum(f
                                                             2 |                     5 |
                                                             2 |                     1 |
                                                             2 |                     3 |
+                                                            2 |                     4 |
                                                             2 |                     6 |
                                                             2 |                     2 |
-                                                            2 |                     4 |
 
 taos> select case when 123.45 IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 123.45 in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -10088,9 +10088,9 @@ taos> select case when 123.45 IN (1, null) then 1 else 2 end, sum(f1) from st1 g
                                                2 |                     5 |
                                                2 |                     1 |
                                                2 |                     3 |
+                                               2 |                     4 |
                                                2 |                     6 |
                                                2 |                     2 |
-                                               2 |                     4 |
 
 taos> select case when 123.45 IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 123.45 in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -10098,9 +10098,9 @@ taos> select case when 123.45 IN (select f1 from tbb) then 1 else 2 end, sum(f1)
                                                           2 |                     5 |
                                                           2 |                     1 |
                                                           2 |                     3 |
+                                                          2 |                     4 |
                                                           2 |                     6 |
                                                           2 |                     2 |
-                                                          2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 123.45 IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 123.45 in (select f1 from st1) end |        sum(f1)        |
@@ -10108,9 +10108,9 @@ taos> select case when f1 = 1 then 1 else 123.45 IN (select f1 from st1) end, su
                                                                0 |                     5 |
                                                                1 |                     1 |
                                                                0 |                     3 |
+                                                               0 |                     4 |
                                                                0 |                     6 |
                                                                0 |                     2 |
-                                                               0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 123.45 IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 123.45 in (select f1 from st1 limit |        sum(f1)        |
@@ -10118,9 +10118,9 @@ taos> select case when f1 = 1 then 1 else 123.45 IN (select f1 from st1 limit 0)
                                                                 0 |                     5 |
                                                                 1 |                     1 |
                                                                 0 |                     3 |
+                                                                0 |                     4 |
                                                                 0 |                     6 |
                                                                 0 |                     2 |
-                                                                0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 123.45 IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 123.45 in (select null from st1) en |        sum(f1)        |
@@ -10128,9 +10128,9 @@ taos> select case when f1 = 1 then 1 else 123.45 IN (select null from st1) end, 
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else 123.45 IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 123.45 in (1, null) end |        sum(f1)        |
@@ -10138,9 +10138,9 @@ taos> select case when f1 = 1 then 1 else 123.45 IN (1, null) end, sum(f1) from 
  NULL                                                 |                     5 |
                                                     1 |                     1 |
  NULL                                                 |                     3 |
+ NULL                                                 |                     4 |
  NULL                                                 |                     6 |
  NULL                                                 |                     2 |
- NULL                                                 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 123.45 IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 123.45 in (select f1 from tbb) end |        sum(f1)        |
@@ -10148,9 +10148,9 @@ taos> select case when f1 = 1 then 1 else 123.45 IN (select f1 from tbb) end, su
  NULL                                                            |                     5 |
                                                                1 |                     1 |
  NULL                                                            |                     3 |
+ NULL                                                            |                     4 |
  NULL                                                            |                     6 |
  NULL                                                            |                     2 |
- NULL                                                            |                     4 |
 
 taos> select _wstart, 123.45 IN (select f1 from st1), avg(f1) from st1 interval(1d);
          _wstart         | 123.45 in (select f1 from st1) |          avg(f1)          |
@@ -10243,9 +10243,9 @@ taos> select f1, 123.45 IN (select f1 from st1) from st1 group by f1;
            5 | false                          |
            1 | false                          |
            3 | false                          |
+           4 | false                          |
            6 | false                          |
            2 | false                          |
-           4 | false                          |
 
 taos> select f1, 123.45 IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | 123.45 in (select f1 from st1 limit 0) |
@@ -10253,9 +10253,9 @@ taos> select f1, 123.45 IN (select f1 from st1 limit 0) from st1 group by f1;
            5 | false                                  |
            1 | false                                  |
            3 | false                                  |
+           4 | false                                  |
            6 | false                                  |
            2 | false                                  |
-           4 | false                                  |
 
 taos> select f1, 123.45 IN (select null from st1) from st1 group by f1;
      f1      | 123.45 in (select null from st1) |
@@ -10263,9 +10263,9 @@ taos> select f1, 123.45 IN (select null from st1) from st1 group by f1;
            5 | NULL                             |
            1 | NULL                             |
            3 | NULL                             |
+           4 | NULL                             |
            6 | NULL                             |
            2 | NULL                             |
-           4 | NULL                             |
 
 taos> select f1, 123.45 IN (1, null) from st1 group by f1;
      f1      | 123.45 in (1, null) |
@@ -10273,9 +10273,9 @@ taos> select f1, 123.45 IN (1, null) from st1 group by f1;
            5 | NULL                |
            1 | NULL                |
            3 | NULL                |
+           4 | NULL                |
            6 | NULL                |
            2 | NULL                |
-           4 | NULL                |
 
 taos> select f1, 123.45 IN (select f1 from tbb) from st1 group by f1;
      f1      | 123.45 in (select f1 from tbb) |
@@ -10283,9 +10283,9 @@ taos> select f1, 123.45 IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                           |
            1 | NULL                           |
            3 | NULL                           |
+           4 | NULL                           |
            6 | NULL                           |
            2 | NULL                           |
-           4 | NULL                           |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and 123.45 IN (select f1 from st1) order by b.f1;
 
@@ -10731,9 +10731,9 @@ taos> select case when abs(-2) IN (select f1 from st1) then 1 else 2 end, sum(f1
                                                            1 |                     5 |
                                                            1 |                     1 |
                                                            1 |                     3 |
+                                                           1 |                     4 |
                                                            1 |                     6 |
                                                            1 |                     2 |
-                                                           1 |                     4 |
 
 taos> select case when abs(-2) IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when abs(-2) in (select f1 from st1 limit 0) then 1 else 2  |        sum(f1)        |
@@ -10741,9 +10741,9 @@ taos> select case when abs(-2) IN (select f1 from st1 limit 0) then 1 else 2 end
                                                                 2 |                     5 |
                                                                 2 |                     1 |
                                                                 2 |                     3 |
+                                                                2 |                     4 |
                                                                 2 |                     6 |
                                                                 2 |                     2 |
-                                                                2 |                     4 |
 
 taos> select case when abs(-2) IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when abs(-2) in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -10751,9 +10751,9 @@ taos> select case when abs(-2) IN (select null from st1) then 1 else 2 end, sum(
                                                              2 |                     5 |
                                                              2 |                     1 |
                                                              2 |                     3 |
+                                                             2 |                     4 |
                                                              2 |                     6 |
                                                              2 |                     2 |
-                                                             2 |                     4 |
 
 taos> select case when abs(-2) IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when abs(-2) in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -10761,9 +10761,9 @@ taos> select case when abs(-2) IN (1, null) then 1 else 2 end, sum(f1) from st1 
                                                 2 |                     5 |
                                                 2 |                     1 |
                                                 2 |                     3 |
+                                                2 |                     4 |
                                                 2 |                     6 |
                                                 2 |                     2 |
-                                                2 |                     4 |
 
 taos> select case when abs(-2) IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when abs(-2) in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -10771,9 +10771,9 @@ taos> select case when abs(-2) IN (select f1 from tbb) then 1 else 2 end, sum(f1
                                                            2 |                     5 |
                                                            2 |                     1 |
                                                            2 |                     3 |
+                                                           2 |                     4 |
                                                            2 |                     6 |
                                                            2 |                     2 |
-                                                           2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else abs(-2) IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else abs(-2) in (select f1 from st1) end |        sum(f1)        |
@@ -10781,9 +10781,9 @@ taos> select case when f1 = 1 then 1 else abs(-2) IN (select f1 from st1) end, s
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else abs(-2) IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else abs(-2) in (select f1 from st1 limi |        sum(f1)        |
@@ -10791,9 +10791,9 @@ taos> select case when f1 = 1 then 1 else abs(-2) IN (select f1 from st1 limit 0
                                                                 0 |                     5 |
                                                                 1 |                     1 |
                                                                 0 |                     3 |
+                                                                0 |                     4 |
                                                                 0 |                     6 |
                                                                 0 |                     2 |
-                                                                0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else abs(-2) IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else abs(-2) in (select null from st1) e |        sum(f1)        |
@@ -10801,9 +10801,9 @@ taos> select case when f1 = 1 then 1 else abs(-2) IN (select null from st1) end,
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else abs(-2) IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else abs(-2) in (1, null) end |        sum(f1)        |
@@ -10811,9 +10811,9 @@ taos> select case when f1 = 1 then 1 else abs(-2) IN (1, null) end, sum(f1) from
  NULL                                                  |                     5 |
                                                      1 |                     1 |
  NULL                                                  |                     3 |
+ NULL                                                  |                     4 |
  NULL                                                  |                     6 |
  NULL                                                  |                     2 |
- NULL                                                  |                     4 |
 
 taos> select case when f1 = 1 then 1 else abs(-2) IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else abs(-2) in (select f1 from tbb) end |        sum(f1)        |
@@ -10821,9 +10821,9 @@ taos> select case when f1 = 1 then 1 else abs(-2) IN (select f1 from tbb) end, s
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select _wstart, abs(-2) IN (select f1 from st1), avg(f1) from st1 interval(1d);
          _wstart         | abs(-2) in (select f1 from st1) |          avg(f1)          |
@@ -10916,9 +10916,9 @@ taos> select f1, abs(-2) IN (select f1 from st1) from st1 group by f1;
            5 | true                            |
            1 | true                            |
            3 | true                            |
+           4 | true                            |
            6 | true                            |
            2 | true                            |
-           4 | true                            |
 
 taos> select f1, abs(-2) IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | abs(-2) in (select f1 from st1 limit 0) |
@@ -10926,9 +10926,9 @@ taos> select f1, abs(-2) IN (select f1 from st1 limit 0) from st1 group by f1;
            5 | false                                   |
            1 | false                                   |
            3 | false                                   |
+           4 | false                                   |
            6 | false                                   |
            2 | false                                   |
-           4 | false                                   |
 
 taos> select f1, abs(-2) IN (select null from st1) from st1 group by f1;
      f1      | abs(-2) in (select null from st1) |
@@ -10936,9 +10936,9 @@ taos> select f1, abs(-2) IN (select null from st1) from st1 group by f1;
            5 | NULL                              |
            1 | NULL                              |
            3 | NULL                              |
+           4 | NULL                              |
            6 | NULL                              |
            2 | NULL                              |
-           4 | NULL                              |
 
 taos> select f1, abs(-2) IN (1, null) from st1 group by f1;
      f1      | abs(-2) in (1, null) |
@@ -10946,9 +10946,9 @@ taos> select f1, abs(-2) IN (1, null) from st1 group by f1;
            5 | NULL                 |
            1 | NULL                 |
            3 | NULL                 |
+           4 | NULL                 |
            6 | NULL                 |
            2 | NULL                 |
-           4 | NULL                 |
 
 taos> select f1, abs(-2) IN (select f1 from tbb) from st1 group by f1;
      f1      | abs(-2) in (select f1 from tbb) |
@@ -10956,9 +10956,9 @@ taos> select f1, abs(-2) IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                            |
            1 | NULL                            |
            3 | NULL                            |
+           4 | NULL                            |
            6 | NULL                            |
            2 | NULL                            |
-           4 | NULL                            |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and abs(-2) IN (select f1 from st1) order by b.f1;
 
@@ -11453,9 +11453,9 @@ taos> select case when f1 + 1 IN (select f1 from st1) then 1 else 2 end, sum(f1)
                                                           1 |                     5 |
                                                           1 |                     1 |
                                                           1 |                     3 |
+                                                          1 |                     4 |
                                                           2 |                     6 |
                                                           1 |                     2 |
-                                                          1 |                     4 |
 
 taos> select case when f1 + 1 IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 + 1 in (select f1 from st1 limit 0) then 1 else 2 e |        sum(f1)        |
@@ -11463,9 +11463,9 @@ taos> select case when f1 + 1 IN (select f1 from st1 limit 0) then 1 else 2 end,
                                                                 2 |                     5 |
                                                                 2 |                     1 |
                                                                 2 |                     3 |
+                                                                2 |                     4 |
                                                                 2 |                     6 |
                                                                 2 |                     2 |
-                                                                2 |                     4 |
 
 taos> select case when f1 + 1 IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 + 1 in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -11473,9 +11473,9 @@ taos> select case when f1 + 1 IN (select null from st1) then 1 else 2 end, sum(f
                                                             2 |                     5 |
                                                             2 |                     1 |
                                                             2 |                     3 |
+                                                            2 |                     4 |
                                                             2 |                     6 |
                                                             2 |                     2 |
-                                                            2 |                     4 |
 
 taos> select case when f1 + 1 IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 + 1 in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -11483,9 +11483,9 @@ taos> select case when f1 + 1 IN (1, null) then 1 else 2 end, sum(f1) from st1 g
                                                2 |                     5 |
                                                2 |                     1 |
                                                2 |                     3 |
+                                               2 |                     4 |
                                                2 |                     6 |
                                                2 |                     2 |
-                                               2 |                     4 |
 
 taos> select case when f1 + 1 IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 + 1 in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -11493,9 +11493,9 @@ taos> select case when f1 + 1 IN (select f1 from tbb) then 1 else 2 end, sum(f1)
                                                           2 |                     5 |
                                                           2 |                     1 |
                                                           2 |                     3 |
+                                                          2 |                     4 |
                                                           2 |                     6 |
                                                           1 |                     2 |
-                                                          2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 + 1 IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 + 1 in (select f1 from st1) end |        sum(f1)        |
@@ -11503,9 +11503,9 @@ taos> select case when f1 = 1 then 1 else f1 + 1 IN (select f1 from st1) end, su
                                                                1 |                     5 |
                                                                1 |                     1 |
                                                                1 |                     3 |
+                                                               1 |                     4 |
                                                                0 |                     6 |
                                                                1 |                     2 |
-                                                               1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 + 1 IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 + 1 in (select f1 from st1 limit |        sum(f1)        |
@@ -11513,9 +11513,9 @@ taos> select case when f1 = 1 then 1 else f1 + 1 IN (select f1 from st1 limit 0)
                                                                 0 |                     5 |
                                                                 1 |                     1 |
                                                                 0 |                     3 |
+                                                                0 |                     4 |
                                                                 0 |                     6 |
                                                                 0 |                     2 |
-                                                                0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 + 1 IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 + 1 in (select null from st1) en |        sum(f1)        |
@@ -11523,9 +11523,9 @@ taos> select case when f1 = 1 then 1 else f1 + 1 IN (select null from st1) end, 
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 + 1 IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 + 1 in (1, null) end |        sum(f1)        |
@@ -11533,9 +11533,9 @@ taos> select case when f1 = 1 then 1 else f1 + 1 IN (1, null) end, sum(f1) from 
  NULL                                                 |                     5 |
                                                     1 |                     1 |
  NULL                                                 |                     3 |
+ NULL                                                 |                     4 |
  NULL                                                 |                     6 |
  NULL                                                 |                     2 |
- NULL                                                 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 + 1 IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 + 1 in (select f1 from tbb) end |        sum(f1)        |
@@ -11543,9 +11543,9 @@ taos> select case when f1 = 1 then 1 else f1 + 1 IN (select f1 from tbb) end, su
  NULL                                                            |                     5 |
                                                                1 |                     1 |
  NULL                                                            |                     3 |
+ NULL                                                            |                     4 |
  NULL                                                            |                     6 |
                                                                1 |                     2 |
- NULL                                                            |                     4 |
 
 taos> select _wstart, f1 + 1 IN (select f1 from st1), avg(f1) from st1 interval(1d);
 
@@ -11598,9 +11598,9 @@ taos> select f1, f1 + 1 IN (select f1 from st1) from st1 group by f1;
            5 | true                           |
            1 | true                           |
            3 | true                           |
+           4 | true                           |
            6 | false                          |
            2 | true                           |
-           4 | true                           |
 
 taos> select f1, f1 + 1 IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | f1 + 1 in (select f1 from st1 limit 0) |
@@ -11608,9 +11608,9 @@ taos> select f1, f1 + 1 IN (select f1 from st1 limit 0) from st1 group by f1;
            5 | false                                  |
            1 | false                                  |
            3 | false                                  |
+           4 | false                                  |
            6 | false                                  |
            2 | false                                  |
-           4 | false                                  |
 
 taos> select f1, f1 + 1 IN (select null from st1) from st1 group by f1;
      f1      | f1 + 1 in (select null from st1) |
@@ -11618,9 +11618,9 @@ taos> select f1, f1 + 1 IN (select null from st1) from st1 group by f1;
            5 | NULL                             |
            1 | NULL                             |
            3 | NULL                             |
+           4 | NULL                             |
            6 | NULL                             |
            2 | NULL                             |
-           4 | NULL                             |
 
 taos> select f1, f1 + 1 IN (1, null) from st1 group by f1;
      f1      | f1 + 1 in (1, null) |
@@ -11628,9 +11628,9 @@ taos> select f1, f1 + 1 IN (1, null) from st1 group by f1;
            5 | NULL                |
            1 | NULL                |
            3 | NULL                |
+           4 | NULL                |
            6 | NULL                |
            2 | NULL                |
-           4 | NULL                |
 
 taos> select f1, f1 + 1 IN (select f1 from tbb) from st1 group by f1;
      f1      | f1 + 1 in (select f1 from tbb) |
@@ -11638,9 +11638,9 @@ taos> select f1, f1 + 1 IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                           |
            1 | NULL                           |
            3 | NULL                           |
+           4 | NULL                           |
            6 | NULL                           |
            2 | true                           |
-           4 | NULL                           |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and f1 + 1 IN (select f1 from st1) order by b.f1;
 
@@ -12033,9 +12033,9 @@ taos> select case when sum(f1) IN (select f1 from st1) then 1 else 2 end, sum(f1
                                                            1 |                     5 |
                                                            1 |                     1 |
                                                            1 |                     3 |
+                                                           1 |                     4 |
                                                            1 |                     6 |
                                                            1 |                     2 |
-                                                           1 |                     4 |
 
 taos> select case when sum(f1) IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when sum(f1) in (select f1 from st1 limit 0) then 1 else 2  |        sum(f1)        |
@@ -12043,9 +12043,9 @@ taos> select case when sum(f1) IN (select f1 from st1 limit 0) then 1 else 2 end
                                                                 2 |                     5 |
                                                                 2 |                     1 |
                                                                 2 |                     3 |
+                                                                2 |                     4 |
                                                                 2 |                     6 |
                                                                 2 |                     2 |
-                                                                2 |                     4 |
 
 taos> select case when sum(f1) IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when sum(f1) in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -12053,9 +12053,9 @@ taos> select case when sum(f1) IN (select null from st1) then 1 else 2 end, sum(
                                                              2 |                     5 |
                                                              2 |                     1 |
                                                              2 |                     3 |
+                                                             2 |                     4 |
                                                              2 |                     6 |
                                                              2 |                     2 |
-                                                             2 |                     4 |
 
 taos> select case when sum(f1) IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when sum(f1) in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -12063,9 +12063,9 @@ taos> select case when sum(f1) IN (1, null) then 1 else 2 end, sum(f1) from st1 
                                                 2 |                     5 |
                                                 1 |                     1 |
                                                 2 |                     3 |
+                                                2 |                     4 |
                                                 2 |                     6 |
                                                 2 |                     2 |
-                                                2 |                     4 |
 
 taos> select case when sum(f1) IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when sum(f1) in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -12073,9 +12073,9 @@ taos> select case when sum(f1) IN (select f1 from tbb) then 1 else 2 end, sum(f1
                                                            2 |                     5 |
                                                            1 |                     1 |
                                                            1 |                     3 |
+                                                           2 |                     4 |
                                                            2 |                     6 |
                                                            2 |                     2 |
-                                                           2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else sum(f1) IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else sum(f1) in (select f1 from st1) end |        sum(f1)        |
@@ -12083,9 +12083,9 @@ taos> select case when f1 = 1 then 1 else sum(f1) IN (select f1 from st1) end, s
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else sum(f1) IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else sum(f1) in (select f1 from st1 limi |        sum(f1)        |
@@ -12093,9 +12093,9 @@ taos> select case when f1 = 1 then 1 else sum(f1) IN (select f1 from st1 limit 0
                                                                 0 |                     5 |
                                                                 1 |                     1 |
                                                                 0 |                     3 |
+                                                                0 |                     4 |
                                                                 0 |                     6 |
                                                                 0 |                     2 |
-                                                                0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else sum(f1) IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else sum(f1) in (select null from st1) e |        sum(f1)        |
@@ -12103,9 +12103,9 @@ taos> select case when f1 = 1 then 1 else sum(f1) IN (select null from st1) end,
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else sum(f1) IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else sum(f1) in (1, null) end |        sum(f1)        |
@@ -12113,9 +12113,9 @@ taos> select case when f1 = 1 then 1 else sum(f1) IN (1, null) end, sum(f1) from
  NULL                                                  |                     5 |
                                                      1 |                     1 |
  NULL                                                  |                     3 |
+ NULL                                                  |                     4 |
  NULL                                                  |                     6 |
  NULL                                                  |                     2 |
- NULL                                                  |                     4 |
 
 taos> select case when f1 = 1 then 1 else sum(f1) IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else sum(f1) in (select f1 from tbb) end |        sum(f1)        |
@@ -12123,9 +12123,9 @@ taos> select case when f1 = 1 then 1 else sum(f1) IN (select f1 from tbb) end, s
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select _wstart, sum(f1) IN (select f1 from st1), avg(f1) from st1 interval(1d);
          _wstart         | sum(f1) in (select f1 from st1) |          avg(f1)          |
@@ -12218,9 +12218,9 @@ taos> select f1, sum(f1) IN (select f1 from st1) from st1 group by f1;
            5 | true                            |
            1 | true                            |
            3 | true                            |
+           4 | true                            |
            6 | true                            |
            2 | true                            |
-           4 | true                            |
 
 taos> select f1, sum(f1) IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | sum(f1) in (select f1 from st1 limit 0) |
@@ -12228,9 +12228,9 @@ taos> select f1, sum(f1) IN (select f1 from st1 limit 0) from st1 group by f1;
            5 | false                                   |
            1 | false                                   |
            3 | false                                   |
+           4 | false                                   |
            6 | false                                   |
            2 | false                                   |
-           4 | false                                   |
 
 taos> select f1, sum(f1) IN (select null from st1) from st1 group by f1;
      f1      | sum(f1) in (select null from st1) |
@@ -12238,9 +12238,9 @@ taos> select f1, sum(f1) IN (select null from st1) from st1 group by f1;
            5 | NULL                              |
            1 | NULL                              |
            3 | NULL                              |
+           4 | NULL                              |
            6 | NULL                              |
            2 | NULL                              |
-           4 | NULL                              |
 
 taos> select f1, sum(f1) IN (1, null) from st1 group by f1;
      f1      | sum(f1) in (1, null) |
@@ -12248,9 +12248,9 @@ taos> select f1, sum(f1) IN (1, null) from st1 group by f1;
            5 | NULL                 |
            1 | true                 |
            3 | NULL                 |
+           4 | NULL                 |
            6 | NULL                 |
            2 | NULL                 |
-           4 | NULL                 |
 
 taos> select f1, sum(f1) IN (select f1 from tbb) from st1 group by f1;
      f1      | sum(f1) in (select f1 from tbb) |
@@ -12258,9 +12258,9 @@ taos> select f1, sum(f1) IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                            |
            1 | true                            |
            3 | true                            |
+           4 | NULL                            |
            6 | NULL                            |
            2 | NULL                            |
-           4 | NULL                            |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and sum(f1) IN (select f1 from st1) order by b.f1;
 
@@ -12663,9 +12663,9 @@ taos> select case when 1 NOT IN (select f1 from st1) then 1 else 2 end, sum(f1) 
                                                          2 |                     5 |
                                                          2 |                     1 |
                                                          2 |                     3 |
+                                                         2 |                     4 |
                                                          2 |                     6 |
                                                          2 |                     2 |
-                                                         2 |                     4 |
 
 taos> select case when 1 NOT IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 1 not in (select f1 from st1 limit 0) then 1 else 2 en |        sum(f1)        |
@@ -12673,9 +12673,9 @@ taos> select case when 1 NOT IN (select f1 from st1 limit 0) then 1 else 2 end, 
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when 1 NOT IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 1 not in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -12683,9 +12683,9 @@ taos> select case when 1 NOT IN (select null from st1) then 1 else 2 end, sum(f1
                                                            2 |                     5 |
                                                            2 |                     1 |
                                                            2 |                     3 |
+                                                           2 |                     4 |
                                                            2 |                     6 |
                                                            2 |                     2 |
-                                                           2 |                     4 |
 
 taos> select case when 1 NOT IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 1 not in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -12693,9 +12693,9 @@ taos> select case when 1 NOT IN (1, null) then 1 else 2 end, sum(f1) from st1 gr
                                               2 |                     5 |
                                               2 |                     1 |
                                               2 |                     3 |
+                                              2 |                     4 |
                                               2 |                     6 |
                                               2 |                     2 |
-                                              2 |                     4 |
 
 taos> select case when 1 NOT IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 1 not in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -12703,9 +12703,9 @@ taos> select case when 1 NOT IN (select f1 from tbb) then 1 else 2 end, sum(f1) 
                                                          2 |                     5 |
                                                          2 |                     1 |
                                                          2 |                     3 |
+                                                         2 |                     4 |
                                                          2 |                     6 |
                                                          2 |                     2 |
-                                                         2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 1 NOT IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 1 not in (select f1 from st1) end |        sum(f1)        |
@@ -12713,9 +12713,9 @@ taos> select case when f1 = 1 then 1 else 1 NOT IN (select f1 from st1) end, sum
                                                               0 |                     5 |
                                                               1 |                     1 |
                                                               0 |                     3 |
+                                                              0 |                     4 |
                                                               0 |                     6 |
                                                               0 |                     2 |
-                                                              0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 1 NOT IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 1 not in (select f1 from st1 limit  |        sum(f1)        |
@@ -12723,9 +12723,9 @@ taos> select case when f1 = 1 then 1 else 1 NOT IN (select f1 from st1 limit 0) 
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 1 NOT IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 1 not in (select null from st1) end |        sum(f1)        |
@@ -12733,9 +12733,9 @@ taos> select case when f1 = 1 then 1 else 1 NOT IN (select null from st1) end, s
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else 1 NOT IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 1 not in (1, null) end |        sum(f1)        |
@@ -12743,9 +12743,9 @@ taos> select case when f1 = 1 then 1 else 1 NOT IN (1, null) end, sum(f1) from s
                                                    0 |                     5 |
                                                    1 |                     1 |
                                                    0 |                     3 |
+                                                   0 |                     4 |
                                                    0 |                     6 |
                                                    0 |                     2 |
-                                                   0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 1 NOT IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 1 not in (select f1 from tbb) end |        sum(f1)        |
@@ -12753,9 +12753,9 @@ taos> select case when f1 = 1 then 1 else 1 NOT IN (select f1 from tbb) end, sum
                                                               0 |                     5 |
                                                               1 |                     1 |
                                                               0 |                     3 |
+                                                              0 |                     4 |
                                                               0 |                     6 |
                                                               0 |                     2 |
-                                                              0 |                     4 |
 
 taos> select _wstart, 1 NOT IN (select f1 from st1), avg(f1) from st1 interval(1d);
          _wstart         | 1 not in (select f1 from st1) |          avg(f1)          |
@@ -12848,9 +12848,9 @@ taos> select f1, 1 NOT IN (select f1 from st1) from st1 group by f1;
            5 | false                         |
            1 | false                         |
            3 | false                         |
+           4 | false                         |
            6 | false                         |
            2 | false                         |
-           4 | false                         |
 
 taos> select f1, 1 NOT IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | 1 not in (select f1 from st1 limit 0) |
@@ -12858,9 +12858,9 @@ taos> select f1, 1 NOT IN (select f1 from st1 limit 0) from st1 group by f1;
            5 | true                                  |
            1 | true                                  |
            3 | true                                  |
+           4 | true                                  |
            6 | true                                  |
            2 | true                                  |
-           4 | true                                  |
 
 taos> select f1, 1 NOT IN (select null from st1) from st1 group by f1;
      f1      | 1 not in (select null from st1) |
@@ -12868,9 +12868,9 @@ taos> select f1, 1 NOT IN (select null from st1) from st1 group by f1;
            5 | NULL                            |
            1 | NULL                            |
            3 | NULL                            |
+           4 | NULL                            |
            6 | NULL                            |
            2 | NULL                            |
-           4 | NULL                            |
 
 taos> select f1, 1 NOT IN (1, null) from st1 group by f1;
      f1      | 1 not in (1, null) |
@@ -12878,9 +12878,9 @@ taos> select f1, 1 NOT IN (1, null) from st1 group by f1;
            5 | false              |
            1 | false              |
            3 | false              |
+           4 | false              |
            6 | false              |
            2 | false              |
-           4 | false              |
 
 taos> select f1, 1 NOT IN (select f1 from tbb) from st1 group by f1;
      f1      | 1 not in (select f1 from tbb) |
@@ -12888,9 +12888,9 @@ taos> select f1, 1 NOT IN (select f1 from tbb) from st1 group by f1;
            5 | false                         |
            1 | false                         |
            3 | false                         |
+           4 | false                         |
            6 | false                         |
            2 | false                         |
-           4 | false                         |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and 1 NOT IN (select f1 from st1) order by b.f1;
 
@@ -13383,9 +13383,9 @@ taos> select case when 'a' NOT IN (select f1 from st1) then 1 else 2 end, sum(f1
                                                            1 |                     5 |
                                                            1 |                     1 |
                                                            1 |                     3 |
+                                                           1 |                     4 |
                                                            1 |                     6 |
                                                            1 |                     2 |
-                                                           1 |                     4 |
 
 taos> select case when 'a' NOT IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 'a' not in (select f1 from st1 limit 0) then 1 else 2  |        sum(f1)        |
@@ -13393,9 +13393,9 @@ taos> select case when 'a' NOT IN (select f1 from st1 limit 0) then 1 else 2 end
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when 'a' NOT IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 'a' not in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -13403,9 +13403,9 @@ taos> select case when 'a' NOT IN (select null from st1) then 1 else 2 end, sum(
                                                              2 |                     5 |
                                                              2 |                     1 |
                                                              2 |                     3 |
+                                                             2 |                     4 |
                                                              2 |                     6 |
                                                              2 |                     2 |
-                                                             2 |                     4 |
 
 taos> select case when 'a' NOT IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 'a' not in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -13413,9 +13413,9 @@ taos> select case when 'a' NOT IN (1, null) then 1 else 2 end, sum(f1) from st1 
                                                 2 |                     5 |
                                                 2 |                     1 |
                                                 2 |                     3 |
+                                                2 |                     4 |
                                                 2 |                     6 |
                                                 2 |                     2 |
-                                                2 |                     4 |
 
 taos> select case when 'a' NOT IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 'a' not in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -13423,9 +13423,9 @@ taos> select case when 'a' NOT IN (select f1 from tbb) then 1 else 2 end, sum(f1
                                                            2 |                     5 |
                                                            2 |                     1 |
                                                            2 |                     3 |
+                                                           2 |                     4 |
                                                            2 |                     6 |
                                                            2 |                     2 |
-                                                           2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 'a' NOT IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 'a' not in (select f1 from st1) end |        sum(f1)        |
@@ -13433,9 +13433,9 @@ taos> select case when f1 = 1 then 1 else 'a' NOT IN (select f1 from st1) end, s
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 'a' NOT IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 'a' not in (select f1 from st1 limi |        sum(f1)        |
@@ -13443,9 +13443,9 @@ taos> select case when f1 = 1 then 1 else 'a' NOT IN (select f1 from st1 limit 0
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 'a' NOT IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 'a' not in (select null from st1) e |        sum(f1)        |
@@ -13453,9 +13453,9 @@ taos> select case when f1 = 1 then 1 else 'a' NOT IN (select null from st1) end,
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else 'a' NOT IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 'a' not in (1, null) end |        sum(f1)        |
@@ -13463,9 +13463,9 @@ taos> select case when f1 = 1 then 1 else 'a' NOT IN (1, null) end, sum(f1) from
  NULL                                                  |                     5 |
                                                      1 |                     1 |
  NULL                                                  |                     3 |
+ NULL                                                  |                     4 |
  NULL                                                  |                     6 |
  NULL                                                  |                     2 |
- NULL                                                  |                     4 |
 
 taos> select case when f1 = 1 then 1 else 'a' NOT IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 'a' not in (select f1 from tbb) end |        sum(f1)        |
@@ -13473,9 +13473,9 @@ taos> select case when f1 = 1 then 1 else 'a' NOT IN (select f1 from tbb) end, s
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select _wstart, 'a' NOT IN (select f1 from st1), avg(f1) from st1 interval(1d);
          _wstart         | 'a' not in (select f1 from st1) |          avg(f1)          |
@@ -13568,9 +13568,9 @@ taos> select f1, 'a' NOT IN (select f1 from st1) from st1 group by f1;
            5 | true                            |
            1 | true                            |
            3 | true                            |
+           4 | true                            |
            6 | true                            |
            2 | true                            |
-           4 | true                            |
 
 taos> select f1, 'a' NOT IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | 'a' not in (select f1 from st1 limit 0) |
@@ -13578,9 +13578,9 @@ taos> select f1, 'a' NOT IN (select f1 from st1 limit 0) from st1 group by f1;
            5 | true                                    |
            1 | true                                    |
            3 | true                                    |
+           4 | true                                    |
            6 | true                                    |
            2 | true                                    |
-           4 | true                                    |
 
 taos> select f1, 'a' NOT IN (select null from st1) from st1 group by f1;
      f1      | 'a' not in (select null from st1) |
@@ -13588,9 +13588,9 @@ taos> select f1, 'a' NOT IN (select null from st1) from st1 group by f1;
            5 | NULL                              |
            1 | NULL                              |
            3 | NULL                              |
+           4 | NULL                              |
            6 | NULL                              |
            2 | NULL                              |
-           4 | NULL                              |
 
 taos> select f1, 'a' NOT IN (1, null) from st1 group by f1;
      f1      | 'a' not in (1, null) |
@@ -13598,9 +13598,9 @@ taos> select f1, 'a' NOT IN (1, null) from st1 group by f1;
            5 | NULL                 |
            1 | NULL                 |
            3 | NULL                 |
+           4 | NULL                 |
            6 | NULL                 |
            2 | NULL                 |
-           4 | NULL                 |
 
 taos> select f1, 'a' NOT IN (select f1 from tbb) from st1 group by f1;
      f1      | 'a' not in (select f1 from tbb) |
@@ -13608,9 +13608,9 @@ taos> select f1, 'a' NOT IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                            |
            1 | NULL                            |
            3 | NULL                            |
+           4 | NULL                            |
            6 | NULL                            |
            2 | NULL                            |
-           4 | NULL                            |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and 'a' NOT IN (select f1 from st1) order by b.f1;
 
@@ -14152,9 +14152,9 @@ taos> select case when f1 NOT IN (select f1 from st1) then 1 else 2 end, sum(f1)
                                                           2 |                     5 |
                                                           2 |                     1 |
                                                           2 |                     3 |
+                                                          2 |                     4 |
                                                           2 |                     6 |
                                                           2 |                     2 |
-                                                          2 |                     4 |
 
 taos> select case when f1 NOT IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 not in (select f1 from st1 limit 0) then 1 else 2 e |        sum(f1)        |
@@ -14162,9 +14162,9 @@ taos> select case when f1 NOT IN (select f1 from st1 limit 0) then 1 else 2 end,
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 NOT IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 not in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -14172,9 +14172,9 @@ taos> select case when f1 NOT IN (select null from st1) then 1 else 2 end, sum(f
                                                             2 |                     5 |
                                                             2 |                     1 |
                                                             2 |                     3 |
+                                                            2 |                     4 |
                                                             2 |                     6 |
                                                             2 |                     2 |
-                                                            2 |                     4 |
 
 taos> select case when f1 NOT IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 not in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -14182,9 +14182,9 @@ taos> select case when f1 NOT IN (1, null) then 1 else 2 end, sum(f1) from st1 g
                                                2 |                     5 |
                                                2 |                     1 |
                                                2 |                     3 |
+                                               2 |                     4 |
                                                2 |                     6 |
                                                2 |                     2 |
-                                               2 |                     4 |
 
 taos> select case when f1 NOT IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 not in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -14192,9 +14192,9 @@ taos> select case when f1 NOT IN (select f1 from tbb) then 1 else 2 end, sum(f1)
                                                           2 |                     5 |
                                                           2 |                     1 |
                                                           2 |                     3 |
+                                                          2 |                     4 |
                                                           2 |                     6 |
                                                           2 |                     2 |
-                                                          2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 NOT IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 not in (select f1 from st1) end |        sum(f1)        |
@@ -14202,9 +14202,9 @@ taos> select case when f1 = 1 then 1 else f1 NOT IN (select f1 from st1) end, su
                                                                0 |                     5 |
                                                                1 |                     1 |
                                                                0 |                     3 |
+                                                               0 |                     4 |
                                                                0 |                     6 |
                                                                0 |                     2 |
-                                                               0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 NOT IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 not in (select f1 from st1 limit |        sum(f1)        |
@@ -14212,9 +14212,9 @@ taos> select case when f1 = 1 then 1 else f1 NOT IN (select f1 from st1 limit 0)
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 NOT IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 not in (select null from st1) en |        sum(f1)        |
@@ -14222,9 +14222,9 @@ taos> select case when f1 = 1 then 1 else f1 NOT IN (select null from st1) end, 
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 NOT IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 not in (1, null) end |        sum(f1)        |
@@ -14232,9 +14232,9 @@ taos> select case when f1 = 1 then 1 else f1 NOT IN (1, null) end, sum(f1) from 
  NULL                                                 |                     5 |
                                                     1 |                     1 |
  NULL                                                 |                     3 |
+ NULL                                                 |                     4 |
  NULL                                                 |                     6 |
  NULL                                                 |                     2 |
- NULL                                                 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 NOT IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 not in (select f1 from tbb) end |        sum(f1)        |
@@ -14242,9 +14242,9 @@ taos> select case when f1 = 1 then 1 else f1 NOT IN (select f1 from tbb) end, su
  NULL                                                            |                     5 |
                                                                1 |                     1 |
                                                                0 |                     3 |
+ NULL                                                            |                     4 |
  NULL                                                            |                     6 |
  NULL                                                            |                     2 |
- NULL                                                            |                     4 |
 
 taos> select _wstart, f1 NOT IN (select f1 from st1), avg(f1) from st1 interval(1d);
 
@@ -14297,9 +14297,9 @@ taos> select f1, f1 NOT IN (select f1 from st1) from st1 group by f1;
            5 | false                          |
            1 | false                          |
            3 | false                          |
+           4 | false                          |
            6 | false                          |
            2 | false                          |
-           4 | false                          |
 
 taos> select f1, f1 NOT IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | f1 not in (select f1 from st1 limit 0) |
@@ -14307,9 +14307,9 @@ taos> select f1, f1 NOT IN (select f1 from st1 limit 0) from st1 group by f1;
            5 | true                                   |
            1 | true                                   |
            3 | true                                   |
+           4 | true                                   |
            6 | true                                   |
            2 | true                                   |
-           4 | true                                   |
 
 taos> select f1, f1 NOT IN (select null from st1) from st1 group by f1;
      f1      | f1 not in (select null from st1) |
@@ -14317,9 +14317,9 @@ taos> select f1, f1 NOT IN (select null from st1) from st1 group by f1;
            5 | NULL                             |
            1 | NULL                             |
            3 | NULL                             |
+           4 | NULL                             |
            6 | NULL                             |
            2 | NULL                             |
-           4 | NULL                             |
 
 taos> select f1, f1 NOT IN (1, null) from st1 group by f1;
      f1      | f1 not in (1, null) |
@@ -14327,9 +14327,9 @@ taos> select f1, f1 NOT IN (1, null) from st1 group by f1;
            5 | NULL                |
            1 | false               |
            3 | NULL                |
+           4 | NULL                |
            6 | NULL                |
            2 | NULL                |
-           4 | NULL                |
 
 taos> select f1, f1 NOT IN (select f1 from tbb) from st1 group by f1;
      f1      | f1 not in (select f1 from tbb) |
@@ -14337,9 +14337,9 @@ taos> select f1, f1 NOT IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                           |
            1 | false                          |
            3 | false                          |
+           4 | NULL                           |
            6 | NULL                           |
            2 | NULL                           |
-           4 | NULL                           |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and f1 NOT IN (select f1 from st1) order by b.f1;
 
@@ -14820,9 +14820,9 @@ taos> select case when NULL NOT IN (select f1 from st1) then 1 else 2 end, sum(f
                                                             2 |                     5 |
                                                             2 |                     1 |
                                                             2 |                     3 |
+                                                            2 |                     4 |
                                                             2 |                     6 |
                                                             2 |                     2 |
-                                                            2 |                     4 |
 
 taos> select case when NULL NOT IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when null not in (select f1 from st1 limit 0) then 1 else 2 |        sum(f1)        |
@@ -14830,9 +14830,9 @@ taos> select case when NULL NOT IN (select f1 from st1 limit 0) then 1 else 2 en
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when NULL NOT IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when null not in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -14840,9 +14840,9 @@ taos> select case when NULL NOT IN (select null from st1) then 1 else 2 end, sum
                                                               2 |                     5 |
                                                               2 |                     1 |
                                                               2 |                     3 |
+                                                              2 |                     4 |
                                                               2 |                     6 |
                                                               2 |                     2 |
-                                                              2 |                     4 |
 
 taos> select case when NULL NOT IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when null not in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -14850,9 +14850,9 @@ taos> select case when NULL NOT IN (1, null) then 1 else 2 end, sum(f1) from st1
                                                  2 |                     5 |
                                                  2 |                     1 |
                                                  2 |                     3 |
+                                                 2 |                     4 |
                                                  2 |                     6 |
                                                  2 |                     2 |
-                                                 2 |                     4 |
 
 taos> select case when NULL NOT IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when null not in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -14860,9 +14860,9 @@ taos> select case when NULL NOT IN (select f1 from tbb) then 1 else 2 end, sum(f
                                                             2 |                     5 |
                                                             2 |                     1 |
                                                             2 |                     3 |
+                                                            2 |                     4 |
                                                             2 |                     6 |
                                                             2 |                     2 |
-                                                            2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else NULL NOT IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else null not in (select f1 from st1) en |        sum(f1)        |
@@ -14870,9 +14870,9 @@ taos> select case when f1 = 1 then 1 else NULL NOT IN (select f1 from st1) end, 
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else NULL NOT IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else null not in (select f1 from st1 lim |        sum(f1)        |
@@ -14880,9 +14880,9 @@ taos> select case when f1 = 1 then 1 else NULL NOT IN (select f1 from st1 limit 
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else NULL NOT IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else null not in (select null from st1)  |        sum(f1)        |
@@ -14890,9 +14890,9 @@ taos> select case when f1 = 1 then 1 else NULL NOT IN (select null from st1) end
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else NULL NOT IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else null not in (1, null) end |        sum(f1)        |
@@ -14900,9 +14900,9 @@ taos> select case when f1 = 1 then 1 else NULL NOT IN (1, null) end, sum(f1) fro
  NULL                                                   |                     5 |
                                                       1 |                     1 |
  NULL                                                   |                     3 |
+ NULL                                                   |                     4 |
  NULL                                                   |                     6 |
  NULL                                                   |                     2 |
- NULL                                                   |                     4 |
 
 taos> select case when f1 = 1 then 1 else NULL NOT IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else null not in (select f1 from tbb) en |        sum(f1)        |
@@ -14910,9 +14910,9 @@ taos> select case when f1 = 1 then 1 else NULL NOT IN (select f1 from tbb) end, 
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select _wstart, NULL NOT IN (select f1 from st1), avg(f1) from st1 interval(1d);
          _wstart         | null not in (select f1 from st1) |          avg(f1)          |
@@ -15005,9 +15005,9 @@ taos> select f1, NULL NOT IN (select f1 from st1) from st1 group by f1;
            5 | NULL                             |
            1 | NULL                             |
            3 | NULL                             |
+           4 | NULL                             |
            6 | NULL                             |
            2 | NULL                             |
-           4 | NULL                             |
 
 taos> select f1, NULL NOT IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | null not in (select f1 from st1 limit 0) |
@@ -15015,9 +15015,9 @@ taos> select f1, NULL NOT IN (select f1 from st1 limit 0) from st1 group by f1;
            5 | true                                     |
            1 | true                                     |
            3 | true                                     |
+           4 | true                                     |
            6 | true                                     |
            2 | true                                     |
-           4 | true                                     |
 
 taos> select f1, NULL NOT IN (select null from st1) from st1 group by f1;
      f1      | null not in (select null from st1) |
@@ -15025,9 +15025,9 @@ taos> select f1, NULL NOT IN (select null from st1) from st1 group by f1;
            5 | NULL                               |
            1 | NULL                               |
            3 | NULL                               |
+           4 | NULL                               |
            6 | NULL                               |
            2 | NULL                               |
-           4 | NULL                               |
 
 taos> select f1, NULL NOT IN (1, null) from st1 group by f1;
      f1      | null not in (1, null) |
@@ -15035,9 +15035,9 @@ taos> select f1, NULL NOT IN (1, null) from st1 group by f1;
            5 | NULL                  |
            1 | NULL                  |
            3 | NULL                  |
+           4 | NULL                  |
            6 | NULL                  |
            2 | NULL                  |
-           4 | NULL                  |
 
 taos> select f1, NULL NOT IN (select f1 from tbb) from st1 group by f1;
      f1      | null not in (select f1 from tbb) |
@@ -15045,9 +15045,9 @@ taos> select f1, NULL NOT IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                             |
            1 | NULL                             |
            3 | NULL                             |
+           4 | NULL                             |
            6 | NULL                             |
            2 | NULL                             |
-           4 | NULL                             |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and NULL NOT IN (select f1 from st1) order by b.f1;
 
@@ -15540,9 +15540,9 @@ taos> select case when 123.45 NOT IN (select f1 from st1) then 1 else 2 end, sum
                                                               1 |                     5 |
                                                               1 |                     1 |
                                                               1 |                     3 |
+                                                              1 |                     4 |
                                                               1 |                     6 |
                                                               1 |                     2 |
-                                                              1 |                     4 |
 
 taos> select case when 123.45 NOT IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 123.45 not in (select f1 from st1 limit 0) then 1 else |        sum(f1)        |
@@ -15550,9 +15550,9 @@ taos> select case when 123.45 NOT IN (select f1 from st1 limit 0) then 1 else 2 
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when 123.45 NOT IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 123.45 not in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -15560,9 +15560,9 @@ taos> select case when 123.45 NOT IN (select null from st1) then 1 else 2 end, s
                                                                 2 |                     5 |
                                                                 2 |                     1 |
                                                                 2 |                     3 |
+                                                                2 |                     4 |
                                                                 2 |                     6 |
                                                                 2 |                     2 |
-                                                                2 |                     4 |
 
 taos> select case when 123.45 NOT IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 123.45 not in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -15570,9 +15570,9 @@ taos> select case when 123.45 NOT IN (1, null) then 1 else 2 end, sum(f1) from s
                                                    2 |                     5 |
                                                    2 |                     1 |
                                                    2 |                     3 |
+                                                   2 |                     4 |
                                                    2 |                     6 |
                                                    2 |                     2 |
-                                                   2 |                     4 |
 
 taos> select case when 123.45 NOT IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when 123.45 not in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -15580,9 +15580,9 @@ taos> select case when 123.45 NOT IN (select f1 from tbb) then 1 else 2 end, sum
                                                               2 |                     5 |
                                                               2 |                     1 |
                                                               2 |                     3 |
+                                                              2 |                     4 |
                                                               2 |                     6 |
                                                               2 |                     2 |
-                                                              2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 123.45 NOT IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 123.45 not in (select f1 from st1)  |        sum(f1)        |
@@ -15590,9 +15590,9 @@ taos> select case when f1 = 1 then 1 else 123.45 NOT IN (select f1 from st1) end
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 123.45 NOT IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 123.45 not in (select f1 from st1 l |        sum(f1)        |
@@ -15600,9 +15600,9 @@ taos> select case when f1 = 1 then 1 else 123.45 NOT IN (select f1 from st1 limi
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else 123.45 NOT IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 123.45 not in (select null from st1 |        sum(f1)        |
@@ -15610,9 +15610,9 @@ taos> select case when f1 = 1 then 1 else 123.45 NOT IN (select null from st1) e
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else 123.45 NOT IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 123.45 not in (1, null) end |        sum(f1)        |
@@ -15620,9 +15620,9 @@ taos> select case when f1 = 1 then 1 else 123.45 NOT IN (1, null) end, sum(f1) f
  NULL                                                     |                     5 |
                                                         1 |                     1 |
  NULL                                                     |                     3 |
+ NULL                                                     |                     4 |
  NULL                                                     |                     6 |
  NULL                                                     |                     2 |
- NULL                                                     |                     4 |
 
 taos> select case when f1 = 1 then 1 else 123.45 NOT IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else 123.45 not in (select f1 from tbb)  |        sum(f1)        |
@@ -15630,9 +15630,9 @@ taos> select case when f1 = 1 then 1 else 123.45 NOT IN (select f1 from tbb) end
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select _wstart, 123.45 NOT IN (select f1 from st1), avg(f1) from st1 interval(1d);
          _wstart         | 123.45 not in (select f1 from st1) |          avg(f1)          |
@@ -15725,9 +15725,9 @@ taos> select f1, 123.45 NOT IN (select f1 from st1) from st1 group by f1;
            5 | true                               |
            1 | true                               |
            3 | true                               |
+           4 | true                               |
            6 | true                               |
            2 | true                               |
-           4 | true                               |
 
 taos> select f1, 123.45 NOT IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | 123.45 not in (select f1 from st1 limit 0) |
@@ -15735,9 +15735,9 @@ taos> select f1, 123.45 NOT IN (select f1 from st1 limit 0) from st1 group by f1
            5 | true                                       |
            1 | true                                       |
            3 | true                                       |
+           4 | true                                       |
            6 | true                                       |
            2 | true                                       |
-           4 | true                                       |
 
 taos> select f1, 123.45 NOT IN (select null from st1) from st1 group by f1;
      f1      | 123.45 not in (select null from st1) |
@@ -15745,9 +15745,9 @@ taos> select f1, 123.45 NOT IN (select null from st1) from st1 group by f1;
            5 | NULL                                 |
            1 | NULL                                 |
            3 | NULL                                 |
+           4 | NULL                                 |
            6 | NULL                                 |
            2 | NULL                                 |
-           4 | NULL                                 |
 
 taos> select f1, 123.45 NOT IN (1, null) from st1 group by f1;
      f1      | 123.45 not in (1, null) |
@@ -15755,9 +15755,9 @@ taos> select f1, 123.45 NOT IN (1, null) from st1 group by f1;
            5 | NULL                    |
            1 | NULL                    |
            3 | NULL                    |
+           4 | NULL                    |
            6 | NULL                    |
            2 | NULL                    |
-           4 | NULL                    |
 
 taos> select f1, 123.45 NOT IN (select f1 from tbb) from st1 group by f1;
      f1      | 123.45 not in (select f1 from tbb) |
@@ -15765,9 +15765,9 @@ taos> select f1, 123.45 NOT IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                               |
            1 | NULL                               |
            3 | NULL                               |
+           4 | NULL                               |
            6 | NULL                               |
            2 | NULL                               |
-           4 | NULL                               |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and 123.45 NOT IN (select f1 from st1) order by b.f1;
 
@@ -16292,9 +16292,9 @@ taos> select case when abs(-2) NOT IN (select f1 from st1) then 1 else 2 end, su
                                                                2 |                     5 |
                                                                2 |                     1 |
                                                                2 |                     3 |
+                                                               2 |                     4 |
                                                                2 |                     6 |
                                                                2 |                     2 |
-                                                               2 |                     4 |
 
 taos> select case when abs(-2) NOT IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when abs(-2) not in (select f1 from st1 limit 0) then 1 els |        sum(f1)        |
@@ -16302,9 +16302,9 @@ taos> select case when abs(-2) NOT IN (select f1 from st1 limit 0) then 1 else 2
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when abs(-2) NOT IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when abs(-2) not in (select null from st1) then 1 else 2 en |        sum(f1)        |
@@ -16312,9 +16312,9 @@ taos> select case when abs(-2) NOT IN (select null from st1) then 1 else 2 end, 
                                                                 2 |                     5 |
                                                                 2 |                     1 |
                                                                 2 |                     3 |
+                                                                2 |                     4 |
                                                                 2 |                     6 |
                                                                 2 |                     2 |
-                                                                2 |                     4 |
 
 taos> select case when abs(-2) NOT IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when abs(-2) not in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -16322,9 +16322,9 @@ taos> select case when abs(-2) NOT IN (1, null) then 1 else 2 end, sum(f1) from 
                                                     2 |                     5 |
                                                     2 |                     1 |
                                                     2 |                     3 |
+                                                    2 |                     4 |
                                                     2 |                     6 |
                                                     2 |                     2 |
-                                                    2 |                     4 |
 
 taos> select case when abs(-2) NOT IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when abs(-2) not in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -16332,9 +16332,9 @@ taos> select case when abs(-2) NOT IN (select f1 from tbb) then 1 else 2 end, su
                                                                2 |                     5 |
                                                                2 |                     1 |
                                                                2 |                     3 |
+                                                               2 |                     4 |
                                                                2 |                     6 |
                                                                2 |                     2 |
-                                                               2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else abs(-2) NOT IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else abs(-2) not in (select f1 from st1) |        sum(f1)        |
@@ -16342,9 +16342,9 @@ taos> select case when f1 = 1 then 1 else abs(-2) NOT IN (select f1 from st1) en
                                                                 0 |                     5 |
                                                                 1 |                     1 |
                                                                 0 |                     3 |
+                                                                0 |                     4 |
                                                                 0 |                     6 |
                                                                 0 |                     2 |
-                                                                0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else abs(-2) NOT IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else abs(-2) not in (select f1 from st1  |        sum(f1)        |
@@ -16352,9 +16352,9 @@ taos> select case when f1 = 1 then 1 else abs(-2) NOT IN (select f1 from st1 lim
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else abs(-2) NOT IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else abs(-2) not in (select null from st |        sum(f1)        |
@@ -16362,9 +16362,9 @@ taos> select case when f1 = 1 then 1 else abs(-2) NOT IN (select null from st1) 
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else abs(-2) NOT IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else abs(-2) not in (1, null) end |        sum(f1)        |
@@ -16372,9 +16372,9 @@ taos> select case when f1 = 1 then 1 else abs(-2) NOT IN (1, null) end, sum(f1) 
  NULL                                                      |                     5 |
                                                          1 |                     1 |
  NULL                                                      |                     3 |
+ NULL                                                      |                     4 |
  NULL                                                      |                     6 |
  NULL                                                      |                     2 |
- NULL                                                      |                     4 |
 
 taos> select case when f1 = 1 then 1 else abs(-2) NOT IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else abs(-2) not in (select f1 from tbb) |        sum(f1)        |
@@ -16382,9 +16382,9 @@ taos> select case when f1 = 1 then 1 else abs(-2) NOT IN (select f1 from tbb) en
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select _wstart, abs(-2) NOT IN (select f1 from st1), avg(f1) from st1 interval(1d);
          _wstart         | abs(-2) not in (select f1 from st1) |          avg(f1)          |
@@ -16477,9 +16477,9 @@ taos> select f1, abs(-2) NOT IN (select f1 from st1) from st1 group by f1;
            5 | false                               |
            1 | false                               |
            3 | false                               |
+           4 | false                               |
            6 | false                               |
            2 | false                               |
-           4 | false                               |
 
 taos> select f1, abs(-2) NOT IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | abs(-2) not in (select f1 from st1 limit 0) |
@@ -16487,9 +16487,9 @@ taos> select f1, abs(-2) NOT IN (select f1 from st1 limit 0) from st1 group by f
            5 | true                                        |
            1 | true                                        |
            3 | true                                        |
+           4 | true                                        |
            6 | true                                        |
            2 | true                                        |
-           4 | true                                        |
 
 taos> select f1, abs(-2) NOT IN (select null from st1) from st1 group by f1;
      f1      | abs(-2) not in (select null from st1) |
@@ -16497,9 +16497,9 @@ taos> select f1, abs(-2) NOT IN (select null from st1) from st1 group by f1;
            5 | NULL                                  |
            1 | NULL                                  |
            3 | NULL                                  |
+           4 | NULL                                  |
            6 | NULL                                  |
            2 | NULL                                  |
-           4 | NULL                                  |
 
 taos> select f1, abs(-2) NOT IN (1, null) from st1 group by f1;
      f1      | abs(-2) not in (1, null) |
@@ -16507,9 +16507,9 @@ taos> select f1, abs(-2) NOT IN (1, null) from st1 group by f1;
            5 | NULL                     |
            1 | NULL                     |
            3 | NULL                     |
+           4 | NULL                     |
            6 | NULL                     |
            2 | NULL                     |
-           4 | NULL                     |
 
 taos> select f1, abs(-2) NOT IN (select f1 from tbb) from st1 group by f1;
      f1      | abs(-2) not in (select f1 from tbb) |
@@ -16517,9 +16517,9 @@ taos> select f1, abs(-2) NOT IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                                |
            1 | NULL                                |
            3 | NULL                                |
+           4 | NULL                                |
            6 | NULL                                |
            2 | NULL                                |
-           4 | NULL                                |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and abs(-2) NOT IN (select f1 from st1) order by b.f1;
 
@@ -17029,9 +17029,9 @@ taos> select case when f1 + 1 NOT IN (select f1 from st1) then 1 else 2 end, sum
                                                               2 |                     5 |
                                                               2 |                     1 |
                                                               2 |                     3 |
+                                                              2 |                     4 |
                                                               1 |                     6 |
                                                               2 |                     2 |
-                                                              2 |                     4 |
 
 taos> select case when f1 + 1 NOT IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 + 1 not in (select f1 from st1 limit 0) then 1 else |        sum(f1)        |
@@ -17039,9 +17039,9 @@ taos> select case when f1 + 1 NOT IN (select f1 from st1 limit 0) then 1 else 2 
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 + 1 NOT IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 + 1 not in (select null from st1) then 1 else 2 end |        sum(f1)        |
@@ -17049,9 +17049,9 @@ taos> select case when f1 + 1 NOT IN (select null from st1) then 1 else 2 end, s
                                                                 2 |                     5 |
                                                                 2 |                     1 |
                                                                 2 |                     3 |
+                                                                2 |                     4 |
                                                                 2 |                     6 |
                                                                 2 |                     2 |
-                                                                2 |                     4 |
 
 taos> select case when f1 + 1 NOT IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 + 1 not in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -17059,9 +17059,9 @@ taos> select case when f1 + 1 NOT IN (1, null) then 1 else 2 end, sum(f1) from s
                                                    2 |                     5 |
                                                    2 |                     1 |
                                                    2 |                     3 |
+                                                   2 |                     4 |
                                                    2 |                     6 |
                                                    2 |                     2 |
-                                                   2 |                     4 |
 
 taos> select case when f1 + 1 NOT IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when f1 + 1 not in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -17069,9 +17069,9 @@ taos> select case when f1 + 1 NOT IN (select f1 from tbb) then 1 else 2 end, sum
                                                               2 |                     5 |
                                                               2 |                     1 |
                                                               2 |                     3 |
+                                                              2 |                     4 |
                                                               2 |                     6 |
                                                               2 |                     2 |
-                                                              2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 + 1 NOT IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 + 1 not in (select f1 from st1)  |        sum(f1)        |
@@ -17079,9 +17079,9 @@ taos> select case when f1 = 1 then 1 else f1 + 1 NOT IN (select f1 from st1) end
                                                                 0 |                     5 |
                                                                 1 |                     1 |
                                                                 0 |                     3 |
+                                                                0 |                     4 |
                                                                 1 |                     6 |
                                                                 0 |                     2 |
-                                                                0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 + 1 NOT IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 + 1 not in (select f1 from st1 l |        sum(f1)        |
@@ -17089,9 +17089,9 @@ taos> select case when f1 = 1 then 1 else f1 + 1 NOT IN (select f1 from st1 limi
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 + 1 NOT IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 + 1 not in (select null from st1 |        sum(f1)        |
@@ -17099,9 +17099,9 @@ taos> select case when f1 = 1 then 1 else f1 + 1 NOT IN (select null from st1) e
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 + 1 NOT IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 + 1 not in (1, null) end |        sum(f1)        |
@@ -17109,9 +17109,9 @@ taos> select case when f1 = 1 then 1 else f1 + 1 NOT IN (1, null) end, sum(f1) f
  NULL                                                     |                     5 |
                                                         1 |                     1 |
  NULL                                                     |                     3 |
+ NULL                                                     |                     4 |
  NULL                                                     |                     6 |
  NULL                                                     |                     2 |
- NULL                                                     |                     4 |
 
 taos> select case when f1 = 1 then 1 else f1 + 1 NOT IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else f1 + 1 not in (select f1 from tbb)  |        sum(f1)        |
@@ -17119,9 +17119,9 @@ taos> select case when f1 = 1 then 1 else f1 + 1 NOT IN (select f1 from tbb) end
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
                                                                 0 |                     2 |
- NULL                                                             |                     4 |
 
 taos> select _wstart, f1 + 1 NOT IN (select f1 from st1), avg(f1) from st1 interval(1d);
 
@@ -17174,9 +17174,9 @@ taos> select f1, f1 + 1 NOT IN (select f1 from st1) from st1 group by f1;
            5 | false                              |
            1 | false                              |
            3 | false                              |
+           4 | false                              |
            6 | true                               |
            2 | false                              |
-           4 | false                              |
 
 taos> select f1, f1 + 1 NOT IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | f1 + 1 not in (select f1 from st1 limit 0) |
@@ -17184,9 +17184,9 @@ taos> select f1, f1 + 1 NOT IN (select f1 from st1 limit 0) from st1 group by f1
            5 | true                                       |
            1 | true                                       |
            3 | true                                       |
+           4 | true                                       |
            6 | true                                       |
            2 | true                                       |
-           4 | true                                       |
 
 taos> select f1, f1 + 1 NOT IN (select null from st1) from st1 group by f1;
      f1      | f1 + 1 not in (select null from st1) |
@@ -17194,9 +17194,9 @@ taos> select f1, f1 + 1 NOT IN (select null from st1) from st1 group by f1;
            5 | NULL                                 |
            1 | NULL                                 |
            3 | NULL                                 |
+           4 | NULL                                 |
            6 | NULL                                 |
            2 | NULL                                 |
-           4 | NULL                                 |
 
 taos> select f1, f1 + 1 NOT IN (1, null) from st1 group by f1;
      f1      | f1 + 1 not in (1, null) |
@@ -17204,9 +17204,9 @@ taos> select f1, f1 + 1 NOT IN (1, null) from st1 group by f1;
            5 | NULL                    |
            1 | NULL                    |
            3 | NULL                    |
+           4 | NULL                    |
            6 | NULL                    |
            2 | NULL                    |
-           4 | NULL                    |
 
 taos> select f1, f1 + 1 NOT IN (select f1 from tbb) from st1 group by f1;
      f1      | f1 + 1 not in (select f1 from tbb) |
@@ -17214,9 +17214,9 @@ taos> select f1, f1 + 1 NOT IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                               |
            1 | NULL                               |
            3 | NULL                               |
+           4 | NULL                               |
            6 | NULL                               |
            2 | false                              |
-           4 | NULL                               |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and f1 + 1 NOT IN (select f1 from st1) order by b.f1;
 
@@ -17613,9 +17613,9 @@ taos> select case when sum(f1) NOT IN (select f1 from st1) then 1 else 2 end, su
                                                                2 |                     5 |
                                                                2 |                     1 |
                                                                2 |                     3 |
+                                                               2 |                     4 |
                                                                2 |                     6 |
                                                                2 |                     2 |
-                                                               2 |                     4 |
 
 taos> select case when sum(f1) NOT IN (select f1 from st1 limit 0) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when sum(f1) not in (select f1 from st1 limit 0) then 1 els |        sum(f1)        |
@@ -17623,9 +17623,9 @@ taos> select case when sum(f1) NOT IN (select f1 from st1 limit 0) then 1 else 2
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when sum(f1) NOT IN (select null from st1) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when sum(f1) not in (select null from st1) then 1 else 2 en |        sum(f1)        |
@@ -17633,9 +17633,9 @@ taos> select case when sum(f1) NOT IN (select null from st1) then 1 else 2 end, 
                                                                 2 |                     5 |
                                                                 2 |                     1 |
                                                                 2 |                     3 |
+                                                                2 |                     4 |
                                                                 2 |                     6 |
                                                                 2 |                     2 |
-                                                                2 |                     4 |
 
 taos> select case when sum(f1) NOT IN (1, null) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when sum(f1) not in (1, null) then 1 else 2 end |        sum(f1)        |
@@ -17643,9 +17643,9 @@ taos> select case when sum(f1) NOT IN (1, null) then 1 else 2 end, sum(f1) from 
                                                     2 |                     5 |
                                                     2 |                     1 |
                                                     2 |                     3 |
+                                                    2 |                     4 |
                                                     2 |                     6 |
                                                     2 |                     2 |
-                                                    2 |                     4 |
 
 taos> select case when sum(f1) NOT IN (select f1 from tbb) then 1 else 2 end, sum(f1) from st1 group by f1;
  case when sum(f1) not in (select f1 from tbb) then 1 else 2 end |        sum(f1)        |
@@ -17653,9 +17653,9 @@ taos> select case when sum(f1) NOT IN (select f1 from tbb) then 1 else 2 end, su
                                                                2 |                     5 |
                                                                2 |                     1 |
                                                                2 |                     3 |
+                                                               2 |                     4 |
                                                                2 |                     6 |
                                                                2 |                     2 |
-                                                               2 |                     4 |
 
 taos> select case when f1 = 1 then 1 else sum(f1) NOT IN (select f1 from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else sum(f1) not in (select f1 from st1) |        sum(f1)        |
@@ -17663,9 +17663,9 @@ taos> select case when f1 = 1 then 1 else sum(f1) NOT IN (select f1 from st1) en
                                                                 0 |                     5 |
                                                                 1 |                     1 |
                                                                 0 |                     3 |
+                                                                0 |                     4 |
                                                                 0 |                     6 |
                                                                 0 |                     2 |
-                                                                0 |                     4 |
 
 taos> select case when f1 = 1 then 1 else sum(f1) NOT IN (select f1 from st1 limit 0) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else sum(f1) not in (select f1 from st1  |        sum(f1)        |
@@ -17673,9 +17673,9 @@ taos> select case when f1 = 1 then 1 else sum(f1) NOT IN (select f1 from st1 lim
                                                                 1 |                     5 |
                                                                 1 |                     1 |
                                                                 1 |                     3 |
+                                                                1 |                     4 |
                                                                 1 |                     6 |
                                                                 1 |                     2 |
-                                                                1 |                     4 |
 
 taos> select case when f1 = 1 then 1 else sum(f1) NOT IN (select null from st1) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else sum(f1) not in (select null from st |        sum(f1)        |
@@ -17683,9 +17683,9 @@ taos> select case when f1 = 1 then 1 else sum(f1) NOT IN (select null from st1) 
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
  NULL                                                             |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select case when f1 = 1 then 1 else sum(f1) NOT IN (1, null) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else sum(f1) not in (1, null) end |        sum(f1)        |
@@ -17693,9 +17693,9 @@ taos> select case when f1 = 1 then 1 else sum(f1) NOT IN (1, null) end, sum(f1) 
  NULL                                                      |                     5 |
                                                          1 |                     1 |
  NULL                                                      |                     3 |
+ NULL                                                      |                     4 |
  NULL                                                      |                     6 |
  NULL                                                      |                     2 |
- NULL                                                      |                     4 |
 
 taos> select case when f1 = 1 then 1 else sum(f1) NOT IN (select f1 from tbb) end, sum(f1) from st1 group by f1;
  case when f1 = 1 then 1 else sum(f1) not in (select f1 from tbb) |        sum(f1)        |
@@ -17703,9 +17703,9 @@ taos> select case when f1 = 1 then 1 else sum(f1) NOT IN (select f1 from tbb) en
  NULL                                                             |                     5 |
                                                                 1 |                     1 |
                                                                 0 |                     3 |
+ NULL                                                             |                     4 |
  NULL                                                             |                     6 |
  NULL                                                             |                     2 |
- NULL                                                             |                     4 |
 
 taos> select _wstart, sum(f1) NOT IN (select f1 from st1), avg(f1) from st1 interval(1d);
          _wstart         | sum(f1) not in (select f1 from st1) |          avg(f1)          |
@@ -17798,9 +17798,9 @@ taos> select f1, sum(f1) NOT IN (select f1 from st1) from st1 group by f1;
            5 | false                               |
            1 | false                               |
            3 | false                               |
+           4 | false                               |
            6 | false                               |
            2 | false                               |
-           4 | false                               |
 
 taos> select f1, sum(f1) NOT IN (select f1 from st1 limit 0) from st1 group by f1;
      f1      | sum(f1) not in (select f1 from st1 limit 0) |
@@ -17808,9 +17808,9 @@ taos> select f1, sum(f1) NOT IN (select f1 from st1 limit 0) from st1 group by f
            5 | true                                        |
            1 | true                                        |
            3 | true                                        |
+           4 | true                                        |
            6 | true                                        |
            2 | true                                        |
-           4 | true                                        |
 
 taos> select f1, sum(f1) NOT IN (select null from st1) from st1 group by f1;
      f1      | sum(f1) not in (select null from st1) |
@@ -17818,9 +17818,9 @@ taos> select f1, sum(f1) NOT IN (select null from st1) from st1 group by f1;
            5 | NULL                                  |
            1 | NULL                                  |
            3 | NULL                                  |
+           4 | NULL                                  |
            6 | NULL                                  |
            2 | NULL                                  |
-           4 | NULL                                  |
 
 taos> select f1, sum(f1) NOT IN (1, null) from st1 group by f1;
      f1      | sum(f1) not in (1, null) |
@@ -17828,9 +17828,9 @@ taos> select f1, sum(f1) NOT IN (1, null) from st1 group by f1;
            5 | NULL                     |
            1 | false                    |
            3 | NULL                     |
+           4 | NULL                     |
            6 | NULL                     |
            2 | NULL                     |
-           4 | NULL                     |
 
 taos> select f1, sum(f1) NOT IN (select f1 from tbb) from st1 group by f1;
      f1      | sum(f1) not in (select f1 from tbb) |
@@ -17838,9 +17838,9 @@ taos> select f1, sum(f1) NOT IN (select f1 from tbb) from st1 group by f1;
            5 | NULL                                |
            1 | false                               |
            3 | false                               |
+           4 | NULL                                |
            6 | NULL                                |
            2 | NULL                                |
-           4 | NULL                                |
 
 taos> select b.f1, (select f1 from st1) + 1 from st1 a join st1 b on a.ts = b.ts and sum(f1) NOT IN (select f1 from st1) order by b.f1;
 

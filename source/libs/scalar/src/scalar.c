@@ -163,7 +163,7 @@ int32_t scalarGenerateSetFromCol(void **data, SColumnInfoData *pCol, uint32_t ty
   SScalarParam   out = {0};
   SColumnInfoData* pRes = pCol;
 
-  if (pCol->info.type != type) {
+  if (pCol->info.type != type && pCol->info.type != TSDB_DATA_TYPE_NULL) {
     SScalarParam   in = {.columnData = pCol, .numOfRows = rows};
     out.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
     if (out.columnData == NULL) {
