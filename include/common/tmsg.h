@@ -4199,6 +4199,8 @@ typedef struct {
   int32_t tversion;
 } SResReadyRsp;
 
+typedef enum { OP_GET_PARAM = 1, OP_NOTIFY_PARAM } SOperatorParamType;
+
 typedef struct SOperatorParam {
   int32_t opType;
   int32_t downstreamIdx;
@@ -4206,6 +4208,8 @@ typedef struct SOperatorParam {
   SArray* pChildren;  // SArray<SOperatorParam*>
   bool    reUse;
 } SOperatorParam;
+
+void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 
 typedef struct SColIdNameKV {
   col_id_t colId;
@@ -4251,16 +4255,26 @@ typedef enum {
   DYN_TYPE_VSTB_WIN_SCAN,
 } ETableScanDynType;
 
+typedef enum {
+  DYN_TYPE_SCAN_PARAM = 1,
+  NOTIFY_TYPE_SCAN_PARAM,
+} ETableScanGetParamType;
+
 typedef struct STableScanOperatorParam {
-  bool              tableSeq;
-  bool              isNewParam;
-  uint64_t          groupid;
-  SArray*           pUidList;
-  SOrgTbInfo*       pOrgTbInfo;
-  SArray*           pBatchTbInfo;  // SArray<SOrgTbInfo>
-  SArray*           pTagList;
-  STimeWindow       window;
-  ETableScanDynType type;
+  ETableScanGetParamType paramType;
+  /* for building scan data source */
+  bool                   tableSeq;
+  bool                   isNewParam;
+  uint64_t               groupid;
+  SArray*                pUidList;
+  SOrgTbInfo*            pOrgTbInfo;
+  SArray*                pBatchTbInfo;  // SArray<SOrgTbInfo>
+  SArray*                pTagList;
+  STimeWindow            window;
+  ETableScanDynType      dynType;
+  /* for notifying source step done */
+  bool                   notifyToProcess;  // received notify STEP DONE message
+  TSKEY                  notifyTs;         // notify timestamp
 } STableScanOperatorParam;
 
 typedef struct STagScanOperatorParam {

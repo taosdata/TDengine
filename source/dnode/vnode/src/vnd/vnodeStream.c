@@ -3866,9 +3866,9 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   }
 
   if (req.pOpParam != NULL) {
-    qUpdateOperatorParam(sStreamReaderCalcInfo->pTaskInfo, req.pOpParam);
+    qUpdateOperatorParam(sStreamReaderCalcInfo->pTaskInfo, (void*)req.pOpParam);
   }
-  
+
   pResList = taosArrayInit(4, POINTER_BYTES);
   STREAM_CHECK_NULL_GOTO(pResList, terrno);
   uint64_t ts = 0;
@@ -3898,6 +3898,10 @@ end:
   SRpcMsg rsp = {.msgType = TDMT_STREAM_FETCH_RSP, .info = pMsg->info, .pCont = buf, .contLen = size, .code = code};
   tmsgSendRsp(&rsp);
   tDestroySResFetchReq(&req);
+  if (TDB_CODE_SUCCESS != code) {
+    ST_TASK_ELOG("vgId:%d %s failed, code:%d - %s", TD_VID(pVnode), __func__,
+                 code, tstrerror(code));
+  }
   return code;
 }
 

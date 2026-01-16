@@ -71,6 +71,7 @@ enum {
   QW_EVENT_FETCH,
   QW_EVENT_DROP,
   QW_EVENT_CQUERY,
+  QW_EVENT_NOTIFY,
 
   QW_EVENT_MAX,
 };
@@ -202,6 +203,7 @@ typedef struct SQWTaskCtx {
   void      *memPoolSession;
   SQWJobInfo *pJobInfo;
   SQWSubQRes  subQRes;
+  TSKEY       notifyTs;
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {

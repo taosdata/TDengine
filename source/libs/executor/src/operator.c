@@ -769,7 +769,17 @@ int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc) {
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
       SExchangeOperatorParam* pDExc = pDst->value;
       SExchangeOperatorParam* pSExc = pSrc->value;
+      if (pSExc->basic.paramType != DYN_TYPE_EXCHANGE_PARAM) {
+        qError("%s, invalid exchange operator param type %d for "
+          "source operator", __func__, pSExc->basic.paramType);
+        return TSDB_CODE_INVALID_PARA;
+      }
       if (!pDExc->multiParams) {
+        if (pDExc->basic.paramType != DYN_TYPE_EXCHANGE_PARAM) {
+          qError("%s, invalid exchange operator param type %d for "
+            "destination operator", __func__, pDExc->basic.paramType);
+          return TSDB_CODE_INVALID_PARA;
+        }
         if (pSExc->basic.vgId != pDExc->basic.vgId) {
           SExchangeOperatorBatchParam* pBatch = taosMemoryMalloc(sizeof(SExchangeOperatorBatchParam));
           if (NULL == pBatch) {

@@ -947,6 +947,54 @@ static SSDataBlock* getBlockForEmptyTable(SOperatorInfo* pOperator, const STable
   return pBlock;
 }
 
+/**
+  @brief prepare table scan, if the get param contains notify info,
+  notify the table scan operator's reader that current step is done
+*/
+static int32_t prepareTableScan(SOperatorInfo* pOperator) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  qDebug("%s, prepareTableScan start", GET_TASKID(pOperator->pTaskInfo));
+  SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
+  if (NULL != pGetParam && NULL != pGetParam->value &&
+      ((STableScanOperatorParam*)pGetParam->value)->paramType ==
+         NOTIFY_TYPE_SCAN_PARAM &&
+      ((STableScanOperatorParam*)pGetParam->value)->notifyToProcess) {
+    STableScanOperatorParam* pNotify =
+      (STableScanOperatorParam*)pGetParam->value;
+
+    STableScanInfo* pTableScanInfo = pOperator->info;
+    SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+    SStorageAPI*    pAPI = &pTaskInfo->storageAPI;
+    code = pAPI->tsdReader.tsdReaderStepDone(pTableScanInfo->base.dataReader,
+                                             pNotify->notifyTs);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (!pGetParam->reUse) {
+      freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    } else {
+      /**
+        The param is referenced by getParam, and it will be freed by
+        the parent operator after getting next block.
+      */
+      pGetParam->reUse = false;
+    }
+    /**
+      Set getParam to NULL to avoid impacting following table scan operation.
+    */
+    pOperator->pOperatorGetParam = NULL;
+  }
+
+  qDebug("%s, prepareTableScan end", GET_TASKID(pOperator->pTaskInfo));
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s, %s failed at line %d since %s",
+           GET_TASKID(pOperator->pTaskInfo), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
@@ -974,7 +1022,7 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     if (isTaskKilled(pTaskInfo)) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->base.dataReader);
       code = pTaskInfo->code;
-      goto _end;
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (pOperator->status == OP_EXEC_DONE) {
@@ -1277,8 +1325,11 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
 
   cleanupQueryTableDataCond(&pInfo->base.cond);
 
-  if (pOperator->pOperatorGetParam) {
-    STableScanOperatorParam* pParam = (STableScanOperatorParam*)pOperator->pOperatorGetParam->value;
+  SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
+  if (pGetParam &&
+      *(ETableScanGetParamType*)pGetParam->value == DYN_TYPE_SCAN_PARAM) {
+    STableScanOperatorParam* pParam =
+      (STableScanOperatorParam*)pGetParam->value;
     pInfo->pBatchColMap = pParam->pBatchTbInfo;
     pParam->pBatchTbInfo = NULL;
     pInfo->cachedTimeWindow = pParam->window;
@@ -2116,10 +2167,14 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   QRY_PARAM_CHECK(ppRes);
   qTrace("%s call", __FUNCTION__);
 
-  if (pOperator->pOperatorGetParam || pInfo->pBatchColMap) {
-    ETableScanDynType type = pOperator->pOperatorGetParam ?
-                                                          ((STableScanOperatorParam*)pOperator->pOperatorGetParam->value)->type :
-                                                          DYN_TYPE_VSTB_BATCH_SCAN;
+  code = pOperator->fpSet._openFn(pOperator);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SOperatorParam* pGetParam = pOperator->pOperatorGetParam;
+  if (pGetParam || pInfo->pBatchColMap) {
+    ETableScanDynType type = pGetParam ?
+      ((STableScanOperatorParam*)pGetParam->value)->dynType :
+      DYN_TYPE_VSTB_BATCH_SCAN;
 
     code = doDynamicTableScanNext(pOperator, type, ppRes);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2437,8 +2492,11 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
 
   pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
 
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doTableScanNext, NULL, destroyTableScanOperatorInfo,
-                                         optrDefaultBufFn, getTableScannerExecInfo, optrDefaultGetNextExtFn, NULL);
+  pOperator->fpSet = createOperatorFpSet(prepareTableScan, doTableScanNext,
+                                         NULL, destroyTableScanOperatorInfo,
+                                         optrDefaultBufFn,
+                                         getTableScannerExecInfo,
+                                         optrDefaultGetNextExtFn, NULL);
 
   setOperatorResetStateFn(pOperator, resetTableScanOperatorState); 
   // for non-blocking operator, the open cost is always 0
