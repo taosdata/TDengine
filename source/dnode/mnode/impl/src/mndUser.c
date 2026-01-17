@@ -105,6 +105,12 @@
 #define ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(_type, _priv) \
   (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_SUBSCRIBE_PRIV(_priv))
 #endif
+
+#if 1 // def TD_ENTERPRISE
+extern int32_t mndAlterUserPrivInfo(SMnode *pMnode, SUserObj *pNew, SAlterRoleReq *pAlterReq);
+extern int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pOperUser, const char *token, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
+#endif
+
 static void generateSalt(char *salt, size_t len);
 
 static int32_t createDefaultIpWhiteList(SIpWhiteListDual **ppWhiteList);
@@ -142,6 +148,18 @@ static int32_t mndProcessDropTotpSecretReq(SRpcMsg *pReq);
 static int32_t createIpWhiteListFromOldVer(void *buf, int32_t len, SIpWhiteList **ppList);
 static int32_t tDerializeIpWhileListFromOldVer(void *buf, int32_t len, SIpWhiteList *pList);
 
+typedef struct {
+  SHashObj *pReadDbs;
+  SHashObj *pWriteDbs;
+  SHashObj *pReadTbs;
+  SHashObj *pWriteTbs;
+  SHashObj *pTopics;
+  SHashObj *pAlterTbs;
+  SHashObj *pReadViews;
+  SHashObj *pWriteViews;
+  SHashObj *pAlterViews;
+  SHashObj *pUseDbs;
+} SPrivHashObjSet;
 
 typedef struct {
   SIpWhiteListDual   *wlIp;
@@ -1579,24 +1597,83 @@ _OVER:
   return pRaw;
 }
 
-static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
-  int32_t   code = 0;
-  int32_t   lino = 0;
-  SSdbRow  *pRow = NULL;
-  SUserObj *pUser = NULL;
-  char     *key = NULL;
-  char     *value = NULL;
+static int32_t mndUserPrivUpdTbViews(SMnode *pMnode, SUserObj *pNew, SHashObj *pTbs, int32_t privType, uint8_t objTYpe) {
+  int32_t code = 0, lino = 0;
+  void   *pIter = NULL;
+  char   *key = NULL;
+  char   *value = NULL;
 
-  SHashObj *pReadDbs = NULL;
-  SHashObj *pWriteDbs = NULL;
-  SHashObj *pReadTbs = NULL;
-  SHashObj *pWriteTbs = NULL;
-  SHashObj *pTopics = NULL;
-  SHashObj *pAlterTbs = NULL;
-  SHashObj *pReadViews = NULL;
-  SHashObj *pWriteViews = NULL;
-  SHashObj *pAlterViews = NULL;
-  SHashObj *pUseDbs = NULL;
+  SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_PRIVILEGES, .add = 1, .objType = objTYpe};
+
+  while ((pIter = taosHashIterate(pTbs, pIter))) {
+    size_t keyLen = 0;
+    key = taosHashGetKey(pIter, &keyLen);
+
+    SName name = {0};
+    TAOS_CHECK_EXIT(tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+
+    snprintf(alterReq.objFName, TSDB_OBJ_FNAME_LEN, "%d.%s", name.acctId, name.dbname);
+    snprintf(alterReq.tblName, TSDB_TABLE_NAME_LEN, "%s", name.tname);
+
+    privAddType(&alterReq.privileges.privSet, privType);
+
+    if ((((char *)pIter)[0] != 0) && (((char *)pIter)[1] != 0)) {
+      TAOS_CHECK_EXIT(alterReq.privileges.cond = taosStrdup(pIter));
+      alterReq.privileges.condLen = strlen(pIter) + 1;
+    }
+
+    TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pMnode, pNew, &alterReq));
+  }
+_exit:
+  return 0;
+}
+
+/**
+ * @brief migrate from 3.3.x.y to 3.4.x.y
+ * @return int32_t
+ */
+static int32_t mndUserPrivUpgrade(SMnode *pMnode, SSdbRaw *pRaw, SPrivHashObjSet *pPrivSet, SUserObj *pNew) {
+  int32_t   code = 0, lino = 0;
+  SHashObj *pReadDbs = pPrivSet->pReadDbs;
+  SHashObj *pWriteDbs = pPrivSet->pWriteDbs;
+  SHashObj *pReadTbs = pPrivSet->pReadTbs;
+  SHashObj *pWriteTbs = pPrivSet->pWriteTbs;
+  SHashObj *pTopics = pPrivSet->pTopics;
+  SHashObj *pAlterTbs = pPrivSet->pAlterTbs;
+  SHashObj *pReadViews = pPrivSet->pReadViews;
+  SHashObj *pWriteViews = pPrivSet->pWriteViews;
+  SHashObj *pAlterViews = pPrivSet->pAlterViews;
+  SHashObj *pUseDbs = pPrivSet->pUseDbs;
+
+  // read db: db.*
+  // write db: db.*
+  // read table:  db.tbname
+  // write table: db.tbname
+  // alter table: db.tbname
+  // read view:   db.vname
+  // write view:  db.vname
+  // alter view:  db.vname
+  // topic:       topicname
+  // use db:     dbname => OK
+
+  mndUserPrivUpdTbViews(pMnode, pNew, pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL);
+  mndUserPrivUpdTbViews(pMnode, pNew, pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL);
+  mndUserPrivUpdTbViews(pMnode, pNew, pAlterTbs, PRIV_CM_ALTER , PRIV_OBJ_TBL);
+  mndUserPrivUpdTbViews(pMnode, pNew, pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW);
+  mndUserPrivUpdTbViews(pMnode, pNew, pWriteViews, PRIV_VIEW_INSERT, PRIV_OBJ_VIEW);
+  mndUserPrivUpdTbViews(pMnode,
+_exit:
+  return 0;
+}
+
+static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
+  int32_t         code = 0;
+  int32_t         lino = 0;
+  SSdbRow        *pRow = NULL;
+  SUserObj       *pUser = NULL;
+  char           *key = NULL;
+  char           *value = NULL;
+  SPrivHashObjSet privSet = {0};
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
@@ -1640,7 +1717,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     }
     SDB_GET_BINARY(pRaw, dataPos, pUser->salt, sizeof(pUser->salt), _OVER)
   }
-  
+
   SDB_GET_BINARY(pRaw, dataPos, pUser->acct, TSDB_USER_LEN, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pUser->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pUser->updateTime, _OVER)
@@ -1668,20 +1745,23 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   }
 
   if (numOfReadDbs > 0) {
-    pReadDbs = taosHashInit(numOfReadDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    if (pReadDbs == NULL) {
+    privSet.pReadDbs =
+        taosHashInit(numOfReadDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (privSet.pReadDbs == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
   }
   if (numOfWriteDbs > 0) {
-    pWriteDbs = taosHashInit(numOfWriteDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    if (pWriteDbs == NULL) {
+    privSet.pWriteDbs =
+        taosHashInit(numOfWriteDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (privSet.pWriteDbs == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
   }
   if (numOfTopics > 0) {
-    pTopics = taosHashInit(numOfTopics, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    if (pTopics == NULL) {
+    privSet.pTopics =
+        taosHashInit(numOfTopics, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    if (privSet.pTopics == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
   }
@@ -1689,14 +1769,14 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER)
     int32_t len = strlen(db) + 1;
-    TAOS_CHECK_GOTO(taosHashPut(pReadDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
+    TAOS_CHECK_GOTO(taosHashPut(privSet.pReadDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
   }
 
   for (int32_t i = 0; i < numOfWriteDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER)
     int32_t len = strlen(db) + 1;
-    TAOS_CHECK_GOTO(taosHashPut(pWriteDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
+    TAOS_CHECK_GOTO(taosHashPut(privSet.pWriteDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
   }
 
   if (sver >= 2) {
@@ -1704,7 +1784,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       char topic[TSDB_TOPIC_FNAME_LEN] = {0};
       SDB_GET_BINARY(pRaw, dataPos, topic, TSDB_TOPIC_FNAME_LEN, _OVER)
       int32_t len = strlen(topic) + 1;
-      TAOS_CHECK_GOTO(taosHashPut(pTopics, topic, len, topic, TSDB_TOPIC_FNAME_LEN), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(privSet.pTopics, topic, len, topic, TSDB_TOPIC_FNAME_LEN), &lino, _OVER);
     }
   }
 
@@ -1727,26 +1807,32 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &numOfUseDbs, _OVER)
 
     if (numOfReadTbs > 0) {
-      pReadTbs = taosHashInit(numOfReadTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-      if (pReadTbs == NULL) {
+      privSet.pReadTbs =
+          taosHashInit(numOfReadTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+      if (privSet.pReadTbs == NULL) {
         TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       }
     }
     if (numOfWriteTbs > 0) {
-      pWriteTbs = taosHashInit(numOfWriteTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-      if (pWriteTbs == NULL) {
+      privSet.pWriteTbs =
+          taosHashInit(numOfWriteTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+      if (privSet.pWriteTbs == NULL) {
         TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       }
     }
-    pAlterTbs = taosHashInit(numOfAlterTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    pReadViews = taosHashInit(numOfReadViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    pWriteViews =
+    privSet.pAlterTbs =
+        taosHashInit(numOfAlterTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    privSet.pReadViews =
+        taosHashInit(numOfReadViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    privSet.pWriteViews =
         taosHashInit(numOfWriteViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    pAlterViews =
+    privSet.pAlterViews =
         taosHashInit(numOfAlterViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    pUseDbs = taosHashInit(numOfUseDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    privSet.pUseDbs =
+        taosHashInit(numOfUseDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
 
-    if (pAlterTbs == NULL || pReadViews == NULL || pWriteViews == NULL || pAlterViews == NULL || pUseDbs == NULL) {
+    if (privSet.pAlterTbs == NULL || privSet.pReadViews == NULL || privSet.pWriteViews == NULL ||
+        privSet.pAlterViews == NULL || privSet.pUseDbs == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       goto _OVER;
     }
@@ -1771,7 +1857,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       (void)memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-      TAOS_CHECK_GOTO(taosHashPut(pReadTbs, key, keyLen, value, valuelen), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(privSet.pReadTbs, key, keyLen, value, valuelen), &lino, _OVER);
     }
 
     for (int32_t i = 0; i < numOfWriteTbs; ++i) {
@@ -1794,7 +1880,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       (void)memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-      TAOS_CHECK_GOTO(taosHashPut(pWriteTbs, key, keyLen, value, valuelen), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(privSet.pWriteTbs, key, keyLen, value, valuelen), &lino, _OVER);
     }
 
     if (sver >= 6) {
@@ -1818,7 +1904,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        TAOS_CHECK_GOTO(taosHashPut(pAlterTbs, key, keyLen, value, valuelen), &lino, _OVER);
+        TAOS_CHECK_GOTO(taosHashPut(privSet.pAlterTbs, key, keyLen, value, valuelen), &lino, _OVER);
       }
 
       for (int32_t i = 0; i < numOfReadViews; ++i) {
@@ -1841,7 +1927,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        TAOS_CHECK_GOTO(taosHashPut(pReadViews, key, keyLen, value, valuelen), &lino, _OVER);
+        TAOS_CHECK_GOTO(taosHashPut(privSet.pReadViews, key, keyLen, value, valuelen), &lino, _OVER);
       }
 
       for (int32_t i = 0; i < numOfWriteViews; ++i) {
@@ -1864,7 +1950,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        TAOS_CHECK_GOTO(taosHashPut(pWriteViews, key, keyLen, value, valuelen), &lino, _OVER);
+        TAOS_CHECK_GOTO(taosHashPut(privSet.pWriteViews, key, keyLen, value, valuelen), &lino, _OVER);
       }
 
       for (int32_t i = 0; i < numOfAlterViews; ++i) {
@@ -1887,7 +1973,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        TAOS_CHECK_GOTO(taosHashPut(pAlterViews, key, keyLen, value, valuelen), &lino, _OVER);
+        TAOS_CHECK_GOTO(taosHashPut(privSet.pAlterViews, key, keyLen, value, valuelen), &lino, _OVER);
       }
     }
 
@@ -1905,7 +1991,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       int32_t ref = 0;
       SDB_GET_INT32(pRaw, dataPos, &ref, _OVER);
 
-      TAOS_CHECK_GOTO(taosHashPut(pUseDbs, key, keyLen, &ref, sizeof(ref)), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(privSet.pUseDbs, key, keyLen, &ref, sizeof(ref)), &lino, _OVER);
     }
   }
   // decoder white list
@@ -2042,20 +2128,23 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
   taosInitRWLatch(&pUser->lock);
   dropOldPasswords(pUser);
-  // TODO: migrate legacy privileges to new hash tables
+  if (sver < USER_VER_SUPPORT_ADVANCED_SECURITY) {
+    TAOS_CHECK_GOTO(mndUserPrivUpgrade(pRaw, &privSet, pUser), &lino, _OVER);
+  }
+
 _OVER:
   taosMemoryFree(key);
   taosMemoryFree(value);
-  taosHashCleanup(pReadDbs);
-  taosHashCleanup(pWriteDbs);
-  taosHashCleanup(pTopics);
-  taosHashCleanup(pReadTbs);
-  taosHashCleanup(pWriteTbs);
-  taosHashCleanup(pAlterTbs);
-  taosHashCleanup(pReadViews);
-  taosHashCleanup(pWriteViews);
-  taosHashCleanup(pAlterViews);
-  taosHashCleanup(pUseDbs);
+  taosHashCleanup(privSet.pReadDbs);
+  taosHashCleanup(privSet.pWriteDbs);
+  taosHashCleanup(privSet.pTopics);
+  taosHashCleanup(privSet.pReadTbs);
+  taosHashCleanup(privSet.pWriteTbs);
+  taosHashCleanup(privSet.pAlterTbs);
+  taosHashCleanup(privSet.pReadViews);
+  taosHashCleanup(privSet.pWriteViews);
+  taosHashCleanup(privSet.pAlterViews);
+  taosHashCleanup(privSet.pUseDbs);
   if (code < 0) {
     terrno = code;
     mError("user:%s, failed to decode at line %d from raw:%p since %s", pUser == NULL ? "null" : pUser->user, lino,
@@ -3581,11 +3670,6 @@ _OVER:
 }
 #endif
 
-#ifdef TD_ENTERPRISE
-extern int32_t mndAlterUserPrivInfo(SMnode *pMnode, SUserObj *pOperUser, const char *token, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
-extern int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pOperUser, const char *token, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
-#endif
-
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *pAlterReq) {
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
@@ -3603,8 +3687,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
 #ifdef TD_ENTERPRISE
     TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
-    if ((code = mndAlterUserPrivInfo(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), pUser, &newUser, pAlterReq)) ==
-        TSDB_CODE_QRY_DUPLICATED_OPERATION) {
+    if ((code = mndAlterUserPrivInfo(pMnode, &newUser, pAlterReq)) == TSDB_CODE_QRY_DUPLICATED_OPERATION) {
       code = 0;
       goto _exit;
     } else {

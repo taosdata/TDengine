@@ -279,13 +279,21 @@ typedef enum {
   PRIV_OBJ_MAX = 16,
 } EPrivObjType;
 
+typedef enum {
+  PRIV_RW_ATTR_UNKNOWN = 0,
+  PRIV_RW_ATTR_READ = 0x01,
+  PRIV_RW_ATTR_WRITE = 0x02,
+  PRIV_RW_ATTR_RW = 0x03,
+} EPrivRwAttr;
+
 typedef struct {
-  EPrivType     privType;
-  EPrivCategory category;
-  EPrivObjType  objType;
-  int8_t        objLevel;  // 0: DB, function, 1: table, view
-  uint8_t       sysType;
-  const char*   name;
+  int16_t     privType;  // EPrivType
+  int8_t      category;  // EPrivCategory
+  int8_t      objType;   // EPrivObjType
+  int8_t      objLevel;  // 0: DB, function, 1: table, view
+  uint8_t     sysType;
+  int8_t      rwAttr;  // 0x01 for read, 0x02 for write, 0x03 for read/write
+  const char* name;
 } SPrivInfo;
 
 /*
