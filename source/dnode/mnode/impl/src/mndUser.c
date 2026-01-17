@@ -107,7 +107,7 @@
 #endif
 
 #if 1 // def TD_ENTERPRISE
-extern int32_t mndAlterUserPrivInfo(SMnode *pMnode, SUserObj *pNew, SAlterRoleReq *pAlterReq);
+extern int32_t mndAlterUserPrivInfo(SUserObj *pNew, SAlterRoleReq *pAlterReq);
 extern int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pOperUser, const char *token, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
 #endif
 
@@ -1597,7 +1597,7 @@ _OVER:
   return pRaw;
 }
 
-static int32_t mndUserPrivUpdTbViews(SMnode *pMnode, SUserObj *pNew, SHashObj *pTbs, int32_t privType, uint8_t objTYpe) {
+static int32_t mndUserPrivUpgradeTbViews(SUserObj *pNew, SHashObj *pTbs, int32_t privType, uint8_t objTYpe) {
   int32_t code = 0, lino = 0;
   void   *pIter = NULL;
   char   *key = NULL;
@@ -1618,11 +1618,39 @@ static int32_t mndUserPrivUpdTbViews(SMnode *pMnode, SUserObj *pNew, SHashObj *p
     privAddType(&alterReq.privileges.privSet, privType);
 
     if ((((char *)pIter)[0] != 0) && (((char *)pIter)[1] != 0)) {
-      TAOS_CHECK_EXIT(alterReq.privileges.cond = taosStrdup(pIter));
+      alterReq.privileges.cond = taosStrdup(pIter);
+      if (alterReq.privileges.cond == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
       alterReq.privileges.condLen = strlen(pIter) + 1;
     }
 
-    TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pMnode, pNew, &alterReq));
+    TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pNew, &alterReq));
+  }
+_exit:
+  return 0;
+}
+
+static int32_t mndUserPrivUpgradeUsedDb(SUserObj *pNew, SHashObj *pDbs) {
+  int32_t code = 0, lino = 0;
+  void   *pIter = NULL;
+  char   *key = NULL;
+  char   *value = NULL;
+
+  SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_PRIVILEGES, .add = 1, .objType = PRIV_OBJ_DB};
+
+  while ((pIter = taosHashIterate(pDbs, pIter))) {
+    size_t keyLen = 0;
+    key = taosHashGetKey(pIter, &keyLen);
+
+    SName name = {0};
+    TAOS_CHECK_EXIT(tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB));
+
+    snprintf(alterReq.objFName, TSDB_OBJ_FNAME_LEN, "%d.%s", name.acctId, name.dbname);
+
+    privAddType(&alterReq.privileges.privSet, PRIV_DB_USE);
+
+    TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pNew, &alterReq));
   }
 _exit:
   return 0;
@@ -1632,36 +1660,23 @@ _exit:
  * @brief migrate from 3.3.x.y to 3.4.x.y
  * @return int32_t
  */
-static int32_t mndUserPrivUpgrade(SMnode *pMnode, SSdbRaw *pRaw, SPrivHashObjSet *pPrivSet, SUserObj *pNew) {
+static int32_t mndUserPrivUpgrade(SSdbRaw *pRaw, SPrivHashObjSet *pPrivSet, SUserObj *pNew) {
   int32_t   code = 0, lino = 0;
   SHashObj *pReadDbs = pPrivSet->pReadDbs;
   SHashObj *pWriteDbs = pPrivSet->pWriteDbs;
-  SHashObj *pReadTbs = pPrivSet->pReadTbs;
-  SHashObj *pWriteTbs = pPrivSet->pWriteTbs;
-  SHashObj *pTopics = pPrivSet->pTopics;
-  SHashObj *pAlterTbs = pPrivSet->pAlterTbs;
-  SHashObj *pReadViews = pPrivSet->pReadViews;
-  SHashObj *pWriteViews = pPrivSet->pWriteViews;
-  SHashObj *pAlterViews = pPrivSet->pAlterViews;
-  SHashObj *pUseDbs = pPrivSet->pUseDbs;
 
   // read db: db.*
   // write db: db.*
-  // read table:  db.tbname
-  // write table: db.tbname
-  // alter table: db.tbname
-  // read view:   db.vname
-  // write view:  db.vname
-  // alter view:  db.vname
-  // topic:       topicname
-  // use db:     dbname => OK
 
-  mndUserPrivUpdTbViews(pMnode, pNew, pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL);
-  mndUserPrivUpdTbViews(pMnode, pNew, pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL);
-  mndUserPrivUpdTbViews(pMnode, pNew, pAlterTbs, PRIV_CM_ALTER , PRIV_OBJ_TBL);
-  mndUserPrivUpdTbViews(pMnode, pNew, pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW);
-  mndUserPrivUpdTbViews(pMnode, pNew, pWriteViews, PRIV_VIEW_INSERT, PRIV_OBJ_VIEW);
-  mndUserPrivUpdTbViews(pMnode,
+  mndUserPrivUpgradeTbViews(pNew, pPrivSet->pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL);
+  mndUserPrivUpgradeTbViews(pNew, pPrivSet->pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL);
+  mndUserPrivUpgradeTbViews(pNew, pPrivSet->pAlterTbs, PRIV_CM_ALTER, PRIV_OBJ_TBL);
+  mndUserPrivUpgradeTbViews(pNew, pPrivSet->pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW);
+  mndUserPrivUpgradeTbViews(pNew, pPrivSet->pWriteViews, PRIV_CM_ALTER, PRIV_OBJ_VIEW);
+  mndUserPrivUpgradeTbViews(pNew, pPrivSet->pWriteViews, PRIV_CM_DROP, PRIV_OBJ_VIEW);
+
+  mndUserPrivUpgradeUsedDb(pNew, pPrivSet->pUseDbs);
+
 _exit:
   return 0;
 }
@@ -3687,7 +3702,7 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {
 #ifdef TD_ENTERPRISE
     TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
-    if ((code = mndAlterUserPrivInfo(pMnode, &newUser, pAlterReq)) == TSDB_CODE_QRY_DUPLICATED_OPERATION) {
+    if ((code = mndAlterUserPrivInfo(&newUser, pAlterReq)) == TSDB_CODE_QRY_DUPLICATED_OPERATION) {
       code = 0;
       goto _exit;
     } else {
