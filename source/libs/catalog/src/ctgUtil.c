@@ -2373,7 +2373,7 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
      *  1. skip owner check for audit table
      *  2. compatible with old version where ownerId is 0
      */
-    if (!pMeta->isAudit && (req->authInfo.userId == pMeta->ownerId || pMeta->ownerId == 0)) {
+    if (!pMeta->isAudit && (req->authInfo.userId == pMeta->ownerId)) {
       res->pRawRes->pass[AUTH_RES_BASIC] = true;
       goto _return;
     }

@@ -1597,13 +1597,14 @@ _OVER:
   return pRaw;
 }
 
-static int32_t mndUserPrivUpgradeTbViews(SUserObj *pNew, SHashObj *pTbs, int32_t privType, uint8_t objTYpe) {
+static int32_t mndUserPrivUpgradeTbViews(SUserObj *pNew, SHashObj **ppTblHash, SHashObj *pTbs, int32_t privType,
+                                         uint8_t objType) {
   int32_t code = 0, lino = 0;
   void   *pIter = NULL;
   char   *key = NULL;
   char   *value = NULL;
 
-  SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_PRIVILEGES, .add = 1, .objType = objTYpe};
+  SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_PRIVILEGES, .add = 1, .objType = objType, .objLevel = 1};
 
   while ((pIter = taosHashIterate(pTbs, pIter))) {
     size_t keyLen = 0;
@@ -1622,13 +1623,19 @@ static int32_t mndUserPrivUpgradeTbViews(SUserObj *pNew, SHashObj *pTbs, int32_t
       if (alterReq.privileges.cond == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
-      alterReq.privileges.condLen = strlen(pIter) + 1;
+      alterReq.privileges.condLen = strlen(pIter) + 1; // include '\0'
+      if (ppTblHash && !*ppTblHash) {
+        *ppTblHash = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
+        if (!*ppTblHash) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
     }
 
     TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pNew, &alterReq));
   }
 _exit:
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndUserPrivUpgradeUsedDb(SUserObj *pNew, SHashObj *pDbs) {
@@ -1653,7 +1660,7 @@ static int32_t mndUserPrivUpgradeUsedDb(SUserObj *pNew, SHashObj *pDbs) {
     TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pNew, &alterReq));
   }
 _exit:
-  return 0;
+  TAOS_RETURN(code);
 }
 
 /**
@@ -1665,20 +1672,23 @@ static int32_t mndUserPrivUpgrade(SSdbRaw *pRaw, SPrivHashObjSet *pPrivSet, SUse
   SHashObj *pReadDbs = pPrivSet->pReadDbs;
   SHashObj *pWriteDbs = pPrivSet->pWriteDbs;
 
+  if (!pNew->objPrivs &&
+      !(pNew->objPrivs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
   // read db: db.*
   // write db: db.*
 
-  mndUserPrivUpgradeTbViews(pNew, pPrivSet->pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL);
-  mndUserPrivUpgradeTbViews(pNew, pPrivSet->pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL);
-  mndUserPrivUpgradeTbViews(pNew, pPrivSet->pAlterTbs, PRIV_CM_ALTER, PRIV_OBJ_TBL);
-  mndUserPrivUpgradeTbViews(pNew, pPrivSet->pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW);
-  mndUserPrivUpgradeTbViews(pNew, pPrivSet->pWriteViews, PRIV_CM_ALTER, PRIV_OBJ_VIEW);
-  mndUserPrivUpgradeTbViews(pNew, pPrivSet->pWriteViews, PRIV_CM_DROP, PRIV_OBJ_VIEW);
-
-  mndUserPrivUpgradeUsedDb(pNew, pPrivSet->pUseDbs);
-
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, &pNew->selectTbs, pPrivSet->pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, &pNew->insertTbs, pPrivSet->pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, NULL, pPrivSet->pAlterTbs, PRIV_CM_ALTER, PRIV_OBJ_TBL));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, NULL, pPrivSet->pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, NULL, pPrivSet->pWriteViews, PRIV_CM_ALTER, PRIV_OBJ_VIEW));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, NULL, pPrivSet->pWriteViews, PRIV_CM_DROP, PRIV_OBJ_VIEW));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeUsedDb(pNew, pPrivSet->pUseDbs));
 _exit:
-  return 0;
+  TAOS_RETURN(code);
 }
 
 static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
