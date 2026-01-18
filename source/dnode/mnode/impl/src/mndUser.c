@@ -4226,6 +4226,15 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
 #endif // TD_ENTERPRISE
 
   TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq), &lino, _OVER);
+  if (pAlterReq->hasEnable) {
+    if (newUser.enable) {
+      if (taosHashGet(newUser.roles, TSDB_ROLE_SYSAUDIT_LOG, strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1)) {
+        (void)mndResetAuditLogUser(pMnode, newUser.user, true);
+      }
+    } else {
+      mndResetAuditLogUser(pMnode, newUser.user, false);
+    }
+  }
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   if (auditLen > 0) {
@@ -4276,11 +4285,11 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   TAOS_RETURN(code);
 }
 
-static int32_t mndResetAuditLogUser(SMnode *pMnode, const char* *user, bool isAdd) {
+int32_t mndResetAuditLogUser(SMnode *pMnode, const char *user, bool isAdd) {
   if (user) {
     (void)taosThreadRwlockRdlock(&userCache.rw);
     if (isAdd) {
-      if(userCache.auditLogUser[0] != 0) {
+      if (userCache.auditLogUser[0] != 0) {
         (void)taosThreadRwlockUnlock(&userCache.rw);
         return 0;
       }
@@ -4315,6 +4324,9 @@ static int32_t mndResetAuditLogUser(SMnode *pMnode, const char* *user, bool isAd
     }
     mndReleaseUser(pMnode, pUser);
   }
+  (void)taosThreadRwlockWrlock(&userCache.rw);
+  userCache.auditLogUser[0] = 0;
+  (void)taosThreadRwlockUnlock(&userCache.rw);
   return TSDB_CODE_MND_USER_NOT_AVAILABLE;
 }
 
@@ -4371,7 +4383,7 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
 
   userCacheRemoveUser(pUser->user);
   mndDropCachedTokensByUser(pUser->user);
-  mndResetAuditLogUser(pMnode, pUser->user);
+  mndResetAuditLogUser(pMnode, pUser->user, false);
 
   mndTransDrop(pTrans);
   TAOS_RETURN(0);
