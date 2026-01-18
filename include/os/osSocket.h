@@ -56,9 +56,9 @@
 #define __LITTLE_ENDIAN LITTLE_ENDIAN
 #define __PDP_ENDIAN    PDP_ENDIAN
 #else
+#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
-#include <arpa/inet.h>
 
 #if defined(_TD_DARWIN_64)
 #include <osEok.h>
@@ -179,16 +179,28 @@ typedef struct {
     char ipv6[INET6_ADDRSTRLEN];
     char ipv4[INET_ADDRSTRLEN];
   };
-  uint16_t mask;  
+  uint16_t mask;
   uint16_t port;
 } SIpAddr;
 
-int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *ip);
+/**
+ * @brief Resolve domain name to IP address (dual-stack mode)
+ * @param fqdn Fully qualified domain name
+ * @param pAddr Output structure to store resolved IP address
+ * @return 0 on success, error code on failure
+ *
+ * This function resolves domain names to either IPv4 or IPv6 addresses,
+ * prioritizing IPv6 but accepting both. Used when enableIpv6=1.
+ */
+int32_t taosGetIpDualStackFromFqdn(const char *fqdn, SIpAddr *pAddr);
 
 int32_t taosGetIp4FromFqdn(const char *fqdn, SIpAddr *addr);
+
+int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *ip);
+
 int32_t taosGetIpFromFqdn(int8_t enableIpv6, const char *fqdn, SIpAddr *addr);
 
-#define IP_ADDR_STR(ip) ((ip)->type == 0 ? (ip)->ipv4 : (ip)->ipv6)
+#define IP_ADDR_STR(ip)  ((ip)->type == 0 ? (ip)->ipv4 : (ip)->ipv6)
 #define IP_ADDR_MASK(ip) ((ip)->type == 0 ? (ip)->ipv4.mask : (ip)->ipv6.mask)
 
 #define IP_RESERVE_CAP (128 + 32)

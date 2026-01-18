@@ -2143,9 +2143,18 @@ static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, S
       tError("ipv6Enable(%d), failed to get ip from fqdn:%s since %s", enableIpv6, fqdn, tstrerror(code));
       return code;
     } else {
-      if (enableIpv6 && ipAddr.type != 1) {
-        tWarn("get ipv4 addr from fqdn:%s, but ipv6 is enabled", fqdn);
-        return TSDB_CODE_RPC_FQDN_ERROR;
+      if (enableIpv6) {
+        // Dual-stack mode: accept both IPv4 and IPv6 addresses
+        if (ipAddr.type != 0 && ipAddr.type != 1) {
+          tError("invalid ip addr type from fqdn:%s", fqdn);
+          return TSDB_CODE_RPC_FQDN_ERROR;
+        }
+      } else {
+        // IPv4-only mode: only accept IPv4 addresses
+        if (ipAddr.type != 0) {
+          tError("get non-ipv4 addr from fqdn:%s, but ipv6 is disabled", fqdn);
+          return TSDB_CODE_RPC_FQDN_ERROR;
+        }
       }
     }
     if ((code = taosHashPut(cache, fqdn, len, &ipAddr, sizeof(ipAddr)) != 0)) {
