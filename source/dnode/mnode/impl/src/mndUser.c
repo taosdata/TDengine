@@ -175,6 +175,7 @@ typedef struct {
   SHashObj      *users;  // key: user, value: SCachedUserInfo*
   int64_t        verIp;
   int64_t        verTime;
+  char           auditLogUser[TSDB_USER_LEN];
   TdThreadRwlock rw;
 } SUserCache;
 
@@ -192,6 +193,7 @@ static int32_t userCacheInit() {
   userCache.users = users;
   userCache.verIp = 0;
   userCache.verTime = 0;
+  userCache.auditLogUser[0] = '\0';
 
   (void)taosThreadRwlockInit(&userCache.rw, NULL);
   TAOS_RETURN(0);
@@ -3031,6 +3033,10 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
+  if (taosHashGet(userObj.roles, TSDB_ROLE_SYSAUDIT_LOG, strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1)) {
+    (void)mndResetAuditLogUser(pMnode, userObj.user, true);
+  }
+
   mndTransDrop(pTrans);
 
 _OVER:
@@ -4270,8 +4276,66 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   TAOS_RETURN(code);
 }
 
-int32_t mndGetAuditUser(SMnode *pMnode, char* user){
-  (void)tsnprintf(user, TSDB_USER_LEN, "audit");
+static int32_t mndResetAuditLogUser(SMnode *pMnode, const char* *user, bool isAdd) {
+  if (user) {
+    (void)taosThreadRwlockRdlock(&userCache.rw);
+    if (isAdd) {
+      if(userCache.auditLogUser[0] != 0) {
+        (void)taosThreadRwlockUnlock(&userCache.rw);
+        return 0;
+      }
+      (void)taosThreadRwlockUnlock(&userCache.rw);
+      (void)taosThreadRwlockWrlock(&userCache.rw);
+      (void)tsnprintf(userCache.auditLogUser, TSDB_USER_LEN, "%s", user);
+      (void)taosThreadRwlockUnlock(&userCache.rw);
+      return 0;
+    } else if (strcmp(userCache.auditLogUser, user) != 0) {
+      (void)taosThreadRwlockUnlock(&userCache.rw);
+      return 0;
+    }
+    (void)taosThreadRwlockUnlock(&userCache.rw);
+  }
+
+  void     *pIter = NULL;
+  SSdb     *pSdb = pMnode->pSdb;
+  SUserObj *pUser = NULL;
+  int32_t   len = strlen(TSDB_ROLE_SYSAUDIT_LOG) + 1;
+  while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
+    if (pUser->enable == 0) {
+      mndReleaseUser(pMnode, pUser);
+      continue;
+    }
+    if (taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, len) != NULL) {
+      (void)taosThreadRwlockWrlock(&userCache.rw);
+      (void)tsnprintf(userCache.auditLogUser, TSDB_USER_LEN, "%s", pUser->name);
+      (void)taosThreadRwlockUnlock(&userCache.rw);
+      sdbCancelFetch(pSdb, pIter);
+      mndReleaseUser(pMnode, pUser);
+      return 0;
+    }
+    mndReleaseUser(pMnode, pUser);
+  }
+  return TSDB_CODE_MND_USER_NOT_AVAILABLE;
+}
+
+int32_t mndGetAuditUser(SMnode *pMnode, char *user) {
+  (void)taosThreadRwlockRdlock(&userCache.rw);
+  if (userCache.auditLogUser[0] != 0) {
+    (void)tsnprintf(user, TSDB_USER_LEN, "%s", userCache.auditLogUser);
+    (void)taosThreadRwlockUnlock(&userCache.rw);
+    return 0;
+  }
+  (void)taosThreadRwlockUnlock(&userCache.rw);
+
+  int32_t code = 0;
+  if ((code = mndResetAuditLogUser(pMnode, NULL, false)) != 0) {
+    return code;
+  }
+
+  (void)taosThreadRwlockRdlock(&userCache.rw);
+  (void)tsnprintf(user, TSDB_USER_LEN, "%s", userCache.auditLogUser);
+  (void)taosThreadRwlockUnlock(&userCache.rw);
+
   return 0;
 }
 
@@ -4307,6 +4371,7 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
 
   userCacheRemoveUser(pUser->user);
   mndDropCachedTokensByUser(pUser->user);
+  mndResetAuditLogUser(pMnode, pUser->user);
 
   mndTransDrop(pTrans);
   TAOS_RETURN(0);
