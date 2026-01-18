@@ -76,6 +76,7 @@ class TestWalKeepVersionTrim:
 
         # trim database wal
         tdSql.execute("trim database test wal")
+        tdSql.execute("trim database test wal")
 
         # check wal vgId 2 firstVer is greater than 0 after trim
         for dnode_id in [1,2,3]:

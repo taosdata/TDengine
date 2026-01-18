@@ -599,7 +599,7 @@ Starting from versions 2.1.1.0 and 2.1.2.0, TDengine has significantly improved 
 
 Note: If `taos_stmt_execute()` is successful and there is no need to change the SQL statement, then it is possible to reuse the parsing result of `taos_stmt_prepare()` and directly proceed to steps 3 to 6 to bind new data. However, if there is an error in execution, it is not recommended to continue working in the current context. Instead, it is advisable to release resources and start over from the `taos_stmt_init()` step.
 
-The specific functions related to the interface are as follows (you can also refer to the [prepare.c](https://github.com/taosdata/TDengine/blob/develop/docs/examples/c/prepare.c) file for how to use the corresponding functions):
+The specific functions related to the interface are as follows (you can also refer to the [prepare.c](https://github.com/taosdata/TDengine/blob/main/docs/examples/c/prepare.c) file for how to use the corresponding functions):
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
 

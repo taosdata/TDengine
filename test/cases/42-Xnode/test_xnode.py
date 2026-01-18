@@ -176,6 +176,10 @@ class TestXnode:
             # create with FROM/TO and WITH options (comma separated + trigger)
             f"CREATE XNODE TASK '{t_ingest}' FROM 'mqtt://broker:1883' TO DATABASE {dbname} "
              "WITH parser 'parser_json', batch 1024, TRIGGER 'manual'",
+            f"CREATE XNODE TASK '{t_ingest}' FROM 'mqtt://broker:1883' TO DATABASE {dbname} "
+             "WITH parser 'parser_json', batch 1024, TRIGGER 'manual' labels ''",
+            f"CREATE XNODE TASK '{t_ingest}' FROM 'mqtt://broker:1883' TO DATABASE {dbname} "
+             "WITH parser 'parser_json', batch 1024, TRIGGER 'manual' labels '{\"key\":\"value\"}'",
             # create with topic source and DSN sink using AND
             f"CREATE XNODE TASK '{t_export}' FROM TOPIC {topic} TO 'kafka://broker:9092' "
              "WITH group_id 'g1' AND client_id 'c1'",
@@ -187,6 +191,7 @@ class TestXnode:
              "WITH parser 'parser_line', concurrency 4",
             # alter task with options only
             f"ALTER XNODE TASK {task_id_2} WITH batch 2048 AND timeout 30",
+            f'ALTER XNODE TASK {task_id_2} WITH batch 2048 AND timeout 30 labels \'{{"k":"v"}}\'',
             # start/stop task
             f"START XNODE TASK {task_id_1}",
             f"STOP XNODE TASK {task_id_1}",

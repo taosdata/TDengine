@@ -1810,6 +1810,11 @@ int32_t tSerializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* pR
 int32_t tDeserializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* pReq);
 
 typedef struct {
+  int8_t  enabled;
+  int32_t expireTime;
+} STokenStatus;
+
+typedef struct {
   char    user[TSDB_USER_LEN];
   int64_t userId;
   int32_t version;
@@ -1836,6 +1841,7 @@ typedef struct {
 
   SUserSessCfg sessCfg;
   int64_t      timeWhiteListVer;
+  SHashObj*    tokens;
 } SGetUserAuthRsp;
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
@@ -3827,6 +3833,7 @@ typedef struct {
   CowStr      parser;
   CowStr      reason;
   CowStr      updateName;
+  CowStr      labels;
   int32_t     sqlLen;
   char*       sql;
 } SMUpdateXnodeTaskReq;

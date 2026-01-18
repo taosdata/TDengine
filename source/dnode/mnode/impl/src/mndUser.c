@@ -2782,20 +2782,20 @@ static void generateSalt(char *salt, size_t len) {
 static int32_t addDefaultIpToTable(int8_t enableIpv6, SHashObj *pUniqueTab) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t dummpy = 0;
+  int32_t dummy = 0;
 
   SIpRange ipv4 = {0}, ipv6 = {0};
   code = createDefaultIp4Range(&ipv4);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = taosHashPut(pUniqueTab, &ipv4, sizeof(ipv4), &dummpy, sizeof(dummpy));
+  code = taosHashPut(pUniqueTab, &ipv4, sizeof(ipv4), &dummy, sizeof(dummy));
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (enableIpv6) {
     code = createDefaultIp6Range(&ipv6);
     TSDB_CHECK_CODE(code, lino, _error);
 
-    code = taosHashPut(pUniqueTab, &ipv6, sizeof(ipv6), &dummpy, sizeof(dummpy));
+    code = taosHashPut(pUniqueTab, &ipv6, sizeof(ipv6), &dummy, sizeof(dummy));
     TSDB_CHECK_CODE(code, lino, _error);
   }
 _error:
@@ -2869,12 +2869,12 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     if (pUniqueTab == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
-    int32_t dummpy = 0;
     
     for (int i = 0; i < pCreate->numIpRanges; i++) {
       SIpRange range = {0};
       copyIpRange(&range, pCreate->pIpDualRanges + i);
-      if ((code = taosHashPut(pUniqueTab, &range, sizeof(range), &dummpy, sizeof(dummpy))) != 0) {
+      int32_t dummy = 0;
+      if ((code = taosHashPut(pUniqueTab, &range, sizeof(range), &dummy, sizeof(dummy))) != 0) {
         taosHashCleanup(pUniqueTab);
         TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
@@ -2922,7 +2922,6 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     if (pUniqueTab == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
-    int32_t dummpy = 0;
     
     for (int i = 0; i < pCreate->numTimeRanges; i++) {
       SDateTimeRange* src = pCreate->pTimeRanges + i;
@@ -2934,7 +2933,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
         continue;
       }
 
-      if ((code = taosHashPut(pUniqueTab, &range, sizeof(range), &dummpy, sizeof(dummpy))) != 0) {
+      int32_t dummy = 0;
+      if ((code = taosHashPut(pUniqueTab, &range, sizeof(range), &dummy, sizeof(dummy))) != 0) {
         taosHashCleanup(pUniqueTab);
         TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
@@ -4624,6 +4624,7 @@ static int32_t mndProcessDropTotpSecretReq(SRpcMsg *pReq) {
   int32_t            code = 0;
   int32_t            lino = 0;
   SUserObj          *pUser = NULL;
+  SUserObj           newUser = {0};
   SDropTotpSecretReq req = {0};
   int64_t            tss = taosGetTimestampMs();
 
@@ -4633,7 +4634,10 @@ static int32_t mndProcessDropTotpSecretReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, req.user, &pUser), &lino, _OVER);
   TAOS_CHECK_GOTO(mndCheckTotpSecretPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pUser, PRIV_TOTP_DROP), &lino, _OVER);
 
-  SUserObj newUser = {0};
+  if (!mndIsTotpEnabledUser(pUser)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_TOTP_SECRET_NOT_EXIST, &lino, _OVER);
+  }
+
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
   (void)memset(newUser.totpsecret, 0, sizeof(newUser.totpsecret));
   TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq), &lino, _OVER); 

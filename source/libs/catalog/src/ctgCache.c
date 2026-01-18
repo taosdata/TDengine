@@ -2745,6 +2745,7 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
   msg->userAuth.selectTbs = NULL;
   msg->userAuth.insertTbs = NULL;
   msg->userAuth.deleteTbs = NULL;
+  msg->userAuth.tokens = NULL;
   msg->userAuth.ownedDbs = NULL;
 
   CTG_UNLOCK(CTG_WRITE, &pUser->lock);

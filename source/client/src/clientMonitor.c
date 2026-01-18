@@ -225,14 +225,14 @@ static void reportSendProcess(void* param, void* tmrId) {
 
 static void sendAllCounter() {
   MonitorClient** ppMonitor = NULL;
-  while ((ppMonitor = taosHashIterate(monitorSlowLogHash, ppMonitor))) {
+  while ((ppMonitor = taosHashIterate(monitorCounterHash, ppMonitor))) {
     MonitorClient* pMonitor = *ppMonitor;
     if (pMonitor == NULL) {
       continue;
     }
     SAppInstInfo* pInst = getAppInstByClusterId(pMonitor->clusterId);
     if (pInst == NULL) {
-      taosHashCancelIterate(monitorSlowLogHash, ppMonitor);
+      taosHashCancelIterate(monitorCounterHash, ppMonitor);
       break;
     }
     SEpSet ep = getEpSet_s(&pInst->mgmtEp);

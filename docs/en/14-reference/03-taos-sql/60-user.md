@@ -157,6 +157,8 @@ CREATE TOTP_SECRET FOR USER user_name
 
 If the user has not yet created a TOTP secret, this command will create a TOTP secret for the user. If the user has already created a TOTP secret, this command will update the secret for the user. In either case, this command will return the newly created secret, which will only be displayed once, please save it promptly. The system will automatically enable TOTP two-factor authentication for users who have a TOTP secret.
 
+After enabling TOTP two-factor authentication, TDengine TSDB requires the OTP to be 6 digits long and updated every 30 seconds. Please ensure to configure your TOTP generator according to these parameters; otherwise, clients may fail to log in.
+
 For example, we can use the following command to create a TOTP secret for user test.
 
 ```sql
@@ -194,17 +196,18 @@ CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL 
 
 The token_name can be up to 31 bytes long.
 
-- `ENABLE` indicates whether the token is enabled, `1` means enabled, `0` means disabled. A disabled token cannot be used to the database. The default value is `1`.
+- `ENABLE` indicates whether the token is enabled, `1` means enabled, `0` means disabled. A disabled token cannot be used to connect the database. The default value is `1`.
 - `TTL` validity period in days, `0` means always valid.
 - `PROVIDER` name of the token provider, can be up to 63 bytes long.
 - `EXTRA_INFO` Additional information managed by applications, can be up to 1023 bytes long.
 
-In the following example, we create a token named test_token for the user test. Please note that since the token value is lengthy and is only displayed once upon creation—and cannot be queried thereafter—it is recommended to use `\G` at the end of the SQL command to ensure complete display.
+In the following example, we create a token named test_token for the user test. Please save the token value promptly as it is only displayed once upon creation—and cannot be queried thereafter.
 
 ```sql
-taos> create token test_token from user test \G;
-*************************** 1.row ***************************
-token: BsyjYKxhCMntZ3pHgweCd2uV2C8HoGKn8Mvd49dRRCtzusX0P1mgqRMrG7SzUca
+taos> create token test_token from user test;
+                             token                               |
+==================================================================
+ BsyjYKxhCMntZ3pHgweCd2uV2C8HoGKn8Mvd49dRRCtzusX0P1mgqRMrG7SzUca |
 Query OK, 1 row(s) in set (0.003018s)
 ```
 

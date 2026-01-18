@@ -421,8 +421,7 @@ void destroyColVal(void* p) {
 
   SColVal* pVal = (SColVal*)p;
 
-  if (TSDB_DATA_TYPE_NCHAR == pVal->value.type || TSDB_DATA_TYPE_GEOMETRY == pVal->value.type ||
-      TSDB_DATA_TYPE_VARBINARY == pVal->value.type || TSDB_DATA_TYPE_DECIMAL == pVal->value.type) {
+  if (IS_VAR_DATA_TYPE(pVal->value.type) || TSDB_DATA_TYPE_DECIMAL == pVal->value.type) {
     taosMemoryFreeClear(pVal->value.pData);
   }
 }
@@ -436,6 +435,30 @@ void insDestroyTableDataCxt(STableDataCxt* pTableCxt) {
   tDestroyTSchema(pTableCxt->pSchema);
   qDestroyBoundColInfo(&pTableCxt->boundColsInfo);
   taosArrayDestroyEx(pTableCxt->pValues, destroyColVal);
+  if (pTableCxt->pData) {
+    tDestroySubmitTbData(pTableCxt->pData, TSDB_MSG_FLG_ENCODE);
+    taosMemoryFree(pTableCxt->pData);
+  }
+  taosMemoryFree(pTableCxt);
+}
+
+static void destroyColValSml(void* p) {
+  SColVal* pVal = p;
+  if (TSDB_DATA_TYPE_NCHAR == pVal->value.type || TSDB_DATA_TYPE_GEOMETRY == pVal->value.type ||
+      TSDB_DATA_TYPE_VARBINARY == pVal->value.type) {
+    taosMemoryFreeClear(pVal->value.pData);
+  }
+}
+
+static void insDestroyTableDataCxtSml(STableDataCxt* pTableCxt) {
+  if (NULL == pTableCxt) {
+    return;
+  }
+
+  taosMemoryFreeClear(pTableCxt->pMeta);
+  tDestroyTSchema(pTableCxt->pSchema);
+  qDestroyBoundColInfo(&pTableCxt->boundColsInfo);
+  taosArrayDestroyEx(pTableCxt->pValues, destroyColValSml);
   if (pTableCxt->pData) {
     tDestroySubmitTbData(pTableCxt->pData, TSDB_MSG_FLG_ENCODE);
     taosMemoryFree(pTableCxt->pData);
@@ -491,6 +514,21 @@ void insDestroyTableDataCxtHashMap(SHashObj* pTableCxtHash) {
   void** p = taosHashIterate(pTableCxtHash, NULL);
   while (p) {
     insDestroyTableDataCxt(*(STableDataCxt**)p);
+
+    p = taosHashIterate(pTableCxtHash, p);
+  }
+
+  taosHashCleanup(pTableCxtHash);
+}
+
+void insDestroyTableDataCxtHashMapSml(SHashObj* pTableCxtHash) {
+  if (NULL == pTableCxtHash) {
+    return;
+  }
+
+  void** p = taosHashIterate(pTableCxtHash, NULL);
+  while (p) {
+    insDestroyTableDataCxtSml(*(STableDataCxt**)p);
 
     p = taosHashIterate(pTableCxtHash, p);
   }

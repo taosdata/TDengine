@@ -351,12 +351,16 @@ typedef struct {
   int32_t  parserLen;
   int32_t  statusLen;
   int32_t  reasonLen;
+  int32_t  createdByLen;
+  int32_t  labelsLen;
   char*    name;
   char*    sourceDsn;
   char*    sinkDsn;
   char*    parser;
   char*    status;
   char*    reason;
+  char*    createdBy;
+  char*    labels;
   SRWLatch lock;
   // SArray** labels;
   // int32_t  numOfLabels;

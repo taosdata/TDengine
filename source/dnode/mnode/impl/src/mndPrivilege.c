@@ -18,6 +18,7 @@
 #include "mndDb.h"
 #include "mndUser.h"
 #include "mndDef.h"
+#include "mndToken.h"
 
 #ifndef _PRIVILEGE
 int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
@@ -135,7 +136,8 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
                           .sessMaxCallVnodeNum = pUser->vnodePerCall};
   memcpy(&pRsp->sessCfg, &sessCfg, sizeof(SUserSessCfg));
   pRsp->timeWhiteListVer = pMnode->timeWhiteVer;
-  return 0;
+
+  return mndGetUserTokenStatuses(pUser->user, &pRsp->tokens);
 }
 
 int32_t mndEnableIpWhiteList(SMnode *pMnode) { return 0; }
