@@ -528,9 +528,9 @@ priv_type(A) ::= SHOW ROLES.                                                    
 
 priv_type(A) ::= CREATE USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_CREATE); }
 priv_type(A) ::= DROP USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_DROP); }
-priv_type(A) ::= SET USER SECURITY INFO.                                          { A = PRIV_SET_TYPE(PRIV_USER_SET_SECURITY); }
-priv_type(A) ::= SET USER AUDIT INFO.                                             { A = PRIV_SET_TYPE(PRIV_USER_SET_AUDIT); }
-priv_type(A) ::= SET USER BASIC INFO.                                             { A = PRIV_SET_TYPE(PRIV_USER_SET_BASIC); }
+priv_type(A) ::= SET USER SECURITY INFORMATION.                                   { A = PRIV_SET_TYPE(PRIV_USER_SET_SECURITY); }
+priv_type(A) ::= SET USER AUDIT INFORMATION.                                      { A = PRIV_SET_TYPE(PRIV_USER_SET_AUDIT); }
+priv_type(A) ::= SET USER BASIC INFORMATION.                                      { A = PRIV_SET_TYPE(PRIV_USER_SET_BASIC); }
 priv_type(A) ::= UNLOCK USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_UNLOCK); }
 priv_type(A) ::= LOCK USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_LOCK); }
 priv_type(A) ::= SHOW USERS.                                                      { A = PRIV_SET_TYPE(PRIV_USER_SHOW); }

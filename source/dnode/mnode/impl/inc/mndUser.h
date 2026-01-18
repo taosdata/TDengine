@@ -64,6 +64,7 @@ int32_t mndRefreshUserDateTimeWhiteList(SMnode *pMnode);
 int64_t mndGetUserTimeWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 
 int32_t mndGetAuditUser(SMnode *pMnode, char *user);
+int32_t mndResetAuditLogUser(SMnode *pMnode, const char *user, bool isAdd);
 
 void mndGetUserLoginInfo(const char *user, SLoginInfo *pLoginInfo);
 void mndSetUserLoginInfo(const char *user, const SLoginInfo *pLoginInfo);
@@ -71,7 +72,6 @@ bool mndIsTotpEnabledUser(SUserObj *pUser);
 
 int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser);
 int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *pAlterReq);
-int32_t mndResetAuditLogUser(SMnode *pMnode, const char *user, bool isAdd);
 
 int32_t mndBuildSMCreateTotpSecretResp(STrans *pTrans, void **ppResp, int32_t *pRespLen);
 #ifdef __cplusplus

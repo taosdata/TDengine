@@ -130,6 +130,7 @@ typedef enum {
   PRIV_USER_UNLOCK,        // UNLOCK USER
   PRIV_USER_LOCK,          // LOCK USER
   PRIV_USER_SHOW,          // SHOW USERS
+  PRIV_USER_ALTER,         // ALTER USER
 
   // audit management
   PRIV_AUDIT_DB_DROP = 141,  // DROP AUDIT DATABASE
