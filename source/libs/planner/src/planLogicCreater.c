@@ -1854,7 +1854,16 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
     pWindow->extendOption = ((SValueNode*)pState->pExtend)->datum.i;
   }
   if (pState->pTrueForLimit) {
-    pWindow->trueForLimit = ((SValueNode*)pState->pTrueForLimit)->datum.i;
+    if (QUERY_NODE_VALUE == nodeType(pState->pTrueForLimit)) {
+      pWindow->trueForType = TRUE_FOR_DURATION_ONLY;
+      pWindow->trueForCount = 0;
+      pWindow->trueForDuration = ((SValueNode*)pState->pTrueForLimit)->datum.i;
+    } else {
+      pWindow->trueForType = ((STrueForNode*)pState->pTrueForLimit)->trueForType;
+      pWindow->trueForCount = ((STrueForNode*)pState->pTrueForLimit)->count;
+      SNode* pDuration = ((STrueForNode*)pState->pTrueForLimit)->pDuration;
+      pWindow->trueForDuration = pDuration ? ((SValueNode*)pDuration)->datum.i : 0;
+    }
   }
   // rewrite the expression in subsequent clauses
   code = rewriteExprForSelect(pWindow->pStateExpr, pSelect, SQL_CLAUSE_WINDOW);
@@ -1965,7 +1974,16 @@ static int32_t createWindowLogicNodeByEvent(SLogicPlanContext* pCxt, SEventWindo
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   if (pEvent->pTrueForLimit) {
-    pWindow->trueForLimit = ((SValueNode*)pEvent->pTrueForLimit)->datum.i;
+    if (QUERY_NODE_VALUE == nodeType(pEvent->pTrueForLimit)) {
+      pWindow->trueForType = TRUE_FOR_DURATION_ONLY;
+      pWindow->trueForCount = 0;
+      pWindow->trueForDuration = ((SValueNode*)pEvent->pTrueForLimit)->datum.i;
+    } else {
+      pWindow->trueForType = ((STrueForNode*)pEvent->pTrueForLimit)->trueForType;
+      pWindow->trueForCount = ((STrueForNode*)pEvent->pTrueForLimit)->count;
+      SNode* pDuration = ((STrueForNode*)pEvent->pTrueForLimit)->pDuration;
+      pWindow->trueForDuration = pDuration ? ((SValueNode*)pDuration)->datum.i : 0;
+    }
   }
   pWindow->partType |= (pSelect->pPartitionByList && pSelect->pPartitionByList->length > 0) ? WINDOW_PART_HAS : 0;
   pWindow->partType |= (pSelect->pPartitionByList && keysHasTbname(pSelect->pPartitionByList)) ? WINDOW_PART_TB : 0;

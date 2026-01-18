@@ -372,7 +372,9 @@ typedef struct SWindowLogicNode {
   SNode*                pStartCond;
   SNode*                pEndCond;
   // for event and state window
-  int64_t               trueForLimit;
+  int32_t               trueForType;
+  int32_t               trueForCount;
+  int64_t               trueForDuration;
   // for count window
   int64_t               windowCount;
   int64_t               windowSliding;
@@ -807,7 +809,9 @@ typedef struct SSessionWinodwPhysiNode {
 typedef struct SStateWindowPhysiNode {
   SWindowPhysiNode window;
   SNode*           pStateKey;
-  int64_t          trueForLimit;
+  ETrueForType     trueForType;
+  int32_t          trueForCount;
+  int64_t          trueForDuration;
   EStateWinExtendOption extendOption;
 } SStateWindowPhysiNode;
 
@@ -815,7 +819,9 @@ typedef struct SEventWinodwPhysiNode {
   SWindowPhysiNode window;
   SNode*           pStartCond;
   SNode*           pEndCond;
-  int64_t          trueForLimit;
+  ETrueForType     trueForType;
+  int32_t          trueForCount;
+  int64_t          trueForDuration;
 } SEventWinodwPhysiNode;
 
 typedef struct SCountWindowPhysiNode {
