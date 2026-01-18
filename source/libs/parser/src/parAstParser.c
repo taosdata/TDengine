@@ -2061,6 +2061,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_ROLE_DROP);
     case QUERY_NODE_CREATE_USER_STMT:
       return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_USER_CREATE);
+    case QUERY_NODE_ALTER_USER_STMT:
+      return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_USER_ALTER);
     case QUERY_NODE_DROP_USER_STMT:
       return collectMetaKeyFromSysPrivStmt(pCxt, PRIV_USER_DROP);
     case QUERY_NODE_ALTER_LOCAL_STMT:
