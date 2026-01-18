@@ -13111,9 +13111,27 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
   return code;
 }
 
+static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, SUserOptions* ops) {
+  int32_t        code = 0, lino = 0;
+  SParseContext* pParCxt = pCxt->pParseCxt;
+
+  SGetUserAuthRsp  authRsp = {0};
+  SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                           .requestId = pParCxt->requestId,
+                           .requestObjRefId = pParCxt->requestRid,
+                           .mgmtEps = pParCxt->mgmtEpSet};
+  TAOS_CHECK_EXIT(catalogGetUserAuth(pParCxt->pCatalog, &conn, pParCxt->pUser, &authRsp));
+_exit:
+  return code;
+}
+
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
   int32_t        code = 0;
   SCreateUserReq createReq = {0};
+
+  if((code = translateCheckUserOptsPriv(pCxt, &pStmt->userOps))) {
+    return code;
+  }
   if ((code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false))) {
     return code;
   }
@@ -13185,6 +13203,10 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   int32_t       code = 0;
   SAlterUserReq alterReq = {0};
   SUserOptions* opts = pStmt->pUserOptions;
+
+  if((code = translateCheckUserOptsPriv(pCxt, opts))) {
+    return code;
+  }
 
   alterReq.alterType = TSDB_ALTER_USER_BASIC_INFO;
   tstrncpy(alterReq.user, pStmt->userName, TSDB_USER_LEN);
