@@ -1273,10 +1273,10 @@ static int32_t mndUpgradeUsers(SMnode *pMnode, int32_t version) {
   if (userIdUpgraded == 0) return code;
   if (!mndIsLeader(pMnode)) return code;
 
-  SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPGRADE_USER, .info.ahandle = 0, .info.notFreeAhandle = 1};
-  SEpSet  epSet = {0};
-  mndGetMnodeEpSet(pMnode, &epSet);
-  TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
+  // SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPGRADE_USER, .info.ahandle = 0, .info.notFreeAhandle = 1};
+  // SEpSet  epSet = {0};
+  // mndGetMnodeEpSet(pMnode, &epSet);
+  // TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
 _exit:
   if (code < 0) {
     mError("failed at line %d to upgrade users since %s", lino, tstrerror(code));
@@ -1754,18 +1754,20 @@ static int32_t mndUserPrivUpgradeTbViews(SUserObj *pNew, SHashObj **ppTblHash, S
       if (alterReq.privileges.cond == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
-      alterReq.privileges.condLen = strlen(pIter) + 1; // include '\0'
+      alterReq.privileges.condLen = strlen(pIter) + 1;  // include '\0'
       if (ppTblHash && !*ppTblHash) {
         *ppTblHash = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
         if (!*ppTblHash) {
           TAOS_CHECK_EXIT(terrno);
         }
+        taosHashSetFreeFp(*ppTblHash, privTblPoliciesFree);
       }
     }
 
     TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pNew, &alterReq));
   }
 _exit:
+  tFreeSAlterRoleReq(&alterReq);
   TAOS_RETURN(code);
 }
 
@@ -1791,6 +1793,7 @@ static int32_t mndUserPrivUpgradeUsedDb(SUserObj *pNew, SHashObj *pDbs) {
     TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pNew, &alterReq));
   }
 _exit:
+  tFreeSAlterRoleReq(&alterReq);
   TAOS_RETURN(code);
 }
 
