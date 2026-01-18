@@ -1172,28 +1172,93 @@ static int32_t mndUpgradeUserIds(SMnode *pMnode, bool *upgraded) {
   return 0;
 }
 
-static int32_t mndUserPrivUpgradeOwner(SMnode *pMnode, SUserObj *pNew) {
-  int32_t   code = 0, lino = 0;
-  SSdb     *pSdb = pMnode->pSdb;
-  SUserObj *pUser = NULL;
-  void     *pIter = NULL;
-  while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
-
-    
+static int32_t mndUserPrivUpgradeDbOwner(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = 0, lino = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  SDbObj *pObj = NULL;
+  void   *pIter = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pObj))) {
+    if (pObj->cfg.isMount) continue;
+    if (pObj->ownerId != 0) continue;
+    SUserObj *pUser = NULL;
+    (void)mndAcquireUser(pMnode, pObj->createUser, &pUser);
+    if (pUser == NULL) {
+      mWarn("db:%s, owner user:%s not found, skip upgrade owner uid", pObj->name, pObj->createUser);
+      continue;
+    }
+    SDbObj newObj = {0};
+    memcpy(&newObj, pObj, sizeof(SDbObj));
+    ++newObj.cfgVersion;
+    newObj.updateTime = taosGetTimestampMs();
+    newObj.ownerId = pUser->uid;
+    mInfo("db:%s, owner uid upgraded to %" PRId64, pObj->name, pUser->uid);
+    mndReleaseUser(pMnode, pUser);
+    if ((code = mndSetAlterDbCommitLogs(pMnode, pTrans, pObj, &newObj))) {
+      sdbCancelFetch(pSdb, pIter);
+      sdbRelease(pSdb, pObj);
+      TAOS_CHECK_EXIT(code);
+    }
   }
 _exit:
-  return 0;
+  if (code < 0) {
+    mError("failed at line %d to upgrade db owner uid since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
+static int32_t mndUserPrivUpgradeViewOwner(SMnode *pMnode, STrans *pTrans) {
+  int32_t code = 0, lino = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  SViewObj *pObj = NULL;
+  void   *pIter = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_VIEW, pIter, (void **)&pObj))) {
+    if (pObj->ownerId != 0) continue;
+    SUserObj *pUser = NULL;
+    (void)mndAcquireUser(pMnode, pObj->createUser, &pUser);
+    if (pUser == NULL) {
+      mWarn("view:%s, owner user:%s not found, skip upgrade owner uid", pObj->fullname, pObj->createUser);
+      continue;
+    }
+    SViewObj newObj = {0};
+    memcpy(&newObj, pObj, sizeof(SViewObj));
+    ++newObj.version;
+    newObj.ownerId = pUser->uid;
+    mInfo("view:%s, owner uid upgraded to %" PRId64, pObj->fullname, pUser->uid);
+    mndReleaseUser(pMnode, pUser);
+    // if ((code = mndSetAlterDbCommitLogs(pMnode, pTrans, pObj, &newObj))) {
+    //   sdbCancelFetch(pSdb, pIter);
+    //   sdbRelease(pSdb, pObj);
+    //   TAOS_CHECK_EXIT(code);
+    // }
+  }
+_exit:
+  if (code < 0) {
+    mError("failed at line %d to upgrade db owner uid since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
 }
 
 static int32_t mndUpgradeUsers(SMnode *pMnode) {
-  if (userIdUpgraded == 0) return TSDB_CODE_SUCCESS;
+  int32_t code = 0, lino = 0;
+  if (userIdUpgraded == 0) return code;
 
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, NULL, "upgrade-user");
+  if (pTrans == NULL) {
+    mError("failed to create upgrade-user transaction since %s", terrstr());
+    TAOS_CHECK_EXIT(terrno);
+  }
 
-  // update owner of dbs
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeDbOwner(pMnode, pTrans));
+#if 0 //def TD_ENTERPRISE
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeViewOwner(pMnode, pTrans));
+
+#endif
   // update owner of consumers
   // update owner of topics
   // update owner of views
-  return 0;
+_exit:
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
 }
 
 static int32_t tSerializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj) {
@@ -1720,7 +1785,7 @@ static int32_t mndUserPrivUpgrade(SSdbRaw *pRaw, SPrivHashObjSet *pPrivSet, SUse
     TAOS_CHECK_EXIT(terrno);
   }
 
-  if(pNew->uid == 0) {
+  if (pNew->uid == 0) {
     pNew->uid = mndGenerateUid(pNew->name, strlen(pNew->name));
     userIdUpgraded = 1;
   }
@@ -2203,6 +2268,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
   taosInitRWLatch(&pUser->lock);
   dropOldPasswords(pUser);
+
   if (sver < USER_VER_SUPPORT_ADVANCED_SECURITY) {
     TAOS_CHECK_GOTO(mndUserPrivUpgrade(pRaw, &privSet, pUser), &lino, _OVER);
   }

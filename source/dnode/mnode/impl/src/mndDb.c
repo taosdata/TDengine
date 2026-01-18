@@ -1465,7 +1465,7 @@ static int32_t mndSetAlterDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
   return 0;
 }
 
-static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
   int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndDbActionEncode(pNew);
   if (pCommitRaw == NULL) {
