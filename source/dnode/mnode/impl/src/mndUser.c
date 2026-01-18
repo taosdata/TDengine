@@ -1245,14 +1245,15 @@ _exit:
 static int32_t mndProcessUpgradeUserReq(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
   int32_t code = 0, lino = 0;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, NULL, "upgrade-user");
+#if 0
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING , NULL, "upgrade-user");
   if (pTrans == NULL) {
     mError("failed to create upgrade-user transaction since %s", terrstr());
     TAOS_CHECK_EXIT(terrno);
   }
 
   TAOS_CHECK_EXIT(mndUserPrivUpgradeDbOwner(pMnode, pTrans));
-#if 0  // def TD_ENTERPRISE
+#ifdef TD_ENTERPRISE
   TAOS_CHECK_EXIT(mndUserPrivUpgradeViewOwner(pMnode, pTrans));
 
 #endif
@@ -1265,6 +1266,7 @@ _exit:
     mError("failed at line %d to upgrade users since %s", lino, tstrerror(code));
   }
   mndTransDrop(pTrans);
+#endif
   TAOS_RETURN(code);
 }
 
@@ -1272,15 +1274,16 @@ static int32_t mndUpgradeUsers(SMnode *pMnode, int32_t version) {
   int32_t code = 0, lino = 0;
   if (userIdUpgraded == 0) return code;
   if (!mndIsLeader(pMnode)) return code;
-
-  // SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPGRADE_USER, .info.ahandle = 0, .info.notFreeAhandle = 1};
-  // SEpSet  epSet = {0};
-  // mndGetMnodeEpSet(pMnode, &epSet);
-  // TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
+#if 0
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPGRADE_USER, .info.ahandle = 0, .info.notFreeAhandle = 1};
+  SEpSet  epSet = {0};
+  mndGetMnodeEpSet(pMnode, &epSet);
+  TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
 _exit:
   if (code < 0) {
     mError("failed at line %d to upgrade users since %s", lino, tstrerror(code));
   }
+#endif
   TAOS_RETURN(code);
 }
 

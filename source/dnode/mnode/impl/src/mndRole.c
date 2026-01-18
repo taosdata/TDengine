@@ -23,9 +23,11 @@
 #include "mndUser.h"
 #include "audit.h"
 #include "mndDb.h"
+#include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndSync.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "tbase64.h"
@@ -39,6 +41,7 @@ static SRoleMgmt roleMgmt = {0};
 static bool      isDeploy = false;
 
 static int32_t  mndCreateDefaultRoles(SMnode *pMnode);
+static int32_t  mndUpgradeDefaultRoles(SMnode *pMnode, int32_t version);
 static SSdbRow *mndRoleActionDecode(SSdbRaw *pRaw);
 static int32_t  mndRoleActionInsert(SSdb *pSdb, SRoleObj *pRole);
 static int32_t  mndRoleActionDelete(SSdb *pSdb, SRoleObj *pRole);
@@ -47,6 +50,7 @@ static int32_t  mndCreateRole(SMnode *pMnode, char *acct, SCreateRoleReq *pCreat
 static int32_t  mndProcessCreateRoleReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterRoleReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropRoleReq(SRpcMsg *pReq);
+static int32_t  mndProcessUpgradeRoleReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetRoleAuthReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveRoles(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextRole(SMnode *pMnode, void *pIter);
@@ -64,7 +68,7 @@ int32_t mndInitRole(SMnode *pMnode) {
       .sdbType = SDB_ROLE,
       .keyType = SDB_KEY_BINARY,
       .deployFp = (SdbDeployFp)mndCreateDefaultRoles,
-      .upgradeFp = (SdbUpgradeFp)mndCreateDefaultRoles,
+      .upgradeFp = (SdbUpgradeFp)mndUpgradeDefaultRoles,
       .encodeFp = (SdbEncodeFp)mndRoleActionEncode,
       .decodeFp = (SdbDecodeFp)mndRoleActionDecode,
       .insertFp = (SdbInsertFp)mndRoleActionInsert,
@@ -75,6 +79,7 @@ int32_t mndInitRole(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ROLE, mndProcessCreateRoleReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_ROLE, mndProcessDropRoleReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ROLE, mndProcessAlterRoleReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_UPGRADE_ROLE, mndProcessUpgradeRoleReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ROLE, mndRetrieveRoles);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE, mndCancelGetNextRole);
@@ -846,6 +851,19 @@ _exit:
   mndReleaseRole(pMnode, pObj);
   mndRoleFreeObj(&newObj);
   tFreeSAlterRoleReq(&alterReq);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndUpgradeDefaultRoles(SMnode *pMnode, int32_t version) { return mndCreateDefaultRoles(pMnode); }
+
+static int32_t mndProcessUpgradeRoleReq(SRpcMsg *pReq) {
+  int32_t code = 0, lino = 0;
+//   SMnode *pMnode = pReq->info.node;
+//   TAOS_CHECK_EXIT(mndUpgradeDefaultRoles(pMnode, MND_ROLE_VER_NUMBER));
+// _exit:
+//   if (code < 0) {
+//     mError("failed at line %d to upgrade role since %s", lino, tstrerror(code));
+//   }
   TAOS_RETURN(code);
 }
 
