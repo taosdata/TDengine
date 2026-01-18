@@ -13111,7 +13111,7 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
   return code;
 }
 
-static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, SUserOptions* ops) {
+static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, SUserOptions* ops, bool isAlter) {
   int32_t        code = 0, lino = 0;
   SParseContext* pParCxt = pCxt->pParseCxt;
 
@@ -13121,6 +13121,59 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, SUserOptions*
                            .requestObjRefId = pParCxt->requestRid,
                            .mgmtEps = pParCxt->mgmtEpSet};
   TAOS_CHECK_EXIT(catalogGetUserAuth(pParCxt->pCatalog, &conn, pParCxt->pUser, &authRsp));
+
+  if (ops->hasEnable) {
+    bool enable = false;
+    if (isAlter) {
+      SAlterUserStmt* pAlterStmt = (SAlterUserStmt*)pStmt;
+      enable = ops->enable;
+    } else {
+      SCreateUserStmt* pCreateStmt = (SCreateUserStmt*)pStmt;
+      enable = pCreateStmt->enable;
+    }
+    if (enable) {
+      if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_USER_UNLOCK)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+                                       "Permission denied to enable user");
+      }
+    } else if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_USER_LOCK)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+                                     "Permission denied to disable user");
+    }
+  }
+
+  if (ops->hasChangepass) {
+    const char* targetUser = isAlter ? ((SAlterUserStmt*)pStmt)->userName : ((SCreateUserStmt*)pStmt)->userName;
+    if (strncmp(authRsp.user, pParCxt->pUser, TSDB_USER_LEN) != 0) {
+      if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_PASS_ALTER)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+                                       "Permission denied to change others' password");
+      }
+    } else {
+      if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_PASS_ALTER_SELF)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+                                       "Permission denied to change own password");
+      }
+    }
+  }
+
+  if (ops->hasCreatedb || ops->hasSessionPerUser || ops->hasConnectTime || ops->hasConnectIdleTime ||
+      ops->hasCallPerSession || ops->hasVnodePerCall) {
+    if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_USER_SET_BASIC)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+                                     "Permission denied to set user basic info");
+    }
+  }
+
+  if (ops->hasTotpseed || ops->hasSysinfo || ops->hasFailedLoginAttempts || ops->hasPasswordLifeTime ||
+      ops->hasPasswordReuseTime || ops->hasPasswordReuseMax || ops->hasPasswordLockTime || ops->hasPasswordGraceTime ||
+      ops->hasInactiveAccountTime || ops->hasAllowTokenNum) {
+    if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_USER_SET_SECURITY)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+                                     "Permission denied to set user security info");
+    }
+  }
+
 _exit:
   return code;
 }
@@ -13129,7 +13182,7 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   int32_t        code = 0;
   SCreateUserReq createReq = {0};
 
-  if((code = translateCheckUserOptsPriv(pCxt, &pStmt->userOps))) {
+  if((code = translateCheckUserOptsPriv(pCxt,  pStmt, &pStmt->userOps, false))) {
     return code;
   }
   if ((code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false))) {
@@ -13204,7 +13257,7 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   SAlterUserReq alterReq = {0};
   SUserOptions* opts = pStmt->pUserOptions;
 
-  if((code = translateCheckUserOptsPriv(pCxt, opts))) {
+  if((code = translateCheckUserOptsPriv(pCxt, pStmt, opts, true))) {
     return code;
   }
 
