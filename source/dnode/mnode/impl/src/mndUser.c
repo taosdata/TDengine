@@ -4585,7 +4585,8 @@ static int32_t mndProcessCreateTotpSecretReq(SRpcMsg *pReq) {
   mTrace("user:%s, start to create/update totp secret", req.user);
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, req.user, &pUser), &lino, _OVER);
-  TAOS_CHECK_GOTO(mndCheckTotpSecretPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckTotpSecretPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pUser, PRIV_TOTP_CREATE),
+                  &lino, _OVER);
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
   taosSafeRandBytes((uint8_t *)newUser.totpsecret, sizeof(newUser.totpsecret));
   TAOS_CHECK_GOTO(mndCreateTotpSecret(pMnode, &newUser, pReq), &lino, _OVER); 
@@ -4630,7 +4631,7 @@ static int32_t mndProcessDropTotpSecretReq(SRpcMsg *pReq) {
   mTrace("user:%s, start to drop totp secret", req.user);
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, req.user, &pUser), &lino, _OVER);
-  TAOS_CHECK_GOTO(mndCheckTotpSecretPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckTotpSecretPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pUser, PRIV_TOTP_DROP), &lino, _OVER);
 
   SUserObj newUser = {0};
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
