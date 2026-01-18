@@ -534,6 +534,7 @@ priv_type(A) ::= SET USER BASIC INFORMATION.                                    
 priv_type(A) ::= UNLOCK USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_UNLOCK); }
 priv_type(A) ::= LOCK USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_LOCK); }
 priv_type(A) ::= SHOW USERS.                                                      { A = PRIV_SET_TYPE(PRIV_USER_SHOW); }
+priv_type(A) ::= ALTER USER.                                                      { A = PRIV_SET_TYPE(PRIV_USER_ALTER); }
 
 priv_type(A) ::= CREATE TOKEN.                                                    { A = PRIV_SET_TYPE(PRIV_TOKEN_CREATE); }
 priv_type(A) ::= DROP TOKEN.                                                      { A = PRIV_SET_TYPE(PRIV_TOKEN_DROP); }
