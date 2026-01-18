@@ -23,9 +23,11 @@
 #include "mndUser.h"
 #include "audit.h"
 #include "mndDb.h"
+#include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndSync.h" 
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndToken.h"
@@ -123,7 +125,7 @@ static bool isIpRangeEqual(SIpRange *a, SIpRange *b);
 #define MND_MAX_USER_TIME_RANGE 2048
 
 static int32_t  mndCreateDefaultUsers(SMnode *pMnode);
-static int32_t  mndUpgradeUsers(SMnode *pMnode);
+static int32_t  mndUpgradeUsers(SMnode *pMnode, int32_t version);
 static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw);
 static int32_t  mndUserActionInsert(SSdb *pSdb, SUserObj *pUser);
 static int32_t  mndUserActionDelete(SSdb *pSdb, SUserObj *pUser);
@@ -133,6 +135,7 @@ static int32_t  mndProcessCreateUserReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterUserReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropUserReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetUserAuthReq(SRpcMsg *pReq);
+static int32_t  mndProcessUpgradeUserReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static int32_t  mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
@@ -581,6 +584,7 @@ int32_t mndInitUser(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_USER, mndProcessAlterUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_USER, mndProcessDropUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_AUTH, mndProcessGetUserAuthReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_UPGRADE_USER, mndProcessUpgradeUserReq);
 
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_IP_WHITELIST, mndProcessGetUserIpWhiteListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_IP_WHITELIST_DUAL, mndProcessGetUserIpWhiteListReq);
@@ -1238,10 +1242,9 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndUpgradeUsers(SMnode *pMnode) {
+static int32_t mndProcessUpgradeUserReq(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
   int32_t code = 0, lino = 0;
-  if (userIdUpgraded == 0) return code;
-
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, NULL, "upgrade-user");
   if (pTrans == NULL) {
     mError("failed to create upgrade-user transaction since %s", terrstr());
@@ -1249,15 +1252,35 @@ static int32_t mndUpgradeUsers(SMnode *pMnode) {
   }
 
   TAOS_CHECK_EXIT(mndUserPrivUpgradeDbOwner(pMnode, pTrans));
-#if 0 //def TD_ENTERPRISE
+#if 0  // def TD_ENTERPRISE
   TAOS_CHECK_EXIT(mndUserPrivUpgradeViewOwner(pMnode, pTrans));
 
 #endif
   // update owner of consumers
   // update owner of topics
   // update owner of views
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
+  if (code < 0) {
+    mError("failed at line %d to upgrade users since %s", lino, tstrerror(code));
+  }
   mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndUpgradeUsers(SMnode *pMnode, int32_t version) {
+  int32_t code = 0, lino = 0;
+  if (userIdUpgraded == 0) return code;
+  if (!mndIsLeader(pMnode)) return code;
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPGRADE_USER, .info.ahandle = 0, .info.notFreeAhandle = 1};
+  SEpSet  epSet = {0};
+  mndGetMnodeEpSet(pMnode, &epSet);
+  TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
+_exit:
+  if (code < 0) {
+    mError("failed at line %d to upgrade users since %s", lino, tstrerror(code));
+  }
   TAOS_RETURN(code);
 }
 
