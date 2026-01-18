@@ -64,7 +64,7 @@ int32_t mndInitRole(SMnode *pMnode) {
       .sdbType = SDB_ROLE,
       .keyType = SDB_KEY_BINARY,
       .deployFp = (SdbDeployFp)mndCreateDefaultRoles,
-      // .redeployFp = (SdbDeployFp)mndCreateDefaultRoles, // TODO: upgrade role table
+      .upgradeFp = (SdbUpgradeFp)mndCreateDefaultRoles,
       .encodeFp = (SdbEncodeFp)mndRoleActionEncode,
       .decodeFp = (SdbDecodeFp)mndRoleActionDecode,
       .insertFp = (SdbInsertFp)mndRoleActionInsert,

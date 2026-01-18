@@ -123,6 +123,7 @@ static bool isIpRangeEqual(SIpRange *a, SIpRange *b);
 #define MND_MAX_USER_TIME_RANGE 2048
 
 static int32_t  mndCreateDefaultUsers(SMnode *pMnode);
+static int32_t  mndUpgradeUsers(SMnode *pMnode);
 static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw);
 static int32_t  mndUserActionInsert(SSdb *pSdb, SUserObj *pUser);
 static int32_t  mndUserActionDelete(SSdb *pSdb, SUserObj *pUser);
@@ -175,7 +176,7 @@ typedef struct {
 } SUserCache;
 
 static SUserCache userCache;
-
+static int8_t     userIdUpgraded = 0;
 
 static int32_t userCacheInit() {
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
@@ -568,7 +569,7 @@ int32_t mndInitUser(SMnode *pMnode) {
       .sdbType = SDB_USER,
       .keyType = SDB_KEY_BINARY,
       .deployFp = (SdbDeployFp)mndCreateDefaultUsers,
-      // .redeployFp = (SdbDeployFp)mndCreateDefaultUsers, // TODO: upgrade user table(uid should be created)
+      .upgradeFp = (SdbUpgradeFp)mndUpgradeUsers,
       .encodeFp = (SdbEncodeFp)mndUserActionEncode,
       .decodeFp = (SdbDecodeFp)mndUserActionDecode,
       .insertFp = (SdbInsertFp)mndUserActionInsert,
@@ -1153,6 +1154,48 @@ static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
   return mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS);
 }
 
+static int32_t mndUpgradeUserIds(SMnode *pMnode, bool *upgraded) {
+//   int32_t   code = 0, lino = 0;
+//   SSdb     *pSdb = pMnode->pSdb;
+//   SUserObj *pUser = NULL;
+//   void     *pIter = NULL;
+//   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
+//     if (pUser->uid == 0) {
+//       pUser->uid = mndGenerateUid(pUser->user, strlen(pUser->user));
+//       TAOS_CHECK_GOTO(mndUserActionUpdate(pMnode, pUser), &lino, _exit);
+//       *upgraded = true;
+//       mInfo("user:%s, uid upgraded to %" PRId64, pUser->user, pUser->uid);
+//     }
+//     mndUserFreeObj(pUser);
+//   }
+// _exit:
+  return 0;
+}
+
+static int32_t mndUserPrivUpgradeOwner(SMnode *pMnode, SUserObj *pNew) {
+  int32_t   code = 0, lino = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  SUserObj *pUser = NULL;
+  void     *pIter = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
+
+    
+  }
+_exit:
+  return 0;
+}
+
+static int32_t mndUpgradeUsers(SMnode *pMnode) {
+  if (userIdUpgraded == 0) return TSDB_CODE_SUCCESS;
+
+
+  // update owner of dbs
+  // update owner of consumers
+  // update owner of topics
+  // update owner of views
+  return 0;
+}
+
 static int32_t tSerializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj) {
   int32_t  code = 0, lino = 0;
   int32_t  tlen = 0;
@@ -1677,15 +1720,22 @@ static int32_t mndUserPrivUpgrade(SSdbRaw *pRaw, SPrivHashObjSet *pPrivSet, SUse
     TAOS_CHECK_EXIT(terrno);
   }
 
+  if(pNew->uid == 0) {
+    pNew->uid = mndGenerateUid(pNew->name, strlen(pNew->name));
+    userIdUpgraded = 1;
+  }
+
   // read db: db.*
   // write db: db.*
 
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, &pNew->selectTbs, pPrivSet->pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, &pNew->insertTbs, pPrivSet->pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL));
+  TAOS_CHECK_EXIT(
+      mndUserPrivUpgradeTbViews(pNew, &pNew->insertTbs, pPrivSet->pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL));
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, NULL, pPrivSet->pAlterTbs, PRIV_CM_ALTER, PRIV_OBJ_TBL));
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, NULL, pPrivSet->pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW));
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, NULL, pPrivSet->pWriteViews, PRIV_CM_ALTER, PRIV_OBJ_VIEW));
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, NULL, pPrivSet->pWriteViews, PRIV_CM_DROP, PRIV_OBJ_VIEW));
+
   TAOS_CHECK_EXIT(mndUserPrivUpgradeUsedDb(pNew, pPrivSet->pUseDbs));
 _exit:
   TAOS_RETURN(code);
