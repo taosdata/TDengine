@@ -756,8 +756,6 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     } else {
       handle->udf = udf;
     }
-  } else {
-    --udf->refCount;
   }
 
 _send:
@@ -799,7 +797,7 @@ _send:
       fnError("udf name %s remove from hash failed/setup, err:%0x %s", udf->name, code, tstrerror(code));
     }
 
-    fnInfo("udf free succeeded/setup failed. name %s(%p)", udf->name, udf);
+    fnError("udf free with setup failed. name %s(%p) err:%0x %s", udf->name, udf, code, tstrerror(code));
 
     taosMemoryFree(udf);
   }
