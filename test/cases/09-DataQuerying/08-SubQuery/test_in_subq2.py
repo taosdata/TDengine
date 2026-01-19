@@ -114,46 +114,37 @@ class TestInSubQuery2:
         "select {scalarSql} from vtb1",
 
         # from
-        "select a.ts from {tableName} a join {tableName} b on a.ts = b.ts and a.f1 = {scalarSql} order by 1",
-        "select b.ts from {tableName} a left join {tableName} b on a.ts = b.ts and a.f1 > {scalarSql} order by 1",
-        "select a.ts from {tableName} a right join {tableName} b on a.ts = b.ts and b.f1 = {scalarSql} order by 1",
-        "select a.ts from {tableName} a full join {tableName} b on a.ts = b.ts and b.f1 = {scalarSql} order by 1",
-        "select b.ts from {tableName} a left semi join {tableName} b on a.ts = b.ts and a.f1 = {scalarSql} order by 1",
-        "select a.ts from {tableName} a right semi join {tableName} b on a.ts = b.ts and b.f1 > {scalarSql} order by 1",
-        "select b.ts from {tableName} a left anti join {tableName} b on a.ts = b.ts and a.f1 != {scalarSql} order by 1",
-        "select a.ts from {tableName} a right anti join {tableName} b on a.ts = b.ts and b.f1 <= {scalarSql} order by 1",
-        "select b.ts from {tableName} a left asof join {tableName} b on a.ts = b.ts and a.f1 != {scalarSql} order by 1",
-        "select a.ts from {tableName} a right asof join {tableName} b on a.ts = b.ts and b.f1 <= {scalarSql} order by 1",
+        "select a.ts from {tableName} a join {tableName} b on a.ts = b.ts and {scalarSql} order by 1",
+        "select b.ts from {tableName} a left join {tableName} b on a.ts = b.ts and {scalarSql} order by 1",
+        "select a.ts from {tableName} a right join {tableName} b on a.ts = b.ts and {scalarSql} order by 1",
+        "select a.ts from {tableName} a full join {tableName} b on a.ts = b.ts and {scalarSql} order by 1",
+        "select b.ts from {tableName} a left semi join {tableName} b on a.ts = b.ts and {scalarSql} order by 1",
+        "select a.ts from {tableName} a right semi join {tableName} b on a.ts = b.ts and {scalarSql} order by 1",
+        "select b.ts from {tableName} a left anti join {tableName} b on a.ts = b.ts and {scalarSql} order by 1",
+        "select a.ts from {tableName} a right anti join {tableName} b on a.ts = b.ts and {scalarSql} order by 1",
+        "select b.ts from {tableName} a left asof join {tableName} b on a.ts = b.ts and {scalarSql} order by 1",
+        "select a.ts from {tableName} a right asof join {tableName} b on a.ts = b.ts and {scalarSql} order by 1",
         "select b.ts from {tableName} a left asof join {tableName} b on a.ts = b.ts jlimit {scalarSql} order by 1",
         "select a.ts from {tableName} a right asof join {tableName} b on a.ts = b.ts jlimit {scalarSql} order by 1",
-        "select b.ts from {tableName} a left window join {tableName} b on a.f1 = {scalarSql} window_offset(-1d, 1d) order by 1",
-        "select a.ts from {tableName} a right window join {tableName} b on b.f1 = {scalarSql} window_offset(-1d, 1d) order by 1",
+        "select b.ts from {tableName} a left window join {tableName} b on {scalarSql} window_offset(-1d, 1d) order by 1",
+        "select a.ts from {tableName} a right window join {tableName} b on {scalarSql} window_offset(-1d, 1d) order by 1",
         "select b.ts from {tableName} a left window join {tableName} b window_offset(-1d, 1d) jlimit {scalarSql} order by 1",
         "select a.ts from {tableName} a right window join {tableName} b window_offset(-1d, 1d) jlimit {scalarSql} order by 1",
 
         # where
-        "select a.ts from {tableName} a , {tableName} b where a.ts = b.ts and a.f1 = {scalarSql} order by 1",
-        "select f1 from {tableName} where f1 != {scalarSql} order by 1",
-        "select f1 from {tableName} where f1 = {scalarSql} order by 1",
-        "select f1 from {tableName} where f1 in ({scalarSql}) order by 1",
-        "select f1 from {tableName} where f1 not in ({scalarSql}) order by 1",
-        "select f1 from {tableName} where f1 like ({scalarSql}) order by 1",
-        "select f1 from {tableName} where f1 not like ({scalarSql}) order by 1",
-        "select f1 from {tableName} where f1 match ({scalarSql}) order by 1",
-        "select f1 from {tableName} where f1 nmatch ({scalarSql}) order by 1",
+        "select a.ts from {tableName} a , {tableName} b where a.ts = b.ts and {scalarSql} order by 1",
+        "select f1 from {tableName} where {scalarSql} order by 1",
         "select f1 from {tableName} where {scalarSql} is null order by 1",
         "select f1 from {tableName} where {scalarSql} is not null order by 1",
         "select f1 from {tableName} where abs({scalarSql}) > 0 order by 1",
-        "select f1 from {tableName} where f1 > {scalarSql} or f1 < {scalarSql} order by 1",
+        "select f1 from {tableName} where f1 > ({scalarSql}) order by 1",
         "select f1 from {tableName} where f1 between {scalarSql} and {scalarSql} + 1 order by 1",
-        "select f1 from {tableName} where {scalarSql} > 0 and f1 > {scalarSql} order by 1",
-        "select f1 from {tableName} where tg1 in {scalarSql} order by 1",
+        "select f1 from {tableName} where tg1 in (select f1 from {tableName}) order by 1",
         "select f1 from {tableName} where tbname = cast({scalarSql} as varchar) order by 1",
-        "select f1 from {tableName} where ts >= {scalarSql} and ts <= {scalarSql} order by 1",
-        "select f1 from {tableName} where _c0 between {scalarSql} and {scalarSql} order by 1",
-        "select table_name from information_schema.ins_tables where table_name = cast({scalarSql} as varchar) order by 1 limit 3",
+        "select f1 from {tableName} where ts in (select first(ts) from {tableName}) and {scalarSql} order by 1",
+        "select table_name from information_schema.ins_tables where {scalarSql} order by 1 limit 3",
         "select * from information_schema.ins_tables where db_name = cast({scalarSql} as varchar) order by 1 limit 3",
-        "select * from vtb1 where f1 = {scalarSql} order by 1",
+        "select * from vtb1 where {scalarSql} order by 1",
 
         # partition
         "select f1 from {tableName} partition by {scalarSql} order by 1",
@@ -188,8 +179,7 @@ class TestInSubQuery2:
 
         # having
         "select avg(f1) from {tableName} group by f1 having avg({scalarSql}) > 0",
-        "select avg(f1) from {tableName} group by f1 having {scalarSql} > 0",
-        "select avg(f1) from {tableName} group by f1 having avg({scalarSql} + 1) > 0",
+        "select avg(f1) from {tableName} group by f1 having {scalarSql}",
 
         # interp
         "select interp(f1) from {tableName} range({scalarSql}) FILL(PREV)",
@@ -221,14 +211,14 @@ class TestInSubQuery2:
         "select f1 from tb1 union all select f1 from tb1 limit {scalarSql}",
 
         # explain
-        "explain select f1 from {tableName} where f1 = {scalarSql}\G",
-        "explain verbose true select f1 from {tableName} where f1 = {scalarSql}\G",
-        "explain analyze select f1 from {tableName} where f1 = {scalarSql}\G",
-        "explain analyze verbose true select f1 from {tableName} where f1 = {scalarSql}\G",
-        "explain select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
-        "explain verbose true select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
-        "explain analyze select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
-        "explain analyze verbose true select avg(f1), {scalarSql} from {tableName} group by f1, {scalarSql} having avg(f1) > {scalarSql}\G",
+        "explain select f1 from {tableName} where {scalarSql}\G",
+        "explain verbose true select f1 from {tableName} where {scalarSql}\G",
+        "explain analyze select f1 from {tableName} where {scalarSql}\G",
+        "explain analyze verbose true select f1 from {tableName} where {scalarSql}\G",
+        "explain select avg(f1), {scalarSql} from {tableName} group by f1 having {scalarSql}\G",
+        "explain verbose true select avg(f1), {scalarSql} from {tableName} group by f1 having {scalarSql}\G",
+        "explain analyze select avg(f1), {scalarSql} from {tableName} group by f1 having {scalarSql}\G",
+        "explain analyze verbose true select avg(f1), {scalarSql} from {tableName} group by f1 having {scalarSql}\G",
 
         # view
         "select f1 from {tableName} where f1 in (select * from v1) order by 1",
@@ -242,32 +232,27 @@ class TestInSubQuery2:
 
 
     correlatedSqls = [
-        "select f1 from tb1 a where f1 = (select a.f1 from tb2)",
-        "select f1 from tb1 a where f1 = (select tb1.f1 from tb2)",
-        "select f1 from tb1 a where f1 = (select f1 from tb2 where f1 = a.f1)",
-        "select f1 from tb1 a where f1 = (select f1 from tb2 where f1 = tb1.f1)",
-        "select f1 from (select * from tb1) a where f1 = (select f1 from tb2 where f1 = a.f1)",
-        "select f1 from (select * from (select * from tb1 where f1 = b.f1) a) b",
-        "select f1 from (select * from (select * from tb1 where f1 = a.f1) a) b",
-        "select a.f1 from (select * from tb1) a join (select * from tb2 where f1 = a.f1) b on a.ts = b.ts and a.f1 = b.f1",
-        "select a.f1 from (select * from tb1) a join (select * from tb2 where f1 = b.f1) b on a.ts = b.ts and a.f1 = b.f1",
-        "select (select avg(f1) from tb2 where f1 < a.f1) from tb1 a",
-        "select (select avg(f1) from tb2 where f1 < tb1.f1) from tb1",
-        "select f1 from tb1 where f1 = (select f1 from tb2 where f1 = (select f1 from tb3 where f1 = tb1.f1))",
-        "select f1 from tb1 where f1 = (select f1 from tb2 where f1 = (select f1 from tb3 where f1 = tb2.f1))",
+        "select f1 from tb1 a where f1 in (select a.f1 from tb2)",
+        "select f1 from tb1 a where f1 in (select tb1.f1 from tb2)",
+        "select f1 from tb1 a where f1 in (select f1 from tb2 where f1 = a.f1)",
+        "select f1 from tb1 a where f1 in (select f1 from tb2 where f1 = tb1.f1)",
+        "select f1 from (select * from tb1) a where f1 in (select f1 from tb2 where f1 = a.f1)",
+        "select f1 from (select * from (select * from tb1 where b.f1 in (1)) a) b",
+        "select a.f1 from (select * from tb1) a join (select * from tb2 where a.f1 in (1)) b on a.ts = b.ts and a.f1 = b.f1",
+        "select a.f1 from (select * from tb1) a join (select * from tb2 where b.f1 in (1)) b on a.ts = b.ts and a.f1 = b.f1",
+        "select f1 in (select avg(f1) from tb2 where f1 < a.f1) from tb1 a",
+        "select f1 in (select avg(f1) from tb2 where f1 < tb1.f1) from tb1",
+        "select f1 from tb1 where f1 in (select f1 from tb2 where f1 = (select f1 from tb3 where f1 = tb1.f1))",
+        "select f1 from tb1 where f1 in (select f1 from tb2 where f1 = (select f1 from tb3 where f1 = tb2.f1))",
     ]
 
     incSqls = [
-        "(select 'a' from {tableName})",
-        "(select 'am' from {tableName})",
-        "(select 'abc' from {tableName})",
+        "'a' in (select 'a' from {tableName})",
+        "'am' not in (select 'am' from {tableName})",
+        "'ab' in (select 'abc' from {tableName})",
     ]
 
     inSqls = [
-        "(select 0 from {tableName})",
-        "(select 1 from {tableName})",
-        "(select 2 from {tableName})",
-        "(select f1 from db2.tba)",
         "1 in (select 1 from {tableName})",
         "1 not in (select 1 from {tableName})",
     ]
@@ -389,7 +374,7 @@ class TestInSubQuery2:
             self.generated_queries_file.flush()
 
         for self.mainIdx in range(len(self.unsupportedSqls)):
-            self.querySql = self.unsupportedSqls[self.mainIdx].replace("{scalarSql}", self.inSqls[1])
+            self.querySql = self.unsupportedSqls[self.mainIdx].replace("{scalarSql}", self.inSqls[0])
             self.querySql = self.querySql.replace("{tableName}", "tb3")
             # ensure exactly one trailing semicolon
             self.querySql = self.querySql.rstrip().rstrip(';') + ';'
