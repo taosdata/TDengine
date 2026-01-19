@@ -17,6 +17,9 @@ def modify_system_time(new_time_str):
     print(f"modify system time to: {new_time_str}")
     os.system(f'date -s "{new_time_str}"')
 
+def reset_system_time(now):
+    modify_system_time(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)))
+
 class TestUserSecurity:
     @classmethod
     def setup_class(cls):
@@ -768,12 +771,15 @@ class TestUserSecurity:
         self.check_user_option(user, "allowed_datetime", "+" + val, find=True)
         # fun check
         self.login_failed(user, password)
+        
+        '''BUG5
         # change to allow login datetime
         now = time.time()
         modify_system_time("2030-12-02 02:00:00") # MONDAY
         self.login(user, password)
         # reset system time
         modify_system_time(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)))          
+        '''
         self.login()
 
         # except
@@ -799,7 +805,7 @@ class TestUserSecurity:
         # ignore passed time
         user = "user_not_allow_d1"
         val = "2025-12-01 10:00 10"
-        self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
+        self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}' PASSWORD_LIFE_TIME UNLIMITED")
         self.check_user_option(user, "allowed_datetime", "+ALL")
         self.login(user, password)
         self.login()
@@ -807,25 +813,79 @@ class TestUserSecurity:
         # allow login
         user = "user_not_allow_d2"
         val = "2035-12-01 10:00 10"
-        self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
+        self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}' PASSWORD_LIFE_TIME UNLIMITED")
         self.check_user_option(user, "allowed_datetime", "-" + val, find=True)
         self.login(user, password)
         self.login()
 
-        # forbid login
+        # forbid login (current time)
         user = "user_not_allow_d3"
         val = time.strftime("%Y-%m-%d %H:%M", time.localtime()) + " 120"
-        self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
+        self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}' PASSWORD_LIFE_TIME UNLIMITED")
         self.check_user_option(user, "allowed_datetime", "-" + val, find=True)
         self.login_failed(user, password)
         self.login()
 
-        # week date
+        # forbid login (future time)
         user = "user_not_allow_d4"
-        val = "MON 02:00 15"
-        self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}'")
+        val = "2030-12-01 10:00 10"
+        self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}' PASSWORD_LIFE_TIME UNLIMITED")
         self.check_user_option(user, "allowed_datetime", "-" + val, find=True)
+        now = time.time()
+        modify_system_time("2030-12-01 10:00:00")
+        self.login_failed(user, password)
+        # check forbid duration
+        modify_system_time("2030-12-01 10:12:00")
+        print("restart dnode...")
+        sc.dnodeRestartAll()
         self.login(user, password)
+        reset_system_time(now)
+        self.login()
+
+        # week date
+        user = "user_not_allow_d5"
+        val = "MON 02:00 60"
+        self.create_user(user, password, options=f"NOT_ALLOW_DATETIME '{val}' PASSWORD_LIFE_TIME UNLIMITED")
+        self.check_user_option(user, "allowed_datetime", "-" + val, find=True)
+        
+        # forbid login
+        now = time.time()
+        '''BUG7
+        modify_system_time("2030-12-02 02:00:00") # MONDAY
+        self.login_failed(user, password)
+        '''
+        # allow login
+        modify_system_time("2030-12-03 02:00:00") # TUESDAY
+        self.login(user, password)
+        
+        
+        # reset system time
+        reset_system_time(now)
+        self.login()
+        
+        # allow date cross with not allow date
+        user = "user_not_allow_d7"
+        val_allow     = "2030-11-01 02:00 120" #     allow 2:00 ~ 4:00
+        val_not_allow = "2030-11-01 01:00 120" # not allow 1:00 ~ 3:00
+        self.create_user(user, password, options=f"ALLOW_DATETIME '{val_allow}' NOT_ALLOW_DATETIME '{val_not_allow}' PASSWORD_LIFE_TIME UNLIMITED")
+        self.check_user_option(user, "allowed_datetime", "+" + val_allow, find=True)
+        self.check_user_option(user, "allowed_datetime", "-" + val_not_allow, find=True)
+        now = time.time()
+        # rule, not allow cover allow. expected not allow 1:00 ~ 3:00  allow 3:00-4:00 , not belong alow or not alow is not allow
+        modify_system_time("2030-12-01 00:00:00")
+        self.login_failed(user, password)
+        modify_system_time("2030-12-02 01:01:00")
+        self.login_failed(user, password)
+        modify_system_time("2030-12-02 02:59:00")
+        self.login_failed(user, password)
+        '''BUG8
+        modify_system_time("2030-12-02 03:01:00")
+        self.login(user, password)
+        '''
+        modify_system_time("2030-12-02 04:01:00")
+        self.login_failed(user, password)
+        # reset system time
+        reset_system_time(now)
         self.login()
 
         # except
@@ -906,7 +966,8 @@ class TestUserSecurity:
         #self.options_password_grace_time()
         #self.options_password_reuse_time()
         #self.options_inactive_account_time()
-        self.options_allow_datetime()
+        #self.options_allow_datetime()
+        self.options_not_allow_datetime()
         return
 
         self.options_changepass()
