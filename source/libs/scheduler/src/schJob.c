@@ -179,20 +179,20 @@ _return:
 
 int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
   for (int32_t i = 0; i < pJob->levelNum; ++i) {
-    SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
+    SSchLevel* pLevel = taosArrayGet(pJob->levels, i);
     if (NULL == pLevel) {
       SCH_JOB_ELOG("fail to get the %dth level, levelNum: %d", i, pJob->levelNum);
       SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
     }
 
     for (int32_t m = 0; m < pLevel->taskNum; ++m) {
-      SSchTask *pTask = taosArrayGet(pLevel->subTasks, m);
+      SSchTask* pTask = taosArrayGet(pLevel->subTasks, m);
       if (NULL == pTask) {
         SCH_JOB_ELOG("fail to get the %dth task in level %d, taskNum: %d", m, pLevel->level, pLevel->taskNum);
         SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
 
-      SSubplan *pPlan = pTask->plan;
+      SSubplan* pPlan = pTask->plan;
       int32_t   childNum = pPlan->pChildren ? (int32_t)LIST_LENGTH(pPlan->pChildren) : 0;
       int32_t   parentNum = pPlan->pParents ? (int32_t)LIST_LENGTH(pPlan->pParents) : 0;
 
@@ -209,8 +209,10 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
         }
       }
 
-      for (int32_t n = 0; n < childNum; ++n) {
-        SSubplan *child = (SSubplan *)nodesListGetNode(pPlan->pChildren, n);
+      int32_t n = 0;
+      SNode*  childNode = NULL;
+      FOREACH(childNode, pPlan->pChildren) {
+        SSubplan* child = (SSubplan*)childNode;
         if (NULL == child) {
           SCH_JOB_ELOG("fail to get the %dth child subplan, childNum: %d", n, childNum);
           SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -233,6 +235,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
         }
 
         SCH_TASK_DLOG("children info, the %d child TID 0x%" PRIx64, n, (*childTask)->taskId);
+        ++n;
       }
 
       if (parentNum > 0) {
@@ -253,8 +256,10 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
         }
       }
 
-      for (int32_t n = 0; n < parentNum; ++n) {
-        SSubplan *parent = (SSubplan *)nodesListGetNode(pPlan->pParents, n);
+      n = 0;
+      SNode* parentNode = NULL;
+      FOREACH(parentNode, pPlan->pParents) {
+        SSubplan* parent = (SSubplan*)parentNode;
         if (NULL == parent) {
           SCH_JOB_ELOG("fail to get the %dth parent subplan, parentNum: %d", n, parentNum);
           SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
@@ -277,6 +282,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
         }
 
         SCH_TASK_DLOG("parents info, the %d parent TID 0x%" PRIx64, n, (*parentTask)->taskId);
+        ++n;
       }
 
       SCH_TASK_DLOG("level:%d, parentNum:%d, childNum:%d", i, parentNum, childNum);
@@ -369,7 +375,9 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
 
   level.status = JOB_TASK_STATUS_INIT;
 
-  for (int32_t i = 0; i < levelNum; ++i) {
+  int32_t i = 0;
+  SNode*  levelNode = NULL;
+  FOREACH(levelNode, pDag->pSubplans) {
     if (NULL == taosArrayPush(pJob->levels, &level)) {
       SCH_JOB_ELOG("taosArrayPush level failed, level:%d", i);
       SCH_ERR_JRET(terrno);
@@ -383,7 +391,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
 
     pLevel->level = i;
 
-    plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
+    plans = (SNodeListNode*)levelNode;
     if (NULL == plans) {
       SCH_JOB_ELOG("empty level plan, level:%d", i);
       SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -414,8 +422,10 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       SCH_ERR_JRET(terrno);
     }
 
-    for (int32_t n = 0; n < taskNum; ++n) {
-      SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
+    int32_t n = 0;
+    SNode*  planNode = NULL;
+    FOREACH(planNode, plans->pNodeList) {
+      SSubplan* plan = (SSubplan*)planNode;
 
       SCH_ERR_JRET(schValidateSubplan(pJob, plan, pLevel->level, n, taskNum));
       schSetJobType(pJob, plan->subplanType);
@@ -452,9 +462,11 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       }
       
       ++pJob->taskNum;
+      ++n;
     }
 
     SCH_JOB_DLOG("level %d initialized, taskNum:%d", i, taskNum);
+    ++i;
   }
 
   if (!SCH_JOB_GOT_SUB_JOBS(pJob) && totalTaskNum != pDag->numOfSubplans) {

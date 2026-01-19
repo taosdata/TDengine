@@ -883,6 +883,18 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
       void* tmp = taosArrayPush(pTaskInfo->pResultBlockList, &p1);
       QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       p = p1;
+    } else if (processOneBlock) {
+      SSDataBlock** tmp = taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
+      if (tmp) {
+        blockDataDestroy(*tmp);
+        *tmp = NULL;
+      }
+      SSDataBlock* p1 = NULL;
+      code = createOneDataBlock(pRes, true, &p1);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      *tmp = p1;
+      p = p1;
     } else {
       void* tmp = taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
       QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
