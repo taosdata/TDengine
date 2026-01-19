@@ -1004,9 +1004,6 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
   uv_mutex_lock(&global.udfsMutex);
   udf->refCount--;
-  if (udf->refCount < 0) {
-    fnInfo("udf refcount error. name %s(%p)", udf->name, udf);
-  }
   if (udf->refCount == 0 && (!udf->resident || udf->expired)) {
     unloadUdf = true;
     code = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
