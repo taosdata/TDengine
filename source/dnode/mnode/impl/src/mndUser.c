@@ -1232,32 +1232,6 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndUserPrivUpgradeUsedDbs(SUserObj *pNew, SHashObj *pDbs) {
-  int32_t code = 0, lino = 0;
-  void   *pIter = NULL;
-  char   *key = NULL;
-  char   *value = NULL;
-
-  SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_PRIVILEGES, .add = 1, .objType = PRIV_OBJ_DB};
-
-  while ((pIter = taosHashIterate(pDbs, pIter))) {
-    size_t keyLen = 0;
-    key = taosHashGetKey(pIter, &keyLen);
-
-    SName name = {0};
-    TAOS_CHECK_EXIT(tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB));
-
-    snprintf(alterReq.objFName, TSDB_OBJ_FNAME_LEN, "%d.%s", name.acctId, name.dbname);
-
-    privAddType(&alterReq.privileges.privSet, PRIV_DB_USE);
-
-    TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pNew, &alterReq));
-  }
-_exit:
-  tFreeSAlterRoleReq(&alterReq);
-  TAOS_RETURN(code);
-}
-
 /**
  * @brief migrate from 3.3.x.y to 3.4.x.y
  * @return int32_t
@@ -1296,9 +1270,9 @@ static int32_t mndUserPrivUpgradeUser(SMnode *pMnode, SUserObj *pObj) {
   }
 
   // read db: db.*
-  mndUserPrivUpgradeRwDbs(pObj, pPrivSet->pReadDbs, 0x01);
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeRwDbs(pObj, pPrivSet->pReadDbs, 0x01));
   // write db: db.*
-  mndUserPrivUpgradeRwDbs(pObj, pPrivSet->pWriteDbs, 0x02);
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeRwDbs(pObj, pPrivSet->pWriteDbs, 0x02));
 
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pObj, &pObj->selectTbs, pPrivSet->pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
   TAOS_CHECK_EXIT(
@@ -2573,6 +2547,7 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   pNew->ownedDbs = NULL;
   pNew->pTimeWhiteList = NULL;
   pNew->roles = NULL;
+  pNew->legacyPrivs = NULL;
 
   taosRLockLatch(&pUser->lock);
   pNew->passwords = taosMemoryCalloc(pUser->numOfPasswords, sizeof(SUserPassword));
@@ -2588,6 +2563,23 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
   TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->updateTbs, &pNew->updateTbs, false), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupPrivTblHash(pUser->deleteTbs, &pNew->deleteTbs, false), NULL, _OVER);
   TAOS_CHECK_GOTO(mndDupRoleHash(pUser->roles, &pNew->roles), NULL, _OVER);
+  if(pUser->legacyPrivs) {
+    pNew->legacyPrivs = taosMemCalloc(1, sizeof(SPrivHashObjSet));
+    if (pNew->legacyPrivs == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _OVER;
+    }
+    TAOS_CHECK_GOTO(mndDupKVHash(pUser->legacyPrivs->pReadDbs, &pNew->legacyPrivs->pReadDbs), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndDupKVHash(pUser->legacyPrivs->pWriteDbs, &pNew->legacyPrivs->pWriteDbs), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndDupKVHash(pUser->legacyPrivs->pReadTbs, &pNew->legacyPrivs->pReadTbs), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndDupKVHash(pUser->legacyPrivs->pWriteTbs, &pNew->legacyPrivs->pWriteTbs), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndDupKVHash(pUser->legacyPrivs->pTopics, &pNew->legacyPrivs->pTopics), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndDupKVHash(pUser->legacyPrivs->pAlterTbs, &pNew->legacyPrivs->pAlterTbs), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndDupKVHash(pUser->legacyPrivs->pReadViews, &pNew->legacyPrivs->pReadViews), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndDupKVHash(pUser->legacyPrivs->pWriteViews, &pNew->legacyPrivs->pWriteViews), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndDupKVHash(pUser->legacyPrivs->pAlterViews, &pNew->legacyPrivs->pAlterViews), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndDupKVHash(pUser->legacyPrivs->pUseDbs, &pNew->legacyPrivs->pUseDbs), NULL, _OVER);
+  }
   pNew->pIpWhiteListDual = cloneIpWhiteList(pUser->pIpWhiteListDual);
   if (pNew->pIpWhiteListDual == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
