@@ -402,15 +402,10 @@ SSDataBlock* createDataBlockFromDescNode(void* p) {
   pBlock->info.calWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
   pBlock->info.watermark = INT64_MIN;
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SSlotDescNode* pDescNode = (SSlotDescNode*)nodesListGetNode(pNode->pSlots, i);
-    if (!pDescNode) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      blockDataDestroy(pBlock);
-      pBlock = NULL;
-      terrno = TSDB_CODE_INVALID_PARA;
-      break;
-    }
+  int32_t i = 0;
+  SNode*  node = NULL;
+  FOREACH(node, pNode->pSlots) {
+    SSlotDescNode* pDescNode = (SSlotDescNode*)node;
     SColumnInfoData idata =
         createColumnInfoData(pDescNode->dataType.type, pDescNode->dataType.bytes, pDescNode->slotId);
     idata.info.scale = pDescNode->dataType.scale;
@@ -425,6 +420,14 @@ SSDataBlock* createDataBlockFromDescNode(void* p) {
       terrno = code;
       break;
     }
+    ++i;
+  }
+
+  if (pBlock != NULL && i != numOfCols) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_INVALID_PARA));
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+    terrno = TSDB_CODE_INVALID_PARA;
   }
 
   return pBlock;
@@ -2788,6 +2791,7 @@ int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** 
   QRY_PARAM_CHECK(pExprInfo);
 
   int32_t code = 0;
+  int32_t lino = 0;
   int32_t numOfFuncs = LIST_LENGTH(pNodeList);
   int32_t numOfGroupKeys = 0;
   if (pGroupKeys != NULL) {
@@ -2800,35 +2804,36 @@ int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** 
   }
 
   SExprInfo* pExprs = taosMemoryCalloc(*numOfExprs, sizeof(SExprInfo));
-  if (pExprs == NULL) {
-    return terrno;
+  QUERY_CHECK_NULL(pExprs, code, lino, _return, terrno);
+
+  int32_t i = 0;
+  if (pNodeList != NULL) {
+    SNode* node = NULL;
+    FOREACH(node, pNodeList) {
+      STargetNode* pTargetNode = (STargetNode*)node;
+      SExprInfo*   pExp = &pExprs[i++];
+      code = createExprFromTargetNode(pExp, pTargetNode);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
   }
 
-  for (int32_t i = 0; i < (*numOfExprs); ++i) {
-    STargetNode* pTargetNode = NULL;
-    if (i < numOfFuncs) {
-      pTargetNode = (STargetNode*)nodesListGetNode(pNodeList, i);
-    } else {
-      pTargetNode = (STargetNode*)nodesListGetNode(pGroupKeys, i - numOfFuncs);
-    }
-    if (!pTargetNode) {
-      destroyExprInfo(pExprs, *numOfExprs);
-      taosMemoryFreeClear(pExprs);
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-      return terrno;
-    }
-
-    SExprInfo* pExp = &pExprs[i];
-    code = createExprFromTargetNode(pExp, pTargetNode);
-    if (code != TSDB_CODE_SUCCESS) {
-      destroyExprInfo(pExprs, *numOfExprs);
-      taosMemoryFreeClear(pExprs);
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      return code;
+  if (pGroupKeys != NULL) {
+    SNode* node = NULL;
+    FOREACH(node, pGroupKeys) {
+      STargetNode* pTargetNode = (STargetNode*)node;
+      SExprInfo*   pExp = &pExprs[i++];
+      code = createExprFromTargetNode(pExp, pTargetNode);
+      QUERY_CHECK_CODE(code, lino, _return);
     }
   }
 
   *pExprInfo = pExprs;
+  return code;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  destroyExprInfo(pExprs, *numOfExprs);
+  taosMemoryFreeClear(pExprs);
   return code;
 }
 
@@ -4415,4 +4420,3 @@ _exit:
 
   return code;
 }
-

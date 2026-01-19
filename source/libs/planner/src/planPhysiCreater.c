@@ -468,23 +468,26 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
       return DEAL_RES_ERROR;
     }
     SSlotIndex* pIndex = NULL;
-    int32_t idx = 0;
     if (pCol->projRefIdx > 0) {
       sprintf(name + strlen(name), "_%d", pCol->projRefIdx);
-      while (!pIndex && idx < LIST_LENGTH(pCxt->pChild)) {
-        SHashObj *tmpHash =
-            taosArrayGetP(pCxt->projIdxHashArray,
-                          ((SPhysiNode*)nodesListGetNode(pCxt->pChild, idx))->pOutputDataBlockDesc->dataBlockId);
+      SNode* child = NULL;
+      FOREACH(child, pCxt->pChild) {
+        SPhysiNode* pChild = (SPhysiNode*)child;
+        SHashObj*   tmpHash = taosArrayGetP(pCxt->projIdxHashArray, pChild->pOutputDataBlockDesc->dataBlockId);
         pIndex = taosHashGet(tmpHash, name, strlen(name));
-        idx++;
+        if (pIndex) {
+          break;
+        }
       }
     } else {
-      while (!pIndex && idx < LIST_LENGTH(pCxt->pChild)) {
-        SHashObj *tmpHash =
-            taosArrayGetP(pCxt->hashArray,
-                          ((SPhysiNode*)nodesListGetNode(pCxt->pChild, idx))->pOutputDataBlockDesc->dataBlockId);
+      SNode* child = NULL;
+      FOREACH(child, pCxt->pChild) {
+        SPhysiNode* pChild = (SPhysiNode*)child;
+        SHashObj*   tmpHash = taosArrayGetP(pCxt->hashArray, pChild->pOutputDataBlockDesc->dataBlockId);
         pIndex = taosHashGet(tmpHash, name, len);
-        idx++;
+        if (pIndex) {
+          break;
+        }
       }
     }
     // pIndex is definitely not NULL, otherwise it is a bug
