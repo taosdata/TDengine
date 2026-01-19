@@ -272,7 +272,7 @@ int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLeve
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t privExpandDbRW(SHashObj* objPrivs, const char* dbFName, uint8_t rwAttr) {
+int32_t privUpgradeRwDb(SHashObj* objPrivs, const char* dbFName, const char* tbName, uint8_t rwAttr) {
   (void)taosThreadOnce(&privInit, initPrivLookup);
 
   if (!objPrivs) return TSDB_CODE_APP_ERROR;
@@ -286,7 +286,7 @@ int32_t privExpandDbRW(SHashObj* objPrivs, const char* dbFName, uint8_t rwAttr) 
   while (privInfoIterNext(&iter, &pPrivInfo)) {
     if ((pPrivInfo->rwAttr & rwAttr) == 0) continue;
     SPrivInfo privInfo = {.objType = pPrivInfo->objType, .objLevel = pPrivInfo->objLevel};
-    int32_t   keyLen = privObjKeyF(&privInfo, dbFName, NULL, key, sizeof(key));
+    int32_t   keyLen = privObjKeyF(&privInfo, dbFName, tbName, key, sizeof(key));
 
     SPrivObjPolicies* policies = taosHashGet(objPrivs, key, keyLen + 1);
     if (policies == NULL) {
