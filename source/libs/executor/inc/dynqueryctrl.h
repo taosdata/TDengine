@@ -131,7 +131,6 @@ typedef struct SVtbWindowDynCtrlInfo {
   int32_t                  outputWendSlotId;
   int32_t                  outputWdurationSlotId;
   bool                     isVstb;
-  bool                     singleWinMode;
   SNodeList*               pTargets;
   SArray*                  pWins;        // SArray<SArray<SExtWinTimeWindow>>
   int32_t                  curWinBatchIdx;
@@ -142,11 +141,9 @@ typedef struct SVtbWindowDynCtrlInfo {
 
 typedef struct SDynQueryCtrlOperatorInfo {
   EDynQueryType         qType;
-  union {
-    SStbJoinDynCtrlInfo   stbJoin;
-    SVtbScanDynCtrlInfo   vtbScan;
-    SVtbWindowDynCtrlInfo vtbWindow;
-  };
+  SStbJoinDynCtrlInfo   stbJoin;
+  SVtbScanDynCtrlInfo   vtbScan;
+  SVtbWindowDynCtrlInfo vtbWindow;
 } SDynQueryCtrlOperatorInfo;
 
 #ifdef __cplusplus

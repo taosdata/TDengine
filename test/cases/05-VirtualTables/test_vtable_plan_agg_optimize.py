@@ -13,11 +13,11 @@
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
 from vtable_util import VtableQueryUtil
-class TestVTableQuerySameDBCtbWindowState:
 
+class TestVTablePlanAggOptimize:
     def setup_class(cls):
         vtbUtil = VtableQueryUtil()
-        vtbUtil.prepare_same_db_vtables()
+        vtbUtil.prepare_same_db_vtables(mode = 2)
 
     def run_normal_query(self, testCase):
         # read sql from .sql file and execute
@@ -27,27 +27,24 @@ class TestVTableQuerySameDBCtbWindowState:
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
-    def test_select_virtual_child_table_window_state(self):
-        """Query: virtual child table
+    def test_virtual_table_plan(self):
+        """Query: virtual stable query plan
 
-        1. test vctable select child table state mode 0
-        2. test vctable select child table state mode 1
-        3. test vctable select child table state mode 2
+        1. test select super table agg's plan
 
         Catalog:
             - VirtualTable
 
-        Since: v3.4.0.0
+        Since: v3.3.8.0
 
         Labels: virtual
 
         Jira: None
 
         History:
-            - 2026-1-6 Jing Sima Split Add state different mode test
+            - 2025-12-19 Jing Sima created
 
         """
-        self.run_normal_query("test_vctable_select_test_state_mode_0")
-        self.run_normal_query("test_vctable_select_test_state_mode_1")
-        self.run_normal_query("test_vctable_select_test_state_mode_2")
+
+        self.run_normal_query("test_vstable_plan_test_agg")
 
