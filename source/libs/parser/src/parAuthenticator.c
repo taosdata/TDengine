@@ -96,6 +96,10 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
             pAuthInfo->privType = PRIV_AUDIT_DB_DROP;
             pAuthInfo->objType = PRIV_OBJ_CLUSTER;
             if (recheck) *recheck = true;  // recheck since the cached key is changed
+          } else if (pAuthInfo->privType == PRIV_TBL_CREATE) {
+            pAuthInfo->privType = PRIV_AUDIT_TBL_CREATE;
+            pAuthInfo->objType = PRIV_OBJ_CLUSTER;
+            if (recheck) *recheck = true;  // recheck since the cached key is changed
           }
           return TSDB_CODE_SUCCESS;
         }
@@ -126,7 +130,7 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
   if (TSDB_CODE_SUCCESS != code) return code;
   SUserAuthRes authRes = {0};
   bool         recheck = false;
-  if (NULL != pCxt->pMetaCache && privType != PRIV_VIEW_SELECT) {
+  if (NULL != pCxt->pMetaCache && privType != PRIV_VIEW_SELECT && privType != PRIV_AUDIT_TBL_SELECT) {
     code = checkAuthByOwner(pCxt, &authInfo, &authRes, &recheck);
     if (code == TSDB_CODE_SUCCESS && authRes.pass[auth_res_type]) {
       goto _exit;
@@ -312,6 +316,7 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   SSelectAuthCxt* pCxt = pContext;
   SAuthCxt*       pAuthCxt = pCxt->pAuthCxt;
   bool            isView = false;
+  bool            isAudit = false;
   if (QUERY_NODE_REAL_TABLE == nodeType(pNode)) {
     SNode*      pTagCond = NULL;
     // SArray*     pPrivCols = NULL;
@@ -332,7 +337,9 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     int32_t code = getTargetMetaImpl(pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, &name, &pTableMeta, true);
     if (TSDB_CODE_SUCCESS == code) {
-      if (!pTableMeta->isAudit && (pTableMeta->ownerId == pAuthCxt->pParseCxt->userId)) {
+      if (pTableMeta->isAudit) {
+        isAudit = true;
+      } else if (!pTableMeta->isAudit && (pTableMeta->ownerId == pAuthCxt->pParseCxt->userId)) {
         // owner has all privileges on the table he owns except audit table
         taosMemoryFree(pTableMeta);
         return DEAL_RES_CONTINUE;
@@ -345,10 +352,11 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
 #endif
     if (!isView) {
       pAuthCxt->errCode =
-          checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, &pTagCond, NULL); //&pPrivCols);
+          checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, isAudit ? PRIV_AUDIT_TBL_SELECT : PRIV_TBL_SELECT,
+                    PRIV_OBJ_TBL, &pTagCond, NULL);  //&pPrivCols);
       if (TSDB_CODE_SUCCESS != pAuthCxt->errCode && NULL != pAuthCxt->pParseCxt->pEffectiveUser) {
-        pAuthCxt->errCode =
-            checkEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL);
+        pAuthCxt->errCode = checkEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName,
+                                               isAudit ? PRIV_AUDIT_TBL_SELECT : PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL);
       }
 #if 0
       if (TSDB_CODE_SUCCESS == pAuthCxt->errCode && NULL != pPrivCols) {
