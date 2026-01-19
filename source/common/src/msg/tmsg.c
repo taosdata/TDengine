@@ -3270,7 +3270,9 @@ bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm) {
   // week starts from Sunday (tm_wday = 0)
   time_t t = (time_t)tm;
   struct tm ltm;
-  taosLocalTime(&t, &ltm, NULL, 0, NULL);
+  if (taosLocalTime(&t, &ltm, NULL, 0, NULL) == NULL) {
+    return false;
+  }
   int32_t weekSec = ltm.tm_wday * 86400 + ltm.tm_hour * 3600 + ltm.tm_min * 60 + ltm.tm_sec;
 
   for (int32_t i = 0; i < wl->num; ++i) {
