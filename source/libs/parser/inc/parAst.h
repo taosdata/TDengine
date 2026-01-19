@@ -375,6 +375,8 @@ void setTokenOptionsExtraInfo(SAstCreateContext* pCxt, STokenOptions* pTokenOpti
 SNode* createCreateTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, SToken* pUserName, STokenOptions* pTokenOptions, bool ignoreExists);
 SNode* createAlterTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, STokenOptions* pTokenOptions);
 SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, bool ignoreNotExists);
+SNode* createCreateTotpSecretStmt(SAstCreateContext* pCxt, SToken* pUserName);
+SNode* createDropTotpSecretStmt(SAstCreateContext* pCxt, SToken* pUserName);
 
 SNode* createDropEncryptAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId);
 SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const SToken* pPort);
@@ -419,7 +421,7 @@ SNode*  createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceTyp
 SNode*  createRebalanceXnodeJobStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* resourceId,
                                     SNode* pNodeOptions);
 SNode*  createRebalanceXnodeJobWhereStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere);
-SNode*  alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceName,
+SNode*  alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResIdOrName,
                                   SNode* pSource, SNode* pSink, SNode* pNode);
 /** end @section xnode */
 

@@ -48,7 +48,7 @@ class TestUserBasic:
         tdSql.error(f"REVOKE read,write ON *.* from root;")
 
         tdLog.info(f"=============== step1: sysinfo create")
-        tdSql.execute(f"CREATE USER u1 PASS 'taosdata' SYSINFO 0;")
+        tdSql.execute(f"CREATE USER u1 PASS 'AAbb1122' SYSINFO 0;")
         tdSql.query(f"select * from information_schema.ins_users")
         tdSql.checkRows(2)
 
@@ -57,7 +57,7 @@ class TestUserBasic:
         tdSql.checkKeyData("u1", 3, 0)
         tdSql.checkKeyData("u1", 4, 0)
 
-        tdSql.execute(f"CREATE USER u2 PASS 'taosdata' SYSINFO 1;")
+        tdSql.execute(f"CREATE USER u2 PASS 'AAbb1122' SYSINFO 1;")
         tdSql.query(f"select * from information_schema.ins_users")
         tdSql.checkRows(3)
 
@@ -139,10 +139,10 @@ class TestUserBasic:
         tdSql.checkKeyData("u2", 3, 1)
         tdSql.checkKeyData("u2", 4, 0)
 
-        tdSql.error(f"CREATE USER u100 PASS 'taosdata' SYSINFO -1;")
-        tdSql.error(f"CREATE USER u101 PASS 'taosdata' SYSINFO 2;")
-        tdSql.error(f"CREATE USER u102 PASS 'taosdata' SYSINFO 20000;")
-        tdSql.error(f"CREATE USER u103 PASS 'taosdata' SYSINFO 1000;")
+        tdSql.error(f"CREATE USER u100 PASS 'AAbb1122' SYSINFO -1;")
+        tdSql.error(f"CREATE USER u101 PASS 'AAbb1122' SYSINFO 2;")
+        tdSql.error(f"CREATE USER u102 PASS 'AAbb1122' SYSINFO 20000;")
+        tdSql.error(f"CREATE USER u103 PASS 'AAbb1122' SYSINFO 1000;")
         tdSql.error(f"ALTER USER u1 enable -1")
         tdSql.error(f"ALTER USER u1 enable 2")
         tdSql.error(f"ALTER USER u1 enable 1000")

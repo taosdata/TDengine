@@ -258,6 +258,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_PASSWORD_REUSE,      "Password reuse detect
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_WRONG_TOTP_CODE,          "Wrong TOTP code")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_IP_RANGE,   "Too many ranges in IP white list")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_TIME_RANGE, "Too many ranges in date time white list")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOTP_SECRET_NOT_EXIST,    "TOTP secret does not exists")
 
 //mnode-stable-part1
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_ALREADY_EXIST,        "STable already exists")
@@ -1143,6 +1144,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_URL_RESP_TIMEOUT,         "Xnode xnoded re
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_COL_NOT_EXIST,      "Xnode where clause column not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_COL_TYPE_DIFF,      "Xnode where clause column type diff")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_WHERE_OP_NOT_SUPPORT,     "Xnode where clause operator not support")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_AGENT_NOT_EXIST,          "Xnode agent not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_AGENT_ALREADY_EXIST,      "Xnode agent already exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_NAME_DUPLICATE,           "Xnode name duplicate")
 
 
 #ifdef TAOS_ERROR_C

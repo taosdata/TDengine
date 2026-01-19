@@ -1825,7 +1825,7 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   blockDataCleanup(pBlock);
   taosArrayClear(pExtW->pWinRowIdx);
 
-  for (; pExtW->outputWinId < pExtW->pWins->size; pExtW->outputWinId += 1) {
+  for (; pExtW->outputWinId < pExtW->pWins->size; ++pExtW->outputWinId) {
     SExtWinTimeWindow* pWin = taosArrayGet(pExtW->pWins, pExtW->outputWinId);
     int32_t            winIdx = pWin->winOutIdx;
     if (winIdx < 0) {
@@ -1856,6 +1856,7 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pExtW->pWinRowIdx, pBlock, pRow->winIdx, pRow->numOfRows));
 
     if (pBlock->info.rows >= pOperator->resultInfo.threshold) {
+      ++pExtW->outputWinId;
       break;
     }
   }
@@ -2165,6 +2166,12 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     *ppRes = NULL;
     return code;
+  }
+
+  if (pOperator->pOperatorGetParam) {
+    if (pOperator->status == OP_EXEC_DONE) {
+      pOperator->status = OP_NOT_OPENED;
+    }
   }
 
   extWinRecycleBlkNode(pExtW, &pExtW->pLastBlkNode);

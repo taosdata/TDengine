@@ -18,6 +18,7 @@ CREATE USER user_name PASS 'password'
   [CONNECT_TIME {value | DEFAULT | UNLIMITED}]
   [CONNECT_IDLE_TIME {value | DEFAULT | UNLIMITED}]
   [CALL_PER_SESSION {value | DEFAULT | UNLIMITED}]
+  [VNODE_PER_CALL {value | DEFAULT | UNLIMITED}]
   [FAILED_LOGIN_ATTEMPTS {value | DEFAULT | UNLIMITED}]
   [PASSWORD_LOCK_TIME {value | DEFAULT | UNLIMITED}]
   [PASSWORD_LIFE_TIME {value | DEFAULT | UNLIMITED}]
@@ -48,15 +49,16 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `CONNECT_TIME` 限制单次会话最大持续时间，单位为分钟，默认 480，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `CONNECT_IDLE_TIME` 允许的会话最大空闲时间，单位为分钟，默认 30，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `CALL_PER_SESSION` 单会话最大并发子调用数量，默认 10，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
+- `VNODE_PER_CALL` 单调用可以涉及的最大 vnode 数量。默认 -1，代表无限制。从企业版 v3.4.0.0 开始支持。
 - `FAILED_LOGIN_ATTEMPTS` 允许的连续失败登录次数，超过次数后账户将被锁定，默认 3，最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_LOCK_TIME` 账户因登录失败被锁定后的解锁等待时间，单位分钟，默认 1440，最小 1，设置为 UNLIMITED 则永久锁定。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_LIFE_TIME` 密码有效期，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不过期。从企业版 v3.4.0.0 开始支持。
 - `PASSWORD_GRACE_TIME` 密码过期后的宽限期，密码过期后允许修改的缓冲时间，宽限期内禁止执行除修改密码以外的其他操作，宽限期内如未修改密码则锁定账户，单位天，默认 7，最小 0，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_REUSE_TIME` 密码重用时间，旧密码失效后不能在此期限内重复使用，单位天，默认 30，最小 0，最大 365。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_REUSE_MAX` 密码历史记录次数，需要多少次密码更改后才能重复使用旧密码。默认 5，最小 0，最大 100。新密码需同时满足 PASSWORD_REUSE_TIME 和 PASSWORD_REUSE_MAX 两项限制。从企业版 v3.4.0.0 开始支持。
+- `PASSWORD_REUSE_TIME` 密码重用时间，旧密码失效后不能在此期限内重复使用，单位天，默认 30，最小 0，最大 365。新密码需同时满足 `PASSWORD_REUSE_TIME` 和 `PASSWORD_REUSE_MAX` 两项限制。从企业版 v3.4.0.0 开始支持。
+- `PASSWORD_REUSE_MAX` 密码历史记录次数，需要多少次密码更改后才能重复使用旧密码。默认 5，最小 0，最大 100。新密码需同时满足 `PASSWORD_REUSE_TIME` 和 `PASSWORD_REUSE_MAX` 两项限制。从企业版 v3.4.0.0 开始支持。
 - `INACTIVE_ACCOUNT_TIME` 账户不活动锁定时间，长期未使用的账户自动锁定，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
 - `ALLOW_TOKEN_NUM` 支持的令牌个数，默认 3，最小 0，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `HOST` 和 `NOT_ALLOW_HOST` IP 地址白名单和黑名单，可以是单个 IP 地址，如 `192.168.1.1`，也可以是一个地址段，如 `192.168.1.1/24`。当黑白名单同时存在时，只允许在白名单中且不在黑名单中的地址访问。从企业版 v3.4.0.0 开始支持。
+- `HOST` 和 `NOT_ALLOW_HOST` IP 地址白名单和黑名单，可以是单个 IP 地址，如 `192.168.1.1`，也可以是一个 [CIDR 格式](https://www.rfc-editor.org/rfc/rfc4632) 的地址段，如 `192.168.1.1/24`。当黑白名单同时存在时，只允许在白名单中且不在黑名单中的地址访问。从企业版 v3.4.0.0 开始支持。
 - `ALLOW_DATETIME` 和 `NOT_ALLOW_DATETIME` 允许和不允许登录的时间范围，包括日期、起始时间（精确到分钟）、时长（以分钟为单位）三部分，其中日期可以是具体的日期，也可以是 MON、TUE、WED、THU、FRI、SAT、SUN 代表的日期，例如：`2025-12-25 08:00 120`、`TUE 08:00 120`。从企业版 v3.4.0.0 开始支持。
 
 在下面的示例中，我们创建一个密码为 `abc123!@#` 且可以查看系统信息的用户。
@@ -117,6 +119,7 @@ alter_user_clause: {
   [CONNECT_TIME {value | DEFAULT | UNLIMITED}]
   [CONNECT_IDLE_TIME {value | DEFAULT | UNLIMITED}]
   [CALL_PER_SESSION {value | DEFAULT | UNLIMITED}]
+  [VNODE_PER_CALL {value | DEFAULT | UNLIMITED}]
   [FAILED_LOGIN_ATTEMPTS {value | DEFAULT | UNLIMITED}]
   [PASSWORD_LOCK_TIME {value | DEFAULT | UNLIMITED}]
   [PASSWORD_LIFE_TIME {value | DEFAULT | UNLIMITED}]
@@ -143,6 +146,45 @@ taos> alter user test enable 0;
 Query OK, 0 of 0 rows affected (0.001160s)
 ```
 
+## TOTP 双因认证
+
+TOTP 双因认证是 TDengine TSDB 企业版功能，从企业版 v3.4.0.1 开始支持。
+
+### 创建/更新 TOTP 密钥
+
+```sql
+CREATE TOTP_SECRET FOR USER user_name
+```
+
+如果用户还未创建 TOTP 密钥，此命令将为该用户创建 TOTP 密钥。如果用户已经创建了 TOTP 密钥，此命令为用户更新该密钥。不论哪种情况，此命令会返回新创建的密钥，此密钥仅展示一次，请及时保存。系统会为创建了 TOTP 密钥的用户自动启用 TOTP 双因认证。
+
+启用 TOTP 双因认证后，TDengine TSDB 要求 TOTP 验证码长度为 6 位，且每 30 秒更新一次，请务必按此参数配置 TOTP 验证码生成器，否则会导致客户端无法登录。
+
+例如，可以使用下面的命令为用户 test 创建 TOTP 密钥。
+
+```sql
+taos> create totp_secret for user test;
+                     totp_secret                      |
+=======================================================
+ ERIRPLZL4ZBFTPT5BNXMVFPR4Z3PTHUWTBTCNZPOHYPYQGTD25XA |
+Query OK, 1 row(s) in set (0.002314s)
+```
+
+### 删除 TOTP 密钥
+
+```sql
+DROP TOTP_SECRET FROM USER user_name
+```
+
+此命令删除用户的 TOTP 密钥，密钥删除后，用户的 TOTP 双因认证功能将被禁用。
+
+例如，可以使用下面的命令删除用户 test 的 TOTP 密钥。
+
+```sql
+taos> drop totp_secret from user test;
+Drop OK, 0 row(s) affected (0.002295s)
+```
+
 ## 令牌管理
 
 令牌管理是 TDengine TSDB 企业版功能，从企业版 v3.4.0.0 开始支持。
@@ -160,12 +202,13 @@ CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL 
 - `PROVIDER` 令牌提供者的名称，最长 63 个字节。
 - `EXTRA_INFO` 由应用管理的附加信息，最长 1023 字节。
 
-在下面的示例中，我们为用户 test 创建了一个名为 `test_token` 的令牌。注意，由于令牌值比较长，且仅在创建时展示一次，后续无法查询，所以请在 SQL 命令的最后使用 `\G` 以便完整显示。
+在下面的示例中，我们为用户 test 创建了一个名为 `test_token` 的令牌。注意，令牌值仅在创建时展示一次，后续无法查询，请及时保存。
 
 ```sql
-taos> create token test_token from user test \G;
-*************************** 1.row ***************************
-token: BsyjYKxhCMntZ3pHgweCd2uV2C8HoGKn8Mvd49dRRCtzusX0P1mgqRMrG7SzUca
+taos> create token test_token from user test;
+                             token                               |
+==================================================================
+ BsyjYKxhCMntZ3pHgweCd2uV2C8HoGKn8Mvd49dRRCtzusX0P1mgqRMrG7SzUca |
 Query OK, 1 row(s) in set (0.003018s)
 ```
 

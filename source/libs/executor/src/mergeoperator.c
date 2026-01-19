@@ -430,6 +430,7 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       SOperatorInfo*  pExtWinOp = pOperator->pDownstream[i];
       SOperatorParam* pParam = pOperator->pDownstreamGetParams[i];
       code = pExtWinOp->fpSet.getNextExtFn(pExtWinOp, pParam, &pBlock);
+      setOperatorCompleted(pExtWinOp);
       pOperator->pDownstreamGetParams[i] = NULL;
       QUERY_CHECK_CODE(code, lino, _return);
       if (pBlock) {

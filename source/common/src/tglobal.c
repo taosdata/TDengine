@@ -60,6 +60,13 @@ EEncryptScope tsiEncryptScope = 0;
 // char     tsEncryptKey[17] = {0};
 char          tsEncryptKey[17] = {0};
 int8_t        tsEnableStrongPassword = 1;
+
+#ifdef TD_ALLOW_DEFAULT_PASSWORD
+int8_t        tsAllowDefaultPassword = 1;
+#else
+int8_t        tsAllowDefaultPassword = 0;
+#endif
+
 char          tsEncryptPassAlgorithm[16] = {0};
 EEncryptAlgor tsiEncryptPassAlgorithm = 0;
 
@@ -341,6 +348,8 @@ float   tsSelectivityRatio = 1.0;
 int32_t tsTagFilterResCacheSize = 1024 * 10;
 char    tsTagFilterCache = 0;
 char    tsStableTagFilterCache = 0;
+int64_t tsMetaEntryCacheSize = TSDB_DEFAULT_MECACHE_SIZE;
+char    tsMetaEntryCache = 0;
 
 int32_t tsBypassFlag = 0;
 
@@ -808,6 +817,10 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(
       cfgAddBool(pCfg, "stableTagFilterCache", tsStableTagFilterCache,
         CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(
+      cfgAddBool(pCfg, "metaEntryCache", tsMetaEntryCache, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "metaEntryCacheSize", tsMetaEntryCacheSize, TSDB_MIN_MECACHE_SIZE,
+                                TSDB_MAX_MECACHE_SIZE, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER, CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(
       cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_NONE, CFG_CATEGORY_LOCAL));
@@ -909,6 +922,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptScope", tsEncryptScope, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "encryptExtDir", tsEncryptExtDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableStrongPassword", tsEnableStrongPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "allowDefaultPassword", tsAllowDefaultPassword, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptPassAlgorithm", tsEncryptPassAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
@@ -1676,6 +1690,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableStrongPassword");
   tsEnableStrongPassword = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "allowDefaultPassword");
+  tsAllowDefaultPassword = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "encryptPassAlgorithm");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, 16));
   tstrncpy(tsEncryptPassAlgorithm, pItem->str, 16);
@@ -1760,6 +1777,10 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "stableTagFilterCache");
   tsStableTagFilterCache = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metaEntryCache");
+  tsMetaEntryCache = (bool)pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metaEntryCacheSize");
+  tsMetaEntryCacheSize = pItem->i64;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "slowLogExceptDb");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_DB_NAME_LEN));
@@ -2912,6 +2933,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"ttlChangeOnWrite", &tsTtlChangeOnWrite},
 
                                          {"logKeepDays", &tsLogKeepDays},
+                                         {"metaEntryCacheSize", &tsMetaEntryCacheSize},
                                          {"mqRebalanceInterval", &tsMqRebalanceInterval},
                                          {"numOfLogLines", &tsNumOfLogLines},
                                          {"queryRspPolicy", &tsQueryRspPolicy},

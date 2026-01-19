@@ -168,7 +168,10 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool proces
           QW_TASK_DLOG("qExecTask done, useconds:%" PRIu64, useconds);
         }
 
-        QW_ERR_JRET(qwHandleTaskComplete(QW_FPARAMS(), ctx));
+        QW_LOCK(QW_WRITE, &ctx->lock);
+        code = qwHandleTaskComplete(QW_FPARAMS(), ctx);
+        QW_UNLOCK(QW_WRITE, &ctx->lock);
+        QW_ERR_JRET(code);
       } else {
         if (numOfResBlock == 0) {
           QW_TASK_DLOG("dyn task qExecTask end with empty res, useconds:%" PRIu64, useconds);
@@ -532,7 +535,7 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
   dsReset(ctx->sinkHandle);
   QW_SINK_DISABLE_MEMPOOL();
 
-  qUpdateOperatorParam(ctx->taskHandle, qwMsg->msg);
+  qUpdateOperatorParam(ctx->taskHandle, (void*)qwMsg->msg);
 
   QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
 
@@ -544,6 +547,26 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
     QW_TASK_DLOG("the %dth dynamic task exec started", ctx->dynExecId++);
     QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+  @brief Update the operator param from the notify msg.
+  @note  To avoid use-after-free error, we need to lock the ctx
+         before updating the operator param.
+*/
+int32_t qwUpdateTaskOperatorParamFromMsg(QW_FPARAMS_DEF, SQWTaskCtx* ctx,
+                                         SQWMsg* qwMsg) {
+  QW_LOCK(QW_WRITE, &ctx->lock);
+
+  if (!ctx->queryEnd && ctx->taskHandle != NULL) {
+    qUpdateOperatorParam(ctx->taskHandle, (void*)qwMsg->msg);
+  } else {
+    qDestroyOperatorParam(qwMsg->msg);
+  }
+
+  QW_UNLOCK(QW_WRITE, &ctx->lock);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1053,9 +1076,18 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   ctx->dataConnInfo = qwMsg->connInfo;
 
   if (qwMsg->msg) {
-    code = qwStartDynamicTaskNewExec(QW_FPARAMS(), ctx, qwMsg);
-    qwMsg->msg = NULL;
-    goto _return;
+    if (ctx->dynamicTask) {
+      code = qwStartDynamicTaskNewExec(QW_FPARAMS(), ctx, qwMsg);
+      qwMsg->msg = NULL;
+      goto _return;
+    } else {
+      /*
+        It should be a fetch request with STEP_DONE notify msg,
+        update the operator param to notify the table scan operator.
+      */
+      code = qwUpdateTaskOperatorParamFromMsg(QW_FPARAMS(), ctx, qwMsg);
+      qwMsg->msg = NULL;
+    }
   }
 
   if (ctx->subQuery) {
@@ -1067,7 +1099,8 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   SOutputData sOutput = {0};
-  QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawDataLen, &rsp, &sOutput));
+  QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawDataLen,
+                                    &rsp, &sOutput));
 
   if (NULL == rsp) {
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
@@ -1083,8 +1116,10 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     }
   }
 
-  if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {
-    QW_TASK_DLOG("task not end and buf is %s, need to continue query", qwBufStatusStr(sOutput.bufStatus));
+  if ((!sOutput.queryEnd) &&
+      (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {
+    QW_TASK_DLOG("task not end and buf is %s, need to continue query",
+                 qwBufStatusStr(sOutput.bufStatus));
 
     QW_LOCK(QW_WRITE, &ctx->lock);
     locked = true;
@@ -1095,7 +1130,8 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     } else if (QW_QUERY_RUNNING(ctx)) {
       atomic_store_8((int8_t *)&ctx->queryContinue, 1);
     } else if (0 == atomic_load_8((int8_t *)&ctx->queryInQueue)) {
-      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXEC, ctx->dynamicTask));
+      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXEC,
+                                     ctx->dynamicTask));
       atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
 
       QW_ERR_JRET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo));

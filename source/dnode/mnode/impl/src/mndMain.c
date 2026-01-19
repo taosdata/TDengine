@@ -325,6 +325,8 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
           pGid->syncRestore = 0;
           pGid->syncCanRead = 0;
           pGid->startTimeMs = 0;
+          pGid->learnerProgress = 0;
+          pGid->snapSeq = -1;
           stateChanged = true;
         }
         break;
@@ -505,25 +507,30 @@ void mndDoTimerCheckSync(SMnode *pMnode, int64_t sec) {
 
 static void *mndThreadSecFp(void *param) {
   SMnode *pMnode = param;
-  int64_t lastTime = 0;
+  int64_t lastSec = 0;
   setThreadName("mnode-timer");
 
   while (1) {
-    lastTime++;
-    taosMsleep(100);
-
     if (mndGetStop(pMnode)) break;
-    if (lastTime % 10 != 0) continue;
+
+    int64_t nowSec = taosGetTimestampMs() / 1000;
+    if (nowSec == lastSec) {
+      taosMsleep(100);
+      continue;
+    }
+    lastSec = nowSec;
 
     if (mnodeIsNotLeader(pMnode)) {
+      taosMsleep(100);
       mTrace("timer not process since mnode is not leader");
       continue;
     }
 
-    int64_t sec = lastTime / 10;
-    mndDoTimerCheckSync(pMnode, sec);
+    mndDoTimerCheckSync(pMnode, nowSec);
 
-    mndDoTimerPullupTask(pMnode, sec);
+    mndDoTimerPullupTask(pMnode, nowSec);
+
+    taosMsleep(100);
   }
 
   return NULL;
@@ -1072,7 +1079,7 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg, SQueueInfo *pQueueInfo) {
   int32_t         code = TSDB_CODE_SUCCESS;
 
 #ifdef TD_ENTERPRISE
-  if (pMsg->info.conn.isToken) {
+  if (pMsg->msgType != TDMT_MND_HEARTBEAT && pMsg->info.conn.isToken) {
     SCachedTokenInfo ti = {0};
     if (mndGetCachedTokenInfo(pMsg->info.conn.identifier, &ti) == NULL) {
       mGError("msg:%p, failed to get token info, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));

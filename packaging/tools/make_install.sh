@@ -171,6 +171,7 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
   ${csudo}rm -f ${bin_link_dir}/taosadapter || :
   ${csudo}rm -f ${bin_link_dir}/taoskeeper || :
+  ${csudo}rm -f ${bin_link_dir}/taosk || :
   ${csudo}rm -f ${bin_link_dir}/taosudf || :
   ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
   ${csudo}rm -f ${bin_link_dir}/taosdump || :
@@ -187,6 +188,7 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taoskeeper ] && ${csudo}cp -r ${binary_dir}/build/bin/taoskeeper ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taosk ] && ${csudo}cp -r ${binary_dir}/build/bin/taosk ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosudf ] && ${csudo}cp -r ${binary_dir}/build/bin/taosudf ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosmqtt ] && ${csudo}cp -r ${binary_dir}/build/bin/taosmqtt ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
@@ -203,6 +205,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taoskeeper ] && ${csudo}ln -s ${install_main_dir}/bin/taoskeeper ${bin_link_dir}/taoskeeper > /dev/null 2>&1 || :
+    [ -x ${install_main_dir}/bin/taosk ] && ${csudo}ln -s ${install_main_dir}/bin/taosk ${bin_link_dir}/taosk > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosudf ] && ${csudo}ln -s ${install_main_dir}/bin/taosudf ${bin_link_dir}/taosudf > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosmqtt ] && ${csudo}ln -s ${install_main_dir}/bin/taosmqtt ${bin_link_dir}/taosmqtt > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump > /dev/null 2>&1 || :
@@ -218,6 +221,7 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taoskeeper ] && ${csudo}cp -r ${binary_dir}/build/bin/taoskeeper ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taosk ] && ${csudo}cp -r ${binary_dir}/build/bin/taosk ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosudf ] && ${csudo}cp -r ${binary_dir}/build/bin/taosudf ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosmqtt ] && ${csudo}cp -r ${binary_dir}/build/bin/taosmqtt ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
@@ -234,6 +238,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taoskeeper ] && ${csudo}ln -s ${install_main_dir}/bin/taoskeeper ${bin_link_dir}/taoskeeper > /dev/null 2>&1 || :
+    [ -x ${install_main_dir}/bin/taosk ] && ${csudo}ln -s ${install_main_dir}/bin/taosk ${bin_link_dir}/taosk > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosudf ] && ${csudo}ln -s ${install_main_dir}/bin/taosudf ${bin_link_dir}/taosudf > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosmqtt ] && ${csudo}ln -s ${install_main_dir}/bin/taosmqtt ${bin_link_dir}/taosmqtt > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump > /dev/null 2>&1 || :

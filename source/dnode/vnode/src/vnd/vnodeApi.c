@@ -70,6 +70,7 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdCreateFirstLastTsIter = tsdbCreateFirstLastTsIter;
   pReader->tsdNextFirstLastTsBlock = tsdbNextFirstLastTsBlock;
   pReader->tsdDestroyFirstLastTsIter = tsdbDestroyFirstLastTsIter;
+  pReader->tsdReaderStepDone = (int32_t (*)(void*, int64_t))tsdbReaderStepDone;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {

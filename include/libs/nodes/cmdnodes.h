@@ -68,8 +68,11 @@ extern "C" {
 
 #define SHOW_ALIVE_RESULT_COLS 1
 
-#define CREATE_USER_TOKEN_RESULT_COLS       1
-#define CREATE_USER_TOKEN_RESULT_FIELD1_LEN (TSDB_TOKEN_LEN + VARSTR_HEADER_SIZE)
+#define CREATE_TOKEN_RESULT_COLS       1
+#define CREATE_TOKEN_RESULT_FIELD1_LEN (TSDB_TOKEN_LEN + VARSTR_HEADER_SIZE)
+
+#define CREATE_TOTP_SECRET_RESULT_COLS       1
+#define CREATE_TOTP_SECRET_RESULT_FIELD1_LEN ((TSDB_TOTP_SECRET_LEN * 8 + 4) / 5 + 1 + VARSTR_HEADER_SIZE)
 
 #define BIT_FLAG_MASK(n)               (1 << n)
 #define BIT_FLAG_SET_MASK(val, mask)   ((val) |= (mask))
@@ -600,6 +603,17 @@ typedef struct SDropTokenStmt {
   bool      ignoreNotExists;
 } SDropTokenStmt;
 
+typedef struct SCreateTotpSecretStmt {
+  ENodeType type;
+
+  char      user[TSDB_USER_LEN];
+} SCreateTotpSecretStmt;
+
+typedef struct SDropTotpSecretStmt {
+  ENodeType type;
+
+  char      user[TSDB_USER_LEN];
+} SDropTotpSecretStmt;
 
 typedef struct SDropEncryptAlgrStmt {
   ENodeType type;
@@ -746,24 +760,10 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
-  int32_t   tid;      // Short for XNode task id.
-  int32_t   nameLen;  // length of name
+  int32_t   id;  // Short for XNode task id.
   char*     name;
   bool      force;  // DROP XNODE TASK FORCE 'name'
 } SDropXnodeTaskStmt;
-
-typedef struct {
-  ENodeType          type;
-  char               name[TSDB_TABLE_NAME_LEN + 3];
-  SXnodeTaskOptions* options;
-} SXnodeAgentCreateStmt;
-
-// typedef struct {
-//   ENodeType type;
-//   char      name[TSDB_TABLE_NAME_LEN + 3];
-//   bool      force;  // DROP XNODE TASK FORCE 'name'
-// } SXnodeTaskDropStmt;
-// typedef SXnodeTaskDropStmt SXnodeAgentDropStmt;
 
 typedef struct {
   ENodeType          type;
@@ -785,6 +785,21 @@ typedef struct {
   ENodeType type;
   SNode*    pWhere;
 } SRebalanceXnodeJobWhereStmt;
+
+typedef struct {
+  ENodeType          type;
+  char               name[TSDB_XNODE_TASK_NAME_LEN + 3];
+  SXnodeTaskOptions* options;
+} SCreateXnodeAgentStmt;
+
+typedef struct {
+  ENodeType          type;
+  int32_t            id;
+  CowStr             name;
+  SXnodeTaskOptions* options;
+} SAlterXnodeAgentStmt;
+
+typedef SDropXnodeTaskStmt SDropXnodeAgentStmt;
 
 typedef struct SShowStmt {
   ENodeType     type;

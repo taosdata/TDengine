@@ -111,6 +111,7 @@ user_enabled(A) ::= ACCOUNT UNLOCK.                                             
 user_enabled(A) ::= ENABLE NK_INTEGER(B).                                         { A = taosStr2Int8(B.z, NULL, 10); }
 
 %type user_option                                                                 { SUserOptions* }
+// NOTE: TOTPSEED is deprecated, please use CREATE/DROP TOTP_SECRET.
 user_option(A) ::= TOTPSEED NK_STRING(B).                                         { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsTotpseed(pCxt, A, &B); }
 user_option(A) ::= TOTPSEED NULL.                                                 { A = mergeUserOptions(pCxt, NULL, NULL); setUserOptionsTotpseed(pCxt, A, NULL); }
 user_option(A) ::= user_enabled(B).                                               { A = mergeUserOptions(pCxt, NULL, NULL); A->enable = B; A->hasEnable = true; }
@@ -360,7 +361,6 @@ cmd ::= CREATE USER not_exists_opt(A) user_name(B) PASS NK_STRING(C) create_user
   }
 cmd ::= ALTER USER user_name(A) alter_user_options(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, B); }
 cmd ::= DROP USER exists_opt(A) user_name(B).                                    { pCxt->pRootNode = createDropUserStmt(pCxt, &B, A); }
-cmd ::= ALTER DNODES RELOAD general_name(A).                                     { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
 
 
 /************************************************ create/alter/drop token **********************************************/
@@ -391,6 +391,13 @@ cmd ::= DROP TOKEN exists_opt(A) NK_ID(B). {
   }
 
 
+/************************************************ create/drop totpsecret **********************************************/
+cmd ::= CREATE TOTP_SECRET FOR USER user_name(A). {
+    pCxt->pRootNode = createCreateTotpSecretStmt(pCxt, &A);
+  }
+cmd ::= DROP TOTP_SECRET FROM USER user_name(A). {
+    pCxt->pRootNode = createDropTotpSecretStmt(pCxt, &A);
+  }
 
 /************************************************ create/drop role **********************************************/
 cmd ::= CREATE ROLE not_exists_opt(A) role_name(B).                               { pCxt->pRootNode = createCreateRoleStmt(pCxt, A, &B); }
@@ -678,13 +685,17 @@ xnode_task_options(A) ::= NK_ID(C) xnode_task_opt_v(D).                         
 xnode_task_options(A) ::= NK_ID(C) NK_EQ xnode_task_opt_v(D).                     { A = setXnodeTaskOption(pCxt, NULL, &C, &D); }
 xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) xnode_task_opt_v(D).     { A = setXnodeTaskOption(pCxt, B, &C, &D); }
 xnode_task_options(A) ::= xnode_task_options(B) NK_ID(C) NK_EQ xnode_task_opt_v(D).          { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C) xnode_task_opt_v(D). { A = setXnodeTaskOption(pCxt, B, &C, &D); }
 xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C) NK_EQ xnode_task_opt_v(D). { A = setXnodeTaskOption(pCxt, B, &C, &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C) xnode_task_opt_v(D).      { A = setXnodeTaskOption(pCxt, B, &C, &D); }
 xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C) NK_EQ xnode_task_opt_v(D).      { A = setXnodeTaskOption(pCxt, B, &C, &D); }
-xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C).                { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
-xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C).                     { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
+//xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA NK_ID(C).                { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
+//xnode_task_options(A) ::= xnode_task_options(B) AND NK_ID(C).                     { A = setXnodeTaskOption(pCxt, B, &C, NULL); }
 xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_STRING(D).             { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
 xnode_task_options(A) ::= xnode_task_options(B) TRIGGER NK_EQ NK_STRING(D).       { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA TRIGGER NK_STRING(D).         { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
 xnode_task_options(A) ::= xnode_task_options(B) NK_COMMA TRIGGER NK_EQ NK_STRING(D).         { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
+xnode_task_options(A) ::= xnode_task_options(B) AND TRIGGER NK_STRING(D).          { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
 xnode_task_options(A) ::= xnode_task_options(B) AND TRIGGER NK_EQ NK_STRING(D).    { A = setXnodeTaskOption(pCxt, B, createTriggerToken(), &D); }
 
 with_task_options_opt(A) ::= .                                                    { A = NULL; }
@@ -761,6 +772,7 @@ cmd ::= DROP DNODE NK_INTEGER(A) unsafe_opt(B).                                 
 cmd ::= DROP DNODE dnode_endpoint(A) unsafe_opt(B).                               { pCxt->pRootNode = createDropDnodeStmt(pCxt, &A, false, B); }
 cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B).                                   { pCxt->pRootNode = createAlterDnodeStmt(pCxt, &A, &B, NULL); }
 cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B) NK_STRING(C).                      { pCxt->pRootNode = createAlterDnodeStmt(pCxt, &A, &B, &C); }
+cmd ::= ALTER DNODES RELOAD general_name(A).                                      { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
 cmd ::= ALTER ALL DNODES NK_STRING(A).                                            { pCxt->pRootNode = createAlterDnodeStmt(pCxt, NULL, &A, NULL); }
 cmd ::= ALTER ALL DNODES NK_STRING(A) NK_STRING(B).                               { pCxt->pRootNode = createAlterDnodeStmt(pCxt, NULL, &A, &B); }
 cmd ::= RESTORE DNODE NK_INTEGER(A).                                              { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_DNODE_STMT, &A); }

@@ -6,24 +6,24 @@ description: "Xnode distributed node and task management instructions"
 
 # Data Synchronization SQL Manual
 
-This document introduces SQL commands for managing TDengine data synchronization functionality, including Xnode nodes, synchronization Task jobs, and Job shards.
+This document introduces SQL commands for managing the data synchronization functionality of TDengine, including Xnode nodes, synchronization tasks, Job shards, and Agent nodes.
 
-## XNODE Node Management
+## Xnode Management
 
-XNODE nodes are the basic execution units of the data synchronization service, responsible for specific data transmission tasks.
+Xnodes are the basic execution units of the data synchronization service, responsible for specific data transmission tasks.
 
-### Create Node
+### Create Xnode
 
 #### Syntax
 
 ```sql
 CREATE XNODE 'url'
-CREATE XNODE 'url' USER name PASS 'password';
+CREATE XNODE 'url' USER name PASS 'password'
 ```
 
 #### Parameter Description
 
-- **url**: The address of the Xnode node, in the format `host:port` with port to taosx GRPC service (6055 by default)
+- **url**: The address of the Xnode, in the format `host:port` with port to taosx GRPC service (6055 by default)
 - Username and password need to be specified when creating for the first time, used for xnoded to connect to taosd
 
 #### Example
@@ -36,7 +36,7 @@ taos> CREATE XNODE 'x1:6055' USER root PASS 'taosdata';
 Create OK, 0 row(s) affected (0.050798s)
 ```
 
-### View Nodes
+### View Xnodes
 
 #### Syntax
 
@@ -59,7 +59,7 @@ id | url     | status | create_time                 | update_time             |
 Query OK, 1 row(s) in set (0.005518s)
 ```
 
-### Drain Node
+### Drain Xnode
 
 Reassign existing tasks of a node to other nodes for execution.
 
@@ -71,7 +71,7 @@ DRAIN XNODE id
 
 #### Parameter Description
 
-- **id**: The ID of the Xnode node
+- **id**: The ID of the Xnode
 
 #### Example
 
@@ -80,7 +80,7 @@ taos> DRAIN XNODE 4;
 Query OK, 0 row(s) affected (0.014246s)
 ```
 
-### Delete Node
+### Delete Xnode
 
 #### Syntax
 
@@ -90,9 +90,9 @@ DROP XNODE [FORCE] id | 'url'
 
 #### Parameter Description
 
-- **id**: The ID of the Xnode node
-- **url**: The address of the Xnode node
-- **FORCE**: Force delete node
+- **id**: The ID of the Xnode
+- **url**: The address of the Xnode
+- **FORCE**: Force delete Xnode
 
 #### Example
 
@@ -104,9 +104,9 @@ taos> DROP XNODE "h2:6050";
 Drop OK, 0 row(s) affected (0.038593s)
 ```
 
-## TASK Job Management
+## Task Management
 
-TASK jobs define the source, destination, and data parsing rules for data synchronization.
+Tasks define the source, destination, and data parsing rules for data synchronization.
 
 ### Create Task
 
@@ -124,6 +124,7 @@ task_options:
   [ VIA viaId ]
   [ XNODE_ID xnodeId ]
   [ REASON 'reason' ]
+  [ LABELS 'labels' ]
 ```
 
 Syntax note: All task_options can be used simultaneously, separated by spaces, order independent
@@ -142,6 +143,7 @@ Syntax note: All task_options can be used simultaneously, separated by spaces, o
 | **xnodeId**  | The xnode node ID where the task resides           |
 | **viaId**    | The agent ID where the task resides                |
 | **reason**   | Reason for recent task execution failure           |
+| **labels**   | Task labels, stored as a JSON string               |
 
 #### Example
 
@@ -155,7 +157,7 @@ Create OK, 0 row(s) affected (0.038959s)
 #### Syntax
 
 ```sql
-SHOW XNODE TASKS;
+SHOW XNODE TASKS
 ```
 
 #### Example
@@ -178,9 +180,11 @@ taos> SHOW XNODE TASKS \G;
    xnode_id: NULL
      status: NULL
      reason: NULL
-create_time: 2025-12-29 13:48:21.058
-update_time: 2025-12-29 13:48:21.058
-Query OK, 1 row(s) in set (0.005281s)
+ created_by: root
+     labels: NULL
+create_time: 2026-01-13 07:56:18.076
+update_time: 2026-01-13 07:56:18.076
+Query OK, 2 row(s) in set (0.019692s)
 ```
 
 ### Start Task
@@ -188,7 +192,7 @@ Query OK, 1 row(s) in set (0.005281s)
 #### Syntax
 
 ```sql
-START XNODE TASK id | 'name';
+START XNODE TASK id | 'name'
 ```
 
 #### Example
@@ -203,7 +207,7 @@ DB error: Xnode url response http code not 200 error [0x8000800C] (0.002160s)
 #### Syntax
 
 ```sql
-STOP XNODE TASK id | 'name';
+STOP XNODE TASK id | 'name'
 ```
 
 #### Example
@@ -230,6 +234,7 @@ alter_options:
   [ VIA viaId ]
   [ XNODE_ID xnodeId ]
   [ REASON 'reason' ]
+  [ LABELS 'labels' ]
 ```
 
 Syntax note: The meaning of task_options is the same as when creating a task
@@ -246,7 +251,7 @@ Query OK, 0 row(s) affected (0.036077s)
 #### Syntax
 
 ```sql
-DROP XNODE TASK id | 'name';
+DROP XNODE TASK id | 'name'
 ```
 
 #### Example
@@ -256,16 +261,16 @@ taos> DROP XNODE TASK 3;
 Drop OK, 0 row(s) affected (0.038191s)
 ```
 
-## JOB Shard Management
+## Job Management
 
-JOB is the execution shard of a TASK job, supporting both manual and automatic load balancing.
+Job is the execution shard of a Task, supporting both manual and automatic load balancing.
 
-### View JOB Shards
+### View Jobs
 
 #### Syntax
 
 ```sql
-SHOW XNODE JOBS;
+SHOW XNODE JOBS
 ```
 
 #### Example
@@ -323,4 +328,102 @@ Query OK, 0 row(s) affected (0.007237s)
 
 taos> REBALANCE XNODE JOBS;
 Query OK, 0 row(s) affected (0.023245s)
+```
+
+## Agent Management
+
+The Agent node serves as the data collection and forwarding unit in the data synchronization service, responsible for collecting data and forwarding it to Xnode nodes.
+
+### Create Agent
+
+#### Syntax
+
+```sql
+CREATE XNODE AGENT 'name' [WITH agent_options]
+
+agent_options:
+  [STATUS 'status']
+```
+
+#### Parameters
+
+- **name**: Name of the Agent node
+- **status**: Specifies the initial status using the `WITH`clause
+
+#### Example
+
+```sql
+taos> create xnode agent 'a1';
+Create OK, 0 row(s) affected (0.013910s)
+
+taos> create xnode agent 'a2' with status 'running';
+Create OK, 0 row(s) affected (0.013414s)
+```
+
+### Query Agent
+
+#### Syntax
+
+```sql
+SHOW XNODE AGENTS
+```
+
+#### Example
+
+```sql
+taos> show xnode agents\G;
+*************************** 1.row ***************************
+         id: 1
+       name: a1
+      token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3NjgxODI3MDEzNjQsInN1YiI6MX0.FP5rfzQplBrJrbV7Dj_R8fCpiN5uLaADegcnqExwepg
+     status: NULL
+create_time: 2026-01-12 09:51:41.364
+update_time: 2026-01-12 09:51:41.364
+```
+
+### Update Agent
+
+#### Syntax
+
+```sql
+ALTER XNODE AGENT agent_id WITH alter_options
+
+alter_options {
+  STATUS 'status'
+  | NAME 'name'
+}
+```
+
+#### Parameters
+
+- **name**: New name for the Agent node
+- **status**: New status using the `WITH`clause
+
+#### Example
+
+```sql
+taos> alter xnode agent 1 with name 'test1';
+Query OK, 0 row(s) affected (0.008387s)
+
+taos> alter xnode agent 'a2' with name 'test2' status 'online';
+Query OK, 0 row(s) affected (0.008685s)
+```
+
+### Delete Agent
+
+#### Syntax
+
+```sql
+DROP XNODE AGENT agent_id
+```
+
+#### Parameters
+
+- **agent_id**: ID of the Agent node
+
+#### Example
+
+```sql
+taos> drop xnode agent 1;
+Drop OK, 0 row(s) affected (0.012281s)
 ```

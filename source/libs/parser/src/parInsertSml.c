@@ -383,7 +383,7 @@ end:
     uError("%s failed at %d since %s", __func__, lino, tstrerror(ret));
     ret = buildInvalidOperationMsg(&pBuf, tstrerror(ret));
   }
-  insDestroyBoundColInfo(&bindTags);
+  qDestroyBoundColInfo(&bindTags);
   tdDestroySVCreateTbReq(pCreateTblReq);
   taosMemoryFree(pCreateTblReq);
   taosArrayDestroy(tagName);
@@ -407,7 +407,7 @@ int32_t smlInitHandle(SQuery** query) {
   TSDB_CHECK_CODE(code, lino, end);
   stmt->pTableBlockHashObj = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   TSDB_CHECK_NULL(stmt->pTableBlockHashObj, code, lino, end, terrno);
-  stmt->freeHashFunc = insDestroyTableDataCxtHashMap;
+  stmt->freeHashFunc = insDestroyTableDataCxtHashMapSml;
   stmt->freeArrayFunc = insDestroyVgroupDataCxtList;
 
   pQuery->pRoot = (SNode*)stmt;

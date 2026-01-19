@@ -585,6 +585,16 @@ static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVloa
   pGid->syncCommitIndex = pVload->syncCommitIndex;
   pGid->bufferSegmentUsed = pVload->bufferSegmentUsed;
   pGid->bufferSegmentSize = pVload->bufferSegmentSize;
+  pGid->learnerProgress = pVload->learnerProgress;
+  pGid->snapSeq = pVload->snapSeq;
+  pGid->syncTotalIndex = pVload->syncTotalIndex;
+  if (pVload->snapSeq > 0 && pVload->snapSeq < SYNC_SNAPSHOT_SEQ_END || pVload->syncState == TAOS_SYNC_STATE_LEARNER) {
+    mInfo("vgId:%d, update vnode state:%s from dnode:%d, syncAppliedIndex:%" PRId64 " , syncCommitIndex:%" PRId64
+          " , syncTotalIndex:%" PRId64 " ,learnerProgress:%d, snapSeq:%d",
+          vgId, syncStr(pVload->syncState), pGid->dnodeId, pVload->syncAppliedIndex, pVload->syncCommitIndex,
+          pVload->syncTotalIndex, pVload->learnerProgress, pVload->snapSeq);
+  }
+
   if (roleChanged || pGid->syncRestore != pVload->syncRestore || pGid->syncCanRead != pVload->syncCanRead ||
       pGid->startTimeMs != pVload->startTimeMs) {
     mInfo(
@@ -973,8 +983,13 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       mInfo("dnode:%d, from offline to online, memory avail:%" PRId64 " total:%" PRId64 " cores:%.2f", pDnode->id,
             statusReq.memAvail, statusReq.memTotal, statusReq.numOfCores);
     } else {
-      mInfo("dnode:%d, send dnode epset, online:%d dnodeVer:%" PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
-            statusReq.dnodeVer, dnodeVer, reboot);
+      mInfo("dnode:%d, do check in status req, online:%d dnodeVer:%" PRId64 ":%" PRId64
+            " reboot:%d, dnodeChanged:%d supportVnodesChanged:%d analVerChanged:%d encryptKeyChanged:%d "
+            "enableWhiteListChanged:%d auditDBChanged:%d auditTokenChanged:%d pMnode->ipWhiteVer:%" PRId64
+            " statusReq.ipWhiteVer:%" PRId64 " pMnode->timeWhiteVer:%" PRId64 " statusReq.timeWhiteVer:%" PRId64,
+            pDnode->id, online, statusReq.dnodeVer, dnodeVer, reboot, dnodeChanged, supportVnodesChanged,
+            analVerChanged, encryptKeyChanged, enableWhiteListChanged, auditDBChanged, auditTokenChanged,
+            pMnode->ipWhiteVer, statusReq.ipWhiteVer, pMnode->timeWhiteVer, statusReq.timeWhiteVer);
     }
 
     pDnode->rebootTime = statusReq.rebootTime;

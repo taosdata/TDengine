@@ -414,15 +414,14 @@ class TestTaosCli:
     def checkTotpCode(self):
         totpSeed = "totp_user1@totpseed"
         # create totp user
-        tdSql.execute(f"create user totp_user1 pass 'totp_user1@password' totpseed '{totpSeed}' ")
+        tdSql.execute(f"create user totp_user1 pass 'totp_user1@password'")
         
         # gen totp encrypt string()
-        sql = f"select generate_totp_secret('{totpSeed}') "
-        totpEncrypt = tdSql.getFirstValue(sql)
-        tdLog.info(f"totpEncrypt: {totpEncrypt}")
+        totpSecret = tdSql.getFirstValue("create totp_secret for user totp_user1")
+        tdLog.info(f"totpSecret: {totpSecret}")
         
         # get totpCode
-        totpCode = self.getTotpCode(totpEncrypt)
+        totpCode = self.getTotpCode(totpSecret)
         tdLog.info(f"totpCode: {totpCode}")
         
         # login with totp code
