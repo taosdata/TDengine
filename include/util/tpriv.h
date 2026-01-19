@@ -375,6 +375,7 @@ static FORCE_INLINE void privTblPoliciesFree(void* pTblPolicies) {
 int32_t privCheckConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
                            uint8_t* pObjLevel, EPrivType* conflict0, EPrivType* conflict1);
 int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel);
+int32_t privExpandDbRW(SHashObj* objPrivs, const char* dbFName, uint8_t rwAttr);
 void    privIterInit(SPrivIter* pIter, SPrivSet* privSet);
 bool    privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo);
 void    privInfoIterInit(SPrivInfoIter* pIter);

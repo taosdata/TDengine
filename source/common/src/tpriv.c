@@ -158,8 +158,8 @@ static SPrivInfo privInfoTable[] = {
 
     // ==================== object privileges ====================
     // Database Privileges
-    {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "ALTER DATABASE"},
-    {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "DROP DATABASE"},
+    {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 0, "ALTER DATABASE"},
+    {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 0, "DROP DATABASE"},
     {PRIV_DB_USE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA | T_ROLE_SYSSEC, 3, "USE DATABASE"},
     {PRIV_DB_FLUSH, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "FLUSH DATABASE"},
     {PRIV_DB_COMPACT, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "COMPACT DATABASE"},
@@ -207,9 +207,9 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_CM_SHOW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TSMA, 1, SYS_ADMIN_INFO_ROLES, 1, "SHOW CREATE TSMA"},
 
     // View Privileges
-    {PRIV_VIEW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "CREATE VIEW"},
-    {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, T_ROLE_SYSDBA, 2, "DROP VIEW"},
-    {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, T_ROLE_SYSDBA, 2, "ALTER VIEW"},
+    {PRIV_VIEW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 0, "CREATE VIEW"},
+    {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, T_ROLE_SYSDBA, 0, "DROP VIEW"},
+    {PRIV_CM_ALTER, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, T_ROLE_SYSDBA, 0, "ALTER VIEW"},
     {PRIV_CM_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, SYS_ADMIN_INFO_ROLES, 1, "SHOW VIEWS"},
     {PRIV_CM_SHOW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, SYS_ADMIN_INFO_ROLES, 1, "SHOW CREATE VIEW"},
     {PRIV_VIEW_SELECT, PRIV_CATEGORY_OBJECT, PRIV_OBJ_VIEW, 1, 0, 1, "SELECT VIEW"},
@@ -219,7 +219,7 @@ static SPrivInfo privInfoTable[] = {
     {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, T_ROLE_SYSDBA, 2, "DROP TOPIC"},
     {PRIV_CM_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, SYS_ADMIN_INFO_ROLES, 1, "SHOW TOPICS"},
     {PRIV_CM_SHOW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, SYS_ADMIN_INFO_ROLES, 1, "SHOW CREATE TOPIC"},
-    {PRIV_CM_SUBSCRIBE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, 0, 1, "SUBSCRIBE TOPIC"},
+    {PRIV_CM_SUBSCRIBE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, 0, 0, "SUBSCRIBE TOPIC"},
     {PRIV_CONSUMER_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, SYS_ADMIN_INFO_ROLES, 1, "SHOW CONSUMERS"},
     {PRIV_SUBSCRIPTION_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_TOPIC, 1, SYS_ADMIN_INFO_ROLES, 1, "SHOW SUBSCRIPTIONS"},
     // Stream Privileges
@@ -270,6 +270,35 @@ int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLeve
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t privExpandDbRW(SHashObj* objPrivs, const char* dbFName, uint8_t rwAttr) {
+  (void)taosThreadOnce(&privInit, initPrivLookup);
+
+  if (!objPrivs) return TSDB_CODE_APP_ERROR;
+
+  int32_t       code = 0, lino = 0;
+  char          key[TSDB_PRIV_MAX_KEY_LEN] = {0};
+  SPrivInfoIter iter = {0};
+  privInfoIterInit(&iter);
+
+  SPrivInfo* pPrivInfo = NULL;
+  while (privInfoIterNext(&iter, &pPrivInfo)) {
+    if ((pPrivInfo->rwAttr & rwAttr) == 0) continue;
+    SPrivInfo privInfo = {.objType = pPrivInfo->objType, .objLevel = pPrivInfo->objLevel};
+    int32_t   keyLen = privObjKeyF(&privInfo, dbFName, NULL, key, sizeof(key));
+
+    SPrivObjPolicies* policies = taosHashGet(objPrivs, key, keyLen + 1);
+    if (policies == NULL) {
+      SPrivObjPolicies policy = {0};
+      privAddType(&policy.policy, pPrivInfo->privType);
+      TAOS_CHECK_EXIT(taosHashPut(objPrivs, key, keyLen + 1, &policy, sizeof(SPrivObjPolicies)));
+    } else {
+      privAddType(&policies->policy, pPrivInfo->privType);
+    }
+  }
+_exit:
+  return code;
 }
 
 int32_t privCheckConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
