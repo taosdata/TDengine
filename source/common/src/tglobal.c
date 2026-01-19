@@ -471,6 +471,7 @@ int32_t sessionMaxCallVnodeNum = -1;
 bool    tsSessionControl = 1;
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 
+void taosSetSkipKeyCheckMode(void) { tsSkipKeyCheckMode = true; }
 
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
   if ((pItem = cfgGetItem(pCfg, pName)) == NULL) {  \
