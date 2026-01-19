@@ -805,8 +805,8 @@ int32_t tDeserializeSMCreateXnodeJobReq(void *buf, int32_t bufLen, SMCreateXnode
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->via));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->xnodeId));
   TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->status, true));
-  TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->config, NULL));
-  TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->reason, NULL));
+  TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->config, true));
+  TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->reason, true));
   tEndDecode(&decoder);
 
 _exit:

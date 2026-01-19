@@ -372,15 +372,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     if (connReq.connType != CONN_TYPE__AUTH_TEST) {
       mndSetUserLoginInfo(user, &li);
     }
-  } else if (!verifyTotp(pUser, connReq.totpCode)) {
-    TAOS_CHECK_GOTO(TSDB_CODE_MND_WRONG_TOTP_CODE, &lino, _OVER);
-  } else if ((code = verifyPassword(pUser, connReq.passwd)) == TSDB_CODE_SUCCESS) {
-    li.failedLoginCount = 0;
-    li.lastLoginTime= now;
-    if (connReq.connType != CONN_TYPE__AUTH_TEST) {
-      mndSetUserLoginInfo(user, &li);
-    }
-  } else if (code == TSDB_CODE_MND_AUTH_FAILURE) {
+  } else if ((code = verifyPassword(pUser, connReq.passwd)) == TSDB_CODE_MND_AUTH_FAILURE) {
     if (pUser->failedLoginAttempts >= 0) {
       if (li.failedLoginCount >= pUser->failedLoginAttempts) {
         // if we can get here, it means the lock time has passed, so reset the counter
@@ -392,9 +384,17 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     if (connReq.connType != CONN_TYPE__AUTH_TEST) {
       mndSetUserLoginInfo(user, &li);
     }
-    goto _OVER;
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  } else if (code != TSDB_CODE_SUCCESS) {
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  } else if (!verifyTotp(pUser, connReq.totpCode)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_WRONG_TOTP_CODE, &lino, _OVER);
   } else {
-    goto _OVER;
+    li.failedLoginCount = 0;
+    li.lastLoginTime= now;
+    if (connReq.connType != CONN_TYPE__AUTH_TEST) {
+      mndSetUserLoginInfo(user, &li);
+    }
   } 
 
   if (connReq.db[0] != 0) {

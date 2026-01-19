@@ -1526,7 +1526,7 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
   }
 
   if (pCreateReq->xnodeId > 0) {
-    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "xnodeId", (double)pCreateReq->xnodeId), NULL, _OVER);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "xnode_id", (double)pCreateReq->xnodeId), NULL, _OVER);
   }
 
   pContStr = tjsonToUnformattedString(postContent);
@@ -1655,7 +1655,19 @@ static int32_t httpStartXnodeTask(SXnodeTaskObj *pObj) {
   }
 
   if (pObj->xnodeId > 0) {
-    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(req.postContent, "xnodeId", (double)pObj->xnodeId), NULL, _OVER);
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(req.postContent, "xnode_id", (double)pObj->xnodeId), NULL, _OVER);
+  }
+
+  if (pObj->via > 0) {
+    TAOS_CHECK_GOTO(tjsonAddDoubleToObject(req.postContent, "via", (double)pObj->via), NULL, _OVER);
+  }
+
+  if (pObj->createdBy != NULL) {
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "created_by", pObj->createdBy), NULL, _OVER);
+  }
+
+  if (pObj->labels != NULL) {
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "labels", pObj->labels), NULL, _OVER);
   }
 
   req.pContStr = tjsonToUnformattedString(req.postContent);
