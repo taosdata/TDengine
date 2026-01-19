@@ -870,13 +870,19 @@ static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SUserObj *pOperUser, SDbObj *
   void *pIter = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
     if (taosHashGetSize(pUser->roles) <= 0) {
+      sdbRelease(pSdb, pUser);
+      pUser = NULL;
       continue;
     }
     if(strncmp(pUser->name, pOperUser->name, TSDB_USER_LEN) == 0) {
+      sdbRelease(pSdb, pUser);
+      pUser = NULL;
       continue;
     }
     if (!taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT, sysAuditLen) &&
         !taosHashGet(pUser->roles, TSDB_ROLE_SYSAUDIT_LOG, sysAuditLogLen)) {
+      sdbRelease(pSdb, pUser);
+      pUser = NULL;
       continue;
     }
     memset(&newUserObj, 0, sizeof(SUserObj));
@@ -893,15 +899,14 @@ static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SUserObj *pOperUser, SDbObj *
       TAOS_CHECK_EXIT(terrno);
     }
     sdbRelease(pSdb, pUser);
+    pUser = NULL;
   }
   *pAuditOwnedDbs = auditOwnedDbs;
   auditOwnedDbs = NULL;
 _exit:
   if (auditOwnedDbs != NULL) taosArrayDestroyEx(auditOwnedDbs, (FDelete)mndUserFreeObj);
-  if (pIter) {
-    sdbRelease(pSdb, pUser);
-    sdbCancelFetch(pSdb, pIter);
-  }
+  sdbRelease(pSdb, pUser);
+  sdbCancelFetch(pSdb, pIter);
   mndUserFreeObj(&newUserObj);
   TAOS_RETURN(code);
 }
