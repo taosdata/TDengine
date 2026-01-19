@@ -21,6 +21,7 @@ on:
       - '!.github/workflows/new-framework-test.yml'
       - 'test/ci/tdgpt_cases.task'
       - 'test/cases/41-TDgpt/**'
+      - "tools/keeper/**"
 
   workflow_dispatch:
     inputs:

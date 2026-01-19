@@ -167,20 +167,18 @@ class TestUserSecurity:
         print(f"delete totp key: {key}")
         
         # drop basic
-        self.drop_security_key("root")
+        self.drop_security_key_failed("root")
         self.drop_security_key("user_enable_0")
         # duplicate drop
         self.drop_security_key("user_default")
-        #BUG-1
-        #self.drop_security_key_failed("user_default")
+        self.drop_security_key_failed("user_default")
        
         # login fail after drop key TODO after add connect_with_totp api support 
         #self.login_with_key_fail("user_default", "abcd@1234", key)
         
         # except
         print(f"delete totp except")
-        #BUG-2
-        #self.drop_security_key_failed("non_exist_user") # non-exist user
+        self.drop_security_key_failed("non_exist_user") # non-exist user
         self.drop_security_key_failed("")               # empty
         self.drop_security_key_failed("`root`")         # with quotes
         self.drop_security_key_failed("select")         # keyword
@@ -207,17 +205,28 @@ class TestUserSecurity:
         self.check_login_fail("user1", "abcd@1234", "123456")             # wrong totp
         
         #
-        # totp code expired (30s)
+        # totp code expired (fix 30s + random 0~30s)
         #
         elapsed = time.monotonic() - self.start_time
-        if elapsed < 40:
-            time_to_wait = 40 - elapsed
+        if elapsed < 32:
+            time_to_wait = 32 - elapsed
             print(f"wait {time_to_wait:.1f}s to cross interval boundary")
             time.sleep(time_to_wait)
         else:
-            print(f"already cross interval boundary")
-        self.check_login_fail("user1", "abcd@1234", self.user1_code)  # old code fail
-        
+            print(f"already cross interval boundary 32s.")
+        succ = False    
+        for i in range(40):
+            try:
+                self.check_login("user1", "abcd@1234", self.user1_code)
+                print(f"wait {32+i}s to expect totp code expired ...")
+            except Exception as e:
+                succ = True
+                print(f"succ wait to totp code expired after {32+i}s !")
+                break
+            time.sleep(1)
+        if not succ:
+            raise Exception(f"totp code still not expired after wait 72s.")
+
         print("login totp ............................ [ passed ] ")
 
     #

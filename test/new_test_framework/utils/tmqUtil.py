@@ -173,6 +173,13 @@ class TMQCom:
         tdLog.info(shellCmd)
         os.system(shellCmd)
 
+        time.sleep(1)
+        psCmd = "unset LD_PRELOAD; ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
+        if platform.system().lower() == 'windows':
+            psCmd = "ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
+        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+        tdLog.info("cmd:%s start processID: %s" % (shellCmd, processID))
+
     def stopTmqSimProcess(self, processorName):
         psCmd = (
             "unset LD_PRELOAD; ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"
@@ -184,6 +191,7 @@ class TMQCom:
             )
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         onlyKillOnceWindows = 0
+        tdLog.info("cmd:%s stop processID: %s" % (psCmd, processID))
         while processID:
             if not platform.system().lower() == "windows" or (
                 onlyKillOnceWindows == 0 and platform.system().lower() == "windows"
@@ -195,10 +203,12 @@ class TMQCom:
                         "unset LD_PRELOAD; kill -INT %s > /dev/null 2>&1" % processID
                     )
                 os.system(killCmd)
+                tdLog.info("execute command: %s" % killCmd)
                 onlyKillOnceWindows = 1
-            time.sleep(0.2)
+            time.sleep(1)
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
-        tdLog.debug("%s is stopped by kill -INT" % (processorName))
+            tdLog.info("processID: %s" % processID)
+        tdLog.info("%s is stopped by kill -INT" % (processorName))
 
     def getStartConsumeNotifyFromTmqsim(self, cdbName="cdb", rows=1):
         loopFlag = 1
