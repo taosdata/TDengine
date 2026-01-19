@@ -66,7 +66,7 @@ def get_insert_stream_msg(text):
         "content": {
             "post": {
                 "zh_cn": {
-                    "title": "TestNG-Insert&Stream Monitor",
+                    "title": "TestNG-Insert Monitor",
                     "content": [
                         [{
                             "tag": "text",
@@ -96,7 +96,7 @@ Others: {others}\n
     '''
 
     #json = get_msg(text)
-    if owner == "Platform TSDB-Query Test":
+    if "Query" in owner:
         json = get_query_msg(text)
     else:
         json = get_insert_stream_msg(text)
