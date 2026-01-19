@@ -438,7 +438,7 @@ static int32_t tqRetrievePseudoCols(STqReader* pReader, SSDataBlock* pBlock, int
 
 END:
   if (code != 0) {
-    tqError("tqRetrieveCols failed, line:%d, msg:%s", lino, tstrerror(code));
+    tqError("tqRetrievePseudoCols failed, line:%d, msg:%s", lino, tstrerror(code));
   }
   return code;
 }
@@ -710,20 +710,19 @@ static int32_t doSetVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SCol
   return code;
 }
 
-static int32_t setBlockData(SSDataBlock* pBlock, int32_t index, SColVal* colVal, SBlobSet* pBlobSet) {
+static int32_t setBlockData(SSDataBlock* pBlock, int32_t slotId, int32_t rowIndex, SColVal* colVal, SBlobSet* pBlobSet) {
   int32_t        code = 0;
-  SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, index);
+  SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, slotId);
   if (pColData == NULL) {
     return terrno;
   }
 
   uint8_t isBlob = IS_STR_DATA_BLOB(pColData->info.type) ? 1 : 0;
   if (isBlob == 0) {
-    code = doSetVal(pColData, pBlock->info.rows, colVal);
+    code = doSetVal(pColData, rowIndex, colVal);
   } else {
-    code = doSetBlobVal(pColData, pBlock->info.rows, colVal, pBlobSet);
+    code = doSetBlobVal(pColData, rowIndex, colVal, pBlobSet);
   }
-  pBlock->info.rows++;
   return code;
 }
 
@@ -752,7 +751,7 @@ static int32_t processSubmitRow(SArray*         pRows,
     }
     int32_t pData[2] = {sourceIdx, *(int16_t*)pSlotId};
     TSDB_CHECK_NULL(taosArrayPush(pColArray, pData), code, line, END, terrno);
-    code = setBlockData(pBlock, pData[1], &colVal, pBlobSet);
+    code = setBlockData(pBlock, pData[1], pBlock->info.rows + rowIndex, &colVal, pBlobSet);
     TSDB_CHECK_CODE(code, line, END);
   }
   
@@ -767,7 +766,7 @@ static int32_t processSubmitRow(SArray*         pRows,
       code = tRowGet(pRow, pReader->pTSchema, pData[0], &colVal);
       TSDB_CHECK_CODE(code, line, END);
 
-      code = setBlockData(pBlock, pData[1], &colVal, pBlobSet);
+      code = setBlockData(pBlock, pData[1], pBlock->info.rows + rowIndex, &colVal, pBlobSet);
       TSDB_CHECK_CODE(code, line, END);
     }
   }
@@ -796,7 +795,7 @@ static int32_t processSubmitCol(SArray*         pCols,
       code = tColDataGetValue(pCol, row, &colVal);
       TSDB_CHECK_CODE(code, line, END);
 
-      code = setBlockData(pBlock, *(int16_t*)pSlotId, &colVal, pBlobSet);
+      code = setBlockData(pBlock, *(int16_t*)pSlotId, pBlock->info.rows + row, &colVal, pBlobSet);
       TSDB_CHECK_CODE(code, line, END);
     }
   }
@@ -870,7 +869,7 @@ static int32_t tqRetrieveCols(STqReader* pReader, SSDataBlock* pBlock, SHashObj*
     code = processSubmitRow(pRows, pBlock, pCol2SlotId, pReader, pSubmitTbData->pBlobSet);
     TSDB_CHECK_CODE(code, line, END);
   }
-
+  pBlock->info.rows += numOfRows;
 END:
   if (code != 0) {
     tqError("tqRetrieveCols failed, line:%d, msg:%s", line, tstrerror(code));
