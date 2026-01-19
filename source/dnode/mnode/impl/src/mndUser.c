@@ -1248,17 +1248,28 @@ static int32_t mndUserPrivUpgradeTopics(SMnode *pMnode, SUserObj *pUser, SHashOb
   char   *key = NULL;
   char   *value = NULL;
 
-  SAlterRoleReq alterReq = {
-      .alterType = TSDB_ALTER_ROLE_PRIVILEGES, .add = 1, .objType = PRIV_OBJ_TOPIC, .ignoreNotExists = 1};
+  SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_PRIVILEGES,
+                            .add = 1,
+                            .objType = PRIV_OBJ_TOPIC,
+                            .objLevel = 1,
+                            .ignoreNotExists = 1};
 
   while ((pIter = taosHashIterate(pTopics, pIter))) {
     size_t keyLen = 0;
     key = taosHashGetKey(pIter, &keyLen);
 
     SName name = {0};
-    TAOS_CHECK_EXIT(tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB));
+    if (tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB)) {  // 1.topicName
+      continue;
+    }
+    snprintf(alterReq.tblName, TSDB_TABLE_NAME_LEN, "%s", name.dbname);
 
-    snprintf(alterReq.objFName, TSDB_OBJ_FNAME_LEN, "%d.%s", name.acctId, name.dbname);
+    SMqTopicObj *pTopic = NULL;
+    if (mndAcquireTopic(pMnode, key, &pTopic)) {
+      continue;  // no topic exists
+    }
+    snprintf(alterReq.objFName, TSDB_OBJ_FNAME_LEN, "%s", pTopic->db);
+    mndReleaseTopic(pMnode, pTopic);
 
     privAddType(&alterReq.privileges.privSet, PRIV_CM_SUBSCRIBE);
 
