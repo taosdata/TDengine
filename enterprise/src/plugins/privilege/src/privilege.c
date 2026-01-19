@@ -20,6 +20,7 @@
 #include "mndTopic.h"
 #include "mndUser.h"
 #include "mndDef.h"
+#include "mndToken.h"
 
 static TdThreadOnce operPrivInit = PTHREAD_ONCE_INIT;
 
@@ -928,7 +929,15 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   TAOS_CHECK_EXIT(mndDupPrivTblHash(pUser->deleteTbs, &pRsp->deleteTbs, true));
   taosRUnLockLatch(&pUser->lock);
 
-  TAOS_RETURN(mndSetUserRolePrivileges(pMnode, pUser, pRsp));
+  code = mndSetUserRolePrivileges(pMnode, pUser, pRsp);
+  if (code != 0) {
+    TAOS_RETURN(code);
+  }
+  code = mndGetUserTokenStatuses(pUser->user, &pRsp->tokens);
+  if (code != 0) {
+    TAOS_RETURN(code);
+  }
+  TAOS_RETURN(0);
 
 _exit:
   taosRUnLockLatch(&pUser->lock);

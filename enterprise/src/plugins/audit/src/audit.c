@@ -215,7 +215,7 @@ static int32_t auditSend(SJson *pJson) {
     char path[1000] = {0};
     (void)tsnprintf(path, 1000, "https://%s:%d%s", tsAudit.cfg.server, tsAudit.cfg.port, httpPath);
     if ((code = taosAuditSendReqByCurl(path, pCont, strlen(pCont), AUDIT_CURL_TIMEOUT, qid)) != 0) {
-      uError("failed to send audit msg, cont:%s, since %s", pCont, terrstr(code));
+      uError("failed to send audit msg, cont:%s, since %s", pCont, terrstr());
       taosMemoryFree(pCont);
       return code;
     }
@@ -473,7 +473,7 @@ void auditSendRecordsInBatchImp(){
       char path[1000] = {0};
       (void)tsnprintf(path, 1000, "https://%s:%d%s", tsAudit.cfg.server, tsAudit.cfg.port, httpPath);
       if ((code = taosAuditSendReqByCurl(path, pCont, strlen(pCont), AUDIT_CURL_TIMEOUT, qid)) != 0) {
-        uError("failed to send audit msg, cont:%s, since %s", pCont, terrstr(code));
+        uError("failed to send audit msg, cont:%s, since %s", pCont, terrstr());
       }
 #endif
     } else {

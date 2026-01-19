@@ -148,7 +148,7 @@ static bool tokenCacheExist(const char* token) {
 }
 
 
-
+// TODO: optimize performance if necessary
 int32_t mndGetUserActiveToken(const char* user, char* token) {
   (void)taosThreadRwlockRdlock(&tokenCache.rw);
   int32_t now = (int32_t)taosGetTimestampSec();
@@ -170,6 +170,40 @@ int32_t mndGetUserActiveToken(const char* user, char* token) {
   (void)taosThreadRwlockUnlock(&tokenCache.rw);
 
   return TSDB_CODE_MND_TOKEN_NOT_EXIST;
+}
+
+
+// TODO: optimize performance if necessary
+int32_t mndGetUserTokenStatuses(const char* user, SHashObj** pHash) {
+  *pHash = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (*pHash == NULL) {
+    TAOS_RETURN(terrno);
+  }
+
+  (void)taosThreadRwlockRdlock(&tokenCache.rw);
+
+  void *pIter = taosHashIterate(tokenCache.tokens, NULL);
+  while (pIter) {
+    SCachedTokenInfo *ti = *(SCachedTokenInfo **)pIter;
+    if (ti != NULL && taosStrcasecmp(ti->user, user) == 0) {
+      STokenStatus status = {
+          .enabled = ti->enabled,
+          .expireTime = ti->expireTime,
+      };
+      int32_t code = taosHashPut(*pHash, ti->name, strlen(ti->name) + 1, &status, sizeof(status));
+      if (code != 0) {
+        (void)taosThreadRwlockUnlock(&tokenCache.rw);
+        taosHashCleanup(*pHash);
+        *pHash = NULL;
+        TAOS_RETURN(code);
+      }
+    }
+    pIter = taosHashIterate(tokenCache.tokens, pIter);
+  }
+
+  (void)taosThreadRwlockUnlock(&tokenCache.rw);
+
+  TAOS_RETURN(0);
 }
 
 
@@ -479,7 +513,7 @@ static int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
   }
 
-  mInfo("token from user:%s, start to create", createReq.user);
+  mInfo("token:%s from user:%s, start to create", createReq.name, createReq.user);
 
   if (createReq.name[0] == '\0') {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_TOKEN_NAME, &lino, _OVER);
@@ -491,7 +525,7 @@ static int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
   }
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, createReq.user, &pTokenUser), &lino, _OVER);
-  if (pTokenUser->allowTokenNum > 0 && pTokenUser->tokenNum >= pTokenUser->allowTokenNum) {
+  if (pTokenUser->allowTokenNum >= 0 && pTokenUser->tokenNum >= pTokenUser->allowTokenNum) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_TOO_MANY_TOKENS, &lino, _OVER);
   }
 
@@ -507,7 +541,10 @@ static int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
   }
 
 _OVER:
-  if (code == TSDB_CODE_MND_TOKEN_ALREADY_EXIST && createReq.ignoreExists) {
+  if (code == 0) {
+    mInfo("token:%s, created successfully", createReq.name);
+  } else if (code == TSDB_CODE_MND_TOKEN_ALREADY_EXIST && createReq.ignoreExists) {
+    mInfo("token:%s, already exists, creation skipped", createReq.name);
     code = 0;
   } else if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("token:%s, failed to create at line %d since %s", createReq.name, lino, tstrerror(code));
@@ -531,22 +568,38 @@ static int32_t mndTokenDupObj(STokenObj *pOld, STokenObj* pNew) {
 
 
 static int32_t mndAlterToken(SMnode *pMnode, STokenObj *pToken, SRpcMsg *pReq) {
-  int32_t code = 0, lino = 0;
+  int32_t   code = 0, lino = 0;
+  SUserObj *pUser = NULL;
+  SUserObj  newUser = {0};
+  STrans   *pTrans = NULL;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "alter-token");
+  // dup user obj to increase authVersion
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pToken->user, &pUser), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
+
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "alter-token");
   if (pTrans == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
   mInfo("trans:%d, used to alter token:%s", pTrans->id, pToken->name);
 
+  // token commit log
   SSdbRaw *pCommitRaw = mndTokenActionEncode(pToken);
   if (pCommitRaw == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
   }
   TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pCommitRaw), &lino, _OVER);
   TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY), &lino, _OVER);
-  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), &lino, _OVER);
 
+  // user commit log
+  pCommitRaw = mndUserActionEncode(&newUser);
+  if (pCommitRaw == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+  }
+  TAOS_CHECK_GOTO(mndTransAppendCommitlog(pTrans, pCommitRaw), &lino, _OVER);
+  TAOS_CHECK_GOTO(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY), &lino, _OVER);
+
+  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), &lino, _OVER);
   TAOS_CHECK_GOTO(tokenCacheUpdate(pToken), &lino, _OVER);
 
 _OVER:
@@ -558,6 +611,8 @@ _OVER:
     }
   }
   mndTransDrop(pTrans);
+  mndUserFreeObj(&newUser);
+  mndReleaseUser(pMnode, pUser);
   TAOS_RETURN(code);
 }
 
@@ -575,12 +630,7 @@ static int32_t mndProcessAlterTokenReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(tDeserializeSAlterTokenReq(pReq->pCont, pReq->contLen, &alterReq), &lino, _OVER);
   mInfo("token:%s, start to alter", alterReq.name);
 
-  code = mndAcquireToken(pMnode, alterReq.name, &pToken);
-  if (pToken == NULL) {
-    code = TSDB_CODE_MND_TOKEN_NOT_EXIST;
-    goto _OVER;
-  }
-
+  TAOS_CHECK_GOTO(mndAcquireToken(pMnode, alterReq.name, &pToken), &lino, _OVER);
   TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pToken->user, pToken->token), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTokenDupObj(pToken, &newToken), &lino, _OVER);
 
@@ -623,7 +673,7 @@ _OVER:
 
   mndReleaseToken(pMnode, pToken);
   tFreeSAlterTokenReq(&alterReq);
-  return 0;
+  TAOS_RETURN(code);
 }
 
 
@@ -701,7 +751,10 @@ static int32_t mndProcessDropTokenReq(SRpcMsg *pReq) {
   }
 
 _OVER:
-  if (code == TSDB_CODE_MND_TOKEN_NOT_EXIST && dropReq.ignoreNotExists) {
+  if (code == 0) {
+    mInfo("token:%s, dropped successfully", dropReq.name);
+  } else if (code == TSDB_CODE_MND_TOKEN_NOT_EXIST && dropReq.ignoreNotExists) {
+    mInfo("token:%s, not exists, drop skipped", dropReq.name);
     code = 0;
   } else if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("token:%s, failed to drop at line %d since %s", dropReq.name, lino, tstrerror(code));
