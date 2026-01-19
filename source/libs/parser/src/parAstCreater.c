@@ -21,17 +21,17 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "nodes.h"
-#include "parAst.h"
-#include "parUtil.h"
-#include "tglobal.h"
-#include "ttime.h"
 #include "cmdnodes.h"
+#include "nodes.h"
 #include "osMemory.h"
 #include "osString.h"
+#include "parAst.h"
 #include "parToken.h"
+#include "parUtil.h"
 #include "tdef.h"
+#include "tglobal.h"
 #include "tmsg.h"
+#include "ttime.h"
 #include "ttokendef.h"
 
 #define CHECK_MAKE_NODE(p) \
@@ -79,13 +79,13 @@
     }                                                                        \
   } while (0)
 
-#define COPY_COW_STR_FROM_ID_TOKEN(cow, pToken)                  \
-  do {                                                           \
-    if (pToken->z[0] == '`') {                                   \
+#define COPY_COW_STR_FROM_ID_TOKEN(cow, pToken)                      \
+  do {                                                               \
+    if (pToken->z[0] == '`') {                                       \
       (cow) = xCreateCowStr((pToken)->n - 2, (pToken)->z + 1, true); \
-    } else {                                                     \
-      (cow) = xCreateCowStr((pToken)->n, (pToken)->z, true); \
-    }                                                            \
+    } else {                                                         \
+      (cow) = xCreateCowStr((pToken)->n, (pToken)->z, true);         \
+    }                                                                \
   } while (0)
 #define COPY_COW_STR_FROM_STR_TOKEN(cow, pToken)                     \
   do {                                                               \
@@ -147,8 +147,6 @@ static bool checkUserName(SAstCreateContext* pCxt, SToken* pUserName) {
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
-
-
 static bool isValidSimplePassword(const char* password) {
   for (char c = *password; c != 0; c = *(++password)) {
     if (c == ' ' || c == '\'' || c == '\"' || c == '`' || c == '\\') {
@@ -157,8 +155,6 @@ static bool isValidSimplePassword(const char* password) {
   }
   return true;
 }
-
-
 
 static bool isValidPassword(SAstCreateContext* pCxt, const char* password, bool imported) {
   if (imported) {
@@ -171,8 +167,6 @@ static bool isValidPassword(SAstCreateContext* pCxt, const char* password, bool 
 
   return isValidSimplePassword(password);
 }
-
-
 
 static int32_t parsePort(SAstCreateContext* pCxt, const char* p, int32_t* pPort) {
   *pPort = taosStr2Int32(p, NULL, 10);
@@ -3205,8 +3199,8 @@ SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pStmt->dbName));
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, sizeof(pStmt->tableName));
   pStmt->ignoreExists = ignoreExists;
   pStmt->pCols = pCols;
   nodesDestroyNode(pRealTable);
@@ -3224,10 +3218,10 @@ SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNo
   SCreateVSubTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
-  strcpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName);
-  strcpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pStmt->dbName));
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, sizeof(pStmt->tableName));
+  tstrncpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName, sizeof(pStmt->useDbName));
+  tstrncpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName, sizeof(pStmt->useTableName));
   pStmt->ignoreExists = ignoreExists;
   pStmt->pSpecificTags = pSpecificTags;
   pStmt->pValsOfTags = pValsOfTags;
@@ -4015,8 +4009,6 @@ _err:
   return NULL;
 }
 
-
-
 static bool parseIp(const char* strIp, SIpRange* pIpRange) {
   if (strchr(strIp, ':') == NULL) {
     struct in_addr ip4;
@@ -4038,8 +4030,6 @@ static bool parseIp(const char* strIp, SIpRange* pIpRange) {
   return false;
 }
 
-
-
 SIpRangeNode* parseIpRange(SAstCreateContext* pCxt, const SToken* token) {
   CHECK_PARSER_STATUS(pCxt);
 
@@ -4048,7 +4038,7 @@ SIpRangeNode* parseIpRange(SAstCreateContext* pCxt, const SToken* token) {
 #else
 
   SIpRangeNode* node = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_IP_RANGE, (SNode**)&node);
+  int32_t       code = nodesMakeNode(QUERY_NODE_IP_RANGE, (SNode**)&node);
   if (node == NULL) {
     goto _err;
   }
@@ -4095,13 +4085,11 @@ _err:
 #endif
 }
 
-
-
 SDateTimeRangeNode* parseDateTimeRange(SAstCreateContext* pCxt, const SToken* token) {
   CHECK_PARSER_STATUS(pCxt);
 
   SDateTimeRangeNode* node = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_DATE_TIME_RANGE, (SNode**)&node);
+  int32_t             code = nodesMakeNode(QUERY_NODE_DATE_TIME_RANGE, (SNode**)&node);
   if (code != TSDB_CODE_SUCCESS) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code);
     goto _err;
@@ -4131,7 +4119,7 @@ SDateTimeRangeNode* parseDateTimeRange(SAstCreateContext* pCxt, const SToken* to
   } else {
     // format: WEEKDAY HH:MM duration
     char weekday[4];
-    int ret = sscanf(buf, "%3s %d:%d %d", weekday, &hour, &minute, &duration);
+    int  ret = sscanf(buf, "%3s %d:%d %d", weekday, &hour, &minute, &duration);
     if (ret != 4) {
       goto _err;
     }
@@ -4155,17 +4143,16 @@ SDateTimeRangeNode* parseDateTimeRange(SAstCreateContext* pCxt, const SToken* to
   return node;
 
 _err:
-  if (code == TSDB_CODE_PAR_INVALID_OPTION_VALUE) { // other error types have been set above
+  if (code == TSDB_CODE_PAR_INVALID_OPTION_VALUE) {  // other error types have been set above
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid date time range");
   }
   nodesDestroyNode((SNode*)node);
   return NULL;
 }
 
-
 SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   SUserOptions* pOptions = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_USER_OPTIONS, (SNode**)&pOptions);
+  int32_t       code = nodesMakeNode(QUERY_NODE_USER_OPTIONS, (SNode**)&pOptions);
   if (pOptions == NULL) {
     pCxt->errCode = code;
     return NULL;
@@ -4193,11 +4180,9 @@ SUserOptions* createDefaultUserOptions(SAstCreateContext* pCxt) {
   return pOptions;
 }
 
-
-
 SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOptions* b) {
   if (a == NULL && b == NULL) {
-      return createDefaultUserOptions(pCxt);
+    return createDefaultUserOptions(pCxt);
   }
   if (b == NULL) {
     return a;
@@ -4226,7 +4211,8 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
 
   if (b->hasEnable) {
     if (a->hasEnable) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "ENABLE/ACCOUNT LOCK/ACCOUNT UNLOCK");
+      pCxt->errCode =
+          generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_DUPLICATED, "ENABLE/ACCOUNT LOCK/ACCOUNT UNLOCK");
     } else {
       a->hasEnable = true;
       a->enable = b->enable;
@@ -4429,18 +4415,17 @@ SUserOptions* mergeUserOptions(SAstCreateContext* pCxt, SUserOptions* a, SUserOp
   return a;
 }
 
-
-
 void setUserOptionsTotpseed(SAstCreateContext* pCxt, SUserOptions* pUserOptions, const SToken* pTotpseed) {
   pUserOptions->hasTotpseed = true;
 
-  if (pTotpseed == NULL) { // clear TOTP secret
+  if (pTotpseed == NULL) {  // clear TOTP secret
     memset(pUserOptions->totpseed, 0, sizeof(pUserOptions->totpseed));
     return;
   }
 
   if (pTotpseed->n >= sizeof(pUserOptions->totpseed) * 2) {
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "TOTPSEED", sizeof(pUserOptions->totpseed));
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "TOTPSEED",
+                                         sizeof(pUserOptions->totpseed));
     return;
   }
 
@@ -4451,15 +4436,15 @@ void setUserOptionsTotpseed(SAstCreateContext* pCxt, SUserOptions* pUserOptions,
   size_t len = strtrim(buf);
 
   if (len >= sizeof(pUserOptions->totpseed)) {
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "TOTPSEED", sizeof(pUserOptions->totpseed));
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "TOTPSEED",
+                                         sizeof(pUserOptions->totpseed));
   } else if (len < TSDB_USER_TOTPSEED_MIN_LEN) {
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT, "TOTPSEED", TSDB_USER_TOTPSEED_MIN_LEN);
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_SHORT, "TOTPSEED",
+                                         TSDB_USER_TOTPSEED_MIN_LEN);
   } else {
     tstrncpy(pUserOptions->totpseed, buf, sizeof(pUserOptions->totpseed));
   }
 }
-
-
 
 void setUserOptionsPassword(SAstCreateContext* pCxt, SUserOptions* pUserOptions, const SToken* pPassword) {
   pUserOptions->hasPassword = true;
@@ -4483,8 +4468,6 @@ void setUserOptionsPassword(SAstCreateContext* pCxt, SUserOptions* pUserOptions,
     tstrncpy(pUserOptions->password, buf, sizeof(pUserOptions->password));
   }
 }
-
-
 
 static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts) {
   if (opts->hasEnable && (opts->enable < 0 || opts->enable > 1)) {
@@ -4567,12 +4550,14 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
     return false;
   }
 
-  if (opts->hasPasswordReuseTime && (opts->passwordReuseTime < 0 || opts->passwordReuseTime > TSDB_USER_PASSWORD_REUSE_TIME_MAX)) {
+  if (opts->hasPasswordReuseTime &&
+      (opts->passwordReuseTime < 0 || opts->passwordReuseTime > TSDB_USER_PASSWORD_REUSE_TIME_MAX)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_REUSE_TIME");
     return false;
   }
 
-  if (opts->hasPasswordReuseMax && (opts->passwordReuseMax < 0 || opts->passwordReuseMax > TSDB_USER_PASSWORD_REUSE_MAX_MAX)) {
+  if (opts->hasPasswordReuseMax &&
+      (opts->passwordReuseMax < 0 || opts->passwordReuseMax > TSDB_USER_PASSWORD_REUSE_MAX_MAX)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTION_VALUE, "PASSWORD_REUSE_MAX");
     return false;
   }
@@ -4591,8 +4576,6 @@ static bool isValidUserOptions(SAstCreateContext* pCxt, const SUserOptions* opts
 
   return true;
 }
-
-
 
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOptions* opts, bool ignoreExists) {
   SCreateUserStmt* pStmt = NULL;
@@ -4634,7 +4617,7 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOpt
   pStmt->numIpRanges = LIST_LENGTH(opts->pIpRanges);
   pStmt->pIpRanges = taosMemoryMalloc(pStmt->numIpRanges * sizeof(SIpRange));
   CHECK_OUT_OF_MEM(pStmt->pIpRanges);
-  int i = 0;
+  int    i = 0;
   SNode* pNode = NULL;
   FOREACH(pNode, opts->pIpRanges) {
     SIpRangeNode* node = (SIpRangeNode*)(pNode);
@@ -4660,8 +4643,6 @@ _err:
   return NULL;
 }
 
-
-
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, SUserOptions* pUserOptions) {
   SAlterUserStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
@@ -4681,8 +4662,6 @@ _err:
   nodesDestroyNode((SNode*)pUserOptions);
   return NULL;
 }
-
-
 
 SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName, bool ignoreNotExists) {
   CHECK_PARSER_STATUS(pCxt);
@@ -4717,10 +4696,9 @@ static bool checkRoleName(SAstCreateContext* pCxt, SToken* pName, bool checkSysN
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
-
 STokenOptions* createDefaultTokenOptions(SAstCreateContext* pCxt) {
   STokenOptions* pOptions = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_TOKEN_OPTIONS, (SNode**)&pOptions);
+  int32_t        code = nodesMakeNode(QUERY_NODE_TOKEN_OPTIONS, (SNode**)&pOptions);
   if (pOptions == NULL) {
     pCxt->errCode = code;
     return NULL;
@@ -4731,11 +4709,9 @@ STokenOptions* createDefaultTokenOptions(SAstCreateContext* pCxt) {
   return pOptions;
 }
 
-
-
 STokenOptions* mergeTokenOptions(SAstCreateContext* pCxt, STokenOptions* a, STokenOptions* b) {
   if (a == NULL && b == NULL) {
-      return createDefaultTokenOptions(pCxt);
+    return createDefaultTokenOptions(pCxt);
   }
   if (b == NULL) {
     return a;
@@ -4783,13 +4759,12 @@ STokenOptions* mergeTokenOptions(SAstCreateContext* pCxt, STokenOptions* a, STok
   return a;
 }
 
-
-
 void setTokenOptionsProvider(SAstCreateContext* pCxt, STokenOptions* pTokenOptions, const SToken* pProvider) {
   pTokenOptions->hasProvider = true;
 
   if (pProvider->n >= sizeof(pTokenOptions->provider) * 2) {
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "PROVIDER", sizeof(pTokenOptions->provider));
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "PROVIDER",
+                                         sizeof(pTokenOptions->provider));
     return;
   }
 
@@ -4800,19 +4775,19 @@ void setTokenOptionsProvider(SAstCreateContext* pCxt, STokenOptions* pTokenOptio
   size_t len = strtrim(buf);
 
   if (len >= sizeof(pTokenOptions->provider)) {
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "PROVIDER", sizeof(pTokenOptions->provider));
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "PROVIDER",
+                                         sizeof(pTokenOptions->provider));
   } else {
     tstrncpy(pTokenOptions->provider, buf, sizeof(pTokenOptions->provider));
   }
 }
 
-
-
 void setTokenOptionsExtraInfo(SAstCreateContext* pCxt, STokenOptions* pTokenOptions, const SToken* pExtraInfo) {
   pTokenOptions->hasExtraInfo = true;
 
   if (pExtraInfo->n >= sizeof(pTokenOptions->extraInfo) * 2) {
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "EXTRA_INFO", sizeof(pTokenOptions->extraInfo));
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "EXTRA_INFO",
+                                         sizeof(pTokenOptions->extraInfo));
     return;
   }
 
@@ -4823,13 +4798,12 @@ void setTokenOptionsExtraInfo(SAstCreateContext* pCxt, STokenOptions* pTokenOpti
   size_t len = strtrim(buf);
 
   if (len >= sizeof(pTokenOptions->extraInfo)) {
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "EXTRA_INFO", sizeof(pTokenOptions->extraInfo));
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "EXTRA_INFO",
+                                         sizeof(pTokenOptions->extraInfo));
   } else {
     tstrncpy(pTokenOptions->extraInfo, buf, sizeof(pTokenOptions->extraInfo));
   }
 }
-
-
 
 static bool isValidTokenOptions(SAstCreateContext* pCxt, const STokenOptions* opts) {
   if (opts->hasEnable && (opts->enable < 0 || opts->enable > 1)) {
@@ -4845,14 +4819,13 @@ static bool isValidTokenOptions(SAstCreateContext* pCxt, const STokenOptions* op
   return true;
 }
 
-
-
 static bool checkTokenName(SAstCreateContext* pCxt, SToken* pTokenName) {
   if (NULL == pTokenName) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   } else {
     if (pTokenName->n >= TSDB_TOKEN_NAME_LEN) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "TOKEN_NAME", TSDB_TOKEN_NAME_LEN);
+      pCxt->errCode =
+          generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OPTION_VALUE_TOO_LONG, "TOKEN_NAME", TSDB_TOKEN_NAME_LEN);
     }
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
@@ -4913,8 +4886,8 @@ _err:
   return NULL;
 }
 
-
-SNode* createCreateTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, SToken* pUserName, STokenOptions* opts, bool ignoreExists) {
+SNode* createCreateTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, SToken* pUserName, STokenOptions* opts,
+                             bool ignoreExists) {
   SCreateTokenStmt* pStmt = NULL;
 
   CHECK_PARSER_STATUS(pCxt);
@@ -4946,8 +4919,6 @@ _err:
   return NULL;
 }
 
-
-
 SNode* createAlterTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, STokenOptions* opts) {
   SAlterTokenStmt* pStmt = NULL;
 
@@ -4969,8 +4940,6 @@ _err:
   nodesDestroyNode((SNode*)opts);
   return NULL;
 }
-
-
 
 SNode* createDropTokenStmt(SAstCreateContext* pCxt, SToken* pTokenName, bool ignoreNotExists) {
   SDropTokenStmt* pStmt = NULL;
@@ -5007,7 +4976,6 @@ _err:
   return NULL;
 }
 
-
 SNode* createDropTotpSecretStmt(SAstCreateContext* pCxt, SToken* pUserName) {
   SDropTotpSecretStmt* pStmt = NULL;
 
@@ -5024,7 +4992,6 @@ _err:
   nodesDestroyNode((SNode*)pStmt);
   return NULL;
 }
-
 
 SNode* createDropEncryptAlgrStmt(SAstCreateContext* pCxt, SToken* algorithmId) {
   CHECK_PARSER_STATUS(pCxt);
@@ -5291,15 +5258,15 @@ SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pXnode, bool f
   if (pXnode->type == TK_NK_STRING) {
     if (pXnode->n <= 2) {
       pCxt->errCode =
-        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode url should not be all be NULL");
-        goto _err;
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode url should not be all be NULL");
+      goto _err;
     }
     COPY_STRING_FORM_STR_TOKEN(pStmt->url, pXnode);
-  } else if(pXnode->type == TK_NK_INTEGER) {
+  } else if (pXnode->type == TK_NK_INTEGER) {
     pStmt->xnodeId = taosStr2Int32(pXnode->z, NULL, 10);
   } else {
     pCxt->errCode =
-      generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode id or url should not be all be NULL");
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "xnode id or url should not be all be NULL");
   }
 
   return (SNode*)pStmt;
@@ -5889,8 +5856,8 @@ SNode* alterXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken*
     pAgentStmt->id = taosStr2Int32(pResIdOrName->z, NULL, 10);
   } else {
     if (pResIdOrName->n <= 2) {
-      pCxt->errCode =
-          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Xnode alter agent name can't be empty string");
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "Xnode alter agent name can't be empty string");
       goto _err;
     }
     char buf[TSDB_XNODE_AGENT_NAME_LEN] = {0};
@@ -6027,7 +5994,7 @@ _err:
   return NULL;
 }
 SNode* dropXnodeResourceOn(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResource, SNode* pWhere) {
-  char resourceId[TSDB_XNODE_RESOURCE_ID_LEN + 1];
+  char       resourceId[TSDB_XNODE_RESOURCE_ID_LEN + 1];
   SShowStmt* pStmt = NULL;
 
   CHECK_PARSER_STATUS(pCxt);
@@ -6106,7 +6073,7 @@ static SToken TRIGGER_TOKEN = {
 };
 SToken* createTriggerToken() { return &TRIGGER_TOKEN; }
 
-SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken* pKey, SToken* pVal) {
+SNode* setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken* pKey, SToken* pVal) {
   CHECK_PARSER_STATUS(pCxt);
   if (pTaskOptions == NULL) {
     pTaskOptions = createDefaultXnodeTaskOptions(pCxt);
@@ -6166,7 +6133,7 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
         pOptions->via = taosStr2Int32(via, NULL, 10);
         if (pOptions->via <= 0) {
           pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                                   "Invalid xnode task option via: %s", pVal->z);
+                                                  "Invalid xnode task option via: %s", pVal->z);
           goto _err;
         }
         break;
@@ -6208,7 +6175,7 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
       pOptions->optionsNum++;
     } else {
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                               "reaches max options number(%d) %s", pOptions->optionsNum, key);
+                                              "reaches max options number(%d) %s", pOptions->optionsNum, key);
       goto _err;
     }
   }
@@ -6389,7 +6356,8 @@ _err:
   return NULL;
 }
 
-SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pQuery, bool reload) {
+SNode* createCreateTopicStmtUseQuery(SAstCreateContext* pCxt, bool ignoreExists, SToken* pTopicName, SNode* pQuery,
+                                     bool reload) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkTopicName(pCxt, pTopicName));
   SCreateTopicStmt* pStmt = NULL;
@@ -7451,7 +7419,7 @@ _err:
 }
 
 SNode* createRollupVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
-                                SNode* pEnd) {
+                               SNode* pEnd) {
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pDbName) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
