@@ -18,21 +18,22 @@
 
 #ifdef __cplusplus
 extern "C" {
-  #endif
-  
-  #include "executorInt.h"
+#endif
+
+#include "executorInt.h"
+#include "queryPerformance.h"
 
 #define GET_TASKID(_t) (((SExecTaskInfo*)(_t))->id.str)
 
 enum {
   // when this task starts to execute, this status will set
-      TASK_NOT_COMPLETED = 0x1u,
+  TASK_NOT_COMPLETED = 0x1u,
 
   /* Task is over
    * 1. this status is used in one row result query process, e.g., count/sum/first/last/ avg...etc.
    * 2. when all data within queried time window, it is also denoted as query_completed
    */
-      TASK_COMPLETED = 0x2u,
+  TASK_COMPLETED = 0x2u,
 };
 
 typedef struct STaskIdInfo {
@@ -76,36 +77,44 @@ typedef struct {
   char*                 stbFullName;         // used to generate dest child table name
   bool                  newSubTableRule;     // used to generate dest child table name
   STaskNotifyEventStat* pNotifyEventStat;    // used to store notify event statistics
-  SArray              * pVTables;            // used to store merge info for merge task, SArray<SVCTableMergeInfo>
+  SArray*               pVTables;            // used to store merge info for merge task, SArray<SVCTableMergeInfo>
 } SStreamTaskInfo;
 
+// typedef struct SQueryPerformanceMetrics {
+//   int64_t rowsScanned;
+//   int64_t rowsReturned;
+//   int64_t memoryUsed;
+//   int32_t vnodeId;
+// } SQueryPerformanceMetrics;
+
 struct SExecTaskInfo {
-  STaskIdInfo           id;
-  uint32_t              status;
-  STimeWindow           window;
-  STaskCostInfo         cost;
-  int64_t               owner;  // if it is in execution
-  int32_t               code;
-  int32_t               qbufQuota;  // total available buffer (in KB) during execution query
-  int64_t               version;    // used for stream to record wal version, why not move to sschemainfo
-  SStreamTaskInfo       streamInfo;
-  SArray*               schemaInfos;
-  const char*           sql;        // query sql string
-  jmp_buf               env;        // jump to this position when error happens.
-  EOPTR_EXEC_MODEL      execModel;  // operator execution model [batch model|stream model]
-  SSubplan*             pSubplan;
-  struct SOperatorInfo* pRoot;
-  SLocalFetch           localFetch;
-  SArray*               pResultBlockList;  // result block list
-  STaskStopInfo         stopInfo;
-  SRWLatch              lock;  // secure the access of STableListInfo
-  SStorageAPI           storageAPI;
-  int8_t                dynamicTask;
-  SOperatorParam*       pOpParam;
-  bool                  paramSet;
+  STaskIdInfo              id;
+  uint32_t                 status;
+  STimeWindow              window;
+  STaskCostInfo            cost;
+  int64_t                  owner;  // if it is in execution
+  int32_t                  code;
+  int32_t                  qbufQuota;  // total available buffer (in KB) during execution query
+  int64_t                  version;    // used for stream to record wal version, why not move to sschemainfo
+  SStreamTaskInfo          streamInfo;
+  SArray*                  schemaInfos;
+  const char*              sql;        // query sql string
+  jmp_buf                  env;        // jump to this position when error happens.
+  EOPTR_EXEC_MODEL         execModel;  // operator execution model [batch model|stream model]
+  SSubplan*                pSubplan;
+  struct SOperatorInfo*    pRoot;
+  SLocalFetch              localFetch;
+  SArray*                  pResultBlockList;  // result block list
+  STaskStopInfo            stopInfo;
+  SRWLatch                 lock;  // secure of access of STableListInfo
+  SStorageAPI              storageAPI;
+  int8_t                   dynamicTask;
+  SOperatorParam*          pOpParam;
+  bool                     paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;
   SStreamRuntimeInfo*      pStreamRuntimeInfo;
   STaskSubJobCtx           subJobCtx;
+  SQueryPerformanceMetrics perfMetrics;
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len);

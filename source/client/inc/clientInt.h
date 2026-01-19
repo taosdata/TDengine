@@ -111,6 +111,13 @@ typedef struct SQueryExecMetric {
   int64_t analyseCostUs;
   int64_t planCostUs;
   int64_t execCostUs;
+
+  // Extended performance metrics for slow query analysis
+  int64_t rowsScanned;     // number of rows scanned during query execution
+  int64_t rowsReturned;    // number of rows returned to client
+  int64_t memoryUsed;      // memory usage in bytes during query execution
+  char    queryPhase[64];  // current query phase: planning, executing, fetching, completed
+  int32_t vnodeId;         // vnode ID where query is executed
 } SQueryExecMetric;
 
 typedef struct {
@@ -168,13 +175,13 @@ typedef struct {
 } SWhiteListInfo;
 
 typedef struct {
-  timezone_t    timezone;
-  void         *charsetCxt;
-  char          userApp[TSDB_APP_NAME_LEN];
-  char          cInfo[CONNECTOR_INFO_LEN];
-  uint32_t      userIp;
-  SIpRange      userDualIp;  // user ip range
-}SOptionInfo;
+  timezone_t timezone;
+  void*      charsetCxt;
+  char       userApp[TSDB_APP_NAME_LEN];
+  char       cInfo[CONNECTOR_INFO_LEN];
+  uint32_t   userIp;
+  SIpRange   userDualIp;  // user ip range
+} SOptionInfo;
 
 typedef struct {
   int64_t startTime;
@@ -182,34 +189,34 @@ typedef struct {
 } SConnAccessInfo;
 
 typedef struct STscObj {
-  char           user[TSDB_USER_LEN];
-  char           tokenName[TSDB_TOKEN_NAME_LEN];
-  char           pass[TSDB_PASSWORD_LEN];
-  char           token[TSDB_TOKEN_LEN];
-  char           db[TSDB_DB_FNAME_LEN];
-  char           sVer[TSDB_VERSION_LEN];
-  char           sDetailVer[128];
-  int8_t         sysInfo;
-  int8_t         connType;
-  int8_t         dropped;
-  int8_t         biMode;
-  int32_t        acctId;
-  uint32_t       connId;
-  int32_t        appHbMgrIdx;
-  int32_t        tokenExpireTime;
-  int64_t        userId;
-  int64_t        id;         // ref ID returned by taosAddRef
-  TdThreadMutex  mutex;      // used to protect the operation on db
-  int32_t        numOfReqs;  // number of sqlObj bound to this connection
-  int32_t        authVer;
-  SAppInstInfo*  pAppInfo;
-  SHashObj*      pRequests;
-  SPassInfo      passInfo;
-  SWhiteListInfo whiteListInfo;          // ip white list info
-  SWhiteListInfo dateTimeWhiteListInfo;  // date time white list info
-  STscNotifyInfo userDroppedInfo;
+  char             user[TSDB_USER_LEN];
+  char             tokenName[TSDB_TOKEN_NAME_LEN];
+  char             pass[TSDB_PASSWORD_LEN];
+  char             token[TSDB_TOKEN_LEN];
+  char             db[TSDB_DB_FNAME_LEN];
+  char             sVer[TSDB_VERSION_LEN];
+  char             sDetailVer[128];
+  int8_t           sysInfo;
+  int8_t           connType;
+  int8_t           dropped;
+  int8_t           biMode;
+  int32_t          acctId;
+  uint32_t         connId;
+  int32_t          appHbMgrIdx;
+  int32_t          tokenExpireTime;
+  int64_t          userId;
+  int64_t          id;         // ref ID returned by taosAddRef
+  TdThreadMutex    mutex;      // used to protect the operation on db
+  int32_t          numOfReqs;  // number of sqlObj bound to this connection
+  int32_t          authVer;
+  SAppInstInfo*    pAppInfo;
+  SHashObj*        pRequests;
+  SPassInfo        passInfo;
+  SWhiteListInfo   whiteListInfo;          // ip white list info
+  SWhiteListInfo   dateTimeWhiteListInfo;  // date time white list info
+  STscNotifyInfo   userDroppedInfo;
   STokenNotifyInfo tokenNotifyInfo;
-  SOptionInfo    optionInfo;
+  SOptionInfo      optionInfo;
 
   SConnAccessInfo sessInfo;
   void*           pSessMetric;
@@ -271,8 +278,8 @@ typedef struct {
   int32_t        vgId;
   int32_t        resIter;
   SReqResultInfo resInfo;
-  union{
-    struct{
+  union {
+    struct {
       SMqRspHead   head;
       STqOffsetVal rspOffset;
     };
@@ -290,7 +297,7 @@ typedef struct SReqRelInfo {
 
 typedef struct SRequestObj {
   int8_t               resType;  // query or tmq
-  int32_t              type;  // request type
+  int32_t              type;     // request type
   uint64_t             requestId;
   SQuery*              pQuery;
   STscObj*             pTscObj;
@@ -339,9 +346,11 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 
 void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
 void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
-int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4, bool isStmt);
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4,
+                              bool isStmt);
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isStmt);
-int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols, const SExtSchema* pExtSchema, bool isStmt);
+int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols,
+                         const SExtSchema* pExtSchema, bool isStmt);
 void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
 void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
@@ -371,10 +380,10 @@ static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
   return tmqGetCurResInfo(res);
 }
 
-extern SAppInfo appInfo;
-extern int32_t  clientReqRefPool;
+extern SAppInfo  appInfo;
+extern int32_t   clientReqRefPool;
 extern int32_t   clientConnRefPool;
-extern int64_t  lastClusterId;
+extern int64_t   lastClusterId;
 extern SHashObj* pTimezoneMap;
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType);
@@ -443,7 +452,8 @@ void    stopAllRequests(SHashObj* pRequests);
 // SAppInstInfo* getAppInstInfo(const char* clusterKey);
 
 // conn level
-int32_t hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, const char* user, const char* tokenName, int64_t clusterId, int8_t connType);
+int32_t hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, const char* user, const char* tokenName,
+                       int64_t clusterId, int8_t connType);
 void    hbDeregisterConn(STscObj* pTscObj, SClientHbKey connKey);
 
 typedef struct SSqlCallbackWrapper {

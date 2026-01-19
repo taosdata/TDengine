@@ -93,8 +93,8 @@ int32_t schDecTaskFlowQuota(SSchJob *pJob, SSchTask *pTask) {
   --ctrl->execTaskNum;
   ctrl->tableNumSum -= pTask->plan->execNodeStat.tableNum;
 
-  SCH_TASK_DLOG("task quota removed, fqdn:%s, port:%d, tableNum:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d", ep->fqdn,
-                ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
+  SCH_TASK_DLOG("task quota removed, fqdn:%s, port:%d, tableNum:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d",
+                ep->fqdn, ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
 
 _return:
 
@@ -124,8 +124,8 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough) {
         SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
 
-      SCH_TASK_DLOG("task quota added, fqdn:%s, port:%d, tableNum:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d", ep->fqdn,
-                    ep->port, pTask->plan->execNodeStat.tableNum, nctrl.tableNumSum, nctrl.execTaskNum);
+      SCH_TASK_DLOG("task quota added, fqdn:%s, port:%d, tableNum:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d",
+                    ep->fqdn, ep->port, pTask->plan->execNodeStat.tableNum, nctrl.tableNumSum, nctrl.execTaskNum);
 
       *enough = true;
       return TSDB_CODE_SUCCESS;
@@ -220,8 +220,8 @@ int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob *pJob, SSchFlowControl *ctrl) {
     SEp *ep = SCH_GET_CUR_EP(&pTask->plan->execNode);
 
     if (pTask->plan->execNodeStat.tableNum > remainNum && ctrl->execTaskNum > 0) {
-      SCH_TASK_DLOG("task NOT to launch, fqdn:%s, port:%d, tableNum:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d", ep->fqdn,
-                    ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
+      SCH_TASK_DLOG("task NOT to launch, fqdn:%s, port:%d, tableNum:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d",
+                    ep->fqdn, ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
 
       continue;
     }
@@ -231,15 +231,15 @@ int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob *pJob, SSchFlowControl *ctrl) {
 
     taosArrayRemove(ctrl->taskList, i);
 
-    SCH_TASK_DLOG("task to launch, fqdn:%s, port:%d, tableNum:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d", ep->fqdn,
-                  ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
+    SCH_TASK_DLOG("task to launch, fqdn:%s, port:%d, tableNum:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d",
+                  ep->fqdn, ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
 
     SCH_ERR_JRET(schAsyncLaunchTaskImpl(pJob, pTask));
 
     remainNum -= pTask->plan->execNodeStat.tableNum;
     if (remainNum <= 0) {
-      SCH_TASK_DLOG("no more task to launch, fqdn:%s, port:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d", ep->fqdn, ep->port,
-                    ctrl->tableNumSum, ctrl->execTaskNum);
+      SCH_TASK_DLOG("no more task to launch, fqdn:%s, port:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d", ep->fqdn,
+                    ep->port, ctrl->tableNumSum, ctrl->execTaskNum);
 
       break;
     }
@@ -250,9 +250,10 @@ int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob *pJob, SSchFlowControl *ctrl) {
         SCH_JOB_ELOG("fail to get the last task, num:%d", (int32_t)taosArrayGetSize(ctrl->taskList));
         SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
-      
+
       if (remainNum < pLastTask->plan->execNodeStat.tableNum) {
-        SCH_TASK_DLOG("no more task to launch, fqdn:%s, port:%d, remainNum:%" PRId64 ", remainExecTaskNum:%d, smallestInList:%d",
+        SCH_TASK_DLOG("no more task to launch, fqdn:%s, port:%d, remainNum:%" PRId64
+                      ", remainExecTaskNum:%d, smallestInList:%d",
                       ep->fqdn, ep->port, ctrl->tableNumSum, ctrl->execTaskNum, pLastTask->plan->execNodeStat.tableNum);
 
         break;

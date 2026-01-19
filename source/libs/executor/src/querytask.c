@@ -28,6 +28,7 @@
 #include "index.h"
 #include "operator.h"
 #include "query.h"
+#include "queryPerformance.h"
 #include "querytask.h"
 #include "storageapi.h"
 #include "thash.h"
@@ -99,7 +100,6 @@ void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status) {
   }
 }
 
-
 int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadHandle* readHandle) {
   STaskSubJobCtx* ctx = &pTaskInfo->subJobCtx;
 
@@ -108,21 +108,22 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadH
   ctx->pTaskInfo = pTaskInfo;
   ctx->subEndPoints = subEndPoints;
   ctx->rpcHandle = (readHandle && readHandle->pMsgCb) ? readHandle->pMsgCb->clientRpc : NULL;
-  
+
   int32_t subJobNum = taosArrayGetSize(subEndPoints);
   if (subJobNum > 0) {
     pTaskInfo->subJobCtx.subResValues = taosArrayInit_s(POINTER_BYTES, subJobNum);
     if (NULL == pTaskInfo->subJobCtx.subResValues) {
-      qError("%s taosArrayInit_s %d subJobValues failed, error:%s", GET_TASKID(pTaskInfo), subJobNum, tstrerror(terrno));
+      qError("%s taosArrayInit_s %d subJobValues failed, error:%s", GET_TASKID(pTaskInfo), subJobNum,
+             tstrerror(terrno));
       return terrno;
     }
-    
+
     int32_t code = tsem_init(&ctx->ready, 0, 0);
     if (code) {
       qError("%s tsem_init failed, error:%s", GET_TASKID(pTaskInfo), tstrerror(code));
       return code;
     }
-    
+
     pTaskInfo->subJobCtx.hasSubJobs = true;
 
     qDebug("%s subJobCtx with %d endPoints inited", pTaskInfo->id.str, subJobNum);
@@ -130,8 +131,6 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadH
 
   return TSDB_CODE_SUCCESS;
 }
-
-
 
 int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                            int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray* subEndPoints) {
@@ -171,7 +170,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   }
 
   setTaskScalarExtraInfo(*pTaskInfo);
-  
+
   code = createOperator(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user,
                         pPlan->dbFName, &((*pTaskInfo)->pRoot), model);
 
@@ -323,7 +322,6 @@ static void freeBlock(void* pParam) {
   blockDataDestroy(pBlock);
 }
 
-
 void destroySubJobCtx(STaskSubJobCtx* pCtx) {
   if (pCtx->transporterId > 0) {
     int32_t ret = asyncFreeConnById(pCtx->rpcHandle, pCtx->transporterId);
@@ -336,6 +334,7 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
 }
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {
+  qCollectPerformanceMetrics(pTaskInfo, &pTaskInfo->perfMetrics);
   qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
   destroyOperator(pTaskInfo->pRoot);
   pTaskInfo->pRoot = NULL;
@@ -364,6 +363,6 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
 void buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len) {
   int32_t ret = snprintf(dst, len, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
   if (ret < 0) {
-    qError("TID:0x%"PRIx64" QID:0x%"PRIx64" create task id failed,  ignore and continue", taskId, queryId);
+    qError("TID:0x%" PRIx64 " QID:0x%" PRIx64 " create task id failed,  ignore and continue", taskId, queryId);
   }
 }

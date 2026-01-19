@@ -1297,6 +1297,9 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
       }
     }
     schedulerFreeJob(&pRequest->body.queryJob, 0);
+  } else {
+    // Track rows returned for SELECT queries
+    pRequest->metric.rowsReturned = pRequest->body.resInfo.totalRows;
   }
 
   taosMemoryFree(pResult);
@@ -1316,12 +1319,14 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
   tscTrace("req:0x%" PRIx64 ", scheduler exec cb, request type:%s", pRequest->self, TMSG_INFO(pRequest->type));
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
-    if (TSDB_CODE_SUCCESS != removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type))) {
+    if (TSDB_CODE_SUCCESS !=
+        removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type))) {
       tscError("req:0x%" PRIx64 ", remove meta failed, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
     }
   }
 
   pRequest->metric.execCostUs = taosGetTimestampUs() - pRequest->metric.execStart;
+  tstrncpy(pRequest->metric.queryPhase, "completed", sizeof(pRequest->metric.queryPhase));
   int32_t code1 = handleQueryExecRsp(pRequest);
   if (pRequest->code == TSDB_CODE_SUCCESS && pRequest->code != code1) {
     pRequest->code = code1;
@@ -1450,6 +1455,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   int64_t     st = taosGetTimestampUs();
 
   if (!pRequest->parseOnly) {
+    tstrncpy(pRequest->metric.queryPhase, "planning", sizeof(pRequest->metric.queryPhase));
+
     pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
     if (NULL == pMnodeList) {
       code = terrno;
@@ -1481,6 +1488,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   }
 
   pRequest->metric.execStart = taosGetTimestampUs();
+  tstrncpy(pRequest->metric.queryPhase, "executing", sizeof(pRequest->metric.queryPhase));
   pRequest->metric.planCostUs = pRequest->metric.execStart - st;
 
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {

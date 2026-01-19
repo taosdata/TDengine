@@ -59,7 +59,6 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
     tscDebug("hb to update user auth, user:%s, version:%d", rsp->user, rsp->version);
 
     TSC_ERR_JRET(catalogUpdateUserAuthInfo(pCatalog, rsp));
-
   }
 
   if (numOfBatchs > 0) {
@@ -188,7 +187,8 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
             if (oldExpireTime == status->expireTime) {
               break;
             }
-          } while (atomic_val_compare_exchange_32(&pTscObj->tokenExpireTime, oldExpireTime, status->expireTime) != oldExpireTime);
+          } while (atomic_val_compare_exchange_32(&pTscObj->tokenExpireTime, oldExpireTime, status->expireTime) !=
+                   oldExpireTime);
 
           if (oldExpireTime != status->expireTime && tni->fp) {
             (*tni->fp)(tni->param, &event, TAOS_NOTIFY_TOKEN);
@@ -213,8 +213,8 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       }
 
       if (pTscObj->sysInfo != pRsp->sysInfo) {
-        tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", conn:%" PRIi64, pRsp->user,
-                 pTscObj->sysInfo, pRsp->sysInfo, pTscObj->id);
+        tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", conn:%" PRIi64, pRsp->user, pTscObj->sysInfo,
+                 pRsp->sysInfo, pTscObj->id);
         pTscObj->sysInfo = pRsp->sysInfo;
       }
 
@@ -238,7 +238,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       // update ip white list version
       {
         SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
-        int64_t oldVer = 0, newVer = pRsp->whiteListVer;
+        int64_t         oldVer = 0, newVer = pRsp->whiteListVer;
         do {
           oldVer = atomic_load_64(&whiteListInfo->ver);
           if (oldVer >= newVer) {
@@ -271,11 +271,11 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
           if (whiteListInfo->fp) {
             (*whiteListInfo->fp)(whiteListInfo->param, &newVer, TAOS_NOTIFY_DATETIME_WHITELIST_VER);
           }
-          tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64, pRsp->user,
-                   oldVer, newVer, pTscObj->id);
+          tscDebug("update date time whitelist version of user %s from %" PRId64 " to %" PRId64 ", conn:%" PRIi64,
+                   pRsp->user, oldVer, newVer, pTscObj->id);
         }
       }
-      
+
       releaseTscObj(pReq->connKey.tscRid);
     }
   }
@@ -617,7 +617,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       tscDebug("tscObj rid %" PRIx64 " not exist", pRsp->connKey.tscRid);
     } else {
       if (pRsp->query->totalDnodes > 1) {
-        SEpSet  originEpset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+        SEpSet originEpset = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
         if (!isEpsetEqual(&originEpset, &pRsp->query->epSet)) {
           SEpSet *pOrig = &originEpset;
           SEp    *pOrigEp = &pOrig->eps[pOrig->inUse];
@@ -811,6 +811,27 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
         code = TSDB_CODE_SUCCESS;
       }
       desc.subPlanNum = taosArrayGetSize(desc.subDesc);
+
+      desc.execTimeMs = pRequest->metric.execCostUs / 1000;
+      desc.waitTimeMs = (pRequest->metric.execStart - pRequest->metric.start) / 1000;
+      desc.cpuTimeMs = (pRequest->metric.ctgCostUs + pRequest->metric.analyseCostUs) / 1000;
+      desc.ioTimeMs = pRequest->metric.parseCostUs + pRequest->metric.planCostUs;
+      desc.rowsScanned = pRequest->metric.rowsScanned;
+      desc.rowsReturned = pRequest->metric.rowsReturned;
+      desc.memoryUsed = pRequest->metric.memoryUsed;
+      desc.isSlowQuery = (desc.execTimeMs > 1000);
+
+      if (desc.execTimeMs > 0) {
+        desc.vnodeId = pRequest->metric.vnodeId;
+      } else {
+        desc.vnodeId = 0;
+      }
+
+      if (NULL != pRequest->metric.queryPhase) {
+        tstrncpy(desc.queryPhase, pRequest->metric.queryPhase, sizeof(desc.queryPhase));
+      } else {
+        desc.queryPhase[0] = 0;
+      }
     } else {
       desc.subDesc = NULL;
     }
@@ -1010,8 +1031,7 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
 
   for (int32_t i = 0; i < dbNum; ++i) {
     SDbCacheInfo *db = &dbs[i];
-    tscDebug("the %dth expired db:%s, dbId:%" PRId64
-             ", vgVersion:%d, cfgVersion:%d, numOfTable:%d, startTs:%" PRId64,
+    tscDebug("the %dth expired db:%s, dbId:%" PRId64 ", vgVersion:%d, cfgVersion:%d, numOfTable:%d, startTs:%" PRId64,
              i, db->dbFName, db->dbId, db->vgVersion, db->cfgVersion, db->numOfTable, db->stateTs);
 
     db->dbId = htobe64(db->dbId);
@@ -1493,7 +1513,7 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgInfo.len = tlen;
       pInfo->msgType = TDMT_MND_HEARTBEAT;
       pInfo->param = taosMemoryMalloc(sizeof(int32_t));
-      if (pInfo->param  == NULL) {
+      if (pInfo->param == NULL) {
         tFreeClientHbBatchReq(pReq);
         // hbClearReqInfo(pAppHbMgr);
         taosMemoryFree(buf);
@@ -1735,7 +1755,8 @@ void hbMgrCleanUp() {
   }
 }
 
-int32_t hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, const char* user, const char* tokenName, int64_t clusterId) {
+int32_t hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, const char *user, const char *tokenName,
+                           int64_t clusterId) {
   // init hash in activeinfo
   void *data = taosHashGet(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   if (data != NULL) {
@@ -1754,7 +1775,8 @@ int32_t hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, const cha
   return 0;
 }
 
-int32_t hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, const char* user, const char* tokenName, int64_t clusterId, int8_t connType) {
+int32_t hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, const char *user, const char *tokenName,
+                       int64_t clusterId, int8_t connType) {
   SClientHbKey connKey = {
       .tscRid = tscRefId,
       .connType = connType,
