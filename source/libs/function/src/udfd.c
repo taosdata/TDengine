@@ -792,6 +792,18 @@ _send:
   uvUdf->output = uv_buf_init(bufBegin, len);
 
   taosMemoryFreeClear(uvUdf->input.base);
+
+  if (code) {
+    code = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
+    if (code) {
+      fnError("udf name %s remove from hash failed/setup, err:%0x %s", udf->name, code, tstrerror(code));
+    }
+
+    fnInfo("udf free succeeded/setup failed. name %s(%p)", udf->name, udf);
+
+    taosMemoryFree(udf);
+  }
+
   return;
 }
 
