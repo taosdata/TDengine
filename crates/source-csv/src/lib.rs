@@ -174,7 +174,7 @@ async fn csv_to_taos_with_channel(
     let worker_cancel = cancel.child_token();
     let (msg, ack) = channel_based_transformer(
         pool,
-        worker_cancel,
+        &worker_cancel,
         parser,
         Some("csv"),
         task_job_id,

@@ -1,21 +1,22 @@
 import { request } from '@/utils/request.ts';
 import JSONbig from 'json-bigint';
-import { getLocalTimezone, getLocalLang } from '@/utils';
+import { getLocalTimezone, getLocalLang, getUser } from '@/utils';
 import pathDetector from '@/utils/pathDetector';
 
 const language = getLocalLang();
 export function getTask(type: string) {
   const id = localStorage.getItem('local_clusterID');
+  const user = getUser();
   if (!id) {
     return request({
       baseURL: pathDetector.getXApiBasePath(),
-      url: `/tasks?lang=${language}&detail=true&labels=type::${type}`,
+      url: `/tasks?lang=${language}&detail=true&labels=type::${type},user::${user}`,
       method: 'get'
     });
   }
   return request({
     baseURL: pathDetector.getXApiBasePath(),
-    url: `/tasks?lang=${language}&detail=true&labels=type::${type},cluster-id::${id}`,
+    url: `/tasks?lang=${language}&detail=true&labels=type::${type},cluster-id::${id},user::${user}`,
     method: 'get'
   });
 }

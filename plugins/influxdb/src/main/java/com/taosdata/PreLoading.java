@@ -293,6 +293,10 @@ public class PreLoading implements CommandLineRunner {
             LoggerConfig loggerConfig = loggerContext.getConfiguration().getRootLogger();
             loggerConfig.setLevel(Level.getLevel(this.taskConfig.getLogLevel().toUpperCase()));
             loggerContext.updateLoggers();
+            String tableNamePattern = tomlParseResult.getString("task.tableNamePattern", String::new);
+            if (StringUtils.isNotEmpty(tableNamePattern)) {
+                this.taskConfig.setTableNamePattern(tableNamePattern);
+            }
             // 如果设置了性能参数，则覆盖默认值
             if (tomlParseResult.getLong("performance.readWindow") != null) {
                 this.performanceConfig.setReadWindow(tomlParseResult.getLong("performance.readWindow").intValue());

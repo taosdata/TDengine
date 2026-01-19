@@ -59,6 +59,11 @@ impl Producer {
             let mut config = self.config.clone();
             config.task.start = window_start_with_tz.with_timezone(&Utc);
             config.task.end = Some(window_end_with_tz.with_timezone(&Utc));
+            tracing::debug!(
+                "produce try to send task, start: {}, end: {}",
+                config.task.start,
+                config.task.end.unwrap()
+            );
             let _ = tx.send_async(config).await;
             tracing::debug!(
                 "produce task, window_start_with_tz: {}, window_end_with_tz: {}, end_with_tz: {}, next: {}",

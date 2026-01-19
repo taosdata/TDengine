@@ -30,6 +30,7 @@ source-pi.path = "../source-pi"
 source-postgres.path = "../source-postgres"
 source-sparkplugb.path = "../source-sparkplugb"
 source-orc.path = "../source-orc"
+source-parquet.path = "../source-parquet"
 source-pulsar.path = "../source-pulsar"
 
 sink-kafka.path = "../sink-kafka"

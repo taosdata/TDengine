@@ -28,4 +28,5 @@ public class TaskConfig {
     private int assignmentType = 3;
     private Map<String, Long> breakpoint;
     private String logLevel = "info";
+    private String tableNamePattern;
 }

@@ -39,6 +39,7 @@ members = [
   "crates/local-to-taos",
   "crates/legacy-to-taos",
   "crates/source-orc",
+  "crates/source-parquet",
   "crates/taos-to-local",
   "crates/source-kinghistorian",
   "crates/source-kinghistorian/kinghistorian-sys",

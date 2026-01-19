@@ -7,6 +7,7 @@ use std::time::Duration;
 use chrono::{DateTime, Days, FixedOffset, Utc};
 use sqlx::{Column, Row, TypeInfo};
 use tokio::sync::Semaphore;
+use tokio::sync::oneshot;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 
@@ -119,6 +120,10 @@ pub async fn migrate_history_by_subtable(
             return Ok(());
         }
     };
+    tracing::debug!(
+        "migrate_history_by_subtable, sub query windows generated, count: {}",
+        filters.len()
+    );
 
     // generate combinations
     let mut combinations = HashSet::new();
@@ -130,6 +135,10 @@ pub async fn migrate_history_by_subtable(
             sub_values: String::new(),
         });
     }
+    tracing::debug!(
+        "migrate_history_by_subtable, SQL query generated, count: {}",
+        combinations.len()
+    );
 
     // migrate data by combinations
     let concurrency = cmp::max(config.advanced.read_concurrency.unwrap_or(1), 1);
@@ -210,14 +219,28 @@ pub async fn migrate_history_by_interval(
     }
     tracing::info!("migrate mysql start, config: {:?}", config);
 
-    let (tx, rx) = flume::bounded(0);
+    // 增加了 channel 的大小，以减少 producer 等待 consumer 就绪时的阻塞
+    let (tx, rx) = flume::bounded(1024);
+    let (ready_tx, ready_rx) = oneshot::channel();
     let config_clone = config.clone();
-    // consumer
+    // consumer: spawn and pass ready notifier
     let consumer = tokio::spawn(async move {
         Consumer::new(config_clone, schema, query.clone())
-            .consume(rx)
+            .consume(rx, Some(ready_tx))
             .await
     });
+    // wait for consumer ready with timeout
+    match tokio::time::timeout(Duration::from_secs(30), ready_rx).await {
+        Ok(Ok(())) => tracing::debug!("consumer ready"),
+        Ok(Err(_)) => {
+            tracing::warn!("consumer dropped before ready");
+            return Err(anyhow::anyhow!("consumer dropped before ready"));
+        }
+        Err(_) => {
+            tracing::warn!("timeout waiting for consumer ready");
+            return Err(anyhow::anyhow!("timeout waiting for consumer ready"));
+        }
+    }
     // produce task
     let producer = Producer::new(&config);
     let future_produce = producer.produce(tx);
@@ -243,6 +266,7 @@ pub async fn migrate_history_by_interval(
     Ok(())
 }
 
+// 按照 interval 划分时间窗口，获取所有的 distinct 值
 pub async fn get_all_distinct_values(
     config: &MySqlConfig,
     mut query: MySqlQuery,

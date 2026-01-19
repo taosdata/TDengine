@@ -9465,6 +9465,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "source-parquet"
+version = "1.11.0"
+dependencies = [
+ "anyhow",
+ "arrow",
+ "chrono",
+ "flume",
+ "futures",
+ "parquet",
+ "serde_json",
+ "taos",
+ "taosx-core",
+ "taosx-utils",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "source-pi"
 version = "1.11.0"
 dependencies = [
@@ -10627,6 +10648,7 @@ dependencies = [
  "source-opentsdb",
  "source-oracle",
  "source-orc",
+ "source-parquet",
  "source-pi",
  "source-postgres",
  "source-pulsar",
