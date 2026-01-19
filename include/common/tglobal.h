@@ -437,7 +437,7 @@ int32_t setAllConfigs(SConfig *pCfg);
 
 bool    isConifgItemLazyMode(SConfigItem *item);
 int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
-
+void    taosSetSkipKeyCheckMode(void);
 #ifdef __cplusplus
 }
 #endif
