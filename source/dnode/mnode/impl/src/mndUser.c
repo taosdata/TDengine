@@ -4232,7 +4232,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
         (void)mndResetAuditLogUser(pMnode, newUser.user, true);
       }
     } else {
-      mndResetAuditLogUser(pMnode, newUser.user, false);
+      (void)mndResetAuditLogUser(pMnode, newUser.user, false);
     }
   }
   code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -4383,7 +4383,7 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
 
   userCacheRemoveUser(pUser->user);
   mndDropCachedTokensByUser(pUser->user);
-  mndResetAuditLogUser(pMnode, pUser->user, false);
+  (void)mndResetAuditLogUser(pMnode, pUser->user, false);
 
   mndTransDrop(pTrans);
   TAOS_RETURN(0);
