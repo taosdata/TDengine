@@ -1,5 +1,5 @@
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
-
+from new_test_framework.utils import tdLog, tdSql, tdCom
+import os
 
 class TestJoinPk:
 
@@ -116,20 +116,8 @@ class TestJoinPk:
         tdSql.checkRows(1)
         tdSql.checkData(0, 2, 0)
         
-    def join_time_keep_func(self):
-        
-        tdSql.execute(f"create database test1")
-        tdSql.execute(f"use test1")
-      
-        tdSql.execute(
-            f"create table sst(ts timestamp, ts2 timestamp, f int) tags(t int);"
-        )
-        tdSql.execute(
-            f"insert into sct1 using sst tags(1) values('2023-08-07 13:30:56', '2023-08-07 13:30:56', 0)('2023-08-07 13:30:57', '2023-08-07 13:30:57', 1)"
-        )
-        tdSql.execute(
-            f"insert into sct2 using sst tags(2) values('2023-08-07 13:30:58', '2023-08-07 13:30:58', 2)('2023-08-07 13:30:59', '2023-08-07 13:30:59', 3)"
-        )
+    def time_keep_func(self):
+        tdLog.info("test join with time keep function")
         
         tdSql.query(
             f"select b.*, a.ats from (select ts ats, STATECOUNT(f, 'LE', 2) from sst) as a full join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
@@ -336,10 +324,7 @@ class TestJoinPk:
         )
         tdSql.checkRows(1)
         
-        tdSql.error(
-            f"select b.*, a.ats from (select ts ats, unique(f) from sst) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
-        )
-
+        # unique result more than 1 rows and no order by clause
         tdSql.error(
             f"select b.*, a.ats from (select ts ats, unique(f) from sst) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
@@ -354,38 +339,83 @@ class TestJoinPk:
         )
         tdSql.checkRows(4)
         
+    def join_testcase(self, testCase):
+        tdLog.info(f"test {testCase} with constant condition")
+        self.sqlFile = os.path.join(os.path.dirname(__file__), "in", f"{testCase}.in")
+        self.ansFile = os.path.join(os.path.dirname(__file__), "ans", f"{testCase}.ans")
+
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
+     
+    def join_with_const_condition(self):
+        tdLog.info("test join with constant condition")
+        
+        # unique result more than 1 rows and no order by clause
+        tdSql.error(
+            f"select b.*, a.ats from (select ts ats, unique(f) from sst) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
+        )
+        
+        self.join_testcase("test_join_pk_inner_join_with_const_condition")
+        self.join_testcase("test_join_pk_full_join_with_const_condition")
+        self.join_testcase("test_join_pk_left_join_with_const_condition")
+        self.join_testcase("test_join_pk_right_join_with_const_condition")
+        self.join_testcase("test_join_pk_left_semi_with_const_condition")
+        self.join_testcase("test_join_pk_right_semi_with_const_condition")
+        self.join_testcase("test_join_pk_left_anti_with_const_condition")
+        self.join_testcase("test_join_pk_right_anti_with_const_condition")
+        self.join_testcase("test_join_pk_left_asof_with_const_condition")
+        self.join_testcase("test_join_pk_right_asof_with_const_condition")
+        self.join_testcase("test_join_pk_left_window_with_const_condition")
+        self.join_testcase("test_join_pk_right_window_with_const_condition")
+            
+    def join_time_keep_func(self):
+        
+        tdSql.execute(f"create database test1")
+        tdSql.execute(f"use test1")
+      
+        tdSql.execute(
+            f"create table sst(ts timestamp, ts2 timestamp, f int) tags(t int);"
+        )
+        tdSql.execute(
+            f"insert into sct1 using sst tags(1) values('2023-08-07 13:30:56', '2023-08-07 13:30:56', 0)('2023-08-07 13:30:57', '2023-08-07 13:30:57', 1)"
+        )
+        tdSql.execute(
+            f"insert into sct2 using sst tags(2) values('2023-08-07 13:30:58', '2023-08-07 13:30:58', 2)('2023-08-07 13:30:59', '2023-08-07 13:30:59', 3)"
+        )
+        
+        self.time_keep_func()
+        self.join_with_const_condition()
+       
         tdSql.query(
-            f"select b.*, a.ats from (select now ats, 2 from sst order by ts desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
+            f"select b.*, a.ats from (select _rowts ats, first(f) from sst) as a full join (select * from sst order by ts desc) b on timetruncate(now+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
+        )
+
+        tdSql.query(
+            f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(now, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
         )
         tdSql.checkRows(0)
-        
-        tdSql.error(
-            f"select b.*, a.ats from (select ts ats, mode(f) from sst) as a inner join (select * from sst order by ts desc) b on timetruncate(now+1s, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a",
-            expectedErrno = int(0x2664) # TSDB_CODE_PAR_NOT_SUPPORT_JOIN
-        )
-
-        tdSql.error(
-            f"select b.*, a.ats from (select _rowts ats, first(f) from sst) as a full join sst b on timetruncate(now+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a",
-            expectedErrno = int(0x2664) # TSDB_CODE_PAR_NOT_SUPPORT_JOIN
-        )
-        
-        tdSql.error(
-            f"select b.*, a.ats from (select _rowts ats, first(f) from sst) as a full join (select * from sst order by ts desc) b on timetruncate(now+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a",
-            expectedErrno = int(0x2664) # TSDB_CODE_PAR_NOT_SUPPORT_JOIN
-        )
-        
-        tdSql.error(
-            f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(now, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a",
-            expectedErrno = int(0x2664) # TSDB_CODE_PAR_NOT_SUPPORT_JOIN
-        )
-                
+          
         tdSql.error(
             f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats+1a, 1s) = timetruncate(b.ts+1a, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a",
-            expectedErrno = int(0x2664) # TSDB_CODE_PAR_NOT_SUPPORT_JOIN
+            expectedErrno=int(0x2664)
         )
-
+        tdSql.error(
+            f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats+1a, 1s) = timetruncate(b.ts+2a, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a",
+            expectedErrno=int(0x2664)
+        )
         tdSql.error(
             f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on timetruncate(a.ats+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a",
-            expectedErrno = int(0x2664) # TSDB_CODE_PAR_NOT_SUPPORT_JOIN
-        ) 
-   
+            expectedErrno=int(0x2664)
+        )
+        
+        tdSql.error(
+            f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on a.ats+1a = b.ts+1a",
+            expectedErrno=int(0x2664)
+        )
+        tdSql.error(
+            f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on a.ats = b.ts+1a",
+            expectedErrno=int(0x2664)
+        )
+        tdSql.error(
+            f"select b.*, a.ats from (select ts ats, unique(f) from sst order by ts desc) as a inner join sst b on a.ats+1a = b.ts",
+            expectedErrno=int(0x2664)
+        )

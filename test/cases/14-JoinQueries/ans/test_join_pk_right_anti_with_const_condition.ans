@@ -1,0 +1,163 @@
+
+taos> select b.*, a.ats from (select _rowts ats, first(f) from test1.sst) as a right anti join test1.sst b on timetruncate(cast(1768465717000 as timestamp)+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:58.000 | 2023-08-07 13:30:58.000 |           2 |           2 | NULL                    |
+ 2023-08-07 13:30:59.000 | 2023-08-07 13:30:59.000 |           3 |           2 | NULL                    |
+
+taos> select b.*, a.ats from (select cast(1768465717000 as timestamp) ats, 2 from test1.sst order by ts desc) as a right anti join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:59.000 | 2023-08-07 13:30:59.000 |           3 |           2 | NULL                    |
+ 2023-08-07 13:30:58.000 | 2023-08-07 13:30:58.000 |           2 |           2 | NULL                    |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+
+taos> select b.*, a.ats from (select ts ats, mode(f) from test1.sst) as a right anti join (select * from test1.sst order by ts desc) b on timetruncate(cast(1768465717000 as timestamp)+1s, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:59.000 | 2023-08-07 13:30:59.000 |           3 |           2 | NULL                    |
+ 2023-08-07 13:30:58.000 | 2023-08-07 13:30:58.000 |           2 |           2 | NULL                    |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+
+taos> select b.*, a.ats from (select ts ats, unique(f) from test1.sst) as a right anti join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(cast(1768465717000 as timestamp)+1a, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a    
+
+DB error: Not supported join since 'Join requires valid time series input and primary timestamp equal condition' [0x80002664] 
+taos> select b.*, a.ats from (select ts ats, unique(f) from test1.sst) as a right anti join test1.sst b on timetruncate(cast(1768465717000 as timestamp)+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:58.000 | 2023-08-07 13:30:58.000 |           2 |           2 | NULL                    |
+ 2023-08-07 13:30:59.000 | 2023-08-07 13:30:59.000 |           3 |           2 | NULL                    |
+
+taos> select b.*, a.ts from (select * from test1.sst) as a right anti join ((select ts, unique(f) from test1.sst)) b on timetruncate(a.ts, 1s) = timetruncate(cast(1768465717000 as timestamp)+1a, 1s) and b.ts > a.ts-5a and b.ts < a.ts + 5a
+           ts            |  unique(f)  |           ts            |
+==================================================================
+ 2023-08-07 13:30:57.000 |           1 | NULL                    |
+ 2023-08-07 13:30:56.000 |           0 | NULL                    |
+ 2023-08-07 13:30:59.000 |           3 | NULL                    |
+ 2023-08-07 13:30:58.000 |           2 | NULL                    |
+
+taos> select b.*, a.ats from (select _rowts ats, first(f) from test1.sst) as a right anti join (select * from test1.sst order by ts desc) b on timetruncate(cast(1768465717000 as timestamp)+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:59.000 | 2023-08-07 13:30:59.000 |           3 |           2 | NULL                    |
+ 2023-08-07 13:30:58.000 | 2023-08-07 13:30:58.000 |           2 |           2 | NULL                    |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+
+taos> select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst limit 1) as a right anti join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(1691386257000, 1s)   
+           ts            |           ts2           |      f      |      t      |          ats          |
+========================================================================================================
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                  |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                  |
+ 2023-08-07 13:30:58.000 | 2023-08-07 13:30:58.000 |           2 |           2 | NULL                  |
+ 2023-08-07 13:30:59.000 | 2023-08-07 13:30:59.000 |           3 |           2 | NULL                  |
+
+taos> select b.*, a.ats from (select cast(1768465717000 as timestamp) ats, 2 from test1.sst order by ts desc) as a right anti join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:58.000 | 2023-08-07 13:30:58.000 |           2 |           2 | NULL                    |
+ 2023-08-07 13:30:59.000 | 2023-08-07 13:30:59.000 |           3 |           2 | NULL                    |
+
+taos> select b.*, a.ats from (select cast(1768465717000 as timestamp) ats, 2 from test1.sst order by ts desc) as a right anti join test1.sst b on timetruncate(1691386256000, 1s) = timetruncate(1691386257000, 1s)
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:58.000 | 2023-08-07 13:30:58.000 |           2 |           2 | NULL                    |
+ 2023-08-07 13:30:59.000 | 2023-08-07 13:30:59.000 |           3 |           2 | NULL                    |
+
+taos> select b.*, a.ats from (select ts ats, mode(f) from test1.sst order by ats desc) as a right anti join (select * from test1.sst order by ts desc) b on timetruncate(1691386258000, 1s) = timetruncate(b.ts, 1s)
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:59.000 | 2023-08-07 13:30:59.000 |           3 |           2 | NULL                    |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+
+taos> select b.*, a.ats from (select ts ats, mode(f) from test1.sst) as a right anti join (select * from test1.sst order by ts desc) b on timetruncate(1691386258000, 1s) = timetruncate(b.ts, 1s)      
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:59.000 | 2023-08-07 13:30:59.000 |           3 |           2 | NULL                    |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+
+taos> select b.*, a.ats from (select ts ats, f from test1.sst) as a right anti join (select * from test1.sst order by ts desc) b on timetruncate(1691386258000, 1s) = timetruncate(b.ts, 1s)
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:59.000 | 2023-08-07 13:30:59.000 |           3 |           2 | NULL                    |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+
+taos> select b.*, a.ats from (select ts ats, mode(f) from test1.sst order by ats desc) as a right anti join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
+
+taos> select b.*, a.ats from (select ts ats, mode(f) from test1.sst order by ats) as a right anti join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
+
+taos> select b.*, a.ats from (select ts ats, mode(f) from test1.sst order by ats) as a right anti join (select * from test1.sst order by ts) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
+
+taos> select b.*, a.ats from (select ts ats, mode(f) from test1.sst) as a right anti join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
+
+taos> select b.*, a.ats from (select ts ats, f from test1.sst) as a right anti join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
+
+taos> select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst order by ts desc) as a right anti join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
+
+taos> select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst limit 1) as a right anti join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
+
+taos> select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst order by ts desc) as a right anti join test1.sst b on timetruncate(1691386256000, 1s) = timetruncate(1691386256000, 1s)      
+
+taos> select b.*, a.ats from (select cast(1768465717000 as timestamp) ats, 2 from test1.sst order by ts desc) as a right anti join test1.sst b on timetruncate(1691386256000, 1s) = timetruncate(1691386256001, 1s)
+
+taos> select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst order by ts desc) as a right anti join test1.sst b     
+
+DB error: Incomplete SQL statement [0x80002601] 
+taos> select b.*, a.ats from (select ts ats, mode(f) from test1.sst) as a right anti join (select * from test1.sst order by ts desc) b on timetruncate(1691386258000, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a      
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:59.000 | 2023-08-07 13:30:59.000 |           3 |           2 | NULL                    |
+ 2023-08-07 13:30:58.000 | 2023-08-07 13:30:58.000 |           2 |           2 | NULL                    |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+
+taos> select b.*, a.ats from (select ts ats, f from test1.sst) as a right anti join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s) and b.ts > a.ats+1s
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+
+taos> select b.*, a.ats from (select ts ats, f from test1.sst) as a right anti join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s) and b.ts > a.ats+1s
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+
+taos> select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst order by ts desc) as a right anti join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s) and b.ts > a.ats+1s
+           ts            |           ts2           |      f      |      t      |          ats          |
+========================================================================================================
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                  |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                  |
+
+taos> select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst limit 1) as a right anti join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s) and b.ts > a.ats+1s
+           ts            |           ts2           |      f      |      t      |          ats          |
+========================================================================================================
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                  |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                  |
+
+taos> select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst order by ts desc) as a right anti join test1.sst b on timetruncate(1691386256000, 1s) = timetruncate(1691386256000, 1s) and b.ts > a.ats+1
+           ts            |           ts2           |      f      |      t      |          ats          |
+========================================================================================================
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                  |
+
+taos> select b.*, a.ats from (select cast(1768465717000 as timestamp) ats, 2 from test1.sst order by ts desc) as a right anti join test1.sst b on timetruncate(1691386256000, 1s) = timetruncate(1691386256001, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a
+           ts            |           ts2           |      f      |      t      |           ats           |
+==========================================================================================================
+ 2023-08-07 13:30:56.000 | 2023-08-07 13:30:56.000 |           0 |           1 | NULL                    |
+ 2023-08-07 13:30:57.000 | 2023-08-07 13:30:57.000 |           1 |           1 | NULL                    |
+ 2023-08-07 13:30:58.000 | 2023-08-07 13:30:58.000 |           2 |           2 | NULL                    |
+ 2023-08-07 13:30:59.000 | 2023-08-07 13:30:59.000 |           3 |           2 | NULL                    |
+
