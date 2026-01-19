@@ -193,6 +193,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_max_column_num.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_meta.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_plan.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_pushdown_timerange.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
@@ -334,6 +335,7 @@
 ## 12-Interp
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_fill.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_fill.py -Q 3
 ## 13-CaseWhen
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/13-CaseWhen/test_query_case_when.py
 ## 14-Tags
@@ -674,6 +676,7 @@
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/01-Snode/test_snode_privileges_twodb.py   # PRIV_TODO
 ## 02-Stream
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_schema.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_drop_table.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_place_holder_column.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_td37724.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_6570600210.py
@@ -758,7 +761,10 @@
 ## 21-Stability 
 ## 22-Performance
 ## 23-Compatibility 
-100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward.py
+100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part1.py
+100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part2.py
+100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part3.py
+100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part4.py
 ,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_cross_version.py
 ,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_new_stream_compatibility.py
 ## 30-OldPyCases
@@ -774,7 +780,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_stream_multi_agg.py
 ,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_string_func.py
 ,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_taosdShell.py
-,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_window_true_for.py
 ## 31-OldCases
 ,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_basic1.py
 ,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_basic2.py
@@ -833,6 +839,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_sysinfo.py
 #,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_table.py # PRIV_TODO
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_topic.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_token.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py
 ,,n,.,pytest cases/24-Users/test_user_passwd.py
 
@@ -888,6 +896,7 @@
 # 42-xnode
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_systables.py
+,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_lifecycle.py
 
 # 70-Cluster
 

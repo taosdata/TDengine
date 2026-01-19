@@ -48,7 +48,6 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pR
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
-static int32_t vnodeProcessTrimWalReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg);
 static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -834,6 +833,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   len = pMsg->contLen - sizeof(SMsgHead);
   bool needCommit = false;
+  bool forceTrimWal = false;
 
   switch (pMsg->msgType) {
     /* META */
@@ -887,8 +887,9 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       TSDB_CHECK_CODE(code, lino, _err);
       break;
       case TDMT_VND_TRIM_WAL:
-      if (vnodeProcessTrimWalReq(pVnode, pReq, len, pRsp) < 0) goto _err;
-      break;
+        needCommit = true;
+        forceTrimWal = true;
+        break;
 #ifdef TD_ENTERPRISE
     case TDMT_VND_SSMIGRATE_FILESET:
       if (vnodeProcessSsMigrateFileSetReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
@@ -993,7 +994,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   // commit if need
   if (needCommit) {
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), ver);
-    code = vnodeAsyncCommit(pVnode);
+    code = vnodeAsyncCommit(pVnode, forceTrimWal);
     if (code) {
       vError("vgId:%d, failed to vnode async commit since %s.", TD_VID(pVnode), tstrerror(terrno));
       goto _err;
@@ -1193,24 +1194,6 @@ _exit:
 }
 
 extern int32_t vnodeAsyncSsMigrateFileSet(SVnode *pVnode, SSsMigrateFileSetReq *pReq);
-
-static int32_t vnodeProcessTrimWalReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  int32_t code = 0;
-
-  vInfo("vgId:%d, process trim wal request, force clean expired WAL files by triggering commit with forceTrim",
-        pVnode->config.vgId);
-
-  // Trigger a commit with forceTrim flag
-  // This will properly calculate ver through sync layer and apply forceTrim during snapshot
-  code = vnodeAsyncCommitEx(pVnode, true);
-  if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to trigger trim wal commit since %s", pVnode->config.vgId, tstrerror(code));
-  } else {
-    vInfo("vgId:%d, successfully triggered trim wal commit", pVnode->config.vgId);
-  }
-
-  return code;
-}
 
 extern int32_t vnodeAsyncS3Migrate(SVnode *pVnode, int64_t now);
 

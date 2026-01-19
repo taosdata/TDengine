@@ -49,6 +49,6 @@ class TestVtableQueryCrossDbStbWindow:
         """
 
         self.run_normal_query("test_vstable_select_test_state_mode_0")
-        #self.run_normal_query("test_vstable_select_test_state_mode_1")
+        self.run_normal_query("test_vstable_select_test_state_mode_1")
         self.run_normal_query("test_vstable_select_test_state_mode_2")
 

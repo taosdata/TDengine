@@ -1412,7 +1412,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 */    
     case TDMT_SCH_TASK_NOTIFY: {
       ETaskNotifyType* pType = param;
-      STaskNotifyReq qMsg;
+      STaskNotifyReq qMsg = {0};
       qMsg.header.vgId = addr->nodeId;
       qMsg.header.contLen = 0;
       qMsg.sId = pTask->seriesId;

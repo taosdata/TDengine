@@ -46,8 +46,6 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 typedef struct STsdbReader STsdbReader;
 typedef struct STqReader   STqReader;
 
-typedef enum SOperatorParamType { OP_GET_PARAM = 1, OP_NOTIFY_PARAM } SOperatorParamType;
-
 typedef enum EExtWinMode {
   EEXT_MODE_SCALAR = 1,
   EEXT_MODE_AGG,
@@ -177,7 +175,14 @@ typedef enum EExchangeSourceType {
   EX_SRC_TYPE_VSTB_TAG_SCAN,
 } EExchangeSourceType;
 
+typedef enum {
+  DYN_TYPE_EXCHANGE_PARAM = 1,
+  NOTIFY_TYPE_EXCHANGE_PARAM,
+} EExchangeGetParamType;
+
 typedef struct SExchangeOperatorBasicParam {
+  EExchangeGetParamType paramType;
+  /* dynamic scan params */
   int32_t               vgId;
   int32_t               srcOpType;
   bool                  tableSeq;
@@ -191,6 +196,8 @@ typedef struct SExchangeOperatorBasicParam {
   SArray*               tagList;
   STimeWindow           window;
   SDownstreamSourceNode newDeployedSrc; // used with isNewDeployed
+  /* notify scan params */
+  TSKEY notifyTs;
 } SExchangeOperatorBasicParam;
 
 typedef struct SExchangeOperatorBatchParam {
@@ -231,6 +238,8 @@ typedef struct SExchangeInfo {
   int64_t             openedTs;  // start exec time stamp, todo: move to SLoadRemoteDataInfo
   char*               pTaskId;
   SArray*             pFetchRpcHandles;
+  bool                notifyToSend;  // need to send notify STEP DONE message
+  TSKEY               notifyTs;      // notify timestamp
 } SExchangeInfo;
 
 typedef struct SScanInfo {
@@ -696,12 +705,12 @@ typedef struct SDataGroupInfo {
 
 typedef struct SWindowRowsSup {
   STimeWindow win;
-  TSKEY       prevTs;  // previous timestamp
+  TSKEY       prevTs;  // previous timestamp, used for window aggregation
   int32_t     startRowIndex;
   int32_t     numOfRows;
   uint64_t    groupId;
   uint32_t    numNullRows;  // number of continuous rows with null state col
-  TSKEY       lastTs; // this ts is used to record the last timestamp, so that we can know whether the new row's ts is duplicated
+  TSKEY       lastTs;  // last row's timestamp, used for checking duplicated ts
 } SWindowRowsSup;
 
 // return true if there are continuous rows with null state col
@@ -749,7 +758,7 @@ typedef struct SStateWindowOperatorInfo {
   SGroupResInfo         groupResInfo;
   SWindowRowsSup        winSup;
   SColumn               stateCol;
-  bool                  hasKey;
+  bool                  hasKey;    // has key means the state window has started
   SStateKeys            stateKey;
   int32_t               tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp    twAggSup;
@@ -961,8 +970,9 @@ void    destroyOperatorParamValue(void* pValues);
 int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
 int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window, bool isNewParam, ETableScanDynType type);
+int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
+                                          int32_t srcOpType, TSKEY notifyTs);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
-void    freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
 int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
                                        SSDataBlock** pResBlock);

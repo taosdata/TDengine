@@ -54,23 +54,13 @@ class TestUserSecurity:
         tdSql.execute(f"DROP USER {user_name}")
 
     def drop_user_failed(self, user_name):
-        try:
-            self.drop_user(user_name)
-        except Exception as e:
-            print(f"Drop user failed as expected: {e}")
-            return
-        raise Exception("Drop user succeeded but was expected to fail")        
+        tdSql.error(f"DROP USER {user_name}")    
     
     def alter_password(self, user_name, new_password):
         tdSql.execute(f"ALTER USER {user_name} PASS '{new_password}'")
 
     def alter_password_failed(self, user_name, new_password):
-        try:
-            self.alter_password(user_name, new_password)
-        except Exception as e:
-            print(f"Alter password failed as expected: {e}")
-            return
-        raise Exception("Alter password succeeded but was expected to fail")
+        tdSql.error(f"ALTER USER {user_name} PASS '{new_password}'")
     
     def except_create_user(self, option, min, max):
         self.login()
@@ -266,9 +256,14 @@ class TestUserSecurity:
         # check option value
         self.login()
         self.create_user(user, options="CONNECT_TIME 1", login=True)
-        for i in range(60):
+        target_seconds = 57
+        start_time = time.monotonic()
+        while True:
             tdSql.execute("show databases")
-            time.sleep(1)
+            elapsed = time.monotonic() - start_time
+            if elapsed >= target_seconds:
+                break
+            time.sleep(min(1.0, target_seconds - elapsed))
 
         time.sleep(5)
         tdSql.error("show databases")
@@ -1050,8 +1045,8 @@ class TestUserSecurity:
     #
     # --------------------------- main ----------------------------
     #
-    def test_user_security(self):
-        """User security
+    def test_user_manager(self):
+        """User manager
 
         1. create user with variant options
             - SESSION_PER_USER
