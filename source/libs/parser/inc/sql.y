@@ -751,7 +751,7 @@ cmd ::= ALTER XNODE xnode_resource_type(A) NK_STRING(B) xnode_task_from_opt(C) x
 /* drop xnode agent 'a1'; drop xnode task 't1'; drop xnode job 1; drop xnode task 1; */
 cmd ::= DROP XNODE xnode_resource_type(A) NK_STRING(B).                           { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }
 cmd ::= DROP XNODE xnode_resource_type(A) NK_INTEGER(B).                          { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }
-//cmd ::= DROP XNODE xnode_resource_type(A) where_clause_opt(C).                    { pCxt->pRootNode = dropXnodeResourceWhere(pCxt, A, C); }
+cmd ::= DROP XNODE xnode_resource_type(A) WHERE search_condition(B).              { pCxt->pRootNode = dropXnodeResourceWhere(pCxt, A, B); }
 //cmd ::= DROP XNODE xnode_resource_type(A) ON NK_INTEGER(B) where_clause_opt(C).   { pCxt->pRootNode = dropXnodeResourceOn(pCxt, A, &B, C); }
 
 /* show xnodes; or show xnodes where ...*/

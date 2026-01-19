@@ -133,6 +133,10 @@ class TestXnode:
             # f"CREATE XNODE '{ep1}' USER __xnode__ PASS 'Ab{self.suffix}!'",
             f"CREATE XNODE '{ep1}' USER root PASS 'taosdata'",
             f"CREATE XNODE '{ep2}'",
+            f"SHOW XNODES where id > 1",
+            f"SHOW XNODES where status != 'online'",
+            f"SHOW XNODES where status = 'online'",
+            f"SHOW XNODES where url = '{ep2}'",
             f"DROP XNODE '{ep2}'",
             f"DROP XNODE {node_id}",
             f"DRAIN XNODE {self.rand_ids[1]}",
@@ -272,7 +276,8 @@ class TestXnode:
             f"REBALANCE XNODE JOB {job_id} WITH xnode_id {job_on}",
             f"REBALANCE XNODE JOB WHERE jid >= 1",
             #f"DROP XNODE JOB ON {job_on} WHERE jid = {job_id}",
-            #"DROP XNODE JOB WHERE jid > 1",
+            "DROP XNODE JOB WHERE jid > 1",
+            "DROP XNODE JOB WHERE task_id = 2 and status = 'running'",
         ]
         for sql in job_sqls:
             tdLog.debug(f"exec: {sql}")
@@ -423,14 +428,14 @@ class TestXnode:
             f"CREATE XNODE TASK '{test_task1}' FROM 'mqtt://broker1:1883' TO DATABASE {dbname} "
             "WITH parser 'parser_json', batch 1024, TRIGGER 'manual' "
             "labels '{\"env\":\"test\",\"type\":\"ingest\"}'",
-            
+
             f"CREATE XNODE TASK '{test_task2}' FROM TOPIC tp1_{self.suffix} TO 'kafka://broker:9092' "
             "WITH group_id 'g1', client_id 'c1', TRIGGER 'auto' "
             "labels '{\"env\":\"prod\"}'",
-            
+
             f"CREATE XNODE TASK '{test_task3}' FROM 'http://source' TO DATABASE {dbname} "
             "WITH parser 'parser_csv', batch 512, TRIGGER 'cron_5m'",
-            
+
             # 创建测试 agent
             f"CREATE XNODE AGENT '{test_agent1}' WITH `regionA` 'cn-north-1', `ttl` '1y', ipwhitelist '127.0.0.1'",
             f"CREATE XNODE AGENT '{test_agent2}' WITH `regionA` 'cn-south-1', status 'active'",
@@ -529,15 +534,15 @@ class TestXnode:
             f"CREATE XNODE TASK '{test_task1}' FROM 'mqtt://broker1:1883' TO DATABASE {dbname} "
             "WITH parser 'parser_json', batch 2048, TRIGGER 'manual' "
             "labels '{\"env\":\"prod\",\"type\":\"critical\",\"owner\":\"admin\"}'",
-            
+
             f"CREATE XNODE TASK '{test_task2}' FROM TOPIC tp2_{self.suffix} TO 'kafka://broker:9092' "
             "WITH group_id 'g2', client_id 'c2', TRIGGER 'auto' "
             "labels '{\"env\":\"test\",\"type\":\"standard\"}'",
-            
+
             f"CREATE XNODE TASK '{test_task3}' FROM 'http://api.source' TO DATABASE {dbname} "
             "WITH parser 'parser_xml', batch 1024, TRIGGER 'cron_10m' "
             "labels '{\"env\":\"prod\",\"type\":\"ingest\"}'",
-            
+
             # 创建测试 agent
             f"CREATE XNODE AGENT '{test_agent1}' WITH `regionA` 'cn-east-1', `ttl` '2y', status 'active'",
             f"CREATE XNODE AGENT '{test_agent2}' WITH `regionA` 'cn-west-1', `ttl` '1y', status 'standby'",
@@ -556,7 +561,7 @@ class TestXnode:
             f"SHOW XNODE TASKS WHERE name != '' AND created_by = 'admin' AND update_time > create_time",
             f"SHOW XNODE TASKS WHERE (id BETWEEN 1 AND 100) AND name LIKE '%{self.suffix}'",
             f"SHOW XNODE TASKS WHERE labels LIKE '%critical%' AND status = 'running'",
-            
+
             # 复杂 AGENT 查询 - 使用实际创建的测试数据
             f"SHOW XNODE AGENTS WHERE (name LIKE 'worker\_agent%' OR name LIKE 'backup\_%') AND status = 'active'",
             f"SHOW XNODE AGENTS WHERE name = '{test_agent1}' AND (create_time > '2024-01-01' OR update_time > '2024-01-01')",
@@ -615,12 +620,12 @@ class TestXnode:
             f"CREATE XNODE TASK '{test_task_edge}' FROM 'mqtt://edge.broker:1883' TO DATABASE {dbname} "
             "WITH parser 'parser_edge', batch 1, TRIGGER 'manual' "
             "labels '{\"test\":\"edge_case\",\"empty_reason\":\"\"}'",
-            
+
             f"CREATE XNODE TASK '{test_task_long}' FROM 'http://very.long.source.url.with.parameters/api/data' "
             "TO 'kafka://very.long.destination.url.with.parameters:9092/topic' "
             "WITH parser 'parser_complex', batch 99999, TRIGGER 'auto' "
             "labels '{\"environment\":\"production\",\"type\":\"data_processing\"}'",
-            
+
             # 创建边界测试 agent
             f"CREATE XNODE AGENT '{test_agent_edge}' WITH `regionA` 'edge-region', `ttl` '1d', status 'active'",
             f"CREATE XNODE AGENT '{test_agent_special}' WITH `regionA` 'special@region#123', `ttl` '100y', status 'inactive'",
@@ -637,24 +642,24 @@ class TestXnode:
             "SHOW XNODE TASKS WHERE reason = '' OR reason IS NULL",
             "SHOW XNODE TASKS WHERE labels != '{}' AND labels IS NOT NULL",
             "SHOW XNODE TASKS WHERE create_time IS NOT NULL AND update_time IS NOT NULL",
-            
+
             "SHOW XNODE JOBS WHERE config != '{}' AND config IS NOT NULL",
             "SHOW XNODE JOBS WHERE reason IS NOT NULL",
             "SHOW XNODE JOBS WHERE task_id IS NOT NULL AND task_id > 0",
             "SHOW XNODE JOBS WHERE create_time < update_time OR create_time = update_time",
-            
+
             f"SHOW XNODE AGENTS WHERE name = '{test_agent_edge}' AND name IS NOT NULL",
             f"SHOW XNODE AGENTS WHERE name = '{test_agent_special}' AND `token` != ''",
             "SHOW XNODE AGENTS WHERE status IS NOT NULL AND status IN ('active', 'inactive')",
             "SHOW XNODE AGENTS WHERE create_time <= update_time",
-            
+
             # 极限值测试
             "SHOW XNODE TASKS WHERE id = 2147483647",  # INT 最大值
             "SHOW XNODE TASKS WHERE id = -2147483648",  # INT 最小值
             #f"SHOW XNODE TASKS WHERE name = '{test_task_long}' AND LENGTH(name) > 10",
             #"SHOW XNODE TASKS WHERE LENGTH(from) > 0 AND LENGTH(to) > 0",
             "SHOW XNODE TASKS WHERE via > 0 AND via < 1000",
-            
+
             # 格式测试
             "SHOW XNODE TASKS WHERE create_time BETWEEN '2024-01-01' AND '2024-12-31'",
             "SHOW XNODE TASKS WHERE create_time > '2024-01-01 00:00:00' AND create_time < '2025-01-01'",
@@ -707,3 +712,373 @@ class TestXnode:
             tdLog.debug(f"query: {sql}")
             self.no_syntax_fail_query(sql)
         tdLog.info(f"{__file__} xnode syntax coverage completed")
+
+    def test_drop_xnode_job_where_conditions(self):
+        """测试 DROP XNODE JOB WHERE 条件语句
+
+        1. Create test jobs with different attributes
+        2. Drop jobs by id condition
+        3. Drop jobs by task_id condition
+        4. Drop jobs by status condition
+        5. Drop jobs by via condition
+        6. Drop jobs by xnode_id condition
+        7. Drop jobs by time conditions
+        8. Drop jobs by config content conditions
+        9. Drop jobs by complex AND/OR/NOT conditions
+        10. Clean up remaining test data
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-01-19 GuiChuan Zhang Created
+        """
+
+        dbname = f"xnode_db_{self.suffix}"
+
+        # 创建测试任务
+        test_task1 = f"drop_test_task_1_{self.suffix}"
+        test_task2 = f"drop_test_task_2_{self.suffix}"
+        test_task3 = f"drop_test_task_3_{self.suffix}"
+
+        create_task_sqls = [
+            f"CREATE XNODE TASK '{test_task1}' FROM 'mqtt://broker1:1883' TO DATABASE {dbname} "
+            "WITH parser 'parser_json', batch 1024, TRIGGER 'manual'",
+
+            f"CREATE XNODE TASK '{test_task2}' FROM TOPIC tp_drop_{self.suffix} TO 'kafka://broker:9092' "
+            "WITH group_id 'g_drop', client_id 'c_drop', TRIGGER 'auto'",
+
+            f"CREATE XNODE TASK '{test_task3}' FROM 'http://api.source' TO DATABASE {dbname} "
+            "WITH parser 'parser_csv', batch 512, TRIGGER 'cron_5m'",
+        ]
+
+        for sql in create_task_sqls:
+            tdLog.debug(f"create test task: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+        # 先获取任务ID，用于后续创建job
+        task_id_1 = 1001  # 假设的任务ID
+        task_id_2 = 1002  # 假设的任务ID
+        task_id_3 = 1003  # 假设的任务ID
+
+        # 创建测试 jobs - 使用 CREATE XNODE JOB ON task_id WITH config 语法
+        create_job_sqls = [
+            f"CREATE XNODE JOB ON {task_id_1} WITH config '{{\"timeout\":30,\"retry\":3}}'",
+            f"CREATE XNODE JOB ON {task_id_2} WITH config '{{\"timeout\":60,\"retry\":5,\"batch_size\":1000}}'",
+            f"CREATE XNODE JOB ON {task_id_3} WITH config '{{\"timeout\":120,\"retry\":1,\"priority\":\"high\"}}'",
+            f"CREATE XNODE JOB ON {task_id_1} WITH config '{{\"timeout\":45,\"retry\":2}}'",
+            f"CREATE XNODE JOB ON {task_id_2} WITH config '{{\"timeout\":90,\"retry\":3,\"mode\":\"fast\"}}'",
+        ]
+
+        for sql in create_job_sqls:
+            tdLog.debug(f"create test job: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+        # 测试基本的 WHERE 条件 DROP XNODE JOB - 只使用支持的简单比较运算
+        basic_where_sqls = [
+            # 按 id 条件删除
+            "DROP XNODE JOB WHERE id > 100",
+            "DROP XNODE JOB WHERE id >= 50",
+            "DROP XNODE JOB WHERE id < 1000",
+            "DROP XNODE JOB WHERE id <= 500",
+            "DROP XNODE JOB WHERE id = 789",
+            "DROP XNODE JOB WHERE id != 999",
+            # 按 task_id 条件删除
+            f"DROP XNODE JOB WHERE task_id = {task_id_1}",
+            f"DROP XNODE JOB WHERE task_id != {task_id_2}",
+            "DROP XNODE JOB WHERE task_id > 10",
+            "DROP XNODE JOB WHERE task_id < 100",
+            "DROP XNODE JOB WHERE task_id >= 1",
+            "DROP XNODE JOB WHERE task_id <= 999",
+            # 按状态条件删除
+            "DROP XNODE JOB WHERE status = 'running'",
+            "DROP XNODE JOB WHERE status != 'failed'",
+            # 按 via 条件删除
+            "DROP XNODE JOB WHERE via = 1",
+            "DROP XNODE JOB WHERE via != 2",
+            "DROP XNODE JOB WHERE via > 0",
+            "DROP XNODE JOB WHERE via < 10",
+            "DROP XNODE JOB WHERE via >= 1",
+            "DROP XNODE JOB WHERE via <= 5",
+            # 按 xnode_id 条件删除
+            "DROP XNODE JOB WHERE xnode_id = 1001",
+            "DROP XNODE JOB WHERE xnode_id != 1002",
+            "DROP XNODE JOB WHERE xnode_id > 0",
+            "DROP XNODE JOB WHERE xnode_id < 2000",
+            "DROP XNODE JOB WHERE xnode_id >= 1",
+            "DROP XNODE JOB WHERE xnode_id <= 9999",
+            # 按配置内容删除 - 简单字符串比较
+            "DROP XNODE JOB WHERE config = '{}'",
+            "DROP XNODE JOB WHERE config != '{}'",
+            "DROP XNODE JOB WHERE config = ''",
+            "DROP XNODE JOB WHERE config != ''",
+            # 按原因删除
+            "DROP XNODE JOB WHERE reason = ''",
+            "DROP XNODE JOB WHERE reason != ''",
+        ]
+
+        for sql in basic_where_sqls:
+            tdLog.debug(f"drop job with basic where: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+        # 测试时间条件 - 简单时间字符串比较
+        time_where_sqls = [
+            "DROP XNODE JOB WHERE create_time > '2024-01-01 00:00:00'",
+            "DROP XNODE JOB WHERE create_time < '2025-01-01 00:00:00'",
+            "DROP XNODE JOB WHERE create_time >= '2024-06-01 00:00:00'",
+            "DROP XNODE JOB WHERE update_time > '2024-01-01 00:00:00'",
+            "DROP XNODE JOB WHERE update_time < '2025-01-01 00:00:00'",
+            "DROP XNODE JOB WHERE update_time >= '2024-06-01 00:00:00'",
+            "DROP XNODE JOB WHERE create_time != '1970-01-01 00:00:00'",
+            "DROP XNODE JOB WHERE update_time != '1970-01-01 00:00:00'",
+        ]
+
+        for sql in time_where_sqls:
+            tdLog.debug(f"drop job with time where: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+        # 测试复杂 AND/OR/NOT 条件 - 只使用支持的逻辑运算
+        complex_where_sqls = [
+            # 简单 AND 组合
+            f"DROP XNODE JOB WHERE task_id = {task_id_1} AND status = 'running'",
+            "DROP XNODE JOB WHERE via = 1 AND xnode_id = 1001",
+            "DROP XNODE JOB WHERE status = 'success' AND create_time > '2024-01-01'",
+            f"DROP XNODE JOB WHERE task_id = {task_id_2} AND via != 0",
+            # 简单 OR 组合
+            "DROP XNODE JOB WHERE status = 'running' OR status = 'pending'",
+            "DROP XNODE JOB WHERE via = 1 OR via = 2",
+            f"DROP XNODE JOB WHERE task_id = {task_id_1} OR task_id = {task_id_2}",
+            "DROP XNODE JOB WHERE xnode_id = 1001 OR xnode_id = 1002",
+            # AND + OR 组合
+            "DROP XNODE JOB WHERE (status = 'running' OR status = 'pending') AND via = 1",
+            "DROP XNODE JOB WHERE status = 'success' AND (xnode_id = 1001 OR xnode_id = 1002)",
+            "DROP XNODE JOB WHERE (task_id > 10 AND task_id < 100) OR status = 'failed'",
+            f"DROP XNODE JOB WHERE (task_id = {task_id_1} OR task_id = {task_id_2}) AND status != 'error'",
+            # NOT 条件
+            "DROP XNODE JOB WHERE NOT status = 'failed'",
+            "DROP XNODE JOB WHERE NOT id < 0",
+            "DROP XNODE JOB WHERE NOT (status = 'error' AND via = 0)",
+            "DROP XNODE JOB WHERE NOT task_id = 999",
+            # 多层逻辑组合
+            "DROP XNODE JOB WHERE (status = 'running' OR status = 'pending') AND (via = 1 OR via = 2)",
+            "DROP XNODE JOB WHERE (id > 100 AND id < 1000) OR (status = 'failed' AND via != 0)",
+            "DROP XNODE JOB WHERE NOT (status = 'error' OR status = 'failed')",
+            f"DROP XNODE JOB WHERE (task_id = {task_id_1} OR task_id = {task_id_2}) AND NOT status = 'error'",
+            # 复杂括号组合
+            "DROP XNODE JOB WHERE ((status = 'running' OR status = 'pending') AND via = 1) OR id > 1000",
+            "DROP XNODE JOB WHERE (status = 'success' AND create_time > '2024-01-01') OR (status = 'failed' AND update_time < '2025-01-01')",
+            "DROP XNODE JOB WHERE (task_id > 0 AND task_id < 2000) AND (status != 'error' OR via >= 1)",
+        ]
+
+        for sql in complex_where_sqls:
+            tdLog.debug(f"drop job with complex where: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+        # 清理测试任务
+        cleanup_sqls = [
+            f"DROP XNODE TASK '{test_task1}'",
+            f"DROP XNODE TASK '{test_task2}'",
+            f"DROP XNODE TASK '{test_task3}'",
+        ]
+
+        for sql in cleanup_sqls:
+            tdLog.debug(f"cleanup test tasks: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+    def test_drop_xnode_job_where_edge_cases(self):
+        """测试 DROP XNODE JOB WHERE 边界条件和语法变体
+
+        1. Test operator variations
+        2. Test parentheses usage
+        3. Test spacing and formatting
+        4. Test field name case sensitivity
+        5. Test value format variations
+        6. Test complex nested conditions
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-01-19 GuiChuan Zhang Created
+        """
+
+        # 测试操作符变体
+        operator_sqls = [
+            # 标准比较操作符
+            "DROP XNODE JOB WHERE id > 1",
+            "DROP XNODE JOB WHERE id >= 1",
+            "DROP XNODE JOB WHERE id < 9999",
+            "DROP XNODE JOB WHERE id <= 9999",
+            "DROP XNODE JOB WHERE id = 1000",
+            "DROP XNODE JOB WHERE id != 1000",
+            "DROP XNODE JOB WHERE id = 0",
+            "DROP XNODE JOB WHERE id != 0",
+            # 字符串比较
+            "DROP XNODE JOB WHERE status = 'running'",
+            "DROP XNODE JOB WHERE status != 'failed'",
+            "DROP XNODE JOB WHERE config = '{}'",
+            "DROP XNODE JOB WHERE config != ''",
+            "DROP XNODE JOB WHERE reason = ''",
+            "DROP XNODE JOB WHERE reason != 'error'",
+            # 时间字符串比较
+            "DROP XNODE JOB WHERE create_time = '2024-01-01 00:00:00'",
+            "DROP XNODE JOB WHERE create_time != '1970-01-01 00:00:00'",
+            "DROP XNODE JOB WHERE update_time = '2024-12-31 23:59:59'",
+            "DROP XNODE JOB WHERE update_time != '1970-01-01 00:00:00'",
+        ]
+
+        for sql in operator_sqls:
+            tdLog.debug(f"drop job with operator variant: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+        # 测试括号使用
+        parentheses_sqls = [
+            # 简单括号
+            "DROP XNODE JOB WHERE (id > 1)",
+            "DROP XNODE JOB WHERE (status = 'running')",
+            "DROP XNODE JOB WHERE (via = 1)",
+            # 多层括号
+            "DROP XNODE JOB WHERE ((id > 1))",
+            "DROP XNODE JOB WHERE (((status = 'running')))",
+            # AND/OR 组合括号
+            "DROP XNODE JOB WHERE (id > 1 AND status = 'running')",
+            "DROP XNODE JOB WHERE (status = 'running' OR status = 'pending')",
+            "DROP XNODE JOB WHERE (id > 1 AND (status = 'running'))",
+            "DROP XNODE JOB WHERE (id > 1) OR (status = 'running')",
+            # 复杂嵌套括号
+            "DROP XNODE JOB WHERE ((id > 1 AND status = 'running') OR (id < 0))",
+            "DROP XNODE JOB WHERE (id > 1 AND (status = 'running' OR status = 'pending'))",
+            "DROP XNODE JOB WHERE ((id > 100 AND id < 1000) AND (status != 'error'))",
+        ]
+
+        for sql in parentheses_sqls:
+            tdLog.debug(f"drop job with parentheses: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+        # 测试空格和格式变体
+        formatting_sqls = [
+            # 无空格
+            "DROP XNODE JOB WHERE id>1",
+            "DROP XNODE JOB WHERE status='running'",
+            "DROP XNODE JOB WHERE via=1",
+            # 部分空格
+            "DROP XNODE JOB WHERE id >1",
+            "DROP XNODE JOB WHERE id> 1",
+            "DROP XNODE JOB WHERE status ='running'",
+            "DROP XNODE JOB WHERE status= 'running'",
+            # 多余空格
+            "DROP XNODE JOB  WHERE  id  >  1",
+            "DROP XNODE JOB  WHERE  status  =  'running'",
+            "DROP XNODE JOB   WHERE   via   =   1",
+            # 混合空格
+            "DROP XNODE JOB WHERE ( id > 1 AND status = 'running' )",
+            "DROP XNODE JOB WHERE (id > 1) AND (status = 'running')",
+        ]
+
+        for sql in formatting_sqls:
+            tdLog.debug(f"drop job with formatting variant: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+        # 测试字段名大小写（假设不敏感）
+        case_sqls = [
+            "DROP XNODE JOB WHERE ID > 1",
+            "DROP XNODE JOB WHERE Id > 1",
+            "DROP XNODE JOB WHERE iD > 1",
+            "DROP XNODE JOB WHERE TASK_ID = 1",
+            "DROP XNODE JOB WHERE Task_Id = 1",
+            "DROP XNODE JOB WHERE STATUS = 'running'",
+            "DROP XNODE JOB WHERE Status = 'running'",
+            "DROP XNODE JOB WHERE XNODE_ID = 1001",
+            "DROP XNODE JOB WHERE Xnode_Id = 1001",
+        ]
+
+        for sql in case_sqls:
+            tdLog.debug(f"drop job with case variant: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+        # 测试 NOT 逻辑运算的各种用法
+        not_sqls = [
+            # 简单 NOT
+            "DROP XNODE JOB WHERE NOT id = 0",
+            "DROP XNODE JOB WHERE NOT status = 'failed'",
+            "DROP XNODE JOB WHERE NOT via = 0",
+            "DROP XNODE JOB WHERE NOT config = ''",
+            # NOT 与比较运算
+            "DROP XNODE JOB WHERE NOT id < 1",
+            "DROP XNODE JOB WHERE NOT id > 10000",
+            "DROP XNODE JOB WHERE NOT status != 'running'",
+            "DROP XNODE JOB WHERE NOT create_time = '1970-01-01 00:00:00'",
+            # NOT 与括号
+            "DROP XNODE JOB WHERE NOT (id = 0)",
+            "DROP XNODE JOB WHERE NOT (status = 'error' AND via = 0)",
+            "DROP XNODE JOB WHERE NOT (id > 0 AND id < 10)",
+            "DROP XNODE JOB WHERE NOT (status = 'failed' OR status = 'error')",
+            # 多层 NOT
+            #"DROP XNODE JOB WHERE NOT NOT id > 0",  # 双重否定
+            #"DROP XNODE JOB WHERE NOT NOT status = 'running'",
+        ]
+
+        for sql in not_sqls:
+            tdLog.debug(f"drop job with NOT condition: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+        # 测试复杂嵌套逻辑条件
+        complex_logic_sqls = [
+            # 多层 AND/OR 组合
+            "DROP XNODE JOB WHERE (id > 1 AND id < 1000) AND (status = 'running' OR status = 'pending')",
+            "DROP XNODE JOB WHERE (via = 1 OR via = 2) AND (status != 'error' AND status != 'failed')",
+            "DROP XNODE JOB WHERE (task_id > 0 AND task_id < 100) AND (xnode_id = 1 OR xnode_id = 2)",
+            # NOT 与 AND/OR 组合
+            "DROP XNODE JOB WHERE NOT (status = 'error' OR status = 'failed')",
+            "DROP XNODE JOB WHERE NOT (id < 1 AND status = 'failed')",
+            "DROP XNODE JOB WHERE (NOT status = 'error') AND (NOT status = 'failed')",
+            "DROP XNODE JOB WHERE NOT (via = 0 OR via = 999)",
+            # 复杂括号优先级
+            "DROP XNODE JOB WHERE id > 1 AND (status = 'running' OR (via = 1 AND xnode_id = 1001))",
+            "DROP XNODE JOB WHERE (id > 100 OR id < 0) AND (status != 'error' AND (via >= 1))",
+            "DROP XNODE JOB WHERE ((id > 1 AND status = 'running') OR (id < 0)) AND via != 0",
+            # 混合逻辑运算
+            "DROP XNODE JOB WHERE NOT (id = 0) AND (status = 'running' OR status = 'pending')",
+            "DROP XNODE JOB WHERE (NOT status = 'failed') AND (id > 0 AND id < 10000)",
+            "DROP XNODE JOB WHERE (id > 1 OR id < 0) AND NOT (status = 'error' AND via = 0)",
+        ]
+
+        for sql in complex_logic_sqls:
+            tdLog.debug(f"drop job with complex logic: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+        # 测试边界值和特殊值
+        boundary_sqls = [
+            # 整数边界值
+            "DROP XNODE JOB WHERE id = 0",
+            "DROP XNODE JOB WHERE id = -1",
+            "DROP XNODE JOB WHERE id = 1",
+            "DROP XNODE JOB WHERE id > -1",
+            "DROP XNODE JOB WHERE id < 1",
+            # 字符串边界值
+            "DROP XNODE JOB WHERE status = ''",
+            "DROP XNODE JOB WHERE config = ''",
+            "DROP XNODE JOB WHERE reason = ''",
+            "DROP XNODE JOB WHERE status != ''",
+            "DROP XNODE JOB WHERE config != ''",
+            # 时间边界值
+            "DROP XNODE JOB WHERE create_time = '1970-01-01 00:00:00'",
+            "DROP XNODE JOB WHERE create_time > '1970-01-01 00:00:00'",
+            "DROP XNODE JOB WHERE update_time < '2025-01-01 00:00:00'",
+            "DROP XNODE JOB WHERE create_time != '1970-01-01 00:00:00'",
+            # via 和 xnode_id 边界值
+            "DROP XNODE JOB WHERE via = 0",
+            "DROP XNODE JOB WHERE via = -1",
+            "DROP XNODE JOB WHERE xnode_id = 0",
+            "DROP XNODE JOB WHERE xnode_id = -1",
+        ]
+
+        for sql in boundary_sqls:
+            tdLog.debug(f"drop job with boundary value: {sql}")
+            self.no_syntax_fail_execute(sql)

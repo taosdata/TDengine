@@ -13630,11 +13630,31 @@ _exit:
 }
 
 static int32_t translateDropXnodeJob(STranslateContext* pCxt, SDropXnodeJobStmt* pStmt) {
+  int32_t           code = 0;
+  char*             pAst = NULL;
   SMDropXnodeJobReq dropReq = {0};
-  dropReq.tid = pStmt->tid;
-  dropReq.jid = pStmt->jid;
 
-  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE_JOB, (FSerializeFunc)tSerializeSMDropXnodeJobReq, &dropReq);
+  dropReq.jid = pStmt->jid;
+  if (pStmt->pWhere != NULL) {
+    TAOS_CHECK_GOTO(nodesNodeToString(pStmt->pWhere, true, &pAst, NULL), NULL, _exit);
+
+    if (!isXnodeSupportNodeType(pStmt->pWhere)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR,
+                                     "WHERE condition is not valid");
+    }
+
+    if (pAst != NULL) {
+      dropReq.ast = xCreateCowStr(strlen(pAst), pAst, false);
+    }
+  }
+
+  code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE_JOB, (FSerializeFunc)tSerializeSMDropXnodeJobReq, &dropReq);
+
+_exit:
+  if (pAst != NULL) {
+    taosMemoryFree(pAst);
+    pAst = NULL;
+  }
   tFreeSMDropXnodeJobReq(&dropReq);
   return code;
 }

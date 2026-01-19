@@ -780,6 +780,7 @@ typedef struct {
   int32_t            jid;
   int32_t            tid;
   SXnodeTaskOptions* options;
+  SNode*             pWhere;
 } SDropXnodeJobStmt;
 typedef struct {
   ENodeType type;

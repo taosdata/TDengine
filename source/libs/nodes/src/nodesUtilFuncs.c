@@ -2601,6 +2601,12 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->pWhere);
       break;
     }
+    case QUERY_NODE_DROP_XNODE_JOB_STMT: {
+      SDropXnodeJobStmt* pStmt = (SDropXnodeJobStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->options);
+      nodesDestroyNode((SNode*)pStmt->pWhere);
+      break;
+    }
     case QUERY_NODE_CREATE_XNODE_AGENT_STMT: {
       SCreateXnodeAgentStmt* pStmt = (SCreateXnodeAgentStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->options);

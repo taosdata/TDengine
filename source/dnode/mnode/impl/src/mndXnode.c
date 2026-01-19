@@ -1535,16 +1535,15 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
     goto _OVER;
   }
 
-  // pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
-  // if (pJson == NULL) {
-  //   code = terrno;
-  //   goto _OVER;
-  // }
+  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
+  if (pJson == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
 
-  // xxxzgc
   // todo: only4test
-  (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
-  code = TSDB_CODE_SUCCESS;
+  // (void)mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, 60000, pContStr, strlen(pContStr));
+  // code = TSDB_CODE_SUCCESS;
 
 _OVER:
   if (srcDsn != NULL) taosMemoryFreeClear(srcDsn);
@@ -3381,7 +3380,7 @@ _exit:
 
 #define XND_LOG_END(code, lino)                                                                 \
   do {                                                                                          \
-    if (code != TSDB_CODE_SUCCESS) {                                                            \
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {                    \
       mError("%s failed at line %d code: %d, since %s", __func__, lino, code, tstrerror(code)); \
     }                                                                                           \
   } while (0)
@@ -3463,39 +3462,83 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static int32_t dropXnodeJobById(SMnode *pMnode, SRpcMsg *pReq, int32_t jid) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SXnodeJobObj *pObj = NULL;
+
+  pObj = mndAcquireXnodeJob(pMnode, jid);
+  if (pObj == NULL) {
+    code = terrno;
+    lino = __LINE__;
+    goto _OVER;
+  }
+  code = mndDropXnodeJob(pMnode, pReq, pObj);
+
+_OVER:
+  XND_LOG_END(code, lino);
+  mndReleaseXnodeJob(pMnode, pObj);
+  return code;
+}
+
+static int32_t dropXnodeJobByWhereCond(SMnode *pMnode, SRpcMsg *pReq, SMDropXnodeJobReq *dropReq) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SXnodeJobObj *pObj = NULL;
+  SNode        *pWhere = NULL;
+  SArray       *pArray = NULL;
+  SArray       *pResult = NULL;
+
+  if (NULL != dropReq->ast.ptr) {
+    TAOS_CHECK_GOTO(mndAcquireXnodeJobsAll(pMnode, &pArray), &lino, _OVER);
+    TAOS_CHECK_GOTO(nodesStringToNode(dropReq->ast.ptr, &pWhere), &lino, _OVER);
+    TAOS_CHECK_GOTO(filterJobsByWhereCond(pWhere, pArray, &pResult), &lino, _OVER);
+
+    for (int32_t i = 0; i < pResult->size; i++) {
+      pObj = taosArrayGet(pResult, i);
+      TAOS_CHECK_GOTO(dropXnodeJobById(pMnode, pReq, pObj->id), &lino, _OVER);
+    }
+  }
+
+_OVER:
+  XND_LOG_END(code, lino);
+  if (pResult != NULL) {
+    taosArrayDestroy(pResult);
+  }
+  if (pWhere != NULL) {
+    nodesDestroyNode(pWhere);
+  }
+  if (pArray != NULL) {
+    taosArrayDestroy(pArray);
+  }
+  return code;
+}
+
 static int32_t mndProcessDropXnodeJobReq(SRpcMsg *pReq) {
   mDebug("drop xnode job req, content len:%d", pReq->contLen);
   SMnode           *pMnode = pReq->info.node;
   int32_t           code = -1;
-  SXnodeJobObj     *pObj = NULL;
   SMDropXnodeJobReq dropReq = {0};
 
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeJobReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
-  mDebug("DropXnodeJob with jid:%d, tid:%d, start to drop", dropReq.jid, dropReq.tid);
+  mDebug("Xnode drop job with jid:%d", dropReq.jid);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, NULL, MND_OPER_DROP_XNODE_JOB), NULL, _OVER);
 
-  if (dropReq.jid <= 0) {
+  if (dropReq.jid <= 0 && dropReq.ast.ptr == NULL) {
     code = TSDB_CODE_MND_XNODE_INVALID_MSG;
     goto _OVER;
   }
-
-  pObj = mndAcquireXnodeJob(pMnode, dropReq.jid);
-  if (pObj == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  code = mndDropXnodeJob(pMnode, pReq, pObj);
-  if (code == 0) {
-    code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (dropReq.jid > 0) {
+    TAOS_CHECK_GOTO(dropXnodeJobById(pMnode, pReq, dropReq.jid), NULL, _OVER);
+  } else {
+    TAOS_CHECK_GOTO(dropXnodeJobByWhereCond(pMnode, pReq, &dropReq), NULL, _OVER);
   }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("xnode:%d, failed to drop since %s", dropReq.jid, tstrerror(code));
   }
-  mndReleaseXnodeJob(pMnode, pObj);
   tFreeSMDropXnodeJobReq(&dropReq);
   TAOS_RETURN(code);
 }
