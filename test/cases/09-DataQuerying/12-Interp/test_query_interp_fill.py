@@ -119,6 +119,51 @@ class TestInterpFill:
         _, err = process.communicate()
         assert process.returncode == 0, f"taosBenchmark failed: {err.decode()}"
 
+        # insert data for surrounding time test
+        tdSql.execute("create database test_surround keep 36500")
+        tdSql.execute("use test_surround")
+        tdSql.execute("create table test_surround.ntb (ts timestamp, c1 int)")
+        tdSql.execute("create table test_surround.stb (ts timestamp, c1 int) tags (gid int)")
+        tdSql.execute("create table test_surround.ctb1 using test_surround.stb tags (1)")
+        tdSql.execute("create table test_surround.ctb2 using test_surround.stb tags (2)")
+        tdSql.execute("create table test_surround.ctb3 using test_surround.stb tags (3)")
+        tdSql.execute("""
+            insert into test_surround.ntb values
+            ("2026-01-01 12:00:00", 1)
+            ("2026-01-02 12:00:00", null)
+            ("2026-01-03 12:00:00", null)
+            ("2026-01-06 12:00:00", 2)
+            ("2026-01-07 12:00:00", null)
+            ("2026-01-08 12:00:00", null)
+            ("2026-01-09 12:00:00", 3)""")
+        tdSql.execute("""
+            insert into test_surround.ctb1 values
+            ("2026-01-01 12:00:00", 1)
+            ("2026-01-02 12:00:00", null)
+            ("2026-01-03 12:00:00", null)
+            ("2026-01-06 12:00:00", 2)
+            ("2026-01-07 12:00:00", null)
+            ("2026-01-08 12:00:00", null)
+            ("2026-01-09 12:00:00", 3)""")
+        tdSql.execute("""
+            insert into test_surround.ctb2 values
+            ("2026-01-01 12:00:00", null)
+            ("2026-01-02 12:00:00", null)
+            ("2026-01-03 12:00:00", 1)
+            ("2026-01-04 12:00:00", 2)
+            ("2026-01-07 12:00:00", 3)
+            ("2026-01-08 12:00:00", null)
+            ("2026-01-09 12:00:00", null)""")
+        tdSql.execute("""
+            insert into test_surround.ctb3 values
+            ("2026-01-01 12:00:00", null)
+            ("2026-01-02 12:00:00", 1)
+            ("2026-01-03 12:00:00", null)
+            ("2026-01-05 12:00:00", 2)
+            ("2026-01-07 12:00:00", null)
+            ("2026-01-08 12:00:00", 3)
+            ("2026-01-09 12:00:00", null)""")
+
     def test_normal_query_new(self):
         """Interp fill and psedo column
 
@@ -1807,3 +1852,157 @@ class TestInterpFill:
         self.check_interp_extension_irowts_origin()
         self.check_interp_fill_extension()
         self.check_interval_fill_extension()
+
+    def test_interp_fill_surround(self):
+        """Interp normal query of interp filling with surround 
+
+        1. testing interp filling with surrounding time
+
+        Catalog:
+            - Query:Interp
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-01-19 Tony Zhang created
+
+        """
+        tdSql.execute("use test_surround")
+
+        testCase = "interp_fill_surround"
+        # read sql from .sql file and execute
+        tdLog.info("test interp fill surround.")
+        self.sqlFile = etool.curFile(__file__, f"in/{testCase}.in")
+        self.ansFile = etool.curFile(__file__, f"ans/{testCase}.csv")
+
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
+        
+    def test_interp_fill_surround_stream(self):
+        """Interp normal query of interp filling with surround in stream
+
+        1. testing interp filling with surrounding time in stream
+
+        Catalog:
+            - Query:Interp
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-01-19 Tony Zhang created
+
+        """
+        tdSql.execute("use test_surround")
+        tdSql.execute("create table triggertb (ts timestamp, c1 int)")
+        streams: list[StreamItem] = []
+
+        stream: StreamItem = StreamItem(
+            id=14,
+            stream="""create stream s14 state_window(c1) from triggertb into
+                res14 as select _irowts, interp(c1, 1) from %%trows
+                range(_twstart, _twend) every(12h) fill(prev) surround(1d, 100)""",
+            check_func=self.check_s14,
+        )
+        streams.append(stream)
+
+        stream: StreamItem = StreamItem(
+            id=15,
+            stream=f"""create stream s15 state_window(c1) from triggertb into
+                res15 as select _irowts, interp(c1, 1) from test_surround.stb
+                range(_twstart, _twend) every(1d) fill(next) surround(1d, 100)""",
+            check_func=self.check_s15,
+        )
+        streams.append(stream)
+
+        for stream in streams:
+            stream.createStream()
+        tdStream.checkStreamStatus()
+
+        tdSql.execute("""insert into triggertb values
+            ('2026-01-01 12:00:00', 1),
+            ('2026-01-02 00:00:00', 1),
+            ('2026-01-03 00:00:00', 2),
+            ('2026-01-07 12:00:00', 2),
+            ('2026-01-09 10:00:00', 1),
+            ('2026-01-09 15:00:00', 1),
+            ('2026-01-10 12:00:00', 3)
+            """)
+
+        for stream in streams:
+            stream.checkResults()
+
+    def check_s14(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from res14",
+            func=lambda: tdSql.getRows() == 13
+            and tdSql.compareData(0, 0, "2026-01-01 12:00:00.000") and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(1, 0, "2026-01-02 00:00:00.000") and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(2, 0, "2026-01-03 00:00:00.000") and tdSql.compareData(2, 1, 2)
+            and tdSql.compareData(3, 0, "2026-01-03 12:00:00.000") and tdSql.compareData(3, 1, 2)
+            and tdSql.compareData(4, 0, "2026-01-04 00:00:00.000") and tdSql.compareData(4, 1, 2)
+            and tdSql.compareData(5, 0, "2026-01-04 12:00:00.000") and tdSql.compareData(5, 1, 100)
+            and tdSql.compareData(6, 0, "2026-01-05 00:00:00.000") and tdSql.compareData(6, 1, 100)
+            and tdSql.compareData(7, 0, "2026-01-05 12:00:00.000") and tdSql.compareData(7, 1, 100)
+            and tdSql.compareData(8, 0, "2026-01-06 00:00:00.000") and tdSql.compareData(8, 1, 100)
+            and tdSql.compareData(9, 0, "2026-01-06 12:00:00.000") and tdSql.compareData(9, 1, 100)
+            and tdSql.compareData(10, 0, "2026-01-07 00:00:00.000") and tdSql.compareData(10, 1, 100)
+            and tdSql.compareData(11, 0, "2026-01-07 12:00:00.000") and tdSql.compareData(11, 1, 2)
+            and tdSql.compareData(12, 0, "2026-01-09 10:00:00.000") and tdSql.compareData(12, 1, 1)
+        )
+    
+    def check_s15(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from res15",
+            func=lambda: tdSql.getRows() == 7
+            and tdSql.compareData(0, 0, "2026-01-01 12:00:00.000") and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(1, 0, "2026-01-03 00:00:00.000") and tdSql.compareData(1, 1, 1)
+            and tdSql.compareData(2, 0, "2026-01-04 00:00:00.000") and tdSql.compareData(2, 1, 2)
+            and tdSql.compareData(3, 0, "2026-01-05 00:00:00.000") and tdSql.compareData(3, 1, 2)
+            and tdSql.compareData(4, 0, "2026-01-06 00:00:00.000") and tdSql.compareData(4, 1, 2)
+            and tdSql.compareData(5, 0, "2026-01-07 00:00:00.000") and tdSql.compareData(5, 1, 3)
+            and tdSql.compareData(6, 0, "2026-01-09 10:00:00.000") and tdSql.compareData(6, 1, 3)
+        )
+    
+    def test_interp_fill_surround_abnormal(self):
+        """Interp abnormal query of interp filling with surround 
+
+        1. testing abnormal parameters of interp filling with surrounding time
+
+        Catalog:
+            - Query:Interp
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-01-19 Tony Zhang created
+
+        """
+        tdSql.execute("use test_surround")
+        for mode in ["prev", "next", "near"]:
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1h)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1h, 1, 2)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}, 1) surround(1h, 2)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00', 1h) fill({mode}) surround(1h)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00', 1h) fill({mode}, 1) surround(1h)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00', 1h) fill({mode}, 1) surround(1h, 2)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') surround(1h, 2)")
+
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround('1s', 1)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1, 2)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(0h, 2)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(-1s, 2)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1b, 2)")  # smaller than database precision
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1s, a)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1s, !)")
+
+        tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill(linear) surround(1h, 1)")
+        tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill(none) surround(1h, 1)")
+        tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill(null) surround(1h, 1)")
+        tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill(null_f) surround(1h, 1)")
+        tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill(value, 1) surround(1h, 1)")
+        tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill(value_f, 1) surround(1h, 1)")
