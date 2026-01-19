@@ -58,7 +58,6 @@ extern char          tsLocalEp[];
 extern char          tsVersionName[];
 extern uint16_t      tsServerPort;
 extern int32_t       tsVersion;
-extern int32_t       tsForceReadConfig;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t        tsEncryptKeysStatus;

@@ -583,7 +583,7 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   SConfigReq req = {0};
 
   req.cver = tsdmConfigVersion;
-  req.forceReadConfig = tsForceReadConfig;
+  req.forceReadConfig = true;
   req.array = taosGetGlobalCfg(tsCfg);
   dDebug("send config req to mnode, configVersion:%d", req.cver);
 
