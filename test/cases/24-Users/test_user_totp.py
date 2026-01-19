@@ -205,17 +205,28 @@ class TestUserSecurity:
         self.check_login_fail("user1", "abcd@1234", "123456")             # wrong totp
         
         #
-        # totp code expired (30s)
+        # totp code expired (fix 30s + random 0~30s)
         #
         elapsed = time.monotonic() - self.start_time
-        if elapsed < 40:
-            time_to_wait = 40 - elapsed
+        if elapsed < 32:
+            time_to_wait = 32 - elapsed
             print(f"wait {time_to_wait:.1f}s to cross interval boundary")
             time.sleep(time_to_wait)
         else:
-            print(f"already cross interval boundary")
-        self.check_login_fail("user1", "abcd@1234", self.user1_code)  # old code fail
-        
+            print(f"already cross interval boundary 32s.")
+        succ = False    
+        for i in range(40):
+            try:
+                self.check_login("user1", "abcd@1234", self.user1_code)
+                print(f"wait {32+i}s to expect totp code expired ...")
+            except Exception as e:
+                succ = True
+                print(f"succ wait to totp code expired after {32+i}s !")
+                break
+            time.sleep(1)
+        if not succ:
+            raise Exception(f"totp code still not expired after wait 72s.")
+
         print("login totp ............................ [ passed ] ")
 
     #
