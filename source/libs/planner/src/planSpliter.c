@@ -168,21 +168,21 @@ static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pChild, SE
 static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pSplitNode,
                                                ESubplanType subplanType, bool seqScan) {
   SExchangeLogicNode* pExchange = NULL;
-  int32_t             code = splCreateExchangeNode(pCxt, pSplitNode, &pExchange);
-  if (TSDB_CODE_SUCCESS == code) {
-    if (nodeType(pSplitNode) == QUERY_NODE_LOGIC_PLAN_SCAN) {
-      pExchange->dynTbname = ((SScanLogicNode*)pSplitNode)->phTbnameScan;
-    } else {
-      pExchange->dynTbname = false;
-    }
-    pExchange->seqRecvData = seqScan;
-    code = replaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pExchange);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    pSubplan->subplanType = subplanType;
-  } else {
-    nodesDestroyNode((SNode*)pExchange);
-  }
+  int32_t             code = TSDB_CODE_SUCCESS;
+
+  PLAN_ERR_JRET(splCreateExchangeNode(pCxt, pSplitNode, &pExchange));
+
+  pExchange->dynTbname = nodeType(pSplitNode) == QUERY_NODE_LOGIC_PLAN_SCAN ? ((SScanLogicNode*)pSplitNode)->phTbnameScan : false;
+  pExchange->seqRecvData = seqScan;
+
+  PLAN_ERR_JRET(replaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pExchange));
+  pSubplan->subplanType = subplanType;
+
+  return code;
+
+_return:
+  planError("failed to create exchange node for subplan, code:%d", code);
+  nodesDestroyNode((SNode*)pExchange);
   return code;
 }
 
@@ -1923,7 +1923,16 @@ static int32_t virtualTableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   }
   SNode*  pChild = NULL;
   FOREACH(pChild, info.pVirtual->node.pChildren) {
-    PLAN_ERR_JRET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)pChild, info.pSubplan->subplanType, info.pVirtual->tableType == TSDB_SUPER_TABLE));
+    SExchangeLogicNode* pExchange = NULL;
+    PLAN_ERR_JRET(splCreateExchangeNode(pCxt, (SLogicNode*)pChild, &pExchange));
+
+    pExchange->dynTbname = nodeType((SLogicNode*)pChild) == QUERY_NODE_LOGIC_PLAN_SCAN ? ((SScanLogicNode*)pChild)->phTbnameScan : false;
+    pExchange->seqRecvData = (info.pVirtual->tableType == TSDB_SUPER_TABLE);
+
+    pExchange->node.stmtRoot = ((SLogicNode*)pChild)->stmtRoot;
+    REPLACE_NODE(pExchange);
+    pExchange->node.pParent = ((SLogicNode*)pChild)->pParent;
+
     SLogicSubplan *sub = splCreateScanSubplan(pCxt, (SLogicNode*)pChild, 0);
     sub->processOneBlock = needProcessOneBlockEachTime(info.pVirtual);
     PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)sub));

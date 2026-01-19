@@ -473,7 +473,7 @@ typedef struct SSlotDescNode {
 
 typedef struct SDataBlockDescNode {
   ENodeType  type;
-  int16_t    dataBlockId;
+  int64_t    dataBlockId;
   SNodeList* pSlots;
   int32_t    totalRowSize;
   int32_t    outputRowSize;
@@ -884,6 +884,7 @@ typedef struct SDataSinkNode {
 
 typedef struct SDataDispatcherNode {
   SDataSinkNode sink;
+  bool          dynamicSchema;
 } SDataDispatcherNode;
 
 typedef struct SDataInserterNode {

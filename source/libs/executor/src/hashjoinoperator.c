@@ -180,7 +180,7 @@ static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void hJoinGetValColsNum(SNodeList* pList, int32_t blkId, int32_t* colNum) {
+static void hJoinGetValColsNum(SNodeList* pList, int64_t blkId, int32_t* colNum) {
   *colNum = 0;
   
   SNode* pNode = NULL;
