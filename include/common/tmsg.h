@@ -1465,7 +1465,8 @@ typedef struct {
       uint32_t add : 1;      // add or remove
       uint32_t sysPriv : 1;  // system or object privileges
       uint32_t objLevel : 2;
-      uint32_t reserve : 27;
+      uint32_t ignoreNotExists : 1;
+      uint32_t reserve : 26;
     };
   };
   union {

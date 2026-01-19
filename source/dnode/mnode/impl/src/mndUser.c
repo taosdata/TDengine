@@ -1248,7 +1248,8 @@ static int32_t mndUserPrivUpgradeTopics(SMnode *pMnode, SUserObj *pUser, SHashOb
   char   *key = NULL;
   char   *value = NULL;
 
-  SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_PRIVILEGES, .add = 1, .objType = PRIV_OBJ_TOPIC};
+  SAlterRoleReq alterReq = {
+      .alterType = TSDB_ALTER_ROLE_PRIVILEGES, .add = 1, .objType = PRIV_OBJ_TOPIC, .ignoreNotExists = 1};
 
   while ((pIter = taosHashIterate(pTopics, pIter))) {
     size_t keyLen = 0;
@@ -1259,7 +1260,7 @@ static int32_t mndUserPrivUpgradeTopics(SMnode *pMnode, SUserObj *pUser, SHashOb
 
     snprintf(alterReq.objFName, TSDB_OBJ_FNAME_LEN, "%d.%s", name.acctId, name.dbname);
 
-    privAddType(&alterReq.privileges.privSet, PRIV_CM_SUBSCRIBE); 
+    privAddType(&alterReq.privileges.privSet, PRIV_CM_SUBSCRIBE);
 
     TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pMnode, pUser, &alterReq));
   }
