@@ -53,6 +53,10 @@ public class InfluxdbServiceImpl implements InfluxdbService {
     public static final String ESCAPE_COMMA = "\\,";
     public static final String EQUAL = "=";
     public static final String ESCAPE_EQUAL = "\\=";
+    public static final String SPACE = " ";
+    public static final String ESCAPE_SPACE = "\\ ";
+    public static final String BACKSLASH = "\\";
+    public static final String ESCAPE_BACKSLASH = "\\\\";
 
     @Resource
     InfluxdbPoolAutoConfig influxdbPool;
@@ -1116,9 +1120,8 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                             }
                             String tag = pair[0].replace(SEP, ESCAPE_EQUAL);
                             String val = pair[1].replace(SEP, ESCAPE_EQUAL);
-                            // 在后面 sql 中，需去掉转移符号 \
-                            val = val.replace(ESCAPE_EQUAL, EQUAL);
-                            val = val.replace(ESCAPE_COMMA, COMMA);
+                            // 在后面 sql 中，需对转义字符进行处理
+                            val = escapeBackslash(val);
                             tags.add(Pair.of(tag, val));
                         }
                     }
@@ -1129,6 +1132,19 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             }
         }
         return tagValues;
+    }
+
+    /**
+     * escape special character
+     * @param val
+     * @return
+     */
+    public String escapeBackslash(String val) {
+        val = val.replace(ESCAPE_EQUAL, EQUAL);
+        val = val.replace(ESCAPE_COMMA, COMMA);
+        val = val.replace(ESCAPE_SPACE, SPACE);
+        val = val.replace(BACKSLASH, ESCAPE_BACKSLASH);
+        return val;
     }
 
     /**
