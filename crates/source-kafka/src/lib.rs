@@ -158,7 +158,7 @@ pub async fn kafka_to_taos(
         None => {
             channel_based_transformer(
                 pool,
-                cancel.child_token(),
+                &cancel,
                 parser,
                 Some(KAFKA_ID),
                 Some((task_id, job_id)),

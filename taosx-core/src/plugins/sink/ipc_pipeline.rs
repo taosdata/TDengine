@@ -20,9 +20,10 @@ use arrow_flight::{
 };
 use taosx_ipc::prelude::*;
 
+use crate::AGENT_COMPRESSION;
+use crate::Via;
 use crate::core_metrics::get_metrics;
 use crate::utils::trace::BatchCounter;
-use crate::{AGENT_COMPRESSION, Via};
 
 use super::MessageMetadata;
 use super::ipc_transport::{DefaultChannelFactory, RetryConfig, retry_connect};

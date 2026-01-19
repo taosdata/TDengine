@@ -36,7 +36,7 @@ pub async fn migrate_history(mut config: TaskConfig, logger: Sender<String>) -> 
     let break_point = get_break_point(config.task_job_id);
     if let Some(begin_date_time) = break_point {
         tracing::info!(
-            "migrate history start from break point: {}",
+            "migrate history start from breakpoint: {}",
             begin_date_time.to_rfc3339()
         );
         config.begin_datetime = Some(begin_date_time);
@@ -84,7 +84,7 @@ pub async fn sync_history(
     let break_pint = get_break_point(task_job_id);
     if let Some(break_point) = break_pint {
         tracing::info!(
-            "sync history start from break point: {}",
+            "sync history start from breakpoint: {}",
             break_point.to_rfc3339()
         );
         task_config.begin_datetime = Some(break_point);
@@ -598,6 +598,8 @@ impl Consumer {
             let mut row_count = 0;
             let mut batches = 0;
 
+            tracing::info!("migrate history stream writer start");
+
             while let Ok(batch) = rx.recv() {
                 writer.write(&batch)?;
                 tracing::debug!("migrate history write {} rows to ipc", batch.num_rows());
@@ -609,7 +611,7 @@ impl Consumer {
             tracing::debug!(
                 send.batches = batches,
                 send.records = row_count,
-                "sending finished, waiting for persisting"
+                "migrate history stream writer stopped, waiting for persisting"
             );
             writer.finish()?;
             anyhow::Ok(())
@@ -620,17 +622,27 @@ impl Consumer {
             let ack_reader = AckReaderBuilder::new(taosx_ipc::prelude::AckType::Lush)
                 .open(&ack_stream)
                 .context("failed to open ack stream")?;
+            tracing::info!("migrate history ACK reader start");
+
+            let mut count = 0;
             for ack in ack_reader {
                 if !ack.success() {
                     tracing::error!("migrate history write records error: {ack:?}",);
-                    if let Some(message) = ack.message() {
-                        anyhow::bail!("IPC writer error: {message}")
-                    }
+                    let message = ack.message().unwrap_or("Unknown error from IPC writer");
+                    anyhow::bail!("IPC writer error: {message}")
                 }
+                count += 1;
+                tracing::debug!("migrate history receive ACK, count: {}", count);
             }
-            tracing::info!("migrate history ACK reader finished");
+
+            tracing::info!("migrate history ACK reader stopped");
             Ok(())
         });
+
+        tracing::info!(
+            consumer.id = self.id.as_deref().unwrap_or("none"),
+            "migrate history consumer start"
+        );
 
         // query database and send to writer
         let mut batch_count: u64 = 1;
@@ -675,9 +687,22 @@ impl Consumer {
                 .ok_or(anyhow::anyhow!("sub_task_id cannot be None"))?;
             let breakpoint = end.to_rfc3339().to_string();
 
-            breakpoints::breakpoints_set(task_id, job_id, &sub_task_id, &breakpoint)?;
+            if let Err(err) =
+                breakpoints::breakpoints_set(task_id, job_id, &sub_task_id, &breakpoint)
+            {
+                tracing::warn!(
+                    task_id = %task_id,
+                    sub_task_id = %sub_task_id,
+                    breakpoint = %breakpoint,
+                    "failed to set breakpoint, error: {err:?}, skipping..."
+                );
+            }
         }
         drop(tx);
+        tracing::info!(
+            consumer.id = self.id.as_deref().unwrap_or("none"),
+            "migrate history consumer channel closed, stopping writer"
+        );
 
         tracing::debug!("migrate history query finished");
         writer_handler.await??;
@@ -716,7 +741,11 @@ impl Producer {
             time_window
         );
 
+        let mut total_tasks = 0usize;
+        let mut window_index = 0usize;
+
         while window_start < end {
+            window_index += 1;
             let window_end = min(window_start + time_window, end);
 
             let tasks = self
@@ -736,14 +765,26 @@ impl Producer {
                 })
                 .collect_vec();
 
+            tracing::debug!(
+                window_index,
+                window_start = %window_start,
+                window_end = %window_end,
+                tags_groups = tasks.len(),
+                "produce task window"
+            );
+
             for task in tasks {
-                tx.send_async(task).await.unwrap();
+                total_tasks += 1;
+                if tx.send_async(task).await.is_err() {
+                    tracing::warn!("produce task channel closed, stopping...");
+                    break;
+                }
             }
 
             window_start = window_end;
         }
 
-        tracing::debug!("produce task finished");
+        tracing::info!("produce task finished, total tasks: {}", total_tasks);
         Ok(())
     }
 }

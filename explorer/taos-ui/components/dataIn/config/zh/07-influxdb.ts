@@ -288,6 +288,18 @@ export default {
               type: 'number',
               min: 1,
               max: 30
+            },
+            {
+              label: '子表名表达式',
+              description:
+                '自定义子表名的表达式。例如：tb_${tag1}_${tag2}，表示子表名由 tag1 和 tag2 两个标签值组成，关键字 measurement 指代 influxdb measurement 名，未指定则使用默认的子表命名规则。',
+              field: 'tableNamePattern',
+              placeholder: '请输入子表名表达式',
+              pattern: null,
+              grid_two: false,
+              type: 'input',
+              min: 1,
+              max: 200
             }
           ],
           hide: false
