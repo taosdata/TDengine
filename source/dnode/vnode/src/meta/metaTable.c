@@ -217,12 +217,10 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, SSchemaWrapper *p
     }
   }
 
-  if (taosHashGetSize(pColRefHash) > 1000) {
+  if (taosHashGetSize(pColRefHash) > 2000) {
     code = TSDB_CODE_VTABLE_TOO_MANY_REFERENCE;
     goto _return;
   }
-
-
 
   memcpy(pMetaRsp->pColRefs, pRef->pColRef, pRef->nCols * sizeof(SColRef));
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);

@@ -208,7 +208,6 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   snprintf(xnodePipeSocket, PATH_MAX + 64, "%s=%s", "XNODED_LISTEN", xnodedPipeSocket);
 
   xndDebug("txnode env: leader ep: %s, user pass:%s, pipe socket:%s", dnodeIdEnvItem, xnodedUserPass, xnodePipeSocket);
-  xndInfo("txnode env: leader ep: %s, user pass:%s, pipe socket:%s", dnodeIdEnvItem, xnodedUserPass, xnodePipeSocket);
 
   char *envXnoded[] = {xnodedCfgDir,    xnodedLogDir, dnodeIdEnvItem, xnodedUserPass, xnodeClusterId,
                        xnodePipeSocket, NULL};

@@ -710,7 +710,7 @@ class TDCom:
         if "community" in selfPath:
             projPath = selfPath[: selfPath.find("community")]
         elif "TDengine" in selfPath:
-            projPath = selfPath[: selfPath.find("TDengine")]
+            projPath = selfPath[: selfPath.find("TDengine") + len("TDengine")]
         else:
             projPath = selfPath[: selfPath.find("test")]
 
