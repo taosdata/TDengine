@@ -873,6 +873,134 @@ class TestTmqBugs:
         print("bug TS-4674 ................ [passed]") 
 
     #
+    # ------------------- 19 ----------------
+    #
+    def do_td_tmq_token(self):
+        insertJson = '''{
+            "filetype": "insert",
+            "cfgdir": "/etc/taos",
+            "host": "localhost",
+            "port": 6030,
+            "user": "root",
+            "password": "taosdata",
+            "connection_pool_size": 10,
+            "thread_count": 10,
+            "create_table_thread_count": 10,
+            "result_file": "./insert-2-2-1.txt",
+            "confirm_parameter_prompt": "no",
+            "num_of_records_per_req": 3600,
+            "prepared_rand": 3600,
+            "chinese": "no",
+            "escape_character": "yes",
+            "continue_if_fail": "no",
+            "databases": [
+                {
+                    "dbinfo": {
+                        "name": "tmq_token",
+                        "drop": "yes",
+                        "vgroups": 10,
+                        "precision": "ms",
+                "buffer": 512,
+                "cachemodel":"'both'",
+                "stt_trigger": 1
+                    },
+                    "super_tables": [
+                        {
+                            "name": "stb",
+                            "child_table_exists": "no",
+                            "childtable_count": 10000,
+                            "childtable_prefix": "d_",
+                            "auto_create_table": "yes",
+                            "batch_create_tbl_num": 10,
+                            "data_source": "csv",
+                            "insert_mode": "stmt",
+                            "non_stop_mode": "no",
+                            "line_protocol": "line",
+                            "insert_rows": 100,
+                            "childtable_limit": 0,
+                            "childtable_offset": 0,
+                            "interlace_rows": 0,
+                            "insert_interval": 0,
+                            "partial_col_num": 0,
+                            "timestamp_step": 1000,
+                            "start_timestamp": "2024-11-01 00:00:00.000",
+                            "sample_format": "csv",
+                            "sample_file": "./td_double10000_juchi.csv",
+                            "use_sample_ts": "no",
+                            "tags_file": "",
+                            "columns": [
+                                {"type": "DOUBLE", "name": "val"},
+                                { "type": "INT", "name": "quality"}
+                            ],
+                            "tags": [
+                                {"type": "INT", "name": "id", "max": 100, "min": 1}
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }'''
+
+        with open('insert.json', 'w') as file:
+            file.write(insertJson)
+
+        tdLog.info("start to insert data: taosBenchmark -f insert.json")
+        if os.system("taosBenchmark -f insert.json") != 0:
+            tdLog.exit("taosBenchmark -f insert.json")
+
+        tdLog.info("test tmq_token insert done ......")
+
+        tdSql.query(f'create token token1 from user root enable 0 ttl 1')
+        # tdSql.query(f'show tokens')
+        token = tdSql.getData(0,0)
+        print(token)
+        tdSql.execute(f'create topic t0 as select * from tmq_token')
+
+        consumer_dict = {
+            "group.id": "g1",
+            "td.connect.token": token,
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+        }
+        consumer = Consumer(consumer_dict)
+
+        if consumer._tmq == None:
+            print(taos_errno(None))
+        
+        try:
+            consumer.subscribe(["t0"])
+        except TmqError:
+            tdLog.exit(f"subscribe error")
+
+        try:
+            res = consumer.poll(1)
+            print(res)
+
+            consumer.unsubscribe()
+
+            try:
+                consumer.subscribe(["t1"])
+            except TmqError:
+                tdLog.exit(f"subscribe error")
+
+
+            res = consumer.poll(1)
+            print(res)
+            if res == None and taos_errno(None) != 0:
+                tdLog.exit(f"poll error %d" % taos_errno(None))
+
+        except TmqError:
+            tdLog.exit(f"poll error")
+        finally:
+            consumer.close()
+        
+        tdSql.execute(f'drop topic t0')
+        tdSql.execute(f'drop topic t1')
+        
+        print("bug TD-33504 ................ [passed]")       
+
+    #
     # ------------------- main ----------------
     #
     def test_tmq_bugs(self):
