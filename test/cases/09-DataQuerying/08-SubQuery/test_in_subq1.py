@@ -182,8 +182,6 @@ class TestInSubQuery1:
     def execNormalCase(self):
         tdLog.info(f"execCase begin")
 
-        runnedCaseNum = 0
-
         self.openSqlTmpFile()
 
         for self.tableIdx in range(len(self.tableNames)):
@@ -215,8 +213,6 @@ class TestInSubQuery1:
     def execFullStmtCase(self):
         tdLog.info(f"execCase begin")
 
-        runnedCaseNum = 0
-
         self.openSqlTmpFile()
 
         for self.tableIdx in range(len(self.fullTableNames)):
@@ -247,8 +243,6 @@ class TestInSubQuery1:
 
     def execFullTypeCase(self):
         tdLog.info(f"execCase begin")
-
-        runnedCaseNum = 0
 
         self.openSqlTmpFile()
 

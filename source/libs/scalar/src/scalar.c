@@ -556,10 +556,16 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       FOREACH(nodeItem, nodeList->pNodeList) {
         SValueNode *valueNode = (SValueNode *)nodeItem;
         int32_t     tmp = vectorGetConvertType(type, valueNode->node.resType.type);
+        if (tmp < 0) {
+          sclError("%s not supported convertion between %d and %d", __func__, type, valueNode->node.resType.type);
+          return TSDB_CODE_SCALAR_CONVERT_ERROR;
+        }
+        
         if (tmp != 0) {
           type = tmp;
         }
       }
+      
       if (IS_NUMERIC_TYPE(type)) {
         ctx->type.peerType = type;
       }

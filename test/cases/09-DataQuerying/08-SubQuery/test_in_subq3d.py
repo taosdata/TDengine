@@ -1,8 +1,5 @@
-import time
-import math
 import os
 from new_test_framework.utils import tdLog, tdSql, tdCom
-import datetime
 
 class TestInSubQuery3d:
     updatecfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
@@ -106,7 +103,7 @@ class TestInSubQuery3d:
         
         1. Prepare data.
         2. Explain execute various nested queries with different kind of in sub queries.
-        
+
         Since: v3.4.1.0
 
         Labels: common,ci

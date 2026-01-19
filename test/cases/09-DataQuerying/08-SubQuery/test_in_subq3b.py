@@ -167,8 +167,6 @@ class TestInSubQuery3b:
     def execCase(self):
         tdLog.info(f"execCase begin")
 
-        runnedCaseNum = 0
-
         self.openSqlTmpFile()
 
         for self.tableIdx in range(len(self.tableNames)):
