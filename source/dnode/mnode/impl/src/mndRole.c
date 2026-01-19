@@ -38,7 +38,6 @@
 #define MND_ROLE_SYSROLE_VER PRIV_INFO_TABLE_VERSION
 
 static SRoleMgmt roleMgmt = {0};
-static bool      isDeploy = false;
 
 static int32_t  mndCreateDefaultRoles(SMnode *pMnode);
 static int32_t  mndUpgradeDefaultRoles(SMnode *pMnode, int32_t version);
@@ -854,17 +853,24 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndUpgradeDefaultRoles(SMnode *pMnode, int32_t version) { return mndCreateDefaultRoles(pMnode); }
+static int32_t mndUpgradeDefaultRoles(SMnode *pMnode, int32_t version) {
+  int32_t code = 0, lino = 0;
+  if (!mndIsLeader(pMnode)) return code;
+#if 1
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPGRADE_ROLE, .info.ahandle = 0, .info.notFreeAhandle = 1};
+  SEpSet  epSet = {0};
+  mndGetMnodeEpSet(pMnode, &epSet);
+  TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
+_exit:
+  if (code < 0) {
+    mError("failed at line %d to upgrade roles since %s", lino, tstrerror(code));
+  }
+#endif
+  TAOS_RETURN(code);
+}
 
 static int32_t mndProcessUpgradeRoleReq(SRpcMsg *pReq) {
-  int32_t code = 0, lino = 0;
-//   SMnode *pMnode = pReq->info.node;
-//   TAOS_CHECK_EXIT(mndUpgradeDefaultRoles(pMnode, MND_ROLE_VER_NUMBER));
-// _exit:
-//   if (code < 0) {
-//     mError("failed at line %d to upgrade role since %s", lino, tstrerror(code));
-//   }
-  TAOS_RETURN(code);
+  return mndCreateDefaultRoles(pReq->info.node);
 }
 
 static int32_t mndProcessGetRoleAuthReq(SRpcMsg *pReq) { TAOS_RETURN(0); }

@@ -567,6 +567,19 @@ typedef struct {
 } SUserPassword;
 
 typedef struct {
+  SHashObj* pReadDbs;
+  SHashObj* pWriteDbs;
+  SHashObj* pReadTbs;
+  SHashObj* pWriteTbs;
+  SHashObj* pTopics;
+  SHashObj* pAlterTbs;
+  SHashObj* pReadViews;
+  SHashObj* pWriteViews;
+  SHashObj* pAlterViews;
+  SHashObj* pUseDbs;
+} SPrivHashObjSet;
+
+typedef struct {
   union {
     char name[TSDB_USER_LEN];
     char user[TSDB_USER_LEN];
@@ -621,7 +634,7 @@ typedef struct {
 
   int64_t lastRoleRetrieve;  // Last retrieve time of role, unit is ms, default value is 0. Memory only and no need to
                              // persist.
-  SHashObj* roles;
+  SHashObj* roles;           // k: roleName, v: flag (int8_t: 0x01 enable(default), 0x00 disable)
 
   SPrivSet sysPrivs;
   /**
@@ -641,16 +654,17 @@ typedef struct {
   SHashObj* deleteTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
   // SHashObj* alterTbs;   // obsolete: migrate to objPrivs
 
-  // 1.*.*           
+  // 1.*.*
   // 1.db.*
   // 1.db.tbName     with tag condition, specific columns
 
   // SHashObj* readViews;
   // SHashObj* writeViews;
   // SHashObj* alterViews;
-  SHashObj* ownedDbs;  // k:dbFName, v: empty
-  SRWLatch  lock;
-  int8_t    passEncryptAlgorithm;
+  SHashObj*        ownedDbs;  // k:dbFName, v: empty
+  SRWLatch         lock;
+  int8_t           passEncryptAlgorithm;
+  SPrivHashObjSet* legacyPrivs;  // used to temporarily hold legacy privileges during upgrade
 } SUserObj;
 
 typedef struct {

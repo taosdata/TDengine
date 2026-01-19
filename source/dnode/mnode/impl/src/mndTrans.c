@@ -862,9 +862,8 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   }
 
   int32_t sdbMaxId = sdbGetMaxId(pMnode->pSdb, SDB_TRANS);
-  sdbWriteLock(pMnode->pSdb, SDB_TRANS);
+  sdbReadLock(pMnode->pSdb, SDB_TRANS);
   pTrans->id = TMAX(sdbMaxId, tsMaxTransId + 1);
-  tsMaxTransId = TMAX(tsMaxTransId, pTrans->id);
   sdbUnLock(pMnode->pSdb, SDB_TRANS);
   pTrans->stage = TRN_STAGE_PREPARE;
   pTrans->policy = policy;

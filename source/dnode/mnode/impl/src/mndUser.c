@@ -108,7 +108,7 @@
   (ALTER_USER_DEL_PRIVS(_type) && ALTER_USER_SUBSCRIBE_PRIV(_priv))
 #endif
 
-#if 1 // def TD_ENTERPRISE
+#ifdef TD_ENTERPRISE
 extern int32_t mndAlterUserPrivInfo(SUserObj *pNew, SAlterRoleReq *pAlterReq);
 extern int32_t mndAlterUserRoleInfo(SMnode *pMnode, SUserObj *pOperUser, const char *token, SUserObj *pOld, SUserObj *pNew, SAlterRoleReq *pAlterReq);
 #endif
@@ -131,6 +131,7 @@ static int32_t  mndUserActionInsert(SSdb *pSdb, SUserObj *pUser);
 static int32_t  mndUserActionDelete(SSdb *pSdb, SUserObj *pUser);
 static int32_t  mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew);
 static int32_t  mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate, SRpcMsg *pReq);
+static int32_t  mndAlterUser(SMnode *pMnode, SUserObj *pNew, SRpcMsg *pReq);
 static int32_t  mndProcessCreateUserReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterUserReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropUserReq(SRpcMsg *pReq);
@@ -153,19 +154,6 @@ static int32_t createIpWhiteListFromOldVer(void *buf, int32_t len, SIpWhiteList 
 static int32_t tDerializeIpWhileListFromOldVer(void *buf, int32_t len, SIpWhiteList *pList);
 
 typedef struct {
-  SHashObj *pReadDbs;
-  SHashObj *pWriteDbs;
-  SHashObj *pReadTbs;
-  SHashObj *pWriteTbs;
-  SHashObj *pTopics;
-  SHashObj *pAlterTbs;
-  SHashObj *pReadViews;
-  SHashObj *pWriteViews;
-  SHashObj *pAlterViews;
-  SHashObj *pUseDbs;
-} SPrivHashObjSet;
-
-typedef struct {
   SIpWhiteListDual   *wlIp;
   SDateTimeWhiteList *wlTime;
   SLoginInfo          loginInfo;
@@ -180,7 +168,7 @@ typedef struct {
 } SUserCache;
 
 static SUserCache userCache;
-static int8_t     userIdUpgraded = 0;
+static int8_t     upgradeSecurity = 0;
 
 static int32_t userCacheInit() {
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
@@ -1160,24 +1148,6 @@ static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
   return mndCreateDefaultUser(pMnode, TSDB_DEFAULT_USER, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS);
 }
 
-static int32_t mndUpgradeUserIds(SMnode *pMnode, bool *upgraded) {
-//   int32_t   code = 0, lino = 0;
-//   SSdb     *pSdb = pMnode->pSdb;
-//   SUserObj *pUser = NULL;
-//   void     *pIter = NULL;
-//   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
-//     if (pUser->uid == 0) {
-//       pUser->uid = mndGenerateUid(pUser->user, strlen(pUser->user));
-//       TAOS_CHECK_GOTO(mndUserActionUpdate(pMnode, pUser), &lino, _exit);
-//       *upgraded = true;
-//       mInfo("user:%s, uid upgraded to %" PRId64, pUser->user, pUser->uid);
-//     }
-//     mndUserFreeObj(pUser);
-//   }
-// _exit:
-  return 0;
-}
-
 static int32_t mndUserPrivUpgradeDbOwner(SMnode *pMnode, STrans *pTrans) {
   int32_t code = 0, lino = 0;
   SSdb   *pSdb = pMnode->pSdb;
@@ -1244,39 +1214,181 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndProcessUpgradeUserReq(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
+static int32_t mndUserPrivUpgradeTbViews(SUserObj *pNew, SHashObj **ppTblHash, SHashObj *pTbs, int32_t privType,
+                                         uint8_t objType) {
   int32_t code = 0, lino = 0;
-#if 0
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING , NULL, "upgrade-user");
-  if (pTrans == NULL) {
-    mError("failed to create upgrade-user transaction since %s", terrstr());
+  void   *pIter = NULL;
+  char   *key = NULL;
+  char   *value = NULL;
+
+  SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_PRIVILEGES, .add = 1, .objType = objType, .objLevel = 1};
+
+  while ((pIter = taosHashIterate(pTbs, pIter))) {
+    size_t keyLen = 0;
+    key = taosHashGetKey(pIter, &keyLen);
+
+    SName name = {0};
+    TAOS_CHECK_EXIT(tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+
+    snprintf(alterReq.objFName, TSDB_OBJ_FNAME_LEN, "%d.%s", name.acctId, name.dbname);
+    snprintf(alterReq.tblName, TSDB_TABLE_NAME_LEN, "%s", name.tname);
+
+    privAddType(&alterReq.privileges.privSet, privType);
+
+    if ((((char *)pIter)[0] != 0) && (((char *)pIter)[1] != 0)) {
+      alterReq.privileges.cond = taosStrdup(pIter);
+      if (alterReq.privileges.cond == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      alterReq.privileges.condLen = strlen(pIter) + 1;  // include '\0'
+      if (ppTblHash && !*ppTblHash) {
+        *ppTblHash = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
+        if (!*ppTblHash) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+        taosHashSetFreeFp(*ppTblHash, privTblPoliciesFree);
+      }
+    }
+
+    TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pNew, &alterReq));
+  }
+_exit:
+  tFreeSAlterRoleReq(&alterReq);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndUserPrivUpgradeUsedDb(SUserObj *pNew, SHashObj *pDbs) {
+  int32_t code = 0, lino = 0;
+  void   *pIter = NULL;
+  char   *key = NULL;
+  char   *value = NULL;
+
+  SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_PRIVILEGES, .add = 1, .objType = PRIV_OBJ_DB};
+
+  while ((pIter = taosHashIterate(pDbs, pIter))) {
+    size_t keyLen = 0;
+    key = taosHashGetKey(pIter, &keyLen);
+
+    SName name = {0};
+    TAOS_CHECK_EXIT(tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB));
+
+    snprintf(alterReq.objFName, TSDB_OBJ_FNAME_LEN, "%d.%s", name.acctId, name.dbname);
+
+    privAddType(&alterReq.privileges.privSet, PRIV_DB_USE);
+
+    TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pNew, &alterReq));
+  }
+_exit:
+  tFreeSAlterRoleReq(&alterReq);
+  TAOS_RETURN(code);
+}
+
+/**
+ * @brief migrate from 3.3.x.y to 3.4.x.y
+ * @return int32_t
+ */
+static int32_t mndUserPrivUpgradeUser(SMnode *pMnode, SUserObj *pObj) {
+  int32_t          code = 0, lino = 0;
+  SPrivHashObjSet *pPrivSet = pObj->legacyPrivs;
+
+  if (pObj->uid != 0 && pPrivSet == NULL) {
+    // already upgraded
+    TAOS_RETURN(0);
+  }
+
+  if (pObj->uid == 0) {
+    pObj->uid = mndGenerateUid(pObj->name, strlen(pObj->name));
+  }
+
+  if (!pObj->objPrivs &&
+      !(pObj->objPrivs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
     TAOS_CHECK_EXIT(terrno);
   }
 
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeDbOwner(pMnode, pTrans));
+  if (!pObj->roles &&
+      !(pObj->roles = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
+  uint8_t flag = 0x01;
+  if (pObj->superUser) {
+    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSDBA, strlen(TSDB_ROLE_SYSDBA) + 1, &flag, sizeof(flag)));
+    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSSEC, strlen(TSDB_ROLE_SYSSEC) + 1, &flag, sizeof(flag)));
+    TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSAUDIT, strlen(TSDB_ROLE_SYSAUDIT) + 1, &flag, sizeof(flag)));
+  } else {
+    if (pObj->sysInfo == 1) {
+      TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_DEFAULT, strlen(TSDB_ROLE_DEFAULT) + 1, &flag, sizeof(flag)));
+    } else {
+      TAOS_CHECK_EXIT(
+          taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_0, strlen(TSDB_ROLE_SYSINFO_0) + 1, &flag, sizeof(flag)));
+    }
+  }
+
+  // read db: db.*
+  // write db: db.*
+
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pObj, &pObj->selectTbs, pPrivSet->pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
+  TAOS_CHECK_EXIT(
+      mndUserPrivUpgradeTbViews(pObj, &pObj->insertTbs, pPrivSet->pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pObj, NULL, pPrivSet->pAlterTbs, PRIV_CM_ALTER, PRIV_OBJ_TBL));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pObj, NULL, pPrivSet->pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pObj, NULL, pPrivSet->pWriteViews, PRIV_CM_ALTER, PRIV_OBJ_VIEW));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pObj, NULL, pPrivSet->pWriteViews, PRIV_CM_DROP, PRIV_OBJ_VIEW));
+
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeUsedDb(pObj, pPrivSet->pUseDbs));
+  mInfo("user:%s, upgraded with uid:%" PRId64, pObj->name, pObj->uid);
+_exit:
+  TAOS_RETURN(code);
+}
+
+static int32_t mndUserPrivUpgradeUsers(SMnode *pMnode, SRpcMsg *pReq) {
+  int32_t   code = 0, lino = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  SUserObj *pObj = NULL;
+  void     *pIter = NULL;
+
+  while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pObj))) {
+    SUserObj newObj = {0};
+    TAOS_CHECK_EXIT(mndUserDupObj(pObj, &newObj));
+    TAOS_CHECK_EXIT(mndUserPrivUpgradeUser(pMnode, &newObj));
+    TAOS_CHECK_EXIT(mndAlterUser(pMnode, &newObj, pReq));
+    sdbRelease(pSdb, pObj);
+    pObj = NULL;
+  }
+_exit:
+  sdbCancelFetch(pSdb, pIter);
+  sdbRelease(pSdb, pObj);
+  if (code < 0) {
+    mError("failed at line %d to upgrade db owner uid since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessUpgradeUserReq(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = 0, lino = 0;
+
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeUsers(pMnode, pReq));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeDbOwner(pMnode, pReq));
 #ifdef TD_ENTERPRISE
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeViewOwner(pMnode, pTrans));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeViewOwner(pMnode, pReq));
 
 #endif
   // update owner of consumers
   // update owner of topics
   // update owner of views
-  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
 _exit:
   if (code < 0) {
     mError("failed at line %d to upgrade users since %s", lino, tstrerror(code));
   }
-  mndTransDrop(pTrans);
-#endif
   TAOS_RETURN(code);
 }
 
 static int32_t mndUpgradeUsers(SMnode *pMnode, int32_t version) {
   int32_t code = 0, lino = 0;
-  if (userIdUpgraded == 0) return code;
+  if (upgradeSecurity == 0) return code;
   if (!mndIsLeader(pMnode)) return code;
-#if 0
+
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPGRADE_USER, .info.ahandle = 0, .info.notFreeAhandle = 1};
   SEpSet  epSet = {0};
   mndGetMnodeEpSet(pMnode, &epSet);
@@ -1285,7 +1397,6 @@ _exit:
   if (code < 0) {
     mError("failed at line %d to upgrade users since %s", lino, tstrerror(code));
   }
-#endif
   TAOS_RETURN(code);
 }
 
@@ -1314,7 +1425,7 @@ static int32_t tSerializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj) {
     char  *key = taosHashGetKey(pIter, &keyLen);  // key: role name
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, key));
 
-    uint8_t flag = *(int8_t *)pIter;
+    uint8_t flag = *(uint8_t *)pIter;
     TAOS_CHECK_EXIT(tEncodeU8(&encoder, flag));  // value: 0 reset, 1 set(default)
   }
 
@@ -1733,110 +1844,6 @@ _OVER:
   return pRaw;
 }
 
-static int32_t mndUserPrivUpgradeTbViews(SUserObj *pNew, SHashObj **ppTblHash, SHashObj *pTbs, int32_t privType,
-                                         uint8_t objType) {
-  int32_t code = 0, lino = 0;
-  void   *pIter = NULL;
-  char   *key = NULL;
-  char   *value = NULL;
-
-  SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_PRIVILEGES, .add = 1, .objType = objType, .objLevel = 1};
-
-  while ((pIter = taosHashIterate(pTbs, pIter))) {
-    size_t keyLen = 0;
-    key = taosHashGetKey(pIter, &keyLen);
-
-    SName name = {0};
-    TAOS_CHECK_EXIT(tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
-
-    snprintf(alterReq.objFName, TSDB_OBJ_FNAME_LEN, "%d.%s", name.acctId, name.dbname);
-    snprintf(alterReq.tblName, TSDB_TABLE_NAME_LEN, "%s", name.tname);
-
-    privAddType(&alterReq.privileges.privSet, privType);
-
-    if ((((char *)pIter)[0] != 0) && (((char *)pIter)[1] != 0)) {
-      alterReq.privileges.cond = taosStrdup(pIter);
-      if (alterReq.privileges.cond == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-      alterReq.privileges.condLen = strlen(pIter) + 1;  // include '\0'
-      if (ppTblHash && !*ppTblHash) {
-        *ppTblHash = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
-        if (!*ppTblHash) {
-          TAOS_CHECK_EXIT(terrno);
-        }
-        taosHashSetFreeFp(*ppTblHash, privTblPoliciesFree);
-      }
-    }
-
-    TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pNew, &alterReq));
-  }
-_exit:
-  tFreeSAlterRoleReq(&alterReq);
-  TAOS_RETURN(code);
-}
-
-static int32_t mndUserPrivUpgradeUsedDb(SUserObj *pNew, SHashObj *pDbs) {
-  int32_t code = 0, lino = 0;
-  void   *pIter = NULL;
-  char   *key = NULL;
-  char   *value = NULL;
-
-  SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_PRIVILEGES, .add = 1, .objType = PRIV_OBJ_DB};
-
-  while ((pIter = taosHashIterate(pDbs, pIter))) {
-    size_t keyLen = 0;
-    key = taosHashGetKey(pIter, &keyLen);
-
-    SName name = {0};
-    TAOS_CHECK_EXIT(tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB));
-
-    snprintf(alterReq.objFName, TSDB_OBJ_FNAME_LEN, "%d.%s", name.acctId, name.dbname);
-
-    privAddType(&alterReq.privileges.privSet, PRIV_DB_USE);
-
-    TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pNew, &alterReq));
-  }
-_exit:
-  tFreeSAlterRoleReq(&alterReq);
-  TAOS_RETURN(code);
-}
-
-/**
- * @brief migrate from 3.3.x.y to 3.4.x.y
- * @return int32_t
- */
-static int32_t mndUserPrivUpgrade(SSdbRaw *pRaw, SPrivHashObjSet *pPrivSet, SUserObj *pNew) {
-  int32_t   code = 0, lino = 0;
-  SHashObj *pReadDbs = pPrivSet->pReadDbs;
-  SHashObj *pWriteDbs = pPrivSet->pWriteDbs;
-
-  if (!pNew->objPrivs &&
-      !(pNew->objPrivs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-
-  if (pNew->uid == 0) {
-    pNew->uid = mndGenerateUid(pNew->name, strlen(pNew->name));
-    userIdUpgraded = 1;
-  }
-
-  // read db: db.*
-  // write db: db.*
-
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, &pNew->selectTbs, pPrivSet->pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
-  TAOS_CHECK_EXIT(
-      mndUserPrivUpgradeTbViews(pNew, &pNew->insertTbs, pPrivSet->pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, NULL, pPrivSet->pAlterTbs, PRIV_CM_ALTER, PRIV_OBJ_TBL));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, NULL, pPrivSet->pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, NULL, pPrivSet->pWriteViews, PRIV_CM_ALTER, PRIV_OBJ_VIEW));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pNew, NULL, pPrivSet->pWriteViews, PRIV_CM_DROP, PRIV_OBJ_VIEW));
-
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeUsedDb(pNew, pPrivSet->pUseDbs));
-_exit:
-  TAOS_RETURN(code);
-}
-
 static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   int32_t         code = 0;
   int32_t         lino = 0;
@@ -1844,7 +1851,6 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SUserObj       *pUser = NULL;
   char           *key = NULL;
   char           *value = NULL;
-  SPrivHashObjSet privSet = {0};
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
@@ -1863,6 +1869,14 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   pUser = sdbGetRowObj(pRow);
   if (pUser == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  }
+
+  if (sver < USER_VER_SUPPORT_ADVANCED_SECURITY) {
+    upgradeSecurity = 1;
+    pUser->legacyPrivs = taosMemCalloc(1, sizeof(SPrivHashObjSet));
+    if (pUser->legacyPrivs == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
   }
 
   int32_t dataPos = 0;
@@ -1916,23 +1930,23 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   }
 
   if (numOfReadDbs > 0) {
-    privSet.pReadDbs =
+    pUser->legacyPrivs->pReadDbs =
         taosHashInit(numOfReadDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    if (privSet.pReadDbs == NULL) {
+    if (pUser->legacyPrivs->pReadDbs == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
   }
   if (numOfWriteDbs > 0) {
-    privSet.pWriteDbs =
+    pUser->legacyPrivs->pWriteDbs =
         taosHashInit(numOfWriteDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    if (privSet.pWriteDbs == NULL) {
+    if (pUser->legacyPrivs->pWriteDbs == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
   }
   if (numOfTopics > 0) {
-    privSet.pTopics =
+    pUser->legacyPrivs->pTopics =
         taosHashInit(numOfTopics, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    if (privSet.pTopics == NULL) {
+    if (pUser->legacyPrivs->pTopics == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
   }
@@ -1940,14 +1954,14 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER)
     int32_t len = strlen(db) + 1;
-    TAOS_CHECK_GOTO(taosHashPut(privSet.pReadDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
+    TAOS_CHECK_GOTO(taosHashPut(pUser->legacyPrivs->pReadDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
   }
 
   for (int32_t i = 0; i < numOfWriteDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     SDB_GET_BINARY(pRaw, dataPos, db, TSDB_DB_FNAME_LEN, _OVER)
     int32_t len = strlen(db) + 1;
-    TAOS_CHECK_GOTO(taosHashPut(privSet.pWriteDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
+    TAOS_CHECK_GOTO(taosHashPut(pUser->legacyPrivs->pWriteDbs, db, len, db, TSDB_DB_FNAME_LEN), &lino, _OVER);
   }
 
   if (sver >= 2) {
@@ -1955,7 +1969,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       char topic[TSDB_TOPIC_FNAME_LEN] = {0};
       SDB_GET_BINARY(pRaw, dataPos, topic, TSDB_TOPIC_FNAME_LEN, _OVER)
       int32_t len = strlen(topic) + 1;
-      TAOS_CHECK_GOTO(taosHashPut(privSet.pTopics, topic, len, topic, TSDB_TOPIC_FNAME_LEN), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(pUser->legacyPrivs->pTopics, topic, len, topic, TSDB_TOPIC_FNAME_LEN), &lino, _OVER);
     }
   }
 
@@ -1978,34 +1992,53 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT32(pRaw, dataPos, &numOfUseDbs, _OVER)
 
     if (numOfReadTbs > 0) {
-      privSet.pReadTbs =
+      pUser->legacyPrivs->pReadTbs =
           taosHashInit(numOfReadTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-      if (privSet.pReadTbs == NULL) {
+      if (pUser->legacyPrivs->pReadTbs == NULL) {
         TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       }
     }
     if (numOfWriteTbs > 0) {
-      privSet.pWriteTbs =
+      pUser->legacyPrivs->pWriteTbs =
           taosHashInit(numOfWriteTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-      if (privSet.pWriteTbs == NULL) {
+      if (pUser->legacyPrivs->pWriteTbs == NULL) {
         TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       }
     }
-    privSet.pAlterTbs =
-        taosHashInit(numOfAlterTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    privSet.pReadViews =
-        taosHashInit(numOfReadViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    privSet.pWriteViews =
-        taosHashInit(numOfWriteViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    privSet.pAlterViews =
-        taosHashInit(numOfAlterViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    privSet.pUseDbs =
-        taosHashInit(numOfUseDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-
-    if (privSet.pAlterTbs == NULL || privSet.pReadViews == NULL || privSet.pWriteViews == NULL ||
-        privSet.pAlterViews == NULL || privSet.pUseDbs == NULL) {
-      TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-      goto _OVER;
+    if (numOfAlterTbs > 0) {
+      pUser->legacyPrivs->pAlterTbs =
+          taosHashInit(numOfAlterTbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+      if (pUser->legacyPrivs->pAlterTbs == NULL) {
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      }
+    }
+    if (numOfReadViews > 0) {
+      pUser->legacyPrivs->pReadViews =
+          taosHashInit(numOfReadViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+      if (pUser->legacyPrivs->pReadViews == NULL) {
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      }
+    }
+    if (numOfWriteViews > 0) {
+      pUser->legacyPrivs->pWriteViews =
+          taosHashInit(numOfWriteViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+      if (pUser->legacyPrivs->pWriteViews == NULL) {
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      }
+    }
+    if (numOfAlterViews > 0) {
+      pUser->legacyPrivs->pAlterViews =
+          taosHashInit(numOfAlterViews, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+      if (pUser->legacyPrivs->pAlterViews == NULL) {
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      }
+    }
+    if (numOfUseDbs > 0) {
+      pUser->legacyPrivs->pUseDbs =
+          taosHashInit(numOfUseDbs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+      if (pUser->legacyPrivs->pUseDbs == NULL) {
+        TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+      }
     }
 
     for (int32_t i = 0; i < numOfReadTbs; ++i) {
@@ -2028,7 +2061,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       (void)memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-      TAOS_CHECK_GOTO(taosHashPut(privSet.pReadTbs, key, keyLen, value, valuelen), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(pUser->legacyPrivs->pReadTbs, key, keyLen, value, valuelen), &lino, _OVER);
     }
 
     for (int32_t i = 0; i < numOfWriteTbs; ++i) {
@@ -2051,7 +2084,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       (void)memset(value, 0, valuelen);
       SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-      TAOS_CHECK_GOTO(taosHashPut(privSet.pWriteTbs, key, keyLen, value, valuelen), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(pUser->legacyPrivs->pWriteTbs, key, keyLen, value, valuelen), &lino, _OVER);
     }
 
     if (sver >= 6) {
@@ -2075,7 +2108,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        TAOS_CHECK_GOTO(taosHashPut(privSet.pAlterTbs, key, keyLen, value, valuelen), &lino, _OVER);
+        TAOS_CHECK_GOTO(taosHashPut(pUser->legacyPrivs->pAlterTbs, key, keyLen, value, valuelen), &lino, _OVER);
       }
 
       for (int32_t i = 0; i < numOfReadViews; ++i) {
@@ -2098,7 +2131,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        TAOS_CHECK_GOTO(taosHashPut(privSet.pReadViews, key, keyLen, value, valuelen), &lino, _OVER);
+        TAOS_CHECK_GOTO(taosHashPut(pUser->legacyPrivs->pReadViews, key, keyLen, value, valuelen), &lino, _OVER);
       }
 
       for (int32_t i = 0; i < numOfWriteViews; ++i) {
@@ -2121,7 +2154,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        TAOS_CHECK_GOTO(taosHashPut(privSet.pWriteViews, key, keyLen, value, valuelen), &lino, _OVER);
+        TAOS_CHECK_GOTO(taosHashPut(pUser->legacyPrivs->pWriteViews, key, keyLen, value, valuelen), &lino, _OVER);
       }
 
       for (int32_t i = 0; i < numOfAlterViews; ++i) {
@@ -2144,7 +2177,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
         (void)memset(value, 0, valuelen);
         SDB_GET_BINARY(pRaw, dataPos, value, valuelen, _OVER)
 
-        TAOS_CHECK_GOTO(taosHashPut(privSet.pAlterViews, key, keyLen, value, valuelen), &lino, _OVER);
+        TAOS_CHECK_GOTO(taosHashPut(pUser->legacyPrivs->pAlterViews, key, keyLen, value, valuelen), &lino, _OVER);
       }
     }
 
@@ -2162,7 +2195,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
       int32_t ref = 0;
       SDB_GET_INT32(pRaw, dataPos, &ref, _OVER);
 
-      TAOS_CHECK_GOTO(taosHashPut(privSet.pUseDbs, key, keyLen, &ref, sizeof(ref)), &lino, _OVER);
+      TAOS_CHECK_GOTO(taosHashPut(pUser->legacyPrivs->pUseDbs, key, keyLen, &ref, sizeof(ref)), &lino, _OVER);
     }
   }
   // decoder white list
@@ -2299,24 +2332,9 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
 
   taosInitRWLatch(&pUser->lock);
   dropOldPasswords(pUser);
-
-  if (sver < USER_VER_SUPPORT_ADVANCED_SECURITY) {
-    TAOS_CHECK_GOTO(mndUserPrivUpgrade(pRaw, &privSet, pUser), &lino, _OVER);
-  }
-
 _OVER:
   taosMemoryFree(key);
   taosMemoryFree(value);
-  taosHashCleanup(privSet.pReadDbs);
-  taosHashCleanup(privSet.pWriteDbs);
-  taosHashCleanup(privSet.pTopics);
-  taosHashCleanup(privSet.pReadTbs);
-  taosHashCleanup(privSet.pWriteTbs);
-  taosHashCleanup(privSet.pAlterTbs);
-  taosHashCleanup(privSet.pReadViews);
-  taosHashCleanup(privSet.pWriteViews);
-  taosHashCleanup(privSet.pAlterViews);
-  taosHashCleanup(privSet.pUseDbs);
   if (code < 0) {
     terrno = code;
     mError("user:%s, failed to decode at line %d from raw:%p since %s", pUser == NULL ? "null" : pUser->user, lino,
@@ -2616,6 +2634,19 @@ void mndUserFreeObj(SUserObj *pUser) {
   pUser->updateTbs = NULL;
   pUser->deleteTbs = NULL;
   pUser->roles = NULL;
+  if (pUser->legacyPrivs) {
+    taosHashCleanup(pUser->legacyPrivs->pReadDbs);
+    taosHashCleanup(pUser->legacyPrivs->pWriteDbs);
+    taosHashCleanup(pUser->legacyPrivs->pReadTbs);
+    taosHashCleanup(pUser->legacyPrivs->pWriteTbs);
+    taosHashCleanup(pUser->legacyPrivs->pTopics);
+    taosHashCleanup(pUser->legacyPrivs->pAlterTbs);
+    taosHashCleanup(pUser->legacyPrivs->pReadViews);
+    taosHashCleanup(pUser->legacyPrivs->pWriteViews);
+    taosHashCleanup(pUser->legacyPrivs->pAlterViews);
+    taosHashCleanup(pUser->legacyPrivs->pUseDbs);
+    taosMemoryFreeClear(pUser->legacyPrivs);
+  }
 }
 
 static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
@@ -2663,6 +2694,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   TSWAP(pOld->updateTbs, pNew->updateTbs);
   TSWAP(pOld->deleteTbs, pNew->deleteTbs);
   TSWAP(pOld->roles, pNew->roles);
+  TSWAP(pOld->legacyPrivs, pNew->legacyPrivs);
 
   TSWAP(pOld->pIpWhiteListDual, pNew->pIpWhiteListDual);
   pOld->ipWhiteListVer = pNew->ipWhiteListVer;
@@ -3003,7 +3035,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
-  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_SYSINFO_1, strlen(TSDB_ROLE_SYSINFO_1) + 1, NULL, 0)) != 0) {
+  uint8_t flag = 0x01;
+  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_DEFAULT, strlen(TSDB_ROLE_DEFAULT) + 1, &flag, sizeof(flag))) != 0) {
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
