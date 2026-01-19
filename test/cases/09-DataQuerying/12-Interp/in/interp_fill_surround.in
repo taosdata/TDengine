@@ -1,0 +1,39 @@
+select _irowts, _isfilled, _irowts_origin, interp(c1, 0) from test_surround.ntb range("2026-01-01 11:00:00", "2026-01-10 11:00:00") every(1d) fill(prev) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 0) from test_surround.ntb range("2026-01-01 11:00:00", "2026-01-10 11:00:00") every(1d) fill(next) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 0) from test_surround.ntb range("2026-01-01 11:00:00", "2026-01-10 11:00:00") every(1d) fill(near) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 0) from test_surround.ntb range("2026-01-01 11:00:00", "2026-01-10 11:00:00") every(1d) fill(prev) surround(12h, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 0) from test_surround.ntb range("2026-01-01 11:00:00", "2026-01-10 11:00:00") every(1d) fill(next) surround(12h, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 0) from test_surround.ntb range("2026-01-01 11:00:00", "2026-01-10 11:00:00") every(1d) fill(near) surround(12h, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.ntb range("2026-01-01 11:00:00", "2026-01-10 11:00:00") every(1d) fill(prev) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.ntb range("2026-01-01 11:00:00", "2026-01-10 11:00:00") every(1d) fill(next) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.ntb range("2026-01-01 11:00:00", "2026-01-10 11:00:00") every(1d) fill(near) surround(1d, 100);
+
+select _irowts, _isfilled, _irowts_origin, interp(c1, 0) from test_surround.ntb range("2026-01-01 12:00:00", "2026-01-10 12:00:00") every(1d) fill(prev) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 0) from test_surround.ntb range("2026-01-01 12:00:00", "2026-01-10 12:00:00") every(1d) fill(next) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 0) from test_surround.ntb range("2026-01-01 12:00:00", "2026-01-10 12:00:00") every(1d) fill(near) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.ntb range("2026-01-01 12:00:00", "2026-01-10 12:00:00") every(1d) fill(prev) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.ntb range("2026-01-01 12:00:00", "2026-01-10 12:00:00") every(1d) fill(next) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.ntb range("2026-01-01 12:00:00", "2026-01-10 12:00:00") every(1d) fill(near) surround(1d, 100);
+
+select _irowts, _isfilled, _irowts_origin, interp(c1, 0) from test_surround.ntb range("2026-01-01 12:00:00", "2026-01-10 12:00:00") every(1d) fill(prev) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 0) from test_surround.ntb range("2026-01-03 12:00:00", "2026-01-05 12:00:00") every(12h) fill(next) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 0) from test_surround.ntb range("2026-01-03 12:00:00", "2026-01-05 12:00:00") every(12h) fill(near) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.ntb range("2026-01-03 12:00:00", "2026-01-05 12:00:00") every(12h) fill(prev) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.ntb range("2026-01-03 12:00:00", "2026-01-05 12:00:00") every(12h) fill(next) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.ntb range("2026-01-03 12:00:00", "2026-01-05 12:00:00") every(12h) fill(near) surround(1d, 100);
+
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.stb range("2026-01-01 12:00:00", "2026-01-10 12:00:00") every(1d) fill(prev) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.stb range("2026-01-01 12:00:00", "2026-01-10 12:00:00") every(1d) fill(next) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.stb range("2026-01-01 12:00:00", "2026-01-10 12:00:00") every(1d) fill(near) surround(1d, 100);
+
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.stb range("2026-01-04 00:00:00") fill(prev) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.stb range("2026-01-04 00:00:00") fill(next) surround(1d, 100);
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1) from test_surround.stb range("2026-01-04 00:00:00") fill(near) surround(1d, 100);
+
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test_surround.stb partition by tbname range("2026-01-04 00:00:00") fill(prev) surround(1d, 100) order by tbname;
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test_surround.stb partition by tbname range("2026-01-04 00:00:00") fill(next) surround(1d, 100) order by tbname;
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test_surround.stb partition by tbname range("2026-01-04 00:00:00") fill(near) surround(1d, 100) order by tbname;
+
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test_surround.stb partition by gid range("2026-01-04 00:00:00", "2026-01-10 00:00:00") fill(prev) surround(24h, 100) order by gid;
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test_surround.stb partition by gid range("2026-01-04 00:00:00", "2026-01-10 00:00:00") fill(next) surround(24h, 100) order by gid;
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test_surround.stb partition by gid range("2026-01-04 00:00:00", "2026-01-10 00:00:00") fill(near) surround(24h, 100) order by gid;

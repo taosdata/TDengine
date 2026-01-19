@@ -1962,3 +1962,72 @@ class TestInterval:
         self.do_interval()
         self.do_interval_unit()
         self.do_interval_limit_opt_2()
+
+    def check_surround_abnormal(self):
+        pass
+
+    def test_interval_fill_surround(self):
+        """Interval: test fill with surrounding time
+
+        1. Testing basic usage of interval fill with surrounding time
+        2. Testing abnormal usage like 'near' mode and wrong parameters
+
+        Since: v3.4.1.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-01-19 Tony Zhang created
+
+        """
+        tdSql.execute("create database test_surround keep 36500")
+        tdSql.execute("use test_surround")
+        tdSql.execute("create table test_surround.ntb (ts timestamp, c1 int)")
+        tdSql.execute("create table test_surround.stb (ts timestamp, c1 int) tags (gid int)")
+        tdSql.execute("create table test_surround.ctb1 using test_surround.stb tags (1)")
+        tdSql.execute("create table test_surround.ctb2 using test_surround.stb tags (2)")
+        tdSql.execute("create table test_surround.ctb3 using test_surround.stb tags (3)")
+        tdSql.execute("""
+            insert into test_surround.ntb values
+            ("2026-01-01 12:00:00", 1)
+            ("2026-01-02 12:00:00", null)
+            ("2026-01-03 12:00:00", null)
+            ("2026-01-06 12:00:00", 2)
+            ("2026-01-07 12:00:00", null)
+            ("2026-01-08 12:00:00", null)
+            ("2026-01-09 12:00:00", 3)""")
+        tdSql.execute("""
+            insert into test_surround.ctb1 values
+            ("2026-01-01 12:00:00", 1)
+            ("2026-01-02 12:00:00", null)
+            ("2026-01-03 12:00:00", null)
+            ("2026-01-06 12:00:00", 2)
+            ("2026-01-07 12:00:00", null)
+            ("2026-01-08 12:00:00", null)
+            ("2026-01-09 12:00:00", 3)""")
+        tdSql.execute("""
+            insert into test_surround.ctb2 values
+            ("2026-01-01 12:00:00", null)
+            ("2026-01-02 12:00:00", null)
+            ("2026-01-03 12:00:00", 1)
+            ("2026-01-04 12:00:00", 2)
+            ("2026-01-07 12:00:00", 3)
+            ("2026-01-08 12:00:00", null)
+            ("2026-01-09 12:00:00", null)""")
+        tdSql.execute("""
+            insert into test_surround.ctb3 values
+            ("2026-01-01 12:00:00", null)
+            ("2026-01-02 12:00:00", 1)
+            ("2026-01-03 12:00:00", null)
+            ("2026-01-05 12:00:00", 2)
+            ("2026-01-07 12:00:00", null)
+            ("2026-01-08 12:00:00", 3)
+            ("2026-01-09 12:00:00", null)""")
+        
+        tdSql.query("""select _wstart, _wend, max(c1) from ntb where ts between
+            '2026-01-02 12:00:00' and '2026-01-06 12:00:00' interval(12h, auto)
+            fill(prev) surround(1d, 100)""")
+
+        self.check_surround_abnormal()
