@@ -462,6 +462,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/07-Geometry/test_fun_geo_basic.py
 ## 08-Window
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_fun_win_lag.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_fun_win_keep_order.py
 
 # 12-UDFs
 
