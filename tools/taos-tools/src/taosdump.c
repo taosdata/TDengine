@@ -1276,12 +1276,9 @@ static int64_t getTbCountOfStbNative(const char *dbName, const char *stbName) {
     }
 
     snprintf(command, TSDB_MAX_ALLOWED_SQL_LEN,
-            g_args.db_escape_char
-            ? "SELECT COUNT(*) FROM (SELECT DISTINCT(TBNAME) "
-                "FROM `%s`.%s%s%s)"
-            : "SELECT COUNT(*) FROM (SELECT DISTINCT(TBNAME) "
-                "FROM %s.%s%s%s)",
-            dbName, g_escapeChar, stbName, g_escapeChar);
+                "SELECT COUNT(*) FROM information_schema.ins_tables "
+                "WHERE stable_name = '%s' AND db_name = '%s'",
+                stbName, dbName);
     debugPrint("get stable child count %s", command);
 
     int64_t count = 0;
@@ -7346,12 +7343,10 @@ static int64_t fillTbNameArr(
         return -1;
     }
 
-
     snprintf(command2, TSDB_MAX_ALLOWED_SQL_LEN,
-            g_args.db_escape_char
-            ? "SELECT DISTINCT(TBNAME) FROM `%s`.%s%s%s "
-            : "SELECT DISTINCT(TBNAME) FROM %s.%s%s%s ",
-            dbInfo->name, g_escapeChar, stable, g_escapeChar);
+            "SELECT table_name FROM information_schema.ins_tables "
+            "WHERE stable_name='%s' AND db_name='%s'",
+            stable, dbInfo->name);
 
     debugPrint("%s() LN%d, run command <%s>.\n",
                 __func__, __LINE__, command2);
