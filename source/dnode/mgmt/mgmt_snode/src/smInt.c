@@ -132,9 +132,9 @@ int32_t smCheckAndMigrateCheckpoints(const char *path) {
       }
 
       if (data == NULL || dataLen <= 0) {
-        dError("invalid checkpoint data length, streamId:%" PRIx64, streamId);
+        dInfo("no checkpoint data for streamId:%" PRIx64 ", skipping", streamId);
         taosMemoryFree(data);
-        return TSDB_CODE_INVALID_DATA_FMT;
+        continue;
       }
 
       // Rewrite checkpoint (will be encrypted with tsMetaKey)
