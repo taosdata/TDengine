@@ -143,14 +143,14 @@ int32_t smCheckAndMigrateCheckpoints(const char *path) {
       if (code != TSDB_CODE_SUCCESS) {
         dError("failed to rewrite checkpoint for streamId:%" PRIx64 " since %s", streamId, tstrerror(code));
         taosMemoryFree(data);
-        taosCloseDir(&pDir);
+        TAOS_UNUSED(taosCloseDir(&pDir));
         return code;
       }
 
       dInfo("successfully migrated checkpoint to encrypted format, streamId:%" PRIx64, streamId);
     }
 
-    taosCloseDir(&pDir);
+    TAOS_UNUSED(taosCloseDir(&pDir));
   }
 
   // Update and persist encrypted flag to snode.json
