@@ -141,4 +141,27 @@ select _wstart, _wend, _wduration,  mavg(voltage, 4) from keeporderdb.t1 event_w
 select _wstart, _wend, _wduration,  tail(voltage, 1) from keeporderdb.meters partition by tbname  event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217 order by tbname;
 select _wstart, _wend, _wduration,  tail(voltage, 1) from keeporderdb.t1 event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217;
 
+select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters session(ts, 1s) order by _wstart limit 2;
+select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters session(ts, 3s) order by _wstart limit 2;
+select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters session(ts, 4s) order by _wstart limit 2;
+select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters count_window(3);
+select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters partition by tbname count_window(300) order by tbname, _wstart;
+select _wstart, _wend, _wduration, unique(current) from keeporderdb.t1 partition by tbname count_window(300) order by tbname;
+select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters state_window(voltage);
+select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname, _wstart;
+select _wstart, _wend, _wduration, unique(current) from keeporderdb.t1 where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname;
+select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters partition by tbname  event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217 order by tbname, _wstart;
+select _wstart, _wend, _wduration, unique(current) from keeporderdb.t1 event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217;
 
+
+select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters session(ts, 1s) order by _wstart limit 2;
+select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters session(ts, 3s) order by _wstart limit 2;
+select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters session(ts, 4s) order by _wstart limit 2;
+select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters count_window(3);
+select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters partition by tbname count_window(300) order by tbname, _wstart;
+select _wstart, _wend, _wduration, mode(current) from keeporderdb.t1 partition by tbname count_window(300) order by tbname;
+select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters state_window(voltage);
+select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname, _wstart;
+select _wstart, _wend, _wduration, mode(current) from keeporderdb.t1 where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname;
+select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters partition by tbname  event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217 order by tbname, _wstart;
+select _wstart, _wend, _wduration, mode(current) from keeporderdb.t1 event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217;

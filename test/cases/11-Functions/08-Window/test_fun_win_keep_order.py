@@ -44,8 +44,12 @@ class TestKeepOrderFunc:
         """
         
         self.prepare_data()
+
+        self.unstable_result_func()
+
         testCases = [
             "test_win_keep_order_func_baisic",
+            "test_win_keep_order_func_subquery",
         ]
         for testCase in testCases:
             tdLog.info(f"test {testCase} case")
@@ -54,15 +58,6 @@ class TestKeepOrderFunc:
 
             tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
      
-    def join_with_const_condition(self):
-        tdLog.info("test join with constant condition")
-        
-        # unique result more than 1 rows and no order by clause
-        tdSql.error(
-            f"select b.*, a.ats from (select ts ats, unique(f) from sst) as a inner join sst b on timetruncate(a.ats, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a"
-        )
-        
-
     def prepare_data(self):
         ts = 1741757485230
         tdSql.execute("drop database if exists keeporderdb")
@@ -77,4 +72,75 @@ class TestKeepOrderFunc:
                     (num >= 380 and num < 389) or (num >= 470 and num < 480) or (num >= 570 and num < 581) or (num >= 680 and num < 692):
                     continue
                 tdSql.execute(f"INSERT INTO keeporderdb.t{tableIndex} VALUES({ts + num * 1000}, {ts + (num % 13) * 1000}, {num * 1.0}, {215 + num/15}, 0.0)")
-        
+
+    def unstable_result_func(self):
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.meters session(ts, 1s) order by _wstart limit 2;"
+        tdSql.query(sql)
+        tdSql.checkRows(2)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.meters session(ts, 1s) order by _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(13)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.meters session(ts, 3s) order by _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(11)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.meters session(ts, 4s) order by _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(10)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.meters session(ts, 10s) order by _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(4)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.meters partition by tbname count_window(300) order by tbname, _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(30)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.t1 partition by tbname count_window(300) order by tbname;"
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.meters where ts > '2025-03-12 13:30:18.230' and ts < '2025-03-12 13:32:03.230' partition by tbname state_window(voltage) order by tbname, _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(30)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.t1 where ts > '2025-03-12 13:30:18.230' and ts < '2025-03-12 13:32:03.230' partition by tbname state_window(voltage) order by tbname;"
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.meters partition by tbname  event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217 order by tbname, _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(10)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.t1 event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217;"
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 2) from keeporderdb.meters session(ts, 1s) order by _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(26)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 2) from keeporderdb.meters session(ts, 3s) order by _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(22)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 2) from keeporderdb.meters session(ts, 4s) order by _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(20)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 2) from keeporderdb.meters session(ts, 10s) order by _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(8)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 2) from keeporderdb.meters partition by tbname count_window(300) order by tbname, _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(60)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 2) from keeporderdb.t1 partition by tbname count_window(300) order by tbname;"
+        tdSql.query(sql)
+        tdSql.checkRows(6)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 2) from keeporderdb.meters where ts > '2025-03-12 13:30:18.230' and ts < '2025-03-12 13:32:03.230' partition by tbname state_window(voltage) order by tbname, _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(60)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 2) from keeporderdb.t1 where ts > '2025-03-12 13:30:18.230' and ts < '2025-03-12 13:32:03.230' partition by tbname state_window(voltage) order by tbname;"
+        tdSql.query(sql)
+        tdSql.checkRows(6)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 2) from keeporderdb.meters partition by tbname  event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217 order by tbname, _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(20)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 2) from keeporderdb.t1 event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217;"
+        tdSql.query(sql)
+        tdSql.checkRows(2)
+
+        # Duplicate timestamp not allowed in count/event/state window
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.meters state_window(voltage);"
+        tdSql.error(sql)
+        sql = f"select _wstart, _wend, _wduration, SAMPLE(current, 1) from keeporderdb.meters count_window(3);"
+        tdSql.error(sql)

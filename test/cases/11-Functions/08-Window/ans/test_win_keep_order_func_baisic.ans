@@ -1536,3 +1536,161 @@ DB error: tail function is not supported in window query or group query [0x80002
 taos> select _wstart, _wend, _wduration,  tail(voltage, 1) from keeporderdb.t1 event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217;
 
 DB error: tail function is not supported in window query or group query [0x8000264F] 
+taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters session(ts, 1s) order by _wstart limit 2;
+
+DB error: unique function is not supported in window query or group query [0x8000264F] 
+taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters session(ts, 3s) order by _wstart limit 2;
+
+DB error: unique function is not supported in window query or group query [0x8000264F] 
+taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters session(ts, 4s) order by _wstart limit 2;
+
+DB error: unique function is not supported in window query or group query [0x8000264F] 
+taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters count_window(3);
+
+DB error: unique function is not supported in window query or group query [0x8000264F] 
+taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters partition by tbname count_window(300) order by tbname, _wstart;
+
+DB error: unique function is not supported in window query or group query [0x8000264F] 
+taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.t1 partition by tbname count_window(300) order by tbname;
+
+DB error: unique function is not supported in window query or group query [0x8000264F] 
+taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters state_window(voltage);
+
+DB error: unique function is not supported in window query or group query [0x8000264F] 
+taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname, _wstart;
+
+DB error: unique function is not supported in window query or group query [0x8000264F] 
+taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.t1 where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname;
+
+DB error: unique function is not supported in window query or group query [0x8000264F] 
+taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters partition by tbname  event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217 order by tbname, _wstart;
+
+DB error: unique function is not supported in window query or group query [0x8000264F] 
+taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.t1 event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217;
+
+DB error: unique function is not supported in window query or group query [0x8000264F] 
+taos> select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters session(ts, 1s) order by _wstart limit 2;
+         _wstart         |          _wend          |      _wduration       |    mode(current)     |
+===================================================================================================
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:34.230 |                  9000 |                    2 |
+ 2025-03-12 13:31:36.230 | 2025-03-12 13:31:54.230 |                 18000 |                   14 |
+
+taos> select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters session(ts, 3s) order by _wstart limit 2;
+         _wstart         |          _wend          |      _wduration       |    mode(current)     |
+===================================================================================================
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:32:14.230 |                 49000 |                   14 |
+ 2025-03-12 13:32:18.230 | 2025-03-12 13:32:44.230 |                 26000 |                   60 |
+
+taos> select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters session(ts, 4s) order by _wstart limit 2;
+         _wstart         |          _wend          |      _wduration       |    mode(current)     |
+===================================================================================================
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:32:44.230 |                 79000 |                   14 |
+ 2025-03-12 13:32:49.230 | 2025-03-12 13:33:24.230 |                 35000 |                   90 |
+
+taos> select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters count_window(3);
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
+taos> select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters partition by tbname count_window(300) order by tbname, _wstart;
+         _wstart         |          _wend          |      _wduration       |    mode(current)     |
+===================================================================================================
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:37:00.230 |                335000 |                  168 |
+ 2025-03-12 13:37:01.230 | 2025-03-12 13:42:30.230 |                329000 |                  438 |
+ 2025-03-12 13:42:31.230 | 2025-03-12 13:43:04.230 |                 33000 |                  670 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:37:00.230 |                335000 |                  168 |
+ 2025-03-12 13:37:01.230 | 2025-03-12 13:42:30.230 |                329000 |                  438 |
+ 2025-03-12 13:42:31.230 | 2025-03-12 13:43:04.230 |                 33000 |                  670 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:37:00.230 |                335000 |                  168 |
+ 2025-03-12 13:37:01.230 | 2025-03-12 13:42:30.230 |                329000 |                  438 |
+ 2025-03-12 13:42:31.230 | 2025-03-12 13:43:04.230 |                 33000 |                  670 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:37:00.230 |                335000 |                  168 |
+ 2025-03-12 13:37:01.230 | 2025-03-12 13:42:30.230 |                329000 |                  438 |
+ 2025-03-12 13:42:31.230 | 2025-03-12 13:43:04.230 |                 33000 |                  670 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:37:00.230 |                335000 |                  168 |
+ 2025-03-12 13:37:01.230 | 2025-03-12 13:42:30.230 |                329000 |                  438 |
+ 2025-03-12 13:42:31.230 | 2025-03-12 13:43:04.230 |                 33000 |                  670 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:37:00.230 |                335000 |                  168 |
+ 2025-03-12 13:37:01.230 | 2025-03-12 13:42:30.230 |                329000 |                  438 |
+ 2025-03-12 13:42:31.230 | 2025-03-12 13:43:04.230 |                 33000 |                  670 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:37:00.230 |                335000 |                  168 |
+ 2025-03-12 13:37:01.230 | 2025-03-12 13:42:30.230 |                329000 |                  438 |
+ 2025-03-12 13:42:31.230 | 2025-03-12 13:43:04.230 |                 33000 |                  670 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:37:00.230 |                335000 |                  168 |
+ 2025-03-12 13:37:01.230 | 2025-03-12 13:42:30.230 |                329000 |                  438 |
+ 2025-03-12 13:42:31.230 | 2025-03-12 13:43:04.230 |                 33000 |                  670 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:37:00.230 |                335000 |                  168 |
+ 2025-03-12 13:37:01.230 | 2025-03-12 13:42:30.230 |                329000 |                  438 |
+ 2025-03-12 13:42:31.230 | 2025-03-12 13:43:04.230 |                 33000 |                  670 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:37:00.230 |                335000 |                  168 |
+ 2025-03-12 13:37:01.230 | 2025-03-12 13:42:30.230 |                329000 |                  438 |
+ 2025-03-12 13:42:31.230 | 2025-03-12 13:43:04.230 |                 33000 |                  670 |
+
+taos> select _wstart, _wend, _wduration, mode(current) from keeporderdb.t1 partition by tbname count_window(300) order by tbname;
+         _wstart         |          _wend          |      _wduration       |    mode(current)     |
+===================================================================================================
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:37:00.230 |                335000 |                  168 |
+ 2025-03-12 13:37:01.230 | 2025-03-12 13:42:30.230 |                329000 |                  438 |
+ 2025-03-12 13:42:31.230 | 2025-03-12 13:43:04.230 |                 33000 |                  670 |
+
+taos> select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters state_window(voltage);
+
+DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
+taos> select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname, _wstart;
+         _wstart         |          _wend          |      _wduration       |    mode(current)     |
+===================================================================================================
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:32.230 |                  7000 |                    2 |
+ 2025-03-12 13:31:33.230 | 2025-03-12 13:31:47.230 |                 14000 |                   14 |
+ 2025-03-12 13:31:48.230 | 2025-03-12 13:32:02.230 |                 14000 |                   28 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:32.230 |                  7000 |                    2 |
+ 2025-03-12 13:31:33.230 | 2025-03-12 13:31:47.230 |                 14000 |                   14 |
+ 2025-03-12 13:31:48.230 | 2025-03-12 13:32:02.230 |                 14000 |                   28 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:32.230 |                  7000 |                    2 |
+ 2025-03-12 13:31:33.230 | 2025-03-12 13:31:47.230 |                 14000 |                   14 |
+ 2025-03-12 13:31:48.230 | 2025-03-12 13:32:02.230 |                 14000 |                   28 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:32.230 |                  7000 |                    2 |
+ 2025-03-12 13:31:33.230 | 2025-03-12 13:31:47.230 |                 14000 |                   14 |
+ 2025-03-12 13:31:48.230 | 2025-03-12 13:32:02.230 |                 14000 |                   28 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:32.230 |                  7000 |                    2 |
+ 2025-03-12 13:31:33.230 | 2025-03-12 13:31:47.230 |                 14000 |                   14 |
+ 2025-03-12 13:31:48.230 | 2025-03-12 13:32:02.230 |                 14000 |                   28 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:32.230 |                  7000 |                    2 |
+ 2025-03-12 13:31:33.230 | 2025-03-12 13:31:47.230 |                 14000 |                   14 |
+ 2025-03-12 13:31:48.230 | 2025-03-12 13:32:02.230 |                 14000 |                   28 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:32.230 |                  7000 |                    2 |
+ 2025-03-12 13:31:33.230 | 2025-03-12 13:31:47.230 |                 14000 |                   14 |
+ 2025-03-12 13:31:48.230 | 2025-03-12 13:32:02.230 |                 14000 |                   28 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:32.230 |                  7000 |                    2 |
+ 2025-03-12 13:31:33.230 | 2025-03-12 13:31:47.230 |                 14000 |                   14 |
+ 2025-03-12 13:31:48.230 | 2025-03-12 13:32:02.230 |                 14000 |                   28 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:32.230 |                  7000 |                    2 |
+ 2025-03-12 13:31:33.230 | 2025-03-12 13:31:47.230 |                 14000 |                   14 |
+ 2025-03-12 13:31:48.230 | 2025-03-12 13:32:02.230 |                 14000 |                   28 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:32.230 |                  7000 |                    2 |
+ 2025-03-12 13:31:33.230 | 2025-03-12 13:31:47.230 |                 14000 |                   14 |
+ 2025-03-12 13:31:48.230 | 2025-03-12 13:32:02.230 |                 14000 |                   28 |
+
+taos> select _wstart, _wend, _wduration, mode(current) from keeporderdb.t1 where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname;
+         _wstart         |          _wend          |      _wduration       |    mode(current)     |
+===================================================================================================
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:32.230 |                  7000 |                    2 |
+ 2025-03-12 13:31:33.230 | 2025-03-12 13:31:47.230 |                 14000 |                   14 |
+ 2025-03-12 13:31:48.230 | 2025-03-12 13:32:02.230 |                 14000 |                   28 |
+
+taos> select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters partition by tbname  event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217 order by tbname, _wstart;
+         _wstart         |          _wend          |      _wduration       |    mode(current)     |
+===================================================================================================
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:48.230 |                 23000 |                   14 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:48.230 |                 23000 |                   14 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:48.230 |                 23000 |                   14 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:48.230 |                 23000 |                   14 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:48.230 |                 23000 |                   14 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:48.230 |                 23000 |                   14 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:48.230 |                 23000 |                   14 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:48.230 |                 23000 |                   14 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:48.230 |                 23000 |                   14 |
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:48.230 |                 23000 |                   14 |
+
+taos> select _wstart, _wend, _wduration, mode(current) from keeporderdb.t1 event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217;
+         _wstart         |          _wend          |      _wduration       |    mode(current)     |
+===================================================================================================
+ 2025-03-12 13:31:25.230 | 2025-03-12 13:31:48.230 |                 23000 |                   14 |
+
