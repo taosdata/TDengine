@@ -58,7 +58,15 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `INACTIVE_ACCOUNT_TIME` User inactivity lockout period, in days. The default value is `90`, with a minimum of `1`, set to `UNLIMITED` means never lockout the user. Support in Enterprise Edition v3.4.0.0 and above.
 - `ALLOW_TOKEN_NUM` The maximum allowed number of tokens. The default value is `3`, with a minimum of `0`, set to `UNLIMITED` disables this restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `HOST` and `NOT_ALLOW_HOST` IP address whitelist and blacklist. Entries can be a single IP address, such as `192.168.1.1`, or a subnet range in [CIDR](https://www.rfc-editor.org/rfc/rfc4632) format, such as `192.168.1.1/24`. When both whitelist and blacklist are configured, only addresses that are on the whitelist and not on the blacklist are allowed access. Support in Enterprise Edition v3.4.0.0 and above.
+  - If neither `HOST` nor `NOT_ALLOW_HOST` is set, the user is allowed to log in from any address.
+  - If only `HOST` is set, the user is allowed to log in from that address or subnet range, and login from other addresses is not allowed.
+  - If only `NOT_ALLOW_HOST` is set, the user is not allowed to log in from that address or subnet range, but login from other addresses is allowed.
+  - If both `HOST` and `NOT_ALLOW_HOST` are set, the user can only log in from addresses that belong to `HOST` and do not belong to `NOT_ALLOW_HOST`. Login from any other address is not allowed.
 - `ALLOW_DATETIME` and `NOT_ALLOW_DATETIME` Permitted and prohibited login time ranges based on the server's local time zone. A valid time range consists of three parts: date, start time (accurate to the minute), and duration (in minutes). The date can be a specific date or represented by MON, TUE, WED, THU, FRI, SAT, SUN, for example: `2025-12-25 08:00 120`, `TUE 08:00 120`. Support in Enterprise Edition v3.4.0.0 and above.
+  - If neither `ALLOW_DATETIME` nor `NOT_ALLOW_DATETIME` is set, the user is allowed to log in at any time.
+  - If only `ALLOW_DATETIME` is set, the user is allowed to log in during that time period, and login at other times is not allowed.
+  - If only `NOT_ALLOW_DATETIME` is set, the user is not allowed to log in during that time period, but login at other times is allowed.
+  - If both `ALLOW_DATETIME` and `NOT_ALLOW_DATETIME` are set, the user can only log in during time periods that belong to `ALLOW_DATETIME` and do not belong to `NOT_ALLOW_DATETIME`. Login at any other time is not allowed.
 
 In the example below, we create a user with the password `abc123!@#` who can view system information.
 
@@ -85,6 +93,8 @@ taos> show users;
  root              |     1 |      1 |       1 |        1 | 2025-12-24 18:00:43.197 |    0 | +127.0.0.1/32, +::1/128 | +ALL                 |
 Query OK, 2 rows in set (0.001657s)
 ```
+
+Note that in `allowed_host`, if an address or subnet range is prefixed with `+`, it indicates a whitelist entry, allowing login from that address. If prefixed with `-`, it indicates a blacklist entry, disallowing login from that address. The same rule applies to `allowed_datetime`.
 
 Alternatively, you can query the built-in system table INFORMATION_SCHEMA.INS_USERS to get user information.
 
