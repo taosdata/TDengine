@@ -52,6 +52,7 @@ void   *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, in
                               int32_t alterOriDataLen);
 int32_t mndSetForceDropCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, SStbObj *pStb);
 
+int32_t mndCreateAuditStb(SMnode *pMnode, SDbObj *pDb, SUserObj *pOperUser, STrans *pTrans, SVgObj *pVgroup);
 #ifdef __cplusplus
 }
 #endif

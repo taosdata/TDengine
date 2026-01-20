@@ -812,6 +812,8 @@ typedef enum {
   ANALY_ALGO_TYPE_END = 10,
 } EAnalyAlgoType;
 
+#define AUDIT_STABLE_NAME "operations"
+
 typedef enum {
   TSDB_VERSION_UNKNOWN = 0,
   TSDB_VERSION_OSS,

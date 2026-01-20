@@ -588,7 +588,7 @@ static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVloa
   pGid->learnerProgress = pVload->learnerProgress;
   pGid->snapSeq = pVload->snapSeq;
   pGid->syncTotalIndex = pVload->syncTotalIndex;
-  if (pVload->snapSeq >= 0 && pVload->snapSeq < SYNC_SNAPSHOT_SEQ_END || pVload->syncState == TAOS_SYNC_STATE_LEARNER) {
+  if (pVload->snapSeq > 0 && pVload->snapSeq < SYNC_SNAPSHOT_SEQ_END || pVload->syncState == TAOS_SYNC_STATE_LEARNER) {
     mInfo("vgId:%d, update vnode state:%s from dnode:%d, syncAppliedIndex:%" PRId64 " , syncCommitIndex:%" PRId64
           " , syncTotalIndex:%" PRId64 " ,learnerProgress:%d, snapSeq:%d",
           vgId, syncStr(pVload->syncState), pGid->dnodeId, pVload->syncAppliedIndex, pVload->syncCommitIndex,
@@ -778,15 +778,16 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   SStatusReq statusReq = {0};
   SDnodeObj *pDnode = NULL;
   int32_t    code = -1;
+  int32_t    lino = 0;
 
-  TAOS_CHECK_GOTO(tDeserializeSStatusReq(pReq->pCont, pReq->contLen, &statusReq), NULL, _OVER);
+  TAOS_CHECK_GOTO(tDeserializeSStatusReq(pReq->pCont, pReq->contLen, &statusReq), &lino, _OVER);
 
   int64_t clusterid = mndGetClusterId(pMnode);
   if (statusReq.clusterId != 0 && statusReq.clusterId != clusterid) {
     code = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
     mWarn("dnode:%d, %s, its clusterid:%" PRId64 " differ from current clusterid:%" PRId64 ", code:0x%x",
           statusReq.dnodeId, statusReq.dnodeEp, statusReq.clusterId, clusterid, code);
-    goto _OVER;
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
   if (statusReq.dnodeId == 0) {
@@ -795,7 +796,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       mInfo("dnode:%s, not created yet", statusReq.dnodeEp);
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
       if (terrno != 0) code = terrno;
-      goto _OVER;
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
   } else {
     pDnode = mndAcquireDnode(pMnode, statusReq.dnodeId);
@@ -804,17 +805,17 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       pDnode = mndAcquireDnodeByEp(pMnode, statusReq.dnodeEp);
       if (pDnode != NULL) {
         pDnode->offlineReason = DND_REASON_DNODE_ID_NOT_MATCH;
-        terrno = err;
-        goto _OVER;
+        code = err;
+        TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
 
       mWarn("dnode:%d, %s not exist, code:0x%x", statusReq.dnodeId, statusReq.dnodeEp, err);
       if (err == TSDB_CODE_MND_DNODE_NOT_EXIST) {
-        terrno = err;
-        goto _OVER;
+        code = err;
+        TAOS_CHECK_GOTO(code, &lino, _OVER);
       } else {
         pDnode = mndAcquireDnodeAllStatusByEp(pMnode, statusReq.dnodeEp);
-        if (pDnode == NULL) goto _OVER;
+        if (pDnode == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
       }
     }
   }
@@ -837,8 +838,11 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    auditTokenChanged = false;
   char    auditToken[TSDB_TOKEN_LEN] = {0};
 
+  SDbObj *pDb = NULL;
+  if (tsAuditUseToken || tsAuditSaveInSelf) {
+    pDb = mndAcquireAuditDb(pMnode);
+  }
   if (tsAuditUseToken) {
-    SDbObj *pDb = mndAcquireAuditDb(pMnode);
     if (pDb != NULL) {
       SName name = {0};
       if (tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB) < 0)
@@ -856,14 +860,58 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       mTrace("dnode:%d, get audit user:%s", pDnode->id, auditUser);
       int32_t ret = 0;
       if ((ret = mndGetUserActiveToken("audit", auditToken)) != 0) {
-        mTrace("dnode:%d, failed to get audit user active token, token:%s, since %s", pDnode->id, auditToken,
-               tstrerror(ret));
+        mTrace("dnode:%d, failed to get audit user active token, token:xxxx, since %s", pDnode->id, tstrerror(ret));
       } else {
-        mTrace("dnode:%d, get audit user active token:%s", pDnode->id, auditToken);
+        mTrace("dnode:%d, get audit user active token:xxxx", pDnode->id);
         if (strncmp(statusReq.auditToken, auditToken, TSDB_TOKEN_LEN) != 0) auditTokenChanged = true;
       }
     }
-  } 
+  }
+
+  SEpSet  auditVnodeEpSet = {0};
+  int32_t auditVgId = 0;
+  if (tsAuditSaveInSelf) {
+    if (pDb != NULL) {
+      void   *pIter = NULL;
+      SVgObj *pVgroup = NULL;
+      while (1) {
+        pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+        if (pIter == NULL) break;
+
+        if (mndVgroupInDb(pVgroup, pDb->uid)) {
+          auditVnodeEpSet = mndGetVgroupEpset(pMnode, pVgroup);
+          auditVgId = pVgroup->vgId;
+          sdbCancelFetch(pMnode->pSdb, pIter);
+          sdbRelease(pMnode->pSdb, pVgroup);
+          break;
+        }
+        sdbRelease(pMnode->pSdb, pVgroup);
+      }
+      mndReleaseDb(pMnode, pDb);
+    }
+
+    if (auditVnodeEpSet.numOfEps != statusReq.auditEpSet.numOfEps) {
+      auditTokenChanged = true;
+      mTrace("dnode:%d, audit epset num changed, auditNum:%d, inReq:%d", pDnode->id, auditVnodeEpSet.numOfEps,
+            statusReq.auditEpSet.numOfEps);
+    } else {
+      for (int32_t i = 0; i < auditVnodeEpSet.numOfEps; i++) {
+        if (strncmp(auditVnodeEpSet.eps[i].fqdn, statusReq.auditEpSet.eps[i].fqdn, TSDB_FQDN_LEN) != 0 ||
+            auditVnodeEpSet.eps[i].port != statusReq.auditEpSet.eps[i].port) {
+          auditTokenChanged = true;
+          mTrace("dnode:%d, audit epset changed at item:%d, fqdn:%s:%d:, inReq:%s:%d", pDnode->id, i,
+                auditVnodeEpSet.eps[i].fqdn, auditVnodeEpSet.eps[i].port, statusReq.auditEpSet.eps[i].fqdn,
+                statusReq.auditEpSet.eps[i].port);
+        }
+        break;
+      }
+    }
+
+    if (auditVgId != statusReq.auditVgId) {
+      auditTokenChanged = true;
+      mTrace("dnode:%d, audit vgId changed, auditVgId:%d, inReq:%d", pDnode->id, auditVgId, statusReq.auditVgId);
+    }
+  }
 
   bool needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || pMnode->timeWhiteVer != statusReq.timeWhiteVer ||
@@ -888,7 +936,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->offlineReason = DND_REASON_TIME_UNSYNC;
     mError("dnode:%d, not sync with cluster:%"PRId64" since %s, limit %"PRId64"s", statusReq.dnodeId, pMnode->clusterId,
            tstrerror(code), tsTimestampDeltaLimit);
-    goto _OVER;
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
   for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
     SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
@@ -953,8 +1001,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         pDnode->offlineReason = DND_REASON_VERSION_NOT_MATCH;
       }
       mError("dnode:%d, status msg version:%d not match cluster:%d", statusReq.dnodeId, statusReq.sver, tsVersion);
-      terrno = TSDB_CODE_VERSION_NOT_COMPATIBLE;
-      goto _OVER;
+      code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
 
     if (statusReq.dnodeId == 0) {
@@ -966,8 +1014,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         }
         mError("dnode:%d, clusterId %" PRId64 " not match exist %" PRId64, pDnode->id, statusReq.clusterId,
                pMnode->clusterId);
-        terrno = TSDB_CODE_MND_INVALID_CLUSTER_ID;
-        goto _OVER;
+        code = TSDB_CODE_MND_INVALID_CLUSTER_ID;
+        TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
     }
 
@@ -983,8 +1031,13 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       mInfo("dnode:%d, from offline to online, memory avail:%" PRId64 " total:%" PRId64 " cores:%.2f", pDnode->id,
             statusReq.memAvail, statusReq.memTotal, statusReq.numOfCores);
     } else {
-      mInfo("dnode:%d, send dnode epset, online:%d dnodeVer:%" PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
-            statusReq.dnodeVer, dnodeVer, reboot);
+      mInfo("dnode:%d, do check in status req, online:%d dnodeVer:%" PRId64 ":%" PRId64
+            " reboot:%d, dnodeChanged:%d supportVnodesChanged:%d analVerChanged:%d encryptKeyChanged:%d "
+            "enableWhiteListChanged:%d auditDBChanged:%d auditTokenChanged:%d pMnode->ipWhiteVer:%" PRId64
+            " statusReq.ipWhiteVer:%" PRId64 " pMnode->timeWhiteVer:%" PRId64 " statusReq.timeWhiteVer:%" PRId64,
+            pDnode->id, online, statusReq.dnodeVer, dnodeVer, reboot, dnodeChanged, supportVnodesChanged,
+            analVerChanged, encryptKeyChanged, enableWhiteListChanged, auditDBChanged, auditTokenChanged,
+            pMnode->ipWhiteVer, statusReq.ipWhiteVer, pMnode->timeWhiteVer, statusReq.timeWhiteVer);
     }
 
     pDnode->rebootTime = statusReq.rebootTime;
@@ -997,8 +1050,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->encryptionKeyChksum = statusReq.clusterCfg.encryptionKeyChksum;
     if (memcmp(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN) != 0) {
       tstrncpy(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN + 1);
-      if ((terrno = mndUpdateDnodeObj(pMnode, pDnode)) != 0) {
-        goto _OVER;
+      if ((code = mndUpdateDnodeObj(pMnode, pDnode)) != 0) {
+        TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
     }
 
@@ -1010,21 +1063,31 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     statusRsp.dnodeCfg.clusterId = pMnode->clusterId;
     statusRsp.pDnodeEps = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(SDnodeEp));
     if (statusRsp.pDnodeEps == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      goto _OVER;
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
 
     mndGetDnodeEps(pMnode, statusRsp.pDnodeEps);
     statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
     statusRsp.timeWhiteVer = pMnode->timeWhiteVer;
 
-    if (auditDB[0] != '\0') {
-      mInfo("dnode:%d, set audit db %s in process status rsp", statusReq.dnodeId, auditDB);
-      tstrncpy(statusRsp.auditDB, auditDB, TSDB_DB_FNAME_LEN);
-    }
-    if (auditToken[0] != '\0') {
-      mInfo("dnode:%d, set audit token %s in process status rsp", statusReq.dnodeId, auditToken);
-      tstrncpy(statusRsp.auditToken, auditToken, TSDB_TOKEN_LEN);
+    if (auditTokenChanged) {
+      if (tsAuditUseToken) {
+        if (auditDB[0] != '\0') {
+          mInfo("dnode:%d, set audit db:%s in process status rsp", statusReq.dnodeId, auditDB);
+          tstrncpy(statusRsp.auditDB, auditDB, TSDB_DB_FNAME_LEN);
+        }
+        if (auditToken[0] != '\0') {
+          mInfo("dnode:%d, set audit token:xxxx in process status rsp", statusReq.dnodeId);
+          tstrncpy(statusRsp.auditToken, auditToken, TSDB_TOKEN_LEN);
+        }
+      }
+
+      if (tsAuditSaveInSelf) {
+        mInfo("dnode:%d, set audit epset and vgId:%d in process status rsp", statusReq.dnodeId, auditVgId);
+        statusRsp.auditEpSet = auditVnodeEpSet;
+        statusRsp.auditVgId = auditVgId;
+      }
     }
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
@@ -1033,7 +1096,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     taosArrayDestroy(statusRsp.pDnodeEps);
     if (contLen < 0) {
       code = contLen;
-      goto _OVER;
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
 
     pReq->info.rspLen = contLen;
@@ -1051,7 +1114,7 @@ _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
   if (code != 0) {
-    mError("dnode:%d, failed to process status req since %s", statusReq.dnodeId, tstrerror(code));
+    mError("dnode:%d, failed to process status req at line:%d since %s", statusReq.dnodeId, lino, tstrerror(code));
     return code;
   }
 

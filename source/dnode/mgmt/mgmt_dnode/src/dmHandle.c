@@ -31,16 +31,22 @@
 #endif
 
 extern SConfig *tsCfg;
-extern void setAuditDbNameToken(char *pDb, char *pToken);
+extern void     setAuditDbNameToken(char *pDb, char *pToken, SEpSet *ep, int32_t auditVgId);
 
 #ifndef TD_ENTERPRISE
-void setAuditDbNameToken(char *pDb, char *pToken) {}
+void setAuditDbNameToken(char *pDb, char *pToken, SEpSet *ep, int32_t auditVgId) {}
 #endif
 
 extern void getAuditDbNameToken(char *pDb, char *pToken);
 
 #ifndef TD_ENTERPRISE
 void getAuditDbNameToken(char *pDb, char *pToken) {}
+#endif
+
+extern void getAuditEpSet(SEpSet *ep, int32_t *pVgId);
+
+#ifndef TD_ENTERPRISE
+void void getAuditEpSet(SEpSet *ep, int32_t *pVgId) {}
 #endif
 
 SMonVloadInfo tsVinfo = {0};
@@ -227,9 +233,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
-      dGInfo("dnode:%d, set auditDB:%s, token:%s in status rsp received from mnode", pMgmt->pData->dnodeId,
-             statusRsp.auditDB, statusRsp.auditToken);
-      setAuditDbNameToken(statusRsp.auditDB, statusRsp.auditToken);
+      setAuditDbNameToken(statusRsp.auditDB, statusRsp.auditToken, &(statusRsp.auditEpSet), statusRsp.auditVgId);
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
       dmMayShouldUpdateTimeWhiteList(pMgmt, statusRsp.timeWhiteVer);
       dmMayShouldUpdateAnalyticsFunc(pMgmt, statusRsp.analVer);
@@ -312,6 +316,10 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   if (tsAuditUseToken) {
     getAuditDbNameToken(req.auditDB, req.auditToken);
+  }
+
+  if (tsAuditSaveInSelf) {
+    getAuditEpSet(&req.auditEpSet, &req.auditVgId);
   }
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
