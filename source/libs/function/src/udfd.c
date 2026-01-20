@@ -750,8 +750,6 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     } else {
       handle->udf = udf;
     }
-  } else {
-    --udf->refCount;
   }
 
 _send:
@@ -786,6 +784,18 @@ _send:
   uvUdf->output = uv_buf_init(bufBegin, len);
 
   taosMemoryFreeClear(uvUdf->input.base);
+
+  if (code) {
+    code = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
+    if (code) {
+      fnError("udf name %s remove from hash failed/setup, err:%0x %s", udf->name, code, tstrerror(code));
+    }
+
+    fnError("udf free: setup failed. name %s(%p) err:%0x %s", udf->name, udf, code, tstrerror(code));
+
+    taosMemoryFree(udf);
+  }
+
   return;
 }
 
