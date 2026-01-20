@@ -2068,11 +2068,15 @@ static void setUserAuthInfo(SParseContext* pCxt, SName* pTbName, SUserAuthInfo* 
   pInfo->objType = PRIV_OBJ_TBL;
 }
 
-static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache, bool* pWithInsertCond, SNode** pTagCond,
+static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool isAudit, bool* pMissCache, bool* pWithInsertCond, SNode** pTagCond,
                          SArray** pPrivCols) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SUserAuthInfo authInfo = {0};
   setUserAuthInfo(pCxt, pTbName, &authInfo);
+  if (isAudit) {
+    authInfo.privType = PRIV_AUDIT_TBL_INSERT;
+    authInfo.objType = PRIV_OBJ_CLUSTER;
+  }
   SUserAuthRes authRes = {0};
   SUserAuthRsp authRsp = {.exists = 1};
   if (pCxt->async) {
@@ -2219,13 +2223,20 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   SNode*  pTagCond = NULL;
   SArray* pPrivCols = NULL;
   bool    withInsertCond = false;
-  int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache, &withInsertCond, &pTagCond, &pPrivCols);
+  int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, false, &pCxt->missCache, &withInsertCond, &pTagCond,
+                           &pPrivCols);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTargetTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
 #ifdef TD_ENTERPRISE
+    if (pStmt->pTableMeta && pStmt->pTableMeta->isAudit) {
+      code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, true, &pCxt->missCache, NULL, NULL, NULL);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+    }
     if (!pCxt->missCache) {
       if (TSDB_SUPER_TABLE != pStmt->pTableMeta->tableType) {
         pCxt->needTableTagVal = (NULL != pTagCond);
@@ -4342,6 +4353,12 @@ static int32_t checkAuthUseDb(SParseContext* pCxt, SName* pTbName, bool isAudit)
   authInfo.tbName.acctId = pTbName->acctId;
   authInfo.tbName.type = TSDB_DB_NAME_T;
   authInfo.useDb = isAudit ? AUTH_OWNED_MASK : (AUTH_AUTHORIZED_MASK | AUTH_OWNED_MASK);
+
+  if (isAudit) {
+    // for audit db, recheck insert privilege
+    authInfo.privType = PRIV_AUDIT_TBL_INSERT;
+    authInfo.objType = PRIV_OBJ_TBL;
+  }
 
   SUserAuthRes authRes = {0};
   if (pCxt->async) {

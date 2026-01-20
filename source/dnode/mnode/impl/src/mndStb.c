@@ -1474,7 +1474,9 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, PRIV_TBL_CREATE, PRIV_OBJ_DB, pDb->name, NULL))) {
+  if ((code =
+           mndCheckDbPrivilegeByNameRecF(pMnode, pOperUser, pDb->cfg.isAudit ? PRIV_AUDIT_TBL_CREATE : PRIV_TBL_CREATE,
+                                         pDb->cfg.isAudit ? PRIV_OBJ_CLUSTER : PRIV_OBJ_DB, pDb->name, NULL))) {
     goto _OVER;
   }
 
