@@ -150,7 +150,9 @@ uint32_t taosIntHash_16(const char *key, uint32_t UNUSED_PARAM(len)) { return *(
 uint32_t taosIntHash_8(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint8_t *)key; }
 
 
+#if !defined(WINDOWS)
 __attribute__((no_sanitize("address", "undefined"))) 
+#endif
 uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
   float f = GET_FLOAT_VAL(key);
   if (isnan(f)) {

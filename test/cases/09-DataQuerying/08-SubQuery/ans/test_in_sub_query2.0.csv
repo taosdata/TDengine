@@ -12,15 +12,15 @@ taos> select 1 in (select 1 from st1) from st1;
  true                     |
  true                     |
 
-taos> select 1 not in (select 1 from st1) from st1;
- 1 not in (select 1 from st1) |
-===============================
- false                        |
- false                        |
- false                        |
- false                        |
- false                        |
- false                        |
+taos> select 1 not in (select 1 from v1) from st1;
+ 1 not in (select 1 from v1) |
+==============================
+ false                       |
+ false                       |
+ false                       |
+ false                       |
+ false                       |
+ false                       |
 
 taos> select 1 in (select 1 from st1) a from st1;
    a   |
@@ -32,7 +32,7 @@ taos> select 1 in (select 1 from st1) a from st1;
  true  |
  true  |
 
-taos> select 1 not in (select 1 from st1) a from st1;
+taos> select 1 not in (select 1 from v1) a from st1;
    a   |
 ========
  false |
@@ -47,10 +47,10 @@ taos> select distinct 1 in (select 1 from st1) from st1;
 ===========================
  true                     |
 
-taos> select distinct 1 not in (select 1 from st1) from st1;
- 1 not in (select 1 from st1) |
-===============================
- false                        |
+taos> select distinct 1 not in (select 1 from v1) from st1;
+ 1 not in (select 1 from v1) |
+==============================
+ false                       |
 
 taos> select distinct 1 in (select 1 from st1), f1 from st1;
  1 in (select 1 from st1) |     f1      |
@@ -62,20 +62,20 @@ taos> select distinct 1 in (select 1 from st1), f1 from st1;
  true                     |           6 |
  true                     |           2 |
 
-taos> select distinct 1 not in (select 1 from st1), f1 from st1;
- 1 not in (select 1 from st1) |     f1      |
-=============================================
- false                        |           3 |
- false                        |           6 |
- false                        |           5 |
- false                        |           4 |
- false                        |           1 |
- false                        |           2 |
+taos> select distinct 1 not in (select 1 from v1), f1 from st1;
+ 1 not in (select 1 from v1) |     f1      |
+============================================
+ false                       |           3 |
+ false                       |           6 |
+ false                       |           5 |
+ false                       |           4 |
+ false                       |           1 |
+ false                       |           2 |
 
 taos> select distinct tags 1 in (select 1 from st1) + 1 from st1;
 
 DB error: syntax error near "+ 1 from st1;" [0x80002600] 
-taos> select distinct tags 1 not in (select 1 from st1) + 1 from st1;
+taos> select distinct tags 1 not in (select 1 from v1) + 1 from st1;
 
 DB error: syntax error near "+ 1 from st1;" [0x80002600] 
 taos> select 1 in (select 1 from st1), 1 in (select 1 from st1) from st1;
@@ -88,38 +88,38 @@ taos> select 1 in (select 1 from st1), 1 in (select 1 from st1) from st1;
  true                     | true                     |
  true                     | true                     |
 
-taos> select 1 not in (select 1 from st1), 1 not in (select 1 from st1) from st1;
- 1 not in (select 1 from st1) | 1 not in (select 1 from st1) |
-==============================================================
- false                        | false                        |
- false                        | false                        |
- false                        | false                        |
- false                        | false                        |
- false                        | false                        |
- false                        | false                        |
+taos> select 1 not in (select 1 from v1), 1 not in (select 1 from v1) from st1;
+ 1 not in (select 1 from v1) | 1 not in (select 1 from v1) |
+============================================================
+ false                       | false                       |
+ false                       | false                       |
+ false                       | false                       |
+ false                       | false                       |
+ false                       | false                       |
+ false                       | false                       |
 
 taos> select abs(1 in (select 1 from st1)) from st1;
 
 DB error: syntax error near "in (select 1 from st1)) from st1;" [0x80002600] 
-taos> select abs(1 not in (select 1 from st1)) from st1;
+taos> select abs(1 not in (select 1 from v1)) from st1;
 
-DB error: syntax error near "not in (select 1 from st1)) from st1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1)) from st1;" [0x80002600] 
 taos> select abs(1 in (select 1 from st1) + 1) from st1;
 
 DB error: syntax error near "in (select 1 from st1) + 1) from st1;" [0x80002600] 
-taos> select abs(1 not in (select 1 from st1) + 1) from st1;
+taos> select abs(1 not in (select 1 from v1) + 1) from st1;
 
-DB error: syntax error near "not in (select 1 from st1) + 1) from st1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1) + 1) from st1;" [0x80002600] 
 taos> select sum(1 in (select 1 from st1)) from st1;
 
 DB error: syntax error near "in (select 1 from st1)) from st1;" [0x80002600] 
-taos> select sum(1 not in (select 1 from st1)) from st1;
+taos> select sum(1 not in (select 1 from v1)) from st1;
 
-DB error: syntax error near "not in (select 1 from st1)) from st1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1)) from st1;" [0x80002600] 
 taos> select case when 1 in (select 1 from st1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
 
 DB error: syntax error near "> 0 then 1 else 2 end, sum(f1) from st1 group by f1;" [0x80002600] 
-taos> select case when 1 not in (select 1 from st1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
+taos> select case when 1 not in (select 1 from v1) > 0 then 1 else 2 end, sum(f1) from st1 group by f1;
 
 DB error: syntax error near "> 0 then 1 else 2 end, sum(f1) from st1 group by f1;" [0x80002600] 
 taos> select case when 1 = 1 then 2 / 1 in (select 1 from st1) else 2 end, sum(f1) from st1 group by f1;
@@ -132,20 +132,20 @@ taos> select case when 1 = 1 then 2 / 1 in (select 1 from st1) else 2 end, sum(f
                                                             0 |                     6 |
                                                             0 |                     2 |
 
-taos> select case when 1 = 1 then 2 / 1 not in (select 1 from st1) else 2 end, sum(f1) from st1 group by f1;
- case when 1 = 1 then 2 / 1 not in (select 1 from st1) else 2 end |        sum(f1)        |
-===========================================================================================
-                                                                1 |                     5 |
-                                                                1 |                     1 |
-                                                                1 |                     3 |
-                                                                1 |                     4 |
-                                                                1 |                     6 |
-                                                                1 |                     2 |
+taos> select case when 1 = 1 then 2 / 1 not in (select 1 from v1) else 2 end, sum(f1) from st1 group by f1;
+ case when 1 = 1 then 2 / 1 not in (select 1 from v1) else 2 end |        sum(f1)        |
+==========================================================================================
+                                                               1 |                     5 |
+                                                               1 |                     1 |
+                                                               1 |                     3 |
+                                                               1 |                     4 |
+                                                               1 |                     6 |
+                                                               1 |                     2 |
 
 taos> select case when 0 = 1 then 1 else 1 in (select 1 from st1) is null end, sum(f1) from st1 group by f1;
 
 DB error: syntax error near "is null end, sum(f1) from st1 group by f1;" [0x80002600] 
-taos> select case when 0 = 1 then 1 else 1 not in (select 1 from st1) is null end, sum(f1) from st1 group by f1;
+taos> select case when 0 = 1 then 1 else 1 not in (select 1 from v1) is null end, sum(f1) from st1 group by f1;
 
 DB error: syntax error near "is null end, sum(f1) from st1 group by f1;" [0x80002600] 
 taos> select 1 in (select 1 from st1) from information_schema.ins_tables limit 3;
@@ -155,22 +155,22 @@ taos> select 1 in (select 1 from st1) from information_schema.ins_tables limit 3
  true                     |
  true                     |
 
-taos> select 1 not in (select 1 from st1) from information_schema.ins_tables limit 3;
- 1 not in (select 1 from st1) |
-===============================
- false                        |
- false                        |
- false                        |
+taos> select 1 not in (select 1 from v1) from information_schema.ins_tables limit 3;
+ 1 not in (select 1 from v1) |
+==============================
+ false                       |
+ false                       |
+ false                       |
 
 taos> select 1 in (select 1 from st1) from vtb1;
  1 in (select 1 from st1) |
 ===========================
  true                     |
 
-taos> select 1 not in (select 1 from st1) from vtb1;
- 1 not in (select 1 from st1) |
-===============================
- false                        |
+taos> select 1 not in (select 1 from v1) from vtb1;
+ 1 not in (select 1 from v1) |
+==============================
+ false                       |
 
 taos> select a.ts from st1 a join st1 b on a.ts = b.ts and 1 in (select 1 from st1) order by 1;
            ts            |
@@ -190,7 +190,7 @@ taos> select a.ts from st1 a join st1 b on a.ts = b.ts and 1 in (select 1 from s
  2025-12-02 00:00:00.000 |
  2025-12-03 00:00:00.000 |
 
-taos> select a.ts from st1 a join st1 b on a.ts = b.ts and 1 not in (select 1 from st1) order by 1;
+taos> select a.ts from st1 a join st1 b on a.ts = b.ts and 1 not in (select 1 from v1) order by 1;
 
 taos> select b.ts from st1 a left join st1 b on a.ts = b.ts and 1 in (select 1 from st1) order by 1;
            ts            |
@@ -210,7 +210,7 @@ taos> select b.ts from st1 a left join st1 b on a.ts = b.ts and 1 in (select 1 f
  2025-12-02 00:00:00.000 |
  2025-12-03 00:00:00.000 |
 
-taos> select b.ts from st1 a left join st1 b on a.ts = b.ts and 1 not in (select 1 from st1) order by 1;
+taos> select b.ts from st1 a left join st1 b on a.ts = b.ts and 1 not in (select 1 from v1) order by 1;
            ts            |
 ==========================
  NULL                    |
@@ -238,7 +238,7 @@ taos> select a.ts from st1 a right join st1 b on a.ts = b.ts and 1 in (select 1 
  2025-12-02 00:00:00.000 |
  2025-12-03 00:00:00.000 |
 
-taos> select a.ts from st1 a right join st1 b on a.ts = b.ts and 1 not in (select 1 from st1) order by 1;
+taos> select a.ts from st1 a right join st1 b on a.ts = b.ts and 1 not in (select 1 from v1) order by 1;
            ts            |
 ==========================
  NULL                    |
@@ -266,7 +266,7 @@ taos> select a.ts from st1 a full join st1 b on a.ts = b.ts and 1 in (select 1 f
  2025-12-02 00:00:00.000 |
  2025-12-03 00:00:00.000 |
 
-taos> select a.ts from st1 a full join st1 b on a.ts = b.ts and 1 not in (select 1 from st1) order by 1;
+taos> select a.ts from st1 a full join st1 b on a.ts = b.ts and 1 not in (select 1 from v1) order by 1;
            ts            |
 ==========================
  NULL                    |
@@ -292,7 +292,7 @@ taos> select b.ts from st1 a left semi join st1 b on a.ts = b.ts and 1 in (selec
  2025-12-02 00:00:00.000 |
  2025-12-03 00:00:00.000 |
 
-taos> select b.ts from st1 a left semi join st1 b on a.ts = b.ts and 1 not in (select 1 from st1) order by 1;
+taos> select b.ts from st1 a left semi join st1 b on a.ts = b.ts and 1 not in (select 1 from v1) order by 1;
 
 taos> select a.ts from st1 a right semi join st1 b on a.ts = b.ts and 1 in (select 1 from st1) order by 1;
            ts            |
@@ -304,11 +304,11 @@ taos> select a.ts from st1 a right semi join st1 b on a.ts = b.ts and 1 in (sele
  2025-12-02 00:00:00.000 |
  2025-12-03 00:00:00.000 |
 
-taos> select a.ts from st1 a right semi join st1 b on a.ts = b.ts and 1 not in (select 1 from st1) order by 1;
+taos> select a.ts from st1 a right semi join st1 b on a.ts = b.ts and 1 not in (select 1 from v1) order by 1;
 
 taos> select b.ts from st1 a left anti join st1 b on a.ts = b.ts and 1 in (select 1 from st1) order by 1;
 
-taos> select b.ts from st1 a left anti join st1 b on a.ts = b.ts and 1 not in (select 1 from st1) order by 1;
+taos> select b.ts from st1 a left anti join st1 b on a.ts = b.ts and 1 not in (select 1 from v1) order by 1;
            ts            |
 ==========================
  NULL                    |
@@ -320,7 +320,7 @@ taos> select b.ts from st1 a left anti join st1 b on a.ts = b.ts and 1 not in (s
 
 taos> select a.ts from st1 a right anti join st1 b on a.ts = b.ts and 1 in (select 1 from st1) order by 1;
 
-taos> select a.ts from st1 a right anti join st1 b on a.ts = b.ts and 1 not in (select 1 from st1) order by 1;
+taos> select a.ts from st1 a right anti join st1 b on a.ts = b.ts and 1 not in (select 1 from v1) order by 1;
            ts            |
 ==========================
  NULL                    |
@@ -333,51 +333,51 @@ taos> select a.ts from st1 a right anti join st1 b on a.ts = b.ts and 1 not in (
 taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and 1 in (select 1 from st1) order by 1;
 
 DB error: Not supported join on condition [0x80000733] 
-taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and 1 not in (select 1 from st1) order by 1;
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts and 1 not in (select 1 from v1) order by 1;
 
 DB error: Not supported join on condition [0x80000733] 
 taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and 1 in (select 1 from st1) order by 1;
 
 DB error: Not supported join on condition [0x80000733] 
-taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and 1 not in (select 1 from st1) order by 1;
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts and 1 not in (select 1 from v1) order by 1;
 
 DB error: Not supported join on condition [0x80000733] 
 taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts jlimit 1 in (select 1 from st1) order by 1;
 
 DB error: syntax error near "in (select 1 from st1) order by 1;" [0x80002600] 
-taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts jlimit 1 not in (select 1 from st1) order by 1;
+taos> select b.ts from st1 a left asof join st1 b on a.ts = b.ts jlimit 1 not in (select 1 from v1) order by 1;
 
-DB error: syntax error near "not in (select 1 from st1) order by 1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1) order by 1;" [0x80002600] 
 taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts jlimit 1 in (select 1 from st1) order by 1;
 
 DB error: syntax error near "in (select 1 from st1) order by 1;" [0x80002600] 
-taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts jlimit 1 not in (select 1 from st1) order by 1;
+taos> select a.ts from st1 a right asof join st1 b on a.ts = b.ts jlimit 1 not in (select 1 from v1) order by 1;
 
-DB error: syntax error near "not in (select 1 from st1) order by 1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1) order by 1;" [0x80002600] 
 taos> select b.ts from st1 a left window join st1 b on 1 in (select 1 from st1) window_offset(-1d, 1d) order by 1;
 
 DB error: Not supported join on condition [0x80000733] 
-taos> select b.ts from st1 a left window join st1 b on 1 not in (select 1 from st1) window_offset(-1d, 1d) order by 1;
+taos> select b.ts from st1 a left window join st1 b on 1 not in (select 1 from v1) window_offset(-1d, 1d) order by 1;
 
 DB error: Not supported join on condition [0x80000733] 
 taos> select a.ts from st1 a right window join st1 b on 1 in (select 1 from st1) window_offset(-1d, 1d) order by 1;
 
 DB error: Not supported join on condition [0x80000733] 
-taos> select a.ts from st1 a right window join st1 b on 1 not in (select 1 from st1) window_offset(-1d, 1d) order by 1;
+taos> select a.ts from st1 a right window join st1 b on 1 not in (select 1 from v1) window_offset(-1d, 1d) order by 1;
 
 DB error: Not supported join on condition [0x80000733] 
 taos> select b.ts from st1 a left window join st1 b window_offset(-1d, 1d) jlimit 1 in (select 1 from st1) order by 1;
 
 DB error: syntax error near "in (select 1 from st1) order by 1;" [0x80002600] 
-taos> select b.ts from st1 a left window join st1 b window_offset(-1d, 1d) jlimit 1 not in (select 1 from st1) order by 1;
+taos> select b.ts from st1 a left window join st1 b window_offset(-1d, 1d) jlimit 1 not in (select 1 from v1) order by 1;
 
-DB error: syntax error near "not in (select 1 from st1) order by 1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1) order by 1;" [0x80002600] 
 taos> select a.ts from st1 a right window join st1 b window_offset(-1d, 1d) jlimit 1 in (select 1 from st1) order by 1;
 
 DB error: syntax error near "in (select 1 from st1) order by 1;" [0x80002600] 
-taos> select a.ts from st1 a right window join st1 b window_offset(-1d, 1d) jlimit 1 not in (select 1 from st1) order by 1;
+taos> select a.ts from st1 a right window join st1 b window_offset(-1d, 1d) jlimit 1 not in (select 1 from v1) order by 1;
 
-DB error: syntax error near "not in (select 1 from st1) order by 1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1) order by 1;" [0x80002600] 
 taos> select a.ts from st1 a , st1 b where a.ts = b.ts and 1 in (select 1 from st1) order by 1;
            ts            |
 ==========================
@@ -396,7 +396,7 @@ taos> select a.ts from st1 a , st1 b where a.ts = b.ts and 1 in (select 1 from s
  2025-12-02 00:00:00.000 |
  2025-12-03 00:00:00.000 |
 
-taos> select a.ts from st1 a , st1 b where a.ts = b.ts and 1 not in (select 1 from st1) order by 1;
+taos> select a.ts from st1 a , st1 b where a.ts = b.ts and 1 not in (select 1 from v1) order by 1;
 
 taos> select f1 from st1 where 1 in (select 1 from st1) order by 1;
      f1      |
@@ -408,38 +408,38 @@ taos> select f1 from st1 where 1 in (select 1 from st1) order by 1;
            5 |
            6 |
 
-taos> select f1 from st1 where 1 not in (select 1 from st1) order by 1;
+taos> select f1 from st1 where 1 not in (select 1 from v1) order by 1;
 
 taos> select f1 from st1 where 1 in (select 1 from st1) is null order by 1;
 
 DB error: syntax error near "is null order by 1;" [0x80002600] 
-taos> select f1 from st1 where 1 not in (select 1 from st1) is null order by 1;
+taos> select f1 from st1 where 1 not in (select 1 from v1) is null order by 1;
 
 DB error: syntax error near "is null order by 1;" [0x80002600] 
 taos> select f1 from st1 where 1 in (select 1 from st1) is not null order by 1;
 
 DB error: syntax error near "is not null order by 1;" [0x80002600] 
-taos> select f1 from st1 where 1 not in (select 1 from st1) is not null order by 1;
+taos> select f1 from st1 where 1 not in (select 1 from v1) is not null order by 1;
 
 DB error: syntax error near "is not null order by 1;" [0x80002600] 
 taos> select f1 from st1 where abs(1 in (select 1 from st1)) > 0 order by 1;
 
 DB error: syntax error near "in (select 1 from st1)) > 0 order by 1;" [0x80002600] 
-taos> select f1 from st1 where abs(1 not in (select 1 from st1)) > 0 order by 1;
+taos> select f1 from st1 where abs(1 not in (select 1 from v1)) > 0 order by 1;
 
-DB error: syntax error near "not in (select 1 from st1)) > 0 order by 1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1)) > 0 order by 1;" [0x80002600] 
 taos> select f1 from st1 where f1 > (1 in (select 1 from st1)) order by 1;
 
 DB error: syntax error near "in (select 1 from st1)) order by 1;" [0x80002600] 
-taos> select f1 from st1 where f1 > (1 not in (select 1 from st1)) order by 1;
+taos> select f1 from st1 where f1 > (1 not in (select 1 from v1)) order by 1;
 
-DB error: syntax error near "not in (select 1 from st1)) order by 1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1)) order by 1;" [0x80002600] 
 taos> select f1 from st1 where f1 between 1 in (select 1 from st1) and 1 in (select 1 from st1) + 1 order by 1;
 
 DB error: syntax error near "in (select 1 from st1) and 1 in (select 1 from st1) + 1 order by 1;" [0x80002600] 
-taos> select f1 from st1 where f1 between 1 not in (select 1 from st1) and 1 not in (select 1 from st1) + 1 order by 1;
+taos> select f1 from st1 where f1 between 1 not in (select 1 from v1) and 1 not in (select 1 from v1) + 1 order by 1;
 
-DB error: syntax error near "not in (select 1 from st1) and 1 not in (select 1 from st1) + 1 order by 1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1) and 1 not in (select 1 from v1) + 1 order by 1;" [0x80002600] 
 taos> select f1 from st1 where tg1 in (select f1 from st1) order by 1;
      f1      |
 ==============
@@ -462,7 +462,7 @@ taos> select f1 from st1 where tg1 in (select f1 from st1) order by 1;
 
 taos> select f1 from st1 where tbname = cast(1 in (select 1 from st1) as varchar) order by 1;
 
-taos> select f1 from st1 where tbname = cast(1 not in (select 1 from st1) as varchar) order by 1;
+taos> select f1 from st1 where tbname = cast(1 not in (select 1 from v1) as varchar) order by 1;
 
 taos> select f1 from st1 where ts in (select first(ts) from st1) and 1 in (select 1 from st1) order by 1;
      f1      |
@@ -471,7 +471,7 @@ taos> select f1 from st1 where ts in (select first(ts) from st1) and 1 in (selec
            2 |
            4 |
 
-taos> select f1 from st1 where ts in (select first(ts) from st1) and 1 not in (select 1 from st1) order by 1;
+taos> select f1 from st1 where ts in (select first(ts) from st1) and 1 not in (select 1 from v1) order by 1;
 
 taos> select table_name from information_schema.ins_tables where 1 in (select 1 from st1) order by 1 limit 3;
            table_name           |
@@ -480,175 +480,185 @@ taos> select table_name from information_schema.ins_tables where 1 in (select 1 
  ins_anodes_full                |
  ins_arbgroups                  |
 
-taos> select table_name from information_schema.ins_tables where 1 not in (select 1 from st1) order by 1 limit 3;
+taos> select table_name from information_schema.ins_tables where 1 not in (select 1 from v1) order by 1 limit 3;
 
 taos> select * from information_schema.ins_tables where db_name = cast(1 in (select 1 from st1) as varchar) order by 1 limit 3;
 
-taos> select * from information_schema.ins_tables where db_name = cast(1 not in (select 1 from st1) as varchar) order by 1 limit 3;
+taos> select * from information_schema.ins_tables where db_name = cast(1 not in (select 1 from v1) as varchar) order by 1 limit 3;
 
 taos> select * from vtb1 where 1 in (select 1 from st1) order by 1;
            ts            |     f1      |
 ========================================
  2025-12-01 00:00:00.000 |           1 |
 
-taos> select * from vtb1 where 1 not in (select 1 from st1) order by 1;
+taos> select * from vtb1 where 1 not in (select 1 from v1) order by 1;
+
+taos> select count(*) from st1 where tbname in (select tags tbname from st1 where tg1 > 2);
+       count(*)        |
+========================
+                     3 |
+
+taos> select count(*) from st1 where tbname in (select tags tbname from st1 where tg1 > 2);
+       count(*)        |
+========================
+                     3 |
 
 taos> select f1 from st1 partition by 1 in (select 1 from st1) order by 1;
 
 DB error: syntax error near "in (select 1 from st1) order by 1;" [0x80002600] 
-taos> select f1 from st1 partition by 1 not in (select 1 from st1) order by 1;
+taos> select f1 from st1 partition by 1 not in (select 1 from v1) order by 1;
 
-DB error: syntax error near "not in (select 1 from st1) order by 1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1) order by 1;" [0x80002600] 
 taos> select f1 from st1 partition by 1 in (select 1 from st1) + 1 order by 1;
 
 DB error: syntax error near "in (select 1 from st1) + 1 order by 1;" [0x80002600] 
-taos> select f1 from st1 partition by 1 not in (select 1 from st1) + 1 order by 1;
+taos> select f1 from st1 partition by 1 not in (select 1 from v1) + 1 order by 1;
 
-DB error: syntax error near "not in (select 1 from st1) + 1 order by 1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1) + 1 order by 1;" [0x80002600] 
 taos> select f1 from st1 partition by tbname, 1 in (select 1 from st1) order by 1;
 
 DB error: syntax error near "in (select 1 from st1) order by 1;" [0x80002600] 
-taos> select f1 from st1 partition by tbname, 1 not in (select 1 from st1) order by 1;
+taos> select f1 from st1 partition by tbname, 1 not in (select 1 from v1) order by 1;
 
-DB error: syntax error near "not in (select 1 from st1) order by 1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1) order by 1;" [0x80002600] 
 taos> select avg(f1) from st1 INTERVAL(1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1));" [0x80002600] 
-taos> select avg(f1) from st1 INTERVAL(1 not in (select 1 from st1));
+taos> select avg(f1) from st1 INTERVAL(1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from st1 INTERVAL(1 in (select 1 from st1)d);
 
 DB error: syntax error near "in (select 1 from st1)d);" [0x80002600] 
-taos> select avg(f1) from st1 INTERVAL(1 not in (select 1 from st1)d);
+taos> select avg(f1) from st1 INTERVAL(1 not in (select 1 from v1)d);
 
-DB error: syntax error near "not in (select 1 from st1)d);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1)d);" [0x80002600] 
 taos> select avg(f1) from st1 INTERVAL(1d, 1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1));" [0x80002600] 
-taos> select avg(f1) from st1 INTERVAL(1d, 1 not in (select 1 from st1));
+taos> select avg(f1) from st1 INTERVAL(1d, 1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from st1 INTERVAL(1d, 1 in (select 1 from st1)d);
 
 DB error: syntax error near "in (select 1 from st1)d);" [0x80002600] 
-taos> select avg(f1) from st1 INTERVAL(1d, 1 not in (select 1 from st1)d);
+taos> select avg(f1) from st1 INTERVAL(1d, 1 not in (select 1 from v1)d);
 
-DB error: syntax error near "not in (select 1 from st1)d);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1)d);" [0x80002600] 
 taos> select avg(f1) from st1 INTERVAL(1d) FILL(1 in (select 1 from st1));
 
 DB error: syntax error near "1 in (select 1 from st1));" [0x80002600] 
-taos> select avg(f1) from st1 INTERVAL(1d) FILL(1 not in (select 1 from st1));
+taos> select avg(f1) from st1 INTERVAL(1d) FILL(1 not in (select 1 from v1));
 
-DB error: syntax error near "1 not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "1 not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from st1 where ts >= '2025-12-01 00:00:00.000' and ts <= '2025-12-05 00:00:00.000' INTERVAL(1d) FILL(value, 1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1));" [0x80002600] 
-taos> select avg(f1) from st1 where ts >= '2025-12-01 00:00:00.000' and ts <= '2025-12-05 00:00:00.000' INTERVAL(1d) FILL(value, 1 not in (select 1 from st1));
+taos> select avg(f1) from st1 where ts >= '2025-12-01 00:00:00.000' and ts <= '2025-12-05 00:00:00.000' INTERVAL(1d) FILL(value, 1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1));" [0x80002600] 
-taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(1 not in (select 1 from st1));
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(1 in (select 1 from st1)h);
 
 DB error: syntax error near "in (select 1 from st1)h);" [0x80002600] 
-taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(1 not in (select 1 from st1)h);
+taos> select avg(f1) from st1 INTERVAL(1d) SLIDING(1 not in (select 1 from v1)h);
 
-DB error: syntax error near "not in (select 1 from st1)h);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1)h);" [0x80002600] 
 taos> select avg(f1) from st1 SESSION(ts, 1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1));" [0x80002600] 
-taos> select avg(f1) from st1 SESSION(ts, 1 not in (select 1 from st1));
+taos> select avg(f1) from st1 SESSION(ts, 1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from st1 SESSION(ts, 1 in (select 1 from st1)h);
 
 DB error: syntax error near "in (select 1 from st1)h);" [0x80002600] 
-taos> select avg(f1) from st1 SESSION(ts, 1 not in (select 1 from st1)h);
+taos> select avg(f1) from st1 SESSION(ts, 1 not in (select 1 from v1)h);
 
-DB error: syntax error near "not in (select 1 from st1)h);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1)h);" [0x80002600] 
 taos> select avg(f1) from st1 SESSION(1 in (select 1 from st1), 1d);
 
 DB error: syntax error near "1 in (select 1 from st1), 1d);" [0x80002600] 
-taos> select avg(f1) from st1 SESSION(1 not in (select 1 from st1), 1d);
+taos> select avg(f1) from st1 SESSION(1 not in (select 1 from v1), 1d);
 
-DB error: syntax error near "1 not in (select 1 from st1), 1d);" [0x80002600] 
+DB error: syntax error near "1 not in (select 1 from v1), 1d);" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1));" [0x80002600] 
-taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(1 not in (select 1 from st1));
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1, 1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1));" [0x80002600] 
-taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1, 1 not in (select 1 from st1));
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1, 1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1));" [0x80002600] 
-taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(1 not in (select 1 from st1));
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(1 in (select 1 from st1)d);
 
 DB error: syntax error near "in (select 1 from st1)d);" [0x80002600] 
-taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(1 not in (select 1 from st1)d);
+taos> select avg(f1) from st1 where tbname = 'tb1' STATE_WINDOW(f1) TRUE_FOR(1 not in (select 1 from v1)d);
 
-DB error: syntax error near "not in (select 1 from st1)d);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1)d);" [0x80002600] 
 taos> select avg(f1) from st1 where tbname = 'tb1' EVENT_WINDOW START WITH f1 >= 1 in (select 1 from st1) END WITH f1 <= 1 in (select 1 from st1) + 1;
 
 DB error: syntax error near "in (select 1 from st1) end with f1 <= 1 in (select 1 from st1) + 1;" [0x80002600] 
-taos> select avg(f1) from st1 where tbname = 'tb1' EVENT_WINDOW START WITH f1 >= 1 not in (select 1 from st1) END WITH f1 <= 1 not in (select 1 from st1) + 1;
+taos> select avg(f1) from st1 where tbname = 'tb1' EVENT_WINDOW START WITH f1 >= 1 not in (select 1 from v1) END WITH f1 <= 1 not in (select 1 from v1) + 1;
 
-DB error: syntax error near "not in (select 1 from st1) end with f1 <= 1 not in (select 1 from st1) + 1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1) end with f1 <= 1 not in (select 1 from v1) + 1;" [0x80002600] 
 taos> select avg(f1) from st1 COUNT_WINDOW(1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1));" [0x80002600] 
-taos> select avg(f1) from st1 COUNT_WINDOW(1 not in (select 1 from st1));
+taos> select avg(f1) from st1 COUNT_WINDOW(1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from st1 COUNT_WINDOW(1 in (select 1 from st1), 1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1), 1 in (select 1 from st1));" [0x80002600] 
-taos> select avg(f1) from st1 COUNT_WINDOW(1 not in (select 1 from st1), 1 not in (select 1 from st1));
+taos> select avg(f1) from st1 COUNT_WINDOW(1 not in (select 1 from v1), 1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from st1), 1 not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from st1 COUNT_WINDOW(3, 1, 1 in (select 1 from st1));
 
 DB error: syntax error near "1 in (select 1 from st1));" [0x80002600] 
-taos> select avg(f1) from st1 COUNT_WINDOW(3, 1, 1 not in (select 1 from st1));
+taos> select avg(f1) from st1 COUNT_WINDOW(3, 1, 1 not in (select 1 from v1));
 
-DB error: syntax error near "1 not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "1 not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from st1 group by 1 in (select 1 from st1);
 
 DB error: syntax error near "in (select 1 from st1);" [0x80002600] 
-taos> select avg(f1) from st1 group by 1 not in (select 1 from st1);
+taos> select avg(f1) from st1 group by 1 not in (select 1 from v1);
 
-DB error: syntax error near "not in (select 1 from st1);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1);" [0x80002600] 
 taos> select avg(f1) from st1 group by f1, 1 in (select 1 from st1);
 
 DB error: syntax error near "in (select 1 from st1);" [0x80002600] 
-taos> select avg(f1) from st1 group by f1, 1 not in (select 1 from st1);
+taos> select avg(f1) from st1 group by f1, 1 not in (select 1 from v1);
 
-DB error: syntax error near "not in (select 1 from st1);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1);" [0x80002600] 
 taos> select avg(f1) from st1 group by 1 in (select 1 from st1) + 1;
 
 DB error: syntax error near "in (select 1 from st1) + 1;" [0x80002600] 
-taos> select avg(f1) from st1 group by 1 not in (select 1 from st1) + 1;
+taos> select avg(f1) from st1 group by 1 not in (select 1 from v1) + 1;
 
-DB error: syntax error near "not in (select 1 from st1) + 1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1) + 1;" [0x80002600] 
 taos> select avg(f1) from st1 group by f1 having avg(1 in (select 1 from st1)) > 0;
 
 DB error: syntax error near "in (select 1 from st1)) > 0;" [0x80002600] 
-taos> select avg(f1) from st1 group by f1 having avg(1 not in (select 1 from st1)) > 0;
+taos> select avg(f1) from st1 group by f1 having avg(1 not in (select 1 from v1)) > 0;
 
-DB error: syntax error near "not in (select 1 from st1)) > 0;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1)) > 0;" [0x80002600] 
 taos> select avg(f1) from st1 group by f1 having 1 in (select 1 from st1);
           avg(f1)          |
 ============================
@@ -659,116 +669,116 @@ taos> select avg(f1) from st1 group by f1 having 1 in (select 1 from st1);
                          6 |
                          2 |
 
-taos> select avg(f1) from st1 group by f1 having 1 not in (select 1 from st1);
+taos> select avg(f1) from st1 group by f1 having 1 not in (select 1 from v1);
 
 taos> select interp(f1) from st1 range(1 in (select 1 from st1)) FILL(PREV);
 
 DB error: syntax error near "in (select 1 from st1)) fill(prev);" [0x80002600] 
-taos> select interp(f1) from st1 range(1 not in (select 1 from st1)) FILL(PREV);
+taos> select interp(f1) from st1 range(1 not in (select 1 from v1)) FILL(PREV);
 
-DB error: syntax error near "not in (select 1 from st1)) fill(prev);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1)) fill(prev);" [0x80002600] 
 taos> select interp(f1) from st1 range(1 in (select 1 from st1), 1 in (select 1 from st1)) every(1d);
 
 DB error: syntax error near "in (select 1 from st1), 1 in (select 1 from st1)) every(1d);" [0x80002600] 
-taos> select interp(f1) from st1 range(1 not in (select 1 from st1), 1 not in (select 1 from st1)) every(1d);
+taos> select interp(f1) from st1 range(1 not in (select 1 from v1), 1 not in (select 1 from v1)) every(1d);
 
-DB error: syntax error near "not in (select 1 from st1), 1 not in (select 1 from st1)) every(1d);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1)) every(1d);" [0x80002600] 
 taos> select interp(f1) from st1 range(now - 1d, now, 1 in (select 1 from st1)) every(1d);
 
 DB error: syntax error near "in (select 1 from st1)) every(1d);" [0x80002600] 
-taos> select interp(f1) from st1 range(now - 1d, now, 1 not in (select 1 from st1)) every(1d);
+taos> select interp(f1) from st1 range(now - 1d, now, 1 not in (select 1 from v1)) every(1d);
 
-DB error: syntax error near "not in (select 1 from st1)) every(1d);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1)) every(1d);" [0x80002600] 
 taos> select interp(f1) from st1 range(now - 1d, now) every(1 in (select 1 from st1));
 
 DB error: syntax error near "1 in (select 1 from st1));" [0x80002600] 
-taos> select interp(f1) from st1 range(now - 1d, now) every(1 not in (select 1 from st1));
+taos> select interp(f1) from st1 range(now - 1d, now) every(1 not in (select 1 from v1));
 
-DB error: syntax error near "1 not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "1 not in (select 1 from v1));" [0x80002600] 
 taos> select interp(f1) from st1 range(now - 1d, now) every(1 in (select 1 from st1)m);
 
 DB error: syntax error near "1 in (select 1 from st1)m);" [0x80002600] 
-taos> select interp(f1) from st1 range(now - 1d, now) every(1 not in (select 1 from st1)m);
+taos> select interp(f1) from st1 range(now - 1d, now) every(1 not in (select 1 from v1)m);
 
-DB error: syntax error near "1 not in (select 1 from st1)m);" [0x80002600] 
+DB error: syntax error near "1 not in (select 1 from v1)m);" [0x80002600] 
 taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(1 in (select 1 from st1));
 
 DB error: syntax error near "1 in (select 1 from st1));" [0x80002600] 
-taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(1 not in (select 1 from st1));
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(1 not in (select 1 from v1));
 
-DB error: syntax error near "1 not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "1 not in (select 1 from v1));" [0x80002600] 
 taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(value, 1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1));" [0x80002600] 
-taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(value, 1 not in (select 1 from st1));
+taos> select interp(f1) from st1 range(now - 1d, now) every(1h) fill(value, 1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1));" [0x80002600] 
 taos> select f1 from tb1 order by 1 in (select 1 from st1);
 
 DB error: syntax error near "in (select 1 from st1);" [0x80002600] 
-taos> select f1 from tb1 order by 1 not in (select 1 from st1);
+taos> select f1 from tb1 order by 1 not in (select 1 from v1);
 
-DB error: syntax error near "not in (select 1 from st1);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1);" [0x80002600] 
 taos> select f1 from tb1 order by 1 in (select 1 from st1) desc;
 
 DB error: syntax error near "in (select 1 from st1) desc;" [0x80002600] 
-taos> select f1 from tb1 order by 1 not in (select 1 from st1) desc;
+taos> select f1 from tb1 order by 1 not in (select 1 from v1) desc;
 
-DB error: syntax error near "not in (select 1 from st1) desc;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1) desc;" [0x80002600] 
 taos> select f1 from tb1 order by f1 + 1 in (select 1 from st1);
 
 DB error: syntax error near "in (select 1 from st1);" [0x80002600] 
-taos> select f1 from tb1 order by f1 + 1 not in (select 1 from st1);
+taos> select f1 from tb1 order by f1 + 1 not in (select 1 from v1);
 
-DB error: syntax error near "not in (select 1 from st1);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1);" [0x80002600] 
 taos> select f1 from st1 order by f1, 1 in (select 1 from st1);
 
 DB error: syntax error near "in (select 1 from st1);" [0x80002600] 
-taos> select f1 from st1 order by f1, 1 not in (select 1 from st1);
+taos> select f1 from st1 order by f1, 1 not in (select 1 from v1);
 
-DB error: syntax error near "not in (select 1 from st1);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1);" [0x80002600] 
 taos> select f1 from tb1 order by abs(1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1));" [0x80002600] 
-taos> select f1 from tb1 order by abs(1 not in (select 1 from st1));
+taos> select f1 from tb1 order by abs(1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1));" [0x80002600] 
 taos> select avg(f1) from tb1 order by sum(1 in (select 1 from st1));
 
 DB error: syntax error near "in (select 1 from st1));" [0x80002600] 
-taos> select avg(f1) from tb1 order by sum(1 not in (select 1 from st1));
+taos> select avg(f1) from tb1 order by sum(1 not in (select 1 from v1));
 
-DB error: syntax error near "not in (select 1 from st1));" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1));" [0x80002600] 
 taos> select f1 from st1 limit 1 in (select 1 from st1);
 
 DB error: syntax error near "in (select 1 from st1);" [0x80002600] 
-taos> select f1 from st1 limit 1 not in (select 1 from st1);
+taos> select f1 from st1 limit 1 not in (select 1 from v1);
 
-DB error: syntax error near "not in (select 1 from st1);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1);" [0x80002600] 
 taos> select f1 from st1 limit 1 offset 1 in (select 1 from st1);
 
 DB error: syntax error near "in (select 1 from st1);" [0x80002600] 
-taos> select f1 from st1 limit 1 offset 1 not in (select 1 from st1);
+taos> select f1 from st1 limit 1 offset 1 not in (select 1 from v1);
 
-DB error: syntax error near "not in (select 1 from st1);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1);" [0x80002600] 
 taos> select f1 from st1 partition by tbname slimit 1 in (select 1 from st1);
 
 DB error: syntax error near "in (select 1 from st1);" [0x80002600] 
-taos> select f1 from st1 partition by tbname slimit 1 not in (select 1 from st1);
+taos> select f1 from st1 partition by tbname slimit 1 not in (select 1 from v1);
 
-DB error: syntax error near "not in (select 1 from st1);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1);" [0x80002600] 
 taos> select f1 from st1 partition by tbname slimit 1 soffset 1 in (select 1 from st1);
 
 DB error: syntax error near "in (select 1 from st1);" [0x80002600] 
-taos> select f1 from st1 partition by tbname slimit 1 soffset 1 not in (select 1 from st1);
+taos> select f1 from st1 partition by tbname slimit 1 soffset 1 not in (select 1 from v1);
 
-DB error: syntax error near "not in (select 1 from st1);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1);" [0x80002600] 
 taos> select f1 from st1 where f1 > 1 in (select 1 from st1) union select f1 from st1 order by f1;
 
 DB error: syntax error near "in (select 1 from st1) union select f1 from st1 order by f1;" [0x80002600] 
-taos> select f1 from st1 where f1 > 1 not in (select 1 from st1) union select f1 from st1 order by f1;
+taos> select f1 from st1 where f1 > 1 not in (select 1 from v1) union select f1 from st1 order by f1;
 
-DB error: syntax error near "not in (select 1 from st1) union select f1 from st1 order by f1;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1) union select f1 from st1 order by f1;" [0x80002600] 
 taos> select f1 from st1 union all select 1 in (select 1 from st1) from st1 order by f1;
      f1      |
 ==============
@@ -785,7 +795,7 @@ taos> select f1 from st1 union all select 1 in (select 1 from st1) from st1 orde
            5 |
            6 |
 
-taos> select f1 from st1 union all select 1 not in (select 1 from st1) from st1 order by f1;
+taos> select f1 from st1 union all select 1 not in (select 1 from v1) from st1 order by f1;
      f1      |
 ==============
            0 |
@@ -804,15 +814,15 @@ taos> select f1 from st1 union all select 1 not in (select 1 from st1) from st1 
 taos> select f1 from tb1 union select f1 from tb1 order by 1 in (select 1 from st1);
 
 DB error: syntax error near "in (select 1 from st1);" [0x80002600] 
-taos> select f1 from tb1 union select f1 from tb1 order by 1 not in (select 1 from st1);
+taos> select f1 from tb1 union select f1 from tb1 order by 1 not in (select 1 from v1);
 
-DB error: syntax error near "not in (select 1 from st1);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1);" [0x80002600] 
 taos> select f1 from tb1 union all select f1 from tb1 limit 1 in (select 1 from st1);
 
 DB error: syntax error near "in (select 1 from st1);" [0x80002600] 
-taos> select f1 from tb1 union all select f1 from tb1 limit 1 not in (select 1 from st1);
+taos> select f1 from tb1 union all select f1 from tb1 limit 1 not in (select 1 from v1);
 
-DB error: syntax error near "not in (select 1 from st1);" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1);" [0x80002600] 
 taos> explain select f1 from st1 where 1 in (select 1 from st1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=4)
@@ -829,7 +839,7 @@ QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
 *************************** 7.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
-taos> explain select f1 from st1 where 1 not in (select 1 from st1)\G;
+taos> explain select f1 from st1 where 1 not in (select 1 from v1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
@@ -839,11 +849,9 @@ QUERY_PLAN:       -> Table Scan on st1 (columns=2 width=12 order=[asc|1 desc|0] 
 *************************** 4.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 5.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
+QUERY_PLAN:       -> Projection (columns=1 width=8 input_order=asc )
 *************************** 6.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
-*************************** 7.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          -> Table Scan on tb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
 taos> explain verbose true select f1 from st1 where 1 in (select 1 from st1)\G;
 *************************** 1.row ***************************
@@ -887,7 +895,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 20.row ***************************
 QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 
-taos> explain verbose true select f1 from st1 where 1 not in (select 1 from st1)\G;
+taos> explain verbose true select f1 from st1 where 1 not in (select 1 from v1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 (width=4)
 *************************** 2.row ***************************
@@ -911,23 +919,19 @@ QUERY_PLAN:             Filter: (1 NOT IN $(InitPlan 1))
 *************************** 11.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 12.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
+QUERY_PLAN:       -> Projection (columns=1 width=8 input_order=asc )
 *************************** 13.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 14.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 15.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 16.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
+QUERY_PLAN:          -> Table Scan on tb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 17.row ***************************
-QUERY_PLAN:                Merge ResBlocks: True
+QUERY_PLAN:                Output: columns=1 width=8
 *************************** 18.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 19.row ***************************
-QUERY_PLAN:                   Output: columns=1 width=8
-*************************** 20.row ***************************
-QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain analyze select f1 from st1 where 1 in (select 1 from st1)\G;
 *************************** 1.row ***************************
@@ -959,7 +963,7 @@ QUERY_PLAN:
 *************************** 14.row ***************************
 QUERY_PLAN: 
 
-taos> explain analyze select f1 from st1 where 1 not in (select 1 from st1)\G;
+taos> explain analyze select f1 from st1 where 1 not in (select 1 from v1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
 *************************** 2.row ***************************
@@ -973,20 +977,18 @@ QUERY_PLAN:              total_rows:0, ep:tbd ()
 *************************** 6.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+QUERY_PLAN:       -> Projection ( rows=1 columns=1 width=8 input_order=asc )
 *************************** 8.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Table Scan on tb1 ( rows=1 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 9.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:                I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
 *************************** 10.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+QUERY_PLAN:                 total_rows:1, ep:tbd () 
 *************************** 11.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
-*************************** 12.row ***************************
 QUERY_PLAN: Ratio: 0.001000
-*************************** 13.row ***************************
+*************************** 12.row ***************************
 QUERY_PLAN: 
-*************************** 14.row ***************************
+*************************** 13.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select f1 from st1 where 1 in (select 1 from st1)\G;
@@ -1045,7 +1047,7 @@ QUERY_PLAN:
 *************************** 27.row ***************************
 QUERY_PLAN: 
 
-taos> explain analyze verbose true select f1 from st1 where 1 not in (select 1 from st1)\G;
+taos> explain analyze verbose true select f1 from st1 where 1 not in (select 1 from v1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 2:1 ( rows=0 width=4)
 *************************** 2.row ***************************
@@ -1073,32 +1075,28 @@ QUERY_PLAN:             Filter: (1 NOT IN $(InitPlan 1))
 *************************** 13.row ***************************
 QUERY_PLAN:    InitPlan 1
 *************************** 14.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+QUERY_PLAN:       -> Projection ( rows=1 columns=1 width=8 input_order=asc )
 *************************** 15.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 16.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 17.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 18.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
+QUERY_PLAN:          -> Table Scan on tb1 ( rows=1 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 19.row ***************************
-QUERY_PLAN:                Merge ResBlocks: True
+QUERY_PLAN:                I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
 *************************** 20.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:                 total_rows:1, ep:tbd () 
 *************************** 21.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+QUERY_PLAN:                Output: columns=1 width=8
 *************************** 22.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 23.row ***************************
-QUERY_PLAN:                   Output: columns=1 width=8
-*************************** 24.row ***************************
-QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
-*************************** 25.row ***************************
 QUERY_PLAN: Ratio: 0.001000
-*************************** 26.row ***************************
+*************************** 24.row ***************************
 QUERY_PLAN: 
-*************************** 27.row ***************************
+*************************** 25.row ***************************
 QUERY_PLAN: 
 
 taos> explain select avg(f1), 1 in (select 1 from st1) from st1 group by f1 having 1 in (select 1 from st1)\G;
@@ -1129,7 +1127,7 @@ QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
 *************************** 13.row ***************************
 QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
-taos> explain select avg(f1), 1 not in (select 1 from st1) from st1 group by f1 having 1 not in (select 1 from st1)\G;
+taos> explain select avg(f1), 1 not in (select 1 from v1) from st1 group by f1 having 1 not in (select 1 from v1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
 *************************** 2.row ***************************
@@ -1143,19 +1141,15 @@ QUERY_PLAN:             -> Table Scan on st1 (columns=2 width=12 order=[asc|1 de
 *************************** 6.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 7.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
+QUERY_PLAN:       -> Projection (columns=1 width=8 input_order=asc )
 *************************** 8.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Table Scan on tb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 9.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 10.row ***************************
 QUERY_PLAN:    InitPlan 1
+*************************** 10.row ***************************
+QUERY_PLAN:       -> Projection (columns=1 width=8 input_order=asc )
 *************************** 11.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
-*************************** 12.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
-*************************** 13.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:          -> Table Scan on tb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 
 taos> explain verbose true select avg(f1), 1 in (select 1 from st1) from st1 group by f1 having 1 in (select 1 from st1)\G;
 *************************** 1.row ***************************
@@ -1231,7 +1225,7 @@ QUERY_PLAN:                   Output: columns=1 width=8
 *************************** 36.row ***************************
 QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 
-taos> explain verbose true select avg(f1), 1 not in (select 1 from st1) from st1 group by f1 having 1 not in (select 1 from st1)\G;
+taos> explain verbose true select avg(f1), 1 not in (select 1 from v1) from st1 group by f1 having 1 not in (select 1 from v1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Projection (columns=2 width=9 input_order=unknown )
 *************************** 2.row ***************************
@@ -1267,43 +1261,35 @@ QUERY_PLAN:                   Filter: (1 NOT IN $(InitPlan 1))
 *************************** 17.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 18.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
+QUERY_PLAN:       -> Projection (columns=1 width=8 input_order=asc )
 *************************** 19.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 20.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 21.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 22.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
+QUERY_PLAN:          -> Table Scan on tb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 23.row ***************************
-QUERY_PLAN:                Merge ResBlocks: True
+QUERY_PLAN:                Output: columns=1 width=8
 *************************** 24.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 25.row ***************************
-QUERY_PLAN:                   Output: columns=1 width=8
-*************************** 26.row ***************************
-QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
-*************************** 27.row ***************************
 QUERY_PLAN:    InitPlan 1
-*************************** 28.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 (width=8)
-*************************** 29.row ***************************
+*************************** 26.row ***************************
+QUERY_PLAN:       -> Projection (columns=1 width=8 input_order=asc )
+*************************** 27.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
+*************************** 28.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 29.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 30.row ***************************
-QUERY_PLAN:          -> Projection (columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Table Scan on tb1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 31.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
 *************************** 32.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
-*************************** 33.row ***************************
-QUERY_PLAN:                Merge ResBlocks: True
-*************************** 34.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 35.row ***************************
-QUERY_PLAN:                   Output: columns=1 width=8
-*************************** 36.row ***************************
-QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain analyze select avg(f1), 1 in (select 1 from st1) from st1 group by f1 having 1 in (select 1 from st1)\G;
 *************************** 1.row ***************************
@@ -1351,7 +1337,7 @@ QUERY_PLAN:
 *************************** 22.row ***************************
 QUERY_PLAN: 
 
-taos> explain analyze select avg(f1), 1 not in (select 1 from st1) from st1 group by f1 having 1 not in (select 1 from st1)\G;
+taos> explain analyze select avg(f1), 1 not in (select 1 from v1) from st1 group by f1 having 1 not in (select 1 from v1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
 *************************** 2.row ***************************
@@ -1369,32 +1355,28 @@ QUERY_PLAN:                    total_rows:0, ep:tbd ()
 *************************** 8.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 9.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+QUERY_PLAN:       -> Projection ( rows=1 columns=1 width=8 input_order=asc )
 *************************** 10.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:          -> Table Scan on tb1 ( rows=1 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 11.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:                I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
 *************************** 12.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
+QUERY_PLAN:                 total_rows:1, ep:tbd () 
 *************************** 13.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
-*************************** 14.row ***************************
 QUERY_PLAN:    InitPlan 1
+*************************** 14.row ***************************
+QUERY_PLAN:       -> Projection ( rows=1 columns=1 width=8 input_order=asc )
 *************************** 15.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+QUERY_PLAN:          -> Table Scan on tb1 ( rows=1 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 16.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:                I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
 *************************** 17.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:                 total_rows:1, ep:tbd () 
 *************************** 18.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 19.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
-*************************** 20.row ***************************
 QUERY_PLAN: Ratio: 0.001000
-*************************** 21.row ***************************
+*************************** 19.row ***************************
 QUERY_PLAN: 
-*************************** 22.row ***************************
+*************************** 20.row ***************************
 QUERY_PLAN: 
 
 taos> explain analyze verbose true select avg(f1), 1 in (select 1 from st1) from st1 group by f1 having 1 in (select 1 from st1)\G;
@@ -1489,7 +1471,7 @@ QUERY_PLAN:
 *************************** 45.row ***************************
 QUERY_PLAN: 
 
-taos> explain analyze verbose true select avg(f1), 1 not in (select 1 from st1) from st1 group by f1 having 1 not in (select 1 from st1)\G;
+taos> explain analyze verbose true select avg(f1), 1 not in (select 1 from v1) from st1 group by f1 having 1 not in (select 1 from v1)\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Projection ( rows=0 columns=2 width=9 input_order=unknown )
 *************************** 2.row ***************************
@@ -1529,56 +1511,48 @@ QUERY_PLAN:                   Filter: (1 NOT IN $(InitPlan 1))
 *************************** 19.row ***************************
 QUERY_PLAN:    InitPlan 2
 *************************** 20.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
+QUERY_PLAN:       -> Projection ( rows=1 columns=1 width=8 input_order=asc )
 *************************** 21.row ***************************
 QUERY_PLAN:             Output: columns=1 width=8
 *************************** 22.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
+QUERY_PLAN:             Output: Ignore Group Id: true
 *************************** 23.row ***************************
-QUERY_PLAN:                Output: columns=1 width=8
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 24.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
+QUERY_PLAN:          -> Table Scan on tb1 ( rows=1 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 25.row ***************************
-QUERY_PLAN:                Merge ResBlocks: True
+QUERY_PLAN:                I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
 *************************** 26.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:                 total_rows:1, ep:tbd () 
 *************************** 27.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 28.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
-*************************** 29.row ***************************
-QUERY_PLAN:                   Output: columns=1 width=8
-*************************** 30.row ***************************
-QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
-*************************** 31.row ***************************
-QUERY_PLAN:    InitPlan 1
-*************************** 32.row ***************************
-QUERY_PLAN:       -> Data Exchange 2:1 ( rows=6 width=8)
-*************************** 33.row ***************************
-QUERY_PLAN:             Output: columns=1 width=8
-*************************** 34.row ***************************
-QUERY_PLAN:          -> Projection ( rows=4 columns=1 width=8 input_order=asc )
-*************************** 35.row ***************************
 QUERY_PLAN:                Output: columns=1 width=8
+*************************** 28.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 29.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 30.row ***************************
+QUERY_PLAN:       -> Projection ( rows=1 columns=1 width=8 input_order=asc )
+*************************** 31.row ***************************
+QUERY_PLAN:             Output: columns=1 width=8
+*************************** 32.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 33.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 34.row ***************************
+QUERY_PLAN:          -> Table Scan on tb1 ( rows=1 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 35.row ***************************
+QUERY_PLAN:                I/O: total_blocks=1.0 load_blocks=1.0 load_block_SMAs=0.0 total_rows=1.0 check_rows=1.0 
 *************************** 36.row ***************************
-QUERY_PLAN:                Output: Ignore Group Id: true
+QUERY_PLAN:                 total_rows:1, ep:tbd () 
 *************************** 37.row ***************************
-QUERY_PLAN:                Merge ResBlocks: True
+QUERY_PLAN:                Output: columns=1 width=8
 *************************** 38.row ***************************
-QUERY_PLAN:             -> Table Scan on st1 ( rows=4 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 39.row ***************************
-QUERY_PLAN:                   I/O: total_blocks=1.5 load_blocks=1.5 load_block_SMAs=0.0 total_rows=3.0 check_rows=3.0 
-*************************** 40.row ***************************
-QUERY_PLAN:                    total_rows:4, ep:tbd () 
-*************************** 41.row ***************************
-QUERY_PLAN:                   Output: columns=1 width=8
-*************************** 42.row ***************************
-QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
-*************************** 43.row ***************************
 QUERY_PLAN: Ratio: 0.001000
-*************************** 44.row ***************************
+*************************** 40.row ***************************
 QUERY_PLAN: 
-*************************** 45.row ***************************
+*************************** 41.row ***************************
 QUERY_PLAN: 
 
 taos> select f1 from st1 where f1 in (select * from v1) order by 1;
@@ -1596,26 +1570,26 @@ taos> select f1 from v2 where 1 in (select 1 from st1) order by 1;
 ==============
            1 |
 
-taos> select f1 from v2 where 1 not in (select 1 from st1) order by 1;
+taos> select f1 from v2 where 1 not in (select 1 from v1) order by 1;
 
 taos> select f1 from v3 where 1 in (select 1 from st1) order by 1;
      f1      |
 ==============
            2 |
 
-taos> select f1 from v3 where 1 not in (select 1 from st1) order by 1;
+taos> select f1 from v3 where 1 not in (select 1 from v1) order by 1;
 
 taos> select f1 from v4 where 1 in (select 1 from st1) order by 1;
      f1      |
 ==============
            4 |
 
-taos> select f1 from v4 where 1 not in (select 1 from st1) order by 1;
+taos> select f1 from v4 where 1 not in (select 1 from v1) order by 1;
 
 taos> insert into tbb select now, 1 in (select 1 from st1) from tb1;
 Insert OK, 1 row(s) affected 
 
-taos> insert into tbb select now, 1 not in (select 1 from st1) from tb1;
+taos> insert into tbb select now, 1 not in (select 1 from v1) from tb1;
 Insert OK, 1 row(s) affected 
 
 taos> select f1 from st1 where ts >= (select last(_c0) from st1) and ts <= (select last(_c0) from st1) order by 1;

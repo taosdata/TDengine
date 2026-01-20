@@ -2,87 +2,87 @@
 taos> use db1;
 Database changed.
 
-taos> select abs(1 not in (select 1 from tb3)) from tb3;
+taos> select abs(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select acos(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select acos(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select asin(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select asin(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select atan(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select atan(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select ceil(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select ceil(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select cos(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select cos(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select degrees(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select degrees(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select exp(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select exp(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select floor(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select floor(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select ln(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select ln(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select log(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select log(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select radians(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select radians(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select round(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select round(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select sign(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select sign(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select sin(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select sin(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select sqrt(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select sqrt(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select tan(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select tan(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select crc32(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select crc32(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select date(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select date(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select dayofweek(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select dayofweek(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select weekday(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select weekday(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select week(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select week(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select weekofyear(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select weekofyear(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select csum(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select csum(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select diff(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select diff(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select irate(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select irate(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select twa(1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select twa(1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
 taos> select ascii('am' not in (select 'am' from tb3)) from tb3;
 
 DB error: syntax error near "not in (select 'am' from tb3)) from tb3;" [0x80002600] 
@@ -110,165 +110,165 @@ DB error: syntax error near "not in (select 'am' from tb3)) from tb3;" [0x800026
 taos> select to_base64('am' not in (select 'am' from tb3)) from tb3;
 
 DB error: syntax error near "not in (select 'am' from tb3)) from tb3;" [0x80002600] 
-taos> select pow(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+taos> select pow(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select truncate(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select truncate(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select mod(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select mod(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select corr(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select corr(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select find_in_set(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select find_in_set(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select like_in_set(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select like_in_set(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select regexp_in_set(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select regexp_in_set(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select timetruncate(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select timetruncate(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select timediff(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select timediff(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select bottom(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select bottom(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select top(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select top(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select ifnull(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
- ifnull(1 not in (select 1 from tb3), 1 not in (select 1 from tb3 |
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select ifnull(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
+ ifnull(1 not in (select 1 from v1), 1 not in (select 1 from v1)) |
 ===================================================================
  false                                                            |
  false                                                            |
  false                                                            |
 
-taos> select nvl(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
- nvl(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) |
-==================================================================
- false                                                           |
- false                                                           |
- false                                                           |
+taos> select nvl(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
+ nvl(1 not in (select 1 from v1), 1 not in (select 1 from v1)) |
+================================================================
+ false                                                         |
+ false                                                         |
+ false                                                         |
 
-taos> select nullif(1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
- nullif(1 not in (select 1 from tb3), 1 not in (select 1 from tb3 |
+taos> select nullif(1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
+ nullif(1 not in (select 1 from v1), 1 not in (select 1 from v1)) |
 ===================================================================
  NULL                                                             |
  NULL                                                             |
  NULL                                                             |
 
-taos> select percentile(1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+taos> select percentile(1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select nvl2(1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
- nvl2(1 not in (select 1 from tb3), 1 not in (select 1 from tb3), |
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select nvl2(1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
+ nvl2(1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 |
 ===================================================================
  false                                                            |
  false                                                            |
  false                                                            |
 
-taos> select concat(1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+taos> select concat(1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select concat_ws(1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select concat_ws(1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select greatest(1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select greatest(1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select least(1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select least(1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3), 1 not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select repeat('ab', 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1), 1 not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select repeat('ab', 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select substring('abc', 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select substring('abc', 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select substring('abc', 1, 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select substring('abc', 1, 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select substring('abc' from 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select substring('abc' from 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select substring('abc' from 1 for 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select substring('abc' from 1 for 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select cast(1 not in (select 1 from tb3) as bigint) from tb3;
- cast(1 not in (select 1 from tb3) as bigint) |
-===============================================
-                                            0 |
-                                            0 |
-                                            0 |
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select cast(1 not in (select 1 from v1) as bigint) from tb3;
+ cast(1 not in (select 1 from v1) as bigint) |
+==============================================
+                                           0 |
+                                           0 |
+                                           0 |
 
-taos> select to_char(cast(1 not in (select 1 from tb3) as timestamp), 'am') from tb3;
- to_char(cast(1 not in (select 1 from tb3) as timestamp), 'am') |
-=================================================================
- am                                                             |
- am                                                             |
- am                                                             |
+taos> select to_char(cast(1 not in (select 1 from v1) as timestamp), 'am') from tb3;
+ to_char(cast(1 not in (select 1 from v1) as timestamp), 'am') |
+================================================================
+ am                                                            |
+ am                                                            |
+ am                                                            |
 
-taos> select to_iso8601(1 not in (select 1 from tb3), 'z') from tb3;
+taos> select to_iso8601(1 not in (select 1 from v1), 'z') from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 'z') from tb3;" [0x80002600] 
-taos> select substring_index('abc', 'b', 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 'z') from tb3;" [0x80002600] 
+taos> select substring_index('abc', 'b', 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select apercentile(1 not in (select 1 from tb3), 1) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select apercentile(1 not in (select 1 from v1), 1) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1) from tb3;" [0x80002600] 
-taos> select apercentile(f1, 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1) from tb3;" [0x80002600] 
+taos> select apercentile(f1, 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select histogram(1 not in (select 1 from tb3), 'user_input', '"user_input": "[1, 3, 5, 7]"', 0) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select histogram(1 not in (select 1 from v1), 'user_input', '"user_input": "[1, 3, 5, 7]"', 0) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 'user_input', '"user_input": "[1, 3, 5, 7]"', 0) from tb3;" [0x80002600] 
-taos> select histogram(f1, 'user_input', '"user_input": "[1, 3, 5, 7]"', 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 'user_input', '"user_input": "[1, 3, 5, 7]"', 0) from tb3;" [0x80002600] 
+taos> select histogram(f1, 'user_input', '"user_input": "[1, 3, 5, 7]"', 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select cols(last(f1), 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select cols(last(f1), 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select rand(1 not in (select 1 from tb3)) from tb1;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select rand(1 not in (select 1 from v1)) from tb1;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb1;" [0x80002600] 
-taos> select to_unixtimestamp('2025-10-01', 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb1;" [0x80002600] 
+taos> select to_unixtimestamp('2025-10-01', 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select derivative(1 not in (select 1 from tb3), 1s, 1) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select derivative(1 not in (select 1 from v1), 1s, 1) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1s, 1) from tb3;" [0x80002600] 
-taos> select derivative(1, 1s, 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1s, 1) from tb3;" [0x80002600] 
+taos> select derivative(1, 1s, 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select statecount(1 not in (select 1 from tb3), 'GT', 1) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select statecount(1 not in (select 1 from v1), 'GT', 1) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 'GT', 1) from tb3;" [0x80002600] 
-taos> select statecount(f1, 'GT', 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 'GT', 1) from tb3;" [0x80002600] 
+taos> select statecount(f1, 'GT', 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select stateduration(f1, 'GT', 1 not in (select 1 from tb3), 1s) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select stateduration(f1, 'GT', 1 not in (select 1 from v1), 1s) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1s) from tb3;" [0x80002600] 
-taos> select sample(f1, 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1s) from tb3;" [0x80002600] 
+taos> select sample(f1, 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select sample(1 not in (select 1 from tb3), 1) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select sample(1 not in (select 1 from v1), 1) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1) from tb3;" [0x80002600] 
-taos> select mavg(f1, 1 not in (select 1 from tb3)) from tb3;
+DB error: syntax error near "not in (select 1 from v1), 1) from tb3;" [0x80002600] 
+taos> select mavg(f1, 1 not in (select 1 from v1)) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3)) from tb3;" [0x80002600] 
-taos> select mavg(1 not in (select 1 from tb3), 1) from tb3;
+DB error: syntax error near "not in (select 1 from v1)) from tb3;" [0x80002600] 
+taos> select mavg(1 not in (select 1 from v1), 1) from tb3;
 
-DB error: syntax error near "not in (select 1 from tb3), 1) from tb3;" [0x80002600] 
+DB error: syntax error near "not in (select 1 from v1), 1) from tb3;" [0x80002600] 
 taos> select position('am' not in (select 'am' from tb3) in 'abc') from tb3;
 
 DB error: syntax error near "not in (select 'am' from tb3) in 'abc') from tb3;" [0x80002600] 

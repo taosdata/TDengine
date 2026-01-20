@@ -145,6 +145,7 @@ class TestInSubQuery2:
         "select table_name from information_schema.ins_tables where {scalarSql} order by 1 limit 3",
         "select * from information_schema.ins_tables where db_name = cast({scalarSql} as varchar) order by 1 limit 3",
         "select * from vtb1 where {scalarSql} order by 1",
+        "select count(*) from st1 where tbname in (select tags tbname from st1 where tg1 > 2)",
 
         # partition
         "select f1 from {tableName} partition by {scalarSql} order by 1",
