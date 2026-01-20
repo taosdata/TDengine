@@ -16,8 +16,10 @@
 #define _DEFAULT_SOURCE
 
 #include "dmMgmt.h"
+#include "crypt.h"
 #include "tchecksum.h"
 #include "tencrypt.h"
+#include "tglobal.h"
 
 #if defined(GRANTS_CFG) || defined(_TD_DARWIN_64)
 #define _TD_DM_SKIP_CHECK
@@ -54,6 +56,10 @@ typedef enum {
 #define DM_ENGINE_FILE "dnode.info"
 #define DM_ENGINE_FILE_T "dnode.info.t"
 #define DNODE_CFG_FILE "dnode.json"
+
+// Encryption flag in version field (high bit)
+#define DM_ENG_VERSION_ENCRYPTED 0x80000000
+#define DM_ENG_VERSION_MASK 0x7FFFFFFF
 
 typedef struct {
   int8_t  type;  // 0 unknown 1 community 2 trial 3 official
@@ -273,38 +279,98 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
   ptr = buffer;
   ptr = dmDecodeDFHeader(ptr, &dHeader);
 
-  if (dHeader.version != DM_ENG_FVER_1) {
-    // TODO
+  // Check if encrypted (high bit of version)
+  bool     isEncrypted = (dHeader.version & DM_ENG_VERSION_ENCRYPTED) != 0;
+  uint32_t realVersion = dHeader.version & DM_ENG_VERSION_MASK;
+
+  if (realVersion != DM_ENG_FVER_1) {
+    // TODO: handle version upgrade
   }
 
   if (dHeader.len > 0) {
-    if (dHeader.len > DM_FILE_HEAD_SIZE) {
+    // dHeader.len is the original plaintext length (dataLen + TSCKSUM)
+    int32_t plainLen = dHeader.len;
+    int32_t dataLen = plainLen - sizeof(TSCKSUM);
+
+    // Calculate actual read length from file
+    int32_t readLen = plainLen;
+    if (isEncrypted) {
+      readLen = ENCRYPTED_LEN(dataLen) + sizeof(TSCKSUM);
+    }
+
+    if (readLen > DM_FILE_HEAD_SIZE) {
       void *tmpBuf = NULL;
-      if (!(tmpBuf = taosMemoryRealloc(buffer, dHeader.len))) {
+      if (!(tmpBuf = taosMemoryRealloc(buffer, readLen))) {
         TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
       }
       buffer = tmpBuf;
     }
 
-    nRead = taosReadFile(pFile, buffer, dHeader.len);
+    nRead = taosReadFile(pFile, buffer, readLen);
     if (nRead < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
-    if (nRead != dHeader.len) {
+    if (nRead != readLen) {
       code = TSDB_CODE_FILE_CORRUPTED;
-      dTrace("failed to read %d bytes from vars body since %s", dHeader.len, tstrerror(code));
+      dTrace("failed to read %d bytes from vars body since %s", readLen, tstrerror(code));
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
-    if (!taosCheckChecksumWhole((uint8_t *)buffer, dHeader.len)) {
+    // Wait for keys to be loaded (reference: sdbFile.c line 400)
+    if (taosWaitCfgKeyLoaded() != 0) {
+      code = terrno;
+      TAOS_CHECK_GOTO(code, &lino, _exit);
+    }
+
+    // Decrypt if encrypted (reference: sdbFile.c line 405-432)
+    if (isEncrypted) {
+      if (tsCfgKey[0] == '\0') {
+        dError("dnode.info is encrypted but tsCfgKey is not set");
+        code = TSDB_CODE_INVALID_CFG;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+      }
+
+      int32_t encryptedLen = ENCRYPTED_LEN(dataLen);
+      char   *plainContent = taosMemoryMalloc(encryptedLen);
+      if (!plainContent) {
+        TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
+      }
+
+      // Decrypt using CBC with tsCfgKey
+      SCryptOpts opts = {0};
+      opts.len = encryptedLen;
+      opts.source = buffer;
+      opts.result = plainContent;
+      opts.unitLen = 16;
+      opts.pOsslAlgrName = taosGetEncryptAlgoName(tsEncryptAlgorithmType);
+      tstrncpy(opts.key, tsCfgKey, ENCRYPT_KEY_LEN + 1);
+
+      int32_t count = CBC_Decrypt(&opts);
+      if (count <= 0) {
+        taosMemoryFree(plainContent);
+        dError("failed to decrypt dnode.info, encryptedLen:%d", encryptedLen);
+        code = terrno;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+      }
+
+      // Copy decrypted data (without padding) and checksum back to buffer
+      memcpy(buffer, plainContent, dataLen);
+      memcpy((char *)buffer + dataLen, (char *)buffer + encryptedLen, sizeof(TSCKSUM));
+      taosMemoryFree(plainContent);
+
+      dTrace("decrypted dnode.info: encrypted len:%d, original len:%d", readLen, plainLen);
+    }
+
+    // Verify checksum (on decrypted/plain data)
+    if (!taosCheckChecksumWhole((uint8_t *)buffer, plainLen)) {
       dTrace("failed to read vars body since wrong checksum");
-      TAOS_CHECK_GOTO(TSDB_CODE_FILE_CORRUPTED, &lino, _exit);
+      TAOS_CHECK_GOTO(TSDB_CODE_CHECKSUM_ERROR, &lino, _exit);
     }
 
     ptr = buffer;
-    TAOS_CHECK_GOTO(dmDecodeVars(ptr, dHeader.len, pInfo), &lino, _exit);
+    TAOS_CHECK_GOTO(dmDecodeVars(ptr, dataLen, pInfo), &lino, _exit);
   }
 
 _exit:
@@ -380,12 +446,33 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
-  fHeader.version = DM_ENG_FVER_MAX;
+  // Wait for keys to be loaded
+  if (taosWaitCfgKeyLoaded() != 0) {
+    code = terrno;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
+  }
+
+  // Encode data first
   int32_t dataLen = dmEncodeVars(NULL, 0, pInfo);
   if (dataLen < 0) {
     TAOS_CHECK_GOTO(dataLen, &lino, _exit);
   }
-  fHeader.len = dataLen + sizeof(TSCKSUM);
+
+  // Determine if encryption is needed
+  bool isEncrypted = (tsCfgKey[0] != '\0');
+
+  // Calculate final length (with checksum and possible encryption padding)
+  int32_t plainLen = dataLen + sizeof(TSCKSUM);
+  int32_t finalLen = plainLen;
+  if (isEncrypted) {
+    finalLen = ENCRYPTED_LEN(dataLen) + sizeof(TSCKSUM);
+  }
+
+  fHeader.version = DM_ENG_FVER_MAX;
+  if (isEncrypted) {
+    fHeader.version |= DM_ENG_VERSION_ENCRYPTED;  // Set encryption flag
+  }
+  fHeader.len = plainLen;  // Store original length (for decryption reference)
 
   ptr = hbuf;
   TAOS_UNUSED(dmEncodeDFHeader(&ptr, &fHeader));
@@ -397,22 +484,75 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
   }
 
   if (fHeader.len > 0) {
-    if (!(pBuf = taosMemoryMalloc(fHeader.len))) {
+    // Allocate buffer for data + checksum
+    if (!(pBuf = taosMemoryMalloc(plainLen))) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 
+    // Encode data
     ptr = pBuf;
-    int32_t len = dmEncodeVars(ptr, fHeader.len - sizeof(TSCKSUM), pInfo);
+    int32_t len = dmEncodeVars(ptr, dataLen, pInfo);
     if (len < 0) {
       TAOS_CHECK_GOTO(len, &lino, _exit);
     }
 
-    TAOS_CHECK_EXIT(taosCalcChecksumAppend(0, (uint8_t *)pBuf, fHeader.len));
+    // Append checksum (on plaintext)
+    TAOS_CHECK_EXIT(taosCalcChecksumAppend(0, (uint8_t *)pBuf, plainLen));
 
-    if (taosWriteFile(tFile, pBuf, fHeader.len) < fHeader.len) {
+    // Encrypt if needed
+    char   *writeData = pBuf;
+    int32_t writeLen = plainLen;
+
+    if (isEncrypted) {
+      int32_t encryptLen = ENCRYPTED_LEN(dataLen);
+      // Allocate buffer for encrypted data + checksum
+      char *encryptBuf = taosMemoryMalloc(encryptLen + sizeof(TSCKSUM));
+      if (!encryptBuf) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+      }
+
+      // Pad with zeros
+      memset(encryptBuf, 0, encryptLen);
+      memcpy(encryptBuf, pBuf, dataLen);
+
+      // Encrypt using CBC with tsCfgKey
+      SCryptOpts opts = {0};
+      opts.len = encryptLen;
+      opts.source = encryptBuf;
+      opts.result = encryptBuf;  // Encrypt in-place
+      opts.unitLen = 16;
+      opts.pOsslAlgrName = taosGetEncryptAlgoName(tsEncryptAlgorithmType);
+      tstrncpy(opts.key, tsCfgKey, ENCRYPT_KEY_LEN + 1);
+
+      int32_t count = CBC_Encrypt(&opts);
+      if (count <= 0) {
+        taosMemoryFree(encryptBuf);
+        dError("failed to encrypt vars, dataLen:%d, encryptLen:%d", dataLen, encryptLen);
+        code = terrno;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+      }
+
+      // Copy checksum after encrypted data
+      memcpy(encryptBuf + encryptLen, (char *)pBuf + dataLen, sizeof(TSCKSUM));
+
+      writeData = encryptBuf;
+      writeLen = encryptLen + sizeof(TSCKSUM);
+
+      dTrace("encrypted dnode.info: original len:%d, encrypted len:%d", plainLen, writeLen);
+    }
+
+    if (taosWriteFile(tFile, writeData, writeLen) < writeLen) {
+      if (isEncrypted && writeData != pBuf) {
+        taosMemoryFree(writeData);
+      }
       code = TAOS_SYSTEM_ERROR(errno);
       TAOS_CHECK_GOTO(code, &lino, _exit);
+    }
+
+    if (isEncrypted && writeData != pBuf) {
+      taosMemoryFree(writeData);
     }
   }
 
