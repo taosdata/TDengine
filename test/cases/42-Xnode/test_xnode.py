@@ -1,5 +1,6 @@
 import random
 import uuid
+import time
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -279,6 +280,7 @@ class TestXnode:
             "DROP XNODE JOB WHERE jid > 1",
             "DROP XNODE JOB WHERE task_id = 2 and status = 'running'",
         ]
+
         for sql in job_sqls:
             tdLog.debug(f"exec: {sql}")
             self.no_syntax_fail_execute(sql)
@@ -449,8 +451,8 @@ class TestXnode:
         task_where_sqls = [
             f"SHOW XNODE TASKS WHERE name = '{test_task1}'",
             f"SHOW XNODE TASKS WHERE name != '{test_task2}'",
-            f"SHOW XNODE TASKS WHERE name LIKE 'task\_\_{self.suffix}'",
-            f"SHOW XNODE TASKS WHERE name LIKE 'task\_ingest%'",
+            f"SHOW XNODE TASKS WHERE name LIKE 'task__{self.suffix}'",
+            f"SHOW XNODE TASKS WHERE name LIKE 'task_ingest%'",
             "SHOW XNODE TASKS WHERE status = 'running'",
             "SHOW XNODE TASKS WHERE status != 'stopped'",
             "SHOW XNODE TASKS WHERE status IN ('running', 'pending')",
@@ -468,7 +470,7 @@ class TestXnode:
         agent_where_sqls = [
             f"SHOW XNODE AGENTS WHERE name = '{test_agent1}'",
             f"SHOW XNODE AGENTS WHERE name != '{test_agent2}'",
-            f"SHOW XNODE AGENTS WHERE name LIKE 'agent\_\_{self.suffix}'",
+            f"SHOW XNODE AGENTS WHERE name LIKE 'agent__{self.suffix}'",
             "SHOW XNODE AGENTS WHERE status = 'active'",
             "SHOW XNODE AGENTS WHERE status != 'inactive'",
             "SHOW XNODE AGENTS WHERE status IN ('active', 'running')",
@@ -555,15 +557,15 @@ class TestXnode:
         complex_where_sqls = [
             # 复杂 TASK 查询 - 使用实际创建的测试数据
             f"SHOW XNODE TASKS WHERE (id > 10 AND status = 'running') OR (id < 5 AND status = 'pending')",
-            f"SHOW XNODE TASKS WHERE name LIKE 'complex\_task\_%' AND (via = 1 OR via = 2)",
-            f"SHOW XNODE TASKS WHERE name LIKE 'ingest\_data%' AND status = 'running'",
+            f"SHOW XNODE TASKS WHERE name LIKE 'complex_task_%' AND (via = 1 OR via = 2)",
+            f"SHOW XNODE TASKS WHERE name LIKE 'ingest_data%' AND status = 'running'",
             f"SHOW XNODE TASKS WHERE name IN ('{test_task1}', '{test_task2}') AND create_time > '2024-01-01'",
             f"SHOW XNODE TASKS WHERE name != '' AND created_by = 'admin' AND update_time > create_time",
             f"SHOW XNODE TASKS WHERE (id BETWEEN 1 AND 100) AND name LIKE '%{self.suffix}'",
             f"SHOW XNODE TASKS WHERE labels LIKE '%critical%' AND status = 'running'",
 
             # 复杂 AGENT 查询 - 使用实际创建的测试数据
-            f"SHOW XNODE AGENTS WHERE (name LIKE 'worker\_agent%' OR name LIKE 'backup\_%') AND status = 'active'",
+            f"SHOW XNODE AGENTS WHERE (name LIKE 'worker_agent%' OR name LIKE 'backup_%') AND status = 'active'",
             f"SHOW XNODE AGENTS WHERE name = '{test_agent1}' AND (create_time > '2024-01-01' OR update_time > '2024-01-01')",
             f"SHOW XNODE AGENTS WHERE status IN ('active', 'running', 'ready') AND update_time > create_time",
             f"SHOW XNODE AGENTS WHERE (id BETWEEN 1 AND 100) AND name != '' AND status != 'stopped'",
@@ -1082,3 +1084,65 @@ class TestXnode:
         for sql in boundary_sqls:
             tdLog.debug(f"drop job with boundary value: {sql}")
             self.no_syntax_fail_execute(sql)
+
+    def test_drop_xnode_job_where_simple(self):
+        """测试 DROP XNODE JOB WHERE 简单条件
+
+        1. Test create xnode job
+        2. Test rebalance xnode job
+        3. Test drop xnode job
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-01-20 GuiChuan Zhang Created
+        """
+        for _ in range(20):
+            self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test'")
+
+        rs = tdSql.query("show xnode jobs", row_tag=True)
+        self.no_syntax_fail_execute(f"REBALANCE XNODE JOB WHERE task_id=1")
+        self.no_syntax_fail_execute(f"REBALANCE XNODE JOB WHERE id>=1")
+        self.no_syntax_fail_execute(f"DROP XNODE JOB {rs[0][0]}")
+        self.no_syntax_fail_execute(f"DROP XNODE JOB WHERE task_id=1")
+        self.wait_transaction_to_commit()
+        rs = tdSql.query(f"show xnode jobs where id={rs[0][0]}", row_tag=True)
+        assert len(rs) == 0
+
+        self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test'")
+        self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test'")
+        self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test'")
+        rs = tdSql.query("show xnode jobs", row_tag=True)
+        self.no_syntax_fail_execute(f"DROP XNODE JOB {rs[0][0]}")
+        self.no_syntax_fail_execute(f"DROP XNODE JOB WHERE id>{rs[0][0]}")
+        self.wait_transaction_to_commit()
+        rs = tdSql.query(f"show xnode jobs where id={rs[0][0]}", row_tag=True)
+        assert len(rs) == 0
+
+    def wait_transaction_to_commit(self):
+        """等待 transactions 完成
+
+        1. show transactions
+        2. wait 3 seconds
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-01-19 GuiChuan Zhang Created
+        """
+        cnt = 0
+        while True and cnt < 3:
+            cnt += 1
+            rs = tdSql.query("show transactions", row_tag=True)
+            if len(rs) <= 0:
+                break
+            tdLog.info(f"wait {len(rs)} transactions to finish")
+            time.sleep(3)

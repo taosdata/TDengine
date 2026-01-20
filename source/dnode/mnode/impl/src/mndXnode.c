@@ -2286,6 +2286,7 @@ static int32_t mndAcquireXnodeJobsAll(SMnode *pMnode, SArray **ppArray) {
       code = terrno;
       goto _exit;
     }
+    sdbRelease(pSdb, pJob);
   }
   sdbCancelFetch(pSdb, pIter);
 
@@ -2294,6 +2295,9 @@ _exit:
 }
 
 static void mndFreeXnodeJob(SXnodeJobObj *pObj) {
+  if (NULL == pObj) {
+    return;
+  }
   if (NULL != pObj->config) {
     taosMemoryFreeClear(pObj->config);
   }
@@ -2419,6 +2423,7 @@ _OVER:
     if (pObj != NULL) {
       taosMemoryFreeClear(pObj->config);
       taosMemoryFreeClear(pObj->reason);
+      taosMemoryFreeClear(pObj->status);
     }
     taosMemoryFreeClear(pRow);
     return NULL;
@@ -3496,7 +3501,7 @@ static int32_t dropXnodeJobByWhereCond(SMnode *pMnode, SRpcMsg *pReq, SMDropXnod
 
     for (int32_t i = 0; i < pResult->size; i++) {
       pObj = taosArrayGet(pResult, i);
-      TAOS_CHECK_GOTO(dropXnodeJobById(pMnode, pReq, pObj->id), &lino, _OVER);
+      TAOS_CHECK_GOTO(mndDropXnodeJob(pMnode, pReq, pObj), &lino, _OVER);
     }
   }
 
