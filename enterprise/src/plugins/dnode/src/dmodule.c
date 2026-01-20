@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 
-#include "crypt.h"
 #include "dmMgmt.h"
+#include "crypt.h"
 #include "tchecksum.h"
 #include "tencrypt.h"
 #include "tglobal.h"
@@ -357,7 +357,7 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
 
       // Copy decrypted data (without padding) and checksum back to buffer
       memcpy(buffer, plainContent, dataLen);
-      memcpy(buffer + dataLen, buffer + encryptedLen, sizeof(TSCKSUM));
+      memcpy((char *)buffer + dataLen, (char *)buffer + encryptedLen, sizeof(TSCKSUM));
       taosMemoryFree(plainContent);
 
       dTrace("decrypted dnode.info: encrypted len:%d, original len:%d", readLen, plainLen);
@@ -506,7 +506,8 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
 
     if (isEncrypted) {
       int32_t encryptLen = ENCRYPTED_LEN(dataLen);
-      char   *encryptBuf = taosMemoryMalloc(encryptLen);
+      // Allocate buffer for encrypted data + checksum
+      char *encryptBuf = taosMemoryMalloc(encryptLen + sizeof(TSCKSUM));
       if (!encryptBuf) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         TAOS_CHECK_GOTO(code, &lino, _exit);
@@ -534,7 +535,7 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
       }
 
       // Copy checksum after encrypted data
-      memcpy(encryptBuf + encryptLen, pBuf + dataLen, sizeof(TSCKSUM));
+      memcpy(encryptBuf + encryptLen, (char *)pBuf + dataLen, sizeof(TSCKSUM));
 
       writeData = encryptBuf;
       writeLen = encryptLen + sizeof(TSCKSUM);
