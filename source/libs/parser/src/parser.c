@@ -777,6 +777,7 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       if (IS_DURATION_VAL(pVal->flag)) {
         taosMemoryFreeClear(pVal->literal);
+        taosMemoryFreeClear(pVal->datum.p);
         pVal->literal = taosStrndup((const char*)pParam->buffer, pVal->node.resType.bytes - VARSTR_HEADER_SIZE);
         if (!pVal->literal) {
           return terrno;
@@ -790,7 +791,6 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
         pVal->datum.i = duration;
         pVal->unit = unit;
         *(int64_t*)&pVal->typeData = duration;
-        // taosMemoryFreeClear(pVal->datum.p);
         pVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;
         pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
       }
