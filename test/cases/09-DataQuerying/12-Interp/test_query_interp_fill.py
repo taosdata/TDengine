@@ -1336,6 +1336,7 @@ class TestInterpFill:
         tdSql.checkData(0, 0, "2026-01-07 00:00:00.000")
         tdSql.checkData(0, 2, "2026-01-06 18:53:19.000")
         tdSql.checkData(0, 3, True)
+
     #
     # ------------------- extend ----------------
     #
@@ -1910,7 +1911,7 @@ class TestInterpFill:
 
         stream: StreamItem = StreamItem(
             id=15,
-            stream=f"""create stream s15 state_window(c1) from triggertb into
+            stream="""create stream s15 state_window(c1) from triggertb into
                 res15 as select _irowts, interp(c1, 1) from test_surround.stb
                 range(_twstart, _twend) every(1d) fill(next) surround(1d, 100)""",
             check_func=self.check_s15,
@@ -1990,7 +1991,6 @@ class TestInterpFill:
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00', 1h) fill({mode}) surround(1h)")
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00', 1h) fill({mode}, 1) surround(1h)")
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00', 1h) fill({mode}, 1) surround(1h, 2)")
-            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') surround(1h, 2)")
 
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround('1s', 1)")
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1, 2)")
@@ -2000,9 +2000,10 @@ class TestInterpFill:
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1s, a)")
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1s, !)")
 
-        tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill(linear) surround(1h, 1)")
-        tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill(none) surround(1h, 1)")
-        tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill(null) surround(1h, 1)")
-        tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill(null_f) surround(1h, 1)")
-        tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill(value, 1) surround(1h, 1)")
-        tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill(value_f, 1) surround(1h, 1)")
+        tdSql.error("select interp(c1) from ntb range('2026-01-01 12:00:00') surround(1h, 2)")
+        tdSql.error("select interp(c1) from ntb range('2026-01-01 12:00:00') fill(linear) surround(1h, 1)")
+        tdSql.error("select interp(c1) from ntb range('2026-01-01 12:00:00') fill(none) surround(1h, 1)")
+        tdSql.error("select interp(c1) from ntb range('2026-01-01 12:00:00') fill(null) surround(1h, 1)")
+        tdSql.error("select interp(c1) from ntb range('2026-01-01 12:00:00') fill(null_f) surround(1h, 1)")
+        tdSql.error("select interp(c1) from ntb range('2026-01-01 12:00:00') fill(value, 1) surround(1h, 1)")
+        tdSql.error("select interp(c1) from ntb range('2026-01-01 12:00:00') fill(value_f, 1) surround(1h, 1)")

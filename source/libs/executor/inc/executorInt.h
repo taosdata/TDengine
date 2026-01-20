@@ -898,7 +898,6 @@ void finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPositi
                         SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
 bool    groupbyTbname(SNodeList* pGroupList);
-void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order);
 int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int32_t pos, int32_t order,
                                int64_t* pData);
 SSDataBlock* buildCreateTableBlock(SExprSupp* tbName, SExprSupp* tag);
