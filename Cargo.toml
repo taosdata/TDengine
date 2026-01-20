@@ -96,7 +96,7 @@ serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
 fundu = "2.0.1"
 opendal = { version = "0.53" }
 rumqttc = "0.25.0"
-rustls = { version = "0.23.18", default-features = false }
+rustls = { version = "0.23.36", default-features = false }
 rustls-pemfile = { version = "2" }
 rustls-native-certs = "0.8"
 
@@ -225,7 +225,7 @@ reclaim-memory = { path = "./crates/reclaim-memory" }
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
-rev = "29b8215d"
+rev = "63e10bea"
 git = "https://github.com/taosdata/taos-connector-rust.git"
 default-features = false
 features = ["ws", "optin", "deadpool"]
