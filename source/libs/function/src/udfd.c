@@ -1770,6 +1770,7 @@ int main(int argc, char *argv[]) {
   bool residentFuncsInited = false;
   bool udfSourceDirInited = false;
   bool globalDataInited = false;
+  taosSetSkipKeyCheckMode();
 
   if (!taosCheckSystemIsLittleEnd()) {
     (void)printf("failed to start since on non-little-end machines\n");

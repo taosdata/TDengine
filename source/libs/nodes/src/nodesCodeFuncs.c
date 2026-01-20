@@ -5444,6 +5444,11 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
         taosMemoryFree(buf);
       } else {
         code = tjsonGetStringValue(pJson, jkValueDatum, varDataVal(pNode->datum.p));
+        if (code != TSDB_CODE_SUCCESS) {
+          break;
+        }
+        int32_t actualLen = strnlen(varDataVal(pNode->datum.p), pNode->node.resType.bytes - VARSTR_HEADER_SIZE);
+        varDataSetLen(pNode->datum.p, actualLen);
       }
       break;
     }
