@@ -63,7 +63,7 @@ TDengine TSDB 先对用户操作进行记录和管理，然后将这些作为审
 |monitorPort | 接收审计日志的 taosKeeper 服务所用端口 |
 |monitorCompaction | 上报数据时是否进行压缩 |
 |auditLevel | 审计级别，不同级别记录不同的审计操作，具体参看操作列表 |
-|auditHttps | 发送审计记录给taosKeeper时是否使用https协议 |
+|auditHttps | 发送审计记录给 taosKeeper 时是否使用 https 协议 |
 
 ### 创建审计库
 
