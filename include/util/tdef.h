@@ -265,7 +265,6 @@ typedef enum ELogicConditionType {
 #define TSDB_NODE_NAME_LEN            64
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
-#define TSDB_TOKEN_NAME_LEN           32                                 // it is a null-terminated string
 #define TSDB_TOKEN_LEN                64                                 // it is a null-terminated string
 #define TSDB_TOKEN_EXPIRY_LEEWAY      30                                 // in seconds
 #define TSDB_TOKEN_PROVIDER_LEN       64                                 // it is a null-terminated string
@@ -406,18 +405,21 @@ typedef enum ELogicConditionType {
 
 #define TSDB_XNODE_OPT_PROTO            1
 #define TSDB_XNODE_URL_LEN              256
-#define TSDB_XNODE_NAME_LEN             64
 #define TSDB_XNODE_STATUS_LEN           16
 #define TSDB_XNODE_TASK_NAME_LEN        64
 #define TSDB_XNODE_TASK_PARSER_LEN      4096
 #define TSDB_XNODE_TASK_TRIGGER_LEN     128
 #define TSDB_XNODE_RESOURCE_ID_LEN      8
 #define TSDB_XNODE_RESOURCE_NAME_LEN    64
-#define TSDB_XNODE_TASK_SOURCE_LEN      1024
-#define TSDB_XNODE_TASK_SINK_LEN        1024
+#define TSDB_XNODE_TASK_SOURCE_LEN      2048
+#define TSDB_XNODE_TASK_SINK_LEN        2048
 #define TSDB_XNODE_TASK_REASON_LEN      1024
 #define TSDB_XNODE_TASK_OPTIONS_MAX_NUM 64
 #define TSDB_XNODE_TASK_JOB_CONFIG_LEN  4096
+#define TSDB_XNODE_TASK_LABELS_LEN      4096
+#define TSDB_XNODE_AGENT_NAME_LEN       TSDB_XNODE_TASK_NAME_LEN
+#define TSDB_XNODE_AGENT_STATUS_LEN     TSDB_XNODE_STATUS_LEN
+#define TSDB_XNODE_AGENT_TOKEN_LEN      512
 
 #define TSDB_MAX_EP_NUM 10
 
@@ -463,7 +465,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_REPLICA               5
 #define TSDB_MAX_LEARNER_REPLICA       10
 #define TSDB_SYNC_RESTORE_lEN          20
-#define TSDB_SYNC_APPLY_COMMIT_LEN     41
+#define TSDB_SYNC_APPLY_COMMIT_LEN     100
 #define TSDB_SYNC_LOG_BUFFER_SIZE      4096
 #define TSDB_SYNC_LOG_BUFFER_RETENTION 256
 #define TSDB_SYNC_LOG_BUFFER_THRESHOLD (1024 * 1024 * 5)
@@ -551,6 +553,9 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_DB_CACHE_SIZE          1  // MB
 #define TSDB_MAX_DB_CACHE_SIZE          65536
 #define TSDB_DEFAULT_CACHE_SIZE         1
+#define TSDB_DEFAULT_MECACHE_SIZE       (1024 * 128)
+#define TSDB_MIN_MECACHE_SIZE           (1024 * 4)
+#define TSDB_MAX_MECACHE_SIZE           (4ll * 1024 * 1024 * 1024)
 #define TSDB_DB_STREAM_MODE_OFF         0
 #define TSDB_DB_STREAM_MODE_ON          1
 #define TSDB_DEFAULT_DB_STREAM_MODE     0
@@ -701,6 +706,8 @@ typedef enum ELogicConditionType {
 #define TFS_PRIMARY_ID             0
 #define TFS_MIN_DISK_FREE_SIZE     50 * 1024 * 1024                    // 50MB
 #define TFS_MIN_DISK_FREE_SIZE_MAX (2ULL * 1024 * 1024 * 1024 * 1024)  // 2TB
+
+#define SYNC_SNAPSHOT_SEQ_END          0x7FFFFFFF
 
 enum { TRANS_STAT_INIT = 0, TRANS_STAT_EXECUTING, TRANS_STAT_EXECUTED, TRANS_STAT_ROLLBACKING, TRANS_STAT_ROLLBACKED };
 enum { TRANS_OPER_INIT = 0, TRANS_OPER_EXECUTE, TRANS_OPER_ROLLBACK };

@@ -660,14 +660,14 @@ typedef enum ENodeType {
   QUERY_NODE_STOP_XNODE_TASK_STMT,            // XNode task
   QUERY_NODE_UPDATE_XNODE_TASK_STMT,          // XNode task
   QUERY_NODE_DROP_XNODE_TASK_STMT,            // XNode task
-  QUERY_NODE_CREATE_XNODE_JOB_STMT,           // XNode task job
-  QUERY_NODE_ALTER_XNODE_JOB_STMT,            // XNode task
-  QUERY_NODE_REBALANCE_XNODE_JOB_STMT,        // XNode task
-  QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT,  // XNode task
-  QUERY_NODE_DROP_XNODE_JOB_STMT,             // XNode task job
+  QUERY_NODE_CREATE_XNODE_JOB_STMT,           // XNode job
+  QUERY_NODE_ALTER_XNODE_JOB_STMT,            // XNode job
+  QUERY_NODE_REBALANCE_XNODE_JOB_STMT,        // XNode job
+  QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT,  // XNode job
+  QUERY_NODE_DROP_XNODE_JOB_STMT,             // XNode job
   QUERY_NODE_CREATE_XNODE_AGENT_STMT,         // XNode agent
   QUERY_NODE_DROP_XNODE_AGENT_STMT,           // XNode agent
-
+  QUERY_NODE_ALTER_XNODE_AGENT_STMT,          // XNode agent
 } ENodeType;
 
 typedef struct {
@@ -1802,6 +1802,11 @@ int32_t tSerializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* pR
 int32_t tDeserializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* pReq);
 
 typedef struct {
+  int8_t  enabled;
+  int32_t expireTime;
+} STokenStatus;
+
+typedef struct {
   char      user[TSDB_USER_LEN];
   int64_t   userId;
   int32_t   version;
@@ -1824,6 +1829,7 @@ typedef struct {
 
   SUserSessCfg sessCfg;
   int64_t      timeWhiteListVer;
+  SHashObj*    tokens;
 } SGetUserAuthRsp;
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
@@ -2669,6 +2675,8 @@ typedef struct {
   int64_t syncCommitIndex;
   int64_t bufferSegmentUsed;
   int64_t bufferSegmentSize;
+  int32_t snapSeq;
+  int64_t syncTotalIndex;
 } SVnodeLoad;
 
 typedef struct {
@@ -3797,6 +3805,7 @@ typedef struct {
   CowStr      parser;
   CowStr      reason;
   CowStr      updateName;
+  CowStr      labels;
   int32_t     sqlLen;
   char*       sql;
 } SMUpdateXnodeTaskReq;
@@ -3805,11 +3814,10 @@ int32_t tDeserializeSMUpdateXnodeTaskReq(void* buf, int32_t bufLen, SMUpdateXnod
 void    tFreeSMUpdateXnodeTaskReq(SMUpdateXnodeTaskReq* pReq);
 
 typedef struct {
-  int32_t tid;
+  int32_t id;
   bool    force;
-  int32_t nameLen;
+  CowStr  name;
   int32_t sqlLen;
-  char*   name;
   char*   sql;
 } SMDropXnodeTaskReq;
 int32_t tSerializeSMDropXnodeTaskReq(void* buf, int32_t bufLen, SMDropXnodeTaskReq* pReq);
@@ -3835,11 +3843,9 @@ typedef struct {
   int32_t via;
   int32_t xnodeId;
   CowStr  status;
-  int32_t configLen;
-  int32_t reasonLen;
+  CowStr  config;
+  CowStr  reason;
   int32_t sqlLen;
-  char*   config;
-  char*   reason;
   char*   sql;
 } SMCreateXnodeJobReq;
 int32_t tSerializeSMCreateXnodeJobReq(void* buf, int32_t bufLen, SMCreateXnodeJobReq* pReq);
@@ -3890,6 +3896,33 @@ typedef struct {
 int32_t tSerializeSMDropXnodeJobReq(void* buf, int32_t bufLen, SMDropXnodeJobReq* pReq);
 int32_t tDeserializeSMDropXnodeJobReq(void* buf, int32_t bufLen, SMDropXnodeJobReq* pReq);
 void    tFreeSMDropXnodeJobReq(SMDropXnodeJobReq* pReq);
+
+typedef struct {
+  int32_t      sqlLen;
+  char*        sql;
+  CowStr       name;
+  CowStr       status;
+  xTaskOptions options;
+} SMCreateXnodeAgentReq;
+int32_t tSerializeSMCreateXnodeAgentReq(void* buf, int32_t bufLen, SMCreateXnodeAgentReq* pReq);
+int32_t tDeserializeSMCreateXnodeAgentReq(void* buf, int32_t bufLen, SMCreateXnodeAgentReq* pReq);
+void    tFreeSMCreateXnodeAgentReq(SMCreateXnodeAgentReq* pReq);
+
+typedef struct {
+  int32_t      sqlLen;
+  char*        sql;
+  int32_t      id;
+  CowStr       name;
+  xTaskOptions options;
+} SMUpdateXnodeAgentReq;
+int32_t tSerializeSMUpdateXnodeAgentReq(void* buf, int32_t bufLen, SMUpdateXnodeAgentReq* pReq);
+int32_t tDeserializeSMUpdateXnodeAgentReq(void* buf, int32_t bufLen, SMUpdateXnodeAgentReq* pReq);
+void    tFreeSMUpdateXnodeAgentReq(SMUpdateXnodeAgentReq* pReq);
+
+typedef SMDropXnodeTaskReq SMDropXnodeAgentReq;
+int32_t                    tSerializeSMDropXnodeAgentReq(void* buf, int32_t bufLen, SMDropXnodeAgentReq* pReq);
+int32_t                    tDeserializeSMDropXnodeAgentReq(void* buf, int32_t bufLen, SMDropXnodeAgentReq* pReq);
+void                       tFreeSMDropXnodeAgentReq(SMDropXnodeAgentReq* pReq);
 
 typedef struct {
   int32_t vgId;
@@ -4166,6 +4199,8 @@ typedef struct {
   int32_t tversion;
 } SResReadyRsp;
 
+typedef enum { OP_GET_PARAM = 1, OP_NOTIFY_PARAM } SOperatorParamType;
+
 typedef struct SOperatorParam {
   int32_t opType;
   int32_t downstreamIdx;
@@ -4173,6 +4208,8 @@ typedef struct SOperatorParam {
   SArray* pChildren;  // SArray<SOperatorParam*>
   bool    reUse;
 } SOperatorParam;
+
+void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 
 typedef struct SColIdNameKV {
   col_id_t colId;
@@ -4215,18 +4252,29 @@ typedef enum {
   DYN_TYPE_STB_JOIN = 1,
   DYN_TYPE_VSTB_SINGLE_SCAN,
   DYN_TYPE_VSTB_BATCH_SCAN,
+  DYN_TYPE_VSTB_WIN_SCAN,
 } ETableScanDynType;
 
+typedef enum {
+  DYN_TYPE_SCAN_PARAM = 1,
+  NOTIFY_TYPE_SCAN_PARAM,
+} ETableScanGetParamType;
+
 typedef struct STableScanOperatorParam {
-  bool              tableSeq;
-  bool              isNewParam;
-  uint64_t          groupid;
-  SArray*           pUidList;
-  SOrgTbInfo*       pOrgTbInfo;
-  SArray*           pBatchTbInfo;  // SArray<SOrgTbInfo>
-  SArray*           pTagList;
-  STimeWindow       window;
-  ETableScanDynType type;
+  ETableScanGetParamType paramType;
+  /* for building scan data source */
+  bool                   tableSeq;
+  bool                   isNewParam;
+  uint64_t               groupid;
+  SArray*                pUidList;
+  SOrgTbInfo*            pOrgTbInfo;
+  SArray*                pBatchTbInfo;  // SArray<SOrgTbInfo>
+  SArray*                pTagList;
+  STimeWindow            window;
+  ETableScanDynType      dynType;
+  /* for notifying source step done */
+  bool                   notifyToProcess;  // received notify STEP DONE message
+  TSKEY                  notifyTs;         // notify timestamp
 } STableScanOperatorParam;
 
 typedef struct STagScanOperatorParam {

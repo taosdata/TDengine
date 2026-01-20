@@ -12,15 +12,12 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
-from test_vtable_util import TestVtableQueryUtil
+from vtable_util import VtableQueryUtil
 
-class TestVtableQueryCrossDbStbWindow:
-    updatecfgDict = {
-        "supportVnodes":"1000",
-    }
+class TestVTablePlanAggOptimize:
     def setup_class(cls):
-        vtbUtil = TestVtableQueryUtil()
-        vtbUtil.prepare_same_db_vtables()
+        vtbUtil = VtableQueryUtil()
+        vtbUtil.prepare_same_db_vtables(mode = 2)
 
     def run_normal_query(self, testCase):
         # read sql from .sql file and execute
@@ -30,12 +27,13 @@ class TestVtableQueryCrossDbStbWindow:
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
-    def test_select_virtual_super_table(self):
-        """Query: virtual stable from cross db
+    def test_virtual_table_plan(self):
+        """Query: virtual stable query plan
 
-        1. test vstable select super table cross db state in mode 0
-        2. test vstable select super table cross db state in mode 1
-        3. test vstable select super table cross db state in mode 2
+        1. test select super table agg's plan
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.3.8.0
 
@@ -44,11 +42,9 @@ class TestVtableQueryCrossDbStbWindow:
         Jira: None
 
         History:
-            - 2025-11-21 Jing Sima Split from test_vtable_query_cross_db_stb_window.py
+            - 2025-12-19 Jing Sima created
 
         """
 
-        self.run_normal_query("test_vstable_select_test_state_mode_0")
-        self.run_normal_query("test_vstable_select_test_state_mode_1")
-        self.run_normal_query("test_vstable_select_test_state_mode_2")
+        self.run_normal_query("test_vstable_plan_test_agg")
 

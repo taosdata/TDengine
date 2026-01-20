@@ -12,12 +12,12 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 import os
-from test_vtable_util import TestVtableQueryUtil
+from vtable_util import VtableQueryUtil
 
-class TestVTableQueryPlan:
+class TestVTablePlanAggOptimize:
     def setup_class(cls):
-        vtbUtil = TestVtableQueryUtil()
-        vtbUtil.prepare_same_db_vtables(mode = 2)
+        vtbUtil = VtableQueryUtil()
+        vtbUtil.prepare_same_db_vtables()
 
     def run_normal_query(self, testCase):
         # read sql from .sql file and execute
@@ -30,20 +30,20 @@ class TestVTableQueryPlan:
     def test_virtual_table_plan(self):
         """Query: virtual stable query plan
 
-        1. test select super table agg's plan
+        1. test select virtual super table window's plan
 
         Catalog:
             - VirtualTable
 
-        Since: v3.3.8.0
+        Since: v3.4.0.0
 
         Labels: virtual
 
         Jira: None
 
         History:
-            - 2025-12-19 Jing Sima created
+            - 2025-1-14 Jing Sima created
 
         """
-        self.run_normal_query("test_vstable_plan_test_agg")
+        self.run_normal_query("test_vstable_plan_test_window_state")
 

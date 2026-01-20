@@ -120,7 +120,10 @@ typedef enum {
   MND_OPER_UPDATE_XNODE_JOB,
   MND_OPER_REBALANCE_XNODE_JOB,
   MND_OPER_DROP_XNODE_JOB,
-  MND_OPER_MAX // the max operation type
+  MND_OPER_CREATE_XNODE_AGENT,
+  MND_OPER_UPDATE_XNODE_AGENT,
+  MND_OPER_DROP_XNODE_AGENT,
+  MND_OPER_MAX  // the max operation type
 } EOperType;
 
 typedef enum {
@@ -348,12 +351,16 @@ typedef struct {
   int32_t  parserLen;
   int32_t  statusLen;
   int32_t  reasonLen;
+  int32_t  createdByLen;
+  int32_t  labelsLen;
   char*    name;
   char*    sourceDsn;
   char*    sinkDsn;
   char*    parser;
   char*    status;
   char*    reason;
+  char*    createdBy;
+  char*    labels;
   SRWLatch lock;
   // SArray** labels;
   // int32_t  numOfLabels;
@@ -374,6 +381,19 @@ typedef struct {
   int64_t  updateTime;
   SRWLatch lock;
 } SXnodeJobObj;
+
+typedef struct {
+  int32_t  id;
+  int64_t  createTime;
+  int64_t  updateTime;
+  int32_t  nameLen;
+  int32_t  tokenLen;
+  int32_t  statusLen;
+  char*    name;
+  char*    token;
+  char*    status;
+  SRWLatch lock;
+} SXnodeAgentObj;
 
 typedef struct {
   int32_t  id;
@@ -783,6 +803,8 @@ typedef struct {
   int32_t    learnerProgress;
   int64_t    bufferSegmentUsed;
   int64_t    bufferSegmentSize;
+  int32_t    snapSeq;
+  int64_t    syncTotalIndex;
 } SVnodeGid;
 
 typedef struct {

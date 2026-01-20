@@ -278,7 +278,6 @@ typedef struct SDynQueryCtrlVtbWindow {
   int32_t               wendSlotId;
   int32_t               wdurationSlotId;
   bool                  isVstb;
-  bool                  singleWinMode;
   EStateWinExtendOption extendOption;
 } SDynQueryCtrlVtbWindow;
 
@@ -700,20 +699,17 @@ typedef struct SVtbWindowDynCtrlBasic {
   int32_t               wendSlotId;
   int32_t               wdurationSlotId;
   bool                  isVstb;
-  bool                  singleWinMode;
   SNodeList*            pTargets;
   EStateWinExtendOption extendOption;
 } SVtbWindowDynCtrlBasic;
 
 typedef struct SDynQueryCtrlPhysiNode {
-  SPhysiNode    node;
-  EDynQueryType qType;
-  bool          dynTbname;
-  union {
-    SStbJoinDynCtrlBasic   stbJoin;
-    SVtbScanDynCtrlBasic   vtbScan;
-    SVtbWindowDynCtrlBasic vtbWindow;
-  };
+  SPhysiNode             node;
+  EDynQueryType          qType;
+  bool                   dynTbname;
+  SStbJoinDynCtrlBasic   stbJoin;
+  SVtbScanDynCtrlBasic   vtbScan;
+  SVtbWindowDynCtrlBasic vtbWindow;
 } SDynQueryCtrlPhysiNode;
 
 typedef struct SAggPhysiNode {

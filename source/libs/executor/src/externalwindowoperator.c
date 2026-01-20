@@ -2064,19 +2064,21 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     QUERY_CHECK_CONDITION(pOperator->numOfDownstream == 1, code, lino, _exit, TSDB_CODE_INVALID_PARA)
 
     switch (pDownParam->opType) {
-      case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
-        break;
-      }
       case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
         pExecParam = (SExchangeOperatorParam*)((SOperatorParam*)(pOperator->pDownstreamGetParams[0]))->value;
-        pExecParam->basic.vgId = pExtW->orgTableVgId;
-        taosArrayClear(pExecParam->basic.uidList);
-        QUERY_CHECK_NULL(taosArrayPush(pExecParam->basic.uidList, &pExtW->orgTableUid), code, lino, _exit, terrno)
+        if (!pExecParam->multiParams) {
+          pExecParam->basic.vgId = pExtW->orgTableVgId;
+          taosArrayClear(pExecParam->basic.uidList);
+          QUERY_CHECK_NULL(taosArrayPush(pExecParam->basic.uidList, &pExtW->orgTableUid), code, lino, _exit, terrno)
+        }
         break;
       }
       default:
-        QUERY_CHECK_CONDITION(false, code, lino, _exit, TSDB_CODE_INVALID_PARA)
+        break;
     }
+
+    freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
+    pOperator->pOperatorGetParam = NULL;
   } else {
     TAOS_CHECK_EXIT(extWinInitWindowList(pExtW, pTaskInfo));
   }
@@ -2086,7 +2088,10 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
     pExtW->blkWinStartSet = false;
     pExtW->blkRowStartIdx = 0;
 
-    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
+    SSDataBlock* pBlock = getNextBlockFromDownstreamRemain(pOperator, 0);
+    if (pOperator->pDownstreamGetParams) {
+      pOperator->pDownstreamGetParams[0] = NULL;
+    }
     if (pBlock == NULL) {
       if (EEXT_MODE_AGG == pExtW->mode) {
         TAOS_CHECK_EXIT(extWinAggHandleEmptyWins(pOperator, pBlock, true, NULL));
@@ -2166,6 +2171,12 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     *ppRes = NULL;
     return code;
+  }
+
+  if (pOperator->pOperatorGetParam) {
+    if (pOperator->status == OP_EXEC_DONE) {
+      pOperator->status = OP_NOT_OPENED;
+    }
   }
 
   extWinRecycleBlkNode(pExtW, &pExtW->pLastBlkNode);

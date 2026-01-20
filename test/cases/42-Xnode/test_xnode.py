@@ -27,7 +27,20 @@ class TestXnode:
 
     # Helpers -----------------------------------------------------------------
 
-    def _no_syntax_fail_execute(self, sql: str):
+    def no_syntax_fail_execute(self, sql: str):
+        """test no syntax fail
+
+        1. execute sql
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-01-08 GuiChuan Zhang Created
+        """
         try:
             tdSql.execute(sql)
             return True
@@ -39,7 +52,20 @@ class TestXnode:
             tdLog.notice(f"runtime/semantic error tolerated for sql: {sql} | {err}")
             return False
 
-    def _no_syntax_fail_query(self, sql: str):
+    def no_syntax_fail_query(self, sql: str):
+        """test no syntax fail query
+
+        1. query sql
+
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-01-08 GuiChuan Zhang Created
+        """
         try:
             tdSql.query(sql)
             return True
@@ -57,7 +83,7 @@ class TestXnode:
         """测试显示 SHOW STMT 语句
 
         1. Query show xnodes, xnode tasks, xnode agents, xnode jobs
-        
+
         Since: v3.3.8.8
 
         Labels: common,ci
@@ -76,7 +102,7 @@ class TestXnode:
         ]
         for sql in show_sqls:
             tdLog.debug(f"query: {sql}")
-            self._no_syntax_fail_query(sql)
+            self.no_syntax_fail_query(sql)
 
     def test_xnode_crud(self):
         """测试 XNode CRUD 操作
@@ -86,7 +112,7 @@ class TestXnode:
         3. Create xnode with id only
         4. Drop xnode by endpoint and id
         5. Drain xnode by id
-        
+
         Since: v3.3.8.8
 
         Labels: common,ci
@@ -104,7 +130,8 @@ class TestXnode:
         sqls = [
             f"DROP XNODE FORCE '{ep1}'",
             f"DROP XNODE FORCE {node_id}",
-            f"CREATE XNODE '{ep1}' USER __xnode__ PASS 'Ab{self.suffix}!'",
+            # f"CREATE XNODE '{ep1}' USER __xnode__ PASS 'Ab{self.suffix}!'",
+            f"CREATE XNODE '{ep1}' USER root PASS 'taosdata'",
             f"CREATE XNODE '{ep2}'",
             f"DROP XNODE '{ep2}'",
             f"DROP XNODE {node_id}",
@@ -112,9 +139,9 @@ class TestXnode:
         ]
         for sql in sqls:
             tdLog.debug(f"exec: {sql}")
-            self._no_syntax_fail_execute(sql)
+            self.no_syntax_fail_execute(sql)
 
-    def _test_task_lifecycle(self):
+    def test_task_lifecycle(self):
         """测试 XNode Task 生命周期
 
         1. Create xnode task with FROM/TO and WITH options (comma separated + trigger)
@@ -147,51 +174,74 @@ class TestXnode:
 
         task_sqls = [
             # create with FROM/TO and WITH options (comma separated + trigger)
-            #f"CREATE XNODE TASK '{t_ingest}' FROM 'mqtt://broker:1883' TO DATABASE {dbname} "
-            #"WITH parser 'parser_json', batch 1024, TRIGGER 'manual'",
+            f"CREATE XNODE TASK '{t_ingest}' FROM 'mqtt://broker:1883' TO DATABASE {dbname} "
+             "WITH parser 'parser_json', batch 1024, TRIGGER 'manual'",
+            f"CREATE XNODE TASK '{t_ingest}' FROM 'mqtt://broker:1883' TO DATABASE {dbname} "
+             "WITH parser 'parser_json', batch 1024, TRIGGER 'manual' labels ''",
+            f"CREATE XNODE TASK '{t_ingest}' FROM 'mqtt://broker:1883' TO DATABASE {dbname} "
+             "WITH parser 'parser_json', batch 1024, TRIGGER 'manual' labels '{\"key\":\"value\"}'",
             # create with topic source and DSN sink using AND
-            # f"CREATE XNODE TASK '{t_export}' FROM TOPIC {topic} TO 'kafka://broker:9092' "
-            # "WITH group_id 'g1' AND client_id 'c1'",
+            f"CREATE XNODE TASK '{t_export}' FROM TOPIC {topic} TO 'kafka://broker:9092' "
+             "WITH group_id 'g1' AND client_id 'c1'",
             # create task without FROM/TO but with options only
             f"CREATE XNODE TASK '{t_opts}' WITH retry 5 AND TRIGGER 'cron_5m'",
+
             # alter with new source/sink/options
             f"ALTER XNODE TASK {task_id_1} FROM DATABASE {dbname} TO 'influxdb://remote' "
-            "WITH parser 'parser_line', concurrency 4",
+             "WITH parser 'parser_line', concurrency 4",
             # alter task with options only
             f"ALTER XNODE TASK {task_id_2} WITH batch 2048 AND timeout 30",
+            f'ALTER XNODE TASK {task_id_2} WITH batch 2048 AND timeout 30 labels \'{{"k":"v"}}\'',
             # start/stop task
             f"START XNODE TASK {task_id_1}",
             f"STOP XNODE TASK {task_id_1}",
             # rebalance by id with options
             f"REBALANCE XNODE JOB {self.rand_ids[4]} WITH xnode_id 3",
             # rebalance by where clause
-            "REBALANCE XNODE JOB WHERE id > 0",
+            f"REBALANCE XNODE JOB WHERE id > 0",
             # drop variations
             f"DROP XNODE TASK '{t_ingest}'",
             f"DROP XNODE TASK {task_id_2}",
-            f"DROP XNODE TASK WHERE name = '{t_export}'",
-            f"DROP XNODE TASK ON 1 WHERE id = {task_id_1}",
+
+            #f"DROP XNODE TASK WHERE name = '{t_export}'",
+            #f"DROP XNODE TASK ON 1 WHERE id = {task_id_1}",
         ]
         for sql in task_sqls:
             tdLog.debug(f"exec: {sql}")
-            self._no_syntax_fail_execute(sql)
+            self.no_syntax_fail_execute(sql)
 
-    # def test_agent_lifecycle(self):
-    #     agent1 = f"a1_{self.suffix}"
-    #     agent2 = f"a2_{self.suffix}"
+    def test_agent_lifecycle(self):
+        """test no syntax fail query
 
-    #     agent_sqls = [
-    #         f"DROP XNODE AGENT '{agent1}'",
-    #         f"CREATE XNODE AGENT '{agent1}' WITH ttl '1y', ipwhitelist '127.0.0.1'",
-    #         f"CREATE XNODE AGENT '{agent2}' WITH region 'cn-north-1' AND TRIGGER 'heartbeat'",
-    #         f"DROP XNODE AGENT '{agent2}'",
-    #         f"DROP XNODE AGENT WHERE name = '{agent1}'",
-    #     ]
-    #     for sql in agent_sqls:
-    #         tdLog.debug(f"exec: {sql}")
-    #         self._no_syntax_fail_execute(sql)
+        1. agent action: create, drop, alter
+        2. execute by no_syntax_fail_execute function
 
-    def _test_job_lifecycle(self):
+        Since: v3.3.8.8
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-01-08 GuiChuan Zhang Created
+        """
+        agent1 = f"a1_{self.suffix}"
+        agent2 = f"a2_{self.suffix}"
+
+        agent_sqls = [
+            f"DROP XNODE AGENT '{agent1}'",
+            f"CREATE XNODE AGENT '{agent1}' WITH `ttl` '1y', ipwhitelist '127.0.0.1'",
+            f"CREATE XNODE AGENT '{agent2}' WITH region 'cn-north-1' AND TRIGGER 'heartbeat'",
+            f"ALTER XNODE AGENT '{agent2}' WITH status 'running', region 'cn-north-1' AND TRIGGER 'heartbeat'",
+            f"ALTER XNODE AGENT '{agent2}' WITH status 'stop' region 'cn-north-1' TRIGGER 'heartbeat'",
+            f"DROP XNODE AGENT '{agent2}'",
+            # f"DROP XNODE AGENT WHERE name = '{agent1}'",
+        ]
+        for sql in agent_sqls:
+            tdLog.debug(f"exec: {sql}")
+            self.no_syntax_fail_execute(sql)
+
+    def test_job_lifecycle(self):
         """测试 XNode Job 生命周期
 
         1. Drop xnode job by id
@@ -218,17 +268,17 @@ class TestXnode:
         job_sqls = [
             f"DROP XNODE JOB {job_id}",
             f"CREATE XNODE JOB ON {job_on} WITH config '{{\"json\":true}}'",
-            # f"ALTER XNODE JOB {job_id} WITH TRIGGER 'manual', priority 10",
+            #f"ALTER XNODE JOB {job_id} WITH TRIGGER 'manual', priority 10",
             f"REBALANCE XNODE JOB {job_id} WITH xnode_id {job_on}",
-            "REBALANCE XNODE JOB WHERE jid >= 1",
+            f"REBALANCE XNODE JOB WHERE jid >= 1",
             #f"DROP XNODE JOB ON {job_on} WHERE jid = {job_id}",
             #"DROP XNODE JOB WHERE jid > 1",
         ]
         for sql in job_sqls:
             tdLog.debug(f"exec: {sql}")
-            self._no_syntax_fail_execute(sql)
+            self.no_syntax_fail_execute(sql)
 
-    def _test_sources_and_sinks_variants(self):
+    def test_sources_and_sinks_variants(self):
         """测试 XNode 任务源和 sink 变体
 
         1. Create xnode task with database source and sink
@@ -265,7 +315,7 @@ class TestXnode:
         ]
         for sql in sqls:
             tdLog.debug(f"exec: {sql}")
-            self._no_syntax_fail_execute(sql)
+            self.no_syntax_fail_execute(sql)
 
     def test_show_after_operations(self):
         """测试 XNode 操作后的 SHOW 语句
@@ -284,7 +334,7 @@ class TestXnode:
         History:
             - 2025-12-30 GuiChuan Zhang Created
         """
-        
+
         show_sqls = [
             "SHOW XNODES",
             "SHOW XNODE TASKS",
@@ -293,5 +343,5 @@ class TestXnode:
         ]
         for sql in show_sqls:
             tdLog.debug(f"query: {sql}")
-            self._no_syntax_fail_query(sql)
+            self.no_syntax_fail_query(sql)
         tdLog.info(f"{__file__} xnode syntax coverage completed")

@@ -2333,6 +2333,7 @@ static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStm
       nodeType(pSelect->pFromTable) == QUERY_NODE_JOIN_TABLE ||
       NULL != pSelect->pSlimit || NULL != pSelect->pLimit || pSelect->hasInterpFunc ||
       pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
+      (pSelect->pOrderByList != NULL && pCxt->pPlanCxt->streamForceOutput) ||
       !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange)) {
     pCxt->pPlanCxt->withExtWindow = false;
     return TSDB_CODE_SUCCESS;

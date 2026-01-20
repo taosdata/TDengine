@@ -1964,7 +1964,6 @@ static int32_t updateDynQueryCtrlVtbWindowInfo(SPhysiPlanContext* pCxt, SNodeLis
   pDynCtrl->vtbWindow.wendSlotId = pLogicNode->vtbWindow.wendSlotId;
   pDynCtrl->vtbWindow.wdurationSlotId = pLogicNode->vtbWindow.wdurationSlotId;
   pDynCtrl->vtbWindow.isVstb = pLogicNode->vtbWindow.isVstb;
-  pDynCtrl->vtbWindow.singleWinMode = pLogicNode->vtbWindow.singleWinMode;
   pDynCtrl->vtbWindow.extendOption = pLogicNode->vtbWindow.extendOption;
 
   PLAN_ERR_RET(setMultiBlockSlotId(pCxt, pChildren, false, pLogicNode->node.pTargets, &pDynCtrl->vtbWindow.pTargets));
@@ -1990,6 +1989,7 @@ static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
       PLAN_ERR_JRET(updateDynQueryCtrlVtbScanInfo(pCxt, pChildren, pLogicNode, pDynCtrl, pSubPlan));
       break;
     case DYN_QTYPE_VTB_WINDOW:
+      PLAN_ERR_JRET(updateDynQueryCtrlVtbScanInfo(pCxt, pChildren, pLogicNode, pDynCtrl, pSubPlan));
       PLAN_ERR_JRET(updateDynQueryCtrlVtbWindowInfo(pCxt, pChildren, pLogicNode, pDynCtrl));
       break;
     default:
