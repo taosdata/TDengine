@@ -701,6 +701,19 @@ int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig, curfile);
   }
 
+  if (pSdb->persistEncryptedFlagFp != NULL && pSdb->pMnodeForCallback != NULL) {
+    code = pSdb->persistEncryptedFlagFp(pSdb->pMnodeForCallback);
+    if (code == 0) {
+      mInfo("sdb.data now is encrypted format and persisted encrypted flag to mnode.json successfully");
+    } else {
+      mError("failed to persist encrypted flag to mnode.json since %s", tstrerror(code));
+      return code;
+    }
+  } else {
+    mError("sdb.data now is encrypted format but no callback to persist flag");
+    return TSDB_CODE_APP_ERROR;
+  }
+
   terrno = code;
   return code;
 }
@@ -738,6 +751,7 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
           pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig);
   }
   (void)taosThreadMutexUnlock(&pSdb->filelock);
+
   return code;
 }
 
