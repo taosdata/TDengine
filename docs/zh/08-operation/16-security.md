@@ -88,7 +88,7 @@ database_option: {
 }
 ```
 
-另外，作为审计库，keep 默认 为 1825d， 如果用户指定keep，要求大于1825d; WAL_LEVEL 默认 为 2， 用户不能更改; ENCRYPT_ALGORITHM 用户不能指定为None，可以选择任意一种CBC模式的对称加密算法。
+另外，作为审计库，keep 默认 为 1825d，如果用户指定 keep，要求大于 1825d; WAL_LEVEL 默认 为 2，用户不能更改; ENCRYPT_ALGORITHM 用户不能指定为 None，可以选择任意一种 CBC 模式的对称加密算法。
 
 ### taosKeeper 配置
 
