@@ -56,6 +56,7 @@ Data in [] is optional.
 - kafka: Enable Kafka connector to subscribe to messages from Kafka Topics
 - influxdb: Enable influxdb connector to get data from InfluxDB
 - csv: Parse data from CSV files
+- parquet: Read data from Parquet files
 
 1. +protocol includes the following options:
 
@@ -239,6 +240,89 @@ d4,2017-07-14T10:40:00.006+08:00,-2.740636,10,-0.893545,7,California.LosAngles
 ```
 
 It will import data from `./meters/meters.csv.gz` (a gzip-compressed CSV file) into the supertable `meters`, inserting each row into the specified table name - `${tbname}` using the `tbname` column from the CSV content as the table name (i.e., in the JSON parser's `.model.name`).
+
+#### Importing Parquet File Data
+
+Basic usage is as follows:
+
+```shell
+taosx run -f parquet:/data/sensors.parquet -t taos:///iot_db -v
+```
+
+DSN Parameter Description:
+
+Parquet data source uses the following DSN format:
+
+```text
+parquet:<file_path1>[,<file_path2>...]?[batch_size=<size>][&projection=<columns>][&unprocessed_batches=<count>]
+```
+
+Supported parameters:
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| file_path | string | Yes | - | Parquet file path, multiple files can be separated by commas |
+| batch_size | integer | No | 1000 | Number of rows to read per batch |
+| projection | string | No | all | Column projection, can be column names or indices (starting from 0) |
+| unprocessed_batches | integer | No | 64 | Maximum number of unprocessed batches for backpressure control |
+
+Usage Examples:
+
+1. Read a single Parquet file:
+
+```shell
+taosx run -f parquet:/data/sensors.parquet -t taos:///iot_db -v
+```
+
+2. Read multiple Parquet files:
+
+```shell
+taosx run -f 'parquet:/data/sensors_2024_01.parquet,/data/sensors_2024_02.parquet' \
+  -t taos:///iot_db -v
+```
+
+3. Use column projection (by column name):
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?projection=ts,temperature,humidity' \
+  -t taos:///iot_db -v
+```
+
+4. Use column projection (by index):
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?projection=0,2,5' \
+  -t taos:///iot_db -v
+```
+
+5. Custom batch size:
+
+```shell
+taosx run -f 'parquet:/data/large_file.parquet?batch_size=5000' \
+  -t taos:///iot_db -v
+```
+
+6. Complete configuration example:
+
+```shell
+taosx run -f 'parquet:/data/sensors.parquet?batch_size=2000&projection=ts,device_id,temperature&unprocessed_batches=100' \
+  -t taos:///iot_db -v
+```
+
+Data Type Mapping:
+
+Parquet data types are automatically mapped to TDengine data types:
+
+| Parquet Type | TDengine Type |
+| --- | --- |
+| BOOLEAN | BOOL |
+| INT32 | INT |
+| INT64 | BIGINT |
+| FLOAT | FLOAT |
+| DOUBLE | DOUBLE |
+| BYTE_ARRAY (UTF8) | NCHAR |
+| BYTE_ARRAY (Binary) | BINARY |
+| INT96 (Timestamp) | TIMESTAMP |
 
 ## Service Mode
 
