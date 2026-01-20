@@ -15,10 +15,9 @@ IF(NOT TD_WINDOWS)
             tqTest
             PUBLIC os util common
     )
-    # Use linker groups for circular dependencies
-    target_link_options(tqTest PRIVATE "-Wl,--start-group")
-    target_link_libraries(tqTest PUBLIC vnode mgmt_mnode)
-    target_link_options(tqTest PRIVATE "-Wl,--end-group")
+    # Handle circular dependencies by listing libraries multiple times
+    # This works on all platforms (Linux, macOS, Windows)
+    target_link_libraries(tqTest PUBLIC vnode mgmt_mnode vnode mgmt_mnode)
 
     enable_testing()
 
