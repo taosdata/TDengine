@@ -3887,7 +3887,7 @@ void    tFreeSMRebalanceXnodeJobsWhereReq(SMRebalanceXnodeJobsWhereReq* pReq);
 
 typedef struct {
   int32_t jid;
-  int32_t tid;
+  CowStr  ast;
   int32_t sqlLen;
   char*   sql;
 } SMDropXnodeJobReq;

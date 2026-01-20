@@ -30,8 +30,10 @@ extern char **environ;
 #define XNODED_DEFAULT_PATH "C:\\TDengine"
 #define XNODED_DEFAULT_EXEC "\\xnoded.exe"
 #else
-#define XNODED_DEFAULT_PATH "/usr/bin"
-#define XNODED_DEFAULT_EXEC "/xnoded"
+#define XNODED_DEFAULT_PATH_1    "/usr/bin"
+#define XNODED_DEFAULT_PATH_2    "/usr/local/taos/bin"
+#define XNODED_DEFAULT_EXEC_NAME "xnoded"
+#define XNODED_DEFAULT_EXEC      "/xnoded"
 #endif
 
 #define XNODED_XNODED_PID_NAME ".xnoded.pid"
@@ -137,14 +139,7 @@ void saveXnodedPid(int32_t pid) {
   (void)taosCloseFile(&testFilePtr);
 }
 
-static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
-  xndDebug("start to init xnoded");
-  TAOS_XNODED_MGMT_CHECK_PTR_RCODE(pData);
-
-  int32_t              err = 0;
-  uv_process_options_t options = {0};
-
-  char path[PATH_MAX] = {0};
+static void locateXnodedExecFile(char *path) {
   if (tsProcPath == NULL) {
     path[0] = '.';
 #ifdef WINDOWS
@@ -158,11 +153,57 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   }
 
   TAOS_DIRNAME(path);
-
-  if (strlen(path) == 0) {
-    TAOS_STRCAT(path, XNODED_DEFAULT_PATH);
+  if (strlen(path) != 0) {
+    TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
+    if (taosCheckExistFile(path)) {
+      goto _ok;
+    }
+    xndDebug("can't find xnoded exec file:%s", path);
+    path[0] = '\0';
   }
+
+  TAOS_STRCAT(path, XNODED_DEFAULT_PATH_1);
   TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
+  if (taosCheckExistFile(path)) {
+    goto _ok;
+  }
+  xndDebug("can't find xnoded exec file:%s", path);
+  path[0] = '\0';
+
+  TAOS_STRCAT(path, XNODED_DEFAULT_PATH_2);
+  TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
+  if (taosCheckExistFile(path)) {
+    goto _ok;
+  }
+  xndDebug("can't find xnoded exec file:%s", path);
+  path[0] = '\0';
+
+  path[0] = '.';
+  path[1] = '\0';
+  TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
+  if (taosCheckExistFile(path)) {
+    goto _ok;
+  }
+  xndDebug("can't find xnoded exec file:%s", path);
+  path[0] = '\0';
+
+  TAOS_STRNCPY(path, XNODED_DEFAULT_EXEC_NAME, PATH_MAX);
+  xndInfo("can't find xnoded file, use default exec command:%s", path);
+
+_ok:
+  xndInfo("find xnoded exec file:%s", path);
+  return;
+}
+
+static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
+  xndDebug("start to init xnoded");
+  TAOS_XNODED_MGMT_CHECK_PTR_RCODE(pData);
+
+  int32_t              err = 0;
+  uv_process_options_t options = {0};
+
+  char path[PATH_MAX] = {0};
+  locateXnodedExecFile(path);
 
   xndInfo("xnode mgmt spawn xnoded path: %s", path);
   // char *argsXnoded[] = {path, "-c", configDir, "-d", dnodeId, NULL};
@@ -203,14 +244,25 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   snprintf(xnodedUserPass, XNODE_USER_PASS_LEN, "%s=%s", "XNODED_USER_PASS", pData->userPass);
   char xnodeClusterId[32] = {0};
   snprintf(xnodeClusterId, 32, "%s=%" PRIu64, "XNODED_CLUSTER_ID", pData->clusterId);
-
   char xnodePipeSocket[PATH_MAX + 64] = {0};
   snprintf(xnodePipeSocket, PATH_MAX + 64, "%s=%s", "XNODED_LISTEN", xnodedPipeSocket);
 
-  xndDebug("txnode env: leader ep: %s, user pass:%s, pipe socket:%s", dnodeIdEnvItem, xnodedUserPass, xnodePipeSocket);
+  char xnodedLogLevel[32] = {0};
+  if (xndDebugFlag & DEBUG_INFO) {
+    snprintf(xnodedLogLevel, 32, "%s=%s", "XNODED_LOG_LEVEL", "info");
+  }
+  if (xndDebugFlag & DEBUG_DEBUG) {
+    snprintf(xnodedLogLevel, 32, "%s=%s", "XNODED_LOG_LEVEL", "debug");
+  }
+  if (xndDebugFlag & DEBUG_TRACE) {
+    snprintf(xnodedLogLevel, 32, "%s=%s", "XNODED_LOG_LEVEL", "trace");
+  }
 
-  char *envXnoded[] = {xnodedCfgDir,    xnodedLogDir, dnodeIdEnvItem, xnodedUserPass, xnodeClusterId,
-                       xnodePipeSocket, NULL};
+  xndDebug("txnode env: leader ep: %s, user pass:%s, pipe socket:%s, log level:%s", dnodeIdEnvItem, xnodedUserPass,
+           xnodePipeSocket, xnodedLogLevel);
+
+  char *envXnoded[] = {xnodedCfgDir,   xnodedLogDir,    dnodeIdEnvItem, xnodedUserPass,
+                       xnodeClusterId, xnodePipeSocket, xnodedLogLevel, NULL};
 
   char **envXnodedWithPEnv = NULL;
   if (environ != NULL) {
@@ -228,6 +280,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
 
     for (int32_t i = 0; i < numEnviron; i++) {
       int32_t len = strlen(environ[i]) + 1;
+      xndDebug("xnoded exec env: %s", environ[i]);
       envXnodedWithPEnv[i] = (char *)taosMemoryCalloc(len, 1);
       if (envXnodedWithPEnv[i] == NULL) {
         err = TSDB_CODE_OUT_OF_MEMORY;
