@@ -22,6 +22,7 @@
 #include "parInt.h"
 #include "parToken.h"
 #include "tname.h"
+#include "ttime.h"
 
 bool qIsInsertValuesSql(const char* pStr, size_t length) {
   if (NULL == pStr) {
@@ -774,6 +775,25 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
       strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
+      if (IS_DURATION_VAL(pVal->flag)) {
+        taosMemoryFreeClear(pVal->literal);
+        pVal->literal = taosStrndup((const char*)pParam->buffer, pVal->node.resType.bytes - VARSTR_HEADER_SIZE);
+        if (!pVal->literal) {
+          return terrno;
+        }
+        int64_t duration = 0;
+        char    unit = 0;
+        if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &duration, &unit,
+                                pVal->node.resType.precision, true) != TSDB_CODE_SUCCESS) {
+          return TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        }
+        pVal->datum.i = duration;
+        pVal->unit = unit;
+        *(int64_t*)&pVal->typeData = duration;
+        // taosMemoryFreeClear(pVal->datum.p);
+        pVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+        pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      }
       break;
     case TSDB_DATA_TYPE_NCHAR: {
       pVal->node.resType.bytes *= TSDB_NCHAR_SIZE;
