@@ -240,7 +240,7 @@ id      |          algorithm_id          |              name              |     
 2 | AES-128-CBC                    | AES                            | AES symmetric encryption       | Symmetric Ciphers CBC mode     | build-in                       | AES-128-CBC                    |
 ```
 
-1. id：算法的数字标识，内置算法从1开始，自定义算法从101开始
+1. id：算法的数字标识，内置算法从 1 开始，自定义算法从 101 开始
 2. algorithm_id：算法的全局唯一标识
 3. name：算法名称
 4. desc：算法的描述
