@@ -21,6 +21,7 @@ The concept of a consumer in TDengine TSDB is similar to Kafka: consumers receiv
 The key parameters for creating a consumer include:
 
 - td.connect.ip: FQDN of the server.
+- td.connect.token: Token.
 - td.connect.user: Username.
 - td.connect.pass: Password.
 - td.connect.port: Server port.
