@@ -777,7 +777,8 @@ _send:
     goto _exit;
   }
 
-  if(encodeUdfResponse(&bufBegin, &rsp) < 0) {
+  void *buf = bufBegin;
+  if(encodeUdfResponse(&buf, &rsp) < 0) {
     fnError("udfdProcessSetupRequest: encode udf response failed. len %d", len);
     goto _exit;
   }
