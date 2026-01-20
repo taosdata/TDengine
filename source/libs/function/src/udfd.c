@@ -797,13 +797,12 @@ _exit:
   }
 
   if (code) {
-    const int32_t setup_error_code = code;
-    int32_t remove_code = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
-    if (remove_code) {
-      fnError("udf name %s remove from hash failed/setup, err:%0x %s", udf->name, remove_code, tstrerror(remove_code));
+    int32_t removeCode = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
+    if (removeCode) {
+      fnError("udf name %s remove from hash failed/setup, err:%0x %s", udf->name, removeCode, tstrerror(removeCode));
     }
 
-    fnError("udf free: setup failed. name %s(%p) err:%0x %s", udf->name, udf, setup_error_code, tstrerror(setup_error_code));
+    fnError("udf free: setup failed. name %s(%p) err:%0x %s", udf->name, udf, code, tstrerror(code));
 
     if (udf->scriptPlugin && udf->scriptPlugin->udfDestroyFunc && udf->scriptUdfCtx) {
       if (udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx)) {
