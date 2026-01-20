@@ -533,9 +533,6 @@ static int32_t collectMetaKeyFromDropTable(SCollectMetaKeyCxt* pCxt, SDropTableS
       if (TSDB_CODE_SUCCESS == code) {
         code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
       }
-      if (TSDB_CODE_SUCCESS == code) {
-        code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
-      }
     } else {
       code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, pCxt->pMetaCache);
       if (TSDB_CODE_SUCCESS == code) {
@@ -546,6 +543,9 @@ static int32_t collectMetaKeyFromDropTable(SCollectMetaKeyCxt* pCxt, SDropTableS
         code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName,
                                       pClause->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, pCxt->pMetaCache);
       }
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pClause->dbName, pCxt->pMetaCache);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pClause->dbName, NULL, PRIV_DB_USE,

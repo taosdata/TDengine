@@ -5955,11 +5955,17 @@ static int32_t translateAudit(STranslateContext* pCxt, SRealTableNode* pRealTabl
   if (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE) {
     if (IS_AUDIT_DBNAME(pName->dbname) && IS_AUDIT_STB_NAME(pName->tname)) {
       pCxt->pParseCxt->isAudit = true;
+    } else {
+      pCxt->pParseCxt->isAudit = pRealTable->pMeta->isAudit;
     }
   } else if (pRealTable->pMeta->tableType == TSDB_CHILD_TABLE) {
     if (IS_AUDIT_DBNAME(pName->dbname) && IS_AUDIT_CTB_NAME(pName->tname)) {
       pCxt->pParseCxt->isAudit = true;
+    } else {
+      pCxt->pParseCxt->isAudit = pRealTable->pMeta->isAudit;
     }
+  } else {
+    pCxt->pParseCxt->isAudit = pRealTable->pMeta->isAudit;
   }
   return 0;
 }
@@ -10144,6 +10150,16 @@ static int32_t translateDelete(STranslateContext* pCxt, SDeleteStmt* pDelete) {
   }
   pCxt->pCurrStmt = (SNode*)pDelete;
   int32_t code = translateFrom(pCxt, &pDelete->pFromTable);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (nodeType(pDelete->pFromTable) == QUERY_NODE_REAL_TABLE) {
+      SRealTableNode* pTableNode = (SRealTableNode*)pDelete->pFromTable;
+      if (pTableNode->pMeta && pTableNode->pMeta->isAudit) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                       "Cannot delete from audit table: `%s`.`%s`", pTableNode->table.dbName,
+                                       pTableNode->table.tableName);
+      }
+    }
+  }
   if (TSDB_CODE_SUCCESS == code) {
     pDelete->precision = ((STableNode*)pDelete->pFromTable)->precision;
     code = translateDeleteWhere(pCxt, pDelete);
@@ -22286,6 +22302,11 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
                                            int8_t* tableType, SHashObj* pVgroupHashmap) {
   STableMeta* pTableMeta = NULL;
   int32_t     code = getTargetMeta(pCxt, name, &pTableMeta, false);
+  if (TSDB_CODE_SUCCESS == code && pTableMeta && pTableMeta->isAudit) {
+    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Cannot drop audit table '%s.%s'",
+                                   name->dbname, name->tname);
+    goto over;
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = collectUseTable(name, pCxt->pTargetTables);
     *tableType = pTableMeta->tableType;
@@ -23346,6 +23367,12 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
                                      "can not alter non-virtual table using ALTER VTABLE");
     }
+  }
+
+  if (pTableMeta->isAudit) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot alter audit table `%s`.`%s`", pStmt->dbName,
+                                   pStmt->tableName);
   }
 
   if (TSDB_SUPER_TABLE == pTableMeta->tableType) {

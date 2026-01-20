@@ -162,6 +162,10 @@ static int32_t vnodePreProcessAlterTableMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = TSDB_CODE_INVALID_MSG;
   int32_t lino = 0;
 
+  if (pVnode->config.isAudit) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+
   SDecoder dc = {0};
   tDecoderInit(&dc, (uint8_t *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead));
 
@@ -542,6 +546,10 @@ int32_t vnodePreProcessDropTbMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   SEncoder         ec = {0};
   SVDropTbBatchReq receivedBatchReqs = {0};
   SVDropTbBatchReq sentBatchReqs = {0};
+
+  if (pVnode->config.isAudit) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
 
   tDecoderInit(&dc, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead));
 
