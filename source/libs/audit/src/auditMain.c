@@ -55,6 +55,8 @@ int32_t auditInit(const SAuditCfg *pCfg) {
 
 void auditSetDnodeId(int32_t dnodeId) { tsAudit.dnodeId = dnodeId; }
 
+SEpSet auditGetDnodeEpset() {}
+
 void auditCleanup() {
   tsLogFp = NULL;
   (void)taosThreadMutexLock(&tsAudit.recordLock);

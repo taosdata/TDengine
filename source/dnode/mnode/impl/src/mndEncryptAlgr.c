@@ -295,7 +295,7 @@ int32_t mndSendCreateBuiltinReq(SMnode *pMnode) {
 
   mndGetMnodeEpSet(pMnode, &epSet);
 
-  code = tmsgSendReq(&epSet, &rpcMsg);
+  code = tmsgSendReq(&epSet, &rpcMsg);  // tmsgSendReq
   if (code != 0) {
     mError("failed to send builtin encrypt algr req, since %s", tstrerror(code));
   }
