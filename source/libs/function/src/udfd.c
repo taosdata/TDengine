@@ -802,7 +802,9 @@ _exit:
     fnError("udf free: setup failed. name %s(%p) err:%0x %s", udf->name, udf, setup_error_code, tstrerror(setup_error_code));
 
     if (udf->scriptPlugin && udf->scriptPlugin->udfDestroyFunc && udf->scriptUdfCtx) {
-      udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
+      if (udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx)) {
+        fnError("udfdFreeUdf: udfd destroy udf %s failed", udf->name);
+      }
     }
 
     uv_cond_destroy(&udf->condReady);
