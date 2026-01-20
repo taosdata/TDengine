@@ -763,27 +763,34 @@ _send:
   rsp.setupRsp.bytes = udf->outputLen;
   rsp.setupRsp.bufSize = udf->bufSize;
 
+  void *bufBegin = NULL;
+  bool freeBuf = true;
   int32_t len = encodeUdfResponse(NULL, &rsp);
   if(len < 0) {
     fnError("udfdProcessSetupRequest: encode udf response failed. len %d", len);
-    return;
+    goto _exit;
   }
   rsp.msgLen = len;
-  void *bufBegin = taosMemoryMalloc(len);
+  bufBegin = taosMemoryMalloc(len);
   if(bufBegin == NULL) {
     fnError("udfdProcessSetupRequest: malloc failed. len %d", len);
-    return;
+    goto _exit;
   }
-  void *buf = bufBegin;
-  if(encodeUdfResponse(&buf, &rsp) < 0) {
+
+  if(encodeUdfResponse(&bufBegin, &rsp) < 0) {
     fnError("udfdProcessSetupRequest: encode udf response failed. len %d", len);
-    taosMemoryFree(bufBegin);
-    return;
+    goto _exit;
   }
   
   uvUdf->output = uv_buf_init(bufBegin, len);
 
   taosMemoryFreeClear(uvUdf->input.base);
+  freeBuf = false;
+
+_exit:
+  if (bufBegin && freeBuf) {
+    taosMemoryFree(bufBegin);
+  }
 
   if (code) {
     const int32_t setup_error_code = code;
@@ -802,8 +809,6 @@ _send:
     uv_mutex_destroy(&udf->lock);
     taosMemoryFree(udf);
   }
-
-  return;
 }
 
 static int32_t checkUDFScalaResult(SSDataBlock *block, SUdfColumn *output) {
