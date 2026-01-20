@@ -27,8 +27,10 @@
 extern char **environ;
 
 #ifdef WINDOWS
-#define XNODED_DEFAULT_PATH "C:\\TDengine"
-#define XNODED_DEFAULT_EXEC "\\xnoded.exe"
+#define XNODED_DEFAULT_PATH_1    "C:\\TDengine"
+#define XNODED_DEFAULT_PATH_2    "C:\\TDengine"
+#define XNODED_DEFAULT_EXEC_NAME "xnoded"
+#define XNODED_DEFAULT_EXEC      "\\xnoded.exe"
 #else
 #define XNODED_DEFAULT_PATH_1    "/usr/bin"
 #define XNODED_DEFAULT_PATH_2    "/usr/local/taos/bin"
@@ -61,7 +63,7 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData);
 
 static void getXnodedPidPath(char *pipeName, int32_t size) {
 #ifdef _WIN32
-  snprintf(pipeName, size, "%s", XNODED_XNODED_PID_NAME);
+  snprintf(pipeName, size, "%s%s", tsDataDir, XNODED_XNODED_PID_NAME);
 #else
   snprintf(pipeName, size, "%s%s", tsDataDir, XNODED_XNODED_PID_NAME);
 #endif
