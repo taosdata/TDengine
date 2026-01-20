@@ -26,10 +26,10 @@ CREATE USER user_name PASS 'password'
   [PASSWORD_REUSE_MAX {value | DEFAULT}]
   [INACTIVE_ACCOUNT_TIME {value | DEFAULT | UNLIMITED}]
   [ALLOW_TOKEN_NUM {value | DEFAULT | UNLIMITED}]
-  [HOST {ip | ip range}]
-  [NOT_ALLOW_HOST {ip | ip range}]
-  [ALLOW_DATETIME {time range}]
-  [NOT_ALLOW_DATETIME {time range}]
+  [HOST {ip | ip range} [, {ip | ip range}] ...]
+  [NOT_ALLOW_HOST {ip | ip range} [, {ip | ip range}] ...]
+  [ALLOW_DATETIME {time range} [, {time range}] ...]
+  [NOT_ALLOW_DATETIME {time range} [, {time range}] ...]
 ```
 
 The username can be up to 23 bytes long.
@@ -57,15 +57,15 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `PASSWORD_REUSE_MAX` The number of password changes required before an old password can be reused. A new password must comply with both the `PASSWORD_REUSE_TIME` and `PASSWORD_REUSE_MAX` restrictions. The default value is `5`, with a maximum of `100` and a minimum of `0`. Support in Enterprise Edition v3.4.0.0 and above.
 - `INACTIVE_ACCOUNT_TIME` User inactivity lockout period, in days. The default value is `90`, with a minimum of `1`, set to `UNLIMITED` means never lockout the user. Support in Enterprise Edition v3.4.0.0 and above.
 - `ALLOW_TOKEN_NUM` The maximum allowed number of tokens. The default value is `3`, with a minimum of `0`, set to `UNLIMITED` disables this restriction. Support in Enterprise Edition v3.4.0.0 and above.
-- `HOST` and `NOT_ALLOW_HOST` IP address whitelist and blacklist. Entries can be a single IP address, such as `192.168.1.1`, or a subnet range in [CIDR](https://www.rfc-editor.org/rfc/rfc4632) format, such as `192.168.1.1/24`. When both whitelist and blacklist are configured, only addresses that are on the whitelist and not on the blacklist are allowed access. Support in Enterprise Edition v3.4.0.0 and above.
+- `HOST` and `NOT_ALLOW_HOST` IP address whitelist and blacklist. Entries can be a single IP address, such as `192.168.1.1`, or a subnet range in [CIDR](https://www.rfc-editor.org/rfc/rfc4632) format, such as `192.168.1.1/24`. Support in Enterprise Edition v3.4.0.0 and above.
   - If neither `HOST` nor `NOT_ALLOW_HOST` is set, the user is allowed to log in from any address.
-  - If only `HOST` is set, the user is allowed to log in from that address or subnet range, and login from other addresses is not allowed.
-  - If only `NOT_ALLOW_HOST` is set, the user is not allowed to log in from that address or subnet range, but login from other addresses is allowed.
+  - If only `HOST` is set, the user is allowed to log in from that addresses or subnet ranges, and login from other addresses is not allowed.
+  - If only `NOT_ALLOW_HOST` is set, the user is not allowed to log in from that addresses or subnet ranges, but login from other addresses is allowed.
   - If both `HOST` and `NOT_ALLOW_HOST` are set, the user can only log in from addresses that belong to `HOST` and do not belong to `NOT_ALLOW_HOST`. Login from any other address is not allowed.
 - `ALLOW_DATETIME` and `NOT_ALLOW_DATETIME` Permitted and prohibited login time ranges based on the server's local time zone. A valid time range consists of three parts: date, start time (accurate to the minute), and duration (in minutes). The date can be a specific date or represented by MON, TUE, WED, THU, FRI, SAT, SUN, for example: `2025-12-25 08:00 120`, `TUE 08:00 120`. Support in Enterprise Edition v3.4.0.0 and above.
   - If neither `ALLOW_DATETIME` nor `NOT_ALLOW_DATETIME` is set, the user is allowed to log in at any time.
-  - If only `ALLOW_DATETIME` is set, the user is allowed to log in during that time period, and login at other times is not allowed.
-  - If only `NOT_ALLOW_DATETIME` is set, the user is not allowed to log in during that time period, but login at other times is allowed.
+  - If only `ALLOW_DATETIME` is set, the user is allowed to log in during that time periods, and login at other times is not allowed.
+  - If only `NOT_ALLOW_DATETIME` is set, the user is not allowed to log in during that time periods, but login at other times is allowed.
   - If both `ALLOW_DATETIME` and `NOT_ALLOW_DATETIME` are set, the user can only log in during time periods that belong to `ALLOW_DATETIME` and do not belong to `NOT_ALLOW_DATETIME`. Login at any other time is not allowed.
 
 In the example below, we create a user with the password `abc123!@#` who can view system information.
@@ -137,14 +137,14 @@ alter_user_clause: {
   [PASSWORD_REUSE_MAX {value | DEFAULT}]
   [INACTIVE_ACCOUNT_TIME {value | DEFAULT | UNLIMITED}]
   [ALLOW_TOKEN_NUM {value | DEFAULT | UNLIMITED}]
-  [ADD HOST {ip | ip range}]
-  [DROP HOST {ip | ip range}]
-  [ADD NOT_ALLOW_HOST {ip | ip range}]
-  [DROP NOT_ALLOW_HOST {ip | ip range}]
-  [ADD ALLOW_DATETIME {time range}]
-  [DROP ALLOW_DATETIME {time range}]
-  [ADD NOT_ALLOW_DATETIME {time range}]
-  [DROP NOT_ALLOW_DATETIME {time range}]
+  [ADD HOST {ip | ip range} [, {ip | ip range}] ...]
+  [DROP HOST {ip | ip range} [, {ip | ip range}] ...]
+  [ADD NOT_ALLOW_HOST {ip | ip range} [, {ip | ip range}] ...]
+  [DROP NOT_ALLOW_HOST {ip | ip range} [, {ip | ip range}] ...]
+  [ADD ALLOW_DATETIME {time range} [, {time range}] ...]
+  [DROP ALLOW_DATETIME {time range} [, {time range}] ...]
+  [ADD NOT_ALLOW_DATETIME {time range} [, {time range}] ...]
+  [DROP NOT_ALLOW_DATETIME {time range} [, {time range}] ...]
 }
 ```
 
