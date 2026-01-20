@@ -786,13 +786,20 @@ _send:
   taosMemoryFreeClear(uvUdf->input.base);
 
   if (code) {
-    code = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
-    if (code) {
-      fnError("udf name %s remove from hash failed/setup, err:%0x %s", udf->name, code, tstrerror(code));
+    const int32_t setup_error_code = code;
+    int32_t remove_code = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
+    if (remove_code) {
+      fnError("udf name %s remove from hash failed/setup, err:%0x %s", udf->name, remove_code, tstrerror(remove_code));
     }
 
-    fnError("udf free: setup failed. name %s(%p) err:%0x %s", udf->name, udf, code, tstrerror(code));
+    fnError("udf free: setup failed. name %s(%p) err:%0x %s", udf->name, udf, setup_error_code, tstrerror(setup_error_code));
 
+    if (udf->scriptPlugin && udf->scriptPlugin->udfDestroyFunc && udf->scriptUdfCtx) {
+      udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
+    }
+
+    uv_cond_destroy(&udf->condReady);
+    uv_mutex_destroy(&udf->lock);
     taosMemoryFree(udf);
   }
 
