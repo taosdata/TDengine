@@ -18,6 +18,9 @@ class TestTmqBugs:
         'asynclog': 0
     }
 
+    clientCfgDict = {'debugFlag': 135, 'asynclog': 0}
+    updatecfgDict["clientCfg"] = clientCfgDict
+
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
 
@@ -950,55 +953,14 @@ class TestTmqBugs:
 
         tdLog.info("test tmq_token insert done ......")
 
-        tdSql.query(f'create token token1 from user root enable 0 ttl 1')
-        # tdSql.query(f'show tokens')
-        token = tdSql.getData(0,0)
-        print(token)
-        tdSql.execute(f'create topic t0 as select * from tmq_token')
+        buildPath = tdCom.getBuildPath()
+        cmdStr = '%s/build/bin/tmq_token'%(buildPath)
 
-        consumer_dict = {
-            "group.id": "g1",
-            "td.connect.token": token,
-            "td.connect.user": "root",
-            "td.connect.pass": "taosdata",
-            "auto.offset.reset": "earliest",
-        }
-        consumer = Consumer(consumer_dict)
+        tdLog.info(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
 
-        if consumer._tmq == None:
-            print(taos_errno(None))
-        
-        try:
-            consumer.subscribe(["t0"])
-        except TmqError:
-            tdLog.exit(f"subscribe error")
-
-        try:
-            res = consumer.poll(1)
-            print(res)
-
-            consumer.unsubscribe()
-
-            try:
-                consumer.subscribe(["t1"])
-            except TmqError:
-                tdLog.exit(f"subscribe error")
-
-
-            res = consumer.poll(1)
-            print(res)
-            if res == None and taos_errno(None) != 0:
-                tdLog.exit(f"poll error %d" % taos_errno(None))
-
-        except TmqError:
-            tdLog.exit(f"poll error")
-        finally:
-            consumer.close()
-        
-        tdSql.execute(f'drop topic t0')
-        tdSql.execute(f'drop topic t1')
-        
-        print("bug TD-33504 ................ [passed]")       
+        print("test tmq_token ................ [passed]")       
 
     #
     # ------------------- main ----------------
@@ -1089,3 +1051,4 @@ class TestTmqBugs:
         self.do_ts6115()
         self.do_ts6392()
         self.do_ts7402()
+        self.do_td_tmq_token()
