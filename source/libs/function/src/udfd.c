@@ -769,8 +769,6 @@ _send:
   rsp.setupRsp.bytes = udf->outputLen;
   rsp.setupRsp.bufSize = udf->bufSize;
 
-  void *bufBegin = NULL;
-  bool freeBuf = true;
   int32_t len = encodeUdfResponse(NULL, &rsp);
   if(len < 0) {
     fnError("udfdProcessSetupRequest: encode udf response failed. len %d", len);
@@ -778,7 +776,7 @@ _send:
     goto _exit;
   }
   rsp.msgLen = len;
-  bufBegin = taosMemoryMalloc(len);
+  void *bufBegin = taosMemoryMalloc(len);
   if(bufBegin == NULL) {
     fnError("udfdProcessSetupRequest: malloc failed. len %d", len);
     code = terrno;
@@ -788,6 +786,7 @@ _send:
   void *buf = bufBegin;
   if(encodeUdfResponse(&buf, &rsp) < 0) {
     fnError("udfdProcessSetupRequest: encode udf response failed. len %d", len);
+    taosMemoryFree(bufBegin);
     code = terrno;
     goto _exit;
   }
@@ -795,13 +794,8 @@ _send:
   uvUdf->output = uv_buf_init(bufBegin, len);
 
   taosMemoryFreeClear(uvUdf->input.base);
-  freeBuf = false;
 
 _exit:
-  if (bufBegin && freeBuf) {
-    taosMemoryFree(bufBegin);
-  }
-
   if (code) {
     uv_mutex_lock(&global.udfsMutex);
     int32_t removeCode = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
