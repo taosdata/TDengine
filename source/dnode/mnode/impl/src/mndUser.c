@@ -143,6 +143,7 @@ static int32_t  mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
+static int32_t  mndPrincipalRemoveObjPrivs(SMnode *pMnode, STrans *pTrans, char *objFName, int32_t objType);
 
 static int32_t mndProcessGetUserIpWhiteListReq(SRpcMsg *pReq);
 static int32_t mndProcessRetrieveIpWhiteListReq(SRpcMsg *pReq);
@@ -5928,10 +5929,10 @@ int32_t mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj *
       TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUser));
     }
     if (inReadDb) {
-      // TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->readDbs, pDb->name, dbLen + 1));
+      TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->readDbs, pDb->name, dbLen + 1));
     }
     if (inWriteDb) {
-      // TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->writeDbs, pDb->name, dbLen + 1));
+      TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->writeDbs, pDb->name, dbLen + 1));
     }
     if (inUseDb) {
       TAOS_CHECK_EXIT(taosHashRemove(pTargetUser->useDbs, pDb->name, dbLen + 1));
@@ -6039,14 +6040,90 @@ int32_t mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb) {
   TAOS_RETURN(code);
 }
 
+static int32_t mndUserRemoveObjPrivs(SMnode *pMnode, STrans *pTrans, const char *key, int32_t keyLen) {
+  int32_t   code = 0, lino = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  void     *pIter = NULL;
+  SUserObj *pUser = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
+    if (!taosHashGet(pUser->objPrivs, key, keyLen)) {
+      sdbRelease(pSdb, pUser);
+      pUser = NULL;
+      continue;
+    }
+    TAOS_CHECK_EXIT(taosHashRemove(pUser->objPrivs, key, keyLen));
+    int64_t now = taosGetTimestampMs();
+    taosWLockLatch(&pUser->lock);
+    pUser->updateTime = now;
+    ++pUser->authVersion;
+    taosWUnLockLatch(&pUser->lock);
+
+    SSdbRaw *pCommitRaw = mndUserActionEncode(pUser);
+    if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+
+    sdbRelease(pSdb, pUser);
+    pUser = NULL;
+  }
+_exit:
+  if (pUser != NULL) sdbRelease(pSdb, pUser);
+  if (pIter != NULL) sdbCancelFetch(pSdb, pIter);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndRoleRemoveObjPrivs(SMnode *pMnode, STrans *pTrans, const char *key, int32_t keyLen) {
+  int32_t   code = 0, lino = 0;
+  SSdb     *pSdb = pMnode->pSdb;
+  void     *pIter = NULL;
+  SRoleObj *pRole = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_ROLE, pIter, (void **)&pRole))) {
+    if (!taosHashGet(pRole->objPrivs, key, keyLen)) {
+      sdbRelease(pSdb, pRole);
+      pRole = NULL;
+      continue;
+    }
+    TAOS_CHECK_EXIT(taosHashRemove(pRole->objPrivs, key, keyLen));
+    int64_t now = taosGetTimestampMs();
+    taosWLockLatch(&pRole->lock);
+    pRole->updateTime = now;
+    ++pRole->version;
+    taosWUnLockLatch(&pRole->lock);
+
+    SSdbRaw *pCommitRaw = mndRoleActionEncode(pRole);
+    if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+
+    sdbRelease(pSdb, pRole);
+    pRole = NULL;
+  }
+_exit:
+  if (pRole != NULL) sdbRelease(pSdb, pRole);
+  if (pIter != NULL) sdbCancelFetch(pSdb, pIter);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndPrincipalRemoveObjPrivs(SMnode *pMnode, STrans *pTrans, char *objFName, int32_t objType) {
+  int32_t code = 0;
+  char    key[TSDB_PRIV_MAX_KEY_LEN] = {0};
+  int32_t keyLen = snprintf(key, sizeof(key), "%d.%s", objType, objFName) + 1;
+  TAOS_CHECK_RETURN(mndUserRemoveObjPrivs(pMnode, pTrans, key, keyLen));
+  TAOS_CHECK_RETURN(mndRoleRemoveObjPrivs(pMnode, pTrans, key, keyLen));
+  TAOS_RETURN(code);
+}
+
 int32_t mndUserRemoveView(SMnode *pMnode, STrans *pTrans, char *view) {
   int32_t   code = 0;
+#if 0
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   len = strlen(view) + 1;
   void     *pIter = NULL;
   SUserObj *pUser = NULL;
   SUserObj  newUser = {0};
-#ifdef PRIV_TODO
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
     if (pIter == NULL) break;
@@ -6088,21 +6165,21 @@ int32_t mndUserRemoveView(SMnode *pMnode, STrans *pTrans, char *view) {
     mndUserFreeObj(&newUser);
     sdbRelease(pSdb, pUser);
   }
-#endif
   if (pUser != NULL) sdbRelease(pSdb, pUser);
   if (pIter != NULL) sdbCancelFetch(pSdb, pIter);
   mndUserFreeObj(&newUser);
-  TAOS_RETURN(code);
+#endif
+  return mndPrincipalRemoveObjPrivs(pMnode, pTrans, view, PRIV_OBJ_VIEW);
 }
 
 int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
   int32_t   code = 0;
+#ifdef PRIV_TODO
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   len = strlen(topic) + 1;
   void     *pIter = NULL;
   SUserObj *pUser = NULL;
   SUserObj  newUser = {0};
-#ifdef PRIV_TODO
   while (1) {
     pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
     if (pIter == NULL) {
@@ -6135,11 +6212,11 @@ int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
     mndUserFreeObj(&newUser);
     sdbRelease(pSdb, pUser);
   }
-#endif
   if (pUser != NULL) sdbRelease(pSdb, pUser);
   if (pIter != NULL) sdbCancelFetch(pSdb, pIter);
   mndUserFreeObj(&newUser);
-  TAOS_RETURN(code);
+#endif
+  return mndPrincipalRemoveObjPrivs(pMnode, pTrans, topic, PRIV_OBJ_TOPIC);
 }
 
 int64_t mndGetUserIpWhiteListVer(SMnode *pMnode, SUserObj *pUser) {

@@ -2677,7 +2677,7 @@ _next:
 #endif
   return TSDB_CODE_SUCCESS;
 }
-
+#if 0
 int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
   SUserAuthInfo*   pReq = req->pRawReq;
@@ -2712,7 +2712,6 @@ int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res)
     }
   }
   int32_t len = strlen(viewFName) + 1;
-#ifdef PRIV_TODO
   switch (pReq->privType) {
     case PRIV_VIEW_SELECT: {
       char* value = taosHashGet(pInfo->readViews, viewFName, len);
@@ -2741,11 +2740,10 @@ int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res)
     default:
       break;
   }
-#endif
   pRes->pass[AUTH_RES_VIEW] = true;
   return TSDB_CODE_SUCCESS;
 }
-
+#endif
 int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
 // #ifdef TD_ENTERPRISE
 //   CTG_ERR_RET(ctgChkSetViewAuthRes(pCtg, req, res));

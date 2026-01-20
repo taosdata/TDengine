@@ -685,7 +685,11 @@ static int32_t mndDropTopic(SMnode *pMnode, STrans *pTrans, SRpcMsg *pReq, SMqTo
   int32_t  lino = 0;
   SSdbRaw *pCommitRaw = NULL;
   PRINT_LOG_START
-  MND_TMQ_RETURN_CHECK(mndUserRemoveTopic(pMnode, pTrans, pTopic->name));
+  char  topicFName[TSDB_DB_NAME_LEN + TSDB_TOPIC_FNAME_LEN + 1] = {0};  // 1.db.topic
+  SName sname = {0};                                                    // 1.topic
+  MND_TMQ_RETURN_CHECK(tNameFromString(&sname, pTopic->name, T_NAME_ACCT | T_NAME_DB));
+  (void)snprintf(topicFName, sizeof(topicFName), "%s.%s", pTopic->db, sname.dbname);
+  MND_TMQ_RETURN_CHECK(mndUserRemoveTopic(pMnode, pTrans, topicFName));
   pCommitRaw = mndTopicActionEncode(pTopic);
   MND_TMQ_NULL_CHECK(pCommitRaw);
   code = mndTransAppendCommitlog(pTrans, pCommitRaw);
