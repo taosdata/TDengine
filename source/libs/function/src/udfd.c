@@ -649,6 +649,9 @@ int32_t udfdNewUdf(SUdf **pUdf, const char *udfName) {
     }
   }
   *pUdf =  udfNew;
+
+  fnTrace("udf new succeeded. name %s(%p)", udfNew->name, udfNew);
+
   return 0;
 }
 
@@ -666,6 +669,9 @@ void udfdFreeUdf(void *pData) {
 
   uv_mutex_destroy(&pSudf->lock);
   uv_cond_destroy(&pSudf->condReady);
+
+  fnTrace("udf free succeeded. name %s(%p)", pSudf->name, pSudf);
+
   taosMemoryFree(pSudf);
 }
 
@@ -797,22 +803,16 @@ _exit:
   }
 
   if (code) {
+    uv_mutex_lock(&global.udfsMutex);
     int32_t removeCode = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
     if (removeCode) {
       fnError("udf name %s remove from hash failed/setup, err:%0x %s", udf->name, removeCode, tstrerror(removeCode));
     }
+    uv_mutex_unlock(&global.udfsMutex);
 
     fnError("udf free: setup failed. name %s(%p) err:%0x %s", udf->name, udf, code, tstrerror(code));
 
-    if (udf->scriptPlugin && udf->scriptPlugin->udfDestroyFunc && udf->scriptUdfCtx) {
-      if (udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx)) {
-        fnError("udfdFreeUdf: udfd destroy udf %s failed", udf->name);
-      }
-    }
-
-    uv_cond_destroy(&udf->condReady);
-    uv_mutex_destroy(&udf->lock);
-    taosMemoryFree(udf);
+    udfdFreeUdf(udf);
   }
 }
 
@@ -1025,11 +1025,8 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   uv_mutex_unlock(&global.udfsMutex);
   if (unloadUdf) {
     fnInfo("udf teardown. udf name: %s type %d: context %p", udf->name, udf->scriptType, (void *)(udf->scriptUdfCtx));
-    uv_cond_destroy(&udf->condReady);
-    uv_mutex_destroy(&udf->lock);
-    code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
-    fnDebug("udfd destroy function returns %d", code);
-    taosMemoryFree(udf);
+
+    udfdFreeUdf(udf);
   }
 
 _send:
