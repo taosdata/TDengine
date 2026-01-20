@@ -203,7 +203,7 @@ auditLevel = 4 // AUDIT_LEVEL_CHILTABLE
 
 | Operation        | Operation | DB | Resource | Details |
 | ----------------| ----------| ---------| ---------| --------|
-| create table | createTable | db name | NULL | table name |
+| create table | createTable | db name | table name | table name |
 | drop table | dropTable | db name | NULL | table name |
 
 ### View Audit Logs
