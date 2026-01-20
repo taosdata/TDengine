@@ -44,6 +44,7 @@ class TestUserSecurity:
         tdSql.error(f"create totp_secret for user {userName}")
     
     def check_login(self, userName, password, totpCode):
+        # TODO: use connect_with_totp api after add the support
         taosFile = etool.taosFile()
         command = f"echo '{totpCode}' | {taosFile} -u{userName} -p{password} -s 'show databases;' "
         rlist = etool.runRetList(command, checkRun=True, show= True)
@@ -101,14 +102,10 @@ class TestUserSecurity:
                 raise Exception(f"duplicate totp key found: {key} at {i} time")
             keys.append(key)
     
-    #prepare
+    # prepare
     def prepare(self):
-        user = "user1"
-        self.create_user(user, "abcd@1234", "createdb 1")
-        key = self.create_security_key(user)
-        self.user1_code = self.get_totp_code(key)
-        self.start_time = time.monotonic()
-    
+        pass
+
     # create
     def do_create_totp(self):
         password = "abcd@1234"
@@ -167,20 +164,15 @@ class TestUserSecurity:
         print(f"delete totp key: {key}")
         
         # drop basic
-        self.drop_security_key("root")
+        self.drop_security_key_failed("root")
         self.drop_security_key("user_enable_0")
         # duplicate drop
         self.drop_security_key("user_default")
-        #BUG-1
-        #self.drop_security_key_failed("user_default")
+        self.drop_security_key_failed("user_default")
        
-        # login fail after drop key TODO after add connect_with_totp api support 
-        #self.login_with_key_fail("user_default", "abcd@1234", key)
-        
         # except
         print(f"delete totp except")
-        #BUG-2
-        #self.drop_security_key_failed("non_exist_user") # non-exist user
+        self.drop_security_key_failed("non_exist_user") # non-exist user
         self.drop_security_key_failed("")               # empty
         self.drop_security_key_failed("`root`")         # with quotes
         self.drop_security_key_failed("select")         # keyword
@@ -199,24 +191,49 @@ class TestUserSecurity:
         #
         # except
         #
+        user = "user1"
+        self.create_user(user, "abcd@1234", "createdb 1")
+        security_key = self.create_security_key(user)
+        totp = pyotp.TOTP(security_key, interval=30)
+
+        code = totp.now()
         self.check_login_fail("non_exist_user", "abcd@1234", "123456")    # non-exist user
-        self.check_login_fail("user1", "wrong_password", self.user1_code) # wrong password
+        self.check_login_fail("user1", "wrong_password", code)            # wrong password
         self.check_login_fail("", "abcd@1234", "123456")                  # empty user
-        self.check_login_fail("user1", "", self.user1_code)               # empty password
+        self.check_login_fail("user1", "", code)                          # empty password
         self.check_login_fail("user1", "abcd@1234", "")                   # empty totp
         self.check_login_fail("user1", "abcd@1234", "123456")             # wrong totp
         
         #
-        # totp code expired (30s)
+        # fault tolerance test
         #
-        elapsed = time.monotonic() - self.start_time
-        if elapsed < 40:
-            time_to_wait = 40 - elapsed
+        # if we are at the last 10 second of the current interval , wait until we are into
+        # the new interval, otherwise, the following tests may be flaky.
+        #
+        if (time.time() % totp.interval) > (totp.interval - 10):
+            time_to_wait = totp.interval - time.time() % totp.interval + 1
             print(f"wait {time_to_wait:.1f}s to cross interval boundary")
             time.sleep(time_to_wait)
-        else:
-            print(f"already cross interval boundary")
-        self.check_login_fail("user1", "abcd@1234", self.user1_code)  # old code fail
+
+        # totp code of current interval should work
+        code = totp.now()
+        self.check_login(user, "abcd@1234", code)
+
+        # totp code of previous interval should work
+        code = totp.at(int(time.time()) - totp.interval)
+        self.check_login(user, "abcd@1234", code)
+
+        # totp code before the previous interval should fail
+        code = totp.at(int(time.time()) - 2 * totp.interval)
+        self.check_login_fail(user, "abcd@1234", code)
+
+        # totp code of next interval should work
+        code = totp.at(int(time.time()) + totp.interval)
+        self.check_login(user, "abcd@1234", code)
+
+        # totp code after the next interval should fail
+        code = totp.at(int(time.time()) + 2 * totp.interval)
+        self.check_login_fail(user, "abcd@1234", code)
         
         print("login totp ............................ [ passed ] ")
 

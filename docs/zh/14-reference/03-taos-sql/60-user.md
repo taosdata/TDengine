@@ -59,7 +59,7 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `INACTIVE_ACCOUNT_TIME` 账户不活动锁定时间，长期未使用的账户自动锁定，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
 - `ALLOW_TOKEN_NUM` 支持的令牌个数，默认 3，最小 0，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `HOST` 和 `NOT_ALLOW_HOST` IP 地址白名单和黑名单，可以是单个 IP 地址，如 `192.168.1.1`，也可以是一个 [CIDR 格式](https://www.rfc-editor.org/rfc/rfc4632) 的地址段，如 `192.168.1.1/24`。当黑白名单同时存在时，只允许在白名单中且不在黑名单中的地址访问。从企业版 v3.4.0.0 开始支持。
-- `ALLOW_DATETIME` 和 `NOT_ALLOW_DATETIME` 允许和不允许登录的时间范围，包括日期、起始时间（精确到分钟）、时长（以分钟为单位）三部分，其中日期可以是具体的日期，也可以是 MON、TUE、WED、THU、FRI、SAT、SUN 代表的日期，例如：`2025-12-25 08:00 120`、`TUE 08:00 120`。从企业版 v3.4.0.0 开始支持。
+- `ALLOW_DATETIME` 和 `NOT_ALLOW_DATETIME` 允许和不允许登录的时间范围（以服务端所在时区为准），包括日期、起始时间（精确到分钟）、时长（以分钟为单位）三部分，其中日期可以是具体的日期，也可以是 MON、TUE、WED、THU、FRI、SAT、SUN 代表的日期，例如：`2025-12-25 08:00 120`、`TUE 08:00 120`。从企业版 v3.4.0.0 开始支持。
 
 在下面的示例中，我们创建一个密码为 `abc123!@#` 且可以查看系统信息的用户。
 
@@ -158,6 +158,8 @@ CREATE TOTP_SECRET FOR USER user_name
 
 如果用户还未创建 TOTP 密钥，此命令将为该用户创建 TOTP 密钥。如果用户已经创建了 TOTP 密钥，此命令为用户更新该密钥。不论哪种情况，此命令会返回新创建的密钥，此密钥仅展示一次，请及时保存。系统会为创建了 TOTP 密钥的用户自动启用 TOTP 双因认证。
 
+启用 TOTP 双因认证后，TDengine TSDB 要求 TOTP 验证码长度为 6 位，且每 30 秒更新一次，请务必按此参数配置 TOTP 验证码生成器，否则会导致客户端无法登录。
+
 例如，可以使用下面的命令为用户 test 创建 TOTP 密钥。
 
 ```sql
@@ -200,12 +202,13 @@ CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL 
 - `PROVIDER` 令牌提供者的名称，最长 63 个字节。
 - `EXTRA_INFO` 由应用管理的附加信息，最长 1023 字节。
 
-在下面的示例中，我们为用户 test 创建了一个名为 `test_token` 的令牌。注意，由于令牌值比较长，且仅在创建时展示一次，后续无法查询，所以请在 SQL 命令的最后使用 `\G` 以便完整显示。
+在下面的示例中，我们为用户 test 创建了一个名为 `test_token` 的令牌。注意，令牌值仅在创建时展示一次，后续无法查询，请及时保存。
 
 ```sql
-taos> create token test_token from user test \G;
-*************************** 1.row ***************************
-token: BsyjYKxhCMntZ3pHgweCd2uV2C8HoGKn8Mvd49dRRCtzusX0P1mgqRMrG7SzUca
+taos> create token test_token from user test;
+                             token                               |
+==================================================================
+ BsyjYKxhCMntZ3pHgweCd2uV2C8HoGKn8Mvd49dRRCtzusX0P1mgqRMrG7SzUca |
 Query OK, 1 row(s) in set (0.003018s)
 ```
 

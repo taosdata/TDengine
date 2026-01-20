@@ -24,10 +24,10 @@ extern "C" {
 #endif
 
 typedef struct {
-  char name[TSDB_TOKEN_NAME_LEN];
-  char user[TSDB_USER_LEN];
-  int32_t expireTime; // in seconds
-  int8_t enabled;
+  char    name[TSDB_TOKEN_NAME_LEN];
+  char    user[TSDB_USER_LEN];
+  int32_t expireTime;  // in seconds
+  int8_t  enabled;
 } SCachedTokenInfo;
 
 
@@ -46,6 +46,7 @@ int32_t mndGetUserActiveToken(const char* user, char* token);
 
 int32_t mndTokenCacheRebuild(SMnode *pMnode);
 SCachedTokenInfo* mndGetCachedTokenInfo(const char* token, SCachedTokenInfo* ti);
+int32_t mndGetUserTokenStatuses(const char* user, SHashObj** pHash);
 
 int32_t mndBuildSMCreateTokenResp(STrans *pTrans, void **ppResp, int32_t *pRespLen);
 

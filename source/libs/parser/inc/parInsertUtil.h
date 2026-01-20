@@ -55,6 +55,7 @@ int32_t insMergeTableDataCxt(SHashObj *pTableHash, SArray **pVgDataBlocks, bool 
 //int32_t insMergeStmtTableDataCxt(STableDataCxt* pTableCxt, SArray* pTableList, SArray** pVgDataBlocks, bool isRebuild, int32_t tbNum);
 int32_t insBuildVgDataBlocks(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks, bool append);
 void    insDestroyTableDataCxtHashMap(SHashObj *pTableCxtHash);
+void    insDestroyTableDataCxtHashMapSml(SHashObj *pTableCxtHash);
 void    insDestroyVgroupDataCxt(SVgroupDataCxt *pVgCxt);
 void    insDestroyVgroupDataCxtList(SArray *pVgCxtList);
 void    insDestroyVgroupDataCxtHashMap(SHashObj *pVgCxtHash);
