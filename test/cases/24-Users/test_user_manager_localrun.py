@@ -850,10 +850,10 @@ class TestUserSecurity:
         
         # forbid login
         now = time.time()
-        '''BUG7
+        #'''BUG7
         modify_system_time("2030-12-02 02:00:00") # MONDAY
         self.login_failed(user, password)
-        '''
+        #'''
         # allow login
         modify_system_time("2030-12-03 02:00:00") # TUESDAY
         self.login(user, password)
@@ -867,22 +867,22 @@ class TestUserSecurity:
         user = "user_not_allow_d7"
         val_allow     = "2030-11-01 02:00 120" #     allow 2:00 ~ 4:00
         val_not_allow = "2030-11-01 01:00 120" # not allow 1:00 ~ 3:00
-        self.create_user(user, password, options=f"ALLOW_DATETIME '{val_allow}' NOT_ALLOW_DATETIME '{val_not_allow}' PASSWORD_LIFE_TIME UNLIMITED")
+        self.create_user(user, password, options=f"ALLOW_DATETIME '{val_allow}' NOT_ALLOW_DATETIME '{val_not_allow}' PASSWORD_LIFE_TIME UNLIMITED INACTIVE_ACCOUNT_TIME UNLIMITED")
         self.check_user_option(user, "allowed_datetime", "+" + val_allow, find=True)
         self.check_user_option(user, "allowed_datetime", "-" + val_not_allow, find=True)
         now = time.time()
         # rule, not allow cover allow. expected not allow 1:00 ~ 3:00  allow 3:00-4:00 , not belong alow or not alow is not allow
-        modify_system_time("2030-12-01 00:00:00")
+        modify_system_time("2030-11-01 00:00:00")
         self.login_failed(user, password)
-        modify_system_time("2030-12-02 01:01:00")
+        modify_system_time("2030-11-01 01:01:00")
         self.login_failed(user, password)
-        modify_system_time("2030-12-02 02:59:00")
+        modify_system_time("2030-11-01 02:59:00")
         self.login_failed(user, password)
-        '''BUG8
-        modify_system_time("2030-12-02 03:01:00")
+        #'''BUG8
+        modify_system_time("2030-11-01 03:01:00")
         self.login(user, password)
-        '''
-        modify_system_time("2030-12-02 04:01:00")
+        #'''
+        modify_system_time("2030-11-01 04:01:00")
         self.login_failed(user, password)
         # reset system time
         reset_system_time(now)
