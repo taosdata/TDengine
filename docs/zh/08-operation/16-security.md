@@ -67,7 +67,7 @@ TDengine TSDB 先对用户操作进行记录和管理，然后将这些作为审
 
 ### 创建审计库
 
-在打开审计开关后，需要创建审计库，在创建时需要指定is_audit参数。
+在打开审计开关后，需要创建审计库，在创建时需要指定 is_audit 参数。
 
 ```sql
 CREATE DATABASE [IF NOT EXISTS] db_name [database_options] IS_AUDIT 1;
