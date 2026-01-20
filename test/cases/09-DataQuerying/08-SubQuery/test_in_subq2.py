@@ -254,7 +254,7 @@ class TestInSubQuery2:
 
     inSqls = [
         "1 in (select 1 from {tableName})",
-        "1 not in (select 1 from {tableName})",
+        "1 not in (select 1 from v1)",
     ]
 
     def setup_class(cls):

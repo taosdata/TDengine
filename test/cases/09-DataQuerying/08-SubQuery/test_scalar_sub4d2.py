@@ -4,11 +4,11 @@ import os
 from new_test_framework.utils import tdLog, tdSql, tdCom
 import datetime
 
-class TestScalarSubQuery4d:
+class TestScalarSubQuery4d2:
     updatecfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
     clientCfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
     updatecfgDict["clientCfg"] = clientCfgDict
-    caseName = "test_scalar_sub_query4d"
+    caseName = "test_scalar_sub_query4d2"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     mainIdx = 0
     secondIdx = 0
@@ -105,11 +105,11 @@ class TestScalarSubQuery4d:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_scalar_sub_query4d(self):
+    def test_scalar_sub_query4d2(self):
         """scalar sub query test case
         
         1. Prepare data.
-        2. Explain execute various nested queries with different kind of scalar sub queries.
+        2. Explain analyze execute various nested queries with different kind of scalar sub queries.
 
         Since: v3.4.0.0
 
@@ -184,8 +184,8 @@ class TestScalarSubQuery4d:
                         self.querySql = self.querySql.replace("{tableName}", self.tableNames[self.tableIdx])
                         #self.querySql = self.querySql.replace("{ntableName}", self.tableNames[self.ntableIdx])
 
-                        self.generated_queries_file.write("explain " + self.querySql.strip() + "\G;\n")
-                        self.generated_queries_file.write("explain verbose true " + self.querySql.strip() + "\G;\n")
+                        #self.generated_queries_file.write("explain " + self.querySql.strip() + "\G;\n")
+                        #self.generated_queries_file.write("explain verbose true " + self.querySql.strip() + "\G;\n")
                         #self.generated_queries_file.write("explain analyze " + self.querySql.strip() + "\G\n")
                         self.generated_queries_file.write("explain analyze verbose true " + self.querySql.strip() + "\G;\n")
                         self.generated_queries_file.flush()
