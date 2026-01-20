@@ -2290,7 +2290,9 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL: {
       SDynQueryCtrlLogicNode* pLogicNode = (SDynQueryCtrlLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
-      if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN || pLogicNode->qType == DYN_QTYPE_VTB_AGG) {
+      if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN ||
+          pLogicNode->qType == DYN_QTYPE_VTB_AGG ||
+          pLogicNode->qType == DYN_QTYPE_VTB_WINDOW) {
         taosMemoryFreeClear(pLogicNode->vtbScan.pVgroupList);
         nodesDestroyList(pLogicNode->vtbScan.pOrgVgIds);
       }
@@ -2529,7 +2531,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
       SDynQueryCtrlPhysiNode* pPhyNode = (SDynQueryCtrlPhysiNode*)pNode;
-      if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN || pPhyNode->qType == DYN_QTYPE_VTB_AGG) {
+      if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN || pPhyNode->qType == DYN_QTYPE_VTB_AGG || pPhyNode->qType == DYN_QTYPE_VTB_WINDOW) {
         nodesDestroyList(pPhyNode->vtbScan.pScanCols);
         nodesDestroyList(pPhyNode->vtbScan.pOrgVgIds);
       }

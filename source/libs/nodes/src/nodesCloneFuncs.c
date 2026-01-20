@@ -854,7 +854,6 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   COPY_SCALAR_FIELD(vtbWindow.wstartSlotId);
   COPY_SCALAR_FIELD(vtbWindow.wendSlotId);
   COPY_SCALAR_FIELD(vtbWindow.wdurationSlotId);
-  COPY_SCALAR_FIELD(vtbWindow.singleWinMode);
   COPY_SCALAR_FIELD(vtbWindow.isVstb);
   COPY_SCALAR_FIELD(vtbWindow.extendOption);
   return TSDB_CODE_SUCCESS;

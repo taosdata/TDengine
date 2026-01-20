@@ -4699,6 +4699,25 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
         }
         break;
       }
+      case DYN_QTYPE_VTB_WINDOW: {
+        code = tlvEncodeI32(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_WSTART_SLOTID, pNode->vtbWindow.wstartSlotId);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeI32(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_WEND_SLOTID, pNode->vtbWindow.wendSlotId);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeI32(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_WDURATION_SLOTID, pNode->vtbWindow.wdurationSlotId);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeObj(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_TARGETS, nodeListToMsg, pNode->vtbWindow.pTargets);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_IS_VSTB, pNode->vtbWindow.isVstb);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeI32(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_STATE_EXTEND_OPTION, pNode->vtbWindow.extendOption);
+        }
+        // do not break
+      }
       case DYN_QTYPE_VTB_AGG:
       case DYN_QTYPE_VTB_SCAN: {
         code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SCAN_ALL_COLS, pNode->vtbScan.scanAllCols);
@@ -4737,28 +4756,6 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_HAS_PARTITION, pNode->vtbScan.hasPartition);
-        }
-        break;
-      }
-      case DYN_QTYPE_VTB_WINDOW: {
-        code = tlvEncodeI32(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_WSTART_SLOTID, pNode->vtbWindow.wstartSlotId);
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tlvEncodeI32(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_WEND_SLOTID, pNode->vtbWindow.wendSlotId);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tlvEncodeI32(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_WDURATION_SLOTID, pNode->vtbWindow.wdurationSlotId);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tlvEncodeObj(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_TARGETS, nodeListToMsg, pNode->vtbWindow.pTargets);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_IS_VSTB, pNode->vtbWindow.isVstb);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tlvEncodeI32(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_STATE_EXTEND_OPTION, pNode->vtbWindow.extendOption);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_IS_SPARSE_WINDOW, pNode->vtbWindow.singleWinMode);
         }
         break;
       }
@@ -4859,9 +4856,6 @@ static int32_t msgToPhysiDynQueryCtrlNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_STATE_EXTEND_OPTION:
         code = tlvDecodeI32(pTlv, (int32_t*)&pNode->vtbWindow.extendOption);
-        break;
-      case PHY_DYN_QUERY_CTRL_CODE_VTB_WINDOW_IS_SPARSE_WINDOW:
-        code = tlvDecodeBool(pTlv, &pNode->vtbWindow.singleWinMode);
         break;
       case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_BATCH_PROCESS_CHILD:
         code = tlvDecodeBool(pTlv, &pNode->vtbScan.batchProcessChild);

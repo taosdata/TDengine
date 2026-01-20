@@ -132,8 +132,6 @@ The currently supported Hints list is as follows:
 |  PARA_TABLES_SORT   | None          | When sorting supertable data by timestamp, use memory instead of temporary disk space. When there are many subtables and rows are large, it will use a lot of memory and may cause OOM | When sorting supertable data by timestamp       |
 |  SMALLDATA_TS_SORT  | None          | When sorting supertable data by timestamp, if the query column length is greater than or equal to 256 but the number of rows is not large, using this hint can improve performance    | When sorting supertable data by timestamp       |
 |      SKIP_TSMA      | None          | Explicitly disable TSMA query optimization                                                                                                                                            | Queries with Agg functions                      |
-| WIN_OPTIMIZE_BATCH  | None          | Optimize virtual table window query and process multiple windows in a batch when optimizing window queries on virtual tables.                                                         | Virtual table query with State Window           |
-| WIN_OPTIMIZE_SINGLE | None          | Optimize virtual table window query and process one window at a time when optimizing window queries on virtual tables.                                                                | Virtual table query with State Window           |
 
 Examples:
 

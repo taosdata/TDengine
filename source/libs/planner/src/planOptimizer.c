@@ -8718,10 +8718,6 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   if (NULL == pWindow) {
     return TSDB_CODE_SUCCESS;
   }
-  SLogicNode*       pRootNode = getLogicNodeRootNode((SLogicNode*)pWindow);
-  if (!getOptHint(pRootNode->pHint, HINT_WIN_OPTIMIZE_SINGLE) && !getOptHint(pRootNode->pHint, HINT_WIN_OPTIMIZE_BATCH)) {
-    return TSDB_CODE_SUCCESS;
-  }
 
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
@@ -8753,7 +8749,6 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
   pDynWindowNode->vtbWindow.wstartSlotId = -1;
   pDynWindowNode->vtbWindow.wendSlotId = -1;
   pDynWindowNode->vtbWindow.isVstb = false;
-  pDynWindowNode->vtbWindow.singleWinMode = getOptHint(pRootNode->pHint, HINT_WIN_OPTIMIZE_SINGLE);
   pDynWindowNode->qType = DYN_QTYPE_VTB_WINDOW;
   pDynWindowNode->vtbWindow.extendOption = pWindow->extendOption;
 
@@ -8922,6 +8917,15 @@ _return:
   return code;
 }
 
+static void clearChildList(SLogicNode* pNode) {
+  nodesClearList(pNode->pChildren);
+  pNode->pChildren = NULL;
+}
+
+static int32_t appendNewChild(SLogicNode* pParent, SLogicNode* pChild) {
+  pChild->pParent = pParent;
+  PLAN_RET(nodesListMakeAppend(&pParent->pChildren, (SNode*)pChild));
+}
 
 // this rule optimize plan from
 
@@ -8941,10 +8945,6 @@ static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   if (NULL == pWindow) {
     return TSDB_CODE_SUCCESS;
   }
-  SLogicNode*       pRootNode = getLogicNodeRootNode((SLogicNode*)pWindow);
-  if (!getOptHint(pRootNode->pHint, HINT_WIN_OPTIMIZE_SINGLE) && !getOptHint(pRootNode->pHint, HINT_WIN_OPTIMIZE_BATCH)) {
-    return TSDB_CODE_SUCCESS;
-  }
 
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
@@ -8962,40 +8962,31 @@ static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   PLAN_ERR_JRET(nodesCloneNode((SNode*)pWindow, (SNode**)&pNewWindow));
   OPTIMIZE_FLAG_SET_MASK(pNewWindow->node.optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW);
 
+  pDynVstbScan = (SDynQueryCtrlLogicNode*)nodesListGetNode(pNewWindow->node.pChildren, 0);
+  QUERY_CHECK_NULL(pDynVstbScan, code, lino, _return, terrno)
+
   // create dyn window node, which is the top node of the new plan
-  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL, (SNode**)&pDynWindowNode));
+  PLAN_ERR_JRET(nodesCloneNode((SNode*)pDynVstbScan, (SNode**)&pDynWindowNode));
+  nodesDestroyList(pDynWindowNode->node.pChildren);
+  clearChildList((SLogicNode*)pDynWindowNode);
+  pDynWindowNode->node.pParent = NULL;
   pDynWindowNode->vtbWindow.wstartSlotId = -1;
   pDynWindowNode->vtbWindow.wendSlotId = -1;
   pDynWindowNode->vtbWindow.wdurationSlotId = -1;
   pDynWindowNode->vtbWindow.isVstb = true;
-  pDynWindowNode->vtbWindow.singleWinMode = getOptHint(pRootNode->pHint, HINT_WIN_OPTIMIZE_SINGLE);
   pDynWindowNode->vtbWindow.extendOption = pWindow->extendOption;
   pDynWindowNode->qType = DYN_QTYPE_VTB_WINDOW;
   OPTIMIZE_FLAG_SET_MASK(pDynWindowNode->node.optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW);
 
-  pDynVstbScan = (SDynQueryCtrlLogicNode*)nodesListGetNode(pNewWindow->node.pChildren, 0);
-  QUERY_CHECK_NULL(pDynVstbScan, code, lino, _return, terrno)
-
   PLAN_ERR_JRET(nodesCloneNode((SNode*)pDynVstbScan, (SNode**)&pWinColScan));
-  pVirtualScanNode = (SVirtualScanLogicNode*)nodesListGetNode(pDynVstbScan->node.pChildren, 0);
-  pVirtualScanNode->node.pParent = (SLogicNode*)pDynVstbScan;
-
-  pSysScan = (SScanLogicNode*)nodesListGetNode(pDynVstbScan->node.pChildren, 1);
-  pSysScan->node.pParent = (SLogicNode*)pDynVstbScan;
-
-  pScanNode = (SScanLogicNode*) nodesListGetNode(pVirtualScanNode->node.pChildren, 0);
-  QUERY_CHECK_NULL(pScanNode, code, lino, _return, terrno)
-  pScanNode->node.pParent = (SLogicNode*)pVirtualScanNode;
 
   pVirtualScanNode = (SVirtualScanLogicNode*)nodesListGetNode(pWinColScan->node.pChildren, 0);
   QUERY_CHECK_NULL(pVirtualScanNode, code, lino, _return, terrno)
-  pVirtualScanNode->node.pParent = (SLogicNode*)pWinColScan;
-  pSysScan = (SScanLogicNode*)nodesListGetNode(pWinColScan->node.pChildren, 1);
+  pSysScan = (SScanLogicNode *)nodesListGetNode(pWinColScan->node.pChildren, 1);
   QUERY_CHECK_NULL(pSysScan, code, lino, _return, terrno)
-  pSysScan->node.pParent = (SLogicNode*)pWinColScan;
   pScanNode = (SScanLogicNode*) nodesListGetNode(pVirtualScanNode->node.pChildren, 0);
   QUERY_CHECK_NULL(pScanNode, code, lino, _return, terrno)
-  pScanNode->node.pParent = (SLogicNode*)pVirtualScanNode;
+
 
   // only keep col needed by window, remove other cols from pWinColScan
   removeUselessTargetFromNode((SLogicNode*)pWinColScan, (SColumnNode*)pNewWindow->pStateExpr);
@@ -9003,29 +8994,43 @@ static int32_t vstableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   removeUselessTargetFromNode((SLogicNode*)pVirtualScanNode, (SColumnNode*)pNewWindow->pStateExpr);
   removeUselessTargetFromNode((SLogicNode*)pScanNode, (SColumnNode*)pNewWindow->pStateExpr);
 
+  pSysScan->node.pParent = (SLogicNode*)pWinColScan;
+  pVirtualScanNode->node.pParent = (SLogicNode*)pWinColScan;
+  pScanNode->node.pParent = (SLogicNode*)pVirtualScanNode;
+
   // create sort node 
   PLAN_ERR_JRET(createSortNodeForWinColScan((SColumnNode*)pNewWindow->pTspk,(SLogicNode*)pWinColScan, &pSort));
-  pWinColScan->node.pParent = (SLogicNode*)pSort;
-  PLAN_ERR_JRET(nodesListMakeAppend(&pSort->node.pChildren, (SNode*)pWinColScan));
 
+  pVirtualScanNode = (SVirtualScanLogicNode*)nodesListGetNode(pDynVstbScan->node.pChildren, 0);
+  QUERY_CHECK_NULL(pVirtualScanNode, code, lino, _return, terrno)
+  pSysScan = (SScanLogicNode *)nodesListGetNode(pDynVstbScan->node.pChildren, 1);
+  QUERY_CHECK_NULL(pSysScan, code, lino, _return, terrno)
+  pScanNode = (SScanLogicNode*) nodesListGetNode(pVirtualScanNode->node.pChildren, 0);
+  QUERY_CHECK_NULL(pScanNode, code, lino, _return, terrno)
+
+  clearChildList((SLogicNode*)pDynVstbScan);
+  clearChildList((SLogicNode*)pVirtualScanNode);
+  clearChildList((SLogicNode*)pNewWindow);
+
+  nodesDestroyList(pDynWindowNode->node.pTargets);
+  pDynWindowNode->node.pTargets = NULL;
+  PLAN_ERR_JRET(nodesCloneList(pDynVstbScan->node.pTargets, &pDynWindowNode->vtbScan.pScanCols));
   PLAN_ERR_JRET(nodesCloneList(pNewWindow->node.pTargets, &pDynWindowNode->node.pTargets));
   // create external window from origin window
   PLAN_ERR_JRET(createExternalWindowFromOriginWindow(pNewWindow, pDynWindowNode, &pExtWindow));
-  PLAN_ERR_JRET(nodesListMakeAppend(&pExtWindow->node.pChildren, (SNode*)pDynVstbScan));
-  pDynVstbScan->node.pParent = (SLogicNode*)pExtWindow;
 
-  nodesClearList(pNewWindow->node.pChildren);
-  pNewWindow->node.pChildren = NULL;
-  pSort->node.pParent = (SLogicNode*)pNewWindow;
-  PLAN_ERR_JRET(nodesListMakeAppend(&pNewWindow->node.pChildren, (SNode*)pSort));
+  PLAN_ERR_JRET(appendNewChild((SLogicNode*)pExtWindow, (SLogicNode*)pScanNode));
 
-  pNewWindow->node.pParent = (SLogicNode*)pDynWindowNode;
-  pExtWindow->node.pParent = (SLogicNode*)pDynWindowNode;
-  PLAN_ERR_JRET(nodesListMakeAppend(&pDynWindowNode->node.pChildren, (SNode*)pNewWindow));
-  PLAN_ERR_JRET(nodesListMakeAppend(&pDynWindowNode->node.pChildren, (SNode*)pExtWindow));
+  PLAN_ERR_JRET(appendNewChild((SLogicNode*)pSort, (SLogicNode*)pWinColScan));
+  PLAN_ERR_JRET(appendNewChild((SLogicNode*)pNewWindow, (SLogicNode*)pSort));
+
+  PLAN_ERR_JRET(appendNewChild((SLogicNode*)pDynWindowNode, (SLogicNode*)pNewWindow));
+  PLAN_ERR_JRET(appendNewChild((SLogicNode*)pDynWindowNode, (SLogicNode*)pSysScan));
+  PLAN_ERR_JRET(appendNewChild((SLogicNode*)pDynWindowNode, (SLogicNode*)pExtWindow));
 
   PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pWindow, (SLogicNode*)pDynWindowNode));
 
+  nodesDestroyNode((SNode*)pDynVstbScan);
   nodesDestroyNode((SNode*)pWindow);
   pCxt->optimized = true;
 
@@ -9329,16 +9334,6 @@ static int32_t rebuildVstbScanTargets(SDynQueryCtrlLogicNode* pDynVstbScan, SAgg
 _return:
   planError("%s failed , code: %d", __func__, code);
   return code;
-}
-
-static void clearChildList(SLogicNode* pNode) {
-  nodesClearList(pNode->pChildren);
-  pNode->pChildren = NULL;
-}
-
-static int32_t appendNewChild(SLogicNode* pParent, SLogicNode* pChild) {
-  pChild->pParent = pParent;
-  PLAN_RET(nodesListMakeAppend(&pParent->pChildren, (SNode*)pChild));
 }
 
 static int32_t vstableAggOptimizeWithoutPartition(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,

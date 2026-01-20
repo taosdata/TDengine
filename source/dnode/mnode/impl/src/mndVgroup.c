@@ -1277,14 +1277,22 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
         if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEARNER &&
             (pVgroup->vnodeGid[i].snapSeq > 0 && pVgroup->vnodeGid[i].snapSeq < SYNC_SNAPSHOT_SEQ_END)) {
-          mInfo("db:%s, learner progress:%d",  pDb ? pDb->name : NULL, pVgroup->vnodeGid[i].learnerProgress);
+          if (pDb != NULL) {
+            mInfo("db:%s, learner progress:%d", pDb->name, pVgroup->vnodeGid[i].learnerProgress);
+          } else {
+            mInfo("db:null, learner progress:%d", pVgroup->vnodeGid[i].learnerProgress);
+          }
 
           snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64 "/%" PRId64 "(snap:%d)(learner:%d)",
                    pVgroup->vnodeGid[i].syncAppliedIndex, pVgroup->vnodeGid[i].syncCommitIndex,
                    pVgroup->vnodeGid[i].syncTotalIndex, pVgroup->vnodeGid[i].snapSeq,
                    pVgroup->vnodeGid[i].learnerProgress);
         } else if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEARNER) {
-          mInfo("db:%s, learner progress:%d", pDb ? pDb->name : NULL, pVgroup->vnodeGid[i].learnerProgress);
+          if (pDb != NULL) {
+            mInfo("db:%s, learner progress:%d", pDb->name, pVgroup->vnodeGid[i].learnerProgress);
+          } else {
+            mInfo("db:null, learner progress:%d", pVgroup->vnodeGid[i].learnerProgress);
+          }
 
           snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64 "/%" PRId64 "(learner:%d)",
                    pVgroup->vnodeGid[i].syncAppliedIndex, pVgroup->vnodeGid[i].syncCommitIndex,

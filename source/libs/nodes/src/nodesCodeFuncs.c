@@ -4241,7 +4241,6 @@ static const char* jkDynQueryCtrlPhysiPlanWdurationSlotId = "WdurationSlotId";
 static const char* jkDynQueryCtrlPhysiPlanTargets = "Targets";
 static const char* jkDynQueryCtrlPhysiPlanIsVstb = "IsVstb";
 static const char* jkDynQueryCtrlPhysiPlanStateExtendOption = "StateExtendOption";
-static const char* jkDynQueryCtrlPhysiPlansingleWinMode = "singleWinMode";
 
 
 static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
@@ -4274,6 +4273,25 @@ static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
           code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanSrcScan1, pNode->stbJoin.srcScan[1]);
         }
         break;
+      }
+      case DYN_QTYPE_VTB_WINDOW: {
+        code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanWstartSlotId, pNode->vtbWindow.wstartSlotId);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanWendSlotId, pNode->vtbWindow.wendSlotId);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanWdurationSlotId, pNode->vtbWindow.wdurationSlotId);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = nodeListToJson(pJson, jkDynQueryCtrlPhysiPlanTargets, pNode->vtbWindow.pTargets);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanIsVstb, pNode->vtbWindow.isVstb);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanStateExtendOption, pNode->vtbWindow.extendOption);
+        }
+        // do not break
       }
       case DYN_QTYPE_VTB_AGG:
       case DYN_QTYPE_VTB_SCAN: {
@@ -4313,28 +4331,6 @@ static int32_t physiDynQueryCtrlNodeToJson(const void* pObj, SJson* pJson) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanHasPartition, pNode->vtbScan.hasPartition);
-        }
-        break;
-      }
-      case DYN_QTYPE_VTB_WINDOW: {
-        code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanWstartSlotId, pNode->vtbWindow.wstartSlotId);
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanWendSlotId, pNode->vtbWindow.wendSlotId);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanWdurationSlotId, pNode->vtbWindow.wdurationSlotId);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = nodeListToJson(pJson, jkDynQueryCtrlPhysiPlanTargets, pNode->vtbWindow.pTargets);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlanIsVstb, pNode->vtbWindow.isVstb);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tjsonAddIntegerToObject(pJson, jkDynQueryCtrlPhysiPlanStateExtendOption, pNode->vtbWindow.extendOption);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tjsonAddBoolToObject(pJson, jkDynQueryCtrlPhysiPlansingleWinMode, pNode->vtbWindow.singleWinMode);
         }
         break;
       }
@@ -4382,6 +4378,25 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
         }
         break;
       }
+      case DYN_QTYPE_VTB_WINDOW: {
+        tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanWstartSlotId, pNode->vtbWindow.wstartSlotId, code);
+        if (TSDB_CODE_SUCCESS == code) {
+          tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanWendSlotId, pNode->vtbWindow.wendSlotId, code);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanWdurationSlotId, pNode->vtbWindow.wdurationSlotId, code);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = jsonToNodeList(pJson, jkDynQueryCtrlPhysiPlanTargets, &pNode->vtbWindow.pTargets);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanIsVstb, &pNode->vtbWindow.isVstb);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tjsonGetIntValue(pJson, jkDynQueryCtrlPhysiPlanStateExtendOption, (int32_t*)&pNode->vtbWindow.extendOption);
+        }
+        // do not break
+      }
       case DYN_QTYPE_VTB_AGG:
       case DYN_QTYPE_VTB_SCAN: {
         code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanBatchProcessChild, &pNode->vtbScan.batchProcessChild);
@@ -4420,28 +4435,6 @@ static int32_t jsonToPhysiDynQueryCtrlNode(const SJson* pJson, void* pObj) {
         }
         if (TSDB_CODE_SUCCESS == code) {
           code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanHasPartition, &pNode->vtbScan.hasPartition);
-        }
-        break;
-      }
-      case DYN_QTYPE_VTB_WINDOW: {
-        tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanWstartSlotId, pNode->vtbWindow.wstartSlotId, code);
-        if (TSDB_CODE_SUCCESS == code) {
-          tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanWendSlotId, pNode->vtbWindow.wendSlotId, code);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          tjsonGetNumberValue(pJson, jkDynQueryCtrlPhysiPlanWdurationSlotId, pNode->vtbWindow.wdurationSlotId, code);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = jsonToNodeList(pJson, jkDynQueryCtrlPhysiPlanTargets, &pNode->vtbWindow.pTargets);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlanIsVstb, &pNode->vtbWindow.isVstb);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tjsonGetIntValue(pJson, jkDynQueryCtrlPhysiPlanStateExtendOption, (int32_t*)&pNode->vtbWindow.extendOption);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = tjsonGetBoolValue(pJson, jkDynQueryCtrlPhysiPlansingleWinMode, &pNode->vtbWindow.singleWinMode);
         }
         break;
       }

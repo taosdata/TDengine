@@ -10,7 +10,7 @@ Flask==3.0.3
 matplotlib==3.9.2
 uWSGI==2.0.27
 keras==3.9.0
-taospy==2.8.6
+taospy==2.8.8
 transformers==4.40.0
 accelerate==0.34.2
 cmdstanpy==1.2.0

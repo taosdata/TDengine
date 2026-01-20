@@ -1988,10 +1988,19 @@ static bool mergeExtWinNeedSplit(SLogicNode* pNode) {
       pNode->pParent &&
       pNode->pParent->pParent &&
       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent)) {
+    // right part, which calculate the final result depends on the time range from left part
+    // virtual normal/child table
     if (((SWindowLogicNode*)(pNode->pParent))->winType == WINDOW_TYPE_EXTERNAL &&
         QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pNode->pParent->pParent)) {
       return true;
     }
+    // virtual super table
+    if (((SWindowLogicNode*)(pNode->pParent))->winType == WINDOW_TYPE_EXTERNAL &&
+        QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pNode->pParent->pParent) &&
+        ((SDynQueryCtrlLogicNode*)pNode->pParent->pParent)->qType == DYN_QTYPE_VTB_WINDOW) {
+      return true;
+    }
+    // left part, which calculate the window range
     if (((SWindowLogicNode*)(pNode->pParent))->winType != WINDOW_TYPE_EXTERNAL &&
         QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pNode->pParent->pParent)) {
       return true;
@@ -2091,7 +2100,8 @@ static bool dynVirtualScanFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSub
 
   // 1. split for system table scan under dynamic query control node(virtual stable scan)
   if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pParent) &&
-      ((SDynQueryCtrlLogicNode*)(pParent))->qType == DYN_QTYPE_VTB_SCAN &&
+      (((SDynQueryCtrlLogicNode*)(pParent))->qType == DYN_QTYPE_VTB_SCAN ||
+       ((SDynQueryCtrlLogicNode*)(pParent))->qType == DYN_QTYPE_VTB_WINDOW) &&
       scanType == SCAN_TYPE_SYSTEM_TABLE) {
     pInfo->pDyn = (SScanLogicNode*)pNode;
     pInfo->pSubplan = pSubplan;
