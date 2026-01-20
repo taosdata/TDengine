@@ -768,18 +768,21 @@ _send:
   int32_t len = encodeUdfResponse(NULL, &rsp);
   if(len < 0) {
     fnError("udfdProcessSetupRequest: encode udf response failed. len %d", len);
+    code = terrno;
     goto _exit;
   }
   rsp.msgLen = len;
   bufBegin = taosMemoryMalloc(len);
   if(bufBegin == NULL) {
     fnError("udfdProcessSetupRequest: malloc failed. len %d", len);
+    code = terrno;
     goto _exit;
   }
 
   void *buf = bufBegin;
   if(encodeUdfResponse(&buf, &rsp) < 0) {
     fnError("udfdProcessSetupRequest: encode udf response failed. len %d", len);
+    code = terrno;
     goto _exit;
   }
   
