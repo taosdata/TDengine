@@ -5985,73 +5985,49 @@ _exit:
 }
 
 int32_t mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb) {
-  int32_t   code = 0;
-  SSdb     *pSdb = pMnode->pSdb;
-  int32_t   len = strlen(stb) + 1;
-  void     *pIter = NULL;
-  SUserObj *pUser = NULL;
-  SUserObj  newUser = {0};
-#ifdef PRIV_TODO
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
-    if (pIter == NULL) break;
-
-    if ((code = mndUserDupObj(pUser, &newUser)) != 0) {
-      break;
-    }
-
-    bool inRead = (taosHashGet(newUser.selectTbs, stb, len) != NULL);
-    bool inWrite = (taosHashGet(newUser.insertTbs, stb, len) != NULL);
-    bool inAlter = (taosHashGet(newUser.alterTbs, stb, len) != NULL);
-    if (inRead || inWrite || inAlter) {
-      code = taosHashRemove(newUser.selectTbs, stb, len);
-      if (code < 0) {
-        mError("failed to remove selectTbs:%s from user:%s", stb, pUser->user);
-      }
-      code = taosHashRemove(newUser.insertTbs, stb, len);
-      if (code < 0) {
-        mError("failed to remove insertTbs:%s from user:%s", stb, pUser->user);
-      }
-      code = taosHashRemove(newUser.alterTbs, stb, len);
-      if (code < 0) {
-        mError("failed to remove alterTbs:%s from user:%s", stb, pUser->user);
-      }
-
-      SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
-      if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        break;
-      }
-      code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-      if (code != 0) {
-        mndUserFreeObj(&newUser);
-        sdbRelease(pSdb, pUser);
-        TAOS_RETURN(code);
-      }
-    }
-
-    mndUserFreeObj(&newUser);
-    sdbRelease(pSdb, pUser);
-  }
-#endif
-  if (pUser != NULL) sdbRelease(pSdb, pUser);
-  if (pIter != NULL) sdbCancelFetch(pSdb, pIter);
-  mndUserFreeObj(&newUser);
-  TAOS_RETURN(code);
+  return mndPrincipalRemoveObjPrivs(pMnode, pTrans, stb, PRIV_OBJ_TBL);
 }
 
-static int32_t mndUserRemoveObjPrivs(SMnode *pMnode, STrans *pTrans, const char *key, int32_t keyLen) {
+static int32_t mndUserRemoveObjPrivs(SMnode *pMnode, STrans *pTrans, const char *key, int32_t keyLen,
+                                     EPrivObjType objType) {
   int32_t   code = 0, lino = 0;
   SSdb     *pSdb = pMnode->pSdb;
   void     *pIter = NULL;
   SUserObj *pUser = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser))) {
-    if (!taosHashGet(pUser->objPrivs, key, keyLen)) {
+    bool found = false;
+    if (taosHashGet(pUser->objPrivs, key, keyLen)) {
+      TAOS_CHECK_EXIT(taosHashRemove(pUser->objPrivs, key, keyLen));
+      found = true;
+    }
+    if (objType == PRIV_OBJ_TBL) {
+      SPrivTblPolicies *pTblPrivs = taosHashGet(pUser->selectTbs, key, keyLen);
+      if (pTblPrivs) {
+        TAOS_CHECK_EXIT(taosHashRemove(pUser->selectTbs, key, keyLen));
+        found = true;
+      }
+      pTblPrivs = taosHashGet(pUser->insertTbs, key, keyLen);
+      if (pTblPrivs) {
+        TAOS_CHECK_EXIT(taosHashRemove(pUser->insertTbs, key, keyLen));
+        found = true;
+      }
+      pTblPrivs = taosHashGet(pUser->updateTbs, key, keyLen);
+      if (pTblPrivs) {
+        TAOS_CHECK_EXIT(taosHashRemove(pUser->updateTbs, key, keyLen));
+        found = true;
+      }
+      pTblPrivs = taosHashGet(pUser->deleteTbs, key, keyLen);
+      if (pTblPrivs) {
+        TAOS_CHECK_EXIT(taosHashRemove(pUser->deleteTbs, key, keyLen));
+        found = true;
+      }
+    }
+    if (!found) {
       sdbRelease(pSdb, pUser);
       pUser = NULL;
       continue;
     }
-    TAOS_CHECK_EXIT(taosHashRemove(pUser->objPrivs, key, keyLen));
+
     int64_t now = taosGetTimestampMs();
     taosWLockLatch(&pUser->lock);
     pUser->updateTime = now;
@@ -6073,18 +6049,52 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndRoleRemoveObjPrivs(SMnode *pMnode, STrans *pTrans, const char *key, int32_t keyLen) {
+static int32_t mndRoleRemoveObjPrivs(SMnode *pMnode, STrans *pTrans, const char *key, int32_t keyLen,
+                                     EPrivObjType objType) {
   int32_t   code = 0, lino = 0;
   SSdb     *pSdb = pMnode->pSdb;
   void     *pIter = NULL;
   SRoleObj *pRole = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_ROLE, pIter, (void **)&pRole))) {
-    if (!taosHashGet(pRole->objPrivs, key, keyLen)) {
+    // inherit system roles have no direct privileges
+    if (taosStrncasecmp(pRole->name, "sys", 3) == 0) {
       sdbRelease(pSdb, pRole);
       pRole = NULL;
       continue;
     }
-    TAOS_CHECK_EXIT(taosHashRemove(pRole->objPrivs, key, keyLen));
+    bool found = false;
+    if (taosHashGet(pRole->objPrivs, key, keyLen)) {
+      TAOS_CHECK_EXIT(taosHashRemove(pRole->objPrivs, key, keyLen));
+      found = true;
+    }
+
+    if (objType == PRIV_OBJ_TBL) {
+      SPrivTblPolicies *pTblPrivs = taosHashGet(pRole->selectTbs, key, keyLen);
+      if (pTblPrivs) {
+        TAOS_CHECK_EXIT(taosHashRemove(pRole->selectTbs, key, keyLen));
+        found = true;
+      }
+      pTblPrivs = taosHashGet(pRole->insertTbs, key, keyLen);
+      if (pTblPrivs) {
+        TAOS_CHECK_EXIT(taosHashRemove(pRole->insertTbs, key, keyLen));
+        found = true;
+      }
+      pTblPrivs = taosHashGet(pRole->updateTbs, key, keyLen);
+      if (pTblPrivs) {
+        TAOS_CHECK_EXIT(taosHashRemove(pRole->updateTbs, key, keyLen));
+        found = true;
+      }
+      pTblPrivs = taosHashGet(pRole->deleteTbs, key, keyLen);
+      if (pTblPrivs) {
+        TAOS_CHECK_EXIT(taosHashRemove(pRole->deleteTbs, key, keyLen));
+        found = true;
+      }
+    }
+    if (!found) {
+      sdbRelease(pSdb, pRole);
+      pRole = NULL;
+      continue;
+    }
     int64_t now = taosGetTimestampMs();
     taosWLockLatch(&pRole->lock);
     pRole->updateTime = now;
@@ -6106,116 +6116,20 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndPrincipalRemoveObjPrivs(SMnode *pMnode, STrans *pTrans, char *objFName, int32_t objType) {
+static int32_t mndPrincipalRemoveObjPrivs(SMnode *pMnode, STrans *pTrans, char *objFName, EPrivObjType objType) {
   int32_t code = 0;
   char    key[TSDB_PRIV_MAX_KEY_LEN] = {0};
   int32_t keyLen = snprintf(key, sizeof(key), "%d.%s", objType, objFName) + 1;
-  TAOS_CHECK_RETURN(mndUserRemoveObjPrivs(pMnode, pTrans, key, keyLen));
-  TAOS_CHECK_RETURN(mndRoleRemoveObjPrivs(pMnode, pTrans, key, keyLen));
+  TAOS_CHECK_RETURN(mndUserRemoveObjPrivs(pMnode, pTrans, key, keyLen, objType));
+  TAOS_CHECK_RETURN(mndRoleRemoveObjPrivs(pMnode, pTrans, key, keyLen, objType));
   TAOS_RETURN(code);
 }
 
 int32_t mndUserRemoveView(SMnode *pMnode, STrans *pTrans, char *view) {
-  int32_t   code = 0;
-#if 0
-  SSdb     *pSdb = pMnode->pSdb;
-  int32_t   len = strlen(view) + 1;
-  void     *pIter = NULL;
-  SUserObj *pUser = NULL;
-  SUserObj  newUser = {0};
-
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
-    if (pIter == NULL) break;
-
-    if ((code = mndUserDupObj(pUser, &newUser)) != 0) {
-      break;
-    }
-
-    bool inRead = (taosHashGet(newUser.readViews, view, len) != NULL);
-    bool inWrite = (taosHashGet(newUser.writeViews, view, len) != NULL);
-    bool inAlter = (taosHashGet(newUser.alterViews, view, len) != NULL);
-    if (inRead || inWrite || inAlter) {
-      code = taosHashRemove(newUser.readViews, view, len);
-      if (code < 0) {
-        mError("failed to remove readViews:%s from user:%s", view, pUser->user);
-      }
-      code = taosHashRemove(newUser.writeViews, view, len);
-      if (code < 0) {
-        mError("failed to remove writeViews:%s from user:%s", view, pUser->user);
-      }
-      code = taosHashRemove(newUser.alterViews, view, len);
-      if (code < 0) {
-        mError("failed to remove alterViews:%s from user:%s", view, pUser->user);
-      }
-
-      SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
-      if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        break;
-      }
-      code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-      if (code < 0) {
-        mndUserFreeObj(&newUser);
-        sdbRelease(pSdb, pUser);
-        TAOS_RETURN(code);
-      }
-    }
-
-    mndUserFreeObj(&newUser);
-    sdbRelease(pSdb, pUser);
-  }
-  if (pUser != NULL) sdbRelease(pSdb, pUser);
-  if (pIter != NULL) sdbCancelFetch(pSdb, pIter);
-  mndUserFreeObj(&newUser);
-#endif
   return mndPrincipalRemoveObjPrivs(pMnode, pTrans, view, PRIV_OBJ_VIEW);
 }
 
 int32_t mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic) {
-  int32_t   code = 0;
-#ifdef PRIV_TODO
-  SSdb     *pSdb = pMnode->pSdb;
-  int32_t   len = strlen(topic) + 1;
-  void     *pIter = NULL;
-  SUserObj *pUser = NULL;
-  SUserObj  newUser = {0};
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
-    if (pIter == NULL) {
-      break;
-    }
-
-    if ((code = mndUserDupObj(pUser, &newUser)) != 0) {
-      break;
-    }
-
-    bool inTopic = (taosHashGet(newUser.topics, topic, len) != NULL);
-    if (inTopic) {
-      code = taosHashRemove(newUser.topics, topic, len);
-      if (code < 0) {
-        mError("failed to remove topic:%s from user:%s", topic, pUser->user);
-      }
-      SSdbRaw *pCommitRaw = mndUserActionEncode(&newUser);
-      if (pCommitRaw == NULL || (code = mndTransAppendCommitlog(pTrans, pCommitRaw)) != 0) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        break;
-      }
-      code = sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
-      if (code < 0) {
-        mndUserFreeObj(&newUser);
-        sdbRelease(pSdb, pUser);
-        TAOS_RETURN(code);
-      }
-    }
-
-    mndUserFreeObj(&newUser);
-    sdbRelease(pSdb, pUser);
-  }
-  if (pUser != NULL) sdbRelease(pSdb, pUser);
-  if (pIter != NULL) sdbCancelFetch(pSdb, pIter);
-  mndUserFreeObj(&newUser);
-#endif
   return mndPrincipalRemoveObjPrivs(pMnode, pTrans, topic, PRIV_OBJ_TOPIC);
 }
 
