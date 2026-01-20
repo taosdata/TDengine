@@ -933,9 +933,10 @@ static void dropOldPasswords(SUserObj *pUser) {
 
   int32_t now = taosGetTimestampSec();
   int32_t index = reuseMax;
-  while (index < pUser->numOfPasswords) {
-    SUserPassword *pPass = &pUser->passwords[index];
-    if (now - pPass->setTime >= pUser->passwordReuseTime) {
+  while(index < pUser->numOfPasswords) {
+    // the set time of the n-th password is the expire time of the n+1-th password
+    int32_t expireTime = pUser->passwords[index - 1].setTime;
+    if (now - expireTime >= pUser->passwordReuseTime) {
       break;
     }
     index++;
@@ -2648,6 +2649,9 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
 
 _OVER:
   taosRUnLockLatch(&pUser->lock);
+  if (code == 0) {
+    dropOldPasswords(pNew);
+  }
   TAOS_RETURN(code);
 }
 

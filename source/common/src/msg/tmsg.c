@@ -3256,7 +3256,8 @@ SDateTimeWhiteList* cloneDateTimeWhiteList(const SDateTimeWhiteList* src) {
 //
 // otherwise, it returns false.
 //
-// Note: tm is seconds since 1970-01-01 00:00:00 UTC, can be obtained by taosGetTimestampSec.
+// Note: tm is seconds since 1970-01-01 00:00:00 UTC, interpreted as local time,
+//       can be obtained by taosGetTimestampSec().
 //
 // TODO: the whitelist entries are sorted, we can use binary search to optimize the performance.
 bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm) {
@@ -3265,9 +3266,14 @@ bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm) {
   }
 
   bool hasWhite = false, inWhite = false;
-  // convert tm to week seconds, because week starts from Sunday and 1970-01-01 is
-  // Thursday, we need add 4 days offset.
-  int32_t weekSec = (tm + (4 * 86400)) % (7 * 86400);
+  // convert tm to week seconds based on localtime
+  // week starts from Sunday (tm_wday = 0)
+  time_t t = (time_t)tm;
+  struct tm ltm;
+  if (taosLocalTime(&t, &ltm, NULL, 0, NULL) == NULL) {
+    return false;
+  }
+  int32_t weekSec = ltm.tm_wday * 86400 + ltm.tm_hour * 3600 + ltm.tm_min * 60 + ltm.tm_sec;
 
   for (int32_t i = 0; i < wl->num; ++i) {
     const SDateTimeWhiteListItem *item = &wl->ranges[i];
