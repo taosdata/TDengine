@@ -2030,4 +2030,12 @@ class TestInterval:
             '2026-01-02 12:00:00' and '2026-01-06 12:00:00' interval(12h, auto)
             fill(prev) surround(1d, 100)""")
 
+        tdSql.query("""select _wstart, _wend, max(c1) from ntb where ts between
+            '2026-01-03 12:00:00' and '2026-01-06 12:00:00' interval(12h, auto)
+            fill(next) surround(1d, 100)""")
+
+        tdSql.query("""select _wstart, _wend, max(c1) from ntb where ts between
+            '2026-01-04 12:00:00' and '2026-01-06 12:00:00' interval(12h, auto)
+            fill(next) surround(1d, 100)""")
+
         self.check_surround_abnormal()

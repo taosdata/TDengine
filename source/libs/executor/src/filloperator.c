@@ -94,7 +94,7 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
   }
 
   int32_t numOfResultRows = pResultInfo->capacity - pResBlock->info.rows;
-  int32_t code = taosFillResultDataBlock2(pInfo->pFillInfo, pResBlock, numOfResultRows, NULL);
+  int32_t code = taosFillResultDataBlock(pInfo->pFillInfo, pResBlock, numOfResultRows, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     T_LONG_JMP(pTaskInfo->env, code);
@@ -109,7 +109,7 @@ static void doHandleRemainBlockFromNewGroup(SOperatorInfo* pOperator, SFillOpera
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (taosFillHasMoreResults(pInfo->pFillInfo)) {
     int32_t numOfResultRows = pResultInfo->capacity - pInfo->pFinalRes->info.rows;
-    int32_t code = taosFillResultDataBlock2(pInfo->pFillInfo, pInfo->pFinalRes, numOfResultRows, NULL);
+    int32_t code = taosFillResultDataBlock(pInfo->pFillInfo, pInfo->pFinalRes, numOfResultRows, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       T_LONG_JMP(pTaskInfo->env, code);
@@ -180,7 +180,7 @@ _end:
   return code;
 }
 
-static SSDataBlock* doFillImpl2(SOperatorInfo* pOperator) {
+static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SFillOperatorInfo* pInfo = pOperator->info;
@@ -248,13 +248,12 @@ static SSDataBlock* doFillImpl2(SOperatorInfo* pOperator) {
         // Fill the previous group data block, before handle the data block of new group.
         // Close the fill operation for previous group data block
         taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
-        pInfo->pFillInfo->prev.key = 0;
       }
     }
 
     int32_t numOfResultRows = pOperator->resultInfo.capacity - pResBlock->info.rows;
     bool wantMoreBlock = false;
-    code = taosFillResultDataBlock2(pInfo->pFillInfo, pResBlock, numOfResultRows, &wantMoreBlock);
+    code = taosFillResultDataBlock(pInfo->pFillInfo, pResBlock, numOfResultRows, &wantMoreBlock);
     QUERY_CHECK_CODE(code, lino, _end);
 
     // current group has no more result to return
@@ -281,128 +280,6 @@ static SSDataBlock* doFillImpl2(SOperatorInfo* pOperator) {
       }
     } else {
       if (wantMoreBlock) continue;
-      return NULL;
-    }
-  }
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, code);
-  }
-  return NULL;
-}
-
-static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
-  int32_t            code = TSDB_CODE_SUCCESS;
-  int32_t            lino = 0;
-  SFillOperatorInfo* pInfo = pOperator->info;
-  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
-  if (pInfo == NULL || pTaskInfo == NULL) {
-    qError("%s failed at line %d since pInfo or pTaskInfo is NULL.", __func__, __LINE__);
-    return NULL;
-  }
-
-  SResultInfo* pResultInfo = &pOperator->resultInfo;
-  SSDataBlock* pResBlock = pInfo->pFinalRes;
-  if (pResBlock == NULL) {
-    qError("%s failed at line %d since pResBlock is NULL.", __func__, __LINE__);
-    return NULL;
-  }
-
-  blockDataCleanup(pResBlock);
-
-  int32_t order = pInfo->pFillInfo->order;
-
-  SOperatorInfo* pDownstream = pOperator->pDownstream[0];
-#if 0
-  // the scan order may be different from the output result order for agg interval operator.
-  if (pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL) {
-    order = ((SIntervalAggOperatorInfo*) pDownstream->info)->resultTsOrder;
-  } else {
-    order = pInfo->pFillInfo->order;
-  }
-#endif
-
-  doHandleRemainBlockFromNewGroup(pOperator, pInfo, pResultInfo, order);
-  if (pResBlock->info.rows > 0) {
-    pResBlock->info.id.groupId = pInfo->curGroupId;
-    return pResBlock;
-  }
-
-  while (1) {
-    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
-    if (pBlock == NULL) {
-      if (pInfo->totalInputRows == 0 &&
-          (pInfo->pFillInfo->type != TSDB_FILL_NULL_F && pInfo->pFillInfo->type != TSDB_FILL_SET_VALUE_F)) {
-        setOperatorCompleted(pOperator);
-        return NULL;
-      } else if (pInfo->totalInputRows == 0 && taosFillNotStarted(pInfo->pFillInfo)) {
-        reviseFillStartAndEndKey(pInfo, order);
-      }
-
-      taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
-    } else {
-      pResBlock->info.scanFlag = pBlock->info.scanFlag;
-      pBlock->info.dataLoad = 1;
-      code = blockDataUpdateTsWindow(pBlock, pInfo->primarySrcSlotId);
-      QUERY_CHECK_CODE(code, lino, _end);
-
-      blockDataCleanup(pInfo->pRes);
-      code = blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
-      QUERY_CHECK_CODE(code, lino, _end);
-      code = blockDataEnsureCapacity(pInfo->pFinalRes, pBlock->info.rows);
-      QUERY_CHECK_CODE(code, lino, _end);
-      doApplyScalarCalculation(pOperator, pBlock, order, pBlock->info.scanFlag);
-
-      if (pInfo->curGroupId == 0 || (pInfo->curGroupId == pInfo->pRes->info.id.groupId)) {
-        if (pInfo->curGroupId == 0 && taosFillNotStarted(pInfo->pFillInfo)) {
-          reviseFillStartAndEndKey(pInfo, order);
-        }
-
-        pInfo->curGroupId = pInfo->pRes->info.id.groupId;  // the first data block
-        pInfo->totalInputRows += pInfo->pRes->info.rows;
-
-        int64_t ts = (order == TSDB_ORDER_ASC) ? pBlock->info.window.ekey : pBlock->info.window.skey;
-        taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, ts);
-        taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->pRes);
-      } else if (pInfo->curGroupId != pBlock->info.id.groupId) {  // the new group data block
-        pInfo->existNewGroupBlock = pBlock;
-
-        // Fill the previous group data block, before handle the data block of new group.
-        // Close the fill operation for previous group data block
-        taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
-        pInfo->pFillInfo->prev.key = 0;
-      }
-    }
-
-    int32_t numOfResultRows = pOperator->resultInfo.capacity - pResBlock->info.rows;
-    code = taosFillResultDataBlock(pInfo->pFillInfo, pResBlock, numOfResultRows);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    // current group has no more result to return
-    if (pResBlock->info.rows > 0) {
-      // 1. The result in current group not reach the threshold of output result, continue
-      // 2. If multiple group results existing in one SSDataBlock is not allowed, return immediately
-      if (pResBlock->info.rows > pResultInfo->threshold || pBlock == NULL || pInfo->existNewGroupBlock != NULL) {
-        pResBlock->info.id.groupId = pInfo->curGroupId;
-        return pResBlock;
-      }
-
-      doHandleRemainBlockFromNewGroup(pOperator, pInfo, pResultInfo, order);
-      if (pResBlock->info.rows >= pOperator->resultInfo.threshold || pBlock == NULL) {
-        pResBlock->info.id.groupId = pInfo->curGroupId;
-        return pResBlock;
-      }
-    } else if (pInfo->existNewGroupBlock) {  // try next group
-      blockDataCleanup(pResBlock);
-
-      doHandleRemainBlockForNewGroupImpl(pOperator, pInfo, pResultInfo, order);
-      if (pResBlock->info.rows > pResultInfo->threshold) {
-        pResBlock->info.id.groupId = pInfo->curGroupId;
-        return pResBlock;
-      }
-    } else {
       return NULL;
     }
   }
@@ -447,7 +324,7 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
   SSDataBlock* fillResult = NULL;
   while (true) {
-    fillResult = doFillImpl2(pOperator);
+    fillResult = doFillImpl(pOperator);
     if (fillResult == NULL) {
       setOperatorCompleted(pOperator);
       break;
@@ -488,12 +365,17 @@ void destroyFillOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t numOfCols, SExprInfo* pNotFillExpr,
-                            int32_t numOfNotFillCols, SExprInfo* pFillNullExpr, int32_t numOfFillNullExprs,
-                            SNodeListNode* pValNode, STimeWindow win, int32_t capacity, const char* id,
-                            SInterval* pInterval, int32_t fillType, int32_t order, SExecTaskInfo* pTaskInfo) {
+static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr,
+                            int32_t numOfCols, SExprInfo* pNotFillExpr,
+                            int32_t numOfNotFillCols, SExprInfo* pFillNullExpr,
+                            int32_t numOfFillNullExprs, SNodeListNode* pValNode,
+                            STimeWindow win, int32_t capacity, const char* id,
+                            SInterval* pInterval, int32_t fillType,
+                            int32_t order, SExecTaskInfo* pTaskInfo,
+                            int64_t surroundingTime) {
   SFillColInfo* pColInfo =
-      createFillColInfo(pExpr, numOfCols, pNotFillExpr, numOfNotFillCols, pFillNullExpr, numOfFillNullExprs, pValNode);
+      createFillColInfo(pExpr, numOfCols, pNotFillExpr, numOfNotFillCols,
+                        pFillNullExpr, numOfFillNullExprs, pValNode);
   if (!pColInfo) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     return terrno;
@@ -504,8 +386,11 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
   //  STimeWindow w = {0};
   //  getInitialStartTimeWindow(pInterval, startKey, &w, order == TSDB_ORDER_ASC);
   pInfo->pFillInfo = NULL;
-  int32_t code = taosCreateFillInfo(startKey, numOfCols, numOfNotFillCols, numOfFillNullExprs, capacity, pInterval,
-                                    fillType, pColInfo, pInfo->primaryTsCol, order, id, pTaskInfo, &pInfo->pFillInfo);
+  int32_t code = taosCreateFillInfo(startKey, numOfCols, numOfNotFillCols,
+                                    numOfFillNullExprs, capacity, pInterval,
+                                    fillType, pColInfo, pInfo->primaryTsCol,
+                                    order, id, pTaskInfo, surroundingTime,
+                                    &pInfo->pFillInfo);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
     return code;
@@ -598,8 +483,6 @@ static int32_t resetFillOperState(SOperatorInfo* pOper) {
   pFill->pFillInfo->numOfTotal = 0;
   pFill->pFillInfo->numOfCurrent = 0;
   pFill->pFillInfo->isFilled = false;
-  pFill->pFillInfo->prev.key = 0;
-  pFill->pFillInfo->next.key = 0;
   int32_t size = taosArrayGetSize(pFill->pFillInfo->prev.pRowVal);
   for (int32_t i = 0; i < size; ++i) {
     SGroupKeys* pKey = taosArrayGet(pFill->pFillInfo->prev.pRowVal, i);
@@ -700,10 +583,24 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
                              COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
 
   QUERY_CHECK_CODE(code, lino, _error);
-  code = initFillInfo(pInfo, pExprInfo, pInfo->numOfExpr, pNoFillSupp->pExprInfo, pNoFillSupp->numOfExprs,
-                      pInfo->fillNullExprSupp.pExprInfo, pInfo->fillNullExprSupp.numOfExprs,
-                      (SNodeListNode*)pPhyFillNode->pValues, pPhyFillNode->timeRange, pResultInfo->capacity,
-                      pTaskInfo->id.str, pInterval, type, order, pTaskInfo);
+  
+  // Extract surroundingTime from pSurroundingTime node
+  int64_t surroundingTime = 0;
+  if (pPhyFillNode->pSurroundingTime != NULL &&
+      nodeType(pPhyFillNode->pSurroundingTime) == QUERY_NODE_VALUE) {
+    SValueNode* pSurroundingTimeNode =
+      (SValueNode*)pPhyFillNode->pSurroundingTime;
+    surroundingTime = pSurroundingTimeNode->datum.i;
+  }
+  
+  code = initFillInfo(pInfo, pExprInfo, pInfo->numOfExpr,
+                      pNoFillSupp->pExprInfo, pNoFillSupp->numOfExprs,
+                      pInfo->fillNullExprSupp.pExprInfo,
+                      pInfo->fillNullExprSupp.numOfExprs,
+                      (SNodeListNode*)pPhyFillNode->pValues,
+                      pPhyFillNode->timeRange, pResultInfo->capacity,
+                      pTaskInfo->id.str, pInterval, type, order, pTaskInfo,
+                      surroundingTime);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

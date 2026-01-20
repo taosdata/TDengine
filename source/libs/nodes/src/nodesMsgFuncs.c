@@ -3736,6 +3736,7 @@ enum {
   PHY_FILL_CODE_INPUT_TS_ORDER,
   PHY_FILL_CODE_FILL_NULL_EXPRS,
   PHY_FILL_CODE_TIME_RANGE_EXPR,
+  PHY_FILL_CODE_SURROUNDING_TIME,
 };
 
 static int32_t physiFillNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3765,6 +3766,10 @@ static int32_t physiFillNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_FILL_CODE_TIME_RANGE_EXPR, nodeToMsg, pNode->pTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FILL_CODE_SURROUNDING_TIME, nodeToMsg,
+                        pNode->pSurroundingTime);
   }
   return code;
 }
@@ -3802,6 +3807,9 @@ static int32_t msgToPhysiFillNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_FILL_CODE_TIME_RANGE_EXPR:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTimeRange);
+        break;
+      case PHY_FILL_CODE_SURROUNDING_TIME:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSurroundingTime);
         break;
       default:
         break;

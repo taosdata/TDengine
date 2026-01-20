@@ -53,18 +53,18 @@ typedef struct {
 } SFillTagColInfo;
 
 typedef struct {
-  int64_t key;
-  SArray* pRowVal;
-  SArray* pNullValueFlag;
+  SArray* pValueTs;        /* keep the ts of each source column value */
+  SArray* pRowVal;         /* keep the value of each source column value */
+  SArray* pNullValueFlag;  /* keep the null value flag of target row */
 } SRowVal;
 
 typedef struct SColumnFillProgress {
   SListNode* pBlockNode;
-  int32_t    rowIdx;
+  int64_t    rowIdx;
 } SColumnFillProgress;
 
 typedef struct SBlockFillProgress {
-  int32_t rowIdx;
+  int64_t rowIdx;
 } SBlockFillProgress;
 
 typedef struct SFillBlock {
@@ -99,6 +99,7 @@ typedef struct SFillInfo {
   int8_t           isFilled;
   SList*           pFillSavedBlockList;
   SArray*          pColFillProgress;
+  int64_t          surroundingTime;  // surrounding time for fill PREV/NEXT
 } SFillInfo;
 
 typedef struct SResultCellData {
@@ -154,18 +155,21 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
                                 const struct SNodeListNode* val);
 bool          taosFillHasMoreResults(struct SFillInfo* pFillInfo);
 
-int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t fillNullCols,
-                           int32_t capacity, SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol,
-                           int32_t slotId, int32_t order, const char* id, SExecTaskInfo* pTaskInfo,
-                           SFillInfo** ppFillInfo);
+int32_t taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols,
+                           int32_t numOfNotFillCols, int32_t fillNullCols,
+                           int32_t capacity, const SInterval* pInterval,
+                           int32_t fillType, struct SFillColInfo* pCol,
+                           int32_t primaryTsSlotId, int32_t order,
+                           const char* id, SExecTaskInfo* pTaskInfo,
+                           int64_t surroundingTime, SFillInfo** ppFillInfo);
 
 void*   taosDestroyFillInfo(struct SFillInfo* pFillInfo);
-int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
-int32_t taosFillResultDataBlock2(struct SFillInfo* pFillInfo, SSDataBlock* pDstBlock, int32_t capacity, bool *wantMoreBlock);
+int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBlock, int32_t capacity, bool *wantMoreBlock);
 int64_t getFillInfoStart(struct SFillInfo* pFillInfo);
 
-bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnInfoData* pDstColInfoData,
-                              int32_t rowIndex);
+bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo,
+                              const SSDataBlock* pFillBlock,
+                              const int64_t rowIndex, const int32_t colIdx);
 
 SFillBlock*  tFillSaveBlock(SFillInfo* pFill, SSDataBlock* pBlock, SArray* pProgress);
 void         destroyFillBlock(void* p);
