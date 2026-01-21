@@ -12,8 +12,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <bits/stdint-intn.h>
-#include "tmsg.h"
 #include "transComm.h"
 #include "transLog.h"
 #include "transSasl.h"
