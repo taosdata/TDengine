@@ -285,7 +285,7 @@ database_option: {
 
 主要参数说明如下。
 
-- encrypt_algorithm：指定数据采用的加密算法。默认是 none，即不采用加密。如果要设置加密数据，则需指定 show encrypt_algorithms 中 algorithm_id，并且类型为 Symmetric Ciphers CBC mode。
+- encrypt_algorithm：指定数据采用的加密算法。默认是 none，即不采用加密。如果要设置加密数据，则需指定 `show encrypt_algorithms` 中 algorithm_id，并且类型为 Symmetric Ciphers CBC mode。
 
 ### 查看加密配置
 
