@@ -20,6 +20,7 @@
 #include "tchecksum.h"
 #include "tencrypt.h"
 #include "tglobal.h"
+#include "tjson.h"
 #include "wal.h"
 
 #define SDB_TABLE_SIZE   24
@@ -312,6 +313,42 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
   return 0;
 }
 
+// Read encrypted flag from mnode.json for defensive check
+// This is more reliable than heuristics when receiving snapshots
+static bool sdbReadEncryptedFlagFromMnodeJson(SSdb *pSdb) {
+  if (pSdb->mnodePath[0] == '\0') {
+    // No mnode path configured, use heuristic
+    return (tsMetaKey[0] != '\0');
+  }
+
+  // Read the encrypted flag from mnode.json
+  char file[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s%smnode.json", pSdb->mnodePath, TD_DIRSEP);
+
+  // Try to read mnode.json
+  char   *pData = NULL;
+  int32_t dataLen = 0;
+  if (taosReadCfgFile(file, &pData, &dataLen) != 0) {
+    // Cannot read, use heuristic
+    return (tsMetaKey[0] != '\0');
+  }
+
+  SJson *pJson = tjsonParse(pData);
+  taosMemoryFree(pData);
+
+  if (pJson == NULL) {
+    return (tsMetaKey[0] != '\0');
+  }
+
+  // Read encrypted field (default to false if not found)
+  int32_t encrypted = 0;
+  int32_t code = 0;
+  tjsonGetInt32ValueFromDouble(pJson, "encrypted", encrypted, code);
+  cJSON_Delete(pJson);
+
+  return (encrypted != 0);
+}
+
 static int32_t sdbReadFileImp(SSdb *pSdb) {
   int64_t offset = 0;
   int32_t code = 0;
@@ -334,9 +371,18 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   // This info is stored in mnode.json encrypted flag
   bool isEncrypted = pSdb->encrypted;
   if (!isEncrypted && tsMetaKey[0] != '\0') {
-    mInfo("sdb.data not encrypted but tsMetaKey available, will migrate after reading");
-    needMigration = true;
+    mInfo("sdb.data not encrypted but tsMetaKey available, checking encrypted flag from mnode.json");
+    isEncrypted = sdbReadEncryptedFlagFromMnodeJson(pSdb);  // Fix: don't redeclare, just assign
+    if (isEncrypted) {
+      mInfo("reload encrypted flag from mnode.json is true, will not migrate after reading");
+      needMigration = false;
+    } else {
+      mInfo("reload encrypted flag from mnode.json is false, will migrate after reading");
+      needMigration = true;
+    }
   }
+
+  pSdb->encrypted = isEncrypted;
 
   mInfo("start to read sdb file:%s, encrypted:%d, needMigration:%d", file, isEncrypted, needMigration);
 
@@ -699,19 +745,22 @@ int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
     mInfo("vgId:1, trans:0, write sdb file success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64
           " file:%s",
           pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig, curfile);
-  }
 
-  if (pSdb->persistEncryptedFlagFp != NULL && pSdb->pMnodeForCallback != NULL) {
-    code = pSdb->persistEncryptedFlagFp(pSdb->pMnodeForCallback);
-    if (code == 0) {
-      mInfo("sdb.data now is encrypted format and persisted encrypted flag to mnode.json successfully");
-    } else {
-      mError("failed to persist encrypted flag to mnode.json since %s", tstrerror(code));
-      return code;
+    if (tsMetaKey[0] != '\0') {
+      if (pSdb->persistEncryptedFlagFp != NULL && pSdb->pMnodeForCallback != NULL) {
+        code = pSdb->persistEncryptedFlagFp(pSdb->pMnodeForCallback);
+        if (code == 0) {
+          mInfo("sdb.data now is encrypted format and persisted encrypted flag to mnode.json successfully");
+          pSdb->encrypted = true;
+        } else {
+          mError("failed to persist encrypted flag to mnode.json since %s", tstrerror(code));
+          return code;
+        }
+      } else {
+        mWarn("sdb.data written in encrypted format but no callback to persist flag");
+        pSdb->encrypted = true;
+      }
     }
-  } else {
-    mError("sdb.data now is encrypted format but no callback to persist flag");
-    return TSDB_CODE_APP_ERROR;
   }
 
   terrno = code;
@@ -966,6 +1015,15 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
   if (code != 0) {
     mError("sdbiter:%p, failed to rename file %s to %s since %s", pIter, pIter->name, datafile, tstrerror(code));
     goto _OVER;
+  }
+
+  // Defensive check: re-read encrypted flag from mnode.json to ensure consistency
+  // This handles edge cases like CREATE MNODE where flag might not have been passed correctly
+  bool mnodeJsonEncrypted = sdbReadEncryptedFlagFromMnodeJson(pSdb);
+  if (mnodeJsonEncrypted != pSdb->encrypted) {
+    mInfo("sdbiter:%p, sdb encrypted flag mismatch: memory=%d, mnode.json=%d, correcting to %d", pIter, pSdb->encrypted,
+          mnodeJsonEncrypted, mnodeJsonEncrypted);
+    pSdb->encrypted = mnodeJsonEncrypted;
   }
 
   code = sdbReadFile(pSdb);

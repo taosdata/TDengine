@@ -11764,6 +11764,7 @@ int32_t tSerializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq *
     TAOS_CHECK_EXIT(tEncodeSReplica(&encoder, pReplica));
   }
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->lastIndex));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->encrypted));
   tEndEncode(&encoder);
 
 _exit:
@@ -11795,6 +11796,12 @@ int32_t tDeserializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq
       TAOS_CHECK_EXIT(tDecodeSReplica(&decoder, pReplica));
     }
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->lastIndex));
+    // For backward compatibility: encrypted field is optional
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->encrypted));
+  } else {
+    pReq->encrypted = 0;  // Default to false for old requests
   }
   tEndDecode(&decoder);
 
