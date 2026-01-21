@@ -182,8 +182,8 @@ taos> SHOW XNODE TASKS \G;
      reason: NULL
  created_by: root
      labels: NULL
-create_time: 2026-01-13 07:56:18.076
-update_time: 2026-01-13 07:56:18.076
+create_time: 2026-01-14 07:56:18.076
+update_time: 2026-01-14 07:56:18.076
 Query OK, 2 row(s) in set (0.019692s)
 ```
 
