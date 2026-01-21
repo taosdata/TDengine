@@ -246,7 +246,7 @@ id      |          algorithm_id          |              name              |     
 4. desc：算法的描述
 5. type：算法类型，包括：Symmetric Ciphers CBC mode - 对称加密算法 CBC 模式，用于数据库加密; Asymmetric Cipher - 非对称加密算法;  Digests：散列算法
 6. source：算法来源，包括：built-in - 内置算法; customized - 用户自定义算法
-7. ossl_algr_name：算法在 OpenSSL 中的名称，如果是内置算法则是在 default provider 中的名称，可以参考 https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/ , 如果自定义算法，则是用户在程序中自定义
+7. ossl_algr_name：算法在 OpenSSL 中的名称，如果是内置算法则是在 default provider 中的名称，可以参考 [OSSL_PROVIDER-default](https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/ "OSSL_PROVIDER-default") , 如果自定义算法，则是用户在程序中自定义
 
 ### 添加自定义算法
 
@@ -258,7 +258,7 @@ create encrypt_algr 'vigenere' name 'vigenere' desc 'my custom algr' type 'Symme
 ```
 
 用户自定义算法，用户需按照接口开发一个 so 库，taosd 启动时会加载这个 so 库，so 库被加载后，用户自定义算法即可被使用。在这个 so 库中，用户可以包含多个算法，算法有自己的命名，通过 create encrypt_algr 中的 ossl_algr_name 字段指定。
-自定义算法接口采用 OpenSSL 的实现，遵循 OpenSSL 的接口定义。OpenSSL 的接口定义参考 https://docs.openssl.org/master/man7/provider/ 。参数 encryptExtDir，指定自定义算法库 so 文件的路径。目前只支持加载单个文件。
+自定义算法接口采用 OpenSSL 的实现，遵循 OpenSSL 的接口定义。OpenSSL 的接口定义参考 [OpenSSL provider](https://docs.openssl.org/master/man7/provider/ "OpenSSL provider") 。参数 encryptExtDir，指定自定义算法库 so 文件的路径。目前只支持加载单个文件。
 
 ### 删除自定义算法
 

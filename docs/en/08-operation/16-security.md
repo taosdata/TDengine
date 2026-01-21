@@ -253,7 +253,7 @@ id      |          algorithm_id          |              name              |     
 - desc: Description of the algorithm
 - type: Algorithm type, including: Symmetric Ciphers CBC mode - symmetric encryption algorithm in CBC mode, used for database encryption; Asymmetric Cipher - asymmetric encryption algorithm; Digests - hash algorithm
 - source: Algorithm source, including: built-in - built-in algorithm; customized - user-defined algorithm
-- ossl_algr_name: Algorithm name in OpenSSL; for built-in algorithms, it's the name in the default provider, refer to https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/; for custom algorithms, it's user-defined in the program
+- ossl_algr_name: Algorithm name in OpenSSL; for built-in algorithms, it's the name in the default provider, refer to [OSSL_PROVIDER-default](https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/ "OSSL_PROVIDER-default") for custom algorithms, it's user-defined in the program
 
 ### Add Customized Algorithms
 
@@ -265,7 +265,7 @@ create encrypt_algr 'vigenere' name 'vigenere' desc 'my custom algr' type 'Symme
 ```
 
 For user-defined algorithms, users need to develop an SO library according to the interface. When taosd starts, it will load this SO library, and after the SO library is loaded, the user-defined algorithms can be used. In this SO library, users can include multiple algorithms, each with its own naming, specified through the ossl_algr_name field in create encrypt_algr.
-The custom algorithm interface adopts the OpenSSL implementation and follows the OpenSSL interface definition. For the OpenSSL interface definition, refer to https://docs.openssl.org/master/man7/provider/. The parameter encryptExtDir specifies the path to the custom algorithm library SO file. Currently, only a single file can be loaded.
+The custom algorithm interface adopts the OpenSSL implementation and follows the OpenSSL interface definition. For the OpenSSL interface definition, refer to [OpenSSL provider](https://docs.openssl.org/master/man7/provider/ "OpenSSL provider"). The parameter encryptExtDir specifies the path to the custom algorithm library SO file. Currently, only a single file can be loaded.
 
 ### Delete Customized Algorithms
 
@@ -274,6 +274,7 @@ Users can delete their own custom algorithms.
 ```sql
 drop encrypt_algr 'vigenere';
 ```
+
 Before deleting a custom algorithm, you must ensure that the algorithm is not in use. For example, databases using that algorithm must be deleted in advance.
 
 ### Create Encrypted Database
