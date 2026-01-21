@@ -113,7 +113,7 @@ database_option: {
     "client_add": string,
     "details": string,
     "affected_rows": integer,
-    "duration":double
+    "duration": double
 }
 ```
 
