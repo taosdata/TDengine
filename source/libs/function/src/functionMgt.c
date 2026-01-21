@@ -311,6 +311,13 @@ bool fmIsGroupKeyFunc(int32_t funcId) {
   return FUNCTION_TYPE_GROUP_KEY == funcMgtBuiltins[funcId].type;
 }
 
+bool fmIsHasNullFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_HAS_NULL == funcMgtBuiltins[funcId].type;
+}
+
 bool fmisSelectGroupConstValueFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;

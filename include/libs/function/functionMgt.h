@@ -216,6 +216,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_CACHE_LAST,
   FUNCTION_TYPE_TABLE_COUNT,
   FUNCTION_TYPE_GROUP_CONST_VALUE,
+  FUNCTION_TYPE_HAS_NULL,
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
@@ -355,6 +356,7 @@ bool fmIsRowTsOriginFunc(int32_t funcId);
 bool fmIsSelectColsFunc(int32_t funcId);
 bool fmIsGroupIdFunc(int32_t funcId);
 bool fmIsPlaceHolderFunc(int32_t funcId);
+bool fmIsHasNullFunc(int32_t funcId);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);

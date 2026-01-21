@@ -1970,6 +1970,11 @@ static int32_t translateSelectValue(SFunctionNode* pFunc, char* pErrBuf, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateHasNull(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes, .type = TSDB_DATA_TYPE_BOOL};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateBlockDistFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   pFunc->node.resType = (SDataType){.bytes = 128, .type = TSDB_DATA_TYPE_VARCHAR};
   return TSDB_CODE_SUCCESS;
@@ -7242,6 +7247,18 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .estimateReturnRowsFunc = lagEstReturnRows,
     .processFuncByRow  = lagFunctionByRow,
   },
+  {
+    .name = "_has_null",
+    .type = FUNCTION_TYPE_HAS_NULL,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateHasNull,
+    .getEnvFunc   = getHasNullFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = NULL,
+    .finalizeFunc = NULL,
+    .pPartialFunc = "_has_null",
+    .pMergeFunc   = "_has_null",
+  },  
 };
 // clang-format on
 

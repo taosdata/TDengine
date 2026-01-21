@@ -2594,6 +2594,12 @@ bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   return true;
 }
 
+
+bool getHasNullFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = pFunc->node.resType.bytes;
+  return true;
+}
+
 bool getGroupKeyFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
   pEnv->calcMemSize = sizeof(SGroupKeyInfo) + pNode->node.resType.bytes;
@@ -4235,13 +4241,34 @@ int32_t doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSD
   return TSDB_CODE_SUCCESS;
 }
 
+
+bool hasNullFunc(  SColumnInfoData *pData,   SColumnDataAgg *pAgg, int32_t startIdx, int64_t rows) {
+  if (NULL != pAgg) {
+    return pAgg->numOfNull > 0 ? true : false;
+  }
+
+  if (!pData->hasNull) {
+    return false;
+  }
+
+  int64_t endIdx = startIdx + rows;
+  for (int64_t i = startIdx; i < endIdx; ++i) {
+    if (colDataIsNull_s(pData, i)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+
 /*
  * +------------------------------------+--------------+--------------+
  * |            null bitmap             |              |              |
  * |(n columns, one bit for each column)| src column #1| src column #2|
  * +------------------------------------+--------------+--------------+
  */
-int32_t serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubsidiaryResInfo* pSubsidiaryies,
+int32_t serializeTupleData(SqlFunctionCtx* pCtx, const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubsidiaryResInfo* pSubsidiaryies,
                            char* buf, char** res) {
   char* nullList = buf;
   char* pStart = (char*)(nullList + sizeof(bool) * pSubsidiaryies->num);
@@ -4256,27 +4283,40 @@ int32_t serializeTupleData(const SSDataBlock* pSrcBlock, int32_t rowIndex, SSubs
       continue;
     }
 
-    SFunctParam* pFuncParam = &pc->pExpr->base.pParam[0];
-    int32_t      srcSlotId = pFuncParam->pCol->slotId;
+    if (fmIsSelectValueFunc(pc->functionId)) {
+      SFunctParam* pFuncParam = &pc->pExpr->base.pParam[0];
+      int32_t      srcSlotId = pFuncParam->pCol->slotId;
 
-    SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, srcSlotId);
-    if (NULL == pCol) {
-      return TSDB_CODE_OUT_OF_RANGE;
-    }
-    if ((nullList[i] = colDataIsNull_s(pCol, rowIndex)) == true) {
+      SColumnInfoData* pCol = taosArrayGet(pSrcBlock->pDataBlock, srcSlotId);
+      if (NULL == pCol) {
+        return TSDB_CODE_OUT_OF_RANGE;
+      }
+      if ((nullList[i] = colDataIsNull_s(pCol, rowIndex)) == true) {
+        offset += pCol->info.bytes;
+        continue;
+      }
+
+      char* p = colDataGetData(pCol, rowIndex);
+      if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+        int32_t bytes = calcStrBytesByType(pCol->info.type, p);
+        (void)memcpy(pStart + offset, p, bytes);
+      } else {
+        (void)memcpy(pStart + offset, p, pCol->info.bytes);
+      }
+
       offset += pCol->info.bytes;
       continue;
     }
 
-    char* p = colDataGetData(pCol, rowIndex);
-    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-      int32_t bytes = calcStrBytesByType(pCol->info.type, p);
-      (void)memcpy(pStart + offset, p, bytes);
-    } else {
-      (void)memcpy(pStart + offset, p, pCol->info.bytes);
+    if (fmIsHasNullFunc(pc->functionId)) {
+      if (!*(bool*)(pStart + offset)) {
+        SInputColumnInfoData* pIn = &pCtx->input;
+        *(bool*)(pStart + offset) = hasNullFunc(pIn->pData[0], pIn->colDataSMAIsSet ? pIn->pColumnDataAgg[0] : NULL, pIn->startRowIndex, pIn->numOfRows);
+      }
+      
+      offset += pc->resDataInfo.bytes;
+      continue;
     }
-
-    offset += pCol->info.bytes;
   }
 
   *res = buf;
@@ -4348,7 +4388,7 @@ int32_t saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock*
   }
 
   char* buf = NULL;
-  code = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf, &buf);
+  code = serializeTupleData(pCtx, pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf, &buf);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -4382,7 +4422,7 @@ int32_t updateTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBloc
   }
 
   char* buf = NULL;
-  code = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf, &buf);
+  code = serializeTupleData(pCtx, pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf, &buf);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
