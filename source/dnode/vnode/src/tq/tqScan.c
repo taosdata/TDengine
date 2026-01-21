@@ -120,13 +120,12 @@ int32_t getDataBlock(qTaskInfo_t task, const STqHandle* pHandle, int32_t vgId, S
 
   tqDebug("consumer:0x%" PRIx64 " vgId:%d, tmq one task start execute", pHandle->consumerId, vgId);
   int32_t code = qExecTask(task, res, &ts);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
     tqError("consumer:0x%" PRIx64 " vgId:%d, task exec error since %s", pHandle->consumerId, vgId, tstrerror(code));
-    return code;
   }
 
   tqDebug("consumer:0x%" PRIx64 " vgId:%d tmq one task end executed, pDataBlock:%p", pHandle->consumerId, vgId, *res);
-  return 0;
+  return code;
 }
 
 static int32_t tqProcessReplayRsp(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, const SMqPollReq* pRequest, SSDataBlock* pDataBlock, qTaskInfo_t task){
@@ -211,6 +210,9 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
     if (code == TSDB_CODE_TMQ_FETCH_TIMEOUT) {
       pRsp->timeout = true;
       code = 0; 
+      break;
+    }
+    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST) {
       break;
     }
     TSDB_CHECK_CODE(code, lino, END);

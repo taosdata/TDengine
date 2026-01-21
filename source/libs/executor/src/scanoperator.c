@@ -2770,15 +2770,20 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     qDebug("doQueueScanNext after filter get data from log %" PRId64 " rows, version:%" PRId64",msg:%s", pInfo->pRes->info.rows,
             pTaskInfo->streamInfo.currentOffset.version, tstrerror(code));
     
-    if (code == TSDB_CODE_TMQ_FETCH_TIMEOUT && pInfo->pRes->info.rows == 0) {
-      qDebug("doQueueScanNext get data timeout");
-      return code;
+    if (code != 0) {
+      if (pInfo->pRes->info.rows == 0) {
+        (*ppRes) = NULL;
+        return code;
+      } else {
+        (*ppRes) = pInfo->pRes;
+        return 0;
+      }
     }
-    if (pInfo->pRes->info.rows >= pTaskInfo->streamInfo.minPollRows || code != 0) {
+
+    if (pInfo->pRes->info.rows >= pTaskInfo->streamInfo.minPollRows) {
       (*ppRes) = pInfo->pRes;
       return 0;
     }
-    
   }
 
 _end:

@@ -154,7 +154,6 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   tqDebug("%s called", __FUNCTION__ );
   uint64_t consumerId = pRequest->consumerId;
   int32_t  vgId = TD_VID(pTq->pVnode);
-  terrno = 0;
 
   SMqDataRsp dataRsp = {0};
   code = tqInitDataRsp(&dataRsp, *pOffset);
@@ -164,12 +163,12 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   TSDB_CHECK_CODE(code, lino, end);
 
   code = tqScanData(pTq, pHandle, &dataRsp, pOffset, pRequest);
-  if (code != 0 && terrno != TSDB_CODE_WAL_LOG_NOT_EXIST) {
+  if (code != 0 && code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
     goto end;
   }
 
   //   till now, all data has been transferred to consumer, new data needs to push client once arrived.
-  if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST && dataRsp.blockNum == 0) {
+  if (code == TSDB_CODE_WAL_LOG_NOT_EXIST && dataRsp.blockNum == 0) {
     // lock
     taosWLockLatch(&pTq->lock);
     int64_t ver = walGetCommittedVer(pTq->pVnode->pWal);

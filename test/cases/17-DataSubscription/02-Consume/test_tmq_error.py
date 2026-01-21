@@ -318,6 +318,8 @@ class TestCase:
             - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmqError.py
 
         """
+        tdSql.execute("alter dnode 1 'debugflag 135'")
+
         tdSql.prepare()
 
         buildPath = tdCom.getBuildPath()
