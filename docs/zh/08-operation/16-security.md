@@ -137,7 +137,7 @@ create stable operations (ts timestamp, user_name varchar(25), operation varchar
 
 目前审计日志中所记录的操作列表以及每个操作中各字段的含义（因为每个操作的施加者，即 user、client_add、时间戳字段在所有操作中的含义相同，下表不再描述）
 
-auditLevel = 1 // AUDIT_LEVEL_SYSTTEM
+auditLevel = 1 // AUDIT_LEVEL_SYSTEM
 
 | 操作        | Operation | DB | Resource | Details |
 | ----------------| ----------| ---------| ---------| --------|
