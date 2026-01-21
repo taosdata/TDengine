@@ -291,12 +291,8 @@ class TestCase:
         if not (totalConsumeRows == expectrowcnt):
             tdLog.exit("tmq consume rows error!")
 
+        tdCom.killProcessor("tmq_sim")
         tdSql.query("drop topic %s"%topicFromStb1)
-        if (platform.system().lower() == 'windows'):
-            os.system("TASKKILL /F /IM tmq_sim.exe")
-        else:
-            os.system('unset LD_PRELOAD; pkill tmq_sim')
-
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def test_tmq_error(self):
