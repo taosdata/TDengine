@@ -649,6 +649,9 @@ int32_t udfdNewUdf(SUdf **pUdf, const char *udfName) {
     }
   }
   *pUdf =  udfNew;
+  
+  fnInfo("udf new succeeded. name %s(%p)", udfNew->name, udfNew);
+
   return 0;
 }
 
@@ -666,6 +669,9 @@ void udfdFreeUdf(void *pData) {
 
   uv_mutex_destroy(&pSudf->lock);
   uv_cond_destroy(&pSudf->condReady);
+  
+  fnInfo("udf free succeeded. name %s(%p)", pSudf->name, pSudf);
+
   taosMemoryFree(pSudf);
 }
 
@@ -750,8 +756,6 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     } else {
       handle->udf = udf;
     }
-  } else {
-    --udf->refCount;
   }
 
 _send:
@@ -786,6 +790,18 @@ _send:
   uvUdf->output = uv_buf_init(bufBegin, len);
 
   taosMemoryFreeClear(uvUdf->input.base);
+
+  if (code) {
+    code = taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
+    if (code) {
+      fnError("udf name %s remove from hash failed/setup, err:%0x %s", udf->name, code, tstrerror(code));
+    }
+
+    fnError("udf free with setup failed. name %s(%p) err:%0x %s", udf->name, udf, code, tstrerror(code));
+
+    taosMemoryFree(udf);
+  }
+
   return;
 }
 
@@ -1002,6 +1018,9 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     uv_mutex_destroy(&udf->lock);
     code = udf->scriptPlugin->udfDestroyFunc(udf->scriptUdfCtx);
     fnDebug("udfd destroy function returns %d", code);
+
+    fnInfo("udf free succeeded/unload. name %s(%p)", udf->name, udf);
+
     taosMemoryFree(udf);
   }
 
