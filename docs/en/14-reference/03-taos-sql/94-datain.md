@@ -41,7 +41,7 @@ Create OK, 0 row(s) affected (0.050798s)
 #### Syntax
 
 ```sql
-SHOW XNODES
+SHOW XNODES [WHERE condition]
 ```
 
 #### Example
@@ -157,7 +157,7 @@ Create OK, 0 row(s) affected (0.038959s)
 #### Syntax
 
 ```sql
-SHOW XNODE TASKS
+SHOW XNODE TASKS [WHERE condition]
 ```
 
 #### Example
@@ -270,7 +270,7 @@ Job is the execution shard of a Task, supporting both manual and automatic load 
 #### Syntax
 
 ```sql
-SHOW XNODE JOBS
+SHOW XNODE JOBS [WHERE condition]
 ```
 
 #### Example
@@ -365,7 +365,7 @@ Create OK, 0 row(s) affected (0.013414s)
 #### Syntax
 
 ```sql
-SHOW XNODE AGENTS
+SHOW XNODE AGENTS [WHERE condition]
 ```
 
 #### Example
