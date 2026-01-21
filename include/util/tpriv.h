@@ -393,7 +393,6 @@ int32_t privObjKey(const SPrivInfo* pPrivInfo, int32_t acctId, const char* name,
                    int32_t bufLen);
 int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen,
                         bool fullDb);
-int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen);
 
 const char*      privObjGetName(EPrivObjType objType);
 int32_t          privObjGetLevel(EPrivObjType objType);

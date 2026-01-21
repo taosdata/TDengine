@@ -115,22 +115,6 @@ bool mndNeedRetrieveRole(SUserObj *pUser) {
   return result;
 }
 
-static int32_t mndFillSystemRoleTblPrivileges(SHashObj **ppHash) {
-  int32_t code = 0, lino = 0;
-  char    objKey[TSDB_PRIV_MAX_KEY_LEN] = {0};
-  int32_t keyLen = privTblKey("1.*", "*", objKey, sizeof(objKey));
-
-  if (!(*ppHash) &&
-      !((*ppHash) = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-
-  TAOS_CHECK_EXIT(taosHashPut(*ppHash, objKey, keyLen + 1, NULL, 0));
-
-_exit:
-  TAOS_RETURN(code);
-}
-
 static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint32_t roleType) {
   int32_t       code = 0, lino = 0;
   SPrivInfoIter iter = {0};
@@ -144,41 +128,18 @@ static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint3
     if (pPrivInfo->category == PRIV_CATEGORY_SYSTEM) {  // system privileges
       privAddType(&pObj->sysPrivs, pPrivInfo->privType);
     } else if (pPrivInfo->category == PRIV_CATEGORY_OBJECT) {  // object privileges
-      switch (pPrivInfo->privType) {
-#if 0
-        case PRIV_TBL_SELECT: {  // SELECT TABLE
-          TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->selectTbs));
-          break;
-        }
-        case PRIV_TBL_INSERT: {  // INSERT TABLE
-          TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->insertTbs));
-          break;
-        }
-        case PRIV_TBL_UPDATE: {  // UPDATE TABLE(reserved)
-          TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->updateTbs));
-          break;
-        }
-        case PRIV_TBL_DELETE: {  // DELETE TABLE:
-          TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->deleteTbs));
-          break;
-        }
-#endif
-        default: {
-          int32_t keyLen = privObjKeyF(pPrivInfo, "1.*", "*", objKey, sizeof(objKey));
-          if (!pObj->objPrivs && !(pObj->objPrivs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
-                                                                 true, HASH_ENTRY_LOCK))) {
-            TAOS_CHECK_EXIT(terrno);
-          }
-          SPrivObjPolicies *objPolicy = taosHashGet(pObj->objPrivs, objKey, keyLen + 1);
-          if (objPolicy) {
-            privAddType(&objPolicy->policy, pPrivInfo->privType);
-          } else {
-            SPrivObjPolicies policies = {0};
-            privAddType(&policies.policy, pPrivInfo->privType);
-            TAOS_CHECK_EXIT(taosHashPut(pObj->objPrivs, objKey, keyLen + 1, &policies, sizeof(policies)));
-          }
-          break;
-        }
+      int32_t keyLen = privObjKeyF(pPrivInfo, "1.*", "*", objKey, sizeof(objKey));
+      if (!pObj->objPrivs && !(pObj->objPrivs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+                                                             HASH_ENTRY_LOCK))) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      SPrivObjPolicies *objPolicy = taosHashGet(pObj->objPrivs, objKey, keyLen + 1);
+      if (objPolicy) {
+        privAddType(&objPolicy->policy, pPrivInfo->privType);
+      } else {
+        SPrivObjPolicies policies = {0};
+        privAddType(&policies.policy, pPrivInfo->privType);
+        TAOS_CHECK_EXIT(taosHashPut(pObj->objPrivs, objKey, keyLen + 1, &policies, sizeof(policies)));
       }
     }
   }

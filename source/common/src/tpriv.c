@@ -478,10 +478,6 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen) {
-  return snprintf(buf, bufLen, "%s.%s", db ? db : "", tb ? tb : "");
-}
-
 const char* privObjGetName(EPrivObjType objType) {
   if (objType < PRIV_OBJ_CLUSTER || objType >= PRIV_OBJ_MAX) {
     return "UNKNOWN";
