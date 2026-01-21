@@ -695,29 +695,31 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
   rowP = (SArray**)tSimpleHashGet(pTableNameHash, tbname, strlen(tbname));
 
   if (rowP != NULL && *rowP != NULL) {
-    for (int32_t j = 0; j < taosArrayGetSize(*rowP); ++j) {
+    int32_t aRowPSize = taosArrayGetSize(pTbCtx->pData->aRowP);
+    for (int32_t j = 0; j < aRowPSize; ++j) {
       SRow* pRow = (SRow*)taosArrayGetP(pTbCtx->pData->aRowP, j);
       if (pRow) {
         if (NULL == taosArrayPush(*rowP, &pRow)) {
           return terrno;
         }
       }
-
-      if (pTbCtx->hasBlob == 0) {
-        code = tRowSort(*rowP);
-        TAOS_CHECK_RETURN(code);
-
-        code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
-        TAOS_CHECK_RETURN(code);
-      } else {
-        code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet);
-        TAOS_CHECK_RETURN(code);
-
-        code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet, 0);
-        TAOS_CHECK_RETURN(code);
-      }
     }
+  }
 
+    if (pTbCtx->hasBlob == 0) {
+      code = tRowSort(*rowP);
+      TAOS_CHECK_RETURN(code);
+
+      code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
+      TAOS_CHECK_RETURN(code);
+    } else {
+      code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet);
+      TAOS_CHECK_RETURN(code);
+
+      code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet, 0);
+      TAOS_CHECK_RETURN(code);
+    }
+  
     parserDebug("merge same uid data: %" PRId64 ", vgId:%d", pTbCtx->pData->uid, pVgCxt->vgId);
 
     if (pTbCtx->pData->pCreateTbReq != NULL) {
