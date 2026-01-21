@@ -903,9 +903,9 @@ class TestTmqBugs:
                         "drop": "yes",
                         "vgroups": 10,
                         "precision": "ms",
-                "buffer": 512,
-                "cachemodel":"'both'",
-                "stt_trigger": 1
+                        "buffer": 512,
+                        "cachemodel":"'both'",
+                        "stt_trigger": 1
                     },
                     "super_tables": [
                         {

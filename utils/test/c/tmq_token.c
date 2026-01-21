@@ -114,11 +114,11 @@ void* consumeThreadFunc(void* param) {
   ASSERT(tmq != NULL);
   tmq_conf_destroy(conf);
 
-  // 创建订阅 topics 列表
+  // create topic list
   tmq_list_t* topicList = tmq_list_new();
   ASSERT(tmq_list_append(topicList, topic_name) == 0);
 
-  // 启动订阅
+  // start subscription
   ASSERT(tmq_subscribe(tmq, topicList) == 0);
   tmq_list_destroy(topicList);
 

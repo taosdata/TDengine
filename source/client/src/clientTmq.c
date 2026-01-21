@@ -478,6 +478,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       tqErrorC("tmq_conf_set out of memory:%d", terrno);
       return TMQ_CONF_INVALID;
     }
+    taosMemoryFree(conf->ip);
     conf->ip = tmp;
     return TMQ_CONF_OK;
   }
@@ -488,6 +489,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       tqErrorC("tmq_conf_set out of memory:%d", terrno);
       return TMQ_CONF_INVALID;
     }
+    taosMemoryFree(conf->user);
     conf->user = tmp;
     return TMQ_CONF_OK;
   }
@@ -498,6 +500,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       tqErrorC("tmq_conf_set out of memory:%d", terrno);
       return TMQ_CONF_INVALID;
     }
+    taosMemoryFree(conf->pass);
     conf->pass = tmp;
     return TMQ_CONF_OK;
   }
@@ -508,6 +511,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       tqErrorC("tmq_conf_set out of memory:%d", terrno);
       return TMQ_CONF_INVALID;
     }
+    taosMemoryFree(conf->token);
     conf->token = tmp;
     return TMQ_CONF_OK;
   }
@@ -1882,7 +1886,6 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
     }
   }
   
-
   pTmq->refId = taosAddRef(tmqMgmt.rsetId, pTmq);
   if (pTmq->refId < 0) {
     SET_ERROR_MSG_TMQ("add tscObj ref failed")

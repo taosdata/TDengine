@@ -179,7 +179,11 @@ static void tmqStop(int signum, void* info, void* ctx) {
   taosFprintfFile(g_fp, "%s tmqStop() receive stop signal[%d]\n", getCurrentTimeString(tmpString), signum);
 }
 
-static void tmqSetSignalHandle() { taosSetSignal(SIGINT, tmqStop); }
+static void tmqSetSignalHandle() { 
+  taosSetSignal(SIGINT, tmqStop); 
+  taosSetSignal(SIGTERM, tmqStop); 
+  taosSetSignal(SIGQUIT, tmqStop); 
+}
 
 void initLogFile() {
   char filename[256];
