@@ -182,7 +182,6 @@ static void tmqStop(int signum, void* info, void* ctx) {
 static void tmqSetSignalHandle() { 
   taosSetSignal(SIGINT, tmqStop); 
   taosSetSignal(SIGTERM, tmqStop); 
-  taosSetSignal(SIGQUIT, tmqStop); 
 }
 
 void initLogFile() {

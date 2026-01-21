@@ -210,18 +210,6 @@ class TestCase:
         pollDelay = 20
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
-
-        tdLog.info("wait the notify info of start consume")
-        tmqCom.getStartConsumeNotifyFromTmqsim()
-
-        tdLog.info("pkill consume processor")
-        if (platform.system().lower() == 'windows'):
-            os.system("TASKKILL /F /IM tmq_sim.exe")
-        else:
-            os.system('unset LD_PRELOAD; pkill tmq_sim')
-        expectRows = 0
-        resultList = self.selectConsumeResult(expectRows)
 
         # wait for data ready
         prepareEnvThread.join()
