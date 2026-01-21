@@ -79,9 +79,9 @@ taos> select b.*, a.ats from (select ts ats, mode(f) from test1.sst) as a left a
 taos> select b.*, a.ats from (select ts ats, f from test1.sst) as a left anti join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
            ts            |           ts2           |      f      |      t      |           ats           |
 ==========================================================================================================
- NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:59.000 |
- NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:58.000 |
  NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:57.000 |
+ NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:58.000 |
+ NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:59.000 |
 
 taos> select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst order by ts desc) as a left anti join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
 
@@ -102,16 +102,16 @@ taos> select b.*, a.ats from (select ts ats, mode(f) from test1.sst) as a left a
 taos> select b.*, a.ats from (select ts ats, f from test1.sst) as a left anti join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s) and b.ts > a.ats+1s
            ts            |           ts2           |      f      |      t      |           ats           |
 ==========================================================================================================
- NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:59.000 |
- NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:58.000 |
  NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:57.000 |
+ NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:58.000 |
+ NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:59.000 |
 
 taos> select b.*, a.ats from (select ts ats, f from test1.sst) as a left anti join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s) and b.ts > a.ats+1s
            ts            |           ts2           |      f      |      t      |           ats           |
 ==========================================================================================================
- NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:59.000 |
- NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:58.000 |
  NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:57.000 |
+ NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:58.000 |
+ NULL                    | NULL                    | NULL        | NULL        | 2023-08-07 13:30:59.000 |
 
 taos> select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst order by ts desc) as a left anti join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s) and b.ts > a.ats+1s
 

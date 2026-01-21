@@ -28,3 +28,6 @@ select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst order by ts d
 select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst limit 1) as a inner join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s) and b.ts > a.ats+1s
 select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst order by ts desc) as a inner join test1.sst b on timetruncate(1691386256000, 1s) = timetruncate(1691386256000, 1s) and b.ts > a.ats+1
 select b.*, a.ats from (select cast(1768465717000 as timestamp) ats, 2 from test1.sst order by ts desc) as a inner join test1.sst b on timetruncate(1691386256000, 1s) = timetruncate(1691386256001, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a
+select b.*, a.ats from (select ts ats, f from test1.sst) as a inner join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s);
+select b.*, a.ats from (select ts ats, f from test1.sst) as a inner join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386257000, 1s);
+select b.*, a.ats from (select ts ats, f from test1.sst) as a inner join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386259000, 1s);

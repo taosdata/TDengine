@@ -3071,18 +3071,11 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
     targetOrder = pJoin->node.inputTsOrder;
 
     if (pRight->outputTsOrder == pJoin->node.inputTsOrder) {
-      if (pJoin->leftConstPrimGot)
-        return TSDB_CODE_SUCCESS;  // left side is constant primary key, needn't care about order
       pChild = pLeft;
       pChildPos = &pJoin->node.pChildren->pHead->pNode;
     } else if (pLeft->outputTsOrder == pJoin->node.inputTsOrder) {
-      if (pJoin->rightConstPrimGot)
-        return TSDB_CODE_SUCCESS;  // right side is constant primary key, needn't care about order
       pChild = pRight;
       pChildPos = &pJoin->node.pChildren->pTail->pNode;
-    } else if (pJoin->leftConstPrimGot && pJoin->rightConstPrimGot) {
-      // both side are constant primary key, needn't care about order
-      return TSDB_CODE_SUCCESS;
     } else {
       pChild = pRight;
       pChildPos = &pJoin->node.pChildren->pTail->pNode;
@@ -3222,6 +3215,14 @@ static bool sortForJoinOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
   if (ORDER_ASC != pRight->outputTsOrder && ORDER_DESC != pRight->outputTsOrder) {
     pRight->outputTsOrder = ORDER_ASC;
+  }
+
+  if (pJoin->leftConstPrimGot) {
+    pJoin->node.inputTsOrder = pRight->outputTsOrder;
+    return false;
+  } else if (pJoin->rightConstPrimGot) {
+    pJoin->node.inputTsOrder = pLeft->outputTsOrder;
+    return false;
   }
 
   if (pLeft->outputTsOrder == pRight->outputTsOrder) {
