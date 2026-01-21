@@ -1107,6 +1107,7 @@ class TestXnode:
         rs = tdSql.query("show xnode jobs", row_tag=True)
         self.no_syntax_fail_execute(f"REBALANCE XNODE JOB WHERE task_id=1")
         self.no_syntax_fail_execute(f"REBALANCE XNODE JOB WHERE id>=1")
+        self.no_syntax_fail_execute(f"REBALANCE XNODE JOB WHERE config='test'")
         self.no_syntax_fail_execute(f"DROP XNODE JOB {rs[0][0]}")
         self.no_syntax_fail_execute(f"DROP XNODE JOB WHERE task_id=1")
         self.wait_transaction_to_commit()
