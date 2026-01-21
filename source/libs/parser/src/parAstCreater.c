@@ -1148,6 +1148,18 @@ _err:
   return NULL;
 }
 
+SNode* createDurationPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) {
+  SNode* pNode = createPlaceholderValueNode(pCxt, pLiteral);
+  if (pNode != NULL) {
+    SValueNode* val = (SValueNode*)pNode;
+    val->flag |= VALUE_FLAG_IS_DURATION;
+    val->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  }
+  return pNode;
+}
+
 static int32_t addParamToLogicConditionNode(SLogicConditionNode* pCond, SNode* pParam) {
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam) && pCond->condType == ((SLogicConditionNode*)pParam)->condType &&
       ((SLogicConditionNode*)pParam)->condType != LOGIC_COND_TYPE_NOT) {

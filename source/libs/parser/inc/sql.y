@@ -2581,6 +2581,7 @@ sliding_opt(A) ::= SLIDING NK_LP interval_sliding_duration_literal(B) NK_RP.    
 interval_sliding_duration_literal(A) ::= NK_VARIABLE(B).                          { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 interval_sliding_duration_literal(A) ::= NK_STRING(B).                            { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 interval_sliding_duration_literal(A) ::= NK_INTEGER(B).                           { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
+interval_sliding_duration_literal(A) ::= NK_QUESTION(B).                         { A = createRawExprNode(pCxt, &B, createDurationPlaceholderValueNode(pCxt, &B)); }
 
 interp_fill_opt(A) ::= .                                                          { A = NULL; }
 interp_fill_opt(A) ::= fill_value(B).                                             { A = B; }
