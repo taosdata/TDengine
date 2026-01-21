@@ -291,11 +291,7 @@ database_option: {
 ```
 
 The main parameters are explained as follows.
-- encrypt_algorithm: Specifies the encryption algorithm used for the data. The default is none, meaning no encryption is used. If you want to set up encrypted data, you need to specify the algorithm_id from 
-
-`show encrypt_algorithms`
-
-, and the type must be Symmetric Ciphers CBC mode.
+- encrypt_algorithm: Specifies the encryption algorithm used for the data. The default is none, meaning no encryption is used. If you want to set up encrypted data, you need to specify the algorithm_id from show encrypt_algorithms, and the type must be Symmetric Ciphers CBC mode.
 
 ### View Encryption Configuration
 
