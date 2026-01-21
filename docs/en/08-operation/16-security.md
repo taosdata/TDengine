@@ -203,7 +203,7 @@ auditLevel = 3 // AUDIT_LEVEL_DATABASE
 | create View      | createView | Db name | NULL | SQL |
 | drop View      | dropView | Db name | view name | SQL |
 
-auditLevel = 4 // AUDIT_LEVEL_CHILTABLE
+auditLevel = 4 // AUDIT_LEVEL_CHILDTABLE
 
 | Operation        | Operation | DB | Resource | Details |
 | ----------------| ----------| ---------| ---------| --------|
