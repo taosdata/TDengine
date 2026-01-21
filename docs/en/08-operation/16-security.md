@@ -91,7 +91,11 @@ database_option: {
 }
 ```
 
-Additionally, as an audit library, the default for keep is 1825 days. If the user specifies keep, it must be greater than 1825 days; WAL_LEVEL defaults to 2 and cannot be changed by the user; ENCRYPT_ALGORITHM cannot be specified as None, and the user can choose any symmetric encryption algorithm in CBC mode.
+Additionally, for an audit database:
+
+- The default value for `keep` is 1825 days. If a user specifies `keep`, it must be greater than 1825 days.
+- `WAL_LEVEL` defaults to 2 and cannot be changed by the user.
+- `ENCRYPT_ALGORITHM` cannot be specified as `None`. The user can choose any symmetric encryption algorithm in CBC mode.
 
 ### taosKeeper Configuration
 
