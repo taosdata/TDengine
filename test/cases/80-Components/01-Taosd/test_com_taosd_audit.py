@@ -17,7 +17,6 @@ import threading
 telemetryPort = '6043'
 serverPort = '6030'
 hostname = "localhost" #socket.gethostname()
-threadisExit = False
 
 createTableReceived = False
 insertReceived = False
@@ -27,7 +26,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
     hostPort = hostname + ":" + serverPort
 
     def telemetryInfoCheck(self, infoDict=''):
-        global createthreadisExit
+        global createThreadExited
         global createTableReceived
         global insertReceived
         global selectReceived
@@ -62,8 +61,8 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
             count = count + 1
 
         if createTableReceived and insertReceived and deleteReceived and selectReceived:
-            tdLog.info("set createthreadisExit to True")
-            createthreadisExit = True 
+            tdLog.info("set createThreadExited to True")
+            createThreadExited = True 
             # shutdown the server and exit case
             assassin = threading.Thread(target=self.server.shutdown)
             assassin.daemon = True
@@ -222,7 +221,7 @@ class TestTaosdAudit:
         else:
             serverAddress = ("", int(telemetryPort))
             http.server.HTTPServer(serverAddress, RequestHandlerImpl).serve_forever()
-            tdLog.info("exit http server")
+            tdLog.info("http server exited")
         
         tdLog.success(f"{__file__} successfully executed")
 
@@ -249,10 +248,10 @@ class TestTaosdAudit:
         sql = "delete from db3.tb"
         tdSql.execute(sql, queryTimes = 1)
         
-        global createThreadisExit
+        global createThreadExited
         while True:               
-            tdLog.info("createThreadisExit = %s"%createThreadisExit)
-            if createThreadisExit == True:
+            tdLog.info("createThreadExited = %s"%createThreadExited)
+            if createThreadExited == True:
 
                 break
 

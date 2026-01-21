@@ -65,7 +65,7 @@ class TestBasic:
         tdSql.error("create encrypt_key '12345678abcdefghi'")
         tdSql.error("create database test ENCRYPT_ALGORITHM 'sm4'")
 
-    def check_encrypt_algrithm(self):
+    def check_encrypt_algorithm(self):
         tdSql.query(f"show encrypt_algorithms")
         tdSql.checkRows(6)
         tdSql.checkData(0, 0, 1)
@@ -106,7 +106,7 @@ class TestBasic:
             - 2025-10-17 Alex Duan Migrated from uncatalog/army/db-encrypt/test_basic.py
         
         """
-        self.check_encrypt_algrithm()
+        self.check_encrypt_algorithm()
         self.create_encrypt_db_error()
         self.create_encrypt_sm4_db()
         self.create_encrypt_aes_db()
