@@ -160,7 +160,7 @@ auditLevel = 2 // AUDIT_LEVEL_CLUSTER
 | balance vgroup | balanceVgroup | NULL | vgroupId | SQL |
 | assign leader | assignLeader | NULL | NULL | SQL |
 | grant privileges| grantPrivileges | NULL | 所授予的用户 | SQL |
-| remove privileges | revokePrivileges | NULL | 被收回权限的用户 | SQL |
+| revoke privileges | revokePrivileges | NULL | 被收回权限的用户 | SQL |
 | login           | login  | NULL | NULL | appName |
 | create user     | createUser | NULL |  被创建的用户名 | 用户属性参数， (password 除外) |
 | alter user      | alterUser | NULL | 被修改的用户名 | 修改密码记录被修改的参数和新值 (password 除外)，其他操作记录 SQL |
