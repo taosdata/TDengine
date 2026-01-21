@@ -5866,8 +5866,8 @@ _exit:
 static int32_t mndUserPrivHashRemoveDb(SHashObj *pHash, const char *dbFName, int32_t dbFNameLen, bool *found) {
   void *pVal = NULL;
   while ((pVal = taosHashIterate(pHash, pVal))) {
-    int32_t klen = 0;
-    char   *key = taosHashGetKey(pVal, &klen);
+    size_t klen = 0;
+    char  *key = taosHashGetKey(pVal, &klen);
     if (key && privDbKeyMatch(key, dbFName, dbFNameLen)) {
       TAOS_CHECK_RETURN(taosHashRemove(pHash, key, klen));
       if (found) *found = true;
@@ -5892,7 +5892,7 @@ static int32_t mndUserRemoveDbPrivsImpl(SUserObj *pUser, const char *key, int32_
 }
 
 static int32_t mndUserRemoveDbPrivs(SMnode *pMnode, STrans *pTrans, const char *key, int32_t keyLen,
-                                    SHashObj **ppUsers) {
+                                    SSHashObj **ppUsers) {
   int32_t    code = 0, lino = 0;
   SSdb      *pSdb = pMnode->pSdb;
   void      *pIter = NULL;
@@ -5964,7 +5964,7 @@ static int32_t mndRoleRemoveDbPrivsImpl(SRoleObj *pRole, const char *key, int32_
 }
 
 static int32_t mndRoleRemoveDbPrivs(SMnode *pMnode, STrans *pTrans, const char *key, int32_t keyLen,
-                                    SHashObj **ppRoles) {
+                                    SSHashObj **ppRoles) {
   int32_t    code = 0, lino = 0;
   SSdb      *pSdb = pMnode->pSdb;
   void      *pIter = NULL;
