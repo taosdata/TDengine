@@ -433,47 +433,61 @@ static char* ip2Str(SIpAddr* p) {
   }
 }
 bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t ver) {
-  // impl check
-  SHashObj* pWhiteList = pWhite->pList;
-  bool      valid = false;
+  if (pWhite == NULL || user == NULL || pIp == NULL) {
+    return false;
+  }
 
-  if (uvWhiteListIsDefaultAddr(pIp)) return true;
+  /* Default local addresses are always allowed */
+  if (uvWhiteListIsDefaultAddr(pIp)) {
+    return true;
+  }
+
+  SHashObj* pWhiteList = pWhite->pList;
+  if (pWhiteList == NULL) {
+    return false;
+  }
 
   SWhiteUserList** ppList = taosHashGet(pWhiteList, user, strlen(user));
   if (ppList == NULL || *ppList == NULL) {
     return false;
   }
-  SWhiteUserList* pUserList = *ppList;
-  if (pUserList->ver == ver) return true;
 
-  int8_t inBlackList = 0;
-  int8_t inWhiteList = 0;
+  SWhiteUserList* pUserList = *ppList;
+  /* if version matches, whitelist is already applied for this connection */
+  if (pUserList->ver == ver) {
+    return true;
+  }
 
   SIpWhiteListDual* pIpWhiteList = pUserList->pList;
+  if (pIpWhiteList == NULL || pIpWhiteList->num <= 0) {
+    tError("ip-white-list filter failed, ip:%s, empty white list", ip2Str(pIp));
+    return false;
+  }
+
+  bool inWhiteList = false;
+  bool inBlackList = false;
+
+  /* single pass: set flags; break early on blacklist match */
   for (int i = 0; i < pIpWhiteList->num; i++) {
     SIpRange* pRange = &pIpWhiteList->pIpRanges[i];
-    if (pRange->neg == 0 && uvCheckIp(pRange, pIp)) {
-      inWhiteList = 1;
+    if (!uvCheckIp(pRange, pIp)) {
+      continue;
+    }
+    if (pRange->neg) {
+      inBlackList = true;
       break;
+    } else {
+      inWhiteList = true;
     }
   }
 
-  for (int i = 0; i < pIpWhiteList->num; i++) {
-    SIpRange* pRange = &pIpWhiteList->pIpRanges[i];
-    if (pRange->neg == 1 && uvCheckIp(pRange, pIp)) {
-      inBlackList = 1;
-      break;
-    }
+  if (inWhiteList && !inBlackList) {
+    return true;
   }
 
-  if (inBlackList == 0 && inWhiteList == 1) {
-    valid = true;
-  } else {
-    tError("ip-white-list filter failed, ip:%s inBlockList:%d, inWhiteList:%d", ip2Str(pIp), inBlackList, inWhiteList);
-    valid = false;
-  }
-
-  return valid;
+  tError("ip-white-list filter failed, ip:%s inBlockList:%d, inWhiteList:%d", ip2Str(pIp), (int)inBlackList,
+         (int)inWhiteList);
+  return false;
 }
 bool uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
   if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITELIST ||
