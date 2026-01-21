@@ -2145,7 +2145,7 @@ static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, S
     } else {
       if (enableIpv6) {
         // Dual-stack mode: accept both IPv4 and IPv6 addresses
-        if (ipAddr.type != 0 && ipAddr.type != 1) {
+        if (ipAddr.type != 0 || ipAddr.type != 1) {
           tError("invalid ip addr type from fqdn:%s", fqdn);
           return TSDB_CODE_RPC_FQDN_ERROR;
         }

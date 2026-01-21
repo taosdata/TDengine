@@ -69,7 +69,7 @@ typedef struct TdSocket {
 #endif
   int      refId;
   SocketFd fd;
-} *TdSocketPtr, TdSocket;
+} * TdSocketPtr, TdSocket;
 
 typedef struct TdSocketServer {
 #if SOCKET_WITH_LOCK
@@ -77,7 +77,7 @@ typedef struct TdSocketServer {
 #endif
   int      refId;
   SocketFd fd;
-} *TdSocketServerPtr, TdSocketServer;
+} * TdSocketServerPtr, TdSocketServer;
 
 typedef struct TdEpoll {
 #if SOCKET_WITH_LOCK
@@ -85,7 +85,7 @@ typedef struct TdEpoll {
 #endif
   int     refId;
   EpollFd fd;
-} *TdEpollPtr, TdEpoll;
+} * TdEpollPtr, TdEpoll;
 
 int32_t taosCloseSocketNoCheck1(SocketFd fd) {
 #ifdef WINDOWS
@@ -572,6 +572,7 @@ int32_t taosGetIpDualStackFromFqdn(const char *fqdn, SIpAddr *pAddr) {
         continue;
       } else if (EAI_SYSTEM == ret) {
         code = TAOS_SYSTEM_ERROR(ERRNO);
+        freeaddrinfo(result);
         goto _err;
       }
 
