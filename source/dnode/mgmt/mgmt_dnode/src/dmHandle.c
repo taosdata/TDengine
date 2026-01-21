@@ -46,7 +46,7 @@ void getAuditDbNameToken(char *pDb, char *pToken) {}
 extern void getAuditEpSet(SEpSet *ep, int32_t *pVgId);
 
 #ifndef TD_ENTERPRISE
-void void getAuditEpSet(SEpSet *ep, int32_t *pVgId) {}
+void getAuditEpSet(SEpSet *ep, int32_t *pVgId) {}
 #endif
 
 SMonVloadInfo tsVinfo = {0};
