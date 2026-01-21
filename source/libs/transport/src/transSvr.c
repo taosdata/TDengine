@@ -620,6 +620,10 @@ int32_t uvDataTimeWhiteListAdd(SDataTimeWhiteListTab* pWhite, char* user, SUserD
       taosMemoryFree(pNew);
       return code;
     }
+
+    /* put succeeded: ownership has moved to pNew; clear caller's pointers */
+    plist->pWhiteLists = NULL;
+    plist->numWhiteLists = 0;
   } else {
     /* replace existing: free old internals and adopt new internals */
     SUserDateTimeWhiteList* pExist = *ppUserList;
