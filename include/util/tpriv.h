@@ -375,6 +375,12 @@ static FORCE_INLINE void privTblPoliciesFree(void* pTblPolicies) {
   taosArrayDestroyEx(tbPolicies->policy, privTblPolicyFree);
 }
 
+static FORCE_INLINE bool privDbKeyMatch(const char* key, const char* dbFName, int32_t len) {
+  const char* p = strchr(key, '.');
+  if (p) ++p;
+  return p && strncmp(p, dbFName, len) == 0 && (p[len] == '.' || p[len] == '\0');
+}
+
 int32_t privCheckConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
                            uint8_t* pObjLevel, EPrivType* conflict0, EPrivType* conflict1);
 int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel);
