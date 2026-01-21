@@ -3584,6 +3584,9 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
         TSDB_CHECK_NULL(pNewTask, code, lino, _exit, terrno);
       } else {
         TAOS_CHECK_EXIT(tdListAppend(pStatus->calcReaders, &taskStatus));
+        SListNode* pTailNode = tdListGetTail(pStatus->calcReaders);
+        QUERY_CHECK_NULL(pTailNode, code, lino, _exit, TSDB_CODE_INTERNAL_ERROR);
+        pNewTask = (SStmTaskStatus*)pTailNode->data;
       }
       
       TAOS_CHECK_EXIT(msmSTAddToTaskMap(pCtx, streamId, NULL, NULL, pNewTask));
