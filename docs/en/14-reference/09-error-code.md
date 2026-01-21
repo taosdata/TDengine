@@ -114,6 +114,7 @@ Below are the business error codes for each module.
 | 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
 | 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
 | 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
+| 0x8000013F | Decimal value parse error         | Decimal value parse error                                    | Preserve the scene and logs, report issue on github |
 
 #### tsc
 
