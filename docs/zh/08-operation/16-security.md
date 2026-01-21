@@ -188,7 +188,7 @@ auditLevel = 3 // AUDIT_LEVEL_DATABASE
 | drop stream     | dropStream | NULL | 所删除的 stream 名 | SQL |
 | recalc stream     | recalcStream | streamName | recalcName | SQL |
 | create topic    | createTopic | topic 所在 DB | 创建的 topic 名字 | SQL |
-| drop topic      | cropTopic | topic 所在 DB | 删除的 topic 名字 | SQL |
+| drop topic      | dropTopic | topic 所在 DB | 删除的 topic 名字 | SQL |
 | reload topic      | reloadTopic | NULL | 删除的 topic 名字 | SQL |
 | create Rsma      | createRsma | Rsma name | NULL | SQL |
 | alter Rsma      | alterRsma | Rsma name | Table name | SQL |
