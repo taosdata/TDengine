@@ -258,7 +258,7 @@ create encrypt_algr 'vigenere' name 'vigenere' desc 'my custom algr' type 'Symme
 ```
 
 用户自定义算法，用户需按照接口开发一个 so 库，taosd 启动时会加载这个 so 库，so 库被加载后，用户自定义算法即可被使用。在这个 so 库中，用户可以包含多个算法，算法有自己的命名，通过 create encrypt_algr 中的 ossl_algr_name 字段指定。
-自定义算法接口采用 OpenSSL 的实现，遵循 OpenSSL 的接口定义。Open SSL 的接口定义参看 https://docs.openssl.org/master/man7/provider/ 。参数 encryptExtDir，指定自定义算法库 so 文件的路径。目前只支持加载单个文件。
+自定义算法接口采用 OpenSSL 的实现，遵循 OpenSSL 的接口定义。OpenSSL 的接口定义参考 https://docs.openssl.org/master/man7/provider/ 。参数 encryptExtDir，指定自定义算法库 so 文件的路径。目前只支持加载单个文件。
 
 ### 删除自定义算法
 
