@@ -319,7 +319,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   }
 
   if (tsAuditSaveInSelf) {
-    // getAuditEpSet(&req.auditEpSet, &req.auditVgId);
+    getAuditEpSet(&req.auditEpSet, &req.auditVgId);
   }
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
