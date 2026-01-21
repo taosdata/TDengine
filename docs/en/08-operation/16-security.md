@@ -207,8 +207,8 @@ auditLevel = 4 // AUDIT_LEVEL_CHILDTABLE
 
 | Operation        | Operation | DB | Resource | Details |
 | ----------------| ----------| ---------| ---------| --------|
-| create table | createTable | db name | table name | table name |
-| drop table | dropTable | db name | table name | table name |
+| create table | createTable | db name | table name | SQL |
+| drop table | dropTable | db name | table name | SQL |
 
 ### View Audit Logs
 
@@ -252,7 +252,7 @@ id      |          algorithm_id          |              name              |     
 - name: Algorithm name
 - desc: Description of the algorithm
 - type: Algorithm type, including: Symmetric Ciphers CBC mode - symmetric encryption algorithm in CBC mode, used for database encryption; Asymmetric Cipher - asymmetric encryption algorithm; Digests - hash algorithm
-- source: Algorithm source, including: build-in - built-in algorithm; customized - user-defined algorithm
+- source: Algorithm source, including: built-in - built-in algorithm; customized - user-defined algorithm
 - ossl_algr_name: Algorithm name in OpenSSL; for built-in algorithms, it's the name in the default provider, refer to https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/; for custom algorithms, it's user-defined in the program
 
 ### Add Customized Algorithms
@@ -290,7 +290,7 @@ database_option: {
 ```
 
 The main parameters are explained as follows.
-- encrypt_algorithm: Specifies the encryption algorithm used for the data. The default is none, meaning no encryption is used. If you want to set up encrypted data, you need to specify the algorithm_id from show encrypt_algorithms, and the type must be Symmetric Ciphers CBC mode.
+- encrypt_algorithm: Specifies the encryption algorithm used for the data. The default is none, meaning no encryption is used. If you want to set up encrypted data, you need to specify the algorithm_id from `show encrypt_algorithms`, and the type must be Symmetric Ciphers CBC mode.
 
 ### View Encryption Configuration
 
