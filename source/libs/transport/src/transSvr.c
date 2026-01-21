@@ -12,6 +12,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <bits/stdint-intn.h>
+#include "tmsg.h"
 #include "transComm.h"
 #include "transLog.h"
 #include "transSasl.h"
@@ -548,7 +550,7 @@ static int32_t uvDataTimeWhiteListToStr(SUserDateTimeWhiteList* plist, char* use
   }
 
   /* estimate: each item roughly 64 bytes + header */
-  int32_t limit = plist->numWhiteLists * 64 + 128;
+  int32_t limit = plist->numWhiteLists * sizeof(SDateTimeWhiteListItem) + 128;
   char*   pBuf = taosMemoryCalloc(1, limit);
   if (pBuf == NULL) {
     return 0;
@@ -668,6 +670,16 @@ _error:
   return false;
 }
 
+bool uvListIsTimeInWhiteList(SUserDateTimeWhiteList* pWhiteList) {
+  if (pWhiteList == NULL) return false;
+
+  int64_t now = taosGetTimestampSec();
+  /* The helper expects an SDateTimeWhiteList view starting at the numWhiteLists field
+     inside SUserDateTimeWhiteList. Build that pointer explicitly for clarity. */
+  const SDateTimeWhiteList* pList =
+      (const SDateTimeWhiteList*)((const char*)pWhiteList + offsetof(SUserDateTimeWhiteList, numWhiteLists));
+  return isTimeInDateTimeWhiteList(pList, now);
+}
 bool uvDataTimeWhiteListFilte(SDataTimeWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t ver) {
   if (pWhite == NULL || user == NULL || pIp == NULL) return true;
 
@@ -683,6 +695,7 @@ bool uvDataTimeWhiteListFilte(SDataTimeWhiteListTab* pWhite, char* user, SIpAddr
   }
 
   SUserDateTimeWhiteList* pList = *ppList;
+
   /* version match -> allow */
   // if (pList->ver == ver) return true;
 
@@ -690,15 +703,7 @@ bool uvDataTimeWhiteListFilte(SDataTimeWhiteListTab* pWhite, char* user, SIpAddr
    * The helper isTimeInDateTimeWhiteList expects pointer(s) describing the whitelist.
    * The original code relied on a specific layout; reuse that helper as-is.
    */
-  SDateTimeWhiteList* p = (SDateTimeWhiteList*)&pList->numWhiteLists;
-  int64_t             now = taosGetTimestampSec();
-
-  if (isTimeInDateTimeWhiteList(p, now)) {
-    return true;
-  }
-
-  tError("data-time-white-list filter failed, user:%s", user);
-  return false;
+  return uvListIsTimeInWhiteList(pList);
 }
 bool uvDataTimeWhiteListCheckConn(SDataTimeWhiteListTab* pWhite, SSvrConn* pConn) {
   if (pWhite == NULL) {
