@@ -245,7 +245,7 @@ id      |          algorithm_id          |              name              |     
 3. name：算法名称
 4. desc：算法的描述
 5. type：算法类型，包括：Symmetric Ciphers CBC mode - 对称加密算法 CBC 模式，用于数据库加密; Asymmetric Cipher - 非对称加密算法;  Digests：散列算法
-6. source：算法来源，包括：build-in - 内置算法; customized - 用户自定义算法
+6. source：算法来源，包括：built-in - 内置算法; customized - 用户自定义算法
 7. ossl_algr_name：算法在 OpenSSL 中的名称，如果是内置算法则是在 default provider 中的名称，可以参看 https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/ , 如果自定义算法，则是用户在程序中自定义
 
 ### 添加自定义算法
