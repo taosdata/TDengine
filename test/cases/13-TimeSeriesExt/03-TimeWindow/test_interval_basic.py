@@ -1964,7 +1964,26 @@ class TestInterval:
         self.do_interval_limit_opt_2()
 
     def check_surround_abnormal(self):
-        pass
+        err_suffixes = [
+            "interval(12h, auto) fill(near)",
+            "interval(12h, auto) fill(near) surround(1d, 100, 0)",
+            "interval(12h, auto) fill(prev) surround(1d)",
+            "interval(12h, auto) fill(prev) surround(1d, 100)",
+            "interval(12h, auto) fill(prev) surround(1d, 100, 0, 'abc')",
+            "interval(12h, auto) fill(prev) surround(0h, 100, 0)",
+            "interval(12h, auto) fill(prev) surround(-5s, 100, 0)",
+            "interval(12h, auto) fill(prev) surround(10h, 100, 0)",
+            "interval(12h, auto) fill(prev) surround(10h + 2h, 100, 0)",
+            "interval(12h, auto) fill(prev, 100, 0) surround(12h, 100, 0)",
+            "interval(12h, auto) fill(next, 100, 0) surround(12h)",
+            "interval(12h, auto) fill(linear) surround(1d, 100, 0)",
+            "interval(12h, auto) fill(prev) surround(~10d, 100, 0)",
+            "interval(12h, auto) fill(prev) surround(aaa, 100, 0)",
+        ]
+        for suffix in err_suffixes:
+            tdSql.error(f"""select _wstart, _wend, max(c1), count(*) from ntb
+                where ts between '2026-01-02 12:00:00' and '2026-01-06 12:00:00'
+                {suffix}""")
 
     def test_interval_fill_surround(self):
         """Interval: test fill with surrounding time
@@ -2025,17 +2044,111 @@ class TestInterval:
             ("2026-01-07 12:00:00", null)
             ("2026-01-08 12:00:00", 3)
             ("2026-01-09 12:00:00", null)""")
-        
+
+        # test fill(prev)
         tdSql.query("""select _wstart, _wend, max(c1) from ntb where ts between
             '2026-01-02 12:00:00' and '2026-01-06 12:00:00' interval(12h, auto)
             fill(prev) surround(1d, 100)""")
+        tdSql.checkRows(9)
+        tdSql.checkData(0, 0, "2026-01-02 12:00:00.000")
+        tdSql.checkData(0, 1, "2026-01-03 00:00:00.000")
+        tdSql.checkData(0, 2, 100)
+        tdSql.checkData(1, 0, "2026-01-03 00:00:00.000")
+        tdSql.checkData(1, 1, "2026-01-03 12:00:00.000")
+        tdSql.checkData(1, 2, 100)
+        tdSql.checkData(2, 2, 100)
+        tdSql.checkData(3, 2, 100)
+        tdSql.checkData(4, 2, 100)
+        tdSql.checkData(5, 2, 100)
+        tdSql.checkData(6, 2, 100)
+        tdSql.checkData(7, 0, "2026-01-06 00:00:00.000")
+        tdSql.checkData(7, 1, "2026-01-06 12:00:00.000")
+        tdSql.checkData(7, 2, 100)
+        tdSql.checkData(8, 0, "2026-01-06 12:00:00.000")
+        tdSql.checkData(8, 1, "2026-01-07 00:00:00.000")
+        tdSql.checkData(8, 2, 2)
 
-        tdSql.query("""select _wstart, _wend, max(c1) from ntb where ts between
-            '2026-01-03 12:00:00' and '2026-01-06 12:00:00' interval(12h, auto)
-            fill(next) surround(1d, 100)""")
+        tdSql.query("""select _wstart, _wend, max(c1), count(*) from ntb where
+            ts between '2026-01-01 12:00:00' and '2026-01-09 12:00:00'
+            interval(2d, auto) fill(prev) surround(2d, 100, 0)""")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "2026-01-01 12:00:00.000")
+        tdSql.checkData(0, 1, "2026-01-03 12:00:00.000")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 2)
+        tdSql.checkData(1, 0, "2026-01-03 12:00:00.000")
+        tdSql.checkData(1, 1, "2026-01-05 12:00:00.000")
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(1, 3, 1)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 1)
+        tdSql.checkData(3, 0, "2026-01-07 12:00:00.000")
+        tdSql.checkData(3, 1, "2026-01-09 12:00:00.000")
+        tdSql.checkData(3, 2, 2)
+        tdSql.checkData(3, 3, 2)
+        tdSql.checkData(4, 0, "2026-01-09 12:00:00.000")
+        tdSql.checkData(4, 1, "2026-01-11 12:00:00.000")
+        tdSql.checkData(4, 2, 3)
+        tdSql.checkData(4, 3, 1)
 
+        # test fill(next)
         tdSql.query("""select _wstart, _wend, max(c1) from ntb where ts between
             '2026-01-04 12:00:00' and '2026-01-06 12:00:00' interval(12h, auto)
             fill(next) surround(1d, 100)""")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "2026-01-04 12:00:00.000")
+        tdSql.checkData(0, 1, "2026-01-05 00:00:00.000")
+        tdSql.checkData(0, 2, 100)
+        tdSql.checkData(1, 0, "2026-01-05 00:00:00.000")
+        tdSql.checkData(1, 1, "2026-01-05 12:00:00.000")
+        tdSql.checkData(1, 2, 100)
+        tdSql.checkData(2, 0, "2026-01-05 12:00:00.000")
+        tdSql.checkData(2, 1, "2026-01-06 00:00:00.000")
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(3, 0, "2026-01-06 00:00:00.000")
+        tdSql.checkData(3, 1, "2026-01-06 12:00:00.000")
+        tdSql.checkData(3, 2, 2)
+        tdSql.checkData(4, 0, "2026-01-06 12:00:00.000")
+        tdSql.checkData(4, 1, "2026-01-07 00:00:00.000")
+        tdSql.checkData(4, 2, 2)
+        
+        tdSql.query("""select _wstart, _wend, max(c1) from ntb where ts between
+            '2026-01-03 12:00:00' and '2026-01-06 12:00:00' interval(12h, auto)
+            fill(next) surround(1d, 100)""")
+        tdSql.checkRows(7)
+        tdSql.checkData(0, 0, "2026-01-03 12:00:00.000")
+        tdSql.checkData(0, 1, "2026-01-04 00:00:00.000")
+        tdSql.checkData(0, 2, 100)
+        tdSql.checkData(1, 0, "2026-01-04 00:00:00.000")
+        tdSql.checkData(1, 1, "2026-01-04 12:00:00.000")
+        tdSql.checkData(1, 2, 100)
+        tdSql.checkData(2, 2, 100)
+        tdSql.checkData(3, 2, 100)
+        tdSql.checkData(4, 2, 2)
+        tdSql.checkData(5, 0, "2026-01-06 00:00:00.000")
+        tdSql.checkData(5, 1, "2026-01-06 12:00:00.000")
+        tdSql.checkData(5, 2, 2)
+        tdSql.checkData(6, 0, "2026-01-06 12:00:00.000")
+        tdSql.checkData(6, 1, "2026-01-07 00:00:00.000")
+        tdSql.checkData(6, 2, 2)
+
+        tdSql.query("""select _wstart, _wend, max(c1), count(*) from ntb where
+            ts between '2026-01-01 12:00:00' and '2026-01-09 12:00:00'
+            interval(2d, auto) fill(next) surround(2d, 100, 0)""")
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "2026-01-01 12:00:00.000")
+        tdSql.checkData(0, 1, "2026-01-03 12:00:00.000")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 2)
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(1, 3, 1)
+        tdSql.checkData(2, 2, 2)
+        tdSql.checkData(2, 3, 1)
+        tdSql.checkData(3, 2, 3)
+        tdSql.checkData(3, 3, 2)
+        tdSql.checkData(4, 0, "2026-01-09 12:00:00.000")
+        tdSql.checkData(4, 1, "2026-01-11 12:00:00.000")
+        tdSql.checkData(4, 2, 3)
+        tdSql.checkData(4, 3, 1)
 
         self.check_surround_abnormal()

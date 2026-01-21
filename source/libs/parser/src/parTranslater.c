@@ -6946,19 +6946,36 @@ static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill, SNod
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList) {
-  if (FILL_MODE_VALUE != pFill->mode && FILL_MODE_VALUE_F != pFill->mode) {
-    return TSDB_CODE_SUCCESS;
+static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill,
+                               SSelectStmt* pSelect) {
+  /*
+    Do check fill values if:
+      - FILL MODE is VALUE or VALUE_F
+      - FILL MODE is PREV/NEXT/NEAR and surrounding time is provided
+        (note: sometimes surrounding time is provided by range around clause)
+  */
+  if ((FILL_MODE_VALUE == pFill->mode || FILL_MODE_VALUE_F == pFill->mode) ||
+      ((pFill->pSurroundingTime != NULL || pSelect->pRangeAround != NULL) &&
+        (pFill->mode == FILL_MODE_PREV || pFill->mode == FILL_MODE_NEXT ||
+        pFill->mode == FILL_MODE_NEAR))) {
+    return doCheckFillValues(pCxt, pFill, pSelect->pProjectionList);
   }
-  return doCheckFillValues(pCxt, pFill, pProjectionList);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateFillValues(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (NULL == pSelect->pWindow || QUERY_NODE_INTERVAL_WINDOW != nodeType(pSelect->pWindow) ||
-      NULL == ((SIntervalWindowNode*)pSelect->pWindow)->pFill) {
-    return TSDB_CODE_SUCCESS;
+  SFillNode* pFill = NULL;
+  if (NULL != pSelect->pWindow &&
+      QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow) &&
+      NULL != ((SIntervalWindowNode*)pSelect->pWindow)->pFill) {
+    /* TODO: use pFill in SSelectStmt for interval window */
+    pFill = (SFillNode*)((SIntervalWindowNode*)pSelect->pWindow)->pFill;
+  } else if (pSelect->hasInterpFunc && NULL != pSelect->pFill) {
+    pFill = (SFillNode*)pSelect->pFill;
   }
-  return checkFillValues(pCxt, (SFillNode*)((SIntervalWindowNode*)pSelect->pWindow)->pFill, pSelect->pProjectionList);
+
+  return NULL == pFill ? TSDB_CODE_SUCCESS :
+                         checkFillValues(pCxt, pFill, pSelect);
 }
 
 static int32_t rewriteProjectAlias(SNodeList* pProjectionList) {
@@ -7099,9 +7116,6 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect, pSelect->pProjectionList);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateFillValues(pCxt, pSelect);
   }
   if (NULL == pSelect->pProjectionList || 0 >= pSelect->pProjectionList->length) {
     if (pCxt->pParseCxt->hasInvisibleCol) {
@@ -7693,7 +7707,8 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
     }
     if (pFill->pValues != NULL &&
         !(pFill->mode == FILL_MODE_VALUE || pFill->mode == FILL_MODE_VALUE_F) &&
-        pFill->pSurroundingTime == NULL) {
+        !((pFill->mode == FILL_MODE_PREV || pFill->mode == FILL_MODE_NEXT) &&
+        pFill->pSurroundingTime != NULL)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf,
                                   TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES);
     }
@@ -8451,7 +8466,6 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
                                          "only be used with "
                                          "fill PREV/NEXT/NEAR mode");
         }
-        code = doCheckFillValues(pCxt, pFill, pSelect->pProjectionList);
       } else {
         if (pFill->mode != FILL_MODE_VALUE &&
             pFill->mode != FILL_MODE_VALUE_F) {
@@ -8460,7 +8474,6 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
                                          "fill_value must be provided with "
                                          "fill VALUE/VALUE_F or SURROUND mode");
         }
-        code = checkFillValues(pCxt, pFill, pSelect->pProjectionList);
       }
     } else {
       if (pSurroundingTime != NULL || pRangeAround != NULL) {
@@ -9780,6 +9793,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterp(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateFillValues(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateForecast(pCxt, pSelect);
