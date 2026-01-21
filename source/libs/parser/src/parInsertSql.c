@@ -2100,6 +2100,7 @@ static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool isAudit, bool
       if (pPrivCols && authRes.pCols) {
         *pPrivCols = authRes.pCols;
       }
+      *pMissCache = false;
     }
     if (pWithInsertCond) {
       *pWithInsertCond = (authRsp.withInsertCond == 1);
@@ -2230,10 +2231,13 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    if (pPrivCols) pStmt->pPrivCols = pPrivCols;
 #ifdef TD_ENTERPRISE
     if (pStmt->pTableMeta && pStmt->pTableMeta->isAudit) {
+      // recheck for audit table
       code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, true, &pCxt->missCache, NULL, NULL, NULL);
       if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(pTagCond);
         return code;
       }
     }
@@ -2243,6 +2247,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
         pCxt->missCache = (NULL != pTagCond);
       } else {
         pStmt->pTagCond = pTagCond;
+        pTagCond = NULL;
       }
     } else if (withInsertCond && !pCxt->pComCxt->isSuperUser) {
       // If miss cache, always request tag value and reserved for permission check later if pTagCond exists. This may
@@ -2253,8 +2258,8 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
 #else
     pStmt->pTagCond = NULL;
 #endif
-    pStmt->pPrivCols = pPrivCols;
   }
+  if (pTagCond) nodesDestroyNode(pTagCond);
 
   if (TSDB_CODE_SUCCESS == code && !pCxt->pComCxt->async) {
     code = collectUseDatabase(&pStmt->targetTableName, pStmt->pDbFNameHashObj);
