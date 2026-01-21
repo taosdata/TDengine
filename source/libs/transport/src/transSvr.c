@@ -669,7 +669,7 @@ bool uvDataTimeWhiteListFilte(SDataTimeWhiteListTab* pWhite, char* user, SIpAddr
 
   SUserDateTimeWhiteList* pList = *ppList;
   /* version match -> allow */
-  if (pList->ver == ver) return true;
+  // if (pList->ver == ver) return true;
 
   /* Evaluate time-based rules.
    * The helper isTimeInDateTimeWhiteList expects pointer(s) describing the whitelist.
