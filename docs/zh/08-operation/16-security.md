@@ -262,7 +262,7 @@ create encrypt_algr 'vigenere' name 'vigenere' desc 'my custom algr' type 'Symme
 
 ### 删除自定义算法
 
-用户可以删除是自己的自定义算法。
+用户可以删除自己的自定义算法。
 
 ```sql
 drop encrypt_algr 'vigenere';
