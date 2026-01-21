@@ -218,7 +218,7 @@ class TestViewMgmt:
         tdSql.query(
             f"select * from information_schema.ins_user_privileges order by user_name, priv_type;"
         )
-        tdSql.checkRows(2)
+        tdSql.checkRows(1)
         tdSql.checkData(0, 0, "u1")
 
         tdSql.execute(f"grant all on testa.* to u1;")

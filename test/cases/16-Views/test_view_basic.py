@@ -396,7 +396,7 @@ class TestViewBasic:
         testSql.query("show views;")
         testSql.checkRows(1)
         tdLog.info(f"Verify the view permission of user '{username}' with db all and view all successfully")
-        self.check_permissions("view_test", "view_db", {"db": ["USE DATABASE", "CREATE VIEW"], "view": []}, "*")
+        self.check_permissions("view_test", "view_db", {"db": [], "view": []}, "*") # no privileges since database view_db is dropped
         tdLog.info(f"Verify the view permission from system table successfully")
         # time.sleep(2)
         testSql.query("select * from v1")
