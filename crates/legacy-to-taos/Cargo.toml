@@ -27,8 +27,10 @@ tracing-subscriber.workspace = true
 itertools.workspace = true
 tempfile.workspace = true
 deadpool.workspace = true
+serde_json.workspace = true
 
 taosx-core.workspace = true
+ha-core.workspace = true
 
 [lints]
 workspace = true

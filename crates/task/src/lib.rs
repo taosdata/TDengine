@@ -1,6 +1,7 @@
 mod failover;
 pub mod point_options;
 pub mod sample;
+pub mod split_job;
 pub mod validate;
 
 use std::sync::atomic::{AtomicU32, AtomicU64};

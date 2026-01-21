@@ -1,8 +1,8 @@
-use std::{collections::HashMap, str::FromStr, sync::LazyLock};
+use std::{str::FromStr, sync::LazyLock};
 
 use anyhow::Context;
 use arrow_flight::error::FlightError;
-use ha_core::types::*;
+use ha_core::{jwt::agent::AgentToken, types::*};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 use taos::Dsn;
 use taosx_core::{
@@ -11,7 +11,7 @@ use taosx_core::{
 };
 
 use crate::serve::{
-    controller::{TaskControllerRef, agent::AgentToken},
+    controller::{AgentAction, TaskControllerRef},
     rpc::{
         FlightResult, XnodedId,
         utils::{check_taos_connectivity, decode_err, internal_err},
@@ -20,66 +20,23 @@ use crate::serve::{
 
 type ApiResult<T> = std::result::Result<T, FlightError>;
 
-pub async fn plan_task(context: &str) -> ApiResult<SplitJobResult> {
+pub async fn plan_task(controller: &TaskControllerRef, context: &str) -> ApiResult<SplitJobResult> {
     let task = serde_json::from_str::<HaTask>(context)
         .context("deserialize xnode_plan_task body error")
         .map_err(decode_err)?;
-    let split_task: SplitJobTask = task
-        .try_into()
-        .context("build split task req error")
-        .map_err(decode_err)?;
-
-    let from_driver = split_task.from.driver.as_str();
-    let to_driver = split_task.to.driver.as_str();
-    match (from_driver, to_driver) {
-        ("tmq" | "sync", "taos")
-        | ("tmq" | "sync", "local")
-        | ("local", "taos" | "tmq")
-        | ("taos", "taos")
-        | ("taos", "csv")
-        | ("taos", "parquet")
-        | ("pi" | "pibackfill", "taos")
-        | ("opc" | "opcda" | "opcua", "taos")
-        | ("tmq", "mqtt")
-        | ("sparkplugb", "taos")
-        | ("influxdb", "taos")
-        | ("opentsdb", "taos")
-        | ("csv", "taos")
-        | ("tmq", "kafka")
-        | ("avevaHistorian", "taos")
-        | ("orc", "taos")
-        | ("mongodb", _)
-        | ("mysql", _)
-        | ("postgres", _)
-        | ("oracle", _)
-        | ("mssql", _) => {
-            return Ok(SplitJobResult {
-                from: serde_json::Value::String(split_task.from.to_string()),
-                to: split_task.to.to_string(),
-                parser: split_task.parser,
-            });
-        }
-        _ => {}
+    match task.via {
+        Some(via) => controller
+            .scheduler
+            .split_task_via_agent(via, task)
+            .await
+            .map_err(internal_err),
+        None => taosx_task::split_job::plan_task(task)
+            .await
+            .map_err(internal_err),
     }
-    let task_value = match (from_driver, to_driver) {
-        ("kafka", _) => source_kafka::split_job::split_job(split_task)
-            .await
-            .context("kafka split job error")
-            .map_err(internal_err)?,
-        ("mqtt", _) => source_mqtt::split_job::split_job(split_task)
-            .await
-            .context("mqtt split job error")
-            .map_err(internal_err)?,
-        _ => {
-            return Err(FlightError::DecodeError(format!(
-                "unsupported split job from `{from_driver}` to `{to_driver}`"
-            )));
-        }
-    };
-    Ok(task_value)
 }
 
-pub async fn check_valid(context: &str) -> ApiResult<()> {
+pub async fn check_valid(controller: &TaskControllerRef, context: &str) -> ApiResult<()> {
     let param: CheckValidParam = serde_json::from_str(context)
         .context("deserialize check_valid payload error")
         .map_err(decode_err)?;
@@ -90,23 +47,37 @@ pub async fn check_valid(context: &str) -> ApiResult<()> {
         .with_context(|| format!("param `to` invalid dsn: {}", param.to))
         .map_err(decode_err)?;
 
-    taosx_task::validate::validate_dsn(&from)
-        .await
-        .ok()
-        .map_err(internal_err)?;
-    if to.driver.as_str() == "taos" {
+    let res = match param.via {
+        Some(via) => controller.validate_dsn_via_agent(via, &from).await,
+        None => taosx_task::validate::validate_dsn(&from).await,
+    };
+
+    res.ok().map_err(internal_err)?;
+
+    if matches!(
+        to.driver.as_str(),
+        "taos" | "ws" | "wss" | "http" | "https" | "taosws" | "taoswss"
+    ) {
         check_taos_connectivity(&to).await.map_err(internal_err)?;
     }
 
     Ok(())
 }
 
-pub async fn get_samples(context: &str) -> ApiResult<serde_json::Value> {
-    let samples = taosx_task::sample::get_sample(context)
-        .await
-        .map_err(internal_err)?;
+pub async fn get_samples(
+    controller: &TaskControllerRef,
+    context: &str,
+) -> ApiResult<serde_json::Value> {
+    let param: GetSamplesParam = serde_json::from_str(context)
+        .context("deserialize get_samples payload error")
+        .map_err(decode_err)?;
+    let res = match param.via {
+        Some(via) => controller.get_sample_via_agent(via, param.from).await,
+        None => taosx_task::sample::get_sample(param.from).await,
+    };
+    let samples = res.map_err(internal_err)?;
     serde_json::to_value(samples)
-        .context("failed to serialize samples to json value")
+        .context("samples not valid json value")
         .map_err(internal_err)
 }
 
@@ -212,76 +183,66 @@ pub fn system_metrics() -> HeartbeatMetrics {
     }
 }
 
-pub async fn add_agents(
-    controller: &TaskControllerRef,
-    context: &str,
-) -> ApiResult<AddAgentsResult> {
+pub async fn add_agents(controller: &TaskControllerRef, context: &str) -> ApiResult<()> {
     let tokens: Vec<String> = serde_json::from_str(context)
         .context("deserialize add agents payload error")
         .map_err(internal_err)?;
-    let mut res = HashMap::with_capacity(tokens.len());
     for token in tokens {
-        let token_s = token.clone();
         let token = AgentToken::from(token);
         let agent_id = match token.jwt_decode() {
             Ok(claims) => claims.sub,
             Err(e) => {
-                res.insert(token_s, e.to_string());
+                tracing::error!("add agent error: {e:#}");
                 continue;
             }
         };
 
         if controller.is_agent_exists(agent_id) {
             if controller.agent_alive(agent_id).await {
-                res.insert(token_s, format!("agent {agent_id} is alive"));
+                tracing::error!(agent_id, "agent is already alive");
                 continue;
             }
-            res.insert(token_s, format!("agent {agent_id} already exists"));
+            tracing::error!(agent_id, "agent already exists");
             continue;
         }
 
         controller.add_valid_agents(agent_id);
     }
 
-    Ok(res)
+    Ok(())
 }
 
-pub async fn del_agents(
-    controller: &TaskControllerRef,
-    context: &str,
-) -> ApiResult<DelAgentsResult> {
+pub async fn del_agents(controller: &TaskControllerRef, context: &str) -> ApiResult<()> {
     let agent_ids: Vec<i64> = serde_json::from_str(context)
         .context("deserialize del agents payload error")
         .map_err(internal_err)?;
-    let mut res = Vec::with_capacity(agent_ids.len());
     for agent_id in agent_ids {
         if !controller.is_agent_exists(agent_id) {
-            res.push(DelAgentErrorStatus {
-                id: agent_id,
-                error: "agent id not found".to_string(),
-            });
+            tracing::error!(agent_id, "agent id not found");
             continue;
         }
         if controller.agent_alive(agent_id).await {
-            res.push(DelAgentErrorStatus {
-                id: agent_id,
-                error: "agent is alive".to_string(),
-            });
-            continue;
+            tracing::error!(agent_id, "agent is alive");
         }
         controller.del_valid_agent(agent_id);
+        if let Err(e) = controller.stop_task_by_agent(agent_id).await {
+            tracing::error!(agent_id, "stop task after agent delete error: {e:#}");
+        }
+        controller
+            .push_agent_action(agent_id, AgentAction::Exit)
+            .await;
     }
 
-    Ok(res)
+    Ok(())
 }
 
 pub async fn list_agents(controller: &TaskControllerRef) -> ApiResult<ListAgentsResult> {
     let states = controller.list_agent_states().await;
     let mut context = Vec::with_capacity(states.len());
     for (id, state) in states {
-        context.push(ListAgentStatesParam {
+        context.push(ListAgentStatusResult {
             id,
-            state: state.into(),
+            status: state.into(),
         });
     }
 

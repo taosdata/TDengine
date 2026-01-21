@@ -262,6 +262,7 @@ export default {
   generateToken: '生成令牌',
   pInName: '请输入名称',
   statuses: {
+    idle: '未使用',
     created: '已创建',
     queued: '排队中',
     running: '运行中',
@@ -285,7 +286,8 @@ export default {
     paused: '手动暂停',
     waken: '唤醒中',
     ticked: '等待下次执行',
-    scheduled: '调度中'
+    scheduled: '调度中',
+    transferring: '传输中'
   },
   datasource: '数据写入任务',
   agent: '代理',

@@ -59,6 +59,8 @@ pub enum Error {
     RetryTooManyTimes {
         source: rumqttc::v5::ConnectionError,
     },
+    #[snafu(display("MQTT pending sub filters not found"))]
+    PendingFiltersNotFound,
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -169,7 +171,7 @@ impl super::MessagePoller for MessagePoller {
                     let pending_filters = self
                         .pending_filters
                         .take()
-                        .expect("Unexpected SubAck packet");
+                        .context(PendingFiltersNotFoundSnafu)?;
                     let mut failed_sub_filters = Vec::with_capacity(pending_filters.len());
                     for (idx, code) in return_codes.into_iter().enumerate() {
                         let topic = pending_filters.get(idx).map(|f| f.path.clone());

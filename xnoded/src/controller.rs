@@ -1,3 +1,4 @@
+pub mod agents;
 mod alloc_jobs;
 mod event;
 mod heartbeat;
@@ -9,25 +10,32 @@ pub mod xnodes;
 use std::{
     collections::{HashMap, HashSet},
     str::FromStr,
+    sync::LazyLock,
 };
 
 use axum::http::{self, StatusCode};
+use parking_lot::RwLock;
 use snafu::{OptionExt, ResultExt};
 use taos::Dsn;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::{Channel, Endpoint};
 
-use ha_core::types::{
-    CheckValidParam, HaTask, ListTaskJobStatesParam, ListTaskJobStatesResult, StartTaskJobParam,
-    StopTaskJobParam, TaskStatus, XnodedId,
+use ha_core::{
+    activity::{AgentStatus, TaskStatus},
+    jwt,
+    types::{
+        CheckValidParam, HaTask, ListTaskJobStatesParam, ListTaskJobStatesResult,
+        StartTaskJobParam, StopTaskJobParam, XnodedId,
+    },
 };
-use tracing::instrument;
+use tracing::{Instrument, instrument};
 
 use crate::{
     Args,
-    api::task::TaskConfigParam,
+    api::{agent::AgentStatusResult, task::TaskConfigParam},
     controller::{
+        agents::Agents,
         alloc_jobs::{AllocatedJobs, alloc_jobs},
         event::event_loop,
         heartbeat::heartbeat_loop,
@@ -150,12 +158,20 @@ pub enum Error {
     InvalidTaskParser { source: serde_json::Error },
     #[snafu(display("Invalid dsn {dsn}"))]
     InvalidDsn { dsn: String, source: taos::DsnError },
-    #[snafu(display("Failed to create activity stable"))]
-    CreateActivityTable { source: taos_conn::Error },
+    #[snafu(display("Failed to create task activity stable"))]
+    CreateTaskActivityTable { source: taos_conn::Error },
     #[snafu(display("Failed to create metrics stable"))]
     CreateMetricsTable { source: taos_conn::Error },
     #[snafu(display("Failed to create database `log`"))]
     CreateLogDatabase { source: taos_conn::Error },
+    #[snafu(display("Failed to show agents"))]
+    ShowAgents { source: taos_conn::Error },
+    #[snafu(display("Failed to create agent activity stable"))]
+    CreateAgentActivityTable { source: taos_conn::Error },
+    #[snafu(display("Agent not found"))]
+    AgentNotFound { id: i64 },
+    #[snafu(display("Failed to decode agent jwt"))]
+    AgentJwtDecode { source: jsonwebtoken::errors::Error },
 }
 
 impl Error {
@@ -179,6 +195,7 @@ pub struct Controller {
 
     xnodes: XNodes,
     tasks: Tasks,
+    agents: Agents,
 
     rebalance_tx: flume::Sender<i32>,
 }
@@ -200,6 +217,7 @@ impl Controller {
             cancel: cancel.clone(),
             xnodes: XNodes::new(),
             tasks: Tasks::new(),
+            agents: Agents::new(),
             rebalance_tx,
         };
         cancel.run_until_cancelled(this.init()).await.transpose()?;
@@ -208,12 +226,33 @@ impl Controller {
 
     #[instrument(skip_all)]
     async fn init(&self) -> Result<()> {
+        self.init_xnodes().await?;
+        self.init_task_jobs().await?;
+        self.init_agents().await?;
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn init_xnodes(&self) -> Result<()> {
         let xnodes = self
             .taos_conn
             .query::<sql_types::XnodeId>("SHOW XNODES")
             .await
             .context(ShowXnodesSqlSnafu)?;
+        for xnode in xnodes {
+            let xnode_id = xnode.id;
+            if let Err(e) = self.create_xnode(xnode_id, &xnode.url).await {
+                tracing::error!(id = xnode_id, url = xnode.url, error = %e, "failed to create xnode");
+                continue;
+            };
+            tracing::info!(id = xnode_id, url = xnode.url, "created xnode");
+        }
 
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn init_task_jobs(&self) -> Result<()> {
         let tasks = self
             .taos_conn
             .query::<sql_types::TaskRecord>("SHOW XNODE TASKS")
@@ -225,7 +264,6 @@ impl Controller {
             .query::<sql_types::JobRecord>("SHOW XNODE JOBS")
             .await
             .context(ShowJobsSqlSnafu)?;
-
         // taosd 原子任务的状态
         let mut db_status_configs = HashMap::with_capacity(tasks.len() + jobs.len());
         // taosd 任务状态
@@ -248,6 +286,7 @@ impl Controller {
                 from: task.from,
                 to: task.to,
                 parser,
+                via: task.via,
             };
             db_status_configs.insert((task_id, -1), (xnode_id, task.status, config.clone()));
         }
@@ -257,14 +296,8 @@ impl Controller {
                 serde_json::from_str(&job.config).context(DeserializeJobConfigSnafu)?;
             db_status_configs.insert((task_id, job_id), (job.xnode_id, job.status, config));
         }
-
-        for xnode in xnodes {
-            let xnode_id = xnode.id;
-            if let Err(e) = self.create_xnode(xnode_id, &xnode.url).await {
-                tracing::error!(id = xnode_id, url = xnode.url, error = %e, "failed to create xnode");
-                continue;
-            };
-            tracing::info!(id = xnode_id, url = xnode.url, "created xnode");
+        let xnodes = self.xnodes.availables();
+        for xnode_id in xnodes {
             let Some(client) = self.xnodes.get_client(xnode_id) else {
                 tracing::error!("xnode {xnode_id} not available, skip list task states");
                 continue;
@@ -350,7 +383,7 @@ impl Controller {
                 }
 
                 if let Err(e) = self
-                    .start_job(task_id, job_id, xnode_id, config.clone())
+                    .start_task_job(xnode_id, task_id, job_id, config.clone())
                     .await
                 {
                     tracing::error!(
@@ -364,6 +397,35 @@ impl Controller {
             }
         }
 
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn init_agents(&self) -> Result<()> {
+        let agents = self
+            .taos_conn
+            .query::<sql_types::AgentRecord>("SHOW XNODE AGENTS")
+            .await
+            .context(ShowAgentsSnafu)?;
+        for agent in &agents {
+            self.agents.add(agent.id, &agent.token);
+        }
+
+        let tokens = agents.into_iter().map(|v| v.token).collect::<Vec<_>>();
+        let xnodes = self.xnodes.availables();
+        for xnode_id in xnodes {
+            let Some(client) = self.xnodes.get_client(xnode_id) else {
+                continue;
+            };
+            tracing::info!(xnode_id, "add agents on xnode");
+            if let Err(e) = client.add_agents(&tokens).await {
+                tracing::error!(
+                    xnode_id,
+                    "failed to init agents on xnode: {:#}",
+                    anyhow::Error::new(e)
+                );
+            }
+        }
         Ok(())
     }
 
@@ -424,34 +486,45 @@ impl Controller {
         let (reconnect_tx, reconnect_rx) = flume::bounded(1);
         let cancel = self.cancel.child_token();
         let mut handle = JoinSet::new();
-        handle.spawn(heartbeat_loop(
-            id,
-            xnoded_id.clone(),
-            self.xnodes.clone(),
-            reconnect_tx.clone(),
-            self.rebalance_tx.clone(),
-            cancel.clone(),
-        ));
-        handle.spawn(event_loop(
-            id,
-            self.taos_dsn.clone(),
-            self.xnodes.clone(),
-            self.tasks.clone(),
-            reconnect_tx,
-            self.rebalance_tx.clone(),
-            cancel.clone(),
-        ));
-        handle.spawn(reconnect_loop(
-            id,
-            xnoded_id,
-            addr,
-            endpoint,
-            self.xnodes.clone(),
-            self.tasks.clone(),
-            self.taos_dsn.clone(),
-            reconnect_rx,
-            cancel.clone(),
-        ));
+        handle.spawn(
+            heartbeat_loop(
+                id,
+                xnoded_id.clone(),
+                self.xnodes.clone(),
+                reconnect_tx.clone(),
+                self.rebalance_tx.clone(),
+                cancel.clone(),
+            )
+            .in_current_span(),
+        );
+        handle.spawn(
+            event_loop(
+                id,
+                self.taos_dsn.clone(),
+                self.xnodes.clone(),
+                self.agents.clone(),
+                self.tasks.clone(),
+                reconnect_tx,
+                self.rebalance_tx.clone(),
+                cancel.clone(),
+            )
+            .in_current_span(),
+        );
+        handle.spawn(
+            reconnect_loop(
+                id,
+                xnoded_id,
+                addr,
+                endpoint,
+                self.xnodes.clone(),
+                self.agents.clone(),
+                self.tasks.clone(),
+                self.taos_dsn.clone(),
+                reconnect_rx,
+                cancel.clone(),
+            )
+            .in_current_span(),
+        );
         self.xnodes.set_handle(id, handle, cancel);
         Ok(())
     }
@@ -500,8 +573,10 @@ impl Controller {
             return Ok(());
         }
         let tasks = self.tasks.del_xnode_jobs(id);
-        let xnode_id = self.xnodes.best_xnode().context(NoAvailableXnodeSnafu)?;
+
         for ((task_id, job_id), config) in tasks {
+            let via = config.config.via;
+            let xnode_id = self.xnodes.best_xnode(via).context(NoAvailableXnodeSnafu)?;
             self.start_task_job(xnode_id, task_id, job_id, config.config)
                 .await?;
         }
@@ -541,75 +616,7 @@ impl Controller {
 
     #[instrument(skip_all)]
     pub async fn task_status(&self, tid: i64) -> Result<ListTaskJobStatesResult> {
-        let mut task_status = Vec::new();
-        let xnodes = self.xnodes.all();
-        for xnode_id in xnodes {
-            let Some(client) = self.xnodes.get_client(xnode_id) else {
-                tracing::warn!("xnode offline or not found");
-                continue;
-            };
-            let x_states = match client.list_task_job_states().await {
-                Ok(states) => states,
-                Err(e) => {
-                    tracing::error!(
-                        xnode_id,
-                        "failed to list task job states: {:#}",
-                        anyhow::Error::new(e)
-                    );
-                    continue;
-                }
-            };
-            task_status.extend(&x_states);
-            // 设置内存状态和数据库状态
-            for ListTaskJobStatesParam {
-                task_id,
-                job_id,
-                state,
-            } in x_states
-            {
-                if task_id != tid {
-                    continue;
-                }
-                self.tasks.set_status(task_id, job_id, state);
-                let sql = if job_id < 0 {
-                    format!("ALTER XNODE TASK {task_id} WITH STATUS '{state}'",)
-                } else {
-                    format!("ALTER XNODE JOB {job_id} WITH STATUS '{state}'")
-                };
-                if let Err(e) = self.taos_conn.exec(&sql).await {
-                    tracing::error!(
-                        xnode_id,
-                        task_id,
-                        job_id,
-                        "failed to update task/job status: {:#}",
-                        anyhow::Error::new(e)
-                    );
-                }
-            }
-        }
-
-        if self.tasks.task_has_jobs(tid) {
-            let sql = if self.tasks.is_stopped(tid) {
-                format!(
-                    "ALTER XNODE TASK {tid} WITH STATUS '{}'",
-                    TaskStatus::Stopped
-                )
-            } else {
-                format!(
-                    "ALTER XNODE TASK {tid} WITH STATUS '{}'",
-                    TaskStatus::Running
-                )
-            };
-            if let Err(e) = self.taos_conn.exec(&sql).await {
-                tracing::error!(
-                    task_id = tid,
-                    "failed to update task status: {:#}",
-                    anyhow::Error::new(e)
-                );
-            }
-        }
-
-        Ok(task_status)
+        Ok(update_task_status(&self.taos_conn, &self.xnodes, &self.tasks, Some(tid)).await)
     }
 
     #[instrument(skip_all)]
@@ -631,55 +638,40 @@ impl Controller {
             from: task.from.clone(),
             to: task.to.clone(),
             parser: parser.clone(),
+            via: task.via,
         };
         match task.xnode_id {
             Some(xnode_id) => {
                 // 停掉旧任务
+                let sql = format!("SHOW XNODE TASKS WHERE ID = {task_id}");
                 let db_task = self
                     .taos_conn
-                    .query::<sql_types::TaskRecord>("SHOW XNODE TASKS")
+                    .query_one::<sql_types::TaskRecord>(&sql)
                     .await
-                    .context(ShowJobsSqlSnafu)?
-                    .into_iter()
-                    .find(|v| v.id == task_id);
+                    .context(ShowJobsSqlSnafu)?;
                 if let Some(task) = db_task
                     && let Some(xnode_id) = task.xnode_id
                 {
                     self.stop_job(task_id, -1, xnode_id).await?;
                 }
                 // 启动新任务
-                let client = self
-                    .xnodes
-                    .get_client(xnode_id)
-                    .context(XnodeNotAvailableSnafu { xnode_id })?;
-                let param = StartTaskJobParam {
+                let config = task.try_into().context(InvalidTaskParserSnafu)?;
+                start_task(
+                    xnode_id,
                     task_id,
-                    job_id: -1,
-                    from: task.from.clone(),
-                    to: task.to.clone(),
-                    parser: parser.clone(),
-                    via: None,
-                };
-                client
-                    .start_task_job(&param)
-                    .await
-                    .context(StartTaskJobSnafu {
-                        xnode_id,
-                        task_id,
-                        job_id: -1,
-                    })?;
-                self.tasks
-                    .add(task_id, -1, xnode_id, config, None)
-                    .context(InvalidTaskDsnSnafu {
-                        task_id,
-                        job_id: -1,
-                    })?;
+                    &self.xnodes,
+                    &self.tasks,
+                    &self.taos_conn,
+                    config,
+                )
+                .await?;
             }
             None => {
                 // delete all jobs first
+                let sql = format!("SHOW XNODE JOBS WHERE TASK_ID = {task_id}");
                 let job_ids = self
                     .taos_conn
-                    .query::<sql_types::JobId>("SHOW XNODE JOBS")
+                    .query::<sql_types::JobId>(&sql)
                     .await
                     .context(ShowJobsSqlSnafu)?;
                 for job_id in job_ids {
@@ -718,7 +710,8 @@ impl Controller {
                 let split_config = client.plan_task(&config).await.context(PlanTaskSnafu {
                     xnode_id: plan_xnode_id,
                 })?;
-                let jobs = alloc_jobs(split_config, &self.xnodes).context(SplitJobSnafu)?;
+                let jobs =
+                    alloc_jobs(split_config, &self.xnodes, task.via).context(SplitJobSnafu)?;
                 tracing::debug!(?jobs, "alloc jobs result");
                 match jobs {
                     AllocatedJobs::Task(xnode_id, task) => {
@@ -729,27 +722,31 @@ impl Controller {
                         for (xnode_id, config) in jobs {
                             let job_config =
                                 serde_json::to_string(&config).context(SerializeJobConfigSnafu)?;
-                            let sql = format!(
-                                "CREATE XNODE JOB ON {task_id} WITH config '{job_config}' xnode_id {xnode_id}"
+                            let mut sql = format!(
+                                "CREATE XNODE JOB ON {task_id} WITH CONFIG '{job_config}' XNODE_ID {xnode_id}"
                             );
+                            if let Some(via) = config.via {
+                                sql.push_str(&format!(" VIA {via}"));
+                            }
                             self.taos_conn.exec(&sql).await.context(CreateJobSqlSnafu)?;
                             created_jobs.push((xnode_id, config));
                         }
                         tracing::debug!(task_id, "created db jobs");
                         // get job id
-                        let job_ids = self
+                        let sql = format!("SHOW XNODE JOBS WHERE TASK_ID = {task_id}");
+                        let db_jobs = self
                             .taos_conn
-                            .query::<sql_types::JobRecord>("SHOW XNODE JOBS")
+                            .query::<sql_types::JobRecord>(&sql)
                             .await
                             .context(ShowJobsSqlSnafu)?;
-                        for job in job_ids {
+                        for job in db_jobs {
                             if job.task_id != task_id {
                                 continue;
                             }
                             let job_id = job.id;
                             let xnode_id = job.xnode_id;
-                            let job_config = serde_json::from_str::<HaTask>(&job.config)
-                                .context(DeserializeJobConfigSnafu)?;
+
+                            let job_config = job.try_into().context(DeserializeJobConfigSnafu)?;
                             if let Err(e) =
                                 self.start_job(task_id, job_id, xnode_id, job_config).await
                             {
@@ -809,21 +806,11 @@ impl Controller {
 
     #[instrument(skip_all)]
     pub async fn drop_task(&self, task_id: i64) -> Result<()> {
-        let jobs = self
-            .taos_conn
-            .query::<sql_types::JobId>("SHOW XNODE JOBS")
+        let sql = format!("DROP XNODE JOB WHERE TASK_ID = {task_id}");
+        self.taos_conn
+            .exec(&sql)
             .await
-            .context(ShowJobsSqlSnafu)?;
-        for job_id in jobs
-            .iter()
-            .filter_map(|v| (v.task_id == task_id).then_some(v.id))
-        {
-            let sql = format!("DROP XNODE JOB {job_id}");
-            self.taos_conn
-                .exec(&sql)
-                .await
-                .context(DropJobsSqlSnafu { task_id })?;
-        }
+            .context(DropJobsSqlSnafu { task_id })?;
         self.stop_by_task(task_id, true).await?;
         Ok(())
     }
@@ -885,6 +872,7 @@ impl Controller {
         let param = CheckValidParam {
             from: from.clone(),
             to: to.clone(),
+            via: task.via,
         };
         client
             .check_valid(&param)
@@ -903,13 +891,12 @@ impl Controller {
                     job_id,
                     "rebalance manually but job not found, load from db"
                 );
+                let sql = format!("SHOW XNODE JOBS WHERE ID = {job_id} AND TASK_ID = {task_id}");
                 let Some(job) = self
                     .taos_conn
-                    .query::<sql_types::JobRecord>("SHOW XNODE JOBS")
+                    .query_one::<sql_types::JobRecord>(&sql)
                     .await
                     .context(ShowJobsSqlSnafu)?
-                    .into_iter()
-                    .find(|job| job.task_id == task_id && job.id == job_id)
                 else {
                     return TaskJobNotExistsSnafu { task_id, job_id }.fail();
                 };
@@ -951,12 +938,15 @@ impl Controller {
 
             match job_id {
                 Some(job_id) => {
-                    let best_xnode_id = self.xnodes.best_xnode().context(NoAvailableXnodeSnafu)?;
                     let job_id = *job_id;
                     let job = self
                         .tasks
                         .job(task_id, job_id)
                         .context(TaskJobNotExistsSnafu { task_id, job_id })?;
+                    let best_xnode_id = self
+                        .xnodes
+                        .best_xnode(job.config.via)
+                        .context(NoAvailableXnodeSnafu)?;
                     if job.xnode_id == best_xnode_id || job.manually_rebalance {
                         continue;
                     }
@@ -964,14 +954,12 @@ impl Controller {
                         .await?;
                 }
                 None => {
-                    let sql = format!("SHOW XNODE TASK {task_id}");
+                    let sql = format!("SHOW XNODE TASKS WHERE ID = {task_id}");
                     let Some(task) = self
                         .taos_conn
-                        .query::<sql_types::TaskRecord>(&sql)
+                        .query_one::<sql_types::TaskRecord>(&sql)
                         .await
                         .context(ShowTasksSqlSnafu)?
-                        .into_iter()
-                        .find(|v| v.id == task_id)
                     else {
                         continue;
                     };
@@ -980,12 +968,103 @@ impl Controller {
                         from: task.from,
                         to: task.to,
                         parser: task.parser,
+                        via: task.via,
                     };
                     self.plan_start_task(task_id, &param).await?;
                 }
             }
         }
         Ok(())
+    }
+
+    #[instrument(skip_all)]
+    pub async fn add_agent(&self, token: &str) -> Result<()> {
+        let claims = jwt::agent::jwt_decode(token).context(AgentJwtDecodeSnafu)?;
+        self.agents.add(claims.sub, token);
+
+        let xnodes = self.xnodes.availables();
+        let param = vec![token.into()];
+
+        for xnode_id in xnodes {
+            let Some(client) = self.xnodes.get_client(xnode_id) else {
+                continue;
+            };
+            tracing::info!("adding agent to xnode {}", xnode_id);
+            if let Err(e) = client.add_agents(&param).await {
+                tracing::error!(
+                    xnode_id,
+                    "Failed to add agent to xnode: {:#}",
+                    anyhow::Error::new(e)
+                );
+                continue;
+            };
+        }
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    pub async fn del_agent(&self, id: i64) -> Result<()> {
+        self.agents.del(id);
+        remove_cached_agent_state(id);
+
+        let xnodes = self.xnodes.availables();
+        for xnode_id in xnodes {
+            self.xnodes.del_agent(xnode_id, id);
+            let Some(client) = self.xnodes.get_client(xnode_id) else {
+                continue;
+            };
+            tracing::info!("deleting agent from xnode {}", xnode_id);
+            if let Err(e) = client.del_agents(&[id]).await {
+                tracing::error!(
+                    xnode_id,
+                    "Failed to delete agent from xnode: {:#}",
+                    anyhow::Error::new(e)
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    pub async fn agent_status(&self) -> Result<HashMap<i64, Vec<AgentStatusResult>>> {
+        let xnodes = self.xnodes.availables();
+        let mut res: HashMap<i64, Vec<AgentStatusResult>> = HashMap::new();
+        for xnode_id in xnodes {
+            let Some(client) = self.xnodes.get_client(xnode_id) else {
+                continue;
+            };
+            let agents = match client.list_agents().await {
+                Ok(res) => res,
+                Err(e) => {
+                    tracing::error!(
+                        xnode_id,
+                        "Failed to list agents from xnode: {:#}",
+                        anyhow::Error::new(e)
+                    );
+                    continue;
+                }
+            };
+            self.xnodes.clear_xnode_agents(xnode_id);
+            for agent in agents {
+                self.xnodes
+                    .set_agent_status(xnode_id, agent.id, agent.status);
+                let item = AgentStatusResult {
+                    xnode_id,
+                    status: agent.status,
+                };
+                res.entry(agent.id)
+                    .and_modify(|v| v.push(item.clone()))
+                    .or_insert(vec![item]);
+            }
+        }
+        // update db
+        for agent_id in res.keys() {
+            if !self.agents.has(*agent_id) {
+                continue;
+            }
+            update_agent_status(&self.taos_conn, &self.xnodes, *agent_id).await;
+        }
+        Ok(res)
     }
 }
 
@@ -1030,7 +1109,7 @@ pub async fn start_task(
         from: config.from,
         to: config.to,
         parser: config.parser,
-        via: None,
+        via: config.via,
     };
     client
         .start_task_job(&param)
@@ -1071,7 +1150,7 @@ pub async fn start_job(
         from: config.from,
         to: config.to,
         parser: config.parser,
-        via: None,
+        via: config.via,
     };
     client
         .start_task_job(&param)
@@ -1111,4 +1190,134 @@ async fn wait_xnode_complete(xnodes: XNodes, id: i32) {
             }
         }
     }
+}
+
+static AGENT_STATUS: LazyLock<RwLock<HashMap<i64, AgentStatus>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+
+fn get_cached_agent_state(agent_id: i64) -> Option<AgentStatus> {
+    AGENT_STATUS.read().get(&agent_id).copied()
+}
+
+fn set_cached_agent_state(agent_id: i64, state: AgentStatus) {
+    AGENT_STATUS.write().insert(agent_id, state);
+}
+
+fn remove_cached_agent_state(agent_id: i64) {
+    AGENT_STATUS.write().remove(&agent_id);
+}
+
+#[instrument(skip_all)]
+pub async fn update_agent_status(conn: &TaosConn, xnodes: &XNodes, agent_id: i64) {
+    let state = xnodes.agent_status(agent_id);
+
+    let state = match get_cached_agent_state(agent_id) {
+        Some(old_state) => {
+            if old_state != state {
+                state
+            } else {
+                return;
+            }
+        }
+        None => {
+            set_cached_agent_state(agent_id, state);
+            state
+        }
+    };
+
+    let sql = format!("ALTER XNODE AGENT {agent_id} WITH STATUS '{state}'");
+    if let Err(e) = conn.exec(&sql).await {
+        tracing::error!("Failed to update agent status: {:#}", anyhow::Error::new(e));
+    }
+}
+
+#[instrument(skip_all)]
+pub async fn update_task_status(
+    conn: &TaosConn,
+    xnodes: &XNodes,
+    tasks: &Tasks,
+    tid: Option<i64>,
+) -> ListTaskJobStatesResult {
+    let mut task_status = Vec::new();
+    let all_xnodes = xnodes.all();
+    for xnode_id in all_xnodes {
+        let Some(client) = xnodes.get_client(xnode_id) else {
+            tracing::warn!("xnode offline or not found");
+            continue;
+        };
+        let x_states = match client.list_task_job_states().await {
+            Ok(states) => states,
+            Err(e) => {
+                tracing::error!(
+                    xnode_id,
+                    "failed to list task job states: {:#}",
+                    anyhow::Error::new(e)
+                );
+                continue;
+            }
+        };
+        task_status.extend(&x_states);
+        // 设置内存状态和数据库状态
+        for ListTaskJobStatesParam {
+            task_id,
+            job_id,
+            state,
+        } in x_states
+        {
+            if tid.is_some_and(|v| v != task_id) {
+                continue;
+            }
+            if event::get_job_status(task_id, job_id).is_some_and(|v| v == state) {
+                continue;
+            }
+            tasks.set_status(task_id, job_id, state);
+            let sql = if job_id < 0 {
+                format!("ALTER XNODE TASK {task_id} WITH STATUS '{state}'",)
+            } else {
+                format!("ALTER XNODE JOB {job_id} WITH STATUS '{state}'")
+            };
+            if let Err(e) = conn.exec(&sql).await {
+                tracing::error!(
+                    xnode_id,
+                    task_id,
+                    job_id,
+                    "failed to update task/job status: {:#}",
+                    anyhow::Error::new(e)
+                );
+            } else {
+                event::set_job_status(task_id, job_id, state);
+            }
+        }
+    }
+
+    let tids = match tid {
+        Some(tid) => vec![tid],
+        None => tasks.all_tasks(),
+    };
+    for tid in tids {
+        if !tasks.task_has_jobs(tid) {
+            continue;
+        }
+        let state = if tasks.is_stopped(tid) {
+            TaskStatus::Stopped
+        } else {
+            TaskStatus::Running
+        };
+        let old_state = event::get_task_status(tid);
+        if old_state.is_some_and(|v| v == state) {
+            continue;
+        }
+        let sql = format!("ALTER XNODE TASK {tid} WITH STATUS '{state}'",);
+        if let Err(e) = conn.exec(&sql).await {
+            tracing::error!(
+                task_id = tid,
+                "failed to update task status: {:#}",
+                anyhow::Error::new(e)
+            );
+        } else {
+            event::set_task_status(tid, state);
+        }
+    }
+
+    task_status
 }

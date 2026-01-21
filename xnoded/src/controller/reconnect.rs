@@ -10,7 +10,8 @@ use tracing::instrument;
 
 use crate::{
     controller::{
-        BuildTaosConnSnafu, Result, sql_types, start_task_job, tasks::Tasks, xnodes::XNodes,
+        BuildTaosConnSnafu, Result, agents::Agents, sql_types, start_job, start_task, tasks::Tasks,
+        xnodes::XNodes,
     },
     utils::taos_conn::TaosConn,
 };
@@ -22,6 +23,7 @@ pub async fn reconnect_loop(
     addr: String,
     endpoint: Endpoint,
     xnodes: XNodes,
+    agents: Agents,
     tasks: Tasks,
     taos_dsn: Dsn,
     reconnect_rx: flume::Receiver<oneshot::Sender<bool>>,
@@ -54,8 +56,11 @@ pub async fn reconnect_loop(
         )
         .await;
 
+        // 重连成功后，重新发送 agent
+        resend_agents(id, &xnodes, &agents).await;
+
         // 重连成功后，重新发送任务
-        restart_job(id, &xnodes, &tasks, &taos_conn, cancel.child_token()).await;
+        restart_task_job(id, &xnodes, &tasks, &taos_conn, cancel.child_token()).await;
     }
     Ok(())
 }
@@ -94,7 +99,22 @@ async fn reconnect(
 }
 
 #[instrument(skip_all)]
-async fn restart_job(
+async fn resend_agents(xnode_id: i32, xnodes: &XNodes, agents: &Agents) {
+    let Some(client) = xnodes.get_client(xnode_id) else {
+        return;
+    };
+    let tokens = agents.all_tokens();
+    if let Err(e) = client.add_agents(&tokens).await {
+        tracing::error!(
+            xnode_id,
+            "add agent tokens error: {:#}",
+            anyhow::Error::new(e)
+        );
+    }
+}
+
+#[instrument(skip_all)]
+async fn restart_task_job(
     xnode_id: i32,
     xnodes: &XNodes,
     tasks: &Tasks,
@@ -105,15 +125,94 @@ async fn restart_job(
         return;
     }
 
-    let jobs = match conn.query::<sql_types::JobRecord>("SHOW XNODE JOBS").await {
-        Ok(job) => job,
+    restart_tasks(xnode_id, xnodes, tasks, conn, cancel.clone()).await;
+    restart_jobs(xnode_id, xnodes, tasks, conn, cancel).await
+}
+
+#[instrument(skip_all)]
+async fn restart_tasks(
+    xnode_id: i32,
+    xnodes: &XNodes,
+    tasks: &Tasks,
+    conn: &Arc<TaosConn>,
+    cancel: CancellationToken,
+) {
+    let sql = format!("SHOW XNODE JOBS WHERE XNODE_ID = {xnode_id}");
+    let db_tasks = match conn.query::<sql_types::TaskRecord>(&sql).await {
+        Ok(tasks) => tasks,
         Err(e) => {
             tracing::error!("show xnode jobs error: {:#}", anyhow::Error::new(e));
             return;
         }
     };
 
-    for job in jobs {
+    for task in db_tasks {
+        if task.status.is_none_or(|v| !v.is_running()) {
+            continue;
+        }
+        if task.xnode_id.is_none_or(|v| v != xnode_id) {
+            continue;
+        }
+        let task_id = task.id;
+        let parser = match task.parser.map(|v| serde_json::from_str(&v)).transpose() {
+            Ok(parser) => parser,
+            Err(e) => {
+                tracing::error!("parse task parser error: {e}",);
+                continue;
+            }
+        };
+        let config = HaTask {
+            from: task.from,
+            to: task.to,
+            parser,
+            via: task.via,
+        };
+
+        tokio::spawn({
+            let xnodes = xnodes.clone();
+            let tasks = tasks.clone();
+            let conn = conn.clone();
+            let cancel = cancel.clone();
+            async move {
+                let Some(res) = cancel
+                    .run_until_cancelled(start_task(
+                        xnode_id, task_id, &xnodes, &tasks, &conn, config,
+                    ))
+                    .await
+                else {
+                    return;
+                };
+                if let Err(e) = res {
+                    tracing::error!(
+                        task_id,
+                        xnode_id,
+                        "start task error: {:#}",
+                        anyhow::Error::new(e)
+                    );
+                }
+            }
+        });
+    }
+}
+
+#[instrument(skip_all)]
+async fn restart_jobs(
+    xnode_id: i32,
+    xnodes: &XNodes,
+    tasks: &Tasks,
+    conn: &Arc<TaosConn>,
+    cancel: CancellationToken,
+) {
+    let sql = format!("SHOW XNODE JOBS WHERE XNODE_ID = {xnode_id}");
+    let db_jobs = match conn.query::<sql_types::JobRecord>(&sql).await {
+        Ok(jobs) => jobs,
+        Err(e) => {
+            tracing::error!("show xnode jobs error: {:#}", anyhow::Error::new(e));
+            return;
+        }
+    };
+
+    for job in db_jobs {
         if job.status.is_none_or(|v| !v.is_running()) {
             continue;
         }
@@ -140,7 +239,7 @@ async fn restart_job(
             let cancel = cancel.clone();
             async move {
                 let Some(res) = cancel
-                    .run_until_cancelled(start_task_job(
+                    .run_until_cancelled(start_job(
                         xnode_id, task_id, job_id, &xnodes, &tasks, &conn, config,
                     ))
                     .await
@@ -152,7 +251,7 @@ async fn restart_job(
                         task_id,
                         job_id,
                         xnode_id,
-                        "start task job error: {:#}",
+                        "start job error: {:#}",
                         anyhow::Error::new(e)
                     );
                 }

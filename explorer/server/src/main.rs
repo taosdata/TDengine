@@ -67,23 +67,14 @@ use tracing_subscriber::{
 
 use sql::need_limit;
 
-use crate::security::SecurityConfig;
-use crate::utils::xor::TimeBasedXor;
 use crate::{
     oauth::{SessionManager, middleware::TsdbCredential},
+    security::SecurityConfig,
+    utils::xor::TimeBasedXor,
     x_api::{
-        agent::get_agents,
-        datasource::{get_sample, validate},
-        tasks::{
-            batch_delete_tasks, batch_start_tasks, batch_stop_tasks, create_task, delete_task,
-            export_task, get_task, get_task_metrics, get_tasks, import_task, start_task, stop_task,
-            update_task,
-        },
-        transform::{sample_flat, stable_preview},
-        ws::{get_ws_agents_activities, get_ws_metrics, get_ws_tasks_activities},
+        agent::*, datasource::*, get_x_url, proxy::x_proxy, tasks::*, transform::*, ws::*, x_addrs,
     },
 };
-use x_api::proxy::x_proxy;
 
 mod favorites;
 mod monitor;
@@ -325,16 +316,10 @@ async fn main() -> anyhow::Result<()> {
 
     const EXPLORER_PORT: u16 = 6060;
     const EXPLORER_CLUSTER: &str = "http://localhost:6041";
-    const EXPLORER_X_PAI: &str = "http://localhost:6050";
-    const EXPLORER_GRPC: &str = "http://localhost:6055";
     args.port.get_or_insert(EXPLORER_PORT);
     args.profile
         .cluster
         .get_or_insert(EXPLORER_CLUSTER.to_string());
-    if cfg!(not(feature = "disable-x-api")) {
-        args.profile.x_api.get_or_insert(EXPLORER_X_PAI.to_string());
-        args.profile.grpc.get_or_insert(EXPLORER_GRPC.to_string());
-    }
 
     let port = args.port.unwrap();
 
@@ -491,6 +476,13 @@ async fn main() -> anyhow::Result<()> {
             )
             // agents
             .route("/api/x/agents", web::get().to(get_agents))
+            .route("/api/x/agents", web::post().to(add_agent))
+            .route("/api/x/agents/{agent_id}", web::delete().to(del_agent))
+            .route("/api/x/agents/{agent_id}", web::patch().to(edit_agent))
+            .route(
+                "/api/x/agents/{agent_id}/activities",
+                web::get().to(agent_activities),
+            )
             // others
             .route("/api/x/{api:.*}", web::to(x_proxy))
             // ====== x apis end =====
@@ -777,6 +769,35 @@ where
     }
 }
 
+macro_rules! x_url {
+    ($args: expr, $req: expr, $api: literal) => {
+        match get_x_url($args, $req, $api)
+            .await
+            .context("get x url error")
+        {
+            Ok(Some(url)) => url,
+            Ok(None) => return Err(RestErrResponse::new("no available x node found")),
+            Err(e) => return Err(RestErrResponse::new(e)),
+        }
+    };
+    ($args: expr, $req: expr, $api: literal, $resp: expr) => {
+        match get_x_url($args, $req, $api)
+            .await
+            .context("get x url error")
+        {
+            Ok(Some(url)) => url,
+            Ok(None) => {
+                tracing::error!("no available x node found");
+                return Ok(HttpResponse::Ok().json($resp));
+            }
+            Err(e) => {
+                tracing::error!("{e:#}");
+                return Ok(HttpResponse::Ok().json($resp));
+            }
+        }
+    };
+}
+
 /**
  * 检查当前 TDengine 是否已经绑定了手机号或邮箱。
  */
@@ -804,28 +825,22 @@ async fn check_binding(args: web::Data<Args>) -> impl Responder {
     HttpResponse::Ok().json(R::success(is_bound))
 }
 
-#[cfg(feature = "disable-x-api")]
 #[instrument(skip_all)]
-async fn profile(args: web::Data<Args>) -> impl Responder {
-    HttpResponse::Ok().json(&args.profile)
-}
-
-#[cfg(not(feature = "disable-x-api"))]
-#[instrument(skip_all)]
-async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> impl Responder {
-    if args.profile.x_api.is_none() {
-        return HttpResponse::Ok().json(&args.profile);
-    }
-
+async fn profile(
+    args: web::Data<Args>,
+    req: HttpRequest,
+    client: web::Data<reqwest::Client>,
+) -> impl Responder {
     let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
     qid.add_sequence_id();
 
     let mut profile = args.profile.clone();
-    let x = args.profile.x_api.as_deref().unwrap();
-    let url = format!("{x}/profile");
+    let url = x_url!(&args, &req, "profile", profile);
     tracing::debug!(url, "send request to taosx");
-    let client = client.get(url).headers(qid::headers_with_qid(&qid));
-    let client = client.timeout(Duration::from_secs(10));
+    let client = client
+        .get(url)
+        .headers(qid::headers_with_qid(&qid))
+        .timeout(Duration::from_secs(10));
 
     if let Ok(resp) = client.send().await
         && let Ok(json) = resp.json::<serde_json::Value>().await
@@ -836,7 +851,13 @@ async fn profile(args: web::Data<Args>, client: web::Data<reqwest::Client>) -> i
             .replace(version.as_str().unwrap_or_default().into());
     }
 
-    HttpResponse::Ok().json(&profile)
+    let x_addrs = match x_addrs(&args, &req).await {
+        Ok(addrs) => addrs.join(","),
+        Err(e) => return Err(RestErrResponse::new(e)),
+    };
+    profile.grpc = Some(x_addrs);
+
+    Ok(HttpResponse::Ok().json(&profile))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1347,7 +1368,6 @@ async fn get_body_from_payload(mut payload: web::Payload) -> Result<String, Rest
     })
 }
 
-#[cfg(not(feature = "disable-x-api"))]
 #[derive(Deserialize)]
 struct ImportRequest {
     server: String,
@@ -1359,12 +1379,6 @@ struct ImportRequest {
     whitelist: bool,
 }
 
-#[cfg(feature = "disable-x-api")]
-async fn import(_req: HttpRequest) -> impl Responder {
-    Ok::<_, std::convert::Infallible>(HttpResponse::NotFound().body("taosX API is required"))
-}
-
-#[cfg(not(feature = "disable-x-api"))]
 #[instrument(skip_all)]
 async fn import(
     args: web::Data<Args>,
@@ -1373,9 +1387,6 @@ async fn import(
     import: web::Json<ImportRequest>,
     query: Query<HashMap<String, String>>,
 ) -> impl Responder {
-    if args.profile.x_api.is_none() {
-        return Ok(HttpResponse::NotFound().body("taosX API is required"));
-    }
     let auth = oauth::middleware::extract_auth_from_request(&req)
         .await
         .and_then(|auth| auth.ok_or_else(|| "No credentials found in headers".to_string()));
@@ -1405,12 +1416,10 @@ async fn import(
             }
         }
     );
-    let x = args.profile.x_api.as_deref().unwrap();
-    let url = format!("{x}/privileges/migrate");
+    let url = x_url!(&args, &req, "privileges/migrate");
 
     let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
     qid.add_sequence_id();
-    debug!(url, "proxy to taosx");
     client
         .post(url)
         .json(&migrate)
@@ -1474,13 +1483,6 @@ async fn grafana_api(
         .map_err(RestErrResponse::new)
 }
 
-#[cfg(feature = "disable-x-api")]
-#[instrument(skip_all)]
-async fn x_api_doc(_req: HttpRequest) -> impl Responder {
-    Ok::<_, std::convert::Infallible>(HttpResponse::NotFound().body("taosX API is required"))
-}
-
-#[cfg(not(feature = "disable-x-api"))]
 #[instrument(skip_all)]
 async fn x_api_doc(
     req: HttpRequest,
@@ -1488,13 +1490,9 @@ async fn x_api_doc(
     args: web::Data<Args>,
     payload: web::Payload,
 ) -> Result<HttpResponse, RestErrResponse> {
-    if args.profile.x_api.is_none() {
-        return Ok(HttpResponse::NotFound().body("taosX API is required"));
-    }
     let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
 
-    let x = args.profile.x_api.as_deref().unwrap();
-    let url = format!("{x}/api-doc/openapi.json");
+    let url = x_url!(&args, &req, "api-doc/openapi.json");
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
     use tracing::Instrument;

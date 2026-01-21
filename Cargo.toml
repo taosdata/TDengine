@@ -80,24 +80,19 @@ arrow-compute-ext = { path = "crates/arrow-compute-ext" }
 arrow-cast-guess-precision = { path = "crates/arrow-cast-guess-precision" }
 serde_arrow = { version = "0.13", features = ["arrow-55"] }
 parquet = "55"
-
 futures-ext = { path = "crates/futures-ext" }
 dashmap = "6.1.0"
 faststr = { version = "0.2.31", features = ["serde"] }
 rayon = "1"
-
 metrics = "0.24"
 metrics-util = { version = "0.20", features = ["storage"] }
-
 scc = "2"
 tonic = "0.12.3"
 zerocopy = { version = "0.8.18", features = ["derive"] }
 bytes = "1.10.0"
 sysinfo = "0.36"
 serde_with = { version = "3.14", features = ["chrono"] }
-
 serde = "1"
-
 # NOTE: 当前 arrow-json 不兼容 serde_json 的 arbitrary_precision feature，添加需谨慎
 serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
 fundu = "2.0.1"
@@ -106,7 +101,6 @@ rumqttc = "0.25.0"
 rustls = { version = "0.23.18", default-features = false }
 rustls-pemfile = "2"
 rustls-native-certs = "0.8"
-
 snafu = "0.8.5"
 tokio = "1.48"
 notify = "8.1"
@@ -124,7 +118,6 @@ rand = "0.8"
 bitfield = "0.19"
 bigdecimal = "0.4"
 prost = "0.14"
-
 actix-cors = "0.7.0"
 actix-files = "0.6.6"
 actix-multipart = "0.7.2"
@@ -132,11 +125,9 @@ actix-web = { version = "4.9.0", features = ["rustls-0_23"] }
 actix-ws = "0.3.0"
 awc = { version = "3", features = ["rustls-0_23"] }
 async-stream = "0.3"
-
 hex = "0.4.3"
 csv = "1.2"
 csv-async = { version = "1.2.4", features = ["tokio"] }
-
 uuid = "1"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 tiberius = { version = "0.12.2", default-features = false, features = [
@@ -227,6 +218,17 @@ source-postgres.path = "./crates/source-postgres"
 source-oracle.path = "./crates/source-oracle"
 source-mssql.path = "./crates/source-mssql"
 source-kinghistorian.path = "./crates/source-kinghistorian"
+source-historian.path = "./crates/source-historian"
+source-influxdb.path = "./crates/source-influxdb"
+source-opentsdb.path = "./crates/source-opentsdb"
+source-orc.path = "./crates/source-orc"
+source-pi.path = "./crates/source-pi"
+source-pulsar.path = "./crates/source-pulsar"
+source-sparkplugb.path = "./crates/source-sparkplugb"
+taos-to-local.path = "./crates/taos-to-local"
+sink-kafka.path = "./crates/sink-kafka"
+sink-mqtt.path = "./crates/sink-mqtt"
+sink-parquet.path = "./crates/sink-parquet"
 tmq-to-local.path = "./crates/tmq-to-local"
 tmq-to-td.path = "./crates/tmq-to-td"
 legacy-to-taos.path = "./crates/legacy-to-taos"
@@ -238,6 +240,7 @@ reclaim-memory.path = "./crates/reclaim-memory"
 ha-core.path = "./crates/ha-core"
 ha-rpc-client.path = "./crates/ha-rpc-client"
 taosx-utils.path = "./crates/utils"
+source-parquet.path = "./crates/source-parquet"
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
@@ -247,7 +250,7 @@ default-features = false
 features = ["ws", "optin", "deadpool"]
 
 [workspace.package]
-version = "1.11.0"
+version = "2.0.0"
 edition = "2024"
 rust-version = "1.90.0"
 

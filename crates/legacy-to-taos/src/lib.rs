@@ -38,6 +38,7 @@ mod chunks;
 // FIXME: legacy_metric 依赖 core_metrics, 而 core_metrics 又依赖 taosx_core/legacy 的 legacy_metric...
 // pub mod legacy_metric;
 mod scheduler;
+pub mod split_job;
 mod verify;
 // mod tasks;
 

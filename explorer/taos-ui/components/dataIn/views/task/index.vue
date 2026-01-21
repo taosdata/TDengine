@@ -461,11 +461,6 @@ watch(
 );
 
 async function getList() {
-  const activityOfTask: any = {};
-  taskList.value.forEach(item => {
-    activityOfTask[item.id] = item.activities;
-  });
-
   taskList.value = [];
   const result: any = await dataInProps.task.api.getTask('datain');
   // eslint-disable-next-line no-debugger
@@ -499,7 +494,7 @@ async function getList() {
       item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
       item['target'] = item.to_expand?.subject || '';
       item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
-      item['activities'] = reactive(activityOfTask[item.id] || []);
+      item['activities'] = reactive([]);
       // 初始化 healthStatus，后端目前未返回则设为空字符串
       item['healthStatus'] = item.healthStatus || item.health_status || '';
       return item;
@@ -785,8 +780,6 @@ async function refresh() {
   }
   requestIng.value = false;
 
-  // getAgentList(dataInProps.agent.api);
-
   dataSourceTableRef.value.clearSelection();
 }
 
@@ -823,7 +816,7 @@ function handleTaskActivities(activity: ActivitieProps) {
 
       // 保持 activities 数组的长度不超过 10 条
       if (task.activities.length > 10) {
-        task.activities.splice(10, task.activities.length - 10);
+        task.activities.splice(10);
       }
 
       task['healthStatus'] = getHealthStatus(task.activities, task?.healthStatus as string);

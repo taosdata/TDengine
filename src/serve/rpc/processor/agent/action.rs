@@ -7,11 +7,10 @@ use taos::Dsn;
 use taosx_core::utils::get_string_content_from_param_value;
 use taosx_utils::dsn::json_to_dsn;
 use tracing::instrument;
-use uuid::Uuid;
 
 use crate::serve::{
     controller::{AgentAction, Task, TaskControllerRef},
-    rpc::{DataSetsSenders, DsvSenders, StringSenders},
+    rpc::{DataSetsSenders, DsvSenders, SplitTaskSenders, StringSenders},
     utils::csv::encode_csv_config_file,
 };
 
@@ -19,6 +18,7 @@ pub async fn action_to_arrow(
     datasets_senders: &DataSetsSenders,
     dsv_senders: &DsvSenders,
     string_senders: &StringSenders,
+    split_task_senders: &SplitTaskSenders,
     controller: &TaskControllerRef,
     action: AgentAction,
 ) -> anyhow::Result<Option<RecordBatch>> {
@@ -26,16 +26,10 @@ pub async fn action_to_arrow(
         chrono::Utc::now().timestamp_millis(),
     ]));
     let req_id = next_req_id();
-
+    let action_str = action.action_str();
     match action {
-        AgentAction::Run(task_id, job_id, jid, rid) => {
-            tracing::info!(
-                task.id = task_id,
-                task.job_id = job_id,
-                task.jid = %jid,
-                task.rid = rid,
-                "Send run action"
-            );
+        AgentAction::Run(task_id, job_id) => {
+            tracing::info!(task.id = task_id, task.job_id = job_id, "Send run action");
             let task = controller.get_task(task_id, job_id).await;
             if let Some(mut task) = task {
                 // handle dsn(from) params contains file(@)
@@ -47,19 +41,10 @@ pub async fn action_to_arrow(
                     );
                     return Err(err);
                 }
-                #[derive(serde::Serialize)]
-                struct TaskInAgent {
-                    #[serde(flatten)]
-                    task: Task,
-                    jid: Uuid,
-                    rid: u64,
-                }
-                let context: ArrayRef =
-                    Arc::new(StringArray::from_iter_values([serde_json::to_string(
-                        &TaskInAgent { task, jid, rid },
-                    )
-                    .unwrap()]));
-                let action: ArrayRef = Arc::new(StringArray::from_iter_values(["run".to_string()]));
+                let context =
+                    serde_json::to_string(&task).context("Failed to serialize action TaskRun")?;
+                let context: ArrayRef = Arc::new(StringArray::from_iter_values([context]));
+                let action: ArrayRef = Arc::new(StringArray::from_iter_values([action_str]));
                 let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
                 let batch = RecordBatch::try_from_iter(vec![
                     ("ts", ts),
@@ -82,15 +67,15 @@ pub async fn action_to_arrow(
                 job.id = job_id,
                 "Send stop action to task ({task_id},{job_id})"
             );
-            let task = controller.get_task(task_id, job_id).await;
-            if let Some(task) = task {
-                let context: ArrayRef =
-                    Arc::new(StringArray::from_iter_values([serde_json::to_string(
-                        &task,
-                    )
-                    .unwrap()]));
-                let action: ArrayRef =
-                    Arc::new(StringArray::from_iter_values(["stop".to_string()]));
+
+            if controller.get_task(task_id, job_id).await.is_some() {
+                let context = serde_json::to_string(&serde_json::json!({
+                    "id": task_id,
+                    "job_id": job_id
+                }))
+                .context("failed to serialize action TaskStop")?;
+                let context: ArrayRef = Arc::new(StringArray::from_iter_values([context]));
+                let action: ArrayRef = Arc::new(StringArray::from_iter_values([action_str]));
                 let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
                 let batch = RecordBatch::try_from_iter(vec![
                     ("ts", ts),
@@ -113,15 +98,14 @@ pub async fn action_to_arrow(
                 job.id = job_id,
                 "Send suspend action to task ({task_id},{job_id})"
             );
-            let task = controller.get_task(task_id, job_id).await;
-            if let Some(task) = task {
-                let context: ArrayRef =
-                    Arc::new(StringArray::from_iter_values([serde_json::to_string(
-                        &task,
-                    )
-                    .unwrap()]));
-                let action: ArrayRef =
-                    Arc::new(StringArray::from_iter_values(["cancel".to_string()]));
+            if controller.get_task(task_id, job_id).await.is_some() {
+                let context = serde_json::to_string(&serde_json::json!({
+                    "id": task_id,
+                    "job_id": job_id
+                }))
+                .context("failed to serialize action TaskCancel")?;
+                let context: ArrayRef = Arc::new(StringArray::from_iter_values([context]));
+                let action: ArrayRef = Arc::new(StringArray::from_iter_values([action_str]));
                 let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
                 let batch = RecordBatch::try_from_iter(vec![
                     ("ts", ts),
@@ -144,7 +128,7 @@ pub async fn action_to_arrow(
                     &dataset,
                 )
                 .unwrap()]));
-            let action: ArrayRef = Arc::new(StringArray::from_iter_values(["list".to_string()]));
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values([action_str]));
             let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
             let batch = RecordBatch::try_from_iter(vec![
                 ("ts", ts),
@@ -154,16 +138,13 @@ pub async fn action_to_arrow(
             ])
             .context("failed to build record batch")?;
 
-            let datasets_senders = datasets_senders.clone();
             let mut senders = datasets_senders.write();
             senders.insert(req_id, sender);
             Ok(Some(batch))
         }
         AgentAction::Check(dsn, sender) => {
-            let context: ArrayRef = Arc::new(StringArray::from_iter_values([
-                serde_json::to_string(&dsn).unwrap(),
-            ]));
-            let action: ArrayRef = Arc::new(StringArray::from_iter_values(["check".to_string()]));
+            let context: ArrayRef = Arc::new(StringArray::from_iter_values([dsn]));
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values([action_str]));
             let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
             let batch = RecordBatch::try_from_iter(vec![
                 ("ts", ts),
@@ -178,14 +159,10 @@ pub async fn action_to_arrow(
             Ok(Some(batch))
         }
         AgentAction::GetSample(dsn, sender) => {
-            let action: ArrayRef = Arc::new(StringArray::from_iter_values(["sample".to_string()]));
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values([action_str]));
             // modify dsn params
             let dsn = modify_dsn_params_for_get_samples(&dsn).await?.to_string();
-            let context: ArrayRef =
-                Arc::new(StringArray::from_iter_values([serde_json::to_string(&dsn)
-                    .map_err(|err| {
-                        anyhow::format_err!("failed to serialize dsn: {err:#}")
-                    })?]));
+            let context: ArrayRef = Arc::new(StringArray::from_iter_values([dsn]));
             let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
             let batch = RecordBatch::try_from_iter(vec![
                 ("ts", ts),
@@ -200,13 +177,10 @@ pub async fn action_to_arrow(
             Ok(Some(batch))
         }
         AgentAction::PutFile(put_file_req, sender) => {
-            let context: ArrayRef =
-                Arc::new(StringArray::from_iter_values([serde_json::to_string(
-                    &put_file_req,
-                )
-                .unwrap()]));
-            let action: ArrayRef =
-                Arc::new(StringArray::from_iter_values(["put-file".to_string()]));
+            let context = serde_json::to_string(&put_file_req)
+                .context("failed to serialize put file request")?;
+            let context: ArrayRef = Arc::new(StringArray::from_iter_values([context]));
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values([action_str]));
             let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
             let batch = RecordBatch::try_from_iter(vec![
                 ("ts", ts),
@@ -220,14 +194,10 @@ pub async fn action_to_arrow(
             Ok(Some(batch))
         }
         AgentAction::QueryDataSource(query_data_source_req, sender) => {
-            let context: ArrayRef =
-                Arc::new(StringArray::from_iter_values([serde_json::to_string(
-                    &query_data_source_req,
-                )
-                .unwrap()]));
-            let action: ArrayRef = Arc::new(StringArray::from_iter_values([
-                "query-data-source".to_string()
-            ]));
+            let context = serde_json::to_string(&query_data_source_req)
+                .context("failed to serialize query data source request")?;
+            let context: ArrayRef = Arc::new(StringArray::from_iter_values([context]));
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values([action_str]));
             let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
             let batch = RecordBatch::try_from_iter(vec![
                 ("ts", ts),
@@ -238,6 +208,36 @@ pub async fn action_to_arrow(
             .context("failed to build record batch")?;
             let mut senders = string_senders.write();
             senders.insert(req_id, sender);
+            Ok(Some(batch))
+        }
+        AgentAction::SplitTask(task, sender) => {
+            let context =
+                serde_json::to_string(&task).context("failed to serialize split job request")?;
+            let context: ArrayRef = Arc::new(StringArray::from_iter_values([context]));
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values([action_str]));
+            let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+            let batch = RecordBatch::try_from_iter(vec![
+                ("ts", ts),
+                ("action", action),
+                ("context", context),
+                ("req_id", req_id_array),
+            ])
+            .context("failed to build record batch")?;
+            let mut senders = split_task_senders.write();
+            senders.insert(req_id, sender);
+            Ok(Some(batch))
+        }
+        AgentAction::Exit => {
+            let context: ArrayRef = Arc::new(StringArray::from_iter_values([""]));
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values([action_str]));
+            let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+            let batch = RecordBatch::try_from_iter(vec![
+                ("ts", ts),
+                ("action", action),
+                ("context", context),
+                ("req_id", req_id_array),
+            ])
+            .context("failed to build record batch")?;
             Ok(Some(batch))
         }
     }

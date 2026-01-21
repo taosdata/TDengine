@@ -162,12 +162,11 @@ const isNameError = computed(() => {
 //   return dataInProps.taoxAddress;
 // });
 const toml = computed(() => {
-  const addr = dataInProps.taoxAddress;
-  const { token, ca } = tokenMap[name.value];
+  const { token, ca, x_addrs } = tokenMap[name.value];
   if (ca) {
-    return `endpoint="${addr}"\ntoken="${token}"\nca="""\n${trim(ca)}\n"""\n`;
+    return `endpoint="${x_addrs}"\ntoken="${token}"\nca="""\n${trim(ca)}\n"""\n`;
   } else {
-    return `endpoint="${addr}"\ntoken="${token}"\n`;
+    return `endpoint="${x_addrs}"\ntoken="${token}"\n`;
   }
 });
 const nextButton = computed(() => {
@@ -205,10 +204,10 @@ async function submit() {
   loading.value = true;
   const fn = props.agent?.id ? dataInProps.agent.api.editAgent : dataInProps.agent.api.addNewAgent;
 
-  const { token, id, ca } = await fn(name.value, props.agent?.id);
-  tokenMap[name.value] = { token, ca };
+  const { token, id, ca, x_addrs } = await fn(name.value, props.agent?.id);
+  tokenMap[name.value] = { token, ca, x_addrs };
   active.value++;
-  emit('update', name.value);
+  emit('update', id);
   Object.assign(
     props.agent,
     props.agentList.find(item => item.id == id)

@@ -18,21 +18,32 @@ pub async fn start_rebalancer(
         if controller.xnodes().is_online(xid) {
             continue;
         }
-        let Some(xnode_id) = xnodes.best_xnode() else {
-            continue;
-        };
+
         let jobs = tasks.xnode_jobs(xid);
         if jobs.is_empty() {
             continue;
         }
-        if xid == xnode_id {
-            continue;
-        }
-        tracing::info!("rebalancing tasks from {} to xnode {}", xid, xnode_id);
+
         for (task_id, job_id) in jobs {
             let Some(config) = tasks.job(task_id, job_id) else {
                 continue;
             };
+            if config.should_skip_rebalance() {
+                continue;
+            }
+            let Some(xnode_id) = xnodes.best_xnode(config.config.via) else {
+                continue;
+            };
+            if xid == xnode_id {
+                continue;
+            }
+            tracing::info!(
+                task_id,
+                job_id,
+                "rebalancing task from {} to xnode {}",
+                xid,
+                xnode_id
+            );
             let start_task_fut =
                 controller.start_task_job(xnode_id, task_id, job_id, config.config);
             let Some(res) = cancel.run_until_cancelled(start_task_fut).await else {

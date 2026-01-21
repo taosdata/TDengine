@@ -3,7 +3,8 @@ use actix_web::{
     web::{self, Json},
 };
 use anyhow::Context;
-use taosx_utils::dsn::json_to_dsn;
+use ha_core::types::GetSamplesParam;
+use taosx_utils::dsn::{json_to_dsn, parse_simple_params};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -23,7 +24,8 @@ pub async fn validate(
 ) -> JsonResult<serde_json::Value> {
     let dsn = get_dsn(&args, &req).await?;
     let cancel = CancellationToken::new();
-    let (client, _event_rx) = get_one_client(&dsn, cancel.clone())
+    let _guard = cancel.drop_guard_ref();
+    let client = get_one_client(&dsn, param.via, cancel.clone())
         .await?
         .context("no available xnode found")?;
 
@@ -45,14 +47,20 @@ pub async fn get_sample(
     Json(param): Json<ApiGetSampleParam>,
     req: HttpRequest,
 ) -> JsonResult<serde_json::Value> {
+    let from = json_to_dsn(&param.dsn)?;
+    let via = parse_simple_params::<i64>(&from, "agent")?;
     let dsn = get_dsn(&args, &req).await?;
     let cancel = CancellationToken::new();
-    let (client, _event_rx) = get_one_client(&dsn, cancel.clone())
+    let _guard = cancel.drop_guard_ref();
+    let client = get_one_client(&dsn, via, cancel.clone())
         .await?
         .context("no available xnode found")?;
     let from = json_to_dsn(&param.dsn).context("invalid `from` param")?;
     let samples = client
-        .get_samples(&from.to_string())
+        .get_samples(&GetSamplesParam {
+            from: from.to_string(),
+            via,
+        })
         .await
         .context("get sample error")?;
 

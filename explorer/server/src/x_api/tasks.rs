@@ -5,21 +5,22 @@ use actix_web::{
     HttpRequest, Responder, ResponseError,
     web::{self, Data, Json, Path, Query},
 };
-use anyhow::Context;
+use anyhow::{Context, bail};
 use chrono::Local;
 use ha_core::{
+    activity::TaskStatus,
     consts::TASK_METRICS_STABLE,
-    types::{HaTask, TaskStatus},
+    types::{HaTask, MetricsType},
 };
 use taos::Dsn;
-use taosx_core::core_metrics::get_task_metrics_string;
+use taosx_core::core_metrics::{CoreMetrics, get_task_metrics_string};
 use tokio::{fs::OpenOptions, io::AsyncWriteExt};
 use tracing::instrument;
 
 use super::{get_dsn, types::*};
 use crate::{
     Args,
-    sql::{exec, query},
+    sql::{exec, query, query_one},
     x_api::{JsonResult, Result},
 };
 
@@ -40,11 +41,10 @@ pub async fn get_task(
 ) -> JsonResult<GetTaskResult> {
     let task_id = task_id.into_inner();
     let dsn = get_dsn(&args, &req).await?;
-    let data = query::<TaskRecord>(&dsn, "SHOW XNODE TASKS").await?;
+    let sql = format!("SHOW XNODE TASKS WHERE ID = {task_id}");
+    let data = query_one::<TaskRecord>(&dsn, &sql).await?;
     Ok(Json(
-        data.into_iter()
-            .find(|v| v.id == task_id)
-            .map(|v| v.try_into())
+        data.map(|v| v.try_into())
             .transpose()?
             .context("task {} not found")?,
     ))
@@ -70,6 +70,10 @@ async fn create_task_inner(args: &Args, req: &HttpRequest, task: Task, start: bo
         task_name, config.from, config.to
     );
 
+    if config.parser.is_some() || config.via.is_some() {
+        sql.push_str(" WITH");
+    }
+
     let status = TaskStatus::Created;
     if let Some(parser) = config
         .parser
@@ -79,11 +83,15 @@ async fn create_task_inner(args: &Args, req: &HttpRequest, task: Task, start: bo
         .context("invalid `parser` param")?
     {
         sql.push_str(&format!(
-            " WITH PARSER '{}' STATUS '{status}'",
+            " PARSER '{}' STATUS '{status}'",
             parser.replace(r"\", r"\\"),
         ));
     } else {
-        sql.push_str(&format!(" WITH STATUS '{status}'"));
+        sql.push_str(&format!(" STATUS '{status}'"));
+    }
+
+    if let Some(via) = config.via {
+        sql.push_str(&format!(" VIA {via}"));
     }
 
     tracing::debug!(sql, "create task sql");
@@ -112,6 +120,9 @@ pub async fn update_task(
         "ALTER XNODE TASK {} FROM '{}' TO '{}'",
         task_id, config.from, config.to
     );
+    if config.parser.is_some() || config.via.is_some() {
+        sql.push_str(" WITH");
+    }
     if let Some(parser) = config
         .parser
         .as_ref()
@@ -119,7 +130,11 @@ pub async fn update_task(
         .transpose()
         .context("invalid `parser` param")?
     {
-        sql.push_str(&format!(" WITH PARSER '{}'", parser));
+        sql.push_str(&format!(" PARSER '{}'", parser));
+    }
+
+    if let Some(via) = config.via {
+        sql.push_str(&format!(" VIA '{}'", via));
     }
 
     let dsn = get_dsn(&args, &req).await?;
@@ -287,31 +302,49 @@ pub async fn get_task_metrics(
 }
 
 pub async fn get_all_task_job_metrics(dsn: Dsn, task_id: i64) -> anyhow::Result<String> {
-    let sql =
-        format!("select last_row(metrics) from log.{TASK_METRICS_STABLE} partition by tbname");
+    let sql = format!(
+        "select last_row(`type`) as `type`, last_row(`value`) as `value` from log.{TASK_METRICS_STABLE} partition by tbname"
+    );
 
-    let metrics = query::<String>(&dsn, &sql).await?;
-
-    let mut iter = metrics.into_iter();
-    let Some(mut result) = iter
-        .next()
-        .map(|v| serde_json::from_str(&v))
-        .transpose()
-        .context("deserialize metrics")?
-    else {
-        return Ok("{}".into());
-    };
-    for item in iter {
-        let item = serde_json::from_str(&item).context("deserialize metrics")?;
-        result += item;
+    #[derive(Debug, serde::Deserialize)]
+    struct DBMetrics {
+        r#type: String,
+        value: String,
     }
 
-    let task = query::<TaskRecord>(&dsn, "SHOW XNODE TASKS")
+    let metrics = query::<DBMetrics>(&dsn, &sql).await?;
+    let mut result = None;
+    for item in metrics {
+        let item = match MetricsType::from_str_opt(&item.r#type) {
+            Some(ty) => match ty {
+                MetricsType::Ipc => CoreMetrics::IPC(
+                    serde_json::from_str(&item.value).context("invalid ipc metrics")?,
+                ),
+                MetricsType::Tmq => CoreMetrics::TMQ(
+                    serde_json::from_str(&item.value).context("invalid tmq metrics")?,
+                ),
+                MetricsType::Legacy => CoreMetrics::Legacy(
+                    serde_json::from_str(&item.value).context("invalid legacy metrics")?,
+                ),
+            },
+            None => bail!("invalid metrics type {}", item.r#type),
+        };
+        let Some(res) = result.as_mut() else {
+            result = Some(item);
+            continue;
+        };
+
+        *res += item;
+    }
+
+    let sql = format!("SHOW XNODE TASKS WHERE ID = {task_id}");
+    let task = query_one::<TaskRecord>(&dsn, &sql)
         .await?
-        .into_iter()
-        .find(|v| v.id == task_id)
         .context("task not found")?;
 
+    let Some(result) = result else {
+        return Ok("{}".into());
+    };
     let res = get_task_metrics_string(task.status.unwrap_or(TaskStatus::Created), Arc::new(result))
         .context("serialize metrics to string error")?;
     Ok(res)

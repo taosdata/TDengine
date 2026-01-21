@@ -2,6 +2,17 @@ use std::{sync::atomic::Ordering, time::Duration};
 
 use anyhow::Context;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use tokio::{sync::oneshot, task::JoinSet};
+use tokio_util::sync::CancellationToken;
+use tracing::{Instrument, instrument};
+use uuid::Uuid;
+
+use crate::serve::{
+    controller::{Task, load_breakpoints},
+    rpc::utils::build_task_job_finish_batch,
+    scheduler::runner::{AgentId, GlobalState, LastState, Operator, TaskState},
+};
+use ha_core::activity::Activity;
 use taosx_core::{
     ConnectorLicense, TaskNotify, TaskNotifyReceiver,
     core_metrics::get_metrics_arc_from_i64,
@@ -11,16 +22,6 @@ use taosx_core::{
 };
 use taosx_task::TaskOpts;
 use taosx_utils::dsn::json_to_dsn;
-use tokio::{sync::oneshot, task::JoinSet};
-use tokio_util::sync::CancellationToken;
-use tracing::{Instrument, instrument};
-use uuid::Uuid;
-
-use crate::serve::{
-    controller::{Task, activity::Activity, load_breakpoints},
-    rpc::utils::build_task_job_finish_batch,
-    scheduler::runner::{AgentId, GlobalState, LastState, Operator, TaskState},
-};
 
 pub async fn spawn_task(
     task_id: i64,
@@ -103,7 +104,7 @@ pub async fn spawn_task(
                 opts.state.write().await.stopped();
             }
             Operator::Run => {
-                global.send_task_activity(Activity::completed(task_id, job_id, sid));
+                global.send_task_activity(Activity::completed(task_id, job_id));
                 opts.state.write().await.completed();
             }
         },
@@ -151,7 +152,10 @@ async fn run_task(
             while let Some(Ok(item)) = cancel.run_until_cancelled(rx.recv()).await {
                 tracing::debug!("health state: {:?}", item);
                 global_sender.send_task_activity(Activity::health_state(
-                    task_id, job_id, item.at, item.state,
+                    task_id,
+                    job_id,
+                    item.at,
+                    item.state.into(),
                 ));
             }
         });

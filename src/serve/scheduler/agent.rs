@@ -3,19 +3,21 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 use std::{collections::HashMap, fmt::Debug};
 
-use anyhow::bail;
+use anyhow::{Context, bail};
+use ha_core::types::{HaTask, SplitJobResult};
 use multi_index_map::MultiIndexMap;
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::transform::sample::{DsSampleIn, DsSamples};
 use taosx_core::{DataSet, PutFileReq};
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, oneshot};
 use tokio::{runtime::Handle, sync::broadcast::error::RecvError};
 use tracing::Instrument;
 use utoipa::openapi::path;
 use uuid::Uuid;
 
-use crate::serve::controller::{AgentAction, activity::Activity};
+use crate::serve::controller::AgentAction;
 use crate::serve::scheduler::NotifySenderExt;
+use ha_core::activity::Activity;
 
 use super::NotifySender;
 
@@ -44,7 +46,6 @@ pub enum AgentState {
     Wait,
     Connected,
     Disconnected,
-    Closed,
 }
 
 impl AgentState {
@@ -53,14 +54,13 @@ impl AgentState {
     }
 }
 
-impl From<AgentState> for ha_core::types::AgentState {
+impl From<AgentState> for ha_core::activity::AgentStatus {
     fn from(value: AgentState) -> Self {
         match value {
-            AgentState::Idle => ha_core::types::AgentState::Idle,
-            AgentState::Wait => ha_core::types::AgentState::Wait,
-            AgentState::Connected => ha_core::types::AgentState::Connected,
-            AgentState::Disconnected => ha_core::types::AgentState::Disconnected,
-            AgentState::Closed => ha_core::types::AgentState::Closed,
+            AgentState::Idle => Self::Idle,
+            AgentState::Wait => Self::Waiting,
+            AgentState::Connected => Self::Connected,
+            AgentState::Disconnected => Self::Disconnected,
         }
     }
 }
@@ -72,7 +72,7 @@ pub struct AgentTask {
     #[multi_index(ordered_unique)]
     pub task_job_id: (i64, i64),
     pub agent_state: Arc<RwLock<AgentState>>,
-    pub sender: tokio::sync::mpsc::Sender<Activity>,
+    pub sender: flume::Sender<Activity>,
     pub stop_sender: Arc<tokio::sync::oneshot::Sender<anyhow::Result<()>>>,
 }
 
@@ -88,14 +88,10 @@ impl Debug for MultiIndexAgentTaskMap {
 
 #[derive(Debug, Clone)]
 pub enum AgentNotify {
-    /// RPC server stopped.
-    ServerStopped,
     /// Agent connected to RPC server.
     AgentConnected(AgentId),
     /// Agent has been unexpectedly disconnected from RPC server.
     AgentDisconnected(AgentId),
-    /// Agent closed by ctrl-c.
-    AgentClosed(AgentId),
 
     /// Put stream writer error.
     ///
@@ -133,7 +129,6 @@ impl AgentWorker {
         agent_spawn_receiver: AgentSpawnReceiver,
     ) -> Self {
         let agent_tasks_sender = Arc::new(RwLock::new(MultiIndexAgentTaskMap::default()));
-        let agent_tasks_sender_clone = agent_tasks_sender.clone();
 
         let agent_spawn_receiver = Arc::new(agent_spawn_receiver);
         let weak_spawn_receiver = Arc::downgrade(&agent_spawn_receiver);
@@ -160,27 +155,26 @@ impl AgentWorker {
         });
 
         let agent_states: Arc<RwLock<HashMap<AgentId, AgentState>>> = Default::default();
-        let agent_states_cloned = agent_states.clone();
 
-        task_set.spawn(
+        task_set.spawn({
+            let agent_states = agent_states.clone();
+            let agent_tasks_sender = agent_tasks_sender.clone();
+            let scheduler_notify_sender = scheduler_notify_sender.clone();
+            let agent_action_sender = agent_action_sender.clone();
             async move {
                 tokio::pin!(agent_notify_receiver);
                 loop {
                     match agent_notify_receiver.recv().await {
                         Ok(item) => {
                             tracing::debug!("Received agent notify: {:?}", item);
-                            let agent_tasks_sender_clone = agent_tasks_sender_clone.clone();
-                            let agent_states_cloned = agent_states_cloned.clone();
-                            let scheduler_notify_sender = scheduler_notify_sender.clone();
                             match item {
-                                AgentNotify::ServerStopped => {
-                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
-                                    agent_tasks.clear();
-                                }
                                 AgentNotify::AgentConnected(agent_id) => {
-                                    tracing::info!("Agent connected: {}", agent_id);
+                                    tracing::info!(
+                                        agent_id,
+                                        "Agent worker received `connected` notify"
+                                    );
                                     {
-                                        let mut states = agent_states_cloned.write().await;
+                                        let mut states = agent_states.write().await;
                                         if let std::collections::hash_map::Entry::Vacant(e) =
                                             states.entry(agent_id)
                                         {
@@ -192,60 +186,43 @@ impl AgentWorker {
                                                 .clone_from(&AgentState::Connected);
                                         }
                                     }
-                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
+                                    let mut agent_tasks = agent_tasks_sender.write().await;
                                     for task in agent_tasks.get_by_agent_id(&agent_id) {
                                         let (task_id, job_id) = task.task_job_id;
                                         *task.agent_state.write().await = AgentState::Connected;
                                         task.sender
-                                            .send(Activity::agent_resumed(
+                                            .send_async(Activity::agent_resumed(
                                                 task_id, job_id, agent_id,
                                             ))
                                             .await;
+                                        agent_action_sender
+                                            .send((agent_id, AgentAction::Run(task_id, job_id)))
+                                            .ok();
                                     }
                                 }
                                 AgentNotify::AgentDisconnected(agent_id) => {
-                                    tracing::info!("Agent disconnected: {}", agent_id);
+                                    tracing::info!(
+                                        agent_id,
+                                        "Agent worker received `disconnected` notify"
+                                    );
                                     {
-                                        let mut states = agent_states_cloned.write().await;
-                                        if states.contains_key(&agent_id) {
-                                            states
-                                                .get_mut(&agent_id)
-                                                .unwrap()
-                                                .clone_from(&AgentState::Disconnected);
-                                        }
+                                        let mut states = agent_states.write().await;
+                                        if let Some(state) = states.get_mut(&agent_id) {
+                                            state.clone_from(&AgentState::Disconnected)
+                                        };
                                     }
-                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
+                                    let mut agent_tasks = agent_tasks_sender.write().await;
                                     for task in agent_tasks.get_by_agent_id(&agent_id) {
                                         *task.agent_state.write().await = AgentState::Disconnected;
                                         let (task_id, job_id) = task.task_job_id;
                                         task.sender
-                                            .send(Activity::waiting(
+                                            .send_async(Activity::agent_waiting(
                                                 task_id,
                                                 job_id,
                                                 agent_id,
                                                 format!("Agent {agent_id} is disconnected"),
                                             ))
                                             .await;
-                                    }
-                                }
-                                AgentNotify::AgentClosed(agent_id) => {
-                                    tracing::info!("Agent closed: {}", agent_id);
-                                    {
-                                        let mut states = agent_states_cloned.write().await;
-                                        if let std::collections::hash_map::Entry::Vacant(e) =
-                                            states.entry(agent_id)
-                                        {
-                                            e.insert(AgentState::Closed);
-                                        } else {
-                                            states
-                                                .get_mut(&agent_id)
-                                                .unwrap()
-                                                .clone_from(&AgentState::Closed);
-                                        }
-                                    }
-                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
-                                    for task in agent_tasks.get_by_agent_id(&agent_id) {
-                                        *task.agent_state.write().await = AgentState::Closed;
                                     }
                                 }
                                 AgentNotify::TaskActivity(aid, activity) => {
@@ -256,11 +233,11 @@ impl AgentWorker {
                                         "Task activity: {:?}",
                                         activity
                                     );
-                                    let agent_tasks = agent_tasks_sender_clone.read().await;
+                                    let agent_tasks = agent_tasks_sender.read().await;
                                     if let Some(task) = agent_tasks
                                         .get_by_task_job_id(&(activity.task_id, activity.job_id))
                                     {
-                                        if let Err(err) = task.sender.send(activity).await {
+                                        if let Err(err) = task.sender.send_async(activity).await {
                                             tracing::warn!("Error sending task activity {:?}", err);
                                         }
                                     } else {
@@ -296,7 +273,7 @@ impl AgentWorker {
                         Err(RecvError::Lagged(_)) => continue,
                         Err(RecvError::Closed) => {
                             tokio::spawn(async move {
-                                let mut agent_tasks = agent_tasks_sender_clone.write().await;
+                                let mut agent_tasks = agent_tasks_sender.write().await;
                                 agent_tasks.clear();
                             });
                             break;
@@ -304,8 +281,8 @@ impl AgentWorker {
                     }
                 }
             }
-            .in_current_span(),
-        );
+            .in_current_span()
+        });
         Self {
             agent_states,
             agent_tasks: agent_tasks_sender,
@@ -327,7 +304,7 @@ impl AgentWorker {
         let mut agent_tasks = self.agent_tasks.write().await;
         if let Some(task) = agent_tasks.remove_by_task_job_id(&(task_id, job_id)) {
             task.sender
-                .send(Activity::stopped(task_id, job_id))
+                .send_async(Activity::stopped(task_id, job_id))
                 .await
                 .ok();
             if let Err(err) = self
@@ -350,23 +327,22 @@ impl AgentWorker {
         }
     }
 
-    pub async fn suspend(&self, task_id: i64, job_id: i64) {
-        let agent_tasks = self.agent_tasks.read().await;
-        if let Some(task) = agent_tasks.get_by_task_job_id(&(task_id, job_id))
-            && let Err(err) = self
-                .agent_action_sender
-                .send((task.agent_id, AgentAction::Cancel(task_id, job_id)))
-        {
-            tracing::warn!("Error sending cancel task: {:?}", err);
-        }
-    }
-
     pub(crate) async fn agent_is_alive(&self, agent_id: i64) -> bool {
         let states = self.agent_states.read().await;
         if let Some(state) = states.get(&agent_id) {
             return state.is_connected();
         }
         false
+    }
+
+    pub(crate) async fn agent_tasks(&self, agent_id: i64) -> Vec<(i64, i64)> {
+        self.agent_tasks
+            .read()
+            .await
+            .get_by_agent_id(&agent_id)
+            .iter()
+            .map(|task| task.task_job_id)
+            .collect()
     }
 
     pub async fn list_agent_states(&self) -> HashMap<i64, AgentState> {
@@ -396,10 +372,9 @@ impl AgentWorker {
             tracing::warn!("Error sending list data sets: {:?}", err);
             bail!("Error sending list data sets: {:?}", err);
         }
-        let res = receiver
-            .recv_async()
-            .await
-            .map_err(|err| anyhow::anyhow!("Receiving agent list datasets error: {:#}", err))?;
+        let Ok(res) = receiver.recv_async().await else {
+            bail!("failed to receive ListDataSets action, request sender dropped");
+        };
         match res {
             Ok(data_sets) => Ok(data_sets),
             Err(err) => Err(anyhow::anyhow!("Error listing data sets: {:#}", err)),
@@ -420,10 +395,9 @@ impl AgentWorker {
             tracing::warn!("Error sending data source validation: {:?}", err);
             bail!("Error sending data source validation: {:?}", err);
         }
-        let res = receiver
-            .recv_async()
-            .await
-            .map_err(|err| anyhow::anyhow!("Receiving data source validation error: {:#}", err))?;
+        let Ok(res) = receiver.recv_async().await else {
+            bail!("failed to receive CheckValid action, request sender dropped");
+        };
         Ok(res)
     }
 
@@ -437,23 +411,40 @@ impl AgentWorker {
             tracing::warn!("failed to send GetSample action, cause: {:?}", err);
             bail!("failed to send GetSample action, cause: {:?}", err);
         }
-        let res = receiver.recv_async().await.map_err(|err| {
-            anyhow::anyhow!("failed to receive GetSample action, cause: {:#}", err)
-        })?;
+        let Ok(res) = receiver.recv_async().await else {
+            bail!("failed to receive GetSample action, request sender dropped");
+        };
 
         match res {
             Ok(sample) => {
-                let sample = serde_json::from_str(&sample).map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to parse GetSample action, response: {}, cause: {:#}",
-                        sample,
-                        err
-                    )
-                })?;
-
+                let sample = serde_json::from_str(&sample).context("deserialize sample result")?;
                 Ok(sample)
             }
             Err(err) => Err(anyhow::anyhow!("failed to get sample, cause: {:#}", err)),
+        }
+    }
+
+    pub(crate) async fn split_task(
+        &self,
+        agent_id: i64,
+        task: HaTask,
+    ) -> anyhow::Result<SplitJobResult> {
+        check_agent_exists!(self, agent_id);
+        let (sender, receiver) = flume::bounded(1);
+        if let Err(err) = self
+            .agent_action_sender
+            .send((agent_id, AgentAction::SplitTask(task, sender)))
+        {
+            tracing::warn!("failed to send SplitTask action, cause: {:?}", err);
+            bail!("failed to send SplitTask action, cause: {:?}", err);
+        }
+        let Ok(res) = receiver.recv_async().await else {
+            bail!("failed to receive SplitTask action, request sender dropped");
+        };
+
+        match res {
+            Ok(res) => Ok(res),
+            Err(err) => bail!("failed to split task, cause: {err:#}"),
         }
     }
 
@@ -522,8 +513,7 @@ impl AgentWorker {
         {
             bail!("failed to send PutFile action, cause: {:?}", err);
         }
-        let timeout = Duration::from_secs(5 * 60);
-        match tokio::time::timeout(timeout, receiver.recv_async()).await {
+        match tokio::time::timeout(Duration::from_secs(5 * 60), receiver.recv_async()).await {
             Ok(result) => match result {
                 Ok(res) => match res {
                     Ok(output) => Ok(output),
@@ -562,11 +552,7 @@ mod tests {
     #[test]
     fn agent_state_is_connected_only_for_connected() {
         assert!(AgentState::Connected.is_connected());
-        for state in [
-            AgentState::Wait,
-            AgentState::Disconnected,
-            AgentState::Closed,
-        ] {
+        for state in [AgentState::Wait, AgentState::Disconnected] {
             assert!(!state.is_connected());
         }
     }

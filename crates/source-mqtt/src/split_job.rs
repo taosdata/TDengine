@@ -2,7 +2,7 @@ use anyhow::Context;
 use ha_core::types::{SplitJobResult, SplitJobTask};
 use taosx_utils::dsn::dsn_to_json;
 
-use crate::config::MqttConfig;
+use crate::{client::Version, config::MqttConfig};
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct Task {
@@ -14,8 +14,7 @@ pub struct Task {
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct TopicInfo {
     name: String,
-    qos: u8,
-    concurrency: usize,
+    concurrency: Option<usize>,
 }
 
 pub async fn split_job(task: SplitJobTask) -> anyhow::Result<SplitJobResult> {
@@ -24,17 +23,19 @@ pub async fn split_job(task: SplitJobTask) -> anyhow::Result<SplitJobResult> {
 
     let mut topics = Vec::with_capacity(config.topics.len());
     for (topic, qos) in config.topics {
+        let name = format!("{topic}::{qos}");
         if topic.starts_with("$share/") {
+            if !matches!(config.mqtt.version, Version::V5) {
+                anyhow::bail!("MQTT version must be V5 for shared subscriptions")
+            }
             topics.push(TopicInfo {
-                name: topic,
-                qos,
-                concurrency: 0,
+                name,
+                concurrency: None,
             })
         } else {
             topics.push(TopicInfo {
-                name: topic,
-                qos,
-                concurrency: 1,
+                name,
+                concurrency: Some(1),
             })
         }
     }

@@ -75,17 +75,6 @@ async fn main() -> anyhow::Result<()> {
                                 .with_context(|| format!("serialize {} response", $action))?;
                             println!("{} resp: {res}", $action);
                         };
-                        (string, $action: expr, $method: ident) => {
-                            let param =
-                                context.as_str().context("param not valid: expect string")?;
-                            let res = client
-                                .$method(param)
-                                .await
-                                .with_context(|| format!("client {} error", $action))?;
-                            let res = serde_json::to_string(&res)
-                                .with_context(|| format!("serialize {} response", $action))?;
-                            println!("{} resp: {res}", $action);
-                        };
                     }
                     match action.as_str() {
                         PLAN_TASK_REQ => {
@@ -101,7 +90,7 @@ async fn main() -> anyhow::Result<()> {
                             send_recv!(CHECK_VALID_REQ, check_valid);
                         }
                         GET_SAMPLES_REQ => {
-                            send_recv!(string, GET_SAMPLES_REQ, get_samples);
+                            send_recv!(GET_SAMPLES_REQ, get_samples);
                         }
                         TASK_PREVIEW_REQ => {
                             send_recv!(TASK_PREVIEW_REQ, task_preview);

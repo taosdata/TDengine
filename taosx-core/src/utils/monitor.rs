@@ -68,11 +68,10 @@ pub async fn update_sub_connector_process_metrics(
         let job_id = sub_info.job_id.to_string();
         let ds_name = sub_info.datasource_name.clone();
         let sub_process = sys.process(sub_process_id);
-        if sub_process.is_none() {
+        let Some(sub_process) = sub_process else {
             tracing::debug!("sub process {} not found", sub_process_id);
             continue;
-        }
-        let sub_process = sub_process.unwrap();
+        };
         let parent = sub_process.parent();
         match parent {
             Some(parent) => {

@@ -68,6 +68,23 @@ impl State {
     }
 }
 
+impl From<State> for ha_core::activity::HealthStatus {
+    fn from(value: State) -> Self {
+        match value {
+            State::Initial => Self::Initial,
+            State::Ready => Self::Ready,
+            State::Idle => Self::Idle,
+            State::Active => Self::Active,
+            State::Pending => Self::Pending,
+            State::Busy => Self::Busy,
+            State::Bounce => Self::Bounce,
+            State::SourceError => Self::SourceError,
+            State::SinkError => Self::SinkError,
+            State::Fatal => Self::Fatal,
+        }
+    }
+}
+
 impl From<State> for u8 {
     fn from(state: State) -> u8 {
         state as u8

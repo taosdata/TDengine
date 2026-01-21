@@ -11,9 +11,10 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::serve::{
-    controller::{AgentAction, activity::Activity},
+    controller::AgentAction,
     scheduler::runner::{AgentId, GlobalState, Operator, TaskOperator, TaskState},
 };
+use ha_core::activity::{Activity, ActivityStatus, TaskStatus};
 
 #[derive(Debug)]
 enum AgentTaskState {
@@ -73,7 +74,7 @@ pub async fn spawn_agent(
 
                 tracing::warn!("Agent {agent_id} is not alive, waiting...");
                 global
-                    .send_task_activity(Activity::waiting(task_id, job_id, agent_id, "Waiting for agent..."));
+                    .send_task_activity(Activity::agent_waiting(task_id, job_id, agent_id, "Waiting for agent...".to_string()));
                 if waiting < 5 {
                     waiting += 1;
                 }
@@ -89,12 +90,12 @@ pub async fn spawn_agent(
     ));
     global.send_agent_activity(Activity::agent_transferring(
         agent_id,
-        format!("Task {task_id} now running"),
+        format!("Task ({task_id},{job_id}) now running"),
     ));
     tracing::debug!("Agent {} is alive, sending command run", agent_id);
     let _ = global
         .agent_worker
-        .push_action(agent_id, AgentAction::Run(task_id, job_id, sid, run_id))
+        .push_action(agent_id, AgentAction::Run(task_id, job_id))
         .await;
     tracing::debug!("Command run sending ok");
     let waiter = state.agent_waiter.as_ref().unwrap();
@@ -110,7 +111,7 @@ pub async fn spawn_agent(
         agent_id,
         sid,
         run_id,
-        agent_activities.clone(),
+        agent_activities,
     );
     tokio::pin!(listener);
 
@@ -178,11 +179,10 @@ async fn agent_activities_listener(
     agent_id: AgentId,
     sid: Uuid,
     run_id: u64,
-    agent_activities: Arc<RwLock<tokio::sync::mpsc::Receiver<Activity>>>,
+    agent_activities: flume::Receiver<Activity>,
 ) -> anyhow::Result<AgentTaskState> {
     let mut signal: Option<&'static str> = None;
     loop {
-        let mut recv = agent_activities.write().await;
         let item = tokio::select! {
             _ = state.cancellation.cancelled() => {
                 tracing::info!(agent.id = agent_id, task.id = task_id, job.id = %sid, "task runner `{task_id}` cancelled");
@@ -205,39 +205,47 @@ async fn agent_activities_listener(
                 tracing::warn!( agent.id = agent_id, task.id = task_id, job.id = %sid, "Task {task_id} cancelled");
                 break Ok(AgentTaskState::Stopped);
             },
-            item = recv.recv() => item,
+            item = agent_activities.recv_async() => item,
         };
-        let Some(mut activity) = item else {
+        let Ok(mut activity) = item else {
             anyhow::bail!("All agent activities sender dropped");
         };
-        tracing::warn!(activity = activity.activity, status = activity.status);
+        tracing::warn!(activity = activity.activity, status = ?activity.status);
+
         let Some(status) = activity.status.as_ref() else {
             continue;
         };
-        match status.as_str() {
-            "completed" => {
-                signal = Some("completed");
-                continue;
-            }
-            "stopped" => match operator.operator() {
-                Operator::Stop => {
-                    signal = Some("stopped");
-                    continue;
-                }
-                _ => {
-                    tracing::warn!("Received `stopped` status but not in stopping, skip");
-                }
-            },
-            "failed" => {
-                tracing::error!("task failed: {}", activity.activity);
+
+        match status {
+            ActivityStatus::Task(status) => {
                 global.send_task_activity(activity.clone());
-                state.state.write().await.fail(activity.activity);
-                break Ok(AgentTaskState::Failed);
+                match status {
+                    TaskStatus::Completed => {
+                        signal = Some("completed");
+                        continue;
+                    }
+                    TaskStatus::Stopped => match operator.operator() {
+                        Operator::Stop => {
+                            signal = Some("stopped");
+                            continue;
+                        }
+                        _ => {
+                            tracing::warn!("Received `stopped` status but not in stopping, skip");
+                        }
+                    },
+                    TaskStatus::Failed => {
+                        state.state.write().await.fail(activity.activity);
+                        break Ok(AgentTaskState::Failed);
+                    }
+                    status => {
+                        tracing::info!(%status, message = activity.activity);
+                    }
+                }
             }
-            status => {
-                tracing::info!(status, message = activity.activity);
-                global.send_task_activity(activity);
+            ActivityStatus::Agent(_) => {
+                global.send_agent_activity(activity);
             }
+            ActivityStatus::Health(status) => {}
         }
     }
 }

@@ -2,21 +2,25 @@ use anyhow::Context;
 use arrow::array::timezone::Tz;
 use arrow_flight::error::FlightError;
 use chrono::{DateTime, Utc};
-use ha_core::batch::build_batch;
 use metrics::{IntoLabels, counter, gauge, histogram};
+use tokio::sync::broadcast;
+
+use crate::serve::{
+    rpc::{DataSetsSenders, DsvSenders, SplitTaskSenders, StringSenders, utils::internal_err},
+    scheduler::{
+        SchedulerNotify,
+        agent::{AgentNotify, AgentNotifySender},
+    },
+};
+use ha_core::batch::build_batch;
+use ha_core::{activity::Activity, consts::MESSAGE_HEARTBEAT_OK};
 use taosx_core::{
     CheckResponse, HeartbeatResponse, ListResponse, PutFileResp, QueryDataSourceResp,
-    SampleResponse, TaskMetricItem, core_metrics::get_metrics,
+    SampleResponse, SplitTaskResponse, TaskMetricItem, core_metrics::get_metrics,
 };
 use taosx_metrics::MetricsEvents;
 
-use crate::serve::{
-    controller::activity::Activity,
-    rpc::{DataSetsSenders, DsvSenders, StringSenders, utils::internal_err},
-    scheduler::agent::{AgentNotify, AgentNotifySender},
-};
-
-pub fn list_response(agent_id: i64, context: &str, datasets_senders: DataSetsSenders) {
+pub async fn list_response(agent_id: i64, context: &str, datasets_senders: &DataSetsSenders) {
     let resp = match serde_json::from_str::<ListResponse>(context) {
         Ok(resp) => resp,
         Err(e) => {
@@ -28,27 +32,13 @@ pub fn list_response(agent_id: i64, context: &str, datasets_senders: DataSetsSen
         }
     };
 
-    tokio::spawn(async move {
-        let req_id = resp.req_id;
-        if let Some(sender) = { datasets_senders.write().remove(&req_id) } {
-            if let Err(err) = sender.send_async(resp.res).await {
-                tracing::warn!(
-                    agent = agent_id,
-                    req_id = req_id,
-                    "List data sets response send failed: {err:#}"
-                );
-            }
-        } else {
-            tracing::warn!(
-                agent = agent_id,
-                req_id = req_id,
-                "List data sets request id has no receiver"
-            );
-        }
-    });
+    let req_id = resp.req_id;
+    if let Some(sender) = { datasets_senders.write().remove(&req_id) } {
+        sender.send_async(resp.res).await.ok();
+    }
 }
 
-pub fn check_response(agent_id: i64, context: &str, dsv_senders: DsvSenders) {
+pub async fn check_response(agent_id: i64, context: &str, dsv_senders: &DsvSenders) {
     let resp: CheckResponse = match serde_json::from_str(context) {
         Ok(resp) => resp,
         Err(err) => {
@@ -57,28 +47,13 @@ pub fn check_response(agent_id: i64, context: &str, dsv_senders: DsvSenders) {
         }
     };
 
-    let dsv_senders = dsv_senders.clone();
-    tokio::spawn(async move {
-        let req_id = resp.req_id;
-        if let Some(sender) = { dsv_senders.write().remove(&req_id) } {
-            if let Err(err) = sender.send_async(resp.res).await {
-                tracing::warn!(
-                    agent = agent_id,
-                    req_id = req_id,
-                    "List data sets response send failed: {err:#}"
-                );
-            }
-        } else {
-            tracing::warn!(
-                agent = agent_id,
-                req_id = req_id,
-                "List data sets request id has no receiver"
-            );
-        }
-    });
+    let req_id = resp.req_id;
+    if let Some(sender) = { dsv_senders.write().remove(&req_id) } {
+        sender.send_async(resp.res).await.ok();
+    }
 }
 
-pub fn sample_response(agent_id: i64, context: &str, string_senders: StringSenders) {
+pub async fn sample_response(agent_id: i64, context: &str, string_senders: &StringSenders) {
     let resp: SampleResponse = match serde_json::from_str(context) {
         Ok(resp) => resp,
         Err(err) => {
@@ -86,28 +61,30 @@ pub fn sample_response(agent_id: i64, context: &str, string_senders: StringSende
             return;
         }
     };
-    let string_senders = string_senders.clone();
-    tokio::spawn(async move {
-        let req_id = resp.req_id;
-        if let Some(sender) = { string_senders.write().remove(&req_id) } {
-            if let Err(err) = sender.send_async(resp.res).await {
-                tracing::warn!(
-                    agent = agent_id,
-                    req_id = req_id,
-                    "get sample response send failed: {err:#}"
-                );
-            }
-        } else {
-            tracing::warn!(
-                agent = agent_id,
-                req_id = req_id,
-                "get sample request id has no receiver"
-            );
-        }
-    });
+    let req_id = resp.req_id;
+    if let Some(sender) = { string_senders.write().remove(&req_id) } {
+        sender.send_async(resp.res).await.ok();
+    }
 }
 
-pub fn put_file_response(agent_id: i64, context: &str, string_senders: StringSenders) {
+pub async fn split_task_response(agent_id: i64, context: &str, senders: &SplitTaskSenders) {
+    let resp: SplitTaskResponse = match serde_json::from_str(context) {
+        Ok(resp) => resp,
+        Err(e) => {
+            tracing::warn!(
+                agent = agent_id,
+                "Failed to parse split task response: {e:#}"
+            );
+            return;
+        }
+    };
+    let req_id = resp.req_id;
+    if let Some(sender) = { senders.write().remove(&req_id) } {
+        sender.send_async(resp.res).await.ok();
+    }
+}
+
+pub async fn put_file_response(agent_id: i64, context: &str, string_senders: &StringSenders) {
     let resp: PutFileResp = match serde_json::from_str(context) {
         Ok(resp) => resp,
         Err(err) => {
@@ -118,28 +95,17 @@ pub fn put_file_response(agent_id: i64, context: &str, string_senders: StringSen
             return;
         }
     };
-    let string_senders = string_senders.clone();
-    tokio::spawn(async move {
-        let req_id = resp.req_id;
-        if let Some(sender) = { string_senders.write().remove(&req_id) } {
-            if let Err(err) = sender.send_async(resp.res).await {
-                tracing::error!(
-                    agent = agent_id,
-                    req_id = req_id,
-                    "Send PutFileResp failed: {err:#}"
-                );
-            }
-        } else {
-            tracing::error!(
-                agent = agent_id,
-                req_id = req_id,
-                "PutFileResp has no receiver"
-            );
-        }
-    });
+    let req_id = resp.req_id;
+    if let Some(sender) = { string_senders.write().remove(&req_id) } {
+        sender.send_async(resp.res).await.ok();
+    }
 }
 
-pub fn query_datasource_response(agent_id: i64, context: &str, string_senders: StringSenders) {
+pub async fn query_datasource_response(
+    agent_id: i64,
+    context: &str,
+    string_senders: &StringSenders,
+) {
     let resp: QueryDataSourceResp = match serde_json::from_str(context) {
         Ok(resp) => resp,
         Err(err) => {
@@ -151,27 +117,18 @@ pub fn query_datasource_response(agent_id: i64, context: &str, string_senders: S
         }
     };
     let string_senders = string_senders.clone();
-    tokio::spawn(async move {
-        let req_id = resp.req_id;
-        if let Some(sender) = { string_senders.write().remove(&req_id) } {
-            if let Err(err) = sender.send_async(resp.output).await {
-                tracing::error!(
-                    agent = agent_id,
-                    req_id = req_id,
-                    "Send QueryDataSourceResp failed: {err:#}"
-                );
-            }
-        } else {
-            tracing::error!(
-                agent = agent_id,
-                req_id = req_id,
-                "QueryDataSourceResp has no receiver"
-            );
-        }
-    });
+    let req_id = resp.req_id;
+    if let Some(sender) = { string_senders.write().remove(&req_id) } {
+        sender.send_async(resp.output).await.ok();
+    }
 }
 
-pub fn agent_activity(agent_id: i64, context: &str, notify_sender: AgentNotifySender) {
+pub fn agent_activity(
+    agent_id: i64,
+    context: &str,
+    notify_sender: &AgentNotifySender,
+    activity_sender: Option<&broadcast::Sender<SchedulerNotify>>,
+) {
     let activity: Activity = match serde_json::from_str(context) {
         Ok(activity) => activity,
         Err(err) => {
@@ -184,11 +141,19 @@ pub fn agent_activity(agent_id: i64, context: &str, notify_sender: AgentNotifySe
     };
     tracing::info!(?activity, "agent activity");
     notify_sender
-        .send(AgentNotify::AgentActivity(agent_id, activity))
+        .send(AgentNotify::AgentActivity(agent_id, activity.clone()))
         .ok();
+    if let Some(sender) = activity_sender {
+        sender.send(SchedulerNotify::AgentActivity(activity)).ok();
+    }
 }
 
-pub fn task_activity(agent_id: i64, context: &str, notify_sender: AgentNotifySender) {
+pub fn task_activity(
+    agent_id: i64,
+    context: &str,
+    notify_sender: &AgentNotifySender,
+    activity_sender: Option<&broadcast::Sender<SchedulerNotify>>,
+) {
     let activity: Activity = match serde_json::from_str(context) {
         Ok(activity) => activity,
         Err(err) => {
@@ -198,8 +163,11 @@ pub fn task_activity(agent_id: i64, context: &str, notify_sender: AgentNotifySen
     };
     tracing::info!(?activity, "task activity");
     notify_sender
-        .send(AgentNotify::TaskActivity(agent_id, activity))
+        .send(AgentNotify::TaskActivity(agent_id, activity.clone()))
         .ok();
+    if let Some(sender) = activity_sender {
+        sender.send(SchedulerNotify::AgentActivity(activity)).ok();
+    }
 }
 
 pub fn heartbeat_ok(agent_id: i64, context: &str) {
@@ -218,7 +186,7 @@ pub fn heartbeat_ok(agent_id: i64, context: &str) {
             delay
         );
     } else {
-        tracing::info!(agent = agent_id, "Agent is alive, delay: {:?}", delay);
+        tracing::debug!(agent = agent_id, "Agent is alive, delay: {delay}");
     }
 }
 
@@ -232,7 +200,7 @@ pub fn heartbeat(ts: DateTime<Tz>, req_id: u64) -> Result<arrow::array::RecordBa
     let context = serde_json::to_string(&resp)
         .context("serialize heartbeat resp error")
         .map_err(internal_err)?;
-    build_batch("heartbeat-ok", &context, req_id)
+    build_batch(MESSAGE_HEARTBEAT_OK, &context, req_id)
         .context("build heartheat-ok batch error")
         .map_err(internal_err)
 }

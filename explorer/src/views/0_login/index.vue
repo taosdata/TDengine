@@ -502,7 +502,7 @@ async function getUserAuthority() {
   } catch (err: any) {
     loading.value = false;
 
-    if (err && err.includes('Permission denied')) {
+    if (typeof err === 'string' && err.includes('Permission denied')) {
       console.log('User login without sysinfo');
       store.state.app.sysinfo = false;
       await router.push({

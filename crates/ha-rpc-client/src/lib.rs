@@ -5,7 +5,7 @@ use arrow_flight::{FlightClient, encode::FlightDataEncoderBuilder, error::Flight
 use futures::{StreamExt, stream::FuturesUnordered};
 use ha_core::{
     batch::{BatchIter, SCHEMA},
-    jwt::xnoded_jwt_encode,
+    jwt::xnoded::jwt_encode,
     types::{RpcClientType, XnodedId},
 };
 use snafu::ResultExt;
@@ -27,6 +27,10 @@ pub mod client;
 pub mod error;
 
 type FlightResult = std::result::Result<RecordBatch, FlightError>;
+type RpcRequest = (
+    RecordBatch,
+    Option<(u64, oneshot::Sender<Result<RecordBatch>>)>,
+);
 
 pub struct ClientBuilder<'a> {
     channel: Channel,
@@ -84,8 +88,7 @@ impl<'a> ClientBuilder<'a> {
             client_type,
         } = self;
         // 用户发来的请求
-        let (request_tx, request_rx) =
-            flume::bounded::<(u64, RecordBatch, oneshot::Sender<Result<RecordBatch>>)>(1000);
+        let (request_tx, request_rx) = flume::bounded::<RpcRequest>(1000);
 
         let mut flight_client = FlightClient::new(channel);
         flight_client
@@ -93,9 +96,7 @@ impl<'a> ClientBuilder<'a> {
             .context(AddHeaderSnafu)?;
 
         let token = match (client_type, xnoded_id) {
-            (RpcClientType::Xnoded, Some(xnoded_id)) => {
-                xnoded_jwt_encode(xnoded_id).context(JwtSnafu)?
-            }
+            (RpcClientType::Xnoded, Some(xnoded_id)) => jwt_encode(xnoded_id).context(JwtSnafu)?,
             (RpcClientType::Guest, _) => String::new(),
             (_, _) => unimplemented!("agent client type is not supported"),
         };
@@ -139,7 +140,7 @@ impl<'a> ClientBuilder<'a> {
                     }
                     // 接收用户请求，发送给 server
                     res = request_rx.recv_async(), if flight_reqs.len() < parallel => {
-                        let Ok((req_id, message, tx)) = res else {
+                        let Ok((message, req_id_tx)) = res else {
                             break;
                         };
                         match cancel.run_until_cancelled(message_tx.send_async(Ok(message))).await {
@@ -150,6 +151,9 @@ impl<'a> ClientBuilder<'a> {
                             }
                             None => break,
                         }
+                        let Some((req_id, tx)) = req_id_tx else {
+                            continue;
+                        };
                         let (ack_tx, ack_rx) = oneshot::channel::<FlightResult>();
                         futs.push({
                             let cancel = cancel.clone();

@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod rebalance;
 pub mod task;
 pub mod xnode;
@@ -13,8 +14,6 @@ use axum::{
     serve::Listener,
 };
 use futures::FutureExt;
-#[cfg(unix)]
-use tokio::net::{UnixListener, UnixSocket, UnixStream};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::{TcpListener, TcpStream, lookup_host},
@@ -24,7 +23,7 @@ use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse};
 use tracing::{Level, instrument};
 
 use crate::{
-    api::{rebalance::*, task::*, xnode::*},
+    api::{agent::*, rebalance::*, task::*, xnode::*},
     controller::{self, Controller},
 };
 
@@ -52,6 +51,9 @@ pub async fn start_http(
             post(rebalance_manual),
         )
         .route("/rebalance/auto", post(rebalance_auto))
+        .route("/agent", post(add_agent))
+        .route("/agent/{id}", delete(del_agent))
+        .route("/agents", get(get_agent))
         .with_state(controller)
         .layer(
             tower_http::trace::TraceLayer::new_for_http()
@@ -87,21 +89,30 @@ pub async fn start_http(
 enum ServeListener {
     Tcp(TcpListener),
     #[cfg(unix)]
-    UnixSocket(UnixListener),
+    UnixSocket(tokio::net::UnixListener),
 }
 
 enum ServeStream {
     Tcp(TcpStream),
     #[cfg(unix)]
-    UnixSocket(UnixStream),
+    UnixSocket(tokio::net::UnixStream),
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 enum ServeAddr {
     Tcp(std::net::SocketAddr),
     #[cfg(unix)]
     UnixSocket(tokio::net::unix::SocketAddr),
+}
+
+impl std::fmt::Display for ServeAddr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ServeAddr::Tcp(addr) => write!(f, "{addr}"),
+            #[cfg(unix)]
+            ServeAddr::UnixSocket(addr) => write!(f, "{addr:?}"),
+        }
+    }
 }
 
 impl AsyncRead for ServeStream {
@@ -224,19 +235,21 @@ async fn build_tcp_listener(addr: &str) -> anyhow::Result<ServeListener> {
 #[instrument(skip_all)]
 #[cfg(unix)]
 async fn build_unix_listener(path: &str) -> anyhow::Result<ServeListener> {
-    let socket = UnixSocket::new_stream().context("build unix socket error")?;
+    let socket = tokio::net::UnixSocket::new_stream().context("build unix socket error")?;
     socket
         .bind(path)
         .with_context(|| format!("unix socket bind path {path} error"))?;
     let listener = socket.listen(1024).context("unix socket listen error")?;
     Ok(ServeListener::UnixSocket(listener))
 }
+
 #[cfg(not(unix))]
 async fn build_unix_listener(path: &str) -> anyhow::Result<ServeListener> {
     Err(anyhow::anyhow!(
         "unix socket is not supported on this platform: {path}"
     ))
 }
+
 #[derive(Debug, snafu::Snafu)]
 pub enum Error {
     #[snafu(transparent)]

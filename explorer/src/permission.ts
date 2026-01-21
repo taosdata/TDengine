@@ -72,6 +72,9 @@ router.beforeEach(async (to: RouteLocationNormalized, from: RouteLocationNormali
       try {
         const result: ProfileResult = await getUrls();
         console.log(result);
+        if (result && result.grpc && !localStorage.getItem('local_endpoint')) {
+          localStorage.setItem('local_endpoint', result.grpc);
+        }
 
         if (
           result.cluster != localStorage.getItem(BaseUrlKey) &&

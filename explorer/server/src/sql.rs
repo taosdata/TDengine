@@ -33,6 +33,18 @@ pub async fn query<T: serde::de::DeserializeOwned>(dsn: &Dsn, sql: &str) -> anyh
         .with_context(|| format!("deserialize fetch `{sql}` data error"))
 }
 
+#[instrument(skip_all)]
+pub async fn query_one<T>(dsn: &Dsn, sql: &str) -> anyhow::Result<Option<T>>
+where
+    T: serde::de::DeserializeOwned + Send,
+{
+    let conn = get_connection(dsn).await?;
+    conn.query_one(sql)
+        .await
+        .with_context(|| format!("query one item by sql {sql} error"))
+}
+
+#[instrument(skip_all)]
 pub async fn exec(dsn: &Dsn, sql: &str) -> anyhow::Result<()> {
     let conn = get_connection(dsn).await?;
     conn.exec(sql)

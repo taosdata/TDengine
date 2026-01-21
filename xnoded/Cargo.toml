@@ -15,7 +15,7 @@ tower-http = { workspace = true, features = [ "trace" ] }
 clap.workspace = true
 dotenv.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
+tracing-subscriber = { workspace = true, features = [ "env-filter" ] }
 mimalloc = {workspace = true, optional = true}
 shadow-rs.workspace = true
 const_format.workspace = true
@@ -30,6 +30,9 @@ parking_lot.workspace = true
 taos.workspace = true
 futures.workspace = true
 itertools.workspace = true
+chrono.workspace = true
+jsonwebtoken.workspace = true
+uuid = {workspace = true, features = ["v7"]}
 
 ha-core.workspace = true
 ha-rpc-client.workspace = true

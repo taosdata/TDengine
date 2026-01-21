@@ -1,3 +1,4 @@
+pub mod split_job;
 mod worker;
 
 use anyhow::{Context, anyhow, bail};

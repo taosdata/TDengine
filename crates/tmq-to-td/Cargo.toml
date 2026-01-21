@@ -26,6 +26,7 @@ async-trait.workspace = true
 taosx-core.workspace = true
 legacy-to-taos.path = "../legacy-to-taos"
 taosx-utils.workspace = true
+ha-core.workspace = true
 
 [lints]
 workspace = true

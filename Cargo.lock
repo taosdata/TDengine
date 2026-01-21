@@ -528,7 +528,7 @@ dependencies = [
 
 [[package]]
 name = "archive"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -651,7 +651,7 @@ dependencies = [
 
 [[package]]
 name = "arrow-compute-ext"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -3760,7 +3760,7 @@ dependencies = [
 
 [[package]]
 name = "futures-ext"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "futures",
@@ -4089,7 +4089,7 @@ dependencies = [
 
 [[package]]
 name = "ha-core"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4099,11 +4099,12 @@ dependencies = [
  "serde",
  "serde_json",
  "taos",
+ "uuid",
 ]
 
 [[package]]
 name = "ha-rpc-client"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4962,7 +4963,7 @@ dependencies = [
 
 [[package]]
 name = "kinghistorian-sys"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "bigdecimal 0.4.8",
  "bindgen",
@@ -5028,7 +5029,7 @@ dependencies = [
 
 [[package]]
 name = "legacy-to-taos"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-backtrace",
@@ -5040,11 +5041,13 @@ dependencies = [
  "fundu",
  "futures",
  "futures-util",
+ "ha-core",
  "itertools 0.14.0",
  "rand 0.8.5",
  "scc",
  "semver",
  "serde",
+ "serde_json",
  "serde_with",
  "taos",
  "taosx-core",
@@ -5271,7 +5274,7 @@ dependencies = [
 
 [[package]]
 name = "local-to-taos"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-backtrace",
@@ -6697,7 +6700,7 @@ checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
 name = "persist-queue"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "bitfield",
@@ -7642,7 +7645,7 @@ dependencies = [
 
 [[package]]
 name = "reclaim-memory"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "libc",
  "libmimalloc-sys",
@@ -8052,7 +8055,7 @@ dependencies = [
 
 [[package]]
 name = "rotate-file"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -8981,7 +8984,7 @@ dependencies = [
 
 [[package]]
 name = "sink-kafka"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "futures-util",
@@ -8997,7 +9000,7 @@ dependencies = [
 
 [[package]]
 name = "sink-mqtt"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "faststr",
@@ -9019,7 +9022,7 @@ dependencies = [
 
 [[package]]
 name = "sink-parquet"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -9147,7 +9150,7 @@ dependencies = [
 
 [[package]]
 name = "source-csv"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -9178,7 +9181,7 @@ dependencies = [
 
 [[package]]
 name = "source-historian"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -9200,7 +9203,7 @@ dependencies = [
 
 [[package]]
 name = "source-influxdb"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -9222,7 +9225,7 @@ dependencies = [
 
 [[package]]
 name = "source-kafka"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -9253,7 +9256,7 @@ dependencies = [
 
 [[package]]
 name = "source-kinghistorian"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -9277,7 +9280,7 @@ dependencies = [
 
 [[package]]
 name = "source-mongodb"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -9298,7 +9301,7 @@ dependencies = [
 
 [[package]]
 name = "source-mqtt"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -9334,7 +9337,7 @@ dependencies = [
 
 [[package]]
 name = "source-mssql"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -9358,7 +9361,7 @@ dependencies = [
 
 [[package]]
 name = "source-mysql"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -9381,7 +9384,7 @@ dependencies = [
 
 [[package]]
 name = "source-opc"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow-schema",
@@ -9407,7 +9410,7 @@ dependencies = [
 
 [[package]]
 name = "source-opentsdb"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -9429,7 +9432,7 @@ dependencies = [
 
 [[package]]
 name = "source-oracle"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -9450,7 +9453,7 @@ dependencies = [
 
 [[package]]
 name = "source-orc"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -9466,7 +9469,7 @@ dependencies = [
 
 [[package]]
 name = "source-parquet"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -9487,7 +9490,7 @@ dependencies = [
 
 [[package]]
 name = "source-pi"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -9506,7 +9509,7 @@ dependencies = [
 
 [[package]]
 name = "source-postgres"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -9531,7 +9534,7 @@ dependencies = [
 
 [[package]]
 name = "source-pulsar"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -9575,7 +9578,7 @@ dependencies = [
 
 [[package]]
 name = "source-sparkplugb"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -10208,7 +10211,7 @@ dependencies = [
 
 [[package]]
 name = "taos-to-local"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -10292,7 +10295,7 @@ dependencies = [
 
 [[package]]
 name = "taosx"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "actix-cors",
  "actix-files",
@@ -10406,7 +10409,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-agent"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -10421,6 +10424,7 @@ dependencies = [
  "dotenv",
  "flume",
  "futures",
+ "ha-core",
  "hyper 1.6.0",
  "hyper-util",
  "log",
@@ -10428,8 +10432,10 @@ dependencies = [
  "serde",
  "serde_json",
  "shadow-rs 0.38.1",
+ "snafu",
  "source-kinghistorian",
  "sysinfo",
+ "taos",
  "taoslog",
  "taosx-core",
  "taosx-metrics",
@@ -10449,7 +10455,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-core"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -10612,7 +10618,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-metrics"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "bincode",
  "flume",
@@ -10624,11 +10630,12 @@ dependencies = [
 
 [[package]]
 name = "taosx-task"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "chrono",
  "flume",
+ "ha-core",
  "legacy-to-taos",
  "local-to-taos",
  "serde_json",
@@ -10666,7 +10673,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-tools"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -10721,7 +10728,7 @@ dependencies = [
 
 [[package]]
 name = "taosx-utils"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "serde_json",
@@ -11008,7 +11015,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tmq-to-local"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-backtrace",
@@ -11028,7 +11035,7 @@ dependencies = [
 
 [[package]]
 name = "tmq-to-td"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -11037,6 +11044,7 @@ dependencies = [
  "deadpool",
  "faststr",
  "flume",
+ "ha-core",
  "humantime",
  "legacy-to-taos",
  "linked-hash-map",
@@ -12554,7 +12562,7 @@ dependencies = [
 
 [[package]]
 name = "x-spawner-replication"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -12581,7 +12589,7 @@ checksum = "66fee0b777b0f5ac1c69bb06d361268faafa61cd4682ae064a171c16c433e9e4"
 
 [[package]]
 name = "xnoded"
-version = "1.11.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "arrow",
@@ -12589,6 +12597,7 @@ dependencies = [
  "axum 0.8.7",
  "axum-extra",
  "bitfield",
+ "chrono",
  "clap",
  "const_format",
  "dotenv",
@@ -12598,6 +12607,7 @@ dependencies = [
  "ha-core",
  "ha-rpc-client",
  "itertools 0.14.0",
+ "jsonwebtoken",
  "mimalloc",
  "parking_lot 0.12.4",
  "serde",
@@ -12613,6 +12623,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

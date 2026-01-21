@@ -2,13 +2,13 @@ use anyhow::Context;
 use arrow::array::RecordBatch;
 use arrow_flight::{decode::DecodedFlightData, error::FlightError};
 use ha_core::{
-    batch::{BatchIter, build_batch},
+    batch::BatchIter,
     consts::*,
     types::{RpcClientType, RpcRecord, XnodedId},
 };
 
 use crate::serve::rpc::{
-    DataSetsSenders,
+    DataSetsSenders, SplitTaskSenders,
     processor::{agent, xnode},
     utils::{build_rpc_failed_batch, build_rpc_ok_batch, internal_err},
 };
@@ -26,6 +26,7 @@ pub async fn process(
     datasets_senders: &DataSetsSenders,
     dsv_senders: &DsvSenders,
     string_senders: &StringSenders,
+    split_task_senders: &SplitTaskSenders,
     notify_sender: &AgentNotifySender,
     tx: &flume::Sender<Result<RecordBatch, FlightError>>,
     client_type: RpcClientType,
@@ -34,6 +35,7 @@ pub async fn process(
         return Ok(());
     };
     debug_assert!(batch.num_rows() == 1);
+    let activity_sender = controller.scheduler.notify_sender();
 
     let batch_iter = BatchIter::new(&batch)
         .context("Invalid rpc RecordBatch")
@@ -47,7 +49,13 @@ pub async fn process(
     } in batch_iter
     {
         macro_rules! process {
-            ($result: expr, $action: expr) => {{
+            ($req: expr, $result: expr, $action: expr) => {
+                tracing::info!("Received {} request", $req);
+                let _process_guard =
+                    taosx_core::utils::defer::defer(|| tracing::info!("Request {} done", $req));
+                process!($result, $action)
+            };
+            ($result: expr, $action: expr) => {
                 let batch = match $result {
                     Ok(res) => build_rpc_ok_batch($action, res, req_id)?,
                     Err(e) => build_rpc_failed_batch($action, e, req_id)?,
@@ -55,38 +63,47 @@ pub async fn process(
                 tx.send_async(Ok(batch))
                     .await
                     .map_err(|_| send_resp_error($action))?;
-            }};
+            };
         }
         match (action, agent_id, client_type) {
-            ("list", Some(agent_id), RpcClientType::Agent) => {
-                agent::response::list_response(agent_id, context, datasets_senders.clone());
+            (ACTION_LIST_DATA_SETS, Some(agent_id), RpcClientType::Agent) => {
+                agent::response::list_response(agent_id, context, datasets_senders).await;
             }
-            ("check", Some(agent_id), RpcClientType::Agent) => {
-                agent::response::check_response(agent_id, context, dsv_senders.clone());
+            (ACTION_CHECK, Some(agent_id), RpcClientType::Agent) => {
+                agent::response::check_response(agent_id, context, dsv_senders).await;
             }
-            ("sample", Some(agent_id), RpcClientType::Agent) => {
-                agent::response::sample_response(agent_id, context, string_senders.clone());
+            (ACTION_GET_SAMPLE, Some(agent_id), RpcClientType::Agent) => {
+                agent::response::sample_response(agent_id, context, string_senders).await;
             }
-            ("put-file", Some(agent_id), RpcClientType::Agent) => {
-                agent::response::put_file_response(agent_id, context, string_senders.clone());
+            (ACTION_SPLIT_TASK, Some(agent_id), RpcClientType::Agent) => {
+                agent::response::split_task_response(agent_id, context, split_task_senders).await;
             }
-            ("query-data-source", Some(agent_id), RpcClientType::Agent) => {
-                agent::response::query_datasource_response(
+            (ACTION_PUT_FILE, Some(agent_id), RpcClientType::Agent) => {
+                agent::response::put_file_response(agent_id, context, string_senders).await;
+            }
+            (ACTION_QUERY_DATA_SOURCE, Some(agent_id), RpcClientType::Agent) => {
+                agent::response::query_datasource_response(agent_id, context, string_senders).await;
+            }
+            (MESSAGE_AGENT_ACTIVITY, Some(agent_id), RpcClientType::Agent) => {
+                agent::response::agent_activity(
                     agent_id,
                     context,
-                    string_senders.clone(),
+                    notify_sender,
+                    activity_sender.as_deref(),
                 );
             }
-            ("agent-activity", Some(agent_id), RpcClientType::Agent) => {
-                agent::response::agent_activity(agent_id, context, notify_sender.clone());
+            (MESSAGE_TASK_ACTIVITY, Some(agent_id), RpcClientType::Agent) => {
+                agent::response::task_activity(
+                    agent_id,
+                    context,
+                    notify_sender,
+                    activity_sender.as_deref(),
+                );
             }
-            ("task-activity", Some(agent_id), RpcClientType::Agent) => {
-                agent::response::task_activity(agent_id, context, notify_sender.clone());
-            }
-            ("heartbeat-ok", Some(agent_id), RpcClientType::Agent) => {
+            (MESSAGE_HEARTBEAT_OK, Some(agent_id), RpcClientType::Agent) => {
                 agent::response::heartbeat_ok(agent_id, context);
             }
-            ("heartbeat", _, RpcClientType::Agent) => {
+            (MESSAGE_HEARTBEAT, _, RpcClientType::Agent) => {
                 let item = agent::response::heartbeat(ts, req_id);
                 tx.send_async(item).await.map_err(|_| {
                     FlightError::ProtocolError(
@@ -94,10 +111,10 @@ pub async fn process(
                     )
                 })?;
             }
-            ("task-metrics", _, RpcClientType::Agent) => {
+            (MESSAGE_TASK_METRICS, _, RpcClientType::Agent) => {
                 agent::response::task_metrics(context);
             }
-            ("metrics-events", _, RpcClientType::Agent) => {
+            (MESSAGE_METRICS_EVENTS, _, RpcClientType::Agent) => {
                 agent::response::metrics_events(context);
             }
             (HEARTBEAT_REQ, _, RpcClientType::Xnoded) => {
@@ -109,74 +126,93 @@ pub async fn process(
                 process!(xnode::api::heartbeat(xnoded_id, context), HEARTBEAT_RESP);
             }
             (HEARTBEAT_REQ, _, RpcClientType::Guest) => {
-                let batch = build_batch(HEARTBEAT_RESP, "", req_id).map_err(FlightError::Arrow);
-                tx.send_async(batch)
-                    .await
-                    .map_err(|_| send_resp_error(HEARTBEAT_RESP))?;
+                process!(Ok(()), HEARTBEAT_RESP);
             }
             (PLAN_TASK_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
-                tracing::info!("Received plan task request");
-                process!(xnode::api::plan_task(context).await, PLAN_TASK_RESP);
+                process!(
+                    PLAN_TASK_REQ,
+                    xnode::api::plan_task(controller, context).await,
+                    PLAN_TASK_RESP
+                );
             }
             (START_TASK_JOB_REQ, _, RpcClientType::Xnoded) => {
-                tracing::info!("Received start task job request");
                 process!(
+                    START_TASK_JOB_REQ,
                     xnode::api::start_task_job(controller, context, tx.clone()).await,
                     START_TASK_JOB_RESP
                 );
             }
             (STOP_TASK_JOB_REQ, _, RpcClientType::Xnoded) => {
-                tracing::info!("Received stop task job request");
                 process!(
+                    STOP_TASK_JOB_REQ,
                     xnode::api::stop_task_job(controller, context).await,
                     STOP_TASK_JOB_RESP
                 );
             }
             (LIST_TASK_JOB_STATES_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
-                tracing::info!("Received list task job states request");
                 process!(
+                    LIST_TASK_JOB_STATES_REQ,
                     xnode::api::list_task_states(controller).await,
                     LIST_TASK_JOB_STATES_RESP
                 );
             }
             (ADD_AGENTS_REQ, _, RpcClientType::Xnoded) => {
-                tracing::info!("Received add agents request");
                 process!(
+                    ADD_AGENTS_REQ,
                     xnode::api::add_agents(controller, context).await,
                     ADD_AGENTS_RESP
                 );
             }
             (DEL_AGENTS_REQ, _, RpcClientType::Xnoded) => {
-                tracing::info!("Received delete agents request");
                 process!(
+                    DEL_AGENTS_REQ,
                     xnode::api::del_agents(controller, context).await,
                     DEL_AGENTS_RESP
                 );
             }
             (LIST_AGENTS_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
-                tracing::info!("Received list agents request");
-                process!(xnode::api::list_agents(controller).await, LIST_AGENTS_RESP);
+                process!(
+                    LIST_AGENTS_REQ,
+                    xnode::api::list_agents(controller).await,
+                    LIST_AGENTS_RESP
+                );
             }
             (CHECK_VALID_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
-                tracing::info!("Received check valid request");
-                process!(xnode::api::check_valid(context).await, CHECK_VALID_RESP);
+                process!(
+                    CHECK_VALID_REQ,
+                    xnode::api::check_valid(controller, context).await,
+                    CHECK_VALID_RESP
+                );
             }
             (GET_SAMPLES_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
-                tracing::info!("Received get samples request");
-                process!(xnode::api::get_samples(context).await, GET_SAMPLES_RESP);
+                process!(
+                    GET_SAMPLES_REQ,
+                    xnode::api::get_samples(controller, context).await,
+                    GET_SAMPLES_RESP
+                );
             }
             (GET_X_HTTP_PORT_REQ, _, RpcClientType::Guest) => {
-                tracing::info!("Received get x http port request");
-                process!(xnode::api::get_x_http_port(), GET_X_HTTP_PORT_RESP);
+                process!(
+                    GET_X_HTTP_PORT_REQ,
+                    xnode::api::get_x_http_port(),
+                    GET_X_HTTP_PORT_RESP
+                );
             }
             (TASK_PREVIEW_REQ, _, RpcClientType::Xnoded | RpcClientType::Guest) => {
-                tracing::info!("Received task preview request");
-                process!(xnode::api::task_preview(context).await, TASK_PREVIEW_RESP);
+                process!(
+                    TASK_PREVIEW_REQ,
+                    xnode::api::task_preview(context).await,
+                    TASK_PREVIEW_RESP
+                );
             }
             (TASK_JOB_DRAIN_REQ, _, RpcClientType::Xnoded) => {
-                tracing::info!("Received task job drain request");
-                process!(xnode::api::drain(controller).await, TASK_JOB_DRAIN_RESP);
+                process!(
+                    TASK_JOB_DRAIN_REQ,
+                    xnode::api::drain(controller).await,
+                    TASK_JOB_DRAIN_RESP
+                );
             }
+            (HEARTBEAT_RESP, _, RpcClientType::Xnoded | RpcClientType::Guest) => {}
             (action, agent, client_type) => {
                 tracing::warn!(
                     action,agent,?xnoded_id,%client_type,

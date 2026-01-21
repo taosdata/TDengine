@@ -310,7 +310,7 @@ function handleTaskActivities(activity: ActivitieProps) {
       task.activities.unshift(activity);
 
       if (task.activities.length > 10) {
-        task.activities.splice(10, task.activities.length - 10);
+        task.activities.splice(10);
       }
     }
   });

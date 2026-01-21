@@ -389,6 +389,7 @@ async fn execute(
                         metrics.ipc().add_extra_metric(&METRIC_RECEIVED_ACKS, 1);
                     }
                 }
+                pending_batches.clear_async().await;
                 tracing::info!("Kafka ACK reader finished");
                 Ok(ExitStatus::Finished)
             }.instrument(ack_span));

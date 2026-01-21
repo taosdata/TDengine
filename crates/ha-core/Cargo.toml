@@ -13,6 +13,7 @@ serde.workspace = true
 serde_json.workspace = true
 taos.workspace = true
 jsonwebtoken.workspace = true
+uuid.workspace = true
 
 [lints]
 workspace = true

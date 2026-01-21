@@ -41,13 +41,12 @@ where
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         let mut this = self.project();
-        loop {
-            match this.fut.as_mut().poll(cx) {
-                std::task::Poll::Ready(res) => return std::task::Poll::Ready(res),
-                std::task::Poll::Pending => {
-                    ready!(this.interval.poll_tick(cx));
-                    (this.inspect)(this.start.elapsed());
-                }
+        match this.fut.as_mut().poll(cx) {
+            std::task::Poll::Ready(res) => std::task::Poll::Ready(res),
+            std::task::Poll::Pending => {
+                ready!(this.interval.poll_tick(cx));
+                (this.inspect)(this.start.elapsed());
+                std::task::Poll::Pending
             }
         }
     }
@@ -63,7 +62,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test() {
+    async fn test_1() {
         let inspect_count = Arc::new(AtomicU8::default());
 
         let inspect_fut = InspectTimeoutFuture::new(
@@ -78,6 +77,25 @@ mod tests {
         );
 
         inspect_fut.await;
-        assert_eq!(inspect_count.load(Ordering::SeqCst), 2);
+        assert_eq!(inspect_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn test_2() {
+        let inspect_count = Arc::new(AtomicU8::default());
+
+        let inspect_fut = InspectTimeoutFuture::new(
+            Duration::from_millis(500),
+            tokio::time::sleep(Duration::from_millis(200)),
+            Box::new({
+                let count = inspect_count.clone();
+                move |_| {
+                    count.fetch_add(1, Ordering::SeqCst);
+                }
+            }),
+        );
+
+        inspect_fut.await;
+        assert_eq!(inspect_count.load(Ordering::SeqCst), 0);
     }
 }

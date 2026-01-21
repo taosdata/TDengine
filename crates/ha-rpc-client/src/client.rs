@@ -8,18 +8,23 @@ use ha_core::{
 use snafu::{OptionExt, ResultExt};
 use tokio::sync::oneshot;
 
-use crate::error::*;
+use crate::{RpcRequest, error::*};
 
 #[derive(Clone)]
 pub struct HaRpcClient {
-    message_tx: flume::Sender<(u64, RecordBatch, oneshot::Sender<Result<RecordBatch>>)>,
+    message_tx: flume::Sender<RpcRequest>,
 }
 
 impl HaRpcClient {
-    pub(crate) fn new(
-        message_tx: flume::Sender<(u64, RecordBatch, oneshot::Sender<Result<RecordBatch>>)>,
-    ) -> Self {
+    pub(crate) fn new(message_tx: flume::Sender<RpcRequest>) -> Self {
         Self { message_tx }
+    }
+
+    pub async fn send_no_reply_batch(&self, batch: RecordBatch) -> Result<()> {
+        self.message_tx
+            .send_async((batch, None))
+            .await
+            .map_err(|_| EventLoopDroppedSnafu.build())
     }
 
     pub async fn heartbeat(&self, xnoded_id: &XnodedId) -> Result<HeartbeatMetrics> {
@@ -54,15 +59,15 @@ impl HaRpcClient {
         self.send_recv(CHECK_VALID_REQ, param).await
     }
 
-    pub async fn get_samples(&self, from: &str) -> Result<GetSamplesResult> {
-        self.send_recv_raw_context(GET_SAMPLES_REQ, from).await
+    pub async fn get_samples(&self, param: &GetSamplesParam) -> Result<GetSamplesResult> {
+        self.send_recv(GET_SAMPLES_REQ, param).await
     }
 
-    pub async fn add_agents(&self, param: &AddAgentsParam) -> Result<AddAgentsResult> {
+    pub async fn add_agents(&self, param: AddAgentsParam<'_>) -> Result<()> {
         self.send_recv(ADD_AGENTS_REQ, param).await
     }
 
-    pub async fn del_agents(&self, param: &DelAgentsParam) -> Result<DelAgentsResult> {
+    pub async fn del_agents(&self, param: DelAgentsParam<'_>) -> Result<()> {
         self.send_recv(DEL_AGENTS_REQ, param).await
     }
 
@@ -94,17 +99,13 @@ impl HaRpcClient {
         let req_id = next_req_id();
         let batch = build_batch(action, param, req_id).context(BuildReqBatchSnafu)?;
         let (tx, rx) = oneshot::channel();
-        if self
-            .message_tx
-            .send_async((req_id, batch, tx))
+        self.message_tx
+            .send_async((batch, Some((req_id, tx))))
             .await
-            .is_err()
-        {
-            return EventLoopDroppedSnafu.fail();
-        }
-        let Ok(batch) = rx.await else {
-            return AckWaiterDroppedUnexpectedlySnafu.fail();
-        };
+            .map_err(|_| EventLoopDroppedSnafu.build())?;
+        let batch = rx
+            .await
+            .map_err(|_| AckWaiterDroppedUnexpectedlySnafu.build())?;
         let batch = batch?;
         let mut iter = BatchIter::new(&batch).context(BuildBatchIterSnafu)?;
         let record = iter.next().context(ResponseNoContextSnafu)?;

@@ -10,24 +10,22 @@ use anyhow::{Context as _, bail};
 use arrow::array::RecordBatch;
 use arrow_flight::error::FlightError;
 use flume::Sender;
+use ha_core::types::{HaTask, SplitJobResult};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use taosx_core::runners::opc::OpcType;
 use tracing::instrument;
-use utoipa::*;
-use uuid::Uuid;
 
-use self::agent::AgentToken;
 use self::trigger::Strategy;
 use super::scheduler::TaskScheduler;
-use crate::serve::controller::activity::Activity;
 use crate::serve::data_sources::{da_template_row, ua_template_row};
 use crate::serve::rpc::utils::build_activity_batch;
 use crate::serve::scheduler;
 use crate::serve::scheduler::agent::AgentState;
 use crate::serve::scheduler::runner::InnerState;
 use crate::serve::utils::csv::encode_csv_config_file;
+use ha_core::{activity::Activity, consts::*, jwt::agent::AgentToken};
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::plugins::sink::point::csv::CsvParser;
 use taosx_core::plugins::transform::sample::DsSamples;
@@ -37,17 +35,17 @@ use taosx_core::utils::get_string_content_from_param_value;
 use taosx_core::{DataSet, DataSetsReq, PutFileReq, Response, get_data_dir};
 use taosx_core::{QueryDataSourceReq, list_datasets_from};
 
-pub mod activity;
 pub(crate) mod agent;
 
 pub type AgentDataSetsSender = Sender<Response<Vec<DataSet>>>;
 pub type DsvSender = Sender<DataSourceValidation>;
 pub type StringSender = Sender<Response<String>>;
+pub type SplitTaskSender = Sender<Response<SplitJobResult>>;
 
 #[derive(Debug, Clone)]
 pub enum AgentAction {
-    /// Tuple for (TaskId, JobId, RunId)
-    Run(i64, i64, Uuid, u64),
+    /// Tuple for (TaskId, JobId)
+    Run(i64, i64),
     Stop(i64, i64),
     /// Equivalent to `Suspend`.
     Cancel(i64, i64),
@@ -60,6 +58,27 @@ pub enum AgentAction {
     PutFile(PutFileReq, StringSender),
     /// query data source via connectors
     QueryDataSource(QueryDataSourceReq, StringSender),
+    /// split task job
+    SplitTask(HaTask, SplitTaskSender),
+    /// agent
+    Exit,
+}
+
+impl AgentAction {
+    pub fn action_str(&self) -> &'static str {
+        match self {
+            AgentAction::Run(_, _) => ACTION_RUN,
+            AgentAction::Stop(_, _) => ACTION_STOP,
+            AgentAction::Cancel(_, _) => ACTION_CANCEL,
+            AgentAction::ListDataSets(_, _) => ACTION_LIST_DATA_SETS,
+            AgentAction::Check(_, _) => ACTION_CHECK,
+            AgentAction::GetSample(_, _) => ACTION_GET_SAMPLE,
+            AgentAction::PutFile(_, _) => ACTION_PUT_FILE,
+            AgentAction::QueryDataSource(_, _) => ACTION_QUERY_DATA_SOURCE,
+            AgentAction::SplitTask(_, _) => ACTION_SPLIT_TASK,
+            AgentAction::Exit => ACTION_EXIT,
+        }
+    }
 }
 
 pub(crate) struct TaskController {
@@ -297,6 +316,27 @@ impl TaskController {
         Ok(())
     }
 
+    pub async fn stop_task_by_agent(&self, agent_id: i64) -> anyhow::Result<()> {
+        let tasks = self.scheduler.agent_tasks(agent_id).await;
+        let message = format!("Task is stopped because agent {agent_id} is deleted");
+        for (task_id, job_id) in tasks {
+            self.stop_task(task_id, job_id).await?;
+            let activity = Activity::stopped(task_id, job_id).message(message.clone());
+            self.scheduler.global_state.send_task_activity(activity);
+        }
+
+        Ok(())
+    }
+
+    pub async fn push_agent_action(&self, agent_id: i64, action: AgentAction) {
+        self.scheduler
+            .global_state
+            .agent_worker
+            .push_action(agent_id, action)
+            .await
+            .ok();
+    }
+
     pub async fn stop_all_task(&self) -> anyhow::Result<()> {
         let tasks = {
             self.scheduler
@@ -317,7 +357,7 @@ impl TaskController {
 
     pub async fn shutdown(&self) -> anyhow::Result<()> {
         let scheduler = self.scheduler.clone();
-        let _ = tokio::time::timeout(Duration::from_secs(11), scheduler.suspend_all()).await;
+        let _ = tokio::time::timeout(Duration::from_secs(11), self.stop_all_task()).await;
         scheduler.shutdown().await;
         Ok(())
     }
@@ -334,17 +374,18 @@ impl TaskController {
         &self,
         token: &AgentToken,
         client: Option<&SocketAddr>,
-        flight_tx: &flume::Sender<Result<RecordBatch, FlightError>>,
-    ) -> anyhow::Result<i64> {
-        let agent = self.check_agent_id(token)?;
-        let Some(agent_id) = agent else {
-            bail!("The agent which token(`{token}`) bind to might be deleted")
+        tx: &flume::Sender<Result<RecordBatch, FlightError>>,
+    ) -> anyhow::Result<Option<i64>> {
+        let agent_id = self.check_agent_id(token)?;
+        let Some(agent_id) = agent_id else {
+            return Ok(None);
         };
+
         let client = client.map(ToString::to_string).unwrap_or_default();
         let activity = Activity::agent_connect(agent_id, &client);
         let batch = build_activity_batch(activity).context("build activity batch error")?;
-        flight_tx.try_send(Ok(batch)).ok();
-        Ok(agent_id)
+        tx.send_async(Ok(batch)).await.ok();
+        Ok(Some(agent_id))
     }
 
     pub async fn list_datasets_via_agent_v1(
@@ -681,87 +722,4 @@ pub fn load_breakpoints(task_id: i64, job_id: i64) -> Option<String> {
     } else {
         None
     }
-}
-
-/// Create new task with json object.
-///
-/// Required properties:
-///
-/// - *name*: The task name.
-/// - *from*/*from_json* */: The data source configuration
-/// - *to*: The data sink DSN.
-///
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
-pub(crate) struct NewTask {
-    stream_type: Option<String>,
-    /// Task name.
-    #[schema(example = "demo")]
-    pub name: Option<String>,
-    /// Task trigger events, default will be oneshot.
-    ///
-    /// For schedule trigger:
-    ///
-    /// - Run hourly/daily/weekly/monthly: "schedule:@daily"
-    /// - Run with crontab schedule: "schedule:@daily", checkout https://crontab.guru/ for human-readable crontab.
-    #[schema(example = "schedule:@daily")]
-    pub trigger: Option<Strategy>,
-    /// The stream data source.
-    #[schema(example = "tmq+ws://localhost:6041/test?group.id=test-test2&client.id=taosx")]
-    from: Option<String>,
-    /// the json parameters required for task execution
-    ///
-    /// the parameter values vary depending on the task type
-    from_json: Option<serde_json::Value>,
-    /// The stream data source cluster id.
-    from_cluster: Option<String>,
-
-    /// Use oneshot topic for a task, delete the topic after task deleted.
-    oneshot_topic: Option<String>,
-
-    /// The target of the stream.
-    #[schema(example = "taos://localhost:6030/test2")]
-    to: String,
-
-    /// The parser of the task stream.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parser: Option<serde_json::Value>,
-
-    /// The stream data target cluster id.
-    to_cluster: Option<String>,
-
-    /// Agent id
-    via: Option<i64>,
-
-    /// Set if the target database should be cleared before running task.
-    #[serde(default)]
-    clear: bool,
-
-    /// Jobs number
-    #[serde(default)]
-    jobs: u16,
-
-    /// Compression level when need (for backup only)
-    #[serde(default)]
-    compression_level: Option<u8>,
-
-    /// Force to do some risking steps.
-    #[serde(default)]
-    force: bool,
-
-    /// Add after_delete hook action, the string would be action name, with or without some configuration.
-    ///
-    /// It will do nothing if the action is not supported by a specific task case.
-    after_delete: Option<String>,
-
-    /// Labels for a task.
-    ///
-    /// You can use k-v style label such as `key::value` or key-only label `key`.
-    ///
-    /// You can filter tasks by some labels.
-    labels: Option<Vec<String>>,
-
-    /// Do not start immediately. Default is false, means start immediately after created.
-    ///
-    #[serde(default)]
-    not_start: bool,
 }

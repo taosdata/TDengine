@@ -34,9 +34,10 @@ use zerocopy::FromBytes;
 use crate::serve::controller::Task;
 use crate::serve::scheduler::agent::AgentNotify;
 use crate::serve::{
-    controller::{TaskControllerRef, activity::Activity},
+    controller::TaskControllerRef,
     scheduler::agent::{AgentNotifySender, AgentSpawnSender},
 };
+use ha_core::activity::Activity;
 
 #[derive(Debug)]
 pub struct PutStream {
@@ -100,10 +101,9 @@ async fn ipc_stream_writer(
             notify.notify_waiters();
         }
     });
-    // dbg!(&task);
     notify_sender.send(crate::serve::scheduler::agent::AgentNotify::TaskActivity(
         agent_id,
-        Activity::ipc_started(task.id),
+        Activity::ipc_started(agent_id),
     ))?;
     let task_id = task.id;
     let job_id = task.job_id;

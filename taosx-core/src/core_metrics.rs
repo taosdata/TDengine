@@ -21,7 +21,7 @@ use crate::utils::metrics_db::MetricsStore;
 
 use anyhow::Context;
 use futures::FutureExt as _;
-use ha_core::types::TaskStatus;
+use ha_core::activity::TaskStatus;
 use metrics::atomics::AtomicU64;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
@@ -188,7 +188,6 @@ impl CommonMetrics {
         self.last_persist_time.reset();
         self.processed_messages.store(0, SeqCst);
         self.received_messages.store(0, SeqCst);
-        update_metrics(self.task_id, self.job_id);
     }
 
     pub fn received_messages(&self) -> u64 {

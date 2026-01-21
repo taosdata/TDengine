@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use crate::serve::{controller::activity::Activity, scheduler::SchedulerNotify};
+use anyhow::Result;
 use itertools::Itertools;
 use taosx_core::{
     DataSet,
@@ -14,16 +14,16 @@ use taosx_core::{
 };
 use thiserror::Error;
 use tokio::sync::{Mutex, Notify, RwLock};
+use tokio_cron_scheduler::JobNotification;
+use tracing::{Instrument, info};
+use uuid::Uuid;
 
 use super::{
     NotifySender,
     runner::{GlobalState, MultiIndexTaskJobMapRef},
 };
-
-use anyhow::Result;
-use tokio_cron_scheduler::JobNotification;
-use tracing::{Instrument, info};
-use uuid::Uuid;
+use crate::serve::scheduler::SchedulerNotify;
+use ha_core::activity::Activity;
 
 #[allow(clippy::type_complexity)]
 pub async fn notify_by_job_id(

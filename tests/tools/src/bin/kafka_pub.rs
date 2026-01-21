@@ -8,7 +8,7 @@ use clap::Parser;
 use crossterm::event::EventStream;
 use futures::StreamExt;
 use rdkafka::config::ClientConfig;
-use rdkafka::producer::{FutureProducer, FutureRecord, Producer};
+use rdkafka::producer::{BaseProducer, FutureProducer, FutureRecord, Producer};
 use rdkafka::util::Timeout;
 
 use taosx_tools::codec::{Encoding, Processor};
@@ -26,9 +26,7 @@ struct Args {
     servers: String,
     #[clap(long = "topic", short = 't')]
     topic: String,
-    #[clap(long = "partitions", short = 'p', default_value_t = 1)]
-    partitions: usize,
-    #[clap(long = "perallel", short = 'l', default_value_t = std::thread::available_parallelism().unwrap().get())]
+    #[clap(long = "parallel", short = 'l', default_value_t = std::thread::available_parallelism().unwrap().get())]
     parallel: usize,
     #[clap(long = "interval", default_value = "100ms", value_parser = fundu::parse_duration)]
     interval: Duration,
@@ -52,7 +50,7 @@ async fn main() {
 
     let token = CancellationToken::new();
 
-    let faker = Arc::new(DataFakeSchema::from_file(args.schema).unwrap());
+    let faker = Arc::new(DataFakeSchema::from_file(args.schema).expect("parse schema from file"));
 
     let mut config = ClientConfig::new();
     config.set("bootstrap.servers", args.servers);
@@ -91,8 +89,30 @@ async fn main() {
             }
         }
     });
+    let topic_name = &args.topic;
+    let partitions = {
+        let producer = config
+            .create::<BaseProducer>()
+            .expect("create base producer");
+        let meta = producer
+            .client()
+            .fetch_metadata(Some(topic_name), Timeout::After(Duration::from_secs(10)))
+            .expect("fetch metadata");
+        let mut partitions = None;
+        for topic in meta.topics() {
+            if topic_name != topic.name() {
+                continue;
+            }
+            partitions = Some(topic.partitions().len());
+        }
+        let Some(partitions) = partitions else {
+            println!("no partitions found");
+            return;
+        };
+        partitions
+    };
+    println!("partitions: {partitions}");
 
-    let partitions = args.partitions;
     for i in 0..args.parallel {
         join_set.spawn({
             let producer: FutureProducer = match config.create() {
@@ -105,7 +125,8 @@ async fn main() {
                     return;
                 }
             };
-            let topic = args.topic.clone();
+            let topic_name = args.topic.clone();
+
             let faker = faker.clone();
             let token = token.clone();
             let published = published.clone();
@@ -154,7 +175,7 @@ async fn main() {
                         }
                         Ok(value) => value,
                     };
-                    let record = FutureRecord::to(&topic)
+                    let record = FutureRecord::to(&topic_name)
                         .payload(&value)
                         .partition((i % partitions) as _)
                         .key("key");
@@ -173,7 +194,9 @@ async fn main() {
                         }
                     }
                 }
-                producer.flush(std::time::Duration::from_secs(5)).unwrap();
+                if let Err(e) = producer.flush(std::time::Duration::from_secs(5)) {
+                    println!("flush error: {e:#}");
+                };
             }
         });
     }

@@ -1,3 +1,5 @@
+// ============ xnode ============
+
 pub const HEARTBEAT_REQ: &str = "xnode_heartbeat";
 pub const HEARTBEAT_RESP: &str = "xnode_heartbeat_resp";
 
@@ -44,4 +46,28 @@ pub const GET_X_HTTP_PORT_RESP: &str = "xnode_get_http_port_resp";
 pub const DROP_CONNECTION: &str = "xnode_drop_connection";
 
 pub const TASK_ACTIVITIES_STABLE: &str = "xnode_task_activities";
+pub const AGENT_ACTIVITIES_STABLE: &str = "xnode_agent_activities";
 pub const TASK_METRICS_STABLE: &str = "xnode_task_metrics";
+
+// ============ agent ============
+
+pub const ACTION_RUN: &str = "agent_task_run";
+pub const ACTION_STOP: &str = "agent_task_stop";
+pub const ACTION_CANCEL: &str = "agent_task_cancel";
+pub const ACTION_LIST_DATA_SETS: &str = "agent_list_datasets";
+pub const ACTION_CHECK: &str = "agent_task_check";
+pub const ACTION_GET_SAMPLE: &str = "agent_sample";
+pub const ACTION_PUT_FILE: &str = "agent_put_file";
+pub const ACTION_QUERY_DATA_SOURCE: &str = "agent_query_data_source";
+pub const ACTION_SPLIT_TASK: &str = "agent_split_task";
+pub const ACTION_EXIT: &str = "agent_exit";
+
+pub const ACTION_TASK_STATUS: &str = "agent_task_status";
+pub const ACTION_GET_MONITOR_CONFIG: &str = "agent_get_monitor_config";
+
+pub const MESSAGE_AGENT_ACTIVITY: &str = "agent_activity";
+pub const MESSAGE_TASK_ACTIVITY: &str = "agent_task_activity";
+pub const MESSAGE_HEARTBEAT_OK: &str = "agent_heartbeat_ok";
+pub const MESSAGE_HEARTBEAT: &str = "agent_heartbeat";
+pub const MESSAGE_TASK_METRICS: &str = "agent_task_metrics";
+pub const MESSAGE_METRICS_EVENTS: &str = "agent_metrics_events";

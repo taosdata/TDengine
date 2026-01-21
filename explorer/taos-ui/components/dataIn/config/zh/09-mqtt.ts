@@ -217,7 +217,7 @@ export default {
               field: 'topics',
               required: true,
               placeholder: 'topic1::0,topic2::1',
-              pattern: '^(?:\\S+::[0-2],)*\\S+::[0-2]$',
+              pattern: '^(?:[^,]+::[0-2],)*[^,]+::[0-2]$',
               patternMsg:
                 '输入格式有误，请按照格式 `<topic name>::<QoS>`，其中QoS 只能输入0、1、2，例如： `topic1::0,topic2::1`',
               grid_two: false,

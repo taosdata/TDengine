@@ -4,16 +4,18 @@ use anyhow::Context;
 use arrow_flight::error::FlightError;
 use chrono::Utc;
 use ha_core::{
+    activity::Activity,
     batch::build_batch,
     consts::{TASK_JOB_FINISH, TASK_METRICS, XNODE_ACTIVITIES},
-    types::TaskMetrics,
+    types::{MetricsType, TaskMetrics},
     utils::next_req_id,
 };
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::core_metrics::CoreMetrics;
 use tonic::{Code, Status};
+use tracing::instrument;
 
-use crate::serve::{controller::activity::Activity, rpc::FlightResult};
+use crate::serve::rpc::FlightResult;
 
 pub fn build_rpc_ok_batch(
     action: &str,
@@ -37,13 +39,27 @@ pub fn decode_err(e: anyhow::Error) -> FlightError {
 
 pub fn build_metrics_batch(metrics: Arc<CoreMetrics>) -> FlightResult {
     let (task_id, job_id) = metrics.task_job_id();
+    macro_rules! serialize_metrics {
+        ($t: expr, $metrics: expr) => {
+            (
+                $t,
+                serde_json::to_value($metrics)
+                    .with_context(|| format!("Rpc serialize {} metrics value error", $t))
+                    .map_err(internal_err)?,
+            )
+        };
+    }
+    let (metrics_type, metrics) = match metrics.as_ref() {
+        CoreMetrics::Legacy(metrics) => serialize_metrics!(MetricsType::Legacy, metrics),
+        CoreMetrics::TMQ(metrics) => serialize_metrics!(MetricsType::Tmq, metrics),
+        CoreMetrics::IPC(metrics) => serialize_metrics!(MetricsType::Ipc, metrics),
+    };
     let metrics_json = TaskMetrics {
         ts: Utc::now(),
         task_id,
         job_id,
-        metrics: serde_json::to_value(metrics)
-            .context("Rpc serialize metrics value error")
-            .map_err(internal_err)?,
+        r#type: metrics_type,
+        metrics,
     };
 
     let context = serde_json::to_string(&metrics_json)
@@ -87,6 +103,7 @@ pub fn build_task_job_finish_batch(
         .map_err(internal_err)
 }
 
+#[instrument(skip_all)]
 pub async fn check_taos_connectivity(dsn: &Dsn) -> anyhow::Result<()> {
     let conn = TaosBuilder::from_dsn(dsn)
         .context("build taos builder error")?

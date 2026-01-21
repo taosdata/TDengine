@@ -1,11 +1,12 @@
-use std::{
-    fmt::{Debug, Display},
-    str::FromStr,
-};
+use std::fmt::{Debug, Display};
 
 use crate::types::dsv::DataSourceValidation;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use faststr::FastStr;
+use ha_core::{
+    activity::Activity,
+    types::{HaTask, SplitJobResult},
+};
 use serde::{Deserialize, Serialize};
 use taosx_metrics::MetricsEvents;
 pub mod dsv;
@@ -88,6 +89,13 @@ pub struct SampleResponse {
     pub res: Response<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SplitTaskResponse {
+    pub req_id: u64,
+    pub req: HaTask,
+    pub res: Response<SplitJobResult>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PutFileReq {
     /// 要发送的文件，相对于 data 目录的路径, 例如: "tasks/1/1.csv"
@@ -168,49 +176,6 @@ impl HeartbeatResponse {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Activity {
-    pub id: i64,
-    pub at: chrono::DateTime<Utc>,
-    pub level: LevelFilter,
-    pub activity: String,
-    pub status: String,
-    pub context: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
-#[repr(u8)]
-#[serde(rename_all = "snake_case")]
-pub enum LevelFilter {
-    Error,
-    Warn,
-    Info,
-    Debug,
-    Trace,
-}
-impl Activity {
-    pub fn new<T: ToString>(
-        id: i64,
-        at: DateTime<Utc>,
-        level: LevelFilter,
-        activity: impl Into<String>,
-        status: impl Into<String>,
-        context: impl Into<Option<T>>,
-    ) -> Self {
-        Activity {
-            id,
-            at,
-            level,
-            activity: activity.into(),
-            status: status.into(),
-            context: context.into().map(|v| {
-                let v = v.to_string();
-                serde_json::Value::from_str(v.as_str()).unwrap_or(serde_json::Value::String(v))
-            }),
-        }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[repr(C)]
 pub enum TaskMetricsVariant {
@@ -229,13 +194,14 @@ pub struct TaskMetricItem {
 }
 pub type TaskMetrics = Vec<TaskMetricItem>;
 pub enum RespAction {
-    Heartbeat,
-    HeartbeatOk(HeartbeatResponse),
+    Heartbeat(u64),
+    HeartbeatOk(u64, HeartbeatResponse),
     TaskError(i64),
     /// ReqId, Resp
     ListOk(ListResponse),
     CheckOk(CheckResponse),
     SampleOk(SampleResponse),
+    SplitTaskOk(SplitTaskResponse),
     PutFileOk(PutFileResp),
     AgentActivity(Activity),
     TaskActivity(Activity),
@@ -246,8 +212,9 @@ pub enum RespAction {
 
 #[cfg(test)]
 mod tests {
+    use chrono::DateTime;
+
     use super::*;
-    use serde_json::json;
 
     #[test]
     fn dataset_new_and_eq_by_id() {
@@ -289,42 +256,5 @@ mod tests {
         let hb = HeartbeatResponse { req, res };
         let dur = hb.duration();
         assert_eq!(dur.num_seconds(), 1);
-    }
-
-    #[test]
-    fn activity_new_parses_json_context_or_keeps_string() {
-        let at = Utc::now();
-
-        // JSON string becomes JSON Value
-        let act_json = Activity::new::<String>(
-            1,
-            at,
-            LevelFilter::Info,
-            "do",
-            "ok",
-            Some(String::from("{\"a\":1}")),
-        );
-        let ctx1 = act_json.context.unwrap();
-        assert_eq!(ctx1["a"], json!(1));
-
-        // Non-JSON stays as string
-        let act_str = Activity::new::<String>(
-            2,
-            at,
-            LevelFilter::Warn,
-            "do",
-            "ok",
-            Some(String::from("abc")),
-        );
-        let ctx2 = act_str.context.unwrap();
-        assert_eq!(ctx2, serde_json::Value::String("abc".to_string()));
-    }
-
-    #[test]
-    fn level_filter_serde_snake_case() {
-        let s = serde_json::to_string(&LevelFilter::Warn).unwrap();
-        assert_eq!(s, "\"warn\"");
-        let lvl: LevelFilter = serde_json::from_str("\"debug\"").unwrap();
-        assert!(matches!(lvl, LevelFilter::Debug));
     }
 }

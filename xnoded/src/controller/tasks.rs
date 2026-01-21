@@ -1,6 +1,6 @@
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 
-use ha_core::types::{HaTask, TaskStatus};
+use ha_core::{activity::TaskStatus, types::HaTask};
 use parking_lot::RwLock;
 
 #[derive(Debug, Clone)]
@@ -13,6 +13,14 @@ pub struct TaskJobInfo {
     pub config: HaTask,
 }
 
+impl TaskJobInfo {
+    pub fn should_skip_rebalance(&self) -> bool {
+        self.manually_rebalance
+            || self.manually_stopped
+            || self.status.is_none_or(|v| !v.is_running())
+    }
+}
+
 #[derive(Clone)]
 pub struct Tasks(Arc<RwLock<HashMap<(i64, i64), TaskJobInfo>>>);
 
@@ -23,6 +31,10 @@ impl Tasks {
 
     pub fn contains(&self, tid: i64, jid: i64) -> bool {
         self.0.read().contains_key(&(tid, jid))
+    }
+
+    pub fn all_tasks(&self) -> Vec<i64> {
+        self.0.read().keys().map(|(tid, _)| *tid).collect()
     }
 
     pub fn is_stopped(&self, tid: i64) -> bool {

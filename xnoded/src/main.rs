@@ -125,7 +125,6 @@ fn print_args(args: &Args) {
     tracing::info!("cfg_dir: {}", args.cfg_dir);
     tracing::info!("leader_ep: {}", args.leader_ep);
     tracing::info!("cluster_id: {}", args.cluster_id);
-    tracing::info!("user_pass: {}", args.user_pass);
     tracing::info!(
         "listen: {}",
         args.listen.as_deref().unwrap_or("0.0.0.0:6051")

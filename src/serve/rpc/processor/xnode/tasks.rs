@@ -69,56 +69,53 @@ pub fn spawn_task(
         }
     });
     // 将 metrics 发送给 xnoded
-    tasks.spawn({
-        let cancel = cancel.clone();
-        async move {
-            let mut futs = FuturesUnordered::new();
-            let (metrics_tx, metrics_rx) = flume::bounded(1000);
-            let task_metrics_receivers = subscribe_all_task_metrics_watcher();
-            for receiver in task_metrics_receivers {
-                futs.push(recv_metrics_task(metrics_tx.clone(), receiver, cancel.clone()));
-            }
-            let mut new_metrics_receiver = subscribe_metrics_watcher();
-            loop {
-                tokio::select! {
-                    biased;
-                    _ = futs.next(), if !futs.is_empty() => {},
-                    res = new_metrics_receiver.changed() => {
-                        if res.is_err() {
-                            break
-                        }
-                        let event = {
-                            new_metrics_receiver.borrow_and_update().clone()
-                        };
-                        match event {
-                            Some(MetricsEvent::Insert(task_id, job_id, core_metrics)) => {
-                                if cancel.run_until_cancelled(metrics_tx.send_async(core_metrics.clone())).await.is_none_or(|v| v.is_err()) {
-                                    break
-                                }
-                                let Some(receiver) = subscribe_task_metrics_watcher(task_id, job_id) else {
-                                    break
-                                };
-                                let metrics_tx = metrics_tx.clone();
-                                let cancel = cancel.child_token();
-                                futs.push(recv_metrics_task(metrics_tx, receiver, cancel));
-                            },
-                            Some(MetricsEvent::Delete(_, _)) | Some(MetricsEvent::Update(_, _, _)) | None => {},
-                        }
-                    },
-                    res = metrics_rx.recv_async() => {
-                        let Ok(metrics) = res else {
-                            break;
-                        };
-                        let batch = build_metrics_batch(metrics);
-                        if cancel.run_until_cancelled(flight_tx.send_async(batch)).await.is_none_or(|v| v.is_err()) {
-                            break;
-                        }
-                    }
-                    _ = cancel.cancelled() => break
-                }
-            }
-            Ok(())
+    tasks.spawn(async move {
+        let mut futs = FuturesUnordered::new();
+        let (metrics_tx, metrics_rx) = flume::bounded(1000);
+        let task_metrics_receivers = subscribe_all_task_metrics_watcher();
+        for receiver in task_metrics_receivers {
+            futs.push(recv_metrics_task(metrics_tx.clone(), receiver, cancel.clone()));
         }
+        let mut new_metrics_receiver = subscribe_metrics_watcher();
+        loop {
+            tokio::select! {
+                biased;
+                _ = futs.next(), if !futs.is_empty() => {},
+                res = new_metrics_receiver.changed() => {
+                    if res.is_err() {
+                        break
+                    }
+                    let event = {
+                        new_metrics_receiver.borrow_and_update().clone()
+                    };
+                    match event {
+                        Some(MetricsEvent::Insert(task_id, job_id, core_metrics)) => {
+                            if cancel.run_until_cancelled(metrics_tx.send_async(core_metrics.clone())).await.is_none_or(|v| v.is_err()) {
+                                break
+                            }
+                            let Some(receiver) = subscribe_task_metrics_watcher(task_id, job_id) else {
+                                break
+                            };
+                            let metrics_tx = metrics_tx.clone();
+                            let cancel = cancel.child_token();
+                            futs.push(recv_metrics_task(metrics_tx, receiver, cancel));
+                        },
+                        Some(MetricsEvent::Delete(_, _)) | Some(MetricsEvent::Update(_, _, _)) | None => {},
+                    }
+                },
+                res = metrics_rx.recv_async() => {
+                    let Ok(metrics) = res else {
+                        break;
+                    };
+                    let batch = build_metrics_batch(metrics);
+                    if cancel.run_until_cancelled(flight_tx.send_async(batch)).await.is_none_or(|v| v.is_err()) {
+                        break;
+                    }
+                }
+                _ = cancel.cancelled() => break
+            }
+        }
+        Ok(())
     });
 }
 

@@ -375,6 +375,9 @@ impl IpcSinkPipeline {
                 .add_header("x-task-id", &task_id.to_string())
                 .context("Add header error")?;
             client
+                .add_header("x-job-id", &job_id.to_string())
+                .context("Add header error")?;
+            client
                 .add_header("x-token", &token)
                 .context("Add header error")?;
             client

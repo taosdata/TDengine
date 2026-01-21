@@ -1,31 +1,30 @@
+use std::{collections::HashMap, ops::RangeInclusive, path::PathBuf, sync::Arc, time::Duration};
+
 use agent::listen_task_metrics;
-use anyhow::bail;
-use chrono::Utc;
+use anyhow::{Context, bail};
+use arrow_flight::error::FlightError;
 use clap::{CommandFactory, Parser};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
 use flume::{Receiver, Sender};
 use metrics::gauge;
-use std::{
-    collections::HashMap,
-    ops::RangeInclusive,
-    path::PathBuf,
-    sync::Arc,
-    time::{Duration, Instant},
-};
 use taoslog::{layer::TaosLayer, writer::RollingFileAppender};
 use taosx_metrics::{MetricEvent, MetricsEvents};
 use thiserror::Error;
-use tokio::task::JoinHandle;
-use tonic::transport::Certificate;
+use tokio::{signal::ctrl_c, task::JoinSet};
+use tokio_util::sync::CancellationToken;
+use tonic::{Code, transport::Certificate};
 
+use tracing::instrument;
+use tracing::{Instrument, log::LevelFilter};
 use tracing_subscriber::{
     Layer as _, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
 };
 use twelf::{Layer, config};
 
+use ha_core::{activity::Activity, utils::next_req_id};
 use taosx_core::{
-    AGENT_COMPRESSION, Activity, RespAction, get_log_dir, get_log_keep_days, set_env_data_dir,
+    AGENT_COMPRESSION, RespAction, get_log_dir, get_log_keep_days, set_env_data_dir,
     set_env_log_home_dir, set_env_log_keep_days, set_env_plugins_home_dir,
 };
 use taosx_core::{
@@ -40,7 +39,8 @@ use taosx_core::{
     },
 };
 use taosx_core::{global::GLOBAL_LOG_OPTS, utils::trace::DEFAULT_AGENT_INSTANCE_ID};
-use tracing::{Instrument, log::LevelFilter};
+
+use crate::agent::client::Client;
 
 const LOG_FILE: &str = "agent.log";
 
@@ -515,153 +515,227 @@ mod agent;
 mod runner;
 
 async fn main_agent_service(args: Args) -> anyhow::Result<()> {
-    let ctrl_c = tokio::signal::ctrl_c();
-    let ca = args.ca()?;
+    let cancel = CancellationToken::new();
+    let mut handle = JoinSet::new();
+    let (metrics_tx, metrics_rx) = flume::bounded(1000);
+    let (metrics_trigger_tx, metrics_trigger_rx) = flume::bounded::<()>(1);
+    taosx_metrics::ChannelRecorder::new(Arc::new(metrics_tx)).install();
+    for endpoint in args.endpoint.split(",").map(|v| v.trim()) {
+        handle.spawn(main_agent_service_inner(
+            endpoint.to_string(),
+            args.token.clone(),
+            args.ports.clone(),
+            args.ca()?,
+            metrics_rx.clone(),
+            metrics_trigger_tx.clone(),
+            metrics_trigger_rx.clone(),
+            args.keep_online,
+            cancel.child_token(),
+        ));
+    }
+
+    loop {
+        tokio::select! {
+            _ = ctrl_c() => {
+                cancel.cancel();
+            }
+            _ = cancel.cancelled() => {
+                break
+            }
+            res = handle.join_next() => {
+                let Some(res) = res else {
+                    break
+                };
+                match res {
+                    Ok(Ok(())) => {}
+                    Ok(Err(e)) => {
+                        tracing::error!("Agent service failed: {e:#}");
+                    }
+                    Err(e) => {
+                        tracing::error!("Agent service panicked: {}", e);
+                    }
+                }
+            }
+        }
+    }
+
+    tracing::info!("Agent service stopped");
+    Ok(())
+}
+
+#[instrument(skip_all)]
+async fn main_agent_service_inner(
+    endpoint: String,
+    token: String,
+    ports: Option<RangeInclusive<u16>>,
+    ca: Option<Certificate>,
+    metrics_rx: Receiver<MetricEvent>,
+    metrics_trigger_tx: Sender<()>,
+    metrics_trigger_rx: Receiver<()>,
+    keep_online: bool,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
     if let Some(ca) = &ca {
         taosx_core::global::set_agent_client_ca(ca.clone());
     }
-    let mut client =
-        agent::Client::new(&args.endpoint, &args.token, ca.clone(), &args.ports).await?;
-    let mut client2 =
-        agent::Client::new(&args.endpoint, &args.token, ca.clone(), &args.ports).await?;
-    let mut client3 =
-        agent::Client::new(&args.endpoint, &args.token, ca.clone(), &args.ports).await?;
+    let mut handle = JoinSet::new();
+    const INIT_RETRY_INTERVAL: Duration = Duration::from_millis(500);
+    let mut retry_interval = INIT_RETRY_INTERVAL;
+    const MAX_RETRY_INTERVAL: Duration = Duration::from_secs(10);
+    macro_rules! retry {
+        () => {{
+            tokio::time::sleep(retry_interval).await;
+            retry_interval = (retry_interval * 2).min(MAX_RETRY_INTERVAL);
+            continue;
+        }};
+    }
+    let mut task_cancel = cancel.child_token();
+    macro_rules! wait_handle {
+        () => {
+            if !handle.is_empty() {
+                task_cancel.cancel();
+                tracing::info!("Waiting for tasks to complete");
+            }
+            while let Some(res) = handle.join_next().await {
+                match res {
+                    Ok(Ok(_)) => {}
+                    Ok(Err(err)) => tracing::error!("Task error: {err}"),
+                    Err(err) => tracing::error!("Task panic: {err}"),
+                }
+            }
+        };
+    }
+    loop {
+        if cancel.is_cancelled() {
+            break;
+        }
+        if !keep_online {
+            break;
+        }
+        wait_handle!();
 
-    let agent = client.agent();
-    let agent_id = agent.id;
-    let (resp_tx, resp_rx) = flume::bounded::<RespAction>(1000);
+        let mut client = match cancel
+            .run_until_cancelled(Client::new(&endpoint, &token, ca.clone(), &ports))
+            .await
+        {
+            Some(Ok(client)) => client,
+            Some(Err(agent::client::Error::Handshake {
+                source: FlightError::Tonic(status),
+            })) if matches!(
+                status.code(),
+                Code::Aborted | Code::PermissionDenied | Code::InvalidArgument
+            ) =>
+            {
+                tracing::error!("Handshake invalid: {status}");
+                break;
+            }
+            Some(Err(e)) => {
+                tracing::error!("Failed to create client: {:#}", anyhow::Error::new(e));
+                retry!();
+            }
+            None => break,
+        };
+        tracing::info!(endpoint, "connect to xnode successfully");
+        retry_interval = INIT_RETRY_INTERVAL;
 
-    let (runner, tasks, sender, status) =
-        runner::spawn_runner(agent_id, &args.endpoint, &args.token, resp_tx.clone());
+        let agent_id = client.agent_id();
+        let (resp_tx, resp_rx) = flume::bounded::<RespAction>(1000);
 
-    let (metrics_tx, metrics_rx) = flume::bounded(1000);
-    taosx_metrics::ChannelRecorder::new(Arc::new(metrics_tx)).install();
+        task_cancel = cancel.child_token();
 
-    let monitor_config = client.get_taosx_monitor_config().await;
-    let monitor_enabled: bool = get_monitor_enabled(monitor_config.as_ref());
-    let monitor_interval: u64 = get_monitor_interval(monitor_config.as_ref());
-    let taosx_id = get_taosx_id(monitor_config.as_ref());
+        // 处理 tasox 发来的命令
+        let (sender, activities) = runner::spawn_runner(
+            agent_id,
+            &endpoint,
+            &token,
+            resp_tx.clone(),
+            &mut handle,
+            task_cancel.clone(),
+        );
+        // 给 taosx 发送 activity
+        handle.spawn({
+            let client = Client::new(&endpoint, &token, ca.clone(), &ports)
+                .await
+                .context("build agent client error")?;
+            let cancel = task_cancel.clone();
+            send_activity(activities, client, cancel)
+        });
 
-    if monitor_enabled {
-        start_collect_agent_metrics(monitor_interval, taosx_id, agent_id);
-        export_metrics(metrics_rx.clone(), resp_tx.clone(), monitor_interval);
+        // 给 tasox 发送 agent 运行时 metrics
+        let monitor_config = client.get_taosx_monitor_config().await;
+        let monitor_enabled: bool = get_monitor_enabled(monitor_config.as_ref());
+        if monitor_enabled {
+            let monitor_interval: u64 = get_monitor_interval(monitor_config.as_ref());
+            let taosx_id = get_taosx_id(monitor_config.as_ref());
+            handle.spawn(start_collect_agent_metrics(
+                monitor_interval,
+                taosx_id,
+                agent_id,
+                metrics_trigger_tx.clone(),
+                metrics_trigger_rx.clone(),
+                task_cancel.clone(),
+            ));
+            handle.spawn(export_metrics(
+                metrics_rx.clone(),
+                resp_tx.clone(),
+                monitor_interval,
+                task_cancel.clone(),
+            ));
+        }
+        // 给 taosx 发送任务 metrics
+        handle.spawn(listen_task_metrics(resp_tx.clone(), task_cancel.clone()));
+        // 给 tasox 发送心跳
+        handle.spawn(heartbeat_task(resp_tx.clone(), task_cancel.clone()));
+
+        // do exchange 接收 taosx 发送来的消息
+        let Some(res) = task_cancel
+            .run_until_cancelled(client.process_actions(sender.clone(), resp_tx, resp_rx))
+            .await
+        else {
+            continue;
+        };
+        match res {
+            Ok(_) => continue,
+            Err(agent::client::Error::DoExchange { source }) => {
+                tracing::error!("Process actions do exchange error: {source}");
+                if let FlightError::Tonic(status) = source
+                    && matches!(status.code(), Code::Unknown | Code::Unavailable)
+                {
+                    tracing::info!("flight connection disconnected, retry...");
+                    retry!();
+                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to process actions: {:#}", anyhow::Error::new(e))
+            }
+        }
     }
 
-    let task_metrics_listener = tokio::spawn(listen_task_metrics(resp_tx.clone()));
+    cancel.cancel();
+    wait_handle!();
+    tracing::info!(endpoint, "Agent runner exited");
+    Ok(())
+}
 
-    tokio::select! {
-        _ = ctrl_c => {
-            tracing::info!("SIGINT triggered");
-            for task in tasks.iter() {
-                let status = Activity::new::<String>(
-                    *task.key(),
-                    Utc::now(),
-                    taosx_core::LevelFilter::Warn,
-                    format!("{}x-agent is suspended by SIGINT", build::CUS_PROMPT),
-                    "waiting".to_string(),
-                    None,
-                );
-                if let Err(err) = client3.push_status(&status).await {
-                    tracing::error!("Push status error: {err}");
-                }
-                if let Err(err) = sender.send_async(runner::Action::Interrupt(*task.key())).await {
-                    tracing::error!("Send interrupt action to runner error: {err}");
-                }
+#[instrument(skip_all)]
+async fn send_activity(
+    receiver: flume::Receiver<Activity>,
+    mut client: Client,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
+    let _guard = cancel.drop_guard_ref();
+    while let Some(Ok(activity)) = cancel.run_until_cancelled(receiver.recv_async()).await {
+        if let Err(e) = client.push_status(&activity).await {
+            if let agent::client::Error::DoExchange { source } = &e
+                && let FlightError::Tonic(status) = source
+                && matches!(status.code(), Code::Unknown | Code::Unavailable)
+            {
+                tracing::info!("flight connection disconnected, retry...");
+                return Ok(());
             }
-            task_metrics_listener.abort();
-            tokio::time::sleep(Duration::from_secs(2)).await;
-        }
-        _ = runner => {
-            tracing::info!("Runner stopped");
-            task_metrics_listener.abort();
-        }
-        err = async {
-            let ret: anyhow::Result<()>;
-            struct ErrorGate {
-                error_queue: std::collections::VecDeque<(Instant, anyhow::Error)>,
-                duration: Duration,
-                limit: usize,
-            }
-            impl ErrorGate {
-                fn new(limit: usize, duration: Duration) -> Self {
-                    Self {
-                        error_queue: std::collections::VecDeque::with_capacity(limit),
-                        duration,
-                        limit,
-                    }
-                }
-                fn tick(&mut self, err: impl Into<anyhow::Error>) -> anyhow::Result<()> {
-                    let now = std::time::Instant::now();
-                    let err = err.into();
-                    if self.error_queue.len() >= self.limit {
-                        let (first_err_time, first_err) = self.error_queue.pop_front().unwrap();
-                        if now.duration_since(first_err_time) < self.duration {
-                            anyhow::bail!("Too many errors in {:?}, first error: {:#}; last error: {:#}",
-                                self.duration, first_err, err
-                            );
-                        }
-                    }
-                    self.error_queue.push_back((now, err));
-                    Ok(())
-                }
-            }
-            let mut error_gate = ErrorGate::new(12, Duration::from_secs(60 * 2));
-            loop {
-                let sender = sender.clone();
-                let heartbeat = spawn_heartbeat_task(resp_tx.clone());
-                if let Err(err) = client.wait_tasks(sender, resp_tx.clone(), resp_rx.clone()).await {
-                    heartbeat.abort();
-                    tracing::debug!("Heartbeat task aborted");
-                    let err_str = format!("{err:#}");
-                    if err_str.contains("code: Aborted") {
-                        tracing::info!("Connection aborted, error: {err:?}");
-                        ret = Err(err);
-                        break;
-                    } else {
-                        tracing::error!("Connection closed. Retry in 5 seconds");
-                        if args.keep_online {
-                            tokio::time::sleep(Duration::from_secs(5)).await;
-                            continue
-                        }
-                        if let Err(err) = error_gate.tick(err) {
-                            tracing::info!("Connection failed: {err:#}");
-                            if tasks.is_empty() {
-                                ret = Err(err);
-                                break;
-                            }
-                        }
-                    }
-                }
-                tokio::time::sleep(Duration::from_secs(5)).await;
-            }
-            ret
-         } => {
-            tracing::error!("Task listener failed: {err:?}");
-            err?;
-        }
-        _ = async {
-            loop {
-                match status.recv_async().await {
-                    Ok(status) => {
-                        for _ in 0..5 {
-                            if let Err(err) = client2.push_status(&status).await {
-                                tracing::error!("Push status error: {err}");
-                                tokio::time::sleep(Duration::from_secs(1)).await;
-                            } else {
-                                break;
-                            }
-                        }
-                    },
-                    Err(err) => {
-                        tracing::error!("Status channel is disconnected: {err}");
-                    }
-                }
-            }
-        } => {
-            tracing::info!("")
+            tracing::error!("Push activity error: {:#}", anyhow::Error::new(e));
         }
     }
-    task_metrics_listener.abort();
     Ok(())
 }
 
@@ -694,43 +768,85 @@ fn get_taosx_id(monitor_config: Option<&HashMap<String, String>>) -> &'static st
         })
 }
 
-fn start_collect_agent_metrics(monitor_interval: u64, taosx_id: &'static str, agent_id: i64) {
+#[instrument(skip_all)]
+async fn start_collect_agent_metrics(
+    monitor_interval: u64,
+    taosx_id: &'static str,
+    agent_id: i64,
+    metrics_trigger_tx: Sender<()>,
+    metrics_trigger_rx: Receiver<()>,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
     use sysinfo::*;
     tracing::info!("Start collect agent metrics");
-    let mut sys = System::new_all();
+    let kind = RefreshKind::nothing()
+        .with_cpu(CpuRefreshKind::nothing().with_cpu_usage())
+        .with_memory(MemoryRefreshKind::nothing().with_ram());
+    let mut sys = System::new_with_specifics(kind);
     let process_id = match get_current_pid() {
         Ok(pid) => pid,
         Err(err) => {
             tracing::error!("Get process id error: {err}");
-            return;
+            return Ok(());
         }
     };
     let agent_id = agent_id.to_string();
     let agent_id = Box::leak(agent_id.into_boxed_str());
-    tokio::spawn(async move {
-        let mut collect_interval = tokio::time::interval(Duration::from_secs(monitor_interval));
-        loop {
-            let _ = process_metrics(
-                &mut sys,
-                taosx_id,
-                agent_id,
-                process_id,
-                monitor_interval as f64,
-            )
-            .await;
-            collect_interval.tick().await;
+    let mut collect_interval = tokio::time::interval(Duration::from_secs(monitor_interval));
+    loop {
+        if cancel
+            .run_until_cancelled(metrics_trigger_rx.recv_async())
+            .await
+            .is_none()
+        {
+            break;
         }
-    });
+        let _ = process_metrics(
+            &mut sys,
+            kind,
+            taosx_id,
+            agent_id,
+            process_id,
+            monitor_interval as f64,
+        )
+        .await;
+        if cancel
+            .run_until_cancelled(collect_interval.tick())
+            .await
+            .is_none()
+        {
+            break;
+        }
+        if cancel
+            .run_until_cancelled(metrics_trigger_tx.send_async(()))
+            .await
+            .is_none()
+        {
+            break;
+        }
+    }
+
+    Ok(())
 }
 
 pub async fn process_metrics(
     sys: &mut sysinfo::System,
+    kind: sysinfo::RefreshKind,
     taosx_id: &'static str,
     agent_id: &'static str,
     process_id: sysinfo::Pid,
     monitor_interval: f64,
 ) -> anyhow::Result<()> {
-    sys.refresh_all();
+    sys.refresh_specifics(kind);
+    sys.refresh_processes_specifics(
+        sysinfo::ProcessesToUpdate::Some(&[process_id]),
+        false,
+        sysinfo::ProcessRefreshKind::nothing()
+            .with_cpu()
+            .with_memory()
+            .with_disk_usage()
+            .with_tasks(),
+    );
     let labels = [
         ("stable", "taosx_agent"),
         ("taosx_id", taosx_id),
@@ -767,48 +883,63 @@ pub async fn process_metrics(
     Ok(())
 }
 
-fn spawn_heartbeat_task(resp_tx: Sender<RespAction>) -> JoinHandle<()> {
+async fn heartbeat_task(
+    resp_tx: Sender<RespAction>,
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
     tracing::debug!("Spawn heartbeat task");
-    tokio::spawn(async move {
-        let mut heart_beat_interval = tokio::time::interval(Duration::from_secs(61));
-        loop {
-            heart_beat_interval.tick().await;
-            if resp_tx.send_async(RespAction::Heartbeat).await.is_err() {
-                tracing::warn!("Send heartbeat action error");
-                break;
-            }
+    let _guard = cancel.drop_guard_ref();
+    let mut heart_beat_interval = tokio::time::interval(Duration::from_secs(10));
+    loop {
+        if cancel
+            .run_until_cancelled(heart_beat_interval.tick())
+            .await
+            .is_none()
+        {
+            return Ok(());
         }
-    })
+        if cancel
+            .run_until_cancelled(resp_tx.send_async(RespAction::Heartbeat(next_req_id())))
+            .await
+            .is_none_or(|v| v.is_err())
+        {
+            tracing::warn!("Send heartbeat action error");
+            return Ok(());
+        }
+    }
 }
 
-fn export_metrics(
+async fn export_metrics(
     metrics_rx: Receiver<MetricEvent>,
     resp_tx: Sender<RespAction>,
     monitor_interval: u64,
-) -> JoinHandle<()> {
-    tracing::info!("Start export metrics via rpc");
-    tokio::spawn(async move {
-        let mut export_interval = tokio::time::interval(Duration::from_secs(monitor_interval));
-        loop {
-            let mut metrics_events = MetricsEvents::new();
-            while let Ok(event) = metrics_rx.try_recv() {
-                metrics_events.push(event);
-            }
-            if !metrics_events.is_empty() {
-                tracing::debug!("Export metric events, total: {}", metrics_events.len());
-                if let Err(err) = resp_tx
-                    .send_async(RespAction::Metrics(metrics_events))
-                    .await
-                {
-                    tracing::warn!("Send metrics action error: {err}");
-                    break;
-                }
-            } else {
-                tracing::warn!("No metric events to export");
-            }
-            export_interval.tick().await;
+    cancel: CancellationToken,
+) -> anyhow::Result<()> {
+    let mut export_interval = tokio::time::interval(Duration::from_secs(monitor_interval));
+    loop {
+        let mut metrics_events = MetricsEvents::new();
+        while let Ok(event) = metrics_rx.try_recv() {
+            metrics_events.push(event);
         }
-    })
+        if !metrics_events.is_empty() {
+            tracing::debug!("Export metric events, total: {}", metrics_events.len());
+            if cancel
+                .run_until_cancelled(resp_tx.send_async(RespAction::Metrics(metrics_events)))
+                .await
+                .is_none_or(|v| v.is_err())
+            {
+                break;
+            }
+        }
+        if cancel
+            .run_until_cancelled(export_interval.tick())
+            .await
+            .is_none()
+        {
+            break;
+        }
+    }
+    Ok(())
 }
 
 #[rustfmt::skip]
@@ -954,7 +1085,6 @@ fn main() -> anyhow::Result<()> {
         .build()?;
 
     rt.block_on(main_agent_service(args).in_current_span())?;
-    rt.shutdown_timeout(Duration::from_secs(5));
 
     Ok(())
 }

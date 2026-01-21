@@ -31,12 +31,8 @@ use self::{
     scheduler::{SchedulerNotifier, SchedulerNotify, TaskScheduler, agent::AgentWorker},
 };
 use crate::executor_worker_threads;
-use crate::serve::controller::{
-    activity::Activity,
-    agent::{
-        ActivityOrder, Agent, AgentConnectors, AgentStatus, AgentToken, AgentUpdates,
-        AgentWithToken,
-    },
+use crate::serve::controller::agent::{
+    ActivityOrder, Agent, AgentConnectors, AgentStatus, AgentUpdates, AgentWithToken,
 };
 use crate::serve::opc::AddPointReq;
 use crate::serve::opc::GetPointsHeaderReq;
@@ -181,14 +177,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .app_data(store)
             .service(metrics::metrics_exporter)
             .service(metrics::metrics_desc)
-            .service(get_sample)
-            .service(get_sample_by_dsn)
-            .service(data_source_is_valid)
-            .service(data_source_sink_is_valid)
             .service(data_source_collection)
             .service(get_point_options)
-            .service(data_source_sample)
-            .service(stable_preview)
             .service(list_all_parser_plugins)
             .service(download_all_data_set_file)
             .service(download_pi_default_config)
@@ -290,8 +280,7 @@ impl Cli {
         AgentSpawnSender,
         SchedulerNotifier,
     ) {
-        let (agent_activity_sender, agent_activity_receiver) =
-            tokio::sync::broadcast::channel(1024);
+        let (agent_action_sender, agent_action_receiver) = tokio::sync::broadcast::channel(1024);
         let (agent_notify_sender, agent_notify_receiver) = tokio::sync::broadcast::channel(1024);
         let (agent_spawn_sender, agent_spawn_receiver) = flume::bounded(0);
         let (scheduler_notify_sender, _) = tokio::sync::broadcast::channel::<SchedulerNotify>(1024);
@@ -300,13 +289,13 @@ impl Cli {
         let weak_notify_sender = Arc::downgrade(&scheduler_notify_sender);
 
         let agent_worker = AgentWorker::new(
-            agent_activity_sender,
+            agent_action_sender,
             agent_notify_receiver,
             weak_notify_sender,
             agent_spawn_receiver,
         )
         .await;
-        let agent_rpc_channel = AgentRpcChannel::new(agent_activity_receiver, agent_notify_sender);
+        let agent_rpc_channel = AgentRpcChannel::new(agent_action_receiver, agent_notify_sender);
         (
             agent_worker,
             agent_rpc_channel,
@@ -365,8 +354,6 @@ impl Cli {
         #[openapi(
             components(
                 schemas(
-                    NewTask,
-                    Activity,
                     Failed,
                     DataSourceInput,
                     CloudTarget,
@@ -376,14 +363,12 @@ impl Cli {
                     AgentUpdates,
                     AgentWithToken,
                     AgentStatus,
-                    AgentToken,
                     AgentConnectors,
                     DataSetsReq,
                     LangQuery,
                     Lang,
                     UploadForm,
                     FileMetaRequest,
-                    Activity,
                     ActivityOrder,
                     DsSampleIn,
                     DsSampleOut,
@@ -403,11 +388,8 @@ impl Cli {
                 task::download_files,
                 metrics::profile,
                 metrics::metrics_desc,
-                data_source_is_valid,
-                data_source_sink_is_valid,
                 data_source_collection,
                 get_point_options,
-                data_source_sample,
                 list_all_parser_plugins,
                 download_all_data_set_file,
                 init_download_file_task_get,

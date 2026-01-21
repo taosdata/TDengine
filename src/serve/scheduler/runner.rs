@@ -42,21 +42,19 @@ use taosx_core::{
 use taosx_core::{plugins::transform::sample::DsSampleIn, utils::trace::Qid};
 use taosx_utils::dsn::json_to_dsn;
 
+use super::{
+    NotifySender, SchedulerNotify, StopError,
+    agent::{AgentState, AgentTask, AgentWorker},
+};
 use crate::serve::{
     controller::{
-        AgentAction, Task,
-        activity::Activity,
-        load_breakpoints,
+        AgentAction, Task, load_breakpoints,
         trigger::{Schedule, StopCondition, Strategy},
     },
     health,
     scheduler::runner::{agent::spawn_agent, task::spawn_task},
 };
-
-use super::{
-    NotifySender, SchedulerNotify, StopError,
-    agent::{AgentState, AgentTask, AgentWorker},
-};
+use ha_core::activity::Activity;
 
 pub type TaskId = i64;
 pub type AgentId = i64;
@@ -146,7 +144,7 @@ pub struct AgentWaiter {
     /// Agent state if task is running on agent.
     agent_state: Arc<RwLock<AgentState>>,
     /// Agent task activities receiver.
-    agent_activities: Arc<RwLock<tokio::sync::mpsc::Receiver<Activity>>>,
+    agent_activities: flume::Receiver<Activity>,
     /// Agent close waiter.
     agent_close_waiter: Arc<Mutex<Option<oneshot::Receiver<anyhow::Result<()>>>>>,
 }
@@ -264,15 +262,15 @@ impl InnerState {
     }
 }
 
-impl From<InnerState> for ha_core::types::TaskStatus {
+impl From<InnerState> for ha_core::activity::TaskStatus {
     fn from(value: InnerState) -> Self {
         match value {
-            InnerState::Queued => ha_core::types::TaskStatus::Queued,
-            InnerState::Running => ha_core::types::TaskStatus::Running,
-            InnerState::Stopping => ha_core::types::TaskStatus::Stopping,
-            InnerState::Stopped => ha_core::types::TaskStatus::Stopped,
-            InnerState::Completed => ha_core::types::TaskStatus::Completed,
-            InnerState::Failed(_) => ha_core::types::TaskStatus::Failed,
+            InnerState::Queued => Self::Queued,
+            InnerState::Running => Self::Running,
+            InnerState::Stopping => Self::Stopping,
+            InnerState::Stopped => Self::Stopped,
+            InnerState::Completed => Self::Completed,
+            InnerState::Failed(_) => Self::Failed,
         }
     }
 }
@@ -413,7 +411,7 @@ impl TaskState {
 
         let agent_waiter = if let Some(via) = task.via {
             let agent_state = Arc::new(RwLock::new(AgentState::default()));
-            let (sender, agent_activities) = tokio::sync::mpsc::channel(100);
+            let (sender, agent_activities) = flume::bounded(100);
             let (stop_sender, stop_waiter) = tokio::sync::oneshot::channel();
             let task = AgentTask {
                 agent_id: via,
@@ -425,7 +423,7 @@ impl TaskState {
             global.agent_worker.insert(task).await;
             Some(AgentWaiter {
                 agent_state,
-                agent_activities: Arc::new(RwLock::new(agent_activities)),
+                agent_activities,
                 agent_close_waiter: Arc::new(Mutex::new(Some(stop_waiter))),
             })
         } else {
@@ -608,42 +606,6 @@ impl TaskJob {
             self.global.agent_worker.stop(task_id, job_id).await;
         }
 
-        { self.task.state.read().await.clone() }
-    }
-
-    /// Suspend a job.
-    pub(super) async fn suspend(&self) -> InnerState {
-        let (task_id, job_id) = self.task_job_id;
-        let sched_id = self.schedule_id;
-        tracing::info!(task.id = task_id, job.id = job_id, sched.id = %sched_id, "task will be suspended");
-
-        self.task.operator.suspend();
-
-        // Set task state to suspending if already scheduled.
-        {
-            // cancel spawned task.
-            let mut state = self.task.state.write().await;
-            if state.is_idle() {
-                // Set task state to stopping so that it will be stopped when it's ticked properly.
-                state.stopped();
-            } else {
-                state.stop();
-            }
-        };
-
-        // Remove job from scheduler.
-        tracing::info!(task.id = task_id, job.id = job_id, shced.id = %sched_id, cause = "suspended");
-        if let Err(err) = self.global.scheduler.remove(&sched_id).await {
-            error!("remove job error: {:#}", err);
-        }
-        // Send cancellation signal to running task.
-        self.task.cancellation.cancel();
-
-        let (task_id, job_id) = (self.task.task.id, self.task.task.job_id);
-        // Remove agent task.
-        if self.task.task.via.is_some() {
-            self.global.agent_worker.suspend(task_id, job_id).await;
-        }
         { self.task.state.read().await.clone() }
     }
 

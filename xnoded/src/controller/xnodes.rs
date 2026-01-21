@@ -2,7 +2,7 @@ use std::{cmp, collections::HashMap, sync::Arc};
 
 use arrow::array::RecordBatch;
 use arrow_flight::error::FlightError;
-use ha_core::types::HeartbeatMetrics;
+use ha_core::{activity::AgentStatus, types::HeartbeatMetrics};
 use ha_rpc_client::client::HaRpcClient;
 use parking_lot::RwLock;
 use tokio::task::JoinSet;
@@ -37,6 +37,7 @@ pub struct XNode {
     status: XNodeStatus,
     metrics: Option<HeartbeatMetrics>,
     event_rx: Option<flume::Receiver<FlightResult>>,
+    agents: HashMap<i64, AgentStatus>,
 }
 
 #[derive(Default)]
@@ -57,6 +58,16 @@ impl XNodes {
         self.0.read().keys().copied().collect()
     }
 
+    pub fn availables(&self) -> Vec<i32> {
+        self.0
+            .read()
+            .iter()
+            .filter_map(|(id, xnode)| {
+                matches!(xnode.read().xnode.status, XNodeStatus::Online).then_some(*id)
+            })
+            .collect()
+    }
+
     pub fn add_online(
         &self,
         id: i32,
@@ -71,6 +82,7 @@ impl XNodes {
                     status: XNodeStatus::Online,
                     metrics: None,
                     event_rx: Some(event_rx),
+                    agents: HashMap::new(),
                 },
                 handle: None,
             }),
@@ -107,6 +119,7 @@ impl XNodes {
                     status: XNodeStatus::Offline,
                     metrics: None,
                     event_rx: None,
+                    agents: HashMap::new(),
                 },
                 handle: None,
             }),
@@ -201,11 +214,17 @@ impl XNodes {
         None
     }
 
-    fn available_memory(&self) -> Vec<(i32, u64)> {
+    pub fn available_xnodes_memory(&self, via: Option<i64>) -> Vec<(i32, u64)> {
         let xnodes = self.0.read();
         let mut xnodes_memory = Vec::with_capacity(xnodes.len());
         for (id, xnode) in xnodes.iter() {
             let xnode = xnode.read();
+            if via.is_some_and(|v| !xnode.xnode.agents.contains_key(&v)) {
+                continue;
+            }
+            if !matches!(xnode.xnode.status, XNodeStatus::Online) {
+                continue;
+            }
             let Some(metrics) = xnode.xnode.metrics.as_ref() else {
                 continue;
             };
@@ -220,11 +239,25 @@ impl XNodes {
         xnodes_memory
     }
 
-    pub fn alloc_concurrency(&self, mut total_concurrency: usize) -> Vec<(i32, usize)> {
+    pub fn cpu_cores(&self, id: i32) -> Option<usize> {
+        let xnodes = self.0.read();
+        let xnode = xnodes.get(&id)?.read();
+        let metrics = xnode.xnode.metrics.as_ref()?;
+        Some(metrics.cpu_cores)
+    }
+
+    pub fn alloc_concurrency(
+        &self,
+        mut total_concurrency: usize,
+        via: Option<i64>,
+    ) -> Vec<(i32, usize)> {
         if total_concurrency == 0 {
             return vec![];
         }
-        let xnode_memory = self.available_memory();
+        let xnode_memory = self.available_xnodes_memory(via);
+        if xnode_memory.len() == total_concurrency {
+            return xnode_memory.into_iter().map(|(id, _)| (id, 1)).collect();
+        }
         let mut total_memory: u64 = xnode_memory.iter().map(|(_, memory)| *memory).sum();
 
         let mut xnode_concurrency = Vec::with_capacity(xnode_memory.len());
@@ -250,13 +283,16 @@ impl XNodes {
             .count()
     }
 
-    pub fn best_xnode(&self) -> Option<i32> {
+    pub fn best_xnode(&self, via: Option<i64>) -> Option<i32> {
         self.0
             .read()
             .iter()
             .filter_map(|(id, xnode)| {
                 let xnode = xnode.read();
                 if !matches!(xnode.xnode.status, XNodeStatus::Online) {
+                    return None;
+                }
+                if via.is_some_and(|v| !xnode.xnode.agents.contains_key(&v)) {
                     return None;
                 }
                 xnode
@@ -276,6 +312,78 @@ impl XNodes {
                 .as_ref()
                 .is_none_or(|(_, cancel)| cancel.is_cancelled())
         })
+    }
+
+    pub fn del_agent(&self, id: i32, agent_id: i64) {
+        if let Some(v) = self.0.read().get(&id) {
+            v.write().xnode.agents.remove(&agent_id);
+        }
+    }
+
+    pub fn set_agent_status(&self, id: i32, agent_id: i64, status: AgentStatus) {
+        if let Some(v) = self.0.read().get(&id) {
+            if matches!(status, AgentStatus::Disconnected) {
+                v.write().xnode.agents.remove(&agent_id);
+                return;
+            }
+            v.write().xnode.agents.insert(agent_id, status);
+        }
+    }
+
+    pub fn clear_xnode_agents(&self, id: i32) {
+        if let Some(v) = self.0.read().get(&id) {
+            v.write().xnode.agents.clear();
+        }
+    }
+
+    pub fn agent_status(&self, agent_id: i64) -> AgentStatus {
+        let xnodes = self.0.read();
+        if xnodes.values().any(|v| {
+            v.read()
+                .xnode
+                .agents
+                .get(&agent_id)
+                .is_some_and(|v| v.is_transferring())
+        }) {
+            return AgentStatus::Transferring;
+        }
+        if xnodes.values().any(|v| {
+            v.read()
+                .xnode
+                .agents
+                .get(&agent_id)
+                .is_some_and(|v| v.is_waiting())
+        }) {
+            return AgentStatus::Waiting;
+        }
+        if xnodes.values().any(|v| {
+            v.read()
+                .xnode
+                .agents
+                .get(&agent_id)
+                .is_some_and(|v| v.is_idle())
+        }) {
+            return AgentStatus::Idle;
+        }
+        if xnodes.values().any(|v| {
+            v.read()
+                .xnode
+                .agents
+                .get(&agent_id)
+                .is_some_and(|v| v.is_connected())
+        }) {
+            return AgentStatus::Connected;
+        }
+
+        AgentStatus::Disconnected
+    }
+
+    pub fn agents(&self, xnode_id: i32) -> Vec<i64> {
+        self.0
+            .read()
+            .get(&xnode_id)
+            .map(|xnode| xnode.read().xnode.agents.keys().copied().collect())
+            .unwrap_or_default()
     }
 }
 
@@ -315,7 +423,7 @@ mod tests {
     fn available_memory_test() {
         let xnodes = build_xnodes(&[1024, 2048, 2048], 2);
         assert_eq!(
-            xnodes.available_memory(),
+            xnodes.available_xnodes_memory(None),
             vec![(0, 1024), (1, 2048), (2, 2048)]
         );
     }
@@ -323,12 +431,21 @@ mod tests {
     #[test]
     fn alloc_concurrency_test() {
         let xnodes = build_xnodes(&[1024, 2048, 2048], 2);
-        assert_eq!(xnodes.alloc_concurrency(5), vec![(0, 1), (1, 2), (2, 2)]);
+        assert_eq!(
+            xnodes.alloc_concurrency(5, None),
+            vec![(0, 1), (1, 2), (2, 2)]
+        );
 
         let xnodes = build_xnodes(&[1024, 1024, 1024], 2);
-        assert_eq!(xnodes.alloc_concurrency(5), vec![(0, 1), (1, 2), (2, 2)]);
+        assert_eq!(
+            xnodes.alloc_concurrency(5, None),
+            vec![(0, 1), (1, 2), (2, 2)]
+        );
 
         let xnodes = build_xnodes(&[1024, 1024, 2048], 2);
-        assert_eq!(xnodes.alloc_concurrency(5), vec![(0, 1), (1, 1), (2, 3)]);
+        assert_eq!(
+            xnodes.alloc_concurrency(5, None),
+            vec![(0, 1), (1, 1), (2, 3)]
+        );
     }
 }

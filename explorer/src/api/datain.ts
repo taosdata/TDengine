@@ -180,7 +180,7 @@ export function validateTask(data: Record<string, any>) {
       valid: false,
       support: false,
       data_source: 'unknown',
-      message: data.desc
+      message: data.message
     };
   });
 }

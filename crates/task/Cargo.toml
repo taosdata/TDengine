@@ -14,37 +14,35 @@ tokio-util.workspace = true
 tracing.workspace = true
 serde_json.workspace = true
 
-source-csv.path = "../source-csv"
-source-historian.path = "../source-historian"
-source-kinghistorian.path = "../source-kinghistorian"
-source-influxdb.path = "../source-influxdb"
-source-kafka.path = "../source-kafka"
-source-mongodb.path = "../source-mongodb"
-source-mqtt.path = "../source-mqtt"
-source-mssql.path = "../source-mssql"
-source-mysql.path = "../source-mysql"
-source-opc.path = "../source-opc"
-source-opentsdb.path = "../source-opentsdb"
-source-oracle.path = "../source-oracle"
-source-pi.path = "../source-pi"
-source-postgres.path = "../source-postgres"
-source-sparkplugb.path = "../source-sparkplugb"
-source-orc.path = "../source-orc"
-source-parquet.path = "../source-parquet"
-source-pulsar.path = "../source-pulsar"
-
-sink-kafka.path = "../sink-kafka"
-sink-mqtt.path = "../sink-mqtt"
-sink-parquet.path = "../sink-parquet"
-
-tmq-to-td.path = "../tmq-to-td"
-tmq-to-local.path = "../tmq-to-local"
-local-to-taos.path = "../local-to-taos"
-legacy-to-taos.path = "../legacy-to-taos"
-taos-to-local.path = "../taos-to-local"
-
+source-csv.workspace = true
+source-historian.workspace = true
+source-kinghistorian.workspace = true
+source-influxdb.workspace = true
+source-kafka.workspace = true
+source-mongodb.workspace = true
+source-mqtt.workspace = true
+source-mssql.workspace = true
+source-mysql.workspace = true
+source-opc.workspace = true
+source-opentsdb.workspace = true
+source-oracle.workspace = true
+source-pi.workspace = true
+source-postgres.workspace = true
+source-sparkplugb.workspace = true
+source-orc.workspace = true
+source-pulsar.workspace = true
+sink-kafka.workspace = true
+sink-mqtt.workspace = true
+sink-parquet.workspace = true
+tmq-to-td.workspace = true
+tmq-to-local.workspace = true
+local-to-taos.workspace = true
+legacy-to-taos.workspace = true
+taos-to-local.workspace = true
 taosx-core.workspace = true
-taoslog.path = "../taoslog"
+taoslog.workspace = true
+ha-core.workspace = true
+source-parquet.workspace = true
 
 [lints]
 workspace = true

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
+use tracing::{Instrument, instrument};
 
 use crate::{
     Args, api::start_http, controller::Controller, monitor::start_monitor,
@@ -10,6 +11,7 @@ use crate::{
 };
 
 #[tokio::main]
+#[instrument(skip_all)]
 pub async fn run(args: Args) -> anyhow::Result<()> {
     let cancel = CancellationToken::new();
     let dsn = match &args.taos_dsn {
@@ -31,6 +33,7 @@ pub async fn run(args: Args) -> anyhow::Result<()> {
         let controller = controller.clone();
         async move {
             start_http(args.listen.clone(), controller, cancel)
+                .in_current_span()
                 .await
                 .context("run http server error")
         }
@@ -42,6 +45,7 @@ pub async fn run(args: Args) -> anyhow::Result<()> {
         let leader_ep = args.leader_ep.clone();
         async move {
             start_monitor(&dsn, &leader_ep, cancel)
+                .in_current_span()
                 .await
                 .context("run monitor error")
         }
@@ -51,7 +55,7 @@ pub async fn run(args: Args) -> anyhow::Result<()> {
     tasks.spawn({
         let controller = controller.clone();
         let cancel = cancel.clone();
-        start_rebalancer(controller, rebalance_rx, cancel)
+        start_rebalancer(controller, rebalance_rx, cancel).in_current_span()
     });
 
     let mut exit_result = Ok(());

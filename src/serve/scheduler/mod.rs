@@ -24,10 +24,14 @@ use tokio_cron_scheduler::{Job, JobBuilder, JobScheduler};
 use tracing::{Instrument, instrument};
 
 use self::runner::{GlobalState, MultiIndexTaskJobMap};
-use super::controller::{Task, activity::Activity};
+use super::controller::Task;
 use crate::serve::scheduler::{
     agent::AgentWorker,
     runner::{TaskJob, TaskState},
+};
+use ha_core::{
+    activity::Activity,
+    types::{HaTask, SplitJobResult},
 };
 
 #[derive(Debug, Clone)]
@@ -296,32 +300,34 @@ impl TaskScheduler {
 
         scheduler.start().await?;
 
-        let tasks_cloned = tasks.clone();
         let drop_notifier = Arc::new(Notify::const_new());
         let dropped_notifier = Arc::new(Notify::const_new());
 
-        let drop_notifier_cloned = drop_notifier.clone();
-        let dropped_notifier_cloned = dropped_notifier.clone();
-        tokio::spawn(async move {
-            drop_notifier_cloned.notified().await;
-            tracing::info!("scheduler is dropping, suspend all running jobs");
-            // tasks.write().await.clear();
-            {
-                let tasks = tasks_cloned.write().await;
-                for (_, task) in tasks.iter() {
-                    task.suspend().await;
+        tokio::spawn({
+            let tasks = tasks.clone();
+            let drop_notifier_cloned = drop_notifier.clone();
+            let dropped_notifier_cloned = dropped_notifier.clone();
+            async move {
+                drop_notifier_cloned.notified().await;
+                tracing::info!("scheduler is dropping, suspend all running jobs");
+                // tasks.write().await.clear();
+                {
+                    let tasks = tasks.write().await;
+                    for (_, task) in tasks.iter() {
+                        task.stop().await;
+                    }
+                    tracing::info!(tasks.shutdown = tasks.len(), "all tasks are canceled");
                 }
-                tracing::info!(tasks.shutdown = tasks.len(), "all tasks are canceled");
+                if let Err(err) = global_state_in_drop_handler.go_die().await {
+                    tracing::error!(
+                        error.backtrace = format!("{:?}", err),
+                        error.message = "Shutdown task scheduler error: {err:#}",
+                        error.issuer = "global_state_in_drop_handler",
+                    )
+                }
+                // Notify all waiters that the scheduler is dropped.
+                dropped_notifier_cloned.notify_waiters();
             }
-            if let Err(err) = global_state_in_drop_handler.go_die().await {
-                tracing::error!(
-                    error.backtrace = format!("{:?}", err),
-                    error.message = "Shutdown task scheduler error: {err:#}",
-                    error.issuer = "global_state_in_drop_handler",
-                )
-            }
-            // Notify all waiters that the scheduler is dropped.
-            dropped_notifier_cloned.notify_waiters();
         });
         Ok(Self {
             tasks,
@@ -343,8 +349,8 @@ impl TaskScheduler {
             .subscribe()
     }
 
-    fn notify_sender(&self) -> NotifySender {
-        self.global_state.notify_sender.clone()
+    pub fn notify_sender(&self) -> Option<Arc<tokio::sync::broadcast::Sender<SchedulerNotify>>> {
+        self.global_state.notify_sender.upgrade()
     }
 
     /// Stop a task, note that this does not imply that the task is already finished.
@@ -380,33 +386,6 @@ impl TaskScheduler {
         Ok(())
     }
 
-    /// Suspend a task, note that this does not imply that the task is already finished.
-    ///
-    /// This method will remove the task from the scheduler, and the task will take a
-    /// while to finish its remaining work.
-    pub async fn try_suspend(&self, task_job_id: (i64, i64)) -> Result<(), StopError> {
-        let mut tasks = self.tasks.write().await;
-        let task_job = tasks
-            .get_by_task_job_id(&task_job_id)
-            .ok_or(StopError::NotFound(task_job_id))?;
-        let (task_id, job_id) = task_job.task_job_id;
-        let sched_id = task_job.schedule_id;
-        tracing::info!(task.id = task_id, job.id = job_id, sched.id = %sched_id, "task {task_job_id:?} will be removed");
-
-        if task_job.in_final_state().await {
-            return Err(StopError::AlreadyStopped(task_job_id));
-        }
-
-        let state = task_job.suspend().await;
-
-        if state.ready_to_remove_job() {
-            // If job has not been ticked, remove task state handler directly.
-            tasks.remove_by_task_job_id(&task_job_id);
-            tracing::info!(task.id = task_id, job.id = job_id, sched.id = %sched_id, "task {task_job_id:?} is suspended");
-        }
-        tracing::info!("Cancel task {task_job_id:?}");
-        Ok(())
-    }
     /// Wait until a task is stopped completely.
     #[instrument(skip_all, fields(task.id = task_job_id.0, job.id = task_job_id.1, elapsed = tracing::field::Empty))]
     pub async fn wait_task(&self, task_job_id: (i64, i64)) {
@@ -601,6 +580,10 @@ impl TaskScheduler {
             .await
     }
 
+    pub(crate) async fn agent_tasks(&self, agent_id: i64) -> Vec<(i64, i64)> {
+        self.global_state.agent_worker.agent_tasks(agent_id).await
+    }
+
     pub(crate) async fn list_datasets_via_agent(
         &self,
         agent_id: i64,
@@ -638,6 +621,14 @@ impl TaskScheduler {
         self.global_state.agent_worker.get_sample(agent, dsn).await
     }
 
+    pub async fn split_task_via_agent(
+        &self,
+        agent: i64,
+        task: HaTask,
+    ) -> anyhow::Result<SplitJobResult> {
+        self.global_state.agent_worker.split_task(agent, task).await
+    }
+
     pub async fn put_file_to_agent(
         &self,
         agent: i64,
@@ -648,25 +639,6 @@ impl TaskScheduler {
             .agent_worker
             .put_file_to_agent(agent, path, content)
             .await
-    }
-
-    pub(crate) async fn suspend_all(&self) {
-        let tasks = self
-            .tasks
-            .read()
-            .await
-            .iter_by_task_job_id()
-            .map(|task| task.task_job_id)
-            .collect_vec();
-
-        for task in &tasks {
-            if let Err(err) = self.try_suspend(*task).await {
-                tracing::error!(task.id = task.0, job.id = task.1, error = %err, "suspend task error");
-            }
-        }
-        for task in tasks {
-            self.wait_task(task).await;
-        }
     }
 
     async fn remove_task_breakpoint_db(&self, task_id: i64, job_id: i64) -> Option<BreakpointDb> {

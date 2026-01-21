@@ -1,7 +1,11 @@
 use std::str::FromStr;
 
 use anyhow::{Context, bail};
-use ha_core::types::{CheckValidParam, HaTask, TaskStatus};
+use chrono::{DateTime, Utc};
+use ha_core::{
+    activity::{AgentStatus, TaskStatus},
+    types::{CheckValidParam, HaTask},
+};
 use taos::Dsn;
 use taosx_utils::dsn::{dsn_to_json, json_to_dsn};
 
@@ -24,6 +28,7 @@ pub struct TaskRecord {
     pub from: String,
     pub to: String,
     pub parser: Option<String>,
+    pub via: Option<i64>,
     pub status: Option<TaskStatus>,
     pub create_time: String,
     pub xnode_id: Option<i32>,
@@ -41,6 +46,7 @@ pub struct GetTaskResult {
     from_json: serde_json::Value,
     parser: Option<serde_json::Value>,
     to: String,
+    via: Option<i64>,
     status: TaskStatus,
     created_at: String,
     to_expand: Option<ExpandDsn>,
@@ -63,6 +69,7 @@ impl TryFrom<TaskRecord> for GetTaskResult {
             from_json: dsn_to_json(&from_dsn),
             parser,
             to: v.to,
+            via: v.via,
             status: v.status.unwrap_or(TaskStatus::Created),
             created_at: v.create_time,
             to_expand: Some(ExpandDsn {
@@ -79,6 +86,7 @@ pub struct Task {
     from_json: Option<serde_json::Value>,
     to: String,
     parser: Option<serde_json::Value>,
+    via: Option<i64>,
 }
 
 impl TryFrom<Task> for HaTask {
@@ -88,7 +96,13 @@ impl TryFrom<Task> for HaTask {
         let from = extract_from!(task);
         let to = task.to;
         let parser = task.parser;
-        Ok(HaTask { from, to, parser })
+        let via = task.via;
+        Ok(HaTask {
+            from,
+            to,
+            parser,
+            via,
+        })
     }
 }
 
@@ -100,6 +114,7 @@ impl From<&GetTaskResult> for Task {
             from_json: Some(value.from_json.clone()),
             to: value.to.clone(),
             parser: value.parser.clone(),
+            via: value.via,
         }
     }
 }
@@ -129,14 +144,14 @@ pub struct ExportTaskResult {
 pub struct Xnode {
     pub id: i32,
     pub url: String,
-    pub status: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
 pub struct ApiCheckValidParam {
-    from: Option<String>,
-    from_json: Option<serde_json::Value>,
-    to: String,
+    pub from: Option<String>,
+    pub from_json: Option<serde_json::Value>,
+    pub to: String,
+    pub via: Option<i64>,
 }
 
 impl TryFrom<ApiCheckValidParam> for CheckValidParam {
@@ -145,7 +160,8 @@ impl TryFrom<ApiCheckValidParam> for CheckValidParam {
     fn try_from(value: ApiCheckValidParam) -> Result<Self, Self::Error> {
         let from = extract_from!(value);
         let to = value.to;
-        Ok(Self { from, to })
+        let via = value.via;
+        Ok(Self { from, to, via })
     }
 }
 
@@ -154,14 +170,18 @@ pub struct ApiGetSampleParam {
     pub dsn: serde_json::Value,
 }
 
-#[derive(Debug, serde::Serialize)]
-pub struct Agent {
-    id: i64,
-    name: String,
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct AgentRecord {
+    pub id: i64,
+    pub name: String,
+    pub token: String,
+    pub status: Option<AgentStatus>,
+    #[serde(rename(serialize = "created_at"))]
+    pub create_time: DateTime<Utc>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct TaskActivity {
+pub struct ActivityLog {
     id: i64,
     at: i64,
     level: String,
@@ -184,4 +204,10 @@ pub struct TaskWsId {
 #[derive(Debug, serde::Deserialize)]
 pub struct Cluster {
     pub id: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct JobRecord {
+    pub via: Option<i64>,
+    pub status: Option<TaskStatus>,
 }

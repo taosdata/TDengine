@@ -23,16 +23,15 @@ use chrono::Utc;
 use futures::{Stream, TryStreamExt, stream::FuturesUnordered};
 use ha_core::{
     batch::build_ok_batch,
-    consts::DROP_CONNECTION,
-    jwt::XnodedToken,
-    types::{RpcClientType, XnodedId},
+    consts::{ACTION_GET_MONITOR_CONFIG, ACTION_TASK_STATUS, DROP_CONNECTION},
+    jwt::{agent::AgentToken, xnoded::XnodedToken},
+    types::{RpcClientType, SplitJobResult, XnodedId},
     utils::next_req_id,
 };
 use linked_hash_map::LinkedHashMap;
 use parking_lot::RwLock;
 use semver::VersionReq;
 use serde::Deserialize;
-use serde_json::json;
 use taoslog::{QidManager, utils::QidMetadataSetter};
 #[cfg(unix)]
 use tokio::net::UnixListener;
@@ -50,13 +49,9 @@ use tracing::{Instrument, info_span, instrument};
 use taosx_core::{DataSet, Fail, dsv::DataSourceValidation, get_data_dir, utils::trace::Qid};
 
 use crate::serve::{TAOSX_GRPC_DEFAULT_PORT, rpc::utils::build_activity_batch};
-use crate::serve::{
-    controller::{activity::Activity, agent::AgentToken},
-    rpc::put::PutStream,
-    scheduler::agent::AgentNotify,
-};
+use crate::serve::{rpc::put::PutStream, scheduler::agent::AgentNotify};
 
-use ha_core::batch::SCHEMA;
+use ha_core::{activity::Activity, batch::SCHEMA};
 
 use super::{
     controller::TaskControllerRef,
@@ -73,21 +68,23 @@ type DataSetsSenders =
     Arc<RwLock<LinkedHashMap<u64, flume::Sender<Result<Vec<DataSet>, Fail<String>>>>>>;
 type DsvSenders = Arc<RwLock<LinkedHashMap<u64, flume::Sender<DataSourceValidation>>>>;
 type StringSenders = Arc<RwLock<LinkedHashMap<u64, flume::Sender<Result<String, Fail<String>>>>>>;
+type SplitTaskSenders =
+    Arc<RwLock<LinkedHashMap<u64, flume::Sender<Result<SplitJobResult, Fail<String>>>>>>;
 
 type FlightResult = Result<RecordBatch, FlightError>;
 
 pub struct AgentRpcChannel {
-    agent_activity_receiver: AgentActionsReceiver,
+    agent_action_receiver: AgentActionsReceiver,
     agent_notify_sender: AgentNotifySender,
 }
 
 impl AgentRpcChannel {
     pub fn new(
-        agent_activity_receiver: AgentActionsReceiver,
+        agent_action_receiver: AgentActionsReceiver,
         agent_notify_sender: AgentNotifySender,
     ) -> Self {
         Self {
-            agent_activity_receiver,
+            agent_action_receiver,
             agent_notify_sender,
         }
     }
@@ -109,6 +106,7 @@ pub(super) struct FlightServiceImpl {
     datasets_senders: DataSetsSenders,
     dsv_senders: DsvSenders,
     string_senders: StringSenders,
+    split_task_senders: SplitTaskSenders,
 
     spawn_sender: AgentSpawnSender,
     monitor: Monitor,
@@ -166,10 +164,11 @@ impl FlightServiceImpl {
     ) {
         let mut receiver = self.action_receiver.resubscribe();
 
-        let (senders, dsv_senders, string_senders, controller) = (
+        let (senders, dsv_senders, string_senders, split_task_senders, controller) = (
             self.datasets_senders.clone(),
             self.dsv_senders.clone(),
             self.string_senders.clone(),
+            self.split_task_senders.clone(),
             self.controller.clone(),
         );
 
@@ -188,6 +187,7 @@ impl FlightServiceImpl {
                                     &senders,
                                     &dsv_senders,
                                     &string_senders,
+                                    &split_task_senders,
                                     &controller,
                                     action,
                                 )
@@ -280,18 +280,13 @@ impl FlightService for FlightServiceImpl {
             Status::aborted("The server does not compatible to your agent, please upgrade to a newer version")
         })?.to_str().map_err(|err| Status::aborted(format!("Invalid agent version: {err}")))?;
 
-        let agent_id = match self
+        let agent_id = self
             .controller
             .check_agent_id(&AgentToken::from(&res.payload))
             .map_err(|err| Status::permission_denied(format!("Invalid token: {err:#}")))?
-        {
-            Some(agent_id) => agent_id,
-            None => {
-                return Err(Status::permission_denied("invalid agent id"));
-            }
-        };
+            .ok_or_else(|| Status::not_found("unknown agent id"))?;
         // Agent version compatible check
-        let req = VersionReq::parse(">=1.3.0").unwrap();
+        let req = VersionReq::parse(">=2.0.0").unwrap();
 
         let version = semver::Version::parse(client_version)
             .map_err(|err| Status::aborted(format!("Invalid agent version: {err:#}", err = err)))?;
@@ -309,7 +304,9 @@ impl FlightService for FlightServiceImpl {
 
             return Err(Status::aborted("agent version not compatible"));
         }
-        res.payload = serde_json::to_vec(&agent_id).unwrap().into();
+        res.payload = serde_json::to_vec(&agent_id)
+            .map_err(|e| Status::internal(format!("serialize agent id error: {e}")))?
+            .into();
         let handshake_stream = futures::stream::once(async { Ok(res) });
         Ok(Response::new(Box::pin(handshake_stream)))
     }
@@ -359,12 +356,10 @@ impl FlightService for FlightServiceImpl {
 
         let task_id = meta
             .get("x-task-id")
-            .ok_or_else(|| Status::unavailable("Task id should be set"))
-            .unwrap();
+            .ok_or_else(|| Status::invalid_argument("Task id should be set"))?;
         let job_id = meta
             .get("x-job-id")
-            .ok_or_else(|| Status::unavailable("Job id should be set"))
-            .unwrap();
+            .ok_or_else(|| Status::invalid_argument("Job id should be set"))?;
         let task_id: i64 = task_id.to_str().unwrap().parse().unwrap();
         let job_id: i64 = job_id.to_str().unwrap().parse().unwrap();
         let qid_str = match meta.get(taoslog::utils::QID_HEADER_KEY) {
@@ -430,7 +425,7 @@ impl FlightService for FlightServiceImpl {
             .map(|v| v.into())
             .unwrap_or(RpcClientType::Agent);
 
-        tracing::info!(?remote, "Receive do_exchange stream from {:?}", remote);
+        tracing::info!(?remote, %client_type, "Receive do_exchange stream from {:?}", remote);
 
         let (tx, rx) = flume::bounded(1000);
 
@@ -482,7 +477,8 @@ impl FlightService for FlightServiceImpl {
                     .await
                     .map_err(|err| {
                         Status::permission_denied(format!("Agent connection error: {err}"))
-                    })?,
+                    })?
+                    .ok_or_else(|| Status::not_found("unknown agent id"))?,
             )
         } else {
             None
@@ -513,7 +509,13 @@ impl FlightService for FlightServiceImpl {
         let task_message_tx = match client_type {
             RpcClientType::Xnoded => Some(self.xnoded_tx.clone()),
             RpcClientType::Guest => Some(tx.clone()),
-            RpcClientType::Agent => None,
+            RpcClientType::Agent => {
+                tasks.spawn(processor::agent::tasks::spawn_tasks(
+                    tx.clone(),
+                    cancel.clone(),
+                ));
+                None
+            }
         };
 
         if let Some(tx) = task_message_tx {
@@ -535,12 +537,13 @@ impl FlightService for FlightServiceImpl {
             let datasets_senders = self.datasets_senders.clone();
             let dsv_senders = self.dsv_senders.clone();
             let string_senders = self.string_senders.clone();
+            let split_task_senders = self.split_task_senders.clone();
             let agent_connections = self.agent_connections.clone();
             let cancel = cancel.clone();
             async move {
                 let tx = match client_type {
-                    RpcClientType::Xnoded => xnoded_tx,
-                    _ => flight_tx
+                    RpcClientType::Xnoded => &xnoded_tx,
+                    _ => &flight_tx
                 };
                 let mut decoder = FlightDataDecoder::new(req.map_err(FlightError::from));
                 let parallel = 20;
@@ -575,9 +578,10 @@ impl FlightService for FlightServiceImpl {
                                 &datasets_senders,
                                 &dsv_senders,
                                 &string_senders,
+                                &split_task_senders,
                                 &notify_sender,
-                                &tx,
-                                client_type
+                                tx,
+                                client_type,
                             );
                             futs.push(fut);
                         }
@@ -590,7 +594,8 @@ impl FlightService for FlightServiceImpl {
 
                 tracing::info!(
                     agent.id = agent_id,
-                    agent.cid = connection_id,
+                    xnode.id = ?xnode_id,
+                    %client_type,
                     "RPC stopped"
                 );
                 if let Err(e) = &result {
@@ -601,15 +606,18 @@ impl FlightService for FlightServiceImpl {
                     if cid == connection_id {
                         {agent_connections.write().remove(&agent_id);}
 
-                        let context = result.err().map(|err| {
-                            json!({"code": 0xFFFFi32, "message": err.to_string()})
-                        });
-                        let activity = Activity::agent_disconnect(agent_id, context);
+                        let mut activity = Activity::agent_disconnect(agent_id);
+                        if let Some(remote) = remote {
+                            activity = activity.message(format!("Agent disconnect with client addr {remote}"))
+                        }
+                        if let Err(e) = result {
+                            activity = activity.message(e.to_string())
+                        }
                         if let Err(err) = notify_sender.send(AgentNotify::AgentDisconnected(agent_id)) {
                             tracing::error!(agent = agent_id, "Agent disconnected: {err:#}");
                         }
                         let batch = build_activity_batch(activity).context("build agent activity batch error")?;
-                        tx.send_async(Ok(batch)).await.ok();
+                        xnoded_tx.send_async(Ok(batch)).await.ok();
                         tracing::info!(agent = agent_id, "Agent RPC stopped");
                     } else {
                         tracing::warn!(
@@ -679,9 +687,8 @@ impl FlightService for FlightServiceImpl {
     ) -> Result<Response<Self::DoActionStream>, Status> {
         taoslog::utils::Span.set_qid(&Qid::init());
         let (_meta, _part, action) = request.into_parts();
-        // dbg!(_meta, _part, &action);
         match action.r#type.as_str() {
-            "TaskStatus" => {
+            ACTION_TASK_STATUS => {
                 // task.
                 let activity: Activity = serde_json::from_slice(&action.body)
                     .map_err(|err| Status::invalid_argument(format!("{err}: {:?}", action.body)))?;
@@ -703,7 +710,7 @@ impl FlightService for FlightServiceImpl {
 
                 Ok(Response::new(Box::pin(futures::stream::iter([]))))
             }
-            "GetMonitorConfig" => {
+            ACTION_GET_MONITOR_CONFIG => {
                 let mut config = self.monitor.cfg.as_map();
                 config.insert("taosx_id".to_string(), self.monitor.taosx_id.to_string());
                 let message = serde_json::to_vec(&config).unwrap();
@@ -713,7 +720,7 @@ impl FlightService for FlightServiceImpl {
                     },
                 )]))))
             }
-            s => Err(Status::unimplemented(format!("Unknown action: {}", s))),
+            s => Err(Status::unimplemented(format!("Unknown action: {s}"))),
         }
     }
 
@@ -757,23 +764,24 @@ impl RpcConfig {
         cancel_token: CancellationToken,
     ) -> Result<(), anyhow::Error> {
         let max_frame_size: Option<u32> = Some((1 << 24) - 1_u32);
-        let activity_receiver = channel.agent_activity_receiver;
+        let action_receiver = channel.agent_action_receiver;
         let (xnoded_tx, xnoded_rx) = flume::bounded(1000);
         let service = FlightServiceImpl {
             controller: controller.clone(),
             notify_sender: channel.agent_notify_sender,
-            action_receiver: Arc::new(activity_receiver),
+            action_receiver: Arc::new(action_receiver),
             agent_connections: Arc::new(RwLock::new(HashMap::new())),
             datasets_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
             dsv_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
             string_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
+            split_task_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
             spawn_sender,
             monitor,
             current_xnoded: Arc::new(RwLock::new(None)),
             xnoded_connections: Arc::new(RwLock::new(HashMap::with_capacity(1))),
             xnoded_tx,
             xnoded_rx,
-            cancel_token,
+            cancel_token: cancel_token.clone(),
         };
         let flight_service = FlightServiceServer::new(service);
         let flight_service = flight_service
@@ -809,6 +817,7 @@ impl RpcConfig {
                     .context("SSL certificate error")?;
             }
 
+            let cancel = cancel_token.clone();
             let servers = self
                 .tcp
                 .iter()
@@ -816,7 +825,7 @@ impl RpcConfig {
                     builder
                         .add_service(flight_service.clone())
                         .serve_with_shutdown(*addr, async {
-                            let _ = tokio::signal::ctrl_c().await;
+                            cancel.cancelled().await;
                             tracing::info!("Ctrl+C invoked, shutdown RPC service")
                         })
                 })
@@ -834,7 +843,7 @@ impl RpcConfig {
                 .http2_keepalive_timeout(Some(Duration::from_secs(60)))
                 .add_service(flight_service)
                 .serve_with_incoming_shutdown(stream, async {
-                    let _ = tokio::signal::ctrl_c().await;
+                    cancel_token.cancelled().await;
                     tracing::info!("Ctrl+C invoked, shutdown RPC service")
                 })
                 .await?;
@@ -917,16 +926,6 @@ mod tests {
         assert!(type_name.contains("AgentRpcChannel"));
     }
 
-    // use super::FlightServiceImpl;
-    // async fn client_with_uds(path: String) -> FlightServiceClient<Channel> {
-    //     let connector = tower::service_fn(move |_| UnixStream::connect(path.clone()));
-    //     let channel = Endpoint::try_from("http://[::1]:50051")
-    //         .unwrap()
-    //         .connect_with_connector(connector)
-    //         .await
-    //         .unwrap();
-    //     FlightServiceClient::new(channel)
-    // }
     async fn client_with_tcp() -> FlightServiceClient<Channel> {
         // let connector = tower::service_fn(move |_| TcpStream::connect("127.0.0.1:6051"));
         let channel = Endpoint::try_from("http://127.0.0.1:6051")

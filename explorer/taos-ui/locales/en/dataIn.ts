@@ -267,6 +267,7 @@ export default {
   generateToken: 'Generate Token',
   pInName: 'Please enter the name',
   statuses: {
+    idle: 'Idle',
     created: 'Created',
     queued: 'Queued',
     started: 'Started',
@@ -290,7 +291,8 @@ export default {
     waken: 'Waken',
     ticked: 'Ticked',
     cleared: 'Clear target database',
-    scheduled: 'Scheduled'
+    scheduled: 'Scheduled',
+    transferring: 'Transferring'
   },
 
   datasource: 'Data In Task',

@@ -1,9 +1,8 @@
 use anyhow::Context;
 use taoslog::QidManager;
-#[cfg(debug_assertions)]
 use taoslog::layer::TaosLayer;
 use tracing::level_filters::LevelFilter;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::Args;
 
@@ -58,6 +57,11 @@ pub fn init(args: &Args) -> anyhow::Result<()> {
     }
     let appender = builder.build().context("build log appender error")?;
 
+    let level_filter = EnvFilter::builder()
+        .with_default_directive(args.log.level.unwrap_or(LevelFilter::INFO).into())
+        .from_env_lossy()
+        .add_directive("h2=warn".parse()?);
+
     use tracing_subscriber::Layer;
     #[allow(unused_mut)]
     let mut layers = vec![taoslog::layer::TaosLayer::<Qid, _, _>::new(appender).boxed()];
@@ -72,7 +76,7 @@ pub fn init(args: &Args) -> anyhow::Result<()> {
 
     tracing_subscriber::registry()
         .with(layers)
-        .with(args.log.level.unwrap_or(LevelFilter::INFO))
+        .with(level_filter)
         .try_init()
         .context("init logger error")
 }

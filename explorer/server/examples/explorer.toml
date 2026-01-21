@@ -20,12 +20,6 @@ addr = "0.0.0.0"
 # The instanceId of each instance is unique on the host
 # instanceId = 1
 
-# Explorer server log level.
-# Default is "info"
-#
-# Deprecated: use log.level instead
-log_level = "info"
-
 # All data files are stored in this directory
 # data_dir = "/var/lib/taos/explorer" # Default for Linux
 # data_dir = "C:\\TDengine\\data\\explorer" # Default for Windows
@@ -43,15 +37,6 @@ cluster = "http://localhost:6041"
 # If modify this config item, you must relogin to clear the cache in browser local storage.
 #
 # cluster_native = "taos://localhost:6030"
-
-# API endpoint for data replication/backup/data sources. No default option.
-#   Set it to API URL like "http://localhost:6050".
-#
-x_api = "http://localhost:6050"
-
-# Please set it to same as the "grpc" parameter used by taosX Service;
-# If "grpc" parameter is not set explicitly in taosX service, please set it to the default grpc address of taosX
-grpc = "http://localhost:6055"
 
 # CORS configuration switch, it allows cross-origin access
 cors = true

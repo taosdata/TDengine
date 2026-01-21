@@ -11,9 +11,10 @@ use base64::{Engine, engine::general_purpose};
 use futures::StreamExt;
 use futures_ext::select::{Select3, select3};
 use ha_core::{
+    activity::Activity,
     batch::BatchIter,
-    consts::{TASK_ACTIVITIES_STABLE, TASK_METRICS, XNODE_ACTIVITIES},
-    types::{Activity, TaskMetrics},
+    consts::{AGENT_ACTIVITIES_STABLE, TASK_ACTIVITIES_STABLE, TASK_METRICS, XNODE_ACTIVITIES},
+    types::TaskMetrics,
 };
 use ha_rpc_client::client::HaRpcClient;
 use taos::Dsn;
@@ -24,9 +25,9 @@ use crate::{
     oauth::middleware::{AuthType, TsdbCredential},
     sql::query,
     x_api::{
-        Error, FlightResult, Result, get_client,
+        FlightResult, Result, get_client,
         tasks::get_all_task_job_metrics,
-        types::{Cluster, TaskActivity, TaskWsId, WsId, Xnode},
+        types::{ActivityLog, Cluster, TaskWsId, WsId, Xnode},
     },
 };
 
@@ -56,7 +57,7 @@ pub async fn get_ws_tasks_activities(
         from log.{TASK_ACTIVITIES_STABLE} \
         order by ts desc limit 10;"
     );
-    let activities = query::<TaskActivity>(&dsn, &sql).await?;
+    let activities = query::<ActivityLog>(&dsn, &sql).await?;
     for activity in activities {
         let Ok(text) = serde_json::to_string(&activity) else {
             continue;
@@ -69,7 +70,7 @@ pub async fn get_ws_tasks_activities(
     handle_ws(
         &dsn,
         &xnodes,
-        session.clone(),
+        session,
         msg_stream,
         process_tasks_activity_batch,
     )
@@ -90,10 +91,25 @@ pub async fn get_ws_agents_activities(
 
     let xnodes = get_xnode_ids(&dsn).await?;
 
-    let (resp, session, msg_stream) =
+    let (resp, mut session, msg_stream) =
         actix_ws::handle(&req, stream).map_err(|e| anyhow::anyhow!("handle ws error: {e}"))?;
 
-    // TODO: 先查询 5 条历史数据
+    // 先查询 10 条数据
+    let sql = format!(
+        "select \
+        `agent_id` as `id`, `ts` as `at`, `level`, `status`, `activity` \
+        from log.{AGENT_ACTIVITIES_STABLE} \
+        order by ts desc limit 10;"
+    );
+    let activities = query::<ActivityLog>(&dsn, &sql).await?;
+    for activity in activities {
+        let Ok(text) = serde_json::to_string(&activity) else {
+            continue;
+        };
+        if session.text(text).await.is_err() {
+            break;
+        }
+    }
 
     handle_ws(
         &dsn,
@@ -195,7 +211,9 @@ async fn process_metrics_batch(
     }
 
     Ok(Some(
-        get_all_task_job_metrics(dsn, task_id).await.context("")?,
+        get_all_task_job_metrics(dsn, task_id)
+            .await
+            .context("Failed to get metrics")?,
     ))
 }
 
@@ -206,10 +224,10 @@ fn build_dsn_from_ws_token(args: &Args, token: &str) -> Result<Dsn> {
     let user_pass = String::from_utf8(decoded).context("websocket token not valid utf8")?;
     let mut user_pass = user_pass.split(":").collect::<Vec<_>>();
     let (Some(password), Some(username)) = (user_pass.pop(), user_pass.pop()) else {
-        return Err(Error(anyhow::anyhow!("username or password not found")));
+        return Err(anyhow::anyhow!("username or password not found").into());
     };
     if username.is_empty() || password.is_empty() {
-        return Err(Error(anyhow::anyhow!("username or password empty")));
+        return Err(anyhow::anyhow!("username or password empty").into());
     }
     let dsn = args
         .build_dsn(&TsdbCredential {
@@ -226,7 +244,7 @@ async fn check_cluster_id(dsn: &Dsn, cluster_id: &str) -> Result<()> {
     if cluster.pop().is_some_and(|v| v.id == cluster_id) {
         return Ok(());
     }
-    Err(Error(anyhow::anyhow!("cluster id not match")))
+    Err(anyhow::anyhow!("cluster id not match").into())
 }
 
 async fn handle_ws<F, Fut>(
@@ -269,24 +287,33 @@ where
     F: Fn(FlightResult) -> Fut + Clone + 'static + Send,
     Fut: Future<Output = anyhow::Result<Option<String>>> + Send,
 {
-    let (client, event_rx) = get_client(Some(xnode_id), dsn, cancel.child_token())
-        .await?
-        .context("no available xnode found")?;
+    let (event_tx, event_rx) = flume::bounded(100);
+    let client = get_client(
+        Some(xnode_id),
+        dsn,
+        None,
+        Some(event_tx),
+        cancel.child_token(),
+    )
+    .await?
+    .context("no available xnode found")?;
     tokio::spawn({
         let cancel = cancel.clone();
         let session = session.clone();
         let processor = processor.clone();
         async move { send_message(session, event_rx, cancel, processor).await }
     });
-    tokio::spawn({
-        let cancel = cancel.clone();
-        async move { ha_client_hb(client, cancel).await }
-    });
+    tokio::spawn(ha_client_hb(client, cancel));
 
     Ok(())
 }
 
 async fn ha_client_hb(client: HaRpcClient, cancel: CancellationToken) {
+    tracing::info!("ha client heartbeat start");
+    let _guard = cancel.drop_guard_ref();
+    let _exit_guard = taosx_core::utils::defer::defer(|| {
+        tracing::info!("ha client heartbeat exit");
+    });
     loop {
         if cancel
             .run_until_cancelled(tokio::time::sleep(Duration::from_secs(5)))
@@ -298,25 +325,20 @@ async fn ha_client_hb(client: HaRpcClient, cancel: CancellationToken) {
         let Some(res) = cancel.run_until_cancelled(client.guest_heartbeat()).await else {
             break;
         };
-        let Err(e) = res else {
-            continue;
+        if let Err(e) = res {
+            tracing::error!("Failed to send heartbeat: {e}");
+            if let ha_rpc_client::error::Error::Flight {
+                source: FlightError::Tonic(status),
+            } = e
+                && matches!(
+                    status.code(),
+                    tonic::Code::Unavailable | tonic::Code::Unknown
+                )
+            {
+                tracing::warn!("Connection lost, stopping heartbeat.");
+                break;
+            }
         };
-        match e {
-            ha_rpc_client::error::Error::Flight { source } => match source {
-                FlightError::Tonic(status)
-                    if matches!(
-                        status.code(),
-                        tonic::Code::Unavailable | tonic::Code::Unknown
-                    ) =>
-                {
-                    break;
-                }
-                _ => {
-                    tracing::error!("Failed to send heartbeat: {:?}", source);
-                }
-            },
-            _ => continue,
-        }
     }
 }
 
@@ -329,7 +351,11 @@ async fn send_message<F, Fut>(
     F: Fn(FlightResult) -> Fut + Clone + 'static + Send,
     Fut: Future<Output = anyhow::Result<Option<String>>> + Send,
 {
+    tracing::info!("ws send message loop start");
     let _guard = cancel.drop_guard_ref();
+    let _exit_guard = taosx_core::utils::defer::defer(|| {
+        tracing::info!("ws send message loop exit");
+    });
 
     loop {
         let Some(Ok(event)) = cancel.run_until_cancelled(event_rx.recv_async()).await else {
@@ -337,9 +363,9 @@ async fn send_message<F, Fut>(
         };
 
         match processor(event).await {
-            Ok(Some(metrics)) => {
+            Ok(Some(text)) => {
                 if cancel
-                    .run_until_cancelled(session.text(metrics))
+                    .run_until_cancelled(session.text(text))
                     .await
                     .is_none_or(|r| r.is_err())
                 {
@@ -356,10 +382,9 @@ async fn send_message<F, Fut>(
 }
 
 async fn get_xnode_ids(dsn: &Dsn) -> Result<Vec<i32>> {
-    let xnodes = query::<Xnode>(dsn, "SHOW XNODES")
+    let xnodes = query::<Xnode>(dsn, "SHOW XNODES WHERE STATUS = 'online'")
         .await?
         .into_iter()
-        .filter(|v| v.status == "online")
         .map(|v| v.id)
         .collect::<Vec<_>>();
     Ok(xnodes)
@@ -370,7 +395,6 @@ pub async fn heartbeat_ws(
     mut msg_stream: actix_ws::MessageStream,
     cancel: CancellationToken,
 ) {
-    tracing::info!("ws connected");
     let _cancel_guard = cancel.drop_guard_ref();
     let _guard = taosx_core::utils::defer::defer(|| {
         tracing::info!("ws disconnected");
@@ -382,7 +406,7 @@ pub async fn heartbeat_ws(
     let reason = loop {
         match select3(msg_stream.next(), interval.tick(), cancel.cancelled()).await {
             Select3::T1(Some(Ok(msg))) => {
-                tracing::trace!("msg: {msg:?}");
+                tracing::debug!("msg: {msg:?}");
 
                 match msg {
                     Message::Close(reason) => {
@@ -397,6 +421,16 @@ pub async fn heartbeat_ws(
                     Message::Pong(_) => {
                         last_heartbeat = std::time::Instant::now();
                     }
+                    Message::Binary(bytes) => {
+                        if session.binary(bytes).await.is_err() {
+                            break None;
+                        }
+                    }
+                    Message::Text(bytes) => {
+                        if session.text(bytes).await.is_err() {
+                            break None;
+                        }
+                    }
                     _ => {}
                 };
             }
@@ -407,7 +441,10 @@ pub async fn heartbeat_ws(
                     description: Some(e.to_string()),
                 });
             }
-            Select3::T1(None) => break None,
+            Select3::T1(None) => {
+                tracing::error!("ws received none message");
+                break None;
+            }
             Select3::T2(_) => {
                 if last_heartbeat.elapsed() > CLIENT_TIMEOUT {
                     tracing::warn!("ws client has not sent heartbeat for long time; disconnecting");
@@ -417,7 +454,10 @@ pub async fn heartbeat_ws(
                     break None;
                 };
             }
-            Select3::T3(_) => break None,
+            Select3::T3(_) => {
+                tracing::error!("ws stream cancelled");
+                break None;
+            }
         }
     };
 

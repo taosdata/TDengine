@@ -69,6 +69,15 @@ impl TaosConn {
         self.with_retry(sql, query, on_success).await
     }
 
+    pub async fn query_one<T>(&self, sql: &str) -> Result<Option<T>>
+    where
+        T: for<'a> serde::Deserialize<'a> + Send,
+    {
+        let query = async |conn: &Taos, sql: &str| conn.query_one(sql).await;
+        let on_success = async |res: Option<T>| Ok(res);
+        self.with_retry(sql, query, on_success).await
+    }
+
     pub async fn exec(&self, sql: &str) -> Result<usize> {
         let exec = async |conn: &Taos, sql: &str| conn.exec(sql).await;
         let on_success = async |n: usize| Ok(n);
@@ -80,7 +89,7 @@ impl TaosConn {
         F1: AsyncFn(&Taos, &str) -> std::result::Result<R1, taos::RawError>,
         F2: AsyncFn(R1) -> Result<R2>,
     {
-        tracing::trace!(sql, "executing SQL");
+        tracing::debug!(sql, "executing SQL");
         let mut try_count = 0;
         let mut last_err = None;
         let mut backoff =
@@ -102,12 +111,7 @@ impl TaosConn {
             backoff.reset();
             match method(&conn, sql).await {
                 Ok(rs) => return on_success(rs).await,
-                Err(e) if matches!(e.code().into(), 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B) => {
-                    // 0xE001: internal error
-                    // 0xE002: connection closed
-                    // 0xE003: send timeout
-                    // 0xE004: receive timeout
-                    // 0x000B: unable to establish connection
+                Err(e) if should_retry(e.code().into()) => {
                     tracing::error!("connection error: {e:#}");
                     self.reset();
                     try_count += 1;
@@ -125,4 +129,21 @@ impl TaosConn {
     pub fn reset(&self) {
         *self.conn.write() = None;
     }
+}
+
+/// 0xE001: internal error
+/// 0xE002: connection closed
+/// 0xE003: send timeout
+/// 0xE004: receive timeout
+/// 0x000B: unable to establish connection
+/// 0x032C: object is creating
+/// 0x0115: invalid msg
+/// 0x03C7: stable uid not match
+/// 0x03D3: conflict transaction not completed
+/// 0x2603: the table does not exist
+fn should_retry(code: i32) -> bool {
+    matches!(
+        code,
+        0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B | 0x032C | 0x0115 | 0x03C7 | 0x03D3 | 0x2603
+    )
 }
