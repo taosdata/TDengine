@@ -293,6 +293,7 @@ database_option: {
 
 ```sql
 select name, `encrypt_algorithm` from ins_databases;
+
               name              | encrypt_algorithm |
 =====================================================
  power1                         | none              |
