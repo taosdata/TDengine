@@ -140,7 +140,7 @@ Where:
 
 The current list of operations recorded in the audit logs and the meanings of each field in each operation are shown in the table below (Note: since the user field, timestamp, and client_add have the same meaning in all operations, they are not included in the table below)
 
-auditLevel = 1 // AUDIT_LEVEL_SYSTTEM
+auditLevel = 1 // AUDIT_LEVEL_SYSTEM
 
 | Operation        | Operation | DB | Resource | Details |
 | ----------------| ----------| ---------| ---------| --------|
