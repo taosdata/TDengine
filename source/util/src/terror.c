@@ -784,7 +784,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC,    "cols function's fir
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_ALIAS,         "Invalid using alias for cols function")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIM_KEY_MUST_BE_TS,        "Join primary key col must be timestmap type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN,         "Invalid virtual table's ref column")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLUMN,             "Invalid table type")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TABLE_TYPE,         "Invalid table type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,    "Invalid ref column type")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table using virtual super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
