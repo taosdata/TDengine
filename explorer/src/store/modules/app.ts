@@ -353,14 +353,14 @@ const actions = {
         // If the backend endpoint exists, this will clear the session cookie.
         // The request util will include credentials for OAuth mode.
         await oauthLogout();
-        commit('SET_OAUTH_LOGIN', false);
-        commit('SET_OAUTH_BINDED', false);
-        commit('SET_LOGIN_WITH_SESSION', false);
       } catch (e) {
         // Ignore network errors during logout; proceed with client-side cleanup.
         // eslint-disable-next-line no-console
         console.warn('oauthLogout failed', e);
       }
+      commit('SET_OAUTH_LOGIN', false);
+      commit('SET_OAUTH_BINDED', false);
+      commit('SET_LOGIN_WITH_SESSION', false);
     }
 
     // Clear client-side OAuth flag (do not remove oauth token from localStorage here;

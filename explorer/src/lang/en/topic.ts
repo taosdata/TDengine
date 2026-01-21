@@ -13,6 +13,7 @@ export default {
     timeseries: 'Time Series',
     withMeta: 'With Meta',
     clusterId: 'Cluster ID',
+    machineCode: 'Machine Code',
     version: 'Version',
     license: 'License',
     audit: 'Audit',

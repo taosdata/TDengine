@@ -58,6 +58,9 @@ router.beforeEach(async (to: RouteLocationNormalized, from: RouteLocationNormali
         }
       } catch (error) {
         console.log('Login with oauth session error', error);
+        if (error.response && error.response.status === 401) {
+          return next('/login');
+        }
       }
       try {
         if (to.path.endsWith('/oauthLogin')) {
