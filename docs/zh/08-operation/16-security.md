@@ -156,7 +156,7 @@ auditLevel = 2 // AUDIT_LEVEL_CLUSTER
 | ----------------| ----------| ---------| ---------| --------|
 | alter cluster   | alterCluster| NULL | NULL  | SQL |
 | balance vgroup leader | balanceVgroupLead | NULL | NULL | SQL |
-| restribute vgroup | restributeVgroup | NULL | vgroupId | SQL |
+| redistribute vgroup | redistributeVgroup | NULL | vgroupId | SQL |
 | balance vgroup | balanceVgroup | NULL | vgroupId | SQL |
 | assign leader | assignLeader | NULL | NULL | SQL |
 | grant privileges| grantPrivileges | NULL | 所授予的用户 | SQL |
