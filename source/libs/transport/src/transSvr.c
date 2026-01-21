@@ -748,19 +748,6 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
           pConn->refId);
 }
 
-static int8_t uvValidConn(SSvrConn* pConn) {
-  STrans*    pInst = pConn->pInst;
-  SWorkThrd* pThrd = pConn->hostThrd;
-  int8_t     forbiddenIp = 0;
-  if (pThrd->enableIpWhiteList) {
-    forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
-    if (forbiddenIp == 0) {
-      uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
-    }
-  }
-  return forbiddenIp;
-}
-
 static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
   int32_t code = 0;
   STrans* pInst = pConn->pInst;
