@@ -704,7 +704,6 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
         }
       }
     }
-  }
 
     if (pTbCtx->hasBlob == 0) {
       code = tRowSort(*rowP);
