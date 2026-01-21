@@ -2000,6 +2000,7 @@ void nodesDestroyNode(SNode* pNode) {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
+      nodesDestroyNode(pStmt->pWhere);
       break;
     }
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT: {
@@ -2598,6 +2599,12 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT: {
       SRebalanceXnodeJobWhereStmt* pStmt = (SRebalanceXnodeJobWhereStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->pWhere);
+      break;
+    }
+    case QUERY_NODE_DROP_XNODE_JOB_STMT: {
+      SDropXnodeJobStmt* pStmt = (SDropXnodeJobStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->options);
       nodesDestroyNode((SNode*)pStmt->pWhere);
       break;
     }

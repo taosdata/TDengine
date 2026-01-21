@@ -783,6 +783,7 @@ typedef struct {
   int32_t            jid;
   int32_t            tid;
   SXnodeTaskOptions* options;
+  SNode*             pWhere;
 } SDropXnodeJobStmt;
 typedef struct {
   ENodeType type;
@@ -811,6 +812,7 @@ typedef struct SShowStmt {
   EOperatorType tableCondType;
   EShowKind     showKind;  // show databases: user/system, show tables: normal/child, others NULL
   bool          withFull;  // for show users full;
+  SNode*        pWhere;    // WHERE clause
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {
