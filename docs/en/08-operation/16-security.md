@@ -120,7 +120,7 @@ The format of the reported audit logs is as follows
     "client_add": string,
     "details": string,
     "affected_rows": integer,
-    "duration":double
+    "duration": double
 }
 ```
 
