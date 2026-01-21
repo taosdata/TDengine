@@ -664,9 +664,7 @@ static bool uvDataTimeWhiteListIsDefaultAddr(SIpAddr* ip) {
   }
 
 _error:
-  if (code != 0) {
-    tError("failed to create default ip range since %s", tstrerror(code));
-  }
+  tError("failed to create default ip range since %s", tstrerror(code));
   return false;
 }
 
