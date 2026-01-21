@@ -243,13 +243,13 @@ id      |          algorithm_id          |              name              |     
 2 | AES-128-CBC                    | AES                            | AES symmetric encryption       | Symmetric Ciphers CBC mode     | build-in                       | AES-128-CBC                    |
 ```
 
-id: Numeric identifier of the algorithm; built-in algorithms start from 1, custom algorithms start from 101
-algorithm_id: Global unique identifier of the algorithm
-name: Algorithm name
-desc: Description of the algorithm
-type: Algorithm type, including: Symmetric Ciphers CBC mode - symmetric encryption algorithm in CBC mode, used for database encryption; Asymmetric Cipher - asymmetric encryption algorithm; Digests - hash algorithm
-source: Algorithm source, including: build-in - built-in algorithm; customized - user-defined algorithm
-ossl_algr_name: Algorithm name in OpenSSL; for built-in algorithms, it's the name in the default provider, refer to https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/; for custom algorithms, it's user-defined in the program
+- id: Numeric identifier of the algorithm; built-in algorithms start from 1, custom algorithms start from 101
+- algorithm_id: Global unique identifier of the algorithm
+- name: Algorithm name
+- desc: Description of the algorithm
+- type: Algorithm type, including: Symmetric Ciphers CBC mode - symmetric encryption algorithm in CBC mode, used for database encryption; Asymmetric Cipher - asymmetric encryption algorithm; Digests - hash algorithm
+- source: Algorithm source, including: build-in - built-in algorithm; customized - user-defined algorithm
+- ossl_algr_name: Algorithm name in OpenSSL; for built-in algorithms, it's the name in the default provider, refer to https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/; for custom algorithms, it's user-defined in the program
 
 ### Add Customized Algorithms
 
