@@ -4358,6 +4358,7 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
       case QUERY_NODE_REMOTE_VALUE_LIST: {
         bool fetchDone = false;
         handleRemoteValueListRes(pParam, ctx, pRsp, &fetchDone);
+        qDebug("%s subQIdx %d handle remote value list finished, fetchDone:%d", ctx->idStr, pParam->subQIdx, fetchDone);
         if (!fetchDone) {
           goto _exit;
         }
@@ -4377,6 +4378,8 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
       qError("%s scl fetch rsp received, subQIdx:%d, error:%s", ctx->idStr, pParam->subQIdx, tstrerror(code));
     }
   }
+
+  qDebug("%s subQIdx %d sem_post subQ ready", ctx->idStr, pParam->subQIdx);
   
   code = tsem_post(&pParam->pSubJobCtx->ready);
   if (code != TSDB_CODE_SUCCESS) {
@@ -4559,6 +4562,8 @@ _exit:
 
   if (code) {
     qError("%s %s failed at line %d since %s", ctx->idStr, __func__, lino, tstrerror(code));
+  } else {
+    qDebug("%s %s subQIdx %d succeed", ctx->idStr, __func__, subQIdx);
   }
 
   return code;

@@ -5,8 +5,8 @@ from new_test_framework.utils import tdLog, tdSql, tdCom
 import datetime
 
 class TestInSubQuery2:
-    updatecfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
-    clientCfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
+    updatecfgDict = {'debugFlag': 135, 'asyncLog': 0, 'qDebugFlag': 135, 'cDebugFlag': 135, 'rpcDebugFlag': 135}
+    clientCfgDict = {'debugFlag': 135, 'asyncLog': 0, 'qDebugFlag': 135, 'cDebugFlag': 135, 'rpcDebugFlag': 135}
     updatecfgDict["clientCfg"] = clientCfgDict    
     caseName = "test_in_sub_query2"
     currentDir = os.path.dirname(os.path.abspath(__file__))
