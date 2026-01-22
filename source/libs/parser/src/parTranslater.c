@@ -1513,15 +1513,15 @@ static bool hasPkInTable(const STableMeta* pTableMeta) {
 
 static void setVtbColumnInfoBySchema(const SVirtualTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
                                      SColumnNode* pCol) {
-  strcpy(pCol->dbName, pTable->table.dbName);
-  strcpy(pCol->tableAlias, pTable->table.tableAlias);
-  strcpy(pCol->tableName, pTable->table.tableName);
-  strcpy(pCol->colName, pColSchema->name);
+  tstrncpy(pCol->dbName, pTable->table.dbName, sizeof(pCol->dbName));
+  tstrncpy(pCol->tableAlias, pTable->table.tableAlias, sizeof(pCol->tableAlias));
+  tstrncpy(pCol->tableName, pTable->table.tableName, sizeof(pCol->tableName));
+  tstrncpy(pCol->colName, pColSchema->name, sizeof(pCol->colName));
   if ('\0' == pCol->node.aliasName[0]) {
-    strcpy(pCol->node.aliasName, pColSchema->name);
+    tstrncpy(pCol->node.aliasName, pColSchema->name, sizeof(pCol->node.aliasName));
   }
   if ('\0' == pCol->node.userAlias[0]) {
-    strcpy(pCol->node.userAlias, pColSchema->name);
+    tstrncpy(pCol->node.userAlias, pColSchema->name, sizeof(pCol->node.userAlias));
   }
   pCol->tableId = pTable->pMeta->uid;
   pCol->tableType = pTable->pMeta->tableType;
@@ -1594,8 +1594,8 @@ static int32_t setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SCo
   pCol->colId = pCol->isPrimTs ? PRIMARYKEY_TIMESTAMP_COL_ID : 0;
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     pCol->colType = ((SColumnNode*)pExpr)->colType;
-    // strcpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName);
-    // strcpy(pCol->tableName, ((SColumnNode*)pExpr)->tableName);
+    // tstrncpy(pCol->dbName, ((SColumnNode*)pExpr)->dbName);
+    // tstrncpy(pCol->tableName, ((SColumnNode*)pExpr)->tableName);
   }
   tstrncpy(pCol->colName, pExpr->aliasName, TSDB_COL_NAME_LEN);
   if ('\0' == pCol->node.aliasName[0]) {
@@ -19735,11 +19735,11 @@ static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pS
 
   (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[3].bytes = TSDB_CONFIG_CATEGORY_LEN;
-  strcpy((*pSchema)[3].name, "category");
+  tstrncpy((*pSchema)[3].name, "category", sizeof((*pSchema)[3].name));
 
   (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
   (*pSchema)[4].bytes = TSDB_CONFIG_INFO_LEN;
-  strcpy((*pSchema)[4].name, "info");
+  tstrncpy((*pSchema)[4].name, "info", sizeof((*pSchema)[4].name));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -20712,8 +20712,8 @@ static int32_t createBlockDBUsageInfoFunc(SFunctionNode** ppNode) {
     return code;
   }
 
-  strcpy(pFunc->functionName, "_db_usage_info");
-  strcpy(pFunc->node.aliasName, "_db_usage_info");
+  tstrncpy(pFunc->functionName, "_db_usage_info", sizeof(pFunc->functionName));
+  tstrncpy(pFunc->node.aliasName, "_db_usage_info", sizeof(pFunc->node.aliasName));
   *ppNode = pFunc;
   return code;
 }
@@ -20724,8 +20724,8 @@ static int32_t createDBUsageFunc(SFunctionNode** ppNode) {
     return code;
   }
 
-  strcpy(pFunc->functionName, "_db_usage");
-  strcpy(pFunc->node.aliasName, "_db_usage");
+  tstrncpy(pFunc->functionName, "_db_usage", sizeof(pFunc->functionName));
+  tstrncpy(pFunc->node.aliasName, "_db_usage", sizeof(pFunc->node.aliasName));
   SFunctionNode* pFuncNew = NULL;
   code = createBlockDBUsageInfoFunc(&pFuncNew);
   if (TSDB_CODE_SUCCESS == code) {
@@ -20800,7 +20800,7 @@ static int32_t buildVirtualTableBatchReq(const SCreateVTableStmt* pStmt, const S
   }
 
   pBatch->info = *pVgroupInfo;
-  (void)strcpy(pBatch->dbName, pStmt->dbName);
+  tstrncpy(pBatch->dbName, pStmt->dbName, sizeof(pBatch->dbName));
   pBatch->req.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
   if (NULL == pBatch->req.pArray || NULL == taosArrayPush(pBatch->req.pArray, &req)) {
     PAR_ERR_JRET(terrno);
@@ -20863,7 +20863,7 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
   }
 
   pBatch->info = *pVgroupInfo;
-  (void)strcpy(pBatch->dbName, pStmt->dbName);
+  tstrncpy(pBatch->dbName, pStmt->dbName, sizeof(pBatch->dbName));
   pBatch->req.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
   if (NULL == pBatch->req.pArray || NULL == taosArrayPush(pBatch->req.pArray, &req)) {
     PAR_ERR_JRET(terrno);
