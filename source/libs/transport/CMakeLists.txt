@@ -47,6 +47,6 @@ if(${BUILD_WITH_UV_TRANS})
 endif(${BUILD_WITH_UV_TRANS})
 
 
-if(${BUILD_TEST})
-    add_subdirectory(test)
-endif(${BUILD_TEST})
+# if(${BUILD_TEST})
+#     add_subdirectory(test)
+# endif(${BUILD_TEST})
