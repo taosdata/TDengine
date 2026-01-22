@@ -1551,17 +1551,10 @@ void uvGetSockInfo(struct sockaddr* addr, SIpAddr* ip) {
     ip->port = ntohs(addr_in->sin6_port);
 
     // Check for IPv4-mapped IPv6 address (::ffff:x.x.x.x)
-    const uint8_t* bytes = (const uint8_t*)&addr_in->sin6_addr;
-    int            isIpv4Mapped = 0;
-    if (bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 0 && bytes[3] == 0 && bytes[4] == 0 && bytes[5] == 0 &&
-        bytes[6] == 0 && bytes[7] == 0 && bytes[8] == 0 && bytes[9] == 0 && bytes[10] == 0xff && bytes[11] == 0xff) {
-      isIpv4Mapped = 1;
-    }
-
-    if (isIpv4Mapped) {
+    if (IN6_IS_ADDR_V4MAPPED(&addr_in->sin6_addr)) {
       // Convert IPv4-mapped IPv6 address to IPv4
       struct in_addr ipv4_addr;
-      memcpy(&ipv4_addr, &bytes[12], sizeof(ipv4_addr));
+      memcpy(&ipv4_addr, ((const uint8_t*)&addr_in->sin6_addr) + 12, sizeof(ipv4_addr));
       if (inet_ntop(AF_INET, &ipv4_addr, ip->ipv4, INET_ADDRSTRLEN) == NULL) {
         uInfo("failed to convert ipv4-mapped ipv6 address to ipv4");
       }
@@ -1826,16 +1819,12 @@ static int32_t addHandleToAcceptloop(void* arg) {
     // set IPV6_V6ONLY to 0 to allow both IPv4 and IPv6 connections
     uv_os_fd_t fd;
     if ((code = uv_fileno((const uv_handle_t*)&srv->server, &fd)) == 0) {
-      tInfo("bind to ipv6 addr with IPV6_V6ONLY=0 (dual-stack enabled)");
-      // int opt = 0;
-      // if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0) {
-      //   tWarn("failed to set IPV6_V6ONLY=0: %s, continue with default setting", strerror(errno));
-      //   opt = 1;
-      // }
-      // if (opt == 0) {
-      // } else {
-      //   tInfo("bind to ipv6 addr (dual-stack status unknown - may be IPv6-only)");
-      // }
+      int opt = 0;
+      if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0) {
+        tWarn("failed to set IPV6_V6ONLY=0: %s, continue with default setting", strerror(errno));
+      } else {
+        tInfo("successfully set IPV6_V6ONLY=0 (dual-stack enabled)");
+      }
     }
   } else {
     struct sockaddr_in bind_addr;
@@ -2896,7 +2885,7 @@ int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 
 
 void *transInitServer(SIpAddr *pAddr, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
 void  transCloseServer(void *arg) {
-  // impl later
+   // impl later
   return;
 }
 
