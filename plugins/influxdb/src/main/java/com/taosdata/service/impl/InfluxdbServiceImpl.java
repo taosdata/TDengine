@@ -20,6 +20,7 @@ import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import com.taosdata.model.enums.ResEnums;
 import com.taosdata.service.InfluxdbService;
 import com.taosdata.utils.DateUtils;
+import com.taosdata.utils.TypeNameResolver;
 import com.taosdata.utils.exception.ArtificialException;
 import com.taosdata.utils.influxdb.InfluxdbPoolAutoConfig;
 import com.taosdata.utils.influxdbV1.InfluxdbV1PoolAutoConfig;
@@ -774,10 +775,14 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                                 // 放入列表
                                 influxdbBucketDataEntityList.add(data);
                             } else {
-                                // TODO 默认放入col中
+                                // 动态更新schema
                                 InfluxdbBucketDataEntity data = influxdbBucketDataEntity.clone();
+                                Object obj = record.get(i);
+                                String columnType = TypeNameResolver.resolveTypeName(obj);
+                                data.getInfluxdbMeasurementEntity().getFieldMap().put(column, columnType);
+
                                 data.setField(column);
-                                data.setValue(record.get(i));
+                                data.setValue(obj);
                                 // 放入列表
                                 influxdbBucketDataEntityList.add(data);
                             }

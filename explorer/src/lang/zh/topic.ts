@@ -16,6 +16,7 @@ export default {
     timeseries: '时间线数量 ',
     withMeta: '同步 Meta',
     clusterId: '集群 ID',
+    machineCode: '机器码',
     version: '版本',
     users: '用户数量',
     license: '许可证',
