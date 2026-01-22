@@ -193,6 +193,7 @@ typedef enum EOperatorType {
   OP_TYPE_NOT_LIKE,
   OP_TYPE_MATCH,
   OP_TYPE_NMATCH,
+  
   // unary comparison operator
   OP_TYPE_IS_NULL = 100,
   OP_TYPE_IS_NOT_NULL,
@@ -202,6 +203,8 @@ typedef enum EOperatorType {
   OP_TYPE_IS_NOT_TRUE,
   OP_TYPE_IS_NOT_FALSE,
   OP_TYPE_IS_NOT_UNKNOWN,
+  OP_TYPE_EXISTS,
+  OP_TYPE_NOT_EXISTS,
   OP_TYPE_COMPARE_MAX_VALUE = 149,  // MUST KEEP IT LAST AT COMPARE SECTION
 
   // json operator
@@ -237,6 +240,12 @@ typedef enum ELogicConditionType {
   LOGIC_COND_TYPE_OR,
   LOGIC_COND_TYPE_NOT,
 } ELogicConditionType;
+
+typedef enum EQuantifyType {
+  QU_TYPE_NULL = 0,
+  QU_TYPE_ANY,
+  QU_TYPE_ALL
+} EQuantifyType;
 
 #define ENCRYPTED_LEN(len)  (len / 16) * 16 + (len % 16 ? 1 : 0) * 16
 #define ENCRYPT_KEY_LEN     16

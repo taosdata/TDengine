@@ -598,6 +598,7 @@ typedef enum ESubQueryType {
 typedef struct SSelectStmt {
   SExprNode       node;
   ESubQueryType   subQType;
+  EQuantifyType   quantify;
   bool            isDistinct;
   STimeWindow     timeRange;
   SNode*          pTimeRange; // STimeRangeNode for create stream
@@ -663,6 +664,7 @@ typedef struct SSetOperator {
   SExprNode        node;
   ESetOperatorType opType;
   ESubQueryType    subQType;
+  EQuantifyType    quantify;
   SNodeList*       pSubQueries;   // non table subqueries
   SNodeList*       pProjectionList;
   SNode*           pLeft;

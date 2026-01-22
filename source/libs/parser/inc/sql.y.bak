@@ -2296,7 +2296,7 @@ predicate(A) ::= expr_or_subquery(B) compare_op(C) expr_or_subquery(D).         
 predicate(A) ::= expr_or_subquery(B) quantified_compare_op(C) quantified_expr(D) subquery(E).    {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, E);
-                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), setNodeQuantifyType(pCxt, releaseRawExprNode(pCxt, E), D)));
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, E)));
                                                                                   }
 predicate(A) ::=
   expr_or_subquery(B) BETWEEN expr_or_subquery(C) AND expr_or_subquery(D).        {
