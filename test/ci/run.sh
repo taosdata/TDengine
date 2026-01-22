@@ -613,8 +613,8 @@ fi
 
 # generated test report
 mount_reports_dir="/mnt/platform/reports"
-results_dir="$mount_reports_dir/$branch/results"
-report_dir="$mount_reports_dir/$branch/report"
+results_dir="$mount_reports_dir/$test_log_dir/results"
+report_dir="$mount_reports_dir/$test_log_dir/report"
 
 # check report results directory
 if [ ! -d "$results_dir" ]; then
@@ -649,7 +649,7 @@ echo "Generating allure report, status: $generate_status"
 # check report is generated successfully
 if [ -f "$report_dir/index.html" ]; then
     echo "Allure report generated successfully at $report_dir."
-    echo "Test report: https://platform.tdengine.net:8090/reports/$branch/report"
+    echo "Test report: https://platform.tdengine.net:8090/reports/$test_log_dir/report"
 else
     echo "Error: Failed to generate Allure report."
 fi
