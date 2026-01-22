@@ -253,7 +253,7 @@ id      |          algorithm_id          |              name              |     
 用户可以添加自己的自定义算法。
 
 ```sql
-create encrypt_algr 'vigenere' name 'vigenere' desc 'my custom algr' type 'Symmetric_Ciphers_CBC_mode' ossl_algr_name 'vigenere';
+create encrypt_algr 'vigenere' name 'vigenere' desc 'my custom algr' type 'Symmetric Ciphers CBC mode' ossl_algr_name 'vigenere';
 
 ```
 
