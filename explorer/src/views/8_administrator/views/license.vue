@@ -17,8 +17,11 @@
     </div>
     <title-bar :name="$t('topic.basicDatabaseFeatures')" />
     <el-descriptions style="margin-bottom: 30px" :column="3">
-      <el-descriptions-item :label="$t('topic.clusterId')" :label-style="style">
+      <el-descriptions-item :key="'clusterId'" :label="$t('topic.clusterId')" :label-style="style">
         <span>{{ clusterId }}</span>
+      </el-descriptions-item>
+      <el-descriptions-item :key="'machineCode'" :label="$t('topic.machineCode')" :label-style="style">
+        <span>{{ machineCode || 'N/A' }}</span>
       </el-descriptions-item>
       <el-descriptions-item
         v-for="item in licenseList"
@@ -169,6 +172,7 @@ const rules = reactive<FormRules>({
 const licenseList: any = ref([]);
 const tableData: any = ref([]);
 const advancedTableData = ref([]);
+const machineCode = ref('');
 const isLessThan3_2_3_0 = ref(false);
 const isGreaterThan3_3_0_0 = ref(false);
 const isGreaterThan3_3_0_1 = ref(false);
@@ -200,8 +204,8 @@ const getlabelWidth = computed(() => {
 });
 const TDengineVersion = localStorage.getItem('td_version') || '';
 // const TDengineVersion =  "3.2.3.0"
-const clusterId = localStorage.getItem('local_clusterID') || '';
-const serverVersion = localStorage.getItem('serverVersion') || '';
+const clusterId = ref(localStorage.getItem('local_clusterID') || '');
+const serverVersion = ref(localStorage.getItem('serverVersion') || '');
 
 function handlecActiveCodeShow() {
   isLessThan3_2_3_0.value = compareVersion(TDengineVersion, '<=3.2.3.0');
@@ -212,6 +216,24 @@ function handlecActiveCodeShow() {
 async function getData() {
   try {
     // let cols = [];
+    // 获取机器码
+    await sendSQLReq(`show cluster machines;`).then(res => {
+      const array = res.data.map(data => {
+        return Object.fromEntries(
+          res.column_meta.map((item, index) => {
+            return [item[0], data[index]];
+          })
+        );
+      });
+      // 获取第一个机器码
+      if (array.length > 0) {
+        machineCode.value = array[0].machine || '';
+        clusterId.value = array[0].id || clusterId.value;
+      }
+    }).catch(() => {
+      // 如果命令不支持，忽略错误
+      machineCode.value = '';
+    });
     // 不管是任何版本都show grants
     await sendSQLReq(`show grants;`).then(res => {
       const array = res.data.map(data => {
