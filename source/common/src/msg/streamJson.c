@@ -38,9 +38,7 @@ static int32_t jsonToSFieldWithOptions(const SJson* pJson, void* pObj) {
 
 static int32_t stagFieldWithOptionsToJson(const void* pObj, SJson* pJson) {
   const SFieldWithOptions* pField = (const SFieldWithOptions*)pObj;
-  if (NULL != pField->name) {
-    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkFieldName, pField->name));
-  }
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkFieldName, pField->name));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkFieldType, pField->type));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(
     pJson, jkFieldFlags, pField->flags));

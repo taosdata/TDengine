@@ -3060,7 +3060,7 @@ static void mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransActio
       len += snprintf(objType + len, sizeof(objType) - len, "%s(%d)", sdbTableName(pAction->pRaw->type), pVgroup->vgId);
       taosMemoryFreeClear(pRow);
     } else {
-      strcpy(objType, sdbTableName(pAction->pRaw->type));
+      tstrncpy(objType, sdbTableName(pAction->pRaw->type), sizeof(objType));
     }
     char objTypeVStr[TSDB_TRANS_OBJTYPE_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(objTypeVStr, objType, pShow->pMeta->pSchemas[cols].bytes);

@@ -352,7 +352,7 @@ static int32_t listFileInDir(const char* dirPath, size_t baseLen, SArray* res) {
             continue;
         }
 
-        strcpy(path + dirPathLen, name);
+        tstrncpy(path + dirPathLen, name, sizeof(path));
 
         if (taosDirEntryIsDir(entry)) {
             size_t len = strlen(path);

@@ -430,7 +430,7 @@ int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32
     db[dbLength] = '\0';
     strncpy(tb, qNext + 1, tbLen);
   } else {
-    strcpy(db, fullDb ? (p + 1) : (pNext + 1));
+    tstrncpy(db, fullDb ? (p + 1) : (pNext + 1), dbLen);
     tb[0] = '\0';
   }
   return TSDB_CODE_SUCCESS;
