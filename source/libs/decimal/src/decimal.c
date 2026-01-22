@@ -454,7 +454,7 @@ int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32
   char    buf[64] = {0};
 
   if (DECIMAL64_SIGN((Decimal64*)pInt) == -1) {
-    pos = tsnprintf(buf, sizeof(buf), "-");
+    pos = snprintf(buf, sizeof(buf), "-");
   }
   decimal64GetWhole(pInt, scale, &whole);
   pos += snprintf(buf + pos, bufLen - pos, "%" PRId64, DECIMAL64_GET_VALUE(&whole));

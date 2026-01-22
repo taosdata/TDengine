@@ -285,7 +285,7 @@ void transSockInfo2Str(struct sockaddr* sockname, char* dst) {
 
     port = ntohs(addr->sin6_port);
   }
-  tsnprintf(dst, sizeof(buf) - 1, "%s:%d", buf, port);
+  snprintf(dst, sizeof(buf) - 1, "%s:%d", buf, port);
 }
 int32_t transInitBuffer(SConnBuffer* buf) {
   buf->buf = taosMemoryCalloc(1, BUFFER_CAP);
@@ -931,15 +931,15 @@ void transPrintEpSet(SEpSet* pEpSet) {
     return;
   }
   char buf[512] = {0};
-  int  len = tsnprintf(buf, sizeof(buf), "epset:{");
+  int  len = snprintf(buf, sizeof(buf), "epset:{");
   for (int i = 0; i < pEpSet->numOfEps; i++) {
     if (i == pEpSet->numOfEps - 1) {
-      len += tsnprintf(buf + len, sizeof(buf) - len, "%d. %s:%d", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+      len += snprintf(buf + len, sizeof(buf) - len, "%d. %s:%d", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
     } else {
-      len += tsnprintf(buf + len, sizeof(buf) - len, "%d. %s:%d, ", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+      len += snprintf(buf + len, sizeof(buf) - len, "%d. %s:%d, ", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
     }
   }
-  len += tsnprintf(buf + len, sizeof(buf) - len, "}");
+  len += snprintf(buf + len, sizeof(buf) - len, "}");
   tTrace("%s, inUse:%d", buf, pEpSet->inUse);
 }
 bool transReqEpsetIsEqual(SReqEpSet* a, SReqEpSet* b) {
@@ -1109,7 +1109,7 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
   len = strlen(buf);
 
   if (pRange->mask != 32) {
-    len += tsnprintf(buf + len, sizeof(buf) - (len), "/%d", pRange->mask);
+    len += snprintf(buf + len, sizeof(buf) - (len), "/%d", pRange->mask);
   }
   buf[len] = 0;
   return len;
@@ -1135,7 +1135,7 @@ int32_t transUtilSWhiteListToStr(SIpWhiteListDual* pList, char** ppBuf) {
     code = tIpUintToStr(pRange, &addr);
     TSDB_CHECK_CODE(code, lino, _error);
 
-    len += tsnprintf(pBuf + len, cap - (len), "%s,", IP_ADDR_STR(&addr));
+    len += snprintf(pBuf + len, cap - (len), "%s,", IP_ADDR_STR(&addr));
   }
   if (len > 0) {
     pBuf[len - 1] = 0;
@@ -1966,15 +1966,15 @@ void transPrintEpSet(SEpSet* pEpSet) {
     return;
   }
   char buf[512] = {0};
-  int  len = tsnprintf(buf, sizeof(buf), "epset:{");
+  int  len = snprintf(buf, sizeof(buf), "epset:{");
   for (int i = 0; i < pEpSet->numOfEps; i++) {
     if (i == pEpSet->numOfEps - 1) {
-      len += tsnprintf(buf + len, sizeof(buf) - len, "%d. %s:%d", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+      len += snprintf(buf + len, sizeof(buf) - len, "%d. %s:%d", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
     } else {
-      len += tsnprintf(buf + len, sizeof(buf) - len, "%d. %s:%d, ", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+      len += snprintf(buf + len, sizeof(buf) - len, "%d. %s:%d, ", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
     }
   }
-  len += tsnprintf(buf + len, sizeof(buf) - len, "}");
+  len += snprintf(buf + len, sizeof(buf) - len, "}");
   tTrace("%s, inUse:%d", buf, pEpSet->inUse);
 }
 bool transReqEpsetIsEqual(SReqEpSet* a, SReqEpSet* b) {

@@ -1448,9 +1448,9 @@ static EDealRes pdcJoinCollectCondCol(SNode* pNode, void* pContext) {
       char         name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
       int32_t      len = 0;
       if ('\0' == pCol->tableAlias[0]) {
-        len = tsnprintf(name, sizeof(name), "%s", pCol->colName);
+        len = snprintf(name, sizeof(name), "%s", pCol->colName);
       } else {
-        len = tsnprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
+        len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
       }
       if (NULL == taosHashGet(pCxt->pColHash, name, len)) {
         pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, NULL, 0);
@@ -3676,7 +3676,7 @@ static int32_t partTagsOptRebuildTbanme(SNodeList* pPartKeys) {
 // todo refact: just to mask compilation warnings
 static void partTagsSetAlias(char* pAlias, const char* pTableAlias, const char* pColName) {
   char    name[TSDB_COL_FNAME_LEN + 1] = {0};
-  int32_t len = tsnprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
+  int32_t len = snprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
 
   (void)taosHashBinary(name, len);
   tstrncpy(pAlias, name, TSDB_COL_NAME_LEN);
@@ -4492,7 +4492,7 @@ static int32_t rewriteUniqueOptCreateFirstFunc(SFunctionNode* pSelectValue, SNod
   } else {
     int64_t pointer = (int64_t)pFunc;
     char    name[TSDB_FUNC_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
-    int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%" PRId64, pFunc->functionName, pointer);
+    int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64, pFunc->functionName, pointer);
     (void)taosHashBinary(name, len);
     tstrncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN);
   }
@@ -5070,8 +5070,8 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     int32_t        funcType = pFunc->funcType;
     SNode*         pParamNode = NULL;
     if (FUNCTION_TYPE_LAST_ROW == funcType || FUNCTION_TYPE_LAST == funcType) {
-      int32_t len = tsnprintf(pFunc->functionName, sizeof(pFunc->functionName),
-                              FUNCTION_TYPE_LAST_ROW == funcType ? "_cache_last_row" : "_cache_last");
+      int32_t len = snprintf(pFunc->functionName, sizeof(pFunc->functionName),
+                             FUNCTION_TYPE_LAST_ROW == funcType ? "_cache_last_row" : "_cache_last");
       pFunc->functionName[len] = '\0';
       code = fmGetFuncInfo(pFunc, NULL, 0);
       if (TSDB_CODE_SUCCESS != code) {

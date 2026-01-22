@@ -253,26 +253,26 @@ static void responseCompleteCallback(S3Status status, const S3ErrorDetails *erro
     const int elen = sizeof(cbd->errMsg);
     
     if (error->message && elen - len > 0) {
-        len += tsnprintf(cbd->errMsg + len, elen - len, "  Message: %s\n", error->message);
+        len += snprintf(cbd->errMsg + len, elen - len, "  Message: %s\n", error->message);
     }
 
     if (error->resource && elen - len > 0) {
-        len += tsnprintf(cbd->errMsg + len, elen - len, "  Resource: %s\n", error->resource);
+        len += snprintf(cbd->errMsg + len, elen - len, "  Resource: %s\n", error->resource);
     }
 
     if (error->furtherDetails && elen - len > 0) {
-        len += tsnprintf(cbd->errMsg + len, elen - len, "  Further Details: %s\n", error->furtherDetails);
+        len += snprintf(cbd->errMsg + len, elen - len, "  Further Details: %s\n", error->furtherDetails);
     }
 
     if (error->extraDetailsCount && elen - len <= 0) {
         return;
     }
 
-    len += tsnprintf(&(cbd->errMsg[len]), elen - len, "%s", "  Extra Details:\n");
+    len += snprintf(&(cbd->errMsg[len]), elen - len, "%s", "  Extra Details:\n");
     for (int i = 0; i < error->extraDetailsCount && elen > len; i++) {
         const char* name = error->extraDetails[i].name;
         const char* value = error->extraDetails[i].value;
-        len += tsnprintf(cbd->errMsg + len, elen - len, "    %s: %s\n", name, value);
+        len += snprintf(cbd->errMsg + len, elen - len, "    %s: %s\n", name, value);
     }
 }
 
@@ -531,11 +531,11 @@ static int32_t commitMultipartUpload(SSharedStorageS3* ss, const char* dstPath, 
 
     // build the XML document
     char* p = xml;
-    p += tsnprintf(p, 4096,  "<CompleteMultipartUpload>");
+    p += snprintf(p, 4096, "<CompleteMultipartUpload>");
     for (uint32_t i = 0; i < ucbd->numChunks; i++) {
-        p += tsnprintf(p, 4096,  "<Part><PartNumber>%d</PartNumber><ETag>%s</ETag></Part>", i + 1, ucbd->etags[i]);
+        p += snprintf(p, 4096, "<Part><PartNumber>%d</PartNumber><ETag>%s</ETag></Part>", i + 1, ucbd->etags[i]);
     }
-    p += tsnprintf(p, 4096,  "</CompleteMultipartUpload>");
+    p += snprintf(p, 4096, "</CompleteMultipartUpload>");
 
     // set the upload source to the XML document
     SUploadSource src = {.src = NULL, .buf = xml, .size = p-xml, .offset = 0, .file = NULL};

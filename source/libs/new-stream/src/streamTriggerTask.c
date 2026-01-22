@@ -1824,7 +1824,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   }
 
   if (infoBuf && bufLen < bufCap) {
-    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "columnId in the datablock: {");
+    bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "columnId in the datablock: {");
   }
   // create the data block for virtual table
   int32_t nTotalCols = TARRAY_SIZE(pVirColIds);
@@ -1853,14 +1853,14 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     code = blockDataAppendColInfo(pTask->pVirDataBlock, &col);
     QUERY_CHECK_CODE(code, lino, _end);
     if (infoBuf && bufLen < bufCap) {
-      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", id);
+      bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", id);
     }
   }
   pTask->nVirDataCols = nDataCols;
 
   if (infoBuf && bufLen < bufCap) {
     infoBuf[bufLen - 1] = '}';
-    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of trigger data:{");
+    bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of trigger data:{");
   }
 
   // get new slot id of trig data block and calc data block
@@ -1879,13 +1879,13 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     void *px = taosArrayPush(pTrigSlotids, &slotid);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     if (infoBuf && bufLen < bufCap) {
-      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
+      bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
     }
   }
 
   if (infoBuf && bufLen < bufCap) {
     infoBuf[bufLen - 1] = '}';
-    bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of calc data:{");
+    bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "; slotId of calc data:{");
   }
 
   pCalcSlotids = taosArrayInit(nCalcCols, sizeof(int32_t));
@@ -1903,7 +1903,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     void *px = taosArrayPush(pCalcSlotids, &slotid);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     if (infoBuf && bufLen < bufCap) {
-      bufLen += tsnprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
+      bufLen += snprintf(infoBuf + bufLen, bufCap - bufLen, "%d,", slotid);
     }
   }
   if (infoBuf && bufLen < bufCap) {
@@ -6346,7 +6346,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
         buf[0] = '\0';
         for (int32_t i = 0; i < TARRAY_SIZE(pReq->cids); i++) {
           col_id_t colId = *(col_id_t *)TARRAY_GET_ELEM(pReq->cids, i);
-          bufLen += tsnprintf(buf + bufLen, sizeof(buf) - bufLen, "%d,", colId);
+          bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d,", colId);
         }
         if (bufLen > 0) {
           buf[bufLen - 1] = '\0';

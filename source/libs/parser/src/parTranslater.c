@@ -3641,7 +3641,7 @@ static int32_t rewriteServerStatusFunc(STranslateContext* pCxt, SNode** pNode) {
 
 static int32_t rewriteUserFunc(STranslateContext* pCxt, SNode** pNode) {
   char    userConn[TSDB_USER_LEN + 1 + TSDB_FQDN_LEN] = {0};  // format 'user@host'
-  int32_t len = tsnprintf(userConn, sizeof(userConn), "%s@", pCxt->pParseCxt->pUser);
+  int32_t len = snprintf(userConn, sizeof(userConn), "%s@", pCxt->pParseCxt->pUser);
   if (TSDB_CODE_SUCCESS != taosGetFqdn(userConn + len)) {
     return terrno;
   }
@@ -5217,8 +5217,8 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
         SVgroupInfo     vgInfo = {0};
         bool            exists = false;
         toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, "", &tsmaTargetTbName);
-        int32_t len = tsnprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName,
-                                pTsma->name, pRealTable->table.tableName);
+        int32_t len = snprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName, pTsma->name,
+                               pRealTable->table.tableName);
         len = taosCreateMD5Hash(buf, len);
         tstrncpy(tsmaTargetTbName.tname, buf, TSDB_TABLE_NAME_LEN);
         code = collectUseTable(&tsmaTargetTbName, pCxt->pTargetTables);
@@ -6529,18 +6529,18 @@ static int32_t createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr, SNo
       tstrncpy(pFunc->node.userAlias, pCol->colName, TSDB_COL_NAME_LEN);
       tstrncpy(pFunc->node.aliasName, pCol->colName, TSDB_COL_NAME_LEN);
     } else {
-      len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
+      len = snprintf(buf, sizeof(buf) - 1, "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
       (void)taosHashBinary(buf, len);
       tstrncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN);
-      len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pCol->colName);
+      len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pCol->colName);
       // note: userAlias could be truncated here
       tstrncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN);
     }
   } else {
-    len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
+    len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
     (void)taosHashBinary(buf, len);
     tstrncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN);
-    len = tsnprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->userAlias);
+    len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->userAlias);
     // note: userAlias could be truncated here
     tstrncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN);
   }
@@ -8809,8 +8809,8 @@ static int32_t replaceToChildTableQuery(STranslateContext* pCxt, SEqCondTbNameTa
       STableTSMAInfo* pTsma = taosArrayGetP(pRealTable->pTsmas, i);
       SName           tsmaTargetTbName = {0};
       toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, "", &tsmaTargetTbName);
-      int32_t len = tsnprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName, pTsma->name,
-                              pRealTable->table.tableName);
+      int32_t len = snprintf(buf, TSDB_TABLE_FNAME_LEN + TSDB_TABLE_NAME_LEN, "%s.%s_%s", pTsma->dbFName, pTsma->name,
+                             pRealTable->table.tableName);
       len = taosCreateMD5Hash(buf, len);
       tstrncpy(tsmaTargetTbName.tname, buf, TSDB_TABLE_NAME_LEN);
       STsmaTargetTbInfo ctbInfo = {0};
@@ -9307,11 +9307,11 @@ static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
       int len = strlen(pExpr->aliasName);
       if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
         char buffer[TSDB_COL_NAME_EXLEN + TSDB_COL_NAME_LEN + 1] = {0};
-        (void)tsnprintf(buffer, sizeof(buffer), "%s.%d", pExpr->aliasName, pExpr->relatedTo);
+        (void)snprintf(buffer, sizeof(buffer), "%s.%d", pExpr->aliasName, pExpr->relatedTo);
         uint64_t hashVal = MurmurHash3_64(buffer, TSDB_COL_NAME_EXLEN + TSDB_COL_NAME_LEN + 1);
-        (void)tsnprintf(pExpr->aliasName, TSDB_COL_NAME_EXLEN, "%" PRIu64, hashVal);
+        (void)snprintf(pExpr->aliasName, TSDB_COL_NAME_EXLEN, "%" PRIu64, hashVal);
       } else {
-        (void)tsnprintf(pExpr->aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pExpr->relatedTo);
+        (void)snprintf(pExpr->aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pExpr->relatedTo);
       }
     }
   }
@@ -11468,7 +11468,7 @@ static int32_t translateCreateMount(STranslateContext* pCxt, SCreateMountStmt* p
   int32_t cap = strlen(pStmt->mountPath) + 1;
   TSDB_CHECK_NULL((createReq.mountPaths[0] = taosMemoryMalloc(cap)), code, lino, _exit,
                   terrno);
-  TAOS_UNUSED( tsnprintf(createReq.mountPaths[0], cap, "%s", pStmt->mountPath));
+  TAOS_UNUSED(snprintf(createReq.mountPaths[0], cap, "%s", pStmt->mountPath));
 
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_MOUNT, (FSerializeFunc)tSerializeSCreateMountReq, &createReq);
@@ -12258,7 +12258,7 @@ static int32_t makeIntervalVal(SRetention* pRetension, int8_t precision, SNode**
     return code;
   }
   char    buf[20] = {0};
-  int32_t len = tsnprintf(buf, sizeof(buf), "%" PRId64 "%c", timeVal, pRetension->freqUnit);
+  int32_t len = snprintf(buf, sizeof(buf), "%" PRId64 "%c", timeVal, pRetension->freqUnit);
   pVal->literal = taosStrndup(buf, len);
   if (NULL == pVal->literal) {
     nodesDestroyNode((SNode*)pVal);

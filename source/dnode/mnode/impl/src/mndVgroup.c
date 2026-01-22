@@ -2891,7 +2891,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
     char obj[33] = {0};
-    (void)tsnprintf(obj, sizeof(obj), "%d", req.vgId);
+    (void)snprintf(obj, sizeof(obj), "%d", req.vgId);
 
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);

@@ -3415,12 +3415,12 @@ int32_t globalConfigSerialize(int32_t version, SArray *array, char **serialized)
           if (cJSON_AddNumberToObject(cField, item->name, item->i32) == NULL) goto _exit;
           break;
         case CFG_DTYPE_INT64:
-          (void)tsnprintf(buf, sizeof(buf), "%" PRId64, item->i64);
+          (void)snprintf(buf, sizeof(buf), "%" PRId64, item->i64);
           if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_FLOAT:
         case CFG_DTYPE_DOUBLE:
-          (void)tsnprintf(buf, sizeof(buf), "%f", item->fval);
+          (void)snprintf(buf, sizeof(buf), "%f", item->fval);
           if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_STRING:
@@ -3482,7 +3482,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
             goto _exit;
           }
         }
-        (void)tsnprintf(buf, sizeof(buf), "%" PRId64, disk->diskId);
+        (void)snprintf(buf, sizeof(buf), "%" PRId64, disk->diskId);
         if (cJSON_AddStringToObject(dataDir, "disk_id", buf) == NULL) goto _exit;
         if (cJSON_AddNumberToObject(dataDir, "primary", disk->primary) == NULL) goto _exit;
         if (cJSON_AddNumberToObject(dataDir, "disable", disk->disable) == NULL) goto _exit;
@@ -3503,12 +3503,12 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
           if (cJSON_AddNumberToObject(cField, item->name, item->i32) == NULL) goto _exit;
           break;
         case CFG_DTYPE_INT64:
-          (void)tsnprintf(buf, sizeof(buf), "%" PRId64, item->i64);
+          (void)snprintf(buf, sizeof(buf), "%" PRId64, item->i64);
           if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_FLOAT:
         case CFG_DTYPE_DOUBLE:
-          (void)tsnprintf(buf, sizeof(buf), "%f", item->fval);
+          (void)snprintf(buf, sizeof(buf), "%f", item->fval);
           if (cJSON_AddStringToObject(cField, item->name, buf) == NULL) goto _exit;
           break;
         case CFG_DTYPE_STRING:

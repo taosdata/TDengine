@@ -33,7 +33,7 @@ const int gFileGroupBlockMaxSize = 64 * 1024;  // 64K
 
 int32_t initDataSinkFileDir() {
   int32_t code = 0;
-  int     ret = tsnprintf(gDataSinkFilePath, sizeof(gDataSinkFilePath), "%s/tdengine_stream_data/", tsTempDir);
+  int     ret = snprintf(gDataSinkFilePath, sizeof(gDataSinkFilePath), "%s/tdengine_stream_data/", tsTempDir);
   if (ret < 0) {
     stError("failed to get stream data sink path ret:%d", ret);
     return TSDB_CODE_TSC_INTERNAL_ERROR;

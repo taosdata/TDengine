@@ -154,7 +154,7 @@ int taos_linked_list_remove(taos_linked_list_t *self, void *item) {
   for (node = self->head; node != NULL; node = node->next) {
     count++;
   }
-  tsnprintf(tmp, sizeof(tmp), "list count:%d", count);
+  snprintf(tmp, sizeof(tmp), "list count:%d", count);
   TAOS_LOG(tmp);
 #endif
 
@@ -179,7 +179,7 @@ int taos_linked_list_remove(taos_linked_list_t *self, void *item) {
   }
 
 #ifdef TAOS_LOG_ENABLE
-  tsnprintf(tmp, "remove item:%d", count);
+  snprintf(tmp, "remove item:%d", count);
   TAOS_LOG(tmp);
 #endif
 
@@ -213,7 +213,7 @@ int taos_linked_list_remove(taos_linked_list_t *self, void *item) {
     count++;
   }
 
-  tsnprintf(tmp, "list count:%d", count);
+  snprintf(tmp, "list count:%d", count);
   TAOS_LOG(tmp);
 #endif
 

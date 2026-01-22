@@ -186,7 +186,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
 
 static int32_t vnodeVgroupIdLen(int32_t vgId) {
   char tmp[TSDB_FILENAME_LEN];
-  (void)tsnprintf(tmp, TSDB_FILENAME_LEN, "%d", vgId);
+  (void)snprintf(tmp, TSDB_FILENAME_LEN, "%d", vgId);
   return strlen(tmp);
 }
 
@@ -509,7 +509,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   }
 
   // open wal
-  (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
+  (void)snprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
 
@@ -521,7 +521,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   }
 
   // open tq
-  (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
+  (void)snprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
 
@@ -542,7 +542,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
 
   // open blob store engine
   vInfo("vgId:%d, start to open blob store engine", TD_VID(pVnode));
-  (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_BSE_DIR);
+  (void)snprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_BSE_DIR);
 
   SBseCfg cfg = {
       .vgId = pVnode->config.vgId,

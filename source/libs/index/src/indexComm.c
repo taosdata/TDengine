@@ -416,7 +416,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      tsnprintf(*dst, bufSize + 1, "%" PRIu64, *(uint64_t*)src);
+      snprintf(*dst, bufSize + 1, "%" PRIu64, *(uint64_t*)src);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_UBIGINT:
@@ -432,7 +432,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      tsnprintf(*dst, bufSize + 1, "%.9lf", *(float*)src);
+      snprintf(*dst, bufSize + 1, "%.9lf", *(float*)src);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_DOUBLE:
@@ -440,7 +440,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       if (*dst == NULL) {
         return terrno;
       }
-      tsnprintf(*dst, bufSize + 1, "%.9lf", *(double*)src);
+      snprintf(*dst, bufSize + 1, "%.9lf", *(double*)src);
       tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_NCHAR: {

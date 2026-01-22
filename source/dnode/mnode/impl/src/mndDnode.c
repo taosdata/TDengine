@@ -1257,7 +1257,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj[200] = {0};
-    (void)tsnprintf(obj, sizeof(obj), "%s:%d", createReq.fqdn, createReq.port);
+    (void)snprintf(obj, sizeof(obj), "%s:%d", createReq.fqdn, createReq.port);
 
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
@@ -1497,7 +1497,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj1[30] = {0};
-    (void)tsnprintf(obj1, sizeof(obj1), "%d", dropReq.dnodeId);
+    (void)snprintf(obj1, sizeof(obj1), "%d", dropReq.dnodeId);
 
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);

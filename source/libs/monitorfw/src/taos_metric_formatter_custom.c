@@ -280,7 +280,7 @@ int taos_metric_formatter_load_metrics_new(taos_metric_formatter_t *self, taos_m
         if (metric == NULL) {
 #ifdef TAOS_LOG_ENABLE
           char tmp[200] = {0};
-          tsnprintf(tmp, sizeof(tmp),"fail to get metric(%d):%s", count, metric_name);
+          snprintf(tmp, sizeof(tmp), "fail to get metric(%d):%s", count, metric_name);
           TAOS_LOG(tmp);
 #endif
           continue;;
@@ -294,7 +294,7 @@ int taos_metric_formatter_load_metrics_new(taos_metric_formatter_t *self, taos_m
 
 #ifdef TAOS_LOG_ENABLE
       char tmp[20] = {0};
-      tsnprintf(tmp, sizeof(tmp),"list count:%d", count);
+      snprintf(tmp, sizeof(tmp), "list count:%d", count);
       TAOS_LOG(tmp);
 #endif
       r = pthread_rwlock_unlock(metrics->rwlock);

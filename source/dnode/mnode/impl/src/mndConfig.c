@@ -833,7 +833,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   // Audit log
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj[50] = {0};
-    (void)tsnprintf(obj, sizeof(obj), "%d", cfgReq.dnodeId);
+    (void)snprintf(obj, sizeof(obj), "%d", cfgReq.dnodeId);
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;
@@ -930,18 +930,18 @@ static int32_t mndHandleSyncTimeoutConfigs(STrans *pTrans, const char *srcName, 
   int32_t baseTimeout = syncTimeout - syncTimeout / SYNC_TIMEOUT_DIVISOR;
 
   // arbSetAssignedTimeoutMs = syncTimeout
-  tsnprintf(tmp, sizeof(tmp), "%d", syncTimeout);
+  snprintf(tmp, sizeof(tmp), "%d", syncTimeout);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbSetAssignedTimeoutMs", tmp, lino), lino, _OVER);
 
   // arbHeartBeatIntervalMs = syncTimeout / 4
-  tsnprintf(tmp, sizeof(tmp), "%d", syncTimeout / SYNC_TIMEOUT_DIVISOR);
+  snprintf(tmp, sizeof(tmp), "%d", syncTimeout / SYNC_TIMEOUT_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbHeartBeatIntervalMs", tmp, lino), lino, _OVER);
 
   // arbCheckSyncIntervalMs = syncTimeout / 4
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbCheckSyncIntervalMs", tmp, lino), lino, _OVER);
 
   // syncVnodeElectIntervalMs = (syncTimeout - syncTimeout / 4) / 2
-  tsnprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_ELECT_DIVISOR);
+  snprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_ELECT_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "syncVnodeElectIntervalMs", tmp, lino), lino, _OVER);
 
   // syncMnodeElectIntervalMs = (syncTimeout - syncTimeout / 4) / 2
@@ -951,11 +951,11 @@ static int32_t mndHandleSyncTimeoutConfigs(STrans *pTrans, const char *srcName, 
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "statusTimeoutMs", tmp, lino), lino, _OVER);
 
   // statusSRTimeoutMs = (syncTimeout - syncTimeout / 4) / 4
-  tsnprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_SR_DIVISOR);
+  snprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_SR_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "statusSRTimeoutMs", tmp, lino), lino, _OVER);
 
   // syncVnodeHeartbeatIntervalMs = (syncTimeout - syncTimeout / 4) / 8
-  tsnprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_HB_DIVISOR);
+  snprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_HB_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "syncVnodeHeartbeatIntervalMs", tmp, lino), lino, _OVER);
 
   // syncMnodeHeartbeatIntervalMs = (syncTimeout - syncTimeout / 4) / 8
@@ -1240,24 +1240,24 @@ static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern) {
       case CFG_DTYPE_NONE:
         break;
       case CFG_DTYPE_BOOL:
-        tsnprintf(info.value, sizeof(info.value), "%d", pItem->bval);
+        snprintf(info.value, sizeof(info.value), "%d", pItem->bval);
         break;
       case CFG_DTYPE_INT32:
-        tsnprintf(info.value, sizeof(info.value), "%d", pItem->i32);
+        snprintf(info.value, sizeof(info.value), "%d", pItem->i32);
         break;
       case CFG_DTYPE_INT64:
-        tsnprintf(info.value, sizeof(info.value), "%" PRId64, pItem->i64);
+        snprintf(info.value, sizeof(info.value), "%" PRId64, pItem->i64);
         break;
       case CFG_DTYPE_FLOAT:
       case CFG_DTYPE_DOUBLE:
-        tsnprintf(info.value, sizeof(info.value), "%f", pItem->fval);
+        snprintf(info.value, sizeof(info.value), "%f", pItem->fval);
         break;
       case CFG_DTYPE_STRING:
       case CFG_DTYPE_DIR:
       case CFG_DTYPE_LOCALE:
       case CFG_DTYPE_CHARSET:
       case CFG_DTYPE_TIMEZONE:
-        tsnprintf(info.value, sizeof(info.value), "%s", pItem->str);
+        snprintf(info.value, sizeof(info.value), "%s", pItem->str);
         break;
     }
 

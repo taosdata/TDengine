@@ -758,14 +758,14 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       SConfigItem *pItemTmp = NULL;
       char         tmp[10] = {0};
 
-      tsnprintf(tmp, sizeof(tmp), "%d", tsSyncTimeout);
+      snprintf(tmp, sizeof(tmp), "%d", tsSyncTimeout);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItemTmp, "arbSetAssignedTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {
         return TSDB_CODE_CFG_NOT_FOUND;
       }
 
-      tsnprintf(tmp, sizeof(tmp), "%d", tsSyncTimeout / 4);
+      snprintf(tmp, sizeof(tmp), "%d", tsSyncTimeout / 4);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItemTmp, "arbHeartBeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {
@@ -777,7 +777,7 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
         return TSDB_CODE_CFG_NOT_FOUND;
       }
 
-      tsnprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 2);
+      snprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 2);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItemTmp, "syncVnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {
@@ -793,13 +793,13 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
         return TSDB_CODE_CFG_NOT_FOUND;
       }
 
-      tsnprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 4);
+      snprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 4);
       TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItemTmp, "statusSRTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {
         return TSDB_CODE_CFG_NOT_FOUND;
       }
 
-      tsnprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 8);
+      snprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 8);
       TAOS_CHECK_RETURN(
           cfgGetAndSetItem(pCfg, &pItemTmp, "syncVnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
       if (pItemTmp == NULL) {

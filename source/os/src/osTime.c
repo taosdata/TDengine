@@ -555,7 +555,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
 #elif defined(TD_ASTRA)
   res = localtime_r(timep, result);
   if (res == NULL && buf != NULL) {
-    (void) tsnprintf(buf, bufSize - 1, "NaN");
+    (void)snprintf(buf, bufSize - 1, "NaN");
   }
   return res;
 #else

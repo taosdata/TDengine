@@ -248,20 +248,20 @@ static void responseCompleteCallback(S3Status status, const S3ErrorDetails *erro
   const int elen = sizeof(cbd->err_msg);
   if (error) {
     if (error->message && elen - len > 0) {
-      len += tsnprintf(&(cbd->err_msg[len]), elen - len, "  Message: %s\n", error->message);
+      len += snprintf(&(cbd->err_msg[len]), elen - len, "  Message: %s\n", error->message);
     }
     if (error->resource && elen - len > 0) {
-      len += tsnprintf(&(cbd->err_msg[len]), elen - len, "  Resource: %s\n", error->resource);
+      len += snprintf(&(cbd->err_msg[len]), elen - len, "  Resource: %s\n", error->resource);
     }
     if (error->furtherDetails && elen - len > 0) {
-      len += tsnprintf(&(cbd->err_msg[len]), elen - len, "  Further Details: %s\n", error->furtherDetails);
+      len += snprintf(&(cbd->err_msg[len]), elen - len, "  Further Details: %s\n", error->furtherDetails);
     }
     if (error->extraDetailsCount && elen - len > 0) {
-      len += tsnprintf(&(cbd->err_msg[len]), elen - len, "%s", "  Extra Details:\n");
+      len += snprintf(&(cbd->err_msg[len]), elen - len, "%s", "  Extra Details:\n");
       for (int i = 0; i < error->extraDetailsCount; i++) {
         if (elen - len > 0) {
-          len += tsnprintf(&(cbd->err_msg[len]), elen - len, "    %s: %s\n", error->extraDetails[i].name,
-                           error->extraDetails[i].value);
+          len += snprintf(&(cbd->err_msg[len]), elen - len, "    %s: %s\n", error->extraDetails[i].name,
+                          error->extraDetails[i].value);
         }
       }
     }
@@ -741,10 +741,10 @@ upload:
     if (!manager.etags[i]) {
       TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(EIO), &lino, _exit);
     }
-    n = tsnprintf(buf, sizeof(buf),
-                  "<Part><PartNumber>%d</PartNumber>"
-                  "<ETag>%s</ETag></Part>",
-                  i + 1, manager.etags[i]);
+    n = snprintf(buf, sizeof(buf),
+                 "<Part><PartNumber>%d</PartNumber>"
+                 "<ETag>%s</ETag></Part>",
+                 i + 1, manager.etags[i]);
     size += growbuffer_append(&(manager.gb), buf, n);
   }
   size += growbuffer_append(&(manager.gb), "</CompleteMultipartUpload>", strlen("</CompleteMultipartUpload>"));
@@ -907,11 +907,11 @@ upload:
   char buf[256];
   int  n;
   for (int i = 0; i < cp.part_num; ++i) {
-    n = tsnprintf(buf, sizeof(buf),
-                  "<Part><PartNumber>%d</PartNumber>"
-                  "<ETag>%s</ETag></Part>",
-                  // i + 1, manager.etags[i]);
-                  cp.parts[i].index + 1, cp.parts[i].etag);
+    n = snprintf(buf, sizeof(buf),
+                 "<Part><PartNumber>%d</PartNumber>"
+                 "<ETag>%s</ETag></Part>",
+                 // i + 1, manager.etags[i]);
+                 cp.parts[i].index + 1, cp.parts[i].etag);
     size += growbuffer_append(&(manager.gb), buf, n);
   }
   size += growbuffer_append(&(manager.gb), "</CompleteMultipartUpload>", strlen("</CompleteMultipartUpload>"));

@@ -23,7 +23,7 @@ TdThread    monitorThread;
 extern bool tsEnableAuditDelete;
 
 static int32_t getSlowLogTmpDir(char* tmpPath, int32_t size) {
-  int ret = tsnprintf(tmpPath, size, "%s/tdengine_slow_log/", tsTempDir);
+  int ret = snprintf(tmpPath, size, "%s/tdengine_slow_log/", tsTempDir);
   if (ret < 0) {
     tscError("failed to get tmp path ret:%d", ret);
     return TSDB_CODE_TSC_INTERNAL_ERROR;
@@ -993,8 +993,8 @@ static int32_t setDeleteStmtAuditReqTableInfo(SDeleteStmt* pStmt, SAuditReq* pRe
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
   SRealTableNode* pTableNode = (SRealTableNode*)pStmt->pFromTable;
-  TAOS_UNUSED(tsnprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s", pTableNode->table.tableName));
-  TAOS_UNUSED(tsnprintf(pReq->db, TSDB_DB_FNAME_LEN, "%s", pTableNode->table.dbName));
+  TAOS_UNUSED(snprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s", pTableNode->table.tableName));
+  TAOS_UNUSED(snprintf(pReq->db, TSDB_DB_FNAME_LEN, "%s", pTableNode->table.dbName));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1005,8 +1005,8 @@ static int32_t setModifyStmtAuditReqTableInfo(SVnodeModifyOpStmt* pStmt, SAuditR
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
-  TAOS_UNUSED(tsnprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s", pStmt->targetTableName.tname));
-  TAOS_UNUSED(tsnprintf(pReq->db, TSDB_DB_FNAME_LEN, "%s", pStmt->targetTableName.dbname));
+  TAOS_UNUSED(snprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s", pStmt->targetTableName.tname));
+  TAOS_UNUSED(snprintf(pReq->db, TSDB_DB_FNAME_LEN, "%s", pStmt->targetTableName.dbname));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1047,11 +1047,11 @@ static void destroyAuditTableListInfo(SAuditTableListInfo* pInfo) {
 static void copyTableInfoToAuditReq(SAuditTableListInfo* pTbListInfo, SAuditReq* pReq) {
   if (pTbListInfo->dbList->size > 0) {
     char* dbName = (char*)taosArrayGet(pTbListInfo->dbList, 0);
-    TAOS_UNUSED(tsnprintf(pReq->db, TSDB_DB_FNAME_LEN, "%s", dbName));
+    TAOS_UNUSED(snprintf(pReq->db, TSDB_DB_FNAME_LEN, "%s", dbName));
   }
   if (pTbListInfo->tableList->size > 0) {
     char* tableName = (char*)taosArrayGet(pTbListInfo->tableList, 0);
-    TAOS_UNUSED(tsnprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s", tableName));
+    TAOS_UNUSED(snprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s", tableName));
   }
 }
 
@@ -1121,8 +1121,8 @@ static int32_t doSetSelectStmtAuditReqTableInfo(SNode* pFromTable, SAuditReq* pR
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
   if (pTbListInfo->dbList == NULL && pTable && pReq) {
-    TAOS_UNUSED(tsnprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s", pTable->tableName));
-    TAOS_UNUSED(tsnprintf(pReq->db, TSDB_DB_FNAME_LEN, "%s", pTable->dbName));
+    TAOS_UNUSED(snprintf(pReq->table, TSDB_TABLE_NAME_LEN, "%s", pTable->tableName));
+    TAOS_UNUSED(snprintf(pReq->db, TSDB_DB_FNAME_LEN, "%s", pTable->dbName));
   } else if (pTbListInfo->dbList != NULL && pTable) {
     void* tmp = taosArrayPush(pTbListInfo->dbList, pTable->dbName);
     TSDB_CHECK_NULL(tmp, code, lino, _exit, terrno);
@@ -1191,11 +1191,11 @@ static void setAuditReqAffectedRows(SRequestObj* pRequest, ENodeType type, SAudi
 
 static void setAuditReqOperation(SRequestObj* pRequest, ENodeType type, SAuditReq* pReq) {
   if (QUERY_NODE_DELETE_STMT == type) {
-    TAOS_UNUSED(tsnprintf(pReq->operation, AUDIT_OPERATION_LEN, "delete"));
+    TAOS_UNUSED(snprintf(pReq->operation, AUDIT_OPERATION_LEN, "delete"));
   } else if (QUERY_NODE_VNODE_MODIFY_STMT == type) {
-    TAOS_UNUSED(tsnprintf(pReq->operation, AUDIT_OPERATION_LEN, "insert"));
+    TAOS_UNUSED(snprintf(pReq->operation, AUDIT_OPERATION_LEN, "insert"));
   } else if (QUERY_NODE_SELECT_STMT == type) {
-    TAOS_UNUSED(tsnprintf(pReq->operation, AUDIT_OPERATION_LEN, "select"));
+    TAOS_UNUSED(snprintf(pReq->operation, AUDIT_OPERATION_LEN, "select"));
   }
 }
 

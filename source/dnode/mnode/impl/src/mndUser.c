@@ -622,7 +622,7 @@ static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t
       mError("%s failed to convert ip range to str, code: %d", __func__, code);
     }
 
-    len += tsnprintf(buf + len, bufLen - len, "%c%s/%d, ", pRange->neg ? '-' : '+', IP_ADDR_STR(&addr), addr.mask);
+    len += snprintf(buf + len, bufLen - len, "%c%s/%d, ", pRange->neg ? '-' : '+', IP_ADDR_STR(&addr), addr.mask);
   }
   if (len > 0) buf[len - 2] = 0;
   return len;
@@ -713,7 +713,7 @@ static int32_t convertIpWhiteListToStr(SUserObj *pUser, char **buf) {
   }
 
   if (pList->num == 0) {
-    return tsnprintf(*buf, bufLen, "+ALL");
+    return snprintf(*buf, bufLen, "+ALL");
   }
 
   int32_t len = ipRangeListToStr(pList->pIpRanges, pList->num, *buf, bufLen - 2);
@@ -901,7 +901,7 @@ static int32_t convertTimeRangesToStr(SUserObj *pUser, char **buf) {
 
   int32_t pos = 0;
   if (pUser->pTimeWhiteList->num == 0) {
-    pos += tsnprintf(*buf + pos, bufLen - pos, "+ALL");
+    pos += snprintf(*buf + pos, bufLen - pos, "+ALL");
     return pos;
   }
 
@@ -912,12 +912,14 @@ static int32_t convertTimeRangesToStr(SUserObj *pUser, char **buf) {
     if (range->absolute) {
       struct STm tm;
       (void)taosTs2Tm(range->start, TSDB_TIME_PRECISION_SECONDS, &tm, NULL);
-      pos += tsnprintf(*buf + pos, bufLen - pos, "%c%04d-%02d-%02d %02d:%02d %dm, ", range->neg ? '-' : '+', tm.tm.tm_year + 1900, tm.tm.tm_mon + 1, tm.tm.tm_mday, tm.tm.tm_hour, tm.tm.tm_min, duration);
+      pos += snprintf(*buf + pos, bufLen - pos, "%c%04d-%02d-%02d %02d:%02d %dm, ", range->neg ? '-' : '+',
+                      tm.tm.tm_year + 1900, tm.tm.tm_mon + 1, tm.tm.tm_mday, tm.tm.tm_hour, tm.tm.tm_min, duration);
     } else {
       int day = range->start / 86400;
       int hour = (range->start % 86400) / 3600;
       int minute = (range->start % 3600) / 60;
-      pos += tsnprintf(*buf + pos, bufLen - pos, "%c%s %02d:%02d %dm, ", range->neg ? '-' : '+', weekdays[day], hour, minute, duration);
+      pos += snprintf(*buf + pos, bufLen - pos, "%c%s %02d:%02d %dm, ", range->neg ? '-' : '+', weekdays[day], hour,
+                      minute, duration);
     }
   }
 
@@ -3008,8 +3010,8 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
     char detail[1000] = {0};
-    (void)tsnprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
-                    createReq.superUser, createReq.sysInfo);
+    (void)snprintf(detail, sizeof(detail), "enable:%d, superUser:%d, sysInfo:%d, password:xxx", createReq.enable,
+                   createReq.superUser, createReq.sysInfo);
     char operation[15] = {0};
     if (createReq.isImport == 1) {
       tstrncpy(operation, "importUser", sizeof(operation));
@@ -3622,7 +3624,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
 
   if (pAlterReq->hasPassword) {
-    auditLen += tsnprintf(auditLog, sizeof(auditLog), "password,");
+    auditLen += snprintf(auditLog, sizeof(auditLog), "password,");
 
     TAOS_CHECK_GOTO(mndCheckPasswordFmt(pAlterReq->pass), &lino, _OVER);
     if (newUser.salt[0] == 0) {
@@ -3660,7 +3662,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if (pAlterReq->hasTotpseed) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "totpseed,");
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "totpseed,");
 
     if (pAlterReq->totpseed[0] == 0) { // clear totp secret
       memset(newUser.totpsecret, 0, sizeof(newUser.totpsecret));
@@ -3670,7 +3672,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if (pAlterReq->hasEnable) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "enable:%d,", pAlterReq->enable);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "enable:%d,", pAlterReq->enable);
 
     newUser.enable = pAlterReq->enable; // lock or unlock user manually
     if (newUser.enable) {
@@ -3680,83 +3682,94 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   }
 
   if (pAlterReq->hasSysinfo) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "sysinfo:%d,", pAlterReq->sysinfo);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "sysinfo:%d,", pAlterReq->sysinfo);
     newUser.sysInfo = pAlterReq->sysinfo;
   }
 
   if (pAlterReq->hasCreatedb) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "createdb:%d,", pAlterReq->createdb);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "createdb:%d,", pAlterReq->createdb);
     newUser.createdb = pAlterReq->createdb;
   }
 
 #ifdef TD_ENTERPRISE
   if (pAlterReq->hasChangepass) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "changepass:%d,", pAlterReq->changepass);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "changepass:%d,", pAlterReq->changepass);
     newUser.changePass = pAlterReq->changepass;
   }
 
   if (pAlterReq->hasSessionPerUser) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "sessionPerUser:%d,", pAlterReq->sessionPerUser);
+    auditLen +=
+        snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "sessionPerUser:%d,", pAlterReq->sessionPerUser);
     newUser.sessionPerUser = pAlterReq->sessionPerUser;
   }
 
   if (pAlterReq->hasConnectTime) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "connectTime:%d,", pAlterReq->connectTime);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "connectTime:%d,", pAlterReq->connectTime);
     newUser.connectTime = pAlterReq->connectTime;
   }
   
   if (pAlterReq->hasConnectIdleTime) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "connectIdleTime:%d,", pAlterReq->connectIdleTime);
+    auditLen +=
+        snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "connectIdleTime:%d,", pAlterReq->connectIdleTime);
     newUser.connectIdleTime = pAlterReq->connectIdleTime;
   }
 
   if (pAlterReq->hasCallPerSession) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "callPerSession:%d,", pAlterReq->callPerSession);
+    auditLen +=
+        snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "callPerSession:%d,", pAlterReq->callPerSession);
     newUser.callPerSession = pAlterReq->callPerSession;
   }
 
   if (pAlterReq->hasVnodePerCall) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "vnodePerCall:%d,", pAlterReq->vnodePerCall);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "vnodePerCall:%d,", pAlterReq->vnodePerCall);
     newUser.vnodePerCall = pAlterReq->vnodePerCall;
   }
 
   if (pAlterReq->hasFailedLoginAttempts) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "failedLoginAttempts:%d,", pAlterReq->failedLoginAttempts);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "failedLoginAttempts:%d,",
+                         pAlterReq->failedLoginAttempts);
     newUser.failedLoginAttempts = pAlterReq->failedLoginAttempts;
   }
 
   if (pAlterReq->hasPasswordLifeTime) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordLifeTime:%d,", pAlterReq->passwordLifeTime);
+    auditLen +=
+        snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordLifeTime:%d,", pAlterReq->passwordLifeTime);
     newUser.passwordLifeTime = pAlterReq->passwordLifeTime;
   }
 
   if (pAlterReq->hasPasswordReuseTime) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordReuseTime:%d,", pAlterReq->passwordReuseTime);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordReuseTime:%d,",
+                         pAlterReq->passwordReuseTime);
     newUser.passwordReuseTime = pAlterReq->passwordReuseTime;
   }
 
   if (pAlterReq->hasPasswordReuseMax) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordReuseMax:%d,", pAlterReq->passwordReuseMax);
+    auditLen +=
+        snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordReuseMax:%d,", pAlterReq->passwordReuseMax);
     newUser.passwordReuseMax = pAlterReq->passwordReuseMax;
   }
 
   if (pAlterReq->hasPasswordLockTime) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordLockTime:%d,", pAlterReq->passwordLockTime);
+    auditLen +=
+        snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordLockTime:%d,", pAlterReq->passwordLockTime);
     newUser.passwordLockTime = pAlterReq->passwordLockTime;
   }
 
   if (pAlterReq->hasPasswordGraceTime) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordGraceTime:%d,", pAlterReq->passwordGraceTime);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "passwordGraceTime:%d,",
+                         pAlterReq->passwordGraceTime);
     newUser.passwordGraceTime = pAlterReq->passwordGraceTime;
   }
 
   if (pAlterReq->hasInactiveAccountTime) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "inactiveAccountTime:%d,", pAlterReq->inactiveAccountTime);
+    auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "inactiveAccountTime:%d,",
+                         pAlterReq->inactiveAccountTime);
     newUser.inactiveAccountTime = pAlterReq->inactiveAccountTime;
   }
 
   if (pAlterReq->hasAllowTokenNum) {
-    auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "allowTokenNum:%d,", pAlterReq->allowTokenNum);
+    auditLen +=
+        snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "allowTokenNum:%d,", pAlterReq->allowTokenNum);
     newUser.allowTokenNum = pAlterReq->allowTokenNum;
   }
 
@@ -3780,7 +3793,8 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     }
 
     if (pAlterReq->numDropIpRanges > 0) {
-      auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "dropIpRanges:%d,", pAlterReq->numDropIpRanges);
+      auditLen +=
+          snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "dropIpRanges:%d,", pAlterReq->numDropIpRanges);
 
       for (int32_t i = 0; i < pAlterReq->numDropIpRanges; i++) {
         if (taosHashGetSize(m) == 0) {
@@ -3806,7 +3820,7 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     }
 
     if (pAlterReq->numIpRanges > 0) {
-      auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "addIpRanges:%d,", pAlterReq->numIpRanges);
+      auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "addIpRanges:%d,", pAlterReq->numIpRanges);
       for (int32_t i = 0; i < pAlterReq->numIpRanges; i++) {
         SIpRange range;
         copyIpRange(&range, pAlterReq->pIpRanges + i);
@@ -3872,7 +3886,8 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     }
 
     if (pAlterReq->numDropTimeRanges > 0) {
-      auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "dropTimeRanges:%d,", pAlterReq->numDropTimeRanges);
+      auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "dropTimeRanges:%d,",
+                           pAlterReq->numDropTimeRanges);
       for (int32_t i = 0; i < pAlterReq->numDropTimeRanges; i++) {
         if (taosHashGetSize(m) == 0) {
           break;
@@ -3893,7 +3908,8 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     }
 
     if (pAlterReq->numTimeRanges > 0) {
-      auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "addTimeRanges:%d,", pAlterReq->numTimeRanges);
+      auditLen +=
+          snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "addTimeRanges:%d,", pAlterReq->numTimeRanges);
       for (int32_t i = 0; i < pAlterReq->numTimeRanges; i++) {
         SDateTimeWhiteListItem range = { 0 };
         DateTimeRangeToWhiteListItem(&range, pAlterReq->pTimeRanges + i);
@@ -3991,7 +4007,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
 }
 
 int32_t mndGetAuditUser(SMnode *pMnode, char* user){
-  (void)tsnprintf(user, TSDB_USER_LEN, "audit");
+  (void)snprintf(user, TSDB_USER_LEN, "audit");
   return 0;
 }
 
@@ -4687,13 +4703,13 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
 
       if (nodesStringToNode(value, &pAst) == 0) {
         if (nodesNodeToSQLFormat(pAst, *sql, bufSz, &sqlLen, true) != 0) {
-          sqlLen = tsnprintf(*sql, bufSz, "error");
+          sqlLen = snprintf(*sql, bufSz, "error");
         }
         nodesDestroyNode(pAst);
       }
 
       if (sqlLen == 0) {
-        sqlLen = tsnprintf(*sql, bufSz, "error");
+        sqlLen = snprintf(*sql, bufSz, "error");
       }
 
       STR_WITH_MAXSIZE_TO_VARSTR((*condition), (*sql), pShow->pMeta->pSchemas[cols].bytes);
@@ -5056,15 +5072,15 @@ static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
         if (tbPolicy->condLen > 0) {
           if (nodesStringToNode(tbPolicy->cond, &pAst) == 0) {
             if (nodesNodeToSQLFormat(pAst, qBuf, qBufSize, &sqlLen, true) != 0) {
-              sqlLen = tsnprintf(qBuf, qBufSize, "error");
+              sqlLen = snprintf(qBuf, qBufSize, "error");
             }
             nodesDestroyNode(pAst);
           }
           if (sqlLen == 0) {
-            sqlLen = tsnprintf(qBuf, qBufSize, "error");
+            sqlLen = snprintf(qBuf, qBufSize, "error");
           }
         } else {
-          sqlLen = tsnprintf(qBuf, qBufSize, "");
+          sqlLen = snprintf(qBuf, qBufSize, "");
         }
         varDataSetLen(pBuf, sqlLen);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);

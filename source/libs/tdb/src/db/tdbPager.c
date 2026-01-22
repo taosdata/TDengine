@@ -262,7 +262,7 @@ int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
   */
   // Open the journal
   char jTxnFileName[TDB_FILENAME_LEN];
-  (void)tsnprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
+  (void)snprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
   pTxn->jfd = tdbOsOpen(jTxnFileName, TDB_O_CREAT | TDB_O_RDWR, 0755);
   if (TDB_FD_INVALID(pTxn->jfd)) {
     tdbError("failed to open file due to %s. jFileName:%s", strerror(ERRNO), pPager->jFileName);
@@ -365,7 +365,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
 
 int tdbPagerPostCommit(SPager *pPager, TXN *pTxn) {
   char jTxnFileName[TDB_FILENAME_LEN];
-  (void)tsnprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
+  (void)snprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
 
   // remove the journal file
   if (tdbOsClose(pTxn->jfd) < 0) {
@@ -599,7 +599,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
   }
 
   char jTxnFileName[TDB_FILENAME_LEN];
-  (void)tsnprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
+  (void)snprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
 
   if (tdbOsRemove(jTxnFileName) < 0 && ERRNO != ENOENT) {
     tdbError("failed to remove file due to %s. file:%s", strerror(ERRNO), jTxnFileName);
@@ -1176,7 +1176,7 @@ int tdbPagerRestoreJournals(SPager *pPager) {
     int      dirLen = strlen(pPager->pEnv->dbName);
     memcpy(jname, pPager->pEnv->dbName, dirLen);
     jname[dirLen] = '/';
-    (void)tsnprintf(jname + dirLen + 1, TD_PATH_MAX - dirLen - 1, TDB_MAINDB_NAME "-journal.%" PRId64, *pTxnId);
+    (void)snprintf(jname + dirLen + 1, TD_PATH_MAX - dirLen - 1, TDB_MAINDB_NAME "-journal.%" PRId64, *pTxnId);
     code = tdbPagerRestore(pPager, jname);
     if (code) {
       taosArrayDestroy(pTxnList);

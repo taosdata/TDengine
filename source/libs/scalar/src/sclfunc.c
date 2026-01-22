@@ -3412,8 +3412,8 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       case TSDB_DATA_TYPE_GEOMETRY: {
         if (inputType == TSDB_DATA_TYPE_BOOL) {
           // NOTE: snprintf will append '\0' at the end of string
-          int32_t len = tsnprintf(varDataVal(output), outputLen + TSDB_NCHAR_SIZE - VARSTR_HEADER_SIZE, "%.*s",
-                                  (int32_t)(outputLen - VARSTR_HEADER_SIZE), *(int8_t *)input ? "true" : "false");
+          int32_t len = snprintf(varDataVal(output), outputLen + TSDB_NCHAR_SIZE - VARSTR_HEADER_SIZE, "%.*s",
+                                 (int32_t)(outputLen - VARSTR_HEADER_SIZE), *(int8_t *)input ? "true" : "false");
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_BINARY) {
           int32_t len = TMIN(varDataLen(input), outputLen - VARSTR_HEADER_SIZE);
@@ -3462,7 +3462,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         int32_t len;
         if (inputType == TSDB_DATA_TYPE_BOOL) {
           char tmp[8] = {0};
-          len = tsnprintf(tmp, sizeof(tmp), "%.*s", outputCharLen, *(int8_t *)input ? "true" : "false");
+          len = snprintf(tmp, sizeof(tmp), "%.*s", outputCharLen, *(int8_t *)input ? "true" : "false");
           bool ret = taosMbsToUcs4(tmp, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len,
                                    pInput->charsetCxt);
           if (!ret) {
@@ -3638,7 +3638,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 
     int32_t len = (int32_t)taosStrfTime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tmInfo);
 
-    len += tsnprintf(buf + len, fractionLen, format, mod);
+    len += snprintf(buf + len, fractionLen, format, mod);
 
     // add timezone string
     if (tzLen > 0) {
@@ -5152,11 +5152,11 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
     char buf[LEASTSQUARES_BUFF_LENGTH] = {0};
     char slopBuf[64] = {0};
     char interceptBuf[64] = {0};
-    int  n = tsnprintf(slopBuf, 64, "%.6lf", matrix02);
+    int  n = snprintf(slopBuf, 64, "%.6lf", matrix02);
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
       (void)snprintf(slopBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix02);
     }
-    n = tsnprintf(interceptBuf, 64, "%.6lf", matrix12);
+    n = snprintf(interceptBuf, 64, "%.6lf", matrix12);
     if (n > LEASTSQUARES_DOUBLE_ITEM_LENGTH) {
       (void)snprintf(interceptBuf, 64, "%." DOUBLE_PRECISION_DIGITS, matrix12);
     }
@@ -5814,13 +5814,13 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     int32_t len;
     char    buf[512] = {0};
     if (!normalized) {
-      len = tsnprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE,
-                      "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%" PRId64 "}", bins[k].lower, bins[k].upper,
-                      bins[k].count);
+      len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE,
+                     "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%" PRId64 "}", bins[k].lower, bins[k].upper,
+                     bins[k].count);
     } else {
-      len = tsnprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE,
-                      "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%lf}", bins[k].lower, bins[k].upper,
-                      bins[k].percentage);
+      len = snprintf(varDataVal(buf), sizeof(buf) - VARSTR_HEADER_SIZE,
+                     "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%lf}", bins[k].lower, bins[k].upper,
+                     bins[k].percentage);
     }
     varDataSetLen(buf, len);
     SCL_ERR_JRET(colDataSetVal(pOutputData, k, buf, false));

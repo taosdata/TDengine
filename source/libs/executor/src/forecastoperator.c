@@ -1011,7 +1011,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp, const char* pId) {
         SColumn* pCol = taosArrayGet(pSupp->pCovariateSlotList, k);
         if (strcmp(pCol->name, pData->pName) == 0) {
           char name[128] = {0};
-          (void) tsnprintf(name, tListLen(name), "dynamic_real_%d", i + 1);
+          (void)snprintf(name, tListLen(name), "dynamic_real_%d", i + 1);
           code = taosAnalyBufWriteColMeta(pBuf, index++, pCol->type, name);
           if (code != 0) {
             goto _OVER;
@@ -1029,7 +1029,7 @@ static int32_t forecastCreateBuf(SForecastSupp* pSupp, const char* pId) {
       SColumn* pCol = taosArrayGet(pSupp->pCovariateSlotList, j);
 
       char name[128] = {0};
-      (void)tsnprintf(name, tListLen(name), "past_dynamic_real_%d", j + 1);
+      (void)snprintf(name, tListLen(name), "past_dynamic_real_%d", j + 1);
 
       code = taosAnalyBufWriteColMeta(pBuf, index++, pCol->type, name);
       if (code) {
