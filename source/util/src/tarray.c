@@ -210,7 +210,7 @@ void* taosArrayGet(const SArray* pArray, size_t index) {
   }
 
   if (index >= pArray->size) {
-    uError("index is out of range, current:%" PRIzu " max:%" PRIzu, index, pArray->size);
+    uWarn("index is out of range, current:%" PRIzu " max:%" PRIzu, index, pArray->size);
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return NULL;
   }

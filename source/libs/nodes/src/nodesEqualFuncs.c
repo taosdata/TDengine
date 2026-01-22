@@ -16,6 +16,8 @@
 #include "functionMgt.h"
 #include "querynodes.h"
 
+static bool nodeListNodeEqual(const SNodeListNode* a, const SNodeListNode* b);
+
 #define COMPARE_SCALAR_FIELD(fldname)           \
   do {                                          \
     if (a->fldname != b->fldname) return false; \
@@ -184,6 +186,23 @@ static bool remoteValueNodeEqual(const SRemoteValueNode* a, const SRemoteValueNo
   return valueNodeEqual(&a->val, &b->val);
 }
 
+static bool remoteValueNodeListEqual(const SRemoteValueListNode* a, const SRemoteValueListNode* b) {
+  COMPARE_OBJECT_FIELD(node.resType, dataTypeEqual);
+  COMPARE_SCALAR_FIELD(subQIdx);
+  return true;
+}
+
+
+static bool nodeListNodeEqual(const SNodeListNode* a, const SNodeListNode* b) {
+  if (LIST_LENGTH(a->pNodeList) != LIST_LENGTH(b->pNodeList)) {
+    return false;
+  }
+
+  COMPARE_NODE_LIST_FIELD(pNodeList);
+  return true;
+}
+
+
 bool nodesEqualNode(const SNode* a, const SNode* b) {
   if (a == b) {
     return true;
@@ -214,6 +233,8 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
       return caseWhenNodeEqual((const SCaseWhenNode*)a, (const SCaseWhenNode*)b);
     case QUERY_NODE_GROUPING_SET:
       return groupingSetNodeEqual((const SGroupingSetNode*)a, (const SGroupingSetNode*)b);
+    case QUERY_NODE_NODE_LIST:
+      return nodeListNodeEqual((const SNodeListNode*)a, (const SNodeListNode*)b);
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_VIRTUAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
@@ -223,27 +244,11 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
       return false;
     case QUERY_NODE_REMOTE_VALUE:
       return remoteValueNodeEqual((const SRemoteValueNode*)a, (const SRemoteValueNode*)b);
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      return remoteValueNodeListEqual((const SRemoteValueListNode*)a, (const SRemoteValueListNode*)b);
     default:
       break;
   }
 
-  return false;
-}
-
- bool nodeListNodeEqual(const SNodeList* a, const SNode* b) {
-  if (NULL == a || NULL == b) {
-    return false;
-  }
-
-  if (LIST_LENGTH(a) < 1) {
-    return false;
-  }
-
-  SNode *na;
-  FOREACH(na, a) {
-    if (nodesEqualNode(na, b)) {
-      return true;
-    }
-  }
   return false;
 }

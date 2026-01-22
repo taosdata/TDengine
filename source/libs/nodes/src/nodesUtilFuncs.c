@@ -525,6 +525,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_REMOTE_VALUE:
       code = makeNode(type, sizeof(SRemoteValueNode), &pNode);
       break;
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      code = makeNode(type, sizeof(SRemoteValueListNode), &pNode);
+      break;
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
       break;
@@ -1308,6 +1311,15 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pValue->literal);
       if (IS_VAR_DATA_TYPE(pValue->node.resType.type) || pValue->node.resType.type == TSDB_DATA_TYPE_DECIMAL) {
         taosMemoryFreeClear(pValue->datum.p);
+      }
+      break;
+    }
+    case QUERY_NODE_REMOTE_VALUE_LIST: {
+      SRemoteValueListNode* pRemote = (SRemoteValueListNode*)pNode;
+      destroyExprNode((SExprNode*)pNode);
+      if (pRemote->hashAllocated) {
+        taosHashCleanup(pRemote->pHashFilter);
+        taosHashCleanup(pRemote->pHashFilterOthers);
       }
       break;
     }
@@ -4169,3 +4181,25 @@ char* nodesGetSubSql(SNode* pNode) {
 
   return NULL;
 }
+
+void nodesGetSubQType(SNode* pNode, int32_t* pType) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      *pType = pSelect->subQType;
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      *pType = pSet->subQType;
+      break;
+    }
+    default:
+      *pType = E_SUB_QUERY_ERROR;
+      break;
+  }
+
+  return;
+}
+
+

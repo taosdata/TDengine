@@ -3296,7 +3296,7 @@ int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
     return code;
   }
   pSubplan->id.queryId = pCxt->queryId;
-  pSubplan->id.groupId = 1;
+  pSubplan->id.groupId = ++pCxt->groupId;
   pSubplan->id.subplanId = 1;
 
   code = createQueryLogicNode(&cxt, pCxt->pAstRoot, &pSubplan->pNode);

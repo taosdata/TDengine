@@ -51,6 +51,7 @@ static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
   int32_t len = (length < HASH_MAX_CAPACITY ? length : HASH_MAX_CAPACITY);
 
   int32_t i = 4;
+//  while ((i * SHASH_DEFAULT_LOAD_FACTOR) < len) i = (i << 1u);
   while (i < len) i = (i << 1u);
   return i;
 }

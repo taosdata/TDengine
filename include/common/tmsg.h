@@ -359,7 +359,8 @@ typedef enum ENodeType {
   QUERY_NODE_USER_OPTIONS,
   QUERY_NODE_REMOTE_VALUE,
   QUERY_NODE_TOKEN_OPTIONS,
-
+  QUERY_NODE_REMOTE_VALUE_LIST,
+  
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
   QUERY_NODE_SELECT_STMT,
@@ -2465,6 +2466,7 @@ typedef struct SDownstreamSourceNode {
   uint64_t       clientId;
   uint64_t       taskId;
   uint64_t       sId;
+  uint64_t       srcTaskId;
   int32_t        execId;
   int32_t        fetchMsgType;
   bool           localExec;
@@ -4154,6 +4156,7 @@ typedef struct SSubQueryMsg {
   int64_t  refId;
   int32_t  execId;
   int32_t  msgMask;
+  int32_t  subQType;
   int8_t   taskType;
   int8_t   explain;
   int8_t   needFetch;
@@ -4311,6 +4314,8 @@ typedef struct {
   uint64_t        queryId;
   uint64_t        clientId;
   uint64_t        taskId;
+  uint64_t        srcTaskId;  // used for subQ
+  uint64_t        blockIdx;   // used for subQ
   int32_t         execId;
   SOperatorParam* pOpParam;
 

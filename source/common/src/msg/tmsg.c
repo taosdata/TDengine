@@ -12891,6 +12891,7 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->refId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->execId));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->msgMask));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->subQType));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->taskType));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->explain));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->needFetch));
@@ -12966,6 +12967,7 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->refId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->execId));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->msgMask));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->subQType));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->taskType));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->explain));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->needFetch));
@@ -13346,6 +13348,8 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bo
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->sId));
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->queryId));
   TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->taskId));
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->srcTaskId));
+  TAOS_CHECK_EXIT(tEncodeU64(&encoder, pReq->blockIdx));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->execId));
   if (pReq->pOpParam) {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, 1));
@@ -13400,6 +13404,8 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
   TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->sId));
   TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->queryId));
   TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->taskId));
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->srcTaskId));
+  TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->blockIdx));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->execId));
 
   int32_t paramNum = 0;

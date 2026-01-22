@@ -2340,6 +2340,8 @@ in_op(A) ::= IN.                                                                
 in_op(A) ::= NOT IN.                                                              { A = OP_TYPE_NOT_IN; }
 
 in_predicate_value(A) ::= NK_LP(C) literal_list(B) NK_RP(D).                      { A = createRawExprNodeExt(pCxt, &C, &D, createNodeListNode(pCxt, B)); }
+in_predicate_value(A) ::= NK_LP(C) query_expression(B) NK_RP(D).                  { A = createRawExprNodeExt(pCxt, &C, &D, B); }
+in_predicate_value(A) ::= NK_LP(C) subquery(B) NK_RP(D).                          { A = createRawExprNodeExt(pCxt, &C, &D, releaseRawExprNode(pCxt, B)); }
 
 /************************************************ boolean_value_expression ********************************************/
 boolean_value_expression(A) ::= boolean_primary(B).                               { A = B; }
