@@ -59,7 +59,7 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `INACTIVE_ACCOUNT_TIME` 账户不活动锁定时间，长期未使用的账户自动锁定，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
 - `ALLOW_TOKEN_NUM` 支持的令牌个数，默认 3，最小 0，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
 - `HOST` 和 `NOT_ALLOW_HOST` IP 地址白名单和黑名单，可以是单个 IP 地址，如 `192.168.1.1`，也可以是一个 [CIDR 格式](https://www.rfc-editor.org/rfc/rfc4632) 的地址段，如 `192.168.1.1/24`。从企业版 v3.4.0.0 开始支持。
-  - 如果既未设置 `HOST` 也未设置 `NOT_ALLOW_HOST`，则允许用户在任何地址登录。 **注意**：为保证安全，创建用户时，如果省略 `HOST` 和 `NOT_ALLOW_HOST`，系统会自动将 `127.0.0.1` 和 `::1` 加入 `HOST`，即只允许在服务端本机登录，故本项所述的情形，需要通过 `ALTER USER` 删除所有 `HOST` 和 `NOT_ALLOW_HOST` 才会出现。
+  - 如果既未设置 `HOST` 也未设置 `NOT_ALLOW_HOST`，则允许用户在任何地址登录。 **注意**：为保证安全和方便使用，创建用户时，如果设置了 `HOST` 或既未设置 `HOST` 也未设置 `NOT_ALLOW_HOST`，系统会自动将 `127.0.0.1` 和 `::1` 加入 `HOST`，故本项所述的情形，需要通过 `ALTER USER` 删除所有 `HOST` 和 `NOT_ALLOW_HOST` 才会出现。
   - 如果只设置了 `HOST`，则允许用户从该地址或地址段登录，其他地址不允许登录。
   - 如果只设置了 `NOT_ALLOW_HOST`，则不允许用户从该地址或地址段登录，其他地址允许登录。
   - 如果同时设置了 `HOST` 和 `NOT_ALLOW_HOST`，则用户只能在属于 `HOST` 且不属于 `NOT_ALLOW_HOST` 的地址登录，其他地址都不允许登录。
