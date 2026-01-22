@@ -167,10 +167,10 @@ auditLevel = 2 // AUDIT_LEVEL_CLUSTER
 | drop user       | dropUser | NULL | 被删除的用户名 | SQL |
 | create mount       | createMount | mountName | NULL | SQL |
 | drop mount       | dropMount | mountName | NULL | SQL |
-| kill Retention       | killRetention | db name | NULL | SQL |
-| auto TrimDB       | autoTrimDB | db name | NULL | SQL |
-| create Encrypt Algr       | createEncryptAlgr | NULL | algorithmId | SQL |
-| drop Encrypt Algr       | dropEncryptAlgr | NULL | algorithmId | SQL |
+| kill retention       | killRetention | db name | NULL | SQL |
+| auto trimDB       | autoTrimDB | db name | NULL | SQL |
+| create encrypt algr       | createEncryptAlgr | NULL | algorithmId | SQL |
+| drop encrypt algr       | dropEncryptAlgr | NULL | algorithmId | SQL |
 
 auditLevel = 3 // AUDIT_LEVEL_DATABASE
 
