@@ -14,6 +14,7 @@ use ha_core::{
 };
 use taos::Dsn;
 use taosx_core::core_metrics::{CoreMetrics, get_task_metrics_string};
+use taosx_utils::sql::sql_value_escaped_fmt;
 use tokio::{fs::OpenOptions, io::AsyncWriteExt};
 use tracing::instrument;
 
@@ -83,8 +84,8 @@ async fn create_task_inner(args: &Args, req: &HttpRequest, task: Task, start: bo
         .context("invalid `parser` param")?
     {
         sql.push_str(&format!(
-            " PARSER '{}' STATUS '{status}'",
-            parser.replace(r"\", r"\\"),
+            " PARSER {} STATUS '{status}'",
+            sql_value_escaped_fmt(&parser)
         ));
     } else {
         sql.push_str(&format!(" STATUS '{status}'"));

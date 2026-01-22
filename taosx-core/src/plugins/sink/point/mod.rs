@@ -20,7 +20,7 @@ use std::time::Instant;
 use taosx_ipc::prelude::{IpcDataType, record_batch_to_column_view};
 use taosx_ipc::stream::point::{RecordMessage, RecordTransform};
 
-use crate::utils::sql::sql_value_escaped_fmt;
+use taosx_utils::sql::sql_value_escaped_fmt;
 
 pub mod csv;
 pub mod model;

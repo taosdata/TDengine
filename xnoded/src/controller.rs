@@ -17,6 +17,7 @@ use axum::http::{self, StatusCode};
 use parking_lot::RwLock;
 use snafu::{OptionExt, ResultExt};
 use taos::Dsn;
+use taosx_utils::sql::sql_value_escaped_fmt;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::{Channel, Endpoint};
@@ -77,10 +78,17 @@ pub enum Error {
     SerializeJobConfig { source: serde_json::Error },
     #[snafu(display("Xnode {xnode_id} not available"))]
     XnodeNotAvailable { xnode_id: i32 },
-    #[snafu(display("Failed to deserialize job config"))]
-    DeserializeJobConfig { source: serde_json::Error },
-    #[snafu(display("Failed to deserialize task parser"))]
-    DeserializeTaskParser { source: serde_json::Error },
+    #[snafu(display("Failed to deserialize job ({task_id},{job_id}) config"))]
+    DeserializeJobConfig {
+        task_id: i64,
+        job_id: i64,
+        source: serde_json::Error,
+    },
+    #[snafu(display("Failed to deserialize task {task_id} parser"))]
+    DeserializeTaskParser {
+        task_id: i64,
+        source: serde_json::Error,
+    },
     #[snafu(display("Failed to start task {task_id} job {job_id} on xnode {xnode_id}"))]
     StartTaskJob {
         xnode_id: i32,
@@ -281,7 +289,7 @@ impl Controller {
                 .as_ref()
                 .map(|v| serde_json::from_str(v))
                 .transpose()
-                .context(DeserializeTaskParserSnafu)?;
+                .context(DeserializeTaskParserSnafu { task_id })?;
             let config = HaTask {
                 from: task.from,
                 to: task.to,
@@ -292,8 +300,8 @@ impl Controller {
         }
         for job in jobs {
             let (task_id, job_id) = (job.task_id, job.id);
-            let config: HaTask =
-                serde_json::from_str(&job.config).context(DeserializeJobConfigSnafu)?;
+            let config: HaTask = serde_json::from_str(&job.config)
+                .context(DeserializeJobConfigSnafu { task_id, job_id })?;
             db_status_configs.insert((task_id, job_id), (job.xnode_id, job.status, config));
         }
         let xnodes = self.xnodes.availables();
@@ -723,7 +731,8 @@ impl Controller {
                             let job_config =
                                 serde_json::to_string(&config).context(SerializeJobConfigSnafu)?;
                             let mut sql = format!(
-                                "CREATE XNODE JOB ON {task_id} WITH CONFIG '{job_config}' XNODE_ID {xnode_id}"
+                                "CREATE XNODE JOB ON {task_id} WITH CONFIG {} XNODE_ID {xnode_id}",
+                                sql_value_escaped_fmt(&job_config)
                             );
                             if let Some(via) = config.via {
                                 sql.push_str(&format!(" VIA {via}"));
@@ -746,7 +755,9 @@ impl Controller {
                             let job_id = job.id;
                             let xnode_id = job.xnode_id;
 
-                            let job_config = job.try_into().context(DeserializeJobConfigSnafu)?;
+                            let job_config = job
+                                .try_into()
+                                .context(DeserializeJobConfigSnafu { task_id, job_id })?;
                             if let Err(e) =
                                 self.start_job(task_id, job_id, xnode_id, job_config).await
                             {
@@ -900,8 +911,8 @@ impl Controller {
                 else {
                     return TaskJobNotExistsSnafu { task_id, job_id }.fail();
                 };
-                let config: HaTask =
-                    serde_json::from_str(&job.config).context(DeserializeJobConfigSnafu)?;
+                let config: HaTask = serde_json::from_str(&job.config)
+                    .context(DeserializeJobConfigSnafu { task_id, job_id })?;
                 TaskJobInfo {
                     xnode_id: job.xnode_id,
                     manually_rebalance: false,
