@@ -148,87 +148,252 @@ The current list of operations recorded in the audit logs and the meanings of ea
 
 After both taosd and taosKeeper are correctly configured and started, as the system continues to operate, various operations (as shown in the table above) will be recorded and reported in real-time. Users can log in to taosExplorer, click on "System Management" > "Audit" page to view the audit logs; they can also directly query the relevant databases and tables in the TDengine CLI.
 
-## Data Encryption
 
-TDengine supports Transparent Data Encryption (TDE), which encrypts static data files to prevent potential attackers from bypassing the database and directly reading sensitive information from the file system. The database access program is completely unaware, and applications do not need to make any modifications or compilations to be directly applied to the encrypted database, supporting encryption algorithms such as the national standard SM4. In transparent encryption, database key management and database encryption scope are two of the most important topics. TDengine encrypts the database key with a machine code, which is stored locally rather than in a third-party manager. When data files are copied to another machine, the change in machine code prevents access to the database key, naturally preventing access to the data files. TDengine encrypts all data files, including write-ahead log files, metadata files, and time-series data files. After encryption, the data compression ratio remains unchanged, and both write and query performance only slightly decrease.
+## Storage Security
 
-### Configure Keys
+TDengine supports Transparent Data Encryption (TDE), which encrypts static data files to prevent potential attackers from bypassing the database and directly reading sensitive information from the file system. The database access program is completely unaware, and applications do not need to make any modifications or compilations to work with encrypted databases. Storage security features support encryption algorithms such as SM4 and AES, adopt a hierarchical key management mechanism, and provide comprehensive key backup and recovery capabilities.
 
-Key configuration is divided into offline and online settings.
+### Key Hierarchy
 
-Method one, offline setting. The following command can configure keys separately for each node.
+TDengine adopts a hierarchical key management system, including the following key types:
+
+- **SVR_KEY (Server Master Key)**: Used to encrypt database master keys and system-level information, bound to machine hardware to prevent cross-machine migration
+- **DB_KEY (Database Master Key)**: Used to encrypt various derived keys
+- **CFG_KEY (Configuration Encryption Key)**: Dedicated to encrypting configuration files, cannot be changed once generated
+- **META_KEY (Metadata Encryption Key)**: Used to encrypt metadata files, cannot be changed once generated
+- **DATA_KEY (Time-Series Data Encryption Key)**: Used to encrypt time-series data files and related logs, cannot be changed once generated
+
+All keys use machine code binding technology. When data files are copied to another machine, the change in machine code prevents access to the keys, naturally preventing access to the data files. After encryption, the data compression ratio remains unchanged, and write and query performance decrease slightly.
+
+**Note**: The storage security feature requires obtaining machine code, which may not be available in some virtualized environments (such as certain container environments).
+
+### Generate Keys
+
+Use the `taosk` tool to generate keys. Basic syntax:
 
 ```shell
-taosd -y {encryptKey}
+taosk -c /etc/taos \
+  --set-cfg-algorithm sm4 \
+  --set-meta-algorithm sm4 \
+  --encrypt-server [svr_key] \
+  --encrypt-database [db_key] \
+  --encrypt-config \
+  --encrypt-metadata \
+  --encrypt-data [data_key]
 ```
 
-Method two, online setting. When all nodes in the cluster are online, keys can be configured using SQL, as follows.
+Parameter descriptions:
 
-```sql
-create encrypt_key {encryptKey};
+- `-c`: Specify configuration file path, default `/etc/taos`
+- `--set-cfg-algorithm`: Set configuration file encryption algorithm (sm4 or aes), default sm4
+- `--set-meta-algorithm`: Set metadata encryption algorithm (sm4 or aes), default sm4
+- `--encrypt-server`: Enable server encryption, optionally specify SVR_KEY, auto-generate if not specified
+- `--encrypt-database`: Enable database encryption, optionally specify DB_KEY, auto-generate if not specified
+- `--encrypt-config`: Enable configuration file encryption, auto-generate CFG_KEY
+- `--encrypt-metadata`: Enable metadata encryption, auto-generate META_KEY
+- `--encrypt-data`: Enable data file encryption, optionally specify DATA_KEY, auto-generate if not specified
+
+Examples:
+
+```shell
+# Generate all keys using default SM4 algorithm
+taosk -c /etc/taos \
+  --encrypt-server \
+  --encrypt-database \
+  --encrypt-config \
+  --encrypt-metadata \
+  --encrypt-data
+
+# Specify keys and use different algorithms
+taosk -c /etc/taos \
+  --set-cfg-algorithm aes \
+  --set-meta-algorithm sm4 \
+  --encrypt-server mysvr123 \
+  --encrypt-database mydb4567 \
+  --encrypt-config \
+  --encrypt-metadata \
+  --encrypt-data oldkey123
 ```
 
-The online setting method requires that all nodes that have joined the cluster have not used the offline setting method to generate keys, otherwise the online setting method will fail. Successfully setting the key online also automatically loads and uses the key.
+After keys are generated, they will be saved in the following locations:
+
+- `{dataDir}/dnode/config/master.bin`: Stores SVR_KEY and DB_KEY
+- `{dataDir}/dnode/config/derived.bin`: Stores CFG_KEY, META_KEY, and DATA_KEY
 
 ### Create Encrypted Database
 
-TDengine supports creating encrypted databases through SQL, as follows.
+TDengine supports specifying encryption algorithms when creating databases, SQL as follows:
 
 ```sql
-create database [if not exists] db_name [database_options]
+CREATE DATABASE [IF NOT EXISTS] db_name [database_options]
 database_options:
- database_option ...
+  database_option ...
 database_option: {
- encrypt_algorithm {'none' |'sm4'}
+  ENCRYPT_ALGORITHM {'none' | 'SM4-CBC' | 'AES-128-CBC'}
 }
 ```
 
-The main parameters are explained as follows.
-encrypt_algorithm: Specifies the encryption algorithm used for the data. The default is none, meaning no encryption is used. sm4 indicates the SM4 encryption algorithm.
+Parameter description:
 
-### View Encryption Configuration
+- `encrypt_algorithm`: Specifies the encryption algorithm for data. Default is none, meaning no encryption. sm4 indicates SM4 encryption algorithm, aes indicates AES encryption algorithm
 
-Users can query the current encryption configuration of the database through the system database ins_databases, SQL as follows.
-
-```sql
-select name, `encrypt_algorithm` from ins_databases;
-              name              | encrypt_algorithm |
-=====================================================
- power1                         | none              |
- power                          | sm4               |
-```
-
-### View Node Key Status
-
-The following SQL command can be used to view the node key status:
+Examples:
 
 ```sql
-show encryptions;
+-- Create database using SM4 encryption
+CREATE DATABASE db1 ENCRYPT_ALGORITHM 'SM4-CBC';
 
-select * from information_schema.ins_encryptions;
-  dnode_id   |           key_status           |
-===============================================
-           1 | loaded                         |
-           2 | unset                          |
-           3 | unknown                        |
+-- Create database using AES encryption
+CREATE DATABASE db2 ENCRYPT_ALGORITHM 'AES-128-CBC';
+
+-- Create unencrypted database
+CREATE DATABASE db3;
 ```
 
-key_status has three values:
+**Notes**:
 
-- When the node has not set a key, the status column shows unset.
-- When the key is verified successfully and loaded, the status column shows loaded.
-- When the node is not started, and the status of the key cannot be detected, the status column shows unknown.
+- The ENCRYPT_ALGORITHM of a database cannot be modified after creation
+- Before creating an encrypted database, you must first generate keys containing DATA_KEY using taosk
 
-### Update Key Configuration
+### View Encryption Status
 
-When the hardware configuration of a node changes, the following command is used to update the key, the same as the command for offline key configuration:
+#### View System Encryption Status
+
+View overall encryption status through system tables:
+
+```sql
+SELECT * FROM information_schema.ins_encrypt_status;
+         encrypt_scope          |           algorithm            |       status       |
+=======================================================================================
+ config                         | AES-128-CBC                    | enabled            |
+ metadata                       | AES-128-CBC                    | enabled            |
+ data                           | SM4-CBC:SM4                    | enabled            |
+```
+
+Field descriptions:
+
+- `encrypt_scope`: Encryption scope (config, metadata, data)
+- `algorithm`: Encryption algorithm used
+- `status`: Encryption status (enabled or disabled)
+
+#### View Database Encryption Configuration
+
+View encryption algorithms for each database through system tables:
+
+```sql
+SELECT name,`encrypt_algorithm` FROM information_schema.ins_databases;
+              name              | encrypt_algorithm  |
+======================================================
+ information_schema             | NULL               |
+ performance_schema             | NULL               |
+ db2                            | AES-128-CBC        |
+ db1                            | SM4-CBC            |
+```
+
+### Update Keys
+
+You can update SVR_KEY and DB_KEY through the taosk tool or SQL commands (other keys cannot be changed once generated).
+
+#### Update Using taosk
 
 ```shell
-taosd -y  {encryptKey}
+# Stop taosd
+systemctl stop taosd
+
+# Update keys
+taosk -c /etc/taos --update-svrkey new_svr_key --update-dbkey new_db_key
+
+# Start taosd
+systemctl start taosd
 ```
 
-Updating the key configuration requires stopping taosd first, and using the exact same key, meaning the key cannot be changed after the database is created.
+#### Update Using SQL
 
-### encrypt user password
+While taosd is running, you can update keys through SQL (requires administrator privileges):
 
-The user password is stored as an MD5 string by default. This behavior can be changed by configuring the `encryptPassAlgorithm` parameter. By default, `encryptPassAlgorithm` is unset. When `encryptPassAlgorithm` is set to `SM4`, user passwords are stored as encrypted strings using the SM4 encryption algorithm. The encryption key must be configured before setting `encryptPassAlgorithm`.
+```sql
+-- Update SVR_KEY
+ALTER SYSTEM SET SVR_KEY 'new_svr_key';
+
+-- Update DB_KEY
+ALTER SYSTEM SET DB_KEY 'new_db_key';
+```
+
+### Key Backup and Recovery
+
+#### Backup Keys
+
+Use taosk to create portable backups (without machine code binding, can be restored on other machines):
+
+```shell
+taosk -c /etc/taos --backup --svr-key your_svr_key
+```
+
+The backup file will be generated in the `{dataDir}/dnode/config/` directory with the filename format `master.bin.backup.{timestamp}`.
+
+**Note**: Backup requires providing the correct SVR_KEY for verification.
+
+#### Restore Keys
+
+Restore keys from backup on a new machine:
+
+```shell
+taosk -c /etc/taos \
+  --restore \
+  --machine-code /path/to/backup_file \
+  --svr-key your_svr_key
+```
+
+The restore operation will bind the keys to the current machine's machine code.
+
+### Key Expiration Policy
+
+You can set key expiration time and policy through SQL (requires administrator privileges):
+
+```sql
+ALTER SYSTEM SET KEY_EXPIRATION 90 DAYS STRATEGY 'ALARM';
+```
+
+Policy options:
+
+- `ALARM`: Outputs alarm information in logs when keys expire
+
+### Configuration File Behavior Changes
+
+After enabling storage security, TDengine's configuration management changes as follows:
+
+1. **Configuration only effective on first startup**: After the system's initial startup, subsequent modifications to the taos.cfg file will not take effect
+2. **Modify configuration through SQL**: All configuration modifications must be executed through SQL commands, requiring administrator privileges
+
+Configuration modification example:
+
+```sql
+ALTER DNODE 1 'debugFlag' '143';
+```
+
+### Transparent Encryption Scope
+
+After enabling storage security, TDengine will transparently encrypt the following files:
+
+1. **Configuration file encryption** (requires CFG_KEY):
+   - dnode.info, dnode.json
+   - mnode.json, raft_config.json, raft_store.json
+   - vnodes.json, vnode.json, etc.
+
+2. **Metadata file encryption** (requires META_KEY):
+   - mnode SDB
+   - snode checkpoint files
+
+3. **Data file encryption** (requires DATA_KEY):
+   - TSDB data files
+   - WAL write-ahead log files
+   - STT files
+   - TDB, BSE and other index files
+
+All encrypted configuration files will contain a plaintext identifier header ("tdEncrypt") at the beginning to mark files as encrypted and avoid duplicate encryption.
+
+### Version Compatibility
+
+- Upgrading from versions that do not support storage security to new versions can run normally
+- Encrypted databases from historical versions can be made compatible by specifying DATA_KEY
+- After enabling storage security, cannot rollback to historical versions that do not support storage security
