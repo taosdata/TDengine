@@ -19,12 +19,14 @@ Xnodes are the basic execution units of the data synchronization service, respon
 ```sql
 CREATE XNODE 'url'
 CREATE XNODE 'url' USER name PASS 'password'
+CREATE XNODE 'url' TOKEN 'token'
 ```
 
 #### Parameter Description
 
 - **url**: The address of the Xnode, in the format `host:port` with port to taosx GRPC service (6055 by default)
-- Username and password need to be specified when creating for the first time, used for xnoded to connect to taosd
+- **name** and **password**: For initial creation, it is recommended to specify a token or username and password for daemon xnoded to connect to taosd. If neither a token nor username and password is specified, a default token will be created.
+- **token**: For authenticating when connecting to taosd
 
 #### Example
 
@@ -34,6 +36,32 @@ Create OK, 0 row(s) affected (0.050798s)
 
 taos> CREATE XNODE 'x1:6055' USER root PASS 'taosdata';
 Create OK, 0 row(s) affected (0.050798s)
+
+taos> CREATE XNODE 'x2:6055' TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
+Create OK, 0 row(s) affected (0.050798s)
+```
+
+### Modify Authorization
+
+Modifying authentication will restart the daemon xnoded.
+
+```sql
+ALTER XNODE SET USER name PASS 'password'
+ALTER XNODE SET TOKEN 'token'
+```
+
+#### 参数说明
+
+* **token**: For authenticating when connecting to taosd
+
+#### 示例
+
+```sql
+taos> ALTER XNODE SET TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
+Query OK, 0 row(s) affected (0.024293s)
+
+taos> ALTER XNODE SET USER root PASS 'taosdata';
+Query OK, 0 row(s) affected (0.025161s)
 ```
 
 ### View Xnodes

@@ -19,12 +19,14 @@ XNODE 节点是数据同步服务的基本执行单元，负责具体的数据�
 ```sql
 CREATE XNODE 'url'
 CREATE XNODE 'url' USER name PASS 'password'
+CREATE XNODE 'url' TOKEN 'token'
 ```
 
 #### 参数说明
 
 - **url**: Xnode 节点的地址，格式为 `host:port`，端口号为 taosx GRPC 端口（默认 6055）
-- 首次创建需要指定用户名和密码，用于 xnoded 连接 taosd
+- **name** and **password**: 首次创建建议指定 token 或者用户名和密码，用于守护进程 xnoded 连接 taosd。如果未指定 token 或者用户名密码，则创建默认 token
+- **token**: 用于链接 taosd 认证
 
 #### 示例
 
@@ -34,6 +36,32 @@ Create OK, 0 row(s) affected (0.050798s)
 
 taos> CREATE XNODE 'x1:6055' USER root PASS 'taosdata';
 Create OK, 0 row(s) affected (0.050798s)
+
+taos> CREATE XNODE 'x2:6055' TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
+Create OK, 0 row(s) affected (0.050798s)
+```
+
+### 修改认证
+
+修改认证会重启守护进程 xnoded。
+
+```sql
+ALTER XNODE SET USER name PASS 'password'
+ALTER XNODE SET TOKEN 'token'
+```
+
+#### 参数说明
+
+* **token**: 用于链接 taosd 认证
+
+#### 示例
+
+```sql
+taos> ALTER XNODE SET TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
+Query OK, 0 row(s) affected (0.024293s)
+
+taos> ALTER XNODE SET USER root PASS 'taosdata';
+Query OK, 0 row(s) affected (0.025161s)
 ```
 
 ### 查看节点
