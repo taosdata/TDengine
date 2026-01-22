@@ -495,7 +495,7 @@ Other related schemaless interfaces:
   - **Return Value**: Non-`NULL`: Successful, returns a pointer to a ws_tmq_t structure, representing a TMQ consumer object. `NULL`: Failure, error information stored in the errstr parameter.
 
 - `int32_t ws_tmq_subscribe(ws_tmq_t *tmq, const ws_tmq_list_t *topic_list)`
-  - **Interface Description**: Used to subscribe to a list of topics. After consuming the data, you need to call ws_tmq_subscribe to unsubscribe.
+  - **Interface Description**: Used to subscribe to a list of topics. After consuming the data, you need to call ws_tmq_unsubscribe to unsubscribe.
     - tmq: [Input] Points to a valid ws_tmq_t structure pointer, which represents a TMQ consumer object.
     - topic_list: [Input] Points to a valid ws_tmq_list_t structure pointer, which contains one or more topic names, currently only supports one topic name.
   - **Return Value**: `0`: Success. Non-`0`: Failure, you can call the function `ws_tmq_errstr(tmq)` to get more detailed error information.
