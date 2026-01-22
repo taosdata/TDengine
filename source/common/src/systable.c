@@ -798,7 +798,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_RETENTION_DETAILS, retentionDetailsSchema, tListLen(retentionDetailsSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_ENCRYPT_ALGORITHMS, userEncryptAlgrSchema, tListLen(userEncryptAlgrSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_ENCRYPT_STATUS, userEncryptStatusSchema, tListLen(userEncryptStatusSchema), false, PRIV_CAT_BASIC},
-    {TSDB_INS_TABLE_TOKENS, tokenSchema, tListLen(tokenSchema), true, PRIV_CAT_SECURITY},
+    {TSDB_INS_TABLE_TOKENS, tokenSchema, tListLen(tokenSchema), false, PRIV_CAT_SECURITY},
     {TSDB_INS_TABLE_ROLES, userRolesSchema, tListLen(userRolesSchema), true, PRIV_CAT_SECURITY},
     {TSDB_INS_TABLE_ROLE_PRIVILEGES, userRolePrivilegesSchema, tListLen(userRolePrivilegesSchema), true, PRIV_CAT_SECURITY},
     {TSDB_INS_TABLE_ROLE_COL_PRIVILEGES, userRoleColumnPrivilegesSchema, tListLen(userRoleColumnPrivilegesSchema), true, PRIV_CAT_SECURITY},
