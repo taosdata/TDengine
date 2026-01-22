@@ -964,8 +964,7 @@ static int32_t dmSaveKeyVerification(const char *svrKey, const char *dbKey, cons
     opts.source = paddedPlaintext;
     opts.result = encrypted;
     opts.unitLen = 16;
-    opts.pOsslAlgrName =
-        (algorithms[i] == TSDB_ENCRYPT_ALGO_SM4) ? TSDB_ENCRYPT_ALGO_SM4_STR : TSDB_ENCRYPT_ALGO_NONE_STR;
+    opts.pOsslAlgrName = TSDB_ENCRYPT_ALGO_SM4_STR;
     tstrncpy(opts.key, keys[i], sizeof(opts.key));
 
     int32_t count = CBC_Encrypt(&opts);
@@ -1122,7 +1121,7 @@ static int32_t dmVerifyEncryptionKeys(const char *svrKey, const char *dbKey, con
     opts.source = (char *)encrypted;
     opts.result = decrypted;
     opts.unitLen = 16;
-    opts.pOsslAlgrName = (savedAlgo == TSDB_ENCRYPT_ALGO_SM4) ? TSDB_ENCRYPT_ALGO_SM4_STR : TSDB_ENCRYPT_ALGO_NONE_STR;
+    opts.pOsslAlgrName = TSDB_ENCRYPT_ALGO_SM4_STR;
     tstrncpy(opts.key, keys[i], sizeof(opts.key));
 
     int32_t count = CBC_Decrypt(&opts);
