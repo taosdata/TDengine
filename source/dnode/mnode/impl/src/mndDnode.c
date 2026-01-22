@@ -1894,11 +1894,11 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
   char derivedKeyFile[PATH_MAX] = {0};
   snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
            TD_DIRSEP);
-  char    svrKey[129] = {0};
-  char    dbKey[129] = {0};
-  char    cfgKey[129] = {0};
-  char    metaKey[129] = {0};
-  char    dataKey[129] = {0};
+  char    svrKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dbKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    cfgKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    metaKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dataKey[ENCRYPT_KEY_LEN + 1] = {0};
   int32_t algorithm = 0;
   int32_t cfgAlgorithm = 0;
   int32_t metaAlgorithm = 0;
@@ -1910,11 +1910,11 @@ static int32_t mndProcessKeySyncReq(SRpcMsg *pReq) {
 
   if (tsEncryptKeysStatus == TSDB_ENCRYPT_KEY_STAT_LOADED) {
     keyVersion = tsEncryptKeyVersion;
-    tstrncpy(svrKey, tsSvrKey, 128);
-    tstrncpy(dbKey, tsDbKey, 128);
-    tstrncpy(cfgKey, tsCfgKey, 128);
-    tstrncpy(metaKey, tsMetaKey, 128);
-    tstrncpy(dataKey, tsDataKey, 128);
+    tstrncpy(svrKey, tsSvrKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(dbKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(cfgKey, tsCfgKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(metaKey, tsMetaKey, ENCRYPT_KEY_LEN + 1);
+    tstrncpy(dataKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
     algorithm = tsEncryptAlgorithmType;
     cfgAlgorithm = tsCfgAlgorithm;
     metaAlgorithm = tsMetaAlgorithm;
