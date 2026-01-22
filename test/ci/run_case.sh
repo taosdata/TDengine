@@ -97,15 +97,18 @@ RET=$?
 echo "cmd exit code: $RET"
 
 if [ -d "/var/log/taos" ]; then
+    mkdir -p /home/TDinternal/sim/var_taoslog/
     cp /var/log/taos/* /home/TDinternal/sim/var_taoslog/
 fi
 
 if [ -f "${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log" ]; then
+     mkdir -p /home/TDinternal/sim/var_taoslog/
     cp ${CONTAINER_TESTDIR}/docs/examples/java/jdbc-out.log \
         /home/TDinternal/sim/var_taoslog/
 fi
 
 if [ -f "${CONTAINER_TESTDIR}/docs/examples/c/docs-c-test-out.log" ]; then
+     mkdir -p /home/TDinternal/sim/var_taoslog/
     cp ${CONTAINER_TESTDIR}/docs/examples/c/docs-c-test-out.log \
         /home/TDinternal/sim/var_taoslog/
 fi
