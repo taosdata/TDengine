@@ -348,6 +348,7 @@ The effective value of charset is UTF-8.
 | metaDebugFlag    |                   | Supported, effective immediately | Log switch for the meta module, range as above               |
 | stDebugFlag      |                   | Supported, effective immediately | Log switch for the stream module, range as above             |
 | sndDebugFlag     |                   | Supported, effective immediately | Log switch for the snode module, range as above              |
+| xndDebugFlag     | 3.4.0.1 onwards   | Supported, effective immediately | Log switch for the xnode module, range as above              |
 
 ### Debugging Related
 

@@ -2886,7 +2886,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
         {"smaDebugFlag", &smaDebugFlag},   {"rpcDebugFlag", &rpcDebugFlag}, {"qDebugFlag", &qDebugFlag},
         {"metaDebugFlag", &metaDebugFlag}, {"stDebugFlag", &stDebugFlag},   {"bseDebugFlag", &bseDebugFlag},
         {"sndDebugFlag", &sndDebugFlag},   {"bndDebugFlag", &bndDebugFlag}, {"tqClientDebugFlag", &tqClientDebugFlag},
-        {"tssDebugFlag", &tssDebugFlag},
+        {"tssDebugFlag", &tssDebugFlag},   {"xndDebugFlag", &xndDebugFlag},
     };
 
     static OptionNameAndVar options[] = {{"audit", &tsEnableAudit},
