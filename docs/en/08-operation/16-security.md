@@ -260,7 +260,7 @@ id      |          algorithm_id          |              name              |     
 Users can add their own custom algorithms.
 
 ```sql
-create encrypt_algr 'vigenere' name 'vigenere' desc 'my custom algr' type 'Symmetric_Ciphers_CBC_mode' ossl_algr_name 'vigenere';
+create encrypt_algr 'vigenere' name 'vigenere' desc 'my custom algr' type 'Symmetric Ciphers CBC mode' ossl_algr_name 'vigenere';
 
 ```
 
