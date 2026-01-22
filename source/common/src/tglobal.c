@@ -189,11 +189,11 @@ int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_UNSET;
 bool     tsUseTaoskEncryption = false;  // Flag: using taosk encrypt.bin format
 bool     tsSkipKeyCheckMode = false;    // Flag: skip key check mode
 int32_t  tsEncryptKeysStatus = 0;       // 0: not loaded, 1: loaded from file, 2: loaded from mnode
-char     tsSvrKey[129] = {0};           // SVR_KEY (server master key)
-char     tsDbKey[129] = {0};            // DB_KEY (database master key)
-char     tsCfgKey[129] = {0};           // CFG_KEY (config encryption key)
-char     tsMetaKey[129] = {0};          // META_KEY (metadata encryption key)
-char     tsDataKey[129] = {0};          // DATA_KEY (data encryption key)
+char     tsSvrKey[ENCRYPT_KEY_LEN + 1] = {0};   // SVR_KEY: exactly 16 bytes
+char     tsDbKey[ENCRYPT_KEY_LEN + 1] = {0};    // DB_KEY: exactly 16 bytes
+char     tsCfgKey[ENCRYPT_KEY_LEN + 1] = {0};   // CFG_KEY: exactly 16 bytes
+char     tsMetaKey[ENCRYPT_KEY_LEN + 1] = {0};  // META_KEY: exactly 16 bytes
+char     tsDataKey[ENCRYPT_KEY_LEN + 1] = {0};  // DATA_KEY: exactly 16 bytes
 int32_t  tsEncryptAlgorithmType = 0;    // Algorithm type for master keys (SVR_KEY, DB_KEY)
 int32_t  tsCfgAlgorithm = 0;            // Algorithm type for CFG_KEY
 int32_t  tsMetaAlgorithm = 0;           // Algorithm type for META_KEY
@@ -651,6 +651,8 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
       cfgAddInt32(pCfg, "bseDebugFlag", bseDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "bndDebugFlag", bndDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(
+      cfgAddInt32(pCfg, "xndDebugFlag", xndDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1367,6 +1369,9 @@ static int32_t taosSetServerLogCfg(SConfig *pCfg) {
   bseDebugFlag = pItem->i32;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "bndDebugFlag");
   bndDebugFlag = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "xndDebugFlag");
+  xndDebugFlag = pItem->i32;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2870,7 +2875,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
         {"smaDebugFlag", &smaDebugFlag},   {"rpcDebugFlag", &rpcDebugFlag}, {"qDebugFlag", &qDebugFlag},
         {"metaDebugFlag", &metaDebugFlag}, {"stDebugFlag", &stDebugFlag},   {"bseDebugFlag", &bseDebugFlag},
         {"sndDebugFlag", &sndDebugFlag},   {"bndDebugFlag", &bndDebugFlag}, {"tqClientDebugFlag", &tqClientDebugFlag},
-        {"tssDebugFlag", &tssDebugFlag},
+        {"tssDebugFlag", &tssDebugFlag},   {"xndDebugFlag", &xndDebugFlag},
     };
 
     static OptionNameAndVar options[] = {{"audit", &tsEnableAudit},
@@ -3337,6 +3342,7 @@ static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   taosCheckAndSetDebugFlag(&sndDebugFlag, "sndDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&bseDebugFlag, "bseDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&bndDebugFlag, "bndDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&xndDebugFlag, "xndDebugFlag", flag, noNeedToSetVars);
 
   taosArrayClear(noNeedToSetVars);  // reset array
 
