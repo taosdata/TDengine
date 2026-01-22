@@ -71,6 +71,19 @@ int32_t smBuildCreateReqFromJson(SJson *pJson, SDCreateSnodeReq *pReq) {
   SJson* pLeader1 = NULL;
   SJson* pReplica = NULL;
   int32_t code = tjsonGetIntValue(pJson, "snodeId", &pReq->snodeId);
+
+  // Read encrypted flag (optional, defaults to false for backward compatibility)
+  int32_t encrypted = 0;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, "encrypted", &encrypted);
+    if (TSDB_CODE_SUCCESS == code) {
+      // Update global snode encrypted flag
+      taosWLockLatch(&gSnode.snodeLock);
+      gSnode.encrypted = encrypted;
+      taosWUnLockLatch(&gSnode.snodeLock);
+    }
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     pLeader0 = tjsonGetObjectItem(pJson, "leader0");
     if (pLeader0) {

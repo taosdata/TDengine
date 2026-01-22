@@ -2409,11 +2409,11 @@ int32_t tSerializeSKeySyncRsp(void *buf, int32_t bufLen, SKeySyncRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->needUpdate));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->encryptionKeyStatus));
   if (pRsp->needUpdate) {
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->svrKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dbKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->cfgKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->metaKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dataKey, 129));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->svrKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dbKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->cfgKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->metaKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dataKey, ENCRYPT_KEY_LEN + 1));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->algorithm));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->cfgAlgorithm));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->metaAlgorithm));
@@ -11813,6 +11813,7 @@ int32_t tSerializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq *
     TAOS_CHECK_EXIT(tEncodeSReplica(&encoder, pReplica));
   }
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->lastIndex));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->encrypted));
   tEndEncode(&encoder);
 
 _exit:
@@ -11844,6 +11845,12 @@ int32_t tDeserializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq
       TAOS_CHECK_EXIT(tDecodeSReplica(&decoder, pReplica));
     }
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->lastIndex));
+    // For backward compatibility: encrypted field is optional
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->encrypted));
+  } else {
+    pReq->encrypted = 0;  // Default to false for old requests
   }
   tEndDecode(&decoder);
 

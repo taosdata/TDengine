@@ -432,47 +432,61 @@ static char* ip2Str(SIpAddr* p) {
   }
 }
 bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t ver) {
-  // impl check
-  SHashObj* pWhiteList = pWhite->pList;
-  bool      valid = false;
+  if (pWhite == NULL || user == NULL || pIp == NULL) {
+    return false;
+  }
 
-  if (uvWhiteListIsDefaultAddr(pIp)) return true;
+  /* Default local addresses are always allowed */
+  if (uvWhiteListIsDefaultAddr(pIp)) {
+    return true;
+  }
+
+  SHashObj* pWhiteList = pWhite->pList;
+  if (pWhiteList == NULL) {
+    return false;
+  }
 
   SWhiteUserList** ppList = taosHashGet(pWhiteList, user, strlen(user));
   if (ppList == NULL || *ppList == NULL) {
     return false;
   }
-  SWhiteUserList* pUserList = *ppList;
-  if (pUserList->ver == ver) return true;
 
-  int8_t inBlackList = 0;
-  int8_t inWhiteList = 0;
+  SWhiteUserList* pUserList = *ppList;
+  /* if version matches, whitelist is already applied for this connection */
+  if (pUserList->ver == ver) {
+    return true;
+  }
 
   SIpWhiteListDual* pIpWhiteList = pUserList->pList;
+  if (pIpWhiteList == NULL || pIpWhiteList->num <= 0) {
+    tError("ip-white-list filter failed, ip:%s, empty white list", ip2Str(pIp));
+    return false;
+  }
+
+  bool inWhiteList = false;
+  bool inBlackList = false;
+
+  /* single pass: set flags; break early on blacklist match */
   for (int i = 0; i < pIpWhiteList->num; i++) {
     SIpRange* pRange = &pIpWhiteList->pIpRanges[i];
-    if (pRange->neg == 0 && uvCheckIp(pRange, pIp)) {
-      inWhiteList = 1;
+    if (!uvCheckIp(pRange, pIp)) {
+      continue;
+    }
+    if (pRange->neg) {
+      inBlackList = true;
       break;
+    } else {
+      inWhiteList = true;
     }
   }
 
-  for (int i = 0; i < pIpWhiteList->num; i++) {
-    SIpRange* pRange = &pIpWhiteList->pIpRanges[i];
-    if (pRange->neg == 1 && uvCheckIp(pRange, pIp)) {
-      inBlackList = 1;
-      break;
-    }
+  if (inWhiteList && !inBlackList) {
+    return true;
   }
 
-  if (inBlackList == 0 && inWhiteList == 1) {
-    valid = true;
-  } else {
-    tError("ip-white-list filter failed, ip:%s inBlockList:%d, inWhiteList:%d", ip2Str(pIp), inBlackList, inWhiteList);
-    valid = false;
-  }
-
-  return valid;
+  tError("ip-white-list filter failed, ip:%s inBlockList:%d, inWhiteList:%d", ip2Str(pIp), (int)inBlackList,
+         (int)inWhiteList);
+  return false;
 }
 bool uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
   if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITELIST ||
@@ -488,7 +502,7 @@ void uvWhiteListSetConnVer(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
   pConn->whiteListVer = pWhite->ver;
 }
 // data time white list
-SDataTimeWhiteListTab* uvDataTimeWhiteListCreate() {
+SDataTimeWhiteListTab* uvDataTimeWhiteListCreate(void) {
   SDataTimeWhiteListTab* pWhiteList = taosMemoryCalloc(1, sizeof(SDataTimeWhiteListTab));
   if (pWhiteList == NULL) {
     return NULL;
@@ -503,130 +517,191 @@ SDataTimeWhiteListTab* uvDataTimeWhiteListCreate() {
   pWhiteList->ver = -1;
   return pWhiteList;
 }
-void uvDataTimeWhiteListDestroy(SDataTimeWhiteListTab* pWhite) {
-  if (pWhite == NULL) {
-    return;
-  }
-  SHashObj* pWhiteList = pWhite->pList;
-  void*     pIter = taosHashIterate(pWhiteList, NULL);
-  while (pIter) {
-    SUserDateTimeWhiteList* pUserList = (SUserDateTimeWhiteList*)pIter;
-    tFreeSUserDateTimeWhiteList(pUserList);
 
-    pIter = taosHashIterate(pWhiteList, pIter);
+void uvDataTimeWhiteListDestroy(SDataTimeWhiteListTab* pWhite) {
+  if (pWhite == NULL) return;
+
+  SHashObj* pWhiteList = pWhite->pList;
+  if (pWhiteList != NULL) {
+    void* pIter = taosHashIterate(pWhiteList, NULL);
+    while (pIter) {
+      /* taosHashIterate returns an iterator pointer whose stored value is a pointer
+       * to the actual entry (void*). Dereference to get the stored pointer. */
+      SUserDateTimeWhiteList* pUserList = *(SUserDateTimeWhiteList**)pIter;
+      if (pUserList != NULL) {
+        /* free internal arrays */
+        tFreeSUserDateTimeWhiteList(pUserList);
+        /* free the struct */
+        taosMemoryFree(pUserList);
+      }
+      pIter = taosHashIterate(pWhiteList, pIter);
+    }
+    taosHashCleanup(pWhiteList);
   }
-  taosHashCleanup(pWhiteList);
+
   taosMemoryFree(pWhite);
 }
 
 static int32_t uvDataTimeWhiteListToStr(SUserDateTimeWhiteList* plist, char* user, char** ppBuf) {
-  int32_t code = 0;
-  int32_t len = 0;
-  if (plist == NULL) {
-    tError("failed to convert data time white list to str, invalid para");
-    return len;
+  if (plist == NULL || user == NULL || ppBuf == NULL) {
+    return 0;
   }
+
+  /* estimate: each item roughly 64 bytes + header */
   int32_t limit = plist->numWhiteLists * sizeof(SDateTimeWhiteListItem) + 128;
   char*   pBuf = taosMemoryCalloc(1, limit);
   if (pBuf == NULL) {
-    tError("failed to alloc memory for data time white list string");
-    return len;
+    return 0;
   }
 
+  int32_t written = 0;
   for (int32_t i = 0; i < plist->numWhiteLists; i++) {
     SDateTimeWhiteListItem* pItem = &plist->pWhiteLists[i];
     if (i == 0) {
-      len = snprintf(pBuf, limit, "user:%s duration:%" PRId64 ", start:%" PRId64 "; ", user, (int64_t)(pItem->duration),
-                     pItem->start);
+      written = snprintf(pBuf, limit, "user:%s duration:%" PRId64 ", start:%" PRId64 "; ", user,
+                         (int64_t)(pItem->duration), pItem->start);
     } else {
-      len += snprintf(pBuf + strlen(pBuf), limit - strlen(pBuf), "duration:%" PRId64 ", start:%" PRId64 "; ",
-                      (int64_t)(pItem->duration), pItem->start);
+      int32_t rem = limit - written;
+      written += snprintf(pBuf + written, rem, "duration:%" PRId64 ", start:%" PRId64 "; ", (int64_t)(pItem->duration),
+                          pItem->start);
     }
   }
+
   *ppBuf = pBuf;
-  return len;
+  return written;
 }
+
 void uvDataTimeWhiteListDebug(SDataTimeWhiteListTab* pWrite) {
-  if (!(rpcDebugFlag & DEBUG_DEBUG)) {
-    return;
-  }
-  if (pWrite == NULL) {
-    return;
-  }
-  int32_t   len = 0;
+  if (!(rpcDebugFlag & DEBUG_DEBUG) || pWrite == NULL) return;
+
   SHashObj* pWhiteList = pWrite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
   while (pIter) {
     size_t klen = 0;
     char   user[TSDB_USER_LEN + 1] = {0};
     char*  pUser = taosHashGetKey(pIter, &klen);
-    memcpy(user, pUser, klen);
+    if (pUser && klen > 0) {
+      memcpy(user, pUser, (klen < sizeof(user) ? klen : sizeof(user) - 1));
+    }
 
     SUserDateTimeWhiteList* pUserList = *(SUserDateTimeWhiteList**)pIter;
 
-    char* pBuf = NULL;
-    len = uvDataTimeWhiteListToStr(pUserList, user, &pBuf);
-    if (len > 0) {
+    char*   pBuf = NULL;
+    int32_t len = uvDataTimeWhiteListToStr(pUserList, user, &pBuf);
+    if (len > 0 && pBuf != NULL) {
       tDebug("dataTime white list %s", pBuf);
+      taosMemoryFree(pBuf);
     }
-    taosMemoryFree(pBuf);
 
     pIter = taosHashIterate(pWhiteList, pIter);
   }
 }
-int32_t uvDataTimeWhiteListAdd(SDataTimeWhiteListTab* pWhite, char* user, SUserDateTimeWhiteList* plist, int64_t ver) {
-  int32_t code = 0;
-  if (pWhite == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  SHashObj* pWhiteList = pWhite->pList;
-  if (pWhiteList == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
 
-  SUserDateTimeWhiteList* pUserList = taosHashGet(pWhiteList, user, strlen(user));
-  if (pUserList == NULL) {
-    code = taosHashPut(pWhiteList, user, strlen(user), &plist, sizeof(void*));
+int32_t uvDataTimeWhiteListAdd(SDataTimeWhiteListTab* pWhite, char* user, SUserDateTimeWhiteList* plist, int64_t ver) {
+  if (pWhite == NULL || user == NULL || plist == NULL) return TSDB_CODE_INVALID_PARA;
+
+  SHashObj* pWhiteList = pWhite->pList;
+  if (pWhiteList == NULL) return TSDB_CODE_INVALID_PARA;
+
+  /* Check existing entry */
+  SUserDateTimeWhiteList** ppUserList = taosHashGet(pWhiteList, user, strlen(user));
+  if (ppUserList == NULL || *ppUserList == NULL) {
+    /* allocate heap object and take ownership of plist->pWhiteLists */
+    SUserDateTimeWhiteList* pNew = taosMemoryCalloc(1, sizeof(SUserDateTimeWhiteList));
+    if (pNew == NULL) return terrno;
+
+    pNew->numWhiteLists = plist->numWhiteLists;
+    pNew->pWhiteLists = plist->pWhiteLists;
+    pNew->ver = ver;
+
+    int32_t code = taosHashPut(pWhiteList, user, strlen(user), &pNew, sizeof(void*));
     if (code != 0) {
+      /* put failed: free only the allocated struct, not its internals (owned by caller) */
+      taosMemoryFree(pNew);
       return code;
     }
+
+    /* put succeeded: ownership has moved to pNew; clear caller's pointers */
+    plist->pWhiteLists = NULL;
+    plist->numWhiteLists = 0;
   } else {
-    taosMemoryFreeClear(pUserList->pWhiteLists);
-    pUserList->numWhiteLists = plist->numWhiteLists;
-    pUserList->pWhiteLists = plist->pWhiteLists;
-    pUserList->ver = ver;
+    /* replace existing: free old internals and adopt new internals */
+    SUserDateTimeWhiteList* pExist = *ppUserList;
+    if (pExist->pWhiteLists != NULL) {
+      taosMemoryFree(pExist->pWhiteLists);
+      pExist->pWhiteLists = NULL;
+    }
+    pExist->numWhiteLists = plist->numWhiteLists;
+    pExist->pWhiteLists = plist->pWhiteLists;
+    pExist->ver = ver;
+    plist->pWhiteLists = NULL;  // Prevent double-free
+    plist->numWhiteLists = 0;   // Clear count too
   }
-  return code;
+
+  return 0;
 }
 
 static bool uvDataTimeWhiteListIsDefaultAddr(SIpAddr* ip) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  return code;
+  if (ip == NULL) return false;
+
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  SIpRange addr4 = {0};
+  SIpRange addr6 = {0};
+
+  SIpRange target = {0};
+  code = tIpStrToUint(ip, &target);
+  TAOS_CHECK_GOTO(code, &lino, _error);
+
+  if (target.type == 0) {
+    code = createDefaultIp4Range(&addr4);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+    return (target.ipV4.ip == addr4.ipV4.ip);
+  } else {
+    code = createDefaultIp6Range(&addr6);
+    TAOS_CHECK_GOTO(code, &lino, _error);
+    return (addr6.ipV6.addr[0] == target.ipV6.addr[0] && addr6.ipV6.addr[1] == target.ipV6.addr[1]);
+  }
+
+_error:
+  tError("failed to create default ip range since %s", tstrerror(code));
+  return false;
 }
 
+bool uvListIsTimeInWhiteList(SUserDateTimeWhiteList* pWhiteList) {
+  if (pWhiteList == NULL) return false;
+
+  int64_t now = taosGetTimestampSec();
+  /* The helper expects an SDateTimeWhiteList view starting at the numWhiteLists field
+     inside SUserDateTimeWhiteList. Build that pointer explicitly for clarity. */
+  const SDateTimeWhiteList* pList =
+      (const SDateTimeWhiteList*)((const char*)pWhiteList + offsetof(SUserDateTimeWhiteList, numWhiteLists));
+  return isTimeInDateTimeWhiteList(pList, now);
+}
 bool uvDataTimeWhiteListFilte(SDataTimeWhiteListTab* pWhite, char* user, SIpAddr* pIp, int64_t ver) {
-  // impl check
+  if (pWhite == NULL || user == NULL || pIp == NULL) return true;
+
   SHashObj* pWhiteList = pWhite->pList;
-  bool      valid = true;
+  if (pWhiteList == NULL) return true;
 
-  // if (uvDataTimeWhiteListIsDefaultAddr(pIp)) return true;
+  /* default local addresses always allowed */
 
-  SUserDateTimeWhiteList* pList = taosHashGet(pWhiteList, user, strlen(user));
-  if (pList == NULL) {
+  SUserDateTimeWhiteList** ppList = taosHashGet(pWhiteList, user, strlen(user));
+  if (ppList == NULL || *ppList == NULL) {
+    /* no rule for this user -> allow */
     return true;
   }
 
-  SDateTimeWhiteList* p = (SDateTimeWhiteList*)&pList->numWhiteLists;
-  int64_t             now = taosGetTimestampSec();
+  SUserDateTimeWhiteList* pList = *ppList;
 
-  if (isTimeInDateTimeWhiteList(p, now)) {
-    valid = true;
-  } else {
-    valid = false;
-  }
+  /* version match -> allow */
+  // if (pList->ver == ver) return true;
 
-  return valid;
+  /* Evaluate time-based rules.
+   * The helper isTimeInDateTimeWhiteList expects pointer(s) describing the whitelist.
+   * The original code relied on a specific layout; reuse that helper as-is.
+   */
+  return uvListIsTimeInWhiteList(pList);
 }
 bool uvDataTimeWhiteListCheckConn(SDataTimeWhiteListTab* pWhite, SSvrConn* pConn) {
   if (pWhite == NULL) {
@@ -637,7 +712,7 @@ bool uvDataTimeWhiteListCheckConn(SDataTimeWhiteListTab* pWhite, SSvrConn* pConn
       pWhite->ver == pConn->dataTimeWhiteListVer /*|| strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0*/)
     return true;
 
-  return uvDataTimeWhiteListFilte(pWhite, pConn->user, &pConn->clientIp, pConn->whiteListVer);
+  return uvDataTimeWhiteListFilte(pWhite, pConn->user, &pConn->clientIp, pConn->dataTimeWhiteListVer);
 }
 
 void uvDataTimeWhiteListSetVer(SDataTimeWhiteListTab* pWhite, SSvrConn* pConn) {
@@ -689,19 +764,6 @@ static void uvPerfLog_receive(SSvrConn* pConn, STransMsgHead* pHead, STransMsg* 
   }
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pInst), pTransMsg->info.handle, pConn,
           pConn->refId);
-}
-
-static int8_t uvValidConn(SSvrConn* pConn) {
-  STrans*    pInst = pConn->pInst;
-  SWorkThrd* pThrd = pConn->hostThrd;
-  int8_t     forbiddenIp = 0;
-  if (pThrd->enableIpWhiteList) {
-    forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
-    if (forbiddenIp == 0) {
-      uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
-    }
-  }
-  return forbiddenIp;
 }
 
 static int32_t uvMayHandleReleaseReq(SSvrConn* pConn, STransMsgHead* pHead) {
@@ -842,11 +904,11 @@ static void uvSetConnInfo(SSvrConn* pConn, SRpcConnInfo* pInfo) {
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
-   
+
   STransMsgHead* pHead = NULL;
-  int8_t resetBuf = 0;
-  int32_t msgLen = 0;
-  int32_t code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
+  int8_t         resetBuf = 0;
+  int32_t        msgLen = 0;
+  int32_t        code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
   if (code != 0) {
     tError("%s conn:%p, read invalid packet since %s", transLabel(pInst), pConn, tstrerror(code));
     return false;
@@ -2861,7 +2923,7 @@ int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 
 
 void *transInitServer(SIpAddr *pAddr, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
 void  transCloseServer(void *arg) {
-  // impl later
+   // impl later
   return;
 }
 

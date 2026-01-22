@@ -279,10 +279,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (pCfg->tsdbCfg.encryptAlgr == DND_CA_SM4 || pCfg->tsdbCfg.encryptData.encryptAlgrName[0] != '\0') {
-    if (tsDbKey[0] == 0) {
+    if (tsDataKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      tstrncpy(pCfg->tsdbCfg.encryptData.encryptKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(pCfg->tsdbCfg.encryptData.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -311,10 +311,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (pCfg->walCfg.encryptAlgr == DND_CA_SM4 || pCfg->walCfg.encryptData.encryptAlgrName[0] != '\0') {
-    if (tsDbKey[0] == 0) {
+    if (tsDataKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      tstrncpy(pCfg->walCfg.encryptData.encryptKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(pCfg->walCfg.encryptData.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -327,10 +327,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (pCfg->tdbEncryptData.encryptAlgrName[0] != '\0') {
-    if (tsDbKey[0] == 0) {
+    if (tsDataKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
     } else {
-      tstrncpy(pCfg->tdbEncryptData.encryptKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
+      tstrncpy(pCfg->tdbEncryptData.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif

@@ -2938,6 +2938,20 @@ _OVER:
 }
 
 typedef struct {
+  SValueNode nd;
+  bool       shouldFree;
+} SXndRefValueNode;
+
+static void freeSXndRefValueNode(void *pNode) {
+  if (pNode == NULL) return;
+
+  SXndRefValueNode *pRefNode = (SXndRefValueNode *)pNode;
+  if (pRefNode->shouldFree) {
+    taosMemoryFreeClear(pRefNode->nd.datum.p);
+  }
+}
+
+typedef struct {
   SArray   *stack;
   SHashObj *pMap;
   int32_t   code;
@@ -2951,25 +2965,14 @@ void freeSXndWhereContext(SXndWhereContext *pCtx) {
     pCtx->pMap = NULL;
   }
   if (pCtx->stack != NULL) {
+    for (int32_t i = 0; i < pCtx->stack->size; i++) {
+      SXndRefValueNode *pRefNode = (SXndRefValueNode *)taosArrayGet(pCtx->stack, i);
+      if (pRefNode != NULL) {
+        freeSXndRefValueNode(pRefNode);
+      }
+    }
     taosArrayDestroy(pCtx->stack);
     pCtx->stack = NULL;
-  }
-}
-
-typedef struct {
-  SValueNode nd;
-  bool       shouldFree;
-} SXndRefValueNode;
-
-static void freeSXndRefValueNode(void *pNode) {
-  SXndRefValueNode *pRefNode = (SXndRefValueNode *)pNode;
-  if (pRefNode == NULL) return;
-
-  if (pRefNode->shouldFree) {
-    if (NULL != pRefNode->nd.datum.p) {
-      taosMemoryFree(pRefNode->nd.datum.p);
-      pRefNode->nd.datum.p = NULL;
-    }
   }
 }
 
@@ -3202,7 +3205,9 @@ static EDealRes evaluateWaker(SNode *pNode, void *pWhereCtx) {
       pval->datum.u = taosStr2Int64(pval->literal, NULL, 10);
     }
     if (pval->node.resType.type == TSDB_DATA_TYPE_BINARY) {
-      pval->datum.p = taosStrndupi(pval->literal, strlen(pval->literal) + 1);
+      if (pval->datum.p == NULL) {
+        pval->datum.p = taosStrndupi(pval->literal, strlen(pval->literal) + 1);
+      }
     }
     if (pval->node.resType.type == TSDB_DATA_TYPE_NULL) {
       pval->isNull = true;

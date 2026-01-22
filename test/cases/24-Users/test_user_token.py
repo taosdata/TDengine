@@ -63,8 +63,9 @@ class TestUserSecurity:
             self.checkEquals(data, v)
     
     # create
-    def create_token(self, tokenName, userName, option1="", option2:dict=None):        
-        sql = f"CREATE TOKEN {option1} {tokenName} FROM USER {userName} {self.options(option2)}"
+    def create_token(self, tokenName, userName, option: dict=None):        
+        sql = f"CREATE TOKEN {tokenName} FROM USER {userName} {self.options(option)}"
+
         token = tdSql.getFirstValue(sql)
         if len(token) != EXPECTED_TOKEN_LENGTH:
             raise Exception(f"token length error: {token} len={len(token)}")
@@ -72,25 +73,25 @@ class TestUserSecurity:
         sql = f"select * from information_schema.ins_tokens where name='{name}' and `user`='{userName}' "
         tdSql.query(sql)
         tdSql.checkRows(1)
-        self.checkOptions(option2)
+        self.checkOptions(option)
         
         return token
  
-    def create_token_fail(self, tokenName, userName, option1="", option2:dict={}):        
-        sql = f"CREATE TOKEN {option1} {tokenName} FROM USER {userName} {self.options(option2)}"
+    def create_token_fail(self, tokenName, userName, option:dict={}):        
+        sql = f"CREATE TOKEN {tokenName} FROM USER {userName} {self.options(option)}"
         tdSql.error(sql)
 
     # alter
-    def alter_token(self, tokenName, option1="", option2:dict={}):        
-        sql = f"ALTER TOKEN {tokenName} {self.options(option2)}"
+    def alter_token(self, tokenName, option:dict={}):        
+        sql = f"ALTER TOKEN {tokenName} {self.options(option)}"
         tdSql.execute(sql)
         sql = f"select * from information_schema.ins_tokens where name='{tokenName}'"
         tdSql.query(sql)
         tdSql.checkRows(1)
-        self.checkOptions(option2)
+        self.checkOptions(option)
         
-    def alter_token_fail(self, tokenName, option1="", option2:dict={}):
-        sql = f"ALTER TOKEN {tokenName} {self.options(option2)}"
+    def alter_token_fail(self, tokenName, option:dict={}):
+        sql = f"ALTER TOKEN {tokenName} {self.options(option)}"
         tdSql.error(sql)        
 
     # delete
@@ -164,33 +165,38 @@ class TestUserSecurity:
         # Basic token creation
         self.create_token("token11", "test_user1")
         # Token with all options
-        self.create_token("token12", "test_user1", "", {"ENABLE": 1, "TTL": 0, "PROVIDER": "'test_provider'", "EXTRA_INFO": "'test info'"})
+        self.create_token("token12", "test_user1", {"ENABLE": 1, "TTL": 0, "PROVIDER": "'test_provider'", "EXTRA_INFO": "'test info'"})
         # Token with TTL
-        self.create_token("token13", "test_user1", "", {"TTL": 7})
+        self.create_token("token13", "test_user1", {"TTL": 7})
         # except max 3 tokens limit
-        self.create_token_fail("token_fail", "test_user1", "", {"TTL": 8})
+        self.create_token_fail("token_fail", "test_user1", {"TTL": 8})
            
         # Disabled token
-        self.create_token("token21", "test_user2", "", {"ENABLE": 0})
+        self.create_token("token21", "test_user2", {"ENABLE": 0})
         
         # IF NOT EXISTS
-        self.create_token("token22", "test_user2", "IF NOT EXISTS")
-        #BUG-1
-        #token22_again = self.create_token("token22", "test_user2", "IF NOT EXISTS")
+        tdSql.query("CREATE TOKEN IF NOT EXISTS token22 FROM USER test_user2")
+        tdSql.checkRows(1) # new token created
+        tdSql.query("CREATE TOKEN IF NOT EXISTS token22 FROM USER test_user2")
+        tdSql.checkRows(0) # no new token created
+
+        # max length token name
         self.create_token("t" * 31, "test_user2") # max length token name
-        
+
         # language support
-        self.create_token("`我的TOKEN_31`", "test_user3", "", {"EXTRA_INFO": "'测试信息'"})  
+        self.create_token("`我的TOKEN_31`", "test_user3", {"EXTRA_INFO": "'测试信息'"})  
         
         # except
         self.create_token_fail("token11", "test_user1")          # duplicate token name
         self.create_token_fail("token_fail", "nonexistent_user") # nonexistent user
         self.create_token_fail("t" * 32, "test_user3")           # over max length
         self.create_token_fail("token_with_very_long_name_exceeding_31_bytes_limit_here", "test_user3")
-        self.create_token_fail("", "test_user1")                  # empty token name
+        self.create_token_fail("", "test_user1")                 # empty token name
         self.create_token_fail("token31", "")                    # empty user name
-        self.create_token_fail("token_invalid_ttl", "test_user1", "", {"TTL": -1})      # Exception: invalid TTL
-        self.create_token_fail("token_invalid_enable", "test_user1", "", {"ENABLE": 2}) # Exception: invalid ENABLE
+        self.create_token_fail("token_invalid_ttl", "test_user1", {"TTL": -1})      # Exception: invalid TTL
+        self.create_token_fail("token_invalid_enable", "test_user1", {"ENABLE": 2}) # Exception: invalid ENABLE
+        self.create_token_fail("token_long_provider", "test_user1", {"PROVIDER": "'" + "p" * 64 + "'"}) # Exception: over-length provider
+        self.create_token_fail("token_long_extrainfo", "test_user1", {"EXTRA_INFO": "'" + "i" * 1024 + "'"}) # Exception: over-length extra_info
         
         print("create token .......................... [ passed ] ")
         
@@ -223,26 +229,27 @@ class TestUserSecurity:
 
     def do_alter_token(self):
         # Alter ENABLE status
-        self.alter_token("token11", "", {"ENABLE": 0})
+        self.alter_token("token11", {"ENABLE": 0})
         
         # Alter TTL
-        self.alter_token("token12", "", {"TTL": 30})
+        self.alter_token("token12", {"TTL": 30})
         
         # Alter PROVIDER
-        self.alter_token("token13", "", {"PROVIDER": "'new_provider'"})
+        self.alter_token("token13", {"PROVIDER": "'new_provider'"})
         
         # Alter EXTRA_INFO
-        self.alter_token("token21", "", {"EXTRA_INFO": "'updated info'"})
+        self.alter_token("token21", {"EXTRA_INFO": "'updated info'"})
         
         # Alter multiple options
-        self.alter_token("token22", "", {"ENABLE": 1, "TTL": 60, "PROVIDER": "'multi_provider'", "EXTRA_INFO": "'multi info'"})
+        self.alter_token("token22", {"ENABLE": 1, "TTL": 60, "PROVIDER": "'multi_provider'", "EXTRA_INFO": "'multi info'"})
         
         # except
-        #BUG-2
-        #self.alter_token_fail("nonexistent_token", "", {"ENABLE": 1}) # Exception: nonexistent token       
-        self.alter_token_fail("", "", {"ENABLE": 1})                  # Exception: empty token name
-        self.alter_token_fail("token11", "", {"TTL": -10})            # Exception: invalid TTL
-        self.alter_token_fail("token12", "", {"ENABLE": 5})           # Exception: invalid ENABLE
+        self.alter_token_fail("nonexistent_token", {"ENABLE": 1}) # Exception: nonexistent token       
+        self.alter_token_fail("", {"ENABLE": 1})                  # Exception: empty token name
+        self.alter_token_fail("token11", {"TTL": -10})            # Exception: invalid TTL
+        self.alter_token_fail("token12", {"ENABLE": 5})           # Exception: invalid ENABLE
+        self.alter_token_fail("token11", {"PROVIDER": "'" + "p" * 64 + "'"}) # Exception: over-length provider
+        self.alter_token_fail("token12", {"EXTRA_INFO": "'" + "i" * 1024 + "'"}) # Exception: over-length extra_info
         
         print("alter token ........................... [ passed ] ")
 
@@ -281,15 +288,15 @@ class TestUserSecurity:
         self.login_token(token1)
         
         # disabled token
-        token2 = self.create_token("login_token2", "test_user1", "", {"ENABLE": 0})
+        token2 = self.create_token("login_token2", "test_user1", {"ENABLE": 0})
         self.login_token_fail(token2)
         
         # alter to enable
-        self.alter_token("login_token2", "", {"ENABLE": 1})
+        self.alter_token("login_token2", {"ENABLE": 1})
         self.login_token(token2)
         
         # alter to disable
-        self.alter_token("login_token2", "", {"ENABLE": 0})
+        self.alter_token("login_token2", {"ENABLE": 0})
         self.login_token_fail(token2)
         
         # delete token login
@@ -297,9 +304,9 @@ class TestUserSecurity:
         self.login_token_fail(token1)
 
         # recreate token with same name
-        token1 = self.create_token("login_token1", "test_user1", option2={"TTL": 1})
+        token1 = self.create_token("login_token1", "test_user1", option={"TTL": 1})
         self.login_token(token1)
-        self.alter_token("login_token1", "", {"TTL": 365, "PROVIDER": "'big_provider'"}) # big TTL
+        self.alter_token("login_token1", {"TTL": 365, "PROVIDER": "'big_provider'"}) # big TTL
         self.login_token(token1)
 
         # except
@@ -343,7 +350,13 @@ class TestUserSecurity:
             - IF NOT EXISTS clause
             - Max length token name (31 characters)
             - Multi-language support
-            - Exception cases: duplicate name, non-existent user, over-length name, invalid parameters    
+            - Exception cases:
+              - duplicate name
+              - non-existent user
+              - over-length name
+              - invalid parameters
+              - over-length provider
+              - over-length extra_info
         2. Show tokens
             - SHOW TOKENS command
             - Query from system table ins_tokens
@@ -352,7 +365,12 @@ class TestUserSecurity:
         3. Alter token
             - Modify single property (ENABLE, TTL, PROVIDER, EXTRA_INFO)
             - Modify multiple properties at once
-            - Exception cases: non-existent token, empty name, invalid parameter values
+            - Exception cases:
+              - non-existent token
+              - empty name
+              - invalid parameters
+              - over-length provider
+              - over-length extra_info
         4. Delete token
             - Normal drop operation
             - IF EXISTS option
