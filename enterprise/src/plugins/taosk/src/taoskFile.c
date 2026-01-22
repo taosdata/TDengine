@@ -48,7 +48,7 @@ int32_t taoskBuildMasterKeyData(const char *svrKey, const char *dbKey, int32_t a
   if (code != 0) {
     return code;
   }
-  strncpy(keyData->svrKeyEncrypted, encrypted, MAX_KEY_LEN);
+  strncpy(keyData->svrKeyEncrypted, encrypted, ENCRYPTED_KEY_MAX_LEN);
   taosMemoryFreeClear(encrypted);
 
   // Encrypt DB_KEY with SVR_KEY
@@ -56,7 +56,7 @@ int32_t taoskBuildMasterKeyData(const char *svrKey, const char *dbKey, int32_t a
   if (code != 0) {
     return code;
   }
-  strncpy(keyData->dbKeyEncrypted, encrypted, MAX_KEY_LEN);
+  strncpy(keyData->dbKeyEncrypted, encrypted, ENCRYPTED_KEY_MAX_LEN);
   taosMemoryFreeClear(encrypted);
 
   // Set metadata
@@ -86,7 +86,7 @@ int32_t taoskBuildDerivedKeyData(const char *cfgKey, const char *metaKey, const 
   if (cfgKey != NULL && cfgKey[0] != '\0') {
     code = taoskEncryptData(cfgKey, dbKey, &encrypted);
     if (code == 0 && encrypted != NULL) {
-      strncpy(keyData->cfgKeyEncrypted, encrypted, MAX_KEY_LEN);
+      strncpy(keyData->cfgKeyEncrypted, encrypted, ENCRYPTED_KEY_MAX_LEN);
       keyData->cfgKeyEnabled = true;
       keyData->cfgAlgorithm = cfgAlgorithm;
       taosMemoryFreeClear(encrypted);
@@ -97,7 +97,7 @@ int32_t taoskBuildDerivedKeyData(const char *cfgKey, const char *metaKey, const 
   if (metaKey != NULL && metaKey[0] != '\0') {
     code = taoskEncryptData(metaKey, dbKey, &encrypted);
     if (code == 0 && encrypted != NULL) {
-      strncpy(keyData->metaKeyEncrypted, encrypted, MAX_KEY_LEN);
+      strncpy(keyData->metaKeyEncrypted, encrypted, ENCRYPTED_KEY_MAX_LEN);
       keyData->metaKeyEnabled = true;
       keyData->metaAlgorithm = metaAlgorithm;
       taosMemoryFreeClear(encrypted);
@@ -108,7 +108,7 @@ int32_t taoskBuildDerivedKeyData(const char *cfgKey, const char *metaKey, const 
   if (dataKey != NULL && dataKey[0] != '\0') {
     code = taoskEncryptData(dataKey, dbKey, &encrypted);
     if (code == 0 && encrypted != NULL) {
-      strncpy(keyData->dataKeyEncrypted, encrypted, MAX_KEY_LEN);
+      strncpy(keyData->dataKeyEncrypted, encrypted, ENCRYPTED_KEY_MAX_LEN);
       keyData->dataKeyEnabled = true;
       taosMemoryFreeClear(encrypted);
     }
@@ -397,7 +397,7 @@ int32_t taoskBuildEncryptedKeyData(const char *svrKey, const char *dbKey, const 
   if (code != 0) {
     return code;
   }
-  strncpy(keyData->svrKeyEncrypted, encrypted, MAX_KEY_LEN);
+  strncpy(keyData->svrKeyEncrypted, encrypted, ENCRYPTED_KEY_MAX_LEN);
   taosMemoryFreeClear(encrypted);
 
   // Layer 2: Encrypt DB_KEY with SVR_KEY
@@ -405,14 +405,14 @@ int32_t taoskBuildEncryptedKeyData(const char *svrKey, const char *dbKey, const 
   if (code != 0) {
     return code;
   }
-  strncpy(keyData->dbKeyEncrypted, encrypted, MAX_KEY_LEN);
+  strncpy(keyData->dbKeyEncrypted, encrypted, ENCRYPTED_KEY_MAX_LEN);
   taosMemoryFreeClear(encrypted);
 
   // Layer 3: Encrypt sub-keys with DB_KEY
   if (cfgKey != NULL && cfgKey[0] != '\0') {
     code = taoskEncryptData(cfgKey, dbKey, &encrypted);
     if (code == 0 && encrypted != NULL) {
-      strncpy(keyData->cfgKeyEncrypted, encrypted, MAX_KEY_LEN);
+      strncpy(keyData->cfgKeyEncrypted, encrypted, ENCRYPTED_KEY_MAX_LEN);
       keyData->cfgKeyEnabled = true;
       taosMemoryFreeClear(encrypted);
     }
@@ -421,7 +421,7 @@ int32_t taoskBuildEncryptedKeyData(const char *svrKey, const char *dbKey, const 
   if (metaKey != NULL && metaKey[0] != '\0') {
     code = taoskEncryptData(metaKey, dbKey, &encrypted);
     if (code == 0 && encrypted != NULL) {
-      strncpy(keyData->metaKeyEncrypted, encrypted, MAX_KEY_LEN);
+      strncpy(keyData->metaKeyEncrypted, encrypted, ENCRYPTED_KEY_MAX_LEN);
       keyData->metaKeyEnabled = true;
       taosMemoryFreeClear(encrypted);
     }
@@ -430,7 +430,7 @@ int32_t taoskBuildEncryptedKeyData(const char *svrKey, const char *dbKey, const 
   if (dataKey != NULL && dataKey[0] != '\0') {
     code = taoskEncryptData(dataKey, dbKey, &encrypted);
     if (code == 0 && encrypted != NULL) {
-      strncpy(keyData->dataKeyEncrypted, encrypted, MAX_KEY_LEN);
+      strncpy(keyData->dataKeyEncrypted, encrypted, ENCRYPTED_KEY_MAX_LEN);
       keyData->dataKeyEnabled = true;
       taosMemoryFreeClear(encrypted);
     }
@@ -502,270 +502,6 @@ int32_t taoskWriteEncryptedFile(const char *filepath, const SEncryptedKeyData *k
   return 0;
 }
 
-// Copy file from source to destination
-static int32_t taoskCopyFile(const char *srcFile, const char *destFile, bool validate) {
-  if (srcFile == NULL || destFile == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  int32_t code = 0;
-
-  // Check if source file exists
-  if (taosStatFile(srcFile, NULL, NULL, NULL) < 0) {
-    fprintf(stderr, "Error: Source file %s does not exist\n", srcFile);
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
-
-  // Validate file if requested
-  if (validate) {
-    SEncryptFileHeader testHeader = {0};
-    SKeyEntry         *testKeys = NULL;
-    int                testKeyCount = 0;
-    code = taoskReadEncryptFile(srcFile, &testHeader, &testKeys, &testKeyCount);
-    if (code != 0) {
-      fprintf(stderr,
-              "Error: File validation failed - file may be corrupted or encrypted with different machine code\n");
-      if (testKeys) taosMemoryFree(testKeys);
-      return code;
-    }
-    if (testKeys) taosMemoryFree(testKeys);
-  }
-
-  // Get file size
-  int64_t fileSize = 0;
-  if (taosStatFile(srcFile, &fileSize, NULL, NULL) < 0) {
-    fprintf(stderr, "Error: Failed to get file size\n");
-    return terrno;
-  }
-
-  // Open source file
-  TdFilePtr pSrcFile = taosOpenFile(srcFile, TD_FILE_READ);
-  if (pSrcFile == NULL) {
-    fprintf(stderr, "Error: Failed to open source file %s\n", srcFile);
-    return terrno;
-  }
-
-  // Read entire file
-  char *buffer = (char *)taosMemoryMalloc(fileSize);
-  if (buffer == NULL) {
-    taosCloseFile(&pSrcFile);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  int64_t readBytes = taosReadFile(pSrcFile, buffer, fileSize);
-  taosCloseFile(&pSrcFile);
-
-  if (readBytes != fileSize) {
-    fprintf(stderr, "Error: Failed to read source file completely\n");
-    taosMemoryFree(buffer);
-    return terrno;
-  }
-
-  // Write to destination file (atomic if updating existing file)
-  char        tempFile[PATH_MAX] = {0};
-  bool        useTemp = (taosStatFile(destFile, NULL, NULL, NULL) >= 0);
-  const char *targetFile = destFile;
-
-  if (useTemp) {
-    snprintf(tempFile, sizeof(tempFile), "%s.tmp.%" PRId64, destFile, taosGetTimestampMs());
-    targetFile = tempFile;
-  }
-
-  TdFilePtr pDestFile = taosOpenFile(targetFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pDestFile == NULL) {
-    fprintf(stderr, "Error: Failed to open destination file %s\n", targetFile);
-    taosMemoryFree(buffer);
-    return terrno;
-  }
-
-  int64_t writeBytes = taosWriteFile(pDestFile, buffer, fileSize);
-  taosFsyncFile(pDestFile);
-  taosCloseFile(&pDestFile);
-  taosMemoryFree(buffer);
-
-  if (writeBytes != fileSize) {
-    fprintf(stderr, "Error: Failed to write to destination file\n");
-    if (useTemp) taosRemoveFile(tempFile);
-    return terrno;
-  }
-
-  // Set file permissions (600 - owner read/write only)
-  chmod(targetFile, 0600);
-
-  // Atomic replacement if temp file was used
-  if (useTemp) {
-    if (taosRenameFile(tempFile, destFile) != 0) {
-      fprintf(stderr, "Error: Failed to replace destination file\n");
-      taosRemoveFile(tempFile);
-      return terrno;
-    }
-  }
-
-  return 0;
-}
-
-// ============================================================================
-// Public API Functions
-// ============================================================================
-
-// Read encrypt file with multi-layer decryption
-int32_t taoskReadEncryptFile(const char *filepath, SEncryptFileHeader *header, 
-                              SKeyEntry **keys, int32_t *keyCount) {
-  if (filepath == NULL || header == NULL || keys == NULL || keyCount == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  
-  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
-  if (pFile == NULL) {
-    fprintf(stderr, "Error: Failed to open encrypt file: %s\n", filepath);
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
-
-  // Read plaintext header
-  int64_t nread = taosReadFile(pFile, header, sizeof(SEncryptFileHeader));
-  if (nread != sizeof(SEncryptFileHeader)) {
-    fprintf(stderr, "Error: Failed to read encrypt file header\n");
-    taosCloseFile(&pFile);
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
-  
-  // Verify magic
-  if (strncmp(header->magic, ENCRYPT_FILE_MAGIC, strlen(ENCRYPT_FILE_MAGIC)) != 0) {
-    fprintf(stderr, "Error: Invalid encrypt file format\n");
-    taosCloseFile(&pFile);
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
-  
-  // Verify version
-  if (header->version != ENCRYPT_FILE_VERSION) {
-    fprintf(stderr, "Error: Unsupported encrypt file version: %d\n", header->version);
-    taosCloseFile(&pFile);
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
-
-  // Read encrypted key data
-  SEncryptedKeyData keyData = {0};
-  nread = taosReadFile(pFile, &keyData, sizeof(SEncryptedKeyData));
-  if (nread != sizeof(SEncryptedKeyData)) {
-    fprintf(stderr, "Error: Failed to read encrypted key data\n");
-    taosCloseFile(&pFile);
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
-
-  taosCloseFile(&pFile);
-
-  // Get machine ID for decryption
-  char   *machineId = NULL;
-  int32_t code = tGetMachineId(&machineId);
-  if (code != 0 || machineId == NULL) {
-    fprintf(stderr, "Error: Failed to get machine code for decryption\n");
-    return code;
-  }
-
-  // Decrypt SVR_KEY with machine code
-  char *svrKey = NULL;
-  code = taoskDecryptData(keyData.svrKeyEncrypted, machineId, &svrKey);
-  taosMemoryFreeClear(machineId);
-  if (code != 0 || svrKey == NULL) {
-    fprintf(stderr, "Error: Failed to decrypt SVR_KEY\n");
-    return code;
-  }
-
-  // Decrypt DB_KEY with SVR_KEY
-  char *dbKey = NULL;
-  code = taoskDecryptData(keyData.dbKeyEncrypted, svrKey, &dbKey);
-  if (code != 0 || dbKey == NULL) {
-    fprintf(stderr, "Error: Failed to decrypt DB_KEY\n");
-    taosMemoryFreeClear(svrKey);
-    return code;
-  }
-
-  // Count enabled keys
-  int32_t count = 2;  // SVR_KEY and DB_KEY always present
-  if (keyData.cfgKeyEnabled) count++;
-  if (keyData.metaKeyEnabled) count++;
-  if (keyData.dataKeyEnabled) count++;
-
-  // Allocate key array
-  *keys = (SKeyEntry *)taosMemoryCalloc(count, sizeof(SKeyEntry));
-  if (*keys == NULL) {
-    fprintf(stderr, "Error: Failed to allocate memory for keys\n");
-    taosMemoryFreeClear(svrKey);
-    taosMemoryFreeClear(dbKey);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  int idx = 0;
-
-  // SVR_KEY
-  (*keys)[idx].type = KEY_TYPE_SVR;
-  strncpy((*keys)[idx].key, svrKey, MAX_KEY_LEN);
-  (*keys)[idx].lastModified = keyData.metadata.svrKeyUpdateTime;
-  (*keys)[idx].enabled = true;
-  idx++;
-
-  // DB_KEY
-  (*keys)[idx].type = KEY_TYPE_DB;
-  strncpy((*keys)[idx].key, dbKey, MAX_KEY_LEN);
-  (*keys)[idx].lastModified = keyData.metadata.dbKeyUpdateTime;
-  (*keys)[idx].enabled = true;
-  idx++;
-
-  // Decrypt sub-keys with DB_KEY
-  if (keyData.cfgKeyEnabled) {
-    char *cfgKey = NULL;
-    code = taoskDecryptData(keyData.cfgKeyEncrypted, dbKey, &cfgKey);
-    if (code == 0 && cfgKey != NULL) {
-      (*keys)[idx].type = KEY_TYPE_CFG;
-      strncpy((*keys)[idx].key, cfgKey, MAX_KEY_LEN);
-      (*keys)[idx].lastModified = keyData.metadata.dbKeyUpdateTime;  // sub-keys follow DB_KEY
-      (*keys)[idx].enabled = true;
-      taosMemoryFreeClear(cfgKey);
-      idx++;
-    }
-  }
-
-  if (keyData.metaKeyEnabled) {
-    char *metaKey = NULL;
-    code = taoskDecryptData(keyData.metaKeyEncrypted, dbKey, &metaKey);
-    if (code == 0 && metaKey != NULL) {
-      (*keys)[idx].type = KEY_TYPE_META;
-      strncpy((*keys)[idx].key, metaKey, MAX_KEY_LEN);
-      (*keys)[idx].lastModified = keyData.metadata.dbKeyUpdateTime;  // sub-keys follow DB_KEY
-      (*keys)[idx].enabled = true;
-      taosMemoryFreeClear(metaKey);
-      idx++;
-    }
-  }
-
-  if (keyData.dataKeyEnabled) {
-    char *dataKey = NULL;
-    code = taoskDecryptData(keyData.dataKeyEncrypted, dbKey, &dataKey);
-    if (code == 0 && dataKey != NULL) {
-      (*keys)[idx].type = KEY_TYPE_DATA;
-      strncpy((*keys)[idx].key, dataKey, MAX_KEY_LEN);
-      (*keys)[idx].lastModified = keyData.metadata.dbKeyUpdateTime;  // sub-keys follow DB_KEY
-      (*keys)[idx].enabled = true;
-      taosMemoryFreeClear(dataKey);
-      idx++;
-    }
-  }
-
-  *keyCount = idx;
-
-  taosMemoryFreeClear(svrKey);
-  taosMemoryFreeClear(dbKey);
-
-  return 0;
-}
-
-// Write encrypt file - now handled in taoskGenerateKeys
-// This function is kept for API compatibility but not used directly
-int32_t taoskWriteEncryptFile(const char *filepath, SEncryptFileHeader *header, SKeyEntry *keys, int32_t keyCount) {
-  fprintf(stderr, "Warning: taoskWriteEncryptFile is deprecated, use taoskGenerateKeys instead\n");
-  return TSDB_CODE_FAILED;
-}
-
 // Load encryption keys from split files (master.bin and derived.bin)
 // This function is called by taosd (dmFile.c) to load keys into global variables
 //
@@ -784,11 +520,11 @@ int32_t taoskLoadEncryptKeys(const char *masterKeyFile, const char *derivedKeyFi
   }
 
   // Initialize output buffers
-  memset(svrKey, 0, 129);
-  memset(dbKey, 0, 129);
-  memset(cfgKey, 0, 129);
-  memset(metaKey, 0, 129);
-  memset(dataKey, 0, 129);
+  memset(svrKey, 0, ENCRYPT_KEY_LEN + 1);
+  memset(dbKey, 0, ENCRYPT_KEY_LEN + 1);
+  memset(cfgKey, 0, ENCRYPT_KEY_LEN + 1);
+  memset(metaKey, 0, ENCRYPT_KEY_LEN + 1);
+  memset(dataKey, 0, ENCRYPT_KEY_LEN + 1);
   *algorithm = 0;
   *cfgAlgorithm = 0;
   *metaAlgorithm = 0;
@@ -811,11 +547,11 @@ int32_t taoskLoadEncryptKeys(const char *masterKeyFile, const char *derivedKeyFi
     return code;
   }
 
-  // Copy decrypted master keys
-  strncpy(svrKey, svrKeyDecrypted, 128);
-  svrKey[128] = '\0';
-  strncpy(dbKey, dbKeyDecrypted, 128);
-  dbKey[128] = '\0';
+  // Copy decrypted master keys (only copy ENCRYPT_KEY_LEN bytes)
+  strncpy(svrKey, svrKeyDecrypted, ENCRYPT_KEY_LEN);
+  svrKey[ENCRYPT_KEY_LEN] = '\0';
+  strncpy(dbKey, dbKeyDecrypted, ENCRYPT_KEY_LEN);
+  dbKey[ENCRYPT_KEY_LEN] = '\0';
 
   // Set metadata from master key file
   *fileVersion = ENCRYPT_FILE_VERSION;
@@ -836,20 +572,20 @@ int32_t taoskLoadEncryptKeys(const char *masterKeyFile, const char *derivedKeyFi
   code = taoskReadDerivedKeyFile(derivedKeyFile, dbKeyDecrypted, &cfgKeyDecrypted, &metaKeyDecrypted, &dataKeyDecrypted,
                                  &derivedKeyData);
   if (code == 0) {
-    // Copy decrypted derived keys
+    // Copy decrypted derived keys (only copy ENCRYPT_KEY_LEN bytes)
     if (cfgKeyDecrypted != NULL) {
-      strncpy(cfgKey, cfgKeyDecrypted, 128);
-      cfgKey[128] = '\0';
+      strncpy(cfgKey, cfgKeyDecrypted, ENCRYPT_KEY_LEN);
+      cfgKey[ENCRYPT_KEY_LEN] = '\0';
       taosMemoryFreeClear(cfgKeyDecrypted);
     }
     if (metaKeyDecrypted != NULL) {
-      strncpy(metaKey, metaKeyDecrypted, 128);
-      metaKey[128] = '\0';
+      strncpy(metaKey, metaKeyDecrypted, ENCRYPT_KEY_LEN);
+      metaKey[ENCRYPT_KEY_LEN] = '\0';
       taosMemoryFreeClear(metaKeyDecrypted);
     }
     if (dataKeyDecrypted != NULL) {
-      strncpy(dataKey, dataKeyDecrypted, 128);
-      dataKey[128] = '\0';
+      strncpy(dataKey, dataKeyDecrypted, ENCRYPT_KEY_LEN);
+      dataKey[ENCRYPT_KEY_LEN] = '\0';
       taosMemoryFreeClear(dataKeyDecrypted);
     }
   }
@@ -913,33 +649,6 @@ int32_t taoskSaveEncryptKeys(const char *masterKeyFile, const char *derivedKeyFi
   return 0;
 }
 
-// Internal function: Backup key file with specified source and destination
-// Note: This function is deprecated. Use portable backup mechanism instead.
-int32_t taoskBackupFile(const char *srcFile, const char *destFile) {
-  int32_t code = taoskCopyFile(srcFile, destFile, false);
-  if (code == 0) {
-    printf("Keys successfully backed up from %s to %s\n", srcFile, destFile);
-  }
-  return code;
-}
-
-// Internal function: Restore key file from backup
-// Note: This function is deprecated. Use portable restore mechanism instead.
-int32_t taoskRestoreFile(const char *srcFile, const char *destFile) {
-  // Check if destination file exists (for warning)
-  if (taosStatFile(destFile, NULL, NULL, NULL) >= 0) {
-    printf("Warning: Destination file %s already exists and will be overwritten\n", destFile);
-  }
-
-  // Copy with validation
-  int32_t code = taoskCopyFile(srcFile, destFile, true);
-  if (code == 0) {
-    printf("Keys successfully restored from %s to %s\n", srcFile, destFile);
-    printf("You may need to restart taosd for changes to take effect\n");
-  }
-  return code;
-}
-
 // Backup master keys to portable format (without machine ID binding)
 // This creates a backup file where svrKey is encrypted with user's password instead of machine ID
 int32_t taoskBackupMasterKeysPortable(const char *masterKeyFile, const char *backupFile,
@@ -985,7 +694,7 @@ int32_t taoskBackupMasterKeysPortable(const char *masterKeyFile, const char *bac
     fprintf(stderr, "Error: Failed to encrypt server key for backup\n");
     goto cleanup;
   }
-  strncpy(backupData.svrKeyEncrypted, encrypted, MAX_KEY_LEN);
+  strncpy(backupData.svrKeyEncrypted, encrypted, ENCRYPTED_KEY_MAX_LEN);
   taosMemoryFreeClear(encrypted);
 
   // Encrypt dbKey with svrKey (same as original)
@@ -994,7 +703,7 @@ int32_t taoskBackupMasterKeysPortable(const char *masterKeyFile, const char *bac
     fprintf(stderr, "Error: Failed to encrypt database key for backup\n");
     goto cleanup;
   }
-  strncpy(backupData.dbKeyEncrypted, encrypted, MAX_KEY_LEN);
+  strncpy(backupData.dbKeyEncrypted, encrypted, ENCRYPTED_KEY_MAX_LEN);
   taosMemoryFreeClear(encrypted);
 
   // Copy metadata
@@ -1192,20 +901,22 @@ int32_t taoskEncryptData(const char *plaintext, const char *key, char **cipherte
     return TSDB_CODE_INVALID_PARA;
   }
 
-  // Calculate encrypted length (16-byte aligned for CBC)
-  int32_t encryptedLen = ((plaintextLen + 15) / 16) * 16;
-  char   *encrypted = taosMemoryCalloc(1, encryptedLen + 1);
-  if (encrypted == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
+  // Calculate encrypted length (align to 16-byte boundary)
+  int32_t encryptedLen = ENCRYPTED_LEN(plaintextLen);
 
-  // Prepare plaintext buffer (padded to 16-byte boundary)
+  // Allocate and zero-fill source buffer
   char *paddedPlaintext = taosMemoryCalloc(1, encryptedLen);
   if (paddedPlaintext == NULL) {
-    taosMemoryFree(encrypted);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(paddedPlaintext, plaintext, plaintextLen);
+
+  // Allocate result buffer
+  char *encrypted = taosMemoryCalloc(1, encryptedLen + 1);
+  if (encrypted == NULL) {
+    taosMemoryFree(paddedPlaintext);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   // Setup encryption options
   SCryptOpts opts = {0};
@@ -1216,7 +927,7 @@ int32_t taoskEncryptData(const char *plaintext, const char *key, char **cipherte
   opts.pOsslAlgrName = "SM4-CBC:SM4";  // Use SM4 algorithm
   tstrncpy((char *)opts.key, key, ENCRYPT_KEY_LEN + 1);
 
-  // Perform CBC encryption
+  // Perform CBC encryption (CBC_Encrypt handles padding internally)
   int32_t count = CBC_Encrypt(&opts);
   taosMemoryFree(paddedPlaintext);
 
@@ -1273,7 +984,7 @@ int32_t taoskDecryptData(const char *ciphertext, const char *key, char **plainte
   opts.pOsslAlgrName = "SM4-CBC:SM4";  // Use SM4 algorithm
   tstrncpy((char *)opts.key, key, ENCRYPT_KEY_LEN + 1);
 
-  // Perform CBC decryption
+  // Perform CBC decryption (CBC_Decrypt handles padding removal internally)
   int32_t count = CBC_Decrypt(&opts);
   taosMemoryFree(decoded);
 
@@ -1282,18 +993,14 @@ int32_t taoskDecryptData(const char *ciphertext, const char *key, char **plainte
     return terrno ? terrno : TSDB_CODE_FAILED;
   }
 
-  // Remove trailing null bytes and padding
+  // Null-terminate the result (strlen will find actual length without padding)
+  decrypted[decodedLen] = '\0';
   int32_t actualLen = strlen(decrypted);
-  if (actualLen == 0) {
-    // Try to find the actual length by looking for the last non-zero byte
-    for (int32_t i = decodedLen - 1; i >= 0; i--) {
-      if (decrypted[i] != 0) {
-        actualLen = i + 1;
-        break;
-      }
-    }
+
+  // Trim to actual length to remove any trailing nulls from padding
+  if (actualLen < decodedLen) {
+    decrypted[actualLen] = '\0';
   }
-  decrypted[actualLen] = '\0';
 
   *plaintext = decrypted;
   return 0;

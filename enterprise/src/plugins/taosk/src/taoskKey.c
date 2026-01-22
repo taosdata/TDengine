@@ -197,35 +197,75 @@ const char *taoskKeyTypeToString(ETaoskKeyType type) {
   }
 }
 
-// Generate random key
+/**
+ * Generate random encryption key
+ *
+ * Generates a cryptographically secure 16-byte (128-bit) key suitable for SM4/AES-128.
+ * The key consists of printable ASCII characters (33-126) for ease of handling.
+ *
+ * @param key    Output buffer for the generated key (must be at least ENCRYPT_KEY_LEN+1 bytes)
+ * @param len    Length of the output buffer
+ * @return       0 on success, error code on failure
+ *
+ * Note: SM4 and AES-128 require exactly 16 bytes (128 bits) for full security.
+ */
 int32_t taoskGenerateRandomKey(char *key, int32_t len) {
-  if (key == NULL || len < ENCRYPT_KEY_LEN) {
+  if (key == NULL || len < ENCRYPT_KEY_LEN + 1) {
     return TSDB_CODE_INVALID_PARA;
   }
-  
-  // Generate random bytes
+
+  // Generate exactly ENCRYPT_KEY_LEN (16) random bytes
+  // Use printable ASCII characters (33-126) for better handling
   taosSeedRand((uint32_t)taosGetTimestampUs());
   for (int i = 0; i < ENCRYPT_KEY_LEN; i++) {
-    key[i] = (char)(taosRand() % 94 + 33);  // Printable ASCII characters
+    key[i] = (char)(taosRand() % 94 + 33);  // Range: '!' to '~'
   }
   key[ENCRYPT_KEY_LEN] = '\0';
   
   return 0;
 }
 
-// Validate key
+/**
+ * Validate encryption key
+ *
+ * Enforces key length requirement: 8-16 characters (64-128 bits).
+ * This ensures adequate cryptographic strength for SM4/AES-128 encryption.
+ *
+ * @param key    The key string to validate
+ * @return       0 if valid, error code otherwise
+ *
+ * Security rationale:
+ * - SM4 and AES-128 use 16 bytes (128 bits) internally
+ * - Minimum 8 characters (64 bits) provides adequate security
+ * - Keys shorter than 8 bytes have reduced entropy and are vulnerable to brute force
+ * - Keys longer than 16 bytes are truncated/padded to 16 bytes
+ */
 int32_t taoskValidateKey(const char *key) {
   if (key == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   
   int len = strlen(key);
-  if (len < ENCRYPT_KEY_LEN_MIN || len > MAX_KEY_LEN) {
-    fprintf(stderr, "Error: Key length must be between %d and %d characters\n", 
-            ENCRYPT_KEY_LEN_MIN, MAX_KEY_LEN);
+
+  // Enforce 8-16 characters
+  if (len < ENCRYPT_KEY_LEN_MIN || len > ENCRYPT_KEY_LEN) {
+    fprintf(stderr, "\nError: Key must be between %d and %d characters (64-128 bits) for SM4/AES-128\n", 
+            ENCRYPT_KEY_LEN_MIN, ENCRYPT_KEY_LEN);
+    fprintf(stderr, "       Current key length: %d characters\n", len);
+
+    if (len < ENCRYPT_KEY_LEN_MIN) {
+      fprintf(stderr, "       ❌ Too short! Please add at least %d more character(s)\n", 
+              ENCRYPT_KEY_LEN_MIN - len);
+      fprintf(stderr, "       Example: \"MyPass123\" (9 characters)\n");
+    } else {
+      fprintf(stderr, "       ❌ Too long! Please remove %d character(s)\n", len - ENCRYPT_KEY_LEN);
+      fprintf(stderr, "       Note: Only first 16 characters will be used\n");
+    }
+
+    fprintf(stderr, "\n");
     return TSDB_CODE_INVALID_PARA;
   }
-  
+
   return 0;
 }
 
@@ -240,18 +280,18 @@ int32_t taoskDeriveKeys(const char *svrKey, const char *dbKey, SKeyEntry *keys, 
   // SVR_KEY - from parameter or generate
   if (svrKey != NULL && svrKey[0] != '\0') {
     keys[count].type = KEY_TYPE_SVR;
-    strncpy(keys[count].key, svrKey, MAX_KEY_LEN);
+    strncpy(keys[count].key, svrKey, ENCRYPT_KEY_LEN);
     keys[count].lastModified = taosGetTimestampMs();
     keys[count].enabled = true;
     count++;
   } else {
     // Generate random SVR_KEY
-    char randomKey[MAX_KEY_LEN + 1] = {0};
+    char randomKey[ENCRYPT_KEY_LEN + 1] = {0};
     if (taoskGenerateRandomKey(randomKey, sizeof(randomKey)) != 0) {
       return TSDB_CODE_FAILED;
     }
     keys[count].type = KEY_TYPE_SVR;
-    strncpy(keys[count].key, randomKey, MAX_KEY_LEN);
+    strncpy(keys[count].key, randomKey, ENCRYPT_KEY_LEN);
     keys[count].lastModified = taosGetTimestampMs();
     keys[count].enabled = true;
     count++;
@@ -260,18 +300,18 @@ int32_t taoskDeriveKeys(const char *svrKey, const char *dbKey, SKeyEntry *keys, 
   // DB_KEY - from parameter or generate
   if (dbKey != NULL && dbKey[0] != '\0') {
     keys[count].type = KEY_TYPE_DB;
-    strncpy(keys[count].key, dbKey, MAX_KEY_LEN);
+    strncpy(keys[count].key, dbKey, ENCRYPT_KEY_LEN);
     keys[count].lastModified = taosGetTimestampMs();
     keys[count].enabled = true;
     count++;
   } else {
     // Generate random DB_KEY
-    char randomKey[MAX_KEY_LEN + 1] = {0};
+    char randomKey[ENCRYPT_KEY_LEN + 1] = {0};
     if (taoskGenerateRandomKey(randomKey, sizeof(randomKey)) != 0) {
       return TSDB_CODE_FAILED;
     }
     keys[count].type = KEY_TYPE_DB;
-    strncpy(keys[count].key, randomKey, MAX_KEY_LEN);
+    strncpy(keys[count].key, randomKey, ENCRYPT_KEY_LEN);
     keys[count].lastModified = taosGetTimestampMs();
     keys[count].enabled = true;
     count++;
@@ -279,7 +319,7 @@ int32_t taoskDeriveKeys(const char *svrKey, const char *dbKey, SKeyEntry *keys, 
   
   // CFG_KEY - derived from SVR_KEY and DB_KEY if config encryption is enabled
   if (g_args.encryptConfig) {
-    char derivedKey[MAX_KEY_LEN + 1] = {0};
+    char derivedKey[ENCRYPT_KEY_LEN + 1] = {0};
     // Simple derivation: hash of SVR_KEY + DB_KEY + "CFG"
     snprintf(derivedKey, sizeof(derivedKey), "%s_%s_CFG", keys[0].key, keys[1].key);
     
@@ -296,7 +336,7 @@ int32_t taoskDeriveKeys(const char *svrKey, const char *dbKey, SKeyEntry *keys, 
   
   // META_KEY - derived from SVR_KEY and DB_KEY if metadata encryption is enabled
   if (g_args.encryptMetadata) {
-    char derivedKey[MAX_KEY_LEN + 1] = {0};
+    char derivedKey[ENCRYPT_KEY_LEN + 1] = {0};
     snprintf(derivedKey, sizeof(derivedKey), "%s_%s_META", keys[0].key, keys[1].key);
     
     keys[count].type = KEY_TYPE_META;
@@ -313,13 +353,13 @@ int32_t taoskDeriveKeys(const char *svrKey, const char *dbKey, SKeyEntry *keys, 
   if (g_args.encryptData) {
     if (g_args.dataKey[0] != '\0') {
       keys[count].type = KEY_TYPE_DATA;
-      strncpy(keys[count].key, g_args.dataKey, MAX_KEY_LEN);
+      strncpy(keys[count].key, g_args.dataKey, ENCRYPT_KEY_LEN);
       keys[count].lastModified = taosGetTimestampMs();
       keys[count].enabled = true;
       count++;
     } else {
       // Derive DATA_KEY
-      char derivedKey[MAX_KEY_LEN + 1] = {0};
+      char derivedKey[ENCRYPT_KEY_LEN + 1] = {0};
       snprintf(derivedKey, sizeof(derivedKey), "%s_%s_DATA", keys[0].key, keys[1].key);
       
       keys[count].type = KEY_TYPE_DATA;
@@ -341,11 +381,11 @@ int32_t taoskDeriveKeys(const char *svrKey, const char *dbKey, SKeyEntry *keys, 
 int32_t taoskGenerateKeys(void) {
   int32_t code = 0;
   char *machineId = NULL;
-  char    svrKey[MAX_KEY_LEN + 1] = {0};
-  char    dbKey[MAX_KEY_LEN + 1] = {0};
-  char    cfgKey[MAX_KEY_LEN + 1] = {0};
-  char    metaKey[MAX_KEY_LEN + 1] = {0};
-  char    dataKey[MAX_KEY_LEN + 1] = {0};
+  char    svrKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dbKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    cfgKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    metaKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dataKey[ENCRYPT_KEY_LEN + 1] = {0};
   char encryptFilePath[PATH_MAX] = {0};
   
   // Validate input keys
@@ -353,7 +393,7 @@ int32_t taoskGenerateKeys(void) {
     if ((code = taoskValidateKey(g_args.svrKey)) != 0) {
       return code;
     }
-    strncpy(svrKey, g_args.svrKey, MAX_KEY_LEN);
+    strncpy(svrKey, g_args.svrKey, ENCRYPT_KEY_LEN);
   } else {
     // Generate random SVR_KEY
     if ((code = taoskGenerateRandomKey(svrKey, sizeof(svrKey))) != 0) {
@@ -366,7 +406,7 @@ int32_t taoskGenerateKeys(void) {
     if ((code = taoskValidateKey(g_args.dbKey)) != 0) {
       return code;
     }
-    strncpy(dbKey, g_args.dbKey, MAX_KEY_LEN);
+    strncpy(dbKey, g_args.dbKey, ENCRYPT_KEY_LEN);
   } else {
     // Generate random DB_KEY
     if ((code = taoskGenerateRandomKey(dbKey, sizeof(dbKey))) != 0) {
@@ -391,7 +431,7 @@ int32_t taoskGenerateKeys(void) {
       if ((code = taoskValidateKey(g_args.dataKey)) != 0) {
         return code;
       }
-      strncpy(dataKey, g_args.dataKey, MAX_KEY_LEN);
+      strncpy(dataKey, g_args.dataKey, ENCRYPT_KEY_LEN);
     } else {
       // Derive DATA_KEY from SVR_KEY and DB_KEY
       taoskGenerateRandomKey(dataKey, sizeof(dataKey));

@@ -26,6 +26,7 @@ include_directories(
 set(TAOSK_LIB_SRC
     src/taoskKey.c
     src/taoskFile.c
+    src/taoskView.c
 )
 
 # Executable source files
