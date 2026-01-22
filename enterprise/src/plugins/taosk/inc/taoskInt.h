@@ -28,7 +28,19 @@ extern "C" {
 #include "tlog.h"
 
 #define TAOSK_VERSION "1.0.0"
-#define MAX_KEY_LEN 128
+
+/**
+ * Key length constants (unified with tdef.h and tglobal.h):
+ * - ENCRYPT_KEY_LEN = 16 bytes (128 bits)
+ * - ENCRYPT_KEY_LEN_MIN = 16 bytes (mandatory)
+ *
+ * Design principle:
+ * - SM4 and AES-128 use 16 bytes (128 bits) internally
+ * - Users provide 8-16 characters for flexibility
+ * - Keys are padded to 16 bytes if shorter, or used as-is if 16 bytes
+ * - This balances security with usability
+ * - Global variables (tsSvrKey, tsDbKey, etc.) are 17 bytes (16 + null terminator)
+ */
 #define MASTER_KEY_FILE_NAME "master.bin"    // Master keys: svrKey, dbKey
 #define DERIVED_KEY_FILE_NAME "derived.bin"  // Derived keys: cfgKey, metaKey, dataKey
 #define ENCRYPT_FILE_MAGIC "tdEncrypt"
@@ -58,7 +70,7 @@ typedef enum {
 // Key entry structure
 typedef struct {
   ETaoskKeyType type;
-  char key[MAX_KEY_LEN + 1];
+  char key[ENCRYPT_KEY_LEN + 1];  // Exactly 16 bytes + null terminator
   int64_t lastModified;
   bool enabled;
 } SKeyEntry;
@@ -83,14 +95,23 @@ typedef struct {
   char    reserved[40];     // Reserved for future use
 } SEncryptMetadata;
 
+/**
+ * Encrypted key buffer size:
+ * - Original key: 16 bytes
+ * - After encryption: 16 bytes (CBC in-place)
+ * - After Base64 encoding: ~24 bytes
+ * - Reserve 128 bytes for safety
+ */
+#define ENCRYPTED_KEY_MAX_LEN 128
+
 // Key data structure (stored in encrypted form) - Legacy format
 typedef struct {
-  char             svrKeyEncrypted[MAX_KEY_LEN + 1];   // SVR_KEY encrypted with machine code
-  char             dbKeyEncrypted[MAX_KEY_LEN + 1];    // DB_KEY encrypted with SVR_KEY
-  char             cfgKeyEncrypted[MAX_KEY_LEN + 1];   // CFG_KEY encrypted with DB_KEY
-  char             metaKeyEncrypted[MAX_KEY_LEN + 1];  // META_KEY encrypted with DB_KEY
-  char             dataKeyEncrypted[MAX_KEY_LEN + 1];  // DATA_KEY encrypted with DB_KEY
-  SEncryptMetadata metadata;                           // Metadata encrypted with SVR_KEY
+  char             svrKeyEncrypted[ENCRYPTED_KEY_MAX_LEN + 1];   // SVR_KEY encrypted with machine code
+  char             dbKeyEncrypted[ENCRYPTED_KEY_MAX_LEN + 1];    // DB_KEY encrypted with SVR_KEY
+  char             cfgKeyEncrypted[ENCRYPTED_KEY_MAX_LEN + 1];   // CFG_KEY encrypted with DB_KEY
+  char             metaKeyEncrypted[ENCRYPTED_KEY_MAX_LEN + 1];  // META_KEY encrypted with DB_KEY
+  char             dataKeyEncrypted[ENCRYPTED_KEY_MAX_LEN + 1];  // DATA_KEY encrypted with DB_KEY
+  SEncryptMetadata metadata;                                     // Metadata encrypted with SVR_KEY
   bool             cfgKeyEnabled;
   bool             metaKeyEnabled;
   bool             dataKeyEnabled;
@@ -98,16 +119,16 @@ typedef struct {
 
 // Master key data structure (svrKey and dbKey only)
 typedef struct {
-  char             svrKeyEncrypted[MAX_KEY_LEN + 1];  // SVR_KEY encrypted with machine code
-  char             dbKeyEncrypted[MAX_KEY_LEN + 1];   // DB_KEY encrypted with SVR_KEY
-  SEncryptMetadata metadata;                          // Metadata
+  char             svrKeyEncrypted[ENCRYPTED_KEY_MAX_LEN + 1];  // SVR_KEY encrypted with machine code
+  char             dbKeyEncrypted[ENCRYPTED_KEY_MAX_LEN + 1];   // DB_KEY encrypted with SVR_KEY
+  SEncryptMetadata metadata;                                    // Metadata
 } SMasterKeyData;
 
 // Derived key data structure (cfgKey, metaKey, dataKey)
 typedef struct {
-  char    cfgKeyEncrypted[MAX_KEY_LEN + 1];   // CFG_KEY encrypted with DB_KEY
-  char    metaKeyEncrypted[MAX_KEY_LEN + 1];  // META_KEY encrypted with DB_KEY
-  char    dataKeyEncrypted[MAX_KEY_LEN + 1];  // DATA_KEY encrypted with DB_KEY
+  char    cfgKeyEncrypted[ENCRYPTED_KEY_MAX_LEN + 1];   // CFG_KEY encrypted with DB_KEY
+  char    metaKeyEncrypted[ENCRYPTED_KEY_MAX_LEN + 1];  // META_KEY encrypted with DB_KEY
+  char    dataKeyEncrypted[ENCRYPTED_KEY_MAX_LEN + 1];  // DATA_KEY encrypted with DB_KEY
   bool    cfgKeyEnabled;
   bool    metaKeyEnabled;
   bool    dataKeyEnabled;
@@ -120,11 +141,11 @@ typedef struct {
 // Portable backup data structure (for cross-machine migration)
 // Keys are encrypted with user password instead of machine ID
 typedef struct {
-  char             svrKeyEncrypted[MAX_KEY_LEN + 1];  // SVR_KEY encrypted with user password
-  char             dbKeyEncrypted[MAX_KEY_LEN + 1];   // DB_KEY encrypted with user password
-  SEncryptMetadata metadata;                          // Metadata (algorithm, version, timestamps)
-  int64_t          backupTime;                        // When this backup was created
-  char             reserved[32];                      // Reserved for future use
+  char             svrKeyEncrypted[ENCRYPTED_KEY_MAX_LEN + 1];  // SVR_KEY encrypted with user password
+  char             dbKeyEncrypted[ENCRYPTED_KEY_MAX_LEN + 1];   // DB_KEY encrypted with user password
+  SEncryptMetadata metadata;                                    // Metadata (algorithm, version, timestamps)
+  int64_t          backupTime;                                  // When this backup was created
+  char             reserved[32];                                // Reserved for future use
 } SPortableBackupData;
 
 // Command line arguments
@@ -134,9 +155,9 @@ typedef struct {
   
   // Key generation
   bool generateKeys;
-  char svrKey[MAX_KEY_LEN + 1];
-  char dbKey[MAX_KEY_LEN + 1];
-  char dataKey[MAX_KEY_LEN + 1];
+  char svrKey[ENCRYPT_KEY_LEN + 1];   // 8-16 characters
+  char dbKey[ENCRYPT_KEY_LEN + 1];    // 8-16 characters
+  char dataKey[ENCRYPT_KEY_LEN + 1];  // 8-16 characters
   bool encryptConfig;
   bool encryptMetadata;
   bool encryptData;
@@ -147,15 +168,19 @@ typedef struct {
 
   // Key update
   bool updateKeys;
-  char newSvrKey[MAX_KEY_LEN + 1];
-  char newDbKey[MAX_KEY_LEN + 1];
-  
+  char newSvrKey[ENCRYPT_KEY_LEN + 1];  // 8-16 characters
+  char newDbKey[ENCRYPT_KEY_LEN + 1];   // 8-16 characters
+
   // Backup/Restore
   bool backup;
   bool restore;
-  char backupFilePath[PATH_MAX];          // Backup file path for restore operation
-  char svrKeyForBackup[MAX_KEY_LEN + 1];  // Backup password for cross-machine migration
-  char backupPassword[MAX_KEY_LEN + 1];   // Password for encrypting backup file
+  char backupFilePath[PATH_MAX];              // Backup file path for restore operation
+  char svrKeyForBackup[ENCRYPT_KEY_LEN + 1];  // 8-16 characters
+  char backupPassword[ENCRYPT_KEY_LEN + 1];   // 8-16 characters
+
+  // View encrypted config file
+  bool viewConfig;
+  char configFilePath[PATH_MAX];  // Path to the encrypted config file to view
 
   // View/Help
   bool showVersion;
@@ -175,10 +200,8 @@ int32_t taoskGenerateKeys(void);
 int32_t taoskUpdateKeys(void);
 int32_t taoskBackupKeys(void);
 int32_t taoskRestoreKeys(void);
+int32_t taoskViewEncryptedConfig(void);
 
-// File operations
-int32_t taoskReadEncryptFile(const char *filepath, SEncryptFileHeader *header, SKeyEntry **keys, int32_t *keyCount);
-int32_t taoskWriteEncryptFile(const char *filepath, SEncryptFileHeader *header, SKeyEntry *keys, int32_t keyCount);
 
 // Internal file operation helpers (used by taoskBackupKeys/taoskRestoreKeys)
 int32_t taoskBackupFile(const char *srcFile, const char *destFile);

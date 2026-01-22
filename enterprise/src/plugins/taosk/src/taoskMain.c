@@ -50,7 +50,12 @@ void taoskPrintHelp(void) {
   printf("  --machine-code <path>            Backup file path (used with --restore)\n");
   printf("  --svr-key <key>                  Server key for verification (--backup) or decryption (--restore)\n");
   printf("\n");
-  
+
+  printf("View Encrypted Config:\n");
+  printf("  --view-config <file>             View encrypted configuration file\n");
+  printf("                                   (requires keys loaded from data directory)\n");
+  printf("\n");
+
   printf("Examples:\n");
   printf("  # Generate keys with default algorithm (SM4)\n");
   printf("  taosk -c /etc/taos --encrypt-server mykey123 --encrypt-database dbkey456\n");
@@ -71,6 +76,10 @@ void taoskPrintHelp(void) {
   printf("  taosk -c /etc/taos --restore --machine-code /path/to/backup_file \\\n");
   printf("        --svr-key mykey123\n");
   printf("  # This adds current machine ID binding to the keys\n");
+  printf("\n");
+  printf("  # View encrypted config file\n");
+  printf("  taosk -d /var/lib/taos --view-config /path/to/encrypted_config.json\n");
+  printf("  # This loads keys from data directory and decrypts the config file\n");
   printf("\n");
 }
 
@@ -97,6 +106,7 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
                                          {"restore", no_argument, 0, 1010},
                                          {"machine-code", required_argument, 0, 1011},
                                          {"svr-key", required_argument, 0, 1012},
+                                         {"view-config", required_argument, 0, 1015},
                                          {0, 0, 0, 0}};
 
   // Initialize default values
@@ -107,6 +117,7 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
   g_args.updateKeys = false;
   g_args.backup = false;
   g_args.restore = false;
+  g_args.viewConfig = false;
   g_args.encryptConfig = false;
   g_args.encryptMetadata = false;
   g_args.encryptData = false;
@@ -153,7 +164,7 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
       case 1002:  // --encrypt-server
         if (optarg != NULL) {
           // Using --encrypt-server=value format
-          strncpy(g_args.svrKey, optarg, sizeof(g_args.svrKey) - 1);
+          strncpy(g_args.svrKey, optarg, ENCRYPT_KEY_LEN);
         } else if (optind < argc && argv[optind][0] != '-') {
           // Using --encrypt-server value format (with space)
           strncpy(g_args.svrKey, argv[optind], sizeof(g_args.svrKey) - 1);
@@ -165,7 +176,7 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
       case 1003:  // --encrypt-database
         if (optarg != NULL) {
           // Using --encrypt-database=value format
-          strncpy(g_args.dbKey, optarg, sizeof(g_args.dbKey) - 1);
+          strncpy(g_args.dbKey, optarg, ENCRYPT_KEY_LEN);
         } else if (optind < argc && argv[optind][0] != '-') {
           // Using --encrypt-database value format (with space)
           strncpy(g_args.dbKey, argv[optind], sizeof(g_args.dbKey) - 1);
@@ -197,7 +208,7 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
       case 1006:  // --encrypt-data
         if (optarg != NULL) {
           // Using --encrypt-data=value format
-          strncpy(g_args.dataKey, optarg, sizeof(g_args.dataKey) - 1);
+          strncpy(g_args.dataKey, optarg, ENCRYPT_KEY_LEN);
         } else if (optind < argc && argv[optind][0] != '-') {
           // Using --encrypt-data value format (with space)
           strncpy(g_args.dataKey, argv[optind], sizeof(g_args.dataKey) - 1);
@@ -208,11 +219,11 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
         g_args.generateKeys = true;
         break;
       case 1007:  // --update-svrkey
-        strncpy(g_args.newSvrKey, optarg, sizeof(g_args.newSvrKey) - 1);
+        strncpy(g_args.newSvrKey, optarg, ENCRYPT_KEY_LEN);
         g_args.updateKeys = true;
         break;
       case 1008:  // --update-dbkey
-        strncpy(g_args.newDbKey, optarg, sizeof(g_args.newDbKey) - 1);
+        strncpy(g_args.newDbKey, optarg, ENCRYPT_KEY_LEN);
         g_args.updateKeys = true;
         break;
       case 1009:  // --backup
@@ -225,7 +236,11 @@ int32_t taoskParseArgs(int argc, char *argv[]) {
         strncpy(g_args.backupFilePath, optarg, sizeof(g_args.backupFilePath) - 1);
         break;
       case 1012:  // --svr-key
-        strncpy(g_args.svrKeyForBackup, optarg, sizeof(g_args.svrKeyForBackup) - 1);
+        strncpy(g_args.svrKeyForBackup, optarg, ENCRYPT_KEY_LEN);
+        break;
+      case 1015:  // --view-config
+        strncpy(g_args.configFilePath, optarg, sizeof(g_args.configFilePath) - 1);
+        g_args.viewConfig = true;
         break;
       default:
         fprintf(stderr, "Error: Unknown option\n");
@@ -269,7 +284,8 @@ int main(int argc, char *argv[]) {
   if (g_args.updateKeys) opCount++;
   if (g_args.backup) opCount++;
   if (g_args.restore) opCount++;
-  
+  if (g_args.viewConfig) opCount++;
+
   if (opCount == 0) {
     fprintf(stderr, "Error: No operation specified. Use --help for usage information.\n");
     taosCloseLog();
@@ -283,7 +299,15 @@ int main(int argc, char *argv[]) {
   }
   
   // Execute operation
-  if (g_args.generateKeys) {
+  if (g_args.viewConfig) {
+    printf("Viewing encrypted configuration file...\n");
+    code = taoskViewEncryptedConfig();
+    if (code == 0) {
+      printf("\n");  // Extra newline after content
+    } else {
+      fprintf(stderr, "Error: Failed to view config file: %s\n", tstrerror(code));
+    }
+  } else if (g_args.generateKeys) {
     printf("Generating encryption keys...\n");
     code = taoskGenerateKeys();
     if (code == 0) {
@@ -321,7 +345,7 @@ int main(int argc, char *argv[]) {
       fprintf(stderr, "Error: Failed to restore keys: %s\n", tstrerror(code));
     }
   }
-  
+
   taosCloseLog();
   return code == 0 ? 0 : -1;
 }
