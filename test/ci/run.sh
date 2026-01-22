@@ -459,16 +459,7 @@ function run_thread() {
             local remote_unit_test_log_dir="${workdirs[index]}/${DEBUGPATH}/Testing/Temporary/"
             mkdir "$build_dir" >/dev/null
             if [ $? -eq 0 ]; then
-                if ! is_local_host "${hosts[index]}"; then
-                    cmd="$scpcmd:${remote_build_dir}/* ${build_dir}/"
-                    echo "$cmd"
-                    bash -c "$cmd" >/dev/null
-                    if [ -d "${remote_unit_test_log_dir}" ] && [ "$(ls -A "${remote_unit_test_log_dir}" 2>/dev/null)" ]; then
-                        cmd="$scpcmd:${remote_unit_test_log_dir}/* ${build_dir}/"
-                        echo "$cmd"
-                        bash -c "$cmd" >/dev/null
-                    fi
-                else
+                if is_local_host "${hosts[index]}"; then
                     cmd="cp -rf ${remote_build_dir}/* ${build_dir}/"
                     echo "$cmd"
                     bash -c "$cmd" >/dev/null
