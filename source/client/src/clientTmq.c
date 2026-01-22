@@ -108,6 +108,7 @@ struct tmq_conf_t {
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
   int8_t         enableBatchMeta;
+  char*          token;
 };
 
 struct tmq_t {
@@ -153,6 +154,9 @@ struct tmq_t {
   STaosQueue* mqueue;        // queue of rsp
   STaosQueue* delayedTask;  // delayed task queue for heartbeat and auto commit
   tsem2_t     rspSem;
+
+  // token
+  int32_t tokenCode;
 };
 
 typedef struct {
@@ -329,6 +333,9 @@ void tmq_conf_destroy(tmq_conf_t* conf) {
     if (conf->pass) {
       taosMemoryFree(conf->pass);
     }
+    if (conf->token) {
+      taosMemoryFree(conf->token);
+    }
     taosMemoryFree(conf);
   }
 }
@@ -471,6 +478,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       tqErrorC("tmq_conf_set out of memory:%d", terrno);
       return TMQ_CONF_INVALID;
     }
+    taosMemoryFree(conf->ip);
     conf->ip = tmp;
     return TMQ_CONF_OK;
   }
@@ -481,6 +489,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       tqErrorC("tmq_conf_set out of memory:%d", terrno);
       return TMQ_CONF_INVALID;
     }
+    taosMemoryFree(conf->user);
     conf->user = tmp;
     return TMQ_CONF_OK;
   }
@@ -491,7 +500,19 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       tqErrorC("tmq_conf_set out of memory:%d", terrno);
       return TMQ_CONF_INVALID;
     }
+    taosMemoryFree(conf->pass);
     conf->pass = tmp;
+    return TMQ_CONF_OK;
+  }
+
+  if (strcasecmp(key, "td.connect.token") == 0) {
+    void *tmp = taosStrdup(value);
+    if (tmp == NULL) {
+      tqErrorC("tmq_conf_set out of memory:%d", terrno);
+      return TMQ_CONF_INVALID;
+    }
+    taosMemoryFree(conf->token);
+    conf->token = tmp;
     return TMQ_CONF_OK;
   }
 
@@ -1054,11 +1075,19 @@ void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
 }
 
 int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
-  if (pMsg == NULL) {
+  if (pMsg == NULL || param == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (param == NULL || code != 0){
+  int64_t refId = (int64_t)param;
+  tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
+
+  if (tmq == NULL) {
+    goto END;
+  }
+
+  atomic_store_32(&tmq->tokenCode, code);
+  if (code != 0){
     goto END;
   }
 
@@ -1068,38 +1097,39 @@ int32_t tmqHbCb(void* param, SDataBuf* pMsg, int32_t code) {
     goto END;
   }
 
-  int64_t refId = (int64_t)param;
-  tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
-  if (tmq != NULL) {
-    taosWLockLatch(&tmq->lock);
-    for (int32_t i = 0; i < taosArrayGetSize(rsp.topicPrivileges); i++) {
-      STopicPrivilege* privilege = taosArrayGet(rsp.topicPrivileges, i);
-      if (privilege == NULL) {
-        continue;
-      }
-      int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
-      for (int32_t j = 0; j < topicNumCur; j++) {
-        SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, j);
-        if (pTopicCur && strcmp(pTopicCur->topicName, privilege->topic) == 0 && pTopicCur->noPrivilege != privilege->noPrivilege) {
-          tqInfoC("consumer:0x%" PRIx64 ", update privilege:%s, topic:%s", tmq->consumerId, privilege->noPrivilege ? "false" : "true", privilege->topic);
-          pTopicCur->noPrivilege = privilege->noPrivilege;
-        }
-      }
+  taosWLockLatch(&tmq->lock);
+  for (int32_t i = 0; i < taosArrayGetSize(rsp.topicPrivileges); i++) {
+    STopicPrivilege* privilege = taosArrayGet(rsp.topicPrivileges, i);
+    if (privilege == NULL) {
+      continue;
     }
-    taosWUnLockLatch(&tmq->lock);
-    code = taosReleaseRef(tmqMgmt.rsetId, refId);
-    if (code != 0){
-      tqErrorC("failed to release ref:%"PRId64 ", code:%d", refId, code);
+    int32_t topicNumCur = taosArrayGetSize(tmq->clientTopics);
+    for (int32_t j = 0; j < topicNumCur; j++) {
+      SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, j);
+      if (pTopicCur && strcmp(pTopicCur->topicName, privilege->topic) == 0 && pTopicCur->noPrivilege != privilege->noPrivilege) {
+        tqInfoC("consumer:0x%" PRIx64 ", update privilege:%s, topic:%s", tmq->consumerId, privilege->noPrivilege ? "false" : "true", privilege->topic);
+        pTopicCur->noPrivilege = privilege->noPrivilege;
+      }
     }
   }
+  taosWUnLockLatch(&tmq->lock);
 
   tqClientDebugFlag = rsp.debugFlag;
 
   tDestroySMqHbRsp(&rsp);
 
-  END:
+END:
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
+  if (tmq != NULL) {
+    int32_t ret = taosReleaseRef(tmqMgmt.rsetId, refId);
+    if (ret != 0){
+      tqErrorC("failed to release ref:%"PRId64 ", code:%d", refId, ret);
+    }
+  }
+  if (code != 0){
+    tqErrorC("failed to process heartbeat, refId:%"PRId64 ", code:%d", refId, code);
+  }
   return code;
 }
 
@@ -1837,15 +1867,25 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
     goto _failed;
   }
 
-  // init connection
-  code = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__TMQ, &pTmq->pTscObj);
-  if (code) {
-    terrno = code;
-    tqErrorC("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
-    SET_ERROR_MSG_TMQ("init tscObj failed")
-    goto _failed;
+  if (conf->token != NULL) {
+    code = taos_connect_by_auth(conf->ip, NULL, conf->token, NULL, NULL, conf->port, CONN_TYPE__TMQ, &pTmq->pTscObj);
+    if (code) {
+      terrno = code;
+      tqErrorC("consumer:0x%" PRIx64 " setup tscObj failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
+      SET_ERROR_MSG_TMQ("init tscObj with token failed")
+      goto _failed;
+    }
+  } else {
+    // init connection
+    code = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__TMQ, &pTmq->pTscObj);
+    if (code) {
+      terrno = code;
+      tqErrorC("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
+      SET_ERROR_MSG_TMQ("init tscObj failed")
+      goto _failed;
+    }
   }
-
+  
   pTmq->refId = taosAddRef(tmqMgmt.rsetId, pTmq);
   if (pTmq->refId < 0) {
     SET_ERROR_MSG_TMQ("add tscObj ref failed")
@@ -2337,8 +2377,14 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
   if (tmq == NULL) {
     return TSDB_CODE_INVALID_MSG;
   }
-  int32_t code = 0;
   taosWLockLatch(&tmq->lock);
+
+  int32_t code = atomic_load_32(&tmq->tokenCode);
+  if (code == TSDB_CODE_MND_TOKEN_NOT_EXIST || code == TSDB_CODE_MND_TOKEN_DISABLED || code == TSDB_CODE_MND_TOKEN_EXPIRED){
+    goto end;
+  } else {
+    code = 0;
+  }
 
   if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__CLOSED){
     code = TSDB_CODE_MND_CONSUMER_NOT_EXIST;

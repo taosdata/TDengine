@@ -4,11 +4,11 @@ import os
 from new_test_framework.utils import tdLog, tdSql, tdCom
 import datetime
 
-class TestScalarSubQuery4a:
+class TestInSubQuery3a2:
     updatecfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
     clientCfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 131, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
     updatecfgDict["clientCfg"] = clientCfgDict
-    caseName = "test_scalar_sub_query4a"
+    caseName = "test_in_sub_query3a2"
     currentDir = os.path.dirname(os.path.abspath(__file__))
     mainIdx = 0
     secondIdx = 0
@@ -85,40 +85,36 @@ class TestScalarSubQuery4a:
         "select {scalarSql} a from {tableName} union all select {scalarSql} b from {tableName} order by a",
     ]
 
-    scalarSqls = [
+    inSqls = [
         "(select 1)",
         "(select f1 from {tableName})",
-        "(select f1 from {tableName} order by ts, f1 limit 1)",
-        "(select count(*) from {tableName})",
         "(select null from {tableName})",
         "(select * from {tableName})",
-        "(select 2 from {tableName})",
-        "(select avg(f1) from {tableName})",
-        "(select last(*) from {tableName})",
         "(select max(f1) from {tableName} partition by f1)",
         "(select a.ts from {tableName} a join {tableName} b on a.ts = b.ts)",
-        "(select sum(f1) from {tableName} interval(1d))",
-        "(select f1 from {tableName} union select f1 from {tableName})",
         "(select f1 from {tableName} union all select f1 from {tableName})",
+        "f1 in (select f1 from {tableName})",
+        "NULL in (select f1 from {tableName})",
+        "f1 in (select null from {tableName})",
     ]
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_scalar_sub_query4a(self):
-        """scalar sub query test case
+    def test_in_sub_query3a2(self):
+        """in sub query test case
         
         1. Prepare data.
-        2. Explain execute various nested queries with different kind of scalar sub queries.
+        2. Explain analyze execute various nested queries with different kind of in sub queries.
 
-        Since: v3.4.0.0
+        Since: v3.4.1.0
 
         Labels: common,ci
 
         Jira: None
 
         History:
-            - 2025-12-15 dapan Created
+            - 2025-01-15 dapan Created
 
         """
 
@@ -171,21 +167,19 @@ class TestScalarSubQuery4a:
     def execCase(self):
         tdLog.info(f"execCase begin")
 
-        runnedCaseNum = 0
-
         self.openSqlTmpFile()
 
         for self.tableIdx in range(len(self.tableNames)):
             for self.mainIdx in range(len(self.subSqls)):
                 for self.secondIdx in range(len(self.subSqls)):
-                    for self.subIdx in range(len(self.scalarSqls)):
+                    for self.subIdx in range(len(self.inSqls)):
                         self.querySql = self.subSqls[self.mainIdx].replace("{scalarSql}", "(" + self.subSqls[self.secondIdx] + ")")
-                        self.querySql = self.querySql.replace("{scalarSql}", self.scalarSqls[self.subIdx])
+                        self.querySql = self.querySql.replace("{scalarSql}", self.inSqls[self.subIdx])
                         self.querySql = self.querySql.replace("{tableName}", self.tableNames[self.tableIdx])
                         #self.querySql = self.querySql.replace("{ntableName}", self.tableNames[self.ntableIdx])
 
-                        self.generated_queries_file.write("explain " + self.querySql.strip() + "\G;\n")
-                        self.generated_queries_file.write("explain verbose true " + self.querySql.strip() + "\G;\n")
+                        #self.generated_queries_file.write("explain " + self.querySql.strip() + "\G;\n")
+                        #self.generated_queries_file.write("explain verbose true " + self.querySql.strip() + "\G;\n")
                         #self.generated_queries_file.write("explain analyze " + self.querySql.strip() + "\G\n")
                         self.generated_queries_file.write("explain analyze verbose true " + self.querySql.strip() + "\G;\n")
                         self.generated_queries_file.flush()

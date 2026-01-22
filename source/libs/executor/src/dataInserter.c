@@ -939,7 +939,7 @@ int32_t buildSubmitReqFromStbBlock(SDataInserterHandle* pInserter, SHashObj* pHa
       goto _end;
     }
     void*   data = colDataGetVarData(tbname, j);
-    SValue  sv = (SValue){TSDB_DATA_TYPE_VARCHAR, .nData = varDataLen(data), .pData = varDataVal(data)};
+    SValue  sv = (SValue){.type = TSDB_DATA_TYPE_VARCHAR, .nData = varDataLen(data), .pData = varDataVal(data)};
     SColVal cv = COL_VAL_VALUE(0, sv);
 
     char tbFullName[TSDB_TABLE_FNAME_LEN];
@@ -1298,7 +1298,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
         goto _end;
       }
       void*   data = colDataGetVarData(tbname, j);
-      SValue  sv = (SValue){TSDB_DATA_TYPE_VARCHAR, .nData = varDataLen(data),
+      SValue  sv = (SValue){.type = TSDB_DATA_TYPE_VARCHAR, .nData = varDataLen(data),
                             .pData = varDataVal(data)};  // address copy, no value
       SColVal cv = COL_VAL_VALUE(0, sv);
 

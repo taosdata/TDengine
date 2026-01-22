@@ -525,6 +525,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_REMOTE_VALUE:
       code = makeNode(type, sizeof(SRemoteValueNode), &pNode);
       break;
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      code = makeNode(type, sizeof(SRemoteValueListNode), &pNode);
+      break;
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
       break;
@@ -1311,6 +1314,15 @@ void nodesDestroyNode(SNode* pNode) {
       }
       break;
     }
+    case QUERY_NODE_REMOTE_VALUE_LIST: {
+      SRemoteValueListNode* pRemote = (SRemoteValueListNode*)pNode;
+      destroyExprNode((SExprNode*)pNode);
+      if (pRemote->hashAllocated) {
+        taosHashCleanup(pRemote->pHashFilter);
+        taosHashCleanup(pRemote->pHashFilterOthers);
+      }
+      break;
+    }
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOp = (SOperatorNode*)pNode;
       destroyExprNode((SExprNode*)pNode);
@@ -1999,6 +2011,7 @@ void nodesDestroyNode(SNode* pNode) {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
+      nodesDestroyNode(pStmt->pWhere);
       break;
     }
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT: {
@@ -2599,6 +2612,12 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT: {
       SRebalanceXnodeJobWhereStmt* pStmt = (SRebalanceXnodeJobWhereStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->pWhere);
+      break;
+    }
+    case QUERY_NODE_DROP_XNODE_JOB_STMT: {
+      SDropXnodeJobStmt* pStmt = (SDropXnodeJobStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->options);
       nodesDestroyNode((SNode*)pStmt->pWhere);
       break;
     }
@@ -4162,3 +4181,25 @@ char* nodesGetSubSql(SNode* pNode) {
 
   return NULL;
 }
+
+void nodesGetSubQType(SNode* pNode, int32_t* pType) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      *pType = pSelect->subQType;
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pNode;
+      *pType = pSet->subQType;
+      break;
+    }
+    default:
+      *pType = E_SUB_QUERY_ERROR;
+      break;
+  }
+
+  return;
+}
+
+

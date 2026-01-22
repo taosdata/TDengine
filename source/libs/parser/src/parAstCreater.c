@@ -1148,6 +1148,18 @@ _err:
   return NULL;
 }
 
+SNode* createDurationPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) {
+  SNode* pNode = createPlaceholderValueNode(pCxt, pLiteral);
+  if (pNode != NULL) {
+    SValueNode* val = (SValueNode*)pNode;
+    val->flag |= VALUE_FLAG_IS_DURATION;
+    val->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  }
+  return pNode;
+}
+
 static int32_t addParamToLogicConditionNode(SLogicConditionNode* pCond, SNode* pParam) {
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam) && pCond->condType == ((SLogicConditionNode*)pParam)->condType &&
       ((SLogicConditionNode*)pParam)->condType != LOGIC_COND_TYPE_NOT) {
@@ -1218,6 +1230,11 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
     pVal->literal = pNewLiteral;
     pVal->node.resType.type = getMinusDataType(pVal->node.resType.type);
     return pLeft;
+  }
+  if ((OP_TYPE_IN == type || OP_TYPE_NOT_IN == type) && pRight) {
+    SExprNode* pExpr = (SExprNode*)pRight;
+    pExpr->asList = true;
+    parserDebug("operator IN/NOT IN created, rightType:%d,%p", nodeType(pRight), pRight);
   }
   if (pLeft && QUERY_NODE_VALUE == nodeType(pLeft)) {
     SValueNode* pVal = (SValueNode*)pLeft;
@@ -3658,26 +3675,40 @@ _err:
   return NULL;
 }
 
-SNode* createShowXNodeResourcesStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType) {
+SNode* createShowXnodeStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pWhere) {
   CHECK_PARSER_STATUS(pCxt);
   SShowStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->pWhere = pWhere;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createShowXNodeResourcesWhereStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowStmt* pStmt = NULL;
+  ENodeType  type;
   switch (resourceType) {
     case XNODE_TASK:
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_TASKS_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
-      break;
-    case XNODE_AGENT:
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_AGENTS_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
+      type = QUERY_NODE_SHOW_XNODE_TASKS_STMT;
       break;
     case XNODE_JOB:
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_JOBS_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
+      type = QUERY_NODE_SHOW_XNODE_JOBS_STMT;
+      break;
+    case XNODE_AGENT:
+      type = QUERY_NODE_SHOW_XNODE_AGENTS_STMT;
       break;
     default:
-      pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "Xnode not support show xnode resource type");
       goto _err;
   }
+
+  pStmt = (SShowStmt*)createShowXnodeStmtWithCond(pCxt, type, pWhere);
+  CHECK_MAKE_NODE(pStmt);
+
   return (SNode*)pStmt;
 _err:
   return NULL;
@@ -6026,46 +6057,23 @@ _err:
   }
   return NULL;
 }
-SNode* dropXnodeResourceOn(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResource, SNode* pWhere) {
-  char resourceId[TSDB_XNODE_RESOURCE_ID_LEN + 1];
-  SShowStmt* pStmt = NULL;
-
-  CHECK_PARSER_STATUS(pCxt);
-  if (pResource == NULL || pResource->n <= 0) {
-    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "xnode resource name should not be NULL or empty");
-    goto _err;
-  }
-  if (pResource->n > TSDB_XNODE_RESOURCE_NAME_LEN) {
-    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "Invalid xnode resource name length: %d, max length: %d", pResource->n,
-                                            TSDB_XNODE_RESOURCE_NAME_LEN);
-    goto _err;
-  }
-  switch (resourceType) {
-    case XNODE_TASK:
-      // pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_TASK_STMT, (SNode**)&pStmt);
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_TASKS_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
-      break;
-    case XNODE_AGENT:
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_AGENT_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
-      break;
-    case XNODE_JOB:
-      pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_JOBS_STMT, (SNode**)&pStmt);
-      CHECK_MAKE_NODE(pStmt);
-      break;
-    default:
-      break;
-  }
-  return (SNode*)pStmt;
-_err:
-  return NULL;
-}
-// SNode* dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere) {
-//   CHECK_PARSER_STATUS(pCxt);
+// SNode* dropXnodeResourceOn(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResource, SNode*
+// pWhere) {
+//   char resourceId[TSDB_XNODE_RESOURCE_ID_LEN + 1];
 //   SShowStmt* pStmt = NULL;
+
+//   CHECK_PARSER_STATUS(pCxt);
+//   if (pResource == NULL || pResource->n <= 0) {
+//     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+//                                             "xnode resource name should not be NULL or empty");
+//     goto _err;
+//   }
+//   if (pResource->n > TSDB_XNODE_RESOURCE_NAME_LEN) {
+//     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+//                                             "Invalid xnode resource name length: %d, max length: %d", pResource->n,
+//                                             TSDB_XNODE_RESOURCE_NAME_LEN);
+//     goto _err;
+//   }
 //   switch (resourceType) {
 //     case XNODE_TASK:
 //       // pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_TASK_STMT, (SNode**)&pStmt);
@@ -6073,8 +6081,7 @@ _err:
 //       CHECK_MAKE_NODE(pStmt);
 //       break;
 //     case XNODE_AGENT:
-//       // pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_AGENT_STMT, (SNode**)&pStmt);
-//       pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_AGENTS_STMT, (SNode**)&pStmt);
+//       pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_AGENT_STMT, (SNode**)&pStmt);
 //       CHECK_MAKE_NODE(pStmt);
 //       break;
 //     case XNODE_JOB:
@@ -6088,6 +6095,29 @@ _err:
 // _err:
 //   return NULL;
 // }
+
+SNode* dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDropXnodeJobStmt* pStmt = NULL;
+  switch (resourceType) {
+    case XNODE_TASK:
+    case XNODE_AGENT:
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "Xnode only drop xnode job where ... support");
+      break;
+    case XNODE_JOB:
+      pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_JOB_STMT, (SNode**)&pStmt);
+      CHECK_MAKE_NODE(pStmt);
+      pStmt->pWhere = pWhere;
+      break;
+    default:
+      break;
+  }
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createDefaultXnodeTaskOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   SXnodeTaskOptions* pOptions = NULL;

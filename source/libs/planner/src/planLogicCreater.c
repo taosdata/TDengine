@@ -47,10 +47,25 @@ typedef struct SRewriteExprCxt {
   SNodeList* pExprs;
   bool*      pOutputs;
   bool       isPartitionBy;
-  SNode*     pOrderByFirstExpr;
+  SNode*     pOrderByFirstExpr;  // May be invalid after rewriting, use getOrderByFirstExpr() instead
+  SSelectStmt* pSelect;  // Used to get the current first order by expr after rewriting
 } SRewriteExprCxt;
 
-static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartitionBy, SNode* pOrderByFirstExpr) {
+// Helper function to safely get the first order by expression after rewriting
+static SNode* getOrderByFirstExpr(SRewriteExprCxt* pCxt) {
+  if (pCxt->pSelect && pCxt->pSelect->pOrderByList && pCxt->pSelect->pOrderByList->length > 0) {
+    SOrderByExprNode* pOrderByExpr = (SOrderByExprNode*)nodesListGetNode(pCxt->pSelect->pOrderByList, 0);
+    if (pOrderByExpr && pOrderByExpr->pExpr) {
+      return pOrderByExpr->pExpr;
+    }
+  }
+  return NULL;
+}
+
+static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartitionBy, SRewriteExprCxt* pCxt) {
+  // Get the current first order by expression (may have been rewritten)
+  SNode* pOrderByFirstExpr = getOrderByFirstExpr(pCxt);
+  
   switch (pFunc->funcType) {
     case FUNCTION_TYPE_TBNAME:
       pCol->colType = COLUMN_TYPE_TBNAME;
@@ -63,18 +78,10 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_WSTART:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->colType = COLUMN_TYPE_WINDOW_START;
-      if (!isPartitionBy || (pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
-                             isPrimaryKeyImpl(pOrderByFirstExpr))) {
-        pCol->isPrimTs = true;
-      }
       break;
     case FUNCTION_TYPE_WEND:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->colType = COLUMN_TYPE_WINDOW_END;
-      if (!isPartitionBy || (pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
-                             isPrimaryKeyImpl(pOrderByFirstExpr))) {
-        pCol->isPrimTs = true;
-      }
       break;
     case FUNCTION_TYPE_WDURATION:
       pCol->colType = COLUMN_TYPE_WINDOW_DURATION;
@@ -86,12 +93,13 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
       pCol->colType = COLUMN_TYPE_IS_WINDOW_FILLED;
       break;
     default:
-      // if ((pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
-      //      isPrimaryKeyImpl(pOrderByFirstExpr))) {
-      //   pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-      //   pCol->isPrimTs = true;
-      // }
       break;
+  }
+  if (fmIsKeepOrderFunc(pFunc) && isPrimaryKeyImpl((SNode*)pFunc)) {
+    if (!isPartitionBy || (pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
+                           isPrimaryKeyImpl(pOrderByFirstExpr))) {
+      pCol->isPrimTs = true;
+    }
   }
 }
 
@@ -139,7 +147,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           pCol->node.projIdx = ((SExprNode*)(*pNode))->projIdx;
           pCol->node.relatedTo = ((SExprNode*)(*pNode))->relatedTo;
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
-            setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy, pCxt->pOrderByFirstExpr);
+            setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy, pCxt);
           }
           nodesDestroyNode(*pNode);
           *pNode = (SNode*)pCol;
@@ -186,7 +194,8 @@ static int32_t rewriteExprForSelect(SNode* pExpr, SSelectStmt* pSelect, ESqlClau
                          .pExprs = NULL,
                          .pOutputs = NULL,
                          .isPartitionBy = isPartitionBy,
-                         .pOrderByFirstExpr = pOrderByFirstExpr};
+                         .pOrderByFirstExpr = pOrderByFirstExpr,
+                         .pSelect = pSelect};
   cxt.errCode = nodesListMakeAppend(&cxt.pExprs, pExpr);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
     nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);
@@ -228,7 +237,8 @@ static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ES
                          .pExprs = pExprs,
                          .pOutputs = NULL,
                          .isPartitionBy = isPartitionBy,
-                         .pOrderByFirstExpr = pOrderByFirstExpr};
+                         .pOrderByFirstExpr = pOrderByFirstExpr,
+                         .pSelect = pSelect};
   if (NULL != pRewriteExprs) {
     cxt.pOutputs = taosMemoryCalloc(LIST_LENGTH(pExprs), sizeof(bool));
     if (NULL == cxt.pOutputs) {
@@ -249,7 +259,8 @@ static int32_t rewriteExpr(SNodeList* pExprs, SNode** pTarget) {
                          .pExprs = pExprs,
                          .pOutputs = NULL,
                          .isPartitionBy = false,
-                         .pOrderByFirstExpr = NULL};
+                         .pOrderByFirstExpr = NULL,
+                         .pSelect = NULL};
   nodesRewriteExpr(pTarget, doRewriteExpr, &cxt);
   return cxt.errCode;
 }
@@ -260,7 +271,8 @@ static int32_t rewriteExprs(SNodeList* pExprs, SNodeList* pTarget) {
                          .pExprs = pExprs,
                          .pOutputs = NULL,
                          .isPartitionBy = false,
-                         .pOrderByFirstExpr = NULL};
+                         .pOrderByFirstExpr = NULL,
+                         .pSelect = NULL};
   nodesRewriteExprs(pTarget, doRewriteExpr, &cxt);
   return cxt.errCode;
 }
@@ -1922,7 +1934,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
   pWindow->windowAlgo = INTERVAL_ALGO_HASH;
   pWindow->node.groupAction = (NULL != pInterval->pFill ? GROUP_ACTION_KEEP : getGroupAction(pCxt, pSelect));
-  pWindow->node.requireDataOrder = (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_IN_BLOCK);
+  pWindow->node.requireDataOrder = (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_NONE);
   pWindow->node.resultDataOrder = getRequireDataOrder(true, pSelect);
   pWindow->pTspk = NULL;
   code = nodesCloneNode(pInterval->pCol, &pWindow->pTspk);
@@ -2540,7 +2552,7 @@ static bool isPrimaryKeySort(SNodeList* pOrderByList) {
 }
 
 static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (NULL == pSelect->pOrderByList) {
+  if (NULL == pSelect->pOrderByList || pSelect->pOrderByList->length == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2553,11 +2565,11 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pSort->groupSort = pSelect->groupSort;
   pSort->node.groupAction = pSort->groupSort ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
   pSort->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+
   pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
                                     ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
                                     : DATA_ORDER_LEVEL_NONE;
-  if (pCxt->pPlanCxt->streamCalcQuery &&
-      nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
+  if (pCxt->pPlanCxt->streamCalcQuery && nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
       ((SRealTableNode*)pSelect->pFromTable)->placeholderType == SP_PARTITION_ROWS) {
     pSort->skipPKSortOpt = true;
   }
@@ -3277,7 +3289,7 @@ int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
     return code;
   }
   pSubplan->id.queryId = pCxt->queryId;
-  pSubplan->id.groupId = 1;
+  pSubplan->id.groupId = ++pCxt->groupId;
   pSubplan->id.subplanId = 1;
 
   code = createQueryLogicNode(&cxt, pCxt->pAstRoot, &pSubplan->pNode);
