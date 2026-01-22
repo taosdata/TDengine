@@ -18,6 +18,8 @@
 #include "builtins.h"
 #include "builtinsimpl.h"
 #include "functionMgtInt.h"
+#include "nodes.h"
+#include "querynodes.h"
 #include "taos.h"
 #include "taoserror.h"
 #include "thash.h"
@@ -232,7 +234,24 @@ bool fmIsClientPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(
 
 bool fmIsMultiRowsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_MULTI_ROWS_FUNC); }
 
-bool fmIsKeepOrderFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_KEEP_ORDER_FUNC); }
+static bool fmIsKeepOrderFuncId(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_KEEP_ORDER_FUNC); }
+
+bool fmIsKeepOrderFunc(SFunctionNode* pFunc) {
+  if (pFunc->funcType == FUNCTION_TYPE_TOP || pFunc->funcType == FUNCTION_TYPE_BOTTOM ||
+      pFunc->funcType == FUNCTION_TYPE_SAMPLE) {
+    if (pFunc->pParameterList != NULL && pFunc->pParameterList->length >= 2) {
+      SNode* pParam = nodesListGetNode(pFunc->pParameterList, 1);
+      if (pParam != NULL && nodeType(pParam) == QUERY_NODE_VALUE) {
+        SValueNode* pConst = (SValueNode*)pParam;
+        if (pConst->datum.i == 1) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+  return fmIsKeepOrderFuncId(pFunc->funcId);
+}
 
 bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
 

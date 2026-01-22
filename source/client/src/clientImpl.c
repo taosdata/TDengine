@@ -1472,8 +1472,8 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
     }
     if (code) {
-      tscError("req:0x%" PRIx64 ", failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
-               pRequest->requestId);
+      tscError("req:0x%" PRIx64 " requestId:0x%" PRIx64 ", failed to create query plan, code:%s msg:%s", pRequest->self,
+               pRequest->requestId, tstrerror(code), cxt.pMsg);
     } else {
       pRequest->body.subplanNum = pDag->numOfSubplans;
       TSWAP(pRequest->pPostPlan, pDag->pPostPlan);
