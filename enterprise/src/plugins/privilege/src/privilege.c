@@ -882,8 +882,8 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->superAuth = pUser->superUser;
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
-  pRsp->whiteListVer = pMnode->ipWhiteVer;
-  pRsp->timeWhiteListVer = pMnode->timeWhiteVer;
+  pRsp->whiteListVer = pUser->ipWhiteListVer;
+  pRsp->timeWhiteListVer = pUser->timeWhiteListVer;
   pRsp->enable = pUser->enable;
   pRsp->sysInfo = pUser->sysInfo;
   pRsp->sessCfg = (SUserSessCfg){.sessPerUser = pUser->sessionPerUser,
