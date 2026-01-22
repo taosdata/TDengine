@@ -107,6 +107,8 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_SCALAR_FIELD(asParam);
   COPY_SCALAR_FIELD(asPosition);
   COPY_SCALAR_FIELD(joinSrc);
+  COPY_SCALAR_FIELD(asList);
+  COPY_SCALAR_FIELD(hasNull);
   COPY_SCALAR_FIELD(projIdx);
   COPY_SCALAR_FIELD(relatedTo);
   COPY_SCALAR_FIELD(bindExprID);
@@ -437,7 +439,7 @@ static int32_t intervalWindowNodeCopy(const SIntervalWindowNode* pSrc, SInterval
 }
 
 static int32_t nodeListNodeCopy(const SNodeListNode* pSrc, SNodeListNode* pDst) {
-  COPY_OBJECT_FIELD(node.resType, sizeof(SDataType));
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   CLONE_NODE_LIST_FIELD(pNodeList);
   return TSDB_CODE_SUCCESS;
 }
@@ -510,6 +512,18 @@ static int32_t timeRangeNodeCopy(const STimeRangeNode* pSrc, STimeRangeNode* pDs
 static int32_t remoteValueCopy(const SRemoteValueNode* pSrc, SRemoteValueNode* pDst) {
   COPY_BASE_OBJECT_FIELD(val, valueNodeCopy);
   //COPY_SCALAR_FIELD(valSet);
+  COPY_SCALAR_FIELD(subQIdx);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t remoteValueListCopy(const SRemoteValueListNode* pSrc, SRemoteValueListNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
+  COPY_SCALAR_FIELD(flag);
+  COPY_SCALAR_FIELD(targetType);
+  COPY_SCALAR_FIELD(targetTypeMod);
+  COPY_SCALAR_FIELD(hasValue);
+  COPY_SCALAR_FIELD(filterValueType);
+  COPY_SCALAR_FIELD(filterValueTypeMod);
   COPY_SCALAR_FIELD(subQIdx);
   return TSDB_CODE_SUCCESS;
 }
@@ -1070,6 +1084,7 @@ static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstre
 }
 
 static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_SCALAR_FIELD(isDistinct);
   CLONE_NODE_LIST_FIELD(pProjectionList);
   CLONE_NODE_FIELD(pFromTable);
@@ -1119,6 +1134,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
 }
 
 static int32_t setOperatorCopy(const SSetOperator* pSrc, SSetOperator* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_SCALAR_FIELD(opType);
   CLONE_NODE_LIST_FIELD(pProjectionList);
   CLONE_NODE_FIELD(pLeft);
@@ -1243,6 +1259,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_REMOTE_VALUE:
       code = remoteValueCopy((const SRemoteValueNode*)pNode, (SRemoteValueNode*)pDst);
+      break;
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      code = remoteValueListCopy((const SRemoteValueListNode*)pNode, (SRemoteValueListNode*)pDst);
       break;
     case QUERY_NODE_SET_OPERATOR:
       code = setOperatorCopy((const SSetOperator*)pNode, (SSetOperator*)pDst);

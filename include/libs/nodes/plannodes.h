@@ -729,7 +729,8 @@ typedef struct SExchangePhysiNode {
   // groups are consecutive
   int32_t    srcStartGroupId;
   int32_t    srcEndGroupId;
-  bool       singleChannel;
+  bool       grpSingleChannel;
+  bool       singleSrc;
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
   bool       seqRecvData;
   bool       dynTbname;
@@ -932,15 +933,15 @@ typedef struct SExplainInfo {
 } SExplainInfo;
 
 typedef struct SQueryPlan {
-  ENodeType    type;
-  bool         isScalarQ;
-  uint64_t     queryId;
-  int32_t      numOfSubplans;
-  SNodeList*   pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
-  SNodeList*   pChildren;  // Element is SQueryPlan*
-  char*        subSql;
-  SExplainInfo explainInfo;
-  void*        pPostPlan;
+  ENodeType     type;
+  ESubQueryType subQType;
+  uint64_t      queryId;
+  int32_t       numOfSubplans;
+  SNodeList*    pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
+  SNodeList*    pChildren;  // Element is SQueryPlan*
+  char*         subSql;
+  SExplainInfo  explainInfo;
+  void*         pPostPlan;
 } SQueryPlan;
 
 const char* dataOrderStr(EDataOrderLevel order);

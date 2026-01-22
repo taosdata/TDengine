@@ -320,6 +320,7 @@ class TestScalarSubQuery2:
             "INSERT INTO tb3 VALUES ('2025-12-02 00:00:00.000', 5, 32)",
             "INSERT INTO tb3 VALUES ('2025-12-03 00:00:00.000', 6, 33)",
             "INSERT INTO tba VALUES ('2025-12-01 00:00:00.000', 0)",
+            "INSERT INTO tbb VALUES ('2025-12-02 00:00:00.000', 1)",
             "create view v1 as select f1 from tb1",
             "create view v2 as select f1 from st1 where f1 = (select f1 from st1 order by ts, f1 limit 1)",
             "create view v3 as select f1 from st1 where f1 = (select f1 from st1 order by ts, f1 limit 1 offset 1)",

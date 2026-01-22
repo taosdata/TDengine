@@ -1827,14 +1827,13 @@ TEST(columnTest, json_column_logic_op) {
   (void)printf("--------------------json null---null {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
 
   key = "k3";  // (null is true) return NULL, so use DBL_MAX represent NULL
-  bool eRes2[len + len1] = {false, false, false, false, false, false, true, false, false, false, false, false, false};
+  double eRes2[len + len1] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, 1, 0, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
   for (int i = 0; i < len; i++) {
     code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes2[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
-  bool eRes_2[len0] = {false, false, false, false, false, false};
   for (int i = 0; i < len0; i++) {
-    code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_2[i], op[i], true);
+    code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes2[i], op[i], true);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
@@ -1977,14 +1976,13 @@ TEST(columnTest, json_column_logic_op) {
   (void)printf("---------------------json not exist-- NULL {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
 
   key = "k10";  // (NULL is true) return NULL, so use DBL_MAX represent NULL
-  bool eRes9[len + len1] = {false, false, false, false, false, false, true, false, false, false, false, false, false};
+  double eRes9[len + len1] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, 1, 0, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
   for (int i = 0; i < len; i++) {
     code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes9[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
-  bool eRes_9[len0] = {false, false, false, false, false, false};
   for (int i = 0; i < len0; i++) {
-    code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_9[i], op[i], true);
+    code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes9[i], op[i], true);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 

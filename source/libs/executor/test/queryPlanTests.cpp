@@ -2290,7 +2290,7 @@ SNode* qptCreateExchangePhysiNode(int32_t nodeType) {
 
   pExc->srcStartGroupId = taosRand();
   pExc->srcEndGroupId = taosRand();
-  pExc->singleChannel = QPT_RAND_BOOL_V;
+  pExc->grpSingleChannel = QPT_RAND_BOOL_V;
 
   qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
   qptMakeDownstreamSrcList(&pExc->pSrcEndPoints);

@@ -62,8 +62,8 @@ class TestScalarSubQuery1:
         # where
         "select f1 from {tableName} where f1 != {scalarSql} order by f1",
         "select f1, {scalarSql} from {tableName} where f1 = {scalarSql} order by f1",
-        "select f1 from {tableName} where f1 in ({scalarSql})",
-        "select f1 from {tableName} where f1 not in ({scalarSql})",
+        "select f1 from {tableName} where f1 in ({scalarSql}) order by f1",
+        "select f1 from {tableName} where f1 not in ({scalarSql}) order by f1",
         "select {scalarSql} from {tableName} where {scalarSql} is null order by f1",
         "select {scalarSql} from {tableName} where {scalarSql} is not null order by f1",
         "select f1, cast({scalarSql} as varchar) from {tableName} where abs({scalarSql}) > 0 order by f1",

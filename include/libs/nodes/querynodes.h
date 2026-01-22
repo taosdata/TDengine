@@ -58,6 +58,8 @@ typedef struct SExprNode {
   bool      asParam;
   bool      asPosition;
   bool      joinSrc;
+  bool      asList;
+  bool      hasNull;
   //bool      constValue;
   int32_t   projIdx;
   int32_t   relatedTo;
@@ -159,6 +161,24 @@ typedef struct SRemoteValueNode {
 //  bool       valSet;
   int32_t    subQIdx;
 } SRemoteValueNode;
+
+#define VALUELIST_FLAG_VAL_UNSET      (1 << 0)
+
+
+typedef struct SRemoteValueListNode {
+  SExprNode  node;
+  int32_t    flag;
+  int32_t    targetType;
+  STypeMod   targetTypeMod;
+  bool       hasValue;
+  bool       hasNull;
+  bool       hashAllocated;
+  SHashObj  *pHashFilter;
+  SHashObj  *pHashFilterOthers;
+  int32_t    filterValueType;
+  STypeMod   filterValueTypeMod;
+  int32_t    subQIdx;
+} SRemoteValueListNode;
 
 typedef struct SLeftValueNode {
   ENodeType type;
@@ -590,8 +610,9 @@ typedef struct SExtWinTimeWindow {
 
 
 typedef enum ESubQueryType {
+  E_SUB_QUERY_ERROR = 0,
   E_SUB_QUERY_SCALAR = 1,
-  E_SUB_QUERY_COW,
+  E_SUB_QUERY_COLUMN,
   E_SUB_QUERY_TABLE
 } ESubQueryType;
 
