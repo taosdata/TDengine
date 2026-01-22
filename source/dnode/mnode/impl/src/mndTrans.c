@@ -2767,7 +2767,7 @@ void mndTransPullup(SMnode *pMnode) {
   taosArrayDestroy(pArray);
 }
 
-static char *formatTimestamp(char *buf, int64_t val, int precision) {
+static char *formatTimestamp(char *buf, int32_t cap, int64_t val, int precision) {
   time_t tt;
   if (precision == TSDB_TIME_PRECISION_MICRO) {
     tt = (time_t)(val / 1000000);
@@ -2786,11 +2786,11 @@ static char *formatTimestamp(char *buf, int64_t val, int precision) {
   size_t pos = taosStrfTime(buf, 32, "%Y-%m-%d %H:%M:%S", &tm);
 
   if (precision == TSDB_TIME_PRECISION_MICRO) {
-    sprintf(buf + pos, ".%06d", (int)(val % 1000000));
+    tsnprintf(buf + pos, cap - (pos), ".%06d", (int)(val % 1000000));
   } else if (precision == TSDB_TIME_PRECISION_NANO) {
-    sprintf(buf + pos, ".%09d", (int)(val % 1000000000));
+    tsnprintf(buf + pos, cap - (pos), ".%09d", (int)(val % 1000000000));
   } else {
-    sprintf(buf + pos, ".%03d", (int)(val % 1000));
+    tsnprintf(buf + pos, cap - (pos), ".%03d", (int)(val % 1000));
   }
 
   return buf;
@@ -2818,10 +2818,10 @@ static void mndTransLogAction(STrans *pTrans) {
       STransAction *pAction = taosArrayGet(pTrans->redoActions, i);
       if (pAction->actionType == TRANS_ACTION_MSG) {
         char bufStart[40] = {0};
-        (void)formatTimestamp(bufStart, pAction->startTime, TSDB_TIME_PRECISION_MILLI);
+        (void)formatTimestamp(bufStart, sizeof(bufStart), pAction->startTime, TSDB_TIME_PRECISION_MILLI);
 
         char endStart[40] = {0};
-        (void)formatTimestamp(endStart, pAction->endTime, TSDB_TIME_PRECISION_MILLI);
+        (void)formatTimestamp(endStart, sizeof(endStart), pAction->endTime, TSDB_TIME_PRECISION_MILLI);
         len += snprintf(detail + len, sizeof(detail) - len,
                         "action:%d, %s:%d msgType:%s,"
                         "sent:%d, received:%d, startTime:%s, endTime:%s, ",
@@ -3041,9 +3041,12 @@ static void mndShowTransAction(SShowObj *pShow, SSDataBlock *pBlock, STransActio
     char detail[TSDB_TRANS_DETAIL_LEN] = {0};
     len = 0;
     char bufStart[40] = {0};
-    if (pAction->startTime > 0) (void)formatTimestamp(bufStart, pAction->startTime, TSDB_TIME_PRECISION_MILLI);
+    if (pAction->startTime > 0)
+      (void)formatTimestamp(bufStart, sizeof(bufStart), pAction->startTime, TSDB_TIME_PRECISION_MILLI);
     char bufEnd[40] = {0};
-    if (pAction->endTime > 0) (void)formatTimestamp(bufEnd, pAction->endTime, TSDB_TIME_PRECISION_MILLI);
+    if (pAction->endTime > 0)
+      (void)formatTimestamp(bufEnd, sizeof(bufEnd), pAction->endTime, TSDB_TIME_PRECISION_MILLI);
+
     len += snprintf(detail + len, sizeof(detail) - len, "startTime:%s, endTime:%s, ", bufStart, bufEnd);
     char detailVStr[TSDB_TRANS_DETAIL_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(detailVStr, detail, pShow->pMeta->pSchemas[cols].bytes);

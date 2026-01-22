@@ -470,7 +470,7 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
     SSlotIndex* pIndex = NULL;
     int32_t idx = 0;
     if (pCol->projRefIdx > 0) {
-      sprintf(name + strlen(name), "_%d", pCol->projRefIdx);
+      sprintf(name + strlen(name),  "_%d", pCol->projRefIdx);
       while (!pIndex && idx < LIST_LENGTH(pCxt->pChild)) {
         SHashObj *tmpHash =
             taosArrayGetP(pCxt->projIdxHashArray,

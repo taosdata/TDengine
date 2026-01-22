@@ -179,10 +179,10 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     return code;
   }
 
-  p += sprintf(p, "INSERT INTO ");
+  p += tsnprintf(p, maxSqlLen,  "INSERT INTO ");
   memcpy(p, t.z, t.n);
   p += t.n;
-  p += sprintf(p, " (");
+  p += tsnprintf(p, maxSqlLen - t.n,  " (");
   pSql += index;
 
   // SET
@@ -340,7 +340,7 @@ int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTab
     }
   }
 
-  p += sprintf(p, ") VALUES (");
+  p += tsnprintf(p, maxSqlLen - (p-newSql),  ") VALUES (");
   for (int32_t i = 0; i < columnCount; i++) {
     if (i > 0) {
       *p++ = ',';

@@ -1558,7 +1558,7 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
       STypeMod typeMod = extSchemaRow[i].typeMod;
       uint8_t prec = 0, scale = 0;
       decimalFromTypeMod(typeMod, &prec, &scale);
-      colTypeLen += sprintf(varDataVal(colTypeStr) + colTypeLen, "(%d,%d)", prec, scale);
+      colTypeLen += tsnprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE, "(%d,%d)", prec, scale); 
     }
     varDataSetLen(colTypeStr, colTypeLen);
     code = colDataSetVal(pColInfoData, numOfRows, (char*)colTypeStr, false);

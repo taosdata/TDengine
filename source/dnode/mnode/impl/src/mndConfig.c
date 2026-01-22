@@ -930,18 +930,18 @@ static int32_t mndHandleSyncTimeoutConfigs(STrans *pTrans, const char *srcName, 
   int32_t baseTimeout = syncTimeout - syncTimeout / SYNC_TIMEOUT_DIVISOR;
 
   // arbSetAssignedTimeoutMs = syncTimeout
-  sprintf(tmp, "%d", syncTimeout);
+  tsnprintf(tmp, sizeof(tmp), "%d", syncTimeout);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbSetAssignedTimeoutMs", tmp, lino), lino, _OVER);
 
   // arbHeartBeatIntervalMs = syncTimeout / 4
-  sprintf(tmp, "%d", syncTimeout / SYNC_TIMEOUT_DIVISOR);
+  tsnprintf(tmp, sizeof(tmp), "%d", syncTimeout / SYNC_TIMEOUT_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbHeartBeatIntervalMs", tmp, lino), lino, _OVER);
 
   // arbCheckSyncIntervalMs = syncTimeout / 4
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbCheckSyncIntervalMs", tmp, lino), lino, _OVER);
 
   // syncVnodeElectIntervalMs = (syncTimeout - syncTimeout / 4) / 2
-  sprintf(tmp, "%d", baseTimeout / SYNC_TIMEOUT_ELECT_DIVISOR);
+  tsnprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_ELECT_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "syncVnodeElectIntervalMs", tmp, lino), lino, _OVER);
 
   // syncMnodeElectIntervalMs = (syncTimeout - syncTimeout / 4) / 2
@@ -951,11 +951,11 @@ static int32_t mndHandleSyncTimeoutConfigs(STrans *pTrans, const char *srcName, 
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "statusTimeoutMs", tmp, lino), lino, _OVER);
 
   // statusSRTimeoutMs = (syncTimeout - syncTimeout / 4) / 4
-  sprintf(tmp, "%d", baseTimeout / SYNC_TIMEOUT_SR_DIVISOR);
+  tsnprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_SR_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "statusSRTimeoutMs", tmp, lino), lino, _OVER);
 
   // syncVnodeHeartbeatIntervalMs = (syncTimeout - syncTimeout / 4) / 8
-  sprintf(tmp, "%d", baseTimeout / SYNC_TIMEOUT_HB_DIVISOR);
+  tsnprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_HB_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "syncVnodeHeartbeatIntervalMs", tmp, lino), lino, _OVER);
 
   // syncMnodeHeartbeatIntervalMs = (syncTimeout - syncTimeout / 4) / 8

@@ -184,7 +184,7 @@ int taos_metric_formatter_load_sample(taos_metric_formatter_t *self, taos_metric
   if (r) return r;
 
   char buffer[50];
-  sprintf(buffer, format, sample->r_value);
+  tsnprintf(buffer, sizeof(buffer), format, sample->r_value);
   r = taos_string_builder_add_str(self->string_builder, buffer);
   if (r) return r;
 

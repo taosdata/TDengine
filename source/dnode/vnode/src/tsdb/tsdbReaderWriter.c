@@ -393,7 +393,7 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, uin
       nRead = toRead;
 
       char path[TSDB_FILENAME_LEN];
-      sprintf(path, "vnode%d/f%d/v%df%dver%" PRId64 ".%d.data", vid, pFD->fid, vid, pFD->fid, pFD->cid, chunk);
+      tsnprintf(path, sizeof(path), "vnode%d/f%d/v%df%dver%" PRId64 ".%d.data", vid, pFD->fid, vid, pFD->fid, pFD->cid, chunk);
 
       code = tssReadFileFromDefault(path, offset % szChunk, buf + n, &nRead);
       TSDB_CHECK_CODE(code, lino, _exit);

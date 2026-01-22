@@ -329,7 +329,7 @@ int32_t uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
     return terrno;
   }
 
-  int32_t len = sprintf(pBuf, "user:%s, ver:%" PRId64 ", ip:{%s}", user, plist->ver, tmp);
+  int32_t len = tsnprintf(pBuf, tlen + 64 - 1, "user:%s, ver:%" PRId64 ", ip:{%s}", user, plist->ver, tmp);
   taosMemoryFree(tmp);
 
   *ppBuf = pBuf;

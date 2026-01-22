@@ -1171,7 +1171,7 @@ static int32_t tfileGetFileList(const char* path, SArray** ppResult) {
       TAOS_CHECK_GOTO(terrno, NULL, _exception);
     }
 
-    sprintf(buf, "%s/%s", path, file);
+    tsnprintf(buf, sizeof(buf), "%s/%s", path, file);
     if (taosArrayPush(files, &buf) == NULL) {
       TAOS_CHECK_GOTO(terrno, NULL, _exception);
     }
@@ -1213,12 +1213,12 @@ static int tfileParseFileName(const char* filename, uint64_t* suid, char* col, i
 }
 // tfile name suid-colId-version.tindex
 static void tfileGenFileName(char* filename, uint64_t suid, const char* col, int64_t version) {
-  TAOS_UNUSED(sprintf(filename, "%" PRIu64 "-%s-%" PRId64 ".tindex", suid, col, version));
+  TAOS_UNUSED( tsnprintf(filename, 256, "%" PRIu64 "-%s-%" PRId64 ".tindex", suid, col, version));
   return;
 }
 static void FORCE_INLINE tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col,
                                               int64_t version) {
   char filename[128] = {0};
   tfileGenFileName(filename, suid, col, version);
-  TAOS_UNUSED(sprintf(fullname, "%s/%s", path, filename));
+  TAOS_UNUSED( tsnprintf(fullname, 256, "%s/%s", path, filename));
 }

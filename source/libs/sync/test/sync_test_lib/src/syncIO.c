@@ -510,7 +510,7 @@ char *syncUtilPrintBin2(char *ptr, uint32_t len) {
 
   char *p = s;
   for (int32_t i = 0; i < len; ++i) {
-    int32_t n = sprintf(p, "%d,", ptr[i]);
+    int32_t n = tsnprintf(p, len2 - 1,  "%d,", ptr[i]);
     p += n;
   }
   return s;

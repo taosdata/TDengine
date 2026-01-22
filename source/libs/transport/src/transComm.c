@@ -285,7 +285,7 @@ void transSockInfo2Str(struct sockaddr* sockname, char* dst) {
 
     port = ntohs(addr->sin6_port);
   }
-  sprintf(dst, "%s:%d", buf, port);
+  tsnprintf(dst, sizeof(buf) - 1, "%s:%d", buf, port);
 }
 int32_t transInitBuffer(SConnBuffer* buf) {
   buf->buf = taosMemoryCalloc(1, BUFFER_CAP);
@@ -1081,11 +1081,6 @@ int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) {
 
   return 0;
 }
-int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf) {
-  sprintf(buf, "raw:%s, address:%d, netmask:%d, network:%d, broadcast:%d", pUtils->info, pUtils->address,
-          pUtils->netmask, pUtils->network, pUtils->broadcast);
-  return 0;
-}
 int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip) {
   // impl later
   if (pUtils == NULL) return false;
@@ -1114,7 +1109,7 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
   len = strlen(buf);
 
   if (pRange->mask != 32) {
-    len += sprintf(buf + len, "/%d", pRange->mask);
+    len += tsnprintf(buf + len, sizeof(buf) - (len), "/%d", pRange->mask);
   }
   buf[len] = 0;
   return len;
@@ -1128,8 +1123,8 @@ int32_t transUtilSWhiteListToStr(SIpWhiteListDual* pList, char** ppBuf) {
   if (pList->num == 0) {
     TSDB_CHECK_CODE(code = TSDB_CODE_INVALID_PARA, lino, _error);
   }
-
-  pBuf = taosMemoryCalloc(1, pList->num * IP_RESERVE_CAP);
+  int32_t cap = pList->num * IP_RESERVE_CAP;
+  pBuf = taosMemoryCalloc(1, cap);
   if (pBuf == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -1140,7 +1135,7 @@ int32_t transUtilSWhiteListToStr(SIpWhiteListDual* pList, char** ppBuf) {
     code = tIpUintToStr(pRange, &addr);
     TSDB_CHECK_CODE(code, lino, _error);
 
-    len += sprintf(pBuf + len, "%s,", IP_ADDR_STR(&addr));
+    len += tsnprintf(pBuf + len, cap - (len), "%s,", IP_ADDR_STR(&addr));
   }
   if (len > 0) {
     pBuf[len - 1] = 0;
@@ -1736,7 +1731,6 @@ void transDestroySyncMsg(void* msg) {
 
 uint32_t subnetIpRang2Int(SIpV4Range* pRange) { return 0; }
 int32_t  subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) { return 0; }
-int32_t  subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf) { return 0; }
 int32_t  subnetCheckIp(SubnetUtils* pUtils, uint32_t ip) { return 0; }
 
 int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) { return 0; }

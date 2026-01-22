@@ -942,7 +942,7 @@ const char* fmtts(int64_t ts) {
       buf[pos++] = ' ';
     }
     pos += taosStrfTime(buf + pos, sizeof(buf), "ms=%Y-%m-%d %H:%M:%S", &tm);
-    pos += sprintf(buf + pos, ".%03d", (int32_t)(ts % 1000));
+    pos += tsnprintf(buf + pos, sizeof(buf) - (pos), ".%03d", (int32_t)(ts % 1000));
   }
 
   {
@@ -956,7 +956,7 @@ const char* fmtts(int64_t ts) {
       buf[pos++] = ' ';
     }
     pos += taosStrfTime(buf + pos, sizeof(buf), "us=%Y-%m-%d %H:%M:%S", &tm);
-    pos += sprintf(buf + pos, ".%06d", (int32_t)(ts % 1000000));
+    pos += tsnprintf(buf + pos, sizeof(buf) - (pos), ".%06d", (int32_t)(ts % 1000000));
   }
 
   return buf;
@@ -1029,11 +1029,11 @@ char* formatTimestampLocal(char* buf, int64_t val, int precision) {
   size_t pos = taosStrfTime(buf, 32, "%Y-%m-%d %H:%M:%S", &tm);
 
   if (precision == TSDB_TIME_PRECISION_MICRO) {
-    sprintf(buf + pos, ".%06d", (int)(val % 1000000));
+    tsnprintf(buf + pos, sizeof(buf) - (pos), ".%06d", (int)(val % 1000000));
   } else if (precision == TSDB_TIME_PRECISION_NANO) {
-    sprintf(buf + pos, ".%09d", (int)(val % 1000000000));
+    tsnprintf(buf + pos, sizeof(buf) - (pos), ".%09d", (int)(val % 1000000000));
   } else {
-    sprintf(buf + pos, ".%03d", (int)(val % 1000));
+    tsnprintf(buf + pos, sizeof(buf) - (pos), ".%03d", (int)(val % 1000));
   }
 
   return buf;
@@ -1364,34 +1364,34 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
     switch (format->key->id) {
       case TSFKW_AM:
       case TSFKW_PM:
-        (void)sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "PM" : "AM");
+        (void) tsnprintf(s, outLen,tm->tm.tm_hour % 24 >= 12 ? "PM" : "AM");
         s += 2;
         break;
       case TSFKW_A_M:
       case TSFKW_P_M:
-        (void)sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "P.M." : "A.M.");
+        (void) tsnprintf(s, outLen, tm->tm.tm_hour % 24 >= 12 ? "P.M." : "A.M.");
         s += 4;
         break;
       case TSFKW_am:
       case TSFKW_pm:
-        (void)sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "pm" : "am");
+        (void) tsnprintf(s, outLen, tm->tm.tm_hour % 24 >= 12 ? "pm" : "am");
         s += 2;
         break;
       case TSFKW_a_m:
       case TSFKW_p_m:
-        (void)sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "p.m." : "a.m.");
+        (void) tsnprintf(s, outLen, tm->tm.tm_hour % 24 >= 12 ? "p.m." : "a.m.");
         s += 4;
         break;
       case TSFKW_DDD:
-        (void)sprintf(s, "%03d", tm->tm.tm_yday + 1);
+        (void) tsnprintf(s, outLen, "%03d", tm->tm.tm_yday + 1);
         s += strlen(s);
         break;
       case TSFKW_DD:
-        (void)sprintf(s, "%02d", tm->tm.tm_mday);
+        (void) tsnprintf(s, outLen, "%02d", tm->tm.tm_mday);
         s += 2;
         break;
       case TSFKW_D:
-        (void)sprintf(s, "%d", tm->tm.tm_wday + 1);
+        (void) tsnprintf(s, outLen, "%d", tm->tm.tm_wday + 1);
         s += 1;
         break;
       case TSFKW_DAY: {
@@ -1399,20 +1399,20 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         const char* wd = weekDays[tm->tm.tm_wday];
         char        buf[10] = {0};
         for (int32_t i = 0; i < strlen(wd); ++i) buf[i] = toupper(wd[i]);
-        (void)sprintf(s, "%-9s", buf);
+        (void) tsnprintf(s, outLen, "%-9s", buf);
         s += strlen(s);
         break;
       }
       case TSFKW_Day:
         // Monday, TuesDay...
-        (void)sprintf(s, "%-9s", weekDays[tm->tm.tm_wday]);
+        (void) tsnprintf(s, outLen,"%-9s", weekDays[tm->tm.tm_wday]);
         s += strlen(s);
         break;
       case TSFKW_day: {
         const char* wd = weekDays[tm->tm.tm_wday];
         char        buf[10] = {0};
         for (int32_t i = 0; i < strlen(wd); ++i) buf[i] = tolower(wd[i]);
-        (void)sprintf(s, "%-9s", buf);
+        (void) tsnprintf(s, outLen, "%-9s", buf);
         s += strlen(s);
         break;
       }
@@ -1421,13 +1421,13 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         const char* wd = shortWeekDays[tm->tm.tm_wday];
         char        buf[8] = {0};
         for (int32_t i = 0; i < strlen(wd); ++i) buf[i] = toupper(wd[i]);
-        (void)sprintf(s, "%3s", buf);
+        (void) tsnprintf(s, outLen, "%3s", buf);
         s += 3;
         break;
       }
       case TSFKW_Dy:
         // Mon, Tue
-        (void)sprintf(s, "%3s", shortWeekDays[tm->tm.tm_wday]);
+        (void) tsnprintf(s, outLen, "%3s", shortWeekDays[tm->tm.tm_wday]);
         s += 3;
         break;
       case TSFKW_dy: {
@@ -1435,33 +1435,33 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         const char* wd = shortWeekDays[tm->tm.tm_wday];
         char        buf[8] = {0};
         for (int32_t i = 0; i < strlen(wd); ++i) buf[i] = tolower(wd[i]);
-        (void)sprintf(s, "%3s", buf);
+        (void) tsnprintf(s, outLen, "%3s", buf);
         s += 3;
         break;
       }
       case TSFKW_HH24:
-        (void)sprintf(s, "%02d", tm->tm.tm_hour);
+        (void) tsnprintf(s, outLen, "%02d", tm->tm.tm_hour);
         s += 2;
         break;
       case TSFKW_HH:
       case TSFKW_HH12:
         // 0 or 12 o'clock in 24H coresponds to 12 o'clock (AM/PM) in 12H
-        (void)sprintf(s, "%02d", tm->tm.tm_hour % 12 == 0 ? 12 : tm->tm.tm_hour % 12);
+        (void) tsnprintf(s, outLen,"%02d", tm->tm.tm_hour % 12 == 0 ? 12 : tm->tm.tm_hour % 12);
         s += 2;
         break;
       case TSFKW_MI:
-        (void)sprintf(s, "%02d", tm->tm.tm_min);
+        (void) tsnprintf(s, outLen,"%02d", tm->tm.tm_min);
         s += 2;
         break;
       case TSFKW_MM:
-        (void)sprintf(s, "%02d", tm->tm.tm_mon + 1);
+        (void) tsnprintf(s, outLen,"%02d", tm->tm.tm_mon + 1);
         s += 2;
         break;
       case TSFKW_MONTH: {
         const char* mon = fullMonths[tm->tm.tm_mon];
         char        buf[10] = {0};
         for (int32_t i = 0; i < strlen(mon); ++i) buf[i] = toupper(mon[i]);
-        (void)sprintf(s, "%-9s", buf);
+        (void) tsnprintf(s, outLen,"%-9s", buf);
         s += strlen(s);
         break;
       }
@@ -1469,48 +1469,48 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
         const char* mon = months[tm->tm.tm_mon];
         char        buf[10] = {0};
         for (int32_t i = 0; i < strlen(mon); ++i) buf[i] = toupper(mon[i]);
-        (void)sprintf(s, "%s", buf);
+        (void) tsnprintf(s, outLen, "%s", buf);
         s += strlen(s);
         break;
       }
       case TSFKW_Month:
-        (void)sprintf(s, "%-9s", fullMonths[tm->tm.tm_mon]);
+        (void) tsnprintf(s, outLen, "%-9s", fullMonths[tm->tm.tm_mon]);
         s += strlen(s);
         break;
       case TSFKW_month: {
         const char* mon = fullMonths[tm->tm.tm_mon];
         char        buf[10] = {0};
         for (int32_t i = 0; i < strlen(mon); ++i) buf[i] = tolower(mon[i]);
-        (void)sprintf(s, "%-9s", buf);
+        (void) tsnprintf(s, outLen,"%-9s", buf);
         s += strlen(s);
         break;
       }
       case TSFKW_Mon:
-        (void)sprintf(s, "%s", months[tm->tm.tm_mon]);
+        (void) tsnprintf(s, outLen,"%s", months[tm->tm.tm_mon]);
         s += strlen(s);
         break;
       case TSFKW_mon: {
         const char* mon = months[tm->tm.tm_mon];
         char        buf[10] = {0};
         for (int32_t i = 0; i < strlen(mon); ++i) buf[i] = tolower(mon[i]);
-        (void)sprintf(s, "%s", buf);
+        (void) tsnprintf(s, outLen,"%s", buf);
         s += strlen(s);
         break;
       }
       case TSFKW_SS:
-        (void)sprintf(s, "%02d", tm->tm.tm_sec);
+        (void) tsnprintf(s, outLen,"%02d", tm->tm.tm_sec);
         s += 2;
         break;
       case TSFKW_MS:
-        (void)sprintf(s, "%03" PRId64, tm->fsec / 1000000L);
+        (void) tsnprintf(s, outLen, "%03" PRId64, tm->fsec / 1000000L);
         s += 3;
         break;
       case TSFKW_US:
-        (void)sprintf(s, "%06" PRId64, tm->fsec / 1000L);
+        (void) tsnprintf(s, outLen, "%06" PRId64, tm->fsec / 1000L);
         s += 6;
         break;
       case TSFKW_NS:
-        (void)sprintf(s, "%09" PRId64, tm->fsec);
+        (void) tsnprintf(s, outLen, "%09" PRId64, tm->fsec);
         s += 9;
         break;
       case TSFKW_TZH:{
@@ -1521,25 +1521,25 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
 #else
         int32_t gmtoff = tm->tm.tm_gmtoff;
 #endif
-        (void)sprintf(s, "%c%02d", (gmtoff >= 0) ? '+' : '-',
+        (void) tsnprintf(s, outLen,"%c%02d", (gmtoff >= 0) ? '+' : '-',
                       abs(gmtoff) / 3600);
         s += strlen(s);
         break;
       }
       case TSFKW_YYYY:
-        (void)sprintf(s, "%04d", tm->tm.tm_year + 1900);
+        (void) tsnprintf(s, outLen,"%04d", tm->tm.tm_year + 1900);
         s += strlen(s);
         break;
       case TSFKW_YYY:
-        (void)sprintf(s, "%03d", (tm->tm.tm_year + 1900) % 1000);
+        (void) tsnprintf(s, outLen, "%03d", (tm->tm.tm_year + 1900) % 1000);
         s += strlen(s);
         break;
       case TSFKW_YY:
-        (void)sprintf(s, "%02d", (tm->tm.tm_year + 1900) % 100);
+        (void) tsnprintf(s, outLen, "%02d", (tm->tm.tm_year + 1900) % 100);
         s += strlen(s);
         break;
       case TSFKW_Y:
-        (void)sprintf(s, "%01d", (tm->tm.tm_year + 1900) % 10);
+        (void) tsnprintf(s, outLen,"%01d", (tm->tm.tm_year + 1900) % 10);
         s += strlen(s);
         break;
       default:

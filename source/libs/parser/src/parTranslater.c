@@ -11465,9 +11465,10 @@ static int32_t translateCreateMount(STranslateContext* pCxt, SCreateMountStmt* p
   while (j > 0 && (pStmt->mountPath[j] == '/' || pStmt->mountPath[j] == '\\')) {
     pStmt->mountPath[j--] = '\0';  // remove trailing slashes
   }
-  TSDB_CHECK_NULL((createReq.mountPaths[0] = taosMemoryMalloc(strlen(pStmt->mountPath) + 1)), code, lino, _exit,
+  int32_t cap = strlen(pStmt->mountPath) + 1;
+  TSDB_CHECK_NULL((createReq.mountPaths[0] = taosMemoryMalloc(cap)), code, lino, _exit,
                   terrno);
-  TAOS_UNUSED(sprintf(createReq.mountPaths[0], "%s", pStmt->mountPath));
+  TAOS_UNUSED( tsnprintf(createReq.mountPaths[0], cap, "%s", pStmt->mountPath));
 
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_MOUNT, (FSerializeFunc)tSerializeSCreateMountReq, &createReq);

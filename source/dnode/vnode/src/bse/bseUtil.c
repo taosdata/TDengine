@@ -116,7 +116,7 @@ int32_t bseDecompressData(int8_t type, void *src, int32_t srcSize, void *dst, in
 void bseBuildDataFullName(SBse *pBse, char *name, char *buf) {
   // build data file name
   // snprintf(name, strlen(name), "%s/%s020"."BSE_DATA_SUFFIX, ver, pBse->path);
-  // sprintf(name, strlen(name), "%s/%020"."BSE_DATA_SUFFIX, ver, pBse->path);
+  // tsnprintf(name, strlen(name), "%s/%020"."BSE_DATA_SUFFIX, ver, pBse->path);
   TAOS_UNUSED(snprintf(buf, BSE_FILE_FULL_LEN, "%s/%s.%s", pBse->path, name, BSE_DATA_SUFFIX));
 }
 

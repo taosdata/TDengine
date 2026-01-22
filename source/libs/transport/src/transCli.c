@@ -4373,7 +4373,7 @@ int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, S
   taosHashPut(pTransInst->seqTable, &pReq->info.seq, sizeof(pReq->info.seq), &pReq->msgType, sizeof(pReq->msgType));
   taosThreadMutexUnlock(&pTransInst->seqMutex);
 
-  sprintf(RPC_MSG_USER(pReq), "root");
+  tsnprintf(RPC_MSG_USER(pReq), sizeof(RPC_MSG_USER(pReq)) - 1, "root");
 
   code = transSendReq(pTransInst, pReq, NULL);
   TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)shandle));
