@@ -47,10 +47,25 @@ typedef struct SRewriteExprCxt {
   SNodeList* pExprs;
   bool*      pOutputs;
   bool       isPartitionBy;
-  SNode*     pOrderByFirstExpr;
+  SNode*     pOrderByFirstExpr;  // May be invalid after rewriting, use getOrderByFirstExpr() instead
+  SSelectStmt* pSelect;  // Used to get the current first order by expr after rewriting
 } SRewriteExprCxt;
 
-static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartitionBy, SNode* pOrderByFirstExpr) {
+// Helper function to safely get the first order by expression after rewriting
+static SNode* getOrderByFirstExpr(SRewriteExprCxt* pCxt) {
+  if (pCxt->pSelect && pCxt->pSelect->pOrderByList && pCxt->pSelect->pOrderByList->length > 0) {
+    SOrderByExprNode* pOrderByExpr = (SOrderByExprNode*)nodesListGetNode(pCxt->pSelect->pOrderByList, 0);
+    if (pOrderByExpr && pOrderByExpr->pExpr) {
+      return pOrderByExpr->pExpr;
+    }
+  }
+  return NULL;
+}
+
+static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartitionBy, SRewriteExprCxt* pCxt) {
+  // Get the current first order by expression (may have been rewritten)
+  SNode* pOrderByFirstExpr = getOrderByFirstExpr(pCxt);
+  
   switch (pFunc->funcType) {
     case FUNCTION_TYPE_TBNAME:
       pCol->colType = COLUMN_TYPE_TBNAME;
@@ -139,7 +154,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           pCol->node.projIdx = ((SExprNode*)(*pNode))->projIdx;
           pCol->node.relatedTo = ((SExprNode*)(*pNode))->relatedTo;
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
-            setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy, pCxt->pOrderByFirstExpr);
+            setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy, pCxt);
           }
           nodesDestroyNode(*pNode);
           *pNode = (SNode*)pCol;
@@ -186,7 +201,8 @@ static int32_t rewriteExprForSelect(SNode* pExpr, SSelectStmt* pSelect, ESqlClau
                          .pExprs = NULL,
                          .pOutputs = NULL,
                          .isPartitionBy = isPartitionBy,
-                         .pOrderByFirstExpr = pOrderByFirstExpr};
+                         .pOrderByFirstExpr = pOrderByFirstExpr,
+                         .pSelect = pSelect};
   cxt.errCode = nodesListMakeAppend(&cxt.pExprs, pExpr);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
     nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);
@@ -228,7 +244,8 @@ static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ES
                          .pExprs = pExprs,
                          .pOutputs = NULL,
                          .isPartitionBy = isPartitionBy,
-                         .pOrderByFirstExpr = pOrderByFirstExpr};
+                         .pOrderByFirstExpr = pOrderByFirstExpr,
+                         .pSelect = pSelect};
   if (NULL != pRewriteExprs) {
     cxt.pOutputs = taosMemoryCalloc(LIST_LENGTH(pExprs), sizeof(bool));
     if (NULL == cxt.pOutputs) {
@@ -249,7 +266,8 @@ static int32_t rewriteExpr(SNodeList* pExprs, SNode** pTarget) {
                          .pExprs = pExprs,
                          .pOutputs = NULL,
                          .isPartitionBy = false,
-                         .pOrderByFirstExpr = NULL};
+                         .pOrderByFirstExpr = NULL,
+                         .pSelect = NULL};
   nodesRewriteExpr(pTarget, doRewriteExpr, &cxt);
   return cxt.errCode;
 }
@@ -260,7 +278,8 @@ static int32_t rewriteExprs(SNodeList* pExprs, SNodeList* pTarget) {
                          .pExprs = pExprs,
                          .pOutputs = NULL,
                          .isPartitionBy = false,
-                         .pOrderByFirstExpr = NULL};
+                         .pOrderByFirstExpr = NULL,
+                         .pSelect = NULL};
   nodesRewriteExprs(pTarget, doRewriteExpr, &cxt);
   return cxt.errCode;
 }
