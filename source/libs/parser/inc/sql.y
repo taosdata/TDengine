@@ -2284,9 +2284,9 @@ case_when_else_opt(A) ::= ELSE common_expression(B).                            
 /************************************************ predicate ***********************************************************/
 %type quantified_expr                                                             { EQuantifyType }           
 %destructor quantified_expr                                                       { }                         
-quantified_expr(A) ::= NK_ANY.                                                    { A = QU_TYPE_ANY; } 
-quantified_expr(A) ::= NK_SOME.                                                   { A = QU_TYPE_ANY; 
-quantified_expr(A) ::= NK_ALL.                                                    { A = QU_TYPE_ALL; }
+quantified_expr(A) ::= ANY.                                                       { A = QU_TYPE_ANY; } 
+quantified_expr(A) ::= SOME.                                                      { A = QU_TYPE_ANY; }
+quantified_expr(A) ::= ALL.                                                       { A = QU_TYPE_ALL; }
 
 predicate(A) ::= expr_or_subquery(B) compare_op(C) expr_or_subquery(D).           {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
@@ -2338,14 +2338,18 @@ predicate(A) ::= NOT(B) EXISTS subquery(C).                                     
                                                                                     A = createRawExprNodeExt(pCxt, &B, &e, createOperatorNode(pCxt, OP_TYPE_NOT_EXISTS, releaseRawExprNode(pCxt, C), NULL));
                                                                                   }
 
-%type compare_op                                                                  { EOperatorType }
-%destructor compare_op                                                            { }
+
+%type quantified_compare_op                                                       { EOperatorType }
+%destructor quantified_compare_op                                                 { }
 quantified_compare_op(A) ::= NK_LT.                                               { A = OP_TYPE_LOWER_THAN; }
 quantified_compare_op(A) ::= NK_GT.                                               { A = OP_TYPE_GREATER_THAN; }
 quantified_compare_op(A) ::= NK_LE.                                               { A = OP_TYPE_LOWER_EQUAL; }
 quantified_compare_op(A) ::= NK_GE.                                               { A = OP_TYPE_GREATER_EQUAL; }
 quantified_compare_op(A) ::= NK_NE.                                               { A = OP_TYPE_NOT_EQUAL; }
 quantified_compare_op(A) ::= NK_EQ.                                               { A = OP_TYPE_EQUAL; }
+
+%type compare_op                                                                  { EOperatorType }
+%destructor compare_op                                                            { }
 compare_op(A) ::= quantified_compare_op(B).                                       { A = B; }
 compare_op(A) ::= LIKE.                                                           { A = OP_TYPE_LIKE; }
 compare_op(A) ::= NOT LIKE.                                                       { A = OP_TYPE_NOT_LIKE; }
