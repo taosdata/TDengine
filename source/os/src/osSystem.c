@@ -95,8 +95,8 @@ int32_t taosSetConsoleEcho(bool on) {
     terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return terrno;
   }
-  DWORD  mode = 0;
-  if(!GetConsoleMode(hStdin, &mode)){
+  DWORD mode = 0;
+  if (!GetConsoleMode(hStdin, &mode)) {
     terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return terrno;
   }
@@ -105,13 +105,13 @@ int32_t taosSetConsoleEcho(bool on) {
   } else {
     mode &= ~ENABLE_ECHO_INPUT;
   }
-  if(!SetConsoleMode(hStdin, mode)) {
+  if (!SetConsoleMode(hStdin, mode)) {
     terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return terrno;
   }
 
   return 0;
-#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+#elif defined(TD_ASTRA)  // TD_ASTRA_TODO
   return 0;
 #else
 #define ECHOFLAGS (ECHO | ECHOE | ECHOK | ECHONL)
@@ -139,7 +139,7 @@ int32_t taosSetConsoleEcho(bool on) {
 }
 
 int32_t taosSetTerminalMode() {
-#if defined(WINDOWS) || defined(TD_ASTRA) // TD_ASTRA_TODO
+#if defined(WINDOWS) || defined(TD_ASTRA)  // TD_ASTRA_TODO
   return 0;
 #else
   struct termios newtio;
@@ -175,7 +175,7 @@ int32_t taosSetTerminalMode() {
 }
 
 int32_t taosGetOldTerminalMode() {
-#if defined(WINDOWS) || defined(TD_ASTRA) // TD_ASTRA_TODO
+#if defined(WINDOWS) || defined(TD_ASTRA)  // TD_ASTRA_TODO
   return 0;
 #else
   /* Make sure stdin is a terminal. */
@@ -195,7 +195,7 @@ int32_t taosGetOldTerminalMode() {
 }
 
 int32_t taosResetTerminalMode() {
-#if defined(WINDOWS) || defined(TD_ASTRA) // TD_ASTRA_TODO
+#if defined(WINDOWS) || defined(TD_ASTRA)  // TD_ASTRA_TODO
   return 0;
 #else
   if (-1 == tcsetattr(0, TCSANOW, &oldtio)) {
@@ -207,12 +207,48 @@ int32_t taosResetTerminalMode() {
   return 0;
 }
 
+// 允许的命令白名单，用于防止命令注入
+static bool isCommandAllowed(const char* cmd) {
+  const char* allowedCmds[] = {"taos", "taosd", "taosdump", "taosBenchmark", "taosAdapter", "taosKeeper", NULL};
+  for (const char** p = allowedCmds; *p != NULL; p++) {
+    size_t cmdLen = strlen(*p);
+    if (strncmp(cmd, *p, cmdLen) == 0) {
+      char nextChar = cmd[cmdLen];
+      if (nextChar == ' ' || nextChar == '\t' || nextChar == '\0') {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// 移除危险字符，用于防止命令注入
+static bool sanitizeCommand(const char* cmd) {
+  const char* dangerousChars = ";|&`$()<>{}[]!*?~";
+  for (const char* p = dangerousChars; *p; p++) {
+    if (strchr(cmd, *p) != NULL) {
+      return false;
+    }
+  }
+  return true;
+}
+
 TdCmdPtr taosOpenCmd(const char* cmd) {
   if (cmd == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
-  
+
+  if (!isCommandAllowed(cmd)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
+  if (!sanitizeCommand(cmd)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
 #ifdef WINDOWS
   return (TdCmdPtr)_popen(cmd, "r");
 #elif defined(TD_ASTRA)
@@ -239,7 +275,7 @@ int64_t taosGetsCmd(TdCmdPtr pCmd, int32_t maxSize, char* __restrict buf) {
     terrno = TAOS_SYSTEM_ERROR(ferror((FILE*)pCmd));
     return terrno;
   }
-  
+
   return strlen(buf);
 }
 
@@ -251,7 +287,7 @@ int64_t taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf) {
   if (*ptrBuf != NULL) {
     taosMemoryFreeClear(*ptrBuf);
   }
-  
+
 #ifdef WINDOWS
   *ptrBuf = taosMemoryMalloc(1024);
   if (*ptrBuf == NULL) return -1;
@@ -315,7 +351,7 @@ void taosCloseCmd(TdCmdPtr* ppCmd) {
   }
 #ifdef WINDOWS
   _pclose((FILE*)(*ppCmd));
-#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+#elif defined(TD_ASTRA)  // TD_ASTRA_TODO
 #else
   (void)pclose((FILE*)(*ppCmd));
 #endif

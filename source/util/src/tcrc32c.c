@@ -1030,8 +1030,15 @@ int32_t main(int32_t argc, char *argv[]) {
   char    str[1024] = "\0";
   char   *ptr = str;
   int32_t count = 0;
+  size_t  totalRead = 0;
   while ((count = read(0, ptr, 10)) > 0) {
     ptr += count;
+    totalRead += count;
+    // 添加边界检查防止缓冲区溢出
+    if (totalRead >= sizeof(str) - 1) {
+      printf("Warning: Input exceeds buffer size, truncating.\n");
+      break;
+    }
   }
   printf("str: %s\n", str);
   uint32_t len = strlen(str);
