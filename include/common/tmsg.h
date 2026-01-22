@@ -2766,6 +2766,8 @@ typedef struct {
   int64_t     timestamp;
   char        auditDB[TSDB_DB_FNAME_LEN];
   char        auditToken[TSDB_TOKEN_LEN];
+  SEpSet      auditEpSet;
+  int32_t     auditVgId;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -2865,6 +2867,8 @@ typedef struct {
   int64_t   timeWhiteVer;
   char      auditDB[TSDB_DB_FNAME_LEN];
   char      auditToken[TSDB_TOKEN_LEN];
+  SEpSet    auditEpSet;
+  int32_t   auditVgId;
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
@@ -3989,6 +3993,14 @@ typedef struct {
 int32_t tSerializeSVArbSetAssignedLeaderReq(void* buf, int32_t bufLen, SVArbSetAssignedLeaderReq* pReq);
 int32_t tDeserializeSVArbSetAssignedLeaderReq(void* buf, int32_t bufLen, SVArbSetAssignedLeaderReq* pReq);
 void    tFreeSVArbSetAssignedLeaderReq(SVArbSetAssignedLeaderReq* pReq);
+
+typedef struct {
+  int32_t dataLen;
+  char*   data;
+} SVAuditRecordReq;
+int32_t tSerializeSVAuditRecordReq(void* buf, int32_t bufLen, SVAuditRecordReq* pReq);
+int32_t tDeserializeSVAuditRecordReq(void* buf, int32_t bufLen, SVAuditRecordReq* pReq);
+void    tFreeSVAuditRecordReq(SVAuditRecordReq* pReq);
 
 typedef struct {
   char*   arbToken;

@@ -137,7 +137,7 @@ class TestTaosdAudit:
     def test_taosd_audit(self):
         """Taosd telemetry audit
         
-        1. Create database with vgroups 4
+        1. Create database with vgroups 1
         2. Create super table and table
         3. Insert data into table
         4. Delete data from table
@@ -160,7 +160,7 @@ class TestTaosdAudit:
         # time.sleep(2)
 
         tdLog.info("create audit database")
-        sql = "create database audit is_audit 1 wal_level 2 ENCRYPT_ALGORITHM 'SM4-CBC';"
+        sql = "create database audit is_audit 1 wal_level 2 vgroups 1 ENCRYPT_ALGORITHM 'SM4-CBC';"
         tdSql.query(sql)
 
         tdLog.info("create user audit pass '123456Ab@' sysinfo 0;")
