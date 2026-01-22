@@ -681,32 +681,6 @@ typedef struct {
 
 typedef struct {
   ENodeType type;
-  char      url[TSDB_XNODE_URL_LEN + 3];
-  // Create xnode with new user.
-  char user[TSDB_USER_LEN + 3];
-  // Create xnode with new user password. `user` and `pass` should exist along with each other.
-  char pass[TSDB_USER_PASSWORD_LONGLEN + 3];
-} SCreateXnodeStmt;
-
-typedef struct {
-  ENodeType type;
-  int32_t   xnodeId;
-  char      url[TSDB_XNODE_URL_LEN + 3];
-  bool      force;
-} SDropXnodeStmt;
-
-typedef struct {
-  ENodeType type;
-  int32_t   xnodeId;
-} SDrainXnodeStmt;
-
-typedef struct {
-  ENodeType type;
-  int32_t   xnodeId;
-} SUpdateXnodeStmt;
-
-typedef struct {
-  ENodeType    type;
   // xTaskOptions opts;
   // taosX Agent ID.
   int32_t via;
@@ -722,6 +696,28 @@ typedef struct {
 } SXnodeTaskOptions;
 
 typedef struct {
+  ENodeType type;
+  int32_t   xnodeId;
+  char      url[TSDB_XNODE_URL_LEN + 3];
+  bool      force;
+} SDropXnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   xnodeId;
+} SDrainXnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t            id;
+  CowStr             url;
+  CowStr             token;
+  CowStr             user;
+  CowStr             pass;
+  SXnodeTaskOptions* options;
+} SAlterXnodeStmt;
+
+typedef struct {
   ENodeType   type;
   xTaskSource source;
   // ENodeXTaskSourceType sourceType;
@@ -734,6 +730,16 @@ typedef struct {
   ENodeType type;
   xTaskSink sink;
 } SXTaskSink;
+
+typedef struct {
+  ENodeType type;
+  char      url[TSDB_XNODE_URL_LEN + 3];
+  // Create xnode with new user.
+  char user[TSDB_USER_LEN + 3];
+  // Create xnode with new user password. `user` and `pass` should exist along with each other.
+  char pass[TSDB_USER_PASSWORD_LONGLEN + 3];
+  char token[TSDB_TOKEN_LEN + 3];
+} SCreateXnodeStmt;
 
 typedef struct {
   ENodeType          type;

@@ -651,7 +651,6 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_XNODE_STMT = 1200,  // Xnode
   QUERY_NODE_DROP_XNODE_STMT,
   QUERY_NODE_DRAIN_XNODE_STMT,
-  // QUERY_NODE_UPDATE_XNODE_STMT,
   QUERY_NODE_XNODE_TASK_OPTIONS,              // XNode task options
   QUERY_NODE_XNODE_TASK_SOURCE_OPT,           // XNode task source
   QUERY_NODE_XNODE_TASK_SINK_OPT,             // XNode task sink
@@ -668,6 +667,7 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_XNODE_AGENT_STMT,         // XNode agent
   QUERY_NODE_DROP_XNODE_AGENT_STMT,           // XNode agent
   QUERY_NODE_ALTER_XNODE_AGENT_STMT,          // XNode agent
+  QUERY_NODE_ALTER_XNODE_STMT,                // Alter xnode
 } ENodeType;
 
 typedef struct {
@@ -3598,47 +3598,6 @@ int32_t tDeserializeSMDropBnodeReq(void* buf, int32_t bufLen, SMDropBnodeReq* pR
 void    tFreeSMDropBnodeReq(SMDropBnodeReq* pReq);
 
 typedef struct {
-  int32_t sqlLen;
-  int32_t urlLen;
-  int32_t userLen;
-  int32_t passLen;
-  int32_t passIsMd5;
-  char*   sql;
-  char*   url;
-  char*   user;
-  char*   pass;
-} SMCreateXnodeReq, SDCreateXnodeReq;
-
-int32_t tSerializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
-int32_t tDeserializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
-void    tFreeSMCreateXnodeReq(SMCreateXnodeReq* pReq);
-
-typedef struct {
-  int32_t xnodeId;
-  int32_t force;
-  int32_t urlLen;
-  int32_t sqlLen;
-  char*   url;
-  char*   sql;
-} SMDropXnodeReq, SMUpdateXnodeReq, SDDropXnodeReq;
-
-int32_t tSerializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
-int32_t tDeserializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
-void    tFreeSMDropXnodeReq(SMDropXnodeReq* pReq);
-int32_t tSerializeSMUpdateXnodeReq(void* buf, int32_t bufLen, SMUpdateXnodeReq* pReq);
-int32_t tDeserializeSMUpdateXnodeReq(void* buf, int32_t bufLen, SMUpdateXnodeReq* pReq);
-void    tFreeSMUpdateXnodeReq(SMUpdateXnodeReq* pReq);
-
-typedef struct {
-  int32_t xnodeId;
-  int32_t sqlLen;
-  char*   sql;
-} SMDrainXnodeReq;
-int32_t tSerializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
-int32_t tDeserializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
-void    tFreeSMDrainXnodeReq(SMDrainXnodeReq* pReq);
-
-typedef struct {
   bool        shouldFree;
   int32_t     len;
   const char* ptr;
@@ -3698,6 +3657,58 @@ int32_t xEncodeCowStr(SEncoder* encoder, CowStr* cow);
  */
 int32_t xDecodeCowStr(SDecoder* decoder, CowStr* cow, bool shouldClone);
 
+typedef struct {
+  int32_t sqlLen;
+  int32_t urlLen;
+  int32_t userLen;
+  int32_t passLen;
+  int32_t passIsMd5;
+  char*   sql;
+  char*   url;
+  char*   user;
+  char*   pass;
+  CowStr  token;
+} SMCreateXnodeReq, SDCreateXnodeReq;
+
+int32_t tSerializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
+int32_t tDeserializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
+void    tFreeSMCreateXnodeReq(SMCreateXnodeReq* pReq);
+
+typedef struct {
+  int32_t xnodeId;
+  int32_t force;
+  int32_t urlLen;
+  int32_t sqlLen;
+  char*   url;
+  char*   sql;
+} SMDropXnodeReq, SDDropXnodeReq;
+
+int32_t tSerializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
+int32_t tDeserializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
+void    tFreeSMDropXnodeReq(SMDropXnodeReq* pReq);
+
+typedef struct {
+  int32_t id;
+  CowStr  token;
+  CowStr  user;
+  CowStr  pass;
+  int32_t urlLen;
+  int32_t sqlLen;
+  char*   url;
+  char*   sql;
+} SMUpdateXnodeReq;
+int32_t tSerializeSMUpdateXnodeReq(void* buf, int32_t bufLen, SMUpdateXnodeReq* pReq);
+int32_t tDeserializeSMUpdateXnodeReq(void* buf, int32_t bufLen, SMUpdateXnodeReq* pReq);
+void    tFreeSMUpdateXnodeReq(SMUpdateXnodeReq* pReq);
+
+typedef struct {
+  int32_t xnodeId;
+  int32_t sqlLen;
+  char*   sql;
+} SMDrainXnodeReq;
+int32_t tSerializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
+int32_t tDeserializeSMDrainXnodeReq(void* buf, int32_t bufLen, SMDrainXnodeReq* pReq);
+void    tFreeSMDrainXnodeReq(SMDrainXnodeReq* pReq);
 typedef enum {
   XNODE_TASK_SOURCE_DSN = 1,
   XNODE_TASK_SOURCE_DATABASE,

@@ -1157,5 +1157,80 @@ class TestXnode:
             rs = tdSql.query("show transactions", row_tag=True)
             if len(rs) <= 0:
                 break
-            tdLog.info(f"wait {len(rs)} transactions to finish")
+            tdLog.info(f"wait {cnt} times {rs} transactions to finish")
             time.sleep(3)
+    
+    def test_alter_userpass(self):
+        """测试 ALTER XNODE SET USER/PASS
+
+        1. Test create xnode 
+        2. Test alter xnode set user/pass
+
+        Since: v3.4.0.1
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-01-27 GuiChuan Zhang Created
+        """
+        rid = random.randint(1000, 9999)
+        self.no_syntax_fail_execute(f"CREATE XNODE 'localhost_{rid}:6055'")
+        self.no_syntax_fail_execute("ALTER XNODE SET USER root pass 'taosdata'")
+        self.wait_transaction_to_commit()
+        rs = tdSql.query(f"show xnodes where url='localhost_{rid}:6055'", row_tag=True)
+        assert rs[0][1] == f'localhost_{rid}:6055'
+        tdSql.query(f"drop xnode 'localhost_{rid}:6055'")
+        self.wait_transaction_to_commit()
+
+        rid = random.randint(1000, 9999)
+        self.no_syntax_fail_execute(f"CREATE XNODE 'localhost:6055_{rid}' token 'vcUTCJ6spXeIVPFBvyuHlqgd9XgJHAFVoSqO6HLS4rUDLT2OgQxN96WMWBZpExJ'")
+        self.no_syntax_fail_execute("ALTER XNODE SET USER root pass 'taosdata'")
+        rs = tdSql.query(f"show xnodes where url='localhost:6055_{rid}'", row_tag=True)
+        assert rs[0][1] == f'localhost:6055_{rid}'
+        tdSql.query(f"drop xnode 'localhost:6055_{rid}'")
+        self.wait_transaction_to_commit()
+
+        rid = random.randint(1000, 9999)
+        self.no_syntax_fail_execute(f"CREATE XNODE 'localhost:6055_{rid}' user root pass 'taosdata1'")
+        self.no_syntax_fail_execute("ALTER XNODE SET USER root pass 'taosdata'")
+        rs = tdSql.query(f"show xnodes where url='localhost:6055_{rid}'", row_tag=True)
+        assert rs[0][1] == f'localhost:6055_{rid}'
+        tdSql.query(f"drop xnode 'localhost:6055_{rid}'")
+        self.wait_transaction_to_commit()
+
+    def test_alter_token(self):
+        """测试 ALTER XNODE SET TOKEN
+
+        1. Test create xnode 
+        2. Test alter xnode set token
+
+        Since: v3.4.0.1
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-01-27 GuiChuan Zhang Created
+        """
+        rid = random.randint(1000, 9999)
+        self.no_syntax_fail_execute(f"CREATE XNODE 'localhost_{rid}:6055'")
+        self.wait_transaction_to_commit()
+        rs = tdSql.query(f"show xnodes where url='localhost_{rid}:6055'", row_tag=True)
+        assert rs[0][1] == f'localhost_{rid}:6055'
+        rs = tdSql.query("show tokens", row_tag=True)
+        assert rs[0][0] == '__xnode__'
+        self.no_syntax_fail_execute("ALTER XNODE SET token 'vcUTCJ6spXeIVPFBvyuHlqgd9XgJHAFVoSqO6HLS4rUDLT2OgQxN96WMWBZpExJ'")
+        tdSql.query(f"drop xnode 'localhost_{rid}:6055'")
+        self.wait_transaction_to_commit()
+
+        rid = random.randint(1000, 9999)
+        self.no_syntax_fail_execute(f"CREATE XNODE 'localhost_{rid}:6055' user root pass 'taosdata'")
+        self.no_syntax_fail_execute("ALTER XNODE SET USER root pass 'taosdata'")
+        self.no_syntax_fail_execute("ALTER XNODE SET token 'vcUTCJ6spXeIVPFBvyuHlqgd9XgJHAFVoSqO6HLS4rUDLT2OgQxN96WMWBZpExJ'")
+        rs = tdSql.query(f"show xnodes where url='localhost_{rid}:6055'", row_tag=True)
+        assert rs[0][1] == f'localhost_{rid}:6055'
+        tdSql.query(f"drop xnode 'localhost_{rid}:6055'")
+        self.wait_transaction_to_commit()

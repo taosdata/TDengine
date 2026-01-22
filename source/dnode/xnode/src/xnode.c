@@ -60,6 +60,8 @@ int32_t mndOpenXnd(const SXnodeOpt *pOption) {
   pXnode->ep = pOption->ep;
   memset(pXnode->userPass, 0, XNODE_USER_PASS_LEN);
   memcpy(pXnode->userPass, pOption->userPass, pOption->upLen);
+  memset(pXnode->token, 0, TSDB_TOKEN_LEN);
+  memcpy(pXnode->token, pOption->token, TSDB_TOKEN_LEN);
 
   if ((code = xnodeMgmtStartXnoded(pXnode)) != 0) {
     xndError("failed to start xnoded since %s", tstrerror(code));
