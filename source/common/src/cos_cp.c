@@ -1,7 +1,7 @@
 #define ALLOW_FORBID_FUNC
 
 #include "cos_cp.h"
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include "tutil.h"
 
 int32_t cos_cp_open(char const* cp_path, SCheckpoint* checkpoint) {

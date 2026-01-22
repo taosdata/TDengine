@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include "clientInt.h"
 #include "clientLog.h"
 #include "parser.h"

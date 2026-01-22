@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include "defines.h"
 #include "os.h"
 #include "osString.h"

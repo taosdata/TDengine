@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include "taoserror.h"
 #include "tconfig.h"
 #include "tconv.h"

@@ -26,7 +26,7 @@ extern "C" {
 #include "tversion.h"
 
 #else
-#include <uv.h>
+#include "uv.h"
 #include "theap.h"
 #include "tmsg.h"
 #include "transLog.h"

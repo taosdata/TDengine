@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 
 #include "tjson.h"
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include "taoserror.h"
 
 SJson* tjsonCreateObject() {

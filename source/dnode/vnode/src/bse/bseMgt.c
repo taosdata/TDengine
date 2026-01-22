@@ -19,7 +19,7 @@
 #include "bseTable.h"
 #include "bseTableMgt.h"
 #include "bseUtil.h"
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include "tencrypt.h"
 
 #define BSE_FMT_VER 0x1

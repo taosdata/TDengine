@@ -16,7 +16,7 @@
 #ifndef _TD_DM_INT_H_
 #define _TD_DM_INT_H_
 
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include "tcache.h"
 #include "tcrc32c.h"
 #include "tdatablock.h"

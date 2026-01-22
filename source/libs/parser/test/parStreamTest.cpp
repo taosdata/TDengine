@@ -15,7 +15,7 @@
 
 #include <fstream>
 
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include "parTestUtil.h"
 
 using namespace std;

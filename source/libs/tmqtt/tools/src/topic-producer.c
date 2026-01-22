@@ -24,7 +24,7 @@
 #ifndef WINDOWS
 #include <unistd.h>
 #endif
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include "taos.h"
 
 volatile int thread_stop = 0;

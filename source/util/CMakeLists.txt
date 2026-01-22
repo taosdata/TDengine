@@ -37,6 +37,8 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     PRIVATE "${TD_SOURCE_DIR}/include/common"
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
+    PRIVATE "${TD_SOURCE_DIR}/contrib/geos/include"
+    PRIVATE "${TD_SOURCE_DIR}/contrib/lzma2"
 )
 
 target_link_libraries(

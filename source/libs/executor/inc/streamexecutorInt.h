@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include "cmdnodes.h"
 #include "executorInt.h"
 #include "querytask.h"

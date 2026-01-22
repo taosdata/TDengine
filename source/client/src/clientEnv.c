@@ -14,7 +14,7 @@
  */
 
 #include <ttimer.h>
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include "catalog.h"
 #include "clientInt.h"
 #include "clientLog.h"
@@ -1289,7 +1289,7 @@ uint64_t generateRequestId() {
 }
 
 #if 0
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 static setConfRet taos_set_config_imp(const char *config){
   setConfRet ret = {SET_CONF_RET_SUCC, {0}};
   static bool setConfFlag = false;

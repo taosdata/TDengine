@@ -14,7 +14,7 @@
  */
 
 #include "parUtil.h"
-#include "cJSON.h"
+#include "cjson/cJSON.h"
 #include "decimal.h"
 #include "querynodes.h"
 #include "tarray.h"

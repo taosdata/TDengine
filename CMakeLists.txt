@@ -31,7 +31,16 @@ if(NOT DEFINED TD_ENTERPRISE_DIR)
   include(cmake/check_env.cmake)
   include(cmake/define.cmake)
   include(cmake/version.cmake)
-  include(cmake/external.cmake)
+  
+  # Support for Conan package manager
+  option(USE_CONAN "Use Conan for dependency management" OFF)
+  if(USE_CONAN)
+    message(STATUS "Using Conan for dependency management")
+    include(cmake/conan.cmake)
+  else()
+    message(STATUS "Using ExternalProject for dependency management")
+    include(cmake/external.cmake)
+  endif()
 endif()
 
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
