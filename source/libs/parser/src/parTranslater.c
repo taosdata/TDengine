@@ -2959,7 +2959,7 @@ static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
   // The auto-generated COUNT function in the DELETE statement is legal
   if (isSelectStmt(pCxt->pCurrStmt) &&
       (((SSelectStmt*)pCxt->pCurrStmt)->hasIndefiniteRowsFunc || ((SSelectStmt*)pCxt->pCurrStmt)->hasMultiRowsFunc)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC, "Agg func '%s' mixed with other multi-row functions", pFunc->functionName);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC, "Aggregate func '%s' mixed with other multi-row functions", pFunc->functionName);
   }
 
   if (isCountStar(pFunc)) {
@@ -9062,7 +9062,7 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     if (!isSelectStmt(pCxt->pCurrStmt)) {
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                                              "Function '%s' function must be used in select statements", pFunc->functionName);
+                                              "Function '%s' must be used in select statements", pFunc->functionName);
       return DEAL_RES_ERROR;
     }
 
