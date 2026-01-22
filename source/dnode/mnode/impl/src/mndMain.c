@@ -661,6 +661,40 @@ static void mndCloseWal(SMnode *pMnode) {
   }
 }
 
+// Forward declarations for mmFile.c functions
+extern int32_t mmReadFile(const char *path, SMnodeOpt *pOption);
+extern int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption);
+
+// Callback function to persist encrypted flag to mnode.json
+static int32_t mndPersistEncryptedFlag(void *param) {
+  SMnode *pMnode = (SMnode *)param;
+  if (pMnode == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  
+  mInfo("persisting encrypted flag to mnode.json");
+  
+  SMnodeOpt option = {0};
+  int32_t code = mmReadFile(pMnode->path, &option);
+  if (code != 0) {
+    mError("failed to read mnode.json for persisting encrypted flag since %s", tstrerror(code));
+    return code;
+  }
+  
+  option.encrypted = true;
+  code = mmWriteFile(pMnode->path, &option);
+  if (code != 0) {
+    mError("failed to write mnode.json for persisting encrypted flag since %s", tstrerror(code));
+    return code;
+  }
+  
+  // Also update mnode's encrypted flag
+  pMnode->encrypted = true;
+  
+  mInfo("successfully persisted encrypted flag to mnode.json");
+  return 0;
+}
+
 static int32_t mndInitSdb(SMnode *pMnode) {
   int32_t code = 0;
   SSdbOpt opt = {0};
@@ -680,6 +714,13 @@ static int32_t mndInitSdb(SMnode *pMnode) {
 
 static int32_t mndOpenSdb(SMnode *pMnode) {
   int32_t code = 0;
+  
+  pMnode->pSdb->encrypted = pMnode->encrypted;
+  
+  // Set callback for persisting encrypted flag
+  pMnode->pSdb->persistEncryptedFlagFp = mndPersistEncryptedFlag;
+  pMnode->pSdb->pMnodeForCallback = pMnode;
+
   if (!pMnode->deploy) {
     code = sdbReadFile(pMnode->pSdb);
   }
@@ -815,6 +856,7 @@ static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->syncMgmt.lastIndex = pOption->lastIndex;
   (void)memcpy(pMnode->syncMgmt.replicas, pOption->replicas, sizeof(pOption->replicas));
   (void)memcpy(pMnode->syncMgmt.nodeRoles, pOption->nodeRoles, sizeof(pOption->nodeRoles));
+  pMnode->encrypted = pOption->encrypted;
 }
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {

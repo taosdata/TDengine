@@ -29,7 +29,7 @@ class TestXnodeLifecycle:
 
         1. Create xnode with user password
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -70,7 +70,7 @@ class TestXnodeLifecycle:
 
         1. Create xnode without user password
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -98,7 +98,7 @@ class TestXnodeLifecycle:
 
         1. Create duplicate xnode
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -136,7 +136,7 @@ class TestXnodeLifecycle:
 
         1. Drop xnode by endpoint
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -170,7 +170,7 @@ class TestXnodeLifecycle:
 
         1. Drop xnode by ID
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -197,7 +197,7 @@ class TestXnodeLifecycle:
 
         1. Drop xnode force
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -231,7 +231,7 @@ class TestXnodeLifecycle:
 
         1. Drain xnode
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -258,7 +258,7 @@ class TestXnodeLifecycle:
 
         1. Drop non-exist xnode
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -287,7 +287,7 @@ class TestXnodeLifecycle:
 
         1. Query show xnodes
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -318,7 +318,7 @@ class TestXnodeLifecycle:
 
         1. Create xnode with special characters
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -351,7 +351,7 @@ class TestXnodeLifecycle:
 
         1. Create xnode with weak password
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -398,7 +398,7 @@ class TestXnodeLifecycle:
         3. Drain xnode
         4. Drop xnode
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -461,7 +461,7 @@ class TestXnodeLifecycle:
 
         1. Drop xnode
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
