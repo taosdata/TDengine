@@ -84,7 +84,7 @@ typedef struct SUserAuthRes {
 
 typedef struct SUserAuthRsp {
   union {
-    uint8_t flag;  // bit0: useDb
+    uint8_t flag;
     struct {
       uint8_t exists : 1;
       uint8_t withInsertCond : 1;
