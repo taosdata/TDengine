@@ -77,10 +77,32 @@ httpRequest.setResponseInterceptor(
       });
       return Promise.reject(null);
     }
+
+    // handle Blob error responses
     if (error?.response?.data?.constructor === Blob) {
       blobToJson(error.response.data);
       ElMessage.closeAll();
       return;
+    }
+
+    try {
+      const respData = error?.response?.data;
+      if (respData) {
+        // parse JSON if it's a string
+        let parsed = respData;
+        if (typeof respData === 'string') {
+          try {
+            parsed = JSON.parse(respData);
+          } catch (_) {
+            // keep original respData if parsing fails
+          }
+        }
+        if (parsed && typeof parsed === 'object' && (parsed.code !== undefined || parsed.desc !== undefined)) {
+          return Promise.resolve(parsed);
+        }
+      }
+    } catch (_) {
+      // ignore parsing errors and continue
     }
 
     if (error?.response?.status === 400) {
