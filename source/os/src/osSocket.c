@@ -779,7 +779,7 @@ int32_t taosSetSockOpt2(int32_t fd) {
 
 int32_t taosValidFqdn(int8_t enableIpv6, char *fqdn) {
   int32_t code = 0;
-  SIpAddr addr = {0};
+  SIpAddr addr = {.type = -1};
   code = taosGetIpFromFqdn(enableIpv6, fqdn, &addr);
   if (code != 0) {
     return code;
@@ -789,7 +789,10 @@ int32_t taosValidFqdn(int8_t enableIpv6, char *fqdn) {
     // when ipv6 is enabled, allow both IPv4 and IPv6 addresses
     // taosGetIpFromFqdn will use AF_UNSPEC and return first available address
     // both IPv4 (type=0) and IPv6 (type=1) are acceptable
-    return 0;  // validation always succeeds when ipv6 is enabled (dual-stack mode)
+    if (addr.type != 0 && addr.type != 1) {
+      return TSDB_CODE_RPC_FQDN_ERROR;
+    }
+    return code;  // validation always succeeds when ipv6 is enabled (dual-stack mode)
   } else {
     if (addr.type == 1) return TSDB_CODE_RPC_FQDN_ERROR;
   }
