@@ -231,7 +231,7 @@ database_option: {
 
 参数说明：
 
-- `encrypt_algorithm`：指定数据采用的加密算法。默认是 none，即不采用加密。sm4 表示采用 SM4 加密算法，aes 表示采用 AES 加密算法
+- `encrypt_algorithm`：指定数据采用的加密算法。默认是 none，即不采用加密。SM4-CBC 表示采用 SM4-CBC 加密算法，AES-128-CBC 表示采用 AES-128-CBC 加密算法
 
 示例：
 

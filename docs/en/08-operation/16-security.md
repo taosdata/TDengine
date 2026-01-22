@@ -148,7 +148,6 @@ The current list of operations recorded in the audit logs and the meanings of ea
 
 After both taosd and taosKeeper are correctly configured and started, as the system continues to operate, various operations (as shown in the table above) will be recorded and reported in real-time. Users can log in to taosExplorer, click on "System Management" > "Audit" page to view the audit logs; they can also directly query the relevant databases and tables in the TDengine CLI.
 
-
 ## Storage Security
 
 TDengine supports Transparent Data Encryption (TDE), which encrypts static data files to prevent potential attackers from bypassing the database and directly reading sensitive information from the file system. The database access program is completely unaware, and applications do not need to make any modifications or compilations to work with encrypted databases. Storage security features support encryption algorithms such as SM4 and AES, adopt a hierarchical key management mechanism, and provide comprehensive key backup and recovery capabilities.
@@ -235,7 +234,7 @@ database_option: {
 
 Parameter description:
 
-- `encrypt_algorithm`: Specifies the encryption algorithm for data. Default is none, meaning no encryption. sm4 indicates SM4 encryption algorithm, aes indicates AES encryption algorithm
+- `encrypt_algorithm`: Specifies the encryption algorithm for data. Default is none, meaning no encryption. SM4-CBC indicates SM4-CBC encryption algorithm, AES-128-CBC indicates AES-128-CBC encryption algorithm
 
 Examples:
 
