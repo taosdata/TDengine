@@ -842,11 +842,11 @@ static void uvSetConnInfo(SSvrConn* pConn, SRpcConnInfo* pInfo) {
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans*    pInst = pConn->pInst;
   SWorkThrd* pThrd = pConn->hostThrd;
-   
+
   STransMsgHead* pHead = NULL;
-  int8_t resetBuf = 0;
-  int32_t msgLen = 0;
-  int32_t code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
+  int8_t         resetBuf = 0;
+  int32_t        msgLen = 0;
+  int32_t        code = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead, 0, &msgLen);
   if (code != 0) {
     tError("%s conn:%p, read invalid packet since %s", transLabel(pInst), pConn, tstrerror(code));
     return false;
@@ -1549,11 +1549,32 @@ void uvGetSockInfo(struct sockaddr* addr, SIpAddr* ip) {
   } else if (addr->sa_family == AF_INET6) {
     struct sockaddr_in6* addr_in = (struct sockaddr_in6*)addr;
     ip->port = ntohs(addr_in->sin6_port);
-    if (inet_ntop(AF_INET6, &addr_in->sin6_addr, ip->ipv6, INET6_ADDRSTRLEN) == NULL) {
-      uInfo("failed to convert ipv6 address");
+
+    // Check for IPv4-mapped IPv6 address (::ffff:x.x.x.x)
+    const uint8_t* bytes = (const uint8_t*)&addr_in->sin6_addr;
+    int            isIpv4Mapped = 0;
+    if (bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 0 && bytes[3] == 0 && bytes[4] == 0 && bytes[5] == 0 &&
+        bytes[6] == 0 && bytes[7] == 0 && bytes[8] == 0 && bytes[9] == 0 && bytes[10] == 0xff && bytes[11] == 0xff) {
+      isIpv4Mapped = 1;
     }
-    ip->type = 1;
-    ip->mask = 128;
+
+    if (isIpv4Mapped) {
+      // Convert IPv4-mapped IPv6 address to IPv4
+      struct in_addr ipv4_addr;
+      memcpy(&ipv4_addr, &bytes[12], sizeof(ipv4_addr));
+      if (inet_ntop(AF_INET, &ipv4_addr, ip->ipv4, INET_ADDRSTRLEN) == NULL) {
+        uInfo("failed to convert ipv4-mapped ipv6 address to ipv4");
+      }
+      ip->type = 0;
+      ip->mask = 32;
+    } else {
+      // Pure IPv6 address
+      if (inet_ntop(AF_INET6, &addr_in->sin6_addr, ip->ipv6, INET6_ADDRSTRLEN) == NULL) {
+        uInfo("failed to convert ipv6 address");
+      }
+      ip->type = 1;
+      ip->mask = 128;
+    }
   }
 }
 void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
@@ -1797,11 +1818,25 @@ static int32_t addHandleToAcceptloop(void* arg) {
       return TSDB_CODE_THIRDPARTY_ERROR;
     }
 
-    if ((code = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 1)) != 0) {
+    if ((code = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0)) != 0) {
       tError("failed to bind since %s", uv_err_name(code));
       return TSDB_CODE_THIRDPARTY_ERROR;
     }
-    tInfo("bind to ipv6 addr");
+
+    // set IPV6_V6ONLY to 0 to allow both IPv4 and IPv6 connections
+    uv_os_fd_t fd;
+    if ((code = uv_fileno((const uv_handle_t*)&srv->server, &fd)) == 0) {
+      tInfo("bind to ipv6 addr with IPV6_V6ONLY=0 (dual-stack enabled)");
+      // int opt = 0;
+      // if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt)) < 0) {
+      //   tWarn("failed to set IPV6_V6ONLY=0: %s, continue with default setting", strerror(errno));
+      //   opt = 1;
+      // }
+      // if (opt == 0) {
+      // } else {
+      //   tInfo("bind to ipv6 addr (dual-stack status unknown - may be IPv6-only)");
+      // }
+    }
   } else {
     struct sockaddr_in bind_addr;
     if ((code = uv_ip4_addr("0.0.0.0", srv->port, &bind_addr)) != 0) {

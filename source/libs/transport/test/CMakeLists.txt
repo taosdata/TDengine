@@ -1,6 +1,7 @@
 add_executable(transportTest "")
 add_executable(transUT "")
 add_executable(transUT2 "")
+add_executable(transUTIPv6 "")
 add_executable(svrBench "")
 add_executable(cliBench "")
 add_executable(httpBench "")
@@ -13,6 +14,10 @@ target_sources(transUT
 target_sources(transUT2
   PRIVATE
   "transUT2.cpp"
+)
+target_sources(transUTIPv6
+  PRIVATE
+  "transUTIPv6.cpp"
 )
 target_sources(transportTest
   PRIVATE
@@ -75,6 +80,21 @@ target_include_directories(transUT2
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
+
+DEP_ext_gtest(transUTIPv6)
+target_link_libraries(transUTIPv6 PRIVATE
+  os
+  util
+  common
+  transport
+)
+
+target_include_directories(transUTIPv6
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/transport"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+
 target_include_directories(svrBench
   PUBLIC
   "${TD_SOURCE_DIR}/include/libs/transport"
@@ -124,4 +144,12 @@ add_test(
 add_test(
   NAME transUtilUt
   COMMAND transportTest
+)
+add_test(
+  NAME transUTBasic
+  COMMAND transUTBasic
+)
+add_test(
+  NAME transUTIPv6
+  COMMAND transUTIPv6
 )

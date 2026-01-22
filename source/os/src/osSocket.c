@@ -57,7 +57,7 @@
 #ifndef __LITTLE_ENDIAN
 #define __LITTLE_ENDIAN _LITTLE_ENDIAN
 #endif
-#endif // TD_ASTRA
+#endif  // TD_ASTRA
 
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
@@ -535,7 +535,7 @@ _err:
   return code;
 }
 int32_t taosGetIpFromFqdn(int8_t enableIpv6, const char *fqdn, SIpAddr *addr) {
-  int32_t  code = 0;
+  int32_t code = 0;
   if (enableIpv6) {
     code = taosGetIpv6FromFqdn(fqdn, addr);
   } else {
@@ -597,7 +597,7 @@ int32_t taosGetFqdn(char *fqdn) {
 
 #endif  // linux
 #if defined(TD_ASTRA)
-  tstrncpy(fqdn, hostname, TD_FQDN_LEN);  
+  tstrncpy(fqdn, hostname, TD_FQDN_LEN);
 #elif defined(LINUX)
 
   struct addrinfo  hints = {0};
@@ -647,11 +647,11 @@ void taosInetNtoa(char *ipstr, uint32_t ip) {
   if (ipstr == NULL) {
     return;
   }
-  unsigned char *bytes = (unsigned char *) &ip;
+  unsigned char *bytes = (unsigned char *)&ip;
   (void)snprintf(ipstr, TD_IP_LEN, "%d.%d.%d.%d", bytes[0], bytes[1], bytes[2], bytes[3]);
 }
 
-uint32_t taosInetAddr(const char *ipstr){
+uint32_t taosInetAddr(const char *ipstr) {
   if (ipstr == NULL) {
     return 0;
   }
@@ -696,15 +696,15 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout, int8_t t) {
   //  taosCloseSocketNoCheck1(fd);
   //  return -1;
   //}
-#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+#elif defined(TD_ASTRA)  // TD_ASTRA_TODO
   uint32_t conn_timeout_ms = timeout;
-  if (0 != setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms)) || 
+  if (0 != setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms)) ||
       0 != setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     TAOS_SKIP_ERROR(taosCloseSocketNoCheck1(fd));
     return terrno;
   }
-#else  // Linux like systems
+#else                    // Linux like systems
   uint32_t conn_timeout_ms = timeout;
   if (-1 == setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
@@ -786,9 +786,10 @@ int32_t taosValidFqdn(int8_t enableIpv6, char *fqdn) {
   }
 
   if (enableIpv6) {
-    // if ipv6 is enabled, but the fqdn resolves to ipv4 address
-    // then return error
-    if (addr.type == 0) return TSDB_CODE_RPC_FQDN_ERROR;
+    // when ipv6 is enabled, allow both IPv4 and IPv6 addresses
+    // taosGetIpFromFqdn will use AF_UNSPEC and return first available address
+    // both IPv4 (type=0) and IPv6 (type=1) are acceptable
+    return 0;  // validation always succeeds when ipv6 is enabled (dual-stack mode)
   } else {
     if (addr.type == 1) return TSDB_CODE_RPC_FQDN_ERROR;
   }
