@@ -2769,6 +2769,86 @@ static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
   return code;
 }
 
+static int32_t getExprSubQRewriteType(EOperatorType opType, SNode* pSubq, ESubQRewriteType* pRes) {
+  if (OP_TYPE_EXISTS == opType || OP_TYPE_NOT_EXISTS == opType) {
+    *pRes = E_SQ_REWRITE_TO_NONZERO_ROWS;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (OP_TYPE_IN == opType || OP_TYPE_NOT_IN == opType) {
+    *pRes = E_SQ_REWRITE_KEEP_REMAIN;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  EQuantifyType quantifyType = (QUERY_NODE_SELECT_STMT == nodeType(pSubq)) ? ((SSelectStmt*)pSubq)->quantify : ((SSetOperator*)pSubq)->quantify;
+
+  if (QU_TYPE_ANY != quantifyType && QU_TYPE_ALL != quantifyType) {
+    parserError("invalid quantifyType %d for op%s's subQ", quantifyType, operatorTypeStr(opType));
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+
+  switch (opType) {
+    case OP_TYPE_GREATER_THAN: 
+    case OP_TYPE_GREATER_EQUAL:
+      *pRes = (QU_TYPE_ANY == quantifyType) ? E_SQ_REWRITE_TO_MIN : E_SQ_REWRITE_TO_MAX;
+      return TSDB_CODE_SUCCESS;
+    case OP_TYPE_LOWER_THAN:
+    case OP_TYPE_LOWER_EQUAL:
+      *pRes = (QU_TYPE_ANY == quantifyType) ? E_SQ_REWRITE_TO_MAX : E_SQ_REWRITE_TO_MIN;
+      return TSDB_CODE_SUCCESS;
+    case OP_TYPE_EQUAL:
+      *pRes = (QU_TYPE_ANY == quantifyType) ? E_SQ_REWRITE_TO_IN : E_SQ_REWRITE_TO_NEG_NOT_IN;
+      return TSDB_CODE_SUCCESS;
+    case OP_TYPE_NOT_EQUAL:
+      *pRes = (QU_TYPE_ANY == quantifyType) ? E_SQ_REWRITE_TO_NEG_IN : E_SQ_REWRITE_TO_NOT_IN;
+      return TSDB_CODE_SUCCESS;
+    default:
+      break;
+  }
+
+  parserError("invalid op %s for subq rewrite", operatorTypeStr(opType));
+  return TSDB_CODE_PAR_INTERNAL_ERROR;
+}
+
+static int32_t doRewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp, SNode** ppTarget) {
+  ESubQRewriteType rewriteType; 
+  pCxt->errCode = getExprSubQRewriteType(pOp->opType, *ppTarget, &rewriteType);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    return pCxt->errCode;
+  }
+
+  switch (rewriteType) {
+    case E_SQ_REWRITE_TO_IN:
+      pOp->opType = OP_TYPE_IN;
+      pCxt->errCode = replaceExprSubQuery(pCxt, ppTarget, *ppTarget);
+      break;
+    case E_SQ_REWRITE_TO_NEG_IN:
+      pOp->opType = OP_TYPE_IN;
+      pOp->flag |= OPERATOR_FLAG_NEGATIVE_OP;
+      pCxt->errCode = replaceExprSubQuery(pCxt, ppTarget, *ppTarget);
+      break;
+    case E_SQ_REWRITE_TO_NOT_IN:
+      pOp->opType = OP_TYPE_NOT_IN;
+      pCxt->errCode = replaceExprSubQuery(pCxt, ppTarget, *ppTarget);
+      break;
+    case E_SQ_REWRITE_TO_NEG_NOT_IN:
+      pOp->opType = OP_TYPE_NOT_IN;
+      pOp->flag |= OPERATOR_FLAG_NEGATIVE_OP;
+      pCxt->errCode = replaceExprSubQuery(pCxt, ppTarget, *ppTarget);
+      break;
+    case E_SQ_REWRITE_TO_MIN:
+      break;
+    case E_SQ_REWRITE_TO_MAX:
+      break;
+    case E_SQ_REWRITE_TO_NONZERO_ROWS:
+      break;
+    case E_SQ_REWRITE_KEEP_REMAIN:
+      pCxt->errCode = replaceExprSubQuery(pCxt, ppTarget, *ppTarget);
+      break;
+  }
+
+  return pCxt->errCode;
+}
 
 static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp) {
   switch (pOp->opType) {
@@ -2803,13 +2883,13 @@ static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp) 
         break;
       }
 
-      if (E_SUB_QUERY_TABLE != pCxt->expSubQueryType) {
+      if (E_SUB_QUERY_NONZERO_ROWNUM != pCxt->expSubQueryType) {
         parserError("op %s mismatch with exprSubQType:%d", operatorTypeStr(pOp->opType), pCxt->expSubQueryType);
         pCxt->errCode = TSDB_CODE_PAR_INTERNAL_ERROR;
         break;
       }
       
-      pCxt->errCode = doRewriteExprSubQuery(pCxt, pOp, &pOp->pRight);
+      pCxt->errCode = doRewriteExprSubQuery(pCxt, pOp, &pOp->pLeft);
       break;
     }
     default:

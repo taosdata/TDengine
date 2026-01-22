@@ -202,9 +202,12 @@ typedef struct SHintNode {
   void*       value;
 } SHintNode;
 
+#define OPERATOR_FLAG_NEGATIVE_OP      (1 << 0)
+
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR
   EOperatorType opType;
+  int32_t       flag;
   SNode*        pLeft;
   SNode*        pRight;
   timezone_t    tz;
@@ -612,7 +615,8 @@ typedef enum ESubQueryType {
   E_SUB_QUERY_ERROR = 0,
   E_SUB_QUERY_SCALAR = 1,
   E_SUB_QUERY_COLUMN,
-  E_SUB_QUERY_TABLE
+  E_SUB_QUERY_TABLE,
+  E_SUB_QUERY_NONZERO_ROWNUM,
 } ESubQueryType;
 
 typedef struct SSelectStmt {

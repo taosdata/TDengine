@@ -30,6 +30,17 @@ extern "C" {
 
 #define QUERY_NUMBER_MAX_DISPLAY_LEN 65
 
+typedef enum {
+  E_SQ_REWRITE_TO_IN = 1,
+  E_SQ_REWRITE_TO_NEG_IN,
+  E_SQ_REWRITE_TO_NOT_IN,
+  E_SQ_REWRITE_TO_NEG_NOT_IN,
+  E_SQ_REWRITE_TO_MIN,
+  E_SQ_REWRITE_TO_MAX,
+  E_SQ_REWRITE_TO_NONZERO_ROWS,
+  E_SQ_REWRITE_KEEP_REMAIN,
+} ESubQRewriteType;
+
 int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatalogReq, const SMetaData* pMetaData);
 int32_t continueCreateTbFromFile(SParseContext* pCxt, SQuery** pQuery);
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);
