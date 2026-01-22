@@ -1,7 +1,7 @@
 use regex::Regex;
-use serde_json::json;
 use serde_json::Map;
 use serde_json::Value as JsonValue;
+use serde_json::json;
 use std::collections::HashSet;
 use std::ffi::CString;
 use std::mem::ManuallyDrop;
@@ -17,13 +17,13 @@ static DATE_PATTERN: LazyLock<Regex> =
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn parser_name() -> *mut c_char {
     let name = CString::new("hebeipower").unwrap();
     name.into_raw()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn parser_version() -> *mut c_char {
     let version = CString::new("0.1.0").unwrap();
     version.into_raw()
@@ -94,16 +94,11 @@ impl ParserConfig {
         let mut share_object = Map::new();
         for (k, v) in object.iter() {
             if self.value_key_pattern.is_match(k) {
-                let dt = format!(
-                    "{}T{}:{}:00+08:00",
-                    data_date,
-                    &k[1..3],
-                    &k[3..]
-                );
+                let dt = format!("{}T{}:{}:00+08:00", data_date, &k[1..3], &k[3..]);
 
                 let mut new_obj = Map::new();
                 new_obj.insert(format!("_val{}", the_flag), v.clone());
-                if the_flag != "" {
+                if !the_flag.is_empty() {
                     new_obj.insert("_val".to_string(), v.clone());
                 }
 
@@ -136,9 +131,20 @@ impl ParserConfig {
     }
 }
 
-#[no_mangle]
-pub extern "C" fn parser_new(ctx: *const c_char, len: i32) -> ParserResponse {
-    let ctx = unsafe { std::slice::from_raw_parts(ctx as *const u8, len as usize) };
+/// # Safety
+///
+/// - `ctx` must be a non-null pointer to at least `len` bytes of initialized memory.
+/// - The memory region referenced by `ctx` must remain valid and not be freed, moved,
+///   or concurrently mutated for the entire duration of this function call.
+/// - This function must not be called concurrently with the same `ctx` pointer from
+///   multiple threads or call sites.
+/// - `len` must accurately represent the size in bytes of the buffer at `ctx`; it must
+///   not be larger than the allocated region and must not truncate the intended data.
+/// - The `len` bytes at `ctx` must contain a valid UTF-8 string representing the
+///   parser configuration.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn parser_new(ctx: *const c_char, len: i32) -> ParserResponse {
+    let ctx = std::slice::from_raw_parts(ctx as *const _, len as usize);
     let parser_config = std::str::from_utf8(ctx).map(ParserConfig::new);
     if parser_config.is_err() {
         return ParserResponse {
@@ -165,8 +171,14 @@ fn set_output(output_string: String, output_p: *mut *mut u8, output_l: *mut u32)
 
 /// # Safety
 ///
-/// This function should be called after the parser config given.
-#[no_mangle]
+/// - `p` must be a valid pointer returned from [`parser_new`] and must not have been freed yet.
+/// - `input_p` must be a valid pointer to `input_l` bytes of initialized memory.
+/// - `output_p` and `output_l` must be valid, non-null pointers to writable memory where this
+///   function can store the output buffer pointer and its length, respectively.
+/// - This function must not be called concurrently with `parser_free` on the same `p`.
+/// - The caller is responsible for managing the lifetime and eventual deallocation of the
+///   output buffer written via `output_p`.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parser_mutate(
     p: *mut c_void,
     input_p: *const u8,
@@ -183,7 +195,8 @@ pub unsafe extern "C" fn parser_mutate(
     let parser_config = (p as *mut ParserConfig).as_mut().unwrap();
 
     let input_len = input_l as usize;
-    let output_string = std::str::from_utf8(std::slice::from_raw_parts(input_p, input_len))
+    let slice = std::slice::from_raw_parts(input_p, input_len);
+    let output_string = std::str::from_utf8(slice)
         .map(serde_json::from_str::<serde_json::Value>)
         .map(|value| match value {
             Ok(JsonValue::Object(object)) => {
@@ -235,8 +248,14 @@ pub unsafe extern "C" fn parser_mutate(
 
 /// # Safety
 ///
-/// This function should be called to release the parser config.
-#[no_mangle]
+/// - `p` must be a valid pointer previously returned from `parser_new`.
+/// - `p` must not be null.
+/// - `p` must not have been previously freed.
+/// - After this function returns, `p` is no longer valid and must not be used.
+/// - This function must not be called concurrently with any other operation on the same `p`.
+///
+/// This function releases the parser configuration associated with `p`.
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn parser_free(p: *mut c_void) {
     let parser_config = Box::from_raw(p as *mut ParserConfig);
     drop(parser_config);
