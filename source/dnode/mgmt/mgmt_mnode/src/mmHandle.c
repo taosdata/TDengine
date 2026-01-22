@@ -46,7 +46,8 @@ int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
                       .numOfReplicas = createReq.replica,
                       .numOfTotalReplicas = createReq.replica + createReq.learnerReplica,
                       .selfIndex = -1,
-                      .lastIndex = createReq.lastIndex};
+                      .lastIndex = createReq.lastIndex,
+                      .encrypted = createReq.encrypted};
 
   memcpy(option.replicas, createReq.replicas, sizeof(createReq.replicas));
   for (int32_t i = 0; i < createReq.replica; ++i) {

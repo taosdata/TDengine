@@ -78,18 +78,10 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
     case FUNCTION_TYPE_WSTART:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->colType = COLUMN_TYPE_WINDOW_START;
-      if (!isPartitionBy || (pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
-                             isPrimaryKeyImpl(pOrderByFirstExpr))) {
-        pCol->isPrimTs = true;
-      }
       break;
     case FUNCTION_TYPE_WEND:
       pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pCol->colType = COLUMN_TYPE_WINDOW_END;
-      if (!isPartitionBy || (pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
-                             isPrimaryKeyImpl(pOrderByFirstExpr))) {
-        pCol->isPrimTs = true;
-      }
       break;
     case FUNCTION_TYPE_WDURATION:
       pCol->colType = COLUMN_TYPE_WINDOW_DURATION;
@@ -101,12 +93,13 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
       pCol->colType = COLUMN_TYPE_IS_WINDOW_FILLED;
       break;
     default:
-      // if ((pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
-      //      isPrimaryKeyImpl(pOrderByFirstExpr))) {
-      //   pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-      //   pCol->isPrimTs = true;
-      // }
       break;
+  }
+  if (fmIsKeepOrderFunc(pFunc) && isPrimaryKeyImpl((SNode*)pFunc)) {
+    if (!isPartitionBy || (pOrderByFirstExpr && ((SExprNode*)pOrderByFirstExpr)->projIdx == pCol->node.projIdx &&
+                           isPrimaryKeyImpl(pOrderByFirstExpr))) {
+      pCol->isPrimTs = true;
+    }
   }
 }
 
@@ -1941,7 +1934,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
       (NULL != pInterval->pSliding ? ((SValueNode*)pInterval->pSliding)->unit : pWindow->intervalUnit);
   pWindow->windowAlgo = INTERVAL_ALGO_HASH;
   pWindow->node.groupAction = (NULL != pInterval->pFill ? GROUP_ACTION_KEEP : getGroupAction(pCxt, pSelect));
-  pWindow->node.requireDataOrder = (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_IN_BLOCK);
+  pWindow->node.requireDataOrder = (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_NONE);
   pWindow->node.resultDataOrder = getRequireDataOrder(true, pSelect);
   pWindow->pTspk = NULL;
   code = nodesCloneNode(pInterval->pCol, &pWindow->pTspk);
@@ -2559,7 +2552,7 @@ static bool isPrimaryKeySort(SNodeList* pOrderByList) {
 }
 
 static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (NULL == pSelect->pOrderByList) {
+  if (NULL == pSelect->pOrderByList || pSelect->pOrderByList->length == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2572,11 +2565,11 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pSort->groupSort = pSelect->groupSort;
   pSort->node.groupAction = pSort->groupSort ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
   pSort->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+
   pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
                                     ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
                                     : DATA_ORDER_LEVEL_NONE;
-  if (pCxt->pPlanCxt->streamCalcQuery &&
-      nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
+  if (pCxt->pPlanCxt->streamCalcQuery && nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
       ((SRealTableNode*)pSelect->pFromTable)->placeholderType == SP_PARTITION_ROWS) {
     pSort->skipPKSortOpt = true;
   }

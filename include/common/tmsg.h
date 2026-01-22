@@ -3550,6 +3550,7 @@ typedef struct {
   int8_t   learnerReplica;
   SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
   int64_t  lastIndex;
+  int8_t   encrypted;  // Whether sdb.data is encrypted (0=false, 1=true)
 } SDCreateMnodeReq, SDAlterMnodeReq, SDAlterMnodeTypeReq;
 
 int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
@@ -3891,7 +3892,7 @@ void    tFreeSMRebalanceXnodeJobsWhereReq(SMRebalanceXnodeJobsWhereReq* pReq);
 
 typedef struct {
   int32_t jid;
-  int32_t tid;
+  CowStr  ast;
   int32_t sqlLen;
   char*   sql;
 } SMDropXnodeJobReq;

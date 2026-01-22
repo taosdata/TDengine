@@ -552,7 +552,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
       .precision = pVnode->config.tsdbCfg.precision,
   };
   tstrncpy(cfg.encryptAlgrName, pVnode->config.tdbEncryptData.encryptAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
-  tstrncpy(cfg.encryptKey, tsDbKey, ENCRYPT_KEY_LEN + 1);
+  tstrncpy(cfg.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
 
   ret = bseOpen(tdir, &cfg, &pVnode->pBse);
   if (ret != 0) {

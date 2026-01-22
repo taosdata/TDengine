@@ -1039,6 +1039,10 @@ void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOf
       taosVariantDestroy(&pCtx[i].param[j].param);
     }
 
+    if(pCtx[i].fpSet.cleanup) {
+      pCtx[i].fpSet.cleanup(&pCtx[i]);
+    }
+
     taosMemoryFreeClear(pCtx[i].subsidiaries.pCtx);
     taosMemoryFreeClear(pCtx[i].subsidiaries.buf);
     taosMemoryFree(pCtx[i].input.pData);

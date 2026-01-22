@@ -177,8 +177,13 @@ void destroyEWindowOperatorInfo(void* param) {
     return;
   }
 
+  // First cleanup function contexts that may reference result buffers/state.
+  // This must happen before freeing any buffers that those cleanups might touch.
+  cleanupResultInfoInEventWindow(pInfo->pOperator, pInfo);
+
   if (pInfo->pRow != NULL) {
     taosMemoryFree(pInfo->pRow);
+    pInfo->pRow = NULL;
   }
 
   if (pInfo->pStartCondInfo != NULL) {
@@ -193,8 +198,6 @@ void destroyEWindowOperatorInfo(void* param) {
 
   cleanupBasicInfo(&pInfo->binfo);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-
-  cleanupResultInfoInEventWindow(pInfo->pOperator, pInfo);
   pInfo->pOperator = NULL;
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);

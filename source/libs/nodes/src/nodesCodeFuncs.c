@@ -10971,7 +10971,6 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToSubplan(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN:
       return jsonToPlan(pJson, pObj);
-
     case QUERY_NODE_SHOW_XNODES_STMT:
       return jsonToShowXnodesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
