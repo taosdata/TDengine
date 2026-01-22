@@ -1,6 +1,10 @@
+#include "crypt.h"
 #include "stream.h"
-#include "trpc.h"
 #include "streamInt.h"
+#include "tchecksum.h"
+#include "tencrypt.h"
+#include "tglobal.h"
+#include "trpc.h"
 
 TdThreadMutex mtx;
 SHashObj* checkpointReadyMap = NULL;
@@ -34,13 +38,63 @@ static int32_t getFileNameTmp(char* filepath, int64_t streamId) {
 static int32_t writeFile(char* filepath, void* data, int64_t dataLen) {
   int32_t   code = 0;
   int32_t   lino = 0;
-  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_CLOEXEC);
+  TdFilePtr pFile = NULL;
+  char*     encryptedData = NULL;
+  int32_t   writeLen = dataLen;
+
+  pFile = taosOpenFile(filepath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_CLOEXEC);
   STREAM_CHECK_NULL_GOTO(pFile, terrno);
 
-  STREAM_CHECK_CONDITION_GOTO(taosWriteFile(pFile, data, dataLen) <= 0, terrno);
+  // Wait for keys to be loaded (similar to mnode)
+  if (taosWaitCfgKeyLoaded() != 0) {
+    code = terrno;
+    goto end;
+  }
+
+  // Encrypt data if metaKey is set (reference: sdbFile.c line 562-590)
+  if (tsMetaKey[0] != '\0') {
+    writeLen = ENCRYPTED_LEN(dataLen);
+    encryptedData = taosMemoryMalloc(writeLen);
+    STREAM_CHECK_NULL_GOTO(encryptedData, terrno);
+
+    // Pad with zeros
+    memset(encryptedData, 0, writeLen);
+    memcpy(encryptedData, data, dataLen);
+
+    // Encrypt using CBC with metaKey
+    SCryptOpts opts = {0};
+    opts.len = writeLen;
+    opts.source = (char*)data;
+    opts.result = encryptedData;
+    opts.unitLen = 16;
+    opts.pOsslAlgrName = taosGetEncryptAlgoName(tsEncryptAlgorithmType);
+    tstrncpy(opts.key, tsMetaKey, ENCRYPT_KEY_LEN + 1);
+
+    int32_t count = CBC_Encrypt(&opts);
+    if (count <= 0) {
+      stError("failed to encrypt checkpoint data, dataLen:%" PRId64 ", encryptedLen:%d", dataLen, writeLen);
+      code = terrno;
+      goto end;
+    }
+
+    stDebug("encrypted checkpoint: original len:%" PRId64 ", encrypted len:%d", dataLen, writeLen);
+  }
+
+  // Write original data length first (unencrypted metadata for decryption)
+  STREAM_CHECK_CONDITION_GOTO(taosWriteFile(pFile, &dataLen, sizeof(int64_t)) != sizeof(int64_t), terrno);
+
+  // Write encrypted/plain data
+  void* writeData = (encryptedData != NULL) ? encryptedData : data;
+  STREAM_CHECK_CONDITION_GOTO(taosWriteFile(pFile, writeData, writeLen) != writeLen, terrno);
+
   STREAM_CHECK_CONDITION_GOTO(taosFsyncFile(pFile) < 0, terrno);
   STREAM_CHECK_CONDITION_GOTO(taosCloseFile(&pFile) != 0, terrno);
+
 end:
+  taosMemoryFree(encryptedData);
+  if (pFile != NULL) {
+    (void)taosCloseFile(&pFile);
+  }
   STREAM_PRINT_LOG_END(code, lino);
   return code;
 }
@@ -86,6 +140,10 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen) {
   int32_t   lino = 0;
   char      filepath[PATH_MAX] = {0};
   TdFilePtr pFile = NULL;
+  char*     encryptedData = NULL;
+  int64_t   originalLen = 0;
+  int64_t   readLen = 0;
+
   STREAM_CHECK_NULL_GOTO(data, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(dataLen, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_RET_GOTO(getFileName(filepath, streamId));
@@ -94,11 +152,64 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen) {
   pFile = taosOpenFile(filepath, TD_FILE_READ);
   STREAM_CHECK_NULL_GOTO(pFile, 0);
 
-  STREAM_CHECK_RET_GOTO(taosFStatFile(pFile, dataLen, NULL));
-  *data = taosMemoryMalloc(*dataLen);
-  STREAM_CHECK_NULL_GOTO(*data, terrno);
+  // Read original length (unencrypted metadata)
+  STREAM_CHECK_CONDITION_GOTO(taosReadFile(pFile, &originalLen, sizeof(int64_t)) != sizeof(int64_t), terrno);
 
-  STREAM_CHECK_CONDITION_GOTO(taosReadFile(pFile, *data, *dataLen) != *dataLen, terrno);
+  // Calculate read length (encrypted or plain)
+  readLen = originalLen;
+  if (tsMetaKey[0] != '\0') {
+    readLen = ENCRYPTED_LEN(originalLen);
+  }
+
+  encryptedData = taosMemoryMalloc(readLen);
+  STREAM_CHECK_NULL_GOTO(encryptedData, terrno);
+
+  STREAM_CHECK_CONDITION_GOTO(taosReadFile(pFile, encryptedData, readLen) != readLen, terrno);
+
+  // Wait for keys to be loaded (reference: sdbFile.c line 400)
+  if (taosWaitCfgKeyLoaded() != 0) {
+    code = terrno;
+    goto end;
+  }
+
+  // Decrypt data if metaKey is set (reference: sdbFile.c line 405-432)
+  if (tsMetaKey[0] != '\0') {
+    char* plainContent = taosMemoryMalloc(readLen);
+    STREAM_CHECK_NULL_GOTO(plainContent, terrno);
+
+    // Decrypt using CBC with metaKey
+    SCryptOpts opts = {0};
+    opts.len = readLen;
+    opts.source = encryptedData;
+    opts.result = plainContent;
+    opts.unitLen = 16;
+    opts.pOsslAlgrName = taosGetEncryptAlgoName(tsEncryptAlgorithmType);
+    tstrncpy(opts.key, tsMetaKey, ENCRYPT_KEY_LEN + 1);
+
+    int32_t count = CBC_Decrypt(&opts);
+    if (count <= 0) {
+      stError("failed to decrypt checkpoint for streamId:%" PRIx64 ", dataLen:%" PRId64, streamId, originalLen);
+      taosMemoryFree(plainContent);
+      code = terrno;
+      goto end;
+    }
+
+    // Allocate output buffer and copy only original length (remove padding)
+    *data = taosMemoryMalloc(originalLen);
+    STREAM_CHECK_NULL_GOTO(*data, terrno);
+    memcpy(*data, plainContent, originalLen);
+    taosMemoryFree(plainContent);
+
+    *dataLen = originalLen;
+    stDebug("[checkpoint] decrypted checkpoint for streamId:%" PRIx64 ", encrypted len:%" PRId64
+            ", original len:%" PRId64,
+            streamId, readLen, originalLen);
+  } else {
+    *data = encryptedData;
+    *dataLen = originalLen;
+    encryptedData = NULL;  // Transfer ownership
+  }
+
   stDebug("[checkpoint] read checkpoint file for streamId:%" PRIx64 ", file:%s, content:(%d %" PRIx64") len:%"PRId64, 
     streamId, filepath, *(int32_t*)(POINTER_SHIFT(*data, INT_BYTES)), *(int64_t*)POINTER_SHIFT(*data, 2 * INT_BYTES), *dataLen);
 
@@ -107,6 +218,7 @@ end:
     taosMemoryFreeClear(*data);
     *dataLen = 0;
   }
+  taosMemoryFree(encryptedData);
   (void)taosCloseFile(&pFile);
   STREAM_PRINT_LOG_END(code, lino);
   return code;
