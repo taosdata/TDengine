@@ -649,7 +649,7 @@ echo "Generating allure report, status: $generate_status"
 # check report is generated successfully
 if [ -f "$report_dir/index.html" ]; then
     echo "Allure report generated successfully at $report_dir."
-    echo "Test report: https://platform.tdengine.net:8090/reports/$test_log_dir/report"
+    echo "Test report: https://platform.tdengine.net:8090/reports/tsdb/$test_log_dir/report"
 else
     echo "Error: Failed to generate Allure report."
 fi
