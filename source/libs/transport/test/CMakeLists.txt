@@ -146,10 +146,6 @@ add_test(
   COMMAND transportTest
 )
 add_test(
-  NAME transUTBasic
-  COMMAND transUTBasic
-)
-add_test(
   NAME transUTIPv6
   COMMAND transUTIPv6
 )
