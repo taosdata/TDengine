@@ -27,7 +27,7 @@ class TestXnodeSystemTables:
 
         1. Query show xnodes 
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -67,7 +67,7 @@ class TestXnodeSystemTables:
 
         1. Query show xnode tasks 
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -102,7 +102,7 @@ class TestXnodeSystemTables:
 
         1. Query show xnode jobs 
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -137,7 +137,7 @@ class TestXnodeSystemTables:
 
         1. Query show xnode agents 
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -167,7 +167,7 @@ class TestXnodeSystemTables:
 
         1. Query show xnode from inx_xnodes
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -198,7 +198,7 @@ class TestXnodeSystemTables:
 
         1. Query show xnode tasks from inx_xnode_tasks
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -228,7 +228,7 @@ class TestXnodeSystemTables:
 
         1. Query show xnode from inx_xnodes where status = 'online'
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -258,7 +258,7 @@ class TestXnodeSystemTables:
 
         1. Query show xnode tasks from inx_xnode_tasks where status = 'running'
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -283,47 +283,12 @@ class TestXnodeSystemTables:
             else:
                 raise
 
-    # def test_join_xnodes_and_tasks(self):
-    #     """测试联合查询 XNodes 和 Tasks
-
-    #     1. Left join inx_xnodes and inx_xnode_tasks on xnode_id
-
-    #     Since: v3.3.8.8
-
-    #     Labels: common,ci
-
-    #     Jira: None
-
-    #     History:
-    #         - 2025-12-30 GuiChuan Zhang Created
-    #     """
-
-    #     sql = """
-    #         SELECT x.id, x.url, t.name, t.status 
-    #         FROM information_schema.ins_xnodes x 
-    #         LEFT JOIN information_schema.ins_xnode_tasks t 
-    #         ON x.id = t.xnode_id
-    #     """
-    #     tdLog.info(f"Querying with JOIN: {sql}")
-    #     try:
-    #         tdSql.query(sql)
-    #         rows = tdSql.queryRows
-    #         tdLog.success(f"JOIN query returned {rows} rows")
-    #     except Exception as e:
-    #         msg = str(e).lower()
-    #         if "not exist" in msg or "not support" in msg:
-    #             tdLog.notice(f"JOIN may not be supported or tables not exist: {e}")
-    #         elif "syntax" not in msg and "parse" not in msg:
-    #             tdLog.notice(f"Runtime error tolerated: {e}")
-    #         else:
-    #             raise
-
     def test_count_xnodes(self):
         """测试统计 XNode 数量
 
         1. Query count(*) from inx_xnodes
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -354,7 +319,7 @@ class TestXnodeSystemTables:
 
         1. Query count(*) from inx_xnode_tasks group by status
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -386,7 +351,7 @@ class TestXnodeSystemTables:
 
         1. Query tasks from inx_xnode_tasks order by create_time desc limit 10
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -421,7 +386,7 @@ class TestXnodeSystemTables:
         1. Query desc from inx_xnodes, inx_xnode_tasks, inx_xnode_jobs
         2. Check table fields consistency
         
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -467,7 +432,7 @@ class TestXnodeSystemTables:
 
         1. Clean up test database
         
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
