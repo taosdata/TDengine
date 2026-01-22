@@ -1350,5 +1350,5 @@ setConfRet taos_set_config(const char *config){
   setConfRet ret = taos_set_config_imp(config);
   taosThreadMutexUnlock(&setConfMutex);
   return ret;
-}
+} 
 #endif
