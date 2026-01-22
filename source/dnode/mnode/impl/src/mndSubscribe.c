@@ -709,7 +709,7 @@ static int32_t assignVgroups(SMqRebOutputObj *pOutput, SHashObj *pHash, int32_t 
 
   if (pAssignIter != NULL) {
     mError("tmq rebalancesub:%s assign iter is not NULL, never should reach here", pOutput->pSub->key);
-    code = TSDB_CODE_PAR_INTERNAL_ERROR;
+    code = TSDB_CODE_MND_INTERNAL_ERROR;
     goto END;
   }
   while (1) {
