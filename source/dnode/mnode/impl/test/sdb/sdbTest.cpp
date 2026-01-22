@@ -1147,6 +1147,14 @@ TEST_F(MndTestSdb, 02_Encryption_Migration) {
   
   // Verify encrypted flag is false
   EXPECT_EQ(pSdb1->encrypted, false);
+  
+  // Create mnode.json with encrypted=false to simulate real scenario
+  SMnodeOpt option1 = {0};
+  option1.deploy = true;
+  option1.encrypted = false;
+  ASSERT_EQ(mmWriteFile(testPath, &option1), 0);
+  printf("Step 1: Created mnode.json with encrypted=false\n");
+  
   EXPECT_EQ(readMnodeJsonEncryptedFlag(testPath), false);
   
   sdbCleanup(pSdb1);
@@ -1332,6 +1340,12 @@ TEST_F(MndTestSdb, 03_Encryption_Migration_Error_Handling) {
   sdbSetApplyInfo(pSdb1, 1, 1, 1);
   ASSERT_EQ(sdbWriteFile(pSdb1, 0), 0);
   EXPECT_EQ(pSdb1->encrypted, false);
+  
+  // Create mnode.json with encrypted=false to simulate real scenario
+  SMnodeOpt option1 = {0};
+  option1.deploy = true;
+  option1.encrypted = false;
+  ASSERT_EQ(mmWriteFile(testPath, &option1), 0);
   
   sdbCleanup(pSdb1);
   
