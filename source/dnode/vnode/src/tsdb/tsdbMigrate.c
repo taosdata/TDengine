@@ -453,7 +453,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
 
   char path[TSDB_FILENAME_LEN];
   if (f->lcn <= 1) {
-    strcpy(path, fobj->fname);
+    tstrncpy(path, fobj->fname, sizeof(path));
   } else {
     tsdbTFileLastChunkName(rtner->tsdb, f, path);
   }
@@ -602,7 +602,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
 
   char path[TSDB_FILENAME_LEN];
   if (flocal->f->lcn <= 1) {
-    strcpy(path, flocal->fname);
+    tstrncpy(path, flocal->fname, sizeof(path));
   } else {
     tsdbTFileLastChunkName(rtner->tsdb, flocal->f, path);
   }
@@ -964,7 +964,7 @@ int32_t tsdbListSsMigrateFileSets(STsdb *tsdb, SArray* fidArr) {
 
     char path[TSDB_FILENAME_LEN];
     if (fdata->f->lcn <= 1) {
-      strcpy(path, fdata->fname);
+      tstrncpy(path, fdata->fname, sizeof(path));
     } else {
       tsdbTFileLastChunkName(tsdb, fdata->f, path);
     }

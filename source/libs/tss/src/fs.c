@@ -57,7 +57,7 @@ static void joinPath(SSharedStorageFS* ss, const char* path, char* fullPath) {
         if (path[0] == TD_DIRSEP_CHAR) {
             path++;
         }
-        strcpy(fullPath + len, path);
+        tstrncpy(fullPath + len, path, 1024);
     }
 }
 

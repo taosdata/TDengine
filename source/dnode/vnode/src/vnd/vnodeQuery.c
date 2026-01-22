@@ -165,7 +165,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
 
   switch (mer1.me.type) {
     case TSDB_SUPER_TABLE: {
-      (void)strcpy(metaRsp.stbName, mer1.me.name);
+      tstrncpy(metaRsp.stbName, mer1.me.name, sizeof(metaRsp.stbName));
       schema = mer1.me.stbEntry.schemaRow;
       schemaTag = mer1.me.stbEntry.schemaTag;
       metaRsp.suid = mer1.me.uid;
@@ -178,7 +178,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
       if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
 
-      (void)strcpy(metaRsp.stbName, mer2.me.name);
+      tstrncpy(metaRsp.stbName, mer2.me.name, sizeof(metaRsp.stbName));
       metaRsp.suid = mer2.me.uid;
       schema = mer2.me.stbEntry.schemaRow;
       schemaTag = mer2.me.stbEntry.schemaTag;
