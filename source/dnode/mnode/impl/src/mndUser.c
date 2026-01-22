@@ -1305,7 +1305,7 @@ static int32_t mndUserPrivUpgradeUser(SMnode *pMnode, SUserObj *pObj) {
     TAOS_CHECK_EXIT(terrno);
   }
 
-  // assign roles
+  // assign roles and system privileges
   uint8_t flag = 0x01;
   if (pObj->superUser) {
     TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSDBA, strlen(TSDB_ROLE_SYSDBA) + 1, &flag, sizeof(flag)));
@@ -1313,10 +1313,13 @@ static int32_t mndUserPrivUpgradeUser(SMnode *pMnode, SUserObj *pObj) {
     TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSAUDIT, strlen(TSDB_ROLE_SYSAUDIT) + 1, &flag, sizeof(flag)));
   } else {
     if (pObj->sysInfo == 1) {
-      TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_DEFAULT, strlen(TSDB_ROLE_DEFAULT) + 1, &flag, sizeof(flag)));
+      TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_1, strlen(TSDB_ROLE_SYSINFO_1) + 1, &flag, sizeof(flag)));
     } else {
       TAOS_CHECK_EXIT(
           taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_0, strlen(TSDB_ROLE_SYSINFO_0) + 1, &flag, sizeof(flag)));
+    }
+    if(pObj->createdb == 1) {
+      privAddType(&pObj->sysPrivs, PRIV_DB_CREATE);
     }
   }
 #ifdef TD_ENTERPRISE
