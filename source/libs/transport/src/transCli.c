@@ -1690,7 +1690,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     if (pReq->pCont == 0) {
       pReq->pCont = (void*)rpcMallocCont(0);
       if (pReq->pCont == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       pReq->contLen = 0;
     }
