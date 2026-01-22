@@ -37,6 +37,7 @@ There are many parameters for creating consumers, which flexibly support various
 |      `td.connect.ip`      | string  | FQDN of Server                                               | ip or host name                                              |
 |     `td.connect.user`     | string  | Username                                                     |                                                              |
 |     `td.connect.pass`     | string  | Password                                                     |                                                              |
+|     `td.connect.token`    | string  | Token  |  The token is generated through the `create token` statement. If set, it takes precedence over username and password                                                            |
 |     `td.connect.port`     | integer | Server port number                                           |                                                              |
 |        `group.id`         | string  | Consumer group ID, the same consumer group shares consumption progress | <br />**Required**. Maximum length: 192,excess length will be cut off. can not contain colon ':'.<br />Each topic can have up to 100 consumer groups |
 |        `client.id`        | string  | Client ID                                                    | Maximum length: 255, excess length will be cut off.          |

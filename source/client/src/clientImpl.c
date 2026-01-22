@@ -152,7 +152,7 @@ static int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpC
                                __taos_async_fn_t fp, void* param, SAppInstInfo* pAppInfo, int connType,
                                STscObj** pTscObj);
 
-static int32_t taos_connect_by_auth(const char* ip, const char* user, const char* auth, const char* totp,
+int32_t taos_connect_by_auth(const char* ip, const char* user, const char* auth, const char* totp,
                                     const char* db, uint16_t port, int connType, STscObj** pObj) {
   TSC_ERR_RET(taos_init());
 
