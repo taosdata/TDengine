@@ -107,7 +107,6 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_SCALAR_FIELD(asParam);
   COPY_SCALAR_FIELD(asPosition);
   COPY_SCALAR_FIELD(joinSrc);
-  COPY_SCALAR_FIELD(asList);
   COPY_SCALAR_FIELD(hasNull);
   COPY_SCALAR_FIELD(projIdx);
   COPY_SCALAR_FIELD(relatedTo);

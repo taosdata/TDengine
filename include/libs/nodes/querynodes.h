@@ -58,7 +58,6 @@ typedef struct SExprNode {
   bool      asParam;
   bool      asPosition;
   bool      joinSrc;
-  bool      asList;
   bool      hasNull;
   //bool      constValue;
   int32_t   projIdx;
