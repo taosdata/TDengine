@@ -994,7 +994,7 @@ int32_t tSerializeSMDropXnodeJobReq(void *buf, int32_t bufLen, SMDropXnodeJobReq
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   ENCODESQL();
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->jid));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->tid));
+  TAOS_CHECK_EXIT(xEncodeCowStr(&encoder, &pReq->ast));
 
   tEndEncode(&encoder);
 _exit:
@@ -1016,14 +1016,17 @@ int32_t tDeserializeSMDropXnodeJobReq(void *buf, int32_t bufLen, SMDropXnodeJobR
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   DECODESQL();
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->jid));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->tid));
+  TAOS_CHECK_EXIT(xDecodeCowStr(&decoder, &pReq->ast, true));
 
   tEndDecode(&decoder);
 _exit:
   tDecoderClear(&decoder);
   return code;
 }
-void tFreeSMDropXnodeJobReq(SMDropXnodeJobReq *pReq) { FREESQL(); }
+void tFreeSMDropXnodeJobReq(SMDropXnodeJobReq *pReq) {
+  FREESQL();
+  xFreeCowStr(&pReq->ast);
+}
 
 int32_t tSerializeSMCreateXnodeAgentReq(void *buf, int32_t bufLen, SMCreateXnodeAgentReq *pReq) {
   SEncoder encoder = {0};
