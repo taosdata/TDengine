@@ -2808,19 +2808,32 @@ class TDSql:
         self.printResult(f"check failed for {retry} seconds, sql={sql}", exit=True)
 
     def checkResultsByArray(
-        self, sql, exp_result, exp_sql="", delay=0.0, retry=60, show=False
+        self, sql, exp_result, exp_sql="", delay=0.0, retry=300, show=False
     ):
         if delay != 0:
             time.sleep(delay)
 
         if retry <= 0:
             retry = 1
+        
+        exp_rows = len(exp_result)
+        exp_cols = 0
+        if exp_rows > 0:
+            exp_cols = len(exp_result[0])
 
         for loop in range(retry):
             self.clearResult()
-            res_result = self.getResult(sql, exit=False)
-            if res_result != []:
-                if self.compareResults(res_result, exp_result):
+            if self.query(sql, queryTimes=1, exit=False) and self.getRows() == exp_rows:
+                res_result = self.queryResult
+                all_same = True
+                for r in range(exp_rows):
+                    for c in range(exp_cols):
+                        if not self.compareData(r, c, exp_result[r][c], show):
+                            all_same = False
+                            break;
+                    if not all_same:
+                        break;
+                if all_same:
                     self.printResult(
                         f"check succeed in {loop} seconds", input_result=res_result
                     )
