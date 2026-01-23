@@ -6,7 +6,6 @@ use ha_rpc_client::client::HaRpcClient;
 use taos::{Code, Dsn};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::{Channel, Endpoint};
-use url::Url;
 
 use crate::{Args, oauth, sql::query, x_api::types::Xnode};
 
@@ -197,6 +196,12 @@ pub async fn get_client(
     Ok(None)
 }
 
+#[cfg(feature = "disable-x-api")]
+pub async fn get_x_url(_args: &Args, _req: &HttpRequest, _api: &str) -> Result<Option<String>> {
+    Err(anyhow::anyhow!("xnode api is not available").into())
+}
+
+#[cfg(not(feature = "disable-x-api"))]
 pub async fn get_x_url(args: &Args, req: &HttpRequest, api: &str) -> Result<Option<String>> {
     let dsn = get_dsn(args, req).await?;
     let cancel = CancellationToken::new();
@@ -221,7 +226,7 @@ pub async fn get_x_url(args: &Args, req: &HttpRequest, api: &str) -> Result<Opti
         } else {
             format!("http://{}", xnode.url)
         };
-        let mut url = Url::parse(&url).context("x api not invalid url")?;
+        let mut url = url::Url::parse(&url).context("invalid URL for x-api")?;
         url.set_port(Some(port))
             .map_err(|_| anyhow::anyhow!("set x url port error"))?;
         return Ok(Some(format!("{}{api}?{}", url, req.query_string())));

@@ -117,3 +117,4 @@ workspace = true
 
 [features]
 default = ["mimalloc"]
+disable-x-api = []
