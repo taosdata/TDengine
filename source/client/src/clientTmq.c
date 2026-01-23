@@ -25,9 +25,10 @@
 #include "tref.h"
 #include "ttimer.h"
 
-#define tqErrorC(...) do { if (cDebugFlag & DEBUG_ERROR || tqClientDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
-#define tqInfoC(...)  do { if (cDebugFlag & DEBUG_INFO  || tqClientDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  INFO  ", DEBUG_INFO,  tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
-#define tqDebugC(...) do { if (cDebugFlag & DEBUG_DEBUG || tqClientDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  DEBUG ", DEBUG_DEBUG, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
+#define tqErrorC(...) do { if (tqClientDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, tqClientDebugFlag, __VA_ARGS__); }} while(0)
+#define tqInfoC(...)  do { if (tqClientDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  INFO  ", DEBUG_INFO,  tqClientDebugFlag, __VA_ARGS__); }} while(0)
+#define tqDebugC(...) do { if (tqClientDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  DEBUG ", DEBUG_DEBUG, tqClientDebugFlag, __VA_ARGS__); }} while(0)
+#define tqWarnC(...)  do { if (tqClientDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ  WARN  ", DEBUG_WARN,  tqClientDebugFlag, __VA_ARGS__); }} while(0)
 
 #define EMPTY_BLOCK_POLL_IDLE_DURATION 10
 #define DEFAULT_AUTO_COMMIT_INTERVAL   5000
@@ -1774,17 +1775,18 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   }
   code = taosThreadOnce(&tmqInit, tmqMgmtInit);
   if (code != 0) {
+    tqErrorC("failed to tmqInit, code:%s", tstrerror(code));
     SET_ERROR_MSG_TMQ("tmq init error")
     return NULL;
   }
   if (tmqInitRes != 0) {
-    SET_ERROR_MSG_TMQ("tmq timer init error")
+    SET_ERROR_MSG_TMQ("tmqInitRes is not NULL")
     return NULL;
   }
 
   tmq_t* pTmq = taosMemoryCalloc(1, sizeof(tmq_t));
   if (pTmq == NULL) {
-    tqErrorC("failed to create consumer, groupId:%s", conf->groupId);
+    tqErrorC("failed to create consumer, code:%s", terrstr());
     SET_ERROR_MSG_TMQ("malloc tmq failed")
     return NULL;
   }
@@ -1794,30 +1796,26 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
 
   pTmq->clientTopics = taosArrayInit(0, sizeof(SMqClientTopic));
   if (pTmq->clientTopics == NULL) {
-    tqErrorC("failed to create consumer, groupId:%s", conf->groupId);
+    tqErrorC("failed to init topic array, since:%s", terrstr());
     SET_ERROR_MSG_TMQ("malloc client topics failed")
     goto _failed;
   }
   code = taosOpenQueue(&pTmq->mqueue);
   if (code) {
-    tqErrorC("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, tstrerror(code),
-             pTmq->groupId);
-    SET_ERROR_MSG_TMQ("open queue failed")
+    tqErrorC("open mqueue failed since %s", tstrerror(code));
+    SET_ERROR_MSG_TMQ("open mqueue failed")
     goto _failed;
   }
 
   code = taosOpenQueue(&pTmq->delayedTask);
   if (code) {
-    tqErrorC("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, tstrerror(code),
-             pTmq->groupId);
+    tqErrorC("open delayed task queue failed since %s", tstrerror(code));
     SET_ERROR_MSG_TMQ("open delayed task queue failed")
     goto _failed;
   }
 
   if (conf->groupId[0] == 0) {
-    tqErrorC("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, tstrerror(code),
-             pTmq->groupId);
-    SET_ERROR_MSG_TMQ("malloc tmq element failed or group is empty")
+    SET_ERROR_MSG_TMQ("group is empty")
     goto _failed;
   }
 
@@ -1861,8 +1859,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
 
   // init semaphore
   if (tsem2_init(&pTmq->rspSem, 0, 0) != 0) {
-    tqErrorC("consumer:0x %" PRIx64 " setup failed since %s, consumer group %s", pTmq->consumerId,
-             tstrerror(TAOS_SYSTEM_ERROR(ERRNO)), pTmq->groupId);
+    tqErrorC("consumer:0x %" PRIx64 " init semaphore failed since %s, consumer group %s", pTmq->consumerId, terrstr(), pTmq->groupId);
     SET_ERROR_MSG_TMQ("init t_sem failed")
     goto _failed;
   }
@@ -1870,18 +1867,16 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   if (conf->token != NULL) {
     code = taos_connect_by_auth(conf->ip, NULL, conf->token, NULL, NULL, conf->port, CONN_TYPE__TMQ, &pTmq->pTscObj);
     if (code) {
-      terrno = code;
-      tqErrorC("consumer:0x%" PRIx64 " setup tscObj failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
-      SET_ERROR_MSG_TMQ("init tscObj with token failed")
+      tqErrorC("consumer:0x%" PRIx64 " connect by token failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
+      SET_ERROR_MSG_TMQ(terrstr())
       goto _failed;
     }
   } else {
     // init connection
     code = taos_connect_internal(conf->ip, user, pass, NULL, NULL, conf->port, CONN_TYPE__TMQ, &pTmq->pTscObj);
     if (code) {
-      terrno = code;
       tqErrorC("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, terrstr(), pTmq->groupId);
-      SET_ERROR_MSG_TMQ("init tscObj failed")
+      SET_ERROR_MSG_TMQ(terrstr())
       goto _failed;
     }
   }
@@ -1907,7 +1902,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
 
   return pTmq;
 
-  _failed:
+_failed:
   tmqFreeImpl(pTmq);
   return NULL;
 }
@@ -2155,7 +2150,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   int32_t ret = taosAllocateQitem(sizeof(SMqRspWrapper), DEF_QITEM, 0, (void**)&pRspWrapper);
   if (ret) {
     code = ret;
-    tscWarn("consumer:0x%" PRIx64 " msg discard from vgId:%d, since out of memory", tmq->consumerId, vgId);
+    tqWarnC("consumer:0x%" PRIx64 " msg discard from vgId:%d, since out of memory", tmq->consumerId, vgId);
     goto END;
   }
 

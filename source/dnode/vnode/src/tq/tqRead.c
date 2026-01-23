@@ -448,7 +448,7 @@ int32_t tqUpdateTableTagCache(STqReader* pReader, SExprInfo* pExprInfo, int32_t 
 
   END:
   if (code != TSDB_CODE_SUCCESS) {
-    tqError("%s failed at %d, failed to add tbName to response:%s, uid:%"PRId64, __FUNCTION__, lino, tstrerror(code), uid);
+    tqError("%s failed at %d, failed to update tag cache code:%s, uid:%"PRId64, __FUNCTION__, lino, tstrerror(code), uid);
   }
   
   return code;
