@@ -5579,7 +5579,7 @@ int32_t cloneDataTimeWhiteListRsp(const SRetrieveDateTimeWhiteListRsp *src, SRet
     SUserDateTimeWhiteList       *destUser = &p->pUsers[i];
 
     destUser->ver = srcUser->ver;
-    trstrncpy(destUser->user, srcUser->user, sizeof(destUser->user));
+    tstrncpy(destUser->user, srcUser->user, sizeof(destUser->user));
 
     destUser->numWhiteLists = srcUser->numWhiteLists;
 
