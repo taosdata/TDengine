@@ -3787,7 +3787,7 @@ int32_t fillforwardFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pRes
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fillwardFunction(SqlFunctionCtx* pCtx) { return TSDB_CODE_SUCCESS; }
+int32_t fillforwardFunction(SqlFunctionCtx* pCtx) { return TSDB_CODE_SUCCESS; }
 
 static int32_t doHandleFillforward(SFillforwardInfo* pFillforwardInfo, int32_t type, SColumnInfoData* pOutput, int32_t pos) {
   if (!pFillforwardInfo->nonnull) {
@@ -3856,7 +3856,7 @@ static int32_t setFillforwardResult(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, i
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fillwardFunctionByRow(SArray* pCtxArray) {
+int32_t fillforwardFunctionByRow(SArray* pCtxArray) {
   int32_t code = TSDB_CODE_SUCCESS;
   int     fillforwardColNum = pCtxArray->size;
   if (fillforwardColNum == 0) {

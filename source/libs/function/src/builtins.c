@@ -1545,7 +1545,7 @@ static EFuncReturnRows diffEstReturnRows(SFunctionNode* pFunc) {
                                                                                 : FUNC_RETURN_ROWS_N_MINUS_1;
 }
 
-static EFuncReturnRows fillwardEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
+static EFuncReturnRows fillforwardEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
 static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, int32_t minParaNum,
                                    int32_t maxParaNum, bool hasSep) {
@@ -7237,11 +7237,11 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateSelectValue,
     .getEnvFunc   = getFillforwardFuncEnv,
     .initFunc     = fillforwardFunctionSetup,
-    .processFunc  = fillwardFunction,
+    .processFunc  = fillforwardFunction,
     .sprocessFunc = fillforwardScalarFunction,
     .finalizeFunc = functionFinalize,
-    .estimateReturnRowsFunc = fillwardEstReturnRows,
-    .processFuncByRow  = fillwardFunctionByRow,
+    .estimateReturnRowsFunc = fillforwardEstReturnRows,
+    .processFuncByRow  = fillforwardFunctionByRow,
   },
 };
 // clang-format on

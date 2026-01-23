@@ -115,8 +115,8 @@ int32_t diffFunctionByRow(SArray* pCtx);
 bool    getFillforwardFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t fillforwardFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t fillforwardFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
-int32_t fillwardFunction(SqlFunctionCtx* pCtx);
-int32_t fillwardFunctionByRow(SArray* pCtx);
+int32_t fillforwardFunction(SqlFunctionCtx* pCtx);
+int32_t fillforwardFunctionByRow(SArray* pCtx);
 
 bool    getForecastConfEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 bool    getCorrFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
