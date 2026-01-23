@@ -58,7 +58,8 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `INACTIVE_ACCOUNT_TIME` User inactivity lockout period, in days. The default value is `90`, with a minimum of `1`, set to `UNLIMITED` means never lockout the user. Support in Enterprise Edition v3.4.0.0 and above.
 - `ALLOW_TOKEN_NUM` The maximum allowed number of tokens. The default value is `3`, with a minimum of `0`, set to `UNLIMITED` disables this restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `HOST` and `NOT_ALLOW_HOST` IP address whitelist and blacklist. Entries can be a single IP address, such as `192.168.1.1`, or a subnet range in [CIDR](https://www.rfc-editor.org/rfc/rfc4632) format, such as `192.168.1.1/24`. Support in Enterprise Edition v3.4.0.0 and above.
-  - If neither `HOST` nor `NOT_ALLOW_HOST` is set, the user is allowed to log in from any address.
+  - The whitelist/blacklist will only take effect when `enableWhiteList` is set to `1` in the configuration.
+  - If neither `HOST` nor `NOT_ALLOW_HOST` is set, the user is allowed to log in from any address. **Note:** For security and convenience, if `HOST` is set or neither `HOST` nor `NOT_ALLOW_HOST` is set during user creation, the system automatically adds `127.0.0.1` and `::1` to `HOST`. Therefore, the scenario described in this section can only occur when all `HOST` and `NOT_ALLOW_HOST` entries are dropped via `ALTER USER`.
   - If only `HOST` is set, the user is allowed to log in from that addresses or subnet ranges, and login from other addresses is not allowed.
   - If only `NOT_ALLOW_HOST` is set, the user is not allowed to log in from that addresses or subnet ranges, but login from other addresses is allowed.
   - If both `HOST` and `NOT_ALLOW_HOST` are set, the user can only log in from addresses that belong to `HOST` and do not belong to `NOT_ALLOW_HOST`. Login from any other address is not allowed.

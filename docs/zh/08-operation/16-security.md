@@ -62,6 +62,33 @@ TDengine TSDB 先对用户操作进行记录和管理，然后将这些作为审
 |monitorFqdn | 接收审计日志的 taosKeeper 所在服务器的 FQDN |
 |monitorPort | 接收审计日志的 taosKeeper 服务所用端口 |
 |monitorCompaction | 上报数据时是否进行压缩 |
+|auditLevel | 审计级别，不同级别记录不同的审计操作，具体参看操作列表 |
+|auditHttps | 发送审计记录给 taosKeeper 时是否使用 https 协议 |
+
+### 创建审计库
+
+在打开审计开关后，需要创建审计库，在创建时需要指定 is_audit 参数。
+
+```sql
+CREATE DATABASE [IF NOT EXISTS] db_name [database_options] IS_AUDIT 1;
+
+database_options:
+    database_option ...
+
+database_option: {
+  DURATION value
+}
+
+database_option: {
+  WAL_LEVEL value
+}
+
+database_option: {
+  ENCRYPT_ALGORITHM value
+}
+```
+
+另外，作为审计库，keep 默认为 1825d，如果用户指定 keep，要求大于 1825d；WAL_LEVEL 默认为 2，用户不能更改；ENCRYPT_ALGORITHM 用户不能指定为 None，可以选择任意一种 CBC 模式的对称加密算法。
 
 ### taosKeeper 配置
 
@@ -84,7 +111,9 @@ TDengine TSDB 先对用户操作进行记录和管理，然后将这些作为审
     "db": string,
     "resource": string,
     "client_add": string,
-    "details": string
+    "details": string,
+    "affected_rows": integer,
+    "duration": double
 }
 ```
 
@@ -108,19 +137,10 @@ create stable operations (ts timestamp, user_name varchar(25), operation varchar
 
 目前审计日志中所记录的操作列表以及每个操作中各字段的含义（因为每个操作的施加者，即 user、client_add、时间戳字段在所有操作中的含义相同，下表不再描述）
 
+auditLevel = 1 // AUDIT_LEVEL_SYSTEM
+
 | 操作        | Operation | DB | Resource | Details |
 | ----------------| ----------| ---------| ---------| --------|
-| create database | createDB  | db name  | NULL     | SQL |
-| alter database  | alterDB   | db name  | NULL     | SQL |
-| drop database   | dropDB    | db name  | NULL     | SQL |
-| create stable   | createStb | db name  | stable name | SQL |
-| alter stable    | alterStb  | db name  | stable name | SQL |
-| drop stable     | dropStb   | db name  | stable name | SQL |
-| create user     | createUser | NULL |  被创建的用户名 | 用户属性参数， (password 除外) |
-| alter user      | alterUser | NULL | 被修改的用户名 | 修改密码记录被修改的参数和新值 (password 除外)，其他操作记录 SQL |
-| drop user       | dropUser | NULL | 被删除的用户名 | SQL |
-| create topic    | createTopic | topic 所在 DB | 创建的 topic 名字 | SQL |
-| drop topic      | cropTopic | topic 所在 DB | 删除的 topic 名字 | SQL |
 | create dnode    | createDnode | NULL | IP:Port 或 FQDN:Port | SQL |
 | drop dnode      | dropDnode | NULL | dnodeId | SQL |
 | alter dnode     | alterDnode | NULL | dnodeId | SQL |
@@ -128,18 +148,60 @@ create stable operations (ts timestamp, user_name varchar(25), operation varchar
 | drop mnode      | dropMnode | NULL | dnodeId | SQL |
 | create qnode    | createQnode | NULL | dnodeId | SQL |
 | drop qnode      | dropQnode | NULL | dnodeId | SQL |
+| restore dnode | restoreDnode | NULL | dnodeId | SQL |
+
+auditLevel = 2 // AUDIT_LEVEL_CLUSTER
+
+| 操作        | Operation | DB | Resource | Details |
+| ----------------| ----------| ---------| ---------| --------|
+| alter cluster   | alterCluster| NULL | NULL  | SQL |
+| balance vgroup leader | balanceVgroupLead | NULL | NULL | SQL |
+| redistribute vgroup | redistributeVgroup | NULL | vgroupId | SQL |
+| balance vgroup | balanceVgroup | NULL | vgroupId | SQL |
+| assign leader | assignLeader | NULL | NULL | SQL |
+| grant privileges| grantPrivileges | NULL | 所授予的用户 | SQL |
+| revoke privileges | revokePrivileges | NULL | 被收回权限的用户 | SQL |
 | login           | login  | NULL | NULL | appName |
+| create user     | createUser | NULL |  被创建的用户名 | 用户属性参数， (password 除外) |
+| alter user      | alterUser | NULL | 被修改的用户名 | 修改密码记录被修改的参数和新值 (password 除外)，其他操作记录 SQL |
+| drop user       | dropUser | NULL | 被删除的用户名 | SQL |
+| create mount       | createMount | mountName | NULL | SQL |
+| drop mount       | dropMount | mountName | NULL | SQL |
+| kill retention       | killRetention | db name | NULL | SQL |
+| auto trimDB       | autoTrimDB | db name | NULL | SQL |
+| create encrypt algr       | createEncryptAlgr | NULL | algorithmId | SQL |
+| drop encrypt algr       | dropEncryptAlgr | NULL | algorithmId | SQL |
+
+auditLevel = 3 // AUDIT_LEVEL_DATABASE
+
+| 操作        | Operation | DB | Resource | Details |
+| ----------------| ----------| ---------| ---------| --------|
+| create database | createDB  | db name  | NULL     | SQL |
+| alter database  | alterDB   | db name  | NULL     | SQL |
+| drop database   | dropDB    | db name  | NULL     | SQL |
+| compact database| compact | database name  | NULL | SQL |
+| kill compact   | killCompact    | db name  | NULL     | SQL |
+| create stable   | createStb | db name  | stable name | SQL |
+| alter stable    | alterStb  | db name  | stable name | SQL |
+| drop stable     | dropStb   | db name  | stable name | SQL |
 | create stream   | createStream | NULL | 所创建的 stream 名 | SQL |
 | drop stream     | dropStream | NULL | 所删除的 stream 名 | SQL |
-| grant privileges| grantPrivileges | NULL | 所授予的用户 | SQL |
-| remove privileges | revokePrivileges | NULL | 被收回权限的用户 | SQL |
-| compact database| compact | database name  | NULL | SQL |
-| balance vgroup leader | balanceVgroupLead | NULL | NULL | SQL |
-| restore dnode | restoreDnode | NULL | dnodeId | SQL |
-| restribute vgroup | restributeVgroup | NULL | vgroupId | SQL |
-| balance vgroup | balanceVgroup | NULL | vgroupId | SQL |
-| create table | createTable | db name | NULL | table name |
-| drop table | dropTable | db name | NULL | table name |
+| recalc stream     | recalcStream | streamName | recalcName | SQL |
+| create topic    | createTopic | topic 所在 DB | 创建的 topic 名字 | SQL |
+| drop topic      | dropTopic | topic 所在 DB | 删除的 topic 名字 | SQL |
+| reload topic      | reloadTopic | NULL | 删除的 topic 名字 | SQL |
+| create Rsma      | createRsma | Rsma name | NULL | SQL |
+| alter Rsma      | alterRsma | Rsma name | Table name | SQL |
+| drop Rsma      | dropRsma | Rsma name | NULL | SQL |
+| create View      | createView | Db name | NULL | SQL |
+| drop View      | dropView | Db name | view name | SQL |
+
+auditLevel = 4 // AUDIT_LEVEL_CHILDTABLE
+
+| 操作        | Operation | DB | Resource | Details |
+| ----------------| ----------| ---------| ---------| --------|
+| create table | createTable | db name | table name | SQL |
+| drop table | dropTable | db name | table name | SQL |
 
 ### 查看审计日志
 
@@ -147,21 +209,7 @@ create stable operations (ts timestamp, user_name varchar(25), operation varchar
 
 ## 存储安全
 
-TDengine TSDB 支持透明数据加密（Transparent Data Encryption，TDE），通过对静态数据文件进行加密，阻止可能的攻击者绕过数据库直接从文件系统读取敏感信息。数据库的访问程序是完全无感知的，应用程序不需要做任何修改和编译，就能够直接应用到加密后的数据库。存储安全特性支持国密 SM4 和 AES 等加密算法，采用分级密钥管理机制，并提供完善的密钥备份恢复功能。
-
-### 密钥体系
-
-TDengine TSDB 采用分级密钥管理体系，包括以下密钥类型：
-
-- **SVR_KEY（服务器主密钥）**：用于加密数据库主密钥和系统级信息，与机器硬件绑定，防止跨机移植
-- **DB_KEY（数据库主密钥）**：用于加密各类派生密钥
-- **CFG_KEY（配置加密密钥）**：专用于加密配置文件，一旦生成不可更改
-- **META_KEY（元数据加密密钥）**：用于加密元数据文件，一旦生成不可更改
-- **DATA_KEY（时序数据加密密钥）**：用于加密时序数据文件和相关日志，一旦生成不可更改
-
-所有密钥使用机器码绑定技术，当数据文件被拷贝到其他机器后，由于机器码发生变化，无法获得密钥，自然无法访问数据文件。加密后，数据压缩率不变，写入性能和查询性能小幅下降。
-
-**注意**：存储安全功能需要获取机器码，在某些虚拟化环境（如某些容器环境）中可能无法使用。
+TDengine TSDB 支持透明数据加密（Transparent Data Encryption，TDE），通过对静态数据文件进行加密，阻止可能的攻击者绕过数据库直接从文件系统读取敏感信息。数据库的访问程序是完全无感知的，应用程序不需要做任何修改和编译，就能够直接应用到加密后的数据库，支持国标 SM4 等加密算法。在透明加密中，数据库密钥管理、数据库加密范围是两个最重要的话题。TDengine TSDB 采用机器码对数据库密钥进行加密处理，保存在本地而不是第三方管理器中。当数据文件被拷贝到其他机器后，由于机器码发生变化，无法获得数据库密钥，自然无法访问数据文件。TDengine TSDB 对所有数据文件进行加密，包括预写日志文件、元数据文件和时序数据文件。加密后，数据压缩率不变，写入性能和查询性能仅有轻微下降。
 
 ### 生成密钥
 
@@ -216,41 +264,6 @@ taosk -c /etc/taos \
 - `{dataDir}/dnode/config/master.bin`：存储 SVR_KEY 和 DB_KEY
 - `{dataDir}/dnode/config/derived.bin`：存储 CFG_KEY、META_KEY 和 DATA_KEY
 
-### 创建加密数据库
-
-TDengine TSDB 支持在创建数据库时指定加密算法，SQL 如下：
-
-```sql
-CREATE DATABASE [IF NOT EXISTS] db_name [database_options]
-database_options:
-  database_option ...
-database_option: {
-  ENCRYPT_ALGORITHM {'none' | 'SM4-CBC' | 'AES-128-CBC'}
-}
-```
-
-参数说明：
-
-- `encrypt_algorithm`：指定数据采用的加密算法。默认是 none，即不采用加密。SM4-CBC 表示采用 SM4-CBC 加密算法，AES-128-CBC 表示采用 AES-128-CBC 加密算法
-
-示例：
-
-```sql
--- 创建使用 SM4 加密的数据库
-CREATE DATABASE db1 ENCRYPT_ALGORITHM 'SM4-CBC';
-
--- 创建使用 AES 加密的数据库
-CREATE DATABASE db2 ENCRYPT_ALGORITHM 'AES-128-CBC';
-
--- 创建不加密的数据库
-CREATE DATABASE db3;
-```
-
-**注意**：
-
-- 数据库的 ENCRYPT_ALGORITHM 在创建后不能修改
-- 创建加密数据库前必须先使用 taosk 生成包含 DATA_KEY 的密钥
-
 ### 查看加密状态
 
 #### 查看系统加密状态
@@ -271,20 +284,6 @@ SELECT * FROM information_schema.ins_encrypt_status;
 - `encrypt_scope`：加密范围（config、metadata、data）
 - `algorithm`：使用的加密算法
 - `status`：加密状态（enabled 或 disabled）
-
-#### 查看数据库加密配置
-
-通过系统表查看各数据库的加密算法：
-
-```sql
-SELECT name,`encrypt_algorithm` FROM information_schema.ins_databases;
-              name              | encrypt_algorithm  |
-======================================================
- information_schema             | NULL               |
- performance_schema             | NULL               |
- db2                            | AES-128-CBC        |
- db1                            | SM4-CBC            |
-```
 
 ### 更新密钥
 
@@ -393,3 +392,79 @@ ALTER DNODE 1 'debugFlag' '143';
 - 从不支持存储安全的版本升级到新版本，可以正常运行
 - 历史版本的加密数据库可以通过指定 DATA_KEY 进行兼容
 - 启用存储安全后，不能回退到不支持存储安全的历史版本
+
+### 查看加密算法
+
+用户可以查看所有内置可用加密算法。
+
+```sql
+show encrypt_algorithms;
+id      |          algorithm_id          |              name              |              desc              |              type              |             source             |         ossl_algr_name         |
+1 | SM4-CBC                        | SM4                            | SM4 symmetric encryption       | Symmetric Ciphers CBC mode     | build-in                       | SM4-CBC:SM4                    |
+2 | AES-128-CBC                    | AES                            | AES symmetric encryption       | Symmetric Ciphers CBC mode     | build-in                       | AES-128-CBC                    |
+```
+
+1. id：算法的数字标识，内置算法从 1 开始，自定义算法从 101 开始
+2. algorithm_id：算法的全局唯一标识
+3. name：算法名称
+4. desc：算法的描述
+5. type：算法类型，包括：Symmetric Ciphers CBC mode - 对称加密算法 CBC 模式，用于数据库加密; Asymmetric Cipher - 非对称加密算法;  Digests：散列算法
+6. source：算法来源，包括：built-in - 内置算法; customized - 用户自定义算法
+7. ossl_algr_name：算法在 OpenSSL 中的名称，如果是内置算法则是在 default provider 中的名称，可以参考 [OSSL_PROVIDER-default](https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/ "OSSL_PROVIDER-default") , 如果自定义算法，则是用户在程序中自定义
+
+### 添加自定义算法
+
+用户可以添加自己的自定义算法。
+
+```sql
+create encrypt_algr 'vigenere' name 'vigenere' desc 'my custom algr' type 'Symmetric Ciphers CBC mode' ossl_algr_name 'vigenere';
+
+```
+
+用户自定义算法，用户需按照接口开发一个 so 库，taosd 启动时会加载这个 so 库，so 库被加载后，用户自定义算法即可被使用。在这个 so 库中，用户可以包含多个算法，算法有自己的命名，通过 create encrypt_algr 中的 ossl_algr_name 字段指定。
+自定义算法接口采用 OpenSSL 的实现，遵循 OpenSSL 的接口定义。OpenSSL 的接口定义参考 [OpenSSL provider](https://docs.openssl.org/master/man7/provider/ "OpenSSL provider") 。参数 encryptExtDir，指定自定义算法库 so 文件的路径。目前只支持加载单个文件。
+
+### 删除自定义算法
+
+用户可以删除自己的自定义算法。
+
+```sql
+drop encrypt_algr 'vigenere';
+```
+
+删除一个自定义算法前，必须保证这个算法没有被使用，比如必须提前删除使用该算法的 database。
+
+
+### 创建加密数据库
+
+TDengine TSDB 支持通过 SQL 创建加密数据库，SQL 如下。
+
+```sql
+create database [if not exists] db_name [database_options]
+database_options:
+ database_option ...
+database_option: {
+ encrypt_algorithm {'none' |'sm4'}
+}
+```
+
+主要参数说明如下。
+
+- encrypt_algorithm：指定数据采用的加密算法。默认是 none，即不采用加密。如果要设置加密数据，则需指定 `show encrypt_algorithms` 中 algorithm_id，并且类型为 Symmetric Ciphers CBC mode。
+
+### 查看加密配置
+
+用户可通过查询系统数据库 ins_databases 获取数据库当前加密配置，SQL 如下。
+
+```sql
+select name, `encrypt_algorithm` from ins_databases;
+              name              | encrypt_algorithm |
+=====================================================
+ power1                         | none              |
+ power                          | sm4               |
+```
+
+
+### 加密用户密码
+
+默认的情况下，用户的密码会以 MD5 的形式进行存储。可以通过参数 encryptPassAlgorithm 将用户密码进行加密储存。encryptPassAlgorithm 默认是未设置的状态，在未设置时，不对用户密码进行加密，也即只以 MD5 的形式存储。当 encryptPassAlgorithm 设置为 sm4 时（目前只支持 sm4 加密算法），对用户密码进行加密存储。设置 encryptPassAlgorithm 参数前，同样按照前面的步骤配置密钥。
