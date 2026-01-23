@@ -539,7 +539,8 @@ int32_t tqNextBlockInWal(STqReader* pReader, SSDataBlock* pRes, SHashObj* pCol2S
     }
     int64_t elapsed = taosGetTimestampMs() - st;
     if (elapsed > timeout || elapsed < 0) {
-      code = TSDB_CODE_TMQ_FETCH_TIMEOUT ;
+      code = TSDB_CODE_TMQ_FETCH_TIMEOUT;
+      terrno = code;
       break;
     }
   }

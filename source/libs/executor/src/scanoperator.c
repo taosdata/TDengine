@@ -2722,7 +2722,7 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       int64_t elapsed = taosGetTimestampMs() - st;
       if (elapsed > pTaskInfo->streamInfo.timeout || elapsed < 0) {
         if (pInfo->pRes->info.rows == 0) {
-          code = TSDB_CODE_TMQ_FETCH_TIMEOUT ;
+          terrno = TSDB_CODE_TMQ_FETCH_TIMEOUT ;
         }
         (*ppRes) = pInfo->pRes;
         return code;
@@ -2736,8 +2736,12 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     int64_t validVer = pTaskInfo->streamInfo.snapshotVer + 1;
     qDebug("queue scan tsdb over, switch to wal ver %" PRId64, validVer);
     code = pAPI->tqReaderFn.tqReaderSeek(pInfo->tqReader, validVer, pTaskInfo->id.str);
-    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST && pInfo->pRes->info.rows > 0) {
-      (*ppRes) = pInfo->pRes;
+    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+      if (pInfo->pRes->info.rows == 0) {
+        (*ppRes) = NULL;
+      } else {
+        (*ppRes) = pInfo->pRes;
+      }
       return 0;
     }
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2777,11 +2781,10 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (code != 0) {
       if (pInfo->pRes->info.rows == 0) {
         (*ppRes) = NULL;
-        return code;
       } else {
         (*ppRes) = pInfo->pRes;
-        return 0;
       }
+      return 0;
     }
 
     if (pInfo->pRes->info.rows >= pTaskInfo->streamInfo.minPollRows) {
