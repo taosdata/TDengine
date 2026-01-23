@@ -434,7 +434,6 @@ drop encrypt_algr 'vigenere';
 
 删除一个自定义算法前，必须保证这个算法没有被使用，比如必须提前删除使用该算法的 database。
 
-
 ### 创建加密数据库
 
 TDengine TSDB 支持通过 SQL 创建加密数据库，SQL 如下。
@@ -463,7 +462,6 @@ select name, `encrypt_algorithm` from ins_databases;
  power1                         | none              |
  power                          | sm4               |
 ```
-
 
 ### 加密用户密码
 
