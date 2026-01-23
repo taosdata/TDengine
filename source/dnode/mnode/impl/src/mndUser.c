@@ -5125,7 +5125,7 @@ static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
       // update_time
       if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
         char updateTime[40] = {0};
-        (void)formatTimestampLocal(updateTime, tbPolicy->updateUs, TSDB_TIME_PRECISION_MICRO);
+        (void)formatTimestampLocal(updateTime, sizeof(updateTime), tbPolicy->updateUs, TSDB_TIME_PRECISION_MICRO);
         STR_WITH_MAXSIZE_TO_VARSTR(pBuf, updateTime, pShow->pMeta->pSchemas[cols].bytes);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
       }

@@ -115,7 +115,7 @@ static void syncPrintTime(bool formatTime, int32_t* len, int64_t tsMs, int32_t i
   if (formatTime) {
     char pBuf[TD_TIME_STR_LEN] = {0};
     if (tsMs > 0) {
-      if (formatTimestampLocal(pBuf, tsMs, TSDB_TIME_PRECISION_MILLI) == NULL) {
+      if (formatTimestampLocal(pBuf, sizeof(pBuf), tsMs, TSDB_TIME_PRECISION_MILLI) == NULL) {
         pBuf[0] = '\0';
       }
     }
@@ -481,7 +481,7 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
   if (timerElapsed > SYNC_HEARTBEAT_SLOW_MS) {
     char pBuf[TD_TIME_STR_LEN] = {0};
     if (pMsg->timeStamp > 0) {
-      if (formatTimestampLocal(pBuf, pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
+      if (formatTimestampLocal(pBuf, sizeof(pBuf), pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
         pBuf[0] = '\0';
       }
     }
@@ -502,7 +502,7 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
     if (printX) {
       char pBuf[TD_TIME_STR_LEN] = {0};
       if (pMsg->timeStamp > 0) {
-        if (formatTimestampLocal(pBuf, pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
+        if (formatTimestampLocal(pBuf, sizeof(pBuf), pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
           pBuf[0] = '\0';
         }
       }
@@ -515,7 +515,7 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
       if (tsSyncLogHeartbeat) {
         char pBuf[TD_TIME_STR_LEN] = {0};
         if (pMsg->timeStamp > 0) {
-          if (formatTimestampLocal(pBuf, pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
+          if (formatTimestampLocal(pBuf, sizeof(pBuf), pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
             pBuf[0] = '\0';
           }
         }
@@ -528,7 +528,7 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
         if (sDebugFlag & DEBUG_TRACE) {
           char pBuf[TD_TIME_STR_LEN] = {0};
           if (pMsg->timeStamp > 0) {
-            if (formatTimestampLocal(pBuf, pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
+            if (formatTimestampLocal(pBuf, sizeof(pBuf), pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
               pBuf[0] = '\0';
             }
           }
@@ -550,7 +550,7 @@ void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64
 
     char pBuf[TD_TIME_STR_LEN] = {0};
     if (pMsg->timeStamp > 0) {
-      if (formatTimestampLocal(pBuf, pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
+      if (formatTimestampLocal(pBuf, sizeof(pBuf), pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
         pBuf[0] = '\0';
       }
     }
@@ -565,7 +565,7 @@ void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64
     if (tsSyncLogHeartbeat) {
       char pBuf[TD_TIME_STR_LEN] = {0};
       if (pMsg->timeStamp > 0) {
-        if (formatTimestampLocal(pBuf, pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
+        if (formatTimestampLocal(pBuf, sizeof(pBuf), pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
           pBuf[0] = '\0';
         }
       }
@@ -578,7 +578,7 @@ void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64
       if (sDebugFlag & DEBUG_TRACE) {
         char pBuf[TD_TIME_STR_LEN] = {0};
         if (pMsg->timeStamp > 0) {
-          if (formatTimestampLocal(pBuf, pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
+          if (formatTimestampLocal(pBuf, sizeof(pBuf), pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
             pBuf[0] = '\0';
           }
         }
@@ -616,7 +616,7 @@ void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
 
     char pBuf[TD_TIME_STR_LEN] = {0};
     if (pMsg->timeStamp > 0) {
-      if (formatTimestampLocal(pBuf, pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
+      if (formatTimestampLocal(pBuf, sizeof(pBuf), pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
         pBuf[0] = '\0';
       }
     }
@@ -630,7 +630,7 @@ void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
     if(tsSyncLogHeartbeat){
       char pBuf[TD_TIME_STR_LEN] = {0};
       if (pMsg->timeStamp > 0) {
-        if (formatTimestampLocal(pBuf, pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
+        if (formatTimestampLocal(pBuf, sizeof(pBuf), pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
           pBuf[0] = '\0';
         }
       }
@@ -644,7 +644,7 @@ void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
       if (sDebugFlag & DEBUG_TRACE) {
         char pBuf[TD_TIME_STR_LEN] = {0};
         if (pMsg->timeStamp > 0) {
-          if (formatTimestampLocal(pBuf, pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
+          if (formatTimestampLocal(pBuf, sizeof(pBuf), pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
             pBuf[0] = '\0';
           }
         }

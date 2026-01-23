@@ -860,7 +860,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
                    encryptKeyChanged || enableWhiteListChanged || auditDBChanged || auditTokenChanged;
   const STraceId *trace = &pReq->info.traceId;
   char            timestamp[TD_TIME_STR_LEN] = {0};
-  if (mDebugFlag & DEBUG_TRACE) (void)formatTimestampLocal(timestamp, statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
+  if (mDebugFlag & DEBUG_TRACE)
+    (void)formatTimestampLocal(timestamp, sizeof(timestamp), statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
   mGTrace(
       "dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d "
       "timestamp:%s",

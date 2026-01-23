@@ -789,7 +789,8 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
   if (pStatus->triggerTask && STREAM_STATUS_RUNNING == pStatus->triggerTask->status) {
     STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_RUNNING], statusSize);
     tstrncpy(tmpBuf, "Running start from: ", sizeof(tmpBuf));
-    (void)formatTimestampLocal(&tmpBuf[strlen(tmpBuf)], pStatus->triggerTask->runningStartTs, TSDB_TIME_PRECISION_MILLI);
+    (void)formatTimestampLocal(&tmpBuf[strlen(tmpBuf)], sizeof(tmpBuf) - strlen(tmpBuf),
+                               pStatus->triggerTask->runningStartTs, TSDB_TIME_PRECISION_MILLI);
     STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
     goto _exit;
   }
