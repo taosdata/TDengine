@@ -74,14 +74,7 @@ class TestStreamParametersAlterParam:
 
     def alternumOfMnodeStreamMgmtThreads(self, value):
         tdLog.info(f"alter num of mnode stream mgmt threads")
-        try:
-            tdSql.execute(f"alter dnode 1  'numOfMnodeStreamMgmtThreads {value}';")
-            raise Exception(f"ERROR: numOfMnodeStreamMgmtThreads can not  alter")
-        except Exception as e:
-            if "Invalid config option" in str(e):
-                tdLog.info(f"numOfMnodeStreamMgmtThreads can not  alter")
-            else:
-                raise Exception(f"alter parameters error: {e}")
+        tdSql.execute(f"alter dnode 1  'numOfMnodeStreamMgmtThreads {value}';")
         tdSql.query(f"show dnode 1 variables like  'numOfMnodeStreamMgmtThreads';")
         result = tdSql.getData(0, 2)
         if int(result) > 5:
