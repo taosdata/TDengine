@@ -6958,18 +6958,21 @@ static int32_t convertFillValue(STranslateContext* pCxt, SDataType dt, SNodeList
   return code;
 }
 
-static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill, SNodeList* pProjectionList) {
+static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill,
+                                 SNodeList* pProjectionList) {
   int32_t        fillNo = 0;
   SNodeListNode* pFillValues = (SNodeListNode*)pFill->pValues;
   SNode*         pProject = NULL;
-  if (!pFillValues)
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
   FOREACH(pProject, pProjectionList) {
     if (needFill(pProject)) {
-      if (fillNo >= LIST_LENGTH(pFillValues->pNodeList)) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
+      if (NULL == pFillValues ||
+          fillNo >= LIST_LENGTH(pFillValues->pNodeList)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf,
+                                       TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+                                       "Too few fill values");
       }
-      int32_t code = convertFillValue(pCxt, ((SExprNode*)pProject)->resType, pFillValues->pNodeList, fillNo);
+      int32_t code = convertFillValue(pCxt, ((SExprNode*)pProject)->resType,
+                                      pFillValues->pNodeList, fillNo);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -6977,8 +6980,11 @@ static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill, SNod
       ++fillNo;
     }
   }
-  if (fillNo != LIST_LENGTH(pFillValues->pNodeList)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
+
+  if (NULL != pFillValues && fillNo != LIST_LENGTH(pFillValues->pNodeList)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf,
+                                   TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+                                   "Too many fill values");
   }
   return TSDB_CODE_SUCCESS;
 }
