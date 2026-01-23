@@ -51,7 +51,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION:
       return "Not SELECTed expression";
     case TSDB_CODE_PAR_NOT_SINGLE_GROUP:
-      return "Not a single-group group function";
+      return "Not a single-group group function, '%s' is used incorrectly";
     case TSDB_CODE_PAR_TAGS_NOT_MATCHED:
       return "Tags number not matched";
     case TSDB_CODE_PAR_INVALID_TAG_NAME:
