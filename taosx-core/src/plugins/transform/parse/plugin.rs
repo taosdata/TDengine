@@ -4,9 +4,12 @@ use std::collections::HashMap;
 use std::fs;
 use std::os::raw::c_char;
 use std::os::raw::c_void;
-use std::sync::RwLock;
+use std::sync::OnceLock;
 
+use anyhow::Context;
+use anyhow::bail;
 use dlopen2::wrapper::{Container, WrapperApi};
+use parking_lot::RwLock;
 
 use lazy_static::lazy_static;
 
@@ -108,10 +111,10 @@ impl ParserObject {
 }
 
 impl PluginLib {
-    fn new_parser(&self, ctx: &str) -> Result<ParserObject, String> {
+    fn new_parser(&self, ctx: &str) -> anyhow::Result<ParserObject> {
         let parser_response = self.parser_new(ctx.as_ptr() as _, ctx.len() as i32);
         if parser_response.e != 0 {
-            return Err("parser_new failed".to_string());
+            bail!("parser_new failed");
         }
         Ok(ParserObject {
             p: parser_response.p,
@@ -176,42 +179,44 @@ lazy_static! {
  * 比如河北电力使用 {"plugin_type": "hebeipower", "plugin_params": "U,DATA_TYPE"} 来解析数据
  */
 #[derive(Debug, Deserialize, Serialize)]
-#[serde(try_from = "ParserPluginPreDeserialize")]
 pub struct ParserPlugin {
     pub(crate) plugin_type: String,
     pub(crate) plugin_params: String,
-    #[serde(skip_serializing)]
-    parser_object: ParserObject,
+    #[serde(skip)]
+    parser_object: OnceLock<ParserObject>,
+}
+
+impl ParserPlugin {
+    // TODO: use OnceLock::get_or_try_init instead when stable
+    fn parser_object(&self) -> anyhow::Result<&ParserObject> {
+        let pb = match self.parser_object.get() {
+            Some(pb) => pb,
+            None => {
+                let plugin_map = PLUGIN_MAP.read();
+                let plugin_container = plugin_map
+                    .get(&self.plugin_type)
+                    .with_context(|| format!("plugin {} not found", self.plugin_type))?;
+                let parser_object = plugin_container.container.new_parser(&self.plugin_params)?;
+                self.parser_object.get_or_init(|| parser_object)
+            }
+        };
+        Ok(pb)
+    }
+}
+
+impl Clone for ParserPlugin {
+    fn clone(&self) -> Self {
+        Self {
+            plugin_type: self.plugin_type.clone(),
+            plugin_params: self.plugin_params.clone(),
+            parser_object: OnceLock::new(),
+        }
+    }
 }
 
 impl std::cmp::PartialEq for ParserPlugin {
     fn eq(&self, other: &Self) -> bool {
         self.plugin_type == other.plugin_type && self.plugin_params == other.plugin_params
-    }
-}
-
-impl Clone for ParserPlugin {
-    /// ## Safety
-    ///
-    /// parser_object should always be created by the same PluginLib
-    fn clone(&self) -> Self {
-        Self::new(&self.plugin_type, &self.plugin_params).unwrap()
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ParserPluginPreDeserialize {
-    pub(crate) plugin_type: String,
-    pub(crate) plugin_params: String,
-}
-
-impl TryFrom<ParserPluginPreDeserialize> for ParserPlugin {
-    type Error = String;
-
-    fn try_from(value: ParserPluginPreDeserialize) -> Result<Self, Self::Error> {
-        let plugin_type = value.plugin_type;
-        let plugin_params = value.plugin_params;
-        Self::new(&plugin_type, &plugin_params)
     }
 }
 
@@ -239,7 +244,7 @@ impl Parse for ParserPlugin {
                 continue;
             }
 
-            let value = self.parser_object.mutate(string.value(i).as_bytes());
+            let value = self.parser_object()?.mutate(string.value(i).as_bytes());
             if value.is_err() {
                 tracing::warn!("plugin parser failed with raw data: {}", string.value(i));
                 parsed_json_values.push(None);
@@ -982,21 +987,8 @@ impl Parse for ParserPlugin {
 }
 
 impl ParserPlugin {
-    pub fn new(plugin_type: &str, plugin_params: &str) -> Result<Self, String> {
-        let plugin_map = PLUGIN_MAP.write().unwrap();
-        let plugin_container = plugin_map
-            .get(plugin_type)
-            .ok_or(format!("plugin {plugin_type} not found"))?;
-        let parser_object = plugin_container.container.new_parser(plugin_params)?;
-        Ok(Self {
-            plugin_type: plugin_type.to_string(),
-            plugin_params: plugin_params.to_string(),
-            parser_object,
-        })
-    }
-
     pub fn list_all_plugins() -> Vec<PluginInfo> {
-        let plugin_map = PLUGIN_MAP.read().unwrap();
+        let plugin_map = PLUGIN_MAP.read();
         plugin_map
             .values()
             .map(|plugin_container| PluginInfo {
@@ -1078,7 +1070,11 @@ mod tests {
 
         let plugin_info = plugin_list.first().unwrap();
         assert_eq!(plugin_info.name, "hebeipower");
-        let plugin = ParserPlugin::new(plugin_info.name.as_str(), "nothing").unwrap();
+        let plugin = ParserPlugin {
+            plugin_type: plugin_info.name.clone(),
+            plugin_params: "nothing".to_string(),
+            parser_object: OnceLock::new(),
+        };
 
         let input = Arc::new(StringArray::from_iter_values(["test"])) as ArrayRef;
         let field = Field::new("field1", DataType::Utf8, true);
