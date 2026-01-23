@@ -1690,6 +1690,7 @@ void constructTableDesFromStb(const TableDes *stbTableDes,
     TableDes *tableDes = *ppTableDes;
 
     TOOLS_STRNCPY(tableDes->name, table, TSDB_TABLE_NAME_LEN);
+    tableDes->isVirtual = stbTableDes->isVirtual;
     tableDes->columns = stbTableDes->columns;
     tableDes->tags = stbTableDes->tags;
     memcpy(tableDes->cols, stbTableDes->cols,
@@ -1893,7 +1894,7 @@ char *queryCreateTableSql(void** taos_v, const char *dbName, char *tbName, bool 
     const char* matched_pre = pre;
     if (strncasecmp(data, pre, npre) != 0) {
         if (strncasecmp(data, pre1, strlen(pre1)) == 0) {
-            // foud create table
+            // found create table
             npre = strlen(pre1);
             matched_pre = pre1;
         } else if (strncasecmp(data, pre2, strlen(pre2)) == 0) {
@@ -2528,13 +2529,9 @@ static inline bool hasVirtualTag(const char *dbPath, const char *entryName, cons
                 size_t size = 0;
                 avro_value_get_string(&sql_branch, (const char **)&buf, &size);
                 if (buf && size > 0) {
-                    if (isTBTAGS) {
+                    const char *pre_vtb = "CREATE VTABLE";
+                    if (strncasecmp(buf, pre_vtb, strlen(pre_vtb)) == 0) {
                         isVirtual = true;
-                    } else if (isNTB) {
-                        const char *pre_vtb = "CREATE VTABLE";
-                        if (strncasecmp(buf, pre_vtb, strlen(pre_vtb)) == 0) {
-                            isVirtual = true;
-                        }
                     }
                 }
             }
@@ -7585,7 +7582,7 @@ static int writeTagsToAvro(
             void  **taos_v,
             const char *dbName,
             const TableDes *stbDes,
-            const TableDes *tbDes,
+            TableDes *tbDes,
             avro_file_writer_t writer,
             avro_value_iface_t *wface) {
     // avro
@@ -7637,7 +7634,7 @@ static int writeTagsToAvro(
             return -1;
         }
 
-        char* sql = queryCreateTableSql(taos_v, dbName, (char*)(tbDes->name), (bool*)(&tbDes->isVirtual));
+        char* sql = queryCreateTableSql(taos_v, dbName, tbDes->name, &tbDes->isVirtual);
         if (sql) {
             avro_value_set_branch(&value, 1, &branch);
             avro_value_set_string(&branch, sql);
