@@ -2489,7 +2489,77 @@ static FILE* openDumpInFile(char *fptr) {
     return f;
 }
 
+static inline bool hasVirtualTag(const char *dbPath, const char *entryName, const char *ext) {
+    if (!dbPath || !entryName || !ext) return false;
+
+    int namelen = (int)strlen(entryName);
+    int extlen  = (int)strlen(ext);
+    if (namelen <= extlen) return false;
+    if (strcmp(ext, entryName + namelen - extlen) != 0) return false;
+
+    bool isTBTAGS = (strncmp(ext, "avro-tbtags", strlen("avro-tbtags")) == 0);
+    bool isNTB    = (strncmp(ext, "avro-ntb",    strlen("avro-ntb"))    == 0);
+    if (!isTBTAGS && !isNTB) {
+        return false;
+    }
+
+    char avroFile[MAX_PATH_LEN] = {0};
+    snprintf(avroFile, sizeof(avroFile), "%s/%s", dbPath, entryName);
+
+    avro_file_reader_t reader = NULL;
+    if (avro_file_reader(avroFile, &reader)) {
+        debugPrint("hasVirtualTag: open %s failed: %s\n", avroFile, avro_strerror());
+        return false;
+    }
+
+    avro_schema_t schema = avro_file_reader_get_writer_schema(reader);
+    avro_value_iface_t *vface = avro_generic_class_from_schema(schema);
+    avro_value_t value;
+    avro_generic_value_new(vface, &value);
+
+    bool isVirtual = false;
+
+    if (!avro_file_reader_read_value(reader, &value)) {
+        avro_value_t sql_value, sql_branch;
+        if (0 == avro_value_get_by_name(&value, "sql", &sql_value, NULL)) {
+            avro_value_get_current_branch(&sql_value, &sql_branch);
+            if (0 != avro_value_get_null(&sql_branch)) {
+                char *buf = NULL;
+                size_t size = 0;
+                avro_value_get_string(&sql_branch, (const char **)&buf, &size);
+                if (buf && size > 0) {
+                    if (isTBTAGS) {
+                        isVirtual = true;
+                    } else if (isNTB) {
+                        const char *pre_vtb = "CREATE VTABLE";
+                        if (strncasecmp(buf, pre_vtb, strlen(pre_vtb)) == 0) {
+                            isVirtual = true;
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        debugPrint("hasVirtualTag: %s no records\n", avroFile);
+    }
+
+    avro_value_decref(&value);
+    avro_value_iface_decref(vface);
+    avro_file_reader_close(reader);
+
+    return isVirtual;
+}
+
+static inline bool isAvroDataExt(const char *ext) {
+    return (ext && strcmp(ext, "avro") == 0);
+}
+
 static uint64_t getFilesNum(const char *dbPath, const char *ext) {
+    if (g_isVirtualPass && isAvroDataExt(ext)) {
+        debugPrint("Virtual pass: skip counting .%s files in %s\n", ext, dbPath);
+        return 0;
+    }
+
     uint64_t count = 0;
 
     int namelen, extlen;
@@ -2512,7 +2582,13 @@ static uint64_t getFilesNum(const char *dbPath, const char *ext) {
                         if (0 == strcmp(entryName, "dbs.sql")) {
                             continue;
                         }
+                    } else {
+                        bool vflag = hasVirtualTag(dbPath, entryName, ext);
+                        if (g_isVirtualPass != vflag) {
+                            continue;
+                        }
                     }
+
                     verbosePrint("%s found\n", entryName);
                     count++;
                 }
@@ -2521,7 +2597,9 @@ static uint64_t getFilesNum(const char *dbPath, const char *ext) {
         toolsCloseDir(&pDir);
     }
 
-    debugPrint("%"PRId64" .%s files found!\n", count, ext);
+    debugPrint("%"PRId64" .%s files found for %s pass in %s\n",
+               count, ext, g_isVirtualPass ? "virtual" : "physical", dbPath);
+
     return count;
 }
 
@@ -2634,6 +2712,14 @@ static enAVROTYPE createDumpinList(const char *dbPath,
 
             if (namelen > extlen) {
                 if (strcmp(ext, &(entryName[namelen - extlen])) == 0) {
+                    // filter
+                    if (avroType != enAVRO_UNKNOWN) {
+                        bool vflag = hasVirtualTag(dbPath, entryName, ext);
+                        if (g_isVirtualPass != vflag) {
+                            continue;
+                        }
+                    }
+
                     verbosePrint("%s found\n", entryName);
                     switch (avroType) {
                         case enAVRO_UNKNOWN:
@@ -2669,13 +2755,18 @@ static enAVROTYPE createDumpinList(const char *dbPath,
                             break;
                     }
                     nCount++;
+                    if (nCount == count) {
+                        break;
+                    }
                 }
             }
         }
         toolsCloseDir(&pDir);
     }
 
-    debugPrint("%"PRId64" .%s files filled to list!\n", nCount, ext);
+    debugPrint("%"PRId64" .%s files filled to list for %s pass!\n",
+               nCount, ext, g_isVirtualPass ? "virtual" : "physical");
+
     return avroType;
 }
 
@@ -4251,11 +4342,15 @@ static int64_t dumpInAvroTbTagsImpl(
             avro_value_t sql_value, sql_branch;
             if (0 == avro_value_get_by_name(&value, "sql", &sql_value, NULL)) {
                 avro_value_get_current_branch(&sql_value, &sql_branch);
+
                 if (0 != avro_value_get_null(&sql_branch)) {
                     char *buf = NULL;
                     size_t size = 0;
                     avro_value_get_string(&sql_branch, (const char **)&buf, &size);
                     if (buf && size > 0) {
+                        if (!g_isVirtualPass) {
+                            continue;
+                        }
 
                         char *newBuf = afterRenameSql(buf);
                         const char *execSql = newBuf ? newBuf : buf;
@@ -4274,7 +4369,11 @@ static int64_t dumpInAvroTbTagsImpl(
 
                         continue;
                     }
+                } else {
+                    if (g_isVirtualPass) continue;
                 }
+            } else {
+                if (g_isVirtualPass) continue;
             }
         }
 
@@ -4549,9 +4648,16 @@ static int64_t dumpInAvroNtbImpl(
                 continue;
             }
 
+            const char *pre_vtb = "CREATE VTABLE";
+            bool isVTable = (strncasecmp(buf, pre_vtb, strlen(pre_vtb)) == 0);
+
+            if (g_isVirtualPass != isVTable) {
+                continue;
+            }
+
             char* newBuf = afterRenameSql(buf);
             if(newBuf) {
-                infoPrint(" rename database name for create normal table sql: \n  old=%s\n new=%s\n", buf, newBuf);
+                infoPrint(" rename database name for create normal table sql: \n old=%s\n new=%s\n", buf, newBuf);
                 buf = newBuf;
             }
 
@@ -6761,8 +6867,16 @@ int64_t dumpTable(
     //
     // dump out data
     //
+    bool isVirtual = false;
+    if (stbDes && stbDes->isVirtual) {
+        isVirtual = true;
+    }
+    if (tableDes && tableDes->isVirtual) {
+        isVirtual = true;
+    }
+
     int64_t totalRows = 0;
-    if (!g_args.schemaonly && !stbDes->isVirtual) {
+    if (!g_args.schemaonly && !isVirtual) {
         if (g_args.avro) {
             if (NULL == tableDes) {
                 tableDes = (TableDes *)calloc(1, sizeof(TableDes)
@@ -8967,12 +9081,13 @@ static int dumpInDbs(const char *dbPath) {
 static int dumpInWithDbPath(const char *dbPath) {
     int ret = 0;
 
-
     infoPrint("%s(), dump in from %s ...\n", __func__, dbPath);
 
-    if (dumpInDbs(dbPath)) {
-        errorPrint("Failed to dump database path: %s in!\n", dbPath);
-        return -1;
+    if (!g_isVirtualPass) {
+        if (dumpInDbs(dbPath)) {
+            errorPrint("Failed to dump database path: %s in!\n", dbPath);
+            return -1;
+        }
     }
 
     // create
@@ -9004,10 +9119,9 @@ static int dumpInWithDbPath(const char *dbPath) {
     return ret;
 }
 
-static int dumpIn() {
-    TOOLS_ASSERT(g_args.isDumpIn);
-
+static int dumpInProcess() {
     int ret = 0;
+
     ret = dumpInWithDbPath(g_args.inpath);
     if(ret) {
         return ret;
@@ -9018,44 +9132,63 @@ static int dumpIn() {
     TdDirPtr pDir;
 
     pDir = toolsOpenDir(g_args.inpath);
-
-    if (pDir != NULL) {
-        while ((pDirent = toolsReadDir(pDir)) != NULL) {
-            char *entryName = toolsGetDirEntryName(pDirent);
-            if (strncmp (CUS_PROMPT"dump.", entryName, strlen(CUS_PROMPT"dump."))
-                    == 0) {
-                char dbPath[MAX_PATH_LEN] = {0};
-                snprintf(dbPath, MAX_PATH_LEN, "%s/%s",
-                         g_args.inpath, entryName);
-#else
-    struct dirent *pDirent;
-    DIR *pDir;
-
-    pDir = opendir(g_args.inpath);
-
-    if (pDir != NULL) {
-        while ((pDirent = readdir(pDir)) != NULL) {
-            if (strncmp (CUS_PROMPT"dump.", pDirent->d_name, strlen(CUS_PROMPT"dump."))
-                    == 0) {
-                char dbPath[MAX_PATH_LEN] = {0};
-                snprintf(dbPath, MAX_PATH_LEN, "%s/%s",
-                         g_args.inpath, pDirent->d_name);
-#endif
-                debugPrint("%s() LN%d, will dump from %s\n",
-                        __func__, __LINE__, dbPath);
-                ret = dumpInWithDbPath(dbPath);
-            }
-        }
-#ifdef WINDOWS
-        toolsCloseDir(&pDir);
-#else
-        closedir(pDir);
-#endif
-    } else {
-        errorPrint("opendir(%s)\n", g_args.inpath);
+    if (pDir == NULL) {
+        errorPrint("toolsOpenDir(%s) failed\n", g_args.inpath);
+        return -1;
     }
 
+    while ((pDirent = toolsReadDir(pDir)) != NULL) {
+        char *entryName = toolsGetDirEntryName(pDirent);
+        if (strncmp (CUS_PROMPT"dump.", entryName, strlen(CUS_PROMPT"dump.")) == 0) {
+            char dbPath[MAX_PATH_LEN] = {0};
+            snprintf(dbPath, MAX_PATH_LEN, "%s/%s", g_args.inpath, entryName);
+            debugPrint("%s() LN%d, will dump from %s\n", __func__, __LINE__, dbPath);
+            ret = dumpInWithDbPath(dbPath);
+        }
+    }
+    toolsCloseDir(&pDir);
+#else
+    struct dirent *pDirent;
+    DIR *pDir = opendir(g_args.inpath);
+    if (pDir == NULL) {
+        errorPrint("opendir(%s) failed: %s\n", g_args.inpath, strerror(errno));
+        return -1;
+    }
+
+    while ((pDirent = readdir(pDir)) != NULL) {
+        if (strncmp (CUS_PROMPT"dump.", pDirent->d_name, strlen(CUS_PROMPT"dump.")) == 0) {
+            char dbPath[MAX_PATH_LEN] = {0};
+            snprintf(dbPath, MAX_PATH_LEN, "%s/%s", g_args.inpath, pDirent->d_name);
+            debugPrint("%s() LN%d, will dump from %s\n", __func__, __LINE__, dbPath);
+            ret = dumpInWithDbPath(dbPath);
+        }
+    }
+    closedir(pDir);
+#endif
+
     return ret;
+}
+
+static int dumpIn() {
+    TOOLS_ASSERT(g_args.isDumpIn);
+
+    int ret = 0;
+
+    // physical
+    g_isVirtualPass = false;
+    ret = dumpInProcess();
+    if (ret) {
+        return ret;
+    }
+
+    // virtual
+    g_isVirtualPass = true;
+    ret = dumpInProcess();
+    if (ret) {
+        return ret;
+    }
+
+    return 0;
 }
 
 static void dumpTablesOfStbNative(
