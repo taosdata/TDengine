@@ -1626,43 +1626,40 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   }
 
   SInterpFuncLogicNode* pInterpFunc = NULL;
-  int32_t               code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_INTERP_FUNC, (SNode**)&pInterpFunc);
-  if (NULL == pInterpFunc) {
-    return code;
-  }
+  int32_t               code = TSDB_CODE_SUCCESS;
+
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_INTERP_FUNC, (SNode**)&pInterpFunc));
 
   pInterpFunc->node.groupAction = getGroupAction(pCxt, pSelect);
   pInterpFunc->node.requireDataOrder = getRequireDataOrder(true, pSelect);
   pInterpFunc->node.resultDataOrder = pInterpFunc->node.requireDataOrder;
 
   // interp functions and _group_key functions
-  code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isInterpFunc, &pInterpFunc->pFuncs);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteExprsForSelect(pInterpFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
-  }
+  PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isInterpFunc, &pInterpFunc->pFuncs));
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pFill) {
+  PLAN_ERR_JRET(rewriteExprsForSelect(pInterpFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL));
+
+  if (NULL != pSelect->pFill) {
     SFillNode* pFill = (SFillNode*)pSelect->pFill;
     pInterpFunc->timeRange = pFill->timeRange;
     TSWAP(pInterpFunc->pTimeRange, pFill->pTimeRange);    
     pInterpFunc->fillMode = pFill->mode;
     pInterpFunc->pTimeSeries = NULL;
-    code = nodesCloneNode(pFill->pWStartTs, &pInterpFunc->pTimeSeries);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = nodesCloneNode(pFill->pValues, &pInterpFunc->pFillValues);
-    }
+    PLAN_ERR_JRET(nodesCloneNode(pFill->pWStartTs, &pInterpFunc->pTimeSeries));
+    PLAN_ERR_JRET(nodesCloneNode(pFill->pValues, &pInterpFunc->pFillValues));
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pEvery) {
+  if (NULL != pSelect->pEvery) {
     pInterpFunc->interval = ((SValueNode*)pSelect->pEvery)->datum.i;
     pInterpFunc->intervalUnit = ((SValueNode*)pSelect->pEvery)->unit;
     pInterpFunc->precision = pSelect->precision;
   }
 
-  if (TSDB_CODE_SUCCESS == code && pSelect->pRangeAround) {
+  if (pSelect->pRangeAround) {
     SNode* pRangeInterval = ((SRangeAroundNode*)pSelect->pRangeAround)->pInterval;
     if (!pRangeInterval || nodeType(pRangeInterval) != QUERY_NODE_VALUE) {
-      code = TSDB_CODE_PAR_INTERNAL_ERROR;
+      planError("%s failed at line %d since range interval is invalid", __func__, __LINE__);
+      PLAN_ERR_JRET(TSDB_CODE_PLAN_INTERNAL_ERROR);
     } else {
       pInterpFunc->rangeInterval = ((SValueNode*)pRangeInterval)->datum.i;
       pInterpFunc->rangeIntervalUnit = ((SValueNode*)pRangeInterval)->unit;
@@ -1670,16 +1667,14 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   }
 
   // set the output
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRewriteExprs(pInterpFunc->pFuncs, &pInterpFunc->node.pTargets);
-  }
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pInterpFunc->pFuncs, &pInterpFunc->node.pTargets));
 
-  if (TSDB_CODE_SUCCESS == code) {
-    *pLogicNode = (SLogicNode*)pInterpFunc;
-  } else {
-    nodesDestroyNode((SNode*)pInterpFunc);
-  }
+  *pLogicNode = (SLogicNode*)pInterpFunc;
+  return code;
 
+_return:
+  planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  nodesDestroyNode((SNode*)pInterpFunc);
   return code;
 }
 

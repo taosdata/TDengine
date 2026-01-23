@@ -237,7 +237,8 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
   } else {
     pSchema = pTableMeta->schema;
     if (pBoundInfo->numOfCols != getTbnameSchemaIndex(pTableMeta) + 1) {
-      return TSDB_CODE_PAR_INTERNAL_ERROR;
+      parserError("%s failed, invalid columns num:%d, tbname index:%d", __func__, pBoundInfo->numOfCols, getTbnameSchemaIndex(pTableMeta));
+      return TSDB_CODE_PAR_INVALID_COLUMNS_NUM;
     }
   }
   int32_t tbnameSchemaIndex = getTbnameSchemaIndex(pTableMeta);
@@ -2692,7 +2693,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
     case TSDB_DATA_TYPE_DECIMAL: {
       if (!pExtSchema) {
         qError("Decimal type without ext schema info, cannot parse decimal values");
-        return TSDB_CODE_PAR_INTERNAL_ERROR;
+        return TSDB_CODE_DECIMAL_PARSE_ERROR;
       }
       uint8_t precision = 0, scale = 0;
       decimalFromTypeMod(pExtSchema->typeMod, &precision, &scale);
@@ -2714,7 +2715,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
     case TSDB_DATA_TYPE_DECIMAL64: {
       if (!pExtSchema) {
         qError("Decimal type without ext schema info, cannot parse decimal values");
-        return TSDB_CODE_PAR_INTERNAL_ERROR;
+        return TSDB_CODE_DECIMAL_PARSE_ERROR;
       }
       uint8_t precision = 0, scale = 0;
       decimalFromTypeMod(pExtSchema->typeMod, &precision, &scale);

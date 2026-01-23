@@ -656,6 +656,7 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
 
 static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
   char expandName[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+  bool firstRef = true;
   for (int32_t i = 1; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs + i;
@@ -674,8 +675,12 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
       continue;
     }
 
-    *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                     "%s`%s` %s", ((i > 1) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
+    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                      "%s`%s` %s", (!firstRef ? ", " : " ("), expandIdentifier(pSchema->name, expandName), type);
+    firstRef = false;
+  }
+  if (!firstRef) {
+    *len += tsnprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len), ")");
   }
 }
 
@@ -943,11 +948,11 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     len +=
         snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
   } else if (TSDB_VIRTUAL_CHILD_TABLE == pCfg->tableType) {
-    len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                    "CREATE VTABLE `%s` (", expandIdentifier(tbName, buf1));
+    len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
+                     "CREATE VTABLE `%s`", expandIdentifier(tbName, buf1));
     appendColRefFields(buf2, &len, pCfg);
     len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                    ") USING `%s` (", expandIdentifier(pCfg->stbName, buf1));
+                    " USING `%s` (", expandIdentifier(pCfg->stbName, buf1));
     appendTagNameFields(buf2, &len, pCfg);
     len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
                     ") TAGS (");
