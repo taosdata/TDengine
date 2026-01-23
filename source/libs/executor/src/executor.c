@@ -1443,7 +1443,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       pScanBaseInfo->cond.twindows.skey = oldSkey;
     } else {
       qError("invalid pOffset->type:%d, %s", pOffset->type, id);
-      return TSDB_CODE_PAR_INTERNAL_ERROR;
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
     }
 
   } else {  // subType == TOPIC_SUB_TYPE__TABLE/TOPIC_SUB_TYPE__DB
@@ -1461,7 +1461,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       if (pAPI->snapshotFn.setForSnapShot(sContext, pOffset->uid) != 0) {
         qError("setDataForSnapShot error. uid:%" PRId64 " , %s", pOffset->uid, id);
-        return TSDB_CODE_PAR_INTERNAL_ERROR;
+        return TSDB_CODE_STREAM_INTERNAL_ERROR;
       }
 
       SMetaTableInfo mtInfo = {0};

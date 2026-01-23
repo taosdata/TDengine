@@ -624,7 +624,10 @@ static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t
 
     len += tsnprintf(buf + len, bufLen - len, "%c%s/%d, ", pRange->neg ? '-' : '+', IP_ADDR_STR(&addr), addr.mask);
   }
-  if (len > 0) buf[len - 2] = 0;
+  if (len > 0) {
+    len -= 2;
+    buf[len] = 0; // remove last ", "
+  }
   return len;
 }
 
@@ -922,7 +925,8 @@ static int32_t convertTimeRangesToStr(SUserObj *pUser, char **buf) {
   }
 
   if (pos > 0) {
-    (*buf)[pos - 2] = 0; // remove last ", "
+    pos -= 2;
+    (*buf)[pos] = 0; // remove last ", "
   }
 
   return pos;
@@ -2494,7 +2498,7 @@ static void generateSalt(char *salt, size_t len) {
 
 
 
-static int32_t addDefaultIpToTable(int8_t enableIpv6, SHashObj *pUniqueTab) {
+static int32_t addDefaultIpToTable(SHashObj *pUniqueTab) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t dummy = 0;
@@ -2506,13 +2510,12 @@ static int32_t addDefaultIpToTable(int8_t enableIpv6, SHashObj *pUniqueTab) {
   code = taosHashPut(pUniqueTab, &ipv4, sizeof(ipv4), &dummy, sizeof(dummy));
   TSDB_CHECK_CODE(code, lino, _error);
 
-  if (enableIpv6) {
-    code = createDefaultIp6Range(&ipv6);
-    TSDB_CHECK_CODE(code, lino, _error);
+  code = createDefaultIp6Range(&ipv6);
+  TSDB_CHECK_CODE(code, lino, _error);
 
-    code = taosHashPut(pUniqueTab, &ipv6, sizeof(ipv6), &dummy, sizeof(dummy));
-    TSDB_CHECK_CODE(code, lino, _error);
-  }
+  code = taosHashPut(pUniqueTab, &ipv6, sizeof(ipv6), &dummy, sizeof(dummy));
+  TSDB_CHECK_CODE(code, lino, _error);
+    
 _error:
   if (code != 0) {
     mError("failed to add default ip range to table since %s", tstrerror(code));
@@ -2585,9 +2588,11 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
     
+    bool hasPositive = false;
     for (int i = 0; i < pCreate->numIpRanges; i++) {
       SIpRange range = {0};
       copyIpRange(&range, pCreate->pIpDualRanges + i);
+      hasPositive = hasPositive || !range.neg;
       int32_t dummy = 0;
       if ((code = taosHashPut(pUniqueTab, &range, sizeof(range), &dummy, sizeof(dummy))) != 0) {
         taosHashCleanup(pUniqueTab);
@@ -2595,10 +2600,13 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
       }
     }
 
-    code = addDefaultIpToTable(tsEnableIpv6, pUniqueTab);
-    if (code != 0) {
-      taosHashCleanup(pUniqueTab);
-      TAOS_CHECK_GOTO(code, &lino, _OVER);
+    // add local ip if there is any positive range
+    if (hasPositive) {
+      code = addDefaultIpToTable(pUniqueTab);
+      if (code != 0) {
+        taosHashCleanup(pUniqueTab);
+        TAOS_CHECK_GOTO(code, &lino, _OVER);
+      }
     }
 
     if (taosHashGetSize(pUniqueTab) > MND_MAX_USER_IP_RANGE) {

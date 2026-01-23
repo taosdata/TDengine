@@ -3749,7 +3749,8 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
 
   int32_t msgSize = tSerializeSMqSeekReq(NULL, 0, &req);
   if (msgSize < 0) {
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
+    tqErrorC("%s get invalid msg at line %d", __func__, __LINE__);
+    return TSDB_CODE_TMQ_INVALID_MSG;
   }
 
   char* msg = taosMemoryCalloc(1, msgSize);
@@ -3758,8 +3759,9 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   }
 
   if (tSerializeSMqSeekReq(msg, msgSize, &req) < 0) {
+    tqErrorC("%s serialize seek req failed at line %d", __func__, __LINE__);
     taosMemoryFree(msg);
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
+    return TSDB_CODE_TMQ_INVALID_MSG;
   }
 
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));

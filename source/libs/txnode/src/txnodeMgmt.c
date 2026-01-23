@@ -190,7 +190,8 @@ static void locateXnodedExecFile(char *path) {
   path[0] = '\0';
 
   TAOS_STRNCPY(path, XNODED_DEFAULT_EXEC_NAME, PATH_MAX);
-  xndInfo("can't find xnoded file, use default exec command:%s", path);
+  xndInfo("can't find xnoded exec file, use default: %s", path);
+  return;
 
 _ok:
   xndInfo("find xnoded exec file:%s", path);
