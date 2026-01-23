@@ -334,8 +334,9 @@ static void checkSurroundingTime(const STimeSliceOperatorInfo* pSliceInfo,
                                  SArray** ppFillRow, SArray* pFillRefRow,
                                  int64_t fillRefRowTs) {
   *ppFillRow = NULL;
-  int64_t diff = llabs(fillRefRowTs - pSliceInfo->current);
-  if (pSliceInfo->surroundingTime > 0 && diff > pSliceInfo->surroundingTime) {
+  uint64_t diff = safe_abs_diff_i64(fillRefRowTs, pSliceInfo->current);
+  if (pSliceInfo->surroundingTime > 0 &&
+      diff > (uint64_t)pSliceInfo->surroundingTime) {
     return;
   }
   *ppFillRow = pFillRefRow;

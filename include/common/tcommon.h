@@ -479,6 +479,18 @@ static inline STypeMod typeGetTypeModFromCol(const SColumn* pCol) {
   return typeGetTypeMod(pCol->type, pCol->precision, pCol->scale, pCol->bytes);
 }
 
+/**
+  @brief Calculate the absolute difference between two int64_t values, 
+         and return the result as uint64_t.
+  @note This function is used to avoid the overflow of
+        the absolute difference calculation.
+*/
+static inline uint64_t safe_abs_diff_i64(int64_t a, int64_t b) {
+  uint64_t ua = (uint64_t)a;
+  uint64_t ub = (uint64_t)b;
+  return ua > ub ? ua - ub : ub - ua;
+}
+
 #ifdef __cplusplus
 }
 #endif
