@@ -40,7 +40,7 @@
 
 
 #define SET_ERROR_MSG_TMQ(MSG) \
-  if (errstr != NULL && errstrLen > 0) (void)snprintf(errstr, errstrLen, MSG);
+  if (errstr != NULL && errstrLen > 0) (void)snprintf(errstr, errstrLen, "%s", MSG);
 
 #define PROCESS_POLL_RSP(FUNC,DATA) \
   SDecoder decoder = {0}; \
