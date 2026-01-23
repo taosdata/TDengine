@@ -556,7 +556,7 @@ int32_t qUpdateTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdLi
   for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
     int64_t* uid = (int64_t*)taosArrayGet(tableIdList, i);
 
-    pTaskInfo->storageAPI.tqReaderFn.tqUpdateTableTagCache(pScanInfo->tqReader, pScanInfo->pPseudoExpr, pScanInfo->numOfPseudoExpr, *uid, colId);
+    (void)pTaskInfo->storageAPI.tqReaderFn.tqUpdateTableTagCache(pScanInfo->tqReader, pScanInfo->pPseudoExpr, pScanInfo->numOfPseudoExpr, *uid, colId);
   }
   
 
