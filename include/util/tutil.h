@@ -202,7 +202,7 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
   char buf[TSDB_PASSWORD_LEN + 1];
 
   buf[TSDB_PASSWORD_LEN] = 0;
-  (void)tsnprintf(buf, sizeof(buf) - 1, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+  (void)tsnprintf(buf, sizeof(buf), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
                   context.digest[0], context.digest[1], context.digest[2], context.digest[3], context.digest[4],
                   context.digest[5], context.digest[6], context.digest[7], context.digest[8], context.digest[9],
                   context.digest[10], context.digest[11], context.digest[12], context.digest[13], context.digest[14],
@@ -212,7 +212,7 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
 
 static FORCE_INLINE int32_t taosHashBinary(char *pBuf, int32_t len) {
   uint64_t hashVal = MurmurHash3_64(pBuf, len);
-  return tsnprintf(pBuf, len - 1, "%" PRIu64, hashVal);
+  return tsnprintf(pBuf, len, "%" PRIu64, hashVal);
 }
 
 static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {
@@ -233,7 +233,7 @@ static FORCE_INLINE int32_t taosCreateSHA1Hash(char *pBuf, int32_t len) {
 
   tSHA1((char *)result, pBuf, len);
 
-  return tsnprintf(pBuf, len - 1, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+  return tsnprintf(pBuf, len, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
                    result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8],
                    result[9], result[10], result[11], result[12], result[13], result[14], result[15], result[16],
                    result[17], result[18], result[19]);
@@ -246,7 +246,7 @@ static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t
     case SHA224_DIGEST_SIZE:
       sha224((const uint8_t *)pBuf, len, result);
       return tsnprintf(
-          pBuf, len - 1,
+          pBuf, len,
           "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
           "02x%02x%02x%02x",
           result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8], result[9],
@@ -255,7 +255,7 @@ static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t
     case SHA256_DIGEST_SIZE:
       sha256((const uint8_t *)pBuf, len, result);
       return tsnprintf(
-          pBuf, len - 1,
+          pBuf, len,
           "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
           "02x%02x%02x%02x%02x%02x%02x%02x",
           result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8], result[9],
@@ -265,7 +265,7 @@ static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t
     case SHA384_DIGEST_SIZE:
       sha384((const uint8_t *)pBuf, len, result);
       return tsnprintf(
-          pBuf, len - 1,
+          pBuf, len,
           "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
           "02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
           result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7], result[8], result[9],
@@ -277,7 +277,7 @@ static FORCE_INLINE int32_t taosCreateSHA2Hash(char *pBuf, int32_t len, uint32_t
     case SHA512_DIGEST_SIZE:
       sha512((const uint8_t *)pBuf, len, result);
       return tsnprintf(
-          pBuf, len - 1,
+          pBuf, len,
           "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
           "02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
           "02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
