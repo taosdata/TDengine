@@ -650,7 +650,7 @@ int32_t resetMergeAlignedExtWinOperator(SOperatorInfo* pOperator) {
   pMlExtInfo->curTs = INT64_MIN;
 
   int32_t code = resetAggSup(&pOperator->exprSupp, &pExtW->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
-                             sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+                             sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL,
                              &pTaskInfo->storageAPI.functionStore);
   if (code == 0) {
     colDataDestroy(&pExtW->twAggSup.timeWindowData);
@@ -702,7 +702,7 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   QUERY_CHECK_CODE(code, lino, _error);
 
   if (pExtW->mode == EEXT_MODE_AGG) {
-    code = initAggSup(pSup, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+    code = initAggSup(pSup, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, NULL,
                       &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
   }
@@ -2351,7 +2351,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     TSDB_CHECK_CODE(code, lino, _error);
     
     code = initAggSup(&pOperator->exprSupp, &pExtW->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str,
-                              pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+                              NULL, &pTaskInfo->storageAPI.functionStore);
     TSDB_CHECK_CODE(code, lino, _error);
     pOperator->exprSupp.hasWindowOrGroup = false;
     

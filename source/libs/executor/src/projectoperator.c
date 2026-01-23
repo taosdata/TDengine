@@ -101,7 +101,7 @@ static int32_t resetProjectOperState(SOperatorInfo* pOper) {
   blockDataCleanup(pProject->pFinalRes);
 
   int32_t code = resetAggSup(&pOper->exprSupp, &pProject->aggSup, pTaskInfo, pPhynode->pProjections, NULL,
-    sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+    sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL,
     &pTaskInfo->storageAPI.functionStore);
   if (code == 0){
     code = setFunctionResultOutput(pOper, &pProject->binfo, &pProject->aggSup, MAIN_SCAN, pOper->exprSupp.numOfExprs);
@@ -169,7 +169,7 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   code = createExprInfo(pProjPhyNode->pProjections, NULL, &pExprInfo, &numOfCols);
   TSDB_CHECK_CODE(code, lino, _error);
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
-                    pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+                    NULL, &pTaskInfo->storageAPI.functionStore);
   TSDB_CHECK_CODE(code, lino, _error);
 
   initBasicInfo(&pInfo->binfo, pResBlock);
@@ -338,15 +338,6 @@ int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 //        pOperator->status = OP_EXEC_RECV;
 //      }
 
-      // for stream interval
-      if (pBlock->info.type == STREAM_RETRIEVE || pBlock->info.type == STREAM_DELETE_RESULT ||
-          pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_CREATE_CHILD_TABLE ||
-          pBlock->info.type == STREAM_CHECKPOINT || pBlock->info.type == STREAM_NOTIFY_EVENT) {
-
-        *pResBlock = pBlock;
-        return code;
-      }
-
       if (pProjectInfo->inputIgnoreGroup) {
         pBlock->info.id.groupId = 0;
       }
@@ -462,7 +453,7 @@ static int32_t resetIndefinitOutputOperState(SOperatorInfo* pOper) {
   pInfo->groupId = 0;
   pInfo->pNextGroupRes = NULL;
   int32_t code = resetAggSup(&pOper->exprSupp, &pInfo->aggSup, pTaskInfo, pPhynode->pFuncs, NULL,
-    sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, pTaskInfo->streamInfo.pState,
+    sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL,
     &pTaskInfo->storageAPI.functionStore);
   if (code == 0){
     code = setFunctionResultOutput(pOper, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, pOper->exprSupp.numOfExprs);
@@ -530,7 +521,7 @@ int32_t createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = initAggSup(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str,
-                            pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+                            NULL, &pTaskInfo->storageAPI.functionStore);
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfExpr);

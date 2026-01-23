@@ -399,7 +399,6 @@ SSDataBlock* createDataBlockFromDescNode(void* p) {
   }
 
   pBlock->info.id.blockId = pNode->dataBlockId;
-  pBlock->info.type = STREAM_INVALID;
   pBlock->info.calWin = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
   pBlock->info.watermark = INT64_MIN;
 
@@ -3895,7 +3894,7 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
       qDebug("%" PRIx64 " %s %s %s: Block is Null", qId, taskIdStr, flag, __func__);
       return;
     } else if (pBlock->info.rows == 0) {
-      qDebug("%" PRIx64 " %s %s %s: Block is Empty. block type %d", qId, taskIdStr, flag, __func__, pBlock->info.type);
+      qDebug("%" PRIx64 " %s %s %s: Block is Empty.", qId, taskIdStr, flag, __func__);
       return;
     }
     
@@ -3913,8 +3912,8 @@ void printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr
     qDebug("%s===stream===%s %s: Block is Null", taskIdStr, flag, opStr);
     return;
   } else if (pBlock->info.rows == 0) {
-    qDebug("%s===stream===%s %s: Block is Empty. block type %d.skey:%" PRId64 ",ekey:%" PRId64 ",version%" PRId64,
-           taskIdStr, flag, opStr, pBlock->info.type, pBlock->info.window.skey, pBlock->info.window.ekey,
+    qDebug("%s===stream===%s %s: Block is Empty.skey:%" PRId64 ",ekey:%" PRId64 ",version%" PRId64,
+           taskIdStr, flag, opStr, pBlock->info.window.skey, pBlock->info.window.ekey,
            pBlock->info.version);
     return;
   }

@@ -105,7 +105,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   TSDB_CHECK_CODE(code, lino, _error);
 
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str,
-                               pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+                               NULL, &pTaskInfo->storageAPI.functionStore);
   TSDB_CHECK_CODE(code, lino, _error);
 
   if (pAggNode->pExprs != NULL) {
@@ -849,7 +849,7 @@ static int32_t resetAggregateOperatorState(SOperatorInfo* pOper) {
   pAgg->pNewGroupBlock = NULL;
 
   int32_t code = resetAggSup(&pOper->exprSupp, &pAgg->aggSup, pTaskInfo, pAggNode->pAggFuncs, pAggNode->pGroupKeys,
-    keyBufSize, pTaskInfo->id.str, pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.functionStore);
+    keyBufSize, pTaskInfo->id.str, NULL, &pTaskInfo->storageAPI.functionStore);
 
   if (code == 0) {
     code = resetExprSupp(&pAgg->scalarExprSup, pTaskInfo, pAggNode->pExprs, NULL,

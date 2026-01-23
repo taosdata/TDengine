@@ -262,7 +262,7 @@ static ERetType doStopDataReader(SOperatorInfo* pOperator, STraverParam* pParam,
     }
     return OPTR_FN_RET_ABORT;
   } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    SStreamScanInfo* pInfo = pOperator->info;
+    STmqQueryScanInfo* pInfo = pOperator->info;
 
     if (pInfo->pTableScanOp != NULL) {
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;

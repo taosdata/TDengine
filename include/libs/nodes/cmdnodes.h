@@ -1020,12 +1020,6 @@ typedef struct SKillQueryStmt {
   char      queryId[TSDB_QUERY_ID_LEN];
 } SKillQueryStmt;
 
-typedef enum EStreamNotifyEventType {
-  SNOTIFY_EVENT_WINDOW_INVALIDATION = 0,
-  SNOTIFY_EVENT_WINDOW_OPEN = BIT_FLAG_MASK(0),
-  SNOTIFY_EVENT_WINDOW_CLOSE = BIT_FLAG_MASK(1),
-} EStreamNotifyEventType;
-
 typedef struct SStreamNotifyOptions {
   ENodeType  type;
   SNodeList* pAddrUrls;

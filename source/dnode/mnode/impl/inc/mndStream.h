@@ -240,14 +240,6 @@ typedef struct SStmActionQ {
   uint64_t      qRemainNum;
 } SStmActionQ;
 
-
-typedef struct SVgroupChangeInfo {
-  SHashObj *pDBMap;
-  SArray   *pUpdateNodeList;  // SArray<SNodeUpdateInfo>
-} SVgroupChangeInfo;
-
-
-
 typedef struct SStmTaskSrcAddr {
   bool    isFromCache;
   int64_t taskId;

@@ -68,19 +68,8 @@ typedef struct {
   int64_t               snapshotVer;
   SSchemaWrapper*       schema;
   char                  tbName[TSDB_TABLE_NAME_LEN];  // this is the current scan table: todo refactor
-  int8_t                recoverStep;
-  int8_t                recoverScanFinished;
   SQueryTableDataCond   tableCond;
-  SVersionRange         fillHistoryVer;
-  SStreamState*         pState;
-  SStreamState*         pOtherState;
-  int32_t               eventTypes;          // event types to notify
-  SSchemaWrapper*       notifyResultSchema;  // agg result to notify
-  char*                 stbFullName;         // used to generate dest child table name
-  bool                  newSubTableRule;     // used to generate dest child table name
-  STaskNotifyEventStat* pNotifyEventStat;    // used to store notify event statistics
-  SArray              * pVTables;            // used to store merge info for merge task, SArray<SVCTableMergeInfo>
-} SStreamTaskInfo;
+} STmqTaskInfo;
 
 struct SExecTaskInfo {
   STaskIdInfo           id;
@@ -91,7 +80,7 @@ struct SExecTaskInfo {
   int32_t               code;
   int32_t               qbufQuota;  // total available buffer (in KB) during execution query
   int64_t               version;    // used for stream to record wal version, why not move to sschemainfo
-  SStreamTaskInfo       streamInfo;
+  STmqTaskInfo          tmqInfo;
   SArray*               schemaInfos;
   const char*           sql;        // query sql string
   jmp_buf               env;        // jump to this position when error happens.
