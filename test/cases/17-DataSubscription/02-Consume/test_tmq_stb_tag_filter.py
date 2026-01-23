@@ -174,15 +174,17 @@ class TestCase:
         # tdLog.info("restart taosd to ensure that the data falls into the disk")
         # tdSql.query("flush database %s"%(paraDict['dbName']))
 
-        # update to half tables
-        # paraDict['startTs'] = paraDict['startTs'] + int(self.rowsPerTbl / 2)
-        # paraDict['rowsPerTbl'] = int(self.rowsPerTbl / 2)
-        # tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],
-        #                                       ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
-        #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
+        #update to half tables
+        paraDict['startTs'] = paraDict['startTs'] + int(self.rowsPerTbl / 2)
+        paraDict['rowsPerTbl'] = int(self.rowsPerTbl / 2)
+        tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],
+                                              ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+                                              startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
         # tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
         #                                        ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
         #                                        startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
+        tdLog.info("restart taosd to ensure that the data falls into the disk")
+        tdSql.query("flush database %s"%(paraDict['dbName']))
 
         tmqCom.initConsumerTable()
         tdLog.info("create topics from stb1")
@@ -209,11 +211,11 @@ class TestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
-        paraDict['startTs'] = paraDict['startTs'] + int(self.rowsPerTbl / 2)
-        paraDict['rowsPerTbl'] = int(self.rowsPerTbl / 2)
-        tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],
-                                              ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
-                                              startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
+        # paraDict['startTs'] = paraDict['startTs'] + int(self.rowsPerTbl / 2)
+        # paraDict['rowsPerTbl'] = int(self.rowsPerTbl / 2)
+        # tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict["ctbPrefix"],
+        #                                       ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+        #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
 
         tdLog.info("insert process end, and start to check consume result")
         expectRows = 1
