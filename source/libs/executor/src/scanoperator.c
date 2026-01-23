@@ -2736,6 +2736,10 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     int64_t validVer = pTaskInfo->streamInfo.snapshotVer + 1;
     qDebug("queue scan tsdb over, switch to wal ver %" PRId64, validVer);
     code = pAPI->tqReaderFn.tqReaderSeek(pInfo->tqReader, validVer, pTaskInfo->id.str);
+    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST && pInfo->pRes->info.rows > 0) {
+      (*ppRes) = pInfo->pRes;
+      return 0;
+    }
     QUERY_CHECK_CODE(code, lino, _end);
 
     tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, validVer);
