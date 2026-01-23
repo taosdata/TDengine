@@ -2592,7 +2592,9 @@ fill_opt(A) ::=
 fill_opt(A) ::= 
   FILL NK_LP fill_position_mode(B) NK_COMMA expression_list(C) NK_RP.             { A = createFillNode(pCxt, B, createNodeListNode(pCxt, C)); }
 
+fill_value(A) ::= FILL NK_LP VALUE NK_RP.                                         { A = createFillNode(pCxt, FILL_MODE_VALUE, NULL); }
 fill_value(A) ::= FILL NK_LP VALUE NK_COMMA expression_list(B) NK_RP.             { A = createFillNode(pCxt, FILL_MODE_VALUE, createNodeListNode(pCxt, B)); }
+fill_value(A) ::= FILL NK_LP VALUE_F NK_RP.                                       { A = createFillNode(pCxt, FILL_MODE_VALUE_F, NULL); }
 fill_value(A) ::= FILL NK_LP VALUE_F NK_COMMA expression_list(B) NK_RP.           { A = createFillNode(pCxt, FILL_MODE_VALUE_F, createNodeListNode(pCxt, B)); }
 
 %type fill_mode                                                                   { EFillMode }
@@ -2608,11 +2610,12 @@ fill_position_mode(A) ::= PREV.                                                 
 fill_position_mode(A) ::= NEXT.                                                   { A = FILL_MODE_NEXT; }
 fill_position_mode(A) ::= NEAR.                                                   { A = FILL_MODE_NEAR; }
 
-%type surround_opt                                                                  { SNode* }
-%destructor surround_opt                                                            { nodesDestroyNode($$); }
-surround_opt(A) ::= .                                                               { A = NULL; }
+%type surround_opt                                                                { SNode* }
+%destructor surround_opt                                                          { nodesDestroyNode($$); }
+surround_opt(A) ::= .                                                             { A = NULL; }
+surround_opt(A) ::= SURROUND NK_LP duration_literal(B) NK_RP.                     { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), NULL); }
 surround_opt(A) ::=
-  SURROUND NK_LP duration_literal(B) NK_COMMA expression_list(C) NK_RP.             { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), createNodeListNode(pCxt, C)); }
+  SURROUND NK_LP duration_literal(B) NK_COMMA expression_list(C) NK_RP.           { A = createSurroundNode(pCxt, releaseRawExprNode(pCxt, B), createNodeListNode(pCxt, C)); }
 
 count_window_args(A) ::= NK_INTEGER(B).                                           { A = createCountWindowArgs(pCxt, &B, NULL, NULL); }
 count_window_args(A) ::= NK_INTEGER(B) NK_COMMA NK_INTEGER(C).                    { A = createCountWindowArgs(pCxt, &B, &C, NULL); }
