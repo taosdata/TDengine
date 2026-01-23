@@ -1545,7 +1545,7 @@ static EFuncReturnRows diffEstReturnRows(SFunctionNode* pFunc) {
                                                                                 : FUNC_RETURN_ROWS_N_MINUS_1;
 }
 
-static EFuncReturnRows lagEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
+static EFuncReturnRows fillwardEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
 static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len, int32_t minParaNum,
                                    int32_t maxParaNum, bool hasSep) {
@@ -7219,8 +7219,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "lag",
-    .type = FUNCTION_TYPE_LAG,
+    .name = "fill_forward",
+    .type = FUNCTION_TYPE_FILL_FORWARD,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
                       FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
     .parameters = {.minParamNum = 1,
@@ -7235,13 +7235,13 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateSelectValue,
-    .getEnvFunc   = getLagFuncEnv,
-    .initFunc     = lagFunctionSetup,
-    .processFunc  = lagFunction,
-    .sprocessFunc = lagScalarFunction,
+    .getEnvFunc   = getFillforwardFuncEnv,
+    .initFunc     = fillforwardFunctionSetup,
+    .processFunc  = fillwardFunction,
+    .sprocessFunc = fillforwardScalarFunction,
     .finalizeFunc = functionFinalize,
-    .estimateReturnRowsFunc = lagEstReturnRows,
-    .processFuncByRow  = lagFunctionByRow,
+    .estimateReturnRowsFunc = fillwardEstReturnRows,
+    .processFuncByRow  = fillwardFunctionByRow,
   },
 };
 // clang-format on
