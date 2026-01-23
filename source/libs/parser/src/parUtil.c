@@ -305,10 +305,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE:
       return "FILL NEAR mode is not supported in window query";
     case TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES:
-      return "fill values can only be used with fill VALUE/VALUE_F "
-             "and SURROUND mode";
+      return "Fill values can only be used with fill VALUE/VALUE_F "
+             "or PREV/NEXT/NEAR mode with surrounding time";
     case TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES:
-      return "surrounding time value cannot be less than interval value";
+      return "Surrounding time value cannot be less than interval value";
     default:
       return "Unknown error";
   }

@@ -7462,17 +7462,17 @@ _return:
 static int32_t translateSurroundingTime(STranslateContext* pCxt,
                                         SNode* pSurroundingTime) {
   if (pSurroundingTime != NULL) {
-    SValueNode* pSurroundingTimeVal = (SValueNode*)pSurroundingTime;
+    const SValueNode* pSurroundingTimeVal = (SValueNode*)pSurroundingTime;
     if (pSurroundingTimeVal->flag & VALUE_FLAG_IS_DURATION) {
       if (pSurroundingTimeVal->datum.i <= 0) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf,
           TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES,
-          "surrounding time value must be greater than 0");
+          "Surrounding time value must be greater than 0");
       }
     } else {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf,
                                      TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES,
-                                     "surrounding time value must be a "
+                                     "Surrounding time value must be a "
                                      "duration expression");
     }
   }
@@ -7530,17 +7530,19 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateFill(STranslateContext* pCxt, SSelectStmt* pSelect, SIntervalWindowNode* pInterval) {
+static int32_t translateFill(STranslateContext* pCxt, SSelectStmt* pSelect,
+                             SIntervalWindowNode* pInterval) {
   if (NULL == pInterval->pFill) {
     return TSDB_CODE_SUCCESS;
   }
-
-  ((SFillNode*)pInterval->pFill)->timeRange = pSelect->timeRange;
-  PAR_ERR_RET(nodesCloneNode(pSelect->pTimeRange, &((SFillNode*)pInterval->pFill)->pTimeRange));
+  
+  SFillNode* pFill = (SFillNode*)pInterval->pFill;
+  pFill->timeRange = pSelect->timeRange;
+  PAR_ERR_RET(nodesCloneNode(pSelect->pTimeRange, &pFill->pTimeRange));
   PAR_ERR_RET(translateSurroundingTime(pCxt,
-                                       ((SFillNode*)pInterval->pFill)->
-                                         pSurroundingTime));
-  return checkFill(pCxt, (SFillNode*)pInterval->pFill, (SValueNode*)pInterval->pInterval, false, pSelect->precision);
+                                       pFill->pSurroundingTime));
+  return checkFill(pCxt, pFill, (SValueNode*)pInterval->pInterval, false,
+                   pSelect->precision);
 }
 
 static int32_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char unit, double* pMonth) {
@@ -7710,7 +7712,7 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
                                   TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES);
     }
     if (pFill->pSurroundingTime != NULL) {
-      SValueNode* pSurroundingTime = (SValueNode*)pFill->pSurroundingTime;
+      const SValueNode* pSurroundingTime = (SValueNode*)pFill->pSurroundingTime;
       if (pSurroundingTime->datum.i < pInter->datum.i) {
         return generateSyntaxErrMsg(&pCxt->msgBuf,
                                     TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES);
@@ -8419,14 +8421,13 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateSurroundingTime(pCxt,
-                                    ((SFillNode*)pSelect->pFill)->
-                                      pSurroundingTime);
+      ((SFillNode*)pSelect->pFill)->pSurroundingTime);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true, pSelect->precision);
   }
 
-  SFillNode* pFill = (SFillNode*)pSelect->pFill;
+  const SFillNode* pFill = (SFillNode*)pSelect->pFill;
   bool hasRowTsOriginFunc = false;
   nodesWalkExprs(pSelect->pProjectionList, hasRowTsOriginFuncWalkNode,
                  &hasRowTsOriginFunc);
@@ -8442,53 +8443,37 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     }
   }
 
-  SNode* pSurroundingTime = pFill->pSurroundingTime;
-  SNode* pRangeAround = pSelect->pRangeAround;
-  SNode* pValues = pFill->pValues;
+  const SNode* pSurroundingTime = pFill->pSurroundingTime;
+  const SNode* pRangeAround = pSelect->pRangeAround;
+  const SNode* pValues = pFill->pValues;
   if (TSDB_CODE_SUCCESS == code) {
-    if (pSurroundingTime != NULL && pRangeAround != NULL) {
+    if (NULL != pSurroundingTime && NULL != pRangeAround) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf,
                                      TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "surrounding_time and range interval "
+                                     "Surrounding time and range interval "
                                      "cannot be provided together");
     }
-    if (pValues != NULL) {
-      if (pSurroundingTime != NULL || pRangeAround != NULL) {
+    if (NULL != pValues) {
+      if (NULL != pSurroundingTime || NULL != pRangeAround) {
         if (pFill->mode != FILL_MODE_PREV &&
             pFill->mode != FILL_MODE_NEXT &&
             pFill->mode != FILL_MODE_NEAR) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf,
-                                         TSDB_CODE_PAR_SYNTAX_ERROR,
-                                         "surrounding_time and fill_value can "
-                                         "only be used with "
-                                         "fill PREV/NEXT/NEAR mode");
+          return generateSyntaxErrMsg(&pCxt->msgBuf,
+                                      TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES);
         }
       } else {
         if (pFill->mode != FILL_MODE_VALUE &&
             pFill->mode != FILL_MODE_VALUE_F) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf,
-                                         TSDB_CODE_PAR_SYNTAX_ERROR,
-                                         "fill_value must be provided with "
-                                         "fill VALUE/VALUE_F or SURROUND mode");
+          return generateSyntaxErrMsg(&pCxt->msgBuf,
+                                      TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES);
         }
       }
     } else {
-      if (pSurroundingTime != NULL || pRangeAround != NULL) {
+      if (NULL != pSurroundingTime || NULL != pRangeAround) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf,
                                        TSDB_CODE_PAR_SYNTAX_ERROR,
-                                       "surrounding_time and fill_value must "
+                                       "Surrounding time and fill value must "
                                        "be provided together");
-      }
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    if (pSurroundingTime != NULL) {
-      SValueNode* pSurroundingTimeVal = (SValueNode*)pSurroundingTime;
-      if (pSurroundingTimeVal->datum.i <= 0) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf,
-          TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES,
-          "surrounding time value must be greater than 0");
       }
     }
   }
