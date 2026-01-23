@@ -179,6 +179,14 @@ typedef struct SRemoteValueListNode {
   int32_t    subQIdx;
 } SRemoteValueListNode;
 
+typedef struct SRemoteRowNode {
+  SValueNode val;
+  bool       hasNull;
+  int32_t    subQIdx;
+} SRemoteRowNode;
+
+typedef SRemoteValueNode SRemoteZeroRowsNode;
+
 typedef struct SLeftValueNode {
   ENodeType type;
 } SLeftValueNode;
@@ -616,7 +624,7 @@ typedef enum ESubQueryType {
   E_SUB_QUERY_SCALAR = 1,
   E_SUB_QUERY_COLUMN,
   E_SUB_QUERY_TABLE,
-  E_SUB_QUERY_NONZERO_ROWNUM,
+  E_SUB_QUERY_ROWNUM,
 } ESubQueryType;
 
 typedef struct SSelectStmt {
@@ -680,6 +688,7 @@ typedef struct SSelectStmt {
   bool            tagScan;
   bool            joinContains;
   bool            mixSysTableAndActualTable;
+  bool            transalted;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -700,6 +709,7 @@ typedef struct SSetOperator {
   ETimeLineMode    timeLineResMode;
   bool             timeLineFromOrderBy;
   bool             joinContains;
+  bool             transalted;
 } SSetOperator;
 
 typedef enum ESqlClause {

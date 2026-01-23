@@ -1266,9 +1266,9 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
   }
   if ((OP_TYPE_EXISTS == type || OP_TYPE_NOT_EXISTS == type) && pLeft) {
     if (QUERY_NODE_SELECT_STMT == nodeType(pLeft)) {
-      ((SSelectStmt*)pLeft)->subQType= E_SUB_QUERY_NONZERO_ROWNUM;
+      ((SSelectStmt*)pLeft)->subQType= E_SUB_QUERY_ROWNUM;
     } else if (QUERY_NODE_SET_OPERATOR == nodeType(pLeft)) {
-      ((SSetOperator*)pLeft)->subQType= E_SUB_QUERY_NONZERO_ROWNUM;
+      ((SSetOperator*)pLeft)->subQType= E_SUB_QUERY_ROWNUM;
     }
   }
   if (pLeft && QUERY_NODE_VALUE == nodeType(pLeft)) {

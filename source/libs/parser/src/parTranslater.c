@@ -2722,7 +2722,7 @@ static int32_t dataTypeComp(const SDataType* l, const SDataType* r) {
 
 
 
-static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode* pSubQuery) {
+static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode* pSubQuery, int32_t rewriteType) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   switch (pCxt->expSubQueryType) {
@@ -2744,18 +2744,52 @@ static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
     }
     case E_SUB_QUERY_COLUMN: {
       code = validateExprSubQuery(pSubQuery);
-      if (TSDB_CODE_SUCCESS == code) {
-        *pNode = NULL;
-        code = nodesMakeNode(QUERY_NODE_REMOTE_VALUE_LIST, pNode);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
       }
-      if (TSDB_CODE_SUCCESS == code) {
+
+      *pNode = NULL;
+      
+      if (0 == rewriteType) {
+        code = nodesMakeNode(QUERY_NODE_REMOTE_VALUE_LIST, pNode);
+        if (TSDB_CODE_SUCCESS != code) {
+          break;
+        }
+
         SRemoteValueListNode* pValueList = (SRemoteValueListNode*)*pNode;
         pValueList->flag |= VALUELIST_FLAG_VAL_UNSET;
         pValueList->subQIdx = pCxt->pSubQueries->length - 1;
         tstrncpy(pValueList->node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pValueList->node.aliasName));
         tstrncpy(pValueList->node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pValueList->node.userAlias));
         getExprSubQueryResType(pSubQuery, &pValueList->node.resType);
+      } else {
+        code = nodesMakeNode(QUERY_NODE_REMOTE_ROW, pNode);
+        if (TSDB_CODE_SUCCESS != code) {
+          break;
+        }
+
+        SRemoteRowNode* pRow = (SRemoteRowNode*)*pNode;
+        pRow->val.flag |= VALUE_FLAG_VAL_UNSET;
+        pRow->subQIdx = pCxt->pSubQueries->length - 1;
+        tstrncpy(pRow->val.node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pRow->val.node.aliasName));
+        tstrncpy(pRow->val.node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pRow->val.node.userAlias));
+        getExprSubQueryResType(pSubQuery, &pRow->val.node.resType);
       }
+      break;
+    }
+    case E_SUB_QUERY_ROWNUM: {
+      *pNode = NULL;
+      code = nodesMakeNode(QUERY_NODE_REMOTE_ZERO_ROWS, pNode);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+
+      SRemoteZeroRowsNode* pRows = (SRemoteZeroRowsNode*)*pNode;
+      pRows->val.flag |= VALUE_FLAG_VAL_UNSET;
+      pRows->subQIdx = pCxt->pSubQueries->length - 1;
+      tstrncpy(pRows->val.node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pRows->val.node.aliasName));
+      tstrncpy(pRows->val.node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pRows->val.node.userAlias));
+      getExprSubQueryResType(pSubQuery, &pRows->val.node.resType);
       break;
     }
     default:
@@ -2770,11 +2804,16 @@ static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
 }
 
 static int32_t getExprSubQRewriteType(EOperatorType opType, SNode* pSubq, ESubQRewriteType* pRes) {
-  if (OP_TYPE_EXISTS == opType || OP_TYPE_NOT_EXISTS == opType) {
-    *pRes = E_SQ_REWRITE_TO_NONZERO_ROWS;
+  if (OP_TYPE_EXISTS == opType) {
+    *pRes = E_SQ_REWRITE_TO_NZERO_ROWS;
     return TSDB_CODE_SUCCESS;
   }
 
+  if (OP_TYPE_NOT_EXISTS == opType) {
+    *pRes = E_SQ_REWRITE_TO_ZERO_ROWS;
+    return TSDB_CODE_SUCCESS;
+  }
+  
   if (OP_TYPE_IN == opType || OP_TYPE_NOT_IN == opType) {
     *pRes = E_SQ_REWRITE_KEEP_REMAIN;
     return TSDB_CODE_SUCCESS;
@@ -2810,9 +2849,44 @@ static int32_t getExprSubQRewriteType(EOperatorType opType, SNode* pSubq, ESubQR
   return TSDB_CODE_PAR_INTERNAL_ERROR;
 }
 
-static int32_t doRewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp, SNode** ppTarget) {
+static int32_t createSimpleSubQStmt(SNodeList *pProjectionList, SNode* pSubQ, SSelectStmt **pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  return code;
+}
+
+static int32_t rewriteExprSubQResToMinMax(STranslateContext* pCxt, SNode* pSubQuery, bool isMin) {
+  int32_t code = validateExprSubQuery(pSubQuery);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  SNodeList* pProjection = (QUERY_NODE_SELECT_STMT == nodeType(pSubQuery)) ? ((SSelectStmt*)pSubQuery)->pProjectionList : ((SSetOperator*)pSubQuery)->pProjectionList;
+  SNodeList* pNewProjection = NULL;
+
+  // CREATE NEW PROJECTION LIST
+  
+  SSelectStmt* pNewStmt = NULL;
+  code = createSimpleSubQStmt(pNewProjection, pSubQuery, &pNewStmt);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (DEAL_RES_ERROR == translateExprSubquery(pCxt, &pNewStmt)) {
+    code = pCxt->errCode;
+  }
+
+  // REPLACE SUBQUERY IN LIST
+  if (TSDB_CODE_SUCCESS == code) {
+
+  }
+
+  return code;
+}
+
+static int32_t doRewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp, SNode** ppSubQ) {
   ESubQRewriteType rewriteType; 
-  pCxt->errCode = getExprSubQRewriteType(pOp->opType, *ppTarget, &rewriteType);
+  pCxt->errCode = getExprSubQRewriteType(pOp->opType, *ppSubQ, &rewriteType);
   if (TSDB_CODE_SUCCESS != pCxt->errCode) {
     return pCxt->errCode;
   }
@@ -2820,30 +2894,50 @@ static int32_t doRewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp
   switch (rewriteType) {
     case E_SQ_REWRITE_TO_IN:
       pOp->opType = OP_TYPE_IN;
-      pCxt->errCode = replaceExprSubQuery(pCxt, ppTarget, *ppTarget);
+      pCxt->errCode = replaceExprSubQuery(pCxt, ppSubQ, *ppSubQ, 0);
       break;
     case E_SQ_REWRITE_TO_NEG_IN:
       pOp->opType = OP_TYPE_IN;
       pOp->flag |= OPERATOR_FLAG_NEGATIVE_OP;
-      pCxt->errCode = replaceExprSubQuery(pCxt, ppTarget, *ppTarget);
+      pCxt->errCode = replaceExprSubQuery(pCxt, ppSubQ, *ppSubQ, 0);
       break;
     case E_SQ_REWRITE_TO_NOT_IN:
       pOp->opType = OP_TYPE_NOT_IN;
-      pCxt->errCode = replaceExprSubQuery(pCxt, ppTarget, *ppTarget);
+      pCxt->errCode = replaceExprSubQuery(pCxt, ppSubQ, *ppSubQ, 0);
       break;
     case E_SQ_REWRITE_TO_NEG_NOT_IN:
       pOp->opType = OP_TYPE_NOT_IN;
       pOp->flag |= OPERATOR_FLAG_NEGATIVE_OP;
-      pCxt->errCode = replaceExprSubQuery(pCxt, ppTarget, *ppTarget);
+      pCxt->errCode = replaceExprSubQuery(pCxt, ppSubQ, *ppSubQ, 0);
       break;
     case E_SQ_REWRITE_TO_MIN:
+      pCxt->errCode = rewriteExprSubQResToMinMax(pCxt, *ppSubQ, true);
+      if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+        pCxt->errCode = replaceExprSubQuery(pCxt, ppSubQ, *ppSubQ, rewriteType);
+      }
       break;
     case E_SQ_REWRITE_TO_MAX:
+      pCxt->errCode = rewriteExprSubQResToMinMax(pCxt, *ppSubQ, false);
+      if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+        pCxt->errCode = replaceExprSubQuery(pCxt, ppSubQ, *ppSubQ, rewriteType);
+      }
       break;
-    case E_SQ_REWRITE_TO_NONZERO_ROWS:
+    case E_SQ_REWRITE_TO_ZERO_ROWS:
+      pOp->opType = OP_TYPE_LOWER_EQUAL;
+      pCxt->errCode = nodesMakeValueNodeFromInt32(0, &pOp->pRight);
+      if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+        pCxt->errCode = replaceExprSubQuery(pCxt, ppSubQ, *ppSubQ, rewriteType);
+      }
+      break;
+    case E_SQ_REWRITE_TO_NZERO_ROWS:
+      pOp->opType = OP_TYPE_GREATER_THAN;
+      pCxt->errCode = nodesMakeValueNodeFromInt32(0, &pOp->pRight);
+      if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+        pCxt->errCode = replaceExprSubQuery(pCxt, ppSubQ, *ppSubQ, rewriteType);
+      }
       break;
     case E_SQ_REWRITE_KEEP_REMAIN:
-      pCxt->errCode = replaceExprSubQuery(pCxt, ppTarget, *ppTarget);
+      pCxt->errCode = replaceExprSubQuery(pCxt, ppSubQ, *ppSubQ, 0);
       break;
   }
 
@@ -2883,7 +2977,7 @@ static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp) 
         break;
       }
 
-      if (E_SUB_QUERY_NONZERO_ROWNUM != pCxt->expSubQueryType) {
+      if (E_SUB_QUERY_ROWNUM != pCxt->expSubQueryType) {
         parserError("op %s mismatch with exprSubQType:%d", operatorTypeStr(pOp->opType), pCxt->expSubQueryType);
         pCxt->errCode = TSDB_CODE_PAR_INTERNAL_ERROR;
         break;
@@ -4160,54 +4254,6 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
-
-static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode* pSubQuery) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  switch (pCxt->expSubQueryType) {
-    case E_SUB_QUERY_SCALAR: {
-      code = validateExprSubQuery(pSubQuery);
-      if (TSDB_CODE_SUCCESS == code) {
-        *pNode = NULL;
-        code = nodesMakeNode(QUERY_NODE_REMOTE_VALUE, pNode);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        SRemoteValueNode* pValue = (SRemoteValueNode*)*pNode;
-        pValue->val.flag |= VALUE_FLAG_VAL_UNSET;
-        pValue->subQIdx = pCxt->pSubQueries->length - 1;
-        tstrncpy(pValue->val.node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pValue->val.node.aliasName));
-        tstrncpy(pValue->val.node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pValue->val.node.userAlias));
-        getExprSubQueryResType(pSubQuery, &pValue->val.node.resType);
-      }
-      break;
-    }
-    case E_SUB_QUERY_COLUMN: {
-      code = validateExprSubQuery(pSubQuery);
-      if (TSDB_CODE_SUCCESS == code) {
-        *pNode = NULL;
-        code = nodesMakeNode(QUERY_NODE_REMOTE_VALUE_LIST, pNode);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        SRemoteValueListNode* pValueList = (SRemoteValueListNode*)*pNode;
-        pValueList->flag |= VALUELIST_FLAG_VAL_UNSET;
-        pValueList->subQIdx = pCxt->pSubQueries->length - 1;
-        tstrncpy(pValueList->node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pValueList->node.aliasName));
-        tstrncpy(pValueList->node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pValueList->node.userAlias));
-        getExprSubQueryResType(pSubQuery, &pValueList->node.resType);
-      }
-      break;
-    }
-    default:
-      break;
-  }
-
-  if (code) {
-    pCxt->errCode = code;
-  }
-
-  return code;
-}
-
 static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
   if (pCxt->dual && !pCxt->isExprSubQ) {
     parserError("scalar subq not supported in query without FROM");
@@ -4220,7 +4266,7 @@ static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
     pCxt->errCode = translateExprSubqueryImpl(pCxt, *pNode);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode && E_SUB_QUERY_SCALAR == pCxt->expSubQueryType) {
-    pCxt->errCode = replaceExprSubQuery(pCxt, pNode, *pNode);
+    pCxt->errCode = replaceExprSubQuery(pCxt, pNode, *pNode, 0);
   }
   return (TSDB_CODE_SUCCESS == pCxt->errCode) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
@@ -19201,9 +19247,11 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT:
       code = translateSelect(pCxt, (SSelectStmt*)pNode);
+      ((SSelectStmt*)pNode)->transalted = true;
       break;
     case QUERY_NODE_SET_OPERATOR:
       code = translateSetOperator(pCxt, (SSetOperator*)pNode);
+      ((SSetOperator*)pNode)->transalted = true;
       break;
     case QUERY_NODE_DELETE_STMT:
       code = translateDelete(pCxt, (SDeleteStmt*)pNode);
