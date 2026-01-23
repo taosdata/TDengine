@@ -1927,7 +1927,7 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
     code = TSDB_CODE_THIRDPARTY_ERROR;
     return code;
   }
-  transSockInfo2Str((struct sockaddr*)&peername, pConn->dst);
+  transSockInfo2Str((struct sockaddr*)&peername, pConn->dst, sizeof(pConn->dst));
 
   addrlen = sizeof(sockname);
   code = uv_tcp_getsockname((uv_tcp_t*)pConn->stream, (struct sockaddr*)&sockname, &addrlen);
@@ -1936,7 +1936,7 @@ int32_t cliConnSetSockInfo(SCliConn* pConn) {
     code = TSDB_CODE_THIRDPARTY_ERROR;
     return code;
   }
-  transSockInfo2Str((struct sockaddr*)&sockname, pConn->src);
+  transSockInfo2Str((struct sockaddr*)&sockname, pConn->src, sizeof(pConn->src));
   return 0;
 };
 

@@ -179,7 +179,7 @@ int taos_linked_list_remove(taos_linked_list_t *self, void *item) {
   }
 
 #ifdef TAOS_LOG_ENABLE
-  snprintf(tmp, "remove item:%d", count);
+  snprintf(tmp, sizeof(tmp), "remove item:%d", count);
   TAOS_LOG(tmp);
 #endif
 
@@ -213,7 +213,7 @@ int taos_linked_list_remove(taos_linked_list_t *self, void *item) {
     count++;
   }
 
-  snprintf(tmp, "list count:%d", count);
+  snprintf(tmp, sizeof(tmp), "list count:%d", count);
   TAOS_LOG(tmp);
 #endif
 

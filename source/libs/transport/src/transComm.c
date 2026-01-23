@@ -262,7 +262,7 @@ void transFreeMsg(void* msg) {
   tTrace("cont:%p, rpc free", (char*)msg - TRANS_MSG_OVERHEAD);
   taosMemoryFree((char*)msg - sizeof(STransMsgHead));
 }
-void transSockInfo2Str(struct sockaddr* sockname, char* dst) {
+void transSockInfo2Str(struct sockaddr* sockname, char* dst, int32_t cap) {
   char     buf[IP_RESERVE_CAP] = {0};
   uint16_t port = 0;
   int      r = 0;
@@ -285,7 +285,7 @@ void transSockInfo2Str(struct sockaddr* sockname, char* dst) {
 
     port = ntohs(addr->sin6_port);
   }
-  snprintf(dst, sizeof(buf) - 1, "%s:%d", buf, port);
+  snprintf(dst, cap, "%s:%d", buf, port);
 }
 int32_t transInitBuffer(SConnBuffer* buf) {
   buf->buf = taosMemoryCalloc(1, BUFFER_CAP);
@@ -1094,7 +1094,7 @@ int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip) {
   }
 }
 
-int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
+int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf, int32_t cap) {
   int32_t len = 0;
 
   struct in_addr addr;
@@ -1109,7 +1109,7 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
   len = strlen(buf);
 
   if (pRange->mask != 32) {
-    len += snprintf(buf + len, sizeof(buf) - (len), "/%d", pRange->mask);
+    len += snprintf(buf + len, cap, "/%d", pRange->mask);
   }
   buf[len] = 0;
   return len;

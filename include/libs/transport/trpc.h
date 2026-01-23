@@ -210,7 +210,7 @@ int32_t rpcSetIpWhite(void *thandle, void *arg);
 int32_t rpcSetTimeIpWhite(void *thandle, void *arg);
 int32_t rpcReloadTlsConfig(void* handle, int8_t type);
 
-int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
+int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf, int32_t cap);
 
 int32_t rpcUtilSWhiteListToStr(SIpWhiteListDual *pWhiteList, char **ppBuf);
 int32_t rpcCvtErrCode(int32_t code);
@@ -401,7 +401,7 @@ int32_t rpcAllocHandle(int64_t *refId);
 int32_t rpcSetIpWhite(void *thandl, void *arg);
 int32_t rpcSetTimeIpWhite(void *thandle, void *arg);
 
-int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
+int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf, int32_t cap);
 
 int32_t rpcUtilSWhiteListToStr(SIpWhiteList *pWhiteList, char **ppBuf);
 int32_t rpcCvtErrCode(int32_t code);

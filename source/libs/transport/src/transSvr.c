@@ -1707,8 +1707,8 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
 
-    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&peername, pConn->dst));
-    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&sockname, pConn->src));
+    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&peername, pConn->dst, sizeof(pConn->dst)));
+    TAOS_UNUSED(transSockInfo2Str((struct sockaddr*)&sockname, pConn->src, sizeof(pConn->src)));
 
     uvGetSockInfo((struct sockaddr*)&peername, &pConn->clientIp);
     uvGetSockInfo((struct sockaddr*)&sockname, &pConn->serverIp);

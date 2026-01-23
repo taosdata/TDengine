@@ -301,7 +301,9 @@ int32_t rpcReloadTlsConfig(void* handle, int8_t type) { return transReloadTlsCon
 
 int32_t rpcAllocHandle(int64_t* refId) { return transAllocHandle(refId); }
 
-int32_t rpcUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) { return transUtilSIpRangeToStr(pRange, buf); }
+int32_t rpcUtilSIpRangeToStr(SIpV4Range* pRange, char* buf, int32_t cap) {
+  return transUtilSIpRangeToStr(pRange, buf, cap);
+}
 int32_t rpcUtilSWhiteListToStr(SIpWhiteListDual* pWhiteList, char** ppBuf) {
   return transUtilSWhiteListToStr(pWhiteList, ppBuf);
 }
@@ -610,7 +612,9 @@ int32_t rpcSetIpWhite(void* thandle, void* arg) {
 
 int32_t rpcAllocHandle(int64_t* refId) { return transAllocHandle(refId); }
 
-int32_t rpcUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) { return transUtilSIpRangeToStr(pRange, buf); }
+int32_t rpcUtilSIpRangeToStr(SIpV4Range* pRange, char* buf, int32_t cap) {
+  return transUtilSIpRangeToStr(pRange, buf, cap);
+}
 int32_t rpcUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf) {
   return transUtilSWhiteListToStr(pWhiteList, ppBuf);
 }

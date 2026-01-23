@@ -531,11 +531,12 @@ static int32_t commitMultipartUpload(SSharedStorageS3* ss, const char* dstPath, 
 
     // build the XML document
     char* p = xml;
-    p += snprintf(p, 4096, "<CompleteMultipartUpload>");
+    p += snprintf(p, size, "<CompleteMultipartUpload>");
     for (uint32_t i = 0; i < ucbd->numChunks; i++) {
-        p += snprintf(p, 4096, "<Part><PartNumber>%d</PartNumber><ETag>%s</ETag></Part>", i + 1, ucbd->etags[i]);
+        p += snprintf(p, size - (p - xml), "<Part><PartNumber>%d</PartNumber><ETag>%s</ETag></Part>", i + 1,
+                      ucbd->etags[i]);
     }
-    p += snprintf(p, 4096, "</CompleteMultipartUpload>");
+    p += snprintf(p, size - (p - xml), "</CompleteMultipartUpload>");
 
     // set the upload source to the XML document
     SUploadSource src = {.src = NULL, .buf = xml, .size = p-xml, .offset = 0, .file = NULL};

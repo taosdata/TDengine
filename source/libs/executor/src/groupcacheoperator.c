@@ -86,7 +86,7 @@ static void logGroupCacheExecInfo(SGroupCacheOperatorInfo* pGrpCacheOperator) {
   }
   int32_t offset = snprintf(buf, bufSize, "groupCache exec info, downstreamBlkNum:");
   for (int32_t i = 0; i < pGrpCacheOperator->downstreamNum; ++i) {
-    offset += snprintf(buf + offset, bufSize, " %" PRId64, pGrpCacheOperator->execInfo.pDownstreamBlkNum[i]);
+    offset += snprintf(buf + offset, bufSize - offset, " %" PRId64, pGrpCacheOperator->execInfo.pDownstreamBlkNum[i]);
   }
   qDebug("%s", buf);
   taosMemoryFree(buf);
