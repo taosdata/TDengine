@@ -31,7 +31,7 @@ export function sendSQLReq(sqlStr: string, composeData = false, alert = true) {
       if (alert) {
         ElMessage.error(cData.desc);
       }
-      return Promise.reject(cData?.desc || 'Service Unavailable, please try again later!');
+      return Promise.reject(cData);
     })
     .catch(err => {
       return Promise.reject(err);

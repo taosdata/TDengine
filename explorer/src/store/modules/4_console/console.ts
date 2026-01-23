@@ -160,12 +160,14 @@ function handleSuccess(res, state, commit, rootState, sql, startTime) {
 }
 function handleFail(res, state, commit, rootState, sql, startTime) {
   ElMessage.closeAll();
-  res.desc &&
+  const message = extractErrorMessage(res) || 'Unexpected error';
+  if (message) {
     ElMessage.error({
-      message: res.desc,
+      message,
       duration: 15000,
       showClose: true
     });
+  }
   // status != "succ" 记录执行失败历史
   commit('ADD_RECORD', {
     createdAt: Date.now(),
@@ -175,10 +177,31 @@ function handleFail(res, state, commit, rootState, sql, startTime) {
     sql: sql,
     type: 0,
     rows: 0,
-    message: res.response && res.response.status == 500 ? res.response.data : res.desc,
+    message: message,
     appId: rootState.current_cluster?.id
   });
   commit('SET_ACTIVE_TAB', 'log');
+}
+
+function extractErrorMessage(err: any): string {
+  try {
+    if (!err) return '';
+    if (typeof err === 'string') return err;
+    if (typeof err?.desc === 'string') return err.desc;
+    if (typeof err?.message === 'string' && !err?.response) return err.message;
+
+    const data = err?.response?.data;
+    if (typeof data === 'string') return data;
+    if (typeof data?.desc === 'string') return data.desc;
+    if (typeof data?.message === 'string') return data.message;
+    if (data && typeof data === 'object') {
+      if (typeof data.code !== 'undefined' && typeof data.desc === 'string') return data.desc;
+      return JSON.stringify(data);
+    }
+    return err?.toString?.() || '';
+  } catch (_e) {
+    return '';
+  }
 }
 export default {
   namespaced: true,
