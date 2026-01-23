@@ -1111,7 +1111,6 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf, int32_t cap) {
   if (pRange->mask != 32) {
     len += snprintf(buf + len, cap, "/%d", pRange->mask);
   }
-  buf[len] = 0;
   return len;
 }
 
