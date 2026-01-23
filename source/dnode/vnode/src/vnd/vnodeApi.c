@@ -131,6 +131,7 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqGetTablePrimaryKey = tqGetTablePrimaryKey;
   pTq->tqSetTablePrimaryKey = tqSetTablePrimaryKey;
   pTq->tqReaderNextBlockInWal = tqNextBlockInWal;
+  pTq->tqUpdateTableTagCache = tqUpdateTableTagCache;
 
   pTq->tqReaderAddTables = tqReaderAddTbUidList;
   pTq->tqReaderSetQueryTableList = tqReaderSetTbUidList;

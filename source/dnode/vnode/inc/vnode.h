@@ -249,11 +249,6 @@ typedef struct SVTSourceScanInfo {
   uint64_t   cacheHit;
 } SVTSourceScanInfo;
 
-typedef struct STableCachedForTmq {
-  const char* pName;
-  STag*       pTags;
-} STableCachedForTmq;
-
 typedef struct STqReader {
   SPackedData       msg;
   SSubmitReq2       submit;
@@ -270,7 +265,8 @@ typedef struct STqReader {
   int64_t           lastTs;
   bool              hasPrimaryKey;
   SExtSchema       *extSchema;
-  SHashObj         *pTableCacheForTmq;  // key: uid, value: STableCachedForTmq*
+  SHashObj         *pTableTagCacheForTmq;
+  SRWLatch          tagCachelock;
 } STqReader;
 
 STqReader *tqReaderOpen(SVnode *pVnode);
@@ -292,6 +288,9 @@ int32_t      tqNextBlockInWal(STqReader *pReader, SSDataBlock* pRes, SHashObj* p
 bool         tqNextBlockImpl(STqReader *pReader, const char *idstr);
 SWalReader  *tqGetWalReader(STqReader *pReader);
 int64_t      tqGetResultBlockTime(STqReader *pReader);
+
+int32_t      tqUpdateTableTagCache(STqReader* pReader, SExprInfo* pExprInfo, int32_t numOfExpr, int64_t uid, col_id_t colId);
+
 
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver, SArray* rawList, SDecoder* decoder);
 void    tqReaderClearSubmitMsg(STqReader *pReader);

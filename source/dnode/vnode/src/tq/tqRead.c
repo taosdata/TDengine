@@ -346,6 +346,12 @@ void tqSetTablePrimaryKey(STqReader* pReader, int64_t uid) {
   pReader->hasPrimaryKey = ret;
 }
 
+static void freeTagCache(void* pData){
+  if (pData == NULL) return;
+  SArray* tagCache = *(SArray**)pData;
+  taosArrayDestroyP(tagCache, taosMemFree);
+}
+
 STqReader* tqReaderOpen(SVnode* pVnode) {
   tqDebug("%s:%p", __FUNCTION__, pVnode);
   if (pVnode == NULL) {
@@ -365,12 +371,15 @@ STqReader* tqReaderOpen(SVnode* pVnode) {
   pReader->pVnode = pVnode;
   pReader->pSchemaWrapper = NULL;
   pReader->tbIdHash = NULL;
-  pReader->pTableCacheForTmq = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
-  if (pReader->pTableCacheForTmq == NULL) {
+  pReader->pTableTagCacheForTmq = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  if (pReader->pTableTagCacheForTmq == NULL) {
     walCloseReader(pReader->pWalReader);
     taosMemoryFree(pReader);
     return NULL;
   }
+  taosHashSetFreeFp(pReader->pTableTagCacheForTmq, freeTagCache);
+  taosInitRWLatch(&pReader->tagCachelock);
+
   return pReader;
 }
 
@@ -380,7 +389,7 @@ void tqReaderClose(STqReader* pReader) {
 
   // close wal reader
   walCloseReader(pReader->pWalReader);
-  taosHashCleanup(pReader->pTableCacheForTmq);
+  taosHashCleanup(pReader->pTableTagCacheForTmq);
   tDeleteSchemaWrapper(pReader->pSchemaWrapper);
   taosMemoryFree(pReader->pTSchema);
   taosMemoryFree(pReader->extSchema);
@@ -403,17 +412,39 @@ int32_t tqReaderSeek(STqReader* pReader, int64_t ver, const char* id) {
   return 0;
 }
 
-static int32_t getTableCache(STqReader* pReader, SExprInfo* pExprInfo, int32_t numOfExpr, int64_t uid) {
+static int32_t getTableTagCache(STqReader* pReader, SExprInfo* pExprInfo, int32_t numOfExpr, int64_t uid) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  void* data = taosHashGet(pReader->pTableCacheForTmq, &uid, LONG_BYTES);
+  void* data = taosHashGet(pReader->pTableTagCacheForTmq, &uid, LONG_BYTES);
   if (data == NULL) {
     SStorageAPI api = {0}; 
     initStorageAPI(&api);
-    code = cacheTag(pReader->pVnode, pReader->pTableCacheForTmq, pExprInfo, numOfExpr, &api, uid);
+    code = cacheTag(pReader->pVnode, pReader->pTableTagCacheForTmq, pExprInfo, numOfExpr, &api, uid, 0, &pReader->tagCachelock);
     TSDB_CHECK_CODE(code, lino, END);
   }
+
+  END:
+  if (code != TSDB_CODE_SUCCESS) {
+    tqError("%s failed at %d, failed to add tbName to response:%s, uid:%"PRId64, __FUNCTION__, lino, tstrerror(code), uid);
+  }
+  
+  return code;
+}
+
+int32_t tqUpdateTableTagCache(STqReader* pReader, SExprInfo* pExprInfo, int32_t numOfExpr, int64_t uid, col_id_t colId) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  void* data = taosHashGet(pReader->pTableTagCacheForTmq, &uid, LONG_BYTES);
+  if (data == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SStorageAPI api = {0}; 
+  initStorageAPI(&api);
+  code = cacheTag(pReader->pVnode, pReader->pTableTagCacheForTmq, pExprInfo, numOfExpr, &api, uid, colId, &pReader->tagCachelock);
+  TSDB_CHECK_CODE(code, lino, END);
 
   END:
   if (code != TSDB_CODE_SUCCESS) {
@@ -430,10 +461,10 @@ static int32_t tqRetrievePseudoCols(STqReader* pReader, SSDataBlock* pBlock, int
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   
-  code = getTableCache(pReader, pPseudoExpr, numOfPseudoExpr, uid);
+  code = getTableTagCache(pReader, pPseudoExpr, numOfPseudoExpr, uid);
   TSDB_CHECK_CODE(code, lino, END);
 
-  code = fillTag(pReader->pTableCacheForTmq, pPseudoExpr, numOfPseudoExpr, uid, pBlock, numOfRows, pBlock->info.rows - numOfRows, 1);
+  code = fillTag(pReader->pTableTagCacheForTmq, pPseudoExpr, numOfPseudoExpr, uid, pBlock, numOfRows, pBlock->info.rows - numOfRows, 1, &pReader->tagCachelock);
   TSDB_CHECK_CODE(code, lino, END);
 
 END:
@@ -1267,7 +1298,7 @@ void tqReaderRemoveTbUidList(STqReader* pReader, const SArray* tbUidList) {
   }
 }
 
-int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
+int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd, col_id_t colId) {
   if (pTq == NULL) {
     return 0;  // mounted vnode may have no tq
   }
@@ -1287,7 +1318,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
 
     STqHandle* pTqHandle = (STqHandle*)pIter;
     if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      int32_t code = qUpdateTableListForStreamScanner(pTqHandle->execHandle.task, tbUidList, isAdd);
+      int32_t code = qUpdateTableListForTmqScanner(pTqHandle->execHandle.task, tbUidList, isAdd, colId);
       if (code != 0) {
         tqError("update qualified table error for %s", pTqHandle->subKey);
         continue;

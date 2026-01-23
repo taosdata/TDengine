@@ -163,7 +163,7 @@ int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks,
  * @param isAdd
  * @return
  */
-int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd);
+int32_t qUpdateTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd, col_id_t colId);
 
 bool qIsDynamicExecTask(qTaskInfo_t tinfo);
 
