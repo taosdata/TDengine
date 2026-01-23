@@ -203,6 +203,9 @@ int32_t  tsEncryptKeyVersion = 0;       // Key update version (starts from 1, in
 int64_t  tsEncryptKeyCreateTime = 0;    // Key creation timestamp
 int64_t  tsSvrKeyUpdateTime = 0;        // SVR_KEY last update timestamp
 int64_t  tsDbKeyUpdateTime = 0;         // DB_KEY last update timestamp
+int32_t  tsKeyExpirationDays = 30;      // Key expiration days (default: 30)
+char     tsKeyExpirationStrategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1] =
+    "ALARM";  // Key expiration strategy (default: "ALARM")
 uint32_t tsGrant = 1;
 
 bool tsCompareAsStrInGreatest = true;

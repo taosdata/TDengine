@@ -1003,6 +1003,12 @@ typedef struct SAlterEncryptKeyStmt {
   char      newKey[ENCRYPT_KEY_LEN + 1];
 } SAlterEncryptKeyStmt;
 
+typedef struct SAlterKeyExpirationStmt {
+  ENodeType type;
+  int32_t   days;
+  char      strategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];
+} SAlterKeyExpirationStmt;
+
 typedef struct SDescribeStmt {
   ENodeType   type;
   char        dbName[TSDB_DB_NAME_LEN];

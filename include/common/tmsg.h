@@ -437,6 +437,8 @@ typedef enum ENodeType {
   QUERY_NODE_ALTER_ROLE_STMT,
   QUERY_NODE_CREATE_TOTP_SECRET_STMT,
   QUERY_NODE_DROP_TOTP_SECRET_STMT,
+  QUERY_NODE_ALTER_KEY_EXPIRATION_STMT,
+
 
   // placeholder for [155, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -3501,6 +3503,17 @@ typedef struct {
 int32_t tSerializeSMAlterEncryptKeyReq(void* buf, int32_t bufLen, SMAlterEncryptKeyReq* pReq);
 int32_t tDeserializeSMAlterEncryptKeyReq(void* buf, int32_t bufLen, SMAlterEncryptKeyReq* pReq);
 void    tFreeSMAlterEncryptKeyReq(SMAlterEncryptKeyReq* pReq);
+
+typedef struct {
+  int32_t days;
+  char    strategy[64];
+  int32_t sqlLen;
+  char*   sql;
+} SMAlterKeyExpirationReq;
+
+int32_t tSerializeSMAlterKeyExpirationReq(void* buf, int32_t bufLen, SMAlterKeyExpirationReq* pReq);
+int32_t tDeserializeSMAlterKeyExpirationReq(void* buf, int32_t bufLen, SMAlterKeyExpirationReq* pReq);
+void    tFreeSMAlterKeyExpirationReq(SMAlterKeyExpirationReq* pReq);
 
 typedef struct {
   char    config[TSDB_DNODE_CONFIG_LEN];
