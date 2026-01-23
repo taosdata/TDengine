@@ -27,10 +27,10 @@ CREATE USER user_name PASS 'password'
   [PASSWORD_REUSE_MAX {value | DEFAULT}]
   [INACTIVE_ACCOUNT_TIME {value | DEFAULT | UNLIMITED}]
   [ALLOW_TOKEN_NUM {value | DEFAULT | UNLIMITED}]
-  [HOST {ip | ip range}]
-  [NOT_ALLOW_HOST {ip | ip range}]
-  [ALLOW_DATETIME {time range}]
-  [NOT_ALLOW_DATETIME {time range}]
+  [HOST {ip | ip range} [, {ip | ip range}] ...]
+  [NOT_ALLOW_HOST {ip | ip range} [, {ip | ip range}] ...]
+  [ALLOW_DATETIME {time range} [, {time range}] ...]
+  [NOT_ALLOW_DATETIME {time range} [, {time range}] ...]
 ```
 
 用户名最长不超过 23 个字节。
@@ -58,8 +58,16 @@ alter all dnodes 'EnableStrongPassword' '0'
 - `PASSWORD_REUSE_MAX` 密码历史记录次数，需要多少次密码更改后才能重复使用旧密码。默认 5，最小 0，最大 100。新密码需同时满足 `PASSWORD_REUSE_TIME` 和 `PASSWORD_REUSE_MAX` 两项限制。从企业版 v3.4.0.0 开始支持。
 - `INACTIVE_ACCOUNT_TIME` 账户不活动锁定时间，长期未使用的账户自动锁定，单位天，默认 90，最小 1，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
 - `ALLOW_TOKEN_NUM` 支持的令牌个数，默认 3，最小 0，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `HOST` 和 `NOT_ALLOW_HOST` IP 地址白名单和黑名单，可以是单个 IP 地址，如 `192.168.1.1`，也可以是一个 [CIDR 格式](https://www.rfc-editor.org/rfc/rfc4632) 的地址段，如 `192.168.1.1/24`。当黑白名单同时存在时，只允许在白名单中且不在黑名单中的地址访问。从企业版 v3.4.0.0 开始支持。
-- `ALLOW_DATETIME` 和 `NOT_ALLOW_DATETIME` 允许和不允许登录的时间范围，包括日期、起始时间（精确到分钟）、时长（以分钟为单位）三部分，其中日期可以是具体的日期，也可以是 MON、TUE、WED、THU、FRI、SAT、SUN 代表的日期，例如：`2025-12-25 08:00 120`、`TUE 08:00 120`。从企业版 v3.4.0.0 开始支持。
+- `HOST` 和 `NOT_ALLOW_HOST` IP 地址白名单和黑名单，可以是单个 IP 地址，如 `192.168.1.1`，也可以是一个 [CIDR 格式](https://www.rfc-editor.org/rfc/rfc4632) 的地址段，如 `192.168.1.1/24`。从企业版 v3.4.0.0 开始支持。
+  - 如果既未设置 `HOST` 也未设置 `NOT_ALLOW_HOST`，则允许用户在任何地址登录。
+  - 如果只设置了 `HOST`，则允许用户从该地址或地址段登录，其他地址不允许登录。
+  - 如果只设置了 `NOT_ALLOW_HOST`，则不允许用户从该地址或地址段登录，其他地址允许登录。
+  - 如果同时设置了 `HOST` 和 `NOT_ALLOW_HOST`，则用户只能在属于 `HOST` 且不属于 `NOT_ALLOW_HOST` 的地址登录，其他地址都不允许登录。
+- `ALLOW_DATETIME` 和 `NOT_ALLOW_DATETIME` 允许和不允许登录的时间范围（以服务端所在时区为准），包括日期、起始时间（精确到分钟）、时长（以分钟为单位）三部分，其中日期可以是具体的日期，也可以是 MON、TUE、WED、THU、FRI、SAT、SUN 代表的日期，例如：`2025-12-25 08:00 120`、`TUE 08:00 120`。从企业版 v3.4.0.0 开始支持。
+  - 如果既未设置 `ALLOW_DATETIME` 也未设置 `NOT_ALLOW_DATETIME`，则允许用户在任何时间登录。
+  - 如果只设置了 `ALLOW_DATETIME`，则该时间段允许用户登录，其他时间不允许登录。
+  - 如果只设置了 `NOT_ALLOW_DATETIME`，则该时间段不允许用户登录，其他时间允许登录。
+  - 如果同时设置了 `ALLOW_DATETIME` 和 `NOT_ALLOW_DATETIME`，则用户只能在属于 `ALLOW_DATETIME` 且不属于 `NOT_ALLOW_DATETIME` 的时间段内登录，其他时间都不允许登录。
 
 在下面的示例中，我们创建一个密码为 `abc123!@#` 且可以查看系统信息的用户。
 
@@ -87,7 +95,9 @@ taos> show users;
 Query OK, 2 rows in set (0.001657s)
 ```
 
-或者，可以查询内置系统表 INFORMATION_SCHEMA.INS_USERS 来获取用户信息。
+注意，在 `allowed_host` 中，如地址或地址段带有前缀 `+` 则为白名单，允许从该地址登录；带有前缀 `-` 则为黑名单，不允许从该地址登录。 `allowed_datetime` 同理。
+
+也可以查询内置系统表 INFORMATION_SCHEMA.INS_USERS 来获取用户信息。
 
 ```sql
 taos> select * from information_schema.ins_users;
@@ -128,14 +138,14 @@ alter_user_clause: {
   [PASSWORD_REUSE_MAX {value | DEFAULT}]
   [INACTIVE_ACCOUNT_TIME {value | DEFAULT | UNLIMITED}]
   [ALLOW_TOKEN_NUM {value | DEFAULT | UNLIMITED}]
-  [ADD HOST {ip | ip range}]
-  [DROP HOST {ip | ip range}]
-  [ADD NOT_ALLOW_HOST {ip | ip range}]
-  [DROP NOT_ALLOW_HOST {ip | ip range}]
-  [ADD ALLOW_DATETIME {time range}]
-  [DROP ALLOW_DATETIME {time range}]
-  [ADD NOT_ALLOW_DATETIME {time range}]
-  [DROP NOT_ALLOW_DATETIME {time range}]
+  [ADD HOST {ip | ip range} [, {ip | ip range}] ...]
+  [DROP HOST {ip | ip range} [, {ip | ip range}] ...]
+  [ADD NOT_ALLOW_HOST {ip | ip range} [, {ip | ip range}] ...]
+  [DROP NOT_ALLOW_HOST {ip | ip range} [, {ip | ip range}] ...]
+  [ADD ALLOW_DATETIME {time range} [, {time range}] ...]
+  [DROP ALLOW_DATETIME {time range} [, {time range}] ...]
+  [ADD NOT_ALLOW_DATETIME {time range} [, {time range}] ...]
+  [DROP NOT_ALLOW_DATETIME {time range} [, {time range}] ...]
 }
 ```
 

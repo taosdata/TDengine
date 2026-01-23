@@ -972,8 +972,9 @@ static void dropOldPasswords(SUserObj *pUser) {
   int32_t now = taosGetTimestampSec();
   int32_t index = reuseMax;
   while(index < pUser->numOfPasswords) {
-    SUserPassword *pPass = &pUser->passwords[index];
-    if (now - pPass->setTime >= pUser->passwordReuseTime) {
+    // the set time of the n-th password is the expire time of the n+1-th password
+    int32_t expireTime = pUser->passwords[index - 1].setTime;
+    if (now - expireTime >= pUser->passwordReuseTime) {
       break;
     }
     index++;
@@ -1000,7 +1001,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   }
   taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.passwords[0].pass);
   userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
-  if (tsiEncryptPassAlgorithm == DND_CA_SM4 && strlen(tsDbKey) > 0) {
+  if (tsiEncryptPassAlgorithm == DND_CA_SM4 && strlen(tsDataKey) > 0) {
     generateSalt(userObj.salt, sizeof(userObj.salt));
     TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino, _ERROR);
   }
@@ -2309,6 +2310,9 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
 
 _OVER:
   taosRUnLockLatch(&pUser->lock);
+  if (code == 0) {
+    dropOldPasswords(pNew);
+  }
   TAOS_RETURN(code);
 }
 
@@ -2465,7 +2469,7 @@ int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo) {
   opts.source = pass;
   opts.result = packetData;
   opts.unitLen = TSDB_PASSWORD_LEN;
-  tstrncpy(opts.key, tsDbKey, ENCRYPT_KEY_LEN + 1);
+  tstrncpy(opts.key, tsDataKey, ENCRYPT_KEY_LEN + 1);
   int newLen = Builtin_CBC_Encrypt(&opts);
   if (newLen <= 0) return terrno;
 

@@ -37,7 +37,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_GET_META_ERROR:
       return "Fail to get table info, error: %s";
     case TSDB_CODE_PAR_AMBIGUOUS_COLUMN:
-      return "Column ambiguously defined: %s";
+      return "Column is ambiguous: %s";
     case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
       return "Invalid value type: %s";
     case TSDB_CODE_PAR_INVALID_VARBINARY:
@@ -51,7 +51,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION:
       return "Not SELECTed expression";
     case TSDB_CODE_PAR_NOT_SINGLE_GROUP:
-      return "Not a single-group group function";
+      return "Not a single-group group function, '%s' is used incorrectly";
     case TSDB_CODE_PAR_TAGS_NOT_MATCHED:
       return "Tags number not matched";
     case TSDB_CODE_PAR_INVALID_TAG_NAME:
@@ -1728,7 +1728,7 @@ STypeMod calcTypeMod(const SDataType* pType) {
 }
 
 
-int32_t validateScalarSubQuery(SNode* pNode) {
+int32_t validateExprSubQuery(SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   
   switch (nodeType(pNode)) {
@@ -1747,14 +1747,14 @@ int32_t validateScalarSubQuery(SNode* pNode) {
       break;
     }
     default:
-      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
+      code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
       break;
   }
 
   return code;
 }
 
-void getScalarSubQueryResType(SNode* pNode, SDataType* pType) {
+void getExprSubQueryResType(SNode* pNode, SDataType* pType) {
   int32_t code = TSDB_CODE_SUCCESS;
   
   switch (nodeType(pNode)) {
@@ -1777,22 +1777,26 @@ void getScalarSubQueryResType(SNode* pNode, SDataType* pType) {
   return;
 }
 
-int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType type) {
+int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType* type) {
   int32_t code = TSDB_CODE_SUCCESS;
   
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
-      pSelect->subQType = type;
+      pSelect->subQType = pSelect->node.asList ? E_SUB_QUERY_COLUMN : E_SUB_QUERY_SCALAR;
+      *type = pSelect->subQType;
+      parserDebug("update select subQType:%d, pSelect:%p", *type, pSelect);
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSet = (SSetOperator*)pNode;
-      pSet->subQType = type;
+      pSet->subQType = pSet->node.asList ? E_SUB_QUERY_COLUMN : E_SUB_QUERY_SCALAR;
+      *type = pSet->subQType;
+      parserDebug("update set subQType:%d, pSet:%p", *type, pSet);
       break;
     }
     default:
-      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
+      code = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
       break;
   }
 

@@ -23,7 +23,7 @@ extern "C" {
 #include "nodes.h"
 #include "querynodes.h"
 
-typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SRemoteValueNode*);
+typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SNode*);
 
 typedef struct SFilterInfo SFilterInfo;
 
@@ -43,6 +43,8 @@ pNode will be freed in API;
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
 int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes);
 int32_t scalarCalculateRemoteConstants(SNode *pNode, SNode **pRes);
+int32_t scalarCalculateProjectionConstants(SNode *pNode, SNode **pRes);
+int32_t scalarCalculateProjectionConstantsFromDual(SNode *pNode, SNode **pRes);
 
 int32_t scalarConvertOpValueNodeTs(SOperatorNode *node);
 
@@ -57,11 +59,12 @@ int32_t scalarGetOperatorParamNum(EOperatorType type);
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, STypeMod typeMod, int8_t processType);
 
 int32_t  vectorGetConvertType(int32_t type1, int32_t type2);
-int32_t  vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int32_t *overflow, int32_t startIndex,
+int32_t  vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int8_t *overflow, int32_t startIndex,
                                     int32_t numOfRows);
 int32_t  vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, STypeMod typeMod,
                                 int32_t startIndex, int32_t numOfRows);
 STypeMod getConvertTypeMod(int32_t type, const SColumnInfo *pCol1, const SColumnInfo *pCol2);
+int32_t  scalarBuildRemoteListHash(SRemoteValueListNode* pRemote, SColumnInfoData* pCol, int64_t rows);
 
 /* Math functions */
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

@@ -930,28 +930,56 @@ taos> select f1 from st1 where f1 = (select f1 from db2.tba) order by 1;
 
 taos> select f1 from st1 where f1 in ((select 0 from st1 limit 1)) order by 1;
 
-DB error: syntax error near "(select 0 from st1 limit 1)) order by 1;" [0x80002600] 
 taos> select f1 from st1 where f1 in ((select 1 from st1 limit 1)) order by 1;
+     f1      |
+==============
+           1 |
 
-DB error: syntax error near "(select 1 from st1 limit 1)) order by 1;" [0x80002600] 
 taos> select f1 from st1 where f1 in ((select 2 from st1 limit 1)) order by 1;
+     f1      |
+==============
+           2 |
 
-DB error: syntax error near "(select 2 from st1 limit 1)) order by 1;" [0x80002600] 
 taos> select f1 from st1 where f1 in ((select f1 from db2.tba)) order by 1;
 
-DB error: syntax error near "(select f1 from db2.tba)) order by 1;" [0x80002600] 
 taos> select f1 from st1 where f1 not in ((select 0 from st1 limit 1)) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
 
-DB error: syntax error near "(select 0 from st1 limit 1)) order by 1;" [0x80002600] 
 taos> select f1 from st1 where f1 not in ((select 1 from st1 limit 1)) order by 1;
+     f1      |
+==============
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
 
-DB error: syntax error near "(select 1 from st1 limit 1)) order by 1;" [0x80002600] 
 taos> select f1 from st1 where f1 not in ((select 2 from st1 limit 1)) order by 1;
+     f1      |
+==============
+           1 |
+           3 |
+           4 |
+           5 |
+           6 |
 
-DB error: syntax error near "(select 2 from st1 limit 1)) order by 1;" [0x80002600] 
 taos> select f1 from st1 where f1 not in ((select f1 from db2.tba)) order by 1;
+     f1      |
+==============
+           1 |
+           2 |
+           3 |
+           4 |
+           5 |
+           6 |
 
-DB error: syntax error near "(select f1 from db2.tba)) order by 1;" [0x80002600] 
 taos> select f1 from st1 where f1 like ((select 0 from st1 limit 1)) order by 1;
 
 DB error: Invalid operation [0x80000200] 

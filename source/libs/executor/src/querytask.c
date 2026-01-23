@@ -104,6 +104,7 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadH
   STaskSubJobCtx* ctx = &pTaskInfo->subJobCtx;
 
   ctx->queryId = pTaskInfo->id.queryId;
+  ctx->taskId = pTaskInfo->id.taskId;
   ctx->idStr = pTaskInfo->id.str;
   ctx->pTaskInfo = pTaskInfo;
   ctx->subEndPoints = subEndPoints;
@@ -111,9 +112,9 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray* subEndPoints, SReadH
   
   int32_t subJobNum = taosArrayGetSize(subEndPoints);
   if (subJobNum > 0) {
-    pTaskInfo->subJobCtx.subResValues = taosArrayInit_s(POINTER_BYTES, subJobNum);
-    if (NULL == pTaskInfo->subJobCtx.subResValues) {
-      qError("%s taosArrayInit_s %d subJobValues failed, error:%s", GET_TASKID(pTaskInfo), subJobNum, tstrerror(terrno));
+    pTaskInfo->subJobCtx.subResNodes = taosArrayInit_s(POINTER_BYTES, subJobNum);
+    if (NULL == pTaskInfo->subJobCtx.subResNodes) {
+      qError("%s taosArrayInit_s %d subResNodes failed, error:%s", GET_TASKID(pTaskInfo), subJobNum, tstrerror(terrno));
       return terrno;
     }
     
@@ -332,7 +333,7 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
     }
     pCtx->transporterId = -1;
   }
-  taosArrayDestroy(pCtx->subResValues);
+  taosArrayDestroy(pCtx->subResNodes);
 }
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {

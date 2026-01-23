@@ -104,7 +104,7 @@ class TestStmtBasic:
             assert stmt.affected_rows == rows
 
             #query 1
-            querystmt=conn.statement("select ?,bu,(select 1 from stb1 limit 1) from stb1")
+            querystmt=conn.statement("select ?,bu,(select 1 from stb1 limit 1), 2 in (select 1 from stb1), 10 not in (select bu from stb1) from stb1")
             queryparam=new_bind_params(1)
             print(type(queryparam))
             queryparam[0].binary("ts")
@@ -120,6 +120,7 @@ class TestStmtBasic:
             logging.info(rows)
             assert rows[1][0] == "ts"
             assert rows[0][2] == 1
+            assert rows[0][3] == False
             if asc == True:
                 assert rows[0][1] == 3
                 assert rows[3][1] == None

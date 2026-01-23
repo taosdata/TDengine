@@ -14,7 +14,6 @@
  */
 
 #include "executorInt.h"
-#include "filter.h"
 #include "nodes.h"
 #include "operator.h"
 #include "os.h"
@@ -226,12 +225,11 @@ static void destroyDynQueryCtrlOperator(void* param) {
     case DYN_QTYPE_STB_HASH:
       destroyStbJoinDynCtrlInfo(&pDyn->stbJoin);
       break;
+    case DYN_QTYPE_VTB_WINDOW:
+      destroyVtbWindowDynCtrlInfo(&pDyn->vtbWindow);
     case DYN_QTYPE_VTB_AGG:
     case DYN_QTYPE_VTB_SCAN:
       destroyVtbScanDynCtrlInfo(&pDyn->vtbScan);
-      break;
-    case DYN_QTYPE_VTB_WINDOW:
-      destroyVtbWindowDynCtrlInfo(&pDyn->vtbWindow);
       break;
     default:
       qError("unsupported dynamic query ctrl type: %d", pDyn->qType);
@@ -614,7 +612,7 @@ static int32_t buildExchangeOperatorParamForExternalWindow(SOperatorParam** ppRe
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
 
-  code = buildExchangeOperatorParamImpl(ppRes, downstreamIdx, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, EX_SRC_TYPE_VSTB_WIN_SCAN,
+  code = buildExchangeOperatorParamImpl(ppRes, downstreamIdx, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, EX_SRC_TYPE_VTB_WIN_SCAN,
                                         0, 0, NULL, NULL, NULL, NULL, win, NULL, true, true, true, false);
   QUERY_CHECK_CODE(code, lino, _return);
 
@@ -717,7 +715,7 @@ _return:
   return code;
 }
 
-static int32_t buildBatchExchangeOperatorParamForVSAgg(SOperatorParam** ppRes, int32_t downstreamIdx, SArray* pTagList, uint64_t groupid,  SHashObj* pBatchMaps) {
+static int32_t buildBatchExchangeOperatorParamForVirtual(SOperatorParam** ppRes, int32_t downstreamIdx, SArray* pTagList, uint64_t groupid,  SHashObj* pBatchMaps, STimeWindow window, EExchangeSourceType type) {
   int32_t                       code = TSDB_CODE_SUCCESS;
   int32_t                       lino = 0;
   SOperatorParam*               pParam = NULL;
@@ -742,12 +740,11 @@ static int32_t buildBatchExchangeOperatorParamForVSAgg(SOperatorParam** ppRes, i
   while (pIter != NULL) {
     SArray*          pOrgTbInfoArray = *(SArray**)pIter;
     int32_t*         vgId = (int32_t*)taosHashGetKey(pIter, &keyLen);
-    STimeWindow      win = {.skey = INT64_MAX, .ekey = INT64_MIN};
 
     code = buildExchangeOperatorBasicParam(&basic, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
-                                           EX_SRC_TYPE_VSTB_AGG_SCAN, *vgId, groupid,
+                                           type, *vgId, groupid,
                                            NULL, NULL, pTagList, pOrgTbInfoArray,
-                                           win, NULL, false, true, false);
+                                           window, NULL, false, true, false);
     QUERY_CHECK_CODE(code, lino, _return);
 
     code = tSimpleHashPut(pExc->pBatchs, vgId, sizeof(*vgId), &basic, sizeof(basic));
@@ -1132,7 +1129,7 @@ static int32_t buildAggOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperator
   pParam->value = taosMemoryMalloc(sizeof(SAggOperatorParam));
   QUERY_CHECK_NULL(pParam->value, code, lino, _return, terrno)
 
-  code = buildBatchExchangeOperatorParamForVSAgg(&pExchangeParam, 0, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap);
+  code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, 0, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN);
   QUERY_CHECK_CODE(code, lino, _return);
 
   freeExchange = true;
@@ -1182,7 +1179,7 @@ static int32_t buildAggOperatorParamWithGroupId(SDynQueryCtrlOperatorInfo* pInfo
   pParam->pChildren = taosArrayInit(1, POINTER_BYTES);
   QUERY_CHECK_NULL(pParam->pChildren, code, lino, _return, terrno)
 
-  code = buildBatchExchangeOperatorParamForVSAgg(&pExchangeParam, 0, NULL, groupid, otbVgIdToOtbInfoArrayMap);
+  code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, 0, NULL, groupid, otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN);
   QUERY_CHECK_CODE(code, lino, _return);
 
   freeExchange = true;
@@ -1221,7 +1218,7 @@ static int32_t buildAggOperatorParamForSingleChild(SDynQueryCtrlOperatorInfo* pI
   if (pIter) {
     pOtbVgIdToOtbInfoArrayMap = *(SHashObj**)taosHashGet(pVtbScan->vtbUidToVgIdMapMap, &uid, sizeof(uid));
 
-    code = buildBatchExchangeOperatorParamForVSAgg(&pParam, 0, pTagList, groupid, pOtbVgIdToOtbInfoArrayMap);
+    code = buildBatchExchangeOperatorParamForVirtual(&pParam, 0, pTagList, groupid, pOtbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN);
     QUERY_CHECK_CODE(code, lino, _return);
 
     *ppRes = pParam;
@@ -2486,6 +2483,10 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
     pVtbScan->otbNameToOtbInfoMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
     QUERY_CHECK_NULL(pVtbScan->otbNameToOtbInfoMap, code, line, _return, terrno)
     pSystableScanOp = pOperator->pDownstream[0];
+  } else if (pInfo->qType == DYN_QTYPE_VTB_WINDOW) {
+    pVtbScan->otbNameToOtbInfoMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    QUERY_CHECK_NULL(pVtbScan->otbNameToOtbInfoMap, code, line, _return, terrno)
+    pSystableScanOp = pOperator->pDownstream[1];
   } else {
     pSystableScanOp = pOperator->pDownstream[1];
   }
@@ -2561,6 +2562,10 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
   }
 
   switch (pInfo->qType) {
+    case DYN_QTYPE_VTB_WINDOW: {
+      code = buildOrgTbInfoBatch(pOperator, false);
+      break;
+    }
     case DYN_QTYPE_VTB_AGG: {
       if (pVtbScan->batchProcessChild) {
         code = buildOrgTbInfoBatch(pOperator, pVtbScan->hasPartition);
@@ -3026,7 +3031,6 @@ static int32_t initVtbWindowInfo(SDynQueryCtrlOperatorInfo* pInfo, SDynQueryCtrl
   pInfo->vtbWindow.wdurationSlotId = pPhyciNode->vtbWindow.wdurationSlotId;
   pInfo->vtbWindow.pTargets = pPhyciNode->vtbWindow.pTargets;
   pInfo->vtbWindow.isVstb = pPhyciNode->vtbWindow.isVstb;
-  pInfo->vtbWindow.singleWinMode = pPhyciNode->vtbWindow.singleWinMode;
   pInfo->vtbWindow.extendOption = pPhyciNode->vtbWindow.extendOption;
 
   pInfo->vtbWindow.pRes = createDataBlockFromDescNode(pDescNode);
@@ -3117,37 +3121,20 @@ int32_t vtbWindowOpen(SOperatorInfo* pOperator) {
     code = extractTsCol(pBlock, pDynInfo->vtbWindow.wendSlotId, &wendCol);
     QUERY_CHECK_CODE(code, lino, _return);
 
-    if (pDynInfo->vtbWindow.singleWinMode) {
-      for (int32_t i = 0; i < pBlock->info.rows; i++) {
-        SArray* pWin = taosArrayInit(pBlock->info.rows, sizeof(SExtWinTimeWindow));
-        QUERY_CHECK_NULL(pWin, code, lino, _return, terrno)
+    SArray* pWin = taosArrayInit(pBlock->info.rows, sizeof(SExtWinTimeWindow));
+    QUERY_CHECK_NULL(pWin, code, lino, _return, terrno)
 
-        QUERY_CHECK_NULL(taosArrayReserve(pWin, 1), code, lino, _return, terrno);
+    QUERY_CHECK_NULL(taosArrayReserve(pWin, pBlock->info.rows), code, lino, _return, terrno);
 
-        SExtWinTimeWindow* pWindow = taosArrayGet(pWin, 0);
-        QUERY_CHECK_NULL(pWindow, code, lino, _return, terrno)
-        pWindow->tw.skey = wstartCol[i];
-        pWindow->tw.ekey = wendCol[i] + 1;
-        pWindow->winOutIdx = -1;
-
-        QUERY_CHECK_NULL(taosArrayPush(pDynInfo->vtbWindow.pWins, &pWin), code, lino, _return, terrno);
-      }
-    } else {
-      SArray* pWin = taosArrayInit(pBlock->info.rows, sizeof(SExtWinTimeWindow));
-      QUERY_CHECK_NULL(pWin, code, lino, _return, terrno)
-
-      QUERY_CHECK_NULL(taosArrayReserve(pWin, pBlock->info.rows), code, lino, _return, terrno);
-
-      for (int32_t i = 0; i < pBlock->info.rows; i++) {
-        SExtWinTimeWindow* pWindow = taosArrayGet(pWin, i);
-        QUERY_CHECK_NULL(pWindow, code, lino, _return, terrno)
-        pWindow->tw.skey = wstartCol[i];
-        pWindow->tw.ekey = wendCol[i] + 1;
-        pWindow->winOutIdx = -1;
-      }
-
-      QUERY_CHECK_NULL(taosArrayPush(pDynInfo->vtbWindow.pWins, &pWin), code, lino, _return, terrno);
+    for (int32_t i = 0; i < pBlock->info.rows; i++) {
+      SExtWinTimeWindow* pWindow = taosArrayGet(pWin, i);
+      QUERY_CHECK_NULL(pWindow, code, lino, _return, terrno)
+      pWindow->tw.skey = wstartCol[i];
+      pWindow->tw.ekey = wendCol[i] + 1;
+      pWindow->winOutIdx = -1;
     }
+
+    QUERY_CHECK_NULL(taosArrayPush(pDynInfo->vtbWindow.pWins, &pWin), code, lino, _return, terrno);
   }
 
   // handle first window's start key and last window's end key
@@ -3170,6 +3157,11 @@ int32_t vtbWindowOpen(SOperatorInfo* pOperator) {
     firstWin->tw.skey = INT64_MIN;
   }
 
+  if (pInfo->isVstb) {
+    code = buildVirtualSuperTableScanChildTableMap(pOperator);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
   OPTR_SET_OPENED(pOperator);
 
   if (pOperator->cost.openCost == 0) {
@@ -3181,44 +3173,6 @@ _return:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
-  }
-  return code;
-}
-
-static int32_t buildDynQueryCtrlOperatorParamForExternalWindow(SOperatorParam** ppRes, int32_t downstreamIdx, int64_t skey, int64_t ekey) {
-  int32_t                     code = TSDB_CODE_SUCCESS;
-  int32_t                     lino = 0;
-  SDynQueryCtrlOperatorParam* pDyn = NULL;
-
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno)
-
-  (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
-  QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
-
-  pDyn = taosMemoryMalloc(sizeof(SDynQueryCtrlOperatorParam));
-  QUERY_CHECK_NULL(pDyn, code, lino, _return, terrno);
-
-  pDyn->window.skey = skey;
-  pDyn->window.ekey = ekey;
-
-  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL;
-  (*ppRes)->downstreamIdx = 0;
-  (*ppRes)->reUse = false;
-  (*ppRes)->value = pDyn;
-
-  return code;
-_return:
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  if (pDyn) {
-    taosMemoryFree(pDyn);
-  }
-  if (*ppRes) {
-    if ((*ppRes)->pChildren) {
-      taosArrayDestroy((*ppRes)->pChildren);
-    }
-    taosMemoryFree(*ppRes);
-    *ppRes = NULL;
   }
   return code;
 }
@@ -3238,15 +3192,16 @@ static int32_t buildExternalWindowOperatorParamEx(SDynQueryCtrlOperatorInfo* pIn
   QUERY_CHECK_NULL(pExtWinOp->ExtWins, code, lino, _return, terrno)
 
   SExtWinTimeWindow *firstWin = (SExtWinTimeWindow *)taosArrayGet(pWins, 0);
-  SExtWinTimeWindow *lastWin = (SExtWinTimeWindow *)taosArrayGet(pWins, taosArrayGetSize(pWins) - 1);
+  SExtWinTimeWindow *lastWin = (SExtWinTimeWindow *)taosArrayGetLast(pWins);
 
   (*ppRes)->pChildren = taosArrayInit(1, POINTER_BYTES);
   QUERY_CHECK_NULL((*ppRes)->pChildren, code, lino, _return, terrno)
 
-  SOperatorParam* pDynQueryCtrlParam = NULL;
-  code = buildDynQueryCtrlOperatorParamForExternalWindow(&pDynQueryCtrlParam, 0, firstWin->tw.skey, lastWin->tw.ekey);
+  SOperatorParam* pExchangeParam = NULL;
+  code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, 0, NULL, 0, pInfo->vtbScan.otbVgIdToOtbInfoArrayMap, (STimeWindow){.skey = firstWin->tw.skey, .ekey = lastWin->tw.ekey}, EX_SRC_TYPE_VSTB_WIN_SCAN);
   QUERY_CHECK_CODE(code, lino, _return);
-  QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pDynQueryCtrlParam), code, lino, _return, terrno)
+
+  QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExchangeParam), code, lino, _return, terrno)
 
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW;
   (*ppRes)->downstreamIdx = idx;
@@ -3310,7 +3265,7 @@ int32_t vtbWindowNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   numOfWins = (int32_t)taosArrayGetSize(pWinArray);
 
   if (pInfo->isVstb) {
-    extWinOp = pOperator->pDownstream[1];
+    extWinOp = pOperator->pDownstream[2];
     code = buildExternalWindowOperatorParamEx(pDynInfo, &pExtWinParam, pWinArray, extWinOp->numOfDownstream);
     QUERY_CHECK_CODE(code, lino, _return);
 
@@ -3741,6 +3696,8 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
       openFp = vtbScanOpen;
       break;
     case DYN_QTYPE_VTB_WINDOW:
+      code = initVtbScanInfo(pInfo, pMsgCb, pPhyciNode, pTaskInfo);
+      QUERY_CHECK_CODE(code, line, _error);
       code = initVtbWindowInfo(pInfo, pPhyciNode, pTaskInfo, pOperator);
       QUERY_CHECK_CODE(code, line, _error);
       nextFp = vtbWindowNext;

@@ -43,7 +43,7 @@ SGlobalExecInfo     gExecInfo = {0};
 void setTaskScalarExtraInfo(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   gTaskScalarExtra.pSubJobCtx = &pTaskInfo->subJobCtx;
-  gTaskScalarExtra.fp = qFetchRemoteValue;
+  gTaskScalarExtra.fp = qFetchRemoteNode;
 }
 
 void gExecInfoInit(void* pDnode, getDnodeId_f getDnodeId, getMnodeEpset_f getMnode) {
@@ -1558,7 +1558,7 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   if (pMsg->info.ahandle == NULL) {
     rpcFreeCont(pMsg->pCont);
-    qError("pMsg->info.ahandle is NULL");
+    qError("rsp msg got while pMsg->info.ahandle is NULL, 0x%" PRIx64 ":0x%" PRIx64, TRACE_GET_ROOTID(&pMsg->info.traceId), TRACE_GET_MSGID(&pMsg->info.traceId));
     return;
   }
 

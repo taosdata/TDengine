@@ -14,12 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tglobal.h"
 #include "cJSON.h"
 #include "defines.h"
 #include "os.h"
 #include "osString.h"
 #include "tconfig.h"
+#include "tencrypt.h"
+#include "tglobal.h"
 #include "tgrant.h"
 #include "tjson.h"
 #include "tlog.h"
@@ -189,11 +190,11 @@ int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_UNSET;
 bool     tsUseTaoskEncryption = false;  // Flag: using taosk encrypt.bin format
 bool     tsSkipKeyCheckMode = false;    // Flag: skip key check mode
 int32_t  tsEncryptKeysStatus = 0;       // 0: not loaded, 1: loaded from file, 2: loaded from mnode
-char     tsSvrKey[129] = {0};           // SVR_KEY (server master key)
-char     tsDbKey[129] = {0};            // DB_KEY (database master key)
-char     tsCfgKey[129] = {0};           // CFG_KEY (config encryption key)
-char     tsMetaKey[129] = {0};          // META_KEY (metadata encryption key)
-char     tsDataKey[129] = {0};          // DATA_KEY (data encryption key)
+char     tsSvrKey[ENCRYPT_KEY_LEN + 1] = {0};   // SVR_KEY: exactly 16 bytes
+char     tsDbKey[ENCRYPT_KEY_LEN + 1] = {0};    // DB_KEY: exactly 16 bytes
+char     tsCfgKey[ENCRYPT_KEY_LEN + 1] = {0};   // CFG_KEY: exactly 16 bytes
+char     tsMetaKey[ENCRYPT_KEY_LEN + 1] = {0};  // META_KEY: exactly 16 bytes
+char     tsDataKey[ENCRYPT_KEY_LEN + 1] = {0};  // DATA_KEY: exactly 16 bytes
 int32_t  tsEncryptAlgorithmType = 0;    // Algorithm type for master keys (SVR_KEY, DB_KEY)
 int32_t  tsCfgAlgorithm = 0;            // Algorithm type for CFG_KEY
 int32_t  tsMetaAlgorithm = 0;           // Algorithm type for META_KEY
@@ -469,6 +470,7 @@ int32_t sessionMaxCallVnodeNum = -1;
 bool    tsSessionControl = 1;
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 
+void taosSetSkipKeyCheckMode(void) { tsSkipKeyCheckMode = true; }
 
 #define TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, pName) \
   if ((pItem = cfgGetItem(pCfg, pName)) == NULL) {  \
@@ -649,6 +651,8 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
       cfgAddInt32(pCfg, "bseDebugFlag", bseDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(
       cfgAddInt32(pCfg, "bndDebugFlag", bndDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(
+      cfgAddInt32(pCfg, "xndDebugFlag", xndDebugFlag, 0, 255, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -1365,6 +1369,9 @@ static int32_t taosSetServerLogCfg(SConfig *pCfg) {
   bseDebugFlag = pItem->i32;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "bndDebugFlag");
   bndDebugFlag = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "xndDebugFlag");
+  xndDebugFlag = pItem->i32;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2458,7 +2465,7 @@ int32_t readStypeConfigFile(const char *path) {
   char      filename[CONFIG_FILE_LEN] = {0};
   SArray   *array = NULL;
   char     *buf = NULL;
-  TdFilePtr pFile = NULL;
+  int32_t   dataLen = 0;
 
   array = taosGetLocalCfg(tsCfg);
   if (array == NULL) {
@@ -2472,27 +2479,20 @@ int32_t readStypeConfigFile(const char *path) {
     uInfo("stype config file:%s does not exist", filename);
     goto _exit;
   }
-  int64_t fileSize = 0;
-  if (taosStatFile(filename, &fileSize, NULL, NULL) < 0) {
-    code = terrno;
-    goto _exit;
-  }
-  buf = (char *)taosMemoryMalloc(fileSize + 1);
-  if (buf == NULL) {
-    code = terrno;
-    goto _exit;
-  }
-  pFile = taosOpenFile(filename, TD_FILE_READ);
-  if (pFile == NULL) {
-    code = terrno;
-    goto _exit;
-  }
-  if (taosReadFile(pFile, buf, fileSize) != fileSize) {
-    code = terrno;
-    goto _exit;
-  }
-  buf[fileSize] = '\0';
 
+  // Use taosReadCfgFile for automatic decryption support
+  code = taosReadCfgFile(filename, &buf, &dataLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to read stype config file:%s since %s", filename, tstrerror(code));
+    goto _exit;
+  }
+
+  if (buf == NULL || dataLen == 0) {
+    uInfo("stype config file:%s is empty", filename);
+    goto _exit;
+  }
+
+  // Deserialize config (buf is already null-terminated or has padding zeros)
   code = stypeConfigDeserialize(array, buf);
   if (code != TSDB_CODE_SUCCESS) {
     uError("failed to deserialize stype config file:%s since %s", filename, tstrerror(code));
@@ -2504,7 +2504,6 @@ _exit:
     uError("failed to read stype config file:%s since %s", filename, tstrerror(code));
   }
   taosMemoryFree(buf);
-  (void)taosCloseFile(&pFile);
   TAOS_RETURN(code);
 }
 
@@ -2512,6 +2511,9 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
   int32_t code = 0;
   char    filename[CONFIG_FILE_LEN] = {0};
   SArray *array = NULL;
+  char   *buf = NULL;
+  int32_t dataLen = 0;
+
   if (isGlobal) {
     array = taosGetGlobalCfg(tsCfg);
     snprintf(filename, sizeof(filename), "%s%sdnode%sconfig%sglobal.json", path, TD_DIRSEP, TD_DIRSEP, TD_DIRSEP);
@@ -2525,35 +2527,20 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
     uInfo("config file:%s does not exist", filename);
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
-  int64_t fileSize = 0;
-  char   *buf = NULL;
-  if (taosStatFile(filename, &fileSize, NULL, NULL) < 0) {
-    code = terrno;
-    uError("failed to stat file:%s , since %s", filename, tstrerror(code));
-    TAOS_RETURN(code);
+
+  // Use taosReadCfgFile for automatic decryption support
+  code = taosReadCfgFile(filename, &buf, &dataLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to read config file:%s since %s", filename, tstrerror(code));
+    goto _exit;
   }
-  if (fileSize == 0) {
+
+  if (buf == NULL || dataLen == 0) {
     uInfo("config file:%s is empty", filename);
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
-  TdFilePtr pFile = taosOpenFile(filename, TD_FILE_READ);
-  if (pFile == NULL) {
-    code = terrno;
-    uError("failed to open file:%s , since %s", filename, tstrerror(code));
-    goto _exit;
-  }
-  buf = (char *)taosMemoryMalloc(fileSize + 1);
-  if (buf == NULL) {
-    code = terrno;
-    uError("failed to malloc memory for file:%s , since %s", filename, tstrerror(code));
-    goto _exit;
-  }
-  if (taosReadFile(pFile, buf, fileSize) != fileSize) {
-    code = terrno;
-    uError("failed to read file:%s , config since %s", filename, tstrerror(code));
-    goto _exit;
-  }
-  buf[fileSize] = '\0';  // 添加字符串结束符
+
+  // Deserialize config (buf is already null-terminated or has padding zeros)
   code = cfgDeserialize(array, buf, isGlobal);
   if (code != TSDB_CODE_SUCCESS) {
     uError("failed to deserialize config from %s since %s", filename, tstrerror(code));
@@ -2565,7 +2552,6 @@ _exit:
     uError("failed to read config from %s since %s", filename, tstrerror(code));
   }
   taosMemoryFree(buf);
-  (void)taosCloseFile(&pFile);
   TAOS_RETURN(code);
 }
 
@@ -2594,9 +2580,8 @@ int32_t tryLoadCfgFromDataDir(SConfig *pCfg) {
   }
   TAOS_RETURN(code);
 }
-
-int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
-                    bool tsc) {
+int32_t taosPreLoadCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
+                       bool tsc) {
   if (tsCfg != NULL) TAOS_RETURN(TSDB_CODE_SUCCESS);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -2629,10 +2614,25 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     tsCfg = NULL;
     TAOS_RETURN(code);
   }
-
   if (!tsc) {
     TAOS_CHECK_GOTO(taosSetTfsCfg(tsCfg), &lino, _exit);
-    TAOS_CHECK_GOTO(tryLoadCfgFromDataDir(tsCfg), &lino, _exit);
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    cfgCleanup(tsCfg);
+    tsCfg = NULL;
+    (void)printf("failed to pre load cfg at %d since %s\n", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
+int32_t taosApplyCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
+                     bool tsc) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = -1;
+  if (!tsc) {
+    TAOS_CHECK_GOTO(taosSetTfsCfg(tsCfg), &lino, _exit);
   }
 
   if (tsc) {
@@ -2663,7 +2663,23 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to apply cfg at %d since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
 
+int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
+                    bool tsc) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = -1;
+
+  TAOS_CHECK_GOTO(taosPreLoadCfg(cfgDir, envCmd, envFile, apolloUrl, pArgs, tsc), &lino, _exit);
+  if (!tsc) {
+    TAOS_CHECK_GOTO(tryLoadCfgFromDataDir(tsCfg), &lino, _exit);
+  }
+  TAOS_CHECK_GOTO(taosApplyCfg(cfgDir, envCmd, envFile, apolloUrl, pArgs, tsc), &lino, _exit);
 _exit:
   if (TSDB_CODE_SUCCESS != code) {
     cfgCleanup(tsCfg);
@@ -3330,6 +3346,7 @@ static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag) {
   taosCheckAndSetDebugFlag(&sndDebugFlag, "sndDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&bseDebugFlag, "bseDebugFlag", flag, noNeedToSetVars);
   taosCheckAndSetDebugFlag(&bndDebugFlag, "bndDebugFlag", flag, noNeedToSetVars);
+  taosCheckAndSetDebugFlag(&xndDebugFlag, "xndDebugFlag", flag, noNeedToSetVars);
 
   taosArrayClear(noNeedToSetVars);  // reset array
 
@@ -3538,8 +3555,6 @@ _exit:
 int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version) {
   int32_t   code = 0;
   int32_t   lino = 0;
-  char     *buffer = NULL;
-  TdFilePtr pFile = NULL;
   char     *serialized = NULL;
   char      filepath[CONFIG_FILE_LEN] = {0};
   char      filename[CONFIG_FILE_LEN] = {0};
@@ -3548,19 +3563,13 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
 
   TAOS_CHECK_GOTO(taosMkDir(filepath), &lino, _exit);
 
-  pFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-
-  if (pFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(ERRNO);
-    uError("failed to open file:%s since %s", filename, tstrerror(code));
-    TAOS_RETURN(code);
-  }
   TAOS_CHECK_GOTO(globalConfigSerialize(version, array, &serialized), &lino, _exit);
 
-  if (taosWriteFile(pFile, serialized, strlen(serialized)) < 0) {
+  // Use taosWriteCfgFile for encryption support (automatically encrypts if tsCfgKey is set)
+  code = taosWriteCfgFile(filename, serialized, strlen(serialized));
+  if (code != TSDB_CODE_SUCCESS) {
     lino = __LINE__;
-    code = TAOS_SYSTEM_ERROR(ERRNO);
-    uError("failed to write file:%s since %s", filename, tstrerror(code));
+    uError("failed to write config file:%s since %s", filename, tstrerror(code));
     goto _exit;
   }
 
@@ -3568,7 +3577,6 @@ _exit:
   if (code != TSDB_CODE_SUCCESS) {
     uError("failed to persist global config at line:%d, since %s", lino, tstrerror(code));
   }
-  (void)taosCloseFile(&pFile);
   taosMemoryFree(serialized);
   return code;
 }
@@ -3576,8 +3584,6 @@ _exit:
 int32_t taosPersistLocalConfig(const char *path) {
   int32_t   code = 0;
   int32_t   lino = 0;
-  char     *buffer = NULL;
-  TdFilePtr pFile = NULL;
   char     *serializedCfg = NULL;
   char     *serializedStype = NULL;
   char      filepath[CONFIG_FILE_LEN] = {0};
@@ -3590,36 +3596,25 @@ int32_t taosPersistLocalConfig(const char *path) {
   // TODO(beryl) need to check if the file is existed
   TAOS_CHECK_GOTO(taosMkDir(filepath), &lino, _exit);
 
-  TdFilePtr pConfigFile =
-      taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-
-  if (pConfigFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(terrno);
-    uError("failed to open file:%s since %s", filename, tstrerror(code));
-    TAOS_RETURN(code);
-  }
-
-  TdFilePtr pStypeFile =
-      taosOpenFile(stypeFilename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pStypeFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(terrno);
-    uError("failed to open file:%s since %s", stypeFilename, tstrerror(code));
-    TAOS_RETURN(code);
-  }
-
+  // Serialize local config
   TAOS_CHECK_GOTO(localConfigSerialize(taosGetLocalCfg(tsCfg), &serializedCfg), &lino, _exit);
-  if (taosWriteFile(pConfigFile, serializedCfg, strlen(serializedCfg)) < 0) {
+
+  // Use taosWriteCfgFile for encryption support (automatically encrypts if tsCfgKey is set)
+  code = taosWriteCfgFile(filename, serializedCfg, strlen(serializedCfg));
+  if (code != TSDB_CODE_SUCCESS) {
     lino = __LINE__;
-    code = TAOS_SYSTEM_ERROR(terrno);
-    uError("failed to write file:%s since %s", filename, tstrerror(code));
+    uError("failed to write config file:%s since %s", filename, tstrerror(code));
     goto _exit;
   }
 
+  // Serialize stype config
   TAOS_CHECK_GOTO(stypeConfigSerialize(taosGetLocalCfg(tsCfg), &serializedStype), &lino, _exit);
-  if (taosWriteFile(pStypeFile, serializedStype, strlen(serializedStype)) < 0) {
+
+  // Use taosWriteCfgFile for encryption support (automatically encrypts if tsCfgKey is set)
+  code = taosWriteCfgFile(stypeFilename, serializedStype, strlen(serializedStype));
+  if (code != TSDB_CODE_SUCCESS) {
     lino = __LINE__;
-    code = TAOS_SYSTEM_ERROR(terrno);
-    uError("failed to write file:%s since %s", stypeFilename, tstrerror(code));
+    uError("failed to write config file:%s since %s", stypeFilename, tstrerror(code));
     goto _exit;
   }
 
@@ -3627,8 +3622,6 @@ _exit:
   if (code != TSDB_CODE_SUCCESS) {
     uError("failed to persist local config at line:%d, since %s", lino, tstrerror(code));
   }
-  (void)taosCloseFile(&pConfigFile);
-  (void)taosCloseFile(&pStypeFile);
   taosMemoryFree(serializedCfg);
   taosMemoryFree(serializedStype);
   return code;

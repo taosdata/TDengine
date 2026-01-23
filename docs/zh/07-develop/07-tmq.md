@@ -48,6 +48,11 @@ TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题�
 - 说明：密码
 - 类型：string
 
+#### td.connect.token
+
+- 说明：token 通过 `CREATE TOKEN` 语句生成；如果同时配置了 token 和账号名/密码，将优先使用 token 进行认证，即 token 的优先级高于账号名密码
+- 类型：string
+
 #### td.connect.port
 
 - 说明：服务端的端口号

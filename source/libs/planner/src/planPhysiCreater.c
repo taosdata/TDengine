@@ -1964,7 +1964,6 @@ static int32_t updateDynQueryCtrlVtbWindowInfo(SPhysiPlanContext* pCxt, SNodeLis
   pDynCtrl->vtbWindow.wendSlotId = pLogicNode->vtbWindow.wendSlotId;
   pDynCtrl->vtbWindow.wdurationSlotId = pLogicNode->vtbWindow.wdurationSlotId;
   pDynCtrl->vtbWindow.isVstb = pLogicNode->vtbWindow.isVstb;
-  pDynCtrl->vtbWindow.singleWinMode = pLogicNode->vtbWindow.singleWinMode;
   pDynCtrl->vtbWindow.extendOption = pLogicNode->vtbWindow.extendOption;
 
   PLAN_ERR_RET(setMultiBlockSlotId(pCxt, pChildren, false, pLogicNode->node.pTargets, &pDynCtrl->vtbWindow.pTargets));
@@ -1990,6 +1989,7 @@ static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
       PLAN_ERR_JRET(updateDynQueryCtrlVtbScanInfo(pCxt, pChildren, pLogicNode, pDynCtrl, pSubPlan));
       break;
     case DYN_QTYPE_VTB_WINDOW:
+      PLAN_ERR_JRET(updateDynQueryCtrlVtbScanInfo(pCxt, pChildren, pLogicNode, pDynCtrl, pSubPlan));
       PLAN_ERR_JRET(updateDynQueryCtrlVtbWindowInfo(pCxt, pChildren, pLogicNode, pDynCtrl));
       break;
     default:
@@ -3180,7 +3180,7 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   return code;
 }
 
-static int32_t createExchangePhysiNodeByMerge(SMergePhysiNode* pMerge, int32_t idx) {
+static int32_t createExchangePhysiNodeByMerge(SMergePhysiNode* pMerge, int32_t idx, bool grpSingleChannel) {
   SExchangePhysiNode* pExchange = NULL;
   int32_t             code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, (SNode**)&pExchange);
   if (NULL == pExchange) {
@@ -3188,7 +3188,8 @@ static int32_t createExchangePhysiNodeByMerge(SMergePhysiNode* pMerge, int32_t i
   }
   pExchange->srcStartGroupId = pMerge->srcGroupId + idx;
   pExchange->srcEndGroupId = pMerge->srcGroupId + idx;
-  pExchange->singleChannel = true;
+  pExchange->grpSingleChannel = grpSingleChannel;
+  pExchange->singleSrc = true;
   pExchange->node.pParent = (SPhysiNode*)pMerge;
   pExchange->node.pOutputDataBlockDesc = NULL;
   code = nodesCloneNode((SNode*)pMerge->node.pOutputDataBlockDesc, (SNode**)&pExchange->node.pOutputDataBlockDesc);
@@ -3230,7 +3231,7 @@ static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildre
 
     for (int32_t j = 0; j < pMergeLogicNode->numOfSubplans; ++j) {
       for (int32_t i = 0; i < pMerge->numOfChannels; ++i) {
-        PLAN_ERR_JRET(createExchangePhysiNodeByMerge(pMerge, j));
+        PLAN_ERR_JRET(createExchangePhysiNodeByMerge(pMerge, j, pMerge->numOfChannels == 1));
       }
     }
 
