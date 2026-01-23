@@ -74,6 +74,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_DTW,
   FUNCTION_TYPE_DTW_PATH,
   FUNCTION_TYPE_TLCC,
+  FUNCTION_TYPE_LAG,
   FUNCTION_TYPE_FILL_FORWARD,
 
   // math function
