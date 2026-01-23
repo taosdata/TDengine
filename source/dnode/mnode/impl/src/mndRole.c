@@ -121,6 +121,7 @@ static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint3
   privInfoIterInit(&iter);
 
   char objKey[TSDB_PRIV_MAX_KEY_LEN] = {0};
+  char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
 
   SPrivInfo *pPrivInfo = NULL;
   while (privInfoIterNext(&iter, &pPrivInfo)) {
@@ -128,7 +129,8 @@ static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint3
     if (pPrivInfo->category == PRIV_CATEGORY_SYSTEM) {  // system privileges
       privAddType(&pObj->sysPrivs, pPrivInfo->privType);
     } else if (pPrivInfo->category == PRIV_CATEGORY_OBJECT) {  // object privileges
-      int32_t keyLen = privObjKeyF(pPrivInfo, "1.*", "*", objKey, sizeof(objKey));
+      snprintf(dbFName, TSDB_DB_FNAME_LEN, "1.%s", pPrivInfo->dbName[0] == 0 ? "*" : pPrivInfo->dbName);
+      int32_t keyLen = privObjKeyF(pPrivInfo, dbFName, "*", objKey, sizeof(objKey));
       if (!pObj->objPrivs && !(pObj->objPrivs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
                                                              HASH_ENTRY_LOCK))) {
         TAOS_CHECK_EXIT(terrno);

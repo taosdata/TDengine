@@ -134,7 +134,7 @@ typedef enum {
   PRIV_USER_ALTER,         // ALTER USER
 
   // audit management
-  PRIV_AUDIT_DB_DROP = 141,  // DROP AUDIT DATABASE
+  PRIV_AUDIT_DB_DROP = 140,  // DROP AUDIT DATABASE
   PRIV_AUDIT_DB_ALTER,       // ALTER AUDIT DATABASE
   PRIV_AUDIT_DB_USE,         // USE AUDIT DATABASE(reserved for future use)
   PRIV_AUDIT_TBL_CREATE,     // CREATE AUDIT TABLE
@@ -195,9 +195,7 @@ typedef enum {
   PRIV_QUERY_KILL,        // KILL QUERY
 
   // system info
-  PRIV_INFO_SCHEMA_USE = 240,        // USE INFORMATION_SCHEMA
-  PRIV_PERF_SCHEMA_USE,              // USE PERFORMANCE_SCHEMA
-  PRIV_INFO_SCHEMA_READ_BASIC,       // READ INFORMATION_SCHEMA BASIC
+  PRIV_INFO_SCHEMA_READ_BASIC = 240, // READ INFORMATION_SCHEMA BASIC
   PRIV_INFO_SCHEMA_READ_SEC,         // READ INFORMATION_SCHEMA SECURITY
   PRIV_INFO_SCHEMA_READ_AUDIT,       // READ INFORMATION_SCHEMA AUDIT
   PRIV_INFO_SCHEMA_READ_PRIVILEGED,  // READ INFORMATION_SCHEMA PRIVILEGED
@@ -298,6 +296,7 @@ typedef struct {
   int8_t      objLevel;  // 0: DB, function, 1: table, view
   uint8_t     sysType;
   int8_t      rwAttr;  // 0x01 for read, 0x02 for write, 0x03 for read/write
+  const char* dbName;  // "" for *, otherwise specific db name
   const char* name;
 } SPrivInfo;
 

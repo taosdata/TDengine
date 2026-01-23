@@ -17697,8 +17697,10 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
         allowSysDb = true;
       }
     }
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                   "Cannot grant/revoke privileges on system database");
+    if (!allowSysDb) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
+                                     "Cannot grant/revoke privileges on system database");
+    }
   }
 
   switch (objType) {

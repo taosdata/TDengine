@@ -2483,23 +2483,13 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
   SPrivInfo privInfo = *pPrivInfo;
 
   if (IS_INFORMATION_SCHEMA_DB(pReq->tbName.dbname)) {
-    if (PRIV_DB_USE == privInfo.privType) {
-      if (PRIV_HAS(&pInfo->sysPrivs, PRIV_INFO_SCHEMA_USE)) {
-        pRes->pass[AUTH_RES_BASIC] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-    } else {
+    if (PRIV_DB_USE != privInfo.privType) {
       pRes->pass[AUTH_RES_BASIC] = true;
       ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
       return TSDB_CODE_SUCCESS;
     }
   } else if (IS_PERFORMANCE_SCHEMA_DB(pReq->tbName.dbname)) {
-    if (PRIV_DB_USE == privInfo.privType) {
-      if (PRIV_HAS(&pInfo->sysPrivs, PRIV_PERF_SCHEMA_USE)) {
-        pRes->pass[AUTH_RES_BASIC] = true;
-        return TSDB_CODE_SUCCESS;
-      }
-    } else {
+    if (PRIV_DB_USE != privInfo.privType) {
       pRes->pass[AUTH_RES_BASIC] = true;
       ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
       return TSDB_CODE_SUCCESS;

@@ -575,8 +575,6 @@ priv_type(A) ::= KILL CONNECTION.                                               
 priv_type(A) ::= SHOW QUERIES.                                                    { A = PRIV_SET_TYPE(PRIV_QUERY_SHOW); }
 priv_type(A) ::= KILL QUERY.                                                      { A = PRIV_SET_TYPE(PRIV_QUERY_KILL); }
 
-priv_type(A) ::= USE INFORMATION SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_USE); }
-priv_type(A) ::= USE PERFORMANCE SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_USE); }
 priv_type(A) ::= READ INFORMATION SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC); }
 priv_type(A) ::= READ INFORMATION SCHEMA SECURITY.                                { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_SEC); }
 priv_type(A) ::= READ INFORMATION SCHEMA AUDIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_AUDIT); }
