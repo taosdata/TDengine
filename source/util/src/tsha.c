@@ -1155,9 +1155,9 @@ void test(const char *vector, uint8_t *digest, uint32_t digest_size) {
   int  i;
 
   output[2 * digest_size] = '\0';
-
+  int32_t len = 0;
   for (i = 0; i < (int)digest_size; i++) {
-    snprintf(output + 2 * i, sizeof(output), "%02x", digest[i]);
+    len += snprintf(output + 2 * i, sizeof(output) - len, "%02x", digest[i]);
   }
 
   printf("H: %s\n", output);
