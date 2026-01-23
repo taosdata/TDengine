@@ -549,16 +549,16 @@ taos> select _wstart, _wend, _wduration, bottom(voltage, 10) from keeporderdb.me
 
 taos> select _wstart, _wend, _wduration, statecount(voltage, 'LE', 223) from keeporderdb.meters session(ts, 1s);
 
-DB error: statecount function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, stateduration(voltage, 'LE', 223) from keeporderdb.meters session(ts, 1s);
 
-DB error: stateduration function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'stateduration' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, mavg(voltage, 4) from keeporderdb.meters session(ts, 1s);
 
-DB error: mavg function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'mavg' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, tail(voltage, 1) from keeporderdb.meters session(ts, 1s);
 
-DB error: tail function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'tail' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, count(*) from keeporderdb.meters count_window(3);
 
 DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
@@ -935,40 +935,40 @@ taos> select _wstart, _wend, _wduration, bottom(voltage, 2) from keeporderdb.t1 
 
 taos> select _wstart, _wend, _wduration, statecount(voltage, 'LE', 223) from keeporderdb.meters count_window(3);
 
-DB error: statecount function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, statecount(voltage, 'LE', 223) from keeporderdb.meters partition by tbname count_window(300) order by tbname, _wstart;
 
-DB error: statecount function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, statecount(voltage, 'LE', 223) from keeporderdb.t1 partition by tbname count_window(300) order by tbname;
 
-DB error: statecount function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, stateduration(voltage, 'LE', 223) from keeporderdb.meters count_window(3);
 
-DB error: stateduration function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'stateduration' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, stateduration(voltage, 'LE', 223) from keeporderdb.meters partition by tbname count_window(300) order by tbname, _wstart;
 
-DB error: stateduration function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'stateduration' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, stateduration(voltage, 'LE', 223) from keeporderdb.t1 partition by tbname count_window(300) order by tbname;
 
-DB error: stateduration function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'stateduration' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, mavg(voltage, 4) from keeporderdb.meters count_window(3);
 
-DB error: mavg function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'mavg' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, mavg(voltage, 4) from keeporderdb.meters partition by tbname count_window(300) order by tbname;
 
-DB error: mavg function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'mavg' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, mavg(voltage, 4) from keeporderdb.t1 partition by tbname count_window(300) order by tbname;
 
-DB error: mavg function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'mavg' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, tail(voltage, 1) from keeporderdb.meters count_window(3);
 
-DB error: tail function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'tail' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, tail(voltage, 1) from keeporderdb.meters partition by tbname count_window(300) order by tbname;
 
-DB error: tail function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'tail' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, tail(voltage, 1) from keeporderdb.t1 partition by tbname count_window(300) order by tbname;
 
-DB error: tail function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'tail' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, count(*) from keeporderdb.meters state_window(voltage);
 
 DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
@@ -1330,28 +1330,28 @@ taos> select _wstart, _wend, _wduration, bottom(voltage, 2) from keeporderdb.t1 
 
 taos> select _wstart, _wend, _wduration, statecount(voltage, 'LE', 223) from keeporderdb.meters where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname, _wstart;
 
-DB error: statecount function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, statecount(voltage, 'LE', 223) from keeporderdb.t1 where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname;
 
-DB error: statecount function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, stateduration(voltage, 'LE', 223) from keeporderdb.meters where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname, _wstart;
 
-DB error: stateduration function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'stateduration' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, stateduration(voltage, 'LE', 223) from keeporderdb.t1 where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname;
 
-DB error: stateduration function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'stateduration' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, mavg(voltage, 4) from keeporderdb.meters where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname;
 
-DB error: mavg function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'mavg' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, mavg(voltage, 4) from keeporderdb.t1 where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname;
 
-DB error: mavg function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'mavg' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, tail(voltage, 1) from keeporderdb.meters where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname;
 
-DB error: tail function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'tail' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, tail(voltage, 1) from keeporderdb.t1 where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname;
 
-DB error: tail function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'tail' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, count(*) from keeporderdb.meters event_window start with voltage > 240 end with voltage < 239
 
 DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
@@ -1514,61 +1514,61 @@ taos> select _wstart, _wend, _wduration, bottom(voltage, 3) from keeporderdb.t1 
 
 taos> select _wstart, _wend, _wduration, statecount(voltage, 'LE', 223) from keeporderdb.meters partition by tbname  event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217 order by tbname, _wstart;
 
-DB error: statecount function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, statecount(voltage, 'LE', 223) from keeporderdb.t1 event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217;
 
-DB error: statecount function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'statecount' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, stateduration(voltage, 'LE', 223) from keeporderdb.meters partition by tbname  event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217 order by tbname, _wstart;
 
-DB error: stateduration function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'stateduration' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, stateduration(voltage, 'LE', 223) from keeporderdb.t1 event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217;
 
-DB error: stateduration function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'stateduration' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration,  mavg(voltage, 4) from keeporderdb.meters partition by tbname  event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217 order by tbname;
 
-DB error: mavg function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'mavg' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration,  mavg(voltage, 4) from keeporderdb.t1 event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217;
 
-DB error: mavg function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'mavg' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration,  tail(voltage, 1) from keeporderdb.meters partition by tbname  event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217 order by tbname;
 
-DB error: tail function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'tail' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration,  tail(voltage, 1) from keeporderdb.t1 event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217;
 
-DB error: tail function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'tail' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters session(ts, 1s) order by _wstart limit 2;
 
-DB error: unique function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters session(ts, 3s) order by _wstart limit 2;
 
-DB error: unique function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters session(ts, 4s) order by _wstart limit 2;
 
-DB error: unique function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters count_window(3);
 
-DB error: unique function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters partition by tbname count_window(300) order by tbname, _wstart;
 
-DB error: unique function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.t1 partition by tbname count_window(300) order by tbname;
 
-DB error: unique function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters state_window(voltage);
 
-DB error: unique function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname, _wstart;
 
-DB error: unique function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.t1 where ts > "2025-03-12 13:30:18.230" and ts < "2025-03-12 13:32:03.230" partition by tbname state_window(voltage) order by tbname;
 
-DB error: unique function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.meters partition by tbname  event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217 order by tbname, _wstart;
 
-DB error: unique function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, unique(current) from keeporderdb.t1 event_window start with (voltage >= 215 and voltage < 217) end with voltage >= 217;
 
-DB error: unique function is not supported in window query or group query [0x8000264F] 
+DB error: Function 'unique' is not supported in window query or group query [0x8000264F] 
 taos> select _wstart, _wend, _wduration, mode(current) from keeporderdb.meters session(ts, 1s) order by _wstart limit 2;
          _wstart         |          _wend          |      _wduration       |    mode(current)     |
 ===================================================================================================
