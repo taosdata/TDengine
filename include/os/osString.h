@@ -135,6 +135,16 @@ int32_t  taosAscii2Hex(const char *z, uint32_t n, void **data, uint32_t *size);
 bool isHex(const char *z, uint32_t n);
 bool isValidateHex(const char *z, uint32_t n);
 
+typedef struct {
+  char   *buf;
+  int32_t len;
+  int32_t cap;
+} TStrBuf;
+
+void    strBufInit(TStrBuf *p, char *buf, int32_t cap);
+int32_t strBufAppend(TStrBuf *p, const char *src, int32_t len);
+char   *strBufGet(TStrBuf *p, int32_t *len);
+
 #ifdef TD_ASTRA
 static FORCE_INLINE size_t strnlen(const char *s, size_t maxlen) {
   const char *end = (const char *)memchr(s, '\0', maxlen);

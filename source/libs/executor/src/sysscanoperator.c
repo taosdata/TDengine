@@ -1586,11 +1586,20 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
     } else {
       char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
       char tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
-      strcat(tmpColName, colRef->pColRef[i].refDbName);
-      strcat(tmpColName, ".");
-      strcat(tmpColName, colRef->pColRef[i].refTableName);
-      strcat(tmpColName, ".");
-      strcat(tmpColName, colRef->pColRef[i].refColName);
+      TStrBuf refColNameBuf = {0};
+      strBufInit(&refColNameBuf, refColName, sizeof(refColName));
+      QUERY_CHECK_CODE(strBufAppend(&refColNameBuf, colRef->pColRef[i].refDbName, strlen(colRef->pColRef[i].refDbName)),
+                       lino, _end);
+      QUERY_CHECK_CODE(strBufAppend(&refColNameBuf, ".", 1), lino, _end);
+
+      QUERY_CHECK_CODE(
+          strBufAppend(&refColNameBuf, colRef->pColRef[i].refTableName, strlen(colRef->pColRef[i].refTableName)), lino,
+          _end);
+
+      QUERY_CHECK_CODE(strBufAppend(&refColNameBuf, ".", 1), lino, _end);
+      QUERY_CHECK_CODE(
+          strBufAppend(&refColNameBuf, colRef->pColRef[i].refColName, strlen(colRef->pColRef[i].refColName)), lino,
+          _end);
       STR_TO_VARSTR(refColName, tmpColName);
 
       code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
@@ -1681,11 +1690,19 @@ static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* 
     } else {
       char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
       char tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
-      strcat(tmpColName, colRef->pColRef[i].refDbName);
-      strcat(tmpColName, ".");
-      strcat(tmpColName, colRef->pColRef[i].refTableName);
-      strcat(tmpColName, ".");
-      strcat(tmpColName, colRef->pColRef[i].refColName);
+      TStrBuf refColNameBuf = {0};
+      strBufInit(&refColNameBuf, refColName, sizeof(refColName));
+
+      QUERY_CHECK_CODE(strBufAppend(&refColNameBuf, colRef->pColRef[i].refDbName, strlen(colRef->pColRef[i].refDbName)),
+                       lino, _end);
+      QUERY_CHECK_CODE(strBufAppend(&refColNameBuf, ".", 1), lino, _end);
+      QUERY_CHECK_CODE(
+          strBufAppend(&refColNameBuf, colRef->pColRef[i].refTableName, strlen(colRef->pColRef[i].refTableName)), lino,
+          _end);
+      QUERY_CHECK_CODE(strBufAppend(&refColNameBuf, ".", 1), lino, _end);
+      QUERY_CHECK_CODE(
+          strBufAppend(&refColNameBuf, colRef->pColRef[i].refColName, strlen(colRef->pColRef[i].refColName)), lino,
+          _end);
       STR_TO_VARSTR(refColName, tmpColName);
 
       code = colDataSetVal(pColInfoData, numOfRows, (char *)refColName, false);
