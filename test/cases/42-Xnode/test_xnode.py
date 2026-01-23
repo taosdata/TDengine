@@ -33,7 +33,7 @@ class TestXnode:
 
         1. execute sql
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -58,7 +58,7 @@ class TestXnode:
 
         1. query sql
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -85,7 +85,7 @@ class TestXnode:
 
         1. Query show xnodes, xnode tasks, xnode agents, xnode jobs
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -114,7 +114,7 @@ class TestXnode:
         4. Drop xnode by endpoint and id
         5. Drain xnode by id
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -159,7 +159,7 @@ class TestXnode:
         8. Rebalance xnode job by where clause
         9. Drop xnode task variations
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -221,7 +221,7 @@ class TestXnode:
         1. agent action: create, drop, alter
         2. execute by no_syntax_fail_execute function
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -240,7 +240,6 @@ class TestXnode:
             f"ALTER XNODE AGENT '{agent2}' WITH status 'running', `regionA` 'cn-north-1' AND TRIGGER 'heartbeat'",
             f"ALTER XNODE AGENT '{agent2}' WITH status 'stop' `regionA` 'cn-north-1' TRIGGER 'heartbeat'",
             f"DROP XNODE AGENT '{agent2}'",
-            # f"DROP XNODE AGENT WHERE name = '{agent1}'",
         ]
         for sql in agent_sqls:
             tdLog.debug(f"exec: {sql}")
@@ -257,7 +256,7 @@ class TestXnode:
         6. Rebalance xnode job by where clause
         7. Drop xnode job variations
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -294,7 +293,7 @@ class TestXnode:
         4. Alter xnode task with new sink and options
         5. Drop xnode task variations
 
-        Since: v3.3.8.8
+        Since: v3.4.0.0
 
         Labels: common,ci
 
@@ -333,7 +332,7 @@ class TestXnode:
         4. Complex where conditions with AND/OR operators
         5. Where conditions with different comparison operators
 
-        Since: v3.3.8.8
+        Since: v3.4.0.1
 
         Labels: common,ci
 
@@ -513,7 +512,7 @@ class TestXnode:
         6. ID 范围查询
         7. Clean up test data
 
-        Since: v3.3.8.8
+        Since: v3.4.0.1
 
         Labels: common,ci
 
@@ -600,7 +599,7 @@ class TestXnode:
         5. 格式边界测试
         6. Clean up test data
 
-        Since: v3.3.8.8
+        Since: v3.4.0.1
 
         Labels: common,ci
 
@@ -694,7 +693,7 @@ class TestXnode:
         3. Show xnode agents
         4. Show xnode jobs
 
-        Since: v3.3.8.8
+        Since: v3.4.0.1
 
         Labels: common,ci
 
@@ -729,7 +728,7 @@ class TestXnode:
         9. Drop jobs by complex AND/OR/NOT conditions
         10. Clean up remaining test data
 
-        Since: v3.3.8.8
+        Since: v3.4.0.1
 
         Labels: common,ci
 
@@ -900,7 +899,7 @@ class TestXnode:
         5. Test value format variations
         6. Test complex nested conditions
 
-        Since: v3.3.8.8
+        Since: v3.4.0.1
 
         Labels: common,ci
 
@@ -1092,7 +1091,7 @@ class TestXnode:
         2. Test rebalance xnode job
         3. Test drop xnode job
 
-        Since: v3.3.8.8
+        Since: v3.4.0.1
 
         Labels: common,ci
 
@@ -1102,23 +1101,37 @@ class TestXnode:
             - 2026-01-20 GuiChuan Zhang Created
         """
         for _ in range(20):
-            self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test'")
+            self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test' status 'run'")
 
         rs = tdSql.query("show xnode jobs", row_tag=True)
         self.no_syntax_fail_execute(f"REBALANCE XNODE JOB WHERE task_id=1")
         self.no_syntax_fail_execute(f"REBALANCE XNODE JOB WHERE id>=1")
+        self.no_syntax_fail_execute(f"REBALANCE XNODE JOB WHERE config='test'")
+        self.no_syntax_fail_execute(f"REBALANCE XNODE JOB WHERE status='run'")
         self.no_syntax_fail_execute(f"DROP XNODE JOB {rs[0][0]}")
         self.no_syntax_fail_execute(f"DROP XNODE JOB WHERE task_id=1")
         self.wait_transaction_to_commit()
         rs = tdSql.query(f"show xnode jobs where id={rs[0][0]}", row_tag=True)
         assert len(rs) == 0
 
-        self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test'")
-        self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test'")
-        self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test'")
+        self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test' status 'run'")
+        self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test' status 'run'")
+        self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test' status 'run'")
         rs = tdSql.query("show xnode jobs", row_tag=True)
         self.no_syntax_fail_execute(f"DROP XNODE JOB {rs[0][0]}")
         self.no_syntax_fail_execute(f"DROP XNODE JOB WHERE id>{rs[0][0]}")
+        self.wait_transaction_to_commit()
+        rs = tdSql.query(f"show xnode jobs where id={rs[0][0]}", row_tag=True)
+        assert len(rs) == 0
+
+        self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test' status 'run'")
+        self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test' status 'run'")
+        self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test1' status 'run'")
+        self.no_syntax_fail_execute("CREATE XNODE JOB ON 1 WITH config 'test1' status 'run'")
+        rs = tdSql.query("show xnode jobs", row_tag=True)
+        self.no_syntax_fail_execute(f"DROP XNODE JOB {rs[0][0]}")
+        self.no_syntax_fail_execute(f"DROP XNODE JOB WHERE config='test' and status='run'")
+        self.no_syntax_fail_execute(f"DROP XNODE JOB WHERE config='test1'")
         self.wait_transaction_to_commit()
         rs = tdSql.query(f"show xnode jobs where id={rs[0][0]}", row_tag=True)
         assert len(rs) == 0
@@ -1129,7 +1142,7 @@ class TestXnode:
         1. show transactions
         2. wait 3 seconds
 
-        Since: v3.3.8.8
+        Since: v3.4.0.1
 
         Labels: common,ci
 
