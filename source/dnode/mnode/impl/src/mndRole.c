@@ -585,6 +585,10 @@ static int32_t mndProcessCreateRoleReq(SRpcMsg *pReq) {
   if (pUser != NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_ALREADY_EXIST);
   }
+  if (sdbGetSize(pMnode->pSdb, SDB_ROLE) >= TSDB_MAX_ROLES) {
+    mError("role:%s, failed to create since reach max role limit %d", createReq.name, TSDB_MAX_ROLES);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_TOO_MANY_ROLES);
+  }
   TAOS_CHECK_EXIT(mndCreateRole(pMnode, pOperUser->acct, &createReq, pReq));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 

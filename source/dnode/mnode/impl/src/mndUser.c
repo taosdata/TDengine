@@ -3356,6 +3356,11 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_USER), &lino, _OVER);
 
+  if (sdbGetSize(pMnode->pSdb, SDB_USER) >= TSDB_MAX_USERS) {
+    mError("user:%s, failed to create since reach max user limit %d", createReq.user, TSDB_MAX_USERS);
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_TOO_MANY_USERS, &lino, _OVER);
+  }
+
   code = mndCreateUser(pMnode, pOperUser->acct, &createReq, pReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
