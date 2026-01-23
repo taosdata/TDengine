@@ -198,7 +198,6 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   }
   blockDataCleanup(pResBlock);
   int32_t        order = pInfo->pFillInfo->order;
-  SOperatorInfo* pDownstream = pOperator->pDownstream[0];
 
   doHandleRemainBlockFromNewGroup(pOperator, pInfo, pResultInfo, order);
   if (pResBlock->info.rows > 0) {

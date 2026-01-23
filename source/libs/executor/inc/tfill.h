@@ -97,9 +97,10 @@ typedef struct SFillInfo {
   const char*      id;
   SExecTaskInfo*   pTaskInfo;
   int8_t           isFilled;
-  SList*           pFillSavedBlockList;
+  SList*           pFillSavedBlockList;  // SList of SFillBlock
   SArray*          pColFillProgress;
   int64_t          surroundingTime;  // surrounding time for fill PREV/NEXT
+  bool             ascNextOrDescPrev;
 } SFillInfo;
 
 typedef struct SResultCellData {
@@ -167,9 +168,27 @@ void*   taosDestroyFillInfo(struct SFillInfo* pFillInfo);
 int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBlock, int32_t capacity, bool *wantMoreBlock);
 int64_t getFillInfoStart(struct SFillInfo* pFillInfo);
 
-bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo,
-                              const SSDataBlock* pFillBlock,
-                              const int64_t rowIndex, const int32_t colIdx);
+/**
+  @brief Fill pseudo columns: _wstart, _wend, _wduration and _is_window_filled.
+  @return true if the pseudo column is filled, otherwise return false.
+*/
+bool fillWindowPseudoColumn(const SFillInfo* pFillInfo,
+                            const SSDataBlock* pFillBlock,
+                            const int64_t rowIndex, const int32_t colIdx);
+
+/**
+  @brief Fill value for a common column.
+  @param fillFromHead Whether this function is called in the situation
+  of filling falling-behind rows from head.
+  @return true if the column is not filled and needs save progress,
+  otherwise return false.
+  @note Common column doesn't mean that the column does NOT need fill operation,
+  but means that the column is not a pseudo column.
+*/
+static bool fillCommonColumn(const SFillInfo* pFillInfo,
+                             const SSDataBlock* pFillBlock,
+                             int64_t rowIndex, int32_t colIdx,
+                             bool outOfBound, bool fillFromHead);
 
 SFillBlock*  tFillSaveBlock(SFillInfo* pFill, SSDataBlock* pBlock, SArray* pProgress);
 void         destroyFillBlock(void* p);
