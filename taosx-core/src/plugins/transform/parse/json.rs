@@ -79,7 +79,6 @@ impl Parse for Json {
             if string_array.is_null(i) {
                 continue;
             }
-            drain_idx.remove(&i);
             let s = string_array.value(i);
             let value = serde_json::from_str::<JsonValue>(s);
             let value = match value {
@@ -105,6 +104,9 @@ impl Parse for Json {
                     JsonValue::Null
                 }
             };
+            if !value.is_null() {
+                drain_idx.remove(&i);
+            }
             match value {
                 JsonValue::Null => (),
                 value @ JsonValue::Object(_) => {
