@@ -216,7 +216,7 @@ int32_t tjsonGetStringValue2(const SJson* pJson, const char* pName, char* pVal, 
   if (len >= maxLen - 1) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  strcpy(pVal, p);
+  tstrncpy(pVal, p, maxLen);
   return TSDB_CODE_SUCCESS;
 }
 

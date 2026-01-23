@@ -303,15 +303,30 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
   } else if (prefix > 0 || suffix > 0) {
     return MurmurHash3_32(tbname + prefix, tblen - prefix - suffix);
   } else {
-    char    tbName[TSDB_TABLE_FNAME_LEN];
+    char    tbName[TSDB_TABLE_FNAME_LEN] = {0};
     int32_t offset = 0;
+    int32_t avail = sizeof(tbName);
+
     if (prefix < 0) {
-      offset = -1 * prefix;
-      (void)strncpy(tbName, tbname, offset);
+      int32_t want = -prefix;
+      /* reserve 1 byte for terminating NUL when using tstrncpy */
+      int32_t n = (want < avail - 1) ? want : (avail - 1);
+      if (n > 0) {
+        tstrncpy(tbName, tbname, n + 1);
+        offset = n;
+        avail -= offset;
+      } else {
+        memcpy(tbName, tbname, avail - 1);
+      }
     }
-    if (suffix < 0) {
-      (void)strncpy(tbName + offset, tbname + tblen + suffix, -1 * suffix);
-      offset += -1 * suffix;
+
+    if (suffix < 0 && avail > 0) {
+      int32_t want = -suffix;
+      int32_t n = (want < avail - 1) ? want : (avail - 1);
+      if (n > 0) {
+        tstrncpy(tbName + offset, tbname + tblen + suffix, n + 1);
+        offset += n;
+      }
     }
     return MurmurHash3_32(tbName, offset);
   }
@@ -453,7 +468,7 @@ bool taosIsNumberChar(char c);
 bool taosIsSpecialChar(char c);
 // check if the string is a complex string, a complex string contains
 // at least 3 types of characters: upper, lower, digit, special
-bool taosIsComplexString(const char* str);
+bool taosIsComplexString(const char *str);
 
 #ifdef __cplusplus
 }
