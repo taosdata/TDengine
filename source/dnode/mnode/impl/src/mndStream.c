@@ -1152,7 +1152,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
 
   if ((code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
                                         pStream->pCreate->streamDB)) ||
-      (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_START, PRIV_OBJ_STREAM, pStream->ownerId,
+      (code = mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_RECALC, PRIV_OBJ_STREAM, pStream->ownerId,
                                        pStream->pCreate->streamDB, pStream->pCreate->name))) {
     mstsError("user %s failed to recalc stream %s since %s", RPC_MSG_USER(pReq), pStream->name, tstrerror(code));
     mndReleaseUser(pMnode, pOperUser);

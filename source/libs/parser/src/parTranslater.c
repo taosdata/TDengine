@@ -17689,6 +17689,14 @@ static int32_t translateGrantCheckFillObject(STranslateContext* pCxt, SGrantStmt
   }
 
   if (IS_SYS_DBNAME(pStmt->objName)) {
+    bool allowSysDb = false;
+    if (objType == PRIV_OBJ_DB && PRIV_HAS(&pReq->privileges.privSet, PRIV_DB_USE)) {
+      SPrivSet privSet = pReq->privileges.privSet;
+      privRemoveType(&privSet, PRIV_DB_USE);
+      if (privIsEmptySet(&privSet)) {
+        allowSysDb = true;
+      }
+    }
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
                                    "Cannot grant/revoke privileges on system database");
   }

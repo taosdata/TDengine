@@ -4845,7 +4845,7 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
         tlen += snprintf(pBuf + tlen, bufSize - tlen, "%s,", roleName);
       }
       if (tlen > 0) {
-        pBuf[tlen - 1] = 0;  // remove last ','
+        pBuf[tlen--] = 0;  // remove last ','
       } else {
         pBuf[0] = 0;
       }
