@@ -162,7 +162,7 @@ static bool mndStreamGetNameFromId(SMnode *pMnode, void *pObj, void *p1, void *p
   SStreamObj* pStream = pObj;
 
   if (pStream->pCreate->streamId == *(int64_t*)p1) {
-    strncpy((char*)p2, pStream->name, TSDB_STREAM_NAME_LEN);
+    tstrncpy((char *)p2, pStream->name, TSDB_STREAM_NAME_LEN);
     return false;
   }
 
