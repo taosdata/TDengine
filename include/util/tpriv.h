@@ -40,17 +40,15 @@ extern "C" {
 #define TSDB_ROLE_SYSINFO_1    "SYSINFO_1"
 #define TSDB_ROLE_DEFAULT      TSDB_ROLE_SYSINFO_1
 
-#define TSDB_WORD_ALTER      "alter"
 #define TSDB_WORD_AUDIT      "audit"
 #define TSDB_WORD_BASIC      "basic"
 #define TSDB_WORD_DEBUG      "debug"
 #define TSDB_WORD_PRIVILEGED "privileged"
-#define TSDB_WORD_READ       "read"
 #define TSDB_WORD_SECURITY   "security"
-#define TSDB_WORD_SHOW       "show"
 #define TSDB_WORD_SYSTEM     "system"
 #define TSDB_WORD_VARIABLE   "variable"
 #define TSDB_WORD_VARIABLES  "variables"
+#define TSDB_WORD_INFORMATION "information"
 
 #define PRIV_INFO_TABLE_VERSION 2
 typedef enum {

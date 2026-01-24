@@ -460,7 +460,6 @@ priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                  
                                                                                     }
 
                                                                                   }
-priv_type(A) ::= NK_ID(I0) NK_ID(I1) NK_ID(I2).                                   { A = privArgsSet(pCxt, I0, I1, I2)}
 priv_type(A) ::= ALL.                                                             { A = PRIV_SET_TYPE(PRIV_CM_ALL); }
 priv_type(A) ::= ALL PRIVILEGES.                                                  { A = PRIV_SET_TYPE(PRIV_CM_ALL); }
 priv_type(A) ::= ALTER.                                                           { A = PRIV_SET_TYPE(PRIV_CM_ALTER); }
@@ -529,9 +528,6 @@ priv_type(A) ::= SHOW ROLES.                                                    
 
 priv_type(A) ::= CREATE USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_CREATE); }
 priv_type(A) ::= DROP USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_DROP); }
-priv_type(A) ::= SET USER SECURITY INFORMATION.                                   { A = PRIV_SET_TYPE(PRIV_USER_SET_SECURITY); }
-priv_type(A) ::= SET USER AUDIT INFORMATION.                                      { A = PRIV_SET_TYPE(PRIV_USER_SET_AUDIT); }
-priv_type(A) ::= SET USER BASIC INFORMATION.                                      { A = PRIV_SET_TYPE(PRIV_USER_SET_BASIC); }
 priv_type(A) ::= UNLOCK USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_UNLOCK); }
 priv_type(A) ::= LOCK USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_LOCK); }
 priv_type(A) ::= SHOW USERS.                                                      { A = PRIV_SET_TYPE(PRIV_USER_SHOW); }
@@ -595,10 +591,20 @@ priv_type_tbl_dml(A) ::= SELECT TABLE.                                          
 priv_type_tbl_dml(A) ::= SELECT specific_cols_with_mask_opt(B).                   { A = PRIV_SET_COLS(PRIV_TBL_SELECT, B, NULL, NULL); }
 priv_type_tbl_dml(A) ::= INSERT TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_INSERT); }
 priv_type_tbl_dml(A) ::= INSERT specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_INSERT, NULL, B, NULL); }
-/*priv_type_tbl_dml(A) ::= UPDATE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_UPDATE); }
+/*priv_type_tbl_dml(A) ::= UPDATE TABLE.                                          { A = PRIV_SET_TYPE(PRIV_TBL_UPDATE); }
 priv_type_tbl_dml(A) ::= UPDATE specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_UPDATE, NULL, NULL, B); }*/
 priv_type_tbl_dml(A) ::= DELETE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
 priv_type_tbl_dml(A) ::= DELETE.                                                  { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
+
+priv_type(A) ::= ALTER priv_id(B) priv_id(C).                                     { A = privArgsSet(pCxt, 0, &B, &C); }
+priv_type(A) ::= READ priv_id(B) priv_id(C).                                      { A = privArgsSet(pCxt, 1, &B, &C); }
+priv_type(A) ::= SHOW priv_id(B) priv_id(C).                                      { A = privArgsSet(pCxt, 2, &B, &C); }
+priv_type(A) ::= SET USER priv_id(B) priv_id(C).                                  { A = privArgsSet(pCxt, 3, &B, &C); }
+
+%type priv_id                                                                     { SToken }
+%destructor priv_id                                                               { }
+priv_id(A) ::= NK_ID(B).                                                          { A = B; }
+priv_id(A) ::= VARIABLES(B).                                                      { A = B; }
 
 %type priv_level_opt                                                              { SPrivLevelArgs }
 %destructor priv_level_opt                                                        { 
