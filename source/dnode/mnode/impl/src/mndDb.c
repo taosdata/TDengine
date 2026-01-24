@@ -45,7 +45,10 @@
 #include "thttp.h"
 #include "tjson.h"
 
-#define DB_VER_NUMBER   1
+#define DB_VER_INITIAL                   1
+#define DB_VER_SUPPORT_ADVANCED_SECURITY 2
+#define DB_VER_NUMBER                    DB_VER_SUPPORT_ADVANCED_SECURITY
+
 #define DB_RESERVE_SIZE 13
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
@@ -200,7 +203,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver != DB_VER_NUMBER) {
+  if (sver < 1 || sver > DB_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto _OVER;
   }
@@ -306,6 +309,10 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
 
   if (pDb->cfg.sstTrigger != TSDB_MIN_STT_TRIGGER) {
     mInfo("db:%s, sstTrigger set from %d to default %d", pDb->name, pDb->cfg.sstTrigger, TSDB_DEFAULT_SST_TRIGGER);
+  }
+
+  if (sver < DB_VER_SUPPORT_ADVANCED_SECURITY) {
+    pDb->cfg.allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
 
   terrno = 0;

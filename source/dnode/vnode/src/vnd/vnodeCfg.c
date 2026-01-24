@@ -406,7 +406,12 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (pCfg->isAudit < TSDB_MIN_DB_IS_AUDIT || pCfg->isAudit > TSDB_MAX_DB_IS_AUDIT) {
     pCfg->isAudit = 0;
   }
-  tjsonGetNumberValue(pJson, "allowDrop", pCfg->allowDrop, code);
+  if (tjsonGetObjectItem(pJson, "allowDrop") == NULL) {
+    pCfg->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
+  } else {
+    tjsonGetNumberValue(pJson, "allowDrop", pCfg->allowDrop, code);
+  }
+
   if (pCfg->allowDrop < TSDB_MIN_DB_ALLOW_DROP || pCfg->allowDrop > TSDB_MAX_DB_ALLOW_DROP) {
     pCfg->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
