@@ -550,15 +550,6 @@ priv_type(A) ::= CREATE NODE.                                                   
 priv_type(A) ::= DROP NODE.                                                       { A = PRIV_SET_TYPE(PRIV_NODE_DROP); }
 priv_type(A) ::= SHOW NODES.                                                      { A = PRIV_SET_TYPE(PRIV_NODES_SHOW); }
 
-priv_type(A) ::= ALTER SECURITY VARIABLES.                                        { A = PRIV_SET_TYPE(PRIV_VAR_SECURITY_ALTER); }
-priv_type(A) ::= ALTER AUDIT VARIABLES.                                           { A = PRIV_SET_TYPE(PRIV_VAR_AUDIT_ALTER); }
-priv_type(A) ::= ALTER SYSTEM VARIABLES.                                          { A = PRIV_SET_TYPE(PRIV_VAR_SYSTEM_ALTER); }
-priv_type(A) ::= ALTER DEBUG VARIABLES.                                           { A = PRIV_SET_TYPE(PRIV_VAR_DEBUG_ALTER); }
-priv_type(A) ::= SHOW SECURITY VARIABLES.                                         { A = PRIV_SET_TYPE(PRIV_VAR_SECURITY_SHOW); }
-priv_type(A) ::= SHOW AUDIT VARIABLES.                                            { A = PRIV_SET_TYPE(PRIV_VAR_AUDIT_SHOW); }
-priv_type(A) ::= SHOW SYSTEM VARIABLES.                                           { A = PRIV_SET_TYPE(PRIV_VAR_SYSTEM_SHOW); }
-priv_type(A) ::= SHOW DEBUG VARIABLES.                                            { A = PRIV_SET_TYPE(PRIV_VAR_DEBUG_SHOW); }
-
 priv_type(A) ::= CREATE TOPIC.                                                    { A = PRIV_SET_TYPE(PRIV_TOPIC_CREATE); }
 priv_type(A) ::= SHOW CONSUMERS.                                                  { A = PRIV_SET_TYPE(PRIV_CONSUMER_SHOW); }
 priv_type(A) ::= SHOW SUBSCRIPTIONS.                                              { A = PRIV_SET_TYPE(PRIV_SUBSCRIPTION_SHOW); }
@@ -604,6 +595,7 @@ priv_type(A) ::= SET USER priv_id(B) priv_id(C).                                
 %type priv_id                                                                     { SToken }
 %destructor priv_id                                                               { }
 priv_id(A) ::= NK_ID(B).                                                          { A = B; }
+priv_id(A) ::= SYSTEM(B).                                                         { A = B; }
 priv_id(A) ::= VARIABLES(B).                                                      { A = B; }
 
 %type priv_level_opt                                                              { SPrivLevelArgs }

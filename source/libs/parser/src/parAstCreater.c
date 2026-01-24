@@ -597,7 +597,7 @@ SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, STok
   CHECK_PARSER_STATUS(pCxt);
   SPrivSetArgs args = {0};
   if (!t1) goto _err;
-  if (type == 0) {
+  if (type == 0) { // alter
     if (t1->n == 5) {
       if (taosStrncasecmp(t1->z, TSDB_WORD_DEBUG, 5) == 0) {
         if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLE, 8) == 0) {
@@ -620,7 +620,7 @@ SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, STok
           return PRIV_SET_TYPE(PRIV_VAR_SECURITY_ALTER);
       }
     }
-  } else if (type == 1) {
+  } else if (type == 1) { // read
     if (t1->n == 18) {
       if (taosStrncasecmp(t1->z, TSDB_INFORMATION_SCHEMA_DB, 18) == 0) {
         if (!t2) goto _err;
@@ -646,7 +646,7 @@ SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, STok
         }
       }
     }
-  } else if (type == 2) {
+  } else if (type == 2) { // show
     if (t1->n == 5) {
       if (taosStrncasecmp(t1->z, TSDB_WORD_DEBUG, 5) == 0) {
         if (t2 && t2->n == 9 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLES, 9) == 0) {
@@ -669,7 +669,7 @@ SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, STok
           return PRIV_SET_TYPE(PRIV_VAR_SECURITY_SHOW);
       }
     }
-  } else if (type == 3) {
+  } else if (type == 3) { // set user
     if (t1->n == 5) {
       if (taosStrncasecmp(t1->z, TSDB_WORD_BASIC, 5) == 0) {
         if (t2 && t2->n == 11 && taosStrncasecmp(t2->z, TSDB_WORD_INFORMATION, 11) == 0) {
