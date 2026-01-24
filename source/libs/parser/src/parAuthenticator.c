@@ -781,9 +781,6 @@ static int32_t authCreateDatabase(SAuthCxt* pCxt, SCreateDatabaseStmt* pStmt) {
 }
 
 static int32_t authAlterDatabase(SAuthCxt* pCxt, SAlterDatabaseStmt* pStmt) {
-  if (IS_SYS_DBNAME(pStmt->dbName)) {
-    return TSDB_CODE_PAR_PERMISSION_DENIED;
-  }
   return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_ALTER, PRIV_OBJ_DB);
 }
 
@@ -795,9 +792,6 @@ static int32_t authAlterLocal(SAuthCxt* pCxt, SAlterLocalStmt* pStmt) {
 }
 
 static int32_t authDropDatabase(SAuthCxt* pCxt, SDropDatabaseStmt* pStmt) {
-  if (IS_SYS_DBNAME(pStmt->dbName)) {
-    return TSDB_CODE_PAR_PERMISSION_DENIED;
-  }
   return authObjPrivileges(pCxt, ((SDropDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_DROP, PRIV_OBJ_DB);
 }
 
