@@ -503,6 +503,12 @@ _err:
 
 SPrivSetArgs privArgsAdd(SAstCreateContext* pCxt, SPrivSetArgs arg1, SPrivSetArgs arg2) {
   CHECK_PARSER_STATUS(pCxt);
+  if (arg1.nPrivArgs == 0 || arg2.nPrivArgs == 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Invalid privilege types: unknown privilege");
+    CHECK_PARSER_STATUS(pCxt);
+  }
+
   SPrivSetArgs merged = arg1;
   merged.nPrivArgs += arg2.nPrivArgs;
   if (merged.nPrivArgs > TSDB_PRIV_MAX_INPUT_ARGS) {
@@ -7257,6 +7263,10 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* 
       CHECK_NAME(checkObjName(pCxt, &pPrivLevel->first, false));
       CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
       pStmt->privileges = *(SPrivSetArgs*)resouces;
+      if(pStmt->privileges.nPrivArgs <= 0) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "unknown privilege");
+        goto _err;
+      }
       if (TK_NK_NIL != pPrivLevel->first.type) {
         COPY_STRING_FORM_ID_TOKEN(pStmt->objName, &pPrivLevel->first);
       }

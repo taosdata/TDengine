@@ -235,7 +235,7 @@ static SPrivInfo privInfoTable[] = {
      "SHOW SUBSCRIPTIONS"},
     // Stream Privileges
     {PRIV_STREAM_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_DB, 0, T_ROLE_SYSDBA, 2, "", "CREATE STREAM"},
-    {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, 2, "", "DROP STREAM"},x
+    {PRIV_CM_DROP, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, 2, "", "DROP STREAM"},
     {PRIV_CM_SHOW, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, SYS_ADMIN_INFO_ROLES, 1, "", "SHOW STREAMS"},
     {PRIV_CM_SHOW_CREATE, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, SYS_ADMIN_INFO_ROLES, 1, "", "SHOW CREATE STREAM"},
     {PRIV_CM_START, PRIV_CATEGORY_OBJECT, PRIV_OBJ_STREAM, 1, T_ROLE_SYSDBA, 3, "", "START STREAM"},
@@ -625,25 +625,6 @@ _exit:
 
 bool privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
                          const SPrivInfo* privInfo, bool recursive) {
-#if 0  // debug info, remove when release
-  uInfo("--------------------------------");
-  uInfo("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s", __func__, __LINE__,
-         objName ? objName : "", tbName ? tbName : "", privInfo->privType, privInfo->objType, privInfo->objLevel,
-         privInfoGetName(privInfo->privType));
-  SPrivObjPolicies* pp = NULL;
-  while ((pp = taosHashIterate(privs, pp))) {
-    char* pKey = taosHashGetKey(pp, NULL);
-    uInfo("%s:%d key is %s", __func__, __LINE__, pKey);
-
-    SPrivIter privIter = {0};
-    privIterInit(&privIter, &pp->policy);
-    SPrivInfo* pPrivInfoIter = NULL;
-    while (privIterNext(&privIter, &pPrivInfoIter)) {
-      uInfo("    has privType:%d, privObj:%d, privLevel:%d, privName:%s", pPrivInfoIter->privType,
-             pPrivInfoIter->objType, pPrivInfoIter->objLevel, privInfoGetName(pPrivInfoIter->privType));
-    }
-  }
-#endif
   if (tbName != NULL) {
     if (privInfo->objLevel == 0 || privInfo->objType <= PRIV_OBJ_DB) {
       uError("invalid privilege info for table level check, privType:%d, objType:%d, objLevel:%d\n", privInfo->privType,
@@ -663,11 +644,6 @@ _retry:
 
   SPrivObjPolicies* policies = taosHashGet(privs, key, klen + 1);
   if (policies && PRIV_HAS(&policies->policy, privInfo->privType)) {
-#if 0  // debug info, remove when release
-    uInfo("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s, key:%s TRUE", __func__, __LINE__,
-           objName ? objName : "", tbName ? tbName : "", privInfo->privType, privInfo->objType, privInfo->objLevel,
-           privInfoGetName(privInfo->privType), key);
-#endif
     return true;
   }
 
@@ -682,24 +658,11 @@ _retry:
     goto _retry;
   }
 _exit:
-#if 0  // debug info, remove when release
-  uInfo("%s:%d check db:%s tb:%s, privType:%d, privObj:%d, privLevel:%d, privName:%s, key:%s, FALSE", __func__, __LINE__,
-         objName ? objName : "", tbName ? tbName : "", privInfo->privType, privInfo->objType, privInfo->objLevel,
-         privInfoGetName(privInfo->privType), key);
-#endif
   return false;
 }
 
 SPrivTblPolicy* privGetConstraintTblPrivileges(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
                                                SPrivInfo* privInfo) {
-#if 0  // debug info, remove when release
-  SPrivObjPolicies* pp = NULL;
-  while ((pp = taosHashIterate(privs, pp))) {
-    char* pKey = taosHashGetKey(pp, NULL);
-    printf("%s:%d key is %s\n", __func__, __LINE__, pKey);
-  }
-#endif
-
   if (taosHashGetSize(privs) == 0) return NULL;
 
   const char* pObjName = objName;

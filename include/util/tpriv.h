@@ -244,6 +244,9 @@ typedef struct {
                   .insertCols = NULL,                                         \
                   .updateCols = NULL})
 
+#define PRIV_SET_INVALID() \
+  ((SPrivSetArgs){.nPrivArgs = 0, .privSet = (SPrivSet){0}, .selectCols = NULL, .insertCols = NULL, .updateCols = NULL})
+
 #define PRIV_SET_COLS(type, select, insert, update)                                                \
   ((SPrivSetArgs){.nPrivArgs = 1,                                                                  \
                   .privSet = ((select) == NULL && (insert) == NULL && (update) == NULL             \

@@ -575,7 +575,16 @@ priv_type(A) ::= KILL CONNECTION.                                               
 priv_type(A) ::= SHOW QUERIES.                                                    { A = PRIV_SET_TYPE(PRIV_QUERY_SHOW); }
 priv_type(A) ::= KILL QUERY.                                                      { A = PRIV_SET_TYPE(PRIV_QUERY_KILL); }
 
-priv_type(A) ::= READ INFORMATION SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC); }
+priv_type(A) ::= READ NK_ID(I1) NK_ID(I2).                                                      {
+  SToken* t1 = (SToken*)&I1;
+  SToken* t2 = (SToken*)&I2;
+  if(strcasecmp(t1->z, "information_schema") == 0 && strcasecmp(t1->z, "basic")) {
+    A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC);
+  } else {
+    A = PRIV_SET_INVALID();
+  }
+}
+
 priv_type(A) ::= READ INFORMATION SCHEMA SECURITY.                                { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_SEC); }
 priv_type(A) ::= READ INFORMATION SCHEMA AUDIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_AUDIT); }
 priv_type(A) ::= READ INFORMATION SCHEMA PRIVILEGED.                              { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_PRIVILEGED); }
