@@ -538,18 +538,20 @@ typedef SLastRowScanPhysiNode STableCountScanPhysiNode;
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
   SEpSet         mgmtEpSet;
-  bool           showRewrite;
   int32_t        accountId;
+  bool           showRewrite;
   bool           sysInfo;
   union {
-    uint8_t privInfo;
+    uint16_t privInfo;
     struct {
-      uint8_t privLevel : 3;       // user privilege level
-      uint8_t privBasic : 1;       // has basic privilege
-      uint8_t privPrivileged : 1;  // has privileged privilege
-      uint8_t privAudit : 1;       // has audit privilege
-      uint8_t privSec : 1;         // has sec privilege
-      uint8_t infoSchema : 1;      // information_schema or not
+      uint16_t privLevel : 3;  // user privilege level
+      uint16_t privInfoBasic : 1;
+      uint16_t privInfoPrivileged : 1;
+      uint16_t privInfoAudit : 1;
+      uint16_t privInfoSec : 1;
+      uint16_t privPerfBasic : 1;
+      uint16_t privPerfPrivileged : 1;
+      uint16_t reserved1 : 7;
     };
   };
 } SSystemTableScanPhysiNode;

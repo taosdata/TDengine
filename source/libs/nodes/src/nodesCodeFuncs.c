@@ -2703,7 +2703,7 @@ static int32_t jsonToPhysiSysTableScanNode(const SJson* pJson, void* pObj) {
     code = tjsonGetBoolValue(pJson, jkSysTableScanPhysiPlanSysInfo, &pNode->sysInfo);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetUTinyIntValue(pJson, jkSysTableScanPhysiPlanPrivInfo, &pNode->privInfo);
+    code = tjsonGetUSmallIntValue(pJson, jkSysTableScanPhysiPlanPrivInfo, &pNode->privInfo);
   }
 
   return code;
