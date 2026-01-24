@@ -64,18 +64,15 @@ typedef struct SSysTableScanInfo {
   bool                   showRewrite;
   bool                   restore;
   bool                   skipFilterTable;
-  union { 
-    uint16_t flags;
+  union {
+    uint8_t privInfo;
     struct {
-      uint16_t privLevel : 3;       // user privilege level
-      uint16_t privBasic : 1;       // has basic privilege
-      uint16_t privPrivileged : 1;  // has privileged privilege
-      uint16_t privAudit : 1;       // has audit privilege
-      uint16_t privSec : 1;         // has sec privilege
-      uint16_t infoSchema : 1;      // information schema or not
-      uint16_t hasPrivCols : 1;     // user has priv columns
-      uint16_t hasMaskCols : 1;     // user has mask columns
-      uint16_t reserved1 : 6;       // reserved bits for future use
+      uint8_t privLevel : 3;       // user privilege level
+      uint8_t privBasic : 1;       // has basic privilege
+      uint8_t privPrivileged : 1;  // has privileged privilege
+      uint8_t privAudit : 1;       // has audit privilege
+      uint8_t privSec : 1;         // has sec privilege
+      uint8_t infoSchema : 1;      // information_schema or not
     };
   };
   SNode*                 pCondition;  // db_name filter condition, to discard data that are not in current database
@@ -3544,7 +3541,7 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   pInfo->accountId = pScanPhyNode->accountId;
   pInfo->pUser = taosStrdup((void*)pUser);
   QUERY_CHECK_NULL(pInfo->pUser, code, lino, _error, terrno);
-  pInfo->flags = pScanPhyNode->flags;
+  pInfo->privInfo = pScanPhyNode->privInfo;
   pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);

@@ -2766,7 +2766,7 @@ static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncode
     code = tlvEncodeBool(pEncoder, PHY_SYSTABLE_SCAN_CODE_SYS_INFO, pNode->sysInfo);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeU16(pEncoder, PHY_SYSTABLE_SCAN_CODE_PRIV_INFO, pNode->flags);
+    code = tlvEncodeU8(pEncoder, PHY_SYSTABLE_SCAN_CODE_PRIV_INFO, pNode->privInfo);
   }
 
   return code;
@@ -2795,7 +2795,7 @@ static int32_t msgToPhysiSysTableScanNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeBool(pTlv, &pNode->sysInfo);
         break;
       case PHY_SYSTABLE_SCAN_CODE_PRIV_INFO:
-        code = tlvDecodeU16(pTlv, &pNode->flags);
+        code = tlvDecodeU8(pTlv, &pNode->privInfo);
       default:
         break;
     }

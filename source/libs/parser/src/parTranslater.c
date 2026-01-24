@@ -6280,6 +6280,27 @@ static bool isVirtualTable(STableMeta* meta) {
 
 static bool isVirtualSTable(STableMeta* meta) { return meta->virtualStb; }
 
+static int32_t transSetSysDbPrivs(STranslateContext* pCxt, const char* dbName) {
+  SParseContext*   pParCxt = pCxt->pParseCxt;
+  SGetUserAuthRsp  authRsp = {0};
+  SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                           .requestId = pParCxt->requestId,
+                           .requestObjRefId = pParCxt->requestRid,
+                           .mgmtEps = pParCxt->mgmtEpSet};
+  TAOS_CHECK_RETURN(catalogGetUserAuth(pParCxt->pCatalog, &conn, pParCxt->pUser, &authRsp));
+  if (dbName[0] == 'i') {
+    pParCxt->infoSchema = 1;
+    PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_BASIC, pParCxt->privBasic);
+    PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_PRIVILEGED, pParCxt->privPrivileged);
+    PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_SEC, pParCxt->privSec);
+    PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_AUDIT, pParCxt->privAudit);
+  } else {
+    PRIV_SET(&authRsp.sysPrivs, PRIV_PERF_SCHEMA_READ_BASIC, pParCxt->privBasic);
+    PRIV_SET(&authRsp.sysPrivs, PRIV_PERF_SCHEMA_READ_PRIVILEGED, pParCxt->privPrivileged);
+  }
+  TAOS_RETURN(0);
+}
+
 static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
   SSelectStmt*    pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
   SRealTableNode* pRealTable = (SRealTableNode*)*pTable;
@@ -6329,6 +6350,7 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
       if (isSelectStmt(pCxt->pCurrStmt)) {
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineResMode = TIME_LINE_NONE;
         ((SSelectStmt*)pCxt->pCurrStmt)->timeLineCurMode = TIME_LINE_NONE;
+        PAR_ERR_JRET(transSetSysDbPrivs(pCxt, pRealTable->table.dbName));
       } else if (isDeleteStmt(pCxt->pCurrStmt)) {
         PAR_ERR_JRET(TSDB_CODE_TSC_INVALID_OPERATION);
       }
@@ -20856,39 +20878,6 @@ static int32_t rewriteShowStreams(STranslateContext* pCxt, SQuery* pQuery) {
 
 static int32_t rewriteShowVtables(STranslateContext* pCxt, SQuery* pQuery) { return rewriteShow(pCxt, pQuery); }
 
-static int32_t rewriteShowTables(STranslateContext* pCxt, SQuery* pQuery) {
-  int32_t        code = 0;
-  SShowStmt*     pShow = (SShowStmt*)pQuery->pRoot;
-  SParseContext* pParCxt = pCxt->pParseCxt;
-  const char*    dbName = ((SValueNode*)pShow->pDbName)->literal;
-
-  if (IS_SYS_DBNAME(dbName)) {
-    SGetUserAuthRsp  authRsp = {0};
-    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                            .requestId = pParCxt->requestId,
-                             .requestObjRefId = pParCxt->requestRid,
-                             .mgmtEps = pParCxt->mgmtEpSet};
-    code = catalogGetUserAuth(pParCxt->pCatalog, &conn, pParCxt->pUser, &authRsp);
-    if (TSDB_CODE_SUCCESS == code) {
-      if (dbName[0] == 'i') {
-        pParCxt->infoSchema= 1;
-        PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_BASIC, pParCxt->privBasic);
-        PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_PRIVILEGED, pParCxt->privPrivileged);
-        PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_SEC, pParCxt->privSec);
-        PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_AUDIT, pParCxt->privAudit);
-      } else {
-        PRIV_SET(&authRsp.sysPrivs, PRIV_PERF_SCHEMA_READ_BASIC, pParCxt->privBasic);
-        PRIV_SET(&authRsp.sysPrivs, PRIV_PERF_SCHEMA_READ_PRIVILEGED, pParCxt->privPrivileged);
-      }
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteShow(pCxt, pQuery);
-  }
-  return code;
-}
-
 static int32_t checkShowVgroups(STranslateContext* pCxt, SShowStmt* pShow) {
   // just to verify whether the database exists
   SDbCfgInfo dbCfg = {0};
@@ -24376,6 +24365,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_STABLES_STMT:
+    case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_USERS_FULL_STMT:
     case QUERY_NODE_SHOW_DNODES_STMT:
@@ -24414,9 +24404,6 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
     case QUERY_NODE_SHOW_ROLES_STMT:
       code = rewriteShow(pCxt, pQuery);
-      break;
-    case QUERY_NODE_SHOW_TABLES_STMT:
-      code = rewriteShowTables(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_STREAMS_STMT:
       code = rewriteShowStreams(pCxt, pQuery);

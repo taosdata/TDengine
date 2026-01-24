@@ -1461,7 +1461,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .showRewrite = pQuery->showRewrite,
                         .isView = pWrapper->pParseCtx->isView,
                         .isAudit = pWrapper->pParseCtx->isAudit,
-                        .flags = pWrapper->pParseCtx->flags,
+                        .privInfo = pWrapper->pParseCtx->privInfo,
                         .pMsg = pRequest->msgBuf,
                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                         .pUser = pRequest->pTscObj->user,

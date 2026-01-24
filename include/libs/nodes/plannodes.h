@@ -542,17 +542,14 @@ typedef struct SSystemTableScanPhysiNode {
   int32_t        accountId;
   bool           sysInfo;
   union {
-    uint16_t flags;
+    uint8_t privInfo;
     struct {
-      uint16_t privLevel : 3;       // user privilege level
-      uint16_t privBasic : 1;       // has basic privilege
-      uint16_t privPrivileged : 1;  // has privileged privilege
-      uint16_t privAudit : 1;       // has audit privilege
-      uint16_t privSec : 1;         // has sec privilege
-      uint16_t infoSchema : 1;      // information schema or not
-      uint16_t hasPrivCols : 1;     // user has priv columns
-      uint16_t hasMaskCols : 1;     // user has mask columns
-      uint16_t reserved1 : 6;       // reserved bits for future use
+      uint8_t privLevel : 3;       // user privilege level
+      uint8_t privBasic : 1;       // has basic privilege
+      uint8_t privPrivileged : 1;  // has privileged privilege
+      uint8_t privAudit : 1;       // has audit privilege
+      uint8_t privSec : 1;         // has sec privilege
+      uint8_t infoSchema : 1;      // information_schema or not
     };
   };
 } SSystemTableScanPhysiNode;

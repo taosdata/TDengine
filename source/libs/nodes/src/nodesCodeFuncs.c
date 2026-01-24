@@ -2661,7 +2661,7 @@ static const char* jkSysTableScanPhysiPlanMnodeEpSet = "MnodeEpSet";
 static const char* jkSysTableScanPhysiPlanShowRewrite = "ShowRewrite";
 static const char* jkSysTableScanPhysiPlanAccountId = "AccountId";
 static const char* jkSysTableScanPhysiPlanSysInfo = "SysInfo";
-static const char* jkSysTableScanPhysiPlanFlags = "Flags";
+static const char* jkSysTableScanPhysiPlanPrivInfo = "PrivInfo";
 
 static int32_t physiSysTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const SSystemTableScanPhysiNode* pNode = (const SSystemTableScanPhysiNode*)pObj;
@@ -2680,7 +2680,7 @@ static int32_t physiSysTableScanNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddBoolToObject(pJson, jkSysTableScanPhysiPlanSysInfo, pNode->sysInfo);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkSysTableScanPhysiPlanFlags, pNode->flags);
+    code = tjsonAddIntegerToObject(pJson, jkSysTableScanPhysiPlanPrivInfo, pNode->privInfo);
   }
 
   return code;
@@ -2703,7 +2703,7 @@ static int32_t jsonToPhysiSysTableScanNode(const SJson* pJson, void* pObj) {
     code = tjsonGetBoolValue(pJson, jkSysTableScanPhysiPlanSysInfo, &pNode->sysInfo);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetUSmallIntValue(pJson, jkSysTableScanPhysiPlanFlags, &pNode->flags);
+    code = tjsonGetUTinyIntValue(pJson, jkSysTableScanPhysiPlanPrivInfo, &pNode->privInfo);
   }
 
   return code;

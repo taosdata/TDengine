@@ -127,31 +127,36 @@ typedef struct SParseContext {
   bool             isAudit;
   bool             nodeOffline;
   union {
-    uint16_t flags;
+    uint8_t flags;
     struct {
-      uint16_t privLevel : 3;       // user privilege level
-      uint16_t privBasic : 1;       // has basic privilege
-      uint16_t privPrivileged : 1;  // has privileged privilege
-      uint16_t privAudit : 1;       // has audit privilege
-      uint16_t privSec : 1;         // has sec privilege
-      uint16_t infoSchema : 1;      // information schema or not
-      uint16_t hasPrivCols : 1;     // user has priv columns
-      uint16_t hasMaskCols : 1;     // user has mask columns
-      uint16_t reserved1 : 6;       // reserved bits for future use
+      uint8_t hasPrivCols : 1;  // user has priv columns
+      uint8_t hasMaskCols : 1;  // user has mask columns
+      uint8_t reserved : 6;     // reserved bits for future use
     };
   };
-  uint8_t          stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
-  const char*      svrVer;
-  SArray*          pTableMetaPos;    // sql table pos => catalog data pos
-  SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
-  int64_t          allocatorId;
-  parseSqlFn       parseSqlFp;
-  void*            parseSqlParam;
-  int8_t           biMode;
-  SArray*          pSubMetaList;
-  setQueryFn       setQueryFp;
-  timezone_t       timezone;
-  void*            charsetCxt;
+  union {
+    uint8_t privInfo;
+    struct {
+      uint8_t privLevel : 3;       // user privilege level
+      uint8_t privBasic : 1;       // has basic privilege
+      uint8_t privPrivileged : 1;  // has privileged privilege
+      uint8_t privAudit : 1;       // has audit privilege
+      uint8_t privSec : 1;         // has sec privilege
+      uint8_t infoSchema : 1;      // information_schema or not
+    };
+  };
+  uint8_t     stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
+  const char* svrVer;
+  SArray*     pTableMetaPos;    // sql table pos => catalog data pos
+  SArray*     pTableVgroupPos;  // sql table pos => catalog data pos
+  int64_t     allocatorId;
+  parseSqlFn  parseSqlFp;
+  void*       parseSqlParam;
+  int8_t      biMode;
+  SArray*     pSubMetaList;
+  setQueryFn  setQueryFp;
+  timezone_t  timezone;
+  void*       charsetCxt;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
