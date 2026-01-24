@@ -207,27 +207,191 @@ auditLevel = 4 // AUDIT_LEVEL_CHILDTABLE
 
 在 taosd 和 taosKeeper 都正确配置并启动之后，随着系统的不断运行，系统中的各种操作（如上表所示）会被实时记录并上报，用户可以登录 taosExplorer，点击**系统管理**→**审计**页面，即可查看审计日志; 也可以在 TDengine TSDB CLI 中直接查询相应的库和表。
 
-## 数据加密
+## 存储安全
 
 TDengine TSDB 支持透明数据加密（Transparent Data Encryption，TDE），通过对静态数据文件进行加密，阻止可能的攻击者绕过数据库直接从文件系统读取敏感信息。数据库的访问程序是完全无感知的，应用程序不需要做任何修改和编译，就能够直接应用到加密后的数据库，支持国标 SM4 等加密算法。在透明加密中，数据库密钥管理、数据库加密范围是两个最重要的话题。TDengine TSDB 采用机器码对数据库密钥进行加密处理，保存在本地而不是第三方管理器中。当数据文件被拷贝到其他机器后，由于机器码发生变化，无法获得数据库密钥，自然无法访问数据文件。TDengine TSDB 对所有数据文件进行加密，包括预写日志文件、元数据文件和时序数据文件。加密后，数据压缩率不变，写入性能和查询性能仅有轻微下降。
 
-### 配置密钥
+### 生成密钥
 
-密钥配置分离线设置和在线设置两种方式。
-
-方式一，离线设置。通过离线设置可为每个节点分别配置密钥，命令如下。
+使用 `taosk` 工具生成密钥，基本语法如下：
 
 ```shell
-taosd -y {encryptKey}
+taosk -c /etc/taos \
+  --set-cfg-algorithm sm4 \
+  --set-meta-algorithm sm4 \
+  --encrypt-server [svr_key] \
+  --encrypt-database [db_key] \
+  --encrypt-config \
+  --encrypt-metadata \
+  --encrypt-data [data_key]
 ```
 
-方式二，在线设置。当集群所有节点都在线时，可以使用 SQL 配置密钥，SQL 如下。
+主要参数说明：
+
+- `-c`：指定配置文件路径，默认 `/etc/taos`
+- `--set-cfg-algorithm`：设置配置文件加密算法（sm4 或 aes），默认 sm4
+- `--set-meta-algorithm`：设置元数据加密算法（sm4 或 aes），默认 sm4
+- `--encrypt-server`：启用服务器加密，可选择性指定 SVR_KEY，不指定则自动生成
+- `--encrypt-database`：启用数据库加密，可选择性指定 DB_KEY，不指定则自动生成
+- `--encrypt-config`：启用配置文件加密，自动生成 CFG_KEY
+- `--encrypt-metadata`：启用元数据加密，自动生成 META_KEY
+- `--encrypt-data`：启用数据文件加密，可选择性指定 DATA_KEY，不指定则自动生成
+
+示例：
+
+```shell
+# 生成所有密钥，使用默认 SM4 算法
+taosk -c /etc/taos \
+  --encrypt-server \
+  --encrypt-database \
+  --encrypt-config \
+  --encrypt-metadata \
+  --encrypt-data
+
+# 指定密钥并使用不同算法
+taosk -c /etc/taos \
+  --set-cfg-algorithm aes \
+  --set-meta-algorithm sm4 \
+  --encrypt-server mysvr123 \
+  --encrypt-database mydb4567 \
+  --encrypt-config \
+  --encrypt-metadata \
+  --encrypt-data oldkey123
+```
+
+密钥生成后会保存在以下位置：
+
+- `{dataDir}/dnode/config/master.bin`：存储 SVR_KEY 和 DB_KEY
+- `{dataDir}/dnode/config/derived.bin`：存储 CFG_KEY、META_KEY 和 DATA_KEY
+
+### 查看加密状态
+
+#### 查看系统加密状态
+
+通过系统表查看整体加密状态：
 
 ```sql
-create encrypt_key {encryptKey};
+SELECT * FROM information_schema.ins_encrypt_status;
+         encrypt_scope          |           algorithm            |       status       |
+=======================================================================================
+ config                         | AES-128-CBC                    | enabled            |
+ metadata                       | AES-128-CBC                    | enabled            |
+ data                           | SM4-CBC:SM4                    | enabled            |
 ```
 
-在线设置方式要求所有已经加入集群的节点都没有使用过离线设置方式生成密钥，否则在线设置方式会失败，在线设置密钥成功的同时也自动加载和使用了密钥。
+字段说明：
+
+- `encrypt_scope`：加密范围（config、metadata、data）
+- `algorithm`：使用的加密算法
+- `status`：加密状态（enabled 或 disabled）
+
+### 更新密钥
+
+可以通过 taosk 工具或 SQL 命令更新 SVR_KEY 和 DB_KEY（其他密钥一旦生成不可更改）。
+
+#### 使用 taosk 更新
+
+```shell
+# 停止 taosd
+systemctl stop taosd
+
+# 更新密钥
+taosk -c /etc/taos --update-svrkey new_svr_key --update-dbkey new_db_key
+
+# 启动 taosd
+systemctl start taosd
+```
+
+#### 使用 SQL 更新
+
+在 taosd 运行时，可通过 SQL 更新密钥（需要管理员权限）：
+
+```sql
+-- 更新 SVR_KEY
+ALTER SYSTEM SET SVR_KEY 'new_svr_key';
+
+-- 更新 DB_KEY
+ALTER SYSTEM SET DB_KEY 'new_db_key';
+```
+
+### 密钥备份与恢复
+
+#### 备份密钥
+
+使用 taosk 创建便携式备份（不包含机器码绑定，可在其他机器恢复）：
+
+```shell
+taosk -c /etc/taos --backup --svr-key your_svr_key
+```
+
+备份文件会生成在 `{dataDir}/dnode/config/` 目录下，文件名格式为 `master.bin.backup.{timestamp}`。
+
+**注意**：备份时需要提供正确的 SVR_KEY 进行验证。
+
+#### 恢复密钥
+
+在新机器上从备份恢复密钥：
+
+```shell
+taosk -c /etc/taos \
+  --restore \
+  --machine-code /path/to/backup_file \
+  --svr-key your_svr_key
+```
+
+恢复操作会将密钥绑定到当前机器的机器码。
+
+### 密钥到期策略
+
+可以通过 SQL 设置密钥到期时间和策略（需要管理员权限）：
+
+```sql
+ALTER SYSTEM SET KEY_EXPIRATION 90 DAYS STRATEGY 'ALARM';
+```
+
+策略选项：
+
+- `ALARM`：密钥到期时会在日志中输出告警信息。
+
+### 配置文件行为变更
+
+启用存储安全后，TDengine TSDB 的配置管理方式发生以下变化：
+
+1. **配置仅首次启动有效**：系统初次启动后，后续修改 taos.cfg 文件不会生效
+2. **通过 SQL 修改配置**：所有配置修改必须通过 SQL 命令执行，需要管理员权限
+
+修改配置示例：
+
+```sql
+ALTER DNODE 1 'debugFlag' '143';
+```
+
+### 透明加密范围
+
+启用存储安全后，TDengine TSDB 会对以下文件进行透明加密：
+
+1. **配置文件加密**（需要 CFG_KEY）：
+   - dnode.info、dnode.json
+   - mnode.json、raft_config.json、raft_store.json
+   - vnodes.json、vnode.json 等
+
+2. **元数据文件加密**（需要 META_KEY）：
+   - mnode 的 SDB
+   - snode 的 checkpoint 文件
+
+3. **数据文件加密**（需要 DATA_KEY）：
+   - TSDB 数据文件
+   - WAL 预写日志文件
+   - STT 文件
+   - TDB、BSE 等索引文件
+
+所有配置文件加密后会在开头包含明文标识头（"tdEncrypt"），用于标记文件已加密，避免重复加密。
+
+### 版本兼容性
+
+- 从不支持存储安全的版本升级到新版本，可以正常运行
+- 历史版本的加密数据库可以通过指定 DATA_KEY 进行兼容
+- 启用存储安全后，不能回退到不支持存储安全的历史版本
 
 ### 查看加密算法
 
@@ -298,37 +462,6 @@ select name, `encrypt_algorithm` from ins_databases;
  power1                         | none              |
  power                          | sm4               |
 ```
-
-### 查看节点密钥状态
-
-通过以下的 SQL 命令参看节点密钥状态。
-
-```sql
-show encryptions;
-
-select * from information_schema.ins_encryptions;
-  dnode_id   |           key_status           |
-===============================================
-           1 | loaded                         |
-           2 | unset                          |
-           3 | unknown                        |
-```
-
-key_status 有三种取值：
-
-- 当节点未设置密钥时，状态列显示 unset。
-- 当密钥被检验成功并且加载后，状态列显示 loaded。
-- 当节点未启动，key 的状态无法被探知时，状态列显示 unknown。
-
-### 更新密钥配置
-
-当节点的硬件配置发生变更时，需要通过以下命令更新密钥，与离线配置密钥的命令相同。
-
-```shell
-taosd -y  {encryptKey}
-```
-
-更新密钥配置，需要先停止 taosd，并且使用完全相同的密钥，也即密钥在数据库创建后不能修改。
 
 ### 加密用户密码
 
