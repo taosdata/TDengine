@@ -106,7 +106,6 @@ typedef enum {
   // index management
   PRIV_IDX_CREATE = 84,  // CREATE INDEX
   PRIV_IDX_DROP,         //  DROP INDEX
-  PRIV_IDX_SHOW,         //  SHOW INDEXES
 
   // view management
   PRIV_VIEW_CREATE = 88,  // CREATE VIEW

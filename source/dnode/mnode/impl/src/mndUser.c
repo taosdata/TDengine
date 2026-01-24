@@ -2919,6 +2919,10 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   userObj.createdb = pCreate->createDb;
   userObj.uid = mndGenerateUid(userObj.user, strlen(userObj.user));
 
+  if (userObj.createdb == 1) {
+    privAddType(&userObj.sysPrivs, PRIV_DB_CREATE);
+  }
+
 #ifdef TD_ENTERPRISE
 
   userObj.changePass = pCreate->changepass;
@@ -3049,6 +3053,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
 
   userObj.ipWhiteListVer = taosGetTimestampMs();
   userObj.timeWhiteListVer = userObj.ipWhiteListVer;
+  
 
 #else  // TD_ENTERPRISE
 
@@ -4042,6 +4047,11 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   if (pAlterReq->hasCreatedb) {
     auditLen += tsnprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "createdb:%d,", pAlterReq->createdb);
     newUser.createdb = pAlterReq->createdb;
+    if (newUser.createdb == 1) {
+      privAddType(&newUser.sysPrivs, PRIV_DB_CREATE);
+    } else {
+      privRemoveType(&newUser.sysPrivs, PRIV_DB_CREATE);
+    }
   }
 
 #ifdef TD_ENTERPRISE
