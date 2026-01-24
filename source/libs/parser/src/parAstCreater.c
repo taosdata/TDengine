@@ -505,7 +505,7 @@ SPrivSetArgs privArgsAdd(SAstCreateContext* pCxt, SPrivSetArgs arg1, SPrivSetArg
   CHECK_PARSER_STATUS(pCxt);
   if (arg1.nPrivArgs == 0 || arg2.nPrivArgs == 0) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "Invalid privilege types: unknown privilege");
+                                            "Invalid privilege types: Unknown privilege type");
     CHECK_PARSER_STATUS(pCxt);
   }
 
@@ -580,6 +580,94 @@ SPrivSetArgs privArgsSetCols(SAstCreateContext* pCxt, SNodeList* selectCols, SNo
                              SNodeList* updateCols) {
   CHECK_PARSER_STATUS(pCxt);
   SPrivSetArgs args = {.nPrivArgs = 1, .selectCols = selectCols, .insertCols = insertCols, .updateCols = updateCols};
+_err:
+  return args;
+}
+
+SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, SToken* t0, SToken* t1, SToken* t2) {
+  CHECK_PARSER_STATUS(pCxt);
+  SPrivSetArgs args = {0};
+  if (!t0) goto _err;
+  if (t0->n == 4) {
+    if (taosStrncasecmp(t0->z, TSDB_WORD_READ, 4) == 0) {
+      if (!t1) goto _err;
+      if (t1->n == 18) {
+        if (taosStrncasecmp(t1->z, TSDB_INFORMATION_SCHEMA_DB, 18) == 0) {
+          if (!t2) goto _err;
+          if (t2->n == 5) {
+            if (taosStrncasecmp(t2->z, TSDB_WORD_BASIC, 5) == 0) {
+              return PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC);
+            } else if (taosStrncasecmp(t2->z, TSDB_WORD_AUDIT, 5) == 0) {
+              return PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_AUDIT);
+            }
+          } else if ((t2->n == 8) && taosStrncasecmp(t2->z, TSDB_WORD_SECURITY, 8) == 0) {
+            return PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_SEC);
+          } else if ((t2->n == 10) && taosStrncasecmp(t2->z, TSDB_WORD_PRIVILEGED, 10) == 0) {
+            return PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_PRIVILEGED);
+          }
+        } else if (taosStrncasecmp(t1->z, TSDB_PERFORMANCE_SCHEMA_DB, 18) == 0) {
+          if (!t2) goto _err;
+          if (t2->n == 5) {
+            if (taosStrncasecmp(t2->z, TSDB_WORD_BASIC, 5) == 0) {
+              return PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_BASIC);
+            }
+          } else if ((t2->n == 10) && taosStrncasecmp(t2->z, TSDB_WORD_PRIVILEGED, 10) == 0) {
+            return PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_PRIVILEGED);
+          }
+        }
+      }
+    } else if (taosStrncasecmp(t0->z, TSDB_WORD_SHOW, 4) == 0) {
+      if (!t1) goto _err;
+      if (t1->n == 5) {
+        if (taosStrncasecmp(t1->z, TSDB_WORD_DEBUG, 5) == 0) {
+          if (t2 && t2->n == 9 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLES, 9) == 0) {
+            return PRIV_SET_TYPE(PRIV_VAR_DEBUG_SHOW);
+          }
+        } else if (taosStrncasecmp(t1->z, TSDB_WORD_AUDIT, 5) == 0) {
+          if (t2 && t2->n == 9 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLES, 9) == 0) {
+            return PRIV_SET_TYPE(PRIV_VAR_AUDIT_SHOW);
+          }
+        }
+      } else if (t1->n == 6) {
+        if (taosStrncasecmp(t1->z, TSDB_WORD_SYSTEM, 6) == 0) {
+          if (t2 && t2->n == 9 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLES, 9) == 0) {
+            return PRIV_SET_TYPE(PRIV_VAR_SYSTEM_SHOW);
+          }
+        }
+      } else if (t1->n == 8) {
+        if (taosStrncasecmp(t1->z, TSDB_WORD_SECURITY, 8) == 0) {
+          if (t2 && t2->n == 9 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLES, 9) == 0)
+            return PRIV_SET_TYPE(PRIV_VAR_SECURITY_SHOW);
+        }
+      }
+    }
+  } else if (t0->n == 5) {
+    if (taosStrncasecmp(t0->z, TSDB_WORD_ALTER, 5) == 0) {
+      if (!t1) goto _err;
+      if (t1->n == 5) {
+        if (taosStrncasecmp(t1->z, TSDB_WORD_DEBUG, 5) == 0) {
+          if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLE, 8) == 0) {
+            return PRIV_SET_TYPE(PRIV_VAR_DEBUG_ALTER);
+          }
+        } else if (taosStrncasecmp(t1->z, TSDB_WORD_AUDIT, 5) == 0) {
+          if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLE, 8) == 0) {
+            return PRIV_SET_TYPE(PRIV_VAR_AUDIT_ALTER);
+          }
+        }
+      } else if (t1->n == 6) {
+        if (taosStrncasecmp(t1->z, TSDB_WORD_SYSTEM, 6) == 0) {
+          if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLE, 8) == 0) {
+            return PRIV_SET_TYPE(PRIV_VAR_SYSTEM_ALTER);
+          }
+        }
+      } else if (t1->n == 8) {
+        if (taosStrncasecmp(t1->z, TSDB_WORD_SECURITY, 8) == 0) {
+          if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLE, 8) == 0)
+            return PRIV_SET_TYPE(PRIV_VAR_SECURITY_ALTER);
+        }
+      }
+    }
+  }
 _err:
   return args;
 }
@@ -7264,7 +7352,7 @@ SNode* createGrantStmt(SAstCreateContext* pCxt, void* resouces, SPrivLevelArgs* 
       CHECK_NAME(checkTableName(pCxt, &pPrivLevel->second));
       pStmt->privileges = *(SPrivSetArgs*)resouces;
       if(pStmt->privileges.nPrivArgs <= 0) {
-        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "unknown privilege");
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Unknown privilege type");
         goto _err;
       }
       if (TK_NK_NIL != pPrivLevel->first.type) {

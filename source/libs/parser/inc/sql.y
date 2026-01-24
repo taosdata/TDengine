@@ -460,6 +460,7 @@ priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                  
                                                                                     }
 
                                                                                   }
+priv_type(A) ::= NK_ID(I0) NK_ID(I1) NK_ID(I2).                                   { A = privArgsSet(pCxt, I0, I1, I2)}
 priv_type(A) ::= ALL.                                                             { A = PRIV_SET_TYPE(PRIV_CM_ALL); }
 priv_type(A) ::= ALL PRIVILEGES.                                                  { A = PRIV_SET_TYPE(PRIV_CM_ALL); }
 priv_type(A) ::= ALTER.                                                           { A = PRIV_SET_TYPE(PRIV_CM_ALTER); }
@@ -574,22 +575,6 @@ priv_type(A) ::= SHOW CONNECTIONS.                                              
 priv_type(A) ::= KILL CONNECTION.                                                 { A = PRIV_SET_TYPE(PRIV_CONN_KILL); }
 priv_type(A) ::= SHOW QUERIES.                                                    { A = PRIV_SET_TYPE(PRIV_QUERY_SHOW); }
 priv_type(A) ::= KILL QUERY.                                                      { A = PRIV_SET_TYPE(PRIV_QUERY_KILL); }
-
-priv_type(A) ::= READ NK_ID(I1) NK_ID(I2).                                                      {
-  SToken* t1 = (SToken*)&I1;
-  SToken* t2 = (SToken*)&I2;
-  if(strcasecmp(t1->z, "information_schema") == 0 && strcasecmp(t1->z, "basic")) {
-    A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC);
-  } else {
-    A = PRIV_SET_INVALID();
-  }
-}
-
-priv_type(A) ::= READ INFORMATION SCHEMA SECURITY.                                { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_SEC); }
-priv_type(A) ::= READ INFORMATION SCHEMA AUDIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_AUDIT); }
-priv_type(A) ::= READ INFORMATION SCHEMA PRIVILEGED.                              { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_PRIVILEGED); }
-priv_type(A) ::= READ PERFORMANCE SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_BASIC); }
-priv_type(A) ::= READ PERFORMANCE SCHEMA PRIVILEGED.                              { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_PRIVILEGED); }
 priv_type(A) ::= SHOW GRANTS.                                                     { A = PRIV_SET_TYPE(PRIV_GRANTS_SHOW); }
 priv_type(A) ::= SHOW CLUSTER.                                                    { A = PRIV_SET_TYPE(PRIV_CLUSTER_SHOW); }
 priv_type(A) ::= SHOW APPS.                                                       { A = PRIV_SET_TYPE(PRIV_APPS_SHOW); }
