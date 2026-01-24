@@ -220,6 +220,7 @@ static int32_t adjustJoinDataRequirement(SJoinLogicNode* pJoin, EDataOrderLevel 
 
 static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel requirement) {
   // The sort level of agg with group by output data can only be DATA_ORDER_LEVEL_NONE
+  /* agg could meet the requirement when the primary key is const like function, so this check may be failed
   if (requirement > DATA_ORDER_LEVEL_NONE && (NULL != pAgg->pGroupKeys || !pAgg->onlyHasKeepOrderFunc)) {
     planError(
         "The output of aggregate cannot meet the requirements(%s) of the upper operator. "
@@ -227,6 +228,7 @@ static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel req
         dataOrderStr(requirement));
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
+  */
   pAgg->node.resultDataOrder = requirement;
   if (pAgg->hasTimeLineFunc) {
     pAgg->node.requireDataOrder = requirement < DATA_ORDER_LEVEL_IN_GROUP ? DATA_ORDER_LEVEL_IN_GROUP : requirement;
