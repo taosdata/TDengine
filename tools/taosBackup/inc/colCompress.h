@@ -13,6 +13,7 @@
 #define INC_COLCOMPRESS_H_
 
 #include "bck.h"
+#include "blockReader.h"
 
 //
 // ---------------- define ----------------

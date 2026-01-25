@@ -37,14 +37,20 @@ typedef struct BlockReader {
         void *data;
         oriBlockHeader *oriHeader;
     };
-    int32_t offset;
+
+    char* lenPtr;
+    char* dataPtr;
+
+    // reader state
+    int32_t offsetLen;
+    int32_t offsetData;
 } BlockReader;
 
 
 // ---------------- interface ----------------
 int32_t initBlockReader(BlockReader* reader, void* blockData);
 
-int32_t taosGetColumnData(BlockReader* reader, int colIndex,  void** colData, int32_t* colDataLen);
+int32_t getColumnData(BlockReader* reader, void** colData, int32_t* colDataLen);
 
 
 #endif  // INC_BLOCKREADER_H_

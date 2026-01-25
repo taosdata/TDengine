@@ -34,10 +34,17 @@ uint32_t calcCompressBlockSize(BlockReader* reader) {
     // data size
     size += reader->oriHeader->actualLen;
 
-    // add 20% margin
-    size += size * 0.2;
+    // add 150% size for safety
+    size = size * 1.5;
 
     return size;
+}
+
+int32_t compressColData(FieldInfo *fieldInfo,
+                        void* input, int32_t inputLen,
+                        void* output, int32_t outputLen) {
+    
+    return 0;
 }
 
 //
@@ -72,7 +79,7 @@ CompressBlock* compressBlock(void *block, int blockRows, FieldInfo* fieldInfos, 
     compressBlock->oriHeader = *(reader.oriHeader);
 
     //
-    // body
+    // body (lens + data)
     //
     int32_t *colsLen = (int32_t *)compressBlock->data;
     char* colsDataStart = compressBlock->data + sizeof(int32_t) * numFields;
@@ -83,7 +90,7 @@ CompressBlock* compressBlock(void *block, int blockRows, FieldInfo* fieldInfos, 
         // get column data
         void* colData = NULL;
         int32_t colDataLen = 0;
-        retCode = taosGetColumnData(&reader, i, &colData, &colDataLen);
+        retCode = getColumnData(&reader, &colData, &colDataLen);
         if (retCode != TSDB_CODE_SUCCESS) {
             logError("get column data failed: %d", retCode);
             freeCompressData(compressBlock);
@@ -92,11 +99,12 @@ CompressBlock* compressBlock(void *block, int blockRows, FieldInfo* fieldInfos, 
         }
 
         // compress column data
-        int32_t compressedLen = compressBuffer(fieldInfos[i].compress, fieldInfos[i].level,
-                                               colData, colDataLen,
-                                               curDataPos, compressBlockLen - (curDataPos - compressBlock->data));
+        int32_t remainLen = compressBlockLen - (curDataPos - (char *)compressBlock);
+        int32_t compressedLen = compressColData(&fieldInfos[i],        // algo
+                                               colData, colDataLen,    // input
+                                               curDataPos, remainLen); // output
         if (compressedLen < 0) {
-            logError("compress column data failed: %d", retCode);
+            logError("compress column data failed: %d", compressedLen);
             freeCompressData(compressBlock);
             *code = TSDB_CODE_BCK_COMPRESS_FAILED;
             return NULL;
@@ -108,6 +116,9 @@ CompressBlock* compressBlock(void *block, int blockRows, FieldInfo* fieldInfos, 
         // move current data pos
         curDataPos += compressedLen;
     }
+
+    // set data length (lens + data)
+    compressBlock->dataLen = curDataPos - compressBlock->data;
 
     *code = TSDB_CODE_SUCCESS;
     return compressBlock;
