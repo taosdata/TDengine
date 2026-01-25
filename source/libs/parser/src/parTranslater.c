@@ -6287,13 +6287,15 @@ static int32_t transSetSysDbPrivs(STranslateContext* pCxt, const char* qualDbNam
                            .requestId = pParCxt->requestId,
                            .requestObjRefId = pParCxt->requestRid,
                            .mgmtEps = pParCxt->mgmtEpSet};
-  TAOS_CHECK_RETURN(catalogGetUserAuth(pParCxt->pCatalog, &conn, pParCxt->pUser, &authRsp));
-  PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_BASIC, pParCxt->privInfoBasic);
-  PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_PRIVILEGED, pParCxt->privInfoPrivileged);
-  PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_SEC, pParCxt->privInfoSec);
-  PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_AUDIT, pParCxt->privInfoAudit);
-  PRIV_SET(&authRsp.sysPrivs, PRIV_PERF_SCHEMA_READ_BASIC, pParCxt->privPerfBasic);
-  PRIV_SET(&authRsp.sysPrivs, PRIV_PERF_SCHEMA_READ_PRIVILEGED, pParCxt->privPerfPrivileged);
+  if (pParCxt->pCatalog) {
+    TAOS_CHECK_RETURN(catalogGetUserAuth(pParCxt->pCatalog, &conn, pParCxt->pUser, &authRsp));
+    PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_BASIC, pParCxt->privInfoBasic);
+    PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_PRIVILEGED, pParCxt->privInfoPrivileged);
+    PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_SEC, pParCxt->privInfoSec);
+    PRIV_SET(&authRsp.sysPrivs, PRIV_INFO_SCHEMA_READ_AUDIT, pParCxt->privInfoAudit);
+    PRIV_SET(&authRsp.sysPrivs, PRIV_PERF_SCHEMA_READ_BASIC, pParCxt->privPerfBasic);
+    PRIV_SET(&authRsp.sysPrivs, PRIV_PERF_SCHEMA_READ_PRIVILEGED, pParCxt->privPerfPrivileged);
+  }
   TAOS_RETURN(0);
 }
 
@@ -13198,7 +13200,9 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
                            .requestId = pParCxt->requestId,
                            .requestObjRefId = pParCxt->requestRid,
                            .mgmtEps = pParCxt->mgmtEpSet};
-  TAOS_CHECK_EXIT(catalogGetUserAuth(pParCxt->pCatalog, &conn, pParCxt->pUser, &authRsp));
+  if (pParCxt->pCatalog) {
+    TAOS_CHECK_EXIT(catalogGetUserAuth(pParCxt->pCatalog, &conn, pParCxt->pUser, &authRsp));
+  }
 
   if (ops->hasEnable) {
     bool enable = false;

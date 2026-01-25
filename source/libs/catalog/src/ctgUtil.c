@@ -2328,6 +2328,7 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
 
   SName  stbSName;
   SName* pSName = &pReq->tbName;
+  bool   isOwner = false;
 
   while (true) {
     // check the tblPrivs first since the more specific fine-grained privileges has higher priority
@@ -2347,10 +2348,20 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
         goto _return;
       }
     }
+    if (isOwner) {
+      res->pRawRes->pass[AUTH_RES_BASIC] = true;
+      goto _return;
+    }
 
     CTG_ERR_JRET(catalogGetCachedTableMeta(pCtg, pSName, &pMeta));
     if (NULL == pMeta) {
       res->withInsertCond = (req->authInfo.withInsertCond == 1);
+      if (pReq->smlInsert) {
+        if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
+          res->pRawRes->pass[AUTH_RES_BASIC] = true;
+          goto _return;
+        }
+      }
       if (req->onlyCache) {
         res->metaNotExists = true;
         ctgDebug("db:%s, tb:%s meta not in cache for auth", pSName->dbname, pSName->tname);
@@ -2366,7 +2377,7 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
 
     if (req->authInfo.userId == 0) {
       // userId is 0, skip owner check
-      ctgWarn("%s:%d userId is 0 for %s, skip owner check for  %s.%s", __func__, __LINE__, pReq->user, dbFName, tbName);
+      ctgDebug("%s:%d userId is 0 for %s, skip owner check for  %s.%s", __func__, __LINE__, pReq->user, dbFName, tbName);
     }
 
     /**
@@ -2374,14 +2385,15 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
      *  2. compatible with old version where ownerId is 0
      */
     if (!pMeta->isAudit && (req->authInfo.userId == pMeta->ownerId)) {
-      res->pRawRes->pass[AUTH_RES_BASIC] = true;
-      goto _return;
+      isOwner = true;
+    } else {
+      isOwner = false;
     }
 
     if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType ||
         TSDB_VIRTUAL_NORMAL_TABLE == pMeta->tableType) {
       // check specific table for normal/super table privilege, and then check recursively to wildcard table
-      if (privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
+      if (isOwner || privHasObjPrivilege(pInfo->objPrivs, pSName->acctId, pSName->dbname, tbName, privInfo, true)) {
         res->pRawRes->pass[AUTH_RES_BASIC] = true;
       }
       goto _return;  // return directly for normal/super table
@@ -2432,6 +2444,7 @@ _return:
 
   CTG_RET(code);
 }
+#endif
 
 static int32_t ctgChkSetCommonAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t        code = 0;
@@ -2456,7 +2469,6 @@ static int32_t ctgChkSetCommonAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuth
 
   CTG_RET(code);
 }
-#endif
 
 int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
@@ -2572,6 +2584,12 @@ _next:
         }
         case PRIV_TBL_INSERT: {
           req->tbPrivs = pInfo->insertTbs;
+          // if (pReq->smlInsert) {
+          //   if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, "*", &privInfo, true)) {
+          //     res->pRawRes->pass[AUTH_RES_BASIC] = true;
+          //   }
+          //   return TSDB_CODE_SUCCESS;
+          // }
           CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
           if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
             return TSDB_CODE_SUCCESS;
