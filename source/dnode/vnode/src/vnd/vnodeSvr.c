@@ -2810,12 +2810,12 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
 
   vInfo("vgId:%d, start to alter vnode config, page:%d pageSize:%d buffer:%d szPage:%d szBuf:%" PRIu64
         " cacheLast:%d cacheLastSize:%d days:%d keep0:%d keep1:%d keep2:%d keepTimeOffset:%d ssKeepLocal:%d "
-        "ssCompact:%d fsync:%d level:%d "
+        "ssCompact:%d allowDrop:%d fsync:%d level:%d "
         "walRetentionPeriod:%d walRetentionSize:%d",
         TD_VID(pVnode), req.pages, req.pageSize, req.buffer, req.pageSize * 1024, (uint64_t)req.buffer * 1024 * 1024,
         req.cacheLast, req.cacheLastSize, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
-        req.keepTimeOffset, req.ssKeepLocal, req.ssCompact, req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod,
-        req.walRetentionSize);
+        req.keepTimeOffset, req.ssKeepLocal, req.ssCompact, req.allowDrop, req.walFsyncPeriod, req.walLevel,
+        req.walRetentionPeriod, req.walRetentionSize);
 
   if (pVnode->config.cacheLastSize != req.cacheLastSize) {
     pVnode->config.cacheLastSize = req.cacheLastSize;
@@ -2911,6 +2911,9 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
   if (req.ssCompact != -1 && req.ssCompact != pVnode->config.ssCompact) {
     pVnode->config.ssCompact = req.ssCompact;
+  }
+  if (req.allowDrop != pVnode->config.allowDrop) {
+    pVnode->config.allowDrop = req.allowDrop;
   }
 
   if (walChanged) {

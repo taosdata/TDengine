@@ -11176,6 +11176,7 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
 
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->ssKeepLocal));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->ssCompact));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->allowDrop));
 
   tEndEncode(&encoder);
 
@@ -11240,6 +11241,11 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->ssKeepLocal) < 0);
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->ssCompact) < 0);
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->allowDrop) < 0);
+  } else {
+    pReq->allowDrop = TSDB_DEFAULT_DB_ALLOW_DROP;
   }
 
   tEndDecode(&decoder);

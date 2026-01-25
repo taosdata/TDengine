@@ -3169,6 +3169,7 @@ typedef struct {
   int32_t walRetentionSize;
   int32_t ssKeepLocal;
   int8_t  ssCompact;
+  int8_t  allowDrop;
 } SAlterVnodeConfigReq;
 
 int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);

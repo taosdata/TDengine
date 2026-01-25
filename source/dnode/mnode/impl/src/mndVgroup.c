@@ -470,6 +470,7 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.walRetentionSize = pDb->cfg.walRetentionSize;
   alterReq.ssKeepLocal = pDb->cfg.ssKeepLocal;
   alterReq.ssCompact = pDb->cfg.ssCompact;
+  alterReq.allowDrop = (int8_t)pDb->cfg.allowDrop;
 
   mInfo("vgId:%d, build alter vnode config req", pVgroup->vgId);
   int32_t contLen = tSerializeSAlterVnodeConfigReq(NULL, 0, &alterReq);
