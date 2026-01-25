@@ -6,7 +6,7 @@
 set -e
 # set -x
 
-verMode=cluster
+verMode=edge
 pkgMode=full
 entMode=full
 
@@ -237,7 +237,8 @@ function setup_env() {
 
   # 2. User mode detection
   if [[ "$(id -u)" -ne 0 ]] && ! systemctl --user show-environment &>/dev/null; then
-    echo -e "${RED}Current user is not root and cannot access the user bus."
+    echo -e "${RED}Current user is not root and no systemd user session (user bus) is available.${NC}"
+    echo -e "A systemd user session is required so the installer can manage per-user systemd services."
     echo -e "Please use ssh to log in as this user and then run the installer, for example:"
     echo -e "${BOLD}ssh <username>@<host>${NC}"
     exit 1
