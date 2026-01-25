@@ -254,9 +254,8 @@ function setup_env() {
     default_dir="/usr/local/${PREFIX}"
     mode_desc="root (system-wide)"
   fi
-    
-  # 3. check existing taosd installation
 
+  # 3. check existing taosd installation
   taosd_bin=$(command -v taosd 2>/dev/null || true)
   if [ -n "${taosd_bin}" ]; then
       # mac will skip this check
