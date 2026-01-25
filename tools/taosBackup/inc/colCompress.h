@@ -26,25 +26,35 @@
 // ---------------- struct ----------------
 //
 
+typedef struct {
+    int8_t type;
+    int32_t bytes;
+    int8_t encode;
+    int8_t compress;
+    int8_t level;
+} FieldInfo;
+
 // body block 20 bytes
 typedef struct {
-    char magic[4];
-    uint32_t dataLen;
-    uint32_t numRows;
-    uint16_t numCols;
-    char  encode;
-    char  compress;
-    char reserved[4];
-    char data[];
+    // header
+    char version;
+    uint32_t flag;
+    oriBlockHeader oriHeader;
+
+    uint32_t dataLen; // columns data length
+    char data[]; // two parts: cols lens + cols data
 } CompressBlock;
 
 
 // ---------------- interface ----------------
 
 // create
-CompressBlock* compressBlock(void *block, int blockRows, TAOS_FIELD* fields, int numFields, int *code);
+CompressBlock* compressBlock(void *block, int blockRows, FieldInfo* fieldInfos, int numFields, int *code);
 
 // free
 void freeCompressData(CompressBlock* compressBlock);
 
-#endif  // INC_COLCOMPRESS_H_
+// fill fields info
+void fillFieldsInfo(FieldInfo* fieldInfos, TAOS_FIELD* fields, int numFields);
+
+#endif  // INC_COLCOMPRESS_H

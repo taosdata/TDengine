@@ -17,20 +17,34 @@
 //
 // ---------------- define ----------------
 //
-
+#define COMPRESS_BLOCK_VERSION 1
 
 //
 // ---------------- struct ----------------
 //
 
+typedef struct {
+    int32_t  version;
+    int32_t  actualLen;
+    int32_t  rows;
+    int32_t  numOfCols;
+    int32_t  flagSegment;
+    int32_t  groupId;
+} oriBlockHeader;
+
 typedef struct BlockReader {
-    void* data;
+    union {
+        void *data;
+        oriBlockHeader *oriHeader;
+    };
     int32_t offset;
 } BlockReader;
 
 
 // ---------------- interface ----------------
 int32_t initBlockReader(BlockReader* reader, void* blockData);
+
+int32_t taosGetColumnData(BlockReader* reader, int colIndex,  void** colData, int32_t* colDataLen);
 
 
 #endif  // INC_BLOCKREADER_H_

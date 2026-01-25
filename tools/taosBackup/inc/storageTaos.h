@@ -27,7 +27,11 @@ typedef struct {
     uint16_t version;
     uint32_t nBlocks;
     uint32_t numRows;
-    char reserved[50];
+    uint32_t numFields;
+    char reserved[32];
+    // schema
+    uint32_t schemaLen;
+    char schema[];
 } TaosFileHeader;
 
 typedef struct {
