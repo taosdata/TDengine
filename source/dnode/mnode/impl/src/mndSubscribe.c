@@ -16,9 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "mndSubscribe.h"
 #include "mndConsumer.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 #include "mndVgroup.h"
 #include "tcompare.h"
 #include "tname.h"
@@ -1802,14 +1804,16 @@ END:
   return code;
 }
 
-static int32_t retrieveSub(SRpcMsg *pReq, SMqSubscribeObj *pSub, SSDataBlock *pBlock, int32_t *numOfRows,
-                           int32_t rowsCapacity) {
+static int32_t retrieveSub(SRpcMsg *pReq, SMqSubscribeObj *pSub, SUserObj *pOperUser, bool showAll, SSDataBlock *pBlock,
+                           int32_t *numOfRows, int32_t rowsCapacity) {
   int32_t        code = 0;
   int32_t        lino = 0;
-  SMnode *       pMnode = pReq->info.node;
-  SSdb *         pSdb = pMnode->pSdb;
+  SMnode        *pMnode = pReq->info.node;
+  SSdb          *pSdb = pMnode->pSdb;
   SMqConsumerEp *pConsumerEp = NULL;
-  void *         pIter = NULL;
+  SMqTopicObj   *pTopic = NULL;
+  void          *pIter = NULL;
+  bool           showTopic = false;
   PRINT_LOG_START
 
   taosRLockLatch(&pSub->lock);
@@ -1824,18 +1828,36 @@ static int32_t retrieveSub(SRpcMsg *pReq, SMqSubscribeObj *pSub, SSDataBlock *pB
   varDataSetLen(topic, strlen(varDataVal(topic)));
   varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
 
+  (void)mndAcquireTopic(pMnode, topic, &pTopic);
+  if (pTopic) {
+    SName name = {0};  // 1.topic1
+    if (0 == tNameFromString(&name, pTopic->name, T_NAME_ACCT | T_NAME_DB)) {
+      if (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_SUBSCRIPTION_SHOW, PRIV_OBJ_TOPIC, pTopic->ownerId,
+                                        pTopic->db, name.dbname)) {
+        showTopic = true;
+      }
+    }
+  }
+
   while (1) {
     pIter = taosHashIterate(pSub->consumerHash, pIter);
     if (pIter == NULL) break;
     pConsumerEp = (SMqConsumerEp *)pIter;
 
-    char *          user = NULL;
-    char *          fqdn = NULL;
+    char           *user = NULL;
+    char           *fqdn = NULL;
+    bool            subscribeOwner = false;
     SMqConsumerObj *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &pConsumerEp->consumerId);
     if (pConsumer != NULL) {
       user = pConsumer->user;
       fqdn = pConsumer->fqdn;
+      if (pConsumer->ownerId == pOperUser->uid) {
+        subscribeOwner = true;
+      }
       sdbRelease(pSdb, pConsumer);
+    }
+    if (!showAll && !showTopic && !subscribeOwner) {
+      continue;
     }
     MND_TMQ_RETURN_CHECK(buildResult(pBlock, numOfRows, pConsumerEp->consumerId, user, fqdn, topic, cgroup,
                                      pConsumerEp->vgs, pConsumerEp->offsetRows));
@@ -1847,6 +1869,7 @@ static int32_t retrieveSub(SRpcMsg *pReq, SMqSubscribeObj *pSub, SSDataBlock *pB
   pBlock->info.rows = *numOfRows;
 
 END:
+  mndReleaseTopic(pMnode, pTopic);
   taosRUnLockLatch(&pSub->lock);
   taosHashCancelIterate(pSub->consumerHash, pIter);
   PRINT_LOG_END
@@ -1857,14 +1880,21 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
   if (pReq == NULL || pShow == NULL || pBlock == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  SMnode *         pMnode = pReq->info.node;
-  SSdb *           pSdb = pMnode->pSdb;
+  SMnode          *pMnode = pReq->info.node;
+  SSdb            *pSdb = pMnode->pSdb;
   int32_t          numOfRows = 0;
   SMqSubscribeObj *pSub = NULL;
+  SUserObj        *pOperUser = NULL;
   int32_t          code = 0;
   int32_t          lino = 0;
+  bool             showAll = false;
+  char             objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
 
   mInfo("mnd show subscriptions begin");
+  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
+  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_SUBSCRIPTION_SHOW,
+                                          PRIV_OBJ_TOPIC, 0, objFName, "*"));
 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pShow->pIter, (void **)&pSub);
@@ -1872,7 +1902,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
       break;
     }
 
-    MND_TMQ_RETURN_CHECK(retrieveSub(pReq, pSub, pBlock, &numOfRows, rowsCapacity));
+    MND_TMQ_RETURN_CHECK(retrieveSub(pReq, pSub, pOperUser, showAll, pBlock, &numOfRows, rowsCapacity));
 
     sdbRelease(pSdb, pSub);
     pSub = NULL;
@@ -1883,6 +1913,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
 END:
   sdbCancelFetch(pSdb, pShow->pIter);
   sdbRelease(pSdb, pSub);
+  mndReleaseUser(pMnode, pOperUser);
 
   if (code != 0) {
     mError("mnd show subscriptions failed, msg:%s", tstrerror(code));

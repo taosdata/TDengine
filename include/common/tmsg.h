@@ -4526,6 +4526,7 @@ typedef struct {
   int8_t  enableBatchMeta;
   int32_t sessionTimeoutMs;
   int32_t maxPollIntervalMs;
+  int64_t ownerId;
 } SCMSubscribeReq;
 
 static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
