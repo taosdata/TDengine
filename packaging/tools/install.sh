@@ -488,7 +488,6 @@ function install_bin() {
     if [ "${pkgMode}" != "lite" ]; then
       cp "${script_dir}/start-all.sh" "${install_main_dir}/bin"
       sed -i.bak \
-        -e "s|/usr/local/${PREFIX}|${install_main_dir}|g" \
         -e "s|/etc/${PREFIX}|${configDir}|g" \
         "${install_main_dir}/bin/start-all.sh"
       rm -f "${install_main_dir}/bin/start-all.sh.bak"
