@@ -27,6 +27,7 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "thash.h"
+#include "tutil.h"
 
 char      gDataSinkFilePath[PATH_MAX] = {0};
 const int gFileGroupBlockMaxSize = 64 * 1024;  // 64K
@@ -78,15 +79,15 @@ void destroyStreamDataSinkFile(SDataSinkFileMgr** ppDaSinkFileMgr) {
   }
   if ((*ppDaSinkFileMgr)) {
     if ((*ppDaSinkFileMgr)->writeFilePtr) {
-      taosCloseFile(&(*ppDaSinkFileMgr)->writeFilePtr);
+      TAOS_UNUSED(taosCloseFile(&(*ppDaSinkFileMgr)->writeFilePtr));
       (*ppDaSinkFileMgr)->writeFilePtr = NULL;
     }
     if ((*ppDaSinkFileMgr)->readFilePtr) {
-      taosCloseFile(&(*ppDaSinkFileMgr)->readFilePtr);
+      TAOS_UNUSED(taosCloseFile(&(*ppDaSinkFileMgr)->readFilePtr));
       (*ppDaSinkFileMgr)->readFilePtr = NULL;
     }
     if (strlen((*ppDaSinkFileMgr)->fileName) > 0) {
-      taosRemoveFile((*ppDaSinkFileMgr)->fileName);
+      TAOS_UNUSED(taosRemoveFile((*ppDaSinkFileMgr)->fileName));
       (*ppDaSinkFileMgr)->fileName[0] = '\0';
     }
 
@@ -114,7 +115,7 @@ static int32_t openFileForWrite(SDataSinkFileMgr* pFileMgr) {
     void* oldPtr = atomic_val_compare_exchange_ptr(&pFileMgr->writeFilePtr, NULL, newPtr);
     if (oldPtr != NULL) {
       TdFilePtr fileToClose = (TdFilePtr)newPtr;
-      taosCloseFile(&fileToClose);
+      TAOS_UNUSED(taosCloseFile(&fileToClose));
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -133,7 +134,7 @@ static int32_t openFileForRead(SDataSinkFileMgr* pFileMgr) {
     void* oldPtr = atomic_val_compare_exchange_ptr(&pFileMgr->readFilePtr, NULL, newPtr);
     if (oldPtr != NULL) {
       TdFilePtr fileToClose = (TdFilePtr)newPtr;
-      taosCloseFile(&fileToClose);
+      TAOS_UNUSED(taosCloseFile(&fileToClose));
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -297,7 +298,11 @@ int32_t readSlidingDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int
     }
     if ((pResult->tmpBlocksInMem == NULL || pResult->tmpBlocksInMem->size == 0) && !finished) {
       SFileBlockInfo fileBlockInfo = {.offset = pBlockInfo->groupOffset, .size = pBlockInfo->capacity};
-      addToFreeBlock(pFileMgr, &fileBlockInfo);
+      code = addToFreeBlock(pFileMgr, &fileBlockInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("failed to add to free block, err: %s, lineno:%d", terrMsg, lino);
+        return code;
+      }
     }
     if (finished) {
       pResult->dataPos = DATA_SINK_ALL_TMP;
@@ -430,7 +435,7 @@ int32_t moveSlidingGrpMemCache(SSlidingTaskDSMgr* pSlidingTaskMgr, SSlidingGrpMg
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to move sliding group memory cache, code: %d, lineno:%d", code, lino);
-    addToFreeBlock(pFileMgr, &groupBlockOffset);
+    code = addToFreeBlock(pFileMgr, &groupBlockOffset);
   }
   taosMemoryFree(iov);
   return code;

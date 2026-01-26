@@ -1035,21 +1035,21 @@ static int32_t setCreateRsmaResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
   TAOS_CHECK_EXIT(tNameFromString(&name, pMeta->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
 
   int32_t len = 0;
-  len += snprintf(varDataVal(buf2), SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
-                      "CREATE RSMA `%s` ON `%s`.`%s` FUNCTION(", expandIdentifier(pStmt->rsmaName, buf1),
-                      expandIdentifier(name.dbname, buf1), expandIdentifier(name.tname, buf1));
+  len += tsnprintf(varDataVal(buf2), SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
+                       "CREATE RSMA `%s` ON `%s`.`%s` FUNCTION(", expandIdentifier(pStmt->rsmaName, buf1),
+                       expandIdentifier(name.dbname, buf1), expandIdentifier(name.tname, buf1));
   for (int32_t i = 0; i < pMeta->nFuncs; ++i) {
-    len += snprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), "%s%s(`%s`)",
-                    (i > 0) ? "," : "", fmGetFuncName(pMeta->funcIds[i]),
-                        expandIdentifier(*(char**)TARRAY_GET_ELEM(pMeta->colNames, i), buf1));
+    len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                         "%s%s(`%s`)", (i > 0) ? "," : "", fmGetFuncName(pMeta->funcIds[i]),
+                         expandIdentifier(*(char**)TARRAY_GET_ELEM(pMeta->colNames, i), buf1));
   }
-  len += snprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                      ") INTERVAL(%d%c", pMeta->interval[0], pMeta->intervalUnit);
+  len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                       ") INTERVAL(%d%c", pMeta->interval[0], pMeta->intervalUnit);
   if (pMeta->interval[1] > 0) {
-    len += snprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ",%d%c",
-                        pMeta->interval[1], pMeta->intervalUnit);
+    len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ",%d%c",
+                         pMeta->interval[1], pMeta->intervalUnit);
   }
-  len += snprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+  len += tsnprintf(varDataVal(buf2) + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
   varDataLen(buf2) = len;
   code = colDataSetVal(pCol2, 0, buf2, false);
 _exit:

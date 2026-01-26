@@ -1525,6 +1525,7 @@ static void resetGroupCacheBlockCache(SGcBlkCacheInfo* pCache) {
 
 static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
   SGroupCacheOperatorInfo* pInfo = pOper->info;
+  int32_t                  code = 0;
   if (NULL == pInfo->pDownstreams) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1538,8 +1539,12 @@ static int32_t resetGroupCacheDownstreamCtx(SOperatorInfo* pOper) {
     if (pInfo->batchFetch) {
       int32_t defaultVg = 0;
       SGcVgroupCtx vgCtx = {0};
-      initGcVgroupCtx(pOper, &vgCtx, pCtx->id, defaultVg, NULL);      
-      tSimpleHashPut(pCtx->pVgTbHash, &defaultVg, sizeof(defaultVg), &vgCtx, sizeof(vgCtx));
+      initGcVgroupCtx(pOper, &vgCtx, pCtx->id, defaultVg, NULL);
+      code = tSimpleHashPut(pCtx->pVgTbHash, &defaultVg, sizeof(defaultVg), &vgCtx, sizeof(vgCtx));
+      if (TSDB_CODE_SUCCESS != code) {
+        qDebug("reset downstream %d vgTbHash failed", pCtx->id);
+        return code;
+      }
     }
     
     taosArrayClearEx(pCtx->pFreeBlock, freeGcBlockInList);
