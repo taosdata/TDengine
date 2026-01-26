@@ -236,15 +236,14 @@ function setup_env() {
   fi
 
   # 2. User mode detection
-  if [[ "$(id -u)" -ne 0 ]] && ! systemctl --user show-environment &>/dev/null; then
-    echo -e "${RED}Current user is not root and no systemd user session (user bus) is available.${NC}"
-    echo -e "A systemd user session is required so the installer can manage per-user systemd services."
-    echo -e "Please use ssh to log in as this user and then run the installer, for example:"
-    echo -e "${BOLD}ssh <username>@<host>${NC}"
-    exit 1
-  fi
-
   if [[ "$(id -u)" -ne 0 ]]; then
+    if ! systemctl --user show-environment &>/dev/null; then
+      echo -e "${RED}Current user is not root and no systemd user session (user bus) is available.${NC}"
+      echo -e "A systemd user session is required so the installer can manage per-user systemd services."
+      echo -e "Please use ssh to log in as this user and then run the installer, for example:"
+      echo -e "${BOLD}ssh <username>@<host>${NC}"
+      exit 1
+    fi
     user_mode=1
     default_dir="$HOME/${PREFIX}"
     user="$(whoami)"
@@ -491,12 +490,11 @@ function install_bin() {
       sed -i.bak \
         -e "s|/usr/local/${PREFIX}|${install_main_dir}|g" \
         -e "s|/etc/${PREFIX}|${configDir}|g" \
-        ${install_main_dir}/bin/start-all.sh
-      rm -f ${install_main_dir}/bin/start-all.sh.bak
-      cp ${script_dir}/stop-all.sh ${install_main_dir}/bin
+        "${install_main_dir}/bin/start-all.sh"
+      rm -f "${install_main_dir}/bin/start-all.sh.bak"
+      cp "${script_dir}/stop-all.sh" "${install_main_dir}/bin"
     fi
   fi
-
   if [[ "${verMode}" == "cluster" && "${verType}" != "client" ]]; then
     if [ -d ${script_dir}/${xname}/bin ]; then
       cp -r ${script_dir}/${xname}/bin/* ${install_main_dir}/bin
@@ -1343,7 +1341,7 @@ function finished_install_info(){
       entries+=("To start ${clientName}Explorer:|${sysctl_cmd} start ${clientName}-explorer")
       entries+=("To start all the components:|start-all.sh")
       entries+=("|")
-      if [[ "$(id -u)" -ne 0 ]]; then
+      if [[ ${user_mode} -eq 1 ]]; then
         entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn -c ${configDir}")
       else
         entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn")
