@@ -1692,5 +1692,5 @@ class TestTsma:
     # def tsma_split_dnode(self):
 
     def teardown_class(cls):
-
+        tdLog.log(f"{__file__} test finished")
 
