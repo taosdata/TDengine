@@ -75,10 +75,11 @@ typedef struct {
 
 #endif
 
-#define tstrncpy(dst, src, size)         \
-  do {                                   \
-    (void)strncpy((dst), (src), (size)); \
-    (dst)[(size)-1] = 0;                 \
+#define tstrncpy(dst, src, size)      \
+  do {                                \
+    int32_t _sz = (int32_t)(size);    \
+    (void)strncpy((dst), (src), _sz); \
+    (dst)[_sz - 1] = 0;               \
   } while (0)
 
 int64_t tsnprintf(char *dst, int64_t size, const char *format, ...);

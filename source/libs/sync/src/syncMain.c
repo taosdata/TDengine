@@ -2218,7 +2218,7 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, SRaftId leaderId, const char* 
   for (int32_t i = 0; i < pSyncNode->totalReplicaNum; ++i) {
     if (syncUtilSameId(&pSyncNode->replicasId[i], &leaderId)) {
       pSyncNode->leaderCacheEp.port = pSyncNode->raftCfg.cfg.nodeInfo[i].nodePort;
-      strncpy(pSyncNode->leaderCacheEp.fqdn, pSyncNode->raftCfg.cfg.nodeInfo[i].nodeFqdn, TSDB_FQDN_LEN);
+      tstrncpy(pSyncNode->leaderCacheEp.fqdn, pSyncNode->raftCfg.cfg.nodeInfo[i].nodeFqdn, TSDB_FQDN_LEN);
       break;
     }
   }
@@ -2313,8 +2313,8 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 
   // set leader cache
   pSyncNode->leaderCache = pSyncNode->myRaftId;
-  strncpy(pSyncNode->leaderCacheEp.fqdn, pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeFqdn,
-          TSDB_FQDN_LEN);
+  tstrncpy(pSyncNode->leaderCacheEp.fqdn, pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeFqdn,
+           TSDB_FQDN_LEN);
   pSyncNode->leaderCacheEp.port = pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodePort;
 
   for (int32_t i = 0; i < pSyncNode->pNextIndex->replicaNum; ++i) {

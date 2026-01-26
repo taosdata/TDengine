@@ -413,7 +413,7 @@ static void dumpSlots(const char* pName, SHashObj* pHash) {
     size_t len = 0;
     char*  pKey = taosHashGetKey(pIt, &len);
     char   name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN] = {0};
-    strncpy(name, pKey, len);
+    tstrncpy(name, pKey, len < sizeof(name) ? len + 1 : sizeof(name));
     planDebug("\tslot name = %s", name);
     pIt = taosHashIterate(pHash, pIt);
   }

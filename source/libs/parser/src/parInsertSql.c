@@ -268,7 +268,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
       taosMemoryFree(pUseCols);
       return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_COLUMN, token.z);
     }
-    strncpy(tmpTokenBuf, token.z, token.n);
+    tstrncpy(tmpTokenBuf, token.z, token.n < sizeof(tmpTokenBuf) ? token.n + 1 : sizeof(tmpTokenBuf));
     token.z = tmpTokenBuf;
     token.n = strdequote(token.z);
 
@@ -3774,7 +3774,7 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     if (pFilePath->n >= PATH_MAX) {
       return buildSyntaxErrMsg(&pCxt->msg, "file path is too long, max length is 4096", pFilePath->z);
     }
-    strncpy(filePathStr, pFilePath->z, pFilePath->n);
+    tstrncpy(filePathStr, pFilePath->z, pFilePath->n < sizeof(filePathStr) ? pFilePath->n + 1 : sizeof(filePathStr));
   }
   pStmt->fp = taosOpenFile(filePathStr, TD_FILE_READ);
   if (NULL == pStmt->fp) {

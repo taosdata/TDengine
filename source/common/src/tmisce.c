@@ -67,16 +67,14 @@ static int32_t taosGetDualIpFromEp(const char* ep, SEp* pEp) {
     int ipLen = end - ep - 1;
     if (ipLen >= TSDB_FQDN_LEN) ipLen = TSDB_FQDN_LEN - 1;
 
-    strncpy(pEp->fqdn, ep + 1, ipLen);
-    pEp->fqdn[ipLen] = '\0';
+    tstrncpy(pEp->fqdn, ep + 1, ipLen + 1);
 
     if (*(end + 1) == ':' && *(end + 2)) {
       pEp->port = taosStr2UInt16(end + 2, NULL, 10);
     }
   } else {
     // Compatible with ::1:6030, ::1, IPv4:port, hostname:port, etc.
-    strncpy(buf, ep, TSDB_FQDN_LEN - 1);
-    buf[TSDB_FQDN_LEN - 1] = 0;
+    tstrncpy(buf, ep, sizeof(buf));
 
     char* lastColon = strrchr(buf, ':');
     char* firstColon = strchr(buf, ':');

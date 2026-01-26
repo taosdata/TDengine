@@ -415,8 +415,7 @@ bool qParseDbName(const char* pStr, size_t length, char** pDbName) {
     if (*pDbName == NULL) {
       return false;
     }
-    strncpy(*pDbName, t.z, dbNameLen);
-    (*pDbName)[dbNameLen] = '\0';
+    tstrncpy(*pDbName, t.z, dbNameLen + 1);
     return true;
   }
   return false;

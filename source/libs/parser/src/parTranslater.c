@@ -2601,7 +2601,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
         return generateDealNodeErrMsg(pCxt, terrno);
       }
       varDataSetLen(pVal->datum.p, len);
-      strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
+      tstrncpy(varDataVal(pVal->datum.p), pVal->literal, len + 1);
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {

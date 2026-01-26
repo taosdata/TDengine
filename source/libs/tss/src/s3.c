@@ -884,7 +884,7 @@ static S3Status listFileCallback(int                        isTruncated,
 
     lcbd->isTruncated = isTruncated;
     if (nextMarker != NULL) {
-        strncpy(lcbd->nextMarker, nextMarker, sizeof(lcbd->nextMarker));
+        tstrncpy(lcbd->nextMarker, nextMarker, sizeof(lcbd->nextMarker));
         lcbd->nextMarker[sizeof(lcbd->nextMarker) - 1] = 0;
     } else {
         lcbd->nextMarker[0] = 0;
