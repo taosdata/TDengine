@@ -565,35 +565,31 @@ pub async fn oauth_logout(
     req: HttpRequest,
     session_manager: web::Data<SessionManager>,
 ) -> impl Responder {
-    let session_id = if let Some(session_id) = extract_session_id_from_request(&req) {
-        session_id
-    } else {
-        return HttpResponse::BadRequest().json(RestErrResponse::new("Invalid session ID"));
-    };
-
-    // Delete session
-    match session_manager.delete_session(&session_id).await {
-        Ok(_) => {
-            tracing::info!("OAuth session deleted: {}", session_id);
-            HttpResponse::Ok().json(serde_json::json!({
-                "status": "logged_out"
-            }))
-        }
-        Err(e) => {
-            tracing::error!("Failed to delete OAuth session: {:#}", e);
-            // Return success anyway - the session might not exist
-            let clear_session = Cookie::build(SESSION_ID_COOKIE, "")
-                .path("/")
-                .http_only(true)
-                .max_age(actix_web::cookie::time::Duration::seconds(0))
-                .finish();
-            HttpResponse::Ok()
-                .cookie(clear_session)
-                .json(serde_json::json!({
+    if let Some(session_id) = extract_session_id_from_request(&req) {
+        match session_manager.delete_session(&session_id).await {
+            Ok(_) => {
+                tracing::info!("OAuth session deleted: {}", session_id);
+                return HttpResponse::Ok().json(serde_json::json!({
                     "status": "logged_out"
-                }))
+                }));
+            }
+            Err(e) => {
+                tracing::error!("Failed to delete OAuth session: {e:#}");
+            }
         }
     }
+
+    // Return success anyway - the session might not exist
+    let clear_session = Cookie::build(SESSION_ID_COOKIE, "")
+        .path("/")
+        .http_only(true)
+        .max_age(actix_web::cookie::time::Duration::seconds(0))
+        .finish();
+    HttpResponse::Ok()
+        .cookie(clear_session)
+        .json(serde_json::json!({
+            "status": "logged_out"
+        }))
 }
 
 /// Create self-provided SSO token
@@ -653,7 +649,7 @@ pub async fn oauth_me(
     let session_id = if let Some(session_id) = extract_session_id_from_request(&req) {
         session_id
     } else {
-        return HttpResponse::Unauthorized().json(RestErrResponse::new("Invalid session ID"));
+        return HttpResponse::Unauthorized().json(RestErrResponse::new("Session not found"));
     };
     match session_manager.get_session(&session_id).await {
         Ok(Some(session)) => {
