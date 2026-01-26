@@ -79,6 +79,10 @@ const char *operatorTypeStr(EOperatorType type) {
       return "IS NOT FALSE";
     case OP_TYPE_IS_NOT_UNKNOWN:
       return "IS NOT UNKNOWN";
+    case OP_TYPE_EXISTS:
+      return "EXISTS";
+    case OP_TYPE_NOT_EXISTS:
+      return "NOT EXISTS";
     case OP_TYPE_JSON_GET_VALUE:
       return "=>";
     case OP_TYPE_JSON_CONTAINS:

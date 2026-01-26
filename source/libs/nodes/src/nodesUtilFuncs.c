@@ -3219,6 +3219,8 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
     case OP_TYPE_IS_NOT_TRUE:
     case OP_TYPE_IS_NOT_FALSE:
     case OP_TYPE_IS_NOT_UNKNOWN:
+    case OP_TYPE_EXISTS:
+    case OP_TYPE_NOT_EXISTS:
       return true;
     default:
       break;

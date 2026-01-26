@@ -74,7 +74,7 @@ typedef struct SScalarCtx {
    ((TSDB_DATA_TYPE_NULL == ((SValueNode*)_node)->node.resType.type) || (((SValueNode*)_node)->isNull)))
 
 #define SCL_IS_QUERY_NODE(_node) ((_node) && (QUERY_NODE_SELECT_STMT == nodeType(_node) || QUERY_NODE_SET_OPERATOR == nodeType(_node)))
-#define SCL_IS_REMOTE_NODE(_node) ((_node) && (QUERY_NODE_REMOTE_VALUE == nodeType(_node) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(_node)))
+#define SCL_IS_REMOTE_NODE(_node) ((_node) && (QUERY_NODE_REMOTE_VALUE == nodeType(_node) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(_node) || QUERY_NODE_REMOTE_ROW == nodeType(_node) || QUERY_NODE_REMOTE_ZERO_ROWS == nodeType(_node)))
 
 #define SCL_IS_COMPARISON_OPERATOR(_opType) ((_opType) >= OP_TYPE_GREATER_THAN && (_opType) < OP_TYPE_IS_NOT_UNKNOWN)
 #define SCL_DOWNGRADE_DATETYPE(_type) \

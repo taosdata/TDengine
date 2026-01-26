@@ -418,9 +418,7 @@ static bool paramSupportDecimal(uint64_t typeFlag) {
 
 static bool paramSupportBlob(uint64_t typeFlag) {
   return FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_BLOB_TYPE) ||
-         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_ALL_TYPE) ||
-         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_VAR_TYPE) ||
-         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_STRING_TYPE);
+         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_ALL_TYPE);
 }
 
 static bool paramSupportValueNode(uint64_t typeFlag) {
@@ -527,6 +525,7 @@ static bool paramSupportDataType(SDataType* pDataType, uint64_t typeFlag) {
     case TSDB_DATA_TYPE_DECIMAL:
       return paramSupportDecimal(typeFlag);
     case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
       return paramSupportBlob(typeFlag);
     default:
 
@@ -4118,7 +4117,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][0] = {.isLastParam = true,
                                            .startParam = 1,
                                            .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_STRING_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_STRING_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE | FUNC_PARAM_SUPPORT_BLOB_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},

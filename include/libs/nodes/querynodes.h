@@ -688,7 +688,6 @@ typedef struct SSelectStmt {
   bool            tagScan;
   bool            joinContains;
   bool            mixSysTableAndActualTable;
-  bool            transalted;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -709,7 +708,6 @@ typedef struct SSetOperator {
   ETimeLineMode    timeLineResMode;
   bool             timeLineFromOrderBy;
   bool             joinContains;
-  bool             transalted;
 } SSetOperator;
 
 typedef enum ESqlClause {

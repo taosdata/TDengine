@@ -1225,7 +1225,7 @@ SNode* setNodeQuantifyType(SAstCreateContext* pCxt, SNode* pNode, EQuantifyType 
       break;
     }
     default:
-      pCxt->errCode = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ;
+      pCxt->errCode = TSDB_CODE_PAR_INVALID_EXPR_SUBQ;
       CHECK_PARSER_STATUS(pCxt);
       break;
   }

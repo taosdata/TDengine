@@ -2849,10 +2849,67 @@ static int32_t getExprSubQRewriteType(EOperatorType opType, SNode* pSubq, ESubQR
   return TSDB_CODE_PAR_INTERNAL_ERROR;
 }
 
-static int32_t createSimpleSubQStmt(SNodeList *pProjectionList, SNode* pSubQ, SSelectStmt **pStmt) {
+static int32_t createSimpleSubQStmt(char* stmtName, SNodeList *pProjectionList, SNode* pSubQ, SSelectStmt **ppStmt) {
   int32_t code = TSDB_CODE_SUCCESS;
+  STempTableNode* pTable = NULL;
+  code = nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&pTable);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(pProjectionList);
+    return code;
+  }
+
+  pTable->pSubquery = pSubQ;
+  
+  tstrncpy(pTable->table.tableAlias, stmtName, TSDB_TABLE_NAME_LEN);
+  
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubQ)) {
+    ((SSelectStmt*)pSubQ)->isSubquery = true;
+  }
+
+  code = createSelectStmtImpl(false, pProjectionList, (SNode*)pTable, NULL, ppStmt);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(pProjectionList);
+    return code;
+  }
+
+  SSelectStmt* pSelect = *ppStmt;
+  
+  pSelect->selectFuncNum = 1;
+  pSelect->hasAggFuncs = true;
+  pSelect->hasSelectFunc = true;
+  pSelect->hasSelectValFunc = true;
   
   return code;
+}
+
+static int32_t createNewSubQProjectionList(STranslateContext* pCxt, char* stmtName, SNodeList *pSrcProjection, SNodeList** ppNew, bool isMin) {
+  SFunctionNode* pFunc = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  tstrncpy(pFunc->functionName, isMin ? "min" : "max", TSDB_FUNC_NAME_LEN);
+  SColumnNode* pParam = createColumnByExpr(stmtName, (SExprNode*)pSrcProjection->pHead->pNode);
+  if (NULL == pParam) {
+    code = terrno;
+    nodesDestroyNode((SNode *)pFunc);
+    return code;
+  }
+
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pParam);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pFunc);
+    return code;
+  }
+
+  translateFunction(pCxt, pFunc);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    nodesDestroyNode((SNode*)pFunc);
+    return code;
+  }
+  
+  return nodesListMakeStrictAppend(ppNew, (SNode *)pFunc);
 }
 
 static int32_t rewriteExprSubQResToMinMax(STranslateContext* pCxt, SNode* pSubQuery, bool isMin) {
@@ -2860,25 +2917,40 @@ static int32_t rewriteExprSubQResToMinMax(STranslateContext* pCxt, SNode* pSubQu
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
+  
+  if (LIST_LENGTH(pCxt->pSubQueries) <= 0) {
+    parserError("unexpected empty subQ list got");
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
 
-  SNodeList* pProjection = (QUERY_NODE_SELECT_STMT == nodeType(pSubQuery)) ? ((SSelectStmt*)pSubQuery)->pProjectionList : ((SSetOperator*)pSubQuery)->pProjectionList;
+  SNodeList* pProjection = NULL;
+  char* stmtName = NULL;
   SNodeList* pNewProjection = NULL;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubQuery)) {
+    pProjection = ((SSelectStmt*)pSubQuery)->pProjectionList;
+    stmtName = ((SSelectStmt*)pSubQuery)->stmtName;
+  } else {
+    pProjection = ((SSetOperator*)pSubQuery)->pProjectionList;
+    stmtName = ((SSetOperator*)pSubQuery)->stmtName;
+  }
 
-  // CREATE NEW PROJECTION LIST
+  code = createNewSubQProjectionList(pCxt, stmtName, pProjection, &pNewProjection, isMin);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(pNewProjection);
+    return code;
+  }
   
   SSelectStmt* pNewStmt = NULL;
-  code = createSimpleSubQStmt(pNewProjection, pSubQuery, &pNewStmt);
+  code = createSimpleSubQStmt(stmtName, pNewProjection, pSubQuery, &pNewStmt);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
 
-  if (DEAL_RES_ERROR == translateExprSubquery(pCxt, &pNewStmt)) {
-    code = pCxt->errCode;
-  }
-
-  // REPLACE SUBQUERY IN LIST
-  if (TSDB_CODE_SUCCESS == code) {
-
+  if (pCxt->pSubQueries->pTail->pNode == pSubQuery) {
+    pCxt->pSubQueries->pTail->pNode = pNewStmt;
+  } else {
+    parserError("translate context last subq %p is not expected %p", pCxt->pSubQueries->pTail->pNode, pSubQuery);
+    nodesDestroyNode((SNode *)pNewStmt);
   }
 
   return code;
@@ -2970,7 +3042,7 @@ static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp) 
       break;
     }
     case OP_TYPE_EXISTS:
-    case OP_TYPE_NOT_EXISTS:{
+    case OP_TYPE_NOT_EXISTS: {
       if (!isSubQueryNode(pOp->pLeft)) {
         parserError("pLeft %d is not subQ in op %s, exprSubQType:%d", nodeType(pOp->pLeft), operatorTypeStr(pOp->opType), pCxt->expSubQueryType);
         pCxt->errCode = TSDB_CODE_PAR_INTERNAL_ERROR;
@@ -4268,6 +4340,7 @@ static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
   if (TSDB_CODE_SUCCESS == pCxt->errCode && E_SUB_QUERY_SCALAR == pCxt->expSubQueryType) {
     pCxt->errCode = replaceExprSubQuery(pCxt, pNode, *pNode, 0);
   }
+  
   return (TSDB_CODE_SUCCESS == pCxt->errCode) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
@@ -19247,11 +19320,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT:
       code = translateSelect(pCxt, (SSelectStmt*)pNode);
-      ((SSelectStmt*)pNode)->transalted = true;
       break;
     case QUERY_NODE_SET_OPERATOR:
       code = translateSetOperator(pCxt, (SSetOperator*)pNode);
-      ((SSetOperator*)pNode)->transalted = true;
       break;
     case QUERY_NODE_DELETE_STMT:
       code = translateDelete(pCxt, (SDeleteStmt*)pNode);

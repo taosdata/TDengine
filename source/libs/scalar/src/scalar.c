@@ -18,7 +18,8 @@ threadlocal SScalarExtraInfo gTaskScalarExtra = {0};
 int32_t scalarGetOperatorParamNum(EOperatorType type) {
   if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type || OP_TYPE_IS_TRUE == type ||
       OP_TYPE_IS_NOT_TRUE == type || OP_TYPE_IS_FALSE == type || OP_TYPE_IS_NOT_FALSE == type ||
-      OP_TYPE_IS_UNKNOWN == type || OP_TYPE_IS_NOT_UNKNOWN == type || OP_TYPE_MINUS == type) {
+      OP_TYPE_IS_UNKNOWN == type || OP_TYPE_IS_NOT_UNKNOWN == type || OP_TYPE_MINUS == type ||
+      OP_TYPE_EXISTS == type || OP_TYPE_NOT_EXISTS == type) {
     return 1;
   }
 
@@ -2427,7 +2428,8 @@ EDealRes sclWalkRemoteValue(SNode *pNode, SScalarCtx *ctx) {
 EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
   if (QUERY_NODE_VALUE == nodeType(pNode) || QUERY_NODE_NODE_LIST == nodeType(pNode) ||
       QUERY_NODE_COLUMN == nodeType(pNode) || QUERY_NODE_LEFT_VALUE == nodeType(pNode) ||
-      QUERY_NODE_WHEN_THEN == nodeType(pNode) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(pNode)) {
+      QUERY_NODE_WHEN_THEN == nodeType(pNode) || QUERY_NODE_REMOTE_VALUE_LIST == nodeType(pNode) ||
+      QUERY_NODE_REMOTE_ROW == nodeType(pNode) || QUERY_NODE_REMOTE_ZERO_ROWS == nodeType(pNode)) {
     return DEAL_RES_CONTINUE;
   }
 
