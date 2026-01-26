@@ -59,7 +59,8 @@ static int32_t getSlotKeyHelper(SNode* pNode, const char* pPreName, const char* 
   return code;
 }
 
-static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int32_t* pLen, uint16_t extraBufLen) {
+static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int32_t* pLen, uint16_t extraBufLen,
+                          int32_t* cap) {
   int32_t code = 0;
   int32_t callocLen = 0;
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
@@ -67,16 +68,19 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
     if (NULL != pStmtName) {
       if ('\0' != pStmtName[0]) {
         callocLen = TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
+        *cap = callocLen;
         return getSlotKeyHelper(pNode, pStmtName, pCol->node.aliasName, ppKey, callocLen, pLen, extraBufLen,
                                 SLOT_KEY_TYPE_ALL);
       } else {
         callocLen = TSDB_COL_NAME_LEN + 1 + extraBufLen;
+        *cap = callocLen;
         return getSlotKeyHelper(pNode, pStmtName, pCol->node.aliasName, ppKey, callocLen, pLen, extraBufLen,
                                 SLOT_KEY_TYPE_COLNAME);
       }
     }
     if ('\0' == pCol->tableAlias[0]) {
       callocLen = TSDB_COL_NAME_LEN + 1 + extraBufLen;
+      *cap = callocLen;
       return getSlotKeyHelper(pNode, pStmtName, pCol->colName, ppKey, callocLen, pLen, extraBufLen,
                               SLOT_KEY_TYPE_COLNAME);
     }
@@ -91,6 +95,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
       TAOS_STRNCAT(*ppKey, ".", 2);
       TAOS_STRNCAT(*ppKey, pCol->refColName, TSDB_COL_NAME_LEN);
       *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
+      *cap = TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
       return code;
     }
     if (pCol->hasDep) {
@@ -103,10 +108,12 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
       TAOS_STRNCAT(*ppKey, pCol->tableAlias, TSDB_TABLE_NAME_LEN);
       TAOS_STRNCAT(*ppKey, ".", 2);
       TAOS_STRNCAT(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
+      *cap = TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
       *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
       return code;
     }
     callocLen = TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
+    *cap = callocLen;
     return getSlotKeyHelper(pNode, pCol->tableAlias, pCol->colName, ppKey, callocLen, pLen, extraBufLen,
                             SLOT_KEY_TYPE_ALL);
   } else if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
@@ -121,6 +128,7 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
         }
         int32_t literalLen = strlen(pVal->literal);
         callocLen = literalLen + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
+        *cap = callocLen;
         return getSlotKeyHelper(pNode, pVal->literal, ((SExprNode*)pNode)->aliasName, ppKey, callocLen, pLen,
                                 extraBufLen, SLOT_KEY_TYPE_ALL);
       }
@@ -129,11 +137,13 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
 
   if (NULL != pStmtName && '\0' != pStmtName[0]) {
     callocLen = TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
+    *cap = callocLen;
     return getSlotKeyHelper(pNode, pStmtName, ((SExprNode*)pNode)->aliasName, ppKey, callocLen, pLen, extraBufLen,
                             SLOT_KEY_TYPE_ALL);
   }
 
   callocLen = TSDB_COL_NAME_LEN + 1 + extraBufLen;
+  *cap = callocLen;
   return getSlotKeyHelper(pNode, pStmtName, ((SExprNode*)pNode)->aliasName, ppKey, callocLen, pLen, extraBufLen,
                           SLOT_KEY_TYPE_COLNAME);
   return code;
@@ -236,14 +246,15 @@ static int32_t buildDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SD
   FOREACH(pNode, pList) {
     char*   name = NULL;
     int32_t len = 0;
-    code = getSlotKey(pNode, NULL, &name, &len, 16);
+    int32_t cap = 0;
+    code = getSlotKey(pNode, NULL, &name, &len, 16, &cap);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, name, pNode, slotId, true, false));
     }
     code = putSlotToHash(name, len, pDataBlockDesc->dataBlockId, slotId, pNode, pHash);
     if (TSDB_CODE_SUCCESS == code) {
       if (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->resIdx > 0) {
-        snprintf(name + strlen(name), 16, "_%d", ((SColumnNode*)pNode)->resIdx);
+        snprintf(name + strlen(name), cap, "_%d", ((SColumnNode*)pNode)->resIdx);
         code = putSlotToHash(name, strlen(name), pDataBlockDesc->dataBlockId, slotId, pNode, pProjIdxDescHash);
       }
     }
@@ -309,7 +320,8 @@ static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, 
     SNode*  pExpr = QUERY_NODE_ORDER_BY_EXPR == nodeType(pNode) ? ((SOrderByExprNode*)pNode)->pExpr : pNode;
     char*   name = NULL;
     int32_t len = 0;
-    code = getSlotKey(pExpr, pStmtName, &name, &len, 0);
+    int32_t cap = 0;
+    code = getSlotKey(pExpr, pStmtName, &name, &len, 0, &cap);
     if (TSDB_CODE_SUCCESS == code) {
       SSlotIndex* pIndex = taosHashGet(pHash, name, len);
       if (NULL == pIndex) {
@@ -412,13 +424,14 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     SSetSlotIdCxt* pCxt = (SSetSlotIdCxt*)pContext;
     char*          name = NULL;
     int32_t        len = 0;
-    pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 64);
+    int32_t        cap = 0;
+    pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 64, &cap);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
     }
     SSlotIndex* pIndex = NULL;
     if (((SColumnNode*)pNode)->projRefIdx > 0) {
-      snprintf(name + strlen(name), 16, "_%d", ((SColumnNode*)pNode)->projRefIdx);
+      snprintf(name + strlen(name), cap, "_%d", ((SColumnNode*)pNode)->projRefIdx);
       pIndex = taosHashGet(pCxt->pLeftProjIdxHash, name, strlen(name));
       if (!pIndex) {
         pIndex = taosHashGet(pCxt->pRightProdIdxHash, name, strlen(name));
@@ -455,6 +468,7 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
     char*                    name = NULL;
     int32_t                  len = 0;
     SColumnNode*             pCol = (SColumnNode*)pNode;
+    int32_t                  cap = 0;
     if (pCxt->isVtb && !pCol->hasRef && pCol->colType != COLUMN_TYPE_TAG && '\0' != pCol->tableAlias[0]) {
       // set slot id for :
       // 1. column with ref
@@ -463,14 +477,14 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
       return DEAL_RES_CONTINUE;
     }
 
-    pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 16);
+    pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 16, &cap);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
     }
     SSlotIndex* pIndex = NULL;
     int32_t idx = 0;
     if (pCol->projRefIdx > 0) {
-      sprintf(name + strlen(name),  "_%d", pCol->projRefIdx);
+      snprintf(name + strlen(name), cap - strlen(name), "_%d", pCol->projRefIdx);
       while (!pIndex && idx < LIST_LENGTH(pCxt->pChild)) {
         SHashObj *tmpHash =
             taosArrayGetP(pCxt->projIdxHashArray,
@@ -1502,7 +1516,8 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
       SColumnNode* pCol = (SColumnNode*)pNode;
       char*        pName = NULL;
       int32_t      len = 0;
-      code = getSlotKey(pNode, NULL, &pName, &len, 0);
+      int32_t      cap = 0;
+      code = getSlotKey(pNode, NULL, &pName, &len, 0, &cap);
       if (TSDB_CODE_SUCCESS == code) {
         code = tSimpleHashPut(pHash, pName, len, &pCol, POINTER_BYTES);
       }
@@ -1520,7 +1535,8 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
       char*        pName = NULL;
       SColumnNode* pCol = (SColumnNode*)pNode;
       int32_t      len = 0;
-      code = getSlotKey(pNode, NULL, &pName, &len, 0);
+      int32_t      cap = 0;
+      code = getSlotKey(pNode, NULL, &pName, &len, 0, &cap);
       if (TSDB_CODE_SUCCESS == code) {
         SNode** p = tSimpleHashGet(pHash, pName, len);
         if (p) {
@@ -1541,7 +1557,8 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
       char*        pName = NULL;
       SColumnNode* pCol = (SColumnNode*)pNode;
       int32_t      len = 0;
-      code = getSlotKey(pNode, NULL, &pName, &len, 0);
+      int32_t cap = 0;
+      code = getSlotKey(pNode, NULL, &pName, &len, 0, &cap);
       if (TSDB_CODE_SUCCESS == code) {
         SNode** p = tSimpleHashGet(pHash, pName, len);
         if (p) {
