@@ -22,7 +22,6 @@
 #include <sys/types.h>
 #include <time.h>
 
-#include "osFile.h"
 #include "taos.h"
 #include "taosdef.h"
 #include "taoserror.h"
