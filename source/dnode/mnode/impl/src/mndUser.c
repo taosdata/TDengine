@@ -5954,6 +5954,7 @@ static int32_t mndUserRemoveDbPrivs(SMnode *pMnode, STrans *pTrans, const char *
       if (!pUsers) {
         TSDB_CHECK_NULL(pUsers = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY)), code, lino,
                         _exit, TSDB_CODE_OUT_OF_MEMORY);
+        tSimpleHashSetFreeFp(pUsers, (_hash_free_fn_t)mndUserFreeObj);
         *ppUsers = pUsers;
       }
       void   *pVal = NULL;
@@ -5966,7 +5967,7 @@ static int32_t mndUserRemoveDbPrivs(SMnode *pMnode, STrans *pTrans, const char *
           mndUserFreeObj(&newUser);
           TAOS_CHECK_EXIT(code);
         }
-        if ((code = tSimpleHashPut(pUsers, pUser->user, userLen, &newUser, sizeof(SUserObj)))) {
+        if ((code = tSimpleHashPut(pUsers, pUser->name, userLen, &newUser, sizeof(SUserObj)))) {
           mndUserFreeObj(&newUser);
           TAOS_CHECK_EXIT(code);
         }
@@ -6026,6 +6027,7 @@ static int32_t mndRoleRemoveDbPrivs(SMnode *pMnode, STrans *pTrans, const char *
       if (!pRoles) {
         TSDB_CHECK_NULL(pRoles = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY)), code, lino,
                         _exit, TSDB_CODE_OUT_OF_MEMORY);
+        tSimpleHashSetFreeFp(pRoles, (_hash_free_fn_t)mndRoleFreeObj);
         *ppRoles = pRoles;
       }
       void   *pVal = NULL;
