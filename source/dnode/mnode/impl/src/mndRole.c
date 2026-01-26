@@ -840,9 +840,7 @@ static int32_t mndProcessUpgradeRoleReq(SRpcMsg *pReq) {
   return mndCreateDefaultRoles(pReq->info.node);
 }
 
-static int32_t mndProcessUpgradeRoleRsp(SRpcMsg *pReq) {
-  TAOS_RETURN(0);
-}
+static int32_t mndProcessUpgradeRoleRsp(SRpcMsg *pReq) { return 0; }
 
 static int32_t mndProcessGetRoleAuthReq(SRpcMsg *pReq) { TAOS_RETURN(0); }
 

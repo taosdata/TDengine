@@ -138,6 +138,7 @@ static int32_t  mndProcessAlterUserReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropUserReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetUserAuthReq(SRpcMsg *pReq);
 static int32_t  mndProcessUpgradeUserReq(SRpcMsg *pReq);
+static int32_t  mndProcessUpgradeUserRsp(SRpcMsg *pReq);
 static int32_t  mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static int32_t  mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
@@ -545,7 +546,7 @@ int32_t mndInitUser(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_USER, mndProcessDropUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_AUTH, mndProcessGetUserAuthReq);
   mndSetMsgHandle(pMnode, TDMT_MND_UPGRADE_USER, mndProcessUpgradeUserReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_UPGRADE_USER_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_UPGRADE_USER_RSP, mndProcessUpgradeUserRsp);
 
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_IP_WHITELIST, mndProcessGetUserIpWhiteListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_IP_WHITELIST_DUAL, mndProcessGetUserIpWhiteListReq);
@@ -1421,6 +1422,8 @@ _exit:
   }
   TAOS_RETURN(code);
 }
+
+static int32_t mndProcessUpgradeUserRsp(SRpcMsg *pReq) { return 0;}
 
 static int32_t mndUpgradeUsers(SMnode *pMnode, int32_t version) {
   int32_t code = 0, lino = 0;
