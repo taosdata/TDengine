@@ -2737,12 +2737,12 @@ int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res)
 }
 #endif
 int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
-// #ifdef TD_ENTERPRISE
-//   CTG_ERR_RET(ctgChkSetViewAuthRes(pCtg, req, res));
-//   if (req->pRawReq->isView) {
-//     return TSDB_CODE_SUCCESS;
-//   }
-// #endif
+#if 0
+  CTG_ERR_RET(ctgChkSetViewAuthRes(pCtg, req, res));
+  if (req->pRawReq->isView) {
+    return TSDB_CODE_SUCCESS;
+  }
+#endif
   CTG_RET(ctgChkSetBasicAuthRes(pCtg, req, res));
 }
 

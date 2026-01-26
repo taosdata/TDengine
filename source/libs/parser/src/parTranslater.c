@@ -7272,8 +7272,7 @@ static int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt*
   if (pCxt->pParseCxt->hasMaskCols == 0) {
     return TSDB_CODE_SUCCESS;
   }
-  return TSDB_CODE_SUCCESS;  // PRIV_TODO
-
+#ifdef PRIV_TODO
   int32_t        code = 0, lino = 0;
   SParseContext* pParseCxt = pCxt->pParseCxt;
   SCatalog*      pCatalog = pParseCxt->pCatalog;
@@ -7282,7 +7281,7 @@ static int32_t translateProcessMaskColFunc(STranslateContext* pCxt, SSelectStmt*
   FOREACH(pNode, pSelect->pProjectionList) { 
     (void)rewriteMaskColFunc(pCxt, pSelect, &pNode); 
   }
-
+#endif
   return TSDB_CODE_SUCCESS;
 }
 #endif
