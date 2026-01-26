@@ -284,7 +284,7 @@ bool tqCurrentBlockConsumed(const STqReader *pReader);
 
 int32_t      tqReaderSeek(STqReader *pReader, int64_t ver, const char *id);
 int32_t      tqNextBlockInWal(STqReader *pReader, SSDataBlock* pRes, SHashObj* pCol2SlotId, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
-                              int sourceExcluded, int32_t minPollRows, int64_t timeout);
+                              int sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay);
 bool         tqNextBlockImpl(STqReader *pReader, const char *idstr);
 SWalReader  *tqGetWalReader(STqReader *pReader);
 int64_t      tqGetResultBlockTime(STqReader *pReader);

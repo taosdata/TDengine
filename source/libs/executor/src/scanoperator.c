@@ -2756,7 +2756,8 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
                                                               pInfo->numOfPseudoExpr,
                                                               pTaskInfo->streamInfo.sourceExcluded,
                                                               pTaskInfo->streamInfo.minPollRows,
-                                                              pTaskInfo->streamInfo.timeout);
+                                                              pTaskInfo->streamInfo.timeout,
+                                                              pTaskInfo->streamInfo.enableReplay);
     if (code != 0 && code != TSDB_CODE_TMQ_FETCH_TIMEOUT && code != TSDB_CODE_WAL_LOG_NOT_EXIST) {
       goto _end;
     }                                                              
@@ -2787,7 +2788,8 @@ static int32_t doQueueScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       return 0;
     }
 
-    if (pInfo->pRes->info.rows >= pTaskInfo->streamInfo.minPollRows) {
+    if (pInfo->pRes->info.rows >= pTaskInfo->streamInfo.minPollRows || 
+        (pInfo->pRes->info.rows > 0 && pTaskInfo->streamInfo.enableReplay)) {
       (*ppRes) = pInfo->pRes;
       return 0;
     }

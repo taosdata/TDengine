@@ -475,7 +475,7 @@ END:
 }
 
 int32_t tqNextBlockInWal(STqReader* pReader, SSDataBlock* pRes, SHashObj* pCol2SlotId, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
-                         int sourceExcluded, int32_t minPollRows, int64_t timeout) {
+                         int sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay) {
   int32_t code = 0;
   if (pReader == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -534,7 +534,7 @@ int32_t tqNextBlockInWal(STqReader* pReader, SSDataBlock* pRes, SHashObj* pCol2S
     tDestroySubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
     pReader->msg.msgStr = NULL;
 
-    if (pRes->info.rows >= minPollRows){
+    if (pRes->info.rows >= minPollRows || (enableReplay && pRes->info.rows > 0)){
       break;
     }
     int64_t elapsed = taosGetTimestampMs() - st;

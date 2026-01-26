@@ -246,7 +246,7 @@ typedef struct SStoreTqReader {
   void (*tqReaderClose)();
 
   int32_t (*tqReaderSeek)();
-  int32_t (*tqReaderNextBlockInWal)();
+  int32_t (*tqReaderNextBlockInWal)(struct STqReader *, SSDataBlock *, SHashObj *, SExprInfo *, int32_t,  int,  int32_t,  int64_t,  int8_t);
   int64_t (*tqGetResultBlockTime)();
 
   int32_t (*tqReaderSetQueryTableList)();
