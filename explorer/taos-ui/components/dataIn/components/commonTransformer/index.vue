@@ -1466,18 +1466,21 @@ async function echoParser(parse: TransformerfullparamsType | TransformerSpbfullp
         break;
     }
     if (tagKey !== '') {
-      const keys = Object.keys(parse?.parser.parse[tagKey]);
-      if (keys.includes('plugin_type')) {
-        parseruleForm.type = parse?.parser.parse[tagKey]['plugin_type'];
-        parseruleForm.expression = parse?.parser.parse[tagKey]['plugin_params'];
-      } else {
-        parseruleForm.type = keys.filter(item => item != 'depth' && item != 'keep').toString();
+      const tagKeys = parse?.parser.parse[tagKey];
+      if (tagKeys) {
+        const keys = Object.keys(tagKeys);
+        if (keys.includes('plugin_type')) {
+          parseruleForm.type = parse?.parser.parse[tagKey]['plugin_type'];
+          parseruleForm.expression = parse?.parser.parse[tagKey]['plugin_params'];
+        } else {
+          parseruleForm.type = keys.filter(item => item != 'depth' && item != 'keep').toString();
 
-        if (parseruleForm.type == 'json') {
-          parseruleForm.depth = parse?.parser.parse[tagKey]['depth'];
-          parseruleForm.keep = parse?.parser.parse[tagKey]['keep'];
+          if (parseruleForm.type == 'json') {
+            parseruleForm.depth = parse?.parser.parse[tagKey]['depth'];
+            parseruleForm.keep = parse?.parser.parse[tagKey]['keep'];
+          }
+          parseruleForm.expression = parse?.parser.parse[tagKey][parseruleForm.type].toString();
         }
-        parseruleForm.expression = parse?.parser.parse[tagKey][parseruleForm.type].toString();
       }
     }
   }
