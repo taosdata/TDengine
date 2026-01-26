@@ -1549,7 +1549,7 @@ Example:
 
 ## Recording STMT to CSV Files
 
-taosAdapter supports recording STMT requests to CSV files starting from version v3.4.1.0. Users can enable this feature through the configuration parameter `log.enableStmtToCsvLogging` or dynamically enable/disable it via HTTP requests.
+taosAdapter supports recording STMT requests to CSV files starting from version v3.4.0.1. Users can enable this feature through the configuration parameter `log.enableStmtToCsvLogging` or dynamically enable/disable it via HTTP requests.
 
 :::warning
 Enabling this feature leads to severe performance degradation.

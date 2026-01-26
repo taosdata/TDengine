@@ -1536,7 +1536,7 @@ curl --location 'http://127.0.0.1:6041/record_sql' \
 
 ## 记录 STMT 到 CSV 文件
 
-taosAdapter 从 v3.4.1.0 版本开始支持将 STMT 请求记录到 CSV 文件中。用户可以通过配置参数 `log.enableStmtToCsvLogging` 来启用此功能，或使用 HTTP 请求动态开启和关闭。
+taosAdapter 从 v3.4.0.1 版本开始支持将 STMT 请求记录到 CSV 文件中。用户可以通过配置参数 `log.enableStmtToCsvLogging` 来启用此功能，或使用 HTTP 请求动态开启和关闭。
 
 :::warning
 启用此功能会导致性能严重下降。
