@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <time.h>
 
+#include "osFile.h"
 #include "taos.h"
 #include "taosdef.h"
 #include "taoserror.h"
@@ -853,6 +854,10 @@ void loop_consume(SThreadInfo* pInfo) {
         break;
       }
     } else {
+      if (taos_errno(NULL) != 0) {
+        taosFprintfFile(g_fp, "%s %s taos_errno: %d\n", __func__, getCurrentTimeString(tmpString), taos_errno(NULL));
+        continue;
+      }
       memset(tmpString, 0, tListLen(tmpString));
       taosFprintfFile(g_fp, "%s no poll more msg when time over, break consume\n", getCurrentTimeString(tmpString));
       break;
