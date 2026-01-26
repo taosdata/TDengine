@@ -450,6 +450,6 @@ class TestTaosCli:
         # max password
         self.checkPassword()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 

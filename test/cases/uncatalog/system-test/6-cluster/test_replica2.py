@@ -56,5 +56,5 @@ class TestReplica2:
         if(tdSql.queryResult[0][4] != "assigned") and (tdSql.queryResult[0][6] != "assigned"):
             tdLog.exit("failed to set aasigned")
 
-        tdLog.success(f"{__file__} successfully executed")
+
 	

@@ -89,6 +89,6 @@ class TestBasic:
         self.create_encrypt_db()
         self.recreate_dndoe_encrypt_key()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 
