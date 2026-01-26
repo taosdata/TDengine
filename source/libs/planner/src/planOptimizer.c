@@ -2927,13 +2927,7 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
       *pNotOptimize = true;
       return TSDB_CODE_SUCCESS;
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
-      if(pNode->outputTsOrder != sortOrder) {
-        *pNotOptimize = true;
-        return TSDB_CODE_SUCCESS;
-      }
-      break;
-    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
-      if(sortOrder == ORDER_DESC) {  // interpolation function currently supports only ascending input order
+      if (pNode->outputTsOrder != sortOrder) {
         *pNotOptimize = true;
         return TSDB_CODE_SUCCESS;
       }

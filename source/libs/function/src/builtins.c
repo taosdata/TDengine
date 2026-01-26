@@ -6074,7 +6074,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_irowts_origin",
     .type = FUNCTION_TYPE_IROWTS_ORIGIN,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC,
     .parameters = {.minParamNum = 0,
                    .maxParamNum = 0,
                    .paramInfoPattern = 0,
