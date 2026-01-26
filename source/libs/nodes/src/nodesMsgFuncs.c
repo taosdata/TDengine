@@ -1213,7 +1213,59 @@ static int32_t msgToRemoteValueListNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+enum {
+  REMOTE_ROW_CODE_VAL = 1,
+  REMOTE_ROW_CODE_HAS_NULL,
+  REMOTE_ROW_CODE_SUBQ_IDX
+};
 
+static int32_t remoteRowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SRemoteRowNode* pNode = (const SRemoteRowNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, REMOTE_ROW_CODE_VAL, valueNodeToMsg, pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, REMOTE_ROW_CODE_HAS_NULL, pNode->hasNull);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, REMOTE_ROW_CODE_SUBQ_IDX, pNode->subQIdx);
+  }
+
+  return code;
+}
+
+
+static int32_t msgToRemoteRowNode(STlvDecoder* pDecoder, void* pObj) {
+  SRemoteRowNode* pNode = (SRemoteRowNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case REMOTE_ROW_CODE_VAL:
+        code = tlvDecodeObjFromTlv(pTlv, msgToValueNode, &pNode->val);
+        break;
+      case REMOTE_ROW_CODE_HAS_NULL:
+        code = tlvDecodeBool(pTlv, &pNode->hasNull);
+        break;
+      case REMOTE_ROW_CODE_SUBQ_IDX:
+        code = tlvDecodeI32(pTlv, &pNode->subQIdx);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+static int32_t remoteZeroRowsNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  return remoteValueNodeToMsg(pObj, pEncoder);
+}
+
+
+static int32_t msgToRemoteZeroRowsNode(STlvDecoder* pDecoder, void* pObj) {
+  return msgToRemoteValueNode(pDecoder, pObj);
+}
 
 
 enum { OPERATOR_CODE_EXPR_BASE = 1, OPERATOR_CODE_OP_TYPE, OPERATOR_CODE_LEFT, OPERATOR_CODE_RIGHT };
@@ -5207,6 +5259,12 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_REMOTE_VALUE_LIST:
       code = remoteValueListNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_REMOTE_ROW:
+      code = remoteRowNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      code = remoteZeroRowsNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       code = physiTagScanNodeToMsg(pObj, pEncoder);
       break;
@@ -5378,6 +5436,12 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_REMOTE_VALUE_LIST:
       code = msgToRemoteValueListNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_REMOTE_ROW:
+      code = msgToRemoteRowNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      code = msgToRemoteZeroRowsNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       code = msgToPhysiTagScanNode(pDecoder, pObj);

@@ -528,6 +528,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_REMOTE_VALUE_LIST:
       code = makeNode(type, sizeof(SRemoteValueListNode), &pNode);
       break;
+    case QUERY_NODE_REMOTE_ROW:
+      code = makeNode(type, sizeof(SRemoteRowNode), &pNode);
+      break;
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      code = makeNode(type, sizeof(SRemoteZeroRowsNode), &pNode);
+      break;
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
       break;
@@ -1305,7 +1311,9 @@ void nodesDestroyNode(SNode* pNode) {
       destroyExprNode((SExprNode*)pNode);
       break;
     case QUERY_NODE_REMOTE_VALUE:
-    case QUERY_NODE_VALUE: {
+    case QUERY_NODE_VALUE:
+    case QUERY_NODE_REMOTE_ROW:
+    case QUERY_NODE_REMOTE_ZERO_ROWS: {
       SValueNode* pValue = (SValueNode*)pNode;
       destroyExprNode((SExprNode*)pNode);
       taosMemoryFreeClear(pValue->literal);
