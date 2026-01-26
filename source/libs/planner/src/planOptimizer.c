@@ -2932,6 +2932,11 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
         return TSDB_CODE_SUCCESS;
       }
       break;
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      if (sortOrder == ORDER_DESC) {  // interpolation function currently supports only ascending input order
+        *pNotOptimize = true;
+        return TSDB_CODE_SUCCESS;
+      }
     default:
       break;
   }
