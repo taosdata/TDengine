@@ -1299,22 +1299,22 @@ taos> select interp(c1), _irowts_origin from test.td32861 range('2020-01-01 00:0
 taos> select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(prev, 99) order by _irowts_origin;
  interp(c1)  |
 ==============
-          99 |
-          99 |
-          99 |
-          99 |
-          99 |
-          99 |
-          99 |
-          99 |
-          99 |
            0 |
            1 |
            3 |
            6 |
+          99 |
           10 |
+          99 |
+          99 |
           15 |
+          99 |
+          99 |
           21 |
+          99 |
+          99 |
+          99 |
+          99 |
 
 taos> select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(prev, 99) order by _irowts_origin desc;
  interp(c1)  |
@@ -1601,19 +1601,19 @@ taos> select interp(c1), _irowts_origin, interp(c4) from test.td32727 range('202
 taos> select interp(c1), interp(c4), interp(c5) from test.td32727 range('2020-02-01 00:00:00.000', '2020-02-01 00:00:30.000', 1s) every(2s) fill(prev, 99, 9.9, 9) order by _irowts_origin;
  interp(c1) |        interp(c4)         |      interp(c5)      |
 ================================================================
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
           5 |                         5 |                    5 |
+         99 |                       9.9 |                    9 |
          10 |                        10 |                   10 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
          15 |                        15 |                   15 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
 
 taos> select interp(c1), interp(c2) from test.td32727 range('2020-02-01 00:00:00.000', '2020-02-01 00:00:30.000', 1s) every(2s) fill(prev, 99, 9) order by _irowts_origin desc;
  interp(c1) | interp(c2)  |
@@ -1842,16 +1842,16 @@ taos> select interp(c1), _irowts_origin from test.td32861 range('2020-01-01 00:0
 taos> select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(next, 99) order by _irowts_origin;
  interp(c1)  |
 ==============
-          99 |
-          99 |
-          99 |
-          99 |
-          99 |
            0 |
            3 |
+          99 |
            6 |
+          99 |
           10 |
+          99 |
           15 |
+          99 |
+          99 |
           21 |
 
 taos> select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(next, 99) order by _irowts_origin desc;
@@ -2066,11 +2066,11 @@ taos> select interp(c1), interp(c4), interp(c5) from test.td32727 range('2020-02
 ================================================================
          99 |                       9.9 |                    9 |
          99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
           5 |                         5 |                    5 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
          10 |                        10 |                   10 |
+         99 |                       9.9 |                    9 |
          15 |                        15 |                   15 |
 
 taos> select interp(c1), interp(c2) from test.td32727 range('2020-02-01 00:00:00.000', '2020-02-01 00:00:30.000', 1s) every(2s) fill(next, 99, 9) order by _irowts_origin desc;
@@ -2300,22 +2300,22 @@ taos> select interp(c1), _irowts_origin from test.td32861 range('2020-01-01 00:0
 taos> select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(near, 99) order by _irowts_origin;
  interp(c1)  |
 ==============
-          99 |
-          99 |
-          99 |
-          99 |
-          99 |
-          99 |
-          99 |
            0 |
            1 |
            3 |
            6 |
+          99 |
           10 |
+          99 |
           15 |
           15 |
+          99 |
           21 |
           21 |
+          99 |
+          99 |
+          99 |
+          99 |
 
 taos> select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(near, 99) order by _irowts_origin desc;
  interp(c1)  |
@@ -2622,20 +2622,20 @@ taos> select interp(c1), interp(c4), interp(c5) from test.td32727 range('2020-02
 ================================================================
          99 |                       9.9 |                    9 |
          99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
-         99 |                       9.9 |                    9 |
           5 |                         5 |                    5 |
           5 |                         5 |                    5 |
+         99 |                       9.9 |                    9 |
          10 |                        10 |                   10 |
+         99 |                       9.9 |                    9 |
          15 |                        15 |                   15 |
          15 |                        15 |                   15 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
+         99 |                       9.9 |                    9 |
 
 taos> select interp(c1), interp(c2) from test.td32727 range('2020-02-01 00:00:00.000', '2020-02-01 00:00:30.000', 1s) every(2s) fill(near, 99, 9) order by _irowts_origin desc;
  interp(c1) | interp(c2)  |
