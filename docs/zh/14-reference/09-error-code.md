@@ -665,6 +665,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80006105 | Audit database keep2 must be greater than 1825d                           | 参数不正确                              | 检查并修正 SQL 语句               |
 | 0x80006106 | Audit database already exist                                              | 参数不正确                              | 检查并修正 SQL 语句               |
 | 0x80006107 | Audit database is not allowed to change                                   | 参数不正确                              | 检查并修正 SQL 语句               |
+| 0x80006108 | Audit database is not allowed to keep multiple vgroups                    | 参数不正确                              | 检查并修正 SQL 语句               |
 
 #### virtual table
 
