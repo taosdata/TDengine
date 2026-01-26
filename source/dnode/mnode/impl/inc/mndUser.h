@@ -46,6 +46,9 @@ int32_t  mndMergePrivObjHash(SHashObj *pOld, SHashObj **ppNew);
 int32_t  mndMergePrivTblHash(SHashObj *pOld, SHashObj **ppNew, bool updateWithLatest);
 int32_t  mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp,
                                  int32_t *pRspLen, int64_t ipWhiteListVer);
+int32_t  mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows, void *pObj,
+                                const char *principalName, SHashObj *privTbs, EPrivType privType, char *pBuf,
+                                int32_t bufSize, int32_t *pNumOfRows);
 int32_t  mndPrincipalRemoveDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSHashObj **ppUsers, SSHashObj **ppRoles);
 int32_t  mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb);
 int32_t  mndUserRemoveView(SMnode *pMnode, STrans *pTrans, char *view);

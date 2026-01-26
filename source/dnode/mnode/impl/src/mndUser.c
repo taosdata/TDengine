@@ -5455,9 +5455,9 @@ _exit:
 }
 #endif
 
-static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows, SUserObj *pObj,
-                                      SHashObj *privTbs, EPrivType privType, char *pBuf, int32_t bufSize,
-                                      int32_t *pNumOfRows) {
+int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows, void *pObj,
+                               const char *principalName, SHashObj *privTbs, EPrivType privType, char *pBuf,
+                               int32_t bufSize, int32_t *pNumOfRows) {
   int32_t     code = 0, lino = 0;
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
@@ -5468,7 +5468,7 @@ static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
   char        roleName[TSDB_ROLE_LEN + VARSTR_HEADER_SIZE] = {0};
   const char *privName = privInfoGetName(privType);
 
-  STR_WITH_MAXSIZE_TO_VARSTR(roleName, pObj->name, pShow->pMeta->pSchemas[cols].bytes);
+  STR_WITH_MAXSIZE_TO_VARSTR(roleName, principalName, pShow->pMeta->pSchemas[cols].bytes);
 
   void *pIter = NULL;
   while ((pIter = taosHashIterate(privTbs, pIter))) {
@@ -5692,13 +5692,13 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     }
 
     // table level privileges
-    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->selectTbs,
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->selectTbs,
                                            PRIV_TBL_SELECT, pBuf, bufSize, &numOfRows));
-    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->insertTbs,
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->insertTbs,
                                            PRIV_TBL_INSERT, pBuf, bufSize, &numOfRows));
-    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->updateTbs,
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->updateTbs,
                                            PRIV_TBL_UPDATE, pBuf, bufSize, &numOfRows));
-    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->deleteTbs,
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->deleteTbs,
                                            PRIV_TBL_DELETE, pBuf, bufSize, &numOfRows));
 #if 0
     while ((pIter = taosHashIterate(pObj->selectTbs, pIter))) {

@@ -1030,9 +1030,15 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         numOfRows++;
       }
     }
-    // row level privileges
-
     // table level privileges
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->selectTbs,
+                                           PRIV_TBL_SELECT, pBuf, bufSize, &numOfRows));
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->insertTbs,
+                                           PRIV_TBL_INSERT, pBuf, bufSize, &numOfRows));
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->updateTbs,
+                                           PRIV_TBL_UPDATE, pBuf, bufSize, &numOfRows));
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->deleteTbs,
+                                           PRIV_TBL_DELETE, pBuf, bufSize, &numOfRows));
     sdbRelease(pSdb, pObj);
   }
 
