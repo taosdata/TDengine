@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "types.h"
 #define _DEFAULT_SOURCE
 #include "mndDb.h"
 #include "audit.h"
@@ -3050,9 +3051,11 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     int32_t lenKeep2 = formatDurationOrKeep(keep2Str, sizeof(keep2Str), pDb->cfg.daysToKeep2);
 
     if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
-      len = snprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr), "%s,%s,%s", keep1Str, keep2Str, keep0Str);
+      len = snprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr) - VARSTR_HEADER_SIZE, "%s,%s,%s", keep1Str,
+                     keep2Str, keep0Str);
     } else {
-      len = snprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr), "%s,%s,%s", keep0Str, keep1Str, keep2Str);
+      len = snprintf(&keepVstr[VARSTR_HEADER_SIZE], sizeof(keepVstr) - VARSTR_HEADER_SIZE, "%s,%s,%s", keep0Str,
+                     keep1Str, keep2Str);
     }
     varDataSetLen(keepVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
