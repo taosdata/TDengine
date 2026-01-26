@@ -27,6 +27,7 @@ typedef struct {
     uint32_t baseDirLen;
 
     // variable-length buffer for other type-specific data.
+    int32_t bufCap;
     char buf[0];
 } SSharedStorageFS;
 
@@ -64,7 +65,7 @@ static void joinPath(SSharedStorageFS* ss, const char* path, char* fullPath) {
 
 // initInstance initializes the SSharedStorageFS instance from the access string.
 static bool initInstance(SSharedStorageFS* ss, const char* as) {
-    strcpy(ss->buf, as);
+    tstrncpy(ss->buf, as, ss->bufCap);
 
     // skip storage type
     char* p = strchr(ss->buf, ':');
@@ -125,6 +126,7 @@ static int32_t createInstance(const char* accessString, SSharedStorageFS** ppSS)
     size_t asLen = strlen(accessString) + 1;
 
     SSharedStorageFS* ss = (SSharedStorageFS*)taosMemCalloc(1, sizeof(SSharedStorageFS) + asLen);
+    ss->bufCap = (int32_t)asLen;
     if (!ss) {
         tssError("failed to allocate memory for SSharedStorageFS");
         TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);

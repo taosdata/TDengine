@@ -42,6 +42,7 @@ typedef struct {
     S3PutProperties putProperties;
 
     // variable-length buffer for hostname, bucket and etc.
+    int32_t bufCap;
     char buf[0];
 } SSharedStorageS3;
 
@@ -69,7 +70,7 @@ static void printConfig(SSharedStorage* pss) {
 
 // initInstance initializes the SSharedStorageS3 instance from the access string.
 static bool initInstance(SSharedStorageS3* ss, const char* as) {
-    strcpy(ss->buf, as);
+    tstrncpy(ss->buf, as, ss->bufCap);
 
     // set default values
     ss->defaultChunkSizeInMB = 64;
@@ -196,6 +197,7 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
 static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS) {
     size_t asLen = strlen(accessString) + 1;
     SSharedStorageS3* ss = (SSharedStorageS3*)taosMemCalloc(1, sizeof(SSharedStorageS3) + asLen);
+    ss->bufCap = (int32_t)asLen;
     if (!ss) {
         tssError("failed to allocate memory for SSharedStorageS3");
         TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
