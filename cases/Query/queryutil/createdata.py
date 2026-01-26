@@ -379,12 +379,29 @@ class TDCreateData():
         
         self.add_data_random(database,n,1630000000000)
         self.add_data_random(database,n,1640000000000)
+
+    # wait transactions count to zero , return False is translation not finished
+    def waitTransactionZero(self, seconds=300, interval=1):
+        # wait end
+        for i in range(seconds):
+            sql = "show transactions;"
+            self.tdSql.query(sql)
+            if self.tdSql.query_row == 0:
+                self.logger.info("wait transaction count zero ok.")
+                return True
+            result = str(self.tdSql.query_result)
+            self.logger.info(f"wait {i}s, transactions not zero: {result}")
+            time.sleep(interval)
+        self.logger.error("wait transaction count zero timeout.")
+        return False
     
     def alter_cachemodel(self,database):
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         i = random.randint(0,5)
         cachesize = random.randint(1,666)
-        if i ==0:
+        if i != 0:
+            self.waitTransactionZero()
+        if i == 0:
             self.logger.info("======this case test cachemodel none =========")
             #sql = "alter database last_60w cachemodel 'both' cachesize 600;"
             #self.tdSql.execute("flush database %s;" %database)   
