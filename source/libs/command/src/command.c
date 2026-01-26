@@ -247,15 +247,15 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
         if (pMeta->colRef[i].hasRef) {
           char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
 
-          TStrBuf strBuf = {0};
-          strBufInit(&strBuf, refColName, sizeof(refColName));
+          TSlice strBuf = {0};
+          sliceInit(&strBuf, refColName, sizeof(refColName));
 
-          QRY_ERR_RET(strBufAppend(&strBuf, pMeta->colRef[i].refDbName, strlen(pMeta->colRef[i].refDbName)));
-          QRY_ERR_RET(strBufAppend(&strBuf, ".", 1));
-          QRY_ERR_RET(strBufAppend(&strBuf, pMeta->colRef[i].refTableName, strlen(pMeta->colRef[i].refTableName)));
-          QRY_ERR_RET(strBufAppend(&strBuf, ".", 1));
-          QRY_ERR_RET(strBufAppend(&strBuf, pMeta->colRef[i].refColName, strlen(pMeta->colRef[i].refColName)));
-          STR_TO_VARSTR(buf, strBufGet(&strBuf, NULL));
+          QRY_ERR_RET(sliceAppend(&strBuf, pMeta->colRef[i].refDbName, strlen(pMeta->colRef[i].refDbName)));
+          QRY_ERR_RET(sliceAppend(&strBuf, ".", 1));
+          QRY_ERR_RET(sliceAppend(&strBuf, pMeta->colRef[i].refTableName, strlen(pMeta->colRef[i].refTableName)));
+          QRY_ERR_RET(sliceAppend(&strBuf, ".", 1));
+          QRY_ERR_RET(sliceAppend(&strBuf, pMeta->colRef[i].refColName, strlen(pMeta->colRef[i].refColName)));
+          STR_TO_VARSTR(buf, refColName);
         } else {
           STR_TO_VARSTR(buf, "");
         }

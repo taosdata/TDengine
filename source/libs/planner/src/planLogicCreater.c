@@ -940,11 +940,11 @@ static int32_t addSubScanNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVi
   PLAN_ERR_JRET(findRefColId(pRefTable, pColRef->refColName, &colId, &colIdx));
 
   char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
-  TStrBuf tableNameBuf = {0};
-  strBufInit(&tableNameBuf, tableNameKey, sizeof(tableNameKey));
-  PLAN_ERR_JRET(strBufAppend(&tableNameBuf, pColRef->refDbName, strlen(pColRef->refDbName)));
-  PLAN_ERR_JRET(strBufAppend(&tableNameBuf, ".", 1));
-  PLAN_ERR_JRET(strBufAppend(&tableNameBuf, pColRef->refTableName, strlen(pColRef->refTableName)));
+  TSlice tableNameBuf = {0};
+  sliceInit(&tableNameBuf, tableNameKey, sizeof(tableNameKey));
+  PLAN_ERR_JRET(sliceAppend(&tableNameBuf, pColRef->refDbName, strlen(pColRef->refDbName)));
+  PLAN_ERR_JRET(sliceAppend(&tableNameBuf, ".", 1));
+  PLAN_ERR_JRET(sliceAppend(&tableNameBuf, pColRef->refTableName, strlen(pColRef->refTableName)));
 
   SLogicNode **ppRefScan = (SLogicNode **)taosHashGet(refTablesMap, &tableNameKey, strlen(tableNameKey));
   if (NULL == ppRefScan) {
@@ -1022,14 +1022,14 @@ static int32_t eliminateDupScanCols(SNodeList* pScanCols) {
       continue;
     }
     char         key[TSDB_COL_FNAME_EX_LEN] = {0};
-    TStrBuf      keyBuf = {0};
+    TSlice       keyBuf = {0};
 
-    strBufInit(&keyBuf, key, sizeof(key));
-    PLAN_ERR_JRET(strBufAppend(&keyBuf, pCol->refDbName, strlen(pCol->refDbName)));
-    PLAN_ERR_JRET(strBufAppend(&keyBuf, ".", 1));
-    PLAN_ERR_JRET(strBufAppend(&keyBuf, pCol->refTableName, strlen(pCol->refTableName)));
-    PLAN_ERR_JRET(strBufAppend(&keyBuf, ".", 1));
-    PLAN_ERR_JRET(strBufAppend(&keyBuf, pCol->refColName, strlen(pCol->refColName)));
+    sliceInit(&keyBuf, key, sizeof(key));
+    PLAN_ERR_JRET(sliceAppend(&keyBuf, pCol->refDbName, strlen(pCol->refDbName)));
+    PLAN_ERR_JRET(sliceAppend(&keyBuf, ".", 1));
+    PLAN_ERR_JRET(sliceAppend(&keyBuf, pCol->refTableName, strlen(pCol->refTableName)));
+    PLAN_ERR_JRET(sliceAppend(&keyBuf, ".", 1));
+    PLAN_ERR_JRET(sliceAppend(&keyBuf, pCol->refColName, strlen(pCol->refColName)));
 
     if (NULL != taosHashGet(colsMap, key, strlen(key))) {
       ERASE_NODE(pScanCols);

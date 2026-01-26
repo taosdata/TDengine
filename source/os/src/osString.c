@@ -1051,7 +1051,7 @@ int64_t tsnprintf(char *dst, int64_t size, const char *format, ...) {
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #endif
 
-void strBufInit(TStrBuf *p, char *buf, int32_t cap) {
+void sliceInit(TSlice *p, char *buf, int32_t cap) {
   if (unlikely(p == NULL || buf == NULL || cap <= 0)) {
     terrno = TSDB_CODE_INVALID_PARA;
     return;
@@ -1063,7 +1063,7 @@ void strBufInit(TStrBuf *p, char *buf, int32_t cap) {
   p->buf[0] = '\0';
 }
 
-int32_t strBufAppend(TStrBuf *p, const char *src, int32_t len) {
+int32_t sliceAppend(TSlice *p, const char *src, int32_t len) {
   if (unlikely(p == NULL || src == NULL || len < 0)) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -1075,7 +1075,7 @@ int32_t strBufAppend(TStrBuf *p, const char *src, int32_t len) {
     return terrno;
   }
 
-  if (likely(len == 0)) return 0;
+  if (unlikely(len == 0)) return TSDB_CODE_INVALID_PARA;
 
   /* use local copies to minimize memory accesses */
   int32_t cap = p->cap;
@@ -1095,7 +1095,7 @@ int32_t strBufAppend(TStrBuf *p, const char *src, int32_t len) {
   return 0;
 }
 
-char *strBufGet(TStrBuf *p, int32_t *len) {
+char *sliceGet(TSlice *p, int32_t *len) {
   if (unlikely(p == NULL)) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;

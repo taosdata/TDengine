@@ -139,11 +139,11 @@ typedef struct {
   char   *buf;
   int32_t len;
   int32_t cap;
-} TStrBuf;
+} TSlice;
 
-void    strBufInit(TStrBuf *p, char *buf, int32_t cap);
-int32_t strBufAppend(TStrBuf *p, const char *src, int32_t len);
-char   *strBufGet(TStrBuf *p, int32_t *len);
+void    sliceInit(TSlice *p, char *buf, int32_t cap);
+int32_t sliceAppend(TSlice *p, const char *src, int32_t len);
+char   *sliceGet(TSlice *p, int32_t *len);
 
 #ifdef TD_ASTRA
 static FORCE_INLINE size_t strnlen(const char *s, size_t maxlen) {

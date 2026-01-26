@@ -5895,12 +5895,12 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   for (int32_t i = 0; i < pMeta->numOfColRefs; i++) {
     if (pMeta->colRef[i].hasRef) {
       char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
-      TStrBuf buf = {0};
-      strBufInit(&buf, tableNameKey, sizeof(tableNameKey));
+      TSlice buf = {0};
+      sliceInit(&buf, tableNameKey, sizeof(tableNameKey));
 
-      PAR_ERR_JRET(strBufAppend(&buf, pMeta->colRef[i].refDbName, strlen(pMeta->colRef[i].refDbName)));
-      PAR_ERR_JRET(strBufAppend(&buf, ".", 1));
-      PAR_ERR_JRET(strBufAppend(&buf, pMeta->colRef[i].refTableName, strlen(pMeta->colRef[i].refTableName)));
+      PAR_ERR_JRET(sliceAppend(&buf, pMeta->colRef[i].refDbName, strlen(pMeta->colRef[i].refDbName)));
+      PAR_ERR_JRET(sliceAppend(&buf, ".", 1));
+      PAR_ERR_JRET(sliceAppend(&buf, pMeta->colRef[i].refTableName, strlen(pMeta->colRef[i].refTableName)));
 
       if (taosHashGet(pTableNameHash, buf.buf, buf.len) == NULL) {
         PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRTNode));
