@@ -155,7 +155,7 @@ class TagCluster:
         """
         tdLog.info(" create cluster ok.")
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
 
 class PerfDB:
@@ -527,6 +527,6 @@ class TestTagIndexAdvance:
         self.show_diskspace()
 
         self.tagCluster.stop()
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 
 

@@ -334,4 +334,4 @@ class TestFunFirst:
         self.do_sim_first()
         self.do_first()
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)

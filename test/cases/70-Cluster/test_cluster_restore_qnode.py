@@ -52,5 +52,5 @@ class TestClusterRestoreQnode:
 
     # stop
         self.basic.stop()
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 

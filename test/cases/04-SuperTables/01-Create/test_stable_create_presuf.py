@@ -577,4 +577,4 @@ class TestDatabasePreSuf:
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)

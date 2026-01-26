@@ -799,4 +799,4 @@ class TestCase:
         self.s8_decimal_composite_key_add_drop_column()
         self.s9_negative_ts()
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)

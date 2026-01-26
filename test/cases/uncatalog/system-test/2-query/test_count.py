@@ -305,4 +305,4 @@ class TestCount:
         self.check_stb()
         self.check_ntb()
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)

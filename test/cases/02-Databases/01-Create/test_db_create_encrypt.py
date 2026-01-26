@@ -111,6 +111,6 @@ class TestBasic:
         self.create_encrypt_sm4_db()
         self.create_encrypt_aes_db()
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
 

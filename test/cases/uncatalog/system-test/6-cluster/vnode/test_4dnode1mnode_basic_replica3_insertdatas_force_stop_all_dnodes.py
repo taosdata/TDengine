@@ -415,5 +415,5 @@ class Test4dnode1mnodeBasicReplica3InsertdatasForceStopAllDnodes:
         self.check_setup_cluster_status()
         self.stop_All_dnodes_check_datas()
         
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

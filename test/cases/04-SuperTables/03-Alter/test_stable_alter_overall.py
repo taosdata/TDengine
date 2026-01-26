@@ -341,4 +341,4 @@ class TestAlterTable:
         self.alter_check_stb()
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

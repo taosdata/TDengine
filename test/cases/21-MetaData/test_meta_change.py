@@ -275,5 +275,5 @@ class TestSchemaChange:
         self.create(self.dbname, "meters", self.column_dict, self.tag_dict)
         # change meters
         self.change_schema(1000)
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 

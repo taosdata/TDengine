@@ -231,5 +231,5 @@ class TestDeleteNormaltable:
         tdDnodes.starttaosd(1)
         self.delete_data_ntb()
         
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
         

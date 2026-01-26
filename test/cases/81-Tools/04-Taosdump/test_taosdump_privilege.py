@@ -111,6 +111,6 @@ class TestTaosdumpNonRoot:
         tdSql.query("show tables")
         tdSql.checkRows(3)
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 
 

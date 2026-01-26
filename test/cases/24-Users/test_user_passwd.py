@@ -60,7 +60,7 @@ class TestPasswd:
                     tdLog.exit("Failed to run passwd test with output: %s \n error: %s" % (out, err))
                 else:
                     tdLog.info(out)
-                tdLog.success(f"{__file__} successfully executed")
+                tdLog.success(f"{__file__} ")
             except Exception as e:
                 tdLog.exit(f"Failed to execute {__file__} with error: {e}")
         else:

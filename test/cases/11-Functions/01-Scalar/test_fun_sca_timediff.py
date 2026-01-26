@@ -252,4 +252,4 @@ class TestFunTimediff:
         self.function_multi_res_param()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

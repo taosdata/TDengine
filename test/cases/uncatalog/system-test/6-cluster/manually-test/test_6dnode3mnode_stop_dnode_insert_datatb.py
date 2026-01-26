@@ -182,5 +182,5 @@ class Test6dnode3mnodeStopDnodeInsertDatatb:
         # print(self.master_dnode.cfgDict)
         self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=4,stopRole='dnode')
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

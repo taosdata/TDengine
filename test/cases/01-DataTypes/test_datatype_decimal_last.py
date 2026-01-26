@@ -2029,7 +2029,7 @@ class TestDecimal3:
         #self.check_decimal_and_stream() open when new strm ready
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
     def wait_query_result(self, sql: str, expect_result, times):
         for i in range(times):

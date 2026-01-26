@@ -126,4 +126,4 @@ class TestSmlTs3724:
         self.checkContent()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

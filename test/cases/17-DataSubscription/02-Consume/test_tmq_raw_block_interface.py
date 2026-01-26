@@ -73,5 +73,5 @@ class TestCase:
         """
         tdSql.prepare()
         self.check()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

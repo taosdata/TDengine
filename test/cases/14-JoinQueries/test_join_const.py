@@ -252,4 +252,4 @@ class TestJoinConst:
         self.run_nocheck_case()
         self.run_abnormal_case()
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

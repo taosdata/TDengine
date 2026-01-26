@@ -233,7 +233,7 @@ class TestAlterConfig:
         trans_end = self.check_trans_end()
         assert trans_end, "transactions not end"
         
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
     #
     # ------------------- test_dismatch_config.py ----------------

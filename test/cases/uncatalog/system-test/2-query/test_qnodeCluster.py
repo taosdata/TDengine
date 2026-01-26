@@ -282,4 +282,4 @@ class TestQnodecluster:
         self.restartFunc(func_name=self.tsbsIotQuery,threadNumbers=3,dnodeNumbers=5,mnodeNums=3,restartNumbers=3,stopRole='mnode')
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

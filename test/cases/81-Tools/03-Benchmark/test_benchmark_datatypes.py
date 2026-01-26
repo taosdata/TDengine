@@ -275,7 +275,7 @@ class TestBenchmarkDatatypes:
         self.check_cmd_others(benchmark)
 
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 
 
 

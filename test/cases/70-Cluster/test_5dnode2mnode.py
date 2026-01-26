@@ -131,5 +131,5 @@ class Test5dnode2mnode:
         self.five_dnode_two_mnode()
 
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

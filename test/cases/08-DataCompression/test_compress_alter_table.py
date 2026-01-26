@@ -385,4 +385,4 @@ class TestCompressBasic:
 
         # check corrent
         self.checkCorrect()
-        tdLog.info(f"{__file__} successfully executed")
+        tdLog.info(f"{__file__} ")

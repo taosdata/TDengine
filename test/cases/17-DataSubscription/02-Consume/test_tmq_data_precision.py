@@ -137,5 +137,5 @@ class TestCase:
             tdSql.execute("drop database %s" % self.db_name)
         
         tdSql.execute(f"drop database if exists {self.db_name}")
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

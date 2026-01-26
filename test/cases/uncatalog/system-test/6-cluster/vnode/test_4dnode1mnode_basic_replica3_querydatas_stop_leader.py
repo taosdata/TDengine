@@ -470,5 +470,5 @@ class Test4dnode1mnodeBasicReplica3QuerydatasStopLeader:
         self.stop_follower_when_query_going()
 
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

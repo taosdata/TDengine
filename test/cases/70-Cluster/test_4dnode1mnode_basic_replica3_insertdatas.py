@@ -164,5 +164,5 @@ class Test4dnode1mnodeBasicReplica3Insertdatas:
         self.check_insert_status(self.db_name , self.tb_nums , self.row_nums)
 
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

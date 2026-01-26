@@ -239,5 +239,5 @@ class TestFsync:
         tdLog.printNoPrefix("==========step4:after wal_level, all check again ")
         self.all_test()
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

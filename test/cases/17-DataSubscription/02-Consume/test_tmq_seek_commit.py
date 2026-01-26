@@ -208,4 +208,4 @@ class TestCase:
 
         tdSql.execute("drop topic %s" % self.topic_name)
         tdSql.execute("drop database %s"%(self.db_name))
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

@@ -855,7 +855,7 @@ class TestNestedqueryinterval:
         self.TS_3932_flushdb()
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
     def fun_to_char(self):
         tdLog.debug("test to_char ............ [OK]")

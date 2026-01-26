@@ -1293,4 +1293,4 @@ class TestRowlength64k:
         endTime_all = time.time()
         print("total time %ds" % (endTime_all - startTime_all))
         
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

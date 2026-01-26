@@ -475,5 +475,5 @@ class TestWalRetention:
         self.run_test_db("db", checkTime = 3*60, wal_period = 60, wal_size_kb=500)
 
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 

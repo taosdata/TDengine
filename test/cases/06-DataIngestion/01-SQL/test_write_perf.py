@@ -144,4 +144,4 @@ class TestInsertPerf:
         self.check_insert(self.tb3, 1000, self.ts, 3, 3)
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

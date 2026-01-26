@@ -166,5 +166,5 @@ class TestCreateStbKeep:
         # check stb keep ins table
         self.check_stb_keep_ins_table()
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

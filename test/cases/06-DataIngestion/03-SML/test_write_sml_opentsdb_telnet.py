@@ -1510,4 +1510,4 @@ class TestOpentsdbTelnetLineTaoscInsert:
         except Exception as err:
             print(''.join(traceback.format_exception(None, err, err.__traceback__)))
             raise err
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

@@ -64,7 +64,7 @@ class TestKillBalanceLeader:
             tdLog.info(f"{sql} no balance transaction exist")
             return False
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
     def waitTransactionZero(self, seconds = 300, interval = 1):
         # wait end

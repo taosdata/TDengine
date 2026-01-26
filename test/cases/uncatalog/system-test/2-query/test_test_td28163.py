@@ -270,4 +270,4 @@ class TestTestTd28163:
         self.check_nested_query()
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)

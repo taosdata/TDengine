@@ -205,4 +205,4 @@ class TestFunToday:
         self.today_check_stb_tb()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

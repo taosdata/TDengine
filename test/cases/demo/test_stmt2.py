@@ -116,4 +116,4 @@ class TestStmt2:
         self.run_super_table()
         self.run_batch_insert()
         
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

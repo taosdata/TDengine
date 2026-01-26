@@ -524,4 +524,4 @@ class TestFunAtan:
         self.support_super_table_test()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

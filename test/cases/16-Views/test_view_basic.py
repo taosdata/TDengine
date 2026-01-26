@@ -760,5 +760,5 @@ class TestViewBasic:
         self.run_query_from_view()
         self.run_tmq_from_view()
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

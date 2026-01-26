@@ -180,7 +180,7 @@ class TestFuncToTimestamp:
         self.check_ns_to_timestamp()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
 
     def create_tables(self):

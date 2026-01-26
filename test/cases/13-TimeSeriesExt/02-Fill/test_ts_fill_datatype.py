@@ -1432,7 +1432,7 @@ class TestFill2:
         self.check_fill(self.db_name, self.norm_table_name, self.norm_tb_columns)
         self.check_fill(self.db_name, self.stable_name, self.stb_columns)
         
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
     def get_first_last_ts(self, dbname, tbname):
         sql = f'select cast(first(ts) as bigint), cast(last(ts) as bigint) from {dbname}.{tbname}'

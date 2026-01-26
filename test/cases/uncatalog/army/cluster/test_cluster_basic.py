@@ -101,5 +101,5 @@ class TestClusterBasic:
         sc.dnodeStop(1)
         sc.dnodeStop(4)
         sc.dnodeStop(5)
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

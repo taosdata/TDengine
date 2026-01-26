@@ -263,7 +263,7 @@ class TestUserBasic:
             username = f"{self.basic_username}{userIndex}"
             tdSql.execute(f'drop user {username}')  
         # close the connection
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 
         print("do multi user privileges ............. [passed]")
 

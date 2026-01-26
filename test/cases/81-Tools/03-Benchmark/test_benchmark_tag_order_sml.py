@@ -89,8 +89,8 @@ class TestInsertTagOrderSml:
         self.executeAndCheck('sml_tag_order1', 'sml', 1)
         self.executeAndCheck('sml_tag_order2', 'sml', 0)
 
-        tdLog.success("Successfully executed")
+        tdLog.success("")
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 
 

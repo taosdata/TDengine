@@ -673,5 +673,5 @@ class TestCompare:
         self.run_compareUint64Uint16()
         self.run_compareUint64Uint32()
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 

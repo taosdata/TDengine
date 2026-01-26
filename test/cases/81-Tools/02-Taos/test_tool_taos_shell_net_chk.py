@@ -242,5 +242,5 @@ class TestTaosShellNetChk:
                 tdLog.info("pkill -9 taos")
                 # os.system('pkill -9 taos')
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

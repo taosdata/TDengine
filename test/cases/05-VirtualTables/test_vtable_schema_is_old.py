@@ -126,6 +126,6 @@ class TestVTableSchemaIsOld:
         self.run_unorderd_vtable_column_and_origin_table_column()
         self.run_vtable_multi_columns_use_ts_column()
         self.run_vstable_origin_table_column_has_same_prefix()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
 

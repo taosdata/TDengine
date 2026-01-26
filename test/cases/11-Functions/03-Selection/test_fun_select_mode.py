@@ -217,4 +217,4 @@ class TestMode:
         self.check_mode_function()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

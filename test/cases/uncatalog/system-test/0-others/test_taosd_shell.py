@@ -212,5 +212,5 @@ class TestTaosdShell:
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
         self.taosdCommandExe(startAction,taosdCmdRun)
     
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

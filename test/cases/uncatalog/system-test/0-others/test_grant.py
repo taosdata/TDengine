@@ -345,5 +345,5 @@ class TestGrant:
         self.s4_ts6191_check_dual_replica()
 
         self.clearEnv()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

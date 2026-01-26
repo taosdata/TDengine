@@ -79,7 +79,7 @@ class TestGrantBugs:
         # TD-30642
         self.td_30642()
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
         
 

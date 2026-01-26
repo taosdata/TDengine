@@ -275,4 +275,4 @@ class TestFunIrate:
         self.insert_datas_and_check_irate(self.tb_nums,self.row_nums,self.time_step)
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

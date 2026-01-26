@@ -82,4 +82,4 @@ class TestTb100wDataOrder:
         """
         self.query_ntb_order_by_col(batch_num=1000, rows_count=1000000)
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

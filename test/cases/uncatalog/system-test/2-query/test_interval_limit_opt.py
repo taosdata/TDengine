@@ -229,6 +229,6 @@ class TestIntervalLimitOpt:
         self.check_partition_by_limit_no_agg()
 
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
 event = threading.Event()

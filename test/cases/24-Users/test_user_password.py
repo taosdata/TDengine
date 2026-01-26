@@ -337,7 +337,7 @@ class TestUserPassword:
             raise Exception("failed to execute system command. cmd: %s" % cmd)
 
         tdSql.error("alter user test2 pass '1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456';", expectErrInfo="Name or password too long", fullMatched=False)      
-        tdLog.success(f"{__file__} successfully executed")    
+        tdLog.success(f"{__file__} ")    
 
         print("do army password ...................... [passed]")
 

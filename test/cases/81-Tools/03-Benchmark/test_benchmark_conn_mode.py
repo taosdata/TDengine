@@ -166,6 +166,6 @@ class TestConnMode:
         # host and port 
         self.checkHostPort()
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 
 

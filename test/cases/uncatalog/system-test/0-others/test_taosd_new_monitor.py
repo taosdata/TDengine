@@ -269,5 +269,5 @@ class TestTaosdNewMonitor:
             serverAddress = ("", int(telemetryPort))
             http.server.HTTPServer(serverAddress, RequestHandlerImpl).serve_forever()
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

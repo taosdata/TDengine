@@ -139,5 +139,5 @@ class TestQmemCtrl:
         self.single_up_check()
         self.too_big_reserve()
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 

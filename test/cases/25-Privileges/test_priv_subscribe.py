@@ -158,6 +158,6 @@ class TestSubscribeStreamPrivilege:
         self.create_user()
         self.consumeTest()
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 
 

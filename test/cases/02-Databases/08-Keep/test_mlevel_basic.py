@@ -68,5 +68,5 @@ class TestMlevelBasic:
         # check insert correct again
         self.checkInsertCorrect()
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

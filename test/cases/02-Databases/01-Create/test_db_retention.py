@@ -169,7 +169,7 @@ class TestDbRetention:
         time.sleep(10)
 
         self._check_retention()
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 
         print("do retention .......................... [passed]")
 

@@ -80,4 +80,4 @@ class TestCompactCol:
 
         tdSql.execute('drop database tbname_vgroup')
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)

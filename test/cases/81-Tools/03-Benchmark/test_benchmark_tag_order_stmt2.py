@@ -88,8 +88,8 @@ class TestInsertTagOrderStmt2:
         """
         self.executeAndCheck('stmt2_tag_order_1', 'stmt2', 1)
         self.executeAndCheck('stmt2_tag_order_2', 'stmt2', 0)
-        tdLog.success("Successfully executed")
+        tdLog.success("")
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 
 

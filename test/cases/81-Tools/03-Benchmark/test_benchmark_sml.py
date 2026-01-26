@@ -390,7 +390,7 @@ class TestBenchmarkSml:
             tdSql.checkData(row, 8, 1)
             tdSql.checkData(row, 9, True)
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
     
         print("do sml taosjson all data-types ........ [passed]")
 

@@ -241,4 +241,4 @@ class TestBottom:
         """
         self.do_sim_bottom()
         self.do_bottom()
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)

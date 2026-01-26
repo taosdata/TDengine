@@ -38,4 +38,4 @@ class TestCase:
         if ret != 0:
             tdLog.exit("tmq_get_meta_json != 0")
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")

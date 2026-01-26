@@ -223,7 +223,7 @@ class TestTaosdAudit:
             http.server.HTTPServer(serverAddress, RequestHandlerImpl).serve_forever()
             tdLog.info("http server exited")
         
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
 
     def createTbThread(self, sql, newTdSql):

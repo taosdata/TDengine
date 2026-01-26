@@ -160,4 +160,4 @@ class TestMaxMinData:
         print("total time %ds" % (endTime - startTime))
 
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)

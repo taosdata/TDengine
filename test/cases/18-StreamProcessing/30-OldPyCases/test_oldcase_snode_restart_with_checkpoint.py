@@ -114,7 +114,7 @@ class Test_snode_restart_with_checkpoint:
 
     def stop(self):
         tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
         
     def checkStreamRunning(self):
         tdLog.info(f"check stream running status:")

@@ -349,5 +349,5 @@ class Test4dnode1mnodeBasicReplica3VgroupsStopOne:
         self.check_setup_cluster_status()
         self.run_init_vgroups_time_costs()
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 

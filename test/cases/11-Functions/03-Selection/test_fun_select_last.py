@@ -2457,4 +2457,4 @@ class TestFunLast:
         self.do_army_last()
         self.do_last()
 
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)

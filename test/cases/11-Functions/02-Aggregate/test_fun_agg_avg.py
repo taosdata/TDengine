@@ -620,7 +620,7 @@ class TestFunAvg:
         # check avg overflow
         self.avg_check_overflow()
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
 
     #

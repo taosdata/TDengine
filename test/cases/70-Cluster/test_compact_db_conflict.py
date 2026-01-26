@@ -127,7 +127,7 @@ class TestCompactDbConflict:
         tdSql.error('compact database db;', expectErrInfo="Conflict transaction not completed")
         t7.join()
      
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
     def compactDBThread(self, p, event, newtdSql):
         tdLog.info("compact db start")

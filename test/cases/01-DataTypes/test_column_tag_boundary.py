@@ -194,5 +194,5 @@ class TestColumnTagBoundary:
         self.run_json_tag_boundary()
 
         tdSql.execute("drop database db;")
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
 

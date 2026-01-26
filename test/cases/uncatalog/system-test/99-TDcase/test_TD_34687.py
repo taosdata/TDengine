@@ -54,7 +54,7 @@ class TestTD_34687:
 
 
         # Cleanup from original stop method
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
 
 
     

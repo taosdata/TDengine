@@ -357,7 +357,7 @@ class TestBoundary:
         self.fullname_length_check()
         
         #tdSql.close()
-        tdLog.success("%s successfully executed" % __file__)
+        tdLog.success("%s " % __file__)
     
     def test_sql_length_boundary(self):
         """SQL length boundary

@@ -370,5 +370,5 @@ class TestSSAzure:
             # check azure data not exist
             self.checkAzureDataNotExist()
 
-            tdLog.success(f"{__file__} successfully executed")
+            tdLog.success(f"{__file__} ")
 

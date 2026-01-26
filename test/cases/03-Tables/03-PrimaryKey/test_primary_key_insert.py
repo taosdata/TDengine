@@ -969,4 +969,4 @@ class TestCompositePrimaryKeyInsert:
         # while(True):
         #     self.test_stmt(LegalDataType.VARCHAR) 
 
-        tdLog.success(f"{__file__} successfully executed")
+        tdLog.success(f"{__file__} ")
