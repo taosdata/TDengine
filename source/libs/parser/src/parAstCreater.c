@@ -426,7 +426,7 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       // If aliasName is truncated, hash value of aliasName could be the same.
       uint64_t hashVal = MurmurHash3_64(pRawExpr->p, pRawExpr->n);
       snprintf(pExpr->aliasName, TSDB_COL_NAME_LEN, "%" PRIu64, hashVal);
-      strncpy(pExpr->userAlias, pRawExpr->p, len);
+      tstrncpy(pExpr->userAlias, pRawExpr->p, len + 1);
       pExpr->userAlias[len] = 0;
     }
   }
@@ -1308,7 +1308,7 @@ static SNode* createPrimaryKeyCol(SAstCreateContext* pCxt, const SToken* pFuncNa
   if (NULL == pFuncName) {
     tstrncpy(pCol->colName, ROWTS_PSEUDO_COLUMN_NAME, TSDB_COL_NAME_LEN);
   } else {
-    strncpy(pCol->colName, pFuncName->z, pFuncName->n);
+    tstrncpy(pCol->colName, pFuncName->z, pFuncName->n + 1);
   }
   pCol->isPrimTs = true;
   return (SNode*)pCol;

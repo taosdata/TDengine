@@ -202,7 +202,7 @@ static void mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamR
   int32_t code = 0;
 
   pObj->pCreate = pCreate;
-  strncpy(pObj->name, pCreate->name, TSDB_STREAM_FNAME_LEN);
+  tstrncpy(pObj->name, pCreate->name, sizeof(pObj->name));
   (void)snprintf(pObj->createUser, sizeof(pObj->createUser), "%s", pOperUser->name);
   pObj->ownerId = pOperUser->uid;
   pObj->mainSnodeId = snodeId;

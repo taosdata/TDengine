@@ -827,7 +827,7 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
       }
 
       memcpy(nameBuf, pKey, keyLen);
-      strncpy(&nameBuf[keyLen], "_col", strlen("_col"));
+      tstrncpy(&nameBuf[keyLen], "_col", tListLen(nameBuf) - keyLen);
 
       void* pCol = taosHashGet(pHashMap, nameBuf, strlen(nameBuf));
       if (pCol == NULL) {

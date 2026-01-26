@@ -48,7 +48,7 @@ static int32_t cos_cp_parse_body(char* cp_body, SCheckpoint* cp) {
 
   item = cJSON_GetObjectItem(json, "upload_id");
   if (cJSON_IsString(item)) {
-    (void)strncpy(cp->upload_id, item->valuestring, 128);
+    tstrncpy(cp->upload_id, item->valuestring, sizeof(cp->upload_id));
   }
 
   item2 = cJSON_GetObjectItem(json, "file");
@@ -65,12 +65,12 @@ static int32_t cos_cp_parse_body(char* cp_body, SCheckpoint* cp) {
 
     item = cJSON_GetObjectItem(item2, "path");
     if (cJSON_IsString(item)) {
-      (void)strncpy(cp->file_path, item->valuestring, TSDB_FILENAME_LEN);
+      tstrncpy(cp->file_path, item->valuestring, sizeof(cp->file_path));
     }
 
     item = cJSON_GetObjectItem(item2, "file_md5");
     if (cJSON_IsString(item)) {
-      (void)strncpy(cp->file_md5, item->valuestring, 64);
+      tstrncpy(cp->file_md5, item->valuestring, sizeof(cp->file_md5));
     }
   }
 
@@ -83,17 +83,17 @@ static int32_t cos_cp_parse_body(char* cp_body, SCheckpoint* cp) {
 
     item = cJSON_GetObjectItem(item2, "object_name");
     if (cJSON_IsString(item)) {
-      (void)strncpy(cp->object_name, item->valuestring, 128);
+      tstrncpy(cp->object_name, item->valuestring, sizeof(cp->object_name));
     }
 
     item = cJSON_GetObjectItem(item2, "object_last_modified");
     if (cJSON_IsString(item)) {
-      (void)strncpy(cp->object_last_modified, item->valuestring, 64);
+      tstrncpy(cp->object_last_modified, item->valuestring, sizeof(cp->object_last_modified));
     }
 
     item = cJSON_GetObjectItem(item2, "object_etag");
     if (cJSON_IsString(item)) {
-      (void)strncpy(cp->object_etag, item->valuestring, 128);
+      tstrncpy(cp->object_etag, item->valuestring, sizeof(cp->object_etag));
     }
   }
 
@@ -141,7 +141,7 @@ static int32_t cos_cp_parse_body(char* cp_body, SCheckpoint* cp) {
 
         item3 = cJSON_GetObjectItem(item, "etag");
         if (cJSON_IsString(item3)) {
-          (void)strncpy(cp->parts[index].etag, item3->valuestring, 128);
+          tstrncpy(cp->parts[index].etag, item3->valuestring, sizeof(cp->parts[index].etag));
         }
       }
     }
@@ -346,7 +346,7 @@ void cos_cp_get_undo_parts(SCheckpoint* checkpoint, int* part_num, SCheckpointPa
 
 void cos_cp_update(SCheckpoint* checkpoint, int32_t part_index, char const* etag, uint64_t crc64) {
   checkpoint->parts[part_index].completed = 1;
-  (void)strncpy(checkpoint->parts[part_index].etag, etag, 127);
+  tstrncpy(checkpoint->parts[part_index].etag, etag, sizeof(checkpoint->parts[part_index].etag));
   checkpoint->parts[part_index].crc64 = crc64;
 }
 
@@ -356,11 +356,11 @@ void cos_cp_build_upload(SCheckpoint* checkpoint, char const* filepath, int64_t 
 
   checkpoint->cp_type = COS_CP_TYPE_UPLOAD;
   (void)memset(checkpoint->file_path, 0, TSDB_FILENAME_LEN);
-  (void)strncpy(checkpoint->file_path, filepath, TSDB_FILENAME_LEN - 1);
+  tstrncpy(checkpoint->file_path, filepath, sizeof(checkpoint->file_path));
 
   checkpoint->file_size = size;
   checkpoint->file_last_modified = mtime;
-  (void)strncpy(checkpoint->upload_id, upload_id, 127);
+  tstrncpy(checkpoint->upload_id, upload_id, sizeof(checkpoint->upload_id));
 
   checkpoint->part_size = part_size;
   for (; i * part_size < size; i++) {

@@ -3631,8 +3631,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
               char       *colName = tSimpleHashGetKey(px2, NULL);
               OTableInfo *pInfo = taosArrayReserve(pReq->cols, 1);
               QUERY_CHECK_NULL(pInfo, code, lino, _end, terrno);
-              (void)strncpy(pInfo->refTableName, tbName, sizeof(pInfo->refTableName));
-              (void)strncpy(pInfo->refColName, colName, sizeof(pInfo->refColName));
+              tstrncpy(pInfo->refTableName, tbName, sizeof(pInfo->refTableName));
+              tstrncpy(pInfo->refColName, colName, sizeof(pInfo->refColName));
               px2 = tSimpleHashIterate(pTbInfo->pColumns, px2, &iter3);
             }
           }
@@ -5649,7 +5649,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
           SStreamDbTableName *pName = taosArrayReserve(pOrigTableNames, 1);
           QUERY_CHECK_NULL(pName, code, lino, _end, terrno);
           (void)snprintf(pName->dbFName, sizeof(pName->dbFName), "%d.%s", 1, dbName);
-          (void)strncpy(pName->tbName, tbName, sizeof(pName->tbName));
+          tstrncpy(pName->tbName, tbName, sizeof(pName->tbName));
           pTbInfo = tSimpleHashIterate(pDbInfo, pTbInfo, &iter2);
         }
         px = tSimpleHashIterate(pTask->pOrigTableCols, px, &iter1);

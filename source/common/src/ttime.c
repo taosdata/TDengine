@@ -1573,7 +1573,7 @@ static const char* tsFormatStr2Int32(int32_t* dest, const char* str, int32_t len
     s = last;
   } else {
     char buf[16] = {0};
-    (void)strncpy(buf, s, len);
+    tstrncpy(buf, s, sizeof(buf));
     int32_t copiedLen = strlen(buf);
     if (copiedLen < len) {
       if (!needMoreDigit) {
