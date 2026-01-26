@@ -1573,7 +1573,10 @@ static int32_t resetGroupCacheOperState(SOperatorInfo* pOper) {
 
   taosHashClear(pInfo->pGrpHash);
 
-  resetGroupCacheDownstreamCtx(pOper);
+  code = resetGroupCacheDownstreamCtx(pOper);
+  if (TSDB_CODE_SUCCESS != code) {
+    QUERY_CHECK_CODE(code, lino, _exit);
+  }
 
   memset(pInfo->execInfo.pDownstreamBlkNum, 0, pOper->numOfDownstream * sizeof(int64_t));
   

@@ -3140,7 +3140,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.ssChunkSize, false), &lino, _OVER);
 
     char keeplocalVstr[128] = {0};
-    len = snprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], sizeof(keeplocalVstr), "%dm", pDb->cfg.ssKeepLocal);
+    len = snprintf(&keeplocalVstr[VARSTR_HEADER_SIZE], sizeof(keeplocalVstr) - VARSTR_HEADER_SIZE, "%dm",
+                   pDb->cfg.ssKeepLocal);
     varDataSetLen(keeplocalVstr, len);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, rows, (const char *)keeplocalVstr, false), &lino, _OVER);
