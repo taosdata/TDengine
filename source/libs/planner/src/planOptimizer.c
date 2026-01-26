@@ -2937,6 +2937,7 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
         *pNotOptimize = true;
         return TSDB_CODE_SUCCESS;
       }
+      break;
     default:
       break;
   }
