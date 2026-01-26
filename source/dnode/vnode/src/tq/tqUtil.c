@@ -164,7 +164,9 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   TSDB_CHECK_CODE(code, lino, end);
 
   code = tqScanData(pTq, pHandle, &dataRsp, pOffset, pRequest);
-  TSDB_CHECK_CODE(code, lino, end);
+  if (code != 0 && terrno != TSDB_CODE_WAL_LOG_NOT_EXIST) {
+    goto end;
+  }
 
   if (terrno == TSDB_CODE_TMQ_FETCH_TIMEOUT) {
     dataRsp.timeout = true;

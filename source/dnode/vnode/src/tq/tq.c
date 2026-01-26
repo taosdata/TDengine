@@ -635,7 +635,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   taosRLockLatch(&pTq->lock);  STqHandle* pHandle = NULL;
   int32_t code = tqMetaGetHandle(pTq, req.subKey, &pHandle);
   if (code != 0){
-    tqInfo("vgId:%d, tmq process subscribe req:%s, no such handle, create new one, msg:%s", pTq->pVnode->config.vgId, req.subKey, tstrerror(code));
+    tqInfo("vgId:%d, tmq subscribe req:%s, no such handle, create new one, msg:%s", pTq->pVnode->config.vgId, req.subKey, tstrerror(code));
   }
   taosRUnLockLatch(&pTq->lock);
   if (pHandle == NULL) {
