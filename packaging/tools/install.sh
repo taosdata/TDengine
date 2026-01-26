@@ -486,7 +486,7 @@ function install_bin() {
   else
     cp -r "${script_dir}/bin/"* "${install_main_dir}/bin"
     if [ "${pkgMode}" != "lite" ]; then
-      cp ${script_dir}/start-all.sh ${install_main_dir}/bin
+      cp "${script_dir}/start-all.sh" "${install_main_dir}/bin"
       sed -i.bak \
         -e "s|/usr/local/${PREFIX}|${install_main_dir}|g" \
         -e "s|/etc/${PREFIX}|${configDir}|g" \
@@ -496,7 +496,7 @@ function install_bin() {
     fi
   fi
   if [[ "${verMode}" == "cluster" && "${verType}" != "client" ]]; then
-    if [ -d ${script_dir}/${xname}/bin ]; then
+    if [ -d "${script_dir}/${xname}/bin" ]; then
       cp -r ${script_dir}/${xname}/bin/* ${install_main_dir}/bin
     fi
   fi
