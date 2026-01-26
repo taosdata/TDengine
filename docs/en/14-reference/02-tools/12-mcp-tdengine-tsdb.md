@@ -1,6 +1,7 @@
 ---
 title: TDengine TSDB MCP Reference Manual
 sidebar_label: TDengine TSDB MCP
+slug: /tdengine-reference/tools/mcp-tdengine-tsdb
 toc_max_heading_level: 4
 ---
 
@@ -41,7 +42,7 @@ mcp-tdengine-tsdb supports configuring the information needed to connect to TDen
 When connecting to cloud services, DSN connection parameters can be configured, for example:
 
 ```bash
---dsn = wss(gw.us-west-2.aws.cloud.tdengine.com:443)/test?readTimeout=1m&token=xxxxxxxx
+--dsn=wss(gw.us-west-2.aws.cloud.tdengine.com:443)/test?readTimeout=1m&token=xxxxxxxx
 ```
 
 ## Adding MCP

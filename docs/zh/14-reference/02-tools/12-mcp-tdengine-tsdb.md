@@ -36,12 +36,12 @@ mcp-tdengine-tsdb 支持通过命令行参数或环境变量配置连接 TDengin
 | `--pass`                 | `TDENGINE_PASS`                 | `taosdata`  | TDengine 密码                       |
 | `--db`                   | `TDENGINE_DB`                   |             | TDengine 数据库名                     |
 | `--dsn`                  | `TDENGINE_DSN`                  |             | TDengine 数据源名称 (DSN)，优先级高于单独的连接参数 |
-| `--schema_overview_file` | `TDENGINE_SCHEMA_OVERVIEW_FILE` |             | 预定义数据库schema概览文件路径                |
+| `--schema_overview_file` | `TDENGINE_SCHEMA_OVERVIEW_FILE` |             | 预定义数据库 schema 概览文件路径              |
 
 连接云服务时可通过配置 DSN 连接参数，例如：
 
 ```bash
---dsn = wss(gw.us-west-2.aws.cloud.tdengine.com:443)/test?readTimeout=1m&token=xxxxxxxx
+--dsn=wss(gw.us-west-2.aws.cloud.tdengine.com:443)/test?readTimeout=1m&token=xxxxxxxx
 ```
 
 ## 添加 MCP
@@ -50,9 +50,9 @@ mcp-tdengine-tsdb 支持通过命令行参数或环境变量配置连接 TDengin
 
 ### 以 Trae 为例添加 MCP
 
-1. 在 Trae AI对话窗口右上角,点击设置图标->MCP,会打开MCP窗口
+1. 在 Trae AI 对话窗口右上角，点击设置图标->MCP，会打开 MCP 窗口
 
-![MCP SETTING](assets/mcp-setting.webp)
+   ![MCP SETTING](assets/mcp-setting.webp)
 
 2. 点击手动添加后填入以下内容 command 改为 mcp-tdengine-tsdb 所在全路径，Windows 系统注意要路径转义。db 参数填写你要操作的数据库名称，点击确认后即可使用 MCP Server for TDengine TSDB 进行数据查询和管理操作。
 
