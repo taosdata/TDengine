@@ -191,7 +191,7 @@ jobs:
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
           set TD_CONFIG=Release
-          call .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM" -DTAOSADAPTER_GIT_TAG:STRING=3.3.8 -DCMAKE_BUILD_TYPE=Release
+          call .\build.bat gen -DTD_EXTERNALS_USE_ONLY:BOOL=ON -G "NMake Makefiles JOM" -DTAOSADAPTER_GIT_TAG:STRING=3.3.8
           call .\build.bat bld 
           call .\build.bat install
           echo %PATH%
