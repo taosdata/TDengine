@@ -1511,7 +1511,7 @@ int sml_td24070_Test() {
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "grant select on td24070_write.* to test_stb_read");
+  pRes = taos_query(taos, "grant select on td24070_write.stb2 to test_stb_read");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
@@ -1519,7 +1519,7 @@ int sml_td24070_Test() {
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "grant insert on td24070_write.* to test_stb_write");
+  pRes = taos_query(taos, "grant insert on td24070_write.stb2 to test_stb_write");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 

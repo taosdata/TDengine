@@ -74,7 +74,7 @@ typedef struct SUserAuthInfo {
 typedef enum {
   AUTH_RES_BASIC = 0,
   AUTH_RES_VIEW,
-  AUTH_RES_MAX_VALUE,
+  AUTH_RES_MAX_VALUE
 } AUTH_RES_TYPE;
 
 typedef struct SUserAuthRes {

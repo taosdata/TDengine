@@ -823,7 +823,6 @@ _exit:
 static int32_t mndUpgradeDefaultRoles(SMnode *pMnode, int32_t version) {
   int32_t code = 0, lino = 0;
   if (!mndIsLeader(pMnode)) return code;
-#if 1
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPGRADE_ROLE, .info.ahandle = 0, .info.notFreeAhandle = 1};
   SEpSet  epSet = {0};
   mndGetMnodeEpSet(pMnode, &epSet);
@@ -832,7 +831,6 @@ _exit:
   if (code < 0) {
     mError("failed at line %d to upgrade roles since %s", lino, tstrerror(code));
   }
-#endif
   TAOS_RETURN(code);
 }
 

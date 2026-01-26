@@ -1114,8 +1114,14 @@ static int32_t mndUserPrivUpgradeDbOwners(SMnode *pMnode, SRpcMsg *pReq) {
   }
 
   while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pObj))) {
-    if (pObj->cfg.isMount) continue;
-    if (pObj->ownerId != 0) continue;
+    if (pObj->cfg.isMount) {
+      sdbRelease(pSdb, pObj);
+      continue;
+    }
+    if (pObj->ownerId != 0) {
+      sdbRelease(pSdb, pObj);
+      continue;
+    }
     SUserObj *pUser = NULL;
     (void)mndAcquireUser(pMnode, pObj->createUser, &pUser);
     if (pUser == NULL) {
@@ -1150,6 +1156,28 @@ _exit:
   if (code < 0) {
     mError("failed at line %d to upgrade db owner uid since %s", lino, tstrerror(code));
   }
+  TAOS_RETURN(code);
+}
+
+static int32_t mndUserPrivUpgradeOwnedDbs(SMnode *pMnode, SUserObj *pUser) {
+  int32_t code = 0, lino = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  SDbObj *pObj = NULL;
+  void   *pIter = NULL;
+  char   *key = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pObj))) {
+    if (strncmp(pObj->createUser, pUser->name, sizeof(pObj->createUser)) != 0) {
+      sdbRelease(pSdb, pObj);
+      pObj = NULL;
+      continue;
+    }
+    TAOS_CHECK_EXIT(taosHashPut(pUser->ownedDbs, pObj->name, strlen(pObj->name) + 1, NULL, 0));
+    sdbRelease(pSdb, pObj);
+    pObj = NULL;
+  }
+_exit:
+  if (pIter) sdbCancelFetch(pSdb, pIter);
+  if (pObj) sdbRelease(pSdb, pObj);
   TAOS_RETURN(code);
 }
 
@@ -1191,6 +1219,7 @@ static int32_t mndUserPrivUpgradeTbViews(SMnode *pMnode, SUserObj *pUser, SHashO
     }
 
     TAOS_CHECK_EXIT(mndAlterUserPrivInfo(pMnode, pUser, &alterReq));
+    tFreeSAlterRoleReq(&alterReq);
   }
 _exit:
   tFreeSAlterRoleReq(&alterReq);
@@ -1222,8 +1251,7 @@ static int32_t mndUserPrivUpgradeUsedDbs(SMnode *pMnode, SUserObj *pUser, SHashO
   SAlterRoleReq alterReq = {.alterType = TSDB_ALTER_ROLE_PRIVILEGES, .add = 1, .objType = PRIV_OBJ_DB};
 
   while ((pIter = taosHashIterate(pDbs, pIter))) {
-    size_t keyLen = 0;
-    key = taosHashGetKey(pIter, &keyLen);
+    key = taosHashGetKey(pIter, NULL);
 
     SName name = {0};
     TAOS_CHECK_EXIT(tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB));
@@ -1236,15 +1264,6 @@ static int32_t mndUserPrivUpgradeUsedDbs(SMnode *pMnode, SUserObj *pUser, SHashO
   }
 _exit:
   tFreeSAlterRoleReq(&alterReq);
-  TAOS_RETURN(code);
-}
-
-static int32_t mndUserPrivUpgradeOwnedDbs(SMnode *pMnode, SUserObj *pUser) {
-  int32_t code = 0, lino = 0;
-  void   *pIter = NULL;
-  char   *key = NULL;
-
-_exit:
   TAOS_RETURN(code);
 }
 
@@ -1317,12 +1336,13 @@ static int32_t mndUserPrivUpgradeUser(SMnode *pMnode, SUserObj *pObj) {
     TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSAUDIT, strlen(TSDB_ROLE_SYSAUDIT) + 1, &flag, sizeof(flag)));
   } else {
     if (pObj->sysInfo == 1) {
-      TAOS_CHECK_EXIT(taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_1, strlen(TSDB_ROLE_SYSINFO_1) + 1, &flag, sizeof(flag)));
+      TAOS_CHECK_EXIT(
+          taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_1, strlen(TSDB_ROLE_SYSINFO_1) + 1, &flag, sizeof(flag)));
     } else {
       TAOS_CHECK_EXIT(
           taosHashPut(pObj->roles, TSDB_ROLE_SYSINFO_0, strlen(TSDB_ROLE_SYSINFO_0) + 1, &flag, sizeof(flag)));
     }
-    if(pObj->createdb == 1) {
+    if (pObj->createdb == 1) {
       privAddType(&pObj->sysPrivs, PRIV_DB_CREATE);
     }
   }
@@ -1332,7 +1352,8 @@ static int32_t mndUserPrivUpgradeUser(SMnode *pMnode, SUserObj *pObj) {
   // write db: db.*
   TAOS_CHECK_EXIT(mndUserPrivUpgradeRwDbs(pMnode, pObj, pPrivSet->pWriteDbs, 0x02));
   // tables/views
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, &pObj->selectTbs, pPrivSet->pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
+  TAOS_CHECK_EXIT(
+      mndUserPrivUpgradeTbViews(pMnode, pObj, &pObj->selectTbs, pPrivSet->pReadTbs, PRIV_TBL_SELECT, PRIV_OBJ_TBL));
   TAOS_CHECK_EXIT(
       mndUserPrivUpgradeTbViews(pMnode, pObj, &pObj->insertTbs, pPrivSet->pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL));
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterTbs, PRIV_CM_ALTER, PRIV_OBJ_TBL));
@@ -1343,9 +1364,9 @@ static int32_t mndUserPrivUpgradeUser(SMnode *pMnode, SUserObj *pObj) {
   TAOS_CHECK_EXIT(mndUserPrivUpgradeUsedDbs(pMnode, pObj, pPrivSet->pUseDbs));
   // subscribe
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTopics(pMnode, pObj, pPrivSet->pTopics));
+#endif
   // owned dbs
   TAOS_CHECK_EXIT(mndUserPrivUpgradeOwnedDbs(pMnode, pObj));
-#endif
   mInfo("user:%s, upgraded with uid:%" PRId64, pObj->name, pObj->uid);
 _exit:
   TAOS_RETURN(code);
@@ -1393,11 +1414,6 @@ static int32_t mndProcessUpgradeUserReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_EXIT(mndUserPrivUpgradeUsers(pMnode, pReq));
   TAOS_CHECK_EXIT(mndUserPrivUpgradeDbOwners(pMnode, pReq));
-#ifdef TD_ENTERPRISE
-  // upgrade owner of views
-  // upgrade owner of consumers
-  // upgrade owner of topics
-#endif
 _exit:
   if (code < 0) {
     mError("failed at line %d to upgrade users since %s", lino, tstrerror(code));

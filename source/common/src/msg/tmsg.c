@@ -2919,6 +2919,10 @@ void tFreeSAlterRoleReq(SAlterRoleReq *pReq) {
     taosArrayDestroy(pReq->privileges.insertCols);
     taosArrayDestroy(pReq->privileges.updateCols);
     taosMemoryFreeClear(pReq->privileges.cond);
+    pReq->privileges.condLen = 0;
+    pReq->privileges.selectCols = NULL;
+    pReq->privileges.insertCols = NULL;
+    pReq->privileges.updateCols = NULL;
   }
   FREESQL();
 }
@@ -4902,8 +4906,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   TAOS_CHECK_RETURN(tEncodeI32v(pEncoder, nOwnedDbs));
   void *pIter = NULL;
   while ((pIter = taosHashIterate(pRsp->ownedDbs, pIter))) {
-    size_t keyLen = 0;
-    char  *key = taosHashGetKey(pIter, &keyLen);  // key: dbFName
+    char  *key = taosHashGetKey(pIter, NULL);  // key: dbFName
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, key));
   }
 

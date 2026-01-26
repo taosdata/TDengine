@@ -281,31 +281,6 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
       continue;
     }
 
-    if (pPrivCols) {  // check column-level privileges
-      int32_t j = lastPrivColIdx;
-      bool    found = false;
-      for (; lastPrivColIdx < nPrivCols; ++lastPrivColIdx) {
-        SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, lastPrivColIdx);
-        if (strcmp(token.z, pColNameFlag->colName) == 0) {
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        for (int32_t k = 0; k < j; ++k) {
-          SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, k);
-          if (strcmp(token.z, pColNameFlag->colName) == 0) {
-            found = true;
-            break;
-          }
-        }
-      }
-      if (!found) {
-        taosMemoryFree(pUseCols);
-        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_COL_PERMISSION_DENIED, token.z);
-      }
-    }
-
     int16_t t = lastColIdx + 1;
     int16_t end = (boundColsType == BOUND_ALL_AND_TBNAME) ? (pBoundInfo->numOfCols - 1) : pBoundInfo->numOfCols;
     int16_t index = insFindCol(&token, t, end, pSchema);
@@ -322,6 +297,31 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
       pBoundInfo->pColIndex[pBoundInfo->numOfBound] = index;
       ++pBoundInfo->numOfBound;
       if (hasPK && (pSchema[index].flags & COL_IS_KEY)) ++numOfBoundPKs;
+
+      if (pPrivCols) {  // check column-level privileges
+        int32_t j = lastPrivColIdx;
+        bool    found = false;
+        for (; lastPrivColIdx < nPrivCols; ++lastPrivColIdx) {
+          SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, lastPrivColIdx);
+          if ((pSchema[index].colId == pColNameFlag->colId)) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          for (int32_t k = 0; k < j; ++k) {
+            SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, k);
+            if ((pSchema[index].colId == pColNameFlag->colId)) {
+              found = true;
+              break;
+            }
+          }
+        }
+        if (!found) {
+          taosMemoryFree(pUseCols);
+          return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_COL_PERMISSION_DENIED, token.z);
+        }
+      }
     }
   }
 

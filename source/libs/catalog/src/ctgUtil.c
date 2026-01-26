@@ -2488,24 +2488,10 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     return TSDB_CODE_SUCCESS;
   }
 
-  const SPrivInfo* pPrivInfo = privInfoGet(pReq->privType);
-  if (!pPrivInfo) {
-    return TSDB_CODE_CTG_INTERNAL_ERROR;
-  }
-  SPrivInfo privInfo = *pPrivInfo;
-
-  if (IS_INFORMATION_SCHEMA_DB(pReq->tbName.dbname)) {
-    if (PRIV_DB_USE != privInfo.privType) {
-      pRes->pass[AUTH_RES_BASIC] = true;
-      ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
-      return TSDB_CODE_SUCCESS;
-    }
-  } else if (IS_PERFORMANCE_SCHEMA_DB(pReq->tbName.dbname)) {
-    if (PRIV_DB_USE != privInfo.privType) {
-      pRes->pass[AUTH_RES_BASIC] = true;
-      ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
-      return TSDB_CODE_SUCCESS;
-    }
+  if (IS_SYS_DBNAME(pReq->tbName.dbname)) {
+    pRes->pass[AUTH_RES_BASIC] = true;
+    ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
+    return TSDB_CODE_SUCCESS;
   }
 
   if (req->tbNotExists) {
@@ -2522,7 +2508,11 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
   }
 #endif
 
-
+  const SPrivInfo* pPrivInfo = privInfoGet(pReq->privType);
+  if (!pPrivInfo) {
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
+  }
+  SPrivInfo privInfo = *pPrivInfo;
   if (privInfo.category == PRIV_CATEGORY_SYSTEM) {
     if (PRIV_HAS(&pInfo->sysPrivs, pReq->privType)) {
       pRes->pass[AUTH_RES_BASIC] = true;
@@ -2584,12 +2574,6 @@ _next:
         }
         case PRIV_TBL_INSERT: {
           req->tbPrivs = pInfo->insertTbs;
-          // if (pReq->smlInsert) {
-          //   if (privHasObjPrivilege(pInfo->objPrivs, pReq->tbName.acctId, pReq->tbName.dbname, "*", &privInfo, true)) {
-          //     res->pRawRes->pass[AUTH_RES_BASIC] = true;
-          //   }
-          //   return TSDB_CODE_SUCCESS;
-          // }
           CTG_ERR_RET(ctgChkSetTbAuthRsp(pCtg, req, res));
           if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
             return TSDB_CODE_SUCCESS;

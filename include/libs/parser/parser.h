@@ -126,6 +126,8 @@ typedef struct SParseContext {
   bool             isView;
   bool             isAudit;
   bool             nodeOffline;
+  uint8_t          stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
+  int8_t           biMode;
   union {
     uint8_t flags;
     struct {
@@ -147,14 +149,12 @@ typedef struct SParseContext {
       uint16_t reserved1 : 7;
     };
   };
-  uint8_t     stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
   const char* svrVer;
   SArray*     pTableMetaPos;    // sql table pos => catalog data pos
   SArray*     pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t     allocatorId;
   parseSqlFn  parseSqlFp;
   void*       parseSqlParam;
-  int8_t      biMode;
   SArray*     pSubMetaList;
   setQueryFn  setQueryFp;
   timezone_t  timezone;

@@ -304,7 +304,7 @@ typedef struct {
   int8_t      objType;   // EPrivObjType
   int8_t      objLevel;  // 0: DB, function, 1: table, view
   uint8_t     sysType;
-  int8_t      rwAttr;  // 0x01 for read, 0x02 for write, 0x03 for read/write
+  uint8_t     rwAttr;  // 0x01 for read, 0x02 for write, 0x03 for read/write
   const char* dbName;  // "" for *, otherwise specific db name
   const char* name;
 } SPrivInfo;
@@ -312,8 +312,7 @@ typedef struct {
 /*
  * The SPrivTblPolicy only applies to tables, such as READ/WRITE/DELETE TABLE.
  * It defines the row-level or table-level privileges for a table, maybe combined with columns and tag conditions.
- * The max number of row-level or table-level privileges is TSDB_PRIV_MAX_TBL_POLICY, and it's recommended to decrease
- * the number of SPrivPolicy considering the performance.
+ * It's recommended to decrease the number of SPrivPolicy considering the performance.
  */
 typedef struct {
   SArray* cols;  // SColNameFlag, NULL means all columns, sorted by colId.

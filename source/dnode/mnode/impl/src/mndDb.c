@@ -865,6 +865,15 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   TAOS_RETURN(code);
 }
 
+/**
+ * @brief fill audit owned dbs for users with role SYSAUDIT or SYSAUDIT_LOG.
+ *
+ * @param pMnode
+ * @param pOperUser
+ * @param pDb
+ * @param pAuditOwnedDbs
+ * @return int32_t
+ */
 static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SUserObj *pOperUser, SDbObj *pDb, SArray **pAuditOwnedDbs) {
   int32_t   code = 0, lino = 0;
   SSdb     *pSdb = pMnode->pSdb;
@@ -892,9 +901,7 @@ static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SUserObj *pOperUser, SDbObj *
       pUser = NULL;
       continue;
     }
-    memset(&newUserObj, 0, sizeof(SUserObj));
     TAOS_CHECK_EXIT(mndUserDupObj(pUser, &newUserObj));
-
     TAOS_CHECK_EXIT(taosHashPut(newUserObj.ownedDbs, pDb->name, strlen(pDb->name) + 1, NULL, 0));
     if (auditOwnedDbs == NULL) {
       auditOwnedDbs = taosArrayInit(1, sizeof(SUserObj));
@@ -905,6 +912,7 @@ static int32_t mndSetAuditOwnedDbs(SMnode *pMnode, SUserObj *pOperUser, SDbObj *
     if (!taosArrayPush(auditOwnedDbs, &newUserObj)) {
       TAOS_CHECK_EXIT(terrno);
     }
+    memset(&newUserObj, 0, sizeof(SUserObj));
     sdbRelease(pSdb, pUser);
     pUser = NULL;
   }

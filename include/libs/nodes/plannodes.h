@@ -551,7 +551,7 @@ typedef struct SSystemTableScanPhysiNode {
       uint16_t privInfoSec : 1;
       uint16_t privPerfBasic : 1;
       uint16_t privPerfPrivileged : 1;
-      uint16_t reserved1 : 7;
+      uint16_t reserved : 7;
     };
   };
 } SSystemTableScanPhysiNode;

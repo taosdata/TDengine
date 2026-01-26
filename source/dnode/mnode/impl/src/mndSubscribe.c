@@ -1828,13 +1828,15 @@ static int32_t retrieveSub(SRpcMsg *pReq, SMqSubscribeObj *pSub, SUserObj *pOper
   varDataSetLen(topic, strlen(varDataVal(topic)));
   varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
 
-  (void)mndAcquireTopic(pMnode, topic, &pTopic);
-  if (pTopic) {
-    SName name = {0};  // 1.topic1
-    if (0 == tNameFromString(&name, pTopic->name, T_NAME_ACCT | T_NAME_DB)) {
-      if (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_SUBSCRIPTION_SHOW, PRIV_OBJ_TOPIC, pTopic->ownerId,
-                                        pTopic->db, name.dbname)) {
-        showTopic = true;
+  if (!showAll) {
+    (void)mndAcquireTopic(pMnode, topic, &pTopic);
+    if (pTopic) {
+      SName name = {0};  // 1.topic1
+      if (0 == tNameFromString(&name, pTopic->name, T_NAME_ACCT | T_NAME_DB)) {
+        if (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_SUBSCRIPTION_SHOW, PRIV_OBJ_TOPIC, pTopic->ownerId,
+                                          pTopic->db, name.dbname)) {
+          showTopic = true;
+        }
       }
     }
   }

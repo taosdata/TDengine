@@ -7143,9 +7143,6 @@ static int32_t translateCheckPrivCols(STranslateContext* pCxt, SSelectStmt* pSel
   FOREACH(pNode, pRetrievedCols) {
     if (QUERY_NODE_COLUMN == nodeType(pNode)) {
       SColumnNode* pCol = (SColumnNode*)pNode;
-
-      // printf("the cols is: %s,%d, tbName:%s, dbName:%s\n", pCol->colName, pCol->colId, pCol->tableName,
-      // pCol->dbName);
       SColIdNameKV colIdNameKV = {.colId = pCol->colId};
       snprintf(colIdNameKV.colName, TSDB_COL_NAME_LEN, "%s", pCol->colName);
       STableCols* pTblCols = tSimpleHashGet(pTblColHash, (const void*)&pCol->tableId, sizeof(pCol->tableId));
