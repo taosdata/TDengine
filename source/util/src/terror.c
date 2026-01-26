@@ -1072,6 +1072,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_WALFORCE,            "Audit database wal_
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_KEEPFORCE,           "Audit database keep2 must be greater than 1825d")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_ALREADY_EXIST,         "Audit database already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_NOT_ALLOW_CHANGE,      "Audit database is not allowed to change")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_NOT_MULTI_VGROUP,      "Audit database is not allowed to keep multiple vgroups")
 
 // VTABLE
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR,     "Virtual table scan internal error")
