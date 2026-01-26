@@ -6281,7 +6281,8 @@ static bool isVirtualTable(STableMeta* meta) {
 static bool isVirtualSTable(STableMeta* meta) { return meta->virtualStb; }
 
 static int32_t transSetSysDbPrivs(STranslateContext* pCxt, const char* qualDbName) {
-  SParseContext*   pParCxt = pCxt->pParseCxt;
+#ifdef TD_ENTERPRISE
+  SParseContext* pParCxt = pCxt->pParseCxt;
   SGetUserAuthRsp  authRsp = {0};
   SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
                            .requestId = pParCxt->requestId,
@@ -6296,6 +6297,7 @@ static int32_t transSetSysDbPrivs(STranslateContext* pCxt, const char* qualDbNam
     PRIV_SET(&authRsp.sysPrivs, PRIV_PERF_SCHEMA_READ_BASIC, pParCxt->privPerfBasic);
     PRIV_SET(&authRsp.sysPrivs, PRIV_PERF_SCHEMA_READ_PRIVILEGED, pParCxt->privPerfPrivileged);
   }
+#endif
   TAOS_RETURN(0);
 }
 
@@ -13188,6 +13190,7 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
   return code;
 }
 
+#ifdef TD_ENTERPRISE
 static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, SUserOptions* ops, bool isAlter) {
   int32_t        code = 0, lino = 0;
   SParseContext* pParCxt = pCxt->pParseCxt;
@@ -13256,14 +13259,17 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
 _exit:
   return code;
 }
+#endif
 
 static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pStmt) {
   int32_t        code = 0;
   SCreateUserReq createReq = {0};
 
+#ifdef TD_ENTERPRISE
   if((code = translateCheckUserOptsPriv(pCxt,  pStmt, &pStmt->userOps, false))) {
     return code;
   }
+#endif
   if ((code = checkRangeOption(pCxt, TSDB_CODE_INVALID_OPTION, "sysinfo", pStmt->sysinfo, 0, 1, false))) {
     return code;
   }
@@ -13336,9 +13342,11 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   SAlterUserReq alterReq = {0};
   SUserOptions* opts = pStmt->pUserOptions;
 
+#ifdef TD_ENTERPRISE
   if((code = translateCheckUserOptsPriv(pCxt, pStmt, opts, true))) {
     return code;
   }
+#endif
 
   alterReq.alterType = TSDB_ALTER_USER_BASIC_INFO;
   tstrncpy(alterReq.user, pStmt->userName, TSDB_USER_LEN);

@@ -1777,6 +1777,7 @@ int32_t buildDbTableInfoBlock(const SSysTableScanInfo* pInfo, const SSDataBlock*
     if (!pInfo->sysInfo && pm->sysInfo) {
       continue;
     }
+#ifdef TD_ENTERPRISE
     if (dbName[0] == 'i') {
       if (pm->privCat == PRIV_CAT_BASIC) {
         if (pInfo->privInfoBasic == 0) continue;
@@ -1794,6 +1795,7 @@ int32_t buildDbTableInfoBlock(const SSysTableScanInfo* pInfo, const SSDataBlock*
         if (pInfo->privPerfPrivileged == 0) continue;
       }
     }
+#endif
 
     if (strcmp(pm->name, TSDB_INS_TABLE_USERS_FULL) == 0) {
       continue;

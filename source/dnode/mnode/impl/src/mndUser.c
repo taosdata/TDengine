@@ -545,6 +545,7 @@ int32_t mndInitUser(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_USER, mndProcessDropUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_AUTH, mndProcessGetUserAuthReq);
   mndSetMsgHandle(pMnode, TDMT_MND_UPGRADE_USER, mndProcessUpgradeUserReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_UPGRADE_USER_RSP, mndTransProcessRsp);
 
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_IP_WHITELIST, mndProcessGetUserIpWhiteListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_IP_WHITELIST_DUAL, mndProcessGetUserIpWhiteListReq);

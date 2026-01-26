@@ -303,7 +303,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         bool    found = false;
         for (; lastPrivColIdx < nPrivCols; ++lastPrivColIdx) {
           SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, lastPrivColIdx);
-          if ((pSchema[index].colId == pColNameFlag->colId)) {
+          if (pSchema[index].colId == pColNameFlag->colId) {
             found = true;
             break;
           }
@@ -311,7 +311,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         if (!found) {
           for (int32_t k = 0; k < j; ++k) {
             SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, k);
-            if ((pSchema[index].colId == pColNameFlag->colId)) {
+            if (pSchema[index].colId == pColNameFlag->colId) {
               found = true;
               break;
             }
@@ -2509,11 +2509,12 @@ static int32_t parseBoundColumnsClause(SInsertParseContext* pCxt, SVnodeModifyOp
                              &pTableCxt->boundColsInfo);
   } else if (pTableCxt->boundColsInfo.hasBoundCols) {
     insResetBoundColsInfo(&pTableCxt->boundColsInfo);
-#ifdef TD_ENTERPRISE
   } else if (NULL != pStmt->pPrivCols) {
+#ifdef TD_ENTERPRISE
     PAR_ERR_RET(parseCheckNoBoundColPriv(pCxt, pStmt));
-  }
 #endif
+  }
+
 
   return TSDB_CODE_SUCCESS;
 }

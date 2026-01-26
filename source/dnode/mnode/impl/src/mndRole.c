@@ -50,6 +50,7 @@ static int32_t  mndProcessCreateRoleReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterRoleReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropRoleReq(SRpcMsg *pReq);
 static int32_t  mndProcessUpgradeRoleReq(SRpcMsg *pReq);
+static int32_t  mndProcessUpgradeRoleRsp(SRpcMsg *pReq);
 static int32_t  mndProcessGetRoleAuthReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveRoles(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextRole(SMnode *pMnode, void *pIter);
@@ -79,6 +80,7 @@ int32_t mndInitRole(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_ROLE, mndProcessDropRoleReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ROLE, mndProcessAlterRoleReq);
   mndSetMsgHandle(pMnode, TDMT_MND_UPGRADE_ROLE, mndProcessUpgradeRoleReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_UPGRADE_ROLE_RSP, mndProcessUpgradeRoleRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ROLE, mndRetrieveRoles);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE, mndCancelGetNextRole);
@@ -836,6 +838,10 @@ _exit:
 
 static int32_t mndProcessUpgradeRoleReq(SRpcMsg *pReq) {
   return mndCreateDefaultRoles(pReq->info.node);
+}
+
+static int32_t mndProcessUpgradeRoleRsp(SRpcMsg *pReq) {
+  TAOS_RETURN(0);
 }
 
 static int32_t mndProcessGetRoleAuthReq(SRpcMsg *pReq) { TAOS_RETURN(0); }
