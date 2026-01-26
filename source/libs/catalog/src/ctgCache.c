@@ -665,7 +665,7 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
 
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
   if (CTG_FLAG_IS_SYS_DB(ctx->flag)) {
-    TAOS_STRCPY(dbFName, ctx->pName->dbname);
+    tstrncpy(dbFName, ctx->pName->dbname, sizeof(dbFName));
   } else {
     (void)tNameGetFullDbName(ctx->pName, dbFName);
   }
@@ -1424,7 +1424,7 @@ int32_t ctgDropTbIndexEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
 
   msg->pCtg = pCtg;
   (void)tNameGetFullDbName(pName, msg->dbFName);
-  TAOS_STRCPY(msg->tbName, pName->tname);
+  tstrncpy(msg->tbName, pName->tname, sizeof(msg->tbName));
 
   op->data = msg;
 
@@ -2836,8 +2836,8 @@ int32_t ctgOpDropTbIndex(SCtgCacheOperation *operation) {
   if (NULL == pIndex) {
     CTG_ERR_JRET(terrno);
   }
-  TAOS_STRCPY(pIndex->tbName, msg->tbName);
-  TAOS_STRCPY(pIndex->dbFName, msg->dbFName);
+  tstrncpy(pIndex->tbName, msg->tbName, sizeof(pIndex->tbName));
+  tstrncpy(pIndex->dbFName, msg->dbFName, sizeof(pIndex->dbFName));
   pIndex->version = -1;
 
   CTG_ERR_JRET(ctgWriteTbIndexToCache(pCtg, dbCache, pIndex->dbFName, pIndex->tbName, &pIndex));
@@ -3487,7 +3487,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
   
   if (IS_SYS_DBNAME(pName->dbname)) {
     CTG_FLAG_SET_SYS_DB(flag);
-    TAOS_STRCPY(dbFName, pName->dbname);
+    tstrncpy(dbFName, pName->dbname, sizeof(dbFName));
   } else {
     (void)tNameGetFullDbName(pName, dbFName);
   }
@@ -3827,7 +3827,7 @@ int32_t ctgGetTbNamesFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbNa
 
   if (IS_SYS_DBNAME(pName->dbname)) {
     CTG_FLAG_SET_SYS_DB(flag);
-    TAOS_STRCPY(dbFName, pName->dbname);
+    tstrncpy(dbFName, pName->dbname, sizeof(dbFName));
   } else {
     (void)tNameGetFullDbName(pName, dbFName);
   }
@@ -3898,7 +3898,7 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
 
   if (IS_SYS_DBNAME(pName->dbname)) {
     CTG_FLAG_SET_SYS_DB(flag);
-    TAOS_STRCPY(dbFName, pName->dbname);
+    tstrncpy(dbFName, pName->dbname, sizeof(dbFName));
   } else {
     (void)tNameGetFullDbName(pName, dbFName);
   }

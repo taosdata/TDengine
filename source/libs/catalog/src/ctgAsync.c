@@ -1735,7 +1735,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
         int32_t exist = 0;
         if (!CTG_FLAG_IS_FORCE_UPDATE(flag)) {
           SName stbName = *pName;
-          TAOS_STRCPY(stbName.tname, pOut->tbName);
+          tstrncpy(stbName.tname, pOut->tbName, sizeof(stbName.tname));
           SCtgTbMetaCtx stbCtx = {0};
           stbCtx.flag = flag;
           stbCtx.pName = &stbName;
@@ -1793,7 +1793,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
   /*
     else if (CTG_IS_META_CTABLE(pOut->metaType)) {
       SName stbName = *pName;
-      TAOS_STRCPY(stbName.tname, pOut->tbName);
+      tstrncpy(stbName.tname, pOut->tbName);
       SCtgTbMetaCtx stbCtx = {0};
       stbCtx.flag = flag;
       stbCtx.pName = &stbName;
@@ -1943,7 +1943,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
         int32_t exist = 0;
         if (!CTG_FLAG_IS_FORCE_UPDATE(flag)) {
           SName stbName = *pName;
-          TAOS_STRCPY(stbName.tname, pOut->tbName);
+          tstrncpy(stbName.tname, pOut->tbName, tListLen(stbName.tname));
           SCtgTbMetaCtx stbCtx = {0};
           stbCtx.flag = flag;
           stbCtx.pName = &stbName;
@@ -2006,7 +2006,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
   /*
     else if (CTG_IS_META_CTABLE(pOut->metaType)) {
       SName stbName = *pName;
-      TAOS_STRCPY(stbName.tname, pOut->tbName);
+      tstrncpy(stbName.tname, pOut->tbName);
       SCtgTbMetaCtx stbCtx = {0};
       stbCtx.flag = flag;
       stbCtx.pName = &stbName;
@@ -3523,7 +3523,7 @@ int32_t ctgLaunchGetTbHashsTask(SCtgTask* pTask) {
     }
 
     SBuildUseDBInput input = {0};
-    TAOS_STRCPY(input.db, pReq->dbFName);
+    tstrncpy(input.db, pReq->dbFName, tListLen(input.db));
 
     input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
 

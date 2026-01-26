@@ -82,7 +82,7 @@ static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
     SDnodeEp dnodeEp = {0};
     tjsonGetInt32ValueFromDouble(dnode, "id", dnodeEp.id, code);
     if (code < 0) return -1;
-    code = tjsonGetStringValue(dnode, "fqdn", dnodeEp.ep.fqdn);
+    code = tjsonGetStringValue(dnode, "fqdn", dnodeEp.ep.fqdn, sizeof(dnodeEp.ep.fqdn));
     if (code < 0) return -1;
     tjsonGetUInt16ValueFromDouble(dnode, "port", dnodeEp.ep.port, code);
     if (code < 0) return -1;
@@ -553,11 +553,11 @@ static int32_t dmDecodeEpPairs(SJson *pJson, SDnodeData *pData) {
     SDnodeEpPair pair = {0};
     tjsonGetInt32ValueFromDouble(dnode, "id", pair.id, code);
     if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-    code = tjsonGetStringValue(dnode, "fqdn", pair.oldFqdn);
+    code = tjsonGetStringValue(dnode, "fqdn", pair.oldFqdn, sizeof(pair.oldFqdn));
     if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
     tjsonGetUInt16ValueFromDouble(dnode, "port", pair.oldPort, code);
     if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-    code = tjsonGetStringValue(dnode, "new_fqdn", pair.newFqdn);
+    code = tjsonGetStringValue(dnode, "new_fqdn", pair.newFqdn, sizeof(pair.newFqdn));
     if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
     tjsonGetUInt16ValueFromDouble(dnode, "new_port", pair.newPort, code);
     if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;

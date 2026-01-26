@@ -528,7 +528,7 @@ int32_t vmGetMountDisks(SVnodeMgmt *pMgmt, const char *mountPath, SArray **ppDis
     if (pItem == NULL) {
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
     }
-    code = tjsonGetStringValue(pItem, "dir", dir);
+    code = tjsonGetStringValue(pItem, "dir", dir, sizeof(dir));
     if (code < 0) {
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_JSON_FORMAT);
     }

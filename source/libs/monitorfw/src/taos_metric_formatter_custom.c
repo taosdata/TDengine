@@ -190,7 +190,7 @@ int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_me
     SJson* table = tjsonGetArrayItem(tableArray, i);
 
     char tableName[MONITOR_TABLENAME_LEN] = {0};
-    if ((r = tjsonGetStringValue(table, "name", tableName)) != 0) {
+    if ((r = tjsonGetStringValue(table, "name", tableName, sizeof(tableName))) != 0) {
       taosMemoryFreeClear(name);
       return r;
     }

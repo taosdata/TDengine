@@ -36,9 +36,9 @@ static int32_t epToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToEp(const SJson* pJson, void* pObj) {
   SEp* pNode = (SEp*)pObj;
 
-  int32_t code = tjsonGetStringValue(pJson, "fqdn", pNode->fqdn);
+  int32_t code = tjsonGetStringValue(pJson, "fqdn", pNode->fqdn, sizeof(pNode->fqdn));
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetSmallIntValue(pJson, "port", &pNode->port);
+    code = tjsonGetSmallIntValue(pJson, "port", (int16_t *)&pNode->port);
   }
 
   return code;

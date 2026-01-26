@@ -26,7 +26,7 @@ static int32_t sfieldWithOptionsToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToSFieldWithOptions(const SJson* pJson, void* pObj) {
   SFieldWithOptions* pField = (SFieldWithOptions*)pObj;
-  TAOS_CHECK_RETURN(tjsonGetStringValue(pJson, jkFieldName, pField->name));
+  TAOS_CHECK_RETURN(tjsonGetStringValue(pJson, jkFieldName, pField->name, sizeof(pField->name)));
   TAOS_CHECK_RETURN(tjsonGetUTinyIntValue(pJson, jkFieldType, &pField->type));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(pJson, jkFieldFlags, &pField->flags));
   TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkFieldBytes, &pField->bytes));
@@ -53,7 +53,7 @@ static int32_t stagFieldWithOptionsToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToSTagFieldWithOptions(const SJson* pJson, void* pObj) {
   SFieldWithOptions* pField = (SFieldWithOptions*)pObj;
-  TAOS_CHECK_RETURN(tjsonGetStringValue(pJson, jkFieldName, pField->name));
+  TAOS_CHECK_RETURN(tjsonGetStringValue(pJson, jkFieldName, pField->name, sizeof(pField->name)));
   TAOS_CHECK_RETURN(tjsonGetUTinyIntValue(pJson, jkFieldType, &pField->type));
   TAOS_CHECK_RETURN(tjsonGetTinyIntValue(pJson, jkFieldFlags, &pField->flags));
   TAOS_CHECK_RETURN(tjsonGetIntValue(pJson, jkFieldBytes, &pField->bytes));

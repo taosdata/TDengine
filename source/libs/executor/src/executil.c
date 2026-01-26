@@ -4073,7 +4073,7 @@ int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* pId) {
   }
 
   char    pMsg[1024] = {0};
-  int32_t ret = tjsonGetStringValue(pJson, "msg", pMsg);
+  int32_t ret = tjsonGetStringValue(pJson, "msg", pMsg, sizeof(pMsg));
 
   if (ret == 0) {
     qError("%s failed to exec imputation, msg:%s", pId, pMsg);

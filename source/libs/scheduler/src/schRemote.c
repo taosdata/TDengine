@@ -646,7 +646,7 @@ int32_t schMakeCallbackParam(SSchJob *pJob, SSchTask *pTask, int32_t msgType, bo
 
     param->nodeEpId.nodeId = pAddr->nodeId;
     SEp *pEp = SCH_GET_CUR_EP(pAddr);
-    TAOS_STRCPY(param->nodeEpId.ep.fqdn, pEp->fqdn);
+    tstrncpy(param->nodeEpId.ep.fqdn, pEp->fqdn, sizeof(param->nodeEpId.ep.fqdn));
     param->nodeEpId.ep.port = pEp->port;
     param->pTrans = trans->pTrans;
     *pParam = param;

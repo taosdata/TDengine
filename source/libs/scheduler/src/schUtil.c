@@ -214,7 +214,7 @@ void schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask) {
   SQueryNodeEpId epId = {.nodeId = pAddr->nodeId};
 
   SEp *pEp = SCH_GET_CUR_EP(pAddr);
-  TAOS_STRCPY(epId.ep.fqdn, pEp->fqdn);
+  tstrncpy(epId.ep.fqdn, pEp->fqdn, sizeof(epId.ep.fqdn));
   epId.ep.port = pEp->port;
 
   SCH_LOCK(SCH_READ, &schMgmt.hbLock);
@@ -250,7 +250,7 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
   SQueryNodeEpId epId = {.nodeId = pAddr->nodeId};
 
   SEp *pEp = SCH_GET_CUR_EP(pAddr);
-  TAOS_STRCPY(epId.ep.fqdn, pEp->fqdn);
+  tstrncpy(epId.ep.fqdn, pEp->fqdn, sizeof(epId.ep.fqdn));
   epId.ep.port = pEp->port;
 
   (void)schRegisterHbConnection(pJob, pTask, &epId);

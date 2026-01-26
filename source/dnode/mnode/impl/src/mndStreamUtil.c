@@ -337,7 +337,7 @@ void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* str
   pNode->type = action;
   pNode->streamAct = true;
   pNode->action.stream.streamId = streamId;
-  TAOS_STRCPY(pNode->action.stream.streamName, streamName);
+  tstrncpy(pNode->action.stream.streamName, streamName, sizeof(pNode->action.stream.streamName));
   pNode->action.stream.userAction = userAction;
   pNode->action.stream.actionParam = param;
   
