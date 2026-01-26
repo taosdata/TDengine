@@ -34,6 +34,6 @@ select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test_surro
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test_surround.stb partition by tbname range("2026-01-04 00:00:00") fill(next) surround(1d, 100) order by tbname;
 select _irowts, _isfilled, _irowts_origin, interp(c1, 1), tbname from test_surround.stb partition by tbname range("2026-01-04 00:00:00") fill(near) surround(1d, 100) order by tbname;
 
-select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test_surround.stb partition by gid range("2026-01-04 00:00:00", "2026-01-10 00:00:00") fill(prev) surround(24h, 100) order by gid;
-select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test_surround.stb partition by gid range("2026-01-04 00:00:00", "2026-01-10 00:00:00") fill(next) surround(24h, 100) order by gid;
-select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test_surround.stb partition by gid range("2026-01-04 00:00:00", "2026-01-10 00:00:00") fill(near) surround(24h, 100) order by gid;
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test_surround.stb partition by gid range("2026-01-04 00:00:00", "2026-01-10 00:00:00") every(6h) fill(prev) surround(24h, 100) order by gid, _irowts;
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test_surround.stb partition by gid range("2026-01-04 00:00:00", "2026-01-10 00:00:00") every(6h) fill(next) surround(24h, 100) order by gid, _irowts desc;
+select _irowts, _isfilled, _irowts_origin, interp(c1, 1), gid from test_surround.stb partition by gid range("2026-01-04 00:00:00", "2026-01-10 00:00:00") every(6h) fill(near) surround(24h, 100) order by gid, _irowts;
