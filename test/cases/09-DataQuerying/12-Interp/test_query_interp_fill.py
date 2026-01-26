@@ -122,20 +122,20 @@ class TestInterpFill:
         # insert data for surrounding time test
         tdSql.execute("create database test_surround keep 36500")
         tdSql.execute("use test_surround")
-        tdSql.execute("create table test_surround.ntb (ts timestamp, c1 int)")
+        tdSql.execute("create table test_surround.ntb (ts timestamp, c1 int, c2 varchar(10))")
         tdSql.execute("create table test_surround.stb (ts timestamp, c1 int) tags (gid int)")
         tdSql.execute("create table test_surround.ctb1 using test_surround.stb tags (1)")
         tdSql.execute("create table test_surround.ctb2 using test_surround.stb tags (2)")
         tdSql.execute("create table test_surround.ctb3 using test_surround.stb tags (3)")
         tdSql.execute("""
             insert into test_surround.ntb values
-            ("2026-01-01 12:00:00", 1)
-            ("2026-01-02 12:00:00", null)
-            ("2026-01-03 12:00:00", null)
-            ("2026-01-06 12:00:00", 2)
-            ("2026-01-07 12:00:00", null)
-            ("2026-01-08 12:00:00", null)
-            ("2026-01-09 12:00:00", 3)""")
+            ("2026-01-01 12:00:00", 1, null)
+            ("2026-01-02 12:00:00", null, 'a')
+            ("2026-01-03 12:00:00", null, 'b')
+            ("2026-01-06 12:00:00", 2, null)
+            ("2026-01-07 12:00:00", null, 'c')
+            ("2026-01-08 12:00:00", null, null)
+            ("2026-01-09 12:00:00", 3, null)""")
         tdSql.execute("""
             insert into test_surround.ctb1 values
             ("2026-01-01 12:00:00", 1)
@@ -1714,10 +1714,13 @@ class TestInterpFill:
 
         ### must specify value
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(near)"
-        tdSql.error(sql, -2147473920, "surrounding_time and fill_value must be provided together")
+        tdSql.error(sql, -2147473915, "Too few fill values specified")
         ### num of fill value mismatch
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(near, 1)"
-        tdSql.error(sql, -2147473915)
+        tdSql.error(sql, -2147473915, "Too few fill values specified")
+        ### num of fill value mismatch
+        sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(near, 1, 2, 3)"
+        tdSql.error(sql, -2147473915, "Too many fill values specified")
 
         ### missing every clause
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:02:00', 1h) fill(near, 1, 1)"
@@ -1735,23 +1738,22 @@ class TestInterpFill:
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(1)
 
-        ### cannot specify near/prev/next values when using range
+        ### cannot specify near/prev/next values when no surrounding time or range around
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(near, 1, 1)"
-        tdSql.error(sql, -2147473920) ## cannot specify values
+        tdSql.error(sql, -2147473748) ## cannot specify values
 
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00') every(1s) fill(near, 1, 1)"
-        tdSql.error(sql, -2147473920) ## cannot specify values
+        tdSql.error(sql, -2147473748) ## cannot specify values
 
-        ### when range around interval is set, only prev/next/near is supported
+        ### when range around interval is set, only prev/next/near modes are supported
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(NULL, 1, 1)"
         tdSql.error(sql, -2147473920)
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(NULL)"
-        tdSql.error(sql, -2147473920) ## TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE
-
+        tdSql.error(sql, -2147473747)
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(linear, 1, 1)"
         tdSql.error(sql, -2147473920)
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) fill(linear)"
-        tdSql.error(sql, -2147473920) ## TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE
+        tdSql.error(sql, -2147473747)
 
         ### range interval cannot be 0
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 0h) fill(near, 1, 1)"
@@ -1918,6 +1920,16 @@ class TestInterpFill:
         )
         streams.append(stream)
 
+        stream: StreamItem = StreamItem(
+            id=16,
+            stream="""create stream s16 state_window(c1) from triggertb into
+                res16 as select _irowts, interp(c1, 1), _irowts_origin from
+                test_surround.ntb range(_twstart, _twend) every(1d) fill(near)
+                surround(1d, 100)""",
+            check_func=self.check_s16,
+        )
+        streams.append(stream)
+
         for stream in streams:
             stream.createStream()
         tdStream.checkStreamStatus()
@@ -1967,6 +1979,19 @@ class TestInterpFill:
             and tdSql.compareData(6, 0, "2026-01-09 10:00:00.000") and tdSql.compareData(6, 1, 3)
         )
     
+    def check_s16(self):
+        tdSql.checkResultsByFunc(
+            sql="select * from res16",
+            func=lambda: tdSql.getRows() == 7
+            and tdSql.compareData(0, 0, "2026-01-01 12:00:00.000") and tdSql.compareData(0, 1, 1) and tdSql.compareData(0, 2, "2026-01-01 12:00:00.000")
+            and tdSql.compareData(1, 0, "2026-01-03 00:00:00.000") and tdSql.compareData(1, 1, 100) and tdSql.compareData(1, 2, None)
+            and tdSql.compareData(2, 0, "2026-01-04 00:00:00.000") and tdSql.compareData(2, 1, 100) and tdSql.compareData(2, 2, None)
+            and tdSql.compareData(3, 0, "2026-01-05 00:00:00.000") and tdSql.compareData(3, 1, 100) and tdSql.compareData(3, 2, None)
+            and tdSql.compareData(4, 0, "2026-01-06 00:00:00.000") and tdSql.compareData(4, 1, 2) and tdSql.compareData(4, 2, "2026-01-06 12:00:00.000")
+            and tdSql.compareData(5, 0, "2026-01-07 00:00:00.000") and tdSql.compareData(5, 1, 2) and tdSql.compareData(5, 2, "2026-01-06 12:00:00.000")
+            and tdSql.compareData(6, 0, "2026-01-09 10:00:00.000") and tdSql.compareData(6, 1, 3) and tdSql.compareData(6, 2, "2026-01-09 12:00:00.000")
+        )
+
     def test_interp_fill_surround_abnormal(self):
         """Interp abnormal query of interp filling with surround 
 
@@ -1988,12 +2013,16 @@ class TestInterpFill:
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1h)")
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1h, 1, 2)")
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}, 1) surround(1h, 2)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}, 1) surround(1h)")
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00', 1h) fill({mode}) surround(1h)")
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00', 1h) fill({mode}, 1) surround(1h)")
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00', 1h) fill({mode}, 1) surround(1h, 2)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00', 1h) fill({mode})")
 
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround('1s', 1)")
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1, 2)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1d+1d, 2)")
+            tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1h, (select avg(c1) from ntb))")
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(0h, 2)")
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(-1s, 2)")
             tdSql.error(f"select interp(c1) from ntb range('2026-01-01 12:00:00') fill({mode}) surround(1b, 2)")  # smaller than database precision
@@ -2007,3 +2036,4 @@ class TestInterpFill:
         tdSql.error("select interp(c1) from ntb range('2026-01-01 12:00:00') fill(null_f) surround(1h, 1)")
         tdSql.error("select interp(c1) from ntb range('2026-01-01 12:00:00') fill(value, 1) surround(1h, 1)")
         tdSql.error("select interp(c1) from ntb range('2026-01-01 12:00:00') fill(value_f, 1) surround(1h, 1)")
+        tdSql.error("select interp(c2) from ntb range('2026-01-01 12:00:00') fill(prev) surround(1h, 'd')")
