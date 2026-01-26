@@ -1872,12 +1872,10 @@ static int32_t addHandleToAcceptloop(void* arg) {
       tError("failed to bind addr since %s", uv_err_name(code));
       return TSDB_CODE_THIRDPARTY_ERROR;
     }
-
     if ((code = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0)) != 0) {
       tError("failed to bind since %s", uv_err_name(code));
       return TSDB_CODE_THIRDPARTY_ERROR;
     }
-
     // set IPV6_V6ONLY to 0 to allow both IPv4 and IPv6 connections
     #if !defined(WINDOWS)
       uv_os_fd_t fd;
