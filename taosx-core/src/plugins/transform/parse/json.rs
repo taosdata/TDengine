@@ -916,19 +916,28 @@ fn flat_depth_inner(
 }
 
 fn fix_json_control_chars(json_str: &str) -> String {
+    let mut json_str = Cow::Borrowed(json_str);
+    if json_str.contains('\0') {
+        json_str = Cow::Owned(json_str.replace('\0', ""));
+    }
     static RE: LazyLock<regex::Regex> =
         LazyLock::new(|| Regex::new(r#""((?:\\.|[^"\\])*)""#).unwrap());
 
-    let result = RE.replace_all(json_str, |caps: &regex::Captures| {
-        let content = &caps[1]; // 引号内的内容
+    let result = RE.replace_all(&json_str, |caps: &regex::Captures| {
+        let content = &caps[1];
 
-        // 只替换内容中的换行符，保持转义序列不变
-        let fixed_content = content
-            .replace('\n', "\\n")
-            .replace('\r', "\\r")
-            .replace('\t', "\\t");
+        let mut out = String::with_capacity(content.len());
 
-        format!("\"{fixed_content}\"")
+        for ch in content.chars() {
+            match ch {
+                '\n' => out.push_str("\\n"),
+                '\r' => out.push_str("\\r"),
+                '\t' => out.push_str("\\t"),
+                _ => out.push(ch),
+            }
+        }
+
+        format!("\"{out}\"")
     });
 
     result.into_owned()
@@ -1358,17 +1367,26 @@ mod tests {
 
     #[test]
     fn fix_json_control_chars_test() {
+        let assert_ok = |s: &str| assert!(serde_json::from_str::<serde_json::Value>(s).is_ok());
         let s = fix_json_control_chars("{\"a\": \n \"b\\\"\nc\"}");
-        assert!(serde_json::from_str::<serde_json::Value>(&s).is_ok());
+        assert_eq!(s, "{\"a\": \n \"b\\\"\\nc\"}");
+        assert_ok(&s);
 
         let s = fix_json_control_chars("{\"a\": \n \"bc\"}");
-        assert!(serde_json::from_str::<serde_json::Value>(&s).is_ok());
+        assert_eq!(s, "{\"a\": \n \"bc\"}");
+        assert_ok(&s);
 
         let s = fix_json_control_chars("{\"a\": \n \"b\nc\"}");
-        assert!(serde_json::from_str::<serde_json::Value>(&s).is_ok());
+        assert_eq!(s, "{\"a\": \n \"b\\nc\"}");
+        assert_ok(&s);
 
         let s = fix_json_control_chars("{\"a\": \"b\tc\"}");
-        assert!(serde_json::from_str::<serde_json::Value>(&s).is_ok());
+        assert_eq!(s, "{\"a\": \"b\\tc\"}");
+        assert_ok(&s);
+
+        let s = fix_json_control_chars("{\"a\": \"abc\0\"}\0");
+        assert_eq!(s, "{\"a\": \"abc\"}");
+        assert_ok(&s);
     }
 
     #[test]
