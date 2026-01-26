@@ -531,7 +531,7 @@ fn build_schema() -> Schema {
     metadata.insert(String::from("ack"), String::from("lush"));
     let flat_columns = vec![
         Field::new(
-            "ts",
+            "__ts__",
             DataType::Timestamp(arrow::datatypes::TimeUnit::Nanosecond, None),
             false,
         ),
