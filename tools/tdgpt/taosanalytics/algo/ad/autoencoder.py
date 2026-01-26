@@ -76,7 +76,6 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         info = model_manager.get_model(self.name)
         if info is None:
             failed_load_model_except(self.name)
-            return
 
         self.mean = info["mean"]
         self.std = info["std"]
