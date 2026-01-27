@@ -1,6 +1,6 @@
 ---
 title: TDengine TSDB MCP Reference Manual
-sidebar_label: TDengine TSDB MCP
+sidebar_label: TSDB MCP
 slug: /tdengine-reference/tools/mcp-tdengine-tsdb
 toc_max_heading_level: 4
 ---

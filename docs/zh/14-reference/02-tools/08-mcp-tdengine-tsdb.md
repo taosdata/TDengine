@@ -1,6 +1,6 @@
 ---
 title: TDengine TSDB MCP 参考手册
-sidebar_label: TDengine TSDB MCP
+sidebar_label: TSDB MCP
 toc_max_heading_level: 4
 ---
 
