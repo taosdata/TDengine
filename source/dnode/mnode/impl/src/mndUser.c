@@ -5455,6 +5455,18 @@ _exit:
 }
 #endif
 
+int32_t mndShowTablePrivileges(SHashObj *privTbs) {
+  int32_t 
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate(privTbs, pIter))) {
+    SPrivTblPolicies *pPolices = (SPrivTblPolicies *)pIter;
+    SArray           *tblPolicies = pPolices->policy;
+    int32_t nTbPolicies = taosArrayGetSize(tblPolicies);
+
+    }
+  }
+}
+
 int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows, void *pObj,
                                const char *principalName, SHashObj *privTbs, EPrivType privType, char *pBuf,
                                int32_t bufSize, int32_t *pNumOfRows) {
@@ -5603,7 +5615,16 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
-    int32_t nSysPrivileges = 0, nObjPrivileges = 0;
+    // count total privileges for current user
+    int32_t nSysPrivileges = privPopCnt(&pObj->sysPrivs);
+    int32_t nObjPrivileges = 0, nTblPrivileges = 0;
+
+    void   *pIter = NULL;
+    while ((pIter = taosHashIterate(pObj->objPrivs, pIter))) {
+      SPrivObjPolicies *pPolices = (SPrivObjPolicies *)pIter;
+      nObjPrivileges += privPopCnt(&pPolices->policy);
+    }
+
     if (nSysPrivileges + nObjPrivileges >= rows) {
       pShow->restore = true;
       sdbRelease(pSdb, pObj);
@@ -5642,7 +5663,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     }
 
     // object privileges
-    void *pIter = NULL;
+    pIter = NULL;
     while ((pIter = taosHashIterate(pObj->objPrivs, pIter))) {
       SPrivObjPolicies *pPolices = (SPrivObjPolicies *)pIter;
 
@@ -5700,54 +5721,6 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
                                            PRIV_TBL_UPDATE, pBuf, bufSize, &numOfRows));
     TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->deleteTbs,
                                            PRIV_TBL_DELETE, pBuf, bufSize, &numOfRows));
-#if 0
-    while ((pIter = taosHashIterate(pObj->selectTbs, pIter))) {
-      SPrivTblPolicies *pPolices = (SPrivTblPolicies *)pIter;
-      SArray           *tblPolicies = pPolices->policy;
-
-      char   *key = taosHashGetKey(pPolices, NULL);
-      int32_t objType = PRIV_OBJ_UNKNOWN;
-      char    dbName[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      char    tblName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName), false))) {
-        sdbRelease(pSdb, pObj);
-        sdbCancelFetch(pSdb, pShow->pIter);
-        TAOS_CHECK_EXIT(code);
-      }
-
-      int32_t nTbPolicies = taosArrayGetSize(tblPolicies);
-      for (int32_t i = 0; i < nTbPolicies; ++i) {
-        SPrivTblPolicy *tbPolicy = (SPrivTblPolicy *)TARRAY_GET_ELEM(tblPolicies, i);
-        cols = 0;
-        SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-        COL_DATA_SET_VAL_GOTO((const char *)roleName, false, pObj, pShow->pIter, _exit);
-
-        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privInfoGetName(PRIV_TBL_SELECT), pShow->pMeta->pSchemas[cols].bytes);
-          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
-        }
-
-        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, dbName, pShow->pMeta->pSchemas[cols].bytes);
-          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
-        }
-
-        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, tblName, pShow->pMeta->pSchemas[cols].bytes);
-          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
-        }
-
-        // skip condition, notes, columns, update_time
-        COL_DATA_SET_EMPTY_VARCHAR(pBuf, 4);
-
-        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjGetName(objType), pShow->pMeta->pSchemas[cols].bytes);
-          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
-        }
-        numOfRows++;
-      }
-    }
-#endif
     sdbRelease(pSdb, pObj);
   }
 

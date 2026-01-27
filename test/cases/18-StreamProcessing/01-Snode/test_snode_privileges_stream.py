@@ -57,7 +57,7 @@ class TestStreamPrivilegesSnodeStream:
         self.prepareData()
         self.createUser()
         # check normal user create snode
-        tdSql.connect(f"{self.username1}")
+        tdSql.connect(f"{self.username1}", "taosdata_123456")
         self.createSnodeTest()
         tdSql.query("show snodes;")
         numOfStreams = tdSql.getRows()
@@ -99,17 +99,17 @@ class TestStreamPrivilegesSnodeStream:
         # check normal user no write privileges to drop stream
         self.revokeWrite()
 
-        tdSql.connect(f"{self.username1}")
+        tdSql.connect(f"{self.username1}", "taosdata_123456")
         self.dropOneStream()
 
         # check normal user drop snode
-        tdSql.connect(f"{self.username1}")
+        tdSql.connect(f"{self.username1}", "taosdata_123456")
         self.dropOneSnodeTest()
 
     def createUser(self):
         tdLog.info(f"create user")
-        tdSql.execute(f'create user {self.username1} pass "taosdata"')
-        tdSql.execute(f'create user {self.username2} pass "taosdata"')
+        tdSql.execute(f'create user {self.username1} pass "taosdata_123456"')
+        tdSql.execute(f'create user {self.username2} pass "taosdata_123456"')
         self.checkResultRows(2)
 
     def noSysInfo(self):
@@ -139,11 +139,11 @@ class TestStreamPrivilegesSnodeStream:
     def grantRead(self):
         tdLog.info(f"grant read privilege to user")
         tdSql.connect("root")
-        tdSql.execute(f"grant read on {self.dbname} to {self.username1}")
-        tdSql.execute(f"grant read on {self.dbname} to {self.username2}")
+        tdSql.execute(f"grant select on {self.dbname}.* to {self.username1}")
+        tdSql.execute(f"grant select on {self.dbname}.* to {self.username2}")
 
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='read';"
+            f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='SELECT';"
         )
         if tdSql.getRows() != 2:
             raise Exception("grant read privileges user failed")
@@ -151,11 +151,11 @@ class TestStreamPrivilegesSnodeStream:
     def grantWrite(self):
         tdLog.info(f"grant write privilege to user")
         tdSql.connect("root")
-        tdSql.execute(f"grant write on {self.dbname} to {self.username1}")
-        tdSql.execute(f"grant write on {self.dbname} to {self.username2}")
+        tdSql.execute(f"grant insert on {self.dbname} to {self.username1}")
+        tdSql.execute(f"grant insert on {self.dbname}.* to {self.username2}")
 
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='write';"
+            f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='INSERT';"
         )
         if tdSql.getRows() != 2:
             raise Exception("grant write privileges user failed")
@@ -163,11 +163,11 @@ class TestStreamPrivilegesSnodeStream:
     def revokeRead(self):
         tdLog.info(f"revoke read privilege from user")
         tdSql.connect("root")
-        tdSql.execute(f"revoke read on {self.dbname} from {self.username1}")
-        tdSql.execute(f"revoke read on {self.dbname} from {self.username2}")
+        tdSql.execute(f"revoke select on {self.dbname}.* from {self.username1}")
+        tdSql.execute(f"revoke select on {self.dbname}.* from {self.username2}")
 
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='read';"
+            f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='SELECT';"
         )
         if tdSql.getRows() != 0:
             raise Exception("revoke read privileges user failed")
@@ -175,18 +175,18 @@ class TestStreamPrivilegesSnodeStream:
     def revokeWrite(self):
         tdLog.info(f"revoke write privilege from user")
         tdSql.connect("root")
-        tdSql.execute(f"revoke write on {self.dbname} from {self.username1}")
-        tdSql.execute(f"revoke write on {self.dbname} from {self.username2}")
+        tdSql.execute(f"revoke insert on {self.dbname}.* from {self.username1}")
+        tdSql.execute(f"revoke insert on {self.dbname}.* from {self.username2}")
 
         tdSql.query(
-            f"select * from information_schema.ins_user_privileges where user_name !='root' and privilege ='write';"
+            f"select * from information_schema.ins_user_privileges where user_name !='root' and priv_type ='INSERT';"
         )
         if tdSql.getRows() != 0:
             raise Exception("revoke write privileges user failed")
 
     def userCreateStream(self):
         tdLog.info(f"connect with normal user {self.username2}")
-        tdSql.connect("lvze2")
+        tdSql.connect("lvze2", "taosdata_123456")
         sql = (
             "create stream test1.`s100` sliding(1s) from test1.st1  partition by tbname "
             "stream_options(fill_history('2025-01-01 00:00:00')) "
@@ -200,6 +200,8 @@ class TestStreamPrivilegesSnodeStream:
         except Exception as e:
             if "Insufficient privilege" in str(e):
                 tdLog.info(f"Insufficient privilege, ignore SQL：{sql}")
+            elif "Permission denied" in str(e):
+                tdLog.info(f"Permission denied, ignore SQL：{sql}")
             else:
                 raise Exception(f"create stream failed with error: {e}")
         # tdSql.execute(f"select current_user();")
@@ -208,21 +210,25 @@ class TestStreamPrivilegesSnodeStream:
 
     def userStopStream(self):
         tdLog.info(f"connect with normal user {self.username2} to stop stream")
-        tdSql.connect("lvze2")
+        tdSql.connect("lvze2", "taosdata_123456")
         tdSql.query(f"show {self.dbname}.streams;")
+        tdLog.info(f"Stream info: {tdSql.queryResult}")
         numOfStreams = tdSql.getRows()
+        tdLog.info(f"numOfStreams: {numOfStreams}")
         if numOfStreams > 0:
             try:
                 tdSql.execute(f"stop stream test1.`s100`")
             except Exception as e:
                 if "Insufficient privilege" in str(e):
                     tdLog.info(f"Insufficient privilege to stop stream")
+                elif "Permission denied" in str(e):
+                    tdLog.info(f"Permission denied to stop stream")
                 else:
                     raise Exception(f"stop stream failed with error: {e}")
             tdSql.query(f"show {self.dbname}.streams;")
             stateStream = tdSql.getData(0, 1)
             tdSql.query(
-                f"select * from information_schema.ins_user_privileges where user_name='lvze2' and privilege ='write'"
+                f"select * from information_schema.ins_user_privileges where user_name='lvze2' and priv_type ='INSERT'"
             )
             writeUser = tdSql.getRows()
             if stateStream != "Stopped" and writeUser == 0:
@@ -232,15 +238,19 @@ class TestStreamPrivilegesSnodeStream:
 
     def userStartStream(self):
         tdLog.info(f"connect with normal user {self.username2} to start stream")
-        tdSql.connect("lvze2")
+        tdSql.connect("lvze2", "taosdata_123456")
         tdSql.query(f"show {self.dbname}.streams;")
+        tdLog.info(f"Stream info: {tdSql.queryResult}")
         numOfStreams = tdSql.getRows()
+        tdLog.info(f"numOfStreams: {numOfStreams}")
         if numOfStreams > 0:
             try:
                 tdSql.execute(f"start stream test1.`s100`")
             except Exception as e:
                 if "Insufficient privilege" in str(e):
                     tdLog.info(f"Insufficient privilege to start stream")
+                elif "Permission denied" in str(e):
+                    tdLog.info(f"Permission denied to start stream")
                 else:
                     raise Exception(f"start stream failed with error: {e}")
 
@@ -299,6 +309,8 @@ class TestStreamPrivilegesSnodeStream:
             except Exception as e:
                 if "Insufficient privilege" in str(e):
                     tdLog.info(f"Insufficient privilege to create snode")
+                elif "Permission denied" in str(e):
+                    tdLog.info(f"Permission denied to create snode")
                 else:
                     raise Exception(f"create stream failed with error: {e}")
             tdLog.info(f"create snode on dnode {i} success")
@@ -339,6 +351,8 @@ class TestStreamPrivilegesSnodeStream:
         except Exception as e:
             if "Insufficient privilege" in str(e):
                 tdLog.info(f"Insufficient privilege to drop snode")
+            elif "Permission denied" in str(e):
+                tdLog.info(f"Permission denied to drop snode")
             else:
                 raise Exception(f"drop snode failed with error: {e}")
 
@@ -391,6 +405,8 @@ class TestStreamPrivilegesSnodeStream:
         except Exception as e:
             if "Insufficient privilege" in str(e):
                 tdLog.info(f"Insufficient privilege to drop stream")
+            elif "Permission denied" in str(e):
+                tdLog.info(f"Permission denied to drop stream")
             else:
                 raise Exception(f"drop stream failed with error: {e}")
 

@@ -388,6 +388,18 @@ static FORCE_INLINE bool privDbKeyMatch(const char* key, const char* dbFName, in
   return p && strncmp(p, dbFName, len) == 0 && (p[len] == '.' || p[len] == '\0');
 }
 
+static FORCE_INLINE int32_t privPopCnt(SPrivSet* privSet) {
+  int32_t count = 0;
+  for (int32_t i = 0; i < PRIV_GROUP_CNT; ++i) {
+    uint64_t chunk = privSet->set[i];
+    while (chunk != 0) {
+      chunk &= (chunk - 1);
+      ++count;
+    }
+  }
+  return count;
+}
+
 int32_t privCheckConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
                            uint8_t* pObjLevel, EPrivType* conflict0, EPrivType* conflict1);
 int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel);

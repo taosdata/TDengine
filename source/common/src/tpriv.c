@@ -415,14 +415,13 @@ _loop:
   }
   int32_t   bitPos = BUILDIN_CTZL(iter->curPriv);
   EPrivType privType = (iter->groupIndex << 6) + bitPos;
-  iter->curPriv &= ~(1ULL << bitPos);
+  iter->curPriv &= (iter->curPriv -1);
   if (ppPrivInfo) {
     *ppPrivInfo = privLookup[privType];
     if (!(*ppPrivInfo)) goto _loop;
   }
   return true;
 }
-
 void privInfoIterInit(SPrivInfoIter* pIter) {
   pIter->privInfo = privInfoTable;
   pIter->privInfoCnt = sizeof(privInfoTable) / sizeof(privInfoTable[0]);
