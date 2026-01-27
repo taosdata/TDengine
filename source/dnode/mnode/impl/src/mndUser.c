@@ -4830,7 +4830,6 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {
         sdbRelease(pSdb, pUser);
-        sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_GOTO(terrno, &lino, _exit);
       }
       varDataSetLen(varstr, tlen);
@@ -4851,7 +4850,6 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {
         sdbRelease(pSdb, pUser);
-        sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
       }
       varDataSetLen(varstr, tlen);
@@ -4892,7 +4890,7 @@ _exit:
   taosMemoryFreeClear(buf);
   taosMemoryFreeClear(varstr);
   if (code < 0) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
   return numOfRows;
@@ -5019,7 +5017,6 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {
         sdbRelease(pSdb, pUser);
-        sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
       }
       varDataSetLen(varstr, tlen);
@@ -5040,7 +5037,6 @@ static int32_t mndRetrieveUsersFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       TAOS_MEMORY_REALLOC(varstr, VARSTR_HEADER_SIZE + tlen);
       if (varstr == NULL) {
         sdbRelease(pSdb, pUser);
-        sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _exit);
       }
       varDataSetLen(varstr, tlen);
@@ -5081,7 +5077,7 @@ _exit:
   taosMemoryFreeClear(buf);
   taosMemoryFreeClear(varstr);
   if (code < 0) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
 #endif
@@ -5189,7 +5185,7 @@ static int32_t mndLoopHash(SHashObj *hash, char *priType, SSDataBlock *pBlock, i
   *pNumOfRows = numOfRows;
 _exit:
   if (code < 0) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     sdbRelease(pSdb, pUser);
     sdbCancelFetch(pSdb, pShow->pIter);
   }
@@ -5448,7 +5444,7 @@ _exit:
   taosMemoryFreeClear(condition);
   taosMemoryFreeClear(sql);
   if (code < 0) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
   return numOfRows;
@@ -5603,15 +5599,33 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
-    int32_t nSysPrivileges = 0, nObjPrivileges = 0;
-    if (nSysPrivileges + nObjPrivileges >= rows) {
+    // count total privileges for current user
+    int32_t nSysPrivileges = privPopCnt(&pObj->sysPrivs);
+    int32_t nObjPrivileges = 0;
+    void   *pIter = NULL;
+    while ((pIter = taosHashIterate(pObj->objPrivs, pIter))) {
+      SPrivObjPolicies *pPolices = (SPrivObjPolicies *)pIter;
+      nObjPrivileges += privPopCnt(&pPolices->policy);
+    }
+    int32_t nTblPrivileges = privTblPrivCnt(pObj->selectTbs);
+    nTblPrivileges += privTblPrivCnt(pObj->insertTbs);
+    nTblPrivileges += privTblPrivCnt(pObj->updateTbs);
+    nTblPrivileges += privTblPrivCnt(pObj->deleteTbs);
+
+    int32_t totalPrivileges = nSysPrivileges + nObjPrivileges + nTblPrivileges;
+
+    if (numOfRows + nTblPrivileges >= rows) {
+      if (totalPrivileges >= SHOW_PRIVILEGES_STEP_SIZE) {
+        mError("user:%s, has too many privileges:%d to show", pObj->name, totalPrivileges);
+        sdbRelease(pSdb, pObj);
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_TOO_MANY_PRIVS);
+      }
       pShow->restore = true;
       sdbRelease(pSdb, pObj);
       break;
     }
 
     if (!pBuf && !(pBuf = taosMemoryMalloc(bufSize))) {
-      sdbCancelFetch(pSdb, pShow->pIter);
       sdbRelease(pSdb, pObj);
       TAOS_CHECK_EXIT(terrno);
     }
@@ -5642,7 +5656,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     }
 
     // object privileges
-    void *pIter = NULL;
+    pIter = NULL;
     while ((pIter = taosHashIterate(pObj->objPrivs, pIter))) {
       SPrivObjPolicies *pPolices = (SPrivObjPolicies *)pIter;
 
@@ -5652,7 +5666,6 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       char    tblName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
       if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName), false))) {
         sdbRelease(pSdb, pObj);
-        sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_EXIT(code);
       }
 
@@ -5700,54 +5713,6 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
                                            PRIV_TBL_UPDATE, pBuf, bufSize, &numOfRows));
     TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->deleteTbs,
                                            PRIV_TBL_DELETE, pBuf, bufSize, &numOfRows));
-#if 0
-    while ((pIter = taosHashIterate(pObj->selectTbs, pIter))) {
-      SPrivTblPolicies *pPolices = (SPrivTblPolicies *)pIter;
-      SArray           *tblPolicies = pPolices->policy;
-
-      char   *key = taosHashGetKey(pPolices, NULL);
-      int32_t objType = PRIV_OBJ_UNKNOWN;
-      char    dbName[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      char    tblName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName), false))) {
-        sdbRelease(pSdb, pObj);
-        sdbCancelFetch(pSdb, pShow->pIter);
-        TAOS_CHECK_EXIT(code);
-      }
-
-      int32_t nTbPolicies = taosArrayGetSize(tblPolicies);
-      for (int32_t i = 0; i < nTbPolicies; ++i) {
-        SPrivTblPolicy *tbPolicy = (SPrivTblPolicy *)TARRAY_GET_ELEM(tblPolicies, i);
-        cols = 0;
-        SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-        COL_DATA_SET_VAL_GOTO((const char *)roleName, false, pObj, pShow->pIter, _exit);
-
-        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privInfoGetName(PRIV_TBL_SELECT), pShow->pMeta->pSchemas[cols].bytes);
-          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
-        }
-
-        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, dbName, pShow->pMeta->pSchemas[cols].bytes);
-          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
-        }
-
-        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, tblName, pShow->pMeta->pSchemas[cols].bytes);
-          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
-        }
-
-        // skip condition, notes, columns, update_time
-        COL_DATA_SET_EMPTY_VARCHAR(pBuf, 4);
-
-        if ((pColInfo = taosArrayGet(pBlock->pDataBlock, ++cols))) {
-          STR_WITH_MAXSIZE_TO_VARSTR(pBuf, privObjGetName(objType), pShow->pMeta->pSchemas[cols].bytes);
-          COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
-        }
-        numOfRows++;
-      }
-    }
-#endif
     sdbRelease(pSdb, pObj);
   }
 
@@ -5756,7 +5721,7 @@ _exit:
   taosMemoryFreeClear(pBuf);
   taosMemoryFreeClear(sql);
   if (code < 0) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
   return numOfRows;
@@ -5850,7 +5815,7 @@ _OVER:
       pUser->lastRoleRetrieve = 0;  // reset last retrieve time on error
       mndReleaseUser(pMnode, pUser);
     }
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     taosMemoryFreeClear(pRsp);
     rspLen = 0;
   }
@@ -5904,7 +5869,7 @@ _exit:
   if (pIter) sdbCancelFetch(pSdb, pIter);
   if (pUser) sdbRelease(pSdb, pUser);
   if (code < 0) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   TAOS_RETURN(code);
 }

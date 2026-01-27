@@ -649,10 +649,10 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MAX_BLOB_LEN (4 << 20)
 
-#define TSDB_MAX_SUBROLE 32
-#define TSDB_MAX_PRIVS   512
-#define TSDB_MAX_USERS   2000
-#define TSDB_MAX_ROLES   200
+#define TSDB_MAX_SUBROLE   32
+#define TSDB_MAX_PRIV_OBJS 512
+#define TSDB_MAX_USERS     2000
+#define TSDB_MAX_ROLES     200
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))

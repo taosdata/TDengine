@@ -907,8 +907,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
-      return pCxt->pParseCxt->enableSysInfo ? authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW)
-                                            : TSDB_CODE_PAR_PERMISSION_DENIED;
+      return authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW);
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
     case QUERY_NODE_SHOW_XNODES_STMT:
@@ -984,6 +983,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_CREATE_SNODE_STMT:
     case QUERY_NODE_CREATE_BNODE_STMT:
     case QUERY_NODE_CREATE_ANODE_STMT:
+    case QUERY_NODE_CREATE_XNODE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODE_CREATE);
     case QUERY_NODE_DROP_DNODE_STMT:
     case QUERY_NODE_DROP_MNODE_STMT:
@@ -991,6 +991,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_DROP_SNODE_STMT:
     case QUERY_NODE_DROP_BNODE_STMT:
     case QUERY_NODE_DROP_ANODE_STMT:
+    case QUERY_NODE_DROP_XNODE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODE_DROP);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
