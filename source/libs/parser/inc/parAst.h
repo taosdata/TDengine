@@ -92,6 +92,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_COMPACT_TIME_RANGE,
   DB_OPTION_COMPACT_TIME_OFFSET,
   DB_OPTION_IS_AUDIT,
+  DB_OPTION_ALLOW_DROP,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -178,6 +179,7 @@ SPrivSetArgs privArgsAdd(SAstCreateContext* pCxt, SPrivSetArgs prev, SPrivSetArg
 SPrivSetArgs privArgsSetType(SAstCreateContext* pCxt, EPrivType type);
 SPrivSetArgs privArgsSetCols(SAstCreateContext* pCxt, SNodeList* selectCols, SNodeList* insertCols,
                              SNodeList* updateCols);
+SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, SToken* t2);
 
 SNode*     createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId);
 SNode*     createColumnNode(SAstCreateContext* pCxt, SToken* pTableAlias, SToken* pColumnName);

@@ -16,6 +16,7 @@
 #include "catalog.h"
 #include "cmdnodes.h"
 #include "parInt.h"
+#include "tconfig.h"
 
 typedef struct SAuthCxt {
   SParseContext*   pParseCxt;
@@ -31,6 +32,8 @@ typedef struct SSelectAuthCxt {
 typedef struct SAuthRewriteCxt {
   STableNode* pTarget;
 } SAuthRewriteCxt;
+
+extern SConfig* tsCfg;
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt);
 
@@ -61,7 +64,7 @@ static int32_t setUserAuthInfo(SParseContext* pCxt, const char* pDbName, const c
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserAuthRes* pAuthRes) {
+static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserAuthRes* pAuthRes, bool *recheck) {
   SParseContext*   pParseCxt = pCxt->pParseCxt;
   const SPrivInfo* pPrivInfo = privInfoGet(pAuthInfo->privType);
   if (NULL == pPrivInfo) {
@@ -80,11 +83,28 @@ static int32_t checkAuthByOwner(SAuthCxt* pCxt, SUserAuthInfo* pAuthInfo, SUserA
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
+        // rewrite privilege for audit db
+        if (dbCfgInfo.isAudit && pAuthInfo->objType == PRIV_OBJ_DB) {
+          if (pAuthInfo->privType == PRIV_DB_USE) {
+            pAuthInfo->useDb = AUTH_OWNED_MASK;
+            if (recheck) *recheck = true;  // recheck since the cached key is changed
+          } else if (pAuthInfo->privType == PRIV_CM_ALTER) {
+            pAuthInfo->privType = PRIV_AUDIT_DB_ALTER;
+            pAuthInfo->objType = PRIV_OBJ_CLUSTER;
+            if (recheck) *recheck = true;  // recheck since the cached key is changed
+          } else if (pAuthInfo->privType == PRIV_CM_DROP) {
+            pAuthInfo->privType = PRIV_AUDIT_DB_DROP;
+            pAuthInfo->objType = PRIV_OBJ_CLUSTER;
+            if (recheck) *recheck = true;  // recheck since the cached key is changed
+          } else if (pAuthInfo->privType == PRIV_TBL_CREATE) {
+            pAuthInfo->privType = PRIV_AUDIT_TBL_CREATE;
+            pAuthInfo->objType = PRIV_OBJ_CLUSTER;
+            if (recheck) *recheck = true;  // recheck since the cached key is changed
+          }
+          return TSDB_CODE_SUCCESS;
+        }
         if (dbCfgInfo.ownerId == pAuthInfo->userId) {
           pAuthRes->pass[pAuthInfo->isView ? AUTH_RES_VIEW : AUTH_RES_BASIC] = true;
-#if 0
-          printf("%s:%d db %s owner match, pass\n", __func__, __LINE__, dbFName);
-#endif
           return TSDB_CODE_SUCCESS;
         }
         break;
@@ -98,7 +118,7 @@ _exit:
 }
 
 static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType privType,
-                             EPrivObjType objType, SNode** pCond, bool isView, bool effective) {
+                             EPrivObjType objType, SNode** pCond, SArray** pPrivCols, bool isView, bool effective) {
   SParseContext* pParseCxt = pCxt->pParseCxt;
   if (pParseCxt->isSuperUser) {
     return TSDB_CODE_SUCCESS;
@@ -109,8 +129,9 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
   int32_t code = setUserAuthInfo(pCxt->pParseCxt, pDbName, pTabName, privType, objType, isView, effective, &authInfo);
   if (TSDB_CODE_SUCCESS != code) return code;
   SUserAuthRes authRes = {0};
-  if (NULL != pCxt->pMetaCache) {
-    code = checkAuthByOwner(pCxt, &authInfo, &authRes);
+  bool         recheck = false;
+  if (NULL != pCxt->pMetaCache && privType != PRIV_VIEW_SELECT && privType != PRIV_AUDIT_TBL_SELECT) {
+    code = checkAuthByOwner(pCxt, &authInfo, &authRes, &recheck);
     if (code == TSDB_CODE_SUCCESS && authRes.pass[auth_res_type]) {
       goto _exit;
     }
@@ -122,31 +143,39 @@ static int32_t checkAuthImpl(SAuthCxt* pCxt, const char* pDbName, const char* pT
     }
 #endif
   } else {
+    recheck = true;  // recheck since the cached key is changed
+  }
+  if (recheck) {  // the priv type of view and audit may be rewritten, need to recheck from catalog
     SRequestConnInfo conn = {.pTrans = pParseCxt->pTransporter,
                              .requestId = pParseCxt->requestId,
                              .requestObjRefId = pParseCxt->requestRid,
                              .mgmtEps = pParseCxt->mgmtEpSet};
     code = catalogChkAuth(pParseCxt->pCatalog, &conn, &authInfo, &authRes);
   }
+
 _exit:
-  if (TSDB_CODE_SUCCESS == code && NULL != pCond) {
-    *pCond = authRes.pCond[auth_res_type];
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pCond) *pCond = authRes.pCond[auth_res_type];
+    if (pPrivCols) *pPrivCols = authRes.pCols;
+    if (taosArrayGetSize(authRes.pCols) > 0) {
+      pCxt->pParseCxt->hasPrivCols = 1; // used later in translateCheckPrivCols for select *
+    }
   }
   return TSDB_CODE_SUCCESS == code ? (authRes.pass[auth_res_type] ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED)
                                    : code;
 }
 
 static int32_t checkAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType privType,
-                         EPrivObjType objType, SNode** pCond) {
+                         EPrivObjType objType, SNode** pCond, SArray** pPrivCols) {
 #ifdef TD_ENTERPRISE
-  return checkAuthImpl(pCxt, pDbName, pTabName, privType, objType, pCond, false, false);
+  return checkAuthImpl(pCxt, pDbName, pTabName, privType, objType, pCond, pPrivCols, false, false);
 #else
   return TSDB_CODE_SUCCESS;
 #endif
 }
 
 static int32_t authSysPrivileges(SAuthCxt* pCxt, SNode* pStmt, EPrivType type) {
-  return checkAuth(pCxt, NULL, NULL, type, 0, NULL);
+  return checkAuth(pCxt, NULL, NULL, type, 0, NULL, NULL);
 }
 
 static int32_t authObjPrivileges(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType privType,
@@ -155,22 +184,22 @@ static int32_t authObjPrivileges(SAuthCxt* pCxt, const char* pDbName, const char
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
 
-  return checkAuth(pCxt, pDbName, pTabName, privType, objType, NULL);
+  return checkAuth(pCxt, pDbName, pTabName, privType, objType, NULL, NULL);
 }
 
 static int32_t checkEffectiveAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType privType,
                                   EPrivObjType objType, SNode** pCond) {
-  return checkAuthImpl(pCxt, pDbName, pTabName, privType, objType, NULL, false, true);
+  return checkAuthImpl(pCxt, pDbName, pTabName, privType, objType, NULL, NULL, false, true);
 }
 
 static int32_t checkViewAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType privType,
                              EPrivObjType objType, SNode** pCond) {
-  return checkAuthImpl(pCxt, pDbName, pTabName, privType, objType, pCond, true, false);
+  return checkAuthImpl(pCxt, pDbName, pTabName, privType, objType, pCond, NULL, true, false);
 }
 
 static int32_t checkViewEffectiveAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, EPrivType privType,
                                       EPrivObjType objType, SNode** pCond) {
-  return checkAuthImpl(pCxt, pDbName, pTabName, privType, objType, pCond, true, true);
+  return checkAuthImpl(pCxt, pDbName, pTabName, privType, objType, pCond, NULL, true, true);
 }
 
 static EDealRes authSubquery(SAuthCxt* pCxt, SNode* pStmt) {
@@ -231,13 +260,66 @@ static int32_t rewriteAppendStableTagCond(SNode** pWhere, SNode* pTagCond, STabl
 
   return mergeStableTagCond(pWhere, pTagCondCopy);
 }
+#if 0  
+/**
+ * @brief Fast fail path if no star(*) specified in select clause
+ */
+static int32_t authSelectTblCols(SSelectStmt* pSelect, STableNode* pTable, SArray* pPrivCols) {
+  int32_t    code = 0;
+  SNodeList* pRetrievedCols = NULL;
+  int32_t    nCols = taosArrayGetSize(pPrivCols);
+
+  if (nCols <= 0) {
+    goto _return;
+  }
+
+  PAR_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pRetrievedCols));
+
+  int32_t i = 0, j = 0, k = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pRetrievedCols) {
+    SColumnNode* pColNode = (SColumnNode*)pNode;
+
+    j = i;
+
+    // search in the remaining columns first for better performance if ordered
+    bool found = false;
+    for (; i < nCols; ++i) {
+      SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, i);
+      if (strcmp(pColNode->colName, pColNameFlag->colName) == 0) {
+        found = true;
+        ++i;
+        break;
+      }
+    }
+    if (!found) {
+      for (k = 0; k < j; ++k) {
+        SColNameFlag* pColNameFlag = (SColNameFlag*)TARRAY_GET_ELEM(pPrivCols, k);
+        if (strcmp(pColNode->colName, pColNameFlag->colName) == 0) {
+          found = true;
+          break;
+        }
+      }
+    }
+    if (!found) {
+      code = TSDB_CODE_PAR_COL_PERMISSION_DENIED;
+      goto _return;
+    }
+  }
+_return:
+  nodesDestroyList(pRetrievedCols);
+  return code;
+}
+#endif
 
 static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   SSelectAuthCxt* pCxt = pContext;
   SAuthCxt*       pAuthCxt = pCxt->pAuthCxt;
   bool            isView = false;
+  bool            isAudit = false;
   if (QUERY_NODE_REAL_TABLE == nodeType(pNode)) {
     SNode*      pTagCond = NULL;
+    // SArray*     pPrivCols = NULL;
     STableNode* pTable = (STableNode*)pNode;
     if ((pAuthCxt->pParseCxt->enableSysInfo == 0) && IS_INFORMATION_SCHEMA_DB(pTable->dbName) &&
         (strcmp(pTable->tableName, TSDB_INS_TABLE_VGROUPS) == 0)) {
@@ -254,27 +336,42 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     STableMeta* pTableMeta = NULL;
     toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name);
     int32_t code = getTargetMetaImpl(pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, &name, &pTableMeta, true);
-    if (TSDB_CODE_SUCCESS == code && TSDB_VIEW_TABLE == pTableMeta->tableType) {
-      isView = true;
+    if (TSDB_CODE_SUCCESS == code) {
+      if (pTableMeta->isAudit) {
+        isAudit = true;
+      } else if (!pTableMeta->isAudit && (pTableMeta->ownerId == pAuthCxt->pParseCxt->userId)) {
+        // owner has all privileges on the table he owns except audit table
+        taosMemoryFree(pTableMeta);
+        return DEAL_RES_CONTINUE;
+      }
+      if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
+        isView = true;
+      }
     }
     taosMemoryFree(pTableMeta);
 #endif
     if (!isView) {
       pAuthCxt->errCode =
-          checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, &pTagCond);
+          checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, isAudit ? PRIV_AUDIT_TBL_SELECT : PRIV_TBL_SELECT,
+                    PRIV_OBJ_TBL, &pTagCond, NULL);  //&pPrivCols);
       if (TSDB_CODE_SUCCESS != pAuthCxt->errCode && NULL != pAuthCxt->pParseCxt->pEffectiveUser) {
-        pAuthCxt->errCode =
-            checkEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL);
+        pAuthCxt->errCode = checkEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName,
+                                               isAudit ? PRIV_AUDIT_TBL_SELECT : PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL);
       }
+#if 0
+      if (TSDB_CODE_SUCCESS == pAuthCxt->errCode && NULL != pPrivCols) {
+        pAuthCxt->errCode = authSelectTblCols(pCxt->pSelect, pTable, pPrivCols);
+      }
+#endif
       if (TSDB_CODE_SUCCESS == pAuthCxt->errCode && NULL != pTagCond) {
         pAuthCxt->errCode = rewriteAppendStableTagCond(&pCxt->pSelect->pWhere, pTagCond, pTable);
       }
     } else {
       pAuthCxt->errCode =
-          checkViewAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL);
+          checkViewAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW, NULL);
       if (TSDB_CODE_SUCCESS != pAuthCxt->errCode && NULL != pAuthCxt->pParseCxt->pEffectiveUser) {
         pAuthCxt->errCode =
-            checkViewEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL);
+            checkViewEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW, NULL);
       }
     }
     return TSDB_CODE_SUCCESS == pAuthCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
@@ -311,9 +408,9 @@ static int32_t authDropUser(SAuthCxt* pCxt, SDropUserStmt* pStmt) {
 static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
   SNode*      pTagCond = NULL;
   STableNode* pTable = (STableNode*)pDelete->pFromTable;
-  int32_t     code = checkAuth(pCxt, pTable->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL);
+  int32_t     code = checkAuth(pCxt, pTable->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkAuth(pCxt, pTable->dbName, pTable->tableName, PRIV_TBL_DELETE, PRIV_OBJ_TBL, &pTagCond);
+    code = checkAuth(pCxt, pTable->dbName, pTable->tableName, PRIV_TBL_DELETE, PRIV_OBJ_TBL, &pTagCond, NULL);
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
     code = rewriteAppendStableTagCond(&pDelete->pWhere, pTagCond, pTable);
@@ -323,11 +420,12 @@ static int32_t authDelete(SAuthCxt* pCxt, SDeleteStmt* pDelete) {
 
 static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
   SNode*      pTagCond = NULL;
+  SArray*     pPrivCols = NULL;
   STableNode* pTable = (STableNode*)pInsert->pTable;
   // todo check tag condition for subtable
-  int32_t code = checkAuth(pCxt, pTable->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL);
+  int32_t code = checkAuth(pCxt, pTable->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkAuth(pCxt, pTable->dbName, pTable->tableName, PRIV_TBL_INSERT, PRIV_OBJ_TBL, &pTagCond);
+    code = checkAuth(pCxt, pTable->dbName, pTable->tableName, PRIV_TBL_INSERT, PRIV_OBJ_TBL, &pTagCond, &pPrivCols);
   }
   return code;
 }
@@ -496,11 +594,11 @@ static int32_t authDropTable(SAuthCxt* pCxt, SDropTableStmt* pStmt) {
   SNode* pNode = NULL;
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
-    PAR_ERR_RET(checkAuth(pCxt, pClause->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL));
+    PAR_ERR_RET(checkAuth(pCxt, pClause->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL));
 
     if (!pStmt->withOpt) {
       // for child table, check privileges of its super table later
-      if (checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL)) {
+      if (checkAuth(pCxt, pClause->dbName, pClause->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL, NULL)) {
         code = TSDB_CODE_PAR_PERMISSION_DENIED;
         break;
       }
@@ -514,9 +612,9 @@ static int32_t authDropStable(SAuthCxt* pCxt, SDropSuperTableStmt* pStmt) {
   if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
-  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL));
+  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL));
   if (!pStmt->withOpt) {
-    PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL));
+    PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL, NULL));
   }
   return 0;
 }
@@ -525,9 +623,9 @@ static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {
   if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
-  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL));
+  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL));
   if (!pStmt->withOpt) {
-    PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL));
+    PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_DROP, PRIV_OBJ_TBL, NULL, NULL));
   }
   return 0;
 }
@@ -535,17 +633,17 @@ static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {
 static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
   SNode* pTagCond = NULL;
   // todo check tag condition for subtable
-  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL));
-  return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL);
+  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL));
+  return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL);
 }
 
 static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
-  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL));
-  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL));
+  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL));
+  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, PRIV_CM_ALTER, PRIV_OBJ_TBL, NULL, NULL));
   if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF) {
-    PAR_ERR_RET(checkAuth(pCxt, pStmt->refDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL));
-    PAR_ERR_RET(checkAuth(pCxt, pStmt->refDbName, pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL));
+    PAR_ERR_RET(checkAuth(pCxt, pStmt->refDbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL));
+    PAR_ERR_RET(checkAuth(pCxt, pStmt->refDbName, pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL, NULL));
   }
   PAR_RET(TSDB_CODE_SUCCESS);
 }
@@ -554,9 +652,9 @@ static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
-  int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL);
+  int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_VIEW_CREATE, PRIV_OBJ_DB, NULL);
+    code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_VIEW_CREATE, PRIV_OBJ_DB, NULL, NULL);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = authQuery(pCxt, pStmt->pQuery);
@@ -569,7 +667,7 @@ static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
-  int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL);
+  int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB, NULL, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, PRIV_CM_DROP, PRIV_OBJ_VIEW, NULL);
   }
@@ -678,6 +776,29 @@ static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
   return 0;  // return 0 and check owner later in translateShowCreateRsma since rsma ctgCatalog not available yet
 }
 
+static int32_t authCreateDatabase(SAuthCxt* pCxt, SCreateDatabaseStmt* pStmt) {
+  return authSysPrivileges(pCxt, (SNode*)pStmt, PRIV_DB_CREATE);
+}
+
+static int32_t authAlterDatabase(SAuthCxt* pCxt, SAlterDatabaseStmt* pStmt) {
+  return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_ALTER, PRIV_OBJ_DB);
+}
+
+static int32_t authAlterLocal(SAuthCxt* pCxt, SAlterLocalStmt* pStmt) {
+  int32_t privType = cfgGetPrivType(tsCfg, pStmt->config, 0);
+  return authSysPrivileges(pCxt, (void*)pStmt, privType);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t authDropDatabase(SAuthCxt* pCxt, SDropDatabaseStmt* pStmt) {
+  return authObjPrivileges(pCxt, ((SDropDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_DROP, PRIV_OBJ_DB);
+}
+
+static int32_t authUseDatabase(SAuthCxt* pCxt, SUseDatabaseStmt* pStmt) {
+  return authObjPrivileges(pCxt, ((SUseDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
+}
+
 static int32_t authGrant(SAuthCxt* pCxt, SGrantStmt* pStmt) {
   if (pStmt->optrType == TSDB_ALTER_ROLE_ROLE) {
     if (IS_SYS_PREFIX(pStmt->roleName)) {
@@ -726,6 +847,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authSysPrivileges(pCxt, pStmt, PRIV_ROLE_DROP);
     case QUERY_NODE_CREATE_USER_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_USER_CREATE);
+    case QUERY_NODE_ALTER_USER_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_USER_ALTER);
     case QUERY_NODE_DROP_USER_STMT:
       return authDropUser(pCxt, (SDropUserStmt*)pStmt);
     case QUERY_NODE_DELETE_STMT:
@@ -757,11 +880,11 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authAlterVTable(pCxt, (SAlterTableStmt*)pStmt);
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
-    case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     // case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:  // TODO: check in mnode
+    // case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT: // not check local variables
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
     case QUERY_NODE_SHOW_ARBGROUPS_STMT:
@@ -784,15 +907,17 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
+      return pCxt->pParseCxt->enableSysInfo ? authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW)
+                                            : TSDB_CODE_PAR_PERMISSION_DENIED;
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
-    case QUERY_NODE_SHOW_XNODES_STMT: // TODO: check auth for xnode resources
+    case QUERY_NODE_SHOW_XNODES_STMT:
     case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
     case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
     case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
-      return authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW);
+      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
-    case QUERY_NODE_SHOW_LICENCES_STMT:
+    // case QUERY_NODE_SHOW_LICENCES_STMT: // do not check auth for basic licence info since it's used for taos logon
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_GRANTS_SHOW);
@@ -831,7 +956,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
       return authShowCreateRsma(pCxt, (SShowCreateRsmaStmt*)pStmt);
     case QUERY_NODE_CREATE_DATABASE_STMT:
-      return authSysPrivileges(pCxt, pStmt, PRIV_DB_CREATE);
+      return authCreateDatabase(pCxt, (SCreateDatabaseStmt*)pStmt);
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_VG_BALANCE);
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:
@@ -867,12 +992,25 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_DROP_BNODE_STMT:
     case QUERY_NODE_DROP_ANODE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODE_DROP);
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_TRANS_SHOW);
+    case QUERY_NODE_KILL_TRANSACTION_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_TRANS_KILL);
+    case QUERY_NODE_SHOW_QUERIES_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_QUERY_SHOW);
+    case QUERY_NODE_KILL_QUERY_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_QUERY_KILL);
+    case QUERY_NODE_KILL_CONNECTION_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_CONN_KILL);
     case QUERY_NODE_ALTER_DATABASE_STMT:
-      return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_ALTER, PRIV_OBJ_DB);
+      return authAlterDatabase(pCxt, (SAlterDatabaseStmt*)pStmt);
+    case QUERY_NODE_ALTER_LOCAL_STMT:
+      return authAlterLocal(pCxt, (SAlterLocalStmt*)pStmt);
     case QUERY_NODE_DROP_DATABASE_STMT:
-      return authObjPrivileges(pCxt, ((SDropDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_DROP, PRIV_OBJ_DB);
+      return authDropDatabase(pCxt, (SDropDatabaseStmt*)pStmt);
     case QUERY_NODE_USE_DATABASE_STMT:
-      return authObjPrivileges(pCxt, ((SAlterDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_USE, PRIV_OBJ_DB);
+      return authUseDatabase(pCxt, (SUseDatabaseStmt*)pStmt);
     case QUERY_NODE_FLUSH_DATABASE_STMT:
       return authObjPrivileges(pCxt, ((SFlushDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_FLUSH, PRIV_OBJ_DB);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
@@ -887,6 +1025,10 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authObjPrivileges(pCxt, ((SSsMigrateDatabaseStmt*)pStmt)->dbName, NULL, PRIV_DB_SSMIGRATE, PRIV_OBJ_DB);
     case QUERY_NODE_SHOW_USAGE_STMT:  // disk info
       return authShowUsage(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_APPS_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_APPS_SHOW);
+    case QUERY_NODE_SHOW_CLUSTER_STMT:
+      return authSysPrivileges(pCxt, pStmt, PRIV_CLUSTER_SHOW);
       // check in mnode
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:

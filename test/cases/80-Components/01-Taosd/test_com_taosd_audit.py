@@ -193,9 +193,14 @@ class TestTaosdAudit:
         sql = "create user audit pass '123456Ab@' sysinfo 0;"
         tdSql.query(sql)
 
+        sql = "grant role `SYSAUDIT_LOG` to audit;"
+        tdLog.info(sql)
+        tdSql.execute(sql)
+
         tdLog.info("create token audit_token from user audit;")
         sql = "create token audit_token from user audit;"
         tdSql.query(sql)
+        print(tdSql.queryResult)
 
         time.sleep(3)
 

@@ -133,9 +133,7 @@ class TestUserPrivilegeDb:
         tdSql.error(f"create stable d1.st (ts timestamp, i int) tags (j int)")
         tdSql.execute(f"use d2")
         tdSql.execute(f"create table d2_stb (ts timestamp, i int) tags (j int)")
-
-        # Insufficient privilege for operation
-        tdSql.error(f"create topic d2_topic_1 as select ts, i from d2_stb")
+        tdSql.execute(f"create topic d2_topic_1 as select ts, i from d2_stb") # u1 has select privilege since d2_stb is created by u1
 
         tdSql.execute(f"use d1")
         # Insufficient privilege for operation

@@ -23,9 +23,11 @@
 #include "mndUser.h"
 #include "audit.h"
 #include "mndDb.h"
+#include "mndMnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndSync.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
 #include "tbase64.h"
@@ -36,9 +38,9 @@
 #define MND_ROLE_SYSROLE_VER PRIV_INFO_TABLE_VERSION
 
 static SRoleMgmt roleMgmt = {0};
-static bool      isDeploy = false;
 
 static int32_t  mndCreateDefaultRoles(SMnode *pMnode);
+static int32_t  mndUpgradeDefaultRoles(SMnode *pMnode, int32_t version);
 static SSdbRow *mndRoleActionDecode(SSdbRaw *pRaw);
 static int32_t  mndRoleActionInsert(SSdb *pSdb, SRoleObj *pRole);
 static int32_t  mndRoleActionDelete(SSdb *pSdb, SRoleObj *pRole);
@@ -47,6 +49,8 @@ static int32_t  mndCreateRole(SMnode *pMnode, char *acct, SCreateRoleReq *pCreat
 static int32_t  mndProcessCreateRoleReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterRoleReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropRoleReq(SRpcMsg *pReq);
+static int32_t  mndProcessUpgradeRoleReq(SRpcMsg *pReq);
+static int32_t  mndProcessUpgradeRoleRsp(SRpcMsg *pReq);
 static int32_t  mndProcessGetRoleAuthReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveRoles(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextRole(SMnode *pMnode, void *pIter);
@@ -64,7 +68,7 @@ int32_t mndInitRole(SMnode *pMnode) {
       .sdbType = SDB_ROLE,
       .keyType = SDB_KEY_BINARY,
       .deployFp = (SdbDeployFp)mndCreateDefaultRoles,
-      // .redeployFp = (SdbDeployFp)mndCreateDefaultRoles, // TODO: upgrade role table
+      .upgradeFp = (SdbUpgradeFp)mndUpgradeDefaultRoles,
       .encodeFp = (SdbEncodeFp)mndRoleActionEncode,
       .decodeFp = (SdbDecodeFp)mndRoleActionDecode,
       .insertFp = (SdbInsertFp)mndRoleActionInsert,
@@ -75,6 +79,8 @@ int32_t mndInitRole(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ROLE, mndProcessCreateRoleReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_ROLE, mndProcessDropRoleReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ROLE, mndProcessAlterRoleReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_UPGRADE_ROLE, mndProcessUpgradeRoleReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_UPGRADE_ROLE_RSP, mndProcessUpgradeRoleRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ROLE, mndRetrieveRoles);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ROLE, mndCancelGetNextRole);
@@ -111,28 +117,13 @@ bool mndNeedRetrieveRole(SUserObj *pUser) {
   return result;
 }
 
-static int32_t mndFillSystemRoleTblPrivileges(SHashObj **ppHash) {
-  int32_t code = 0, lino = 0;
-  char    objKey[TSDB_PRIV_MAX_KEY_LEN] = {0};
-  int32_t keyLen = privTblKey("1.*", "*", objKey, sizeof(objKey));
-
-  if (!(*ppHash) &&
-      !((*ppHash) = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK))) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-
-  TAOS_CHECK_EXIT(taosHashPut(*ppHash, objKey, keyLen + 1, NULL, 0));
-
-_exit:
-  TAOS_RETURN(code);
-}
-
 static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint32_t roleType) {
   int32_t       code = 0, lino = 0;
   SPrivInfoIter iter = {0};
   privInfoIterInit(&iter);
 
   char objKey[TSDB_PRIV_MAX_KEY_LEN] = {0};
+  char dbFName[TSDB_DB_FNAME_LEN + 1] = {0};
 
   SPrivInfo *pPrivInfo = NULL;
   while (privInfoIterNext(&iter, &pPrivInfo)) {
@@ -140,39 +131,19 @@ static int32_t mndFillSystemRolePrivileges(SMnode *pMnode, SRoleObj *pObj, uint3
     if (pPrivInfo->category == PRIV_CATEGORY_SYSTEM) {  // system privileges
       privAddType(&pObj->sysPrivs, pPrivInfo->privType);
     } else if (pPrivInfo->category == PRIV_CATEGORY_OBJECT) {  // object privileges
-      switch (pPrivInfo->privType) {
-        case PRIV_TBL_SELECT: {  // SELECT TABLE
-          TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->selectTbs));
-          break;
-        }
-        case PRIV_TBL_INSERT: {  // INSERT TABLE
-          TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->insertTbs));
-          break;
-        }
-        case PRIV_TBL_UPDATE: {  // UPDATE TABLE(reserved)
-          TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->updateTbs));
-          break;
-        }
-        case PRIV_TBL_DELETE: {  // DELETE TABLE:
-          TAOS_CHECK_EXIT(mndFillSystemRoleTblPrivileges(&pObj->deleteTbs));
-          break;
-        }
-        default: {
-          int32_t keyLen = privObjKeyF(pPrivInfo, "1.*", "*", objKey, sizeof(objKey));
-          if (!pObj->objPrivs && !(pObj->objPrivs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
-                                                                 true, HASH_ENTRY_LOCK))) {
-            TAOS_CHECK_EXIT(terrno);
-          }
-          SPrivObjPolicies *objPolicy = taosHashGet(pObj->objPrivs, objKey, keyLen + 1);
-          if (objPolicy) {
-            privAddType(&objPolicy->policy, pPrivInfo->privType);
-          } else {
-            SPrivObjPolicies policies = {0};
-            privAddType(&policies.policy, pPrivInfo->privType);
-            TAOS_CHECK_EXIT(taosHashPut(pObj->objPrivs, objKey, keyLen + 1, &policies, sizeof(policies)));
-          }
-          break;
-        }
+      snprintf(dbFName, TSDB_DB_FNAME_LEN, "1.%s", pPrivInfo->dbName[0] == 0 ? "*" : pPrivInfo->dbName);
+      int32_t keyLen = privObjKeyF(pPrivInfo, dbFName, "*", objKey, sizeof(objKey));
+      if (!pObj->objPrivs && !(pObj->objPrivs = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
+                                                             HASH_ENTRY_LOCK))) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      SPrivObjPolicies *objPolicy = taosHashGet(pObj->objPrivs, objKey, keyLen + 1);
+      if (objPolicy) {
+        privAddType(&objPolicy->policy, pPrivInfo->privType);
+      } else {
+        SPrivObjPolicies policies = {0};
+        privAddType(&policies.policy, pPrivInfo->privType);
+        TAOS_CHECK_EXIT(taosHashPut(pObj->objPrivs, objKey, keyLen + 1, &policies, sizeof(policies)));
       }
     }
   }
@@ -609,7 +580,7 @@ static int32_t mndProcessCreateRoleReq(SRpcMsg *pReq) {
   mInfo("role:%s, start to create by %s", createReq.name, pOperUser->user);
 
   // TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_CREATE_ROLE));
-  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_ROLE_CREATE, 0, 0, NULL, NULL));
+  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_ROLE_CREATE, 0, 0, NULL, NULL));
 
   if (createReq.name[0] == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_INVALID_FORMAT);
@@ -617,6 +588,10 @@ static int32_t mndProcessCreateRoleReq(SRpcMsg *pReq) {
   code = mndAcquireUser(pMnode, createReq.name, &pUser);
   if (pUser != NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_USER_ALREADY_EXIST);
+  }
+  if (sdbGetSize(pMnode->pSdb, SDB_ROLE) >= TSDB_MAX_ROLES) {
+    mError("role:%s, failed to create since reach max role limit %d", createReq.name, TSDB_MAX_ROLES);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_TOO_MANY_ROLES);
   }
   TAOS_CHECK_EXIT(mndCreateRole(pMnode, pOperUser->acct, &createReq, pReq));
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -687,7 +662,7 @@ static int32_t mndProcessDropRoleReq(SRpcMsg *pReq) {
   }
   mInfo("role:%s, start to drop", dropReq.name);
   // TAOS_CHECK_EXIT(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_DROP_ROLE));
-  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, PRIV_ROLE_CREATE, 0, 0, NULL, NULL));
+  TAOS_CHECK_EXIT(mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_ROLE_CREATE, 0, 0, NULL, NULL));
 
   if (dropReq.name[0] == 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_ROLE_INVALID_FORMAT);
@@ -780,7 +755,7 @@ static bool mndIsRoleChanged(SRoleObj *pOld, SAlterRoleReq *pAlterReq) {
 }
 
 #ifdef TD_ENTERPRISE
-extern int32_t mndAlterRoleInfo(SMnode *pMnode, SUserObj *pOperUser, SRoleObj *pOld, SRoleObj *pNew,
+extern int32_t mndAlterRoleInfo(SMnode *pMnode, SUserObj *pOperUser, const char *token, SRoleObj *pOld, SRoleObj *pNew,
                                 SAlterRoleReq *pAlterReq);
 #endif
 
@@ -822,7 +797,7 @@ static int32_t mndProcessAlterRoleReq(SRpcMsg *pReq) {
   } else if (mndIsRoleChanged(pObj, &alterReq)) {
     TAOS_CHECK_EXIT(mndRoleDupObj(pObj, &newObj));
 #ifdef TD_ENTERPRISE
-    TAOS_CHECK_EXIT(mndAlterRoleInfo(pMnode, pOperUser, pObj, &newObj, &alterReq));
+    TAOS_CHECK_EXIT(mndAlterRoleInfo(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), pObj, &newObj, &alterReq));
 #endif
     TAOS_CHECK_EXIT(mndAlterRole(pMnode, pReq, &newObj));
     if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -846,6 +821,26 @@ _exit:
   tFreeSAlterRoleReq(&alterReq);
   TAOS_RETURN(code);
 }
+
+static int32_t mndUpgradeDefaultRoles(SMnode *pMnode, int32_t version) {
+  int32_t code = 0, lino = 0;
+  if (!mndIsLeader(pMnode)) return code;
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPGRADE_ROLE, .info.ahandle = 0, .info.notFreeAhandle = 1};
+  SEpSet  epSet = {0};
+  mndGetMnodeEpSet(pMnode, &epSet);
+  TAOS_CHECK_EXIT(tmsgSendReq(&epSet, &rpcMsg));
+_exit:
+  if (code < 0) {
+    mError("failed at line %d to upgrade roles since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessUpgradeRoleReq(SRpcMsg *pReq) {
+  return mndCreateDefaultRoles(pReq->info.node);
+}
+
+static int32_t mndProcessUpgradeRoleRsp(SRpcMsg *pReq) { return 0; }
 
 static int32_t mndProcessGetRoleAuthReq(SRpcMsg *pReq) { TAOS_RETURN(0); }
 
@@ -1035,9 +1030,15 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         numOfRows++;
       }
     }
-    // row level privileges
-
     // table level privileges
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->selectTbs,
+                                           PRIV_TBL_SELECT, pBuf, bufSize, &numOfRows));
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->insertTbs,
+                                           PRIV_TBL_INSERT, pBuf, bufSize, &numOfRows));
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->updateTbs,
+                                           PRIV_TBL_UPDATE, pBuf, bufSize, &numOfRows));
+    TAOS_CHECK_EXIT(mndShowTablePrivileges(pReq, pShow, pBlock, rows - numOfRows, pObj, pObj->name, pObj->deleteTbs,
+                                           PRIV_TBL_DELETE, pBuf, bufSize, &numOfRows));
     sdbRelease(pSdb, pObj);
   }
 
@@ -1062,6 +1063,7 @@ static int32_t mndRetrieveColPrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBl
   SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
+#if 0
   int32_t   cols = 0;
   SRoleObj *pObj = NULL;
   char     *pBuf = NULL, *qBuf = NULL;
@@ -1120,7 +1122,7 @@ static int32_t mndRetrieveColPrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBl
       //   }
       // }
       // skip db, table, condition, notes, columns, update_time
-      COL_DATA_SET_EMPTY_VARCHAR(pBuf, 6);
+      COL_DATA_SET_EMPTY_VARCHAR(pBuf, 7);
       numOfRows++;
     }
 
@@ -1135,6 +1137,7 @@ _exit:
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
+#endif
   return numOfRows;
 }
 

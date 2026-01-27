@@ -528,8 +528,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/15-TagIndices/test_index_perf.py
 
 # 16-Views
-#,,y,.,./ci/pytest.sh pytest cases/16-Views/test_view_basic.py # PRIV_TODO
-#,,y,.,./ci/pytest.sh pytest cases/16-Views/test_view_mgmt.py # PRIV_TODO
+,,y,.,./ci/pytest.sh pytest cases/16-Views/test_view_basic.py
+,,y,.,./ci/pytest.sh pytest cases/16-Views/test_view_mgmt.py
 ,,y,.,./ci/pytest.sh pytest cases/16-Views/test_view_nested_join.py
 
 # 17-DataSubscription
@@ -824,14 +824,14 @@
 # 24-Users
 
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_basic.py
-#,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_control.py # PRIV_TODO
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_control.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_crypted_pass.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_manager.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_password.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_create_db.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_db.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_sysinfo.py
-#,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_table.py # PRIV_TODO
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_table.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_topic.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_token.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py

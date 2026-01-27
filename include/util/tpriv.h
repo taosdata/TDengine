@@ -38,8 +38,19 @@ extern "C" {
 #define TSDB_ROLE_SYSAUDIT_LOG "SYSAUDIT_LOG"
 #define TSDB_ROLE_SYSINFO_0    "SYSINFO_0"
 #define TSDB_ROLE_SYSINFO_1    "SYSINFO_1"
+#define TSDB_ROLE_DEFAULT      TSDB_ROLE_SYSINFO_1
 
-#define PRIV_INFO_TABLE_VERSION 1
+#define TSDB_WORD_AUDIT      "audit"
+#define TSDB_WORD_BASIC      "basic"
+#define TSDB_WORD_DEBUG      "debug"
+#define TSDB_WORD_PRIVILEGED "privileged"
+#define TSDB_WORD_SECURITY   "security"
+#define TSDB_WORD_SYSTEM     "system"
+#define TSDB_WORD_VARIABLE   "variable"
+#define TSDB_WORD_VARIABLES  "variables"
+#define TSDB_WORD_INFORMATION "information"
+
+#define PRIV_INFO_TABLE_VERSION 2
 typedef enum {
   PRIV_TYPE_UNKNOWN = -1,
   // ==================== Common Privilege ====================
@@ -56,7 +67,6 @@ typedef enum {
   PRIV_CM_MAX = 29,         // MAX COMMON PRIVILEGE
   // ==================== DB Privileges(5~49) ====================
   PRIV_DB_CREATE = 30,  // CREATE DATABASE
-  PRIV_DB_DROP_OWNED,   // DROP OWNED DATABASE
   PRIV_DB_USE,          // USE DATABASE
   PRIV_DB_FLUSH,        // FLUSH DATABASE
   PRIV_DB_COMPACT,      // COMPACT DATABASE
@@ -96,7 +106,6 @@ typedef enum {
   // index management
   PRIV_IDX_CREATE = 84,  // CREATE INDEX
   PRIV_IDX_DROP,         //  DROP INDEX
-  PRIV_IDX_SHOW,         //  SHOW INDEXES
 
   // view management
   PRIV_VIEW_CREATE = 88,  // CREATE VIEW
@@ -131,12 +140,15 @@ typedef enum {
   PRIV_USER_UNLOCK,        // UNLOCK USER
   PRIV_USER_LOCK,          // LOCK USER
   PRIV_USER_SHOW,          // SHOW USERS
+  PRIV_USER_ALTER,         // ALTER USER
 
   // audit management
-  PRIV_AUDIT_DB_CREATE = 140,  // CREATE AUDIT DATABASE
-  PRIV_AUDIT_DB_DROP,          // DROP AUDIT DATABASE
-  PRIV_AUDIT_DB_ALTER,         // ALTER AUDIT DATABASE
-  PRIV_AUDIT_DB_USE,           // USE AUDIT DATABASE
+  PRIV_AUDIT_DB_DROP = 140,  // DROP AUDIT DATABASE
+  PRIV_AUDIT_DB_ALTER,       // ALTER AUDIT DATABASE
+  PRIV_AUDIT_DB_USE,         // USE AUDIT DATABASE(reserved for future use)
+  PRIV_AUDIT_TBL_CREATE,     // CREATE AUDIT TABLE
+  PRIV_AUDIT_TBL_SELECT,     // SELECT AUDIT TABLE
+  PRIV_AUDIT_TBL_INSERT,     // INSERT AUDIT TABLE
 
   // token management
   PRIV_TOKEN_CREATE = 150,  // CREATE TOKEN
@@ -148,7 +160,6 @@ typedef enum {
   PRIV_KEY_UPDATE = 160,  // UPDATE KEY
   PRIV_TOTP_CREATE,       // CREATE TOTP
   PRIV_TOTP_DROP,         // DROP TOTP
-  PRIV_TOTP_UPDATE,       // UPDATE TOTP
 
   // grant/revoke privileges
   PRIV_GRANT_PRIVILEGE = 170,  // GRANT PRIVILEGE
@@ -187,23 +198,21 @@ typedef enum {
   // system operation management
   PRIV_TRANS_SHOW = 230,  // SHOW TRANS
   PRIV_TRANS_KILL,        // KILL TRANS
-  PRIV_CONNECTION_SHOW,   // SHOW CONNECTIONS
-  PRIV_CONNECTION_KILL,   // KILL CONNECTION
+  PRIV_CONN_SHOW,         // SHOW CONNECTIONS
+  PRIV_CONN_KILL,         // KILL CONNECTION
   PRIV_QUERY_SHOW,        // SHOW QUERIES
   PRIV_QUERY_KILL,        // KILL QUERY
 
   // system info
-  PRIV_INFO_SCHEMA_USE = 240,   // USE INFORMATION_SCHEMA
-  PRIV_PERF_SCHEMA_USE,         // USE PERFORMANCE_SCHEMA
-  PRIV_INFO_SCHEMA_READ_LIMIT,  // READ INFORMATION_SCHEMA LIMIT
-  PRIV_INFO_SCHEMA_READ_SEC,    // READ INFORMATION_SCHEMA SECURITY
-  PRIV_INFO_SCHEMA_READ_AUDIT,  // READ INFORMATION_SCHEMA AUDIT
-  PRIV_INFO_SCHEMA_READ_BASIC,  // READ INFORMATION_SCHEMA BASIC
-  PRIV_PERF_SCHEMA_READ_LIMIT,  // READ PERFORMANCE_SCHEMA LIMIT
-  PRIV_PERF_SCHEMA_READ_BASIC,  // READ PERFORMANCE_SCHEMA BASIC
-  PRIV_GRANTS_SHOW,             // SHOW GRANTS
-  PRIV_CLUSTER_SHOW,            // SHOW CLUSTER
-  PRIV_APPS_SHOW,               // SHOW APPS
+  PRIV_INFO_SCHEMA_READ_BASIC = 240, // READ INFORMATION_SCHEMA BASIC
+  PRIV_INFO_SCHEMA_READ_SEC,         // READ INFORMATION_SCHEMA SECURITY
+  PRIV_INFO_SCHEMA_READ_AUDIT,       // READ INFORMATION_SCHEMA AUDIT
+  PRIV_INFO_SCHEMA_READ_PRIVILEGED,  // READ INFORMATION_SCHEMA PRIVILEGED
+  PRIV_PERF_SCHEMA_READ_BASIC,       // READ PERFORMANCE_SCHEMA BASIC
+  PRIV_PERF_SCHEMA_READ_PRIVILEGED,  // READ PERFORMANCE_SCHEMA PRIVILEGED
+  PRIV_GRANTS_SHOW,                  // SHOW GRANTS
+  PRIV_CLUSTER_SHOW,                 // SHOW CLUSTER
+  PRIV_APPS_SHOW,                    // SHOW APPS
 
   // extended privileges can be defined here (255 bits reserved in total)
   // ==================== Maximum Privilege Bit ====================
@@ -220,6 +229,13 @@ typedef struct {
 #define PRIV_TYPE(type)   ((SPrivSet){.set[PRIV_GROUP(type)] = 1ULL << PRIV_OFFSET(type)})
 
 #define PRIV_HAS(privSet, type) (((privSet)->set[PRIV_GROUP(type)] & (1ULL << PRIV_OFFSET(type))) != 0)
+
+#define PRIV_SET(privSet, type, val)   \
+  do {                                 \
+    if (PRIV_HAS((privSet), (type))) { \
+      (val) = 1;                       \
+    }                                  \
+  } while (0)
 
 typedef struct {
   SPrivSet privSet;
@@ -275,20 +291,28 @@ typedef enum {
   PRIV_OBJ_MAX = 16,
 } EPrivObjType;
 
+typedef enum {
+  PRIV_RW_ATTR_UNKNOWN = 0,
+  PRIV_RW_ATTR_READ = 0x01,
+  PRIV_RW_ATTR_WRITE = 0x02,
+  PRIV_RW_ATTR_RW = 0x03,
+} EPrivRwAttr;
+
 typedef struct {
-  EPrivType     privType;
-  EPrivCategory category;
-  EPrivObjType  objType;
-  int8_t        objLevel;  // 0: DB, function, 1: table, view
-  uint8_t       sysType;
-  const char*   name;
+  int16_t     privType;  // EPrivType
+  int8_t      category;  // EPrivCategory
+  int8_t      objType;   // EPrivObjType
+  int8_t      objLevel;  // 0: DB, function, 1: table, view
+  uint8_t     sysType;
+  uint8_t     rwAttr;  // 0x01 for read, 0x02 for write, 0x03 for read/write
+  const char* dbName;  // "" for *, otherwise specific db name
+  const char* name;
 } SPrivInfo;
 
 /*
  * The SPrivTblPolicy only applies to tables, such as READ/WRITE/DELETE TABLE.
  * It defines the row-level or table-level privileges for a table, maybe combined with columns and tag conditions.
- * The max number of row-level or table-level privileges is TSDB_PRIV_MAX_TBL_POLICY, and it's recommended to decrease
- * the number of SPrivPolicy considering the performance.
+ * It's recommended to decrease the number of SPrivPolicy considering the performance.
  */
 typedef struct {
   SArray* cols;  // SColNameFlag, NULL means all columns, sorted by colId.
@@ -358,9 +382,16 @@ static FORCE_INLINE void privTblPoliciesFree(void* pTblPolicies) {
   taosArrayDestroyEx(tbPolicies->policy, privTblPolicyFree);
 }
 
+static FORCE_INLINE bool privDbKeyMatch(const char* key, const char* dbFName, int32_t len) {
+  const char* p = strchr(key, '.');
+  if (p) ++p;
+  return p && strncmp(p, dbFName, len) == 0 && (p[len] == '.' || p[len] == '\0');
+}
+
 int32_t privCheckConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
                            uint8_t* pObjLevel, EPrivType* conflict0, EPrivType* conflict1);
 int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel);
+int32_t privUpgradeRwDb(SHashObj* objPrivs, const char* dbFName, const char* tbName, uint8_t rwAttr);
 void    privIterInit(SPrivIter* pIter, SPrivSet* privSet);
 bool    privIterNext(SPrivIter* iter, SPrivInfo** ppPrivInfo);
 void    privInfoIterInit(SPrivInfoIter* pIter);
@@ -375,7 +406,6 @@ int32_t privObjKey(const SPrivInfo* pPrivInfo, int32_t acctId, const char* name,
                    int32_t bufLen);
 int32_t privObjKeyParse(const char* str, EPrivObjType* pObjType, char* db, int32_t dbLen, char* tb, int32_t tbLen,
                         bool fullDb);
-int32_t privTblKey(const char* db, const char* tb, char* buf, int32_t bufLen);
 
 const char*      privObjGetName(EPrivObjType objType);
 int32_t          privObjGetLevel(EPrivObjType objType);
@@ -383,8 +413,8 @@ const char*      privInfoGetName(EPrivType privType);
 const SPrivInfo* privInfoGet(EPrivType privType);
 int32_t          getSysRoleType(const char* roleName);
 bool             isPrivInheritName(const char* name);
-bool privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName, SPrivInfo* privInfo,
-                         bool recursive);
+bool             privHasObjPrivilege(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
+                                     const SPrivInfo* privInfo, bool recursive);
 SPrivTblPolicy* privGetConstraintTblPrivileges(SHashObj* privs, int32_t acctId, const char* objName, const char* tbName,
                                                SPrivInfo* privInfo);
 
