@@ -1323,7 +1323,7 @@ void tqReaderRemoveTbUidList(STqReader* pReader, const SArray* tbUidList) {
   }
 }
 
-int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
+int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd, SArray* cidList) {
   if (pTq == NULL || tbUidList == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -1339,6 +1339,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     }
 
     STqHandle* pTqHandle = (STqHandle*)pIter;
+    tqDebug("%s subKey:%s, consumer:0x%" PRIx64 " update table list", __func__, pTqHandle->subKey, pTqHandle->consumerId);
     if (pTqHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
       int32_t code = qUpdateTableListForStreamScanner(pTqHandle->execHandle.task, tbUidList, isAdd);
       if (code != 0) {
@@ -1367,14 +1368,13 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
           return terrno;
         }
         int     ret = qSubFilterTableList(pTq->pVnode, list, pTqHandle->execHandle.execTb.node,
-                            pTqHandle->execHandle.task, pTqHandle->execHandle.execTb.suid);
+                            pTqHandle->execHandle.task, pTqHandle->execHandle.execTb.suid, cidList);
         if (ret != TDB_CODE_SUCCESS) {
           tqError("qGetTableList in tqUpdateTbUidList error:%d handle %s consumer:0x%" PRIx64, ret, pTqHandle->subKey,
                   pTqHandle->consumerId);
           taosArrayDestroy(list);
           taosHashCancelIterate(pTq->pHandle, pIter);
           taosWUnLockLatch(&pTq->lock);
-
           return ret;
         }
         tqDebug("%s handle %s consumer:0x%" PRIx64 " add %d tables to tqReader", __func__, pTqHandle->subKey,

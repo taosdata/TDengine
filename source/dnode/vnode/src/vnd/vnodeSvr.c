@@ -20,6 +20,7 @@
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tstrbuild.h"
+#include "ttypes.h"
 #include "vnd.h"
 #include "vnode.h"
 #include "vnodeInt.h"
@@ -1157,7 +1158,7 @@ static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq,
     int32_t code = metaDropMultipleTables(pVnode->pMeta, ver, ttlReq.pTbUids);
     if (code) return code;
 
-    code = tqUpdateTbUidList(pVnode->pTq, ttlReq.pTbUids, false);
+    code = tqUpdateTbUidList(pVnode->pTq, ttlReq.pTbUids, false, NULL);
     if (code) {
       vError("vgId:%d, failed to update tbUid list since %s", TD_VID(pVnode), tstrerror(code));
     }
@@ -1381,7 +1382,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   }
 
   vTrace("vgId:%d, add %d new created tables into query table list", TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUids));
-  if (tqUpdateTbUidList(pVnode->pTq, tbUids, true) < 0) {
+  if (tqUpdateTbUidList(pVnode->pTq, tbUids, true, NULL) < 0) {
     vError("vgId:%d, failed to update tbUid list since %s", TD_VID(pVnode), tstrerror(terrno));
   }
   if (tdUpdateTbUidList(pVnode->pSma, pStore, true) < 0) {
@@ -1502,7 +1503,7 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     goto _exit;
   }
 
-  if (tqUpdateTbUidList(pVnode->pTq, tbUidList, false) < 0) {
+  if (tqUpdateTbUidList(pVnode->pTq, tbUidList, false, NULL) < 0) {
     rcode = terrno;
     goto _exit;
   }
@@ -1567,21 +1568,49 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
       goto _exit;
     }
 
-    SArray* tbUids = taosArrayInit(4, sizeof(int64_t));
-    void* p = taosArrayPush(tbUids, &uid);
-    TSDB_CHECK_NULL(p, code, lino, _exit, terrno);
+    SArray* tbUids = NULL;
+    SArray* cidList = NULL;
+    do{
+      tbUids = taosArrayInit(4, sizeof(int64_t));
+      if (tbUids == NULL) {
+        break;
+      }
+      if (taosArrayPush(tbUids, &uid) == NULL){
+        break;
+      }
 
-    vDebug("vgId:%d, remove tags value altered table:%s from query table list", TD_VID(pVnode), vAlterTbReq.tbName);
-    if ((code = tqUpdateTbUidList(pVnode->pTq, tbUids, false)) < 0) {
-      vError("vgId:%d, failed to remove tbUid list since %s", TD_VID(pVnode), tstrerror(code));
-    }
+      cidList = taosArrayInit(4, sizeof(col_id_t));
+      if (cidList == NULL) {
+        break;
+      }
+      if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL){
+        if (taosArrayPush(cidList, &vAlterTbReq.colId) == NULL){
+          break;
+        }
+      } else {
+        for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq.pMultiTag); i++) {
+          SMultiTagUpateVal *pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
+          if (pTagVal == NULL) {
+            break;
+          }
+          if (taosArrayPush(cidList, &pTagVal->colId) == NULL){
+            break;
+          }
+        }
+      }
+      
+      vDebug("vgId:%d, remove tags value altered table:%s from query table list", TD_VID(pVnode), vAlterTbReq.tbName);
+      if ((code = tqUpdateTbUidList(pVnode->pTq, tbUids, false, NULL)) < 0) {
+        vError("vgId:%d, failed to remove tbUid list since %s", TD_VID(pVnode), tstrerror(code));
+      }
 
-    vDebug("vgId:%d, try to add table:%s in query table list", TD_VID(pVnode), vAlterTbReq.tbName);
-    if ((code = tqUpdateTbUidList(pVnode->pTq, tbUids, true)) < 0) {
-      vError("vgId:%d, failed to add tbUid list since %s", TD_VID(pVnode), tstrerror(code));
-    }
-
+      vDebug("vgId:%d, try to add table:%s in query table list, cidList size:%"PRIzu, TD_VID(pVnode), vAlterTbReq.tbName, taosArrayGetSize(cidList));
+      if ((code = tqUpdateTbUidList(pVnode->pTq, tbUids, true, cidList)) < 0) {
+        vError("vgId:%d, failed to add tbUid list since %s", TD_VID(pVnode), tstrerror(code));
+      }
+    }while(0);
     taosArrayDestroy(tbUids);
+    taosArrayDestroy(cidList);
   }
 
 _exit:
@@ -1678,7 +1707,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     }
   }
 
-  if (tqUpdateTbUidList(pVnode->pTq, tbUids, false) < 0) {
+  if (tqUpdateTbUidList(pVnode->pTq, tbUids, false, NULL) < 0) {
     vError("vgId:%d, failed to update tbUid list since %s", TD_VID(pVnode), tstrerror(terrno));
   }
 
@@ -2167,7 +2196,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
   if (taosArrayGetSize(newTbUids) > 0) {
     vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode),
            (int32_t)taosArrayGetSize(newTbUids));
-    if (tqUpdateTbUidList(pVnode->pTq, newTbUids, true) != 0) {
+    if (tqUpdateTbUidList(pVnode->pTq, newTbUids, true, NULL) != 0) {
       vError("vgId:%d, failed to update tbUid list", TD_VID(pVnode));
     }
   }
