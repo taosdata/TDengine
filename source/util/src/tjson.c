@@ -198,7 +198,15 @@ void tjsonGetObjectValueBigInt(const SJson* pJson, int64_t* pVal) { *pVal = (int
 
 void tjsonGetObjectValueDouble(const SJson* pJson, double* pVal) { *pVal = ((cJSON*)pJson)->valuedouble; }
 
-int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal, int32_t cap) {
+int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal) {
+  char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
+  if (NULL == p) {
+    return TSDB_CODE_SUCCESS;
+  }
+  strcpy(pVal, p);
+  return TSDB_CODE_SUCCESS;
+}
+int32_t tjsonGetStringValue1(const SJson* pJson, const char* pName, char* pVal, int32_t cap) {
   char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
   if (NULL == p) {
     return TSDB_CODE_SUCCESS;

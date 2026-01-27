@@ -190,12 +190,12 @@ static int32_t syncDecodeSyncCfg(const SJson *pJson, void *pObj) {
     if (info == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
     tjsonGetUInt16ValueFromDouble(info, "nodePort", pCfg->nodeInfo[i].nodePort, code);
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
-    code = tjsonGetStringValue(info, "nodeFqdn", pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn));
+    code = tjsonGetStringValue1(info, "nodeFqdn", pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn));
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
     tjsonGetNumberValue(info, "nodeId", pCfg->nodeInfo[i].nodeId, code);
     tjsonGetNumberValue(info, "clusterId", pCfg->nodeInfo[i].clusterId, code);
     char role[10] = {0};
-    code = tjsonGetStringValue(info, "isReplica", role, sizeof(role));
+    code = tjsonGetStringValue1(info, "isReplica", role, sizeof(role));
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
     if (strlen(role) != 0) {
       pCfg->nodeInfo[i].nodeRole = syncStrToRole(role);

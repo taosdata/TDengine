@@ -51,7 +51,7 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
     SReplica *pReplica = pOption->replicas + i;
     tjsonGetInt32ValueFromDouble(replica, "id", pReplica->id, code);
     if (code < 0) return code;
-    code = tjsonGetStringValue(replica, "fqdn", pReplica->fqdn, sizeof(pReplica->fqdn));
+    code = tjsonGetStringValue1(replica, "fqdn", pReplica->fqdn, sizeof(pReplica->fqdn));
     if (code < 0) return code;
     tjsonGetUInt16ValueFromDouble(replica, "port", pReplica->port, code);
     if (code < 0) return code;
