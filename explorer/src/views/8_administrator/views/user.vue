@@ -337,11 +337,15 @@ async function getExistingOAuthUsers() {
   existLoading.value = true;
   try {
     const res: any = await oauthListExistingUsers();
-    res.forEach((user: any) => {
-      user.created_at = formatDateInTimeZone(user.created_at);
-      user.updated_at = formatDateInTimeZone(user.updated_at);
-    });
-    existingUsers.value = res || [];
+    if (Array.isArray(res)) {
+      res.forEach((user: any) => {
+        user.created_at = formatDateInTimeZone(user.created_at);
+        user.updated_at = formatDateInTimeZone(user.updated_at);
+      });
+      existingUsers.value = res;
+    } else {
+      existingUsers.value = [];
+    }
   } catch (error) {
     console.error('Error fetching existing OAuth users:', error);
     existingUsers.value = [];

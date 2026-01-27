@@ -65,8 +65,8 @@
             <li v-for="item in databaseList" :key="item">
               <label class="db-label">{{ item }}</label>
               <el-checkbox-group v-model="selectedDatabasePrivileges[item]" class="db-pri">
-                <el-checkbox :disabled="$IS_COMMUNITY" label="Read" value="Read">{{ $t('read') }}</el-checkbox>
-                <el-checkbox :disabled="$IS_COMMUNITY" label="Write" value="Write">{{ $t('write') }}</el-checkbox>
+                <el-checkbox :disabled="$IS_COMMUNITY" label="Read" :value="READ_PRIV">{{ $t('read') }}</el-checkbox>
+                <el-checkbox :disabled="$IS_COMMUNITY" label="Write" :value="WRITE_PRIV">{{ $t('write') }}</el-checkbox>
               </el-checkbox-group>
             </li>
           </ul>
@@ -111,6 +111,7 @@ import { sendSQLReq } from '@/api/explorer';
 import { getDatabaseVariables } from '@/api/database';
 import { FormInstance, FormRules } from 'element-plus';
 import { validPassword, validPasswordNotStrict } from '@/utils/validate';
+import { compareVersion, getTDVersion } from '@/utils';
 
 const globalCustomProperties: any = inject('globalCustomProperties');
 const { $IS_COMMUNITY, $error } = globalCustomProperties;
@@ -199,6 +200,12 @@ const ruleFormOld = ref<RuleForm>({
   allowed_host: []
 });
 
+const tdVersion = getTDVersion();
+const verLessThan3400 = compareVersion(tdVersion, "<3.4.0.0");
+
+const READ_PRIV = verLessThan3400 ? 'Read' : 'SELECT';
+const WRITE_PRIV = verLessThan3400 ? 'Write' : 'INSERT';
+
 watch(
   () => props.status,
   async val => {
@@ -246,7 +253,7 @@ async function getDatabaseList() {
         if (isEdit.value) {
           selectedDatabasePrivileges[item.name] = [];
         } else {
-          const privilege = $IS_COMMUNITY ? ['Read', 'Write'] : ['Read'];
+          const privilege = $IS_COMMUNITY ? [READ_PRIV, WRITE_PRIV] : [READ_PRIV];
           selectedDatabasePrivileges[item.name] = privilege;
         }
       }
@@ -303,25 +310,22 @@ async function getUserPrivileges() {
       ruleForm.allowed_host = allowedHostArr;
     }
 
+    const privFilter = verLessThan3400 ? "privilege <> 'subscribe'" : "priv_type <> 'SUBSCRIBE'" ;
+
     const res = await sendSQLReq(
       `select *
        from information_schema.ins_user_privileges
-       where user_name = '${ruleForm.user}'
-         and privilege <> 'subscribe';`
+       where user_name = '${ruleForm.user}' and ${privFilter};`
     );
     res.data.map((data: string[]) => {
-      if (selectedDatabasePrivileges[data[2]] === undefined) {
-        const name = data[2];
-        const pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
-
-        selectedDatabasePrivileges[name] = [pri];
-        prevDatabasePrivileges[name] = [pri];
+      const dbName = verLessThan3400 ? data[2] : data[3];
+      const pri = verLessThan3400 ? data[1].slice(0, 1).toUpperCase() + data[1].slice(1) : data[1].toUpperCase();
+      if (selectedDatabasePrivileges[dbName] === undefined) {
+        selectedDatabasePrivileges[dbName] = [pri];
+        prevDatabasePrivileges[dbName] = [pri];
       } else {
-        const name = data[2];
-        const pri = data[1].slice(0, 1).toUpperCase() + data[1].slice(1);
-        selectedDatabasePrivileges[name].push(pri);
-        selectedDatabasePrivileges[data[2]] = selectedDatabasePrivileges[name];
-        prevDatabasePrivileges[data[2]] = selectedDatabasePrivileges[name];
+        selectedDatabasePrivileges[dbName].push(pri);
+        prevDatabasePrivileges[dbName] = selectedDatabasePrivileges[dbName];
       }
     });
   } catch (error) {
@@ -331,15 +335,14 @@ async function getUserPrivileges() {
 
 async function getUserTopics() {
   try {
-    const res = await sendSQLReq(
-      `select *
+    const privFilter = verLessThan3400 ? "privilege = 'subscribe'" : "priv_type='SUBSCRIBE'";
+    const res = await sendSQLReq(`select *
        from information_schema.ins_user_privileges
-       where user_name = '${ruleForm.user}'
-         and privilege = 'subscribe';`
-    );
+       where user_name = '${ruleForm.user}' and ${privFilter}`);
     loading.value = false;
     res.data.map((data: (string | number)[]) => {
-      selectedTopicPrivileges[data[2]] = ['Subscribe'];
+      const database = verLessThan3400 ? data[2] : data[3];
+      selectedTopicPrivileges[database] = ['Subscribe'];
       prevTopicPrivileges = selectedTopicPrivileges;
     });
   } catch (error) {
@@ -376,7 +379,8 @@ async function grantPrivilege(privileges: string, dbName: string, userName: stri
 }
 
 async function grantTopic(topicName: string, userName: string) {
-  return await sendSQLReq(`GRANT subscribe ON \`${topicName}\` to \`${userName}\``)
+  const sql = verLessThan3400 ? `GRANT subscribe ON \`${topicName}\` to \`${userName}\`` : `GRANT subscribe ON topic \`${topicName}\` to \`${userName}\``;
+  return await sendSQLReq(sql)
     .then((res: any) => {
       return Promise.resolve(res);
     })
@@ -406,7 +410,8 @@ async function cancelPrivilege(privilege: string, dbName: string) {
 }
 
 async function cancelTopic(topicName: string) {
-  return await sendSQLReq(`REVOKE subscribe ON \`${topicName}\` FROM \`${props.user}\`;`)
+  const sql = verLessThan3400 ? `REVOKE subscribe ON \`${topicName}\` FROM \`${props.user}\`;` : `REVOKE subscribe ON topic \`${topicName}\` FROM \`${props.user}\`;`;
+  return await sendSQLReq(sql)
     .then((res: any) => {
       return Promise.resolve(res);
     })
