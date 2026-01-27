@@ -232,6 +232,7 @@ int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
 static int32_t operatorNodeCopy(const SOperatorNode* pSrc, SOperatorNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
   COPY_SCALAR_FIELD(opType);
+  COPY_SCALAR_FIELD(flag);
   CLONE_NODE_FIELD(pLeft);
   CLONE_NODE_FIELD(pRight);
   COPY_SCALAR_FIELD(tz);
@@ -529,6 +530,8 @@ static int32_t remoteValueListCopy(const SRemoteValueListNode* pSrc, SRemoteValu
 
 static int32_t remoteRowCopy(const SRemoteRowNode* pSrc, SRemoteRowNode* pDst) {
   COPY_BASE_OBJECT_FIELD(val, valueNodeCopy);
+  COPY_SCALAR_FIELD(valSet);
+  COPY_SCALAR_FIELD(hasValue);
   COPY_SCALAR_FIELD(hasNull);
   COPY_SCALAR_FIELD(subQIdx);
   return TSDB_CODE_SUCCESS;

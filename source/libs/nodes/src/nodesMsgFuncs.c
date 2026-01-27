@@ -1215,6 +1215,8 @@ static int32_t msgToRemoteValueListNode(STlvDecoder* pDecoder, void* pObj) {
 
 enum {
   REMOTE_ROW_CODE_VAL = 1,
+  REMOTE_ROW_CODE_VAL_SET,
+  REMOTE_ROW_CODE_HAS_VALUE,
   REMOTE_ROW_CODE_HAS_NULL,
   REMOTE_ROW_CODE_SUBQ_IDX
 };
@@ -1223,6 +1225,12 @@ static int32_t remoteRowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SRemoteRowNode* pNode = (const SRemoteRowNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, REMOTE_ROW_CODE_VAL, valueNodeToMsg, pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, REMOTE_ROW_CODE_VAL_SET, pNode->valSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, REMOTE_ROW_CODE_HAS_VALUE, pNode->hasValue);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, REMOTE_ROW_CODE_HAS_NULL, pNode->hasNull);
   }
@@ -1243,6 +1251,12 @@ static int32_t msgToRemoteRowNode(STlvDecoder* pDecoder, void* pObj) {
     switch (pTlv->type) {
       case REMOTE_ROW_CODE_VAL:
         code = tlvDecodeObjFromTlv(pTlv, msgToValueNode, &pNode->val);
+        break;
+      case REMOTE_ROW_CODE_VAL_SET:
+        code = tlvDecodeBool(pTlv, &pNode->valSet);
+        break;
+      case REMOTE_ROW_CODE_HAS_VALUE:
+        code = tlvDecodeBool(pTlv, &pNode->hasValue);
         break;
       case REMOTE_ROW_CODE_HAS_NULL:
         code = tlvDecodeBool(pTlv, &pNode->hasNull);
@@ -1268,7 +1282,7 @@ static int32_t msgToRemoteZeroRowsNode(STlvDecoder* pDecoder, void* pObj) {
 }
 
 
-enum { OPERATOR_CODE_EXPR_BASE = 1, OPERATOR_CODE_OP_TYPE, OPERATOR_CODE_LEFT, OPERATOR_CODE_RIGHT };
+enum { OPERATOR_CODE_EXPR_BASE = 1, OPERATOR_CODE_OP_TYPE, OPERATOR_CODE_LEFT, OPERATOR_CODE_RIGHT, OPERATOR_CODE_FLAG };
 
 static int32_t operatorNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SOperatorNode* pNode = (const SOperatorNode*)pObj;
@@ -1276,6 +1290,9 @@ static int32_t operatorNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   int32_t code = tlvEncodeObj(pEncoder, OPERATOR_CODE_EXPR_BASE, exprNodeToMsg, pNode);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeEnum(pEncoder, OPERATOR_CODE_OP_TYPE, pNode->opType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, OPERATOR_CODE_FLAG, pNode->flag);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, OPERATOR_CODE_LEFT, nodeToMsg, pNode->pLeft);
@@ -1299,6 +1316,9 @@ static int32_t msgToOperatorNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case OPERATOR_CODE_OP_TYPE:
         code = tlvDecodeEnum(pTlv, &pNode->opType, sizeof(pNode->opType));
+        break;
+      case OPERATOR_CODE_FLAG:
+        code = tlvDecodeI32(pTlv, &pNode->flag);
         break;
       case OPERATOR_CODE_LEFT:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pLeft);

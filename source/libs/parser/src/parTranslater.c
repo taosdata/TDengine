@@ -2789,7 +2789,8 @@ static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
       pRows->subQIdx = pCxt->pSubQueries->length - 1;
       tstrncpy(pRows->val.node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pRows->val.node.aliasName));
       tstrncpy(pRows->val.node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pRows->val.node.userAlias));
-      getExprSubQueryResType(pSubQuery, &pRows->val.node.resType);
+      pRows->val.node.resType.type = TSDB_DATA_TYPE_INT;
+      pRows->val.node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
       break;
     }
     default:
@@ -2822,7 +2823,7 @@ static int32_t getExprSubQRewriteType(EOperatorType opType, SNode* pSubq, ESubQR
   EQuantifyType quantifyType = (QUERY_NODE_SELECT_STMT == nodeType(pSubq)) ? ((SSelectStmt*)pSubq)->quantify : ((SSetOperator*)pSubq)->quantify;
 
   if (QU_TYPE_ANY != quantifyType && QU_TYPE_ALL != quantifyType) {
-    parserError("invalid quantifyType %d for op%s's subQ", quantifyType, operatorTypeStr(opType));
+    parserError("invalid quantifyType %d for op [%s]'s subQ", quantifyType, operatorTypeStr(opType));
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
 
@@ -2866,7 +2867,7 @@ static int32_t createSimpleSubQStmt(char* stmtName, SNodeList *pProjectionList, 
     ((SSelectStmt*)pSubQ)->isSubquery = true;
   }
 
-  code = createSelectStmtImpl(false, pProjectionList, (SNode*)pTable, NULL, ppStmt);
+  code = createSelectStmtImpl(false, pProjectionList, (SNode*)pTable, NULL, (SNode**)ppStmt);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyList(pProjectionList);
     return code;
@@ -2897,19 +2898,43 @@ static int32_t createNewSubQProjectionList(STranslateContext* pCxt, char* stmtNa
     return code;
   }
 
-  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pParam);
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pParam);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pFunc);
     return code;
   }
 
-  translateFunction(pCxt, pFunc);
+  translateFunction(pCxt, &pFunc);
   if (TSDB_CODE_SUCCESS != pCxt->errCode) {
     nodesDestroyNode((SNode*)pFunc);
-    return code;
+    return pCxt->errCode;
   }
   
-  return nodesListMakeStrictAppend(ppNew, (SNode *)pFunc);
+  code = nodesListMakeStrictAppend(ppNew, (SNode *)pFunc);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  SFunctionNode* pFunc2 = NULL;
+  code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc2);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  tstrncpy(pFunc2->functionName, "_has_null", TSDB_FUNC_NAME_LEN);
+  code = nodesCloneList(pFunc->pParameterList, &pFunc2->pParameterList);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pFunc2);
+    return code;
+  }
+
+  translateFunction(pCxt, &pFunc2);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    nodesDestroyNode((SNode*)pFunc2);
+    return pCxt->errCode;
+  }
+
+  return nodesListMakeStrictAppend(ppNew, (SNode *)pFunc2);
 }
 
 static int32_t rewriteExprSubQResToMinMax(STranslateContext* pCxt, SNode* pSubQuery, bool isMin) {
@@ -2946,8 +2971,10 @@ static int32_t rewriteExprSubQResToMinMax(STranslateContext* pCxt, SNode* pSubQu
     return code;
   }
 
+  pNewStmt->subQType = E_SUB_QUERY_ROW;
+
   if (pCxt->pSubQueries->pTail->pNode == pSubQuery) {
-    pCxt->pSubQueries->pTail->pNode = pNewStmt;
+    pCxt->pSubQueries->pTail->pNode = (SNode*)pNewStmt;
   } else {
     parserError("translate context last subq %p is not expected %p", pCxt->pSubQueries->pTail->pNode, pSubQuery);
     nodesDestroyNode((SNode *)pNewStmt);

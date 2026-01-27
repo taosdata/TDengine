@@ -320,11 +320,18 @@ typedef struct SHashParam {
   STypeMod         filterValueTypeMod;
 } SHashParam;
 
+typedef struct SRemoteParam {
+  bool   hasRemoteParam;
+  bool   hasValue;
+  bool   hasNull;
+} SRemoteParam;
+
 struct SScalarParam {
   bool             colAlloced;
 //  bool             nullResExpected;  // for compare operations where null value result is expected
   SColumnInfoData *columnData;
   SHashParam       hashParam;
+  SRemoteParam     remoteParam;
   void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
   int32_t          numOfQualified;  // number of qualified elements in the final results

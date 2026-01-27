@@ -4307,16 +4307,6 @@ int32_t serializeTupleData(SqlFunctionCtx* pCtx, const SSDataBlock* pSrcBlock, i
       offset += pCol->info.bytes;
       continue;
     }
-
-    if (fmIsHasNullFunc(pc->functionId)) {
-      if (!*(bool*)(pStart + offset)) {
-        SInputColumnInfoData* pIn = &pCtx->input;
-        *(bool*)(pStart + offset) = hasNullFunc(pIn->pData[0], pIn->colDataSMAIsSet ? pIn->pColumnDataAgg[0] : NULL, pIn->startRowIndex, pIn->numOfRows);
-      }
-      
-      offset += pc->resDataInfo.bytes;
-      continue;
-    }
   }
 
   *res = buf;
@@ -7924,3 +7914,52 @@ int32_t corrFuncMerge(SqlFunctionCtx* pCtx) {
   SET_VAL(GET_RES_INFO(pCtx), pInfo->count, 1);
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t hasNullFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  bool* pRes = GET_ROWCELL_INTERBUF(pResInfo);
+  if (*pRes) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnDataAgg*       pAgg = pInput->pColumnDataAgg[0];
+  SColumnInfoData* pCol = pInput->pData[0];
+
+  if (pInput->numOfRows > 0) {
+    pResInfo->numOfRes = 1;
+  }
+
+  if (IS_NULL_TYPE(pCol->info.type) && pInput->numOfRows > 0) {
+    *pRes = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pInput->colDataSMAIsSet) {
+    if (pAgg->numOfNull > 0) {
+      *pRes = true;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (pInput->numOfRows <= INT16_MAX) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  int32_t start = pInput->startRowIndex;
+  int32_t end = start + pInput->numOfRows;
+
+  if (pCol->hasNull) {
+    for (int32_t i = start; i < end; ++i) {
+      if (colDataIsNull_s(pCol, i)) {
+        *pRes = true;
+        break;
+      }
+    }
+  }  
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+

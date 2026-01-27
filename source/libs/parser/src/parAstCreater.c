@@ -1217,11 +1217,13 @@ SNode* setNodeQuantifyType(SAstCreateContext* pCxt, SNode* pNode, EQuantifyType 
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pNode;
       pSelect->quantify = type;
+      pSelect->subQType = E_SUB_QUERY_COLUMN;
       break;
     }  
     case QUERY_NODE_SET_OPERATOR:{
       SSetOperator* pSet = (SSetOperator*)pNode;
       pSet->quantify = type;
+      pSet->subQType = E_SUB_QUERY_COLUMN;
       break;
     }
     default:

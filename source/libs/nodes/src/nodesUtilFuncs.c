@@ -4212,4 +4212,20 @@ void nodesGetSubQType(SNode* pNode, int32_t* pType) {
   return;
 }
 
+SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) {
+  SColumnNode* pCol = NULL;
+  terrno = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  if (NULL == pCol) {
+    return NULL;
+  }
+  pCol->node.resType = pExpr->resType;
+  snprintf(pCol->colName, sizeof(pCol->colName), "%s", pExpr->aliasName);
+  if (NULL != pStmtName) {
+    snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
+  }
+  snprintf(pCol->node.userAlias, sizeof(pCol->node.userAlias), "%s", pExpr->userAlias);
+  pCol->node.relatedTo = pExpr->relatedTo;
+  return pCol;
+}
+
 

@@ -5623,12 +5623,21 @@ static int32_t jsonToRemoteValueList(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkRemoteRowHasNull = "flag";
+static const char* jkRemoteRowValSet = "valueSet";
+static const char* jkRemoteRowHasValue = "hasValue";
+static const char* jkRemoteRowHasNull = "hasNull";
 static const char* jkRemoteRowSubQIdx = "subQIdx";
 
 static int32_t remoteRowToJson(const void* pObj, SJson* pJson) {
   const SRemoteRowNode* pNode = (const SRemoteRowNode*)pObj;
 
   int32_t code = valueNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkRemoteRowValSet, pNode->valSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkRemoteRowHasValue, pNode->hasValue);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkRemoteRowHasNull, pNode->hasNull);
   }
@@ -5643,6 +5652,12 @@ static int32_t jsonToRemoteRow(const SJson* pJson, void* pObj) {
   SRemoteRowNode* pNode = (SRemoteRowNode*)pObj;
 
   int32_t code = jsonToValueNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkRemoteRowValSet, &pNode->valSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkRemoteRowHasValue, &pNode->hasValue);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkRemoteRowHasNull, &pNode->hasNull);
   }
@@ -5663,6 +5678,7 @@ static int32_t jsonToRemoteZeroRows(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkOperatorType = "OpType";
+static const char* jkOperatorFlag = "OpFlag";
 static const char* jkOperatorLeft = "Left";
 static const char* jkOperatorRight = "Right";
 
@@ -5672,6 +5688,9 @@ static int32_t operatorNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = exprNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkOperatorType, pNode->opType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkOperatorFlag, pNode->flag);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkOperatorLeft, nodeToJson, pNode->pLeft);
@@ -5689,6 +5708,9 @@ static int32_t jsonToOperatorNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToExprNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkOperatorType, pNode->opType, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkOperatorFlag, pNode->flag, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkOperatorLeft, &pNode->pLeft);

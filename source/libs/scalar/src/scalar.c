@@ -720,6 +720,42 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
       break;
     }  
+    case QUERY_NODE_REMOTE_ROW: {
+      SRemoteRowNode* pRemote = (SRemoteRowNode*)node;
+      
+      if (NULL == ctx->pSubJobCtx) {
+        sclError("no subJob ctx for subQIdx %d", pRemote->subQIdx);
+        return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+      }
+
+      if (!pRemote->valSet) {
+        SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
+      }
+      
+      param->remoteParam.hasRemoteParam = true;
+      param->remoteParam.hasValue = pRemote->hasValue;
+      param->remoteParam.hasNull = pRemote->hasNull;
+
+      pRemote->val.node.type = QUERY_NODE_VALUE;
+
+      int32_t code = sclInitParam(node, param, ctx, rowNum);
+
+      pRemote->val.node.type = QUERY_NODE_REMOTE_ROW;
+
+      return code;
+    }      
+    case QUERY_NODE_REMOTE_ZERO_ROWS: {
+      SRemoteZeroRowsNode* pRemote = (SRemoteZeroRowsNode*)node;
+      
+      if (NULL == ctx->pSubJobCtx) {
+        sclError("no subJob ctx for subQIdx %d", pRemote->subQIdx);
+        return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+      }
+      
+      SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
+
+      return sclInitParam(node, param, ctx, rowNum);
+    }      
     default:
       break;
   }

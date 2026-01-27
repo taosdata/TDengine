@@ -157,7 +157,6 @@ typedef struct SValueNode {
 
 typedef struct SRemoteValueNode {
   SValueNode val;
-//  bool       valSet;
   int32_t    subQIdx;
 } SRemoteValueNode;
 
@@ -181,6 +180,8 @@ typedef struct SRemoteValueListNode {
 
 typedef struct SRemoteRowNode {
   SValueNode val;
+  bool       valSet;
+  bool       hasValue;
   bool       hasNull;
   int32_t    subQIdx;
 } SRemoteRowNode;
@@ -625,6 +626,7 @@ typedef enum ESubQueryType {
   E_SUB_QUERY_COLUMN,
   E_SUB_QUERY_TABLE,
   E_SUB_QUERY_ROWNUM,
+  E_SUB_QUERY_ROW,
 } ESubQueryType;
 
 typedef struct SSelectStmt {
@@ -924,6 +926,7 @@ bool isRelatedToOtherExpr(SExprNode* pExpr);
 bool nodesContainsColumn(SNode* pNode);
 int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
 int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst);
+SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr);
 
 #ifdef __cplusplus
 }

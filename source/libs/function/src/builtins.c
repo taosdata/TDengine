@@ -7250,14 +7250,14 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_has_null",
     .type = FUNCTION_TYPE_HAS_NULL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
     .translateFunc = translateHasNull,
     .getEnvFunc   = getHasNullFuncEnv,
     .initFunc     = functionSetup,
-    .processFunc  = NULL,
-    .finalizeFunc = NULL,
+    .processFunc  = hasNullFunction,
+    .finalizeFunc = functionFinalize,
     .pPartialFunc = "_has_null",
-    .pMergeFunc   = "_has_null",
+    .pMergeFunc   = "max",
   },  
 };
 // clang-format on

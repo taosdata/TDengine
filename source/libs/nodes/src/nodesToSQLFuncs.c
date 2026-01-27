@@ -95,6 +95,22 @@ const char *operatorTypeStr(EOperatorType type) {
   return "UNKNOWN";
 }
 
+const char *operatorTypeStrEx(EOperatorType type, bool isNegative) {
+  if (isNegative) {
+    switch (type) {
+      case OP_TYPE_IN:
+        return "!= ANY";
+      case OP_TYPE_NOT_IN:
+        return "= ALL";
+      default:
+        break;
+    }
+    return "UNKNOWN";
+  }
+
+  return operatorTypeStr(type);
+}
+
 const char *logicConditionTypeStr(ELogicConditionType type) {
   switch (type) {
     case LOGIC_COND_TYPE_AND:
@@ -165,7 +181,7 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
         NODES_ERR_RET(nodesNodeToSQLFormat(pOpNode->pLeft, buf, bufSize, len, true));
       }
 
-      *len += tsnprintf(buf + *len, bufSize - *len, " %s ", operatorTypeStr(pOpNode->opType));
+      *len += tsnprintf(buf + *len, bufSize - *len, " %s ", operatorTypeStrEx(pOpNode->opType, pOpNode->flag & OPERATOR_FLAG_NEGATIVE_OP));
 
       if (pOpNode->pRight) {
         NODES_ERR_RET(nodesNodeToSQLFormat(pOpNode->pRight, buf, bufSize, len, true));
@@ -246,6 +262,16 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
     }
     case QUERY_NODE_REMOTE_VALUE_LIST: {
       SRemoteValueListNode* pRemote = (SRemoteValueListNode*)pNode;
+      *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_REMOTE_ROW: {
+      SRemoteRowNode* pRemote = (SRemoteRowNode*)pNode;
+      *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_REMOTE_ZERO_ROWS: {
+      SRemoteZeroRowsNode* pRemote = (SRemoteZeroRowsNode*)pNode;
       *len += tsnprintf(buf + *len, bufSize - *len, "$(InitPlan %d)", pRemote->subQIdx + 1);
       return TSDB_CODE_SUCCESS;
     }
