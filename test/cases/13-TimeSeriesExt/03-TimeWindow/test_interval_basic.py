@@ -1,9 +1,3 @@
-import time
-import socket
-import os
-import threading
-import math
-
 from new_test_framework.utils import (
     tdLog, tdSql, tdStream, sc, clusterComCheck, etool, StreamItem)
 from new_test_framework.utils.common import tdCom
@@ -2056,7 +2050,7 @@ class TestInterval:
         self.check_surround_abnormal()
         self.check_surround_normal()
         self.check_surround_stream()
-    
+
     def check_surround_normal(self):
         tdSql.execute("use test_surround")
         # basic fill prev scenario
@@ -2121,7 +2115,7 @@ class TestInterval:
         tdSql.checkData(4, 0, "2026-01-06 12:00:00.000")
         tdSql.checkData(4, 1, "2026-01-07 00:00:00.000")
         tdSql.checkData(4, 2, 2)
-        
+
         tdSql.query("""select _wstart, _wend, max(c1) from ntb where ts between
             '2026-01-03 12:00:00' and '2026-01-06 12:00:00' interval(12h, auto)
             fill(next) surround(1d, 100)""")
@@ -2160,7 +2154,7 @@ class TestInterval:
         tdSql.checkData(4, 1, "2026-01-11 12:00:00.000")
         tdSql.checkData(4, 2, 3)
         tdSql.checkData(4, 3, 2)
-    
+
         # fill tbname and multi-group scenario
         tdSql.query("""select _wstart, max(v), tbname from stb1 where ts between
             "2026-01-01" and "2026-01-13" partition by tbname interval(1d)
@@ -2199,7 +2193,7 @@ class TestInterval:
         tdSql.checkData(36, 1, 3)
         tdSql.checkData(37, 1, 1)
         tdSql.checkData(38, 1, 1)
-        
+
         # multi column scenario, each column has different reference row
         ## fill prev
         tdSql.query("""select _wstart, _wend, max(c1), sum(abs(c2)), avg(c3)
@@ -2338,26 +2332,44 @@ class TestInterval:
             stream="""create stream s0 state_window(c1, 1) from triggertb into
             res0 as select _twstart, _twend, _wstart, _wend, first(c1), max(c1),
             count(*) from ntb where ts >= _twstart and ts < _twend
-            interval(1d) fill(prev) surround(1d, 100, 100, 0)""",
+            interval(24h, auto) fill(prev) surround(1d, 100, 100, 0)""",
             check_func=self.check_s0,
         )
         streams.append(stream)
 
-        # tdSql.execute("alter dnode 1 'qdebugflag 141'")
-        # stream = StreamItem(
-        #     id=1,
-        #     stream="""create stream s1 state_window(c1) from triggertb into
-        #     res1 as select _wstart, _wend, _twstart, _twend, first(c1), max(c1),
-        #     count(c1) from stb where ts >= _twstart and ts < _twend
-        #     interval(8h) fill(next) surround(8h, 100, 100, 100)"""
-        # )
-        # streams.append(stream)
+        tdSql.execute("alter dnode 1 'qdebugflag 141'")
+        stream = StreamItem(
+            id=1,
+            stream="""create stream s1 state_window(c1) from triggertb into
+            res1 as select _wstart, _wend, _twstart, _twend, first(c1), max(c1),
+            count(c1) from stb where ts >= _twstart and ts < _twend
+            interval(8h) fill(next) surround(8h, 100, 100, 100)"""
+        )
+        streams.append(stream)
+
+        stream = StreamItem(
+            id=2,
+            stream="""create stream s2 state_window(c1) from triggertb into
+            res2 as select _wstart, _wend, _twstart, _twend, first(c1), max(c1),
+            count(c1) from stb where ts >= _twstart and ts < _twend
+            interval(8h) fill(prev) surround(8h, 100, 100, 100)"""
+        )
+        streams.append(stream)
+
+        stream = StreamItem(
+            id=3,
+            stream="""create stream s3 state_window(c1) from triggertb into
+            res3 as select _wstart, _wend, _twstart, _twend, first(c1), max(c1),
+            count(c1) from ctb1 where ts >= _twstart and ts < _twend
+            interval(8h) fill(next) surround(8h, 100, 100, 100)"""
+        )
+        streams.append(stream)
 
         # stream = StreamItem(
         #     id=2,
         #     stream="""create stream s2 state_window(c1) from triggertb into
         #     res2 as select _twstart, _twend, _wstart, _wend, first(c1), max(c1), tbname from stb
-        #     where ts >= _twstart and ts < _twend partition by tbname 
+        #     where ts >= _twstart and ts < _twend partition by tbname
         #     interval(24h) fill(next) surround(24h, 100, 100)"""
         # )
         # streams.append(stream)

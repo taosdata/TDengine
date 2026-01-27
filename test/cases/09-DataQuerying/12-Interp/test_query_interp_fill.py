@@ -277,7 +277,7 @@ class TestInterpFill:
         # insert enough rows into ntb1
         for ts in range(start, start + size * step, 1 * step):
             tdSql.execute(f"insert into ntb1 values ({ts}, {ts % 10000})")
-        
+
         mid = start + size / 2 * step  # 1_766_005_000_000, 2025-12-18 04:56:40
         end = start + size * step      # 1_766_010_000_000, 2025-12-18 06:20:00
         # this query will generate only 1 NEXT scan datablock
@@ -299,7 +299,7 @@ class TestInterpFill:
         start = end  # 1_766_010_000_000, 2025-12-18 06:20:00
         for ts in range(start, start + size * step, 1 * step):
             tdSql.execute(f"insert into ntb1 values ({ts}, NULL)")
-        
+
         mid = start + size / 2 * step  # 1_766_015_000_000, 2025-12-18 07:43:20
         end = start + size * step      # 1_766_020_000_000, 2025-12-18 09:06:40
         tdSql.execute(f"insert into ntb1 values ({start}, 77777)")
@@ -439,7 +439,7 @@ class TestInterpFill:
 
         # insert data into trigger_table
         tdSql.execute("""
-            insert into trigger_table values 
+            insert into trigger_table values
             ('2025-12-12 11:59:00', 1),
             ('2025-12-12 12:01:00', 1),
             ('2025-12-12 12:02:00', 2),
@@ -1016,7 +1016,7 @@ class TestInterpFill:
         step = 1000
         # insert data into trigger_table
         tdSql.execute(f"""
-            insert into trigger_table1 values 
+            insert into trigger_table1 values
             ({start_ts-1*step},          1),
             ({start_ts},                 1),
 
@@ -1086,7 +1086,7 @@ class TestInterpFill:
             and tdSql.compareData(6, 2, '2025-12-18 09:06:40.000')
             and tdSql.compareData(6, 3, 88888)
         )
-    
+
     def check_s9(self):
         tdSql.checkResultsByFunc(
             sql="select * from r9",
@@ -1306,7 +1306,7 @@ class TestInterpFill:
             - 2026-01-12 Tony Zhang created
 
         """
-        tdSql.execute("use fill_interp_test")  
+        tdSql.execute("use fill_interp_test")
 
         # start from 1767196800000 = 2026-01-01 00:00:00.000
         # end at 1767696799000 = 2026-01-06 18:53:19
@@ -1462,7 +1462,7 @@ class TestInterpFill:
         6. Query interp fill extension with value mode
         7. Query interp fill extension with null mode
         8. Multi-threaded query interp fill extension
-        
+
         Since: v3.0.0.0
 
         Labels: common,ci
@@ -1680,9 +1680,9 @@ class TestInterpFill:
             range_point = random.randint(start, end)
             # 检查range_point与range_where_start或range_where_end的间隔是否小于等于1小时(3600000毫秒)
             one_hour_ms = 3600000
-            if ((range_point < range_where_start and abs(range_point - range_where_start) > one_hour_ms) or 
+            if ((range_point < range_where_start and abs(range_point - range_where_start) > one_hour_ms) or
                 (range_point > range_where_end and abs(range_point - range_where_end) > one_hour_ms)):
-                continue            
+                continue
             sql = f"select _irowts_origin, _irowts, interp(c1), interp(c2), _isfilled from test.t0 where ts between {range_where_start} and {range_where_end} range({range_point}, 1h) fill(near, 1, 2)"
             tdSql.query(f'select to_char(cast({range_where_start} as timestamp), \'YYYY-MM-DD HH24:MI:SS.MS\'), to_char(cast({range_where_end} as timestamp), \'YYYY-MM-DD HH24:MI:SS.MS\')', queryTimes=1)
             where_start_str = tdSql.queryResult[0][0]
@@ -1857,7 +1857,7 @@ class TestInterpFill:
         self.check_interval_fill_extension()
 
     def test_interp_fill_surround(self):
-        """Interp normal query of interp filling with surround 
+        """Interp normal query of interp filling with surround
 
         1. testing interp filling with surrounding time
 
@@ -1881,7 +1881,7 @@ class TestInterpFill:
         self.ansFile = etool.curFile(__file__, f"ans/{testCase}.csv")
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
-        
+
     def test_interp_fill_surround_stream(self):
         """Interp normal query of interp filling with surround in stream
 
@@ -1965,7 +1965,7 @@ class TestInterpFill:
             and tdSql.compareData(11, 0, "2026-01-07 12:00:00.000") and tdSql.compareData(11, 1, 2)
             and tdSql.compareData(12, 0, "2026-01-09 10:00:00.000") and tdSql.compareData(12, 1, 1)
         )
-    
+
     def check_s15(self):
         tdSql.checkResultsByFunc(
             sql="select * from res15",
@@ -1978,7 +1978,7 @@ class TestInterpFill:
             and tdSql.compareData(5, 0, "2026-01-07 00:00:00.000") and tdSql.compareData(5, 1, 3)
             and tdSql.compareData(6, 0, "2026-01-09 10:00:00.000") and tdSql.compareData(6, 1, 3)
         )
-    
+
     def check_s16(self):
         tdSql.checkResultsByFunc(
             sql="select * from res16",
@@ -1993,7 +1993,7 @@ class TestInterpFill:
         )
 
     def test_interp_fill_surround_abnormal(self):
-        """Interp abnormal query of interp filling with surround 
+        """Interp abnormal query of interp filling with surround
 
         1. testing abnormal parameters of interp filling with surrounding time
 
