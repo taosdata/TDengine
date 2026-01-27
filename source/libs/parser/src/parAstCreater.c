@@ -64,7 +64,7 @@
   } while (0)
 
 #define COPY_STRING_FORM_ID_TOKEN(buf, pToken) \
-  tstrncpy(buf, (pToken)->z, (pToken)->n < sizeof(buf) ? (pToken->n) + 1 : sizeof(buf))
+  tstrncpy(buf, (pToken)->z, ((pToken)->n) < sizeof(buf) ? ((pToken)->n) + 1 : sizeof(buf))
 #define TRIM_STRING_FORM_ID_TOKEN(buf, pToken)                      \
   do {                                                              \
     if (pToken->z[0] == '`') {                                      \
