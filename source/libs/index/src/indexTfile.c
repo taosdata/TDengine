@@ -1147,7 +1147,7 @@ void tfileReaderUnRef(TFileReader* rd) {
 
 static int32_t tfileGetFileList(const char* path, SArray** ppResult) {
   int32_t  code = 0;
-  char     buf[128] = {0};
+  char     buf[256] = {0};
   uint64_t suid;
   int64_t  version;
   SArray*  files = taosArrayInit(4, sizeof(void*));
@@ -1167,13 +1167,13 @@ static int32_t tfileGetFileList(const char* path, SArray** ppResult) {
     }
 
     size_t len = strlen(path) + 1 + strlen(file) + 1;
-    char*  buf = taosMemoryCalloc(1, len);
-    if (buf == NULL) {
+    char*  tbuf = taosMemoryCalloc(1, len);
+    if (tbuf == NULL) {
       TAOS_CHECK_GOTO(terrno, NULL, _exception);
     }
 
-    snprintf(buf, sizeof(buf), "%s/%s", path, file);
-    if (taosArrayPush(files, &buf) == NULL) {
+    (void)snprintf(tbuf, len, "%s/%s", path, file);
+    if (taosArrayPush(files, &tbuf) == NULL) {
       TAOS_CHECK_GOTO(terrno, NULL, _exception);
     }
   }

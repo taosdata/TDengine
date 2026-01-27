@@ -45,7 +45,7 @@ static void printConfig(SSharedStorage* pss) {
 
 // joinPath is a helper function which joins the base directory and the path to
 // create a full path.
-static void joinPath(SSharedStorageFS* ss, const char* path, char* fullPath) {
+static void joinPath(SSharedStorageFS* ss, const char* path, char* fullPath, int32_t cap) {
     uint32_t len = ss->baseDirLen;
 
     memcpy(fullPath, ss->baseDir, len);
@@ -58,10 +58,9 @@ static void joinPath(SSharedStorageFS* ss, const char* path, char* fullPath) {
         if (path[0] == TD_DIRSEP_CHAR) {
             path++;
         }
-        tstrncpy(fullPath + len, path, 1024);
+        tstrncpy(fullPath + len, path, cap - len);
     }
 }
-
 
 // initInstance initializes the SSharedStorageFS instance from the access string.
 static bool initInstance(SSharedStorageFS* ss, const char* as) {
@@ -156,7 +155,7 @@ static int32_t upload(SSharedStorage* pss, const char* dstPath, const void* data
     SSharedStorageFS* ss = (SSharedStorageFS*)pss;
 
     char fullPath[1024];
-    joinPath(ss, dstPath, fullPath);
+    joinPath(ss, dstPath, fullPath, sizeof(fullPath));
 
     int32_t code = taosMulMkDir(taosDirName(fullPath));
     if (code != 0) {
@@ -164,7 +163,7 @@ static int32_t upload(SSharedStorage* pss, const char* dstPath, const void* data
         TAOS_RETURN(code);
     }
 
-    joinPath(ss, dstPath, fullPath);
+    joinPath(ss, dstPath, fullPath, sizeof(fullPath));
     TdFilePtr dstFile = taosOpenFile(fullPath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
     if (dstFile == NULL) {
         tssError("failed to open destination file: %s", fullPath);
@@ -271,14 +270,14 @@ static int32_t uploadFile(SSharedStorage* pss, const char* dstPath, const char* 
     SSharedStorageFS* ss = (SSharedStorageFS*)pss;
 
     char fullPath[1024];
-    joinPath(ss, dstPath, fullPath);
+    joinPath(ss, dstPath, fullPath, sizeof(fullPath));
     int32_t code = taosMulMkDir(taosDirName(fullPath));
     if (code != 0) {
         tssError("failed to create directory %s, code = %d", fullPath, code);
         TAOS_RETURN(code);
     }
 
-    joinPath(ss, dstPath, fullPath);
+    joinPath(ss, dstPath, fullPath, sizeof(fullPath));
     return copyFile(srcPath, fullPath, offset, size);
 }
 
@@ -289,7 +288,7 @@ static int32_t readFile(SSharedStorage* pss, const char* srcPath, int64_t offset
     SSharedStorageFS* ss = (SSharedStorageFS*)pss;
 
     char fullPath[1024];
-    joinPath(ss, srcPath, fullPath);
+    joinPath(ss, srcPath, fullPath, sizeof(fullPath));
 
     int32_t code = 0;
     TdFilePtr srcFile = taosOpenFile(fullPath, TD_FILE_READ);
@@ -326,7 +325,7 @@ static int32_t downloadFile(SSharedStorage* pss, const char* srcPath, const char
     SSharedStorageFS* ss = (SSharedStorageFS*)pss;
 
     char fullPath[1024];
-    joinPath(ss, srcPath, fullPath);
+    joinPath(ss, srcPath, fullPath, sizeof(fullPath));
     return copyFile(fullPath, dstPath, offset, size);
 }
 
@@ -354,7 +353,7 @@ static int32_t listFileInDir(const char* dirPath, size_t baseLen, SArray* res) {
             continue;
         }
 
-        tstrncpy(path + dirPathLen, name, sizeof(path));
+        tstrncpy(path + dirPathLen, name, sizeof(path) - dirPathLen);
 
         if (taosDirEntryIsDir(entry)) {
             size_t len = strlen(path);
@@ -392,7 +391,7 @@ static int32_t listFile(SSharedStorage* pss, const char* prefix, SArray* paths) 
     SSharedStorageFS* ss = (SSharedStorageFS*)pss;
 
     char fullPath[1024];
-    joinPath(ss, prefix, fullPath);
+    joinPath(ss, prefix, fullPath, sizeof(fullPath));
     size_t len = strlen(fullPath);
     if (fullPath[len - 1] != TD_DIRSEP_CHAR) {
         fullPath[len++] = TD_DIRSEP_CHAR;
@@ -424,7 +423,7 @@ static int32_t deleteFile(SSharedStorage* pss, const char* path) {
     SSharedStorageFS* ss = (SSharedStorageFS*)pss;
 
     char fullPath[1024];
-    joinPath(ss, path, fullPath);
+    joinPath(ss, path, fullPath, sizeof(fullPath));
     return taosRemoveFile(fullPath);
 }
 
@@ -435,7 +434,7 @@ static int32_t getFileSize(SSharedStorage* pss, const char* path, int64_t* size)
     SSharedStorageFS* ss = (SSharedStorageFS*)pss;
 
     char fullPath[1024];
-    joinPath(ss, path, fullPath);
+    joinPath(ss, path, fullPath, sizeof(fullPath));
     if (taosStatFile(fullPath, size, NULL, NULL) < 0) {
         int32_t code = terrno;
         if (code == TAOS_SYSTEM_ERROR(ENOENT)) {
