@@ -55,7 +55,7 @@ impl HaRpcClient {
         self.send_recv(TASK_PREVIEW_REQ, param).await
     }
 
-    pub async fn check_valid(&self, param: &CheckValidParam) -> Result<()> {
+    pub async fn check_valid(&self, param: &CheckValidParam) -> Result<serde_json::Value> {
         self.send_recv(CHECK_VALID_REQ, param).await
     }
 

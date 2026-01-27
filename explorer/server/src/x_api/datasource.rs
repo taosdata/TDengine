@@ -30,10 +30,7 @@ pub async fn validate(
         .context("no available xnode found")?;
 
     match client.check_valid(&param.try_into()?).await {
-        Ok(_) => Ok(Json(serde_json::json!({
-            "valid": true,
-            "support": true
-        }))),
+        Ok(res) => Ok(Json(res)),
         Err(e) => Ok(Json(serde_json::json!({
             "valid": false,
             "support": false,

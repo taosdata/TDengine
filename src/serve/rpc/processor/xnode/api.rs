@@ -6,6 +6,7 @@ use ha_core::{jwt::agent::AgentToken, types::*};
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 use taos::Dsn;
 use taosx_core::{
+    dsv::DataSourceValidation,
     global::XNODE_HTTP_PORTS,
     plugins::transform::{modeler::ModeledJsonOutput, sample::DsSamples},
 };
@@ -36,7 +37,10 @@ pub async fn plan_task(controller: &TaskControllerRef, context: &str) -> ApiResu
     }
 }
 
-pub async fn check_valid(controller: &TaskControllerRef, context: &str) -> ApiResult<()> {
+pub async fn check_valid(
+    controller: &TaskControllerRef,
+    context: &str,
+) -> ApiResult<DataSourceValidation> {
     let param: CheckValidParam = serde_json::from_str(context)
         .context("deserialize check_valid payload error")
         .map_err(decode_err)?;
@@ -61,7 +65,7 @@ pub async fn check_valid(controller: &TaskControllerRef, context: &str) -> ApiRe
         check_taos_connectivity(&to).await.map_err(internal_err)?;
     }
 
-    Ok(())
+    Ok(res)
 }
 
 pub async fn get_samples(

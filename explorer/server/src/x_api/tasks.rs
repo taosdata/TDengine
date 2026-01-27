@@ -66,16 +66,12 @@ async fn create_task_inner(args: &Args, req: &HttpRequest, task: Task, start: bo
     // create
     let task_name = task.name.clone();
     let config: HaTask = task.try_into()?;
+    let status = TaskStatus::Created;
     let mut sql = format!(
-        "CREATE XNODE TASK '{}' FROM '{}' TO '{}'",
+        "CREATE XNODE TASK '{}' FROM '{}' TO '{}' WITH STATUS '{status}'",
         task_name, config.from, config.to
     );
 
-    if config.parser.is_some() || config.via.is_some() {
-        sql.push_str(" WITH");
-    }
-
-    let status = TaskStatus::Created;
     if let Some(parser) = config
         .parser
         .as_ref()
@@ -87,8 +83,6 @@ async fn create_task_inner(args: &Args, req: &HttpRequest, task: Task, start: bo
             " PARSER {} STATUS '{status}'",
             sql_value_escaped_fmt(&parser)
         ));
-    } else {
-        sql.push_str(&format!(" STATUS '{status}'"));
     }
 
     if let Some(via) = config.via {
