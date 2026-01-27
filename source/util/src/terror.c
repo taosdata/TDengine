@@ -491,6 +491,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_CONFLICTS,           "Conflicts with existi
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA,     "No enabled user with SYSDBA role exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_ROLES,           "Too many roles")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_PRIV_OBJS,       "Too many privilege objects")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_PRIVS,           "Too many privileges for single user/role")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")

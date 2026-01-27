@@ -23,6 +23,9 @@
 extern "C" {
 #endif
 
+
+#define SHOW_PRIVILEGES_STEP_SIZE 2048
+
 #define COL_DATA_SET_VAL_GOTO(pData, isNull, pObj, pIter, LABEL)                           \
   do {                                                                                     \
     if (pColInfo && (code = colDataSetVal(pColInfo, numOfRows, (pData), (isNull))) != 0) { \

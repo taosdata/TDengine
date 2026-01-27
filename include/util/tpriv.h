@@ -400,6 +400,15 @@ static FORCE_INLINE int32_t privPopCnt(SPrivSet* privSet) {
   return count;
 }
 
+static FORCE_INLINE int32_t privTblPrivCnt(SHashObj* privTbls) {
+  int32_t nPrivs = 0;
+  void*   pIter = NULL;
+  while ((pIter = taosHashIterate(privTbls, pIter))) {
+    nPrivs += taosArrayGetSize(((SPrivTblPolicies*)pIter)->policy);
+  }
+  return nPrivs;
+}
+
 int32_t privCheckConflicts(const SPrivSet* privSet, EPrivCategory* pCategory, EPrivObjType* pObjType,
                            uint8_t* pObjLevel, EPrivType* conflict0, EPrivType* conflict1);
 int32_t privExpandAll(SPrivSet* privSet, EPrivObjType pObjType, uint8_t pObjLevel);

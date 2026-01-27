@@ -890,7 +890,7 @@ static int32_t mndRetrieveRoles(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
         tlen += snprintf(pBuf + tlen, bufSize - tlen, "%s,", roleName);
       }
       if (tlen > 0) {
-        pBuf[tlen - 1] = 0;  // remove last ','
+        pBuf[--tlen] = 0;  // remove last ','
       } else {
         pBuf[0] = 0;
       }
@@ -903,7 +903,7 @@ static int32_t mndRetrieveRoles(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   pShow->numOfRows += numOfRows;
 _exit:
   if (code < 0) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
   return numOfRows;
@@ -941,15 +941,37 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
-    int32_t nSysPrivileges = 0, nObjPrivileges = 0;
-    if (nSysPrivileges + nObjPrivileges >= rows) {
+    // count total privileges for current user
+    int32_t nSysPrivileges = privPopCnt(&pObj->sysPrivs);
+    int32_t nObjPrivileges = 0;
+    void   *pIter = NULL;
+    while ((pIter = taosHashIterate(pObj->objPrivs, pIter))) {
+      SPrivObjPolicies *pPolices = (SPrivObjPolicies *)pIter;
+      nObjPrivileges += privPopCnt(&pPolices->policy);
+    }
+    int32_t nTblPrivileges = privTblPrivCnt(pObj->selectTbs);
+    nTblPrivileges += privTblPrivCnt(pObj->insertTbs);
+    nTblPrivileges += privTblPrivCnt(pObj->updateTbs);
+    nTblPrivileges += privTblPrivCnt(pObj->deleteTbs);
+
+    int32_t totalPrivileges = nSysPrivileges + nObjPrivileges + nTblPrivileges;
+
+    if (totalPrivileges >= 10) {
+      sdbRelease(pSdb, pObj);
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_TOO_MANY_PRIVS);
+    }
+
+    if (numOfRows + nTblPrivileges >= rows) {
+      if (totalPrivileges >= 10) {
+        sdbRelease(pSdb, pObj);
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_TOO_MANY_PRIVS);
+      }
       pShow->restore = true;
       sdbRelease(pSdb, pObj);
       break;
     }
 
     if (!pBuf && !(pBuf = taosMemoryMalloc(bufSize))) {
-      sdbCancelFetch(pSdb, pShow->pIter);
       sdbRelease(pSdb, pObj);
       TAOS_CHECK_EXIT(terrno);
     }
@@ -981,7 +1003,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     }
 
     // object privileges
-    void *pIter = NULL;
+    pIter = NULL;
     while ((pIter = taosHashIterate(pObj->objPrivs, pIter))) {
       SPrivObjPolicies *pPolices = (SPrivObjPolicies *)pIter;
 
@@ -992,7 +1014,6 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
       if ((code = privObjKeyParse(key, &objType, dbName, sizeof(dbName), tblName, sizeof(tblName), false))) {
         sdbRelease(pSdb, pObj);
-        sdbCancelFetch(pSdb, pShow->pIter);
         TAOS_CHECK_EXIT(code);
       }
 
@@ -1047,7 +1068,7 @@ _exit:
   taosMemoryFreeClear(pBuf);
   taosMemoryFreeClear(sql);
   if (code < 0) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
   return numOfRows;
@@ -1094,7 +1115,6 @@ static int32_t mndRetrieveColPrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBl
     }
 
     if (!pBuf && !(pBuf = taosMemoryMalloc(bufSize))) {
-      sdbCancelFetch(pSdb, pShow->pIter);
       sdbRelease(pSdb, pObj);
       TAOS_CHECK_EXIT(terrno);
     }
@@ -1134,7 +1154,7 @@ _exit:
   taosMemoryFreeClear(pBuf);
   taosMemoryFreeClear(sql);
   if (code < 0) {
-    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    mError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     TAOS_RETURN(code);
   }
 #endif
