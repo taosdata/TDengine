@@ -29,7 +29,7 @@ impl MssqlQuery {
             &config.password,
             time_zone.clone(),
         )
-        .map_err(|err| anyhow::anyhow!("failed to connect to mssql, cause: {}", err.to_string()))?;
+        .map_err(|err| anyhow::anyhow!("failed to connect to mssql, cause: {}", err))?;
         Ok(Self { pool, time_zone })
     }
 
@@ -146,13 +146,13 @@ impl MssqlQuery {
                         anyhow::bail!("no columns");
                     }
                     Err(e) => {
-                        anyhow::bail!("failed to get columns, cause: {}", e.to_string());
+                        anyhow::bail!("failed to get columns, cause: {}", e);
                     }
                 }
                 Ok(col_map)
             }
             Err(e) => {
-                anyhow::bail!("failed to execute query, cause: {}", e.to_string());
+                anyhow::bail!("failed to execute query, cause: {}", e);
             }
         }
     }
@@ -181,7 +181,7 @@ impl MssqlQuery {
                         anyhow::bail!("no columns");
                     }
                     Err(e) => {
-                        anyhow::bail!("failed to get columns, cause: {}", e.to_string());
+                        anyhow::bail!("failed to get columns, cause: {}", e);
                     }
                 }
                 loop {
@@ -196,14 +196,14 @@ impl MssqlQuery {
                         Ok(None) => {
                             break;
                         }
-                        Err(e) => anyhow::bail!("failed to select data, cause: {}", e.to_string()),
+                        Err(e) => anyhow::bail!("failed to select data, cause: {}", e),
                     }
                 }
                 let batch =
                     appender::to_record_batches(col_map, rows, batch_size, self.time_zone.clone())?;
                 Ok(batch)
             }
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err),
         }
     }
 
@@ -231,7 +231,7 @@ impl MssqlQuery {
                         anyhow::bail!("no columns");
                     }
                     Err(e) => {
-                        anyhow::bail!("failed to get columns, cause: {}", e.to_string());
+                        anyhow::bail!("failed to get columns, cause: {}", e);
                     }
                 }
                 loop {
@@ -249,12 +249,12 @@ impl MssqlQuery {
                         Ok(None) => {
                             break;
                         }
-                        Err(e) => anyhow::bail!("failed to select data, cause: {}", e.to_string()),
+                        Err(e) => anyhow::bail!("failed to select data, cause: {}", e),
                     }
                 }
                 Ok((col_map, rows))
             }
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err),
         }
     }
 }

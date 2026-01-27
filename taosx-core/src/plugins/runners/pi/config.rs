@@ -213,7 +213,7 @@ impl PiConfig {
                     anyhow!(
                         "invalid BackfillStartTime: {}, cause: {}",
                         backfill_start.clone(),
-                        err.to_string()
+                        err
                     )
                 })?;
                 Some(parsed_time)
@@ -231,7 +231,7 @@ impl PiConfig {
                         anyhow!(
                             "invalid BackfillEndTime: {}, cause: {}",
                             backfill_end.clone(),
-                            err.to_string()
+                            err
                         )
                     })?;
                     Some(parsed_time)
@@ -334,9 +334,8 @@ impl PiConfig {
         dsn.params
             .get("PIDataPipesInstances")
             .map(|v| {
-                v.parse::<u32>().map_err(|err| {
-                    anyhow!("invalid PIDataPipesInstances, cause: {}", err.to_string())
-                })
+                v.parse::<u32>()
+                    .map_err(|err| anyhow!("invalid PIDataPipesInstances, cause: {}", err))
             })
             .transpose()
     }
@@ -345,9 +344,8 @@ impl PiConfig {
         dsn.params
             .get("AFDataPipesInstances")
             .map(|v| {
-                v.parse::<u32>().map_err(|err| {
-                    anyhow!("invalid AFDataPipesInstances, cause: {}", err.to_string())
-                })
+                v.parse::<u32>()
+                    .map_err(|err| anyhow!("invalid AFDataPipesInstances, cause: {}", err))
             })
             .transpose()
     }
@@ -358,7 +356,7 @@ impl PiConfig {
             .get("MaxWaitLen")
             .map(|v| {
                 v.parse::<u32>()
-                    .map_err(|err| anyhow!("invalid MaxWaitLen, cause: {}", err.to_string()))
+                    .map_err(|err| anyhow!("invalid MaxWaitLen, cause: {}", err))
             })
             .transpose()?;
         if max_wait_len.is_none() {
@@ -367,7 +365,7 @@ impl PiConfig {
                 .get("batch_size")
                 .map(|v| {
                     v.parse::<u32>()
-                        .map_err(|err| anyhow!("invalid batch_size, cause: {}", err.to_string()))
+                        .map_err(|err| anyhow!("invalid batch_size, cause: {}", err))
                 })
                 .transpose()?;
         }
@@ -385,7 +383,7 @@ impl PiConfig {
             .get("UpdateInterval")
             .map(|v| {
                 v.parse::<u32>()
-                    .map_err(|err| anyhow!("invalid UpdateInterval, cause: {}", err.to_string()))
+                    .map_err(|err| anyhow!("invalid UpdateInterval, cause: {}", err))
             })
             .transpose()?;
         if update_interval.is_none() {
@@ -394,7 +392,7 @@ impl PiConfig {
                 .get("batch_timeout")
                 .map(|v| {
                     v.parse::<u32>()
-                        .map_err(|err| anyhow!("invalid batch_timeout, cause: {}", err.to_string()))
+                        .map_err(|err| anyhow!("invalid batch_timeout, cause: {}", err))
                         .map(|v| v * 1000)
                 })
                 .transpose()?;
@@ -427,9 +425,8 @@ impl PiConfig {
         dsn.params
             .get("FromTDengineLastTime")
             .map(|v| {
-                v.parse::<bool>().map_err(|err| {
-                    anyhow!("invalid FromTDengineLastTime, cause: {}", err.to_string())
-                })
+                v.parse::<bool>()
+                    .map_err(|err| anyhow!("invalid FromTDengineLastTime, cause: {}", err))
             })
             .transpose()
     }
@@ -441,9 +438,8 @@ impl PiConfig {
         dsn.params
             .get("ToTDengineFirstTime")
             .map(|v| {
-                v.parse::<bool>().map_err(|err| {
-                    anyhow!("invalid ToTDengineFirstTime, cause: {}", err.to_string())
-                })
+                v.parse::<bool>()
+                    .map_err(|err| anyhow!("invalid ToTDengineFirstTime, cause: {}", err))
             })
             .transpose()
     }
@@ -452,7 +448,7 @@ impl PiConfig {
         match dsn.params.get("BackfillStartTime").map(|s| s.trim()) {
             Some("auto") | None => Ok(None),
             Some(v) => Self::parse_date_time(v)
-                .map_err(|err| anyhow!("invalid BackfillStartTime, cause: {}", err.to_string()))
+                .map_err(|err| anyhow!("invalid BackfillStartTime, cause: {}", err))
                 .map(Some),
         }
     }
@@ -461,19 +457,14 @@ impl PiConfig {
         match dsn.params.get("BackfillEndTime").map(|s| s.as_str()) {
             Some("auto") | None => Ok(None),
             Some(v) => Self::parse_date_time(v)
-                .map_err(|err| anyhow!("invalid BackfillEndTime, cause: {}", err.to_string()))
+                .map_err(|err| anyhow!("invalid BackfillEndTime, cause: {}", err))
                 .map(Some),
         }
     }
 
     fn parse_date_time(date_time: &str) -> anyhow::Result<Datetime> {
-        let parsed_time = Datetime::from_str(date_time).map_err(|err| {
-            anyhow!(
-                "failed to parse date time: {}, cause: {}",
-                date_time,
-                err.to_string()
-            )
-        })?;
+        let parsed_time = Datetime::from_str(date_time)
+            .map_err(|err| anyhow!("failed to parse date time: {}, cause: {}", date_time, err))?;
 
         Ok(parsed_time)
     }

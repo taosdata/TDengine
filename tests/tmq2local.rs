@@ -40,7 +40,6 @@ mod test_tmq_to_local {
         let mut backup_dsn = env::var("BACKUP_DSN")
             .unwrap_or("tmq://".to_string())
             .into_dsn()?;
-        let taosx_cmd = env::var("TAOSX_CMD").unwrap_or("taosx".to_string());
         let dir = tempfile::tempdir()?;
         let backup_dir = match env::var("LOCAL_DIR").ok() {
             Some(p) => {
@@ -79,7 +78,7 @@ mod test_tmq_to_local {
         };
 
         // 执行备份：$TAOSX_CMD -f "$BACKUP_DSN" -t "local:$LOCAL_DIR"
-        let mut taosx = Command::cargo_bin(&taosx_cmd)?;
+        let mut taosx = assert_cmd::cargo::cargo_bin_cmd!("taosx");
         taosx
             .arg("run")
             .arg("-f")
@@ -135,7 +134,6 @@ mod test_tmq_to_local {
     pub async fn test_backup_and_restore_with_taos() -> anyhow::Result<()> {
         // 初始化环境变量
         let taos_addr = env::var("TAOS_ADDR").unwrap_or("tmq://".to_string());
-        let taosx_cmd = env::var("TAOSX_CMD").unwrap_or("taosx".to_string());
         let backup_dir = env::var("BACKUP_DIR")
             .ok()
             .map(|p| Path::new(&p).to_path_buf())
@@ -157,7 +155,7 @@ mod test_tmq_to_local {
         // 备份数据
         let from = format!("{taos_addr}/{SRC_DB}");
         let to = format!("local:{}", backup_dir.to_string_lossy().into_owned());
-        let mut cmd = Command::cargo_bin(&taosx_cmd)?;
+        let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("taosx");
         cmd.arg("run")
             .arg("-f")
             .arg(&from)
@@ -172,7 +170,7 @@ mod test_tmq_to_local {
         let from = format!("local:{}?to=now", backup_dir.to_string_lossy().into_owned(),);
         let to = format!("{taos_addr}/{DST_DB}");
         taos.exec(format!("CREATE DATABASE `{DST_DB}`")).await?;
-        let mut cmd = Command::cargo_bin(&taosx_cmd)?;
+        let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("taosx");
         cmd.arg("run")
             .arg("-f")
             .arg(&from)
@@ -240,7 +238,6 @@ mod test_tmq_to_local {
     pub async fn test_backup_and_restore_with_s3() -> anyhow::Result<()> {
         if let Ok(endpoint) = env::var("S3_ENDPOINT") {
             // 初始化环境变量
-            let taosx_cmd = env::var("TAOSX_CMD").unwrap_or("taosx".to_string());
             let taos_addr = env::var("TAOS_ADDR").unwrap_or("tmq://".to_string());
             let backup_retention_period = env::var("BACKUP_RETENTION_PERIOD").ok();
             let backup_retention_size = env::var("BACKUP_RETENTION_SIZE").ok();
@@ -300,7 +297,7 @@ mod test_tmq_to_local {
             }
             let data_dir = tempfile::tempdir()?;
             dbg!(&from, &to, data_dir.path());
-            let mut cmd = Command::cargo_bin(&taosx_cmd)?;
+            let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("taosx");
             cmd.arg("run")
                 .arg("-f")
                 .arg(&from)
@@ -328,7 +325,7 @@ mod test_tmq_to_local {
             let to = format!("{taos_addr}/{DST_DB}");
             taos.exec(format!("CREATE DATABASE `{DST_DB}`")).await?;
             dbg!(&from, &to, data_dir.path());
-            let mut cmd = Command::cargo_bin(&taosx_cmd)?;
+            let mut cmd = assert_cmd::cargo::cargo_bin_cmd!("taosx");
             cmd.arg("run")
                 .arg("-f")
                 .arg(from)

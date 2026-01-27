@@ -29,9 +29,7 @@ impl PostgresQuery {
             time_zone,
         )
         .await
-        .map_err(|err| {
-            anyhow::anyhow!("failed to connect to postgres, cause: {}", err.to_string())
-        })?;
+        .map_err(|err| anyhow::anyhow!("failed to connect to postgres, cause: {}", err))?;
         Ok(Self { pool })
     }
 
@@ -110,7 +108,7 @@ impl PostgresQuery {
             Ok(Some(row)) => Some(row),
             Ok(None) => None,
             Err(e) => {
-                anyhow::bail!("failed to execute query, cause: {}", e.to_string());
+                anyhow::bail!("failed to execute query, cause: {}", e);
             }
         })
     }

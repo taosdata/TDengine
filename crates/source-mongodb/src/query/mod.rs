@@ -36,9 +36,7 @@ impl MongoDBQuery {
             config.cert_key_file_path,
         )
         .await
-        .map_err(|err| {
-            anyhow::anyhow!("failed to connect to mongodb, cause: {}", err.to_string())
-        })?;
+        .map_err(|err| anyhow::anyhow!("failed to connect to mongodb, cause: {}", err))?;
         Ok(Self { client })
     }
 
@@ -120,7 +118,7 @@ impl MongoDBQuery {
         let client = Client::with_options(client_options);
         match client {
             Ok(client) => Ok(client),
-            Err(err) => Err(anyhow::anyhow!("{}", err.to_string())),
+            Err(err) => Err(anyhow::anyhow!("{}", err)),
         }
     }
 
@@ -164,7 +162,7 @@ impl MongoDBQuery {
                             documents.push(item);
                         }
                         Some(Err(e)) => {
-                            anyhow::bail!("failed to select data, cause: {}", e.to_string());
+                            anyhow::bail!("failed to select data, cause: {}", e);
                         }
                         None => break,
                     }
@@ -172,7 +170,7 @@ impl MongoDBQuery {
                 let batch = appender::to_record_batches(&documents, batch_size)?;
                 Ok(batch)
             }
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err),
         }
     }
 
@@ -207,7 +205,7 @@ impl MongoDBQuery {
                             documents.push(item);
                         }
                         Some(Err(e)) => {
-                            anyhow::bail!("failed to select data, cause: {}", e.to_string());
+                            anyhow::bail!("failed to select data, cause: {}", e);
                         }
                         None => break,
                     }
@@ -217,7 +215,7 @@ impl MongoDBQuery {
                 }
                 Ok(amount)
             }
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err),
         }
     }
 
@@ -248,14 +246,14 @@ impl MongoDBQuery {
                             documents.push(item);
                         }
                         Some(Err(e)) => {
-                            anyhow::bail!("failed to select data, cause: {}", e.to_string());
+                            anyhow::bail!("failed to select data, cause: {}", e);
                         }
                         None => break,
                     }
                 }
                 Ok(documents)
             }
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err),
         }
     }
 }

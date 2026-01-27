@@ -218,7 +218,7 @@ impl OPCConfig {
             .map(|v| match v.as_str() {
                 "error" | "warn" | "info" => Ok(false),
                 "debug" | "trace" => Ok(true),
-                _ => Err(anyhow::anyhow!("invalid log_level: {}", v.to_string())),
+                _ => Err(anyhow::anyhow!("invalid log_level: {}", v)),
             })
             .transpose()?
             .unwrap_or(false))

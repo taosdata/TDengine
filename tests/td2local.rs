@@ -1,6 +1,5 @@
 use std::{env, path::Path};
 
-use assert_cmd::Command;
 use taos::*;
 
 #[tokio::test]
@@ -64,7 +63,7 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
         (from, to)
     };
     // 执行备份：taosx run -f "taos://..." -t "local:..."
-    let mut taosx = Command::cargo_bin("taosx")?;
+    let mut taosx = assert_cmd::cargo::cargo_bin_cmd!("taosx");
     taosx
         .args(["run", "-f", &from, "-t", &to, "-v"])
         .env("TAOSX_DATA_DIR", backup_dir.as_path())
@@ -96,7 +95,7 @@ async fn test_td2local_with_taos() -> anyhow::Result<()> {
         (from, to)
     };
     // 执行恢复：taosx run -f "local:..." -t "taos://..."
-    let mut taosx = Command::cargo_bin("taosx")?;
+    let mut taosx = assert_cmd::cargo::cargo_bin_cmd!("taosx");
     taosx
         .args(["run", "-f", &from, "-t", &to, "-v"])
         .env("TAOSX_DATA_DIR", backup_dir.as_path())

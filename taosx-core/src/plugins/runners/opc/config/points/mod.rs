@@ -41,7 +41,7 @@ impl PointsConfig {
             .get("update_interval")
             .map(|v| {
                 v.parse::<usize>().map_err(|err| {
-                    anyhow::anyhow!("invalid update_interval: {}, cause: {}", v, err.to_string())
+                    anyhow::anyhow!("invalid update_interval: {}, cause: {}", v, err)
                 })
             })
             .transpose()?;
@@ -90,7 +90,7 @@ impl PointsUaConfig {
                     .split(',')
                     .map(|v| {
                         v.parse::<u16>().map_err(|err| {
-                            anyhow::anyhow!("invalid namespaces: {}, cause: {}", v, err.to_string())
+                            anyhow::anyhow!("invalid namespaces: {}, cause: {}", v, err)
                         })
                     })
                     .collect::<Result<Vec<u16>, anyhow::Error>>();

@@ -187,7 +187,7 @@ impl<'a> CsvParser<'a> {
 
         let csv_files = parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
             "csv_config_file not found in the dsn: {}",
-            dsn.to_string()
+            dsn
         ))?;
 
         let csv_files = csv_files
@@ -223,9 +223,7 @@ impl<'a> CsvParser<'a> {
         } else {
             let decoded = general_purpose::STANDARD
                 .decode(csv.as_bytes())
-                .map_err(|err| {
-                    anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
-                })?;
+                .map_err(|err| anyhow::anyhow!("failed to decode csv content, cause: {}", err))?;
             Ok(String::from_utf8(decoded)?)
         }
     }
@@ -268,7 +266,7 @@ impl<'a> CsvParser<'a> {
         let header = rdr
             .headers()
             .await
-            .map_err(|e| anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string()))?;
+            .map_err(|e| anyhow::anyhow!("failed to read csv header, cause: {}", e))?;
         let csv_header = CsvHeader::try_new(source_type, header)?;
         csv_header.check_required_columns()?;
 
@@ -276,9 +274,8 @@ impl<'a> CsvParser<'a> {
         let mut records = rdr.records();
         let mut row_index = 1;
         while let Some(record) = records.next().await {
-            let row = record.map_err(|e| {
-                anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
-            })?;
+            let row =
+                record.map_err(|e| anyhow::anyhow!("failed to read csv line, cause: {}", e))?;
 
             let point_id = Self::parse_point_id(&csv_header, &row)?;
             // parse point config and table config (optimized path using existing point_id)
@@ -397,9 +394,10 @@ impl<'a> CsvParser<'a> {
         let mut headers = HashMap::new();
 
         for (filename, mut rdr) in files {
-            let header = rdr.headers().await.map_err(|e| {
-                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
-            })?;
+            let header = rdr
+                .headers()
+                .await
+                .map_err(|e| anyhow::anyhow!("failed to read csv header, cause: {}", e))?;
             let csv_header = CsvHeader::try_new(source_type, header)?;
 
             // check required columns
@@ -430,7 +428,7 @@ impl<'a> CsvParser<'a> {
         let header = rdr
             .headers()
             .await
-            .map_err(|e| anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string()))?;
+            .map_err(|e| anyhow::anyhow!("failed to read csv header, cause: {}", e))?;
         let csv_header = CsvHeader::try_new(self.source_type, header)?;
         csv_header.check_required_columns()?;
 
@@ -509,9 +507,9 @@ impl<'a> CsvParser<'a> {
     ) -> anyhow::Result<Vec<(String, AsyncReader<File>)>> {
         let mut readers = Vec::new();
         for file in csv_files.iter() {
-            let rdr = Self::open_csv(file.clone()).await.map_err(|err| {
-                anyhow::anyhow!("failed to open csv: {}, cause: {}", file, err.to_string())
-            })?;
+            let rdr = Self::open_csv(file.clone())
+                .await
+                .map_err(|err| anyhow::anyhow!("failed to open csv: {}, cause: {}", file, err))?;
             readers.push((file.clone(), rdr));
         }
         Ok(readers)
@@ -523,18 +521,18 @@ impl<'a> CsvParser<'a> {
         let files = Self::open_csv_many(self.csv_files.clone()).await?;
         for (_file, mut rdr) in files {
             // parse header
-            let header = rdr.headers().await.map_err(|e| {
-                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
-            })?;
+            let header = rdr
+                .headers()
+                .await
+                .map_err(|e| anyhow::anyhow!("failed to read csv header, cause: {}", e))?;
             let csv_header = CsvHeader::try_new(self.source_type, header)?;
             csv_header.check_required_columns()?;
 
             // parse lines
             let mut records = rdr.records();
             while let Some(record) = records.next().await {
-                let row = record.map_err(|e| {
-                    anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
-                })?;
+                let row =
+                    record.map_err(|e| anyhow::anyhow!("failed to read csv line, cause: {}", e))?;
 
                 // filter out disabled points
                 let enabled = Self::parse_enabled(&csv_header, &row)?.unwrap_or(1i8);
@@ -559,18 +557,18 @@ impl<'a> CsvParser<'a> {
 
         for (_file, mut rdr) in files {
             // parse header
-            let header = rdr.headers().await.map_err(|e| {
-                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
-            })?;
+            let header = rdr
+                .headers()
+                .await
+                .map_err(|e| anyhow::anyhow!("failed to read csv header, cause: {}", e))?;
             let csv_header = CsvHeader::try_new(self.source_type, header)?;
             csv_header.check_required_columns()?;
 
             // parse lines
             let mut records = rdr.records();
             while let Some(record) = records.next().await {
-                let row = record.map_err(|e| {
-                    anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
-                })?;
+                let row =
+                    record.map_err(|e| anyhow::anyhow!("failed to read csv line, cause: {}", e))?;
                 let point_id = Self::parse_point_id(&csv_header, &row)?;
                 point_ids.push(point_id);
             }
@@ -591,16 +589,16 @@ impl<'a> CsvParser<'a> {
 
         for (_file, mut rdr) in files {
             // parse header
-            let header = rdr.headers().await.map_err(|e| {
-                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
-            })?;
+            let header = rdr
+                .headers()
+                .await
+                .map_err(|e| anyhow::anyhow!("failed to read csv header, cause: {}", e))?;
             let csv_header = CsvHeader::try_new(source_type, header)?;
             // parse lines
             let mut records = rdr.records();
             while let Some(record) = records.next().await {
-                let row = record.map_err(|e| {
-                    anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
-                })?;
+                let row =
+                    record.map_err(|e| anyhow::anyhow!("failed to read csv line, cause: {}", e))?;
 
                 let point_id = row
                     .get(csv_header.id_index())
@@ -638,9 +636,10 @@ impl<'a> CsvParser<'a> {
 
         for (_file, mut rdr) in files {
             // parse header
-            let header = rdr.headers().await.map_err(|e| {
-                anyhow::anyhow!("failed to read csv header, cause: {}", e.to_string())
-            })?;
+            let header = rdr
+                .headers()
+                .await
+                .map_err(|e| anyhow::anyhow!("failed to read csv header, cause: {}", e))?;
             let csv_header = CsvHeader::try_new(self.source_type, header)?;
             csv_header.check_required_columns()?;
 
@@ -648,9 +647,8 @@ impl<'a> CsvParser<'a> {
             let mut records = rdr.records();
             let mut row_index = 1;
             while let Some(record) = records.next().await {
-                let row = record.map_err(|e| {
-                    anyhow::anyhow!("failed to read csv line, cause: {}", e.to_string())
-                })?;
+                let row =
+                    record.map_err(|e| anyhow::anyhow!("failed to read csv line, cause: {}", e))?;
 
                 let point_id_index = csv_header.id_index();
                 let id = row
@@ -760,9 +758,9 @@ impl<'a> CsvParser<'a> {
 
             Ok((Some(file_path.to_string()), content))
         } else {
-            let decoded = general_purpose::STANDARD.decode(csv).map_err(|err| {
-                anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
-            })?;
+            let decoded = general_purpose::STANDARD
+                .decode(csv)
+                .map_err(|err| anyhow::anyhow!("failed to decode csv content, cause: {}", err))?;
 
             // check the file encoding
             let encoding = get_encode_from_buffer(decoded.as_slice())?;
@@ -798,10 +796,8 @@ pub fn parse_csv_config_files(dsn: &Dsn) -> Option<Vec<String>> {
 /// 从 csv_config_files 中获取 csv 文件的 headers
 pub async fn get_csv_headers(dsn: &Dsn) -> anyhow::Result<HashMap<String, CsvHeader>> {
     let source_type = SourceType::try_from(dsn)?;
-    let csv_files = parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
-        "csv_config_file not found in dsn: {}",
-        dsn.to_string()
-    ))?;
+    let csv_files = parse_csv_config_files(dsn)
+        .ok_or(anyhow::anyhow!("csv_config_file not found in dsn: {}", dsn))?;
     tracing::debug!("get headers from csv files: {:?}", csv_files);
 
     let headers = CsvParser::get_all_headers(source_type, csv_files).await?;

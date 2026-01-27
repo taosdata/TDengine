@@ -2,7 +2,7 @@ use assert_fs::fixture::FileWriteStr;
 
 #[test]
 fn test_help() -> anyhow::Result<(), anyhow::Error> {
-    let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
     let assert = cmd.arg("--help").assert();
     assert.success().stdout(predicates::str::contains(
         "You can view the databases and tables with a tree structure.",
@@ -13,7 +13,7 @@ fn test_help() -> anyhow::Result<(), anyhow::Error> {
 #[test]
 fn test_version() -> anyhow::Result<(), anyhow::Error> {
     for arg in ["--version", "-V"] {
-        let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
+        let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
         cmd.arg(arg)
             .assert()
             .success()
@@ -24,7 +24,7 @@ fn test_version() -> anyhow::Result<(), anyhow::Error> {
 
 #[test]
 fn test_config_file_not_exist() -> anyhow::Result<(), anyhow::Error> {
-    let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
     let assert = cmd
         .arg("-c")
         .arg("not_exist.toml")
@@ -41,7 +41,7 @@ fn test_config_file_invalid_toml() -> anyhow::Result<(), anyhow::Error> {
     // config file
     let config_file = assert_fs::NamedTempFile::new("explorer.toml")?;
     config_file.write_str("port =\"")?;
-    let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
     let assert = cmd
         .arg("-c")
         .arg(config_file.path().to_str().unwrap())
@@ -63,7 +63,7 @@ port = "invalid_port"
 "#,
     )?;
 
-    let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
     let assert = cmd
         .arg("-c")
         .arg(config_file.path().to_str().unwrap())
@@ -91,7 +91,7 @@ cors = true
 "#,
     )?;
 
-    let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
     let assert = cmd
         .arg("-c")
         .arg(config_file.path().to_str().unwrap())
@@ -117,7 +117,7 @@ cors = true
 "#,
     )?;
 
-    let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
     let assert = cmd
         .arg("-c")
         .arg(config_file.path().to_str().unwrap())
@@ -146,7 +146,7 @@ certificate_key = "tests/assets/cert-key.pem"
 "#,
     )?;
 
-    let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer")?;
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
     let assert = cmd
         .arg("-c")
         .arg(config_file.path().to_str().unwrap())

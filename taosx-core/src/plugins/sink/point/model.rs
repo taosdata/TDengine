@@ -55,7 +55,7 @@ impl TryFrom<&Dsn> for SourceType {
             ("kinghist", _) => anyhow::Ok(SourceType::KingHistorian), // kinghist://...
             ("opc", Some("ua")) => anyhow::Ok(SourceType::OPCUA), // opc+ua://...
             ("opc", Some("da")) => anyhow::Ok(SourceType::OPCDA), // opc+da://...
-            _ => bail!("invalid source type in dsn: {}", dsn.to_string()),
+            _ => bail!("invalid source type in dsn: {}", dsn),
         }
     }
 }
@@ -333,21 +333,13 @@ impl PointModelConfig {
             // 检查 stable
             let stable = point_config.stable.as_ref();
             PointModelConfig::check_stable(stable).map_err(|err| {
-                anyhow::anyhow!(
-                    "invalid stable of point_id: {}, cause: {}",
-                    point_id,
-                    err.to_string()
-                )
+                anyhow::anyhow!("invalid stable of point_id: {}, cause: {}", point_id, err)
             })?;
 
             // 检查 tbname
             let tbname = point_config.code.as_str();
             PointModelConfig::check_tbname(self.source_type, tbname).map_err(|err| {
-                anyhow::anyhow!(
-                    "invalid tbname of point_id: {}, cause: {}",
-                    point_id,
-                    err.to_string()
-                )
+                anyhow::anyhow!("invalid tbname of point_id: {}, cause: {}", point_id, err)
             })?;
         }
 
@@ -387,7 +379,7 @@ impl PointModelConfig {
                         anyhow::anyhow!(
                             "tag value and type not match, point_id: {}, cause: {}",
                             point_id,
-                            err.to_string()
+                            err
                         )
                     })?;
                 }
@@ -1569,11 +1561,7 @@ impl TableConfig {
                 validate_table_column_name("value column name", value_name)?;
                 // 校验表达式
                 check_math_expression(value_name, value_transform).map_err(|e| {
-                    anyhow::anyhow!(
-                        "invalid value_transform: {}, cause: {}",
-                        value_transform,
-                        e.to_string()
-                    )
+                    anyhow::anyhow!("invalid value_transform: {}, cause: {}", value_transform, e)
                 })?;
             }
             (Some(value_name), None) => {
@@ -1757,7 +1745,7 @@ impl ColumnConfig {
                 _ => {
                     bail!(
                         "invalid table_primary_key: {}, must be {} or {} or {}",
-                        v.to_string(),
+                        v,
                         ColumnConfig::ORIGINAL_TS,
                         ColumnConfig::REQUEST_TS,
                         ColumnConfig::RECEIVED_TS

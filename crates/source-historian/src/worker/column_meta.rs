@@ -63,7 +63,7 @@ impl ColumnMeta {
                 "failed to convert data type: {}, precision: {}, cause: {}",
                 type_name,
                 precision,
-                err.to_string()
+                err
             )
         })
     }

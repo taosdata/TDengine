@@ -91,11 +91,7 @@ impl ConnectConfig {
             .get("local_threshold")
             .map(|s| {
                 let duration = utils::parse_duration(s).map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to parse local_threshold: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("failed to parse local_threshold: {}, cause: {}", s, err)
                 })?;
                 anyhow::Ok(duration)
             })

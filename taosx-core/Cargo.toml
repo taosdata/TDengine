@@ -17,7 +17,7 @@ serde_arrow = { workspace = true }
 faststr = { workspace = true }
 parquet = { workspace = true }
 rayon = { workspace = true }
-tonic = { workspace = true, features = ["gzip", "tls"] }
+tonic = { workspace = true, features = ["gzip", "zstd", "tls-native-roots"] }
 zerocopy = { workspace = true }
 dashmap = { workspace = true }
 dlopen2.workspace = true

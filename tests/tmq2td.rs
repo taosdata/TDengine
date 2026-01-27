@@ -1,4 +1,3 @@
-use assert_cmd::Command;
 use chrono::Utc;
 use futures_util::TryStreamExt;
 use rand::Rng;
@@ -65,7 +64,7 @@ async fn test_sync_database_with_taos() -> anyhow::Result<()> {
         let to = format!("taos://{host}/{DB_DST}");
         (from, to)
     };
-    Command::cargo_bin("taosx")?
+    assert_cmd::cargo::cargo_bin_cmd!("taosx")
         .args(["run", "-f"])
         .arg(from)
         .arg("-t")
@@ -161,7 +160,7 @@ async fn test_sync_stable_with_taos() -> anyhow::Result<()> {
         let to = format!("taos://{host}/{DB_DST}");
         (from, to)
     };
-    Command::cargo_bin("taosx")?
+    assert_cmd::cargo::cargo_bin_cmd!("taosx")
         .args(["run", "-f"])
         .arg(from)
         .arg("-t")
@@ -269,7 +268,7 @@ async fn test_sync_query_with_taos() -> anyhow::Result<()> {
         let to = format!("taos://{host}/{DB_DST}");
         (from, to)
     };
-    Command::cargo_bin("taosx")?
+    assert_cmd::cargo::cargo_bin_cmd!("taosx")
         .args(["run", "-f"])
         .arg(from)
         .arg("-t")
@@ -380,7 +379,7 @@ async fn test_add_tag_action_with_taos() -> anyhow::Result<()> {
         let to = format!("taos://{host}/{DB_DST}");
         (from, to)
     };
-    Command::cargo_bin("taosx")?
+    assert_cmd::cargo::cargo_bin_cmd!("taosx")
         .args(["run", "-f"])
         .arg(from)
         .arg("-t")

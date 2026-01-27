@@ -146,7 +146,7 @@ pub fn get_string_content_from_param_value(
         }
         let f = std::fs::File::open(&file[1..]);
         if let Err(err) = f {
-            anyhow::bail!("file: {} read error, cause: {}", file, err.to_string());
+            anyhow::bail!("file: {} read error, cause: {}", file, err);
         } else {
             let buf = std::io::BufReader::new(f.unwrap());
             let file_data = buf

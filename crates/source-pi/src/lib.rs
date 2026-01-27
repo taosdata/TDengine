@@ -138,10 +138,7 @@ pub async fn pi_to_taos(
                 let stdout = String::from_utf8_lossy(output.stdout.as_slice());
                 tracing::info!("PI connector check result: {}", stdout);
                 let check = serde_json::from_str::<IsValid>(&stdout).map_err(|err| {
-                    anyhow::format_err!(
-                        "PI connector check result parse error: {}",
-                        err.to_string()
-                    )
+                    anyhow::format_err!("PI connector check result parse error: {}", err)
                 })?;
                 tracing::debug!("{check:?}");
                 if !check.avaliable {

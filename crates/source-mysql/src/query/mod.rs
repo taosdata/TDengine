@@ -27,7 +27,7 @@ impl MySqlQuery {
             time_zone,
         )
         .await
-        .map_err(|err| anyhow::anyhow!("failed to connect to mysql, cause: {}", err.to_string()))?;
+        .map_err(|err| anyhow::anyhow!("failed to connect to mysql, cause: {}", err))?;
         Ok(Self { pool })
     }
 
@@ -107,7 +107,7 @@ impl MySqlQuery {
                     Ok(col0_value.as_str().unwrap().to_string())
                 })
                 .collect::<Result<_, _>>()?,
-            Err(err) => anyhow::bail!("failed to show tables, cause: {}", err.to_string()),
+            Err(err) => anyhow::bail!("failed to show tables, cause: {}", err),
         };
         Ok(tables)
     }
@@ -116,10 +116,7 @@ impl MySqlQuery {
         let result = self.pool.fetch_all(sql).await;
         match result {
             Ok(rows) => Ok(rows),
-            Err(err) => anyhow::bail!(
-                "failed to select distinct values, cause: {}",
-                err.to_string()
-            ),
+            Err(err) => anyhow::bail!("failed to select distinct values, cause: {}", err),
         }
     }
 
@@ -129,7 +126,7 @@ impl MySqlQuery {
             Ok(Some(row)) => Some(row),
             Ok(None) => None,
             Err(e) => {
-                anyhow::bail!("failed to execute query, cause: {}", e.to_string());
+                anyhow::bail!("failed to execute query, cause: {}", e);
             }
         })
     }

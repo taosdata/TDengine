@@ -51,7 +51,7 @@ cors = true
     ))?;
 
     let _explorer_thread = std::thread::spawn(move || {
-        let mut cmd = assert_cmd::Command::cargo_bin("taos-explorer").unwrap();
+        let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
         let assert = cmd
             .arg("-c")
             .arg(config_file.path().to_str().unwrap())

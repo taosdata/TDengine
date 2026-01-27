@@ -16,7 +16,7 @@ impl DsnParamGetter for Dsn {
             .get(key)
             .map(|v| {
                 v.parse::<bool>()
-                    .map_err(|err| anyhow!("invalid param {}, cause: {}", key, err.to_string()))
+                    .map_err(|err| anyhow!("invalid param {}, cause: {}", key, err))
             })
             .transpose()
     }

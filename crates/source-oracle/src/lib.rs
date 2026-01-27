@@ -134,7 +134,7 @@ fn get_sample_sync(dsn: Dsn) -> anyhow::Result<DsSampleIn> {
     let ds_sample_in: DsSampleIn = serde_json::from_value(sample_json.clone()).map_err(|err| {
         anyhow::anyhow!(
             "failed to parse sample data, cause: {}, value: {:?}",
-            err.to_string(),
+            err,
             sample_json
         )
     })?;

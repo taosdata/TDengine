@@ -84,13 +84,8 @@ impl TaskConfig {
             .params
             .get("start")
             .map(|s| {
-                let start_time = DateTime::parse_from_rfc3339(s).map_err(|e| {
-                    anyhow::anyhow!(
-                        "failed to parse start: {}, cause: {}",
-                        s.to_string(),
-                        e.to_string()
-                    )
-                })?;
+                let start_time = DateTime::parse_from_rfc3339(s)
+                    .map_err(|e| anyhow::anyhow!("failed to parse start: {}, cause: {}", s, e))?;
                 anyhow::Ok(start_time)
             })
             .transpose()?
@@ -104,13 +99,7 @@ impl TaskConfig {
             .get("end")
             .map(|s| {
                 let end_time = DateTime::parse_from_rfc3339(s)
-                    .map_err(|e| {
-                        anyhow::anyhow!(
-                            "failed to parse end: {}, cause: {}",
-                            s.to_string(),
-                            e.to_string()
-                        )
-                    })?
+                    .map_err(|e| anyhow::anyhow!("failed to parse end: {}, cause: {}", s, e))?
                     .into();
                 anyhow::Ok(Some(end_time))
             })
@@ -137,18 +126,10 @@ impl TaskConfig {
             .get("interval")
             .map(|s| {
                 let duration = utils::parse_duration(s).map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to parse interval: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("failed to parse interval: {}, cause: {}", s, err)
                 })?;
                 let duration = Duration::from_std(duration).map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed parse interval: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("failed parse interval: {}, cause: {}", s, err)
                 })?;
                 anyhow::Ok(duration)
             })
@@ -162,19 +143,10 @@ impl TaskConfig {
             .get("delay")
             .map(|s| {
                 let delay = utils::parse_duration(s).map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to parse delay: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("failed to parse delay: {}, cause: {}", s, err)
                 })?;
-                let delay = Duration::from_std(delay).map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed parse delay: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
-                })?;
+                let delay = Duration::from_std(delay)
+                    .map_err(|err| anyhow::anyhow!("failed parse delay: {}, cause: {}", s, err))?;
                 anyhow::Ok(delay)
             })
             .transpose()?
@@ -187,11 +159,7 @@ impl TaskConfig {
             .get("sample_data_limit")
             .map(|s| {
                 let limit = s.parse::<u32>().map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to parse sample_data_limit: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("failed to parse sample_data_limit: {}, cause: {}", s, err)
                 })?;
                 anyhow::Ok(limit)
             })

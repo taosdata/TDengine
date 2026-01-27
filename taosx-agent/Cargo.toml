@@ -27,7 +27,7 @@ serde_json.workspace = true
 arrow = { workspace = true, features = ["chrono-tz"] }
 arrow-flight = { workspace = true }
 chrono = { workspace = true }
-tonic = { workspace = true, features = ["gzip", "tls", "tls-native-roots"] }
+tonic = { workspace = true, features = ["gzip", "tls-ring", "tls-native-roots"] }
 shadow-rs = { workspace = true }
 metrics = { workspace = true }
 futures.workspace = true
