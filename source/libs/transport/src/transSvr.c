@@ -318,19 +318,32 @@ void uvWhiteListDestroy(SIpWhiteListTab* pWhite) {
 }
 
 int32_t uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
+  if (plist == NULL || user == NULL || ppBuf == NULL) {
+    return 0;
+  }
+
   char*   tmp = NULL;
   int32_t tlen = transUtilSWhiteListToStr(plist->pList, &tmp);
   if (tlen < 0) {
     return tlen;
   }
 
-  char* pBuf = taosMemoryCalloc(1, tlen + 64);
+  size_t ulen = strlen(user);
+  /* allocate: user + list + some headroom for formatting */
+  int32_t bufSize = (int32_t)(ulen + tlen + 64);
+  char*   pBuf = taosMemoryCalloc(1, bufSize);
   if (pBuf == NULL) {
+    taosMemoryFree(tmp);
     return terrno;
   }
 
-  int32_t len = snprintf(pBuf, tlen + 64 - 1, "user:%s, ver:%" PRId64 ", ip:{%s}", user, plist->ver, tmp);
+  int32_t len = snprintf(pBuf, bufSize, "user:%s, ver:%" PRId64 ", ip:{%s}", user, plist->ver, tmp);
   taosMemoryFree(tmp);
+
+  if (len < 0) {
+    taosMemoryFree(pBuf);
+    return len;
+  }
 
   *ppBuf = pBuf;
   return len;
