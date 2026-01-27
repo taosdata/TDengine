@@ -83,7 +83,7 @@ static bool fillCommonColumn(const SFillInfo* pFillInfo,
   if (pFillInfo->surroundingTime > 0 && !pCol->notFillCol) {
     /*
       We can fill elements that NEED to be filled using fill values when
-      surroundingTime is given.
+      surroundingTime is given and the column is not a 'notFillCol'.
       Check surroundingTime:
         - if the time difference between the fill reference row and target row
         exceeds surroundingTime or
@@ -733,30 +733,30 @@ static bool tFillTrySaveColProgress(const struct SFillInfo* pFillInfo,
   return false;
 }
 
-static bool doFillOneCol(SFillInfo* pFillInfo, SSDataBlock* pFillBlock,
+static bool doFillOneCol(SFillInfo* pFillInfo, const SSDataBlock* pFillBlock,
                          TSKEY ts, int32_t colIdx, int64_t rowIdx,
                          bool outOfBound, bool fillFromHead) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   bool    saveProgress = false;
-  SFillColInfo* pCol = &pFillInfo->pFillCol[colIdx];
-  SColumnInfoData* pDstCol = taosArrayGet(pFillBlock->pDataBlock,
-                                          GET_DEST_SLOT_ID(pCol));
+  bool    filled = false;
+  const SFillColInfo* pCol = &pFillInfo->pFillCol[colIdx];
+  SColumnInfoData*    pDstCol = taosArrayGet(pFillBlock->pDataBlock,
+                                             GET_DEST_SLOT_ID(pCol));
   if (pFillInfo->type == TSDB_FILL_PREV || pFillInfo->type == TSDB_FILL_NEXT) {
-    bool filled = fillWindowPseudoColumn(pFillInfo, pFillBlock, rowIdx, colIdx);
+    filled = fillWindowPseudoColumn(pFillInfo, pFillBlock, rowIdx, colIdx);
     if (!filled) {
       saveProgress = fillCommonColumn(pFillInfo, pFillBlock, rowIdx, colIdx,
                                       outOfBound, fillFromHead);
       saveProgress = saveProgress && pFillInfo->ascNextOrDescPrev;
     }
   } else if (pFillInfo->type == TSDB_FILL_LINEAR) {
-    // TODO : linear interpolation supports NULL value
     if (outOfBound) {
-      setNullCol(pFillBlock, pFillInfo, rowIdx, colIdx, outOfBound, fillFromHead);
+      setNullCol(pFillBlock, pFillInfo, rowIdx, colIdx, outOfBound,
+                 fillFromHead);
     } else {
       if (pCol->notFillCol) {
-        bool filled = fillWindowPseudoColumn(pFillInfo, pFillBlock, rowIdx,
-                                             colIdx);
+        filled = fillWindowPseudoColumn(pFillInfo, pFillBlock, rowIdx, colIdx);
         if (!filled) {
           TAOS_UNUSED(fillCommonColumn(pFillInfo, pFillBlock, rowIdx, colIdx,
                                        outOfBound, fillFromHead));
@@ -764,9 +764,9 @@ static bool doFillOneCol(SFillInfo* pFillInfo, SSDataBlock* pFillBlock,
       } else {
         const SRowVal*   pRVal = &pFillInfo->prev;
         SGroupKeys*      pKey = taosArrayGet(pRVal->pRowVal, colIdx);
+        int32_t          srcSlotId = GET_DEST_SLOT_ID(pCol);
         SColumnInfoData* pSrcCol =
-          taosArrayGet(pFillInfo->pSrcBlock->pDataBlock,
-                       pFillInfo->srcTsSlotId);
+          taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
         int16_t type = pDstCol->info.type;
         if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_BOOL ||
             pKey->isNull || colDataIsNull_s(pSrcCol, pFillInfo->index)) {
@@ -776,26 +776,26 @@ static bool doFillOneCol(SFillInfo* pFillInfo, SSDataBlock* pFillBlock,
 
           int64_t prevTs = *(int64_t*)pKey1->pData;
           char*   data = colDataGetData(pSrcCol, pFillInfo->index);
-          SPoint  point1, point2, point;
-
-          point1 = (SPoint){.key = prevTs, .val = pKey->pData};
-          point2 = (SPoint){.key = ts, .val = data};
+          SPoint point1 = (SPoint){.key = prevTs, .val = pKey->pData};
+          SPoint point2 = (SPoint){.key = ts, .val = data};
 
           int64_t out = 0;
-          point = (SPoint){.key = pFillInfo->currentKey, .val = &out};
+          SPoint point = (SPoint){.key = pFillInfo->currentKey, .val = &out};
           taosGetLinearInterpolationVal(&point, type, &point1, &point2, type,
-                                        typeGetTypeModFromColInfo(&pDstCol->info));
+            typeGetTypeModFromColInfo(&pDstCol->info));
 
-          code = colDataSetVal(pDstCol, (uint32_t)rowIdx, (const char*)&out, false);
+          code = colDataSetVal(pDstCol, (uint32_t)rowIdx, (const char*)&out,
+                               false);
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }
     }
-  } else if (pFillInfo->type == TSDB_FILL_NULL || pFillInfo->type == TSDB_FILL_NULL_F) {  // fill with NULL
+  } else if (pFillInfo->type == TSDB_FILL_NULL ||
+             pFillInfo->type == TSDB_FILL_NULL_F) {  // fill with NULL
     setNullCol(pFillBlock, pFillInfo, rowIdx, colIdx, outOfBound, fillFromHead);
   } else {  // fill with user specified value for each column
     if (pCol->notFillCol) {
-      bool filled = fillWindowPseudoColumn(pFillInfo, pFillBlock, rowIdx, colIdx);
+      filled = fillWindowPseudoColumn(pFillInfo, pFillBlock, rowIdx, colIdx);
       if (!filled) {
         TAOS_UNUSED(fillCommonColumn(pFillInfo, pFillBlock, rowIdx, colIdx,
                                      outOfBound, fillFromHead));
