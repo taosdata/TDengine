@@ -31,20 +31,23 @@ class TestTd22981(TDCase):
         return sorted(list(map(lambda x:int(x.split("/")[-1].replace(self.wal_file_type[0], "")), mnd_wal_file_list)))
 
     def run(self):
-        for i in range(self.taosd_setting["spec"]["dnodes"][0]["config"]["mndSdbWriteDelta"]):
-            self.tdSql.execute('create user u1 pass "u1@taosdata";')
-            self.tdSql.execute('drop user u1;')
         mnd_wal_file_list = self.get_wal_file_list()
-        if mnd_wal_file_list[-1] < self.taosd_setting["spec"]["dnodes"][0]["config"]["mndLogRetention"]:
+        idx = 1
+        mndSdbWriteDelta = self.taosd_setting["spec"]["dnodes"][0]["config"]["mndSdbWriteDelta"]
+        for i in range(mndSdbWriteDelta):
+            self.tdSql.execute(f'create user u{idx} pass "u1@taosdata";')
+            idx += 1
+        mnd_wal_file_list = self.get_wal_file_list()
+        mndLogRetention = self.taosd_setting["spec"]["dnodes"][0]["config"]["mndLogRetention"]
+        if mnd_wal_file_list[-1] < mndLogRetention:
             self.tdSql.checkEqual(0 in mnd_wal_file_list, True)
-            for i in range(int(self.taosd_setting["spec"]["dnodes"][0]["config"]["mndLogRetention"]/((mnd_wal_file_list[-1]-mnd_wal_file_list[0])/self.taosd_setting["spec"]["dnodes"][0]["config"]["mndSdbWriteDelta"]))):
-                self.tdSql.execute('create user u1 pass "u1@taosdata";')
-                self.tdSql.execute('drop user u1;')
+            for i in range(mndLogRetention):
+                self.tdSql.execute(f'create user u{idx} pass "u1@taosdata";')
+                idx += 1
         mnd_wal_file_list = self.get_wal_file_list()
-        # TODO confirm 20260102
-        # self.tdSql.checkEqual(0 not in mnd_wal_file_list, True)
+        self.tdSql.checkEqual(0 not in mnd_wal_file_list, True)
         for i in range(3, len(mnd_wal_file_list)-1):
-            self.tdSql.checkEqual(mnd_wal_file_list[i+1]-mnd_wal_file_list[i], self.taosd_setting["spec"]["dnodes"][0]["config"]["mndSdbWriteDelta"])
+            self.tdSql.checkEqual(mnd_wal_file_list[i+1]-mnd_wal_file_list[i], mndSdbWriteDelta)
 
     def cleanup(self):
         pass
