@@ -1047,8 +1047,14 @@ int64_t tsnprintf(char *dst, int64_t size, const char *format, ...) {
 
 /* optimized for performance */
 #ifndef likely
+#if defined(__GNUC__) || defined(__clang__)
 #define likely(x)   __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
+#else
+/* Fallback for MSVC and other compilers without __builtin_expect */
+#define likely(x)   (x)
+#define unlikely(x) (x)
+#endif
 #endif
 
 void sliceInit(TSlice *p, char *buf, int32_t cap) {
