@@ -54,8 +54,9 @@ static int     tfileRmExpireFile(SArray* result);
 static void    tfileDestroyFileName(void* elem);
 static int     tfileCompare(const void* a, const void* b);
 static int     tfileParseFileName(const char* filename, uint64_t* suid, char* col, int64_t* version);
-static void    tfileGenFileName(char* filename, uint64_t suid, const char* col, int64_t version);
-static void    tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col, int64_t version);
+static void    tfileGenFileName(char* filename, int32_t len, uint64_t suid, const char* col, int64_t version);
+static void    tfileGenFileFullName(char* fullname, int32_t len, const char* path, uint64_t suid, const char* col,
+                                    int64_t version);
 /*
  * search from  tfile
  */
@@ -569,7 +570,7 @@ int32_t tfileWriterOpen(char* path, uint64_t suid, int64_t version, const char* 
                         TFileWriter** pWriter) {
   int32_t code = 0;
   char    fullname[256] = {0};
-  tfileGenFileFullName(fullname, path, suid, colName, version);
+  tfileGenFileFullName(fullname, sizeof(fullname), path, suid, colName, version);
 
   IFileCtx* wcx = idxFileCtxCreate(TFILE, fullname, false, 1024 * 1024 * 64);
   if (wcx == NULL) {
@@ -594,7 +595,7 @@ int32_t tfileWriterOpen(char* path, uint64_t suid, int64_t version, const char* 
 int32_t tfileReaderOpen(SIndex* idx, uint64_t suid, int64_t version, const char* colName, TFileReader** pReader) {
   int32_t code = 0;
   char    fullname[256] = {0};
-  tfileGenFileFullName(fullname, idx->path, suid, colName, version);
+  tfileGenFileFullName(fullname, sizeof(fullname), idx->path, suid, colName, version);
 
   IFileCtx* wc = idxFileCtxCreate(TFILE, fullname, true, 1024 * 1024 * 1024);
   if (wc == NULL) {
@@ -1212,13 +1213,13 @@ static int tfileParseFileName(const char* filename, uint64_t* suid, char* col, i
   return -1;
 }
 // tfile name suid-colId-version.tindex
-static void tfileGenFileName(char* filename, uint64_t suid, const char* col, int64_t version) {
-  TAOS_UNUSED(snprintf(filename, 256, "%" PRIu64 "-%s-%" PRId64 ".tindex", suid, col, version));
+static void tfileGenFileName(char* filename, int32_t len, uint64_t suid, const char* col, int64_t version) {
+  TAOS_UNUSED(snprintf(filename, len, "%" PRIu64 "-%s-%" PRId64 ".tindex", suid, col, version));
   return;
 }
-static void FORCE_INLINE tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col,
-                                              int64_t version) {
+static void FORCE_INLINE tfileGenFileFullName(char* fullname, int32_t len, const char* path, uint64_t suid,
+                                              const char* col, int64_t version) {
   char filename[128] = {0};
-  tfileGenFileName(filename, suid, col, version);
-  TAOS_UNUSED(snprintf(fullname, 256, "%s/%s", path, filename));
+  tfileGenFileName(filename, sizeof(filename), suid, col, version);
+  TAOS_UNUSED(snprintf(fullname, len, "%s/%s", path, filename));
 }
