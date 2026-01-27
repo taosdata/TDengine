@@ -907,14 +907,15 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
+      return pCxt->pParseCxt->enableSysInfo ? authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW)
+                                            : TSDB_CODE_PAR_PERMISSION_DENIED;
     case QUERY_NODE_SHOW_ANODES_STMT:
     case QUERY_NODE_SHOW_ANODES_FULL_STMT:
-    case QUERY_NODE_SHOW_XNODES_STMT: // TODO: check auth for xnode resources
+    case QUERY_NODE_SHOW_XNODES_STMT:
     case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
     case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
     case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
-      return pCxt->pParseCxt->enableSysInfo ? authSysPrivileges(pCxt, pStmt, PRIV_NODES_SHOW)
-                                            : TSDB_CODE_PAR_PERMISSION_DENIED;
+      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_CLUSTER_MACHINES_STMT:
     // case QUERY_NODE_SHOW_LICENCES_STMT: // do not check auth for basic licence info since it's used for taos logon
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
