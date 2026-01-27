@@ -17,9 +17,8 @@ pub struct OracleQuery {
 
 impl OracleQuery {
     pub fn try_new(config: ConnectConfig, time_zone: String) -> anyhow::Result<Self> {
-        let pool = Self::connect(&config).map_err(|err| {
-            anyhow::anyhow!("failed to connect to oracle, cause: {}", err.to_string())
-        })?;
+        let pool = Self::connect(&config)
+            .map_err(|err| anyhow::anyhow!("failed to connect to oracle, cause: {}", err))?;
         Ok(Self { pool, time_zone })
     }
 
@@ -105,18 +104,12 @@ impl OracleQuery {
                             rows.push(row);
                         }
                         Err(err) => {
-                            anyhow::bail!(
-                                "failed to select distinct values, cause: {}",
-                                err.to_string()
-                            )
+                            anyhow::bail!("failed to select distinct values, cause: {}", err)
                         }
                     }
                 }
             }
-            Err(err) => anyhow::bail!(
-                "failed to select distinct values, cause: {}",
-                err.to_string()
-            ),
+            Err(err) => anyhow::bail!("failed to select distinct values, cause: {}", err),
         }
         Ok((col_map, rows))
     }
@@ -136,7 +129,7 @@ impl OracleQuery {
                     col_map.insert(col.name().to_string(), col.oracle_type().clone());
                 }
             }
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err),
         }
         Ok(col_map)
     }
@@ -163,12 +156,12 @@ impl OracleQuery {
                             rows.push(row);
                         }
                         Err(err) => {
-                            anyhow::bail!("failed to select data, cause: {}", err.to_string())
+                            anyhow::bail!("failed to select data, cause: {}", err)
                         }
                     }
                 }
             }
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err),
         }
         Ok((col_map, rows))
     }
@@ -195,7 +188,7 @@ impl OracleQuery {
                             rows.push(row);
                         }
                         Err(err) => {
-                            anyhow::bail!("failed to select data, cause: {}", err.to_string())
+                            anyhow::bail!("failed to select data, cause: {}", err)
                         }
                     }
                 }
@@ -203,7 +196,7 @@ impl OracleQuery {
                     appender::to_record_batches(col_map, rows, batch_size, self.time_zone.clone())?;
                 Ok(batch)
             }
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err),
         }
         // Ok((col_map, rows))
     }
@@ -233,12 +226,12 @@ impl OracleQuery {
                             rows.push(row);
                         }
                         Err(err) => {
-                            anyhow::bail!("failed to select data, cause: {}", err.to_string())
+                            anyhow::bail!("failed to select data, cause: {}", err)
                         }
                     }
                 }
             }
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err),
         }
         Ok((col_map, rows))
     }

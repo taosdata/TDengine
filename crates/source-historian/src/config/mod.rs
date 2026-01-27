@@ -126,11 +126,7 @@ impl TaskConfig {
             .get("tagListSize")
             .map(|s| {
                 let tag_list_size = s.parse::<usize>().map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to parse tagListSize: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("failed to parse tagListSize: {}, cause: {}", s, err)
                 })?;
                 if tag_list_size < 1 {
                     bail!("tagListSize must be greater than 1");
@@ -148,11 +144,7 @@ impl TaskConfig {
             .map(|s| {
                 let date_time = DateTime::parse_from_rfc3339(s)
                     .map_err(|e| {
-                        anyhow::anyhow!(
-                            "failed to parse beginDateTime: {}, cause: {}",
-                            s.to_string(),
-                            e.to_string()
-                        )
+                        anyhow::anyhow!("failed to parse beginDateTime: {}, cause: {}", s, e)
                     })?
                     .into();
                 anyhow::Ok(date_time)
@@ -170,11 +162,7 @@ impl TaskConfig {
                 anyhow::Ok(
                     DateTime::parse_from_rfc3339(s)
                         .map_err(|e| {
-                            anyhow::anyhow!(
-                                "failed to parse endDateTime: {}, cause: {}",
-                                s.to_string(),
-                                e.to_string()
-                            )
+                            anyhow::anyhow!("failed to parse endDateTime: {}, cause: {}", s, e)
                         })?
                         .into(),
                 )
@@ -190,19 +178,11 @@ impl TaskConfig {
             .get("timeWindow")
             .map(|s| {
                 let duration = utils::parse_duration(s).map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to parse timeWindow: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("failed to parse timeWindow: {}, cause: {}", s, err)
                 })?;
 
                 let duration = Duration::from_std(duration).map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed parse timeWindow: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("failed parse timeWindow: {}, cause: {}", s, err)
                 })?;
 
                 anyhow::Ok(duration)
@@ -217,11 +197,7 @@ impl TaskConfig {
             .get("retrieveInterval")
             .map(|s| {
                 let duration = utils::parse_duration(s).map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to parse retrieveInterval: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("failed to parse retrieveInterval: {}, cause: {}", s, err)
                 })?;
 
                 if duration.as_secs() < 1 {
@@ -229,11 +205,7 @@ impl TaskConfig {
                 }
 
                 let duration = Duration::from_std(duration).map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to parse retrieveInterval: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("failed to parse retrieveInterval: {}, cause: {}", s, err)
                 })?;
 
                 Ok(duration)
@@ -248,19 +220,11 @@ impl TaskConfig {
             .get("tolerance")
             .map(|s| {
                 let duration = utils::parse_duration(s).map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to parse tolerance: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("failed to parse tolerance: {}, cause: {}", s, err)
                 })?;
 
                 let duration = Duration::from_std(duration).map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to parse tolerance: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("failed to parse tolerance: {}, cause: {}", s, err)
                 })?;
 
                 anyhow::Ok(duration)
@@ -275,11 +239,7 @@ impl TaskConfig {
             .get("sample_data_limit")
             .map(|s| {
                 let sample_data_limit = s.parse::<usize>().map_err(|err| {
-                    anyhow::anyhow!(
-                        "failed to parse sample_data_limit: {}, cause: {}",
-                        s.to_string(),
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("failed to parse sample_data_limit: {}, cause: {}", s, err)
                 })?;
                 if sample_data_limit == 0 {
                     bail!("sample_data_limit must be greater than 0");

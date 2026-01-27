@@ -322,12 +322,8 @@ fn to_csv_string(batch: &RecordBatch) -> anyhow::Result<String> {
     writer.write(batch)?;
     let _ = writer.close();
 
-    String::from_utf8(output).map_err(|err| {
-        anyhow::anyhow!(
-            "failed to convert record batch to csv, cause: {}",
-            err.to_string()
-        )
-    })
+    String::from_utf8(output)
+        .map_err(|err| anyhow::anyhow!("failed to convert record batch to csv, cause: {}", err))
 }
 
 fn split_tags(tags: Vec<String>, chunk_size: usize) -> Vec<Vec<String>> {

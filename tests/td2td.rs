@@ -403,7 +403,7 @@ fn test_td_33256_with_taos() -> anyhow::Result<()> {
 
     // sync data, mode=history
     let data_dir = tempfile::tempdir()?;
-    Command::cargo_bin("taosx")?
+    assert_cmd::cargo::cargo_bin_cmd!("taosx")
         .arg("run")
         .arg("-f")
         .arg(format!(
@@ -500,7 +500,7 @@ async fn test_sync_several_stables_with_taos() -> anyhow::Result<()> {
         let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
         (from, to)
     };
-    Command::cargo_bin("taosx")?
+    assert_cmd::cargo::cargo_bin_cmd!("taosx")
         .args(["run", "-f"])
         .arg(from.to_string())
         .arg("-t")
@@ -603,7 +603,7 @@ async fn test_sync_specified_tables_with_taos() -> anyhow::Result<()> {
         let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
         (from, to)
     };
-    Command::cargo_bin("taosx")?
+    assert_cmd::cargo::cargo_bin_cmd!("taosx")
         .args(["run", "-f"])
         .arg(from.to_string())
         .arg("-t")
@@ -749,7 +749,7 @@ async fn test_sync_time_range_with_taos() -> anyhow::Result<()> {
         let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
         (from, to)
     };
-    Command::cargo_bin("taosx")?
+    assert_cmd::cargo::cargo_bin_cmd!("taosx")
         .args(["run", "-f"])
         .arg(from.to_string())
         .arg("-t")
@@ -784,7 +784,7 @@ async fn test_sync_time_range_with_taos() -> anyhow::Result<()> {
         let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
         (from, to)
     };
-    Command::cargo_bin("taosx")?
+    assert_cmd::cargo::cargo_bin_cmd!("taosx")
         .args(["run", "-f"])
         .arg(from.to_string())
         .arg("-t")
@@ -824,7 +824,7 @@ async fn test_sync_time_range_with_taos() -> anyhow::Result<()> {
         let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
         (from, to)
     };
-    Command::cargo_bin("taosx")?
+    assert_cmd::cargo::cargo_bin_cmd!("taosx")
         .args(["run", "-f"])
         .arg(from.to_string())
         .arg("-t")
@@ -1149,7 +1149,7 @@ async fn test_sync_select_from_stable_with_taos() -> anyhow::Result<()> {
         let to = format!("taos://{host}/{DB_DST}").into_dsn()?;
         (from, to)
     };
-    Command::cargo_bin("taosx")?
+    assert_cmd::cargo::cargo_bin_cmd!("taosx")
         .args(["run", "-f"])
         .arg(from.to_string())
         .arg("-t")
@@ -1257,7 +1257,7 @@ async fn test_sync_realtime_sparse_and_retro_with_taos() -> anyhow::Result<()> {
             (from, to)
         };
 
-        Command::cargo_bin("taosx")?
+        assert_cmd::cargo::cargo_bin_cmd!("taosx")
             .args(["run", "-f"])
             .arg(from.to_string())
             .arg("-t")
@@ -1268,7 +1268,7 @@ async fn test_sync_realtime_sparse_and_retro_with_taos() -> anyhow::Result<()> {
 
         let from = format!("{}?tables=Stb", from);
 
-        Command::cargo_bin("taosx")?
+        assert_cmd::cargo::cargo_bin_cmd!("taosx")
             .args(["run", "-f"])
             .arg(&from)
             .arg("-t")
@@ -1295,7 +1295,7 @@ async fn test_sync_realtime_sparse_and_retro_with_taos() -> anyhow::Result<()> {
     };
 
     let instant = std::time::Instant::now();
-    let assert = Command::cargo_bin("taosx")?
+    let assert = assert_cmd::cargo::cargo_bin_cmd!("taosx")
         .args(["run", "-f"])
         .arg(from.to_string())
         .arg("-t")

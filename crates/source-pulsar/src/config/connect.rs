@@ -118,11 +118,7 @@ impl PulsarConnectConfig {
                 } else if cert.starts_with('@') {
                     get_string_from_param_or_file(&mut dsn.clone(), key, true, None)
                         .map_err(|err| {
-                            anyhow::anyhow!(
-                                "failed to read {} config, cause: {}",
-                                key,
-                                err.to_string()
-                            )
+                            anyhow::anyhow!("failed to read {} config, cause: {}", key, err)
                         })
                         .transpose()
                 } else {

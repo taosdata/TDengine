@@ -43,11 +43,7 @@ pub fn parse_csv(dsn: &Dsn) -> anyhow::Result<(Option<PathBuf>, Option<FastStr>)
 
         // read file content
         let context = std::fs::read_to_string(&path).map_err(|err| {
-            anyhow::anyhow!(
-                "failed to read csv_config_file: {:?}, cause: {}",
-                csv,
-                err.to_string()
-            )
+            anyhow::anyhow!("failed to read csv_config_file: {:?}, cause: {}", csv, err)
         })?;
 
         Ok((Some(path), Some(context.into())))

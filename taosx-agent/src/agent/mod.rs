@@ -692,7 +692,7 @@ impl Client {
                                     Ok(s) => Response::Ok(s),
                                     Err(err) => Response::Err(Fail::new(anyhow::anyhow!(
                                         "failed to serialize sample data, cause: {}",
-                                        err.to_string()
+                                        err
                                     ))),
                                 },
                                 Err(err) => Response::Err(Fail::new(err)),

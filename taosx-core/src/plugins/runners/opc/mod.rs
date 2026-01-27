@@ -163,7 +163,7 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
             let opc_type = OpcType::from_dsn(&from)?;
             let csv_files = parse_csv_config_files(&from).ok_or(anyhow::anyhow!(
                 "csv_config_file not found in dsn: {}",
-                from.to_string()
+                from
             ))?;
             let source_type = SourceType::try_from(opc_type.as_static_str())?;
             let parser = CsvParser::try_new(source_type, csv_files)?;

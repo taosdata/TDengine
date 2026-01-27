@@ -28,9 +28,7 @@ impl PostgresQuery {
             time_zone,
         )
         .await
-        .map_err(|err| {
-            anyhow::anyhow!("failed to connect to postgres, cause: {}", err.to_string())
-        })?;
+        .map_err(|err| anyhow::anyhow!("failed to connect to postgres, cause: {}", err))?;
         Ok(Self { pool })
     }
 
@@ -100,10 +98,7 @@ impl PostgresQuery {
         let result = self.pool.fetch_all(sql).await;
         match result {
             Ok(rows) => Ok(rows),
-            Err(err) => anyhow::bail!(
-                "failed to select distinct values, cause: {}",
-                err.to_string()
-            ),
+            Err(err) => anyhow::bail!("failed to select distinct values, cause: {}", err),
         }
     }
 
@@ -113,7 +108,7 @@ impl PostgresQuery {
             Ok(Some(row)) => Some(row),
             Ok(None) => None,
             Err(e) => {
-                anyhow::bail!("failed to execute query, cause: {}", e.to_string());
+                anyhow::bail!("failed to execute query, cause: {}", e);
             }
         })
     }
@@ -123,7 +118,7 @@ impl PostgresQuery {
         let result = self.pool.fetch_all(sql).await;
         match result {
             Ok(rows) => Ok(rows),
-            Err(err) => anyhow::bail!("failed to select data, cause: {}", err.to_string()),
+            Err(err) => anyhow::bail!("failed to select data, cause: {}", err),
         }
     }
 

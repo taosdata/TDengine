@@ -50,11 +50,7 @@ pub fn get_encode<T: AsRef<Path>>(file_path: T) -> anyhow::Result<&'static Encod
     const SAMPLE_LIMIT: usize = 256 * 1024; // 256KB is enough for charset detection
     let file_path = file_path.as_ref();
     let mut file = File::open(file_path).map_err(|e| {
-        anyhow::anyhow!(
-            "failed to open file: {}, cause: {}",
-            file_path.display(),
-            e.to_string()
-        )
+        anyhow::anyhow!("failed to open file: {}, cause: {}", file_path.display(), e)
     })?;
 
     let mut buffer = Vec::with_capacity(SAMPLE_LIMIT);
@@ -62,11 +58,7 @@ pub fn get_encode<T: AsRef<Path>>(file_path: T) -> anyhow::Result<&'static Encod
     let mut read_total = 0usize;
     loop {
         let n = file.read(&mut tmp).map_err(|e| {
-            anyhow::anyhow!(
-                "failed to read file: {}, cause: {}",
-                file_path.display(),
-                e.to_string()
-            )
+            anyhow::anyhow!("failed to read file: {}, cause: {}", file_path.display(), e)
         })?;
         if n == 0 {
             break;
@@ -84,9 +76,9 @@ pub fn get_encode<T: AsRef<Path>>(file_path: T) -> anyhow::Result<&'static Encod
 
 pub fn decode_csv_content(content: &str, encoded: bool) -> anyhow::Result<Vec<u8>> {
     let decoded = if encoded {
-        general_purpose::STANDARD.decode(content).map_err(|err| {
-            anyhow::anyhow!("failed to decode csv content, cause: {}", err.to_string())
-        })?
+        general_purpose::STANDARD
+            .decode(content)
+            .map_err(|err| anyhow::anyhow!("failed to decode csv content, cause: {}", err))?
     } else {
         content.as_bytes().to_vec()
     };

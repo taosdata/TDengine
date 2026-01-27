@@ -78,9 +78,7 @@ impl KafkaConnectConfig {
             .and_then(|ca| {
                 if ca.starts_with('@') {
                     get_string_from_param_or_file(&mut dsn.clone(), "ca", true, None)
-                        .map_err(|err| {
-                            anyhow::anyhow!("failed to read ca config, cause: {}", err.to_string())
-                        })
+                        .map_err(|err| anyhow::anyhow!("failed to read ca config, cause: {}", err))
                         .transpose()
                 } else {
                     Some(Ok(ca.to_string()))
@@ -99,7 +97,7 @@ impl KafkaConnectConfig {
                         .map_err(|err| {
                             anyhow::anyhow!(
                                 "failed to read client certificate config, cause: {}",
-                                err.to_string()
+                                err
                             )
                         })
                         .transpose()
@@ -118,10 +116,7 @@ impl KafkaConnectConfig {
                 } else if cert_key.starts_with('@') {
                     get_string_from_param_or_file(&mut dsn.clone(), "cert_key", true, None)
                         .map_err(|err| {
-                            anyhow::anyhow!(
-                                "failed to read client key config, cause: {}",
-                                err.to_string()
-                            )
+                            anyhow::anyhow!("failed to read client key config, cause: {}", err)
                         })
                         .transpose()
                 } else {

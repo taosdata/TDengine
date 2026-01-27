@@ -53,10 +53,7 @@ pub async fn opc_to_taos(
     notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     if to.subject.is_none() {
-        anyhow::bail!(
-            "Database name is required in OPC dsn: {}",
-            to.clone().to_string()
-        );
+        anyhow::bail!("Database name is required in OPC dsn: {}", to.clone());
     }
     if with_agent.is_some() {
         let task_id = task_id.context("Task id not found for agent runner")?;
@@ -135,7 +132,7 @@ pub async fn opc_to_taos(
         anyhow::anyhow!(
             "failed to create config dir: {}, cause: {}",
             config_dir.display(),
-            err.to_string()
+            err
         )
     })?;
 
@@ -325,7 +322,7 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
             let opc_type = OpcType::from_dsn(&from)?;
             let csv_files = parse_csv_config_files(&from).ok_or(anyhow::anyhow!(
                 "csv_config_file not found in dsn: {}",
-                from.to_string()
+                from
             ))?;
 
             let source_type = SourceType::try_from(opc_type.as_static_str())?;
@@ -576,7 +573,7 @@ async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<DataSourceValidation> {
                 anyhow::anyhow!(
                     "failed to deserialize opc validation result: {}, cause: {}",
                     String::from_utf8_lossy(&output.stdout),
-                    err.to_string(),
+                    err,
                 )
             })?;
         result.data_source = "opc".to_string();
@@ -608,11 +605,7 @@ pub async fn append_point_to_csv(from: &Dsn, to: &Dsn, csv_line: String) -> anyh
     // 将新增的点位配置，追加到现有的 CSV 点位配置文件中的第一个
     let parser = CsvParser::from_dsn(from)?;
     let (csv_path, mut csv) = parser.read_to_string().await.map_err(|err| {
-        anyhow::anyhow!(
-            "failed to read csv file with dsn: {}, cause: {}",
-            from,
-            err.to_string()
-        )
+        anyhow::anyhow!("failed to read csv file with dsn: {}, cause: {}", from, err)
     })?;
     tracing::info!("append line to the csv: {:?}", csv_path);
 
@@ -662,10 +655,8 @@ async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Resul
     let point_id = CsvParser::parse_point_id(&csv_header, &record)?;
 
     // old points
-    let csv_files = parse_csv_config_files(dsn).ok_or(anyhow::anyhow!(
-        "csv_config_file not found in dsn: {}",
-        dsn.to_string()
-    ))?;
+    let csv_files = parse_csv_config_files(dsn)
+        .ok_or(anyhow::anyhow!("csv_config_file not found in dsn: {}", dsn))?;
     let parser = CsvParser::try_new(source_type, csv_files)?;
     let point_ids = parser.parse_all_point_id().await?;
 

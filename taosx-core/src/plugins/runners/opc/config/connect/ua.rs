@@ -41,7 +41,7 @@ impl UaConnectConfig {
                 Some(_) => AuthMethod::UserName,
                 None => Err(anyhow::anyhow!(
                     "Username and password are both required for UserName authentication method in {}",
-                    dsn.clone().to_string()
+                    dsn.clone()
                 ))?,
             }
         } else if auth_certificate.is_some() || auth_private_key.is_some() {
@@ -100,10 +100,7 @@ impl UaConnectConfig {
             .get("connect_timeout")
             .map(|v| {
                 v.parse::<i64>().map_err(|err| {
-                    anyhow::anyhow!(
-                        "parse connection_timeout failed, cause: {}",
-                        err.to_string()
-                    )
+                    anyhow::anyhow!("parse connection_timeout failed, cause: {}", err)
                 })
             })
             .transpose()?
@@ -115,9 +112,8 @@ impl UaConnectConfig {
             .params
             .get("request_timeout")
             .map(|v| {
-                v.parse::<i64>().map_err(|err| {
-                    anyhow::anyhow!("parse request_timeout failed, cause: {}", err.to_string())
-                })
+                v.parse::<i64>()
+                    .map_err(|err| anyhow::anyhow!("parse request_timeout failed, cause: {}", err))
             })
             .transpose()?
             .unwrap_or(10))

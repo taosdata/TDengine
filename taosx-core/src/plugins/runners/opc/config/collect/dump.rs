@@ -37,9 +37,8 @@ impl DumpConfig {
                         .get("keep")
                         .or(dsn.get("keep_raw_data_days"))
                         .map(|v| {
-                            v.parse::<usize>().map_err(|err| {
-                                anyhow::anyhow!("parse keep failed, cause: {}", err.to_string())
-                            })
+                            v.parse::<usize>()
+                                .map_err(|err| anyhow::anyhow!("parse keep failed, cause: {}", err))
                         })
                         .transpose()?
                         .unwrap_or(1); // Default keep 1 day.
@@ -66,9 +65,8 @@ impl DumpConfig {
             .get("enable")
             .or(dsn.params.get("keep_raw_data"))
             .map(|v| {
-                v.parse::<bool>().map_err(|err| {
-                    anyhow::anyhow!("parse enable failed, cause: {}", err.to_string())
-                })
+                v.parse::<bool>()
+                    .map_err(|err| anyhow::anyhow!("parse enable failed, cause: {}", err))
             })
             .transpose()
     }

@@ -29,9 +29,9 @@ taosx-core.workspace = true
 taosx-ipc.workspace = true
 futures-ext.workspace = true
 
-rdkafka = { version = "0.38.0", features = ["cmake-build", "ssl", "tracing"] }
+rdkafka = { version = "0.39.0", features = ["cmake-build", "ssl", "tracing", "curl-static"] }
 [target.'cfg(not(windows))'.dependencies]
-rdkafka = { version = "0.38.0", features = [
+rdkafka = { version = "0.39.0", features = [
     "cmake-build",
     "ssl",
     "gssapi-vendored",

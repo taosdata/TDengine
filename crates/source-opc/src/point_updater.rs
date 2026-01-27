@@ -212,7 +212,7 @@ impl PointsUpdater {
         let toml = toml::to_string(&self.opc_config).map_err(|e| {
             anyhow::anyhow!(
                 "failed to serialize opc config to toml during points updating, cause: {}",
-                e.to_string()
+                e
             )
         })?;
 
@@ -220,7 +220,7 @@ impl PointsUpdater {
         let mut temp_file = File::create(&temp_path).map_err(|e| {
             anyhow::anyhow!(
                 "failed to create temporary opc config file during points updating, cause: {}",
-                e.to_string()
+                e
             )
         })?;
         write!(temp_file, "{}", toml)?;
@@ -228,7 +228,7 @@ impl PointsUpdater {
         temp_file.sync_all().map_err(|e| {
             anyhow::anyhow!(
                 "failed to sync temporary opc config file during points updating, cause: {}",
-                e.to_string()
+                e
             )
         })?;
         tracing::debug!(
@@ -240,7 +240,7 @@ impl PointsUpdater {
         std::fs::rename(temp_path, &self.opc_toml_path).map_err(|e| {
             anyhow::anyhow!(
                 "failed to rename temporary opc config file during points updating, cause: {}",
-                e.to_string()
+                e
             )
         })?;
 

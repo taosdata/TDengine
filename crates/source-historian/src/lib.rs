@@ -119,13 +119,9 @@ pub async fn is_valid_impl(dsn: &Dsn) -> anyhow::Result<()> {
     let connect = ConnectConfig::from_dsn(dsn)
         .map_err(|err| anyhow::anyhow!("invalid dsn: {}, cause: {}", dsn, err))?;
 
-    let _client = HistorianQuery::try_connect(connect).await.map_err(|err| {
-        anyhow::anyhow!(
-            "failed to connect to dsn: {}, cause: {}",
-            dsn,
-            err.to_string()
-        )
-    })?;
+    let _client = HistorianQuery::try_connect(connect)
+        .await
+        .map_err(|err| anyhow::anyhow!("failed to connect to dsn: {}, cause: {}", dsn, err))?;
 
     Ok(())
 }
@@ -170,7 +166,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
                     "failed to convert column value, index: {}, type: {:?}, cause: {}",
                     idx,
                     col_type,
-                    err.to_string(),
+                    err,
                 )
             })?;
 
@@ -200,7 +196,7 @@ pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     let ds_sample_in: DsSampleIn = serde_json::from_value(sample_json.clone()).map_err(|err| {
         anyhow::anyhow!(
             "failed to parse sample data, cause: {}, value: {:?}",
-            err.to_string(),
+            err,
             sample_json
         )
     })?;

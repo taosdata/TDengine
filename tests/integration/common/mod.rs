@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use anyhow::Context;
-use assert_cmd::cargo::CommandCargoExt;
 
 /// Common utilities for all integration tests
 ///
@@ -86,11 +85,6 @@ interval = {}
                         path.display()
                     ))
                 }
-            })
-            .or_else(|_| {
-                println!("cargo bin not found, fallback to taosx");
-                std::process::Command::cargo_bin("taosx")
-                    .context("No taosx binary found in cargo bin dir")
             })
             .unwrap_or_else(|_err| {
                 println!("fallback to path taosx");

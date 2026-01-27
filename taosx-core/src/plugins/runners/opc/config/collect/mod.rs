@@ -100,9 +100,8 @@ impl CollectConfig {
         dsn.params
             .get("interval")
             .map(|v| {
-                v.parse::<i64>().map_err(|err| {
-                    anyhow::anyhow!("invalid interval: {}, cause: {}", v, err.to_string())
-                })
+                v.parse::<i64>()
+                    .map_err(|err| anyhow::anyhow!("invalid interval: {}, cause: {}", v, err))
             })
             .transpose()
     }
@@ -111,9 +110,8 @@ impl CollectConfig {
         dsn.params
             .get("limit")
             .map(|v| {
-                v.parse::<i64>().map_err(|err| {
-                    anyhow::anyhow!("invalid limit: {}, cause: {}", v, err.to_string())
-                })
+                v.parse::<i64>()
+                    .map_err(|err| anyhow::anyhow!("invalid limit: {}, cause: {}", v, err))
             })
             .transpose()
     }

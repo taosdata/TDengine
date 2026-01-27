@@ -23,9 +23,8 @@ impl ReportConfig {
         dsn.get("concurrent")
             .or(dsn.get("write_concurrency"))
             .map(|v| {
-                v.parse::<i64>().map_err(|err| {
-                    anyhow::anyhow!("parse concurrent failed, cause: {}", err.to_string())
-                })
+                v.parse::<i64>()
+                    .map_err(|err| anyhow::anyhow!("parse concurrent failed, cause: {}", err))
             })
             .transpose()
     }
@@ -35,9 +34,8 @@ impl ReportConfig {
             .params
             .get("batch_size")
             .map(|v| {
-                v.parse::<i64>().map_err(|err| {
-                    anyhow::anyhow!("parse batch_size failed, cause: {}", err.to_string())
-                })
+                v.parse::<i64>()
+                    .map_err(|err| anyhow::anyhow!("parse batch_size failed, cause: {}", err))
             })
             .transpose()?
             .or(Some(1000)))
@@ -48,9 +46,8 @@ impl ReportConfig {
             .params
             .get("batch_timeout")
             .map(|v| {
-                v.parse::<i64>().map_err(|err| {
-                    anyhow::anyhow!("parse batch_timeout failed, cause: {}", err.to_string())
-                })
+                v.parse::<i64>()
+                    .map_err(|err| anyhow::anyhow!("parse batch_timeout failed, cause: {}", err))
             })
             .transpose()?
             .or(Some(1)))
