@@ -5080,15 +5080,15 @@ static int32_t mndShowTablePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
         if (tbPolicy->condLen > 0) {
           if (nodesStringToNode(tbPolicy->cond, &pAst) == 0) {
             if (nodesNodeToSQLFormat(pAst, qBuf, qBufSize, &sqlLen, true) != 0) {
-              sqlLen = snprintf(qBuf, qBufSize, "error");
+              sqlLen = tsnprintf(qBuf, qBufSize, "error");
             }
             nodesDestroyNode(pAst);
           }
           if (sqlLen == 0) {
-            sqlLen = snprintf(qBuf, qBufSize, "error");
+            sqlLen = tsnprintf(qBuf, qBufSize, "error");
           }
         } else {
-          sqlLen = snprintf(qBuf, qBufSize, "");
+          sqlLen = tsnprintf(qBuf, qBufSize, "");
         }
         varDataSetLen(pBuf, sqlLen);
         COL_DATA_SET_VAL_GOTO((const char *)pBuf, false, pObj, pShow->pIter, _exit);
