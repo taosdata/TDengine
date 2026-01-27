@@ -5614,7 +5614,7 @@ static int32_t mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
     int32_t totalPrivileges = nSysPrivileges + nObjPrivileges + nTblPrivileges;
 
-    if (numOfRows + nTblPrivileges >= rows) {
+    if (numOfRows + totalPrivileges >= rows) {
       if (totalPrivileges >= SHOW_PRIVILEGES_STEP_SIZE) {
         mError("user:%s, has too many privileges:%d to show", pObj->name, totalPrivileges);
         sdbRelease(pSdb, pObj);
