@@ -480,7 +480,7 @@ static inline STypeMod typeGetTypeModFromCol(const SColumn* pCol) {
 }
 
 /**
-  @brief Calculate the absolute difference between two int64_t values, 
+  @brief Calculate the absolute difference between two int64_t values,
          and return the result as uint64_t.
   @note This function utilizes the rule of unsigned integer arithmetic (always
   mod calculation) to avoid the overflow of the difference calculation and
