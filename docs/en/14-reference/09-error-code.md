@@ -114,6 +114,7 @@ Below are the business error codes for each module.
 | 0x8000013C | Invalid disk id                   | Invalid disk id                                              | Check users whether the mounted disk is invalid or use the parameter diskIDCheckEnabled to skip the disk check. |
 | 0x8000013D | Decimal value overflow            | Decimal value overflow                                       | Check query expression and decimal values |
 | 0x8000013E | Division by zero error            | Division by zero                                             | Check division expression |
+| 0x8000013F | Decimal value parse error         | Decimal value parse error                                    | Preserve the scene and logs, report issue on github |
 | 0x80000140 | Edition not compatible            | Edition incompatibility between nodes                        | Check editions(enterprise or community) of all nodes (including server and client), ensure node editions are consistent or compatible |
 | 0x80000141 | Invalid signature                 | Message signature is invalid or mismatch                     | Check if client and server are using the same signature algorithm |
 
@@ -196,6 +197,7 @@ Below are the business error codes for each module.
 | 0x80000357 | Authentication failure                                       | Incorrect password                                           | Confirm if the operation is correct                          |
 | 0x80000358 | User not available                                           | User does not exist                                          | Confirm if the operation is correct                          |
 | 0x8000035B | Wrong TOTP code                                              | TOTP code not provided or wrong TOTP code                    | Check and enter the correct TOTP code                        |
+| 0x8000035E | TOTP secret not exists                                       | TOTP secret does not exist for the user                      | Confirm if the operation is correct                          |
 | 0x80000360 | STable already exists                                        | Internal error                                               | Report issue                                                 |
 | 0x80000361 | STable not exist                                             | Internal error                                               | Report issue                                                 |
 | 0x80000364 | Too many tags                                                | Too many tags                                                | Cannot be modified, code-level restriction                   |

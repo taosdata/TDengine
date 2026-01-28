@@ -13,11 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "bseTable.h"
 #include "bse.h"
 #include "bseCache.h"
 #include "bseSnapshot.h"
+#include "bseTable.h"
 #include "bseTableMgt.h"
+#include "crypt.h"
 #include "osMemPool.h"
 #include "vnodeInt.h"
 
@@ -144,6 +145,9 @@ int32_t tableBuilderLoadBlock(STableBuilder *p, SBlkHandle *pHandle, SBlockWrapp
   int32_t lino = 0;
   code = blockWrapperInit(pBlkWrapper, pHandle->size);
   TSDB_CHECK_CODE(code, lino, _error);
+
+  // Set pBse pointer for encryption/decryption
+  pBlkWrapper->pBse = p->pBse;
 
   code = tableLoadBlock(p->pDataFile, pHandle, pBlkWrapper);
 _error:
@@ -751,6 +755,9 @@ int32_t tableReaderOpen(int64_t timestamp, STableReader **pReader, void *pReader
   code = blockWrapperInit(&p->blockWrapper, 1024);
   TSDB_CHECK_CODE(code, lino, _error);
 
+  // Set pBse pointer for encryption/decryption
+  p->blockWrapper.pBse = pMgt->pBse;
+
   bseBuildMetaName(timestamp, meta);
   code = tableMetaReaderInit(pMeta->pTableMetaMgt->pTableMeta, meta, &p->pMetaReader);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -1114,9 +1121,11 @@ int32_t tableFlushBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBl
   int8_t compressType = kNoCompres;
 
   SBlockWrapper wrapper = {0};
+  uint8_t      *encryptBuf = NULL;
 
   uint8_t *pWrite = (uint8_t *)pBlk;
   int32_t  len = BLOCK_TOTAL_SIZE(pBlk);
+  int32_t  plainLen = len;
 
   BLOCK_SET_COMPRESS_TYPE(pBlk, compressType);
   BLOCK_SET_ROW_SIZE(pBlk, BLOCK_ROW_SIZE(pBlk));
@@ -1139,7 +1148,47 @@ int32_t tableFlushBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBl
       len = compressSize + BLOCK_TAIL_LEN;
 
       pWrite = (uint8_t *)wrapper.data;
+      plainLen = len;
     }
+  }
+
+  // Encrypt data if encryption is enabled (before checksum)
+  SBse *pBse = (SBse *)pBlkW->pBse;
+  if (pBse != NULL && pBse->cfg.encryptKey[0] != '\0') {
+    // Encrypt data excluding BLOCK_TAIL_LEN (to keep compression info readable)
+    // plainLen includes checksum, subtract BLOCK_TAIL_LEN
+    int32_t plainDataLen = plainLen - BLOCK_TAIL_LEN;
+    int32_t cryptedLen = ENCRYPTED_LEN(plainDataLen);
+
+    // Allocate buffer for encrypted data + BLOCK_TAIL_LEN
+    encryptBuf = taosMemoryMalloc(cryptedLen + BLOCK_TAIL_LEN);
+    if (encryptBuf == NULL) {
+      TSDB_CHECK_CODE(code = terrno, lino, _error);
+    }
+
+    // Pad and encrypt data part only
+    (void)memset(encryptBuf, 0, cryptedLen);
+    (void)memcpy(encryptBuf, pWrite, plainDataLen);
+
+    // Encrypt using CBC
+    SCryptOpts opts = {0};
+    opts.len = cryptedLen;
+    opts.source = (char *)encryptBuf;
+    opts.result = (char *)encryptBuf;  // Encrypt in place
+    opts.unitLen = 16;
+    opts.pOsslAlgrName = pBse->cfg.encryptAlgrName;
+    tstrncpy((char *)opts.key, pBse->cfg.encryptKey, ENCRYPT_KEY_LEN + 1);
+
+    int32_t count = CBC_Encrypt(&opts);
+    if (count != opts.len) {
+      TSDB_CHECK_CODE(code = terrno, lino, _error);
+    }
+
+    // Copy BLOCK_TAIL_LEN (compression info) unencrypted
+    (void)memcpy(encryptBuf + cryptedLen, pWrite + plainDataLen, BLOCK_TAIL_LEN);
+
+    pWrite = encryptBuf;
+    len = cryptedLen + BLOCK_TAIL_LEN;
   }
 
   code = taosCalcChecksumAppend(0, (uint8_t *)pWrite, len);
@@ -1157,6 +1206,7 @@ int32_t tableFlushBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBl
   }
   *nWrite = nwrite;
   blockWrapperCleanup(&wrapper);
+  taosMemoryFree(encryptBuf);
 _error:
   if (code != 0) {
     bseError("failed to flush table builder at line %d since %s", lino, tstrerror(code));
@@ -1176,6 +1226,7 @@ int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk
   uint8_t *pRead = (uint8_t *)pBlk;
 
   SBlockWrapper pHelp = {0};
+  uint8_t      *decryptBuf = NULL;
 
   int64_t n = taosLSeekFile(pFile, pHandle->offset, SEEK_SET);
   if (n < 0) {
@@ -1190,17 +1241,49 @@ int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk
   if (taosCheckChecksumWhole((uint8_t *)pRead, pHandle->size) != 1) {
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
   }
+
+  // Decrypt data if encryption is enabled
+  SBse   *pBse = (SBse *)pBlkW->pBse;
+  int32_t dataLen = pHandle->size;
+  if (pBse != NULL && pBse->cfg.encryptKey[0] != '\0') {
+    // Data is encrypted (excluding BLOCK_TAIL_LEN), decrypt it
+    int32_t cryptedLen = pHandle->size - BLOCK_TAIL_LEN;
+    decryptBuf = taosMemoryMalloc(cryptedLen);
+    if (decryptBuf == NULL) {
+      TSDB_CHECK_CODE(code = terrno, lino, _error);
+    }
+
+    // Decrypt using CBC
+    SCryptOpts opts = {0};
+    opts.len = cryptedLen;
+    opts.source = (char *)pRead;
+    opts.result = (char *)decryptBuf;
+    opts.unitLen = 16;
+    opts.pOsslAlgrName = pBse->cfg.encryptAlgrName;
+    tstrncpy(opts.key, pBse->cfg.encryptKey, ENCRYPT_KEY_LEN + 1);
+
+    int32_t count = CBC_Decrypt(&opts);
+    if (count != cryptedLen) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
+    }
+
+    // Copy decrypted data back, BLOCK_TAIL_LEN remains unencrypted at the end
+    (void)memcpy(pRead, decryptBuf, cryptedLen);
+    // BLOCK_TAIL_LEN at pRead + cryptedLen is already in place (unencrypted)
+  }
+
   uint8_t compressType = 0;
   int32_t rawSize = 0;
 
-  COMPRESS_DATA_GET_TYPE_AND_RAWLEN(pRead, pHandle->size, compressType, rawSize);
+  // Get compression info from decrypted/plain data
+  COMPRESS_DATA_GET_TYPE_AND_RAWLEN(pRead, dataLen, compressType, rawSize);
 
   if (compressType != kNoCompres) {
     code = blockWrapperInit(&pHelp, rawSize);
     TSDB_CHECK_CODE(code, lino, _error);
 
     int32_t unCompressSize = pHelp.cap;
-    code = bseDecompressData(compressType, pRead, pHandle->size - BLOCK_TAIL_LEN, pHelp.data, &unCompressSize);
+    code = bseDecompressData(compressType, pRead, dataLen - BLOCK_TAIL_LEN, pHelp.data, &unCompressSize);
     if (code != 0) {
       TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
     }
@@ -1214,7 +1297,11 @@ int32_t tableLoadBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlk
     blockWrapperTransfer(pBlkW, &pHelp);
 
   } else {
-    if (pBlk->len != (pHandle->size - BLOCK_TAIL_LEN - sizeof(SBlock))) {
+    // For uncompressed data, use rawSize (which equals actual data size for no compression)
+    // rawSize is stored in BLOCK_TAIL_LEN and is always correct even after encryption
+    pBlk = pBlkW->data;
+    int32_t expectedLen = rawSize - sizeof(SBlock);
+    if (pBlk->len != expectedLen) {
       TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
     }
   }
@@ -1227,6 +1314,7 @@ _error:
   }
 
   blockWrapperCleanup(&pHelp);
+  taosMemoryFree(decryptBuf);
   return code;
 }
 int32_t tableLoadRawBlock(TdFilePtr pFile, SBlkHandle *pHandle, SBlockWrapper *pBlkW, int8_t checkSum) {
@@ -2092,6 +2180,9 @@ int32_t tableMetaWriterInit(SBTableMeta *pMeta, char *name, SBtableMetaWriter **
   code = blockWrapperInit(&p->blockWrapper, 1024);
   TSDB_CHECK_CODE(code, lino, _error);
 
+  // Set pBse pointer for encryption/decryption
+  p->blockWrapper.pBse = pMeta->pBse;
+
   code = tableMetaOpenFile(p, 0, path);
   TSDB_CHECK_CODE(code, lino, _error);
 
@@ -2135,6 +2226,9 @@ int32_t tableMetaReaderInit(SBTableMeta *pMeta, char *name, SBtableMetaReader **
 
   code = blockWrapperInit(&p->blockWrapper, 1024);
   TSDB_CHECK_CODE(code, lino, _error);
+
+  // Set pBse pointer for encryption/decryption
+  p->blockWrapper.pBse = pMeta->pBse;
 
   code = tableMetaReaderLoad(p);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -2289,6 +2383,9 @@ int32_t tableMetaReaderOpenIter(SBtableMetaReader *pReader, SBtableMetaReaderIte
   if (code != 0) {
     return code;
   }
+
+  // Set pBse pointer for encryption/decryption
+  p->pBlockWrapper.pBse = ((SBTableMeta *)pReader->pTableMeta)->pBse;
 
   *pIter = p;
   if (taosArrayGetSize(pReader->pBlkHandle) == 0) {

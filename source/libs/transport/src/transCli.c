@@ -155,6 +155,7 @@ typedef struct SCliThrd {
   SArray* pQIdBuf;  // tmp buf to avoid alloc buf;
   queue   batchSendSet;
   int8_t  thrdInited;
+  int8_t  loopInited;
 } SCliThrd;
 
 typedef struct SCliObj {
@@ -1690,7 +1691,7 @@ int32_t cliBatchSend(SCliConn* pConn, int8_t direct) {
     if (pReq->pCont == 0) {
       pReq->pCont = (void*)rpcMallocCont(0);
       if (pReq->pCont == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
+        return terrno;
       }
       pReq->contLen = 0;
     }
@@ -2142,12 +2143,9 @@ static FORCE_INLINE int32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn, S
       code = TSDB_CODE_RPC_FQDN_ERROR;
       tError("ipv6Enable(%d), failed to get ip from fqdn:%s since %s", enableIpv6, fqdn, tstrerror(code));
       return code;
-    } else {
-      if (enableIpv6 && ipAddr.type != 1) {
-        tWarn("get ipv4 addr from fqdn:%s, but ipv6 is enabled", fqdn);
-        return TSDB_CODE_RPC_FQDN_ERROR;
-      }
     }
+    // when enableIpv6=1, both IPv4 and IPv6 addresses are accepted
+    // taosGetIpFromFqdn uses AF_UNSPEC and returns first available address
     if ((code = taosHashPut(cache, fqdn, len, &ipAddr, sizeof(ipAddr)) != 0)) {
       return code;
     }
@@ -2590,9 +2588,10 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 
   code = uv_loop_init(pThrd->loop);
   if (code != 0) {
-    tError("failed to init uv_loop since %s", uv_err_name(code));
+    tError("failed to init uv_loop since %s", uv_strerror(code));
     TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, NULL, _end);
   }
+  pThrd->loopInited = 1;
 
   int32_t nSync = 2;  // pInst->supportBatch ? 4 : 8;
   code = transAsyncPoolCreate(pThrd->loop, nSync, pThrd, cliAsyncCb, &pThrd->asyncPool);
@@ -2646,17 +2645,17 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 
   pThrd->connHeapCache = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (pThrd->connHeapCache == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
   pThrd->pIdConnTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  if (pThrd->connHeapCache == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+  if (pThrd->pIdConnTable == NULL) {
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
   pThrd->pQIdBuf = taosArrayInit(8, sizeof(int64_t));
   if (pThrd->pQIdBuf == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, _end);
+    TAOS_CHECK_GOTO(terrno, NULL, _end);
   }
 
   pThrd->initCb = initCb;
@@ -2669,30 +2668,8 @@ static int32_t createThrdObj(void* trans, SCliThrd** ppThrd) {
 
   *ppThrd = pThrd;
   return code;
-
 _end:
-  if (pThrd) {
-    TAOS_UNUSED(taosThreadMutexDestroy(&pThrd->msgMtx));
-    transAsyncPoolDestroy(pThrd->asyncPool);
-    for (int i = 0; i < taosArrayGetSize(pThrd->timerList); i++) {
-      uv_timer_t* timer = taosArrayGetP(pThrd->timerList, i);
-      TAOS_UNUSED(uv_timer_stop(timer));
-      taosMemoryFree(timer);
-    }
-    taosArrayDestroy(pThrd->timerList);
-
-    TAOS_UNUSED(destroyConnPool(pThrd));
-    TAOS_UNUSED(uv_loop_close(pThrd->loop));
-    taosMemoryFree(pThrd->loop);
-
-    transDQDestroy(pThrd->delayQueue, NULL);
-    transDQDestroy(pThrd->timeoutQueue, NULL);
-    taosHashCleanup(pThrd->fqdn2ipCache);
-    taosHashCleanup(pThrd->pIdConnTable);
-    taosArrayDestroy(pThrd->pQIdBuf);
-
-    taosMemoryFree(pThrd);
-  }
+  destroyThrdObj(pThrd);
   return code;
 }
 static void destroyThrdObj(SCliThrd* pThrd) {
@@ -2704,9 +2681,14 @@ static void destroyThrdObj(SCliThrd* pThrd) {
     tTrace("failed to join thread since %s", tstrerror(terrno));
   }
 
-  CLI_RELEASE_UV(pThrd->loop);
+  if (pThrd->loop && pThrd->loopInited) {
+    CLI_RELEASE_UV(pThrd->loop);
+  }
   TAOS_UNUSED(taosThreadMutexDestroy(&pThrd->msgMtx));
-  TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliReq, destroyReqWrapper, (void*)pThrd);
+
+  if (pThrd->asyncPool) {
+    TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliReq, destroyReqWrapper, (void*)pThrd);
+  }
   transAsyncPoolDestroy(pThrd->asyncPool);
 
   transDQDestroy(pThrd->delayQueue, destroyReqAndAhanlde);

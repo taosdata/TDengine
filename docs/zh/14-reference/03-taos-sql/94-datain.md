@@ -41,7 +41,7 @@ Create OK, 0 row(s) affected (0.050798s)
 #### 语法
 
 ```sql
-SHOW XNODES
+SHOW XNODES [WHERE condition]
 ```
 
 #### 示例
@@ -157,7 +157,7 @@ Create OK, 0 row(s) affected (0.038959s)
 #### 语法
 
 ```sql
-SHOW XNODE TASKS
+SHOW XNODE TASKS [WHERE condition]
 ```
 
 #### 示例
@@ -185,7 +185,6 @@ taos> SHOW XNODE TASKS \G;
 create_time: 2026-01-13 07:56:18.076
 update_time: 2026-01-13 07:56:18.076
 Query OK, 2 row(s) in set (0.019692s)
-
 ```
 
 ### 启动任务
@@ -271,7 +270,7 @@ JOB 是 TASK 任务的执行分片，支持手动和自动负载均衡。
 #### 语法
 
 ```sql
-SHOW XNODE JOBS
+SHOW XNODE JOBS [WHERE condition]
 ```
 
 #### 示例
@@ -366,7 +365,7 @@ Create OK, 0 row(s) affected (0.013414s)
 #### 语法
 
 ```sql
-SHOW XNODE AGENTS
+SHOW XNODE AGENTS [WHERE condition]
 ```
 
 #### 示例

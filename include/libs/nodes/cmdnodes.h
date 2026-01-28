@@ -780,6 +780,7 @@ typedef struct {
   int32_t            jid;
   int32_t            tid;
   SXnodeTaskOptions* options;
+  SNode*             pWhere;
 } SDropXnodeJobStmt;
 typedef struct {
   ENodeType type;
@@ -808,6 +809,7 @@ typedef struct SShowStmt {
   EOperatorType tableCondType;
   EShowKind     showKind;  // show databases: user/system, show tables: normal/child, others NULL
   bool          withFull;  // for show users full;
+  SNode*        pWhere;    // WHERE clause
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {
@@ -1000,6 +1002,12 @@ typedef struct SAlterEncryptKeyStmt {
   int8_t    keyType;  // 0: SVR_KEY, 1: DB_KEY
   char      newKey[ENCRYPT_KEY_LEN + 1];
 } SAlterEncryptKeyStmt;
+
+typedef struct SAlterKeyExpirationStmt {
+  ENodeType type;
+  int32_t   days;
+  char      strategy[ENCRYPT_KEY_EXPIRE_STRATEGY_LEN + 1];
+} SAlterKeyExpirationStmt;
 
 typedef struct SDescribeStmt {
   ENodeType   type;

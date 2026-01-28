@@ -1202,6 +1202,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
       code = makeNode(type, sizeof(SAlterEncryptKeyStmt), &pNode);
       break;
+    case QUERY_NODE_ALTER_KEY_EXPIRATION_STMT:
+      code = makeNode(type, sizeof(SAlterKeyExpirationStmt), &pNode);
+      break;
     default:
       code = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
@@ -1999,6 +2002,7 @@ void nodesDestroyNode(SNode* pNode) {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);
+      nodesDestroyNode(pStmt->pWhere);
       break;
     }
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT: {
@@ -2597,6 +2601,12 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_REBALANCE_XNODE_JOB_WHERE_STMT: {
       SRebalanceXnodeJobWhereStmt* pStmt = (SRebalanceXnodeJobWhereStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->pWhere);
+      break;
+    }
+    case QUERY_NODE_DROP_XNODE_JOB_STMT: {
+      SDropXnodeJobStmt* pStmt = (SDropXnodeJobStmt*)pNode;
+      nodesDestroyNode((SNode*)pStmt->options);
       nodesDestroyNode((SNode*)pStmt->pWhere);
       break;
     }

@@ -192,6 +192,7 @@ SNode*     createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiter
 SNode*     createTimeOffsetValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
 SNode*     createDefaultDatabaseCondValue(SAstCreateContext* pCxt);
 SNode*     createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
+SNode*     createDurationPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
 SNode*     setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias);
 SNode*     createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType type, SNode* pParam1, SNode* pParam2);
 SNode*     createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight);
@@ -341,7 +342,8 @@ SNode* createShowStmtWithFull(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowStmtWithLike(SAstCreateContext* pCxt, ENodeType type, SNode* pLikePattern);
 SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbName,
                               EOperatorType tableCondType);
-SNode* createShowXNodeResourcesStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType);
+SNode* createShowXNodeResourcesWhereStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere);
+SNode* createShowXnodeStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pWhere);
 SNode* createShowTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, SNode* pTbName,
                             EOperatorType tableCondType);
 SNode* createShowVTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, SNode* pTbName,
@@ -414,8 +416,9 @@ SNode* createDefaultXnodeTaskOptions(SAstCreateContext* pCxt);
 SToken* createTriggerToken();
 SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pOptions, SToken* pKey, SToken* pVal);
 SNode*  dropXnodeResource(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResourceName);
-SNode*  dropXnodeResourceOn(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResource, SNode* pWhere);
-// SNode*  dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere);
+// SNode*  dropXnodeResourceOn(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResource, SNode*
+// pWhere);
+SNode*  dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere);
 SNode*  createXnodeTaskJobWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pTidToken,
                                       SNode* pNodeOptions);
 SNode*  createRebalanceXnodeJobStmt(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* resourceId,
@@ -427,6 +430,7 @@ SNode*  alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType re
 
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);
 SNode* createAlterEncryptKeyStmt(SAstCreateContext* pCxt, int8_t keyType, const SToken* pValue);
+SNode* createAlterKeyExpirationStmt(SAstCreateContext* pCxt, const SToken* pDays, const SToken* pStrategy);
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName);
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SNode* pIndexName,
                              SNode* pRealTable, SNodeList* pCols, SNode* pOptions);

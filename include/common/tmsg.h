@@ -437,6 +437,8 @@ typedef enum ENodeType {
   QUERY_NODE_ALTER_ROLE_STMT,
   QUERY_NODE_CREATE_TOTP_SECRET_STMT,
   QUERY_NODE_DROP_TOTP_SECRET_STMT,
+  QUERY_NODE_ALTER_KEY_EXPIRATION_STMT,
+
 
   // placeholder for [155, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -1802,6 +1804,11 @@ int32_t tSerializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* pR
 int32_t tDeserializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* pReq);
 
 typedef struct {
+  int8_t  enabled;
+  int32_t expireTime;
+} STokenStatus;
+
+typedef struct {
   char      user[TSDB_USER_LEN];
   int64_t   userId;
   int32_t   version;
@@ -1824,6 +1831,7 @@ typedef struct {
 
   SUserSessCfg sessCfg;
   int64_t      timeWhiteListVer;
+  SHashObj*    tokens;
 } SGetUserAuthRsp;
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
@@ -3497,6 +3505,17 @@ int32_t tDeserializeSMAlterEncryptKeyReq(void* buf, int32_t bufLen, SMAlterEncry
 void    tFreeSMAlterEncryptKeyReq(SMAlterEncryptKeyReq* pReq);
 
 typedef struct {
+  int32_t days;
+  char    strategy[64];
+  int32_t sqlLen;
+  char*   sql;
+} SMAlterKeyExpirationReq;
+
+int32_t tSerializeSMAlterKeyExpirationReq(void* buf, int32_t bufLen, SMAlterKeyExpirationReq* pReq);
+int32_t tDeserializeSMAlterKeyExpirationReq(void* buf, int32_t bufLen, SMAlterKeyExpirationReq* pReq);
+void    tFreeSMAlterKeyExpirationReq(SMAlterKeyExpirationReq* pReq);
+
+typedef struct {
   char    config[TSDB_DNODE_CONFIG_LEN];
   char    value[TSDB_DNODE_VALUE_LEN];
   int32_t version;
@@ -3540,6 +3559,7 @@ typedef struct {
   int8_t   learnerReplica;
   SReplica learnerReplicas[TSDB_MAX_LEARNER_REPLICA];
   int64_t  lastIndex;
+  int8_t   encrypted;  // Whether sdb.data is encrypted (0=false, 1=true)
 } SDCreateMnodeReq, SDAlterMnodeReq, SDAlterMnodeTypeReq;
 
 int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
@@ -3881,7 +3901,7 @@ void    tFreeSMRebalanceXnodeJobsWhereReq(SMRebalanceXnodeJobsWhereReq* pReq);
 
 typedef struct {
   int32_t jid;
-  int32_t tid;
+  CowStr  ast;
   int32_t sqlLen;
   char*   sql;
 } SMDropXnodeJobReq;

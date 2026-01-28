@@ -193,6 +193,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_max_column_num.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_meta.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_plan.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_pushdown_timerange.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter_origin_table.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
@@ -217,6 +218,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_with_null_value.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_schema_is_old.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_create.py
 
 # 06-DataIngestion
 ## 01-SQL
@@ -462,7 +464,7 @@
 ## 07-Geometry
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/07-Geometry/test_fun_geo_basic.py
 ## 08-Window
-,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_fun_win_lag.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_fun_win_fill_forward.py
 
 # 12-UDFs
 
@@ -753,7 +755,10 @@
 ## 21-Stability 
 ## 22-Performance
 ## 23-Compatibility 
-100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward.py
+100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part1.py
+100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part2.py
+100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part3.py
+100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part4.py
 ,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_cross_version.py
 ,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_new_stream_compatibility.py
 ## 30-OldPyCases

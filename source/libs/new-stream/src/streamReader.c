@@ -18,9 +18,9 @@ void qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo) {
   pTableListInfo->pTableList = NULL;
   taosHashCancelIterate(pTableListInfo->gIdMap, pTableListInfo->pIter);
   taosHashCleanup(pTableListInfo->gIdMap);
+  stDebug("release gIdMap:%p", pTableListInfo->gIdMap);
   pTableListInfo->pIter = NULL;
   pTableListInfo->gIdMap = NULL;
-  stDebug("release gIdMap:%p", pTableListInfo->gIdMap);
   taosHashCleanup(pTableListInfo->uIdMap);
   pTableListInfo->uIdMap = NULL;
 }

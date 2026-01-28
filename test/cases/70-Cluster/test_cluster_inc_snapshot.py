@@ -72,7 +72,7 @@ class TestIncSnapshot:
         self.checkInsertCorrect()
         self.checkAggCorrect()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
     def remove_directory(self, directory):
         try:

@@ -624,7 +624,10 @@ static int32_t ipRangeListToStr(SIpRange *range, int32_t num, char *buf, int64_t
 
     len += tsnprintf(buf + len, bufLen - len, "%c%s/%d, ", pRange->neg ? '-' : '+', IP_ADDR_STR(&addr), addr.mask);
   }
-  if (len > 0) buf[len - 2] = 0;
+  if (len > 0) {
+    len -= 2;
+    buf[len] = 0; // remove last ", "
+  }
   return len;
 }
 
@@ -922,7 +925,8 @@ static int32_t convertTimeRangesToStr(SUserObj *pUser, char **buf) {
   }
 
   if (pos > 0) {
-    (*buf)[pos - 2] = 0; // remove last ", "
+    pos -= 2;
+    (*buf)[pos] = 0; // remove last ", "
   }
 
   return pos;
@@ -972,8 +976,9 @@ static void dropOldPasswords(SUserObj *pUser) {
   int32_t now = taosGetTimestampSec();
   int32_t index = reuseMax;
   while(index < pUser->numOfPasswords) {
-    SUserPassword *pPass = &pUser->passwords[index];
-    if (now - pPass->setTime >= pUser->passwordReuseTime) {
+    // the set time of the n-th password is the expire time of the n+1-th password
+    int32_t expireTime = pUser->passwords[index - 1].setTime;
+    if (now - expireTime >= pUser->passwordReuseTime) {
       break;
     }
     index++;
@@ -1000,7 +1005,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   }
   taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.passwords[0].pass);
   userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
-  if (tsiEncryptPassAlgorithm == DND_CA_SM4 && strlen(tsDbKey) > 0) {
+  if (tsiEncryptPassAlgorithm == DND_CA_SM4 && strlen(tsDataKey) > 0) {
     generateSalt(userObj.salt, sizeof(userObj.salt));
     TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino, _ERROR);
   }
@@ -2309,6 +2314,9 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew) {
 
 _OVER:
   taosRUnLockLatch(&pUser->lock);
+  if (code == 0) {
+    dropOldPasswords(pNew);
+  }
   TAOS_RETURN(code);
 }
 
@@ -2465,7 +2473,7 @@ int32_t mndEncryptPass(char *pass, const char* salt, int8_t *algo) {
   opts.source = pass;
   opts.result = packetData;
   opts.unitLen = TSDB_PASSWORD_LEN;
-  tstrncpy(opts.key, tsDbKey, ENCRYPT_KEY_LEN + 1);
+  tstrncpy(opts.key, tsDataKey, ENCRYPT_KEY_LEN + 1);
   int newLen = Builtin_CBC_Encrypt(&opts);
   if (newLen <= 0) return terrno;
 
@@ -2490,25 +2498,24 @@ static void generateSalt(char *salt, size_t len) {
 
 
 
-static int32_t addDefaultIpToTable(int8_t enableIpv6, SHashObj *pUniqueTab) {
+static int32_t addDefaultIpToTable(SHashObj *pUniqueTab) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t dummpy = 0;
+  int32_t dummy = 0;
 
   SIpRange ipv4 = {0}, ipv6 = {0};
   code = createDefaultIp4Range(&ipv4);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  code = taosHashPut(pUniqueTab, &ipv4, sizeof(ipv4), &dummpy, sizeof(dummpy));
+  code = taosHashPut(pUniqueTab, &ipv4, sizeof(ipv4), &dummy, sizeof(dummy));
   TSDB_CHECK_CODE(code, lino, _error);
 
-  if (enableIpv6) {
-    code = createDefaultIp6Range(&ipv6);
-    TSDB_CHECK_CODE(code, lino, _error);
+  code = createDefaultIp6Range(&ipv6);
+  TSDB_CHECK_CODE(code, lino, _error);
 
-    code = taosHashPut(pUniqueTab, &ipv6, sizeof(ipv6), &dummpy, sizeof(dummpy));
-    TSDB_CHECK_CODE(code, lino, _error);
-  }
+  code = taosHashPut(pUniqueTab, &ipv6, sizeof(ipv6), &dummy, sizeof(dummy));
+  TSDB_CHECK_CODE(code, lino, _error);
+    
 _error:
   if (code != 0) {
     mError("failed to add default ip range to table since %s", tstrerror(code));
@@ -2580,21 +2587,26 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     if (pUniqueTab == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
-    int32_t dummpy = 0;
     
+    bool hasPositive = false;
     for (int i = 0; i < pCreate->numIpRanges; i++) {
       SIpRange range = {0};
       copyIpRange(&range, pCreate->pIpDualRanges + i);
-      if ((code = taosHashPut(pUniqueTab, &range, sizeof(range), &dummpy, sizeof(dummpy))) != 0) {
+      hasPositive = hasPositive || !range.neg;
+      int32_t dummy = 0;
+      if ((code = taosHashPut(pUniqueTab, &range, sizeof(range), &dummy, sizeof(dummy))) != 0) {
         taosHashCleanup(pUniqueTab);
         TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
     }
 
-    code = addDefaultIpToTable(tsEnableIpv6, pUniqueTab);
-    if (code != 0) {
-      taosHashCleanup(pUniqueTab);
-      TAOS_CHECK_GOTO(code, &lino, _OVER);
+    // add local ip if there is any positive range
+    if (hasPositive) {
+      code = addDefaultIpToTable(pUniqueTab);
+      if (code != 0) {
+        taosHashCleanup(pUniqueTab);
+        TAOS_CHECK_GOTO(code, &lino, _OVER);
+      }
     }
 
     if (taosHashGetSize(pUniqueTab) > MND_MAX_USER_IP_RANGE) {
@@ -2633,7 +2645,6 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     if (pUniqueTab == NULL) {
       TAOS_CHECK_GOTO(terrno, &lino, _OVER);
     }
-    int32_t dummpy = 0;
     
     for (int i = 0; i < pCreate->numTimeRanges; i++) {
       SDateTimeRange* src = pCreate->pTimeRanges + i;
@@ -2645,7 +2656,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
         continue;
       }
 
-      if ((code = taosHashPut(pUniqueTab, &range, sizeof(range), &dummpy, sizeof(dummpy))) != 0) {
+      int32_t dummy = 0;
+      if ((code = taosHashPut(pUniqueTab, &range, sizeof(range), &dummy, sizeof(dummy))) != 0) {
         taosHashCleanup(pUniqueTab);
         TAOS_CHECK_GOTO(code, &lino, _OVER);
       }
@@ -4261,6 +4273,7 @@ static int32_t mndProcessDropTotpSecretReq(SRpcMsg *pReq) {
   int32_t            code = 0;
   int32_t            lino = 0;
   SUserObj          *pUser = NULL;
+  SUserObj           newUser = {0};
   SDropTotpSecretReq req = {0};
   int64_t            tss = taosGetTimestampMs();
 
@@ -4270,7 +4283,10 @@ static int32_t mndProcessDropTotpSecretReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, req.user, &pUser), &lino, _OVER);
   TAOS_CHECK_GOTO(mndCheckTotpSecretPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pUser), &lino, _OVER);
 
-  SUserObj newUser = {0};
+  if (!mndIsTotpEnabledUser(pUser)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_TOTP_SECRET_NOT_EXIST, &lino, _OVER);
+  }
+
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
   (void)memset(newUser.totpsecret, 0, sizeof(newUser.totpsecret));
   TAOS_CHECK_GOTO(mndAlterUser(pMnode, &newUser, pReq), &lino, _OVER); 

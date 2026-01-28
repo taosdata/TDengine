@@ -242,6 +242,8 @@ typedef enum ELogicConditionType {
 #define ENCRYPT_KEY_LEN     16
 #define ENCRYPT_KEY_LEN_MIN 8
 
+#define ENCRYPT_KEY_EXPIRE_STRATEGY_LEN 16
+
 #define TSDB_INT32_ID_LEN 11
 
 #define TSDB_NAME_DELIMITER_LEN 1
@@ -265,7 +267,6 @@ typedef enum ELogicConditionType {
 #define TSDB_NODE_NAME_LEN            64
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
-#define TSDB_TOKEN_NAME_LEN           32                                 // it is a null-terminated string
 #define TSDB_TOKEN_LEN                64                                 // it is a null-terminated string
 #define TSDB_TOKEN_EXPIRY_LEEWAY      30                                 // in seconds
 #define TSDB_TOKEN_PROVIDER_LEN       64                                 // it is a null-terminated string
@@ -408,15 +409,15 @@ typedef enum ELogicConditionType {
 #define TSDB_XNODE_URL_LEN              256
 #define TSDB_XNODE_STATUS_LEN           16
 #define TSDB_XNODE_TASK_NAME_LEN        64
-#define TSDB_XNODE_TASK_PARSER_LEN      4096
+#define TSDB_XNODE_TASK_PARSER_LEN      16384
 #define TSDB_XNODE_TASK_TRIGGER_LEN     128
 #define TSDB_XNODE_RESOURCE_ID_LEN      8
 #define TSDB_XNODE_RESOURCE_NAME_LEN    64
-#define TSDB_XNODE_TASK_SOURCE_LEN      2048
+#define TSDB_XNODE_TASK_SOURCE_LEN      4096
 #define TSDB_XNODE_TASK_SINK_LEN        2048
 #define TSDB_XNODE_TASK_REASON_LEN      1024
 #define TSDB_XNODE_TASK_OPTIONS_MAX_NUM 64
-#define TSDB_XNODE_TASK_JOB_CONFIG_LEN  4096
+#define TSDB_XNODE_TASK_JOB_CONFIG_LEN  16384
 #define TSDB_XNODE_TASK_LABELS_LEN      4096
 #define TSDB_XNODE_AGENT_NAME_LEN       TSDB_XNODE_TASK_NAME_LEN
 #define TSDB_XNODE_AGENT_STATUS_LEN     TSDB_XNODE_STATUS_LEN

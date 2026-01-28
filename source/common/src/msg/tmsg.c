@@ -2409,11 +2409,11 @@ int32_t tSerializeSKeySyncRsp(void *buf, int32_t bufLen, SKeySyncRsp *pRsp) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->needUpdate));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->encryptionKeyStatus));
   if (pRsp->needUpdate) {
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->svrKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dbKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->cfgKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->metaKey, 129));
-    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dataKey, 129));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->svrKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dbKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->cfgKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->metaKey, ENCRYPT_KEY_LEN + 1));
+    TAOS_CHECK_EXIT(tEncodeCStrWithLen(&encoder, pRsp->dataKey, ENCRYPT_KEY_LEN + 1));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->algorithm));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->cfgAlgorithm));
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->metaAlgorithm));
@@ -3256,7 +3256,8 @@ SDateTimeWhiteList* cloneDateTimeWhiteList(const SDateTimeWhiteList* src) {
 //
 // otherwise, it returns false.
 //
-// Note: tm is seconds since 1970-01-01 00:00:00 UTC, can be obtained by taosGetTimestampSec.
+// Note: tm is seconds since 1970-01-01 00:00:00 UTC, interpreted as local time,
+//       can be obtained by taosGetTimestampSec().
 //
 // TODO: the whitelist entries are sorted, we can use binary search to optimize the performance.
 bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm) {
@@ -3265,9 +3266,14 @@ bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm) {
   }
 
   bool hasWhite = false, inWhite = false;
-  // convert tm to week seconds, because week starts from Sunday and 1970-01-01 is
-  // Thursday, we need add 4 days offset.
-  int32_t weekSec = (tm + (4 * 86400)) % (7 * 86400);
+  // convert tm to week seconds based on localtime
+  // week starts from Sunday (tm_wday = 0)
+  time_t t = (time_t)tm;
+  struct tm ltm;
+  if (taosLocalTime(&t, &ltm, NULL, 0, NULL) == NULL) {
+    return false;
+  }
+  int32_t weekSec = ltm.tm_wday * 86400 + ltm.tm_hour * 3600 + ltm.tm_min * 60 + ltm.tm_sec;
 
   for (int32_t i = 0; i < wl->num; ++i) {
     const SDateTimeWhiteListItem *item = &wl->ranges[i];
@@ -4822,6 +4828,58 @@ _exit:
   return code;
 }
 
+int32_t tSerializeTokenStatuses(SEncoder *pEncoder, SHashObj *pHash) {
+  int32_t code = 0, lino = 0;
+  size_t  klen = 0, vlen = 0;
+  int32_t nTokens = (pHash == NULL ? 0 : taosHashGetSize(pHash));
+  TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, nTokens));
+  if (nTokens == 0) {
+    return code;
+  }
+
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate((SHashObj *)pHash, pIter))) {
+    char *name = taosHashGetKey(pIter, &klen);
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, name));
+
+    STokenStatus *status = (STokenStatus *)pIter;
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, status->enabled));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, status->expireTime));
+  }
+
+_exit:
+  return code;
+}
+
+
+int32_t tDeserializeTokenStatuses(SDecoder *pDecoder, SHashObj **pHash) {
+  int32_t code = 0, lino = 0;
+  size_t  klen = 0;
+  int32_t nTokens = 0;
+  TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &nTokens));
+  if (nTokens <= 0) {
+    *pHash = NULL;
+    return 0;
+  }
+
+  *pHash = taosHashInit(nTokens, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (*pHash == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+  
+  for (int32_t i = 0; i < nTokens; ++i) {
+    char name[TSDB_TOKEN_NAME_LEN] = {0};
+    TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, name));
+    STokenStatus status = {0};
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &status.enabled));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &status.expireTime));
+    TAOS_CHECK_EXIT(taosHashPut(*pHash, name, strlen(name) + 1, &status, sizeof(STokenStatus)));
+  }
+
+_exit:
+  return code;
+}
+
 int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pRsp->user));
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRsp->superAuth));
@@ -4838,6 +4896,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->selectTbs));
   TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->insertTbs));
   TAOS_CHECK_RETURN(tSerializePrivTblPolicies(pEncoder, pRsp->deleteTbs));
+  TAOS_CHECK_RETURN(tSerializeTokenStatuses(pEncoder, pRsp->tokens));
 
   return 0;
 }
@@ -4881,6 +4940,13 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->selectTbs));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->insertTbs));
   TAOS_CHECK_EXIT(tDeserializePrivTblPolicies(pDecoder, &pRsp->deleteTbs));
+
+  if (tDecodeIsEnd(pDecoder)) {
+    pRsp->tokens = NULL;
+  } else {
+    TAOS_CHECK_EXIT(tDeserializeTokenStatuses(pDecoder, &pRsp->tokens));
+  }
+
 _exit:
   if (code < 0) {
     uError("tDeserializeSGetUserAuthRsp failed at line %d since: %s", lino, tstrerror(code));
@@ -4910,10 +4976,12 @@ void tFreeSGetUserAuthRsp(SGetUserAuthRsp *pRsp) {
   taosHashCleanup(pRsp->selectTbs);
   taosHashCleanup(pRsp->insertTbs);
   taosHashCleanup(pRsp->deleteTbs);
+  taosHashCleanup(pRsp->tokens);
   pRsp->objPrivs = NULL;
   pRsp->selectTbs = NULL;
   pRsp->insertTbs = NULL;
   pRsp->deleteTbs = NULL;
+  pRsp->tokens = NULL;
 }
 
 int32_t tSerializeSGetUserWhiteListReq(void *buf, int32_t bufLen, SGetUserWhiteListReq *pReq) {
@@ -5916,6 +5984,48 @@ _exit:
 }
 
 void tFreeSMAlterEncryptKeyReq(SMAlterEncryptKeyReq *pReq) { FREESQL(); }
+
+int32_t tSerializeSMAlterKeyExpirationReq(void *buf, int32_t bufLen, SMAlterKeyExpirationReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->days));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->strategy));
+  ENCODESQL();
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMAlterKeyExpirationReq(void *buf, int32_t bufLen, SMAlterKeyExpirationReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->days));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->strategy));
+  DECODESQL();
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSMAlterKeyExpirationReq(SMAlterKeyExpirationReq *pReq) { FREESQL(); }
 
 int32_t tSerializeSDCfgDnodeReq(void *buf, int32_t bufLen, SDCfgDnodeReq *pReq) {
   SEncoder encoder = {0};
@@ -11696,6 +11806,7 @@ int32_t tSerializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq *
     TAOS_CHECK_EXIT(tEncodeSReplica(&encoder, pReplica));
   }
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->lastIndex));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->encrypted));
   tEndEncode(&encoder);
 
 _exit:
@@ -11727,6 +11838,12 @@ int32_t tDeserializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq
       TAOS_CHECK_EXIT(tDecodeSReplica(&decoder, pReplica));
     }
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->lastIndex));
+    // For backward compatibility: encrypted field is optional
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->encrypted));
+  } else {
+    pReq->encrypted = 0;  // Default to false for old requests
   }
   tEndDecode(&decoder);
 
