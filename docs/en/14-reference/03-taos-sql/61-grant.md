@@ -1,9 +1,9 @@
 ---
-toc_max_heading_level: 4
-title: Permission Management
+title: Permissions
+slug: /tdengine-reference/sql-manual/manage-permissions
 ---
 
-Permission management in TDengine TSDB is divided into [user management](../manage-users), database authorization management, and message subscription authorization management. This section focuses on database authorization and subscription authorization. Permission management is only available in TDengine Enterprise Edition. The authorization syntax is available in the community version 3.3.x.y and earlier, but has no effect. In 3.4.0.0 and later versions, the authorization syntax will report an error.
+In TDengine, permission management is divided into [user management](../manage-users/), database authorization management, and message subscription authorization management. This section focuses on database authorization and subscription authorization. The authorization syntax is available in the community version 3.3.x.y and earlier, but has no effect. In 3.4.0.0 and later versions, the authorization syntax will report an error.
 
 
 Starting from 3.4.0.0, TDengine Enterprise Edition implements a separation of three powers mechanism through role-based access control (RBAC), with significant changes to permissions. Some syntax is no longer compatible. The subsequent sections of this document will explain the differences.
@@ -27,7 +27,7 @@ Starting from 3.4.0.0, TDengine Enterprise Edition implements a separation of th
 
 ## Database Access Authorization
 
-System administrators can authorize each user in the system for each database according to business needs to prevent business data from being read or modified by inappropriate users. The syntax for authorizing database access to a user is as follows:
+System administrators can authorize each user in the system for each database according to business needs to prevent business data from being read or modified by inappropriate users. The syntax for authorizing a user for database access is as follows:
 
 ```sql
 GRANT privileges ON priv_level TO user_name
