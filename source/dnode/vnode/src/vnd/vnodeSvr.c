@@ -3021,33 +3021,31 @@ static int32_t vnodeSaveOneAuditRecord(SVnode *pVnode, int64_t ver, SJson *pJson
   vTrace("vgId:%d, affectedRow:%d", TD_VID(pVnode), pSubmitRsp->affectedRows);
 
 _exit:
-  if (code != 0)
+  if (code != 0) {
     vError("vgId:%d, failed to save one AuditRecord at line:%d, since %s", TD_VID(pVnode), lino, tstrerror(code));
-
-  // update statistics
-  (void)atomic_add_fetch_64(&pVnode->statis.nInsert, pSubmitRsp->affectedRows);
-  (void)atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
-  (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
-
-  // update metrics
-  METRICS_UPDATE(pVnode->writeMetrics.total_requests, METRIC_LEVEL_LOW, 1);
-  METRICS_UPDATE(pVnode->writeMetrics.total_rows, METRIC_LEVEL_HIGH, pSubmitRsp->affectedRows);
-  // METRICS_UPDATE(pVnode->writeMetrics.total_bytes, METRIC_LEVEL_LOW, pMsg->header.contLen);
-
-  if (tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && pSubmitRsp->affectedRows > 0 &&
-      strlen(RPC_MSG_USER(pOriginalMsg)) > 0 && tsInsertCounter != NULL) {
-    const char *sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS,
-                                   pVnode->monitor.strClusterId,
-                                   pVnode->monitor.strDnodeId,
-                                   tsLocalEp,
-                                   pVnode->monitor.strVgId,
-                                   RPC_MSG_USER(pOriginalMsg),
-                                   "Success"};
-    int         tv = taos_counter_add(tsInsertCounter, pSubmitRsp->affectedRows, sample_labels);
-  }
-
-  if (code == 0) {
+  } else {
+    // update statistics only on success
+    (void)atomic_add_fetch_64(&pVnode->statis.nInsert, pSubmitRsp->affectedRows);
+    (void)atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
+    (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
     (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
+
+    // update metrics
+    METRICS_UPDATE(pVnode->writeMetrics.total_requests, METRIC_LEVEL_LOW, 1);
+    METRICS_UPDATE(pVnode->writeMetrics.total_rows, METRIC_LEVEL_HIGH, pSubmitRsp->affectedRows);
+    // METRICS_UPDATE(pVnode->writeMetrics.total_bytes, METRIC_LEVEL_LOW, pMsg->header.contLen);
+
+    if (tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && pSubmitRsp->affectedRows > 0 &&
+        strlen(RPC_MSG_USER(pOriginalMsg)) > 0 && tsInsertCounter != NULL) {
+      const char *sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS,
+                                     pVnode->monitor.strClusterId,
+                                     pVnode->monitor.strDnodeId,
+                                     tsLocalEp,
+                                     pVnode->monitor.strVgId,
+                                     RPC_MSG_USER(pOriginalMsg),
+                                     "Success"};
+      int         tv = taos_counter_add(tsInsertCounter, pSubmitRsp->affectedRows, sample_labels);
+    }
   }
 
   // clear
@@ -3070,6 +3068,12 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
   SVAuditRecordReq req = {0};
   if (tDeserializeSVAuditRecordReq(pReq, len, &req) != 0) {
     vError("vgId:%d, failed to deserialize SVAuditRecordReq", TD_VID(pVnode));
+    code = TSDB_CODE_INVALID_MSG;
+    return code;
+  }
+
+  if (req.data == NULL) {
+    vError("vgId:%d, audit record data is NULL", TD_VID(pVnode));
     code = TSDB_CODE_INVALID_MSG;
     return code;
   }
@@ -3113,6 +3117,11 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
     vTrace("%d items in records", size);
     for (int32_t i = 0; i < size; ++i) {
       SJson *pRecord = tjsonGetArrayItem(pRecords, i);
+      if (pRecord == NULL) {
+        vError("vgId:%d, failed to get array item %d", TD_VID(pVnode), i);
+        code = TSDB_CODE_INVALID_JSON_FORMAT;
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+      }
       TAOS_CHECK_GOTO(vnodeSaveOneAuditRecord(pVnode, ver, pRecord, pTagSchema, suid, pSchema, pOriginalMsg), &lino,
                       _exit);
     }
