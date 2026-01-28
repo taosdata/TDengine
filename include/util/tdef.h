@@ -610,6 +610,9 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_DB_WITH_ARBITRATOR     1
 #define TSDB_MIN_DB_IS_AUDIT            0
 #define TSDB_MAX_DB_IS_AUDIT            1
+#define TSDB_DEFAULT_DB_ALLOW_DROP      1
+#define TSDB_MIN_DB_ALLOW_DROP          0
+#define TSDB_MAX_DB_ALLOW_DROP          1
 
 #define TSDB_MIN_ROLLUP_MAX_DELAY       1  // unit millisecond
 #define TSDB_MAX_ROLLUP_MAX_DELAY       (15 * 60 * 1000)
@@ -648,10 +651,10 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MAX_BLOB_LEN (4 << 20)
 
-#define TSDB_MAX_SUBROLE 32
-#define TSDB_MAX_PRIVS   512
-#define TSDB_MAX_USERS   2000
-#define TSDB_MAX_ROLES   200
+#define TSDB_MAX_SUBROLE   32
+#define TSDB_MAX_PRIV_OBJS 512
+#define TSDB_MAX_USERS     2000
+#define TSDB_MAX_ROLES     200
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
