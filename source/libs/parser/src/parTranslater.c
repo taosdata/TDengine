@@ -13899,6 +13899,24 @@ static int32_t translateAlterEncryptKey(STranslateContext* pCxt, SAlterEncryptKe
   return code;
 }
 
+static int32_t translateAlterKeyExpiration(STranslateContext* pCxt, SAlterKeyExpirationStmt* pStmt) {
+  SMAlterKeyExpirationReq alterReq = {0};
+  alterReq.days = pStmt->days;
+  tstrncpy(alterReq.strategy, pStmt->strategy, sizeof(alterReq.strategy));
+
+  // Get SQL text
+  alterReq.sql = taosStrdup(pCxt->pParseCxt->pSql);
+  if (NULL == alterReq.sql) {
+    return terrno;
+  }
+  alterReq.sqlLen = pCxt->pParseCxt->sqlLen + 1;
+
+  int32_t code =
+      buildCmdMsg(pCxt, TDMT_MND_ALTER_KEY_EXPIRATION, (FSerializeFunc)tSerializeSMAlterKeyExpirationReq, &alterReq);
+  tFreeSMAlterKeyExpirationReq(&alterReq);
+  return code;
+}
+
 static int32_t getSmaIndexSql(STranslateContext* pCxt, char** pSql, int32_t* pLen) {
   *pSql = taosStrdup(pCxt->pParseCxt->pSql);
   if (NULL == *pSql) {
@@ -19199,6 +19217,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
       code = translateAlterEncryptKey(pCxt, (SAlterEncryptKeyStmt*)pNode);
+      break;
+    case QUERY_NODE_ALTER_KEY_EXPIRATION_STMT:
+      code = translateAlterKeyExpiration(pCxt, (SAlterKeyExpirationStmt*)pNode);
       break;
     case QUERY_NODE_KILL_CONNECTION_STMT:
       code = translateKillConnection(pCxt, (SKillStmt*)pNode);

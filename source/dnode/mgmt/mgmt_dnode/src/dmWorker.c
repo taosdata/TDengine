@@ -23,9 +23,7 @@
 #endif
 
 // Encryption key expiration constants
-#define ENCRYPT_KEY_EXPIRE_DAYS      30
-#define MILLISECONDS_PER_DAY         (24 * 3600 * 1000)
-#define ENCRYPT_KEY_EXPIRE_THRESHOLD ((int64_t)ENCRYPT_KEY_EXPIRE_DAYS * MILLISECONDS_PER_DAY)
+#define MILLISECONDS_PER_DAY (24 * 3600 * 1000)
 
 static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
@@ -85,14 +83,17 @@ static void *dmKeySyncThreadFp(void *param) {
     if (interval >= tsStatusIntervalMs) {
       // Sync keys periodically (every 30 seconds) or on first run
       if (tsEncryptKeysStatus == TSDB_ENCRYPT_KEY_STAT_LOADED) {
-        // Check if encryption keys are expired
+        // Check if encryption keys are expired based on configured threshold
+        int64_t keyExpirationThreshold = (int64_t)tsKeyExpirationDays * MILLISECONDS_PER_DAY;
         int64_t svrKeyAge = curTime - tsSvrKeyUpdateTime;
         int64_t dbKeyAge = curTime - tsDbKeyUpdateTime;
 
-        if (svrKeyAge > ENCRYPT_KEY_EXPIRE_THRESHOLD || dbKeyAge > ENCRYPT_KEY_EXPIRE_THRESHOLD) {
-          dWarn("encryption keys may be expired, svrKeyAge:%" PRId64 " days, dbKeyAge:%" PRId64
-                " days, attempting reload",
-                svrKeyAge / MILLISECONDS_PER_DAY, dbKeyAge / MILLISECONDS_PER_DAY);
+        if (svrKeyAge > keyExpirationThreshold || dbKeyAge > keyExpirationThreshold) {
+          const char *action = (strcmp(tsKeyExpirationStrategy, "ALARM") == 0) ? "warning" : "attempting reload";
+          dWarn("encryption keys may be expired (threshold:%d days, strategy:%s), svrKeyAge:%" PRId64
+                " days, dbKeyAge:%" PRId64 " days, %s",
+                tsKeyExpirationDays, tsKeyExpirationStrategy, svrKeyAge / MILLISECONDS_PER_DAY,
+                dbKeyAge / MILLISECONDS_PER_DAY, action);
 #if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
           // Try to reload keys from file
           char masterKeyFile[PATH_MAX] = {0};
@@ -139,19 +140,20 @@ static void *dmKeySyncThreadFp(void *param) {
             // Check if keys are still expired after reload
             svrKeyAge = curTime - tsSvrKeyUpdateTime;
             dbKeyAge = curTime - tsDbKeyUpdateTime;
-            if (svrKeyAge > ENCRYPT_KEY_EXPIRE_THRESHOLD || dbKeyAge > ENCRYPT_KEY_EXPIRE_THRESHOLD) {
-              dError("encryption keys are still expired after reload, svrKeyAge:%" PRId64 " days, dbKeyAge:%" PRId64
-                     " days, please rotate keys",
-                     svrKeyAge / MILLISECONDS_PER_DAY, dbKeyAge / MILLISECONDS_PER_DAY);
+            if (svrKeyAge > keyExpirationThreshold || dbKeyAge > keyExpirationThreshold) {
+              dError("encryption keys are still expired after reload (threshold:%d days), svrKeyAge:%" PRId64
+                     " days, dbKeyAge:%" PRId64 " days, please rotate keys",
+                     tsKeyExpirationDays, svrKeyAge / MILLISECONDS_PER_DAY, dbKeyAge / MILLISECONDS_PER_DAY);
             } else {
-              dInfo("successfully reloaded encryption keys, svrKeyAge:%" PRId64 " days, dbKeyAge:%" PRId64 " days",
-                    svrKeyAge / MILLISECONDS_PER_DAY, dbKeyAge / MILLISECONDS_PER_DAY);
+              dInfo("successfully reloaded encryption keys, svrKeyAge:%" PRId64 " days, dbKeyAge:%" PRId64
+                    " days (threshold:%d days)",
+                    svrKeyAge / MILLISECONDS_PER_DAY, dbKeyAge / MILLISECONDS_PER_DAY, tsKeyExpirationDays);
             }
           } else {
             dError("failed to reload encryption keys since %s", tstrerror(code));
           }
 #endif
-      }
+        }
       } else if (tsEncryptKeysStatus == TSDB_ENCRYPT_KEY_STAT_DISABLED) {
         dInfo("encryption keys are disabled, stopping key sync thread");
         break;
@@ -766,6 +768,9 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_MND_ALTER_ENCRYPT_KEY:
       code = dmProcessAlterEncryptKeyReq(pMgmt, pMsg);
+      break;
+    case TDMT_MND_ALTER_KEY_EXPIRATION:
+      code = dmProcessAlterKeyExpirationReq(pMgmt, pMsg);
       break;
     case TDMT_DND_RELOAD_DNODE_TLS:
       code = dmProcessReloadTlsConfig(pMgmt, pMsg);

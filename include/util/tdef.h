@@ -242,6 +242,8 @@ typedef enum ELogicConditionType {
 #define ENCRYPT_KEY_LEN     16
 #define ENCRYPT_KEY_LEN_MIN 8
 
+#define ENCRYPT_KEY_EXPIRE_STRATEGY_LEN 16
+
 #define TSDB_INT32_ID_LEN 11
 
 #define TSDB_NAME_DELIMITER_LEN 1

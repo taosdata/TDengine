@@ -430,6 +430,7 @@ SNode*  alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType re
 
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue);
 SNode* createAlterEncryptKeyStmt(SAstCreateContext* pCxt, int8_t keyType, const SToken* pValue);
+SNode* createAlterKeyExpirationStmt(SAstCreateContext* pCxt, const SToken* pDays, const SToken* pStrategy);
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName);
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SNode* pIndexName,
                              SNode* pRealTable, SNodeList* pCols, SNode* pOptions);

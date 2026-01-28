@@ -5985,6 +5985,48 @@ _exit:
 
 void tFreeSMAlterEncryptKeyReq(SMAlterEncryptKeyReq *pReq) { FREESQL(); }
 
+int32_t tSerializeSMAlterKeyExpirationReq(void *buf, int32_t bufLen, SMAlterKeyExpirationReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->days));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->strategy));
+  ENCODESQL();
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMAlterKeyExpirationReq(void *buf, int32_t bufLen, SMAlterKeyExpirationReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->days));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->strategy));
+  DECODESQL();
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSMAlterKeyExpirationReq(SMAlterKeyExpirationReq *pReq) { FREESQL(); }
+
 int32_t tSerializeSDCfgDnodeReq(void *buf, int32_t bufLen, SDCfgDnodeReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;

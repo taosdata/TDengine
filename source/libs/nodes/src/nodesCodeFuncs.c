@@ -194,6 +194,8 @@ const char* nodesNodeName(ENodeType type) {
       return "AlterDnodesReloadTLSStmt";
     case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
       return "AlterEncryptKeyStmt";
+    case QUERY_NODE_ALTER_KEY_EXPIRATION_STMT:
+      return "AlterKeyExpirationStmt";
     case QUERY_NODE_CREATE_INDEX_STMT:
       return "CreateIndexStmt";
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -9051,6 +9053,31 @@ static int32_t jsonToAlterEncryptKeyStmt(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkAlterKeyExpirationStmtDays = "Days";
+static const char* jkAlterKeyExpirationStmtStrategy = "Strategy";
+
+static int32_t alterKeyExpirationStmtToJson(const void* pObj, SJson* pJson) {
+  const SAlterKeyExpirationStmt* pNode = (const SAlterKeyExpirationStmt*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkAlterKeyExpirationStmtDays, pNode->days);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkAlterKeyExpirationStmtStrategy, pNode->strategy);
+  }
+
+  return code;
+}
+
+static int32_t jsonToAlterKeyExpirationStmt(const SJson* pJson, void* pObj) {
+  SAlterKeyExpirationStmt* pNode = (SAlterKeyExpirationStmt*)pObj;
+
+  int32_t code = tjsonGetIntValue(pJson, jkAlterKeyExpirationStmtDays, &pNode->days);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkAlterKeyExpirationStmtStrategy, pNode->strategy);
+  }
+
+  return code;
+}
+
 static const char* jkExplainStmtAnalyze = "Analyze";
 static const char* jkExplainStmtOptions = "Options";
 static const char* jkExplainStmtQuery = "Query";
@@ -10157,6 +10184,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return alterDnodeStmtToJson(pObj, pJson);
     case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
       return alterEncryptKeyStmtToJson(pObj, pJson);
+    case QUERY_NODE_ALTER_KEY_EXPIRATION_STMT:
+      return alterKeyExpirationStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_INDEX_STMT:
       return createIndexStmtToJson(pObj, pJson);
     case QUERY_NODE_DROP_INDEX_STMT:
@@ -10639,6 +10668,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToAlterDnodeStmt(pJson, pObj);
     case QUERY_NODE_ALTER_ENCRYPT_KEY_STMT:
       return jsonToAlterEncryptKeyStmt(pJson, pObj);
+    case QUERY_NODE_ALTER_KEY_EXPIRATION_STMT:
+      return jsonToAlterKeyExpirationStmt(pJson, pObj);
     case QUERY_NODE_CREATE_INDEX_STMT:
       return jsonToCreateIndexStmt(pJson, pObj);
     case QUERY_NODE_DROP_INDEX_STMT:
