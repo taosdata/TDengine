@@ -22,6 +22,7 @@ TDengine TSDB 默认仅配置了一个 root 用户，该用户拥有最高权限
 | 表权限 | ✓ | ✓ |
 | 行权限 | ✗ | ✓ |
 | 列权限 | ✗ | ✓ |
+
 ---
 
 ## 用户管理
@@ -324,7 +325,7 @@ revoke subscribe on topic_name from test;
 
 **关键约束：**
 
-```
+```text
 ❌ 不允许将 SYSDBA/SYSSEC/SYSAUDIT 中任意两个同时授予同一用户
 ✓ 系统允许多个用户拥有同一系统角色
 ✓ 系统管理角色权限范围不可通过命令行更改，支持升级自动更新
@@ -935,7 +936,6 @@ REVOKE START ON STREAM power.realtime_agg FROM operator;
 REVOKE ALL ON STREAM power.realtime_agg FROM operator;
 ```
 
-
 ### 审计数据库
 
 3.4.0.0+ 专门支持审计数据库：
@@ -992,17 +992,19 @@ SHOW ROLE PRIVILEGES
 SELECT * FROM information_schema.ins_role_privileges
 ```
 
+```text
 taos> show role privileges;
  role_name      |    priv_type        |  priv_scope | db_name | table_name | condition |  notes | columns |     update_time       |
  ===================================================================================================================================
- SYSSEC         | SHOW CREATE         | TABLE       | *       | *          |           |        |         |                       |
- SYSSEC         | SHOW                | VIEW        | *       | *          |           |        |         |                       |
- SYSSEC         | SHOW CREATE         | VIEW        | *       | *          |           |        |         |                       |
- SYSSEC         | SHOW                | TSMA        | *       | *          |           |        |         |                       |
- SYSSEC         | SHOW CREATE         | TSMA        | *       | *          |           |        |         |                       |
+ SYSSEC         | SHOW CREATE         | TABLE       | \*      | \*         |           |        |         |                       |
+ SYSSEC         | SHOW                | VIEW        | \*      | \*         |           |        |         |                       |
+ SYSSEC         | SHOW CREATE         | VIEW        | \*      | \*         |           |        |         |                       |
+ SYSSEC         | SHOW                | TSMA        | \*      | \*         |           |        |         |                       |
+ SYSSEC         | SHOW CREATE         | TSMA        | \*      | \*         |           |        |         |                       |
  SYSAUDIT_LOG   | USE AUDIT DATABASE  | CLUSTER     |         |            |           |        |         |                       |
  SYSAUDIT_LOG   | CREATE AUDIT TABLE  | CLUSTER     |         |            |           |        |         |                       |
  SYSAUDIT_LOG   | INSERT AUDIT TABLE  | CLUSTER     |         |            |           |        |         |                       |
+```
 
 ---
 
