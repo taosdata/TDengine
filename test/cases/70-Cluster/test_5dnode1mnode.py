@@ -163,5 +163,5 @@ class Test5dnode1mnode:
         # check cluster and db alive
         self.check_alive()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

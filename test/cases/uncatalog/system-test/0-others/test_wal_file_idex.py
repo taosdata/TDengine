@@ -91,5 +91,5 @@ class TestWalFileIdex:
         tdDnodes.stop(1)
         
     
-        tdLog.success(f"{__file__} successfully executed")
+
 

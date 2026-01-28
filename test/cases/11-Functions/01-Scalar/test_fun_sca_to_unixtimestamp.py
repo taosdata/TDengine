@@ -127,4 +127,4 @@ class TestFunToUnixtimestamp:
         self.timestamp_change_check_stb()
         self.timestamp_change_return_type()
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+

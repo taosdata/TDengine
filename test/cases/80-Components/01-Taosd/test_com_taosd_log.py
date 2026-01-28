@@ -415,5 +415,5 @@ class TestTaosdlog:
         self.closeTaosd()
         self.closeTaos()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

@@ -135,7 +135,7 @@ class TestInsertDouble:
         tdLog.printNoPrefix("==========end case2 run ...............")
         
         #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
+
 
 
     #
@@ -248,7 +248,7 @@ class TestInsertDouble:
         tdSql.execute("drop table if exists test_t ;")
         tdSql.execute("drop stable if exists st;")
         tdSql.execute("drop database if exists test_insert_timestamp;")
-        tdLog.success("%s successfully executed" % __file__)
+
 
     def __convert_ts_to_date(self, ts: int) -> str:
         dt_object = datetime.datetime.fromtimestamp(ts / 1e9)
