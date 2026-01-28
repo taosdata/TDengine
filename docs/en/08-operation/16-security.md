@@ -97,6 +97,8 @@ Additionally, for an audit database:
 - `WAL_LEVEL` defaults to 2 and cannot be changed by the user.
 - `ENCRYPT_ALGORITHM` cannot be specified as `None`. The user can choose any symmetric encryption algorithm in CBC mode.
 
+Audit databases in versions prior to 3.4.0.0 are incompatible with those in versions after 3.4.0.0. The is_audit parameter cannot be enabled, meaning there are no mandatory requirements for DURATION, WAL_LEVEL, and ENCRYPT_ALGORITHM. Audit databases from versions prior to 3.4.0.0 can only be recreated after being dropped. To use audit databases created with pre-3.4.0.0 versions in versions after 3.4.0.0, you must disable auditUseToken by setting it to 0.
+
 ### taosKeeper Configuration
 
 Configure the related parameters for audit logs in the taosKeeper configuration file `keeper.toml`, as shown in the table below
