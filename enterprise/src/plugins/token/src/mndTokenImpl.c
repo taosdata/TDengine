@@ -529,7 +529,7 @@ static int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_TOO_MANY_TOKENS, &lino, _OVER);
   }
 
-  TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), createReq.user, NULL), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), createReq.user, NULL, PRIV_TOKEN_CREATE), &lino, _OVER);
   TAOS_CHECK_GOTO(mndCreateToken(pMnode, &createReq, pTokenUser, pReq), &lino, _OVER);
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -631,10 +631,11 @@ static int32_t mndProcessAlterTokenReq(SRpcMsg *pReq) {
   mInfo("token:%s, start to alter", alterReq.name);
 
   TAOS_CHECK_GOTO(mndAcquireToken(pMnode, alterReq.name, &pToken), &lino, _OVER);
-  TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pToken->user, pToken->token), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pToken->user, pToken->token, PRIV_TOKEN_ALTER), NULL, _OVER);
+
   TAOS_CHECK_GOTO(mndTokenDupObj(pToken, &newToken), &lino, _OVER);
 
-  char auditLog[256] = {0};
+  char    auditLog[256] = {0};
   int32_t auditLen = 0;
 
   if (alterReq.hasEnable) {
@@ -741,7 +742,7 @@ static int32_t mndProcessDropTokenReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndAcquireToken(pMnode, dropReq.name, &pToken), &lino, _OVER);
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pToken->user, &pTokenUser), &lino, _OVER);
-  TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pToken->user, pToken->token), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckTokenPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pToken->user, pToken->token, PRIV_TOKEN_DROP), &lino, _OVER);
   TAOS_CHECK_GOTO(mndDropToken(pMnode, pToken, pTokenUser, pReq), &lino, _OVER);
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -818,7 +819,9 @@ static int32_t mndRetrieveTokens(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pShow->pIter = sdbFetch(pSdb, SDB_TOKEN, pShow->pIter, (void **)&pToken);
     if (pShow->pIter == NULL) break;
 
-    if (!pUser->superUser && taosStrcasecmp(pToken->user, pUser->user) != 0) {
+    // token'd be dropped when user is dropped, no need to check owneId
+    if (taosStrcasecmp(pToken->user, pUser->user) != 0 &&
+        mndCheckSysObjPrivilege(pMnode, pUser, RPC_MSG_TOKEN(pReq), PRIV_TOKEN_SHOW, 0, 0, NULL, NULL)) {
       sdbRelease(pSdb, pToken);
       continue;
     }

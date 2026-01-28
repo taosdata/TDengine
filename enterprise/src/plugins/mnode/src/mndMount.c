@@ -27,6 +27,7 @@
 #include "mndStb.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndRole.h"
 #include "mndVgroup.h"
 
 #define MND_MOUNT_LOG_VER_NUMBER 1
@@ -291,6 +292,8 @@ static int32_t mndMountSetDbInfo(SMountInfo *pInfo, SMountDbInfo *pDb, SDbObj *p
   pCfg->ssCompact = pVg->ssCompact;
   pCfg->withArbitrator = pVg->replications == 2 ? TSDB_MAX_DB_WITH_ARBITRATOR : TSDB_MIN_DB_WITH_ARBITRATOR;
   pCfg->encryptAlgorithm = pVg->encryptAlgorithm;
+  pCfg->isAudit = pVg->isAudit;
+  pCfg->allowDrop = pVg->allowDrop;
 
   return 0;
 }
@@ -616,6 +619,8 @@ static int32_t mndBuildMountVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *
   pCreateReq->hashPrefix = pDb->cfg.hashPrefix;
   pCreateReq->hashSuffix = pDb->cfg.hashSuffix;
   pCreateReq->tsdbPageSize = pDb->cfg.tsdbPageSize;
+  pCreateReq->isAudit = pDb->cfg.isAudit;
+  pCreateReq->allowDrop = pDb->cfg.allowDrop;
   pCreateReq->changeVersion = ++(pVgroup->syncConfChangeVer);
 
   memset(pCreateReq->encryptAlgrName, 0, TSDB_ENCRYPT_ALGR_NAME_LEN);
@@ -964,8 +969,10 @@ static int32_t mndSetDropMountDbLogs(SMnode *pMnode, STrans *pTrans, SMountObj *
   int32_t    code = 0, lino = 0;
   SSdb      *pSdb = pMnode->pSdb;
   SSHashObj *pUsers = NULL;
+  SSHashObj *pRoles = NULL;
   void      *pIter = NULL;
   SUserObj  *pUser = NULL;
+  SRoleObj *pRole = NULL;
   int32_t    iter = 0;
 
   while (1) {
@@ -973,14 +980,14 @@ static int32_t mndSetDropMountDbLogs(SMnode *pMnode, STrans *pTrans, SMountObj *
     pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
     if (pIter == NULL) break;
     if (pDb->cfg.isMount) {
-      const char *pDbName = strstr(pDb->name, ".");
+      const char *pDbName = strstr(pDb->name, "."); // 1.mntName_dbName
       const char *pMountPrefix = pDbName ? strstr(pDbName + 1, pObj->name) : NULL;
       if (pMountPrefix && (pMountPrefix == (pDbName + 1)) && (pMountPrefix[strlen(pObj->name)] == '_')) {
         mInfo("db:%s, is mount db, start to drop", pDb->name);
         if ((code = mndSetDropDbPrepareLogs(pMnode, pTrans, pDb)) != 0 ||
             (code = mndSetDropDbCommitLogs(pMnode, pTrans, pDb)) != 0 ||
             (code = mndDropIdxsByDb(pMnode, pTrans, pDb)) != 0 ||
-            (code = mndUserRemoveDb(pMnode, pTrans, pDb, &pUsers)) != 0) {
+            (code = mndPrincipalRemoveDb(pMnode, pTrans, pDb, &pUsers, &pRoles)) != 0) {
           sdbCancelFetch(pSdb, pIter);
           sdbRelease(pSdb, pDb);
           TAOS_CHECK_EXIT(code);
@@ -997,23 +1004,25 @@ static int32_t mndSetDropMountDbLogs(SMnode *pMnode, STrans *pTrans, SMountObj *
       }
       TAOS_CHECK_EXIT(mndTransAppendCommitlog(pTrans, pCommitRaw));
       TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
-      mndUserFreeObj(pUser);
     }
-    tSimpleHashCleanup(pUsers);
-    pUsers = NULL;
+  }
+  if (pRoles) {
+    iter = 0;
+    while ((pRole = (SRoleObj *)tSimpleHashIterate(pRoles, (void *)pRole, &iter))) {
+      SSdbRaw *pCommitRaw = mndRoleActionEncode(pRole);
+      if (pCommitRaw == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      TAOS_CHECK_EXIT(mndTransAppendCommitlog(pTrans, pCommitRaw));
+      TAOS_CHECK_EXIT(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
+    }
   }
 _exit:
   if (code != 0) {
     mError("mount:%s, failed to drop mount dbs at line %d since %s", pObj->name, lino, tstrerror(code));
   }
-  if (pUsers) {
-    pUser = NULL;
-    iter = 0;
-    while ((pUser = (SUserObj *)tSimpleHashIterate(pUsers, (void *)pUser, &iter))) {
-      mndUserFreeObj(pUser);
-    }
-    tSimpleHashCleanup(pUsers);
-  }
+  if (pUsers) tSimpleHashCleanup(pUsers);
+  if (pRoles) tSimpleHashCleanup(pRoles);
   TAOS_RETURN(code);
 }
 
