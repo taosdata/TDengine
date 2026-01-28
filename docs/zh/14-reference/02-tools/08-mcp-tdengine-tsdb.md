@@ -94,14 +94,25 @@ claude mcp add tdengine-tsdb -- /path-to-mcp/mcp-tdengine-tsdb --host localhost 
 以下是一些使用示例：
 
 1. 获取连接信息
+
    ![mcp-info.webp](assets/mcp-info.webp)
+
 2. 获取 dnode 列表
+
    ![mcp-list-dnodes.webp](assets/mcp-list-dnodes.webp)
+
 3. 获取数据库列表
-   ![mcp-show.webp](assets/mcp-show.webp)
+
+   ![mcp-show-databases.webp](assets/mcp-show-databases.webp)
+
 4. 获取超级表列表
+
    ![mcp-show-stables.webp](assets/mcp-show-stables.webp)
+
 5. 获取表结构
+
    ![mcp-describe.webp](assets/mcp-describe.webp)
+
 6. 执行查询语句
+
    ![mcp-query.webp](assets/mcp-query.webp)
