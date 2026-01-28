@@ -859,7 +859,7 @@ typedef struct SSTriggerWalNewRsp {
   void*                deleteBlock;
   void*                dropBlock;
   int64_t              ver;
-  int64_t              verTime;
+  int64_t              verTime;  // us
   int32_t              totalRows;
   bool                 isCalc;
 } SSTriggerWalNewRsp;
