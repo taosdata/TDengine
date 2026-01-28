@@ -317,6 +317,6 @@ revoke subscribe on topic_name from test;
 
 ## 权限管理 - 3.4.0.0+ 版本
 
-从 3.4.0.0 开始，TDengine 企业版通过基于角色的访问控制（RBAC）实现了严格的三权分立机制，将 root 用户的管理权限拆分为 SYSDBA、SYSSEC 和 SYSAUDIT 三种系统管理权限，从而实现权限的有效隔离和制衡。
+从 3.4.0.0 开始，TDengine 企业版通过基于角色的访问控制（RBAC）实现了三权分立机制，将 root 用户的管理权限拆分为 SYSDBA、SYSSEC 和 SYSAUDIT 三种系统管理权限，从而实现权限的有效隔离和制衡。
 
 详细内容请参考 [权限管理](../14-reference/03-taos-sql/61-grant) 部分

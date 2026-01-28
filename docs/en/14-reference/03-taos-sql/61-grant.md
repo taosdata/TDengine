@@ -194,7 +194,7 @@ priv_level : {
 
 ### Overview of Separation of Three Powers
 
-Starting from 3.4.0.0, TDengine Enterprise Edition implements a strict separation of three powers mechanism through role-based access control (RBAC). The management permissions of the root user are split into SYSDBA, SYSSEC, and SYSAUDIT three system management permissions, achieving effective isolation and balance of powers.
+Starting from 3.4.0.0, TDengine Enterprise Edition implements a separation of three powers mechanism through role-based access control (RBAC). The management permissions of the root user are split into SYSDBA, SYSSEC, and SYSAUDIT three system management permissions, achieving effective isolation and balance of powers.
 
 | Role | Full Name | Responsibilities |
 |------|-----------|------------------|
