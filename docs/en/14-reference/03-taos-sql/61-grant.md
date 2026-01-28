@@ -345,8 +345,7 @@ GRANT privileges TO {user_name | role_name};
 REVOKE privileges FROM {user_name | role_name};
 
 privileges: {
-    ALL [PRIVILEGES]
-  | priv_type [, priv_type] ...
+  priv_type [, priv_type] ...
 }
 
 priv_type: {
@@ -361,7 +360,7 @@ priv_type: {
 
     -- User permissions
   | CREATE USER | DROP USER | ALTER USER
-  | SET USER BASIC INFORMATION | SET USER SECURITY INFORMATION | SET USER AUDIT INFORMATION |
+  | SET USER BASIC INFORMATION | SET USER SECURITY INFORMATION | SET USER AUDIT INFORMATION
   | UNLOCK USER | LOCK USER | SHOW USERS
 
     -- Token permissions
@@ -371,7 +370,7 @@ priv_type: {
   | CREATE ROLE | DROP ROLE | SHOW ROLES | LOCK ROLE | UNLOCK ROLE
 
     -- Key permissions
-  | CREATE TOTP | DROP TOTP | 
+  | CREATE TOTP | DROP TOTP
   
     -- Password permissions
   | ALTER PASS | ALTER SELF PASS
@@ -387,9 +386,9 @@ priv_type: {
   | SHOW SECURITY VARIABLES | SHOW AUDIT VARIABLES | SHOW SYSTEM VARIABLES | SHOW DEBUG VARIABLES
 
     -- System management permissions
-  | READ INFORMATION SCHEMA BASIC | READ INFORMATION SCHEMA PRIVILEGED
-  | READ INFORMATION SCHEMA SECURITY | READ INFORMATION SCHEMA AUDIT 
-  | READ PERFORMANCE SCHEMA BASIC | READ PERFORMANCE SCHEMA PRIVILEGED
+  | READ INFORMATION_SCHEMA BASIC | READ INFORMATION_SCHEMA PRIVILEGED
+  | READ INFORMATION_SCHEMA SECURITY | READ INFORMATION_SCHEMA AUDIT 
+  | READ PERFORMANCE_SCHEMA BASIC | READ PERFORMANCE_SCHEMA PRIVILEGED
   | SHOW TRANSACTIONS | KILL TRANSACTION
   | SHOW CONNECTIONS | KILL CONNECTION
   | SHOW QUERIES | KILL QUERY
@@ -576,8 +575,6 @@ GRANT ALL ON power.devices to operator;
 -- User can modify table structure in power database
 GRANT ALTER ON power.* TO dba_user;
 
--- User can create tables and indexes
-GRANT CREATE TABLE, CREATE INDEX ON power TO dba_user;
 ```
 
 **Table Permission Policy and Priority:**
@@ -594,7 +591,7 @@ Row permissions are used to restrict users to only access rows in tables that me
 
 ```sql
 GRANT SELECT ON table_name WITH condition TO user_name;
-REVOKE SELECT ON table_name FROM user_name;
+REVOKE SELECT ON table_name FROM user_name; // the revoke will take effect regardless of whether a condition is specified
 REVOKE ALL ON table_name FROM user_name;
 ```
 
@@ -672,10 +669,6 @@ GRANT SELECT, INSERT (ts, temperature), DELETE ON power.meters WITH source='sens
 ### View Permissions
 
 View permissions are used to control user access and operations on views. View permissions need to be granted separately; database permissions do not include view permissions.
-
-**Permission Application Levels:**
-
-- `[dbname.]view_name`: Specified view (specified database or not)
 
 **Common Permission Combinations:**
 
@@ -763,14 +756,11 @@ REVOKE ALL ON TOPIC power.device_events FROM inspector;
 
 - **Creation Permission**: Topic creation permission is controlled through `CREATE TOPIC` database permission; any user with `CREATE TOPIC` permission can create topics on that database
 - **Delete Permission**: Only topic creator and users with `DROP TOPIC` permission can delete topics
-- **Subscribe Permission**: Independently controlled through `SUBSCRIBE` permission; users without database access can be granted subscribe permission
 - **Consumer Management**: Users with `SHOW CONSUMERS` permission can view consumer information of that topic
 
 **Permission Priority:**
 
 - Explicitly specified topic name permissions > wildcard `*` permissions
-- Later update rules take effect
-- Same update time, user permissions take precedence over role permissions
 
 ### Stream Computing Permissions
 
@@ -875,11 +865,11 @@ SELECT * FROM information_schema.ins_role_privileges
 taos> show role privileges;
  role_name      |    priv_type        |  priv_scope | db_name | table_name | condition |  notes | columns |     update_time       |
  ===================================================================================================================================
- SYSSEC         | SHOW CREATE         | TABLE       | \*      | \*         |           |        |         |                       |
- SYSSEC         | SHOW                | VIEW        | \*      | \*         |           |        |         |                       |
- SYSSEC         | SHOW CREATE         | VIEW        | \*      | \*         |           |        |         |                       |
- SYSSEC         | SHOW                | TSMA        | \*      | \*         |           |        |         |                       |
- SYSSEC         | SHOW CREATE         | TSMA        | \*      | \*         |           |        |         |                       |
+ SYSSEC         | SHOW CREATE         | TABLE       |  *      |  *         |           |        |         |                       |
+ SYSSEC         | SHOW                | VIEW        |  *      |  *         |           |        |         |                       |
+ SYSSEC         | SHOW CREATE         | VIEW        |  *      |  *         |           |        |         |                       |
+ SYSSEC         | SHOW                | TSMA        |  *      |  *         |           |        |         |                       |
+ SYSSEC         | SHOW CREATE         | TSMA        |  *      |  *         |           |        |         |                       |
  SYSAUDIT_LOG   | USE AUDIT DATABASE  | CLUSTER     |         |            |           |        |         |                       |
  SYSAUDIT_LOG   | CREATE AUDIT TABLE  | CLUSTER     |         |            |           |        |         |                       |
  SYSAUDIT_LOG   | INSERT AUDIT TABLE  | CLUSTER     |         |            |           |        |         |                       |

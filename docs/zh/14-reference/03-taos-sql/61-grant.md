@@ -343,8 +343,7 @@ GRANT privileges TO {user_name | role_name};
 REVOKE privileges FROM {user_name | role_name};
 
 privileges: {
-    ALL [PRIVILEGES]
-  | priv_type [, priv_type] ...
+  priv_type [, priv_type] ...
 }
 
 priv_type: {
@@ -359,7 +358,7 @@ priv_type: {
 
     -- 用户权限
   | CREATE USER | DROP USER | ALTER USER
-  | SET USER BASIC INFORMATION | SET USER SECURITY INFORMATION | SET USER AUDIT INFORMATION |
+  | SET USER BASIC INFORMATION | SET USER SECURITY INFORMATION | SET USER AUDIT INFORMATION
   | UNLOCK USER | LOCK USER | SHOW USERS
 
     -- 令牌权限
@@ -369,7 +368,7 @@ priv_type: {
   | CREATE ROLE | DROP ROLE | SHOW ROLES | LOCK ROLE | UNLOCK ROLE
 
     -- 密钥权限
-  | CREATE TOTP | DROP TOTP | 
+  | CREATE TOTP | DROP TOTP
   
     -- 密码权限
   | ALTER PASS | ALTER SELF PASS
@@ -385,9 +384,9 @@ priv_type: {
   | SHOW SECURITY VARIABLES | SHOW AUDIT VARIABLES | SHOW SYSTEM VARIABLES | SHOW DEBUG VARIABLES
 
     -- 系统管理权限
-  | READ INFORMATION SCHEMA BASIC | READ INFORMATION SCHEMA PRIVILEGED
-  | READ INFORMATION SCHEMA SECURITY | READ INFORMATION SCHEMA AUDIT 
-  | READ PERFORMANCE SCHEMA BASIC | READ PERFORMANCE SCHEMA PRIVILEGED
+  | READ INFORMATION_SCHEMA BASIC | READ INFORMATION_SCHEMA PRIVILEGED
+  | READ INFORMATION_SCHEMA SECURITY | READ INFORMATION_SCHEMA AUDIT 
+  | READ PERFORMANCE_SCHEMA BASIC | READ PERFORMANCE_SCHEMA PRIVILEGED
   | SHOW TRANSACTIONS | KILL TRANSACTION
   | SHOW CONNECTIONS | KILL CONNECTION
   | SHOW QUERIES | KILL QUERY
@@ -574,8 +573,6 @@ GRANT ALL ON power.devices to operator;
 -- 用户可以修改 power 库中所有表的结构
 GRANT ALTER ON power.* TO dba_user;
 
--- 用户可以创建表和索引
-GRANT CREATE TABLE, CREATE INDEX ON power TO dba_user;
 ```
 
 **表权限策略及优先级：**
@@ -592,7 +589,7 @@ GRANT CREATE TABLE, CREATE INDEX ON power TO dba_user;
 
 ```sql
 GRANT SELECT ON table_name WITH condition TO user_name;
-REVOKE SELECT ON table_name FROM user_name;
+REVOKE SELECT ON table_name FROM user_name; // revoke 时无论是否指定 condition，均会发回对应表的 select 权限。
 REVOKE ALL ON table_name FROM user_name;
 ```
 
@@ -671,9 +668,6 @@ GRANT SELECT, INSERT (ts, temperature), DELETE ON power.meters WITH source='sens
 
 视图权限用于控制用户对视图的访问和操作。视图权限需要单独授权，数据库权限不包含视图权限。
 
-**权限应用级别：**
-
-- `[dbname.]view_name`：指定视图（指定数据库或不指定）
 
 **常用权限组合：**
 
@@ -761,14 +755,11 @@ REVOKE ALL ON TOPIC power.device_events FROM inspector;
 
 - **创建权限**：主题创建权通过 `CREATE TOPIC` 数据库权限控制，任意用户在拥有 `CREATE TOPIC` 权限的数据库上都可以创建主题
 - **删除权限**：仅主题创建者和拥有 `DROP TOPIC` 权限的用户可以删除主题
-- **订阅权限**：通过 `SUBSCRIBE` 权限独立控制，用户即使没有数据库访问权限，也可被授予订阅权限
 - **消费者管理**：拥有 `SHOW CONSUMERS` 权限可查看订阅该主题的消费者信息
 
 **权限优先级：**
 
 - 显式指定主题名的权限 > 通配符 `*` 权限
-- 更新时间靠后的规则生效
-- 相同更新时间，用户权限优先于角色权限
 
 ### 流计算权限
 
@@ -873,11 +864,11 @@ SELECT * FROM information_schema.ins_role_privileges
 taos> show role privileges;
  role_name      |    priv_type        |  priv_scope | db_name | table_name | condition |  notes | columns |     update_time       |
  ===================================================================================================================================
- SYSSEC         | SHOW CREATE         | TABLE       | \*      | \*         |           |        |         |                       |
- SYSSEC         | SHOW                | VIEW        | \*      | \*         |           |        |         |                       |
- SYSSEC         | SHOW CREATE         | VIEW        | \*      | \*         |           |        |         |                       |
- SYSSEC         | SHOW                | TSMA        | \*      | \*         |           |        |         |                       |
- SYSSEC         | SHOW CREATE         | TSMA        | \*      | \*         |           |        |         |                       |
+ SYSSEC         | SHOW CREATE         | TABLE       |  *      |  *         |           |        |         |                       |
+ SYSSEC         | SHOW                | VIEW        |  *      |  *         |           |        |         |                       |
+ SYSSEC         | SHOW CREATE         | VIEW        |  *      |  *         |           |        |         |                       |
+ SYSSEC         | SHOW                | TSMA        |  *      |  *         |           |        |         |                       |
+ SYSSEC         | SHOW CREATE         | TSMA        |  *      |  *         |           |        |         |                       |
  SYSAUDIT_LOG   | USE AUDIT DATABASE  | CLUSTER     |         |            |           |        |         |                       |
  SYSAUDIT_LOG   | CREATE AUDIT TABLE  | CLUSTER     |         |            |           |        |         |                       |
  SYSAUDIT_LOG   | INSERT AUDIT TABLE  | CLUSTER     |         |            |           |        |         |                       |
