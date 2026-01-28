@@ -556,47 +556,188 @@ privileges: {
   | priv_type [, priv_type] ...
 }
 
+column_list: {
+    columnName [,columnName] ...
+}
+
 priv_type: {
 
-    #### 库权限
+    #### 库权限(database)
 
-    ALTER [DATABASE] | DROP [DATABASE] | USE [DATABASE]
-    FLUSH [DATABASE] | COMPACT [DATABASE] | TRIM [DATABASE]
-    ROLLUP [DATABASE] | SCAN [DATABASE] | SHOW [DATABASES]
+    ALTER [DATABASE] | DROP [DATABASE] | USE [DATABASE] | FLUSH [DATABASE] 
+    | COMPACT [DATABASE] | TRIM [DATABASE] | ROLLUP [DATABASE] | SCAN [DATABASE]
+    | SSMIGRATE DATABASE | SHOW [DATABASES] 
+    | CREATE TABLE | CREATE VIEW | CREATE TOPIC | CREATE STREAM
 
-    #### 表权限
+    #### 表权限(table)
 
-    CREATE TABLE | DROP TABLE | ALTER TABLE
-    SHOW TABLES | SHOW CREATE TABLE
-    SELECT TABLE | INSERT TABLE | DELETE TABLE
+    DROP [TABLE] | ALTER [TABLE] | SHOW CREATE [TABLE] | SHOW [TABLES]
+    | SELECT [TABLE] | INSERT [TABLE] | DELETE [TABLE]
+    | CREATE INDEX | CREATE TSMA | CREATE RSMA
+    
+    #### 列权限(table)
 
-    #### 视图权限
+    SELECT (column_list) | INSERT (column_list) 
 
-    CREATE VIEW | DROP VIEW | SHOW VIEWS | SELECT VIEW
+    #### 视图权限(view)
 
-    #### 索引权限
+    DROP [VIEW] | ALTER [VIEW] | SHOW [VIEWS] | SELECT VIEW
 
-    CREATE INDEX | DROP INDEX | SHOW INDEXES
+    #### 索引权限(index)
 
-    #### 窗口预聚集权限
+    DROP [INDEX] | SHOW [INDEXES] | SHOW CREATE [INDEX]
 
-    CREATE TSMA | DROP TSMA SHOW TSMAS
+    #### 窗口预聚集权限(tsma)
 
-    #### 降采样存储权限
+    DROP [TSMA] | SHOW [TSMAS] | SHOW CREATE [TSMA]
 
-    CREATE RSMA | DROP RSMA | ALTER RSMA | SHOW RSMAS | SHOW CREATE RSMA
+    #### 降采样存储权限(rsma)
 
-    #### 订阅权限
+    DROP [RSMA] | ALTER [RSMA] | SHOW [RSMAS] | SHOW CREATE [RSMA]
 
-    CREATE TOPIC | DROP TOPIC | SHOW TOPICS | SUBSCRIBE
-    SHOW CONSUMERS | SHOW SUBSCRIPTIONS
+    #### 主题权限(topic)
 
-    #### 流计算权限
+    DROP [TOPIC] | SHOW [TOPICS] | SHOW CREATE [TOPIC] | SUBSCRIBE [TOPIC]
+    | SHOW CONSUMERS | SHOW SUBSCRIPTIONS
 
-    CREATE STREAM | DROP STREAM | SHOW STREAMS
-    START STREAM | STOP STREAM | RECALC STREAM
+    #### 流计算权限(stream)
+
+    DROP [STREAM] | SHOW [STREAMS] | SHOW CREATE [STREAM]
+    | START [STREAM] | STOP [STREAM] | RECALCULATE [STREAM]
 }
 ```
+
+#### 表权限
+
+表权限用于控制用户对表的访问和操作。表权限可以在不同级别应用：
+
+**权限应用级别：**
+
+- `*.*`：所有数据库的所有表
+- `dbname.*`：指定数据库的所有表
+- `dbname.tbname`：指定数据库的指定表
+
+**常用权限组合：**
+
+| 权限组合 | 说明 | 使用场景 |
+|---------|------|---------|
+| SELECT | 查询表数据 | 数据分析、报表查询 |
+| INSERT | 写入表数据 | 数据采集、实时写入 |
+| SELECT, INSERT | 读写数据 | 数据处理、ETL操作 |
+| SELECT, INSERT, DELETE | 完整操作 | 数据维护、数据清理 |
+| ALTER, DROP | 修改表结构 | 表结构管理、维护 |
+
+**示例 - 表权限授权：**
+
+```sql
+-- 用户只能查询 power 库的 meters 表
+GRANT SELECT ON power.meters TO analyst;
+
+-- 用户可以向 power 库的所有表写入数据
+GRANT INSERT ON power.* TO collector;
+
+-- 用户对 power 库的 devices 表有 SELECT,INSERT,DELETE 操作权限
+GRANT SELECT, INSERT, DELETE ON power.devices TO operator;
+
+-- 用户对 power 库的 devices 表有完整操作权限
+GRANT ALL ON power.devices to operator;
+
+-- 用户可以修改 power 库中所有表的结构
+GRANT ALTER ON power.* TO dba_user;
+
+-- 用户可以创建表和索引
+GRANT CREATE TABLE, CREATE INDEX ON power TO dba_user;
+```
+
+**表权限策略及优先级：**
+
+- 子表权限 > 超级表权限。如果没有子表权限，子表继承超级表的权限。
+- 显式指定表名的权限 > 隐含的通配符 * 权限。
+- 表的 owner 拥有该表的完整操作权限，子表继承超级表的 owner。
+
+#### 行权限
+
+行权限用于限制用户只能访问表中满足特定条件的行数据。通过 `WITH` 子句指定行过滤条件。
+
+**语法：**
+
+```sql
+GRANT SELECT ON table_name WITH condition TO user_name;
+REVOKE SELECT ON table_name FROM user_name;
+REVOKE ALL ON table_name FROM user_name;
+```
+
+**条件规则：**
+
+- 条件适用于超级表或普通表
+- 不能指定子表的条件
+- 同一表只能设置一条条件规则
+- 多个条件可使用 `AND/OR` 组合
+- 可以与 tag 子表条件组合使用
+- 可以与列权限组合使用
+
+**示例 - 按数据源分行权限：**
+
+```sql
+-- 用户 u1 只能查看来自传感器 sensor_001 的数据
+GRANT SELECT ON power.meters WITH source='sensor_001' TO u1;
+
+-- 用户 u2 只能查看温度大于 30°C 的数据
+GRANT SELECT ON power.meters WITH temperature > 30 TO u2;
+
+-- 用户 u3 可查看/写入/删除时间范围内的数据
+GRANT SELECT, INSERT, DELETE ON power.meters WITH ts >= '2024-01-01' AND ts < '2024-02-01' TO u3;
+```
+
+#### 列权限
+
+列权限用于限制用户只能访问表中的特定列，只支持在 `SELECT` 或 `INSERT` 权限中指定列。
+
+**语法：**
+
+```sql
+GRANT SELECT (col1, col2, ...) ON table_name TO user_name;
+GRANT INSERT (col1, col2, ...) ON table_name TO user_name;
+REVOKE SELECT,INSERT ON table_name FROM user_name;
+REVOKE ALL ON table_name FROM user_name;
+```
+
+**列权限规则：**
+
+- 只适用于 `SELECT` 和 `INSERT` 操作
+- 只能指定超级表或普通表，不能指定子表
+- 同一表同一操作只能设置一条规则
+- 可配合行权限一起使用
+
+**示例 - 按列分权限：**
+
+```sql
+-- 用户 analyst 只能查看功率和时间戳列
+GRANT SELECT (ts, power) ON power.meters TO analyst;
+
+-- 用户 writer 只能向温度列写入数据
+GRANT INSERT (ts, temperature) ON power.meters TO writer;
+
+-- 用户 limited_user 只能查看设备ID和状态列
+GRANT SELECT (device_id, status) ON power.meters TO limited_user;
+```
+
+**示例 - 结合行权限和列权限：**
+
+```sql
+-- 用户只能查看特定时间范围内的功率和状态列
+GRANT SELECT (ts, power, status) ON power.meters WITH ts >= '2024-01-01' TO analyst;
+
+-- 用户只能向特定来源的传感器操作温度数据
+GRANT SELECT, INSERT (ts, temperature), DELETE ON power.meters WITH source='sensor_001' TO collector;
+```
+
+**行/列权限优先级：**
+
+- 更新时间靠后的规则生效
+- 相同更新时间，用户权限优先于角色权限
+- 用户和角色不同类型的权限取并集
+
 
 ### 审计数据库
 
@@ -636,10 +777,35 @@ priv_type: {
 SHOW USER PRIVILEGES
 SELECT * FROM information_schema.ins_user_privileges
 
+taos> show user privileges;
+ user_name |    priv_type        |  priv_scope | db_name | table_name | condition |  notes | columns |        update_time         |
+===================================================================================================================================
+ u1        | CREATE DATABASE     | CLUSTER     |         |            |           |        |         |                            |
+ u1        | SUBSCRIBE           | TOPIC       | d0      | topic1     |           |        |         |                            |
+ u1        | USE DATABASE        | DATABASE    | d0      |            |           |        |         |                            |
+ u1        | CREATE TABLE        | DATABASE    | d0      |            |           |        |         |                            |
+ u1        | ALTER               | VIEW        | d0      | v1         |           |        |         |                            |
+ u1        | SELECT VIEW         | VIEW        | d0      | v1         |           |        |         |                            |
+ u1        | SELECT              | TABLE       | d0      | stb0       |           |        | ts,c0   | 2026-01-28 14:39:56.960258 |
+ u1        | INSERT              | TABLE       | d0      | stb0       |           |        | ts,c0   | 2026-01-28 14:39:56.977788 |
+ u2        | CREATE DATABASE     | CLUSTER     |         |            |           |        |         |                            |
+
 -- 查看角色权限（3.4.0.0+）
 SHOW ROLE PRIVILEGES
 SELECT * FROM information_schema.ins_role_privileges
 ```
+
+taos> show role privileges;
+ role_name      |    priv_type        |  priv_scope | db_name | table_name | condition |  notes | columns |     update_time       |
+ ===================================================================================================================================
+ SYSSEC         | SHOW CREATE         | TABLE       | *       | *          |           |        |         |                       |
+ SYSSEC         | SHOW                | VIEW        | *       | *          |           |        |         |                       |
+ SYSSEC         | SHOW CREATE         | VIEW        | *       | *          |           |        |         |                       |
+ SYSSEC         | SHOW                | TSMA        | *       | *          |           |        |         |                       |
+ SYSSEC         | SHOW CREATE         | TSMA        | *       | *          |           |        |         |                       |
+ SYSAUDIT_LOG   | USE AUDIT DATABASE  | CLUSTER     |         |            |           |        |         |                       |
+ SYSAUDIT_LOG   | CREATE AUDIT TABLE  | CLUSTER     |         |            |           |        |         |                       |
+ SYSAUDIT_LOG   | INSERT AUDIT TABLE  | CLUSTER     |         |            |           |        |         |                       |
 
 ---
 

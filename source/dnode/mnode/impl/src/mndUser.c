@@ -1360,7 +1360,7 @@ static int32_t mndUserPrivUpgradeUser(SMnode *pMnode, SUserObj *pObj) {
       mndUserPrivUpgradeTbViews(pMnode, pObj, &pObj->insertTbs, pPrivSet->pWriteTbs, PRIV_TBL_INSERT, PRIV_OBJ_TBL));
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterTbs, PRIV_CM_ALTER, PRIV_OBJ_TBL));
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pReadViews, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW));
-  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pWriteViews, PRIV_CM_ALTER, PRIV_OBJ_VIEW));
+  TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pAlterViews, PRIV_CM_ALTER, PRIV_OBJ_VIEW));
   TAOS_CHECK_EXIT(mndUserPrivUpgradeTbViews(pMnode, pObj, NULL, pPrivSet->pWriteViews, PRIV_CM_DROP, PRIV_OBJ_VIEW));
   // used dbs
   TAOS_CHECK_EXIT(mndUserPrivUpgradeUsedDbs(pMnode, pObj, pPrivSet->pUseDbs));
