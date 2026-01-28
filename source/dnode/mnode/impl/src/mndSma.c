@@ -1220,8 +1220,7 @@ static int32_t mndProcessCreateTSMAReq(SRpcMsg *pReq) {
   }
 
   // TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), MND_OPER_WRITE_DB, pDb), NULL, _OVER);
-  if ((code = mndCheckObjPrivilegeRec(pMnode, pOperUser, PRIV_DB_USE, PRIV_OBJ_DB, pDb->ownerId, name.acctId, name.dbname,
-                                      NULL))) {
+  if ((code = mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb))) {
     goto _OVER;
   }
   if ((code = mndCheckObjPrivilegeRec(pMnode, pOperUser, PRIV_TBL_CREATE, PRIV_OBJ_DB, pDb->ownerId, name.acctId,
@@ -1459,11 +1458,11 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser));
   int32_t objLevel = privObjGetLevel(PRIV_OBJ_TSMA);
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pUser->acctId);
-  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, 0, objFName,
+  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, RPC_MSG_TOKEN(pReq), PRIV_CM_SHOW, PRIV_OBJ_TSMA, 0, objFName,
                                           objLevel == 0 ? NULL : "*"));
   if (!showAll && pShow->db[0] != 0) {
-    showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, PRIV_CM_SHOW, PRIV_OBJ_TSMA, pUser->uid, pShow->db,
-                                            objLevel == 0 ? NULL : "*"));
+    showAll = (0 == mndCheckSysObjPrivilege(pMnode, pUser, RPC_MSG_TOKEN(pReq), PRIV_CM_SHOW, PRIV_OBJ_TSMA, pUser->uid,
+                                            pShow->db, objLevel == 0 ? NULL : "*"));
   }
 
   SSmaAndTagIter *pIter = pShow->pIter;

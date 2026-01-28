@@ -253,4 +253,3 @@ class TestCompositePrimaryKeyDelete:
             self.prepare_data(date_type[1])
             self.check_delete_data_illegal(date_type[1])
         self.check_delete_data()
-        tdLog.success(f"{__file__} successfully executed")

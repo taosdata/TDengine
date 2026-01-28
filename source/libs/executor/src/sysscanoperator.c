@@ -58,12 +58,25 @@ typedef struct SSysTableScanInfo {
   SEpSet                 epSet;
   tsem_t                 ready;
   SReadHandle            readHandle;
-  int32_t                accountId;
   const char*            pUser;
+  int32_t                accountId;
   bool                   sysInfo;
   bool                   showRewrite;
   bool                   restore;
   bool                   skipFilterTable;
+  union {
+    uint16_t privInfo;
+    struct {
+      uint16_t privLevel : 3;  // user privilege level
+      uint16_t privInfoBasic : 1;
+      uint16_t privInfoPrivileged : 1;
+      uint16_t privInfoAudit : 1;
+      uint16_t privInfoSec : 1;
+      uint16_t privPerfBasic : 1;
+      uint16_t privPerfPrivileged : 1;
+      uint16_t reserved1 : 7;
+    };
+  };
   SNode*                 pCondition;  // db_name filter condition, to discard data that are not in current database
   SMTbCursor*            pCur;        // cursor for iterate the local table meta store.
   SSysTableIndex*        pIdx;        // idx for local table meta
@@ -84,7 +97,7 @@ typedef struct SSysTableScanInfo {
   SHashObj*              pExtSchema;
 
   // for virtual supertable scan
-  STableListInfo*        pSubTableListInfo;
+  STableListInfo* pSubTableListInfo;
 } SSysTableScanInfo;
 
 typedef struct {
@@ -145,8 +158,9 @@ const SSTabFltFuncDef filterDict[] = {
 
 #define SYSTAB_FILTER_DICT_SIZE (sizeof(filterDict) / sizeof(filterDict[0]))
 
-static int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta,
-                                     size_t size, const char* dbName, int64_t* pRows);
+static int32_t buildDbTableInfoBlock(const SSysTableScanInfo* pInfo, const SSDataBlock* p,
+                                     const SSysTableMeta* pSysDbTableMeta, size_t size, const char* dbName,
+                                     int64_t* pRows);
 
 static char* SYSTABLE_SPECIAL_COL[] = {"db_name", "vgroup_id"};
 
@@ -1772,8 +1786,8 @@ static SSDataBlock* buildInfoSchemaTableMetaBlock(char* tableName) {
   return pBlock;
 }
 
-int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size,
-                              const char* dbName, int64_t* pRows) {
+int32_t buildDbTableInfoBlock(const SSysTableScanInfo* pInfo, const SSDataBlock* p,
+                              const SSysTableMeta* pSysDbTableMeta, size_t size, const char* dbName, int64_t* pRows) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   char    n[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -1781,9 +1795,28 @@ int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTabl
 
   for (int32_t i = 0; i < size; ++i) {
     const SSysTableMeta* pm = &pSysDbTableMeta[i];
-    if (!sysInfo && pm->sysInfo) {
+    if (!pInfo->sysInfo && pm->sysInfo) {
       continue;
     }
+#ifdef TD_ENTERPRISE
+    if (dbName[0] == 'i') {
+      if (pm->privCat == PRIV_CAT_BASIC) {
+        if (pInfo->privInfoBasic == 0) continue;
+      } else if (pm->privCat == PRIV_CAT_PRIVILEGED) {
+        if (pInfo->privInfoPrivileged == 0) continue;
+      } else if (pm->privCat == PRIV_CAT_SECURITY) {
+        if (pInfo->privInfoSec == 0) continue;
+      } else if (pm->privCat == PRIV_CAT_AUDIT) {
+        if (pInfo->privInfoAudit == 0) continue;
+      }
+    } else if (dbName[0] == 'p') {
+      if (pm->privCat == PRIV_CAT_BASIC) {
+        if (pInfo->privPerfBasic == 0) continue;
+      } else if (pm->privCat == PRIV_CAT_PRIVILEGED) {
+        if (pInfo->privPerfPrivileged == 0) continue;
+      }
+    }
+#endif
 
     if (strcmp(pm->name, TSDB_INS_TABLE_USERS_FULL) == 0) {
       continue;
@@ -1852,11 +1885,10 @@ int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity) {
   const SSysTableMeta* pSysDbTableMeta = NULL;
 
   getInfosDbMeta(&pSysDbTableMeta, &size);
-  code = buildDbTableInfoBlock(pInfo->sysInfo, p, pSysDbTableMeta, size, TSDB_INFORMATION_SCHEMA_DB, &p->info.rows);
+  code = buildDbTableInfoBlock(pInfo, p, pSysDbTableMeta, size, TSDB_INFORMATION_SCHEMA_DB, &p->info.rows);
   QUERY_CHECK_CODE(code, lino, _end);
-
   getPerfDbMeta(&pSysDbTableMeta, &size);
-  code = buildDbTableInfoBlock(pInfo->sysInfo, p, pSysDbTableMeta, size, TSDB_PERFORMANCE_SCHEMA_DB, &p->info.rows);
+  code = buildDbTableInfoBlock(pInfo, p, pSysDbTableMeta, size, TSDB_PERFORMANCE_SCHEMA_DB, &p->info.rows);
   QUERY_CHECK_CODE(code, lino, _end);
 
   pInfo->pRes->info.rows = p->info.rows;
@@ -3539,6 +3571,7 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   pInfo->accountId = pScanPhyNode->accountId;
   pInfo->pUser = taosStrdup((void*)pUser);
   QUERY_CHECK_NULL(pInfo->pUser, code, lino, _error, terrno);
+  pInfo->privInfo = pScanPhyNode->privInfo;
   pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);

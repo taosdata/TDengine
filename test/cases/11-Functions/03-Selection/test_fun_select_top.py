@@ -518,4 +518,3 @@ class TestSelectTop:
         """
         self.do_sim_top()
         self.do_top()
-        tdLog.success("%s successfully executed" % __file__)

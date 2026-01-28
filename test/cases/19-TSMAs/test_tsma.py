@@ -1692,5 +1692,4 @@ class TestTsma:
     # def tsma_split_dnode(self):
 
     def teardown_class(cls):
-        tdLog.success(f"{__file__} successfully executed")
-
+        pass

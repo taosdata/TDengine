@@ -302,6 +302,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_OPTION_UNCHANGED,      "Database options not 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_INDEX_NOT_EXIST,       "Index not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_RETENTION_PERIOD_ZERO, "WAL retention period is zero")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ENCRYPT_KEY,      "The cluster has not been set properly for database encryption")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_DROP_NOT_ALLOWED,      "Database drop is forbidden: allow_drop is 0")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_CREATING,           "Database in creating status")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SYS_TABLENAME,    "Invalid system table name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ENCRYPT_NOT_ALLOW_CHANGE, "Encryption is not allowed to be changed after database is created")
@@ -486,6 +487,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_EXIST,           "Invalid role")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NOT_AVAILABLE,       "Role not available")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_INVALID_FORMAT,      "Invalid role format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_SUBROLE_EXCEEDED,    "Subrole count exceeded")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_CONFLICTS,           "Conflicts with existing role")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ROLE_NO_VALID_SYSDBA,     "No enabled user with SYSDBA role exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_ROLES,           "Too many roles")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_PRIV_OBJS,       "Too many privilege objects")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_PRIVS,           "Too many privileges for single user/role")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_OFFLINE,                "Dnode is offline")
@@ -904,6 +910,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_BIG,       "Option value too bi
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OPTION_VALUE_TOO_SMALL,     "Option value too small")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ORDERBY_INVALID_EXPR,       "Aggregate functions cannot be used for sorting in non-aggregate queries")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_PERMISSION_DENIED,      "Permission denied for columns")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_LACK_OF_PRIMARY_KEY_COL,    "Lack of primary key column")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIV_TYPE_TARGET_CONFLICT,  "Conflict between privilege type and target")
 
 

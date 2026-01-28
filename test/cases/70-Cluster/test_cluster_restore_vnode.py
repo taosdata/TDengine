@@ -52,5 +52,5 @@ class TestClusterRestoreVnode:
 
     # stop
         self.basic.stop()
-        tdLog.success("%s successfully executed" % __file__)
+
 

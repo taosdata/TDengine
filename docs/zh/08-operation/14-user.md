@@ -4,13 +4,34 @@ title: 用户和权限管理
 toc_max_heading_level: 4
 ---
 
-TDengine TSDB 默认仅配置了一个 root 用户，该用户拥有最高权限。TDengine TSDB 支持对系统资源、库、表、视图和主题的访问权限控制。root 用户可以为每个用户针对不同的资源设置不同的访问权限。本节介绍 TDengine TSDB 中的用户和权限管理。用户和权限管理是 TDengine TSDB Enterprise 特有功能。
+TDengine TSDB 默认仅配置了一个 root 用户，该用户拥有最高权限。TDengine TSDB 支持对系统资源、库、表、视图和主题的访问权限控制。本节介绍 TDengine 中的用户和权限管理。
+
+:::info
+用户和权限管理是 TDengine 企业版特有功能。
+:::
+
+3.4.0.0 开始，TDengine 企业版通过基于角色的访问控制（RBAC）实现了三权分立机制，权限部分改动较大，部分语法不再兼容。
+
+## 版本对比
+
+| 特性 | 3.3.x.y- | 3.4.0.0+ |
+|------|---------|----------|
+| 基础用户管理 | ✓ | ✓ |
+| RBAC 角色管理 | ✗ | ✓ |
+| 三权分立（SYSDBA/SYSSEC/SYSAUDIT） | ✗ | ✓ |
+| 细粒度权限 | ✗ | ✓ |
+| 审计库权限 | ✗ | ✓ |
+| 表权限 | ✓ | ✓ |
+| 行权限 | ✗ | ✓ |
+| 列权限 | ✗ | ✓ |
+
+---
 
 ## 用户管理
 
 ### 创建用户
 
-创建用户的操作只能由 root 用户进行，语法如下。
+创建用户的语法如下。
 
 ```sql
 create user user_name pass'password' [sysinfo {1|0}] [createdb {1|0}]
@@ -72,7 +93,7 @@ alter_user_clause: {
 如下 SQL 禁用 test 用户。
 
 ```sql
-alter user test enable 0
+alter user test enable 0;
 ```
 
 ### 删除用户
@@ -80,10 +101,12 @@ alter user test enable 0
 删除用户的 SQL 如下。
 
 ```sql
-drop user user_name
+drop user user_name;
 ```
 
-## 权限管理
+---
+
+## 权限管理 - 3.3.x.y 及之前版本
 
 仅 root 用户可以管理用户、节点、vnode、qnode、snode 等系统信息，包括查询、新增、删除和修改。
 
@@ -123,19 +146,19 @@ resources ：{
 如下 SQL 将数据库 power 的 read 权限授权给用户 test。
 
 ```sql
-grant read on power to test
+grant read on power to test;
 ```
 
 如下 SQL 将数据库 power 下超级表 meters 的全部权限授权给用户 test。
 
 ```sql
-grant all on power.meters to test
+grant all on power.meters to test;
 ```
 
 如下 SQL 将超级表 meters 离标签值 groupId 等于 1 的子表的 write 权限授权给用户 test。
 
 ```sql
-grant all on power.meters with groupId=1 to test
+grant all on power.meters with groupId=1 to test;
 ```
 
 如果用户被授予了数据库的写权限，那么用户对这个数据库下的所有表都有读和写的权限。但如果一个数据库只有读的权限或甚至读的权限都没有，表的授权会让用户能读或写部分表，详细的授权组合见参考手册。
@@ -171,13 +194,13 @@ priv_type: {
 在数据库 power 下将视图 view_name 的读权限授权给用户 test，SQL 如下。
 
 ```sql
-grant read on power.view_name to test
+grant read on power.view_name to test;
 ```
 
 在数据库 power 库下将视图 view_name 的全部权限授权给用户 test，SQL 如下。
 
 ```sql
-grant all on power.view_name to test
+grant all on power.view_name to test;
 ```
 
 ### 消息订阅授权
@@ -208,7 +231,7 @@ priv_level : {
 将名为 topic_name 的主题授权给用户 test，SQL 如下。
 
 ```sql
-grant subscribe on topic_name to test
+grant subscribe on topic_name to test;
 ```
 
 ### 查看授权
@@ -275,17 +298,25 @@ priv_level : {
 撤销用户 test 对于数据库 power 的所有授权的 SQL 如下。
 
 ```sql
-revoke all on power from test
+revoke all on power from test;
 ```
 
 撤销用户 test 对于数据库 power 的视图 view_name 的读授权的 SQL 如下。
 
 ```sql
-revoke read on power.view_name from test
+revoke read on power.view_name from test;
 ```
 
 撤销用户 test 对于消息订阅 topic_name 的 subscribe 授权的 SQL 如下。
 
 ```sql
-revoke subscribe on topic_name from test
+revoke subscribe on topic_name from test;
 ```
+
+---
+
+## 权限管理 - 3.4.0.0+ 版本
+
+从 3.4.0.0 开始，TDengine 企业版通过基于角色的访问控制（RBAC）实现了三权分立机制，将 root 用户的管理权限拆分为 SYSDBA、SYSSEC 和 SYSAUDIT 三种系统管理权限，从而实现权限的有效隔离和制衡。
+
+详细内容请参考 [权限管理](../14-reference/03-taos-sql/61-grant) 部分

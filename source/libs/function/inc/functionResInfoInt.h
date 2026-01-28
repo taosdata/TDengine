@@ -116,7 +116,7 @@ typedef struct SMinmaxResInfo {
   int16_t   type;
 } SMinmaxResInfo;
 
-typedef struct SLagInfo {
+typedef struct SFillforwardInfo {
   union {
     struct {
       int64_t v;
@@ -128,7 +128,7 @@ typedef struct SLagInfo {
   };
 
   bool nonnull;
-} SLagInfo;
+} SFillforwardInfo;
 
 typedef struct SOldMinMaxResInfo {
   bool      assign;  // assign the first value or not

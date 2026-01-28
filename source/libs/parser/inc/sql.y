@@ -475,7 +475,6 @@ priv_type(A) ::= READ.                                                          
 priv_type(A) ::= WRITE.                                                           { A = PRIV_SET_TYPE(PRIV_TYPE_UNKNOWN); }
 
 priv_type(A) ::= CREATE DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_CREATE); }
-priv_type(A) ::= DROP OWNED DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_DB_DROP_OWNED); }
 priv_type(A) ::= USE DATABASE.                                                    { A = PRIV_SET_TYPE(PRIV_DB_USE); }
 priv_type(A) ::= FLUSH DATABASE.                                                  { A = PRIV_SET_TYPE(PRIV_DB_FLUSH); }
 priv_type(A) ::= COMPACT DATABASE.                                                { A = PRIV_SET_TYPE(PRIV_DB_COMPACT); }
@@ -483,6 +482,7 @@ priv_type(A) ::= TRIM DATABASE.                                                 
 priv_type(A) ::= ROLLUP DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_ROLLUP); }
 priv_type(A) ::= SCAN DATABASE.                                                   { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
 priv_type(A) ::= SSMIGRATE DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
+priv_type(A) ::= SHOW DATABASES.                                                  { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 priv_type(A) ::= USE.                                                             { A = PRIV_SET_TYPE(PRIV_DB_USE); }
 priv_type(A) ::= FLUSH.                                                           { A = PRIV_SET_TYPE(PRIV_DB_FLUSH); }
 priv_type(A) ::= COMPACT.                                                         { A = PRIV_SET_TYPE(PRIV_DB_COMPACT); }
@@ -490,7 +490,6 @@ priv_type(A) ::= TRIM.                                                          
 priv_type(A) ::= ROLLUP.                                                          { A = PRIV_SET_TYPE(PRIV_DB_ROLLUP); }
 priv_type(A) ::= SCAN.                                                            { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
 priv_type(A) ::= SSMIGRATE.                                                       { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
-priv_type(A) ::= DROP OWNED.                                                      { A = PRIV_SET_TYPE(PRIV_DB_DROP_OWNED); }
 
 priv_type(A) ::= SHOW VNODES.                                                     { A = PRIV_SET_TYPE(PRIV_SHOW_VNODES); }
 priv_type(A) ::= SHOW VGROUPS.                                                    { A = PRIV_SET_TYPE(PRIV_SHOW_VGROUPS); }
@@ -500,6 +499,10 @@ priv_type(A) ::= SHOW SCANS.                                                    
 priv_type(A) ::= SHOW SSMIGRATES.                                                 { A = PRIV_SET_TYPE(PRIV_SHOW_SSMIGRATES); }
 
 priv_type(A) ::= CREATE TABLE.                                                    { A = PRIV_SET_TYPE(PRIV_TBL_CREATE); }
+priv_type(A) ::= ALTER TABLE.                                                     { A = PRIV_SET_TYPE(PRIV_CM_ALTER); }
+priv_type(A) ::= DROP TABLE.                                                      { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW CREATE TABLE.                                               { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= SHOW TABLES.                                                     { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 
 priv_type(A) ::= priv_type_tbl_dml(B).                                            { A = B; }
 
@@ -508,21 +511,31 @@ priv_type(A) ::= DROP FUNCTION.                                                 
 priv_type(A) ::= SHOW FUNCTIONS.                                                  { A = PRIV_SET_TYPE(PRIV_FUNC_SHOW); }
 
 priv_type(A) ::= CREATE INDEX.                                                    { A = PRIV_SET_TYPE(PRIV_IDX_CREATE); }
-priv_type(A) ::= DROP INDEX.                                                      { A = PRIV_SET_TYPE(PRIV_IDX_DROP); }
-priv_type(A) ::= SHOW INDEXES.                                                    { A = PRIV_SET_TYPE(PRIV_IDX_SHOW); }
+priv_type(A) ::= DROP INDEX.                                                      { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW CREATE INDEX.                                               { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= SHOW INDEXES.                                                    { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 
 priv_type(A) ::= CREATE VIEW.                                                     { A = PRIV_SET_TYPE(PRIV_VIEW_CREATE); }
+priv_type(A) ::= ALTER VIEW.                                                      { A = PRIV_SET_TYPE(PRIV_CM_ALTER); }
+priv_type(A) ::= DROP VIEW.                                                       { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW CREATE VIEW.                                                { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= SHOW VIEWS.                                                      { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 priv_type(A) ::= SELECT VIEW.                                                     { A = PRIV_SET_TYPE(PRIV_VIEW_SELECT); }
 
 priv_type(A) ::= CREATE RSMA.                                                     { A = PRIV_SET_TYPE(PRIV_RSMA_CREATE); }
+priv_type(A) ::= DROP RSMA.                                                       { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW CREATE RSMA.                                                { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= SHOW RSMAS.                                                      { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 priv_type(A) ::= CREATE TSMA.                                                     { A = PRIV_SET_TYPE(PRIV_TSMA_CREATE); }
+priv_type(A) ::= DROP TSMA.                                                       { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW CREATE TSMA.                                                { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= SHOW TSMAS.                                                      { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 
 priv_type(A) ::= CREATE MOUNT.                                                    { A = PRIV_SET_TYPE(PRIV_MOUNT_CREATE); }
 priv_type(A) ::= DROP MOUNT.                                                      { A = PRIV_SET_TYPE(PRIV_MOUNT_DROP); }
 priv_type(A) ::= SHOW MOUNTS.                                                     { A = PRIV_SET_TYPE(PRIV_MOUNT_SHOW); }
 
 priv_type(A) ::= ALTER PASS.                                                      { A = PRIV_SET_TYPE(PRIV_PASS_ALTER); }
-priv_type(A) ::= ALTER SELF PASS.                                                 { A = PRIV_SET_TYPE(PRIV_PASS_ALTER_SELF); }
 
 priv_type(A) ::= CREATE ROLE.                                                     { A = PRIV_SET_TYPE(PRIV_ROLE_CREATE); }
 priv_type(A) ::= DROP ROLE.                                                       { A = PRIV_SET_TYPE(PRIV_ROLE_DROP); }
@@ -530,17 +543,10 @@ priv_type(A) ::= SHOW ROLES.                                                    
 
 priv_type(A) ::= CREATE USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_CREATE); }
 priv_type(A) ::= DROP USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_DROP); }
-priv_type(A) ::= SET USER SECURITY INFO.                                          { A = PRIV_SET_TYPE(PRIV_USER_SET_SECURITY); }
-priv_type(A) ::= SET USER AUDIT INFO.                                             { A = PRIV_SET_TYPE(PRIV_USER_SET_AUDIT); }
-priv_type(A) ::= SET USER BASIC INFO.                                             { A = PRIV_SET_TYPE(PRIV_USER_SET_BASIC); }
 priv_type(A) ::= UNLOCK USER.                                                     { A = PRIV_SET_TYPE(PRIV_USER_UNLOCK); }
 priv_type(A) ::= LOCK USER.                                                       { A = PRIV_SET_TYPE(PRIV_USER_LOCK); }
 priv_type(A) ::= SHOW USERS.                                                      { A = PRIV_SET_TYPE(PRIV_USER_SHOW); }
-
-priv_type(A) ::= CREATE AUDIT DATABASE.                                           { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_CREATE); }
-priv_type(A) ::= DROP AUDIT DATABASE.                                             { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_DROP); }
-priv_type(A) ::= ALTER AUDIT DATABASE.                                            { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_ALTER); }
-priv_type(A) ::= USE AUDIT DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_AUDIT_DB_USE); }
+priv_type(A) ::= ALTER USER.                                                      { A = PRIV_SET_TYPE(PRIV_USER_ALTER); }
 
 priv_type(A) ::= CREATE TOKEN.                                                    { A = PRIV_SET_TYPE(PRIV_TOKEN_CREATE); }
 priv_type(A) ::= DROP TOKEN.                                                      { A = PRIV_SET_TYPE(PRIV_TOKEN_DROP); }
@@ -550,7 +556,6 @@ priv_type(A) ::= SHOW TOKENS.                                                   
 priv_type(A) ::= UPDATE KEY.                                                      { A = PRIV_SET_TYPE(PRIV_KEY_UPDATE); }
 priv_type(A) ::= CREATE TOTP.                                                     { A = PRIV_SET_TYPE(PRIV_TOTP_CREATE); }
 priv_type(A) ::= DROP TOTP.                                                       { A = PRIV_SET_TYPE(PRIV_TOTP_DROP); }
-priv_type(A) ::= UPDATE TOTP.                                                     { A = PRIV_SET_TYPE(PRIV_TOTP_UPDATE); }
 
 priv_type(A) ::= GRANT PRIVILEGE.                                                 { A = PRIV_SET_TYPE(PRIV_GRANT_PRIVILEGE); }
 priv_type(A) ::= REVOKE PRIVILEGE.                                                { A = PRIV_SET_TYPE(PRIV_REVOKE_PRIVILEGE); }
@@ -560,36 +565,28 @@ priv_type(A) ::= CREATE NODE.                                                   
 priv_type(A) ::= DROP NODE.                                                       { A = PRIV_SET_TYPE(PRIV_NODE_DROP); }
 priv_type(A) ::= SHOW NODES.                                                      { A = PRIV_SET_TYPE(PRIV_NODES_SHOW); }
 
-priv_type(A) ::= ALTER SECURITY VARIABLE.                                         { A = PRIV_SET_TYPE(PRIV_VAR_SECURITY_ALTER); }
-priv_type(A) ::= ALTER AUDIT VARIABLE.                                            { A = PRIV_SET_TYPE(PRIV_VAR_AUDIT_ALTER); }
-priv_type(A) ::= ALTER SYSTEM VARIABLE.                                           { A = PRIV_SET_TYPE(PRIV_VAR_SYSTEM_ALTER); }
-priv_type(A) ::= ALTER DEBUG VARIABLE.                                            { A = PRIV_SET_TYPE(PRIV_VAR_DEBUG_ALTER); }
-priv_type(A) ::= SHOW SECURITY VARIABLES.                                         { A = PRIV_SET_TYPE(PRIV_VAR_SECURITY_SHOW); }
-priv_type(A) ::= SHOW AUDIT VARIABLES.                                            { A = PRIV_SET_TYPE(PRIV_VAR_AUDIT_SHOW); }
-priv_type(A) ::= SHOW SYSTEM VARIABLES.                                           { A = PRIV_SET_TYPE(PRIV_VAR_SYSTEM_SHOW); }
-priv_type(A) ::= SHOW DEBUG VARIABLES.                                            { A = PRIV_SET_TYPE(PRIV_VAR_DEBUG_SHOW); }
-
 priv_type(A) ::= CREATE TOPIC.                                                    { A = PRIV_SET_TYPE(PRIV_TOPIC_CREATE); }
+priv_type(A) ::= DROP TOPIC.                                                      { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SUBSCRIBE TOPIC.                                                 { A = PRIV_SET_TYPE(PRIV_CM_SUBSCRIBE); }
+priv_type(A) ::= SHOW CREATE TOPIC.                                               { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= SHOW TOPICS.                                                     { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 priv_type(A) ::= SHOW CONSUMERS.                                                  { A = PRIV_SET_TYPE(PRIV_CONSUMER_SHOW); }
 priv_type(A) ::= SHOW SUBSCRIPTIONS.                                              { A = PRIV_SET_TYPE(PRIV_SUBSCRIPTION_SHOW); }
 
 priv_type(A) ::= CREATE STREAM.                                                   { A = PRIV_SET_TYPE(PRIV_STREAM_CREATE); }
+priv_type(A) ::= DROP STREAM.                                                     { A = PRIV_SET_TYPE(PRIV_CM_DROP); }
+priv_type(A) ::= SHOW STREAMS.                                                    { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
+priv_type(A) ::= SHOW CREATE STREAM.                                              { A = PRIV_SET_TYPE(PRIV_CM_SHOW_CREATE); }
+priv_type(A) ::= START STREAM.                                                    { A = PRIV_SET_TYPE(PRIV_CM_START); }
+priv_type(A) ::= STOP STREAMS.                                                    { A = PRIV_SET_TYPE(PRIV_CM_STOP); }
+priv_type(A) ::= RECALCULATE STREAMS.                                             { A = PRIV_SET_TYPE(PRIV_CM_RECALC); }
 
-priv_type(A) ::= SHOW TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_SHOW); }
-priv_type(A) ::= KILL TRANS.                                                      { A = PRIV_SET_TYPE(PRIV_TRANS_KILL); }
-priv_type(A) ::= SHOW CONNECTIONS.                                                { A = PRIV_SET_TYPE(PRIV_CONNECTION_SHOW); }
-priv_type(A) ::= KILL CONNECTION.                                                 { A = PRIV_SET_TYPE(PRIV_CONNECTION_KILL); }
+priv_type(A) ::= SHOW TRANSACTIONS.                                               { A = PRIV_SET_TYPE(PRIV_TRANS_SHOW); }
+priv_type(A) ::= KILL TRANSACTION.                                                { A = PRIV_SET_TYPE(PRIV_TRANS_KILL); }
+priv_type(A) ::= SHOW CONNECTIONS.                                                { A = PRIV_SET_TYPE(PRIV_CONN_SHOW); }
+priv_type(A) ::= KILL CONNECTION.                                                 { A = PRIV_SET_TYPE(PRIV_CONN_KILL); }
 priv_type(A) ::= SHOW QUERIES.                                                    { A = PRIV_SET_TYPE(PRIV_QUERY_SHOW); }
 priv_type(A) ::= KILL QUERY.                                                      { A = PRIV_SET_TYPE(PRIV_QUERY_KILL); }
-
-priv_type(A) ::= USE INFORMATION_SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_USE); }
-priv_type(A) ::= USE PERFORMANCE_SCHEMA.                                          { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_USE); }
-priv_type(A) ::= READ INFORMATION_SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_LIMIT); }
-priv_type(A) ::= READ INFORMATION_SCHEMA SECURITY.                                { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_SEC); }
-priv_type(A) ::= READ INFORMATION_SCHEMA AUDIT.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_AUDIT); }
-priv_type(A) ::= READ INFORMATION_SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_INFO_SCHEMA_READ_BASIC); }
-priv_type(A) ::= READ PERFORMANCE_SCHEMA LIMIT.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_LIMIT); }
-priv_type(A) ::= READ PERFORMANCE_SCHEMA BASIC.                                   { A = PRIV_SET_TYPE(PRIV_PERF_SCHEMA_READ_BASIC); }
 priv_type(A) ::= SHOW GRANTS.                                                     { A = PRIV_SET_TYPE(PRIV_GRANTS_SHOW); }
 priv_type(A) ::= SHOW CLUSTER.                                                    { A = PRIV_SET_TYPE(PRIV_CLUSTER_SHOW); }
 priv_type(A) ::= SHOW APPS.                                                       { A = PRIV_SET_TYPE(PRIV_APPS_SHOW); }
@@ -610,10 +607,22 @@ priv_type_tbl_dml(A) ::= SELECT TABLE.                                          
 priv_type_tbl_dml(A) ::= SELECT specific_cols_with_mask_opt(B).                   { A = PRIV_SET_COLS(PRIV_TBL_SELECT, B, NULL, NULL); }
 priv_type_tbl_dml(A) ::= INSERT TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_INSERT); }
 priv_type_tbl_dml(A) ::= INSERT specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_INSERT, NULL, B, NULL); }
-/*priv_type_tbl_dml(A) ::= UPDATE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_UPDATE); }
+/*priv_type_tbl_dml(A) ::= UPDATE TABLE.                                          { A = PRIV_SET_TYPE(PRIV_TBL_UPDATE); }
 priv_type_tbl_dml(A) ::= UPDATE specific_cols_opt(B).                             { A = PRIV_SET_COLS(PRIV_TBL_UPDATE, NULL, NULL, B); }*/
 priv_type_tbl_dml(A) ::= DELETE TABLE.                                            { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
 priv_type_tbl_dml(A) ::= DELETE.                                                  { A = PRIV_SET_TYPE(PRIV_TBL_DELETE); }
+
+priv_type(A) ::= ALTER priv_id(B) priv_id(C).                                     { A = privArgsSet(pCxt, 0, &B, &C); }
+priv_type(A) ::= READ priv_id(B) priv_id(C).                                      { A = privArgsSet(pCxt, 1, &B, &C); }
+priv_type(A) ::= SHOW priv_id(B) priv_id(C).                                      { A = privArgsSet(pCxt, 2, &B, &C); }
+priv_type(A) ::= SET USER priv_id(B) priv_id(C).                                  { A = privArgsSet(pCxt, 3, &B, &C); }
+
+%type priv_id                                                                     { SToken }
+%destructor priv_id                                                               { }
+priv_id(A) ::= NK_ID(B).                                                          { A = B; }
+priv_id(A) ::= SYSTEM(B).                                                         { A = B; }
+priv_id(A) ::= VARIABLES(B).                                                      { A = B; }
+priv_id(A) ::= PASS(B).                                                           { A = B; }
 
 %type priv_level_opt                                                              { SPrivLevelArgs }
 %destructor priv_level_opt                                                        { 
@@ -656,6 +665,7 @@ cmd ::= DROP ENCRYPT_ALGR NK_STRING(A).                                         
 /************************************************ alter encrypt key *********************************************/
 cmd ::= ALTER SYSTEM SET SVR_KEY NK_STRING(A).                                    { pCxt->pRootNode = createAlterEncryptKeyStmt(pCxt, 0, &A); }
 cmd ::= ALTER SYSTEM SET DB_KEY NK_STRING(A).                                     { pCxt->pRootNode = createAlterEncryptKeyStmt(pCxt, 1, &A); }
+cmd ::= ALTER SYSTEM SET KEY_EXPIRATION NK_INTEGER(A) DAYS STRATEGY NK_STRING(B). { pCxt->pRootNode = createAlterKeyExpirationStmt(pCxt, &A, &B); }
 /************************************************ create drop update anode ***************************************/
 cmd ::= CREATE ANODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateAnodeStmt(pCxt, &A); }
 cmd ::= UPDATE ANODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, &A, false); }
@@ -909,7 +919,8 @@ db_options(A) ::= db_options(B) COMPACT_INTERVAL NK_VARIABLE(C).                
 db_options(A) ::= db_options(B) COMPACT_TIME_RANGE signed_duration_list(C).       { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_RANGE, C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_INTEGER(C).                { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) COMPACT_TIME_OFFSET NK_VARIABLE(C).               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_TIME_OFFSET, &C); }
-db_options(A) ::= db_options(B) IS_AUDIT NK_INTEGER(C).                          { A = setDatabaseOption(pCxt, B, DB_OPTION_IS_AUDIT, &C); }
+db_options(A) ::= db_options(B) IS_AUDIT NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_IS_AUDIT, &C); }
+
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
 alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                   { A = setAlterDatabaseOption(pCxt, B, &C); }
@@ -952,6 +963,7 @@ alter_db_option(A) ::= COMPACT_INTERVAL NK_VARIABLE(B).                         
 alter_db_option(A) ::= COMPACT_TIME_RANGE signed_duration_list(B).                { A.type = DB_OPTION_COMPACT_TIME_RANGE; A.pList = B; }
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_INTEGER(B).                         { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_VARIABLE(B).                        { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
+alter_db_option(A) ::= ALLOW_DROP NK_INTEGER(B).                                  { A.type = DB_OPTION_ALLOW_DROP; A.val = B; }
 
 %type integer_list                                                                { SNodeList* }
 %destructor integer_list                                                          { nodesDestroyList($$); }

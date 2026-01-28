@@ -194,8 +194,6 @@ class TestFunToIso8601:
         self.check_customize_param_ms()
         self.check_timestamp_precision()
 
-        #tdSql.close()
-        tdLog.success(f"{__file__} successfully executed")
 
     def test_fun_sca_today(self):
         """ Fun: today()

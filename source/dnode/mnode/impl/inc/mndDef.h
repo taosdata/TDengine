@@ -567,6 +567,19 @@ typedef struct {
 } SUserPassword;
 
 typedef struct {
+  SHashObj* pReadDbs;
+  SHashObj* pWriteDbs;
+  SHashObj* pReadTbs;
+  SHashObj* pWriteTbs;
+  SHashObj* pTopics;
+  SHashObj* pAlterTbs;
+  SHashObj* pReadViews;
+  SHashObj* pWriteViews;
+  SHashObj* pAlterViews;
+  SHashObj* pUseDbs;
+} SPrivHashObjSet;
+
+typedef struct {
   union {
     char name[TSDB_USER_LEN];
     char user[TSDB_USER_LEN];
@@ -621,7 +634,7 @@ typedef struct {
 
   int64_t lastRoleRetrieve;  // Last retrieve time of role, unit is ms, default value is 0. Memory only and no need to
                              // persist.
-  SHashObj* roles;
+  SHashObj* roles;           // k: roleName, v: flag (int8_t: 0x01 enable(default), 0x00 disable)
 
   SPrivSet sysPrivs;
   /**
@@ -630,27 +643,15 @@ typedef struct {
    */
   SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies.
 
-  // SHashObj* readDbs;  // obsolete:  migrate to selectTbs and insertTbs when update from 3.3.x.y
-  // SHashObj* writeDbs;
-  // SHashObj* topics;
-
   // table level privileges
-  SHashObj* selectTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
-  SHashObj* insertTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
-  SHashObj* updateTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
-  SHashObj* deleteTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
-  // SHashObj* alterTbs;   // obsolete: migrate to objPrivs
-
-  // 1.*.*           
-  // 1.db.*
-  // 1.db.tbName     with tag condition, specific columns
-
-  // SHashObj* readViews;
-  // SHashObj* writeViews;
-  // SHashObj* alterViews;
-  // SHashObj* useDbs;
-  SRWLatch  lock;
-  int8_t    passEncryptAlgorithm;
+  SHashObj*        selectTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj*        insertTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj*        updateTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj*        deleteTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj*        ownedDbs;   // k:dbFName, v: empty
+  SRWLatch         lock;
+  int8_t           passEncryptAlgorithm;
+  SPrivHashObjSet* legacyPrivs;  // used to temporarily hold legacy privileges during upgrade
 } SUserObj;
 
 typedef struct {
@@ -714,8 +715,9 @@ typedef struct {
   union {
     uint8_t flags;
     struct {
-      uint8_t isMount : 1;  // TS-5868
-      uint8_t padding : 7;
+      uint8_t isMount : 1;    // TS-5868
+      uint8_t allowDrop : 1;  // TS-7232
+      uint8_t padding : 6;
     };
   };
   int16_t hashPrefix;
@@ -1042,6 +1044,7 @@ typedef struct {
   int32_t resetOffsetCfg;
   int32_t sessionTimeoutMs;
   int32_t maxPollIntervalMs;
+  int64_t ownerId;
 } SMqConsumerObj;
 
 int32_t tNewSMqConsumerObj(int64_t consumerId, char* cgroup, int8_t updateType, char* topic, SCMSubscribeReq* subscribe,
