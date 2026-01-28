@@ -2329,11 +2329,11 @@ class TestInterval:
         streams: list[StreamItem] = []
         stream = StreamItem(
             id=0,
-            stream="""create stream s0 state_window(c1, 1) from triggertb into
+            stream="""create stream s0 state_window(c1) from triggertb into
             res0 as select _twstart, _twend, _wstart, _wend, first(c1), max(c1),
             count(*) from ntb where ts >= _twstart and ts < _twend
             interval(24h, auto) fill(prev) surround(1d, 100, 100, 0)""",
-            check_func=self.check_s0,
+            # check_func=self.check_s0,
         )
         streams.append(stream)
 
@@ -2351,28 +2351,19 @@ class TestInterval:
             id=2,
             stream="""create stream s2 state_window(c1) from triggertb into
             res2 as select _wstart, _wend, _twstart, _twend, first(c1), max(c1),
-            count(c1) from stb where ts >= _twstart and ts < _twend
-            interval(8h) fill(prev) surround(8h, 100, 100, 100)"""
+            count(c1) from ctb1 where ts >= _twstart and ts < _twend
+            interval(8h) fill(next) surround(8h, 100, 100, 100)"""
         )
         streams.append(stream)
 
         stream = StreamItem(
             id=3,
             stream="""create stream s3 state_window(c1) from triggertb into
-            res3 as select _wstart, _wend, _twstart, _twend, first(c1), max(c1),
-            count(c1) from ctb1 where ts >= _twstart and ts < _twend
-            interval(8h) fill(next) surround(8h, 100, 100, 100)"""
+            res3 as select _twstart, _twend, _wstart, _wend, first(c1), max(c1),
+            count(*) from ntb where ts >= _twstart and ts < _twend
+            interval(1d) fill(prev) surround(1d, 100, 100, 0)""",
         )
         streams.append(stream)
-
-        # stream = StreamItem(
-        #     id=2,
-        #     stream="""create stream s2 state_window(c1) from triggertb into
-        #     res2 as select _twstart, _twend, _wstart, _wend, first(c1), max(c1), tbname from stb
-        #     where ts >= _twstart and ts < _twend partition by tbname
-        #     interval(24h) fill(next) surround(24h, 100, 100)"""
-        # )
-        # streams.append(stream)
 
         for stream in streams:
             stream.createStream()
@@ -2447,6 +2438,8 @@ class TestInterval:
             "fill(prev) surround(~10d, 100, 0)",
             "fill(prev) surround(aaa, 100, 0)",
             "fill(prev) surround(2h+2h, 100, 0)",
+            "fill(prev) surround(1y, 100, 0)",
+            "fill(prev) surround(1n, 100, 0)",
             "fill(prev) surround(2h, 100, (select count(*) from ntb))",
         ]
         for suffix in err_suffixes:

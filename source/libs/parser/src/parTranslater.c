@@ -7711,6 +7711,12 @@ static int32_t translateSurroundingTime(STranslateContext* pCxt,
           TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES,
           "Surrounding time value must be greater than 0");
       }
+      int8_t unit = pSurroundingTimeVal->unit;
+      if (unit == TIME_UNIT_YEAR || unit == TIME_UNIT_MONTH) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf,
+          TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES,
+          "Unsupported time unit in surrounding time: %c", unit);
+      }
     } else {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf,
                                      TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES,
