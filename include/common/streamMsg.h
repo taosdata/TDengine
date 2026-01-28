@@ -865,7 +865,7 @@ typedef struct SSTriggerWalNewRsp {
   void*                deleteBlock;
   void*                tableBlock;
   int64_t              ver;
-  int64_t              verTime;
+  int64_t              verTime;  // us
 
   // The following fields are not serialized and only used by the reader task
   SSHashObj*           uidHash;

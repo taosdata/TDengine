@@ -2876,8 +2876,8 @@ int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStat
 
 int32_t stTriggerTaskGetDelay(SStreamTask *pStreamTask, int64_t *pDelay, bool *pFillHisFinished) {
   SStreamTriggerTask *pTask = (SStreamTriggerTask *)pStreamTask;
-  int64_t             now = taosGetTimestampNs();
-  *pDelay = now - atomic_load_64(&pTask->latestVersionTime);
+  int64_t             now = taosGetTimestampUs();
+  *pDelay = (now - atomic_load_64(&pTask->latestVersionTime)) / (NANOSECOND_PER_MSEC / NANOSECOND_PER_USEC);
   *pFillHisFinished = atomic_load_8(&pTask->historyFinished);
   return TSDB_CODE_SUCCESS;
 }
@@ -5084,11 +5084,14 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
-        QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
+        QUERY_CHECK_CONDITION(pRsp->contLen >= sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
         blockDataEmpty(pContext->pMetaBlock);
         blockDataEmpty(pContext->pDeleteBlock);
         blockDataEmpty(pContext->pTableBlock);
         pContext->pMetaBlock->info.version = *(int64_t *)pRsp->pCont;
+        if (pRsp->contLen > sizeof(int64_t)) {
+          pProgress->verTime = *(((int64_t *)pRsp->pCont) + 1);
+        }
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
         SSTriggerWalNewRsp rsp = {.metaBlock = pContext->pMetaBlock,
@@ -5234,12 +5237,15 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       bool firstDataBlock = (blockDataGetNumOfCols(pProgress->pTrigBlock) == 0);
 
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
-        QUERY_CHECK_CONDITION(pRsp->contLen == sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
+        QUERY_CHECK_CONDITION(pRsp->contLen >= sizeof(int64_t), code, lino, _end, TSDB_CODE_INVALID_PARA);
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
           blockDataEmpty(pContext->pMetaBlock);
           blockDataEmpty(pContext->pDeleteBlock);
           blockDataEmpty(pContext->pTableBlock);
           pContext->pMetaBlock->info.version = *(int64_t *)pRsp->pCont;
+          if (pRsp->contLen > sizeof(int64_t)) {
+            pProgress->verTime = *(((int64_t *)pRsp->pCont) + 1);
+          }
         }
         taosArrayClear(pContext->pTempSlices);
       } else {
