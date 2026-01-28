@@ -4298,8 +4298,9 @@ void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SR
   *fetchDone = (TSDB_CODE_SUCCESS != ctx->code || pRsp->completed) ? true : false;
 
   if (!(*fetchDone)) {
-    ctx->code = sendFetchRemoteNodeReq(ctx, pParam->subQIdx, pParam->pRes);
-    if (ctx->code) {
+    int32_t code = sendFetchRemoteNodeReq(ctx, pParam->subQIdx, pParam->pRes);
+    if (TSDB_CODE_SUCCESS != code) {
+      ctx->code = code;
       *fetchDone = true;
     }
   }
@@ -4309,6 +4310,7 @@ void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SR
 int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
   SScalarFetchParam* pParam = (SScalarFetchParam*)param;
   STaskSubJobCtx* ctx = pParam->pSubJobCtx;
+  char idStr[64];
   
   taosMemoryFreeClear(pMsg->pEpSet);
 
@@ -4317,6 +4319,10 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
     goto _exit;
   }
 
+  if (qDebugFlag & DEBUG_DEBUG) {
+    strncpy(idStr, ctx->idStr, sizeof(idStr));
+  }
+  
   qDebug("%s subQIdx %d got rsp, blockIdx:%" PRId64 ", code:%d, rsp:%p", ctx->idStr, pParam->subQIdx, ctx->blockIdx, code, pMsg->pData);
 
   taosWLockLatch(&ctx->lock);
@@ -4357,7 +4363,7 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
       case QUERY_NODE_REMOTE_VALUE_LIST: {
         bool fetchDone = false;
         handleRemoteValueListRes(pParam, ctx, pRsp, &fetchDone);
-        qDebug("%s subQIdx %d handle remote value list finished, fetchDone:%d", ctx->idStr, pParam->subQIdx, fetchDone);
+        qDebug("%s subQIdx %d handle remote value list finished, fetchDone:%d", idStr, pParam->subQIdx, fetchDone);
         if (!fetchDone) {
           goto _exit;
         }
