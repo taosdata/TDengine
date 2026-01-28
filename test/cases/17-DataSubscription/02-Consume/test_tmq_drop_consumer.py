@@ -296,6 +296,6 @@ class TestCase:
         self.prepareTestEnv()
         self.tmqCase1()
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 event = threading.Event()

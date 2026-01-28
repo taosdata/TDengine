@@ -782,5 +782,5 @@ class TestUserControl:
         tdSql.checkData(0, 1, "1")
 
 
-        tdLog.success(f"{__file__} successfully executed")
+
 

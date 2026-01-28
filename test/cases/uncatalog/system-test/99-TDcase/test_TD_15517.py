@@ -361,6 +361,6 @@ class TestCase:
 
         #os.system('pkill tmq_sim')
 
-        tdLog.success(f"{__file__} successfully executed")
+
 
 

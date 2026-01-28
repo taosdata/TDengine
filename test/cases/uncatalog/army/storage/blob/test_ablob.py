@@ -338,4 +338,4 @@ class TestAblob:
             # drop database and free s3 file
             self.dropDb()
 
-            tdLog.success(f"{__file__} successfully executed")
+
