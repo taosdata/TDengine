@@ -24,8 +24,6 @@ TDengine TSDB 默认仅配置了一个 root 用户，该用户拥有最高权限
 | 列权限 | ✗ | ✓ |
 ---
 
-
-
 ## 用户管理
 
 ### 创建用户
@@ -607,6 +605,59 @@ priv_type: {
 }
 ```
 
+#### 数据库权限
+
+数据库权限用于控制用户对数据库的访问和操作。数据库权限可以在不同级别应用。
+
+**权限应用级别：**
+
+- `*`：所有数据库
+- `dbname`：指定数据库
+
+**常用权限组合：**
+
+| 权限组合 | 说明 | 使用场景 |
+|---------|------|---------|
+| USE | 使用（访问）数据库 | 数据库基本访问 |
+| ALTER | 修改数据库参数 | 数据库配置调整 |
+| DROP | 删除数据库 | 数据库清理、卸载 |
+| CREATE TABLE | 创建表 | 表结构创建 |
+| CREATE VIEW | 创建视图 | 视图创建 |
+| CREATE TOPIC | 创建主题 | 主题创建 |
+| CREATE STREAM | 创建流 | 流计算创建 |
+| SHOW | 查看数据库信息 | 列出数据库中的对象 |
+| FLUSH | 刷新数据库 | 强制持久化数据 |
+| COMPACT | 压缩数据库 | 数据库维护、优化 |
+
+**示例 - 数据库权限授权：**
+
+```sql
+-- 用户 developer 可以使用 power 数据库
+GRANT USE ON DATABASE power TO developer;
+
+-- 用户可以访问所有数据库
+GRANT USE ON DATABASE * TO analyst;
+
+-- 用户可以在 power 数据库创建表和视图
+GRANT CREATE TABLE, CREATE VIEW ON DATABASE power TO creator;
+
+-- 用户可以修改数据库配置
+GRANT ALTER ON DATABASE power TO dba_user;
+
+-- 用户可以查看数据库中的对象列表
+GRANT SHOW ON DATABASE power TO viewer;
+
+-- 用户对数据库有完整管理权限
+GRANT ALL ON DATABASE power TO admin_user;
+
+-- 撤回用户的数据库权限
+REVOKE ALL ON DATABASE power FROM developer;
+```
+
+**数据库权限特殊说明：**
+
+- **所有者概念**：数据库创建者默认拥有该数据库的全部权限
+
 #### 表权限
 
 表权限用于控制用户对表的访问和操作。表权限可以在不同级别应用：
@@ -738,6 +789,152 @@ GRANT SELECT, INSERT (ts, temperature), DELETE ON power.meters WITH source='sens
 - 相同更新时间，用户权限优先于角色权限
 - 用户和角色不同类型的权限取并集
 
+### 视图权限
+
+视图权限用于控制用户对视图的访问和操作。视图权限需要单独授权，数据库权限不包含视图权限。
+
+**权限应用级别：**
+
+- `[dbname.]view_name`：指定视图（指定数据库或不指定）
+
+**常用权限组合：**
+
+| 权限 | 说明 | 使用场景 |
+|------|------|---------|
+| SELECT [VIEW] | 查询视图数据 | 数据分析、报表查询 |
+| DROP [VIEW] | 删除视图 | 视图清理和维护 |
+| ALTER [VIEW] | 修改视图定义 | 视图结构调整 |
+| SHOW [VIEWS] | 查看视图列表 | 查看系统中已有的视图 |
+| SHOW CREATE [VIEW] | 查看视图定义 | 了解视图的创建语句 |
+
+**示例 - 视图权限授权：**
+
+```sql
+-- 用户 analyst 可以查询 power 库中的视图 meter_stats
+GRANT SELECT ON VIEW power.meter_stats TO analyst;
+
+-- 用户可以修改视图定义
+GRANT ALTER ON VIEW power.meter_stats TO maintainer;
+
+-- 用户可以查看视图列表和定义
+GRANT SHOW, SHOW CREATE ON VIEW power.meter_stats TO viewer;
+
+-- 用户对视图有完整操作权限
+GRANT ALL ON VIEW power.meter_stats TO admin_user;
+
+-- 撤回用户的针对该视图的所有权限
+REVOKE ALL ON VIEW power.meter_stats FROM analyst;
+```
+
+**视图权限特殊说明：**
+
+- **创建权限**：视图创建权通过 `CREATE VIEW` 数据库权限控制
+- **所有者权限**：视图创建者默认拥有该视图的全部权限，可使用嵌套视图（视图有效用户概念）
+- **嵌套视图**：被授权用户可使用视图有效用户的库、表及嵌套视图的读写权限
+- **权限继承**：视图权限需单独授权，通过 `dbname.*` 进行的授权不包含视图权限
+
+**权限优先级：**
+
+- 显式指定视图名的权限 > 通配符权限
+
+### 主题权限
+
+主题权限用于控制用户对消息主题的访问和操作。TDengine 支持对主题进行细粒度权限控制。
+
+**权限应用级别：**
+
+- `*.*`：所有主题
+- `dbname.topicname`：指定数据库的指定主题
+
+**常用权限组合：**
+
+| 权限 | 说明 | 使用场景 |
+|------|------|---------|
+| SUBSCRIBE | 订阅主题 | 数据消费者订阅消息流 |
+| SHOW TOPICS | 查看主题列表 | 查看系统中已有的主题 |
+| SHOW CREATE TOPIC | 查看主题定义 | 了解主题的创建语句 |
+| DROP TOPIC | 删除主题 | 主题清理和维护 |
+| SHOW CONSUMERS | 查看消费者 | 监控订阅状态 |
+| SHOW SUBSCRIPTIONS | 查看订阅信息 | 了解订阅关系 |
+
+**示例 - 主题权限授权：**
+
+```sql
+-- 用户 consumer1 可以订阅 power 数据库中的 device_events 主题
+GRANT SUBSCRIBE ON power.device_events TO consumer1;
+
+-- 用户 consumer2 可以订阅所有数据库中的所有主题
+GRANT SUBSCRIBE ON *.* TO consumer2;
+
+-- 用户可以查看主题信息
+GRANT SHOW ON TOPIC power.* TO viewer;
+
+-- 用户可以查看主题定义和消费者信息
+GRANT SHOW CREATE, SHOW CONSUMERS ON TOPIC power.device_events TO inspector;
+
+-- 用户对主题有完整管理权限（仅数据库管理员）
+GRANT ALL ON TOPIC power.device_events TO admin_user;
+
+-- 撤回 inspector 拥有的所有主题权限
+REVOKE ALL ON TOPIC power.device_events FROM inspector;
+```
+
+**主题权限特殊说明：**
+
+- **创建权限**：主题创建权通过 `CREATE TOPIC` 数据库权限控制，任意用户在拥有 `CREATE TOPIC` 权限的数据库上都可以创建主题
+- **删除权限**：仅主题创建者和拥有 `DROP TOPIC` 权限的用户可以删除主题
+- **订阅权限**：通过 `SUBSCRIBE` 权限独立控制，用户即使没有数据库访问权限，也可被授予订阅权限
+- **消费者管理**：拥有 `SHOW CONSUMERS` 权限可查看订阅该主题的消费者信息
+
+**权限优先级：**
+
+- 显式指定主题名的权限 > 通配符 `*` 权限
+- 更新时间靠后的规则生效
+- 相同更新时间，用户权限优先于角色权限
+
+### 流计算权限
+
+流计算权限用于控制用户对流（Stream）的访问和操作。
+
+**权限应用级别：**
+
+- `*.*`：所有流
+- `dbname.*`：指定数据库的所有流
+- `dbname.stream_name`：指定数据库的指定流
+
+**常用权限组合：**
+
+| 权限 | 说明 | 使用场景 |
+|------|------|---------|
+| SHOW [STREAMS] | 查看流列表 | 查看系统中已有的流 |
+| SHOW CREATE [STREAM] | 查看流定义 | 了解流的创建语句和配置 |
+| DROP [STREAM] | 删除流 | 流清理和维护 |
+| START [STREAM] | 启动流 | 启动数据处理 |
+| STOP [STREAM] | 停止流 | 暂停数据处理 |
+| RECALCULATE [STREAM] | 重新计算流 | 流数据重新处理 |
+
+**示例 - 流计算权限授权：**
+
+```sql
+-- 用户 processor 可以查看 power 库中的所有流
+GRANT SHOW ON STREAM power.* TO processor;
+
+-- 用户可以启动和停止特定流
+GRANT START, STOP ON STREAM power.realtime_agg TO operator;
+
+-- 用户可以查看流定义和操作流
+GRANT SHOW CREATE, START, STOP ON STREAM power.* TO manager;
+
+-- 用户对流有完整管理权限
+GRANT ALL ON STREAM power.realtime_agg TO admin_user;
+
+-- 撤回用户的启动权限
+REVOKE START ON STREAM power.realtime_agg FROM operator;
+
+-- 撤回用户针对该流的所有权限
+REVOKE ALL ON STREAM power.realtime_agg FROM operator;
+```
+
 
 ### 审计数据库
 
@@ -766,7 +963,7 @@ GRANT SELECT, INSERT (ts, temperature), DELETE ON power.meters WITH source='sens
 
 - **所有者**：数据库对象的创建者或被转移所有权的接收者
 - **隐含权限**：所有者对该对象拥有无需授权的全量权限
-- **管理权**：可修改对象结构、删除对象
+- **管理权限**：可修改对象结构、删除对象
 
 ---
 
@@ -820,7 +1017,7 @@ taos> show role privileges;
 
 ### 3.4.0.0+ 版本
 
-1. **立即分离三权**：初始化后，将 SYSDBA/SYSSEC/SYSAUDIT 分配给不同用户
+1. **立即分离三权限**：初始化后，将 SYSDBA/SYSSEC/SYSAUDIT 分配给不同用户
 2. **禁用 root 日常操作**：配置完成后，不再使用 root 进行日常运维
 3. **使用角色简化权限**：创建通用角色，授权给用户
 
