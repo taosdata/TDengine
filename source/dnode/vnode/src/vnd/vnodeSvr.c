@@ -1523,6 +1523,48 @@ _exit:
   return 0;
 }
 
+static void alterTagForTmq(SVnode *pVnode, SVAlterTbReq *vAlterTbReq) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SArray* tbUids = NULL;
+  SArray* cidList = NULL;
+
+  int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, vAlterTbReq->tbName);
+  QUERY_CHECK_CONDITION(uid != 0, code, lino, end, TSDB_CODE_TDB_TABLE_NOT_EXIST);
+  
+  tbUids = taosArrayInit(4, sizeof(int64_t));
+  QUERY_CHECK_NULL(tbUids, code, lino, end, terrno);
+
+  QUERY_CHECK_CONDITION(taosArrayPush(tbUids, &uid) != NULL, code, lino, end, terrno);
+
+  cidList = taosArrayInit(4, sizeof(col_id_t));
+  QUERY_CHECK_NULL(cidList, code, lino, end, terrno);
+
+  if (vAlterTbReq->action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL){
+    QUERY_CHECK_CONDITION(taosArrayPush(cidList, &vAlterTbReq->colId) != NULL, code, lino, end, terrno);
+  } else {
+    for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq->pMultiTag); i++) {
+      SMultiTagUpateVal *pTagVal = taosArrayGet(vAlterTbReq->pMultiTag, i);
+      QUERY_CHECK_NULL(pTagVal, code, lino, end, terrno);
+      QUERY_CHECK_CONDITION(taosArrayPush(cidList, &pTagVal->colId) != NULL, code, lino, end, terrno);
+    }
+  }
+  
+  vDebug("vgId:%d, remove tags value altered table:%s from query table list", TD_VID(pVnode), vAlterTbReq->tbName);
+  code = tqUpdateTbUidList(pVnode->pTq, tbUids, false, NULL);
+  QUERY_CHECK_CODE(code, lino, end);
+  vDebug("vgId:%d, try to add table:%s in query table list, cidList size:%"PRIzu, TD_VID(pVnode), vAlterTbReq->tbName, taosArrayGetSize(cidList));
+  code = tqUpdateTbUidList(pVnode->pTq, tbUids, true, cidList);
+  QUERY_CHECK_CODE(code, lino, end);
+
+end:
+  if (code != 0) {
+    qError("vgId:%d, failed to alter table:%s since %s", TD_VID(pVnode), vAlterTbReq->tbName, tstrerror(code));
+  }
+  taosArrayDestroy(tbUids);
+  taosArrayDestroy(cidList);
+}
+
 static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVAlterTbReq  vAlterTbReq = {0};
   SVAlterTbRsp  vAlterTbRsp = {0};
@@ -1561,56 +1603,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   }
 
   if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL || vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
-    int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, vAlterTbReq.tbName);
-    if (uid == 0) {
-      vError("vgId:%d, %s failed at %s:%d since table %s not found", TD_VID(pVnode), __func__, __FILE__, __LINE__,
-             vAlterTbReq.tbName);
-      goto _exit;
-    }
-
-    SArray* tbUids = NULL;
-    SArray* cidList = NULL;
-    do{
-      tbUids = taosArrayInit(4, sizeof(int64_t));
-      if (tbUids == NULL) {
-        break;
-      }
-      if (taosArrayPush(tbUids, &uid) == NULL){
-        break;
-      }
-
-      cidList = taosArrayInit(4, sizeof(col_id_t));
-      if (cidList == NULL) {
-        break;
-      }
-      if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL){
-        if (taosArrayPush(cidList, &vAlterTbReq.colId) == NULL){
-          break;
-        }
-      } else {
-        for (int32_t i = 0; i < taosArrayGetSize(vAlterTbReq.pMultiTag); i++) {
-          SMultiTagUpateVal *pTagVal = taosArrayGet(vAlterTbReq.pMultiTag, i);
-          if (pTagVal == NULL) {
-            break;
-          }
-          if (taosArrayPush(cidList, &pTagVal->colId) == NULL){
-            break;
-          }
-        }
-      }
-      
-      vDebug("vgId:%d, remove tags value altered table:%s from query table list", TD_VID(pVnode), vAlterTbReq.tbName);
-      if ((code = tqUpdateTbUidList(pVnode->pTq, tbUids, false, NULL)) < 0) {
-        vError("vgId:%d, failed to remove tbUid list since %s", TD_VID(pVnode), tstrerror(code));
-      }
-
-      vDebug("vgId:%d, try to add table:%s in query table list, cidList size:%"PRIzu, TD_VID(pVnode), vAlterTbReq.tbName, taosArrayGetSize(cidList));
-      if ((code = tqUpdateTbUidList(pVnode->pTq, tbUids, true, cidList)) < 0) {
-        vError("vgId:%d, failed to add tbUid list since %s", TD_VID(pVnode), tstrerror(code));
-      }
-    }while(0);
-    taosArrayDestroy(tbUids);
-    taosArrayDestroy(cidList);
+    alterTagForTmq(pVnode, &vAlterTbReq);
   }
 
 _exit:
