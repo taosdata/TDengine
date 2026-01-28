@@ -2490,12 +2490,15 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
 
   tqErrorC("consumer:0x%" PRIx64 " msg from vgId:%d discarded, since %s", tmq->consumerId, pollRspWrapper->vgId,
     tstrerror(pRspWrapper->code));
-  if (pRspWrapper->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {  // for vnode transform
+  if (pRspWrapper->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||   // for vnode transform
+      pRspWrapper->code == TSDB_CODE_SYN_NOT_LEADER) {          // for vnode split
+    terrno = pRspWrapper->code;
     code = askEp(tmq, NULL, false, true);
     if (code != 0) {
       tqErrorC("consumer:0x%" PRIx64 " failed to ask ep when vnode transform, code:%s", tmq->consumerId, tstrerror(code));
     }
   } else if (pRspWrapper->code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
+    terrno = pRspWrapper->code;
     code = syncAskEp(tmq);
     if (code != 0) {
       tqErrorC("consumer:0x%" PRIx64 " failed to ask ep when consumer mismatch, code:%s", tmq->consumerId, tstrerror(code));
@@ -2641,11 +2644,11 @@ END:
   return pRspObj;
 }
 
-static void* tmqHandleAllRsp(tmq_t* tmq) {
+static int32_t tmqHandleAllRsp(tmq_t* tmq, void** returnVal) {
   tqDebugC("consumer:0x%" PRIx64 " start to handle the rsp, total:%d", tmq->consumerId, taosQueueItemSize(tmq->mqueue));
 
   int32_t code = 0;
-  void* returnVal = NULL;
+  *returnVal = NULL;
   while (1) {
     SMqRspWrapper* pRspWrapper = NULL;
     taosReadQitem(tmq->mqueue, (void**)&pRspWrapper);
@@ -2655,28 +2658,27 @@ static void* tmqHandleAllRsp(tmq_t* tmq) {
     if (pRspWrapper->code != 0) {
       code = processMqRspError(tmq, pRspWrapper);
     }else{
-      returnVal = processMqRsp(tmq, pRspWrapper);
+      *returnVal = processMqRsp(tmq, pRspWrapper);
       code = terrno;
     }
 
     tmqFreeRspWrapper(pRspWrapper);
     taosFreeQitem(pRspWrapper);
-    if(returnVal != NULL || code != 0){
+    if(*returnVal != NULL || code != 0){
       break;
     }
   }
 
 END:
-  terrno = code;
-  return returnVal;
+  return code;
 }
 
 TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
   int32_t lino = 0;
   int32_t code = 0;
+  terrno = 0;
   TSDB_CHECK_NULL(tmq, code, lino, END, TSDB_CODE_INVALID_PARA);
 
-  void*   rspObj = NULL;
   int64_t startTime = taosGetTimestampMs();
 
   tqDebugC("%s consumer:0x%" PRIx64 " start to poll at %" PRId64 ", timeout:%" PRId64, __func__, tmq->consumerId, startTime, timeout);
@@ -2688,12 +2690,12 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     code = tmqHandleAllDelayedTask(tmq);
     TSDB_CHECK_CODE(code, lino, END);
 
-    rspObj = tmqHandleAllRsp(tmq);
+    void*   rspObj = NULL;
+    code = tmqHandleAllRsp(tmq, &rspObj);
     if (rspObj) {
       tqDebugC("%s consumer:0x%" PRIx64 " end to poll, return rsp:%p", __func__, tmq->consumerId, rspObj);
       return (TAOS_RES*)rspObj;
     }
-    code = terrno;
     TSDB_CHECK_CODE(code, lino, END);
 
     code = tmqPollImpl(tmq);
@@ -2710,11 +2712,11 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
   }
 
 END:
-  terrno = code;
-  if (tmq != NULL && terrno != 0) {
-    tqErrorC("%s consumer:0x%" PRIx64 " poll error at line:%d, msg:%s", __func__, tmq->consumerId, lino, tstrerror(terrno));
+  if (code != 0) {
+    terrno = code;
+    tqErrorC("%s consumer:0x%" PRIx64 " poll error at line:%d, msg:%s", __func__, tmq != NULL ? tmq->consumerId : 0, lino, tstrerror(code));
   } else {
-    tqDebugC("%s consumer:0x%" PRIx64 " poll end with no data", __func__, tmq != NULL ? tmq->consumerId : 0);
+    tqDebugC("%s consumer:0x%" PRIx64 " poll end with timeout, msg:%s", __func__, tmq != NULL ? tmq->consumerId : 0, tstrerror(terrno));
   }
   return NULL;
 }
