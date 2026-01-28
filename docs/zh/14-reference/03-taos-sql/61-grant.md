@@ -847,7 +847,7 @@ REVOKE ALL ON STREAM power.realtime_agg FROM operator;
 ## 权限查看
 
 ```sql
--- 查看用户权限（3.3.x.y+）
+-- 查看用户权限（3.4.0.0+）
 SHOW USER PRIVILEGES
 SELECT * FROM information_schema.ins_user_privileges
 
@@ -887,7 +887,7 @@ taos> show role privileges;
 
 ## 最佳实践
 
-### 3.3.x.y 版本
+### 3.3.x.y- 版本
 
 1. 使用 root 创建业务用户，按最小权限原则授权
 2. 只读应用仅授予 READ 权限
@@ -937,7 +937,7 @@ GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 
 ## 兼容性与升级
 
-| 特性 | 3.3.x.y | 3.4.0.0+ |
+| 特性 | 3.3.x.y- | 3.4.0.0+ |
 |------|---------|----------|
 | CREATE/ALTER/DROP USER | ✓ | ✓ |
 | GRANT/REVOKE READ/WRITE | ✓ | ✗ |

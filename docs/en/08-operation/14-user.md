@@ -10,7 +10,7 @@ Starting from 3.4.0.0, TDengine Enterprise Edition implements a strict separatio
 
 ## Version Comparison
 
-| Feature | 3.3.x.y | 3.4.0.0+ |
+| Feature | 3.3.x.y- | 3.4.0.0+ |
 |---------|---------|----------|
 | Basic User Management | ✓ | ✓ |
 | RBAC Role Management | ✗ | ✓ |

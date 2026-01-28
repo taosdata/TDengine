@@ -3,7 +3,7 @@ title: Permissions
 slug: /tdengine-reference/sql-manual/manage-permissions
 ---
 
-In TDengine, permission management is divided into [user management](../manage-users/), database authorization management, and message subscription authorization management. This section focuses on database authorization and subscription authorization. The authorization syntax is available in the community version 3.3.x.y and earlier, but has no effect. In 3.4.0.0 and later versions, the authorization syntax will report an error.
+In TDengine, permission management is divided into [user management](../manage-users/), database authorization management, and message subscription authorization management. This section focuses on database authorization and subscription authorization. The authorization function only available in TDengine Enterprise Edition. Although authorization syntax is available in the community version 3.3.x.y and earlier, but has no effect. In 3.4.0.0 and later community versions, the authorization syntax will report an error directly.
 
 
 Starting from 3.4.0.0, TDengine Enterprise Edition implements a separation of three powers mechanism through role-based access control (RBAC), with significant changes to permissions. Some syntax is no longer compatible. The subsequent sections of this document will explain the differences.
@@ -849,7 +849,7 @@ REVOKE ALL ON STREAM power.realtime_agg FROM operator;
 ## Permission Viewing
 
 ```sql
--- View user permissions (3.3.x.y+)
+-- View user permissions (3.4.0.0+)
 SHOW USER PRIVILEGES
 SELECT * FROM information_schema.ins_user_privileges
 
@@ -889,7 +889,7 @@ taos> show role privileges;
 
 ## Best Practices
 
-### 3.3.x.y Version
+### 3.3.x.y- Version
 
 1. Use root to create business users, grant permissions following the principle of least privilege
 2. Read-only applications should only be granted READ permission
@@ -939,7 +939,7 @@ GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 
 ## Compatibility and Upgrades
 
-| Feature | 3.3.x.y | 3.4.0.0+ |
+| Feature | 3.3.x.y- | 3.4.0.0+ |
 |---------|---------|----------|
 | CREATE/ALTER/DROP USER | ✓ | ✓ |
 | GRANT/REVOKE READ/WRITE | ✓ | ✗ |
