@@ -896,6 +896,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       for (int32_t i = 0; i < auditVnodeEpSet.numOfEps; i++) {
         if (strncmp(auditVnodeEpSet.eps[i].fqdn, statusReq.auditEpSet.eps[i].fqdn, TSDB_FQDN_LEN) != 0 ||
             auditVnodeEpSet.eps[i].port != statusReq.auditEpSet.eps[i].port) {
+          // do not need to check InUse here, because inUse is not accurate at every time
           auditTokenChanged = true;
           mTrace("dnode:%d, audit epset changed at item:%d, fqdn:%s:%d:, inReq:%s:%d", pDnode->id, i,
                  auditVnodeEpSet.eps[i].fqdn, auditVnodeEpSet.eps[i].port, statusReq.auditEpSet.eps[i].fqdn,
@@ -1073,7 +1074,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
     statusRsp.timeWhiteVer = pMnode->timeWhiteVer;
 
-    if (auditTokenChanged) {
+    if (auditTokenChanged || auditDBChanged) {
       if (tsAuditUseToken) {
         if (auditDB[0] != '\0') {
           mInfo("dnode:%d, set audit db:%s in process status rsp", statusReq.dnodeId, auditDB);

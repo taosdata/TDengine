@@ -44,7 +44,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
                                      SRpcMsg *pOriginRpc);
 static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                      SRpcMsg *pOriginalMsg);
-static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len);
+static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pOriginalMsg);
 static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessDropTtlTbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -980,8 +980,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       break;
     case TDMT_VND_AUDIT_RECORD:
       vTrace("vgId:%d, processed audit msg", TD_VID(pVnode));
-      code = vnodeProcessAuditRecordReq(pVnode, ver, pReq, len);
+      code = vnodeProcessAuditRecordReq(pVnode, ver, pReq, len, pMsg);
       // TODO dmchen audit need commit ? 1. test restart done 2. test large write
+      if (code) {
+        pRsp->code = code;
+        goto _err;
+      }
       break;
     default:
       vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
@@ -2819,7 +2823,11 @@ static SArray *vnodePrepareRow(SVnode *pVnode, STSchema *pSchema, SAuditRecord *
         char   *str = data;
         int32_t len = strlen(str);
         vTrace("set svalue id:%d %s, len:%d, bytes:%d", pCol->colId, str, len, pCol->bytes);
-        if (len > pCol->bytes - VARSTR_HEADER_SIZE) len = pCol->bytes - VARSTR_HEADER_SIZE;
+        if (len > pCol->bytes - VARSTR_HEADER_SIZE) {
+          vWarn("vgId:%d, audit record string field with colId %d is too long, truncated from %d to %d bytes",
+                TD_VID(pVnode), pCol->colId, len, (int32_t)(pCol->bytes - VARSTR_HEADER_SIZE));
+          len = pCol->bytes - VARSTR_HEADER_SIZE;
+        }
         SValue sv = {0};
         sv.type = pCol->type;
         sv.nData = len;
@@ -2970,7 +2978,7 @@ _exit:
 }
 
 static int32_t vnodeSaveOneAuditRecord(SVnode *pVnode, int64_t ver, SJson *pJson, SSchemaWrapper *pTagSchema,
-                                       int64_t suid, STSchema *pSchema) {
+                                       int64_t suid, STSchema *pSchema, SRpcMsg *pOriginalMsg) {
   int32_t code = 0;
   int32_t lino = 0;
   terrno = 0;
@@ -3016,6 +3024,33 @@ _exit:
   if (code != 0)
     vError("vgId:%d, failed to save one AuditRecord at line:%d, since %s", TD_VID(pVnode), lino, tstrerror(code));
 
+  // update statistics
+  (void)atomic_add_fetch_64(&pVnode->statis.nInsert, pSubmitRsp->affectedRows);
+  (void)atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, pSubmitRsp->affectedRows);
+  (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
+
+  // update metrics
+  METRICS_UPDATE(pVnode->writeMetrics.total_requests, METRIC_LEVEL_LOW, 1);
+  METRICS_UPDATE(pVnode->writeMetrics.total_rows, METRIC_LEVEL_HIGH, pSubmitRsp->affectedRows);
+  // METRICS_UPDATE(pVnode->writeMetrics.total_bytes, METRIC_LEVEL_LOW, pMsg->header.contLen);
+
+  if (tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && pSubmitRsp->affectedRows > 0 &&
+      strlen(RPC_MSG_USER(pOriginalMsg)) > 0 && tsInsertCounter != NULL) {
+    const char *sample_labels[] = {VNODE_METRIC_TAG_VALUE_INSERT_AFFECTED_ROWS,
+                                   pVnode->monitor.strClusterId,
+                                   pVnode->monitor.strDnodeId,
+                                   tsLocalEp,
+                                   pVnode->monitor.strVgId,
+                                   RPC_MSG_USER(pOriginalMsg),
+                                   "Success"};
+    int         tv = taos_counter_add(tsInsertCounter, pSubmitRsp->affectedRows, sample_labels);
+  }
+
+  if (code == 0) {
+    (void)atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
+  }
+
+  // clear
   if (pSubmitReq != NULL) {
     tDestroySubmitReq(pSubmitReq, TSDB_MSG_FLG_ENCODE);
     taosMemoryFree(pSubmitReq);
@@ -3027,7 +3062,7 @@ _exit:
   return code;
 }
 
-static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len) {
+static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pOriginalMsg) {
   int32_t code = 0;
   int32_t lino = 0;
   terrno = 0;
@@ -3039,7 +3074,7 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
     return code;
   }
 
-  vTrace("vgId:%d, start to process AuditRecord Req, data:%s dataLen:%d", TD_VID(pVnode), req.data, req.dataLen);
+  vTrace("vgId:%d, start to process AuditRecord Req, data:%s", TD_VID(pVnode), req.data);
 
   SJson *pJson = NULL;
   pJson = tjsonParse(req.data);
@@ -3072,13 +3107,14 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
 
   SJson *pRecords = tjsonGetObjectItem(pJson, "records");
   if (pRecords == NULL) {
-    TAOS_CHECK_GOTO(vnodeSaveOneAuditRecord(pVnode, ver, pJson, pTagSchema, suid, pSchema), &lino, _exit);
+    TAOS_CHECK_GOTO(vnodeSaveOneAuditRecord(pVnode, ver, pJson, pTagSchema, suid, pSchema, pOriginalMsg), &lino, _exit);
   } else {
     int32_t size = tjsonGetArraySize(pRecords);
     vTrace("%d items in records", size);
     for (int32_t i = 0; i < size; ++i) {
       SJson *pRecord = tjsonGetArrayItem(pRecords, i);
-      TAOS_CHECK_GOTO(vnodeSaveOneAuditRecord(pVnode, ver, pRecord, pTagSchema, suid, pSchema), &lino, _exit);
+      TAOS_CHECK_GOTO(vnodeSaveOneAuditRecord(pVnode, ver, pRecord, pTagSchema, suid, pSchema, pOriginalMsg), &lino,
+                      _exit);
     }
   }
 
@@ -3086,6 +3122,8 @@ _exit:
   if (code != 0)
     vError("vgId:%d, failed to process AuditRecordReq failed at line:%d, since %s", TD_VID(pVnode), lino,
            tstrerror(code));
+
+  // clear
   if (pSchema) taosMemoryFree(pSchema);
   if (pTagSchema) {
     taosMemoryFreeClear(pTagSchema->pSchema);
@@ -3096,6 +3134,7 @@ _exit:
     pJson = NULL;
   }
   tFreeSVAuditRecordReq(&req);
+
   return code;
 }
 

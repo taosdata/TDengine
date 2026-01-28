@@ -2109,6 +2109,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   for (int32_t i = 0; i < pReq->auditEpSet.numOfEps; ++i) {
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->auditEpSet.eps[i].fqdn));
     TAOS_CHECK_EXIT(tEncodeI16(&encoder, pReq->auditEpSet.eps[i].port));
+    // do not need to encode InUse here, because inUse is not accurate at every time
   }
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->auditVgId));
 
@@ -2571,6 +2572,7 @@ int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   for (int32_t i = 0; i < pRsp->auditEpSet.numOfEps; ++i) {
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->auditEpSet.eps[i].fqdn));
     TAOS_CHECK_EXIT(tEncodeI16(&encoder, pRsp->auditEpSet.eps[i].port));
+    // do not need to encode InUse here, because inUse is not accurate at every time
   }
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->auditVgId));
 
@@ -12147,7 +12149,6 @@ int32_t tSerializeSVAuditRecordReq(void *buf, int32_t bufLen, SVAuditRecordReq *
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
 
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->dataLen));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->data));
 
   tEndEncode(&encoder);
@@ -12170,12 +12171,8 @@ int32_t tDeserializeSVAuditRecordReq(void *buf, int32_t bufLen, SVAuditRecordReq
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->dataLen));
 
-  if ((pReq->data = taosMemoryMalloc(pReq->dataLen + 1)) == NULL) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->data));
+  TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &(pReq->data)));
 
   tEndDecode(&decoder);
 
