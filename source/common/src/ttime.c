@@ -1572,8 +1572,8 @@ static const char* tsFormatStr2Int32(int32_t* dest, const char* str, int32_t len
     res = taosStr2Int64(s, &last, 10);
     s = last;
   } else {
-    char buf[16] = {0};
-    tstrncpy(buf, s, sizeof(buf));
+    char buf[24] = {0};
+    tstrncpy(buf, s, (len + 1 < sizeof(buf)) ? len + 1 : sizeof(buf));
     int32_t copiedLen = strlen(buf);
     if (copiedLen < len) {
       if (!needMoreDigit) {

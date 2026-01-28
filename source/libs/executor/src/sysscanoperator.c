@@ -1586,8 +1586,10 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
     } else {
       char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
       char tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
+
       TSlice refColNameBuf = {0};
-      sliceInit(&refColNameBuf, refColName, sizeof(refColName));
+      sliceInit(&refColNameBuf, tmpColName, sizeof(tmpColName));
+
       QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, colRef->pColRef[i].refDbName, strlen(colRef->pColRef[i].refDbName)),
                        lino, _end);
       QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
@@ -1600,6 +1602,7 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
       QUERY_CHECK_CODE(
           sliceAppend(&refColNameBuf, colRef->pColRef[i].refColName, strlen(colRef->pColRef[i].refColName)), lino,
           _end);
+
       STR_TO_VARSTR(refColName, tmpColName);
 
       code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
