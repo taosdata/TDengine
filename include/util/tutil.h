@@ -210,9 +210,9 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
   (void)memcpy(target, buf, TSDB_PASSWORD_LEN);
 }
 
-static FORCE_INLINE int32_t taosHashBinary(char *pBuf, int32_t len) {
+static FORCE_INLINE int32_t taosHashBinary(char *pBuf, int32_t len, int32_t cap) {
   uint64_t hashVal = MurmurHash3_64(pBuf, len);
-  return sprintf(pBuf, "%" PRIu64, hashVal);
+  return snprintf(pBuf, cap, "%" PRIu64, hashVal);
 }
 
 static FORCE_INLINE int32_t taosCreateMD5Hash(char *pBuf, int32_t len) {

@@ -457,7 +457,7 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex, uint8_t pr
   int64_t pointer = (int64_t)pWStart;
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64, pWStart->functionName, pointer);
-  (void)taosHashBinary(name, len);
+  (void)taosHashBinary(name, len, sizeof(name));
   tstrncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN);
   pWStart->node.resType.precision = precision;
 
@@ -489,7 +489,7 @@ static int32_t stbSplAppendWEnd(SWindowLogicNode* pWin, int32_t* pIndex) {
   int64_t pointer = (int64_t)pWEnd;
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64, pWEnd->functionName, pointer);
-  (void)taosHashBinary(name, len);
+  (void)taosHashBinary(name, len, sizeof(name));
   tstrncpy(pWEnd->node.aliasName, name, TSDB_COL_NAME_LEN);
 
   code = fmGetFuncInfo(pWEnd, NULL, 0);
@@ -544,7 +544,7 @@ static int32_t stbSplAppendPlaceHolder(SNodeList* pFuncs, int32_t* pIndex, uint8
   int64_t pointer = (int64_t)pPlaceHolder;
   char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64, pPlaceHolder->functionName, pointer);
-  (void)taosHashBinary(name, len);
+  (void)taosHashBinary(name, len, sizeof(name));
   tstrncpy(pPlaceHolder->node.aliasName, name, TSDB_COL_NAME_LEN);
   pPlaceHolder->node.resType.precision = precision;
 

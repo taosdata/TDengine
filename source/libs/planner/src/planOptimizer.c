@@ -3678,7 +3678,7 @@ static void partTagsSetAlias(char* pAlias, const char* pTableAlias, const char* 
   char    name[TSDB_COL_FNAME_LEN + 1] = {0};
   int32_t len = snprintf(name, TSDB_COL_FNAME_LEN, "%s.%s", pTableAlias, pColName);
 
-  (void)taosHashBinary(name, len);
+  (void)taosHashBinary(name, len, sizeof(name));
   tstrncpy(pAlias, name, TSDB_COL_NAME_LEN);
 }
 
@@ -4493,7 +4493,7 @@ static int32_t rewriteUniqueOptCreateFirstFunc(SFunctionNode* pSelectValue, SNod
     int64_t pointer = (int64_t)pFunc;
     char    name[TSDB_FUNC_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
     int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64, pFunc->functionName, pointer);
-    (void)taosHashBinary(name, len);
+    (void)taosHashBinary(name, len, sizeof(name));
     tstrncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN);
   }
   SNode* pNew = NULL;

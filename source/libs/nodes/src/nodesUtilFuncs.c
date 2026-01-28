@@ -3276,7 +3276,7 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
     len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
   }
   if (pCol->projRefIdx > 0) {
-    len = taosHashBinary(name, strlen(name));
+    len = taosHashBinary(name, strlen(name), sizeof(name));
     len += snprintf(name + len, TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN - len, "_%d", pCol->projRefIdx);
   }
   SNode** pNodeFound = taosHashGet(pCxt->pColHash, name, len);

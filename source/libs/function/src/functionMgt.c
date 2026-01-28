@@ -494,7 +494,7 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
   char name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
 
   int32_t len = snprintf(name, sizeof(name), "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
-  if (taosHashBinary(name, len) < 0) {
+  if (taosHashBinary(name, len, sizeof(name)) < 0) {
     return TSDB_CODE_FAILED;
   }
   tstrncpy((*pPartialFunc)->node.aliasName, name, TSDB_COL_NAME_LEN);
