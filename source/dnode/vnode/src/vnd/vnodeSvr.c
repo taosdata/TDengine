@@ -3033,7 +3033,6 @@ _exit:
     // update metrics
     METRICS_UPDATE(pVnode->writeMetrics.total_requests, METRIC_LEVEL_LOW, 1);
     METRICS_UPDATE(pVnode->writeMetrics.total_rows, METRIC_LEVEL_HIGH, pSubmitRsp->affectedRows);
-    // METRICS_UPDATE(pVnode->writeMetrics.total_bytes, METRIC_LEVEL_LOW, pMsg->header.contLen);
 
     if (tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && pSubmitRsp->affectedRows > 0 &&
         strlen(RPC_MSG_USER(pOriginalMsg)) > 0 && tsInsertCounter != NULL) {
@@ -3069,13 +3068,13 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
   if (tDeserializeSVAuditRecordReq(pReq, len, &req) != 0) {
     vError("vgId:%d, failed to deserialize SVAuditRecordReq", TD_VID(pVnode));
     code = TSDB_CODE_INVALID_MSG;
-    return code;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
   if (req.data == NULL) {
     vError("vgId:%d, audit record data is NULL", TD_VID(pVnode));
     code = TSDB_CODE_INVALID_MSG;
-    return code;
+    TAOS_CHECK_GOTO(code, &lino, _exit);
   }
 
   vTrace("vgId:%d, start to process AuditRecord Req, data:%s", TD_VID(pVnode), req.data);
@@ -3128,9 +3127,10 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
   }
 
 _exit:
-  if (code != 0)
-    vError("vgId:%d, failed to process AuditRecordReq failed at line:%d, since %s", TD_VID(pVnode), lino,
+  if (code != 0) {
+    vError("vgId:%d, failed to process AuditRecordReq at line:%d, since %s", TD_VID(pVnode), lino,
            tstrerror(code));
+  }
 
   // clear
   if (pSchema) taosMemoryFree(pSchema);
