@@ -4593,6 +4593,11 @@ static int64_t dumpInAvroTbTagsImpl(
                 FieldStruct *field = (FieldStruct *)
                     (recordSchema->fields + sizeof(FieldStruct) * (i + tagAdjExt));
 
+                // skip field "sql"
+                if (field && field->name[0] && strcasecmp(field->name, "sql") == 0) {
+                    continue;
+                }
+
                 // check filter
                 int16_t idx = i - 1;
                 if (stbChange && stbChange->schemaChanged) {
