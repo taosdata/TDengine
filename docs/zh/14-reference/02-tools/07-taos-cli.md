@@ -1,6 +1,6 @@
 ---
 title: TDengine TSDB CLI 参考手册
-sidebar_label: TDengine TSDB CLI
+sidebar_label: TSDB CLI
 toc_max_heading_level: 4
 ---
 
