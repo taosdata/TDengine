@@ -24,6 +24,8 @@ TDengine TSDB 默认仅配置了一个 root 用户，该用户拥有最高权限
 | 列权限 | ✗ | ✓ |
 ---
 
+
+
 ## 用户管理
 
 ### 创建用户
@@ -351,12 +353,14 @@ GRANT ROLE `SYSAUDIT` TO audit_user;
 ### 数据库管理员（SYSDBA）
 
 **职责：**
+
 - 数据库的日常运维、系统管理
 - 创建和管理用户、角色
 - 管理数据库、表、索引等对象
 - 管理节点、流计算、订阅等系统资源
 
 **限制：**
+
 - 不能授予 SYSSEC/SYSAUDIT 权限
 - 不能执行与审计数据库相关的操作
 - 默认不拥有查看业务数据的权限（但可查看元数据）
@@ -364,13 +368,15 @@ GRANT ROLE `SYSAUDIT` TO audit_user;
 ### 数据库安全员（SYSSEC）
 
 **职责：**
+
 - 用户与角色权限管理（除 SYSDBA/SYSAUDIT 外）
 - 安全参数配置
 - TOTP 密钥管理
 - 用户安全信息设置
 
 **权限示例：**
-```
+
+```sql
 GRANT/REVOKE SYSSEC PRIVILEGE
 ALTER SECURITY VARIABLE
 CREATE TOTP / DROP TOTP
@@ -381,13 +387,15 @@ READ INFORMATION_SCHEMA SECURITY
 ### 数据库审计员（SYSAUDIT）
 
 **职责：**
+
 - 独立审计监督
 - 审计数据库管理
 - 审计日志查看
 - 审计相关参数配置
 
 **权限示例：**
-```
+
+```sql
 GRANT/REVOKE SYSAUDIT PRIVILEGE
 ALTER/DROP/USE AUDIT DATABASE
 SELECT AUDIT TABLE
@@ -404,6 +412,7 @@ CREATE ROLE [IF NOT EXISTS] role_name;
 ```
 
 **约束：**
+
 - 创建者需具有 CREATE ROLE 权限
 - 角色名长度 1-63 字符
 - 角色名不能与已存在用户名重名
@@ -457,7 +466,6 @@ REVOKE ROLE role_name FROM user_name;
 ```sql
 -- 授予系统权限
 GRANT privileges TO {user_name | role_name};
-
 -- 撤销系统权限
 REVOKE privileges FROM {user_name | role_name};
 
@@ -582,20 +590,21 @@ priv_type: {
 3.4.0.0+ 专门支持审计数据库：
 
 **特性：**
+
 - 系统仅允许一个审计库
 - 审计库通过 `is_audit` 属性标识（非固定名称）
 - 仅 SYSAUDIT 可删除和修改审计库
-- 为防止误删库，新增了 allow_drop 属性。审计库默认为 0，普通库默认为 1. 删除审计库时，需要将 allow_drop 属性修改为 1.
+- 为防止误删库，新增了 allow_drop 属性。审计库默认为 0，普通库默认为 1。删除审计库时，需要将 allow_drop 属性修改为 1。
 
 **权限限制：**
-```
+
+```text
 ❌ 任何人不允许删除审计表
 ❌ 任何人不允许修改审计表
 ❌ 任何人不允许删除审计表中的数据
 ✓ 仅 SYSAUDIT_LOG 角色可向审计库写入数据
 ✓ 仅 SYSAUDIT 角色可向查看审计库中的表数据
 ```
-
 
 ### 所有者（Owner）概念
 
@@ -684,6 +693,7 @@ GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 | 审计数据库 | ✗ | ✓ |
 
 **升级说明：**
+
 - ✓ 支持从低版本停机后自动升级到 3.4.0.0+
 - ✗ 不支持滚动升级
 - ✗ 升级后无法降级
