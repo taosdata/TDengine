@@ -1826,20 +1826,12 @@ void qResetTaskCode(qTaskInfo_t tinfo) {
 
 int32_t qSubFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid, SArray* cidList) {
   int32_t         code = TSDB_CODE_SUCCESS;
-  STableListInfo* pList = tableListCreate();
-  if (pList == NULL) {
-    code = terrno;
-    goto end;
-  }
 
   SNode* pTagCond = node == NULL ? NULL : ((SSubplan*)node)->pTagCond;
-  pList->idInfo.suid = suid;
-  pList->idInfo.tableType = TD_SUPER_TABLE;
-  code = doFilterByTagCond(pList, uidList, pTagCond, pVnode, SFLT_NOT_INDEX, &((SExecTaskInfo*)pTaskInfo)->storageAPI, cidList);
+  code = doFilterByTagCond(suid, uidList, pTagCond, pVnode, SFLT_NOT_INDEX, &((SExecTaskInfo*)pTaskInfo)->storageAPI, cidList);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
 end:
-  tableListDestroy(pList);
   return code;
 }

@@ -1089,20 +1089,17 @@ static int32_t doInWithAnd(SNode* cond, void* pVnode, SArray* list, SStorageAPI*
   return -1;
 }
 
-static bool optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SNode* cond, SStorageAPI* pAPI) {
+static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SNode* cond, SStorageAPI* pAPI) {
   int32_t code = 0;
   int32_t lino = 0;
   if (nodeType(cond) == QUERY_NODE_OPERATOR) {
     code = optimizeTbnameInCondImpl(pVnode, list, cond, pAPI, suid);
-    QUERY_CHECK_CODE(code, lino, end);
   } else {
     code = doInWithAnd(cond, pVnode, list, pAPI, suid);
     QUERY_CHECK_CODE(code, lino, end);
+    code = pAPI->metaFn.getTableTagsByUid(pVnode, suid, list);
   }
-
-  taosArraySort(list, filterTableInfoCompare);
-  taosArrayRemoveDuplicate(list, filterTableInfoCompare, NULL);
-  code = pAPI->metaFn.getTableTagsByUid(pVnode, suid, list);
+  
 end:
   return code == 0;
 }
@@ -1160,6 +1157,8 @@ static int32_t getTableListInInOperator(void* pVnode, SArray* pExistedUidList, S
       }
     } 
   }
+  taosArraySort(pExistedUidList, filterTableInfoCompare);
+  taosArrayRemoveDuplicate(pExistedUidList, filterTableInfoCompare, NULL);
 end:
   taosArrayDestroy(pTbList);
   taosHashCleanup(uHash);
@@ -1291,31 +1290,26 @@ _end:
   return pResBlock;
 }
 
-static int32_t doSetQualifiedUid(STableListInfo* pListInfo, SArray* pUidList, const SArray* pUidTagList, bool* pResultList) {
+static int32_t doSetQualifiedUid(SArray* pUidList, const SArray* pUidTagList, SColumnInfoData* colData) {
   taosArrayClear(pUidList);
 
-  STableKeyInfo info = {.uid = 0, .groupId = 0};
   int32_t       numOfTables = taosArrayGetSize(pUidTagList);
+  bool* pResultList = colData == NULL ? NULL : (bool*)colData->pData;
   for (int32_t i = 0; i < numOfTables; ++i) {
-    if (pResultList[i]) {
-      STUidTagInfo* tmpTag = (STUidTagInfo*)taosArrayGet(pUidTagList, i);
-      if (!tmpTag) {
-        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-        return terrno;
-      }
-      uint64_t uid = tmpTag->uid;
-      qDebug("tagfilter get uid:%" PRId64 ", res:%d", uid, pResultList[i]);
+    if (pResultList != NULL && !pResultList[i]) {
+       continue;
+    }
+    STUidTagInfo* tmpTag = (STUidTagInfo*)taosArrayGet(pUidTagList, i);
+    if (!tmpTag) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return terrno;
+    }
+    uint64_t uid = tmpTag->uid;
+    qDebug("tagfilter get uid:%" PRId64 ", res:%d", uid, pResultList[i]);
 
-      info.uid = uid;
-      void* p = taosArrayPush(pListInfo->pTableList, &info);
-      if (p == NULL) {
-        return terrno;
-      }
-
-      void* tmp = taosArrayPush(pUidList, &uid);
-      if (tmp == NULL) {
-        return terrno;
-      }
+    void* tmp = taosArrayPush(pUidList, &uid);
+    if (tmp == NULL) {
+      return terrno;
     }
   }
 
@@ -1345,7 +1339,7 @@ static int32_t copyExistedUids(SArray* pUidTagList, const SArray* pUidList) {
   return code;
 }
 
-int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, void* pVnode,
+int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, SNode* pTagCond, void* pVnode,
                                  SIdxFltStatus status, SStorageAPI* pAPI, SArray* cidList) {
   if (pTagCond == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -1402,34 +1396,24 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
   QUERY_CHECK_CODE(code, lino, end);
 
   // Narrow down the scope of the tablelist set if there is tbname in condition and And Logical operator
-  bool narrowed = optimizeTbnameInCond(pVnode, pListInfo->idInfo.suid, pUidTagList, pTagCond, pAPI);
-  if (narrowed) {  // tbname in filter is activated, do nothing and return
-    taosArrayClear(pUidList);
-
-    int32_t numOfRows = taosArrayGetSize(pUidTagList);
-    code = taosArrayEnsureCap(pUidList, numOfRows);
-    QUERY_CHECK_CODE(code, lino, end);
-
-    for (int32_t i = 0; i < numOfRows; ++i) {
-      STUidTagInfo* pInfo = taosArrayGet(pUidTagList, i);
-      QUERY_CHECK_NULL(pInfo, code, lino, end, terrno);
-      void* tmp = taosArrayPush(pUidList, &pInfo->uid);
-      QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
+  code = optimizeTbnameInCond(pVnode, suid, pUidTagList, pTagCond, pAPI);
+  if (code == 0) {
+    if (nodeType(pTagCond) == QUERY_NODE_OPERATOR) {
+      goto end;
     }
-    terrno = 0;
   } else {
     qDebug("pUidTagList size:%d", (int32_t)taosArrayGetSize(pUidTagList));
 
     FilterCondType condType = checkTagCond(pTagCond);
     if (((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) || // (super table) use tagIndex and operator is and
         (status == SFLT_NOT_INDEX && taosArrayGetSize(pUidTagList) > 0)) {                       // (child table with tagCond)
-      code = pAPI->metaFn.getTableTagsByUid(pVnode, pListInfo->idInfo.suid, pUidTagList);
+      code = pAPI->metaFn.getTableTagsByUid(pVnode, suid, pUidTagList);
     } else {
       taosArrayClearEx(pUidTagList, freeItem);       // clear tablelist if using tagIndex and or condition
-      code = pAPI->metaFn.getTableTags(pVnode, pListInfo->idInfo.suid, pUidTagList);
+      code = pAPI->metaFn.getTableTags(pVnode, suid, pUidTagList);
     }
     if (code != TSDB_CODE_SUCCESS) {
-      qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code), pListInfo->idInfo.suid);
+      qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code),suid);
       terrno = code;
       QUERY_CHECK_CODE(code, lino, end);
     }
@@ -1437,7 +1421,6 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
 
   int32_t numOfTables = taosArrayGetSize(pUidTagList);
   if (numOfTables == 0) {
-    taosArrayClear(pUidList);
     goto end;
   }
 
@@ -1468,14 +1451,13 @@ int32_t doFilterByTagCond(STableListInfo* pListInfo, SArray* pUidList, SNode* pT
     QUERY_CHECK_CODE(code, lino, end);
   }
 
-  code = doSetQualifiedUid(pListInfo, pUidList, pUidTagList, (bool*)output.columnData->pData);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    QUERY_CHECK_CODE(code, lino, end);
-  }
-
 end:
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code == 0) {
+    code = doSetQualifiedUid(pUidList, pUidTagList, output.columnData);
+    lino = __LINE__;
+  }
+  
+  if (code != 0) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   taosHashCleanup(ctx.colHash);
@@ -1508,7 +1490,7 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
       void* tmp = taosArrayPush(pUidList, &pScanNode->uid);
       QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
     }
-    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, NULL);
+    code = doFilterByTagCond(pScanNode->suid, pUidList, pTagCond, pVnode, status, pStorageAPI, NULL);
     QUERY_CHECK_CODE(code, lino, end);
   } else {
     T_MD5_CTX context = {0};
@@ -1553,8 +1535,8 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         }
       }
     }
-
-    code = doFilterByTagCond(pListInfo, pUidList, pTagCond, pVnode, status, pStorageAPI, NULL);
+    qDebug("%s pUidList size:%d", __func__, (int32_t)taosArrayGetSize(pUidList));
+    code = doFilterByTagCond(pScanNode->suid, pUidList, pTagCond, pVnode, status, pStorageAPI, NULL);
     QUERY_CHECK_CODE(code, lino, end);
 
     // let's add the filter results into meta-cache
@@ -1581,6 +1563,16 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
         memcpy(digest + 1, context.digest, tListLen(context.digest));
       }
     }
+  }
+
+  STableKeyInfo info = {.uid = 0, .groupId = 0};
+  for (int32_t i = 0; i < taosArrayGetSize(pUidList); ++i) {
+    int64_t* uid = (int64_t*)taosArrayGet(pUidList, i);
+    QUERY_CHECK_NULL(uid, code, lino, end, terrno);
+
+    info.uid = *uid;
+    void* p = taosArrayPush(pListInfo->pTableList, &info);
+    QUERY_CHECK_NULL(p, code, lino, end, terrno);
   }
 
 end:
