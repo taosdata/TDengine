@@ -48,7 +48,7 @@ TDengine TSDB 支持按时间窗口切分方式进行聚合结果查询，比如
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 }
@@ -71,40 +71,6 @@ window_clause: {
   - 且至少包含一个聚集函数 (3.4.0.0 之后不再有该限制)。
 - 窗口子句不可以和 GROUP BY 子句一起使用。
 - WHERE 语句可以指定查询的起止时间和其他过滤条件。
-
-### FILL 子句
-
-FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填充模式包括以下几种：
-
-1. 不进行填充：NONE（默认填充模式）。
-2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如 `FILL(VALUE, 1.23)`。这里需要注意，最终填充的值受由相应列的类型决定，如 `FILL(VALUE, 1.23)`，相应列为 INT 类型，则填充值为 1，若查询列表中有多列需要 FILL，则需要给每一个 FILL 列指定 VALUE，如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`，注意，SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE，如 `_wstart`、`_wstart+1a`、`now`、`1+1` 以及使用 `partition by` 时的 `partition key` (如 tbname) 都不需要指定 VALUE，如 `timediff(last(ts), _wstart)` 则需要指定 VALUE。
-3. PREV 填充：使用前一个有效值填充数据。例如 FILL(PREV)。
-4. NULL 填充：使用 NULL 填充数据。例如 FILL(NULL)。
-5. LINEAR 填充：根据前后距离最近的有效值做线性插值填充。例如 FILL(LINEAR)。
-6. NEXT 填充：使用下一个有效值填充数据。例如 FILL(NEXT)。
-
-以上填充模式中，除了 NONE 模式默认不填充值之外，其他模式在查询的整个时间范围内如果没有数据 FILL 子句将被忽略，即不产生填充数据，查询结果为空。这种行为在部分模式（PREV、NEXT、LINEAR）下具有合理性，因为在这些模式下没有数据意味着无法产生填充数值。
-
-“有效值”的定义在 INTERVAL 子句和 INTERP 子句中有所不同：在 INTERVAL 子句中，扫描出的数据均为有效数据，例如 FILL(PREV) 即使用前一条数据填充；在 INTERP 子句中，从 v3.4.0.0 开始，NULL 值是否有效取决于 INTERP 函数的 ignore_null_values 参数，例如 FILL(PREV) 且 NULL 值无效，则略过 NULL，继续寻找 non-NULL 数据。
-
-对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，从 v3.0.3.0 开始，增加了两种新的填充模式：
-
-7. NULL_F：强制填充 NULL 值
-8. VALUE_F：强制填充 VALUE 值
-
-NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如下：
-
-- INTERVAL 子句：NULL_F、VALUE_F 为强制填充模式；NULL、VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
-- 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
-- INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
-
-:::info
-
-1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。针对每次查询，系统可返回不超过 1 千万条具有插值的结果。
-2. 在时间维度聚合中，返回的结果中时间序列严格单调递增。
-3. 如果查询对象是超级表，则聚合函数会作用于该超级表下满足值过滤条件的所有表的数据。如果查询中没有使用 PARTITION BY 语句，则返回的结果按照时间序列严格单调递增；如果查询中使用了 PARTITION BY 语句分组，则返回结果中每个 PARTITION 内按照时间序列严格单调递增。
-
-:::
 
 ### 时间窗口
 
@@ -138,6 +104,8 @@ SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, A
 -- 起始时间限制不明确，不生效，仍以 0 为偏移量
 SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 ```
+
+INTERVAL 子句支持使用 FILL 子句来指定数据缺失时的数据填充方法。关于 FILL 子句如何使用请参考 [FILL 子句](./20-select.md#fill-子句)。
 
 使用时间窗口需要注意：
 

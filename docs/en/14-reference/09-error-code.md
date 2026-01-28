@@ -576,7 +576,7 @@ Below are the business error codes for each module.
 | 0x800026AB | TRUE_FOR COUNT must be a non-negative integer not exceeding INT32_MAX                                  | The value for COUNT in a TRUE_FOR expr is invalid                          | Check and correct the SQL statement                          |
 | 0x800026AC | Invalid fill mode | Using fill(near) mode in interval window | Use supported fill modes for interval window |
 | 0x800026AD | Invalid fill values | Incorrect use of fill values parameter | Use the correct fill mode with fill values parameter |
-| 0x800026AE | Invalid surrounding time value | Incorrect surrounding time value provided | Use correct and valid time range |
+| 0x800026AE | Invalid surrounding time values | Incorrect surrounding time value provided | Use correct and valid time range and time unit  |
 | 0x800026FF | Parser internal error                                                                                  | Internal error in parser                                                   | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                                                                 | Internal error in planner                                                  | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN condition validation failed                                           | Preserve the scene and logs, report issue on GitHub          |

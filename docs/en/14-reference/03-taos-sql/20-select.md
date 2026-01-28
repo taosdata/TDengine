@@ -56,24 +56,34 @@ join_clause:
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 }
 
 interp_clause:
-      RANGE(ts_val [, ts_val] [, surrounding_time_val]) EVERY(every_val) FILL(fill_mod_and_val)
+    RANGE(ts_val [, ts_val]) EVERY(every_val) fill_clause
+
+fill_clause:
+    FILL(fill_mode_and_val) [SURROUND(surrounding_time_val [, fill_vals])]
+
+fill_mode_and_val:
+    NONE
+  | NULL|NULL_F
+  | VALUE|VALUE_F [, fill_vals]
+  | PREV|NEXT|NEAR
+  | LINEAR
+ 
+group_by_clause:
+    GROUP BY group_by_expr [, group_by_expr] ... HAVING condition
+                                                    
+group_by_expr:
+    {expr | position | c_alias}
 
 partition_by_clause:
     PARTITION BY partition_by_expr [, partition_by_expr] ...
 
 partition_by_expr:
-    {expr | position | c_alias}
-
-group_by_clause:
-    GROUP BY group_by_expr [, group_by_expr] ... HAVING condition
-                                                    
-group_by_expr:
     {expr | position | c_alias}
 
 order_by_clasue:
@@ -97,14 +107,7 @@ true_for_expr: {
 - table_reference: Specify the name of a single table (including views), and optionally specify an alias for the table.
 - table_expr: Specify the query data source, which can be table name, view name, or subquery.
 - join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision can be selected from 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), and 1w (weeks), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0,1024]. For detailed information, please refer to the join query chapter [TDengine Join Queries](../join-queries/).
-- interp_clause: Interp clause, used in conjunction with the interp function, specifying the recorded value or interpolation of the time section, can specify the time range of interpolation, output time interval, and interpolation type.
-  - RANGE: Specify a single or start end time value, the end time must be greater than the start time. ts_val is a standard timestamp type, and surrounding_timenval is optional. Specify a time range of positive values, with precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as:
-    - `RANGE('2023-10-01T00:00:00.000')`
-    - `RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')`
-    - `RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999', 1h)`
-  - EVERY: Time interval range, with every_val being a positive value and precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as EVERY (1s).
-  - FILL: Types can be selected as NONE (unfilled), VALUE (filled with specified value), PREV (previous valid value), NEXT (next valid value), NEAR (nearest valid value before and after), LINEAR (linear interpolation). Note: whether a NULL value is considered valid data depends on the ignore_null_values ​​parameter of the interp function.
-- window_cause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](../time-series-extensions/).
+- window_clause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](../03-taos-sql/24-distinguished.md).
   - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value, and time precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, 1w, such as SESSION (ts, 12s).
   - STATE_WINDOW: State window, col specifies the state column. Extend specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively. The zeroth state refers to the "zero state". Windows with this state in the state column will not be calculated or output, and the input must be an integer, boolean, or string constant. TRUE_FOR specifies the filtering condition for windows. Supports the following four modes:
     - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
@@ -114,7 +117,6 @@ true_for_expr: {
 
     Where `duration_time` is a positive time value with supported units: 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). Examples: `TRUE_FOR(1a)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 50)`, `TRUE_FOR(5m OR COUNT 20)`.
   - INTERVAL: Time window, interval_val specifies the window size, sliding_val specifies the window sliding time, sliding_val time is limited to the interval_val range, interval_val and sliding_val time ranges are positive values, and precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as interval_val (2d) and SLIDING (1d).
-  - FILL: types can be selected as NONE, VALUE, PREV, NEXT, NEAR.
   - EVENT_WINDOW: The event window uses start_trigger_condition and end_trigger_condition to specify start and end conditions, supports any expression, and can specify different columns. TRUE_FOR specifies the filtering condition for windows. Supports the following four modes:
     - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
     - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
@@ -123,7 +125,10 @@ true_for_expr: {
 
     Where `duration_time` is a positive time value with supported units: 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 50)`, `TRUE_FOR(5m OR COUNT 20)`.
   - COUNT_WINDOW: Count window, specifying the division of the window by the number of rows, count_val window contains the maximum number of rows, with a range of [2,2147483647]. The sliding quantity of the window is [1, count_val].The col_name parameter starts to be supported after version 3.3.7.0. col_name specifies one or more columns. When counting in the count_window, for each row of data in the window, at least one of the specified columns must be non-null; otherwise, that row of data is not included in the counting window. If col_name is not specified, it means there is no non-null restriction.
-
+- interp_clause: Interp clause, used in conjunction with the interp function, specifying the recorded value or interpolation of the time section, can specify the time range of interpolation, output time interval, and interpolation type.
+  - RANGE: Specify a single or start end time value, the end time must be greater than the start time. ts_val is a standard timestamp type. Such as ```RANGE('2023-10-01T00:00:00.000')``` or ```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```.
+  - EVERY: Time interval range, with every_val being a positive value and precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as EVERY (1s).
+- fill_clause: Fill clause, can be used with interp function or interval window, to specify the data filling method when data is missing.
 - group_by_expr: Specify data grouping and aggregation rules. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select ts, current from meters order by ts desc, 2`, where 2 corresponds to the current column.
 - partition_by_expr: Specify the data slicing conditions, and calculate the data independently within the slice. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select current from meters partition by 1`, where 1 corresponds to the current column.
 - order_expr: Specify the sorting rule for the output data, which is not sorted by default. Supports expressions, functions, positions, columns, and aliases. Different sorting rules can be used for each column in a single or multiple columns, and null values can be specified to be sorted first or last.
@@ -326,14 +331,90 @@ TDengine supports INNER JOIN based on the timestamp primary key, with the follow
 
 ## INTERP
 
-The INTERP clause is a dedicated syntax for the INTERP function (../function/#interp). When an SQL statement contains an INTERP clause, it can only query the INTERP function and cannot be used with other functions. Additionally, the INTERP clause cannot be used simultaneously with window clauses (window_clause) or group by clauses (group_by_clause). The INTERP function must be used with the RANGE, EVERY, and FILL clauses.
+The INTERP clause is a dedicated syntax for the [INTERP function](./22-function.md#interp). When an SQL statement contains an INTERP clause, it can only query the INTERP function and cannot be used with other functions. Additionally, the INTERP clause cannot be used simultaneously with window clauses (window_clause) or group by clauses (group_by_clause). The INTERP function must be used with the RANGE, EVERY, and FILL clauses.
 
 - The output time range for INTERP is specified by the RANGE(timestamp1, timestamp2) field, which must satisfy timestamp1 \<= timestamp2. Here, timestamp1 is the start value of the output time range, i.e., if the conditions for interpolation are met at timestamp1, then timestamp1 is the first record output, and timestamp2 is the end value of the output time range, i.e., the timestamp of the last record output cannot be greater than timestamp2.
 - INTERP determines the number of results within the output time range based on the EVERY(time_unit) field, starting from timestamp1 and interpolating at fixed intervals of time (time_unit value), where time_unit can be time units: 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). For example, EVERY(500a) will interpolate the specified data every 500 milliseconds.
-- INTERP determines how to interpolate at each time point that meets the output conditions based on the FILL field. For how to use the FILL clause, refer to [FILL Clause](../time-series-extensions/). Note: The sampled data used for interpolation is not limited to the constraints of the RANGE field, but rather to all data that meets the conditions of the WHERE clause; if no WHERE clause is specified, the entire table data is used. When the parameter of the FILL clause is PREV/NEXT/NEAR, adjacent valid data will be used for interpolation. Whether NULL data is considered valid data depends on the ignore_null_values ​​parameter of the INTERP function.
-- INTERP can interpolate at a single time point specified in the RANGE field, in which case the EVERY field can be omitted. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear).
-- INTERP query supports NEAR FILL mode, i.e., when FILL is needed, it uses the data closest to the current time point for interpolation. When the timestamps before and after are equally close to the current time slice, FILL the previous row's value. This mode is not supported in window queries. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR).(Supported from version 3.3.4.9).
-- INTERP `RANGE` clause supports the expansion of the time range (supported from version 3.3.4.9), such as `RANGE('2023-01-01 00:00:00', 10s)` means to find data 10s before and after the time point '2023-01-01 00:00:00' for interpolation, FILL PREV/NEXT/NEAR respectively means to look for data forward/backward/around the time point, if there is no data around the time point, then use the value specified by FILL for interpolation, therefore the FILL clause must specify a value at this time. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', 10s) FILL(PREV, 1). Currently, only the combination of time point and time range is supported, not the combination of time interval and time range, i.e., RANGE('2023-01-01 00:00:00', '2023-02-01 00:00:00', 1h) is not supported. The specified time range rules are similar to EVERY, the unit cannot be year or month, the value cannot be 0, and cannot have quotes. When using this extension, other FILL modes except FILL PREV/NEXT/NEAR are not supported, and the EVERY clause cannot be specified.
+- INTERP determines how to interpolate at each time point that meets the output conditions based on the FILL field. For how to use the FILL clause, refer to [FILL Clause](./20-select.md#fill-clause). Note: The sampled data used for interpolation is not limited to the constraints of the RANGE field, but rather to all data that meets the conditions of the WHERE clause; if no WHERE clause is specified, the entire table data is used. When the parameter of the FILL clause is PREV/NEXT/NEAR, adjacent valid data will be used for interpolation. Whether NULL data is considered valid data depends on the ignore_null_values parameter of the INTERP function. To limit the scope of sampled data, you can use the SURROUND clause.
+- INTERP can interpolate at a single time point specified in the RANGE field, in which case the EVERY field can be omitted. For example: `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear)`.
+- INTERP query supports NEAR FILL mode, i.e., when FILL is needed, it uses the valid data closest to the current time point for interpolation. When the timestamps before and after are equally close to the current time slice, FILL the previous row's value. This mode is not supported in window queries. For example: `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)` (Supported from version 3.3.4.9).
+
+## FILL Clause
+
+The FILL statement specifies the filling mode when data is missing in a window interval. The filling modes include:
+
+1. No filling: NONE (default filling mode).
+2. VALUE filling: Fixed value filling, where the fill value must be specified. For example `FILL(VALUE, 1.23)`. Note that the final fill value is determined by the type of the corresponding column, such as `FILL(VALUE, 1.23)`, if the corresponding column is of INT type, then the fill value is 1. If multiple columns in the query list need FILL, then each FILL column must specify a VALUE, such as `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`. Note, only ordinary columns in the SELECT expression need to specify FILL VALUE, such as `_wstart`, `_wstart+1a`, `now`, `1+1` and the `partition key` (like tbname) used with `partition by` do not need to specify VALUE, like `timediff(last(ts), _wstart)` needs to specify VALUE.
+3. NULL filling: Fill data with NULL. For example `FILL(NULL)`.
+4. PREV filling: Fill data with the previous valid value. For example `FILL(PREV)`.
+5. NEXT filling: Fill data with the next valid value. For example `FILL(NEXT)`.
+6. NEAR filling: Fill data with the nearest valid value. For example `FILL(NEAR)`.
+7. LINEAR filling: Perform linear interpolation filling based on the nearest valid values before and after. For example `FILL(LINEAR)`.
+
+Among all filling modes above, except for the NONE mode which does not fill by default, other modes will not produce fill values if there is no data in the entire query time range, and the query result will be empty. For PREV, NEXT, LINEAR modes, this is reasonable because without valid data, filling cannot be performed.
+
+The definition of "valid data" differs between the INTERVAL clause and the INTERP clause: in the INTERVAL clause, all scanned data are valid data, for example FILL(PREV) uses the data from the adjacent previous window for filling; in the INTERP clause, whether NULL values are valid depends on the ignore_null_values parameter of the INTERP function, for example FILL(PREV) with NULL values invalid, will skip all NULL values and keep searching forward for non-NULL data, if all data are NULL, no filling is performed. In the INTERP clause, under PREV, NEXT, and NEAR modes, it will continue to search forward/backward/both directions for valid data within the WHERE condition range, if all data are NULL, no filling is performed.
+
+For other modes (NULL, VALUE), theoretically fill values can be generated, whether to output fill values depends on the application's needs. To meet the needs of applications that require forced filling of data or NULL, while not breaking the compatibility of existing filling modes, starting from version 3.0.3.0, two new filling modes have been added:
+
+1. NULL_F: Force fill with NULL values
+1. VALUE_F: Force fill with VALUE values
+
+The differences between NULL, NULL_F, VALUE, VALUE_F filling modes for different scenarios are as follows:
+
+- INTERVAL clause: NULL_F, VALUE_F are forced filling modes; NULL, VALUE are non-forced modes. In this mode, their semantics match their names.
+- Stream computing's INTERVAL clause: NULL_F behaves the same as NULL, both are non-forced modes; VALUE_F behaves the same as VALUE, both are non-forced modes. Thus, there are no forced modes in the INTERVAL of stream computing.
+- INTERP clause: NULL and NULL_F behave the same, both are forced modes; VALUE and VALUE_F behave the same, both are forced modes. Thus, there are no non-forced modes in INTERP.
+
+:::info
+
+1. When using the FILL statement, a large amount of fill output may be generated, so be sure to specify the query time range. For each query, the system can return up to 10 million results with interpolation.
+2. In time dimension aggregation, the returned results have a strictly monotonically increasing time-series.
+3. If the query object is a supertable, the aggregate functions will apply to all tables under the supertable that meet the value filtering conditions. If the query does not use a PARTITION BY statement, the returned results will have a strictly monotonically increasing time-series; if the query uses a PARTITION BY statement for grouping, the results within each PARTITION will have a strictly monotonically increasing time series.
+4. FILL has continuity, if only the first value in a column is not NULL, then fill(prev) will fill all subsequent rows with that value.
+
+:::
+
+### SURROUND Clause
+
+Used to limit the filling range of the FILL clause. Can only be used in PREV, NEXT, NEAR modes.
+
+The surrounding_time_val parameter is used to specify the time range for valid data. If the time difference between a row with valid data and the current row exceeds surrounding_time_val, its data will not be used, and instead the values specified by the fill_vals parameter will be used for filling. The value must be positive, and the unit can be any time unit except month (n) and year (y). In interval window queries, since data has the same time interval, the surrounding_time_val parameter must exceed the time length of the interval window.
+
+The fill_vals parameter is used to specify the filling values. The number and format are the same as the VALUE filling mode of the FILL clause. It can be constants or constant expressions, and subqueries are not supported.
+
+Example:
+
+```sql
+select * from fill_example;
+           ts            |   c1        |
+========================================
+ 2026-01-01 00:00:00.000 | 2026        |
+ 2026-01-01 00:00:01.000 | NULL        |
+ 2026-01-01 00:00:02.000 | NULL        |
+ 2026-01-01 00:00:03.000 | NULL        |
+ 2026-01-01 00:00:04.000 | NULL        |
+ 2026-01-01 00:00:05.000 | NULL        |
+ 2026-01-01 00:00:06.000 | 6202        |
+
+select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near);
+           ts            |   c1        |
+========================================
+ 2026-01-01 00:00:01.000 | 2026        |
+ 2026-01-01 00:00:02.000 | 2026        |
+ 2026-01-01 00:00:03.000 | 2026        |
+ 2026-01-01 00:00:04.000 | 6202        |
+ 2026-01-01 00:00:05.000 | 6202        |
+
+select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near) surround(2s, 0);
+           ts            |   c1        |
+========================================
+ 2026-01-01 00:00:01.000 | 2026        |
+ 2026-01-01 00:00:02.000 | 2026        |
+ 2026-01-01 00:00:03.000 | 0           |
+ 2026-01-01 00:00:04.000 | 6202        |
+ 2026-01-01 00:00:05.000 | 6202        |
+```
 
 ## GROUP BY
 

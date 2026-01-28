@@ -47,7 +47,7 @@ The syntax for the window clause is as follows:
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 }
@@ -70,43 +70,6 @@ Here, `interval_val` and `sliding_val` both represent time periods, and `interva
   - And must include at least one aggregate function(this limitation no longer exists after version 3.4.0.0).
 - The window clause cannot be used together with the GROUP BY clause.
 - WHERE statements can specify the start and end time of the query and other filtering conditions.
-
-### FILL Clause
-
-The FILL statement specifies the filling mode when data is missing in a window interval. The filling modes include:
-
-1. No filling: NONE (default filling mode).
-1. VALUE filling: Fixed value filling, where the fill value must be specified. For example: FILL(VALUE, 1.23). Note that the final fill value is determined by the type of the corresponding column, such as FILL(VALUE, 1.23), if the corresponding column is of INT type, then the fill value is 1. If multiple columns in the query list need FILL, then each FILL column must specify a VALUE, such as `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`. Note, only ordinary columns in the SELECT expression need to specify FILL VALUE, such as `_wstart`, `_wstart+1a`, `now`, `1+1` and the partition key (like tbname) used with partition by do not need to specify VALUE, like `timediff(last(ts), _wstart)` needs to specify VALUE.
-1. PREV filling: Fill data with the previous valid value. For example: FILL(PREV).
-1. NULL filling: Fill data with NULL. For example: FILL(NULL).
-1. LINEAR filling: Perform linear interpolation filling based on the nearest values before and after. For example: FILL(LINEAR).
-1. NEXT filling: Fill data with the next valid value. For example: FILL(NEXT).
-
-Among these filling modes, except for the NONE mode which does not fill by default, other modes will be ignored if there is no data in the entire query time range, resulting in no fill data and an empty query result. This behavior is reasonable under some modes (PREV, NEXT, LINEAR) because no data means no fill value can be generated.
-
-The definition of valid values differs between the INTERVAL clause and the INTERP clause:
-
-1. In the INTERVAL clause, all scanned data are valid values. For example, FILL(PREV) uses the previous data entry for filling.
-1. In the INTERP clause, starting from version v3.4.0.0, whether a NULL value is valid depends on the ignore_null_values parameter of the INTERP function. For example, if FILL(PREV) is specified and NULL values are invalid, the system skips NULL values and continues to search for non-NULL data.
-
-For other modes (NULL, VALUE), theoretically, fill values can be generated, and whether to output fill values depends on the application's needs. To meet the needs of applications that require forced filling of data or NULL, without breaking the compatibility of existing filling modes, two new filling modes have been added starting from version 3.0.3.0:
-
-1. NULL_F: Force fill with NULL values
-1. VALUE_F: Force fill with VALUE values
-
-The differences between NULL, NULL_F, VALUE, VALUE_F filling modes for different scenarios are as follows:
-
-- INTERVAL clause: NULL_F, VALUE_F are forced filling modes; NULL, VALUE are non-forced modes. In this mode, their semantics match their names.
-- Stream computing's INTERVAL clause: NULL_F behaves the same as NULL, both are non-forced modes; VALUE_F behaves the same as VALUE, both are non-forced modes. Thus, there are no forced modes in the INTERVAL of stream computing.
-- INTERP clause: NULL and NULL_F behave the same, both are forced modes; VALUE and VALUE_F behave the same, both are forced modes. Thus, there are no non-forced modes in INTERP.
-
-:::info
-
-1. When using the FILL statement, a large amount of fill output may be generated, so be sure to specify the query time range. For each query, the system can return up to 10 million results with interpolation.
-1. In time dimension aggregation, the returned results have a strictly monotonically increasing time-series.
-1. If the query object is a supertable, the aggregate functions will apply to all tables under the supertable that meet the value filtering conditions. If the query does not use a PARTITION BY statement, the returned results will have a strictly monotonically increasing time-series; if the query uses a PARTITION BY statement for grouping, the results within each PARTITION will have a strictly monotonically increasing time series.
-
-:::
 
 ### Time Windows
 
@@ -140,6 +103,10 @@ SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, A
 -- Unclear start time limit, defaults to an offset of 0
 SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 ```
+
+The INTERVAL clause supports using the FILL clause to specify the data
+filling method when data is missing. For how to use the FILL clause,
+please refer to [FILL Clause](../03-taos-sql/20-select.md#fill-clause).
 
 When using time windows, note:
 
