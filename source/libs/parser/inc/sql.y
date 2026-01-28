@@ -482,6 +482,7 @@ priv_type(A) ::= TRIM DATABASE.                                                 
 priv_type(A) ::= ROLLUP DATABASE.                                                 { A = PRIV_SET_TYPE(PRIV_DB_ROLLUP); }
 priv_type(A) ::= SCAN DATABASE.                                                   { A = PRIV_SET_TYPE(PRIV_DB_SCAN); }
 priv_type(A) ::= SSMIGRATE DATABASE.                                              { A = PRIV_SET_TYPE(PRIV_DB_SSMIGRATE); }
+priv_type(A) ::= SHOW DATABASES.                                                  { A = PRIV_SET_TYPE(PRIV_CM_SHOW); }
 priv_type(A) ::= USE.                                                             { A = PRIV_SET_TYPE(PRIV_DB_USE); }
 priv_type(A) ::= FLUSH.                                                           { A = PRIV_SET_TYPE(PRIV_DB_FLUSH); }
 priv_type(A) ::= COMPACT.                                                         { A = PRIV_SET_TYPE(PRIV_DB_COMPACT); }
@@ -519,7 +520,6 @@ priv_type(A) ::= DROP MOUNT.                                                    
 priv_type(A) ::= SHOW MOUNTS.                                                     { A = PRIV_SET_TYPE(PRIV_MOUNT_SHOW); }
 
 priv_type(A) ::= ALTER PASS.                                                      { A = PRIV_SET_TYPE(PRIV_PASS_ALTER); }
-priv_type(A) ::= ALTER SELF PASS.                                                 { A = PRIV_SET_TYPE(PRIV_PASS_ALTER_SELF); }
 
 priv_type(A) ::= CREATE ROLE.                                                     { A = PRIV_SET_TYPE(PRIV_ROLE_CREATE); }
 priv_type(A) ::= DROP ROLE.                                                       { A = PRIV_SET_TYPE(PRIV_ROLE_DROP); }
@@ -596,6 +596,7 @@ priv_type(A) ::= SET USER priv_id(B) priv_id(C).                                
 priv_id(A) ::= NK_ID(B).                                                          { A = B; }
 priv_id(A) ::= SYSTEM(B).                                                         { A = B; }
 priv_id(A) ::= VARIABLES(B).                                                      { A = B; }
+priv_id(A) ::= PASS(B).                                                           { A = B; }
 
 %type priv_level_opt                                                              { SPrivLevelArgs }
 %destructor priv_level_opt                                                        { 

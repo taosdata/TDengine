@@ -598,7 +598,13 @@ SPrivSetArgs privArgsSet(SAstCreateContext* pCxt, int32_t type, SToken* t1, STok
   SPrivSetArgs args = {0};
   if (!t1) goto _err;
   if (type == 0) { // alter
-    if (t1->n == 5) {
+    if (t1->n == 4) {
+      if (taosStrncasecmp(t1->z, TSDB_WORD_SELF, 4) == 0) {
+        if (t2 && t2->n == 4 && taosStrncasecmp(t2->z, TSDB_WORD_PASS, 4) == 0) {
+          return PRIV_SET_TYPE(PRIV_PASS_ALTER_SELF);
+        }
+      }
+    } else if (t1->n == 5) {
       if (taosStrncasecmp(t1->z, TSDB_WORD_DEBUG, 5) == 0) {
         if (t2 && t2->n == 8 && taosStrncasecmp(t2->z, TSDB_WORD_VARIABLE, 8) == 0) {
           return PRIV_SET_TYPE(PRIV_VAR_DEBUG_ALTER);

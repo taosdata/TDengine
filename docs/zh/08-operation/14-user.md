@@ -20,7 +20,7 @@ TDengine TSDB 默认仅配置了一个 root 用户，该用户拥有最高权限
 | 细粒度权限 | ✗ | ✓ |
 | 审计库权限 | ✗ | ✓ |
 | 表权限 | ✓ | ✓ |
-| 行权限 | ✓ | ✓ |
+| 行权限 | ✗ | ✓ |
 | 列权限 | ✗ | ✓ |
 ---
 
@@ -312,11 +312,11 @@ revoke subscribe on topic_name from test;
 
 ---
 
-## 权限管理 - 3.4.0.0+ 版本（RBAC 三权分立）
+## 权限管理 - 3.4.0.0+ 版本
 
 ### 三权分立概述
 
-从 3.4.0.0 开始，TDengine 企业版实现了基于角色的访问控制（RBAC）和三权分立：
+从 3.4.0.0 开始，TDengine 企业版通过基于角色的访问控制（RBAC）实现了严格的三权分立机制，将 root 用户的管理权限拆分为 SYSDBA、SYSSEC 和 SYSAUDIT 三种系统管理权限，从而实现权限的有效隔离和制衡。
 
 | 角色 | 全称 | 职责 |
 |------|------|------|
@@ -329,7 +329,7 @@ revoke subscribe on topic_name from test;
 ```
 ❌ 不允许将 SYSDBA/SYSSEC/SYSAUDIT 中任意两个同时授予同一用户
 ✓ 系统允许多个用户拥有同一系统角色
-✓ 系统管理角色权限范围不可更改
+✓ 系统管理角色权限范围不可通过命令行更改，支持升级自动更新
 ```
 
 ### root 用户与系统角色
@@ -432,26 +432,23 @@ SHOW ROLE PRIVILEGES;
 SELECT * FROM information_schema.ins_role_privileges;
 ```
 
-#### 角色启用/禁用
+#### 角色禁用/启用
 
 ```sql
-LOCK ROLE role_name;     -- 禁用
-UNLOCK ROLE role_name;   -- 启用
+LOCK ROLE role_name;
+UNLOCK ROLE role_name;
 ```
 
-#### 角色分配和回收
+#### 角色授予和回收
 
 ```sql
--- 将角色授予用户
 GRANT ROLE role_name TO user_name;
-
--- 从用户回收角色
 REVOKE ROLE role_name FROM user_name;
 ```
 
 ### 系统内置角色
 
-除三大管理角色外，TDengine 还提供：
+除三大系统管理角色外，TDengine 还提供下述系统内置角色：
 
 | 角色 | 说明 |
 |------|------|
@@ -475,36 +472,51 @@ privileges: {
 }
 
 priv_type: {
-    -- 数据库管理
+    -- 数据库权限
     CREATE DATABASE
-    
+
     -- 函数权限
   | CREATE FUNCTION | DROP FUNCTION | SHOW FUNCTIONS
-  
-    -- 用户管理
+
+    -- 挂载权限
+  | CREATE MOUNT | DROP MOUNT | SHOW MOUNTS
+
+    -- 用户权限
   | CREATE USER | DROP USER | ALTER USER
-  | SET USER SECURITY INFORMATION | SET USER AUDIT INFORMATION
+  | SET USER BASIC INFORMATION | SET USER SECURITY INFORMATION | SET USER AUDIT INFORMATION |
   | UNLOCK USER | LOCK USER | SHOW USERS
+
+    -- 令牌权限
+  | CREATE TOKEN | DROP TOKEN | ALTER TOKEN | SHOW TOKENS
+
+    -- 角色权限
+  | CREATE ROLE | DROP ROLE | SHOW ROLES | LOCK ROLE | UNLOCK ROLE
+
+    -- 密钥权限
+  | CREATE TOTP | DROP TOTP | 
   
-    -- 角色管理
-  | CREATE ROLE | DROP ROLE | SHOW ROLES
-  
-    -- 节点管理
+    -- 密码权限
+  | ALTER PASS | ALTER SELF PASS
+
+    -- 节点权限
   | CREATE NODE | DROP NODE | SHOW NODES
-  
-    -- 系统参数
-  | ALTER SECURITY VARIABLE | ALTER AUDIT VARIABLE
-  | ALTER SYSTEM VARIABLE | SHOW SECURITY VARIABLES
-  | SHOW AUDIT VARIABLES | SHOW SYSTEM VARIABLES
-  
-    -- 系统管理
+
+    -- 权限授予回收权限
+  ｜GRANT PRIVILEGE ｜ REVOKE PRIVILEGE | SHOW PRIVILEGES
+
+    -- 系统参数权限
+  | ALTER SECURITY VARIABLE | ALTER AUDIT VARIABLE   | ALTER SYSTEM VARIABLE | ALTER DEBUG VARIABLE
+  | SHOW SECURITY VARIABLES | SHOW AUDIT VARIABLES | SHOW SYSTEM VARIABLES | SHOW DEBUG VARIABLES
+
+    -- 系统管理权限
+  | READ INFORMATION SCHEMA BASIC | READ INFORMATION SCHEMA PRIVILEGED
+  | READ INFORMATION SCHEMA SECURITY | READ INFORMATION SCHEMA AUDIT 
+  | READ PERFORMANCE SCHEMA BASIC | READ PERFORMANCE SCHEMA PRIVILEGED
   | SHOW TRANSACTIONS | KILL TRANSACTION
   | SHOW CONNECTIONS | KILL CONNECTION
   | SHOW QUERIES | KILL QUERY
   | SHOW GRANTS | SHOW CLUSTER | SHOW APPS
-  
-    -- 审计管理
-  | DROP AUDIT DATABASE | ALTER AUDIT DATABASE | USE AUDIT DATABASE
+
 }
 ```
 
@@ -519,23 +531,24 @@ GRANT privileges ON [priv_obj] priv_level [WITH condition] TO {user_name | role_
 -- 撤销对象权限
 REVOKE privileges ON [priv_obj] priv_level [WITH condition] FROM {user_name | role_name}
 
+-- 权限作用对象
 priv_obj: {
     database           -- 数据库
-  | table              -- 表
+  | table              -- 表(不指定默认为表)
   | view               -- 视图
   | index              -- 索引
   | tsma               -- 窗口预聚集
   | rsma               -- 降采样存储
   | topic              -- 主题
-  | stream             -- 流
+  | stream             -- 流计算
 }
 
 priv_level: {
     *                  -- 所有库
   | dbname             -- 指定库
-  | *.*                -- 所有库的所有对象
-  | dbname.*           -- 指定库的所有对象
-  | dbname.objname     -- 指定对象
+  | *.*                -- 所有库，所有对象
+  | dbname.*           -- 指定库，所有对象
+  | dbname.objname     -- 指定库，指定对象
 }
 
 privileges: {
@@ -547,9 +560,9 @@ priv_type: {
 
     #### 库权限
 
-    ALTER DATABASE | DROP DATABASE | USE DATABASE
-    FLUSH DATABASE | COMPACT DATABASE | TRIM DATABASE
-    ROLLUP DATABASE | SCAN DATABASE | SHOW DATABASES
+    ALTER [DATABASE] | DROP [DATABASE] | USE [DATABASE]
+    FLUSH [DATABASE] | COMPACT [DATABASE] | TRIM [DATABASE]
+    ROLLUP [DATABASE] | SCAN [DATABASE] | SHOW [DATABASES]
 
     #### 表权限
 
