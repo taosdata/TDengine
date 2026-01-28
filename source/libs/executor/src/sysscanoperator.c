@@ -1694,7 +1694,7 @@ static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* 
       char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
       char tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
       TSlice refColNameBuf = {0};
-      sliceInit(&refColNameBuf, refColName, sizeof(refColName));
+      sliceInit(&refColNameBuf, tmpColName, sizeof(tmpColName));
 
       QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, colRef->pColRef[i].refDbName, strlen(colRef->pColRef[i].refDbName)),
                        lino, _end);
