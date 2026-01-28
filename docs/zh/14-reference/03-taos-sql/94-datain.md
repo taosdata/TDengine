@@ -52,7 +52,7 @@ ALTER XNODE SET TOKEN 'token'
 
 #### 参数说明
 
-- **token**: 用于链接 taosd 认证
+- **token**: 用于连接 taosd 认证
 
 #### 示例
 

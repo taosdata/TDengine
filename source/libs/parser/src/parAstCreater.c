@@ -6094,44 +6094,6 @@ _err:
   }
   return NULL;
 }
-// SNode* dropXnodeResourceOn(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SToken* pResource, SNode*
-// pWhere) {
-//   char resourceId[TSDB_XNODE_RESOURCE_ID_LEN + 1];
-//   SShowStmt* pStmt = NULL;
-
-//   CHECK_PARSER_STATUS(pCxt);
-//   if (pResource == NULL || pResource->n <= 0) {
-//     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-//                                             "xnode resource name should not be NULL or empty");
-//     goto _err;
-//   }
-//   if (pResource->n > TSDB_XNODE_RESOURCE_NAME_LEN) {
-//     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-//                                             "Invalid xnode resource name length: %d, max length: %d", pResource->n,
-//                                             TSDB_XNODE_RESOURCE_NAME_LEN);
-//     goto _err;
-//   }
-//   switch (resourceType) {
-//     case XNODE_TASK:
-//       // pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_TASK_STMT, (SNode**)&pStmt);
-//       pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_TASKS_STMT, (SNode**)&pStmt);
-//       CHECK_MAKE_NODE(pStmt);
-//       break;
-//     case XNODE_AGENT:
-//       pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_AGENT_STMT, (SNode**)&pStmt);
-//       CHECK_MAKE_NODE(pStmt);
-//       break;
-//     case XNODE_JOB:
-//       pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_XNODE_JOBS_STMT, (SNode**)&pStmt);
-//       CHECK_MAKE_NODE(pStmt);
-//       break;
-//     default:
-//       break;
-//   }
-//   return (SNode*)pStmt;
-// _err:
-//   return NULL;
-// }
 
 SNode* dropXnodeResourceWhere(SAstCreateContext* pCxt, EXnodeResourceType resourceType, SNode* pWhere) {
   CHECK_PARSER_STATUS(pCxt);

@@ -60,7 +60,7 @@ int32_t mndOpenXnd(const SXnodeOpt *pOption) {
   pXnode->ep = pOption->ep;
   memset(pXnode->userPass, 0, XNODE_USER_PASS_LEN);
   memcpy(pXnode->userPass, pOption->userPass, pOption->upLen);
-  memset(pXnode->token, 0, TSDB_TOKEN_LEN);
+  memset(pXnode->token, 0, sizeof(pXnode->token));
   memcpy(pXnode->token, pOption->token, TSDB_TOKEN_LEN);
 
   if ((code = xnodeMgmtStartXnoded(pXnode)) != 0) {
@@ -77,7 +77,7 @@ void getXnodedPipeName(char *pipeName, int32_t size) {
 #ifdef _WIN32
   snprintf(pipeName, size, "%s.%x", XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX, MurmurHash3_32(tsDataDir, strlen(tsDataDir)));
 #else
-  snprintf(pipeName, size, "%s%s", tsDataDir, XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX);
+  snprintf(pipeName, size, "%s/%s", tsDataDir, XNODED_MGMT_LISTEN_PIPE_NAME_PREFIX);
 #endif
   xndDebug("xnode get unix socket pipe path:%s", pipeName);
 }

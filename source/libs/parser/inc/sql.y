@@ -757,7 +757,6 @@ cmd ::= ALTER XNODE xnode_resource_type(A) NK_STRING(B) xnode_task_from_opt(C) x
 cmd ::= DROP XNODE xnode_resource_type(A) NK_STRING(B).                           { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }
 cmd ::= DROP XNODE xnode_resource_type(A) NK_INTEGER(B).                          { pCxt->pRootNode = dropXnodeResource(pCxt, A, &B); }
 cmd ::= DROP XNODE xnode_resource_type(A) WHERE search_condition(B).              { pCxt->pRootNode = dropXnodeResourceWhere(pCxt, A, B); }
-//cmd ::= DROP XNODE xnode_resource_type(A) ON NK_INTEGER(B) where_clause_opt(C).   { pCxt->pRootNode = dropXnodeResourceOn(pCxt, A, &B, C); }
 
 /* show xnodes; or show xnodes where ...*/
 cmd ::= SHOW XNODES where_clause_opt(B).                                          { pCxt->pRootNode = createShowXnodeStmtWithCond(pCxt, QUERY_NODE_SHOW_XNODES_STMT, B); }

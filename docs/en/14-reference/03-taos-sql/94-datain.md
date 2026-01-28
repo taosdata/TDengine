@@ -43,7 +43,7 @@ Create OK, 0 row(s) affected (0.050798s)
 
 ### Modify Authorization
 
-Modifying authentication will restart the daemon xnoded.
+Modifying authentication will restart the daemon xnoded. This command alters the credentials used by the single `xnoded` daemon to connect to `taosd`.
 
 ```sql
 ALTER XNODE SET USER name PASS 'password'
