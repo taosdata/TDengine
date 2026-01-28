@@ -550,6 +550,14 @@ static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
   PAR_RET(TSDB_CODE_SUCCESS);
 }
 
+static int32_t authAlterMultiTable(SAuthCxt* pCxt, SAlterMultiTableStmt* pStmt) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pStmt->pTables) {
+    PAR_ERR_RET(authAlterTable(pCxt, (SAlterTableStmt*)pNode));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
@@ -755,6 +763,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authAlterTable(pCxt, (SAlterTableStmt*)pStmt);
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
       return authAlterVTable(pCxt, (SAlterTableStmt*)pStmt);
+    case QUERY_NODE_ALTER_MULTI_TABLE_STMT:
+      return authAlterMultiTable(pCxt, (SAlterMultiTableStmt*)pStmt);
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_BACKUP_NODES_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:

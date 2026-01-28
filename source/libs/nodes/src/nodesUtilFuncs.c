@@ -587,6 +587,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
       code = makeNode(type, sizeof(SAlterTableStmt), &pNode);
       break;
+    case QUERY_NODE_ALTER_MULTI_TABLE_STMT:
+      code = makeNode(type, sizeof(SAlterMultiTableStmt), &pNode);
+      break;
     case QUERY_NODE_CREATE_MOUNT_STMT:
       code = makeNode(type, sizeof(SCreateMountStmt), &pNode);
       break;
@@ -1753,6 +1756,9 @@ void nodesDestroyNode(SNode* pNode) {
       }
       break;
     }
+    case QUERY_NODE_ALTER_MULTI_TABLE_STMT:
+      nodesDestroyList(((SAlterMultiTableStmt*)pNode)->pTables);
+      break;
     case QUERY_NODE_CREATE_MOUNT_STMT:  // no pointer field
       break;
     case QUERY_NODE_DROP_MOUNT_STMT:  // no pointer field

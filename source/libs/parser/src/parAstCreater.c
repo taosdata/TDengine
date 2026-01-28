@@ -3610,6 +3610,44 @@ _err:
   return NULL;
 }
 
+SNode* createAlterSingleTableClause(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL;
+  pStmt->pNodeListTagValue = pTagList;
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
+_err:
+  nodesDestroyList(pTagList);
+  nodesDestroyNode(pRealTable);
+  return NULL;
+}
+
+SNode* createAlterMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pTableList) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pTableList || pTableList->length == 0) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    goto _err;
+  }
+  // If only one table, return that statement directly
+  if (pTableList->length == 1) {
+    SNode* pStmt = nodesListGetNode(pTableList, 0);
+    nodesClearList(pTableList);
+    return pStmt;
+  }
+  // For multiple tables, create a multi-table statement
+  SAlterMultiTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_MULTI_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->pTables = pTableList;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyList(pTableList);
+  return NULL;
+}
+
 SNode* setAlterSuperTableType(SNode* pStmt) {
   if (!pStmt) return NULL;
   setNodeType(pStmt, QUERY_NODE_ALTER_SUPER_TABLE_STMT);

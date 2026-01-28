@@ -166,6 +166,8 @@ const char* nodesNodeName(ENodeType type) {
       return "AlterSuperTableStmt";
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
       return "AlterVirtualTableStmt";
+    case QUERY_NODE_ALTER_MULTI_TABLE_STMT:
+      return "AlterMultiTableStmt";
     case QUERY_NODE_CREATE_USER_STMT:
       return "CreateUserStmt";
     case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT:
@@ -8232,6 +8234,18 @@ static int32_t alterStableStmtToJson(const void* pObj, SJson* pJson) { return al
 
 static int32_t jsonToAlterStableStmt(const SJson* pJson, void* pObj) { return jsonToAlterTableStmt(pJson, pObj); }
 
+static const char* jkAlterMultiTableStmtTables = "Tables";
+
+static int32_t alterMultiTableStmtToJson(const void* pObj, SJson* pJson) {
+  const SAlterMultiTableStmt* pNode = (const SAlterMultiTableStmt*)pObj;
+  return nodeListToJson(pJson, jkAlterMultiTableStmtTables, pNode->pTables);
+}
+
+static int32_t jsonToAlterMultiTableStmt(const SJson* pJson, void* pObj) {
+  SAlterMultiTableStmt* pNode = (SAlterMultiTableStmt*)pObj;
+  return jsonToNodeList(pJson, jkAlterMultiTableStmtTables, &pNode->pTables);
+}
+
 static const char* jkCreateUserStmtUserName = "UserName";
 static const char* jkCreateUserStmtPassword = "Password";
 static const char* jkCreateUserStmtSysinfo = "Sysinfo";
@@ -10129,6 +10143,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return alterTableStmtToJson(pObj, pJson);
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       return alterStableStmtToJson(pObj, pJson);
+    case QUERY_NODE_ALTER_MULTI_TABLE_STMT:
+      return alterMultiTableStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_USER_STMT:
       return createUserStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT:
@@ -10611,6 +10627,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToAlterTableStmt(pJson, pObj);
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       return jsonToAlterStableStmt(pJson, pObj);
+    case QUERY_NODE_ALTER_MULTI_TABLE_STMT:
+      return jsonToAlterMultiTableStmt(pJson, pObj);
     case QUERY_NODE_CREATE_USER_STMT:
       return jsonToCreateUserStmt(pJson, pObj);
     case QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT:

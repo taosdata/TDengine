@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cmdnodes.h"
 #include "functionMgt.h"
 #include "os.h"
 #include "parAst.h"
@@ -663,6 +664,18 @@ static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTab
                                        pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t collectMetaKeyFromAlterMultiTable(SCollectMetaKeyCxt* pCxt, SAlterMultiTableStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pStmt->pTables) {
+    code = collectMetaKeyFromAlterTable(pCxt, (SAlterTableStmt*)pNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
 }
 
 static int32_t collectMetaKeyFromUseDatabase(SCollectMetaKeyCxt* pCxt, SUseDatabaseStmt* pStmt) {
@@ -1779,6 +1792,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromAlterStable(pCxt, (SAlterTableStmt*)pStmt);
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
       return collectMetaKeyFromAlterVtable(pCxt, (SAlterTableStmt*)pStmt);
+    case QUERY_NODE_ALTER_MULTI_TABLE_STMT:
+      return collectMetaKeyFromAlterMultiTable(pCxt, (SAlterMultiTableStmt*)pStmt);
     case QUERY_NODE_USE_DATABASE_STMT:
       return collectMetaKeyFromUseDatabase(pCxt, (SUseDatabaseStmt*)pStmt);
     case QUERY_NODE_CREATE_INDEX_STMT:

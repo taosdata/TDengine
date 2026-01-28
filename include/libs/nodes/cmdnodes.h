@@ -407,14 +407,10 @@ typedef struct SAlterTableStmt {
   char            refColName[TSDB_COL_NAME_LEN];
 } SAlterTableStmt;
 
-typedef struct SAlterTableMultiStmt {
-  ENodeType type;
-  char      dbName[TSDB_DB_NAME_LEN];
-  char      tableName[TSDB_TABLE_NAME_LEN];
-  int8_t    alterType;
-
-  SNodeList* pNodeListTagValue;
-} SAlterTableMultiStmt;
+typedef struct SAlterMultiTableStmt {
+  ENodeType   type;
+  SNodeList*  pTables;  // list of SAlterTableStmt
+} SAlterMultiTableStmt;
 
 
 // ip range for user options

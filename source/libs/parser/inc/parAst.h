@@ -333,6 +333,8 @@ SNode* createAlterTableRemoveColRef(SAstCreateContext* pCxt, SNode* pRealTable, 
                                     const SToken* pLiteral);
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal);
 SNode* createAlterTableSetMultiTagValue(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* singleNode);
+SNode* createAlterSingleTableClause(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList);
+SNode* createAlterMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pTableList);
 SNode* setAlterSuperTableType(SNode* pStmt);
 SNode* setAlterVirtualTableType(SNode* pStmt);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);

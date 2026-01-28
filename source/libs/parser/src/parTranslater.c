@@ -12933,6 +12933,18 @@ static int32_t translateAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt
   return code;
 }
 
+static int32_t translateAlterMultiTable(STranslateContext* pCxt, SAlterMultiTableStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pStmt->pTables) {
+    code = translateAlterSuperTable(pCxt, (SAlterTableStmt*)pNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
+}
+
 static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* pStmt) {
   SUseDbReq usedbReq = {0};
   SName     name = {0};
@@ -19078,6 +19090,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       code = translateAlterSuperTable(pCxt, (SAlterTableStmt*)pNode);
       break;
+    case QUERY_NODE_ALTER_MULTI_TABLE_STMT:
+      code = translateAlterMultiTable(pCxt, (SAlterMultiTableStmt*)pNode);
+      break;
 #ifdef USE_MOUNT
     case QUERY_NODE_CREATE_MOUNT_STMT:
       code = translateCreateMount(pCxt, (SCreateMountStmt*)pNode);
@@ -23096,6 +23111,35 @@ _return:
   return code;
 }
 
+static int32_t rewriteAlterMultiTable(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t                code = TSDB_CODE_SUCCESS;
+  SAlterMultiTableStmt*  pStmt = (SAlterMultiTableStmt*)pQuery->pRoot;
+  SNode*                 pNode = NULL;
+  
+  FOREACH(pNode, pStmt->pTables) {
+    SAlterTableStmt* pAlterStmt = (SAlterTableStmt*)pNode;
+    
+    if (IS_SYS_DBNAME(pAlterStmt->dbName)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                     "Cannot alter table of system database: `%s`.`%s`", 
+                                     pAlterStmt->dbName, pAlterStmt->tableName);
+    }
+
+    STableMeta* pTableMeta = NULL;
+    code = getTableMeta(pCxt, pAlterStmt->dbName, pAlterStmt->tableName, &pTableMeta);
+    if (TSDB_CODE_SUCCESS == code) {
+      // For multi-table alter, we need to rewrite each statement individually
+      SQuery tempQuery = {.pRoot = pNode};
+      code = rewriteAlterTableImpl(pCxt, pAlterStmt, pTableMeta, &tempQuery, false);
+    }
+    taosMemoryFree(pTableMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
+}
+
 static int32_t rewriteAlterVirtualTable(STranslateContext* pCxt, SQuery* pQuery) {
   return rewriteAlterTable(pCxt, pQuery, true);
 }
@@ -24084,6 +24128,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_ALTER_TABLE_STMT:
       code = rewriteAlterTable(pCxt, pQuery, false);
       break;
+    case QUERY_NODE_ALTER_MULTI_TABLE_STMT:
+      code = rewriteAlterMultiTable(pCxt, pQuery);
+      break;
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
       code = rewriteAlterVirtualTable(pCxt, pQuery);
       break;
@@ -24138,6 +24185,7 @@ static int32_t toMsgType(ENodeType type) {
       return TDMT_VND_CREATE_TABLE;
     case QUERY_NODE_ALTER_TABLE_STMT:
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
+    case QUERY_NODE_ALTER_MULTI_TABLE_STMT:
       return TDMT_VND_ALTER_TABLE;
     case QUERY_NODE_DROP_TABLE_STMT:
     case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
