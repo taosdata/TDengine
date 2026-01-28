@@ -95,14 +95,25 @@ Then use the `claude mcp list` command to view the added MCPs
 Here are some usage examples:
 
 1. Get connection information
+
    ![mcp-info.webp](assets/mcp-info.webp)
+
 2. Get dnode list
+
    ![mcp-list-dnodes.webp](assets/mcp-list-dnodes.webp)
+
 3. Get database list
-   ![mcp-show.webp](assets/mcp-show.webp)
+
+   ![mcp-show-databases.webp](assets/mcp-show-databases.webp)
+
 4. Get supertable list
+
    ![mcp-show-stables.webp](assets/mcp-show-stables.webp)
+
 5. Get table structure
+
    ![mcp-describe.webp](assets/mcp-describe.webp)
+
 6. Execute query statements
+
    ![mcp-query.webp](assets/mcp-query.webp)
