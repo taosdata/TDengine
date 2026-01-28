@@ -4,13 +4,31 @@ title: 用户和权限管理
 toc_max_heading_level: 4
 ---
 
-TDengine TSDB 默认仅配置了一个 root 用户，该用户拥有最高权限。TDengine TSDB 支持对系统资源、库、表、视图和主题的访问权限控制。root 用户可以为每个用户针对不同的资源设置不同的访问权限。本节介绍 TDengine TSDB 中的用户和权限管理。用户和权限管理是 TDengine TSDB Enterprise 特有功能。
+TDengine TSDB 默认仅配置了一个 root 用户，该用户拥有最高权限。TDengine TSDB 支持对系统资源、库、表、视图和主题的访问权限控制。本节介绍 TDengine 中的用户和权限管理。
+
+:::info
+用户和权限管理是 TDengine Enterprise 特有功能。
+:::
+
+## 版本对比
+
+| 特性 | 3.3.x.y | 3.4.0.0+ |
+|------|---------|----------|
+| 基础用户管理 | ✓ | ✓ |
+| RBAC 角色管理 | ✗ | ✓ |
+| 三权分立（SYSDBA/SYSSEC/SYSAUDIT） | ✗ | ✓ |
+| 细粒度权限 | ✗ | ✓ |
+| 审计库权限 | ✗ | ✓ |
+| 表权限 | ✓ | ✓ |
+| 行权限 | ✓ | ✓ |
+| 列权限 | ✗ | ✓ |
+---
 
 ## 用户管理
 
 ### 创建用户
 
-创建用户的操作只能由 root 用户进行，语法如下。
+创建用户的语法如下。
 
 ```sql
 create user user_name pass'password' [sysinfo {1|0}] [createdb {1|0}]
@@ -83,7 +101,7 @@ alter user test enable 0
 drop user user_name
 ```
 
-## 权限管理
+## 权限管理 - 3.3.x.y 版本
 
 仅 root 用户可以管理用户、节点、vnode、qnode、snode 等系统信息，包括查询、新增、删除和修改。
 
@@ -289,3 +307,368 @@ revoke read on power.view_name from test
 ```sql
 revoke subscribe on topic_name from test
 ```
+
+---
+
+## 权限管理 - 3.4.0.0+ 版本（RBAC 三权分立）
+
+### 三权分立概述
+
+从 3.4.0.0 开始，TDengine 企业版实现了基于角色的访问控制（RBAC）和严格的三权分立：
+
+| 角色 | 全称 | 职责 |
+|------|------|------|
+| **SYSDBA** | 数据库管理员 | 数据库日常运维、系统管理、用户角色创建。不能执行与 SYSSEC/SYSAUDIT 相关操作 |
+| **SYSSEC** | 数据库安全员 | 用户角色权限授予/撤销、安全策略制定 |
+| **SYSAUDIT** | 数据库审计员 | 独立审计监督、审计数据库管理、审计日志查看。不能查看业务数据 |
+
+**关键约束：**
+
+```
+❌ 不允许将 SYSDBA/SYSSEC/SYSAUDIT 中任意两个同时授予同一用户
+✓ 系统允许多个用户拥有同一系统角色
+✓ 系统管理角色权限范围不可更改
+```
+
+### root 用户与系统角色
+
+**初始状态：** root 用户默认拥有 SYSDBA、SYSSEC、SYSAUDIT 的全部权限
+
+**推荐做法：** 在系统初始配置后，立即分离角色，之后停用 root 进行日常操作
+
+```sql
+-- 创建专用管理员
+CREATE USER dba_user PASS 'DbaPass123!@#';
+CREATE USER sec_user PASS 'SecPass123!@#';
+CREATE USER audit_user PASS 'AuditPass123!@#';
+
+-- 分离授权
+GRANT ROLE `SYSDBA` TO dba_user;
+GRANT ROLE `SYSSEC` TO sec_user;
+GRANT ROLE `SYSAUDIT` TO audit_user;
+```
+
+### 数据库管理员（SYSDBA）
+
+**职责：**
+- 数据库的日常运维、系统管理
+- 创建和管理用户、角色
+- 管理数据库、表、索引等对象
+- 管理节点、流计算、订阅等系统资源
+
+**限制：**
+- 不能授予 SYSSEC/SYSAUDIT 权限
+- 不能执行与审计数据库相关的操作
+- 默认不拥有查看业务数据的权限（但可查看元数据）
+
+### 数据库安全员（SYSSEC）
+
+**职责：**
+- 用户与角色权限管理（除 SYSDBA/SYSAUDIT 外）
+- 安全参数配置
+- TOTP 密钥管理
+- 用户安全信息设置
+
+**权限示例：**
+```
+GRANT/REVOKE SYSSEC PRIVILEGE
+ALTER SECURITY VARIABLE
+CREATE TOTP / DROP TOTP
+SET USER SECURITY INFORMATION
+READ INFORMATION_SCHEMA SECURITY
+```
+
+### 数据库审计员（SYSAUDIT）
+
+**职责：**
+- 独立审计监督
+- 审计数据库管理
+- 审计日志查看
+- 审计相关参数配置
+
+**权限示例：**
+```
+GRANT/REVOKE SYSAUDIT PRIVILEGE
+ALTER/DROP/USE AUDIT DATABASE
+SELECT AUDIT TABLE
+SET USER AUDIT INFORMATION
+READ INFORMATION_SCHEMA AUDIT
+```
+
+### 角色管理
+
+#### 创建角色
+
+```sql
+CREATE ROLE [IF NOT EXISTS] role_name;
+```
+
+**约束：**
+- 创建者需具有 CREATE ROLE 权限
+- 角色名长度 1-63 字符
+- 角色名不能与已存在用户名重名
+
+#### 删除和查看角色
+
+```sql
+-- 删除角色
+DROP ROLE [IF EXISTS] role_name;
+
+-- 查看角色列表
+SHOW ROLES;
+SELECT * FROM information_schema.ins_roles;
+
+-- 查看角色权限
+SHOW ROLE PRIVILEGES;
+SELECT * FROM information_schema.ins_role_privileges;
+```
+
+#### 角色启用/禁用
+
+```sql
+LOCK ROLE role_name;     -- 禁用
+UNLOCK ROLE role_name;   -- 启用
+```
+
+#### 角色分配和回收
+
+```sql
+-- 将角色授予用户
+GRANT ROLE role_name TO user_name;
+
+-- 从用户回收角色
+REVOKE ROLE role_name FROM user_name;
+```
+
+### 系统内置角色
+
+除三大管理角色外，TDengine 还提供：
+
+| 角色 | 说明 |
+|------|------|
+| **SYSAUDIT_LOG** | 可在审计库建表、写入数据，但不能删表/改表/删数据。不能与 SYSDBA/SYSSEC/SYSAUDIT 同时授予某一用户 |
+| **SYSINFO_0** | 对应 SYSINFO=0 权限，查看基础系统信息 |
+| **SYSINFO_1** | 对应 SYSINFO=1 权限，查看更多系统信息，可修改自身密码 |
+
+### 系统权限管理
+
+3.4.0.0+ 新增细粒度系统权限：
+
+```sql
+-- 授予系统权限
+GRANT privileges TO {user_name | role_name};
+
+-- 撤销系统权限
+REVOKE privileges FROM {user_name | role_name};
+
+privileges: {
+    ALL [PRIVILEGES]
+  | priv_type [, priv_type] ...
+}
+
+priv_type: {
+    -- 数据库管理
+    CREATE DATABASE
+    
+    -- 函数权限
+  | CREATE FUNCTION | DROP FUNCTION | SHOW FUNCTIONS
+  
+    -- 用户管理
+  | CREATE USER | DROP USER | ALTER USER
+  | SET USER SECURITY INFORMATION | SET USER AUDIT INFORMATION
+  | UNLOCK USER | LOCK USER | SHOW USERS
+  
+    -- 角色管理
+  | CREATE ROLE | DROP ROLE | SHOW ROLES
+  
+    -- 节点管理
+  | CREATE NODE | DROP NODE | SHOW NODES
+  
+    -- 系统参数
+  | ALTER SECURITY VARIABLE | ALTER AUDIT VARIABLE
+  | ALTER SYSTEM VARIABLE | SHOW SECURITY VARIABLES
+  | SHOW AUDIT VARIABLES | SHOW SYSTEM VARIABLES
+  
+    -- 系统管理
+  | SHOW TRANSACTIONS | KILL TRANSACTION
+  | SHOW CONNECTIONS | KILL CONNECTION
+  | SHOW QUERIES | KILL QUERY
+  | SHOW GRANTS | SHOW CLUSTER | SHOW APPS
+  
+    -- 审计管理
+  | DROP AUDIT DATABASE | ALTER AUDIT DATABASE | USE AUDIT DATABASE
+}
+```
+
+### 对象权限管理
+
+3.4.0.0+ 支持更细粒度的对象权限：
+
+```sql
+-- 授予对象权限
+GRANT privileges ON priv_level [WITH condition] TO {user_name | role_name}
+
+-- 撤销对象权限
+REVOKE privileges ON priv_level [WITH condition] FROM {user_name | role_name}
+
+priv_level: {
+    *                  -- 所有库
+  | dbname             -- 指定库
+  | *.*                -- 所有库的所有对象
+  | dbname.*           -- 指定库的所有对象
+  | dbname.objname     -- 指定对象
+}
+```
+
+#### 库权限
+
+```
+ALTER DATABASE | DROP DATABASE | USE DATABASE
+FLUSH DATABASE | COMPACT DATABASE | TRIM DATABASE
+ROLLUP DATABASE | SCAN DATABASE | SHOW DATABASES
+```
+
+#### 表权限
+
+```
+CREATE TABLE | DROP TABLE | ALTER TABLE
+SHOW TABLES | SHOW CREATE TABLE
+SELECT TABLE | INSERT TABLE | DELETE TABLE
+```
+
+#### 索引权限
+
+```
+CREATE INDEX | DROP INDEX | SHOW INDEXES
+```
+
+#### 视图权限
+
+```
+CREATE VIEW | DROP VIEW | SHOW VIEWS | SELECT VIEW
+```
+
+#### 订阅权限
+
+```
+CREATE TOPIC | DROP TOPIC | SHOW TOPICS | SUBSCRIBE
+SHOW CONSUMERS | SHOW SUBSCRIPTIONS
+```
+
+#### 流计算权限
+
+```
+CREATE STREAM | DROP STREAM | SHOW STREAMS
+START STREAM | STOP STREAM | RECALC STREAM
+```
+
+### 审计数据库
+
+3.4.0.0+ 专门支持审计数据库：
+
+**特性：**
+- 系统仅允许一个审计库
+- 审计库通过 `is_audit` 属性标识（非固定名称）
+- 仅 SYSAUDIT 可删除和修改审计库
+- 为防止误删库，新增了 allow_drop 属性。审计库默认为 0，普通库默认为 1. 删除审计库时，需要将 allow_drop 属性修改为 1.
+
+**权限限制：**
+```
+❌ 任何人不允许删除审计表
+❌ 任何人不允许修改审计表
+❌ 任何人不允许删除审计表中的数据
+✓ 仅 SYSAUDIT_LOG 角色可向审计库写入数据
+✓ 仅 SYSAUDIT 角色可向查看审计库中的表数据
+```
+
+
+### 所有者（Owner）概念
+
+3.4.0.0+ 明确了对象所有者的权限：
+
+- **所有者**：数据库对象的创建者或被转移所有权的接收者
+- **隐含权限**：所有者对该对象拥有无需授权的全量权限
+- **管理权**：可修改对象结构、删除对象
+
+---
+
+## 权限查看
+
+```sql
+-- 查看用户权限（3.3.x.y+）
+SHOW USER PRIVILEGES
+SELECT * FROM information_schema.ins_user_privileges
+
+-- 查看角色权限（3.4.0.0+）
+SHOW ROLE PRIVILEGES
+SELECT * FROM information_schema.ins_role_privileges
+```
+
+---
+
+## 最佳实践
+
+### 3.3.x.y 版本
+
+1. 使用 root 创建业务用户，按最小权限原则授权
+2. 只读应用仅授予 READ 权限
+3. 写入应用仅授予 WRITE 权限
+4. 利用标签过滤限制用户访问特定子表
+
+### 3.4.0.0+ 版本
+
+1. **立即分离三权**：初始化后，将 SYSDBA/SYSSEC/SYSAUDIT 分配给不同用户
+2. **禁用 root 日常操作**：配置完成后，不再使用 root 进行日常运维
+3. **使用角色简化权限**：创建通用角色，授权给用户
+
+**示例 - 创建只读分析角色：**
+
+```sql
+CREATE ROLE analyst_role;
+GRANT SHOW,SELECT ON power.* TO analyst_role;
+GRANT SHOW,USE on database power TO analyst_role;
+GRANT ROLE analyst_role TO analyst_user;
+```
+
+**示例 - 创建数据写入角色：**
+
+```sql
+CREATE ROLE writer_role;
+GRANT INSERT ON power.* TO writer_role;
+GRANT SHOW,USE,CREATE TABLE ON database power TO writer_role;
+GRANT ROLE writer_role TO writer_user;
+```
+
+**示例 - 安全审计配置：**
+
+```sql
+-- 创建审计库
+CREATE DATABASE audit_db KEEP 36500d IS_AUDIT 1 ENCRYPT_ALGORITHM 'SM4-CBC' WAL_LEVEL 2;
+
+-- 创建审计员
+CREATE USER audit_user PASS 'AuditPass123!@#';
+GRANT ROLE `SYSAUDIT` TO audit_user;
+
+-- 创建审计日志角色（用于应用写入）
+CREATE ROLE audit_logger;
+GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
+```
+
+---
+
+## 兼容性与升级
+
+| 特性 | 3.3.x.y | 3.4.0.0+ |
+|------|---------|----------|
+| CREATE/ALTER/DROP USER | ✓ | ✓ |
+| GRANT/REVOKE READ/WRITE | ✓ | ✗ |
+| 视图/订阅权限 | ✓ | ✓ |
+| 角色管理 | ✗ | ✓ |
+| 三权分立 | ✗ | ✓ |
+| 细粒度权限 | ✗ | ✓ |
+| 审计数据库 | ✗ | ✓ |
+
+**升级说明：**
+- ✓ 支持从低版本停机后自动升级到 3.4.0.0+
+- ✗ 不支持滚动升级
+- ✗ 升级后无法降级
