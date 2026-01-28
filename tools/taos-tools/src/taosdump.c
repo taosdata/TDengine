@@ -2682,6 +2682,7 @@ static inline bool hasVirtualTag(const char *dbPath, const char *entryName, cons
 
     avro_value_decref(&value);
     avro_value_iface_decref(vface);
+    avro_schema_decref(schema);
     avro_file_reader_close(reader);
 
     return isVirtual;
