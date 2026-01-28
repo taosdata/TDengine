@@ -1309,7 +1309,7 @@ static int32_t doSetQualifiedUid(SArray* pUidList, const SArray* pUidTagList, SC
       return terrno;
     }
     uint64_t uid = tmpTag->uid;
-    qDebug("tagfilter get uid:%" PRId64 ", res:%d", uid, pResultList[i]);
+    qDebug("tagfilter get uid:%" PRId64, uid);
 
     void* tmp = taosArrayPush(pUidList, &uid);
     if (tmp == NULL) {
