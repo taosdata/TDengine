@@ -583,7 +583,7 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   SConfigReq req = {0};
 
   req.cver = tsdmConfigVersion;
-  req.forceReadConfig = tsForceReadConfig;
+  req.forceReadConfig = true;
   req.array = taosGetGlobalCfg(tsCfg);
   dDebug("send config req to mnode, configVersion:%d", req.cver);
 
@@ -964,8 +964,7 @@ static int32_t dmSaveKeyVerification(const char *svrKey, const char *dbKey, cons
     opts.source = paddedPlaintext;
     opts.result = encrypted;
     opts.unitLen = 16;
-    opts.pOsslAlgrName =
-        (algorithms[i] == TSDB_ENCRYPT_ALGO_SM4) ? TSDB_ENCRYPT_ALGO_SM4_STR : TSDB_ENCRYPT_ALGO_NONE_STR;
+    opts.pOsslAlgrName = TSDB_ENCRYPT_ALGO_SM4_STR;
     tstrncpy(opts.key, keys[i], sizeof(opts.key));
 
     int32_t count = CBC_Encrypt(&opts);
@@ -1122,7 +1121,7 @@ static int32_t dmVerifyEncryptionKeys(const char *svrKey, const char *dbKey, con
     opts.source = (char *)encrypted;
     opts.result = decrypted;
     opts.unitLen = 16;
-    opts.pOsslAlgrName = (savedAlgo == TSDB_ENCRYPT_ALGO_SM4) ? TSDB_ENCRYPT_ALGO_SM4_STR : TSDB_ENCRYPT_ALGO_NONE_STR;
+    opts.pOsslAlgrName = TSDB_ENCRYPT_ALGO_SM4_STR;
     tstrncpy(opts.key, keys[i], sizeof(opts.key));
 
     int32_t count = CBC_Decrypt(&opts);
@@ -1319,6 +1318,30 @@ static int32_t dmUpdateSvrKey(const char *newKey) {
   return 0;
 }
 
+static int32_t dmUpdateKeyExpiration(int32_t days, const char *strategy) {
+  if (days < 0) {
+    dError("invalid days value:%d, must be >= 0", days);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (strategy == NULL || strategy[0] == '\0') {
+    dError("invalid strategy, strategy is empty");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Validate strategy value
+  if (strcmp(strategy, "ALARM") != 0) {
+    dWarn("unknown strategy:%s, supported values: ALARM. Will use it anyway.", strategy);
+  }
+
+  // Update global variables directly
+  tsKeyExpirationDays = days;
+  tstrncpy(tsKeyExpirationStrategy, strategy, sizeof(tsKeyExpirationStrategy));
+
+  dInfo("successfully updated key expiration config: days=%d, strategy=%s", days, strategy);
+  return 0;
+}
+
 static int32_t dmUpdateDbKey(const char *newKey) {
   if (newKey == NULL || newKey[0] == '\0') {
     dError("invalid new DB_KEY, key is empty");
@@ -1460,6 +1483,41 @@ _exit:
   return code;
 #else
   dError("encryption key management is only available in enterprise edition");
+  pMsg->code = TSDB_CODE_OPS_NOT_SUPPORT;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+int32_t dmProcessAlterKeyExpirationReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+  int32_t                 code = 0;
+  SMAlterKeyExpirationReq alterReq = {0};
+  if (tDeserializeSMAlterKeyExpirationReq(pMsg->pCont, pMsg->contLen, &alterReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    dError("failed to deserialize alter key expiration req, since %s", tstrerror(code));
+    goto _exit;
+  }
+
+  dInfo("received alter key expiration req, days:%d, strategy:%s", alterReq.days, alterReq.strategy);
+
+  // Update key expiration configuration
+  code = dmUpdateKeyExpiration(alterReq.days, alterReq.strategy);
+  if (code == 0) {
+    dInfo("successfully updated key expiration: %d days, strategy: %s", alterReq.days, alterReq.strategy);
+  } else {
+    dError("failed to update key expiration, since %s", tstrerror(code));
+  }
+
+_exit:
+  tFreeSMAlterKeyExpirationReq(&alterReq);
+  pMsg->code = code;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+  return code;
+#else
+  dError("key expiration management is only available in enterprise edition");
   pMsg->code = TSDB_CODE_OPS_NOT_SUPPORT;
   pMsg->info.rsp = NULL;
   pMsg->info.rspLen = 0;
@@ -1756,6 +1814,7 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_ALTER_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_ALTER_KEY_EXPIRATION, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, dmPutMsgToStreamMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_RELOAD_DNODE_TLS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 

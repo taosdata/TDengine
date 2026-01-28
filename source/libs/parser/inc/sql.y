@@ -665,6 +665,7 @@ cmd ::= DROP ENCRYPT_ALGR NK_STRING(A).                                         
 /************************************************ alter encrypt key *********************************************/
 cmd ::= ALTER SYSTEM SET SVR_KEY NK_STRING(A).                                    { pCxt->pRootNode = createAlterEncryptKeyStmt(pCxt, 0, &A); }
 cmd ::= ALTER SYSTEM SET DB_KEY NK_STRING(A).                                     { pCxt->pRootNode = createAlterEncryptKeyStmt(pCxt, 1, &A); }
+cmd ::= ALTER SYSTEM SET KEY_EXPIRATION NK_INTEGER(A) DAYS STRATEGY NK_STRING(B). { pCxt->pRootNode = createAlterKeyExpirationStmt(pCxt, &A, &B); }
 /************************************************ create drop update anode ***************************************/
 cmd ::= CREATE ANODE NK_STRING(A).                                                { pCxt->pRootNode = createCreateAnodeStmt(pCxt, &A); }
 cmd ::= UPDATE ANODE NK_INTEGER(A).                                               { pCxt->pRootNode = createUpdateAnodeStmt(pCxt, &A, false); }

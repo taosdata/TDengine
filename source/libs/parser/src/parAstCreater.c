@@ -6425,6 +6425,24 @@ _err:
   return NULL;
 }
 
+SNode* createAlterKeyExpirationStmt(SAstCreateContext* pCxt, const SToken* pDays, const SToken* pStrategy) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterKeyExpirationStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_KEY_EXPIRATION_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+
+  if (NULL != pDays) {
+    pStmt->days = taosStr2Int32(pDays->z, NULL, 10);
+  }
+  if (NULL != pStrategy) {
+    (void)trimString(pStrategy->z, pStrategy->n, pStmt->strategy, sizeof(pStmt->strategy));
+  }
+
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName, SToken* pIndexName) {
   if (!checkIndexName(pCxt, pIndexName)) {
     return NULL;
