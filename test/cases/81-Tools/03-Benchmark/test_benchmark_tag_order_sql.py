@@ -87,8 +87,8 @@ class TestInsertTagOrderSql:
         self.executeAndCheck('taoc_tag_order_1', 'taosc', 1)
         self.executeAndCheck('taoc_tag_order_2', 'taosc', 0)
 
-        tdLog.success("Successfully executed")
 
-        tdLog.success("%s successfully executed" % __file__)
+
+
 
 

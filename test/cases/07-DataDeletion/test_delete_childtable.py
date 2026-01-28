@@ -239,4 +239,4 @@ class TestDeleteChildtable:
         tdDnodes.starttaosd(1)
         self.delete_data_ctb()
 
-        tdLog.success("%s successfully executed" % __file__)
+

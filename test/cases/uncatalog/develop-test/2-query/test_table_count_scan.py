@@ -248,5 +248,5 @@ class TestTableCountScan:
 
 
         tdSql.execute('drop database tbl_count')
-        tdLog.success("%s successfully executed" % __file__)
+
 

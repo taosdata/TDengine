@@ -421,5 +421,5 @@ class TestMultilevel:
         self.run_alter_disable_err_case()
         self.run_alter_disable_case()
 
-        tdLog.success("%s successfully executed" % __file__)
+
 
