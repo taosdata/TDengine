@@ -50,7 +50,7 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
 
 int32_t tNameLen(const SName* name) {
   char    tmp[12] = {0};
-  int32_t len = snprintf(tmp, sizeof(tmp) - 1, "%d", name->acctId);
+  int32_t len = snprintf(tmp, sizeof(tmp), "%d", name->acctId);
   int32_t len1 = (int32_t)strlen(name->dbname);
   int32_t len2 = (int32_t)strlen(name->tname);
 
