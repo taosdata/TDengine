@@ -182,6 +182,8 @@ extern "C" {
 
 #ifndef TSDB_COL_NAME_LEN
 #define TSDB_COL_NAME_LEN               65
+#endif
+
 #ifndef TSDB_MAX_ALLOWED_SQL_LEN
 #define TSDB_MAX_ALLOWED_SQL_LEN        (1*1024*1024u) /* sql length should be less than 1mb */
 #endif

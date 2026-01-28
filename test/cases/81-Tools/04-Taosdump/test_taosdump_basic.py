@@ -223,7 +223,13 @@ class TestTaosdumpBasic:
         dbresult = tdSql.queryResult
         print(dbresult)
         for i in range(len(dbresult)):
-            assert (dbresult[i][0] == "t1") or (dbresult[i][0] == "t2") or (dbresult[i][0] == "vt1")
+            assert (dbresult[i][0] == "t1") or (dbresult[i][0] == "t2")
+
+        tdSql.query("show vtables")
+        tdSql.checkRows(1)
+        dbresult = tdSql.queryResult
+        print(dbresult)
+        assert dbresult[0][0] == "vt1"
 
         tdSql.query("select * from t1")
         tdSql.checkRows(100)
